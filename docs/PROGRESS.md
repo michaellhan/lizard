@@ -609,6 +609,11 @@ Untouched. Memory stayed at 57–65% free; every check ran under `nice`.
   `app/DbNotice.test.tsx` (an older tab's connection: the notice, then the upgrade once it closes; a newer tab's
   upgrade: this tab closes, says so, and keeps nothing). Old tabs still running the version-2 code can't be fixed
   after the fact; the notice tells the user to close them.
+- Deployed as `74eb296` (run 41657468459, `index-DSV4qKWd.js`); live, the Saved page still showed "…" and no notice:
+  this tab's open was queued behind another context's own waiting upgrade, and a queued open hears no `blocked`
+  event. So the notice now also shows when opening takes more than 3 seconds (`DB_WAIT_NOTICE_MS`); test
+  `app/DbNotice.queued.test.tsx` (an old tab's connection, another tab's upgrade waiting on it, this tab's open
+  queued behind: no event, the notice after 3 s, then the upgrade and this open once the old tab closes).
 
 ### Next
 

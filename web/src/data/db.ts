@@ -96,7 +96,8 @@ export function openLizardDB(version: number = DB_VERSION, name: string = DB_NAM
 }
 
 /** The shared connection's state, for the notice in the page (app/DbNotice.tsx): "waiting", an older Lizard tab
- * keeps the database at its version so this one's upgrade waits (until that tab closes or reloads); "replaced", a
+ * keeps the database at its version so this one's upgrade waits (until that tab closes or reloads), or the open has
+ * taken longer than DB_WAIT_NOTICE_MS (queued behind another tab's waiting upgrade); "replaced", a
  * newer Lizard in another tab upgraded the database, so this tab stepped aside and keeps nothing until reloaded. */
 export type DbState = "ok" | "waiting" | "replaced";
 let state: DbState = "ok";
@@ -113,6 +114,8 @@ export function onDbState(f: () => void): () => void {
 }
 
 let dbP: Promise<IDBPDatabase<LizardDB>> | null = null;
+/** how long an open may take before the page says another tab is holding the database */
+export const DB_WAIT_NOTICE_MS = 3000;
 
 /** The app's shared connection (null where IndexedDB is unavailable, e.g. some private modes, or once a newer tab
  * has taken the database over). */
@@ -131,6 +134,8 @@ export async function db(): Promise<IDBPDatabase<LizardDB> | null> {
       dbP = null;
     },
   });
+  // (an open queued behind another tab's pending upgrade hears nothing at all: after a few seconds say so too)
+  const slow = setTimeout(() => setState("waiting"), DB_WAIT_NOTICE_MS);
   try {
     const d = await dbP;
     if (state === "waiting") setState("ok");
@@ -138,6 +143,8 @@ export async function db(): Promise<IDBPDatabase<LizardDB> | null> {
   } catch {
     dbP = null;
     return null;
+  } finally {
+    clearTimeout(slow);
   }
 }
 
