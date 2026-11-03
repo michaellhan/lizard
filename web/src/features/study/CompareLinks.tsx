@@ -1,12 +1,13 @@
 // "Compare this spot" (ROADMAP Phase 8): the same spot and line with one thing changed, opened on the Compare page.
-// A tournament in chip EV; postflop (where the rake is taken), a raked pot without rake or an unraked one with 5%
-// capped at 3bb; and the table at another stack (seats with a stack of their own keep it).
+// A tournament in chip EV; preflop, the charts against the preflop solve (or the solve against the charts); postflop
+// (where the rake is taken), a raked pot without rake or an unraked one with 5% capped at 3bb; and the table at
+// another stack (seats with a stack of their own keep it).
 import { useState } from "react";
 import { Link } from "react-router";
 import { compareLink } from "@/features/compare/compare";
 import { tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { chipHand } from "./ChipCompare";
-import type { StudyHand } from "./studyState";
+import { withPf, type StudyHand } from "./studyState";
 
 const withSetup = (h: StudyHand, s: SpotSetup): StudyHand => {
   const out = { ...h };
@@ -19,7 +20,8 @@ const withSetup = (h: StudyHand, s: SpotSetup): StudyHand => {
 export function variantsOf(h: StudyHand): [string, StudyHand][] {
   const s = h.setup ?? {};
   if (s.tournament) return [["in chip EV", chipHand(h)]];
-  if (!h.board) return [];
+  // (a tournament's preflop isn't solved: the solve plays chips)
+  if (!h.board) return h.pf === "solver" ? [["against the charts", withPf(h, "charts")]] : [["against the preflop solve", withPf(h, "solver")]];
   return s.rake ? [["without rake", withSetup(h, { ...s, rake: undefined, rakeCap: undefined })]] : [["with 5% rake, capped at 3bb", withSetup(h, { ...s, rake: 5, rakeCap: 3 })]];
 }
 

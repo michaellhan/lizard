@@ -2,25 +2,45 @@
 // after the other and shown side by side: how B differs, each side's badge, a warning first when the sources differ
 // or either is approximate, the actions' frequencies and EVs, the range's totals, and per hand class the change in one
 // action's frequency (the grid) with the biggest changes listed. Opened from Study's "Compare this spot" links.
+// Preflop either side can be the charts or the preflop solve (Study's pf=solver); a game the solve doesn't hold yet is
+// said, not solved here (Study solves it on request), and one this browser solved before is handed back.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { pct } from "@/components/actions";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
 import { MAX_STACK, MIN_STACK } from "@/features/study/StudyPage";
+import { askNode, pfMinutes } from "@/features/study/pfSolve";
 import { describeLine, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
 import type { AdvisorActionStat, AdvisorResponse } from "@/solver/protocol";
 import { SolverError, type SolveResult } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
-import { biggest, diffActions, diffClasses, noiseBb, nodeWarning, sourceWarning, totalsOf, whatDiffers } from "./compare";
+import { biggest, diffActions, diffClasses, noiseBb, nodeWarning, pfSourceOf, sourceWarning, totalsOf, whatDiffers } from "./compare";
 import { bbDelta, DiffMatrix, diffLabel, points } from "./DiffMatrix";
 
 type Answer = { kind: "done"; result: SolveResult } | { kind: "error"; message: string };
 type Side = Answer | { kind: "loading" } | { kind: "waiting" };
 
 const spotWords = (h: StudyHand) =>
-  [`${h.players === 2 ? "heads-up" : `${h.players}-max`} ${h.stack}bb`, describeLine(h).join(" ") || "the first decision", ...describeSetup(h.setup)].join(" · ");
+  [
+    `${h.players === 2 ? "heads-up" : `${h.players}-max`} ${h.stack}bb`,
+    describeLine(h).join(" ") || "the first decision",
+    ...describeSetup(h.setup),
+    ...(h.pf === "solver" && !h.board ? ["preflop from the solve"] : []),
+  ].join(" · ");
+
+/** Why a side's answer can't be compared (it isn't a decision with a strategy), or null where it can. */
+export function notComparable(r: SolveResult["data"]): string | null {
+  if (r.study === "node" && r.grid) return null;
+  if (r.study === "pf_unsolved")
+    return `This game's preflop isn't solved yet (about ${pfMinutes(typeof r.estimate_s === "number" ? r.estimate_s : 60)} in your browser): open it in Study, solve it there, then come back.`;
+  if (r.study === "pf_none") return `The preflop solve doesn't take this game: ${String(r.reason ?? "")}.`;
+  if (typeof r.error === "string") return r.error;
+  if (r.study === "deal") return "Not a decision: the next card is due.";
+  if (r.study === "over") return "Not a decision: the hand is over.";
+  return "No decision to compare here.";
+}
 
 export function ComparePage() {
   const [params] = useSearchParams();
@@ -52,7 +72,8 @@ export function ComparePage() {
       for (const [which, h] of [["a", a], ["b", b]] as const) {
         try {
           const client = await getSolver();
-          set(which, { kind: "done", result: await client.solve({ state: studyRequest(h), mode, signal: ac.signal }) });
+          const result = await askNode((state) => client.solve({ state, mode, signal: ac.signal }), studyRequest(h), client.solverVersion);
+          set(which, { kind: "done", result });
         } catch (e) {
           set(which, { kind: "error", message: e instanceof SolverError && e.kind === "cancelled" ? "Stopped." : e instanceof Error ? e.message : String(e) });
         }
@@ -88,6 +109,13 @@ export function ComparePage() {
   const sa: Side = problems.length ? { kind: "waiting" } : (mine.a ?? { kind: "loading" });
   const sb: Side = problems.length || !mine.a ? { kind: "waiting" } : (mine.b ?? { kind: "loading" });
   const differs = whatDiffers(a, b);
+  // the charts against the preflop solve: the sources are what's compared
+  const bySource = pfSourceOf(a) !== null && pfSourceOf(b) !== null && pfSourceOf(a) !== pfSourceOf(b);
+  const why = (["A", "B"] as const).flatMap((n, i) => {
+    const s = i ? sb : sa;
+    const w = s.kind === "done" ? notComparable(s.result.data) : null;
+    return w ? [`${n}: ${w}`] : [];
+  });
   return (
     <div className="max-w-5xl space-y-4">
       <div>
@@ -112,7 +140,11 @@ export function ComparePage() {
               </div>
               <div className="text-xs">
                 {s.kind === "done" ? (
-                  <ProvenanceBadge p={s.result.provenance} />
+                  notComparable(s.result.data) ? (
+                    <span className="text-warn">{notComparable(s.result.data)}</span>
+                  ) : (
+                    <ProvenanceBadge p={s.result.provenance} />
+                  )
                 ) : s.kind === "loading" ? (
                   <span role="status" className="text-muted">
                     Answering…
@@ -142,12 +174,13 @@ export function ComparePage() {
           Stop
         </button>
       )}
-      {sa.kind === "done" && sb.kind === "done" && <Diff ra={sa.result} rb={sb.result} />}
+      {why.length > 0 && <p className="text-sm text-muted">Nothing compared: {why.length > 1 ? "neither side is" : `${why[0]!.slice(0, 1)} isn't`} a decision with an answer (above).</p>}
+      {sa.kind === "done" && sb.kind === "done" && !why.length && <Diff ra={sa.result} rb={sb.result} bySource={bySource} />}
     </div>
   );
 }
 
-function Diff({ ra, rb }: { ra: SolveResult; rb: SolveResult }) {
+function Diff({ ra, rb, bySource }: { ra: SolveResult; rb: SolveResult; bySource: boolean }) {
   const A: AdvisorResponse = ra.data, B: AdvisorResponse = rb.data;
   const actions = useMemo(() => diffActions(A, B), [A, B]);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -156,7 +189,7 @@ function Diff({ ra, rb }: { ra: SolveResult; rb: SolveResult }) {
   const top = useMemo(() => biggest(classes), [classes]);
   const [selected, setSelected] = useState<string | null>(null);
   const noise = noiseBb(ra.provenance, rb.provenance, A.pot_bb);
-  const warn = [sourceWarning(ra.provenance, rb.provenance), nodeWarning(A, B)].filter(Boolean);
+  const warn = [sourceWarning(ra.provenance, rb.provenance, bySource), nodeWarning(A, B)].filter(Boolean);
   const t = totalsOf(A, B);
   const quiet = (d: number | null) => d !== null && noise !== null && Math.abs(d) < noise;
   const stat = (x: AdvisorActionStat | undefined) => (x ? `${pct(x.freq)}${typeof x.ev_bb === "number" ? ` · EV ${x.ev_bb.toFixed(2)}bb` : ""}` : "not offered");

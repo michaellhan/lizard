@@ -73,7 +73,11 @@ Effort sizes are rough: **S** is a few days, **M** is one to three weeks, **L** 
 - **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** the convergence bands, the EV unit (and `colorByAction`
   removed), the 3-way display and Library links, the action filter, the hand-class and draw filters, the EQR grid
   view, the player and stack inputs, and the grading module (`web/src/grading/grade.ts`, with the thresholds below and
-  `GRADE_RULES` in words). **Still open in Phase 0:** the preflop Solver source.
+  `GRADE_RULES` in words). The preflop Solver source is done too (third session, 2026-11-03): a Charts | Solver toggle
+  in Study (`pf=solver` in the link) that asks `preflop_solve`, offers to solve a game the engine doesn't hold and runs
+  it only on Solve, in 4 s chunks with progress and Stop, and keeps finished solves in IndexedDB (`lizard-pf`, a cache
+  apart from the app's database, so no migration; `web/src/features/study/pfSolve.ts`, `PreflopSolve.tsx`), labelled
+  "Preflop solve (class-level model)". Phase 0 has nothing open.
 - **Convergence label.** The abstraction wording is done: `describe` (`web/src/solver/provenance.ts:113-127`) says "in the solved game", and "mean best-response gain" for 3- and 4-way answers. Still to do: add the classic bands (converged under 3% of the pot, fair under 10%, rough otherwise, approximate when flagged; `solver/gto/static/index.html:1932-1937`) and the target when present. Update `web/src/components/ProvenanceBadge.tsx`.
 - **Settings that do nothing.** Apply `evUnit` (bb or % of pot) in `StudyPage.tsx` action buttons and `ComboPanel.tsx`, or remove the setting. Do the same for `colorByAction` (`web/src/state/settings.ts:13-15`).
 - **3-way display.**
@@ -459,7 +463,8 @@ Moves matrix rows: all Tournament rows, and MTT.
   classes where each is worth most more, the check that classes taking both are near zero, and the rough-EV caveat.
   The one-size view (`oneSize.ts`, `OneSizePanel.tsx`; the `simple.test.js` cases ported): in Study, "One bet size" or
   "One raise size", one solve a request at Fast with progress, Stop and Continue, the best single size and what each
-  gives up. **Still open in Phase 8:** the charts against the preflop solve preset, and a picker for any two nodes.
+  gives up. The charts against the preflop solve: a preflop spot's "Compare this spot" link, the sources named as what's
+  compared. **Still open in Phase 8:** a picker for any two nodes.
 - **A compare view, `web/src/features/compare/`.**
   - Two Study requests, each with its own provenance, and a diff grid per class (frequency and EV difference).
   - Changes in the range's totals.

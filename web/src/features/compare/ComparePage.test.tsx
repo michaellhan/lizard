@@ -132,8 +132,9 @@ describe("Study's Compare this spot links", () => {
     expect(variantsOf(t).map(([l, b]) => [l, b.setup])).toEqual([["in chip EV", undefined]]);
     expect(variantsOf(A).map(([l, b]) => [l, b.setup])).toEqual([["without rake", undefined]]);
     expect(variantsOf(B).map(([l, b]) => [l, b.setup])).toEqual([["with 5% rake, capped at 3bb", { rake: 5, rakeCap: 3 }]]);
-    // preflop no rake is taken
-    expect(variantsOf(freshHand(6, 100))).toEqual([]);
+    // preflop no rake is taken: the charts against the preflop solve instead (and back)
+    expect(variantsOf(freshHand(6, 100))).toEqual([["against the preflop solve", { ...freshHand(6, 100), pf: "solver" }]]);
+    expect(variantsOf({ ...freshHand(6, 100), pf: "solver" })).toEqual([["against the charts", freshHand(6, 100)]]);
 
     render(
       <MemoryRouter>

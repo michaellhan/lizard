@@ -1742,3 +1742,66 @@ Untouched (read-only `ps`). Memory 62–66% free; everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 0, the preflop Solver source; Phase 8, the charts against the preflop solve (second session)
+
+Deploy of ab3cbb3 (the one-size view) verified live: run 41692773614 passed; `/lizard/` serves `index-DLCA7ca9.js`,
+which has the "one-size view" badge text.
+
+### Code
+
+- `web/src/features/study/pfSolve.ts` (classic `study.js` request, pfSolve, pfKeep, pfLoad): the Study request asks
+  `preflop_solve` preflop when the hand's source is the solve (`StudyHand.pf`, `pf=solver` in the link, `withPf`);
+  `askNode` hands a solve this browser kept back to the worker (`{load, iterations}`) when it answers `pf_unsolved`,
+  and drops a kept solve the worker won't take; `runPf` runs a game's solve in 4 s chunks (`{run: 4}`), its status
+  into the run, the node shown asked again after each chunk, until done or Stop (after the chunk running, so the
+  worker keeps the solve with or without shared memory), then exports it (`{export: true}`) into IndexedDB
+  `lizard-pf` (a cache apart from the app's database: no migration, never in a backup; at most 6, keyed by the solver
+  build and pf_study's game key). The bar as classic's (the measure's share of the way to the target).
+- `PreflopSolve.tsx`: the Charts | Solver toggle (Study's header, preflop only), the offer for a game the engine holds
+  no solve of (the game, about how long, "It runs only when you ask", Solve), the progress line (iterations, mbb/hand,
+  seconds, Stop, a bar), a game the solve doesn't take (its reason, "Use the charts"), and the note under a node from
+  the solve (its game, precomputed or solved earlier in this browser, iterations, mbb/hand, stalled, "Not finished:
+  the numbers can still move" with "Continue the solve", and a rough line's regret).
+- `StudyPage.tsx`: the run belongs to the page: it goes on while the page shows a preflop node of the same game under
+  the Solver source and stops (after its chunk) once it doesn't, or on leaving. Reset and New hand keep the source.
+- `provenance.ts`: "Preflop solve (class-level model)" (ROADMAP Phase 0's label), its distance in mbb/hand a seat
+  (`mbbPerHand`), "precomputed" or "solved earlier in this browser", and approximate while the solve isn't finished or
+  on a line it rarely plays (`rough`).
+- Compare: a preflop spot's "Compare this spot" link is the charts against the preflop solve (or the solve against the
+  charts); "What differs" names the preflop source; the warning says the two sources are what's compared (and which
+  side is approximate); a side that isn't a decision (a game not solved yet, one the solve doesn't take, a deal) says
+  why and nothing is compared. Compare hands kept solves back too, but never solves.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 319/319 in 53 files. New: `pfSolve.test.tsx` (9: the request and link; the bar; the badge; a run to done, refreshed after each chunk and kept, then handed back; a bad kept solve dropped; Study's offer, never started by itself, progress, the solve's node, back to the charts; Stop after the chunk, Continue; a game the solve doesn't take; Compare's words for the two sources). `ComparePage.test.tsx`: preflop variants. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver; heads-up and 3-max only, a few seconds of CPU each)
+
+- 6-max 100bb, Solver: the stored solve at once, "Preflop solve (class-level model) · precomputed · 1.07 mbb/hand from
+  equilibrium (a seat's average) · 1500 iterations", UTG raise 14.8% (EV 0.68), the EV view offered. Its "against the
+  charts" link: raise 14.8% against 18.7%, ATo 0% → 100%, KJo 0% → 100%, K8s 100% → 30%, with the two-sources warning.
+- Heads-up 100bb, Solver: the offer ("About 5 s in your browser"), nothing run until Solve; one chunk to 2,000
+  iterations, 0.09 mbb/hand, SB raise 49.6%, limp 48.6%, fold 1.8%. After a reload (a new worker) the node came back
+  from IndexedDB: "solved earlier in this browser".
+- 3-max 100bb: Stop pressed during the second chunk showed "Stopping after this chunk…" and the unfinished node as
+  approximate (1,492 iterations, 0.58 mbb/hand); that chunk then finished the solve (2,000, 0.55).
+- 375px: no overflow. No console errors from the new bundle.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 64% free; everything ran under `nice`.
+
+### Next
+
+- Phase 8, still open: a picker for any two nodes.
+- Phase 0: the classic's custom preflop raise sizes (`pf_sizes`) aren't offered yet.
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

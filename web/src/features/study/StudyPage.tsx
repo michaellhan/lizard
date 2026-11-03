@@ -23,11 +23,15 @@ import {
   randomCards,
   readCards,
   STREETS,
+  streetOf,
   studyRequest,
   toSearch,
+  withPf,
   type StudyHand,
 } from "./studyState";
 import { BuildMode, type BuildSaved } from "./BuildMode";
+import { askNode, newRun, pfGame, runPf, type PfRun } from "./pfSolve";
+import { PfNote, PfPanel, PfProgress, PreflopSource } from "./PreflopSolve";
 import { EvGapPanel } from "@/features/compare/EvGapPanel";
 import { OneSizePanel } from "@/features/compare/OneSizePanel";
 import { offersOneSize } from "@/features/compare/oneSize";
@@ -82,8 +86,64 @@ export function StudyPage() {
   const [paints] = useState(() => new Map<string, BuildSaved>());
   const evUnit = useSettings((s) => s.evUnit);
   const abortRef = useRef<AbortController | null>(null);
+  // the preflop solve run from the page (pfSolve.ts): only on its Solve button, going on while the page shows a
+  // preflop node of the same game under the Solver source, stopped (after its chunk) once it doesn't or on leaving
+  const runRef = useRef<PfRun | null>(null);
+  const [pfRun, setPfRun] = useState<PfRun | null>(null);
+  const latest = useRef({ hand, key: "", mode });
+  const game = pfGame(hand);
+  const onPf = hand.pf === "solver" && streetOf(hand) === "preflop";
 
   const requestKey = `${toSearch(hand)}|${mode}`;
+  useEffect(() => {
+    latest.current = { hand, key: requestKey, mode };
+  });
+  useEffect(() => {
+    const r = runRef.current;
+    if (r?.running && (!onPf || r.game !== game)) r.stop = true;
+  }, [game, onPf]);
+  useEffect(() => {
+    const ref = runRef;
+    return () => {
+      if (ref.current) ref.current.stop = true;
+    };
+  }, []);
+  // the node shown asked again from the solve as it is now (after each chunk)
+  const refreshPf = useCallback(async () => {
+    const { hand: h, key: k, mode: m } = latest.current;
+    if (h.pf !== "solver" || streetOf(h) !== "preflop") return;
+    try {
+      const client = await getSolver();
+      const result = await askNode((st) => client.solve({ state: st, mode: m }), studyRequest(h), client.solverVersion);
+      if (latest.current.key === k) setAnswer({ key: k, phase: { kind: "done", result } });
+    } catch {
+      // (the node's own request says what failed)
+    }
+  }, [getSolver]);
+  const startPf = () => {
+    if (runRef.current?.running) return;
+    const run = newRun(hand);
+    runRef.current = run;
+    setPfRun({ ...run });
+    void (async () => {
+      try {
+        const client = await getSolver();
+        await runPf(run, (st) => client.solve({ state: st, mode }), client.solverVersion, { onUpdate: (r) => setPfRun({ ...r }), refresh: refreshPf });
+      } catch (e) {
+        run.err = e instanceof Error ? e.message : String(e);
+        run.running = false;
+        setPfRun({ ...run });
+      }
+    })();
+  };
+  const stopPf = () => {
+    const r = runRef.current;
+    if (!r?.running) return;
+    r.stop = true;
+    setPfRun({ ...r });
+  };
+  const shownRun = onPf && pfRun?.game === game ? pfRun : null;
+  const pfRunning = Boolean(shownRun?.running);
   // a setup the engine can't be asked (a link typed or edited by hand): said, and nothing asked
   const problems = useMemo(() => setupProblems(hand.players, hand.setup), [hand]);
   const phase: Phase = problems.length
@@ -100,13 +160,19 @@ export function StudyPage() {
     void (async () => {
       try {
         const client = await getSolver();
-        const result = await client.solve({
-          state: studyRequest(hand),
-          mode,
-          progressive: true,
-          signal: ac.signal,
-          onPartial: (p) => alive && setPhase({ kind: "loading", partial: p }),
-        });
+        // (a preflop game this browser solved before, the worker no longer holding it: handed back first)
+        const result = await askNode(
+          (state) =>
+            client.solve({
+              state,
+              mode,
+              progressive: true,
+              signal: ac.signal,
+              onPartial: (p) => alive && setPhase({ kind: "loading", partial: p }),
+            }),
+          studyRequest(hand),
+          client.solverVersion,
+        );
         if (alive) setPhase({ kind: "done", result });
       } catch (e) {
         if (!alive) return;
@@ -178,8 +244,9 @@ export function StudyPage() {
           <p className="text-sm text-muted">Every hand of the player to act. The badge says where each answer comes from: a solve, the library, or the preflop charts. Click an action to play it.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
           <ModePicker modes={["fast", "accurate"]} />
-          <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(freshHand(p, st))} />
+          <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(withPf(freshHand(p, st), hand.pf ?? "charts"))} />
         </div>
       </div>
 
@@ -196,7 +263,7 @@ export function StudyPage() {
         <button type="button" onClick={onBack} disabled={!back(hand)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40">
           ← Back
         </button>
-        <button type="button" onClick={() => setHand({ ...freshHand(hand.players, hand.stack), setup: hand.setup })} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+        <button type="button" onClick={() => setHand(withPf({ ...freshHand(hand.players, hand.stack), setup: hand.setup }, hand.pf ?? "charts"))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
           Reset
         </button>
         <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" ? phase.result.provenance : undefined} />
@@ -240,7 +307,13 @@ export function StudyPage() {
         </div>
       )}
 
-      {res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} />}
+      {shownRun && (shownRun.running || shownRun.err) && <PfProgress run={shownRun} onStop={stopPf} />}
+      {res && (res.study === "pf_unsolved" || res.study === "pf_none") ? (
+        <PfPanel res={res} running={pfRunning} onSolve={startPf} onCharts={() => setHand(withPf(hand, "charts"))} />
+      ) : (
+        res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} />
+      )}
+      {res?.study === "node" && res.street === "preflop" && <PfNote res={res} running={pfRunning} onContinue={startPf} />}
       {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
         <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
       ) : null}

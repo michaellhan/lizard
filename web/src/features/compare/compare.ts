@@ -110,7 +110,14 @@ export function noiseBb(pa: Provenance, pb: Provenance, potBb: number | undefine
 }
 
 /** What to say before any difference: the two sides come from different sources, or either is approximate. */
-export function sourceWarning(pa: Provenance, pb: Provenance): string | null {
+export function sourceWarning(pa: Provenance, pb: Provenance, bySource = false): string | null {
+  if (pa.source !== pb.source && bySource) {
+    // (the charts against the preflop solve: the sources are what's compared)
+    const approx = ([["A", pa], ["B", pb]] as const).filter(([, p]) => p.approximate).map(([n, p]) => `${n} (${sourceLabel(p.source)})`);
+    return `The two sides are two sources of the same spot (A: ${sourceLabel(pa.source)}; B: ${sourceLabel(pb.source)}): the differences are theirs, not the spot's.${
+      approx.length ? ` ${approx.join(" and ")} ${approx.length > 1 ? "are" : "is"} approximate: read small differences as noise.` : ""
+    }`;
+  }
   if (pa.source !== pb.source)
     return `The two sides come from different sources (A: ${sourceLabel(pa.source)}; B: ${sourceLabel(pb.source)}), so a difference can be the source's, not the spot's.`;
   const approx = [pa.approximate && "A", pb.approximate && "B"].filter(Boolean);
@@ -124,6 +131,9 @@ export function nodeWarning(a: AdvisorResponse, b: AdvisorResponse): string | nu
   return `The two answers are for different spots (A: ${a.actor ?? "?"} on the ${a.street ?? "?"}; B: ${b.actor ?? "?"} on the ${b.street ?? "?"}); their hand classes are compared all the same.`;
 }
 
+/** Preflop's source for a preflop spot ("the charts", "the preflop solve"); null after the flop, where it isn't asked. */
+export const pfSourceOf = (h: StudyHand): string | null => (h.board ? null : h.pf === "solver" ? "the preflop solve" : "the charts");
+
 /** How spot B differs from spot A, in words ("stack 100bb → 50bb", "B drops: rake 5%"). */
 export function whatDiffers(a: StudyHand, b: StudyHand): string[] {
   const out: string[] = [];
@@ -131,6 +141,8 @@ export function whatDiffers(a: StudyHand, b: StudyHand): string[] {
   if (a.stack !== b.stack) out.push(`stack ${a.stack}bb → ${b.stack}bb`);
   const la = describeLine(a).join(" "), lb = describeLine(b).join(" ");
   if (la !== lb) out.push(`line ${la || "(the start)"} → ${lb || "(the start)"}`);
+  const pfA = pfSourceOf(a), pfB = pfSourceOf(b);
+  if (pfA && pfB && pfA !== pfB) out.push(`preflop source ${pfA} → ${pfB}`);
   const sa = describeSetup(a.setup), sb = describeSetup(b.setup);
   const drops = sa.filter((x) => !sb.includes(x)), adds = sb.filter((x) => !sa.includes(x));
   if (drops.length) out.push(`B drops: ${drops.join(" · ")}`);

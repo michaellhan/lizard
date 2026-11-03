@@ -104,9 +104,27 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (typeof approx?.label === "string") p.approximateLabel = approx.label;
   else if (borrowed !== null) p.approximateLabel = `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
   if (r.multiway) p.multiway = true;
+  if (source === "preflop-solve") preflopSolveOf(r, p);
   const tm = tournamentModelOf(r, source);
   if (tm) p.tournament = tm;
   return p;
+}
+
+/** A preflop solve's node (pf_study.Solve.node): its distance in mbb/hand a seat, where its solve came from, and
+ * approximate while the solve isn't finished or on a line it rarely or never plays (its "rough"). */
+function preflopSolveOf(r: AdvisorResponse, p: Provenance): void {
+  const st = (typeof r.pf_solve === "object" && r.pf_solve ? r.pf_solve : {}) as { mbb?: unknown; done?: unknown; stored?: unknown; cached?: unknown };
+  if (typeof st.mbb === "number") p.mbbPerHand = st.mbb;
+  if (st.cached) p.view = "solved earlier in this browser";
+  else if (st.stored) p.view = "precomputed";
+  if (r.study !== "node") return;
+  if (!st.done) {
+    p.approximate = true;
+    p.approximateLabel = "the solve isn't finished: the numbers can still move";
+  } else if (r.rough) {
+    p.approximate = true;
+    p.approximateLabel = `a line the solve rarely plays (the range gives up ${typeof r.regret_bb === "number" ? r.regret_bb.toFixed(3) : "?"}bb a hand to its best actions here): rough`;
+  }
 }
 
 /** What a tournament answer's numbers are in (ROADMAP Phase 7), from the engine's `tournament` block and notes: a
@@ -153,7 +171,7 @@ const LABELS: Record<ResultSource, string> = {
   instant: "Answer at once",
   live: "Live solve",
   charts: "Preflop charts",
-  "preflop-solve": "Preflop solve",
+  "preflop-solve": "Preflop solve (class-level model)",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
   unknown: "Unlabelled",
@@ -175,6 +193,7 @@ export function describe(p: Provenance): string {
     const band = p.band ? ` (${p.band}${p.band === "approximate" && p.targetPct !== undefined ? `, target ${p.targetPct}%` : ""})` : "";
     parts.push(`${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
   }
+  if (p.mbbPerHand !== undefined) parts.push(`${p.mbbPerHand.toFixed(2)} mbb/hand from equilibrium (a seat's average)`);
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);
   if (p.partial) parts.push("in progress");
   else if (p.approximate) parts.push("approximate");

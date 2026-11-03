@@ -19,6 +19,8 @@ export interface StudyHand {
   river: AdvisorAction[];
   /** a spot of your own (the Solve page): per-seat stacks, sizes, rake, ante, straddle, ranges */
   setup?: SpotSetup;
+  /** preflop's source: the charts (the default, the advice's) or the engine's class-level solve of the game (pfSolve.ts) */
+  pf?: "solver";
 }
 
 export function freshHand(players = 6, stack = 100): StudyHand {
@@ -30,9 +32,28 @@ export function streetOf(h: Pick<StudyHand, "board">): Street {
   return n >= 5 ? "river" : n === 4 ? "turn" : n === 3 ? "flop" : "preflop";
 }
 
-/** The Advisor request for the node: Study mode, at equilibrium, no hero cards. */
+/** The Advisor request for the node: Study mode, at equilibrium, no hero cards; preflop with the Solver source, the
+ * preflop solve's node ("preflop_solve", as study.js request). */
 export function studyRequest(h: StudyHand): AdvisorState {
-  return { players: h.players, stack: h.stack, board: h.board, preflop: h.preflop, flop: h.flop, turn: h.turn, river: h.river, ...setupRequest(h.setup, h.players), study: true };
+  return {
+    players: h.players,
+    stack: h.stack,
+    board: h.board,
+    preflop: h.preflop,
+    flop: h.flop,
+    turn: h.turn,
+    river: h.river,
+    ...setupRequest(h.setup, h.players),
+    study: true,
+    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true } : {}),
+  };
+}
+
+/** The hand with preflop's source set: the charts (no `pf`) or the Solver source (kept in the URL as pf=solver). */
+export function withPf(h: StudyHand, v: "charts" | "solver"): StudyHand {
+  const rest = { ...h };
+  delete rest.pf;
+  return v === "solver" ? { ...rest, pf: "solver" } : rest;
 }
 
 /** The hand after the actor takes one of the node's actions. */
@@ -120,6 +141,7 @@ export function toSearch(h: StudyHand): string {
   if (h.board) q.set("b", h.board);
   for (const st of ["flop", "turn", "river"] as const) if (h[st].length) q.set(st, encodeLine(h[st]));
   setupToParams(h.setup, q);
+  if (h.pf === "solver") q.set("pf", "solver");
   return q.toString();
 }
 
@@ -143,6 +165,7 @@ export function fromSearch(search: string): StudyHand | null {
     turn: parseLine(q.get("turn") ?? ""),
     river: parseLine(q.get("river") ?? ""),
     ...(setup ? { setup } : {}),
+    ...(q.get("pf") === "solver" ? { pf: "solver" as const } : {}),
   };
 }
 
