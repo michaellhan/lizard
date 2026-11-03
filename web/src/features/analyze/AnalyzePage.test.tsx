@@ -386,4 +386,23 @@ describe("AnalyzePage", () => {
     d.close();
     expect(kept).toEqual([rec("c1", { state, source: "table", tags: ["classic"], note: "bet small" }), rec("c2", { state: { ...state, cards: [null, null, null, null, null, null, null] } })]);
   });
+
+  it("opens one hand after another and closes it where scrolling returns a promise (Chrome)", async () => {
+    const scroll = vi.fn(() => Promise.resolve());
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    Object.defineProperty(Element.prototype, "scrollIntoView", { value: scroll, configurable: true });
+    try {
+      open();
+      await waitFor(() => expect(handRows()).toHaveLength(3));
+      fireEvent.click(within(handRows()[0]!).getByRole("button", { name: "Open" }));
+      fireEvent.click(within(handRows()[1]!).getByRole("button", { name: "Open" }));
+      fireEvent.click(within(screen.getByRole("region", { name: "Hand" })).getByRole("button", { name: "Close" }));
+      await waitFor(() => expect(screen.queryByRole("region", { name: "Hand" })).toBeNull());
+      expect(scroll).toHaveBeenCalledTimes(2);
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+      errors.mockRestore();
+    }
+  });
 });

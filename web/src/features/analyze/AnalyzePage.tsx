@@ -548,8 +548,11 @@ function HandsTable({
 function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onSaved: (h: HandRecord) => void; onClose: () => void }) {
   const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
-  // (opened from the table below it: brought into view)
-  useEffect(() => box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }), [hand.id]);
+  // (opened from the table below it: brought into view; nothing returned, as Chrome's scrollIntoView returns a promise
+  // that React would take for the effect's cleanup)
+  useEffect(() => {
+    box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [hand.id]);
   const r = useMemo((): ReplayedHand | string => {
     try {
       return importHand(hand.text);
