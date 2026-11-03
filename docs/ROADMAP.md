@@ -416,8 +416,9 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   call an all-in), and a 15%-paid curve preset for the players left (`paidCurve`).
   Analyze: a tournament hand's decisions each have a "with prizes" link to the Tournaments page (the same line, stacks
   and ante; a hand history has no prizes left, so they're typed there); its own Study links and grades stay in chips.
-  **Still open in Phase 7:** a per-hand ICM vs chip diff, a satellite-aware preflop (push/fold covers only all-ins), and
-  tournaments in Practice.
+  ICM against chips per hand class: "Compare with chip EV" links to the Compare page (tournament A, chips B, each class's
+  change), and a chip answer's push/fold all-in is named on its badge ("push/fold equilibrium in chips").
+  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins), and tournaments in Practice.
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).

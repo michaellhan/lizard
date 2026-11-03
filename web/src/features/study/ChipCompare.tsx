@@ -3,8 +3,10 @@
 // actions side by side over the whole range, each with its own badge. The engine gives prize-equity EVs as chips worth
 // as much, so the two EVs are in the same unit.
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
+import { compareLink } from "@/features/compare/compare";
 import { tidySetup } from "@/features/solve/setup";
 import type { SolverClient } from "@/solver/client";
 import type { AdvisorResponse } from "@/solver/protocol";
@@ -117,6 +119,12 @@ export function ChipCompare({
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted">Chip EV</span> <ProvenanceBadge p={state.result.provenance} />
       </div>
+      <p>
+        <Link to={compareLink(hand, chipHand(hand))} className="underline hover:text-text">
+          Every hand class, prize equity against chips
+        </Link>{" "}
+        <span className="text-muted">(Compare: each class's change in frequency and EV)</span>
+      </p>
     </section>
   );
 }

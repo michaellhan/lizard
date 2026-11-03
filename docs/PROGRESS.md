@@ -1905,3 +1905,51 @@ Untouched (read-only `ps`). Memory 65% free; everything ran under `nice`.
 - Phase 0: the classic's custom preflop raise sizes (`pf_sizes`) aren't offered yet.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 7, ICM against chips per hand class (second session)
+
+Deploy of 623d0d6 (the bubble factor table) verified live: run 41697863085 passed; `/lizard/` serves
+`index-BpW6obm5.js`, which has "Bubble factors, every pair", "Equity to call" and "15% paid".
+
+### What was already there, and what was missing
+
+A tournament decision's "in chip EV" link (Phase 8's Compare) already diffs every hand class, prize equity against
+chips. Checked now in a browser for the first time on a tournament: 6-max 10bb paying 50/30/20, UTG all-in 16.2%
+against 16.3%. Two gaps: the chip side's badge said only "Preflop charts" though its all-in is the push/fold
+equilibrium in chips (the engine's `_push` runs in both; only the tournament side was named), so the page looked like
+an equilibrium against a chart; and Study's own "Compare with chip EV" panel didn't lead to the per-class view.
+
+### Code
+
+- `provenance.ts`: a chip answer whose own all-in comes from the push/fold equilibrium (the engine's note "all-in,
+  range from the push/fold equilibrium") is labelled "push/fold equilibrium in chips" (`view`); a jammer's range
+  note when facing a jam isn't.
+- `ChipCompare.tsx`: "Every hand class, prize equity against chips" links to `/compare` with the tournament as A
+  and chips as B.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 331/331 in 54 files (`provenance.test.ts`: the chip push/fold label, and none for a jammer's range note; `StudyPage.test.tsx`: the link's two sides, payouts on A, none on B with the stacks and ante kept). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- `/compare` for 6-max 10bb, 50/30/20 against chips: "Preflop charts · push/fold equilibrium in prize equity ·
+  approximate" against "Preflop charts · push/fold equilibrium in chips · approximate"; the classes that move most
+  are near the edge (A2s 97.5% → 1.8%, Q9s 0% → 85%).
+- Study, the same spot: "Compare with chip EV" (all-in 16.2% against 16.3%) and its new link to that comparison.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 65% free; everything ran under `nice`.
+
+### Next
+
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+- Phase 8, still open: a comparison of two size menus.
+- Phase 0: the classic's custom preflop raise sizes (`pf_sizes`) aren't offered yet.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

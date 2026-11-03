@@ -292,6 +292,10 @@ describe("StudyPage", () => {
     expect(rows).toEqual(["CO, whole rangePrize equityChip EV", "check80.0% · EV 1.5055.0% · EV 2.10", "bet 33%20.0% · EV 1.40–", "bet 75%–45.0% · EV 2.30"]);
     expect(table).toHaveTextContent("EVs in bb; prize equity's as chips worth as much.");
     expect(within(table).getAllByText(/^Live solve/)).toHaveLength(2);
+    // per hand class: the Compare page, the tournament as A and chips as B
+    const per = new URLSearchParams(within(table).getByRole("link", { name: "Every hand class, prize equity against chips" }).getAttribute("href")!.split("?")[1]);
+    expect(fromSearch(per.get("a")!)!.setup?.tournament?.payouts).toEqual([50, 30, 20]);
+    expect(fromSearch(per.get("b")!)!.setup).toEqual({ stacks: { CO: 8 }, ante: 0.1 });
   });
 
   it("links the spot to Compare with one thing changed, on a decision only", async () => {

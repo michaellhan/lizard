@@ -107,6 +107,9 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (source === "preflop-solve") preflopSolveOf(r, p);
   const tm = tournamentModelOf(r, source);
   if (tm) p.tournament = tm;
+  // a chip answer whose own all-in is the push/fold equilibrium (a stack a raise commits; advisor.py _push): said, so
+  // it isn't read as a chart's mix, nor taken for another model beside a tournament's push/fold
+  else if (source === "charts" && (r.notes ?? []).some((n) => n.includes("all-in, range from the push/fold equilibrium"))) p.view = "push/fold equilibrium in chips";
   return p;
 }
 

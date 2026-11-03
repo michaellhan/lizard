@@ -157,7 +157,10 @@ describe("provenance", () => {
     );
     const wta = { ...ICM, note: "tournament: winner-take-all (prize equity is chips), BB's equity 40.0% of the prize pool left", bounties: { format: "ko" } };
     expect(provenanceOf({ street: "flop", tournament: wta, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (winner takes all: chips are prizes), KO bounties, proportional model");
-    // a cash answer has none
+    // a cash answer has none; a chip answer's own all-in from the push/fold equilibrium says so
     expect(provenanceOf({ street: "flop", solver: { iterations: 300 } }, ctx).tournament).toBeUndefined();
+    const chipJam = provenanceOf({ street: "preflop", notes: ["a raise here commits too much of a 10bb stack: all-in, range from the push/fold equilibrium against 5 players"] }, ctx);
+    expect(describeProvenance(chipJam)).toBe("Preflop charts · push/fold equilibrium in chips · approximate");
+    expect(provenanceOf({ street: "preflop", notes: ["BTN's 10bb jam range: push/fold equilibrium against 2"] }, ctx).view).toBeUndefined();
   });
 });

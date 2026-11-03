@@ -47,7 +47,8 @@ export interface Provenance {
   /** a tournament answer: the model its numbers are in (provenance.ts tournamentModelOf) */
   tournament?: string;
   /** a view built from several solves (the one-size view): what they were (provenance.ts oneSizeProvenance); the
-   * preflop solve's own state (precomputed, solved earlier in this browser) */
+   * preflop solve's own state (precomputed, solved earlier in this browser); a chip answer's all-in from the push/fold
+   * equilibrium */
   view?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */
   mbbPerHand?: number;
