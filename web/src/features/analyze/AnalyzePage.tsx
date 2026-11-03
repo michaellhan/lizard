@@ -16,6 +16,8 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
 import { filesName, hhFiles, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
 import { decisionNote, GradePanel, GradeReport } from "./GradingPanel";
+import { leakParam, parseLeakParam } from "./leakDrill";
+import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
 
@@ -67,6 +69,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
     });
 
   const id = params.get("hand");
+  const drill = parseLeakParam(params.get("drill"));
   const open = id ? hands?.find((h) => h.id === id) : undefined;
   const set = (o: Record<string, string | null>) =>
     setParams(
@@ -92,6 +95,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       <ImportPanel onImported={reload} />
       {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
       {hands && hands.length > 0 && <GradePanel hands={hands} decisions={decisions} onGraded={onGraded} />}
+      {hands && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={hands} onClose={() => set({ drill: null })} />}
       {hands && <GradeReport decisions={decisions} hands={hands} />}
       {open && <HandDetail hand={open} decisions={decisions.filter((d) => d.handId === open.id)} onClose={() => set({ hand: null })} />}
       {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}

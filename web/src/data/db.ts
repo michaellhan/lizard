@@ -258,6 +258,12 @@ export async function putSession(s: SessionRecord): Promise<void> {
   if (d) await d.put("sessions", s);
 }
 
+/** One session by its id. */
+export async function getSession(id: string): Promise<SessionRecord | undefined> {
+  const d = await db();
+  return d ? d.get("sessions", id) : undefined;
+}
+
 /** The latest sessions of a kind, newest first. */
 export async function recentSessions(kind: SessionRecord["kind"], limit = 10): Promise<SessionRecord[]> {
   const d = await db();

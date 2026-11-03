@@ -177,6 +177,51 @@ describe("AnalyzePage", () => {
     expect(within(screen.getByRole("region", { name: "Hand" })).queryByLabelText("Grade of flop decision 2")).toBeNull();
   });
 
+  it("drills a leak's decisions against the kept answer, and resumes the drill where it was left", async () => {
+    const first = open();
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    const panel = screen.getByRole("region", { name: "Grading" });
+    fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
+    expect(await within(panel).findByText(/^Done: 9 decisions graded in this run\.$/)).toBeInTheDocument();
+    first.unmount();
+
+    const q = `drill=${encodeURIComponent("spot:SRP · IP · checked to")}`;
+    // (opened with a filter set: the drill's links keep it)
+    const view = open(`pos=BTN&${q}`);
+    const drill = await screen.findByRole("region", { name: "Leak drill" });
+    expect(within(drill).getByRole("heading", { name: "Drill: SRP · IP · checked to" })).toBeInTheDocument();
+    expect(await within(drill).findByLabelText("Drill score")).toHaveTextContent("0 of 1 drilled.");
+    expect(drill).toHaveTextContent("Decision 1 of 1 · SRP · IP · checked to · PokerStars hand #249012345678");
+    expect(within(drill).getByRole("list", { name: "The action before" })).toHaveTextContent("flopBB checks");
+    const options = within(drill).getByRole("group", { name: "Your options" });
+    expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["check", "bet 33%", "bet 75%"]);
+    fireEvent.click(within(options).getByRole("button", { name: "bet 33%" }));
+    const answer = within(drill).getByLabelText("Answer");
+    expect(answer).toHaveTextContent("Mistake0.12bb lost (2.2% of the pot)");
+    expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("bet 75%43%3.12bb");
+    expect(answer).toHaveTextContent("In the hand you played bet 1.8");
+    expect(answer).toHaveTextContent("From Precomputed solution · srp_btn_bb.");
+    expect(within(answer).getByRole("link", { name: "Open in Study" }).getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax$/);
+    const handHref = within(answer).getByRole("link", { name: "Open the hand" }).getAttribute("href")!;
+    expect([...new URLSearchParams(handHref.split("?")[1])]).toEqual([["pos", "BTN"], ["drill", "spot:SRP · IP · checked to"], ["hand", "PokerStars|249012345678|AhQd"]]);
+    expect(within(drill).getByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled: 0 in the mix (0%), 0.12bb lost over 1 graded by EV.");
+    fireEvent.click(within(drill).getByRole("button", { name: "Finish" }));
+    expect(within(drill).getByRole("status")).toHaveTextContent("Every decision of this leak is drilled.");
+    view.unmount();
+
+    // opened again: where it was left (the progress is kept as a session), and started over from there
+    open(q);
+    const again = await screen.findByRole("region", { name: "Leak drill" });
+    expect(await within(again).findByRole("status")).toHaveTextContent("Every decision of this leak is drilled.");
+    expect(within(again).getByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled: 0 in the mix (0%)");
+    fireEvent.click(within(again).getByRole("button", { name: "Start over" }));
+    expect(within(again).getByLabelText("Drill score")).toHaveTextContent("0 of 1 drilled.");
+    expect(within(again).getByRole("group", { name: "Your options" })).toBeInTheDocument();
+    fireEvent.click(within(again).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "Leak drill" })).toBeNull();
+    expect(screen.getByTestId("where").textContent).toBe("/analyze");
+  });
+
   it("lists the first hands of many, and deletes an import with its hands", async () => {
     open("", 3);
     await waitFor(() => expect(handRows()).toHaveLength(3));

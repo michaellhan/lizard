@@ -794,5 +794,57 @@ Untouched. Memory stayed at 65–67% free; every check ran under `nice`.
 
 - Turn and river grading: a live solve per decision (or the classic's Quick triage) through the same queue, in the
   user's browser; with a time estimate and the queue yielding to Study and Practice.
-- Report filters (seat, pot type, EV lost) and "Drill this leak" (a drill set from a leak's decisions).
+- Report filters (seat, pot type, EV lost) and "Drill this leak" (a drill set from a leak's decisions): the drill
+  is done, see below.
 - Still open in Phase 5: saved drills, saved hands from Practice, the classic `gto-store` import, a backup prompt.
+
+### Deploy of `31a014f`, checked live
+
+Deploy run 41666533441 passed. `/lizard/analyze/` serves the new bundle: its intro says preflop and flop decisions
+can be graded against the charts and the library, turns and rivers not yet.
+
+## 2026-11-03: Phase 2, "Drill this leak" (second session)
+
+Phase 6's flow ends "create drill -> save and resume"; this is that step for the analyzer's leaks.
+
+### Code
+
+- `web/src/features/analyze/leakDrill.ts`: the leak in the URL (`?drill=pf:RFI`, `freq:…`, `spot:…`), the
+  decisions to drill (graded ones whose mix is kept, in hands still kept; misses first, then the most EV lost, the
+  rarest in the answer, the newest), the action before each decision, a pick graded on `grade.ts` against the kept
+  mix (by EV where every action has one, else by frequency), and the progress as an `analysis` session
+  (`leak-drill|<leak>`). Nothing is asked of the solver.
+- `web/src/features/analyze/LeakDrillPanel.tsx`: the drill above the report: your seat, cards and board, the action
+  before, your options; after a pick its grade, the answer's table, what you played in the hand and its grade, the
+  provenance ("From the preflop charts, by frequency (not a solve)" or the library entry), "Open in Study" and
+  "Open the hand". Score, Start over, Close. Each pick is saved; opening the leak again resumes.
+- `GradingPanel.tsx`: "Drill this leak" on each leak; its link and the drill's hand link keep the page's other
+  params (filters, the open hand). `data/db.ts`: `getSession`.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 224/224 in 38 files. New: `features/analyze/leakDrill.test.ts` (the URL param, the order and what's left out, the action before on the fixture, a pick graded by EV and by frequency, the session round trip), a drill case in `AnalyzePage.test.tsx` (graded with the stubbed solver, the flop leak's drill from the URL: options, a Mistake losing 0.12bb (2.2% of the pot), the answer's table, provenance, Study and hand links keeping a filter; remounted: resumed with everything drilled; Start over; Close) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the 41 graded hands)
+
+- The report's two leaks (RFI 76% in the mix, Open (RFI)) each link to their drill; with `?pos=HJ` set the link
+  keeps it.
+- RFI drill: 21 decisions, misses first (HJ 8♦9♠, an open the charts fold: fold graded Best, the hand's raise shown
+  as its Mistake, "From the preflop charts, by frequency (not a solve)"). The pick was saved as the
+  `leak-drill|pf:RFI` session; after a reload the drill resumed at decision 2 of 21.
+- "Open the hand" opens that hand with the drill kept. 375px: no page overflow. No console errors.
+
+### Precompute builds
+
+Untouched. Memory 65–66% free; every check ran under `nice`.
+
+### Next
+
+- Turn and river grading through the same queue (live solves or Quick triage, in the user's browser).
+- Report filters (seat, pot type, EV lost) and a history across sessions.
+- Phase 5: named drills and a drill list (the leak drills are kept as sessions already), saved hands from Practice,
+  the classic `gto-store` import, a backup prompt.

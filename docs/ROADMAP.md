@@ -175,8 +175,10 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 > solve nothing (preflop against the charts by frequency, flops from the library by EV; `features/analyze/grading.ts`)
 > in a queue that stops and resumes, each grade on its move with its provenance, and the report (`report.ts`: by
 > street, situation and spot, the classic leaks and frequency table, the most EV lost, off the chart, CSV and JSON).
+> "Drill this leak" (`leakDrill.ts`, `LeakDrillPanel.tsx`): a leak's decisions dealt again, misses first, graded
+> against the mix kept with each grade (nothing solved), the progress kept as an `analysis` session that resumes.
 > Still open: turns and rivers (live solves, or the classic's Quick triage, through the same queue), report filters
-> and a history across sessions, "Drill this leak", a dropped folder.
+> and a history across sessions, a dropped folder.
 
 **Goal.** Let users import their own hand histories, see each decision graded, and find leaks. Everything stays in the browser.
 

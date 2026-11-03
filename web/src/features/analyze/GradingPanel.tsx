@@ -3,7 +3,7 @@
 // (report.ts): the grades, the leaks, the frequencies against the answer's, the decisions that lost the most, and
 // CSV and JSON export. Every number says what it stands on: the charts (by frequency, not a solve) or the library.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { clearDecisions, putDecisions } from "@/data/hands";
@@ -11,6 +11,7 @@ import type { Verdict } from "@/grading/grade";
 import { useRuntime } from "@/solver/runtime";
 import { useSolver } from "@/solver/useSolver";
 import { SCOPES, gradeHands, type GradeScope } from "./grading";
+import { leakParam, withParams } from "./leakDrill";
 import { isGraded, leakTest, report, toCSV, toJSON, VERDICTS, type Group, type Leak } from "./report";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
@@ -136,6 +137,7 @@ export function GradeReport({ decisions, hands }: { decisions: DecisionRecord[];
   const ds = useMemo(() => decisions.filter((d) => byId.has(d.handId)), [decisions, byId]);
   const rp = useMemo(() => report(ds), [ds]);
   const [leak, setLeak] = useState<Leak | null>(null);
+  const [params] = useSearchParams();
   if (!ds.length) return null;
   const a = rp.all;
   const download = (name: string, text: string, type: string) => {
@@ -204,6 +206,9 @@ export function GradeReport({ decisions, hands }: { decisions: DecisionRecord[];
                 <button type="button" onClick={() => setLeak(leak?.key === l.key && leak.kind === l.kind ? null : l)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
                   {leak?.key === l.key && leak.kind === l.kind ? "Hide" : "Show"} its decisions
                 </button>
+                <Link to={withParams(params, { drill: leakParam(l) })} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
+                  Drill this leak
+                </Link>
               </li>
             ))}
           </ul>
