@@ -1,0 +1,67 @@
+# Check, build and publish Lizard to GitHub Pages. This repo has no CNAME, so Pages serves it under the account's
+# custom domain at https://www.michael-han.com/lizard/ (the homepage, /gto-solver/ and /gto-solver-library/ are other
+# repos and are not touched). The precomputed library is a separate repo (scripts/library/publish.sh).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python dependencies (the solver bundle and its quick tests)
+        run: python -m pip install --disable-pip-version-check numpy==2.0.2 treys==0.1.8
+      - run: npm ci
+      - name: Typecheck, lint, unit tests
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+      - name: Library assembler tests
+        run: python -m unittest discover -s scripts/library
+      - name: Solver quick tests (the ones that need neither the library nor minutes of CPU)
+        working-directory: solver
+        run: |
+          PYTHONPATH=. python -m unittest tests.test_bundle tests.test_routes
+          node --test tests/js/routes.test.js tests/js/solver_state.test.js
+      - name: Build
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: web/dist
+          retention-days: 1
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: check-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

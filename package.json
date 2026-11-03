@@ -1,0 +1,23 @@
+{
+  "name": "lizard",
+  "private": true,
+  "description": "Lizard: a poker GTO study application (solution browser, trainer, analyzer, custom solving) built on the gto-solver engine.",
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev": "node scripts/build-solver-assets.mjs && npm -w web run dev",
+    "build": "node scripts/build-solver-assets.mjs && npm -w web run build && node scripts/postbuild.mjs",
+    "preview": "npm -w web run preview",
+    "typecheck": "npm -w web run typecheck",
+    "lint": "npm -w web run lint",
+    "test": "npm -w web run test",
+    "test:solver": "cd solver && PYTHONPATH=. ../.venv/bin/python -m unittest",
+    "test:solver-js": "cd solver && node --test 'tests/js/*.test.js'",
+    "solver:assets": "node scripts/build-solver-assets.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

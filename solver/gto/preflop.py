@@ -1,0 +1,1124 @@
+"""Chart-based preflop strategy for 6-max, 100bb, no limps.
+
+These are hand-written approximations of solver outputs. Every chart is a
+weight vector over 1326 combos; fold = 1 - sum(other actions).
+"""
+from __future__ import annotations
+from typing import Dict, List, Optional, Tuple
+import numpy as np
+from .ranges import parse_range, N_COMBOS
+from .cards import COMBO_INDEX
+
+POSITIONS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]          # 6-max default
+POS_INDEX = {p: i for i, p in enumerate(POSITIONS)}
+POSTFLOP_ORDER = ["SB", "BB", "UTG", "HJ", "CO", "BTN"]
+
+# seat names in preflop acting order for each table size
+SEATS = {
+    2: ["SB", "BB"],
+    3: ["BTN", "SB", "BB"],
+    4: ["CO", "BTN", "SB", "BB"],
+    5: ["HJ", "CO", "BTN", "SB", "BB"],
+    6: ["UTG", "HJ", "CO", "BTN", "SB", "BB"],
+    7: ["UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+    8: ["UTG", "UTG1", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+    9: ["UTG", "UTG1", "UTG2", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+}
+
+
+class Table(list):
+    """Seats in seating order (SEATS), plus the game's ante (bb per player, dead money) and whether the
+    first seat straddles 2bb (it then acts last preflop and plays the big blind's charts). `rake`: the
+    game's (rate, cap in bb or None), taken from pots that see a flop; None = no rake. `depth`: the
+    effective stack in bb, which picks the short-stack charts where there are any (chart_depth). `stacks`:
+    each seat's own stack in bb when they differ (None: everyone has `depth`); the advisor's replay caps each
+    player's chips by theirs, and `depth` is then the effective stack of the player deciding. `icm`: a tournament's
+    prize model (gto/icm.py Model, stacks in bb at the start of the hand), None for chips."""
+    def __init__(self, seats, ante: float = 0.0, straddle: bool = False, rake=None, depth: float = 100.0,
+                 stacks: Optional[Dict[str, float]] = None, icm=None):
+        super().__init__(seats)
+        self.icm = icm
+        self.ante = float(ante or 0.0)
+        self.straddle = bool(straddle) and len(seats) >= 3
+        self.rake = tuple(rake) if rake and rake[0] > 0 else None
+        self.depth = float(depth)
+        self.stacks = {p: float(v) for p, v in stacks.items()} if stacks else None
+
+    def preflop_order(self) -> List[str]:
+        return list(self[1:]) + [self[0]] if self.straddle else list(self)
+
+    def posted(self) -> Dict[str, float]:
+        out = {"SB": 0.5, "BB": 1.0} if "SB" in self else {"BB": 1.0}
+        if self.straddle:
+            out[self[0]] = 2.0
+        return out
+
+
+def postflop_order(positions: List[str]) -> List[str]:
+    """First to act first. Heads-up the button (SB) acts last postflop."""
+    if len(positions) == 2:
+        return ["BB", "SB"]
+    return ["SB", "BB"] + [p for p in positions if p not in ("SB", "BB")]
+
+
+def chart_key(pos: str, positions: List[str]) -> str:
+    """Map a seat to the chart it plays. Seats with the same number of players
+    behind them play the same chart; 7+ handed early seats use the tighter EP chart."""
+    n = len(positions)
+    if n == 2:
+        return {"SB": "HU_SB", "BB": "HU_BB"}[pos]
+    if getattr(positions, "straddle", False):
+        # straddled: the straddler plays the big blind, the big blind the small blind, the small blind a
+        # middle seat; the rest by how many act behind them
+        if pos == positions[0]:
+            return "BB"
+        if pos == "BB":
+            return "SB"
+        if pos == "SB":
+            return "CO"
+        behind = len(positions) - 1 - positions.preflop_order().index(pos)
+        return {2: "BTN", 3: "CO", 4: "HJ", 5: "UTG"}.get(behind, "EP")
+    if pos in ("UTG", "UTG1") and n >= 7:
+        return "EP"
+    if pos in ("UTG2", "LJ"):
+        return "UTG"
+    return pos
+
+R = parse_range
+
+# ---------- raise first in ----------
+RFI: Dict[str, np.ndarray] = {
+    # Matched to published solver opening frequencies (6-max 100bb cash, 2.5bb opens, SB 3bb; raked):
+    # UTG (their LJ) 17.6 / 18.5 / 18.7%, HJ 22.3-23.3%, CO 29.1-30.6%, BTN 43.3-46.5%, SB raise-only
+    # 43.5%, or 42.1 + 2.9 limp, or gtopreflop.com's 43.4 + 2.3 limp (pokalab.com GG NL50, Poker
+    # Academy GG NL200, thinkgto.com/GTO Ranges+, gtopreflop.com). Hand facts from them: UTG opens 44+,
+    # 33 97%, 22 79%, suited aces to A3s, AJo and KQo, KTo 11%, QJo 12-58%; the BTN opens A4o, A3o 18%,
+    # never A2o. Here 18.7 / 22.9 / 30.0 / 45.1 / 44.7%; the earlier charts opened 16.7 / 19.4 / 27.2 /
+    # 45.6 / 50.2% (tests/preflop_refs.py, scripts/preflop_reference.py).
+    "UTG": R("44+, 33:0.95, 22:0.8, A3s+, A2s:0.4, K9s+, K8s:0.3, Q9s+, J9s+, T9s, 98s, 87s:0.4, 76s:0.4, 65s:0.4, ATo+, KJo+, KTo:0.1, QJo:0.25"),
+    "HJ": R("22+, A2s+, A9o:0.2, ATo+, K7s+, K6s:0.5, KTo+, QJo, Q8s+, J8s+, T8s+, 97s:0.3, 98s, 87s, 76s, 65s"),
+    "CO": R("22+, A2s+, A8o+, A7o:0.5, A5o:0.3, K6s+, K5s:0.5, KTo+, K9o:0.5, Q7s+, Q6s:0.5, QTo+, J7s+, JTo, T8s+, T7s:0.5, T9o:0.3, 97s+, 86s+, 76s, 75s:0.5, 65s, 54s"),
+    "BTN": R("22+, A2s+, A5o+, A4o:0.8, A3o:0.2, K2s+, K7o+, K6o:0.5, K5o:0.5, Q4s+, Q3s:0.5, Q2s:0.5, Q9o+, Q8o:0.5, J6s+, J9o+, J8o:0.5, T6s+, T9o, T8o:0.5, 96s+, 98o, 86s+, 87o:0.5, 75s+, 64s+, 54s, 53s:0.5, 43s:0.5"),
+    "SB": R("22+, A2s+, A2o+, K2s+, K8o+, K7o:0.6, Q2s+, Q9o+, J3s+, J9o+, T6s+, T9o, 96s+, 85s+, 75s+, 64s+, 54s, 53s, 43s"),
+    # 7+ handed early position (~13%)
+    "EP": R("77+, 66:0.5, 55:0.3, ATs+, A5s:0.3, A4s:0.3, KTs+, QTs+, JTs, T9s:0.5, AJo+, ATo:0.3, KQo, KJo:0.3"),
+    # heads-up button/SB open (~85%)
+    "HU_SB": R("22+, A2s+, A2o+, K2s+, K2o+, Q2s+, Q2o+, J2s+, J4o+, J3o:0.5, J2o:0.5, T2s+, T5o+, T4o:0.5, 92s+, 96o+, 95o:0.5, 82s+, 86o+, 85o:0.5, 72s+, 76o, 75o:0.5, 62s+, 65o:0.5, 52s+, 42s+, 32s:0.5"),
+}
+# heads-up big blind facing the button open (calls capped at 1 - 3bet below, so the mixed 3bets are
+# played as written)
+HU_BB_VS_SB = {
+    "3bet": R("77+, 66:0.5, A8s+, A5s-A2s:0.5, ATo+, A9o:0.5, K9s+, KJo+, QTs+, JTs, T9s:0.5"),
+    "call": R("22-66, A7s-A2s, A9o-A2o, K8s-K2s, KTo-K3o, Q5s+, Q4s:0.5, QTo-Q6o, J6s+, J5s:0.5, JTo-J7o, T6s+, T9o-T7o, 96s+, 98o, 97o, 85s+, 87o, 86o:0.5, 74s+, 76o, 75o:0.5, 64s+, 65o, 53s+, 43s, 42s:0.5"),
+}
+
+HU_BB_VS_SB["call"] = np.minimum(HU_BB_VS_SB["call"], 1.0 - HU_BB_VS_SB["3bet"])
+
+# ---------- facing a single raise ----------
+# key: (hero_pos, opener_pos) -> {"3bet": vec, "call": vec}
+def _vs_rfi_ip(early: bool) -> Dict[str, np.ndarray]:
+    if early:  # HJ/CO facing UTG/HJ
+        # Mostly 3bet or fold, matched to published solver frequencies (100bb cash, 2.5bb open): HJ
+        # against a UTG ("LJ") open folds 91.1%, calls 1.5% and 3bets 7.4% of hands, AQo 3betting 55%
+        # and folding the rest (Poker Academy, NL200 GG); CO against UTG calls 1.4-3.2% and 3bets 8-9%
+        # (GTO Wizard NL50, by rake structure, via thepokeragent.com). Here 90/2.5/7.2. The earlier
+        # chart called 8.3% and 3bet 3.4% (88/8/3).
+        return {
+            "3bet": R("QQ+, JJ:0.7, TT:0.4, 99:0.4, 88:0.2, AKs, AKo, AQs, AJs:0.7, ATs:0.6, AQo:0.55, AJo:0.4, A5s, A4s, A3s:0.7, A2s:0.3, KQs, KJs:0.4, KTs:0.3, K9s:0.2, KQo:0.4, QJs:0.4, JTs:0.3, T9s:0.3, 98s:0.3, 87s:0.2, 76s:0.2"),
+            "call": R("JJ:0.3, TT:0.6, 99:0.6, 88:0.6, 77:0.5, 66:0.4, 55:0.3, 44:0.2, 33:0.2, 22:0.2, AJs:0.3, ATs:0.4, KJs:0.4, QJs:0.4, JTs:0.4, T9s:0.3"),
+        }
+    # BTN facing UTG/HJ, CO facing HJ. gtopreflop.com's raked solve (5% capped at 4bb, the charts' rake;
+    # https://gtopreflop.com/posts/multiway-preflop-ranges) has the seats behind a LJ (6-max UTG) open
+    # cold-calling 2.1-4.6% of hands, the button 4.6%, and 3betting more often than they call. The NL500
+    # solves (0.6bb cap) flat more: BTN vs UTG 84.3/8.2/7.5 (GTO Wizard, "Playing calls from the button"),
+    # BeyondGTO (2.5bb open) CO vs HJ ~87/5/8, BTN vs HJ ~84/8/8. This chart played 85.7/9.1/5.2 (the NL500
+    # flats, fewer 3bets): now 89.1/4.5/6.4 against UTG, the weakest flats (small pairs in part, offsuit broadways,
+    # suited one-gappers) folding and AQo, TT, AJs, KQs and the wheel aces 3betting more.
+    return {  # BTN facing UTG/HJ/CO, or CO facing HJ-ish
+        "3bet": R("JJ+, TT:0.6, 99:0.2, AKs, AKo, AQs, AQo:0.6, AJs:0.6, ATs:0.3, AJo:0.2, A5s, A4s, A3s:0.6, A2s:0.2, KQs:0.6, KJs:0.4, KQo:0.2, QJs:0.2, JTs:0.2, T9s:0.2, 76s:0.3, 65s:0.3, 54s:0.2"),
+        "call": R("TT:0.4, 99:0.8, 88:0.9, 77:0.8, 66:0.7, 55:0.6, 44:0.5, 33:0.4, 22:0.4, AJs:0.4, ATs:0.7, A9s:0.2, AQo:0.3, KQs:0.4, KJs:0.5, KTs:0.4, QJs:0.6, QTs:0.3, JTs:0.6, T9s:0.5, 98s:0.4, 87s:0.3, 76s:0.2, 65s:0.2"),
+    }
+
+VS_RFI: Dict[Tuple[str, str], Dict[str, np.ndarray]] = {}
+for hero in ["HJ", "CO", "BTN"]:
+    for opener in POSITIONS[:POS_INDEX[hero]]:
+        early = hero in ("HJ", "CO") and opener in ("UTG", "HJ") and not (hero == "CO" and opener == "HJ")
+        VS_RFI[(hero, opener)] = _vs_rfi_ip(early)
+# the button against a cutoff open: 3bet or fold, matched to published solver frequencies (2.5bb
+# open, 3bet to 7.5bb, 100bb cash): fold 84.5%, call 3.0%, 3bet 12.5% of hands, with AJo 95%, KQo 84%,
+# KJs 86%, T9s 87%, 65s 85% and A8s-A3s 77-99% 3bets, TT 3betting 68% and calling 32%, ATs calling 74%
+# and AJs 54% (Poker Academy, NL200 GG); GTO Wizard has BTN against a 2.3bb CO open calling about 5%
+# and 3betting about 12% (NL500). Here 84/3/13. The earlier chart called 9.4% and 3bet 8.5% (82/9/9).
+VS_RFI[("BTN", "CO")] = {
+    "3bet": R("QQ+, JJ:0.9, TT:0.7, 99:0.5, 88:0.3, 77:0.2, AKs, AQs, AJs:0.45, ATs:0.25, A9s:0.7, A8s-A3s:0.9, A2s:0.7, AKo, AQo, AJo:0.95, ATo:0.4, KQs, KJs:0.85, KTs:0.6, K9s:0.4, KQo:0.85, KJo:0.4, QJs:0.7, QTs:0.5, JTs:0.6, T9s:0.85, 98s:0.6, 87s:0.6, 76s:0.7, 65s:0.85, 54s:0.6"),
+    "call": R("JJ:0.1, TT:0.3, 99:0.5, 88:0.6, 77:0.6, 66:0.5, 55:0.4, 44:0.3, 33:0.2, 22:0.2, AJs:0.55, ATs:0.75, A9s:0.3, KJs:0.15, KTs:0.3, QJs:0.3, QTs:0.4, JTs:0.4, T9s:0.15, 98s:0.3, 87s:0.3"),
+}
+# SB: mostly 3bet or fold, small calling range. Against an early open the flat is low frequency
+# (~2-3% of hands) but not only middling hands: published solver summaries have the SB "sometimes"
+# calling JJ and TT against early-position opens and its 3bets there mostly value (Preflop Wizard,
+# poker-small-blind-strategy), and a flat without its traps is face-up once the big blind squeezes.
+# The old chart 3bet every TT+, AJs+ and KQs, so the flat was 66-99 plus JTs-type hands and the
+# continue against a BB squeeze (the playability top-up, see CALLER_CONTINUE) was 13 combos of
+# 77-99: on an A-K-x flop the squeezer's QQ won the pot every time. Now JJ/TT/AQs/AJs/KQs flat
+# a share, and that continue holds them too.
+# Shares of hands (fold/call/3bet): vs UTG/HJ 91.7/2.7/5.5, vs CO 88.2/3.7/8.1, vs BTN 84.7/4.3/11.0
+# (gtopreflop.com's raked solve: SB vs BTN 83.7/4.7/11.5, 3bets 8.2% vs CO; the earlier chart played
+# 80.4/6.4/13.2 against both). Also published: SB vs BTN 82/5/13 (BeyondGTO, NL500, 2.5bb open); SB vs CO 86/5/9 (BeyondGTO, an
+# unnamed solver whose BTN vs CO 81/9/10 is 6 points off Poker Academy's and GTO Wizard's calls),
+# 3bet 10-13% (Preflop Wizard), blinds vs late opens 12-16% (GTO Gecko); SB vs HJ 13% and vs LJ 11%
+# defend (BeyondGTO). Left.
+for opener in ["UTG", "HJ", "CO", "BTN"]:
+    if opener in ("UTG", "HJ"):
+        VS_RFI[("SB", opener)] = {
+            "3bet": R("QQ+, JJ:0.75, TT:0.5, 99:0.4, AKs, AQs:0.7, AJs:0.6, ATs:0.5, A5s:0.7, A4s:0.5, AQo+, KQs:0.6, KJs:0.5, QJs:0.3"),
+            "call": R("JJ:0.25, TT:0.5, 99:0.6, 77-88, 66:0.5, AQs:0.3, AJs:0.4, ATs:0.5, KQs:0.4, KJs:0.5, QJs:0.5, JTs:0.7"),
+        }
+    elif opener == "CO":
+        VS_RFI[("SB", opener)] = {
+            "3bet": R("QQ+, JJ:0.8, TT:0.6, 99:0.4, 88:0.2, AKs, AQs, AJs:0.8, ATs:0.6, A9s:0.3, A5s:0.9, A4s:0.8, A3s:0.4, A2s:0.2, AKo, AQo:0.9, AJo:0.4, ATo:0.1, KQs, KJs:0.7, KTs:0.5, K9s:0.2, KQo:0.5, QJs:0.5, QTs:0.3, JTs:0.4, T9s:0.3, 98s:0.2, 87s:0.2, 76s:0.2, 65s:0.2"),
+            "call": R("JJ:0.2, TT:0.4, 99:0.5, 88:0.7, 77:0.8, 66:0.7, 55:0.6, 44:0.5, 33:0.4, 22:0.4, AJs:0.2, ATs:0.3, A9s:0.4, A8s:0.4, A7s:0.3, KJs:0.3, KTs:0.3, QJs:0.4, QTs:0.4, JTs:0.5, T9s:0.4, 98s:0.3, 87s:0.3"),
+        }
+    else:
+        VS_RFI[("SB", opener)] = {
+            "3bet": R("TT+, 99:0.7, 88:0.5, AJs+, ATs:0.8, A9s:0.6, A8s:0.2, A5s-A4s, A3s:0.7, A2s:0.5, AQo+, AJo:0.7, ATo:0.4, KQs, KJs:0.8, KTs:0.7, K9s:0.5, KQo:0.8, KJo:0.3, QJs:0.8, QTs:0.6, JTs:0.6, T9s:0.5, 98s:0.4, 87s:0.4, 76s:0.3, 65s:0.3"),
+            "call": R("99:0.3, 88:0.5, 77:0.9, 66:0.8, 55:0.7, 44:0.6, 33:0.5, 22:0.5, ATs:0.2, A9s:0.4, A8s:0.5, A7s:0.4, A6s:0.3, KJs:0.2, KTs:0.3, K9s:0.3, QJs:0.2, QTs:0.4, Q9s:0.3, JTs:0.4, J9s:0.3, T9s:0.5, T8s:0.2, 98s:0.4, 87s:0.4, 76s:0.4, 65s:0.3, KQo:0.2"),
+        }
+# Short stacks (SHORT_DEPTH, used at SHORT_MAX bb or less; see chart_depth): the small blind against a
+# CO or BTN open. The 100bb chart 3bets every suited broadway, AJo+, KQo and 88+ and flats small pairs,
+# A6s-A9s and suited connectors, which the advisor's implied-odds re-pricing then thins at 40bb (to
+# 44-66, A6s-A8s and a few others, ~45 combos), so a flat held no broadways and A9o won almost every
+# Q-high flop. Shallow, the SB's 3bet commits much of the stack and the hands just under its value
+# core flat (or jam) instead: in Poker Academy's 40bb MTT solves (9-handed, 2.3bb opens,
+# https://poker.academy/blog/post/40bb-is-it-too-big-to-3bet-all-in) the SB against a CO open folds
+# 72.6%, calls 14.4%, 3bets to 8bb 11.3% and jams 1.8% (chip EV, 1bb big-blind ante; against the BTN
+# 71.4/11.6/13.0/4.1); its jams are middling hands (JTs 100%, AQo 71%, 88 44%, KTs 42%, KJs 32%, QJs,
+# AJo, KQo, QTs), AA-QQ 3bet small, and where the tree has no jam (ICM, 20 left) JTs, KJs and KTs call
+# 100%, 88 93% and AQo 75% against the CO, and JTs, QTs, KTs, 88, 77 and 44 always against the BTN,
+# with AQo, AJo and KQo split between calling and 3betting. No cash (no-ante) 40bb solve was found;
+# the ante's dead money widens those solves' defence, so the totals here stay near the 100bb chart's
+# (fold/call/3bet 80.4/6.4/13.2 of hands), and the flats are the published ones: suited broadways,
+# 77-99, AQo/AJo/KQo, fewer small pairs and suited aces and few suited connectors. Here 81.0/6.3/12.7
+# (84 flatting combos, the 40bb re-priced 100bb chart flatted ~45); the hands that leave the 3bet go
+# to calls, and wheel aces, suited kings and offsuit aces jam more often in their place (hero's 3bet at
+# this depth is a jam from the push/fold equilibrium: Advisor._push).
+SHORT_DEPTH = 40.0
+SHORT_MAX = 70.0
+SB_VS_LATE_40 = {
+    "3bet": R("TT+, 99:0.5, 88:0.2, AKs, AQs, AJs:0.6, ATs:0.4, A9s:0.6, A8s:0.6, A7s-A6s:0.5, A5s-A2s:0.9, AKo, AQo:0.4, AJo:0.6, ATo:0.5, A9o:0.3, A8o:0.3, A5o:0.3, KQs:0.5, KJs:0.2, KTs:0.2, K9s:0.6, K8s:0.4, K7s-K5s:0.3, KQo:0.6, KJo:0.6, KTo:0.4, QJs:0.2, QTs:0.2, Q9s:0.4, Q8s:0.3, QJo:0.3, QTo:0.2, J9s:0.4, T9s:0.5, T8s:0.3, 98s:0.5, 97s:0.2, 87s:0.5, 86s:0.2, 76s:0.6, 75s:0.2, 65s:0.6, 54s:0.5"),
+    "call": R("99:0.5, 88:0.8, 77:0.8, 66:0.7, 55:0.6, 44:0.6, 33:0.3, 22:0.3, AJs:0.4, ATs:0.6, A9s:0.4, A8s:0.4, A7s:0.3, A6s:0.2, KQs:0.5, KJs:0.8, KTs:0.8, K9s:0.3, QJs:0.8, QTs:0.8, JTs:1.0, J9s:0.3, T9s:0.5, 98s:0.3, 87s:0.2, AQo:0.6, AJo:0.4, ATo:0.2, KQo:0.4, KJo:0.2"),
+}
+SHORT_CHARTS: Dict[Tuple[str, str], Dict[str, np.ndarray]] = {("SB", "CO"): SB_VS_LATE_40, ("SB", "BTN"): SB_VS_LATE_40}
+# BB
+VS_RFI[("BB", "UTG")] = {
+    "3bet": R("QQ+, JJ:0.6, AKs, AKo, AQs:0.7, AQo:0.25, AJs:0.3, A5s, A4s, A3s:0.4, A2s:0.3, KQs:0.5, KJs:0.2, QJs:0.2, T9s:0.2, 76s:0.3, 65s:0.4, 54s:0.4"),
+    "call": R("22-TT, JJ:0.6, AQs:0.5, AJs-A6s, A3s, A2s, AQo, AJo, ATo, A9o:0.5, K8s+, K7s-K2s:0.7, KQo, KJo, KTo:0.6, Q8s+, Q7s-Q6s:0.7, QJo, QTo:0.5, J8s+, J7s:0.7, JTo:0.5, T7s+, T6s:0.5, 96s+, 95s:0.5, 85s+, 84s:0.5, 74s+, 73s:0.3, 63s+, 53s+, 52s:0.3, 43s:0.6, 42s:0.3, A8o-A7o:0.5, K9o:0.5, Q9o:0.4, J9o:0.4, T9o:0.5, 98o:0.3, Q5s-Q2s:0.5, J6s-J5s:0.5"),
+}
+VS_RFI[("BB", "CO")] = {
+    "3bet": R("JJ+, TT:0.7, 99:0.2, AKs, AKo, AQs, AQo:0.7, AJs:0.7, ATs:0.4, A9s:0.2, A5s, A4s, A3s:0.8, A2s:0.6, KQs:0.8, KJs:0.5, KTs:0.3, K9s:0.3, QJs:0.4, QTs:0.2, JTs:0.4, J9s:0.2, T9s:0.4, 98s:0.3, 87s:0.3, 76s:0.5, 65s:0.5, 54s:0.5, AJo:0.2, KQo:0.4"),
+    "call": R("22-99, TT:0.5, AJs:0.5, ATs-A6s, A5s:0, A2s, AQo:0.5, AJo, ATo, A9o, A8o:0.7, A7o-A2o:0.5, K2s+, KQo:0.7, KJo, KTo, K9o, K8o:0.5, Q2s+, QJo, QTo, Q9o, Q8o:0.5, J5s+, JTo, J9o, J8o:0.5, T6s+, T9o, T8o, 95s+, 98o, 97o:0.3, 84s+, 87o:0.6, 74s+, 63s+, 53s+, 43s, 42s:0.5"),
+}
+# the big blind against a HJ open (it used the UTG chart): 3bets between the UTG and CO charts', and
+# calls halfway between theirs
+VS_RFI[("BB", "HJ")] = {
+    "3bet": R("QQ+, JJ:0.7, TT:0.3, AKs, AKo, AQs:0.8, AQo:0.4, AJs:0.5, ATs:0.3, A5s, A4s, A3s:0.6, A2s:0.4, KQs:0.6, KJs:0.4, KTs:0.2, K9s:0.2, QJs:0.3, JTs:0.2, T9s:0.3, 98s:0.2, 87s:0.3, 76s:0.4, 65s:0.5, 54s:0.5, KQo:0.15, AJo:0.1"),
+    "call": 0.5 * (VS_RFI[("BB", "UTG")]["call"] + VS_RFI[("BB", "CO")]["call"]),
+}
+# The big blind against a button open: published solves (raked) defend 40.3-41.3% and 3bet 10.6-11.5%
+# (gtopreflop.com 58.7/29.8/11.5 fold/call/3bet, Poker Academy GG NL200 59.5/29.0/11.5 and NL50
+# 59.2/30.2/10.6, pokalab NL50 folds 59.7%). This chart is unraked (the advice re-prices its calls by the
+# rake they pay, see advisor._call_rake); at gtopreflop.com's 5% capped at 4bb it plays 58.2/30.2/11.6
+# (unraked 45.0/43.4/11.6; the earlier chart defended 64.6% unraked and 47.8% raked, 52.2/36.4/11.5:
+# the rake re-pricing fit to the BB's defence against a CO open put its unraked defence too wide). The 3bets polarise as those solves'
+# do: AA-JJ, AKs, AQs, AKo always, TT 67%, JTs and T9s 93-96%, KQs 66%, A5s 69% with A4s-A2s mostly
+# calling, suited kings K2s-K5s 31-70%, offsuit wheel aces (A5o 87%, A4o 46%) and J9o (42%); the earlier
+# chart 3bet A5s-A2s always and no offsuit bluffs.
+_BB_BTN_3BET = R("JJ+, TT:0.8, 99:0.5, AKs, AQs, AJs:0.7, ATs:0.4, A9s:0.3, A8s:0.2, A5s:0.7, A4s:0.2, AKo, AQo, AJo:0.6, ATo:0.3, A5o:0.6, A4o:0.4, A3o:0.3, KQs:0.7, KJs:0.6, KTs:0.4, K9s:0.3, K5s-K2s:0.5, KQo:0.5, KJo:0.3, QJs:0.6, QTs:0.4, Q9s:0.3, JTs:0.9, J9s:0.3, J9o:0.3, T9s:0.9, T8s:0.2, 98s:0.5, 97s:0.2, 87s:0.4, 86s:0.2, 76s:0.4, 65s:0.4, 54s:0.4")
+_BB_BTN_DEFEND = R("22+, A2s+, A2o+, K2s+, K7o+, K6o:0.7, K5o:0.2, Q2s+, Q8o+, Q7o:0.4, J3s+, J8o+, J7o:0.4, T5s:0.7, T6s+, T8o+, T7o:0.4, 95s:0.7, 96s+, 98o, 97o:0.7, 84s:0.7, 85s+, 87o, 86o:0.4, 74s+, 76o:0.6, 63s:0.7, 64s+, 65o:0.3, 53s+, 52s:0.6, 43s, 42s:0.6, 32s:0.6")
+VS_RFI[("BB", "BTN")] = {"3bet": _BB_BTN_3BET, "call": np.clip(_BB_BTN_DEFEND - _BB_BTN_3BET, 0.0, 1.0)}
+VS_RFI[("BB", "SB")] = {
+    "3bet": R("88+, 77:0.3, A9s+, A8s:0.6, A7s-A6s:0.3, ATo+, A9o:0.2, A5s-A2s, K9s+, K8s:0.6, KQo, KJo, KTo:0.3, QTs+, Q9s:0.7, JTs, J9s:0.7, T9s, T8s:0.4, 98s:0.8, 87s:0.8, 76s:0.6, 65s:0.6, 54s:0.4"),
+    "call": R("22-77, 88:0.5, A9s:0.5, A8s-A6s, ATo:0.5, A9o-A2o, K2s+, KJo:0.5, KTo-K5o, Q9s+, Q8s-Q2s, QJo-Q7o, J9s+, J8s-J2s, JTo-J7o, T2s+, T9o-T6o, 92s+, 98o-96o, 82s+, 87o-85o, 72s+, 76o-74o, 62s+, 65o, 64o, 52s+, 54o, 53o, 42s+, 43o, 32s"),
+}
+
+# The big blind's 3bets against the button and the small blind, matched to published solver
+# frequencies (100bb cash): against a 2.5bb BTN open it 3bets 11.5% of hands to 11bb (Poker Academy,
+# NL200 GG; 10.6% at NL50, and 11.5% to 12bb in gtopreflop.com's raked solve), against a 3bb SB open
+# 16.2-16.4% (gtopreflop.com to 10bb, Poker Academy to 7.9bb). The charts 3bet 8.5% and 11.7%; now
+# 11.6% and 16.4%. The charts are unraked; with rake on the advisor re-prices their calls by the rake
+# they pay (advisor._call_rake), which at gtopreflop.com's 5% capped at 4bb gives its defence against
+# every open within 2.5 points (tests/preflop_refs.py; the button chart above was cut to 55% unraked
+# for it).
+# Against UTG, HJ and CO the big blind 3bet 3.6%, 3.6% (HJ played the UTG chart) and 5.6%, under every
+# published number: gtopreflop.com's raked solve (8-max 100bb, 2.5bb opens, 5% rake capped at 4bb; it
+# says 6-max is within a point; https://gtopreflop.com/posts/big-blind-defense) 3bets 4.5% against
+# the LJ (the 6-max UTG seat), 5.9% against the HJ and 7.7% against the CO; Poker Academy NL200 4.5%
+# against the LJ; pokalab.com (NL50 rake) 5.1% LJ and 6.7% HJ; BeyondGTO (NL500) 6%, 8%, 10%. Now
+# 4.8%, 6.2% (a chart of its own, calls halfway between the UTG and CO charts') and 8.0%, the new 3bets
+# (more JJ-TT, AQ, suited broadways and wheel aces, a few suited connectors) taken from calls so the
+# defence totals stay (33%, 39%, 45%).
+# Squeezes (the advisor re-draws the chart for the callers, see Advisor._priced): BB over a BTN open
+# and an SB call 75.9/15.0/9.1 at 5% capped at 4bb (61.6/29.3/9.1 unraked; 46/45/9 before its calls were
+# re-drawn by equity against both, Advisor._priced) against Poker Academy's 71.2/16.1/12.7 (NL200, to
+# 12.2bb); over CO + BTN 7.3% (was 4.9%) and UTG + a caller 4.5% (was 3.4%). The only cash squeeze solve
+# found, GTO Wizard's NL500 at 40bb (CO min-open, BTN call: 9.8% against 10.3% heads-up,
+# https://blog.gtowizard.com/how-to-construct-a-squeezing-range/), puts the squeeze at 0.95x the
+# heads-up 3bet, which the charts now give (7.3% against 8.0%). GTO Wizard's 13% and 7.9% over CO/UTG
+# + BTN + SB ("Responding to BB squeezes") are MTT solves with 2.3bb opens and two callers: not matched.
+# SB and BTN squeezes follow their 3bet charts the same way (SB over CO + BTN 12.2%, over UTG + HJ
+# 5.2%; BTN over UTG + HJ 4.9%); no cash numbers for those were found. A later search (GTO Wizard's
+# blog, gtopreflop.com, Poker Academy, pokalab, BeyondGTO, Preflop Wizard) found none either:
+# gtopreflop.com's database has no node facing two players in the pot, BeyondGTO publishes no
+# multiway ranges, GTO Wizard's NL500 cash articles cover the button's flats (calls 5% / 3bets 12% vs
+# a CO open, 8.2% / 7.5% vs UTG) but not the squeezes over them, and the squeeze tables that turn up
+# (BB over BTN + SB 9-13%, SB over BTN + CO 6-11%) are labelled approximations, not solves.
+for _o in ("UTG", "HJ", "CO", "BTN", "SB"):
+    VS_RFI[("BB", _o)]["call"] = np.minimum(VS_RFI[("BB", _o)]["call"], 1.0 - VS_RFI[("BB", _o)]["3bet"])
+
+
+def _norm(key: str) -> str:
+    return {"EP": "UTG", "HU_SB": "SB", "HU_BB": "BB"}.get(key, key)
+
+
+def chart_depth(positions) -> float:
+    """The depth of the charts a table plays where a short-stack chart exists (SHORT_CHARTS): SHORT_DEPTH
+    at or below SHORT_MAX bb, else 100bb. Off a chart's depth the advisor re-prices calls with implied
+    odds (Advisor._priced)."""
+    return SHORT_DEPTH if getattr(positions, "depth", 100.0) <= SHORT_MAX else 100.0
+
+
+def at_depth(positions, stack: float):
+    """`positions` as a Table whose depth is `stack` bb (the same table when it already is)."""
+    if getattr(positions, "depth", None) == float(stack):
+        return positions
+    return Table(list(positions), getattr(positions, "ante", 0.0), getattr(positions, "straddle", False),
+                 getattr(positions, "rake", None), stack, getattr(positions, "stacks", None), getattr(positions, "icm", None))
+
+
+def stacks_key(positions) -> Optional[tuple]:
+    """The table's per-seat stacks as a hashable key (None when everyone has the same)."""
+    s = getattr(positions, "stacks", None)
+    return tuple(sorted(s.items())) if s else None
+
+
+def spot_depth(hero: str, actions: List[dict], positions) -> float:
+    """The depth of the chart `hero` plays after `actions`: SHORT_DEPTH when it is a short-stack chart
+    (facing a single open, at a short table depth, with one in SHORT_CHARTS), else 100bb."""
+    if chart_depth(positions) > SHORT_DEPTH or len(positions) == 2:
+        return 100.0
+    raisers = [a for a in actions if a["action"] in ("raise", "all-in")]
+    if len(raisers) != 1 or any(a["pos"] == hero and a["action"] == "call" for a in actions):
+        return 100.0
+    pair = (_norm(chart_key(hero, positions)), _norm(chart_key(raisers[0]["pos"], positions)))
+    return SHORT_DEPTH if pair in SHORT_CHARTS else 100.0
+
+
+def vs_rfi_chart(hero_key: str, opener_key: str, depth: float = 100.0) -> Dict[str, np.ndarray]:
+    if depth <= SHORT_DEPTH and hero_key not in ("HU_SB", "HU_BB"):
+        short = SHORT_CHARTS.get((_norm(hero_key), _norm(opener_key)))
+        if short is not None:
+            return short
+    if hero_key == "HU_BB":
+        return HU_BB_VS_SB
+    if opener_key == "EP":
+        return {"BB": BB_VS_EP, "SB": SB_VS_EP}.get(hero_key, VS_EP)
+    h, o = _norm(hero_key), _norm(opener_key)
+    chart = VS_RFI.get((h, o))
+    if chart is not None:
+        return chart
+    if h == "SB":
+        return VS_RFI[("SB", "UTG")]
+    if h == "BB":
+        return VS_RFI[("BB", "UTG")]
+    return _vs_rfi_ip(True)   # early seat facing an even earlier open
+
+
+# ---------- opener facing a 3bet ----------
+def vs_3bet(opener: str, threebettor: str) -> Dict[str, np.ndarray]:
+    """The opener facing a 3bet. Out of position postflop (a later seat's 3bet, or the small blind
+    against the big blind's) it plays VS_3BET_OOP; against a blind's 3bet it has position and plays
+    the _vs_3bet base with calls widened."""
+    if opener == "HU_SB":
+        return HU_SB_VS_3BET
+    o = _norm(opener)
+    if o in ("UTG", "HJ", "CO", "BTN") and _norm(threebettor) in ("SB", "BB"):
+        if o == "BTN":
+            return dict(BTN_VS_BB_3BET if _norm(threebettor) == "BB" else BTN_VS_SB_3BET)
+        return _ip_vs_blind_3bet(o)
+    if o == "UTG" and _norm(threebettor) == "BTN":
+        return dict(UTG_VS_BTN_3BET)
+    if o in VS_3BET_OOP:
+        return dict(VS_3BET_OOP[o])
+    return _vs_3bet(o)
+
+
+# The opener out of position facing a 3bet, matched to published solver frequencies (shares of the opening
+# range, fold/call/4bet; gtopreflop.com's raked solve, 2.5bb opens, 7.5bb 3bets, https://gtopreflop.com/
+# posts/4-bet-ranges-guide): CO vs BTN 64.0/16.9/19.2 (Poker Academy 63.7/17.2/19.1), HJ vs CO
+# 63.6/18.3/18.1, its UTG vs the next seat 64.6/17.4/18.0, and UTG (its LJ) vs BTN 57.0/24.4/18.7: against
+# the button's wider 3bet the opener calls more, QQ calling 85% (A5s 4bets 85% for CO vs BTN). Here
+# UTG vs HJ/CO 62/19/19, vs BTN 55/25/19, HJ 63/20/18, CO 64/17/19, with the wider opens of the RFI
+# charts above; the earlier charts gave 61/18/21 for UTG against every seat.
+_UTG_VS_3BET_OOP = {
+    "4bet": R("AA, KK, QQ:0.5, AKs, AKo, JJ:0.15, AQs:0.3, A5s, A4s:0.7, A3s:0.4, KQs:0.2, KJs:0.2, K9s:0.2, AJo:0.1, KQo:0.15"),
+    "call": R("QQ:0.5, JJ:0.85, TT, 99:0.9, 88:0.6, 77:0.35, AQs:0.7, AJs:0.8, ATs:0.4, KQs:0.7, KJs:0.4, QJs:0.4, JTs:0.4, T9s:0.2, AQo:0.45"),
+}
+# UTG against the button's 3bet
+UTG_VS_BTN_3BET = {
+    "4bet": R("AA, KK, QQ:0.2, AKs, AKo:0.9, JJ:0.1, AQs:0.2, A5s, A4s:0.8, A3s:0.6, A2s:0.1, KQs:0.2, KJs:0.3, KTs:0.3, K9s:0.4, AJo:0.15, KQo:0.15"),
+    "call": R("QQ:0.8, JJ:0.9, TT, 99, 88:0.7, 77:0.4, AKo:0.1, AQs:0.8, AJs, ATs:0.8, KQs:0.8, KJs:0.7, KTs:0.1, QJs:0.6, JTs:0.5, T9s:0.2, AQo:0.5, AJo:0.2, KQo:0.2"),
+}
+VS_3BET_OOP = {
+    "UTG": _UTG_VS_3BET_OOP,
+    "HJ": {   # opens wider than UTG: a few more calls and 4bet bluffs
+        "4bet": R("AA, KK, QQ:0.8, AKs, AKo, JJ:0.2, AQs:0.3, A5s, A4s:0.8, A3s:0.5, A2s:0.3, KQs:0.2, KJs:0.3, KTs:0.2, K9s:0.3, AJo:0.15, KQo:0.2"),
+        "call": R("QQ:0.2, JJ:0.8, TT, 99:0.9, 88:0.7, 77:0.5, 66:0.4, 55:0.2, AQs:0.7, AJs:0.8, ATs:0.6, KQs:0.7, KJs:0.5, KTs:0.4, QJs:0.5, QTs:0.3, JTs:0.5, T9s:0.3, 98s:0.2, AQo:0.4, AJo:0.2, KQo:0.2"),
+    },
+    "CO": {
+        # gtopreflop.com's hands: A5s 4bets 84.8%, A4s 55.9%, KJs 100% (GTO Gecko's library: A5s 86.6% with
+        # 13.4% calls, A4s 44% with 52% calls, A2s folds); the chart 4bet A5s-A3s always and KJs 40%. A5s and
+        # A4s are cut to theirs, folding the rest (which keeps the calling range the shipped flop library's
+        # 3bet-pot spot was built for, so KJs still calls 60%: gto/static/flop_library), the 4bets kept with
+        # more KQo, K8s and Q9s
+        "4bet": R("AA, KK, QQ, AKs, AKo, JJ:0.3, AQs:0.4, A5s:0.85, A4s:0.55, A3s, A2s:0.6, KJs:0.4, KTs:0.4, K9s:0.5, K8s:0.4, QJs:0.2, Q9s:0.4, J9s:0.2, AJo:0.3, KQo:0.7, ATo:0.3"),
+        "call": R("JJ:0.7, TT, 99, 88:0.9, 77:0.7, 66:0.5, 55:0.3, AQs:0.6, AJs, ATs:0.7, A9s:0.3, KQs, KJs:0.6, QJs:0.8, JTs:0.8, T9s:0.6, 98s:0.4, 87s:0.3, AQo:0.5"),
+    },
+    # the small blind against the big blind's 3bet to 10bb (3bb open): gtopreflop.com's raked solve folds
+    # 63.6%, calls 21.4% and 4bets 15.0% of its opens (https://gtopreflop.com/posts/blind-vs-blind-strategy;
+    # GTO Ranges+ via thinkgto.com, against 9bb: 74.5 / 18.3 / 7.1). Here 63.8 / 20.3 / 15.9; the earlier
+    # chart (888poker's "folds about half") called 30% at the old 12bb default size and 45% at 10bb.
+    "SB": {
+        "4bet": R("QQ+, JJ:0.6, TT:0.3, AKs, AKo, AQs:0.4, AQo:0.3, A5s, A4s, A3s:0.7, A2s:0.5, KQs:0.2, KJs:0.3, KTs:0.3, K9s:0.4, K8s:0.4, K7s:0.3, K6s:0.3, Q9s:0.3, J9s:0.2, AJo:0.3, ATo:0.3, KQo:0.3, KJo:0.3, A3o:0.3, A4o:0.3, A5o:0.4"),
+        "call": R("JJ:0.4, TT:0.7, 99, 88, 77, 66:0.8, 55:0.6, 44:0.4, 33:0.3, 22:0.3, AQs:0.6, AJs, ATs, A9s, A8s:0.7, A7s:0.5, A6s:0.4, AQo:0.7, AJo:0.5, ATo:0.3, KQs:0.8, KJs:0.7, KTs:0.6, K9s:0.3, KQo:0.5, KJo:0.2, QJs, QTs:0.8, Q9s:0.3, JTs:0.9, J9s:0.4, T9s:0.7, 98s:0.5, 87s:0.4, 76s:0.4, 65s:0.4, 54s:0.3"),
+    },
+}
+
+
+IP_VS_3BET_EXTRA = R("88:0.3, 77:0.4, 66:0.4, 55:0.3, A9s:0.4, KTs:0.4, QTs:0.4, J9s:0.3, 98s:0.4, 87s:0.3")
+
+
+def _vs_3bet(opener: str) -> Dict[str, np.ndarray]:
+    """The opener's base chart facing a 3bet, calls capped at 1 - 4bet (a hand listed in both 4bets
+    at its written frequency and calls the rest)."""
+    c = _vs_3bet_lists(opener)
+    return {"4bet": c["4bet"], "call": np.minimum(c["call"], 1.0 - c["4bet"])}
+
+
+def _vs_3bet_lists(opener: str) -> Dict[str, np.ndarray]:
+    if opener in ("UTG", "HJ"):
+        return {
+            "4bet": R("KK+, QQ:0.7, AKs, AKo:0.6, A5s:0.4, A4s:0.3, JJ:0.2"),
+            "call": R("QQ:0.3, JJ:0.8, TT, 99, 88:0.7, 77:0.4, AKo:0.4, AQs, AJs, ATs:0.6, KQs, KJs:0.6, QJs:0.6, JTs:0.6, T9s:0.4, AQo:0.4"),
+        }
+    if opener == "CO":
+        return {
+            "4bet": R("KK+, QQ:0.6, AKs, AKo:0.7, A5s:0.5, A4s:0.4, A3s:0.2, JJ:0.2, KQs:0.2"),
+            "call": R("QQ:0.4, JJ:0.8, TT, 99, 88, 77:0.6, AKo:0.3, AQs, AJs, ATs, A9s:0.4, AQo:0.6, KQs, KJs, KTs:0.6, QJs, QTs:0.5, JTs, T9s, 98s:0.6, 87s:0.5, 76s:0.6, 65s:0.5, 54s:0.3, 66:0.6, 55:0.5, 44:0.3, A8s:0.4, AJo:0.5, KQo:0.5, KJo:0.3, K9s:0.4, Q9s:0.3, J9s:0.5, T8s:0.4, 97s:0.3"),
+        }
+    if opener == "BTN":
+        return {
+            "4bet": R("KK+, QQ:0.5, AKs, AKo:0.7, A5s:0.6, A4s:0.5, A3s:0.3, JJ:0.2, KQs:0.2, AQo:0.2"),
+            "call": R("QQ:0.5, JJ:0.8, TT, 99, 88, 77, 66:0.6, 55:0.5, AKo:0.3, AQs, AJs, ATs, A9s:0.6, A8s:0.4, AQo:0.6, AJo:0.5, KQs, KJs, KTs, K9s:0.5, KQo:0.5, QJs, QTs, Q9s:0.8, JTs, J9s:0.6, T9s, T8s:0.5, 98s, 87s, 76s, 65s, 54s:0.7, A7s-A6s:0.5, ATo:0.6, A9o:0.3, KJo:0.5, KTo:0.3, QJo:0.4, J8s:0.4, 97s:0.6, 86s:0.5, 75s:0.5, 64s:0.4, 53s:0.3, 44:0.7, 33:0.6, 22:0.6"),
+        }
+    # SB opener facing BB 3bet
+    return {
+        "4bet": R("JJ+, TT:0.4, AKs, AKo, AQs:0.5, A5s, A4s, A3s:0.5, KQs:0.3, AJo:0.3"),
+        "call": R("TT:0.6, 99, 88, 77, 66, 55:0.7, 44:0.5, 33:0.4, 22:0.4, AQs:0.5, AJs, ATs, A9s, A8s:0.7, A7s:0.5, A6s:0.5, A2s:0.5, AQo, AJo:0.7, ATo:0.5, KQs:0.7, KJs, KTs, K9s, K8s:0.5, KQo, KJo:0.5, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 97s:0.5, 87s, 76s, 65s, 54s, K7s:0.5, Q8s:0.5, J8s:0.5, A9o:0.4, KTo:0.5, QJo:0.5, QTo:0.3, JTo:0.4, 86s:0.5, 75s:0.5, 64s:0.4, 53s:0.3"),
+    }
+
+
+# The opener in position facing a blind's 3bet (to 11bb), as shares of its opening range
+# (fold/call/4bet): UTG 51/36/14, HJ 57/31/12, CO 50/41/9. Preflop Wizard's per-seat table (UTG
+# 74-82/10-15/8-11, CO 59-68/22-28/10-13) isn't split by who 3bets; gtopreflop.com's raked 8-max solve
+# (5% rake capped at 4bb, 12bb blind 3bets, https://gtopreflop.com/posts/4-bet-ranges-guide) has UTG
+# vs SB 71.4/14.1/14.5 and CO vs BB 68.0/22.4/9.6: the 4bets match, the calls are about 20 points
+# lower there (rake, as with the big blind's defence). Left derived and unraked: with rake on, these
+# calls (and the button's below) are re-priced by the rake they go on to pay (advisor._call_rake),
+# which brings CO vs BB to 23.8% and UTG vs SB to 24.5% at 5% capped at 4bb. The button has its own charts
+# below.
+def _ip_calls(o: str) -> np.ndarray:
+    """The _vs_3bet calls widened for position (before capping at 1 - 4bet: charts with 4bets of their
+    own cap at those)."""
+    return np.minimum(1.0, _vs_3bet_lists(o)["call"] * 1.25 + IP_VS_3BET_EXTRA)
+
+
+def _ip_vs_blind_3bet(o: str) -> Dict[str, np.ndarray]:
+    c = _vs_3bet(o)
+    return {"4bet": c["4bet"], "call": np.minimum(1.0 - c["4bet"], _ip_calls(o))}
+
+
+# The button facing the big blind's 3bet (2.5bb open, 11bb 3bet): fold ~54.6%, call ~33.9%, 4bet
+# ~11.5% of its opening range (888poker, "button vs blind 3bets defence", stack depth not stated; an
+# older 888poker article has 4bets at 23.6% of the continuing range, and a rough 6-max 100bb guide
+# BTN at 50-55/30-35/12-15 fold/call/4bet, Preflop Wizard). The derived chart folded 58.7%, called
+# 35.3% and 4bet 6.0%: a 4bet range of nearly all value. Here 54/34/12: more value (QQ, AKo, JJ, AQs)
+# from the calls and 4bet bluffs from the folds (the rest of A5s-A2s, K8s-K5s, Q8s, A8o/A7o/A5o/A4o,
+# K9o).
+_extra_value = R("QQ:0.3, AKo:0.3, JJ:0.2, AQs:0.3")
+_extra_bluff = R("A5s:0.4, A4s:0.5, A3s:0.5, A2s:0.6, K8s:0.4, K7s:0.4, K6s:0.3, K5s:0.3, Q8s:0.3, A8o:0.2, A7o:0.2, A5o:0.3, A4o:0.2, K9o:0.2")
+BTN_VS_BB_3BET = {"4bet": np.minimum(1.0, _ip_vs_blind_3bet("BTN")["4bet"] + _extra_value + _extra_bluff)}
+BTN_VS_BB_3BET["call"] = np.clip(_ip_vs_blind_3bet("BTN")["call"] - _extra_value, 0.0, 1.0 - BTN_VS_BB_3BET["4bet"])
+
+# The button facing the small blind's 3bet (2.5bb open, 10-12bb 3bet). gtopreflop.com's solve (8-max
+# 100bb, 5% rake capped at 4bb, 12bb 3bets from either blind; it says 6-max lands within a point,
+# https://gtopreflop.com/posts/4-bet-ranges-guide) has the button 4betting as often against either
+# blind (10.4% of its opens against the SB, 10.3% against the BB) and calling less against the SB
+# (13.9% against 20.0%, folding 75.7% against 69.7%). Its hand mix against the SB: QQ 89.5% 4bet,
+# AKo 80%, A9s 77.5%, KTs 75.8%, AKs 59.4% (calls 41%), A4s 42.8%, K9s 33.9%, KQo 32.6%, JJ 23.6%
+# (calls 76%), AJo 23.4%, A5s 21.9% (calls 72%), TT 19.5% (calls 81%); AQs and KQs call 100%; the
+# offsuit hands that don't 4bet (AJo, KQo) and K9s fold rather than call. 888poker's remark that
+# 4betting is more attractive against SB 3bets is about the regular's tendencies (wider SB 3bets than
+# theory, tighter BB 3bets), not the equilibrium. The derived chart (the BB one with calls widened)
+# folded 58.4%, called 35.6% and 4bet 6.0%; here the 4bets match the BB chart's 11.6% and the calls
+# are its 34% less gtopreflop's 6-point gap: about 59/29/11.6.
+_sb_4bet = R("KK+, QQ:0.9, AKo:0.8, AKs:0.6, A9s:0.75, KTs:0.75, A4s:0.45, K9s:0.35, KQo:0.35, JJ:0.25, "
+             "AJo:0.35, A5s:0.2, TT:0.2, A3s:0.4, A2s:0.4, K8s:0.3, K7s:0.3, K6s:0.3, K5s:0.3, Q9s:0.3, Q8s:0.2, "
+             "J9s:0.2, KJo:0.2, A8o:0.15, A5o:0.2, K9o:0.15")
+BTN_VS_SB_3BET = {
+    "4bet": _sb_4bet,
+    "call": np.clip(np.minimum(_ip_calls("BTN"), 1.0 - _sb_4bet)
+                    - R("AJo, KQo, K9s, AQo:0.3, ATo:0.4, KJo:0.4") + R("AKs:0.4, A5s:0.72"), 0.0, 1.0 - _sb_4bet),
+}
+
+
+# ---------- 3bettor facing a 4bet ----------
+# The one published response to a 4bet found (GTO Gecko's library export, 5% capped at 4bb: the big blind's
+# 3bet range against the button's 24bb 4bet, hero's As5s removed) folds 46.9%, calls 29.3% and jams 23.8%;
+# the chart there (re-priced by the advice: its default 4bet is 27.6bb) played 45.6 / 38.6 / 15.9 with the
+# same cards removed: the total matches, the solve jams more of QQ, AK and JJ. Here 45.6 / 34.0 / 20.4.
+VS_4BET = {
+    "jam": R("KK+, QQ:0.8, AKs, AKo:0.8, JJ:0.3, A5s:0.4"),
+    "call": R("QQ:0.2, JJ:0.7, TT:0.6, 99:0.3, AKo:0.2, AQs, AJs:0.5, KQs:0.5, A5s:0.2, A4s:0.3, AQo:0.3"),
+}
+# cold-facing a 3bet (hero neither opener nor 3bettor)
+COLD_VS_3BET = {   # the 3bet came over an early open (a tight 3bet)
+    "4bet": R("KK+, AKs, QQ:0.3, AKo:0.3"),
+    "call": R("QQ:0.7, JJ, TT:0.5, AKo:0.5, AQs, AJs:0.5, KQs:0.5"),
+}
+# ...over a late open (CO/BTN/SB: the 3bet is wider, so more continues)
+COLD_VS_LATE_3BET = {
+    "4bet": R("QQ+, AKs, AKo:0.7, JJ:0.3, A5s:0.4, A4s:0.3"),
+    "call": R("JJ:0.7, TT, 99:0.5, AKo:0.3, AQs, AJs:0.6, ATs:0.3, KQs:0.7, KJs:0.3, AQo:0.3"),
+}
+COLD_OOP_CALL = 0.5   # out of position against the 3bettor postflop, cold calls are this share (4bet or fold)
+
+
+def cold_vs_3bet(hero: str, opener_key: str, threebettor: str, positions) -> Dict[str, np.ndarray]:
+    """Facing a 3bet without having raised: by how wide the 3bet is (the opener's seat) and whether
+    hero has position on the 3bettor postflop."""
+    c = COLD_VS_LATE_3BET if _norm(opener_key) in ("CO", "BTN", "SB") else COLD_VS_3BET
+    order = postflop_order(list(positions))
+    if order.index(hero) < order.index(threebettor):
+        # out of position: half the cold calls go, premiums into 4bets, the rest folds
+        moved = c["call"] * (1.0 - COLD_OOP_CALL)
+        c = {"4bet": np.minimum(1.0, c["4bet"] + moved * COLD_PREMIUM), "call": c["call"] * COLD_OOP_CALL}
+    return c
+
+
+COLD_PREMIUM = R("QQ+, AKs, AKo")
+# facing a 4bet without having 3bet it (the opener after a 3bet and a cold 4bet, or a cold 5bet): with two
+# raisers' ranges ahead, premiums only. Half the cold-vs-3bet chart before had AA and KK folding 50%.
+COLD_VS_4BET = {"raise": R("AA, KK, AKs:0.6, QQ:0.4"), "call": R("QQ:0.5, AKs:0.4, AKo:0.6, JJ:0.4")}
+# facing a 5bet: call or fold when it is all-in, and deep enough to have chips behind, jam the top
+VS_5BET = {"call": R("KK+, QQ:0.7, AKs, AKo:0.7, JJ:0.3")}
+VS_5BET_DEEP = {"raise": R("AA, KK:0.6, AKs:0.4"), "call": R("KK:0.4, QQ:0.8, AKs:0.6, AKo:0.6, JJ:0.3")}
+
+# heads-up button (SB, in position postflop) facing the big blind's 3bet
+HU_SB_VS_3BET = {
+    "4bet": R("QQ+, JJ:0.5, AKs, AKo, AQs:0.5, A5s-A2s:0.4, K9s:0.2, Q9s:0.2, J9s:0.2"),
+    "call": R("22-TT, JJ:0.5, A2s-AJs, AQs:0.5, A8o-AQo, A7o-A5o, A4o-A2o:0.5, K2s+, K9o+, K8o:0.5, Q5s+, QTo+, Q9o:0.6, J6s+, JTo, J9o:0.6, T6s+, T9o, T8o:0.4, 96s+, 98o:0.4, 85s+, 87o:0.3, 74s+, 64s+, 63s:0.3, 53s+, 43s:0.5"),
+}
+HU_SB_VS_3BET["call"] = np.minimum(HU_SB_VS_3BET["call"], 1.0 - HU_SB_VS_3BET["4bet"])   # 4bets as written
+
+# heads-up big blind facing the button's 4bet (its 3bets are wide, so it continues wider than 6-max)
+HU_BB_VS_4BET = {
+    "jam": R("QQ+, JJ:0.5, AKs, AKo, AQs:0.3, A5s:0.3, A4s:0.2"),
+    "call": R("JJ:0.5, TT, 99:0.5, AQs:0.7, AQo:0.6, AJs, AJo:0.3, KQs, KJs:0.6, KQo:0.3, QJs:0.5, JTs:0.5"),
+}
+# an iso-raiser facing the limper's re-raise (a trapped range: mostly QQ+ and AK)
+VS_LIMP_RERAISE = {"4bet": R("KK+, AKs:0.5"), "call": R("QQ, JJ:0.6, TT:0.3, AKs:0.5, AKo:0.6, AQs:0.3")}
+# a seat in position facing a 7+ handed early-position open (~13%: tighter than the 6-max UTG chart)
+# the blinds facing a 7+ handed early-position open (tighter than vs a 6-max UTG open)
+BB_VS_EP = {
+    "3bet": R("QQ+, JJ:0.3, AKs, AKo:0.8, AQs:0.3, A5s:0.5, A4s:0.3"),
+    "call": R("22-TT, JJ:0.7, AQs:0.7, AJs-A6s, A5s:0.5, A4s-A2s:0.7, AQo, AJo:0.7, ATo:0.3, KTs+, K9s:0.6, KQo, KJo:0.3, QTs+, Q9s:0.5, J9s+, T8s+, 97s+, 86s+, 75s+, 64s:0.6, 54s:0.5"),
+}
+SB_VS_EP = {
+    "3bet": R("QQ+, JJ:0.4, AKs, AKo:0.8, AQs:0.5, A5s:0.5"),
+    "call": R("TT-88:0.5, JJ:0.3, AQs:0.3, AJs:0.3, KQs:0.3"),
+}
+VS_EP = {
+    "3bet": R("QQ+, AKs, AKo:0.6, A5s:0.3, JJ:0.3"),
+    "call": R("22-TT, JJ:0.7, AQs, AJs, ATs:0.5, AQo:0.5, KQs, KJs:0.5, QJs:0.5, JTs:0.5, T9s:0.3, 98s:0.2"),
+}
+
+# ---------- limped pots ----------
+# open-limp range (players who limp first in: rarely the premiums, which raise)
+LIMP = R("22-99, TT+:0.2, A2s-AJs, AQs+:0.2, A2o-ATo, AJo+:0.3, K2s+, K9o+, Q6s+, Q9o+, J7s+, J9o+, T7s+, T9o, 96s+, 86s+, 75s+, 64s+, 54s")
+# Raising over limpers (iso-raising). Against one limper the range is a little tighter than the seat's
+# open (the limper is in the pot, and a limping range calls a raise a lot: LIMP_VS_RAISE) and mostly
+# linear: every hand that opens strongly raises, with suited wheel aces and suited connectors as the
+# lighter raises in position. Published widths against one limper (6-max, 100bb): BTN ~30-40% of hands,
+# CO ~22-28%, HJ ~15-20%, SB ~18-25%, BB ~15% (Preflop Wizard, preflopwizard.app/blog/
+# poker-iso-raise-strategy); BTN 35-45%, CO 28-35%, HJ and earlier 18-22%, SB 20-25% (Grindlab,
+# grindlab.gg/en/blog/iso-raise-vs-limper-poker); a common default is the open range of the seat
+# before (BTN raises the CO's opens). Here UTG (7+ handed, a seat behind an early limp) 14%, HJ 18%,
+# CO 24%, BTN 36%, SB 19% (out of position, the big blind behind), against opens of 17/19/27/46/50%.
+# The old charts raised 10/10/13/16/10%: well under half the button's opens. No solver frequencies for
+# cash iso-raises were found: GTO Wizard's multiway preflop solver (2026) allows only iso-raise or fold
+# facing a limp outside the blinds, and its published limper study is live MTT (sizes 4-6bb at 100bb,
+# iso frequencies only in charts); solved 6-max 100bb packs are mostly no-limp trees.
+ISO = {
+    "UTG": R("55+, A8s+, A5s-A4s, KTs+, QTs+, JTs, T9s:0.5, ATo+, KJo+"),
+    "HJ": R("44+, 33:0.5, A2s+, K9s+, QTs+, Q9s:0.5, JTs, J9s:0.5, T9s, 98s:0.5, ATo+, KJo+, QJo:0.5"),
+    "CO": R("22+, A2s+, K8s+, Q9s+, J9s+, T8s+, 98s, 87s, 76s:0.5, 65s:0.5, A9o+, A8o:0.5, KTo+, QTo+, JTo:0.5"),
+    "BTN": R("22+, A2s+, K5s+, Q7s+, J7s+, T7s+, 96s+, 86s+, 75s+, 65s, 54s, A5o+, A4o-A2o:0.5, K9o+, K8o:0.5, QTo+, Q9o:0.5, JTo, J9o:0.5, T9o:0.5"),
+    "SB": R("55+, 44:0.5, A2s+, K9s+, QTs+, Q9s:0.5, JTs, J9s:0.5, T9s, 98s:0.5, 87s:0.5, ATo+, A9o:0.5, A8o:0.5, KJo+, KTo:0.5, QJo"),
+}
+# Against two or more limpers: value-heavy, the weak suited connectors and offsuit hands dropped
+# (Preflop Wizard: "tighten each range by roughly one tier"; two limpers drop weak suited connectors
+# and offsuit bluffs, three are value-heavy), about 0.6x the one-limper range: UTG 9%, HJ 11%, CO 14%,
+# BTN 19%, SB 11%. The pairs and suited hands this drops over-limp instead (in OVERLIMP_MULTI).
+ISO_MULTI = {
+    "UTG": R("88+, 77:0.5, ATs+, A5s:0.5, KJs+, QJs:0.5, AJo+, KQo:0.5"),
+    "HJ": R("77+, 66:0.5, A9s+, A5s-A4s:0.5, KTs+, QJs, JTs:0.5, AJo+, KQo"),
+    "CO": R("66+, 55:0.5, A7s+, A5s-A2s:0.5, KTs+, QTs+, JTs, T9s:0.5, ATo+, KJo+"),
+    "BTN": R("44+, 33:0.5, 22:0.5, A2s+, K9s+, QTs+, Q9s:0.5, JTs, J9s:0.5, T9s, 98s:0.5, ATo+, A9o:0.5, KJo+, KTo:0.5, QJo:0.5"),
+    "SB": R("77+, 66:0.5, A9s+, A5s-A4s:0.5, KTs+, QJs, JTs:0.5, AJo+, KQo"),
+}
+OVERLIMP = {
+    "UTG": R("22-66, A2s-A9s:0.5, KTs:0.5, QTs:0.5, JTs:0.5, T9s:0.5, 98s:0.5, 87s:0.3, 76s:0.3"),
+    "HJ": R("22-66, A2s-A9s:0.5, KTs:0.5, QTs:0.5, JTs:0.5, T9s:0.5, 98s:0.5, 87s:0.3, 76s:0.3"),
+    "CO": R("22-55, A2s-A7s:0.5, K8s-K9s:0.5, Q9s, J9s, T9s, 98s, 87s, 76s, 65s:0.5"),
+    "BTN": R("22-44, A2s-A6s:0.3, K5s-K8s, Q8s-Q9s, J8s-J9s, T8s-T9s, 97s+, 86s+, 75s+, 64s+, 54s, A9o-A2o:0.3, KTo:0.5, QTo+, JTo"),
+    # small blind completing
+    "SB": R("22-66, A2s-A8s, A2o-ATo:0.5, K2s-K9s, KJo-KTo, Q5s+, Q9o+, J7s+, J9o+, T7s+, T9o, 96s+, 86s+, 75s+, 64s+, 54s, 53s, 43s"),
+}
+# a limper facing a raise: the trapped premiums re-raise, the rest of a limping range calls a lot
+# (it already has chips in and the range is capped) and folds its weakest hands
+LIMP_VS_RAISE = {
+    "raise": R("QQ+, AKs, AKo:0.7"),
+    "call": R("22-JJ, A2s-AQs, ATo-AQo, A9o:0.5, K9s+, KJo+, KTo:0.5, Q9s+, QJo, J9s+, T8s+, 97s+, 86s+, 75s+, 64s+, 54s"),
+}
+# an over-limp never takes a hand the iso chart raises; with two or more limpers the pairs and suited
+# hands that the one-limper chart raises and ISO_MULTI doesn't over-limp (set-mining and suited hands
+# play well multiway), the rest of the dropped hands fold
+_PAIRS_SUITED = R("22+, A2s+, K2s+, Q2s+, J2s+, T2s+, 92s+, 82s+, 72s+, 62s+, 52s+, 42s+, 32s")
+OVERLIMP_MULTI = {k: np.minimum(1.0 - ISO_MULTI[k], OVERLIMP[k] + np.maximum(ISO[k] - ISO_MULTI[k], 0.0) * _PAIRS_SUITED)
+                  for k in ISO}
+OVERLIMP = {k: np.minimum(OVERLIMP[k], 1.0 - ISO[k]) for k in ISO}
+# Big blind raising over limps (the rest checks): only the small blind limped (24%) / one other limper
+# (15%: Preflop Wizard has the big blind raising ~15% to isolate; the old chart raised 8% over any
+# limpers) / several limpers (9%, value only)
+BB_VS_SB_LIMP = R("55+, A2s+, A7o+, K7s+, KTo+, Q9s+, QJo, J9s+, T9s, 98s:0.5, 87s:0.5, 65s:0.5, 54s:0.5, K6o-K2o:0.3, Q5s-Q2s:0.3")
+BB_VS_LIMP = R("66+, 55:0.5, A8s+, A5s-A2s:0.6, KTs+, K9s:0.5, QTs+, JTs, T9s:0.5, ATo+, KJo+, QJo:0.5")
+BB_VS_LIMPS = R("88+, 77:0.5, ATs+, A5s:0.5, KJs+, QJs:0.5, AJo+, KQo")
+
+# antes: the dead money makes opens wider, played as the chart this many seats later (UTG -> HJ ...)
+RFI_LADDER = ["EP", "UTG", "HJ", "CO", "BTN"]
+
+
+def ante_shift(positions) -> int:
+    dead = getattr(positions, "ante", 0.0) * len(positions)
+    return min(2, int(round(dead / 0.8)))
+
+
+def _actions_at(hero: str, actions: List[dict], positions: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+    """Decide the chart scenario from the preflop action list.
+
+    actions: list of {"pos": str, "action": "fold"|"call"|"raise"} in order.
+    Returns dict of aggressive/passive action names -> weight vectors.
+    Fold is implicit.
+    """
+    positions = positions or POSITIONS
+    key = lambda p: chart_key(p, positions)
+    raisers = [a["pos"] for a in actions if a["action"] in ("raise", "all-in")]
+    n_raises = len(raisers)
+    if n_raises == 0:
+        limpers = [a["pos"] for a in actions if a["action"] == "call"]
+        role = _norm(key(hero))
+        if role == "BB":   # the big blind (or straddler) checks or raises the limpers
+            if limpers == ["SB"] or (len(positions) == 2 and limpers):
+                r = BB_VS_SB_LIMP
+            else:
+                r = BB_VS_LIMP if len(limpers) == 1 else BB_VS_LIMPS
+            return {"raise": r, "check": 1.0 - r}
+        if limpers:
+            k = role if role in ISO else "UTG"
+            if len(limpers) >= 2:
+                return {"raise": ISO_MULTI[k], "call": OVERLIMP_MULTI[k]}
+            return {"raise": ISO[k], "call": OVERLIMP[k]}
+        k = key(hero)
+        if k in RFI_LADDER:
+            k = RFI_LADDER[min(RFI_LADDER.index(k) + ante_shift(positions), len(RFI_LADDER) - 1)]
+        return {"raise": RFI[k if k in RFI else _norm(k)]}
+    if n_raises == 1:
+        first = next(i for i, a in enumerate(actions) if a["action"] in ("raise", "all-in"))
+        if any(a["pos"] == hero and a["action"] == "call" for a in actions[:first]):
+            return dict(LIMP_VS_RAISE)      # hero limped, then someone raised
+        chart = vs_rfi_chart(key(hero), key(raisers[0]), chart_depth(positions))
+        return {"raise": chart["3bet"], "call": chart["call"]}
+    if n_raises == 2:
+        opener, threebettor = raisers
+        first = next(i for i, a in enumerate(actions) if a["action"] in ("raise", "all-in"))
+        if hero == opener and any(a["pos"] == threebettor and a["action"] == "call" for a in actions[:first]):
+            c = VS_LIMP_RERAISE        # the 3bettor limped first: a limp-reraise
+            return {"raise": c["4bet"], "call": c["call"]}
+        if hero == opener:
+            c = vs_3bet(key(opener), key(threebettor))
+            return {"raise": c["4bet"], "call": c["call"]}
+        c = cold_vs_3bet(hero, key(opener), threebettor, positions)
+        return {"raise": c["4bet"], "call": c["call"]}
+    if n_raises == 3:
+        if hero == raisers[1]:
+            c = HU_BB_VS_4BET if len(positions) == 2 else VS_4BET
+            return {"raise": c["jam"], "call": c["call"]}
+        return dict(COLD_VS_4BET)      # facing a 4bet without having 3bet (the opener squeezed by a cold 4bet)
+    if [a["action"] for a in actions if a["action"] in ("raise", "all-in")][-1] == "raise":
+        return dict(VS_5BET_DEEP)       # a 5bet that leaves chips behind (an all-in goes to the jam logic)
+    return {"call": VS_5BET["call"]}
+
+
+def format_chart(hero: str, actions: List[dict], positions) -> Tuple[Optional[Dict[str, np.ndarray]], dict]:
+    """The chart of the table's game (gto/pf_formats.py: another depth, ante, table size or a straddle) at this
+    decision, and what it covers ({"depth", "ante"}: the game the chart is for), or (None, {}) where the charts'
+    own (100bb, no ante) and their rules apply. Played on the line without other players' flats of the raise
+    (a squeeze is the same chart, re-drawn for the callers by the advice: Advisor._priced)."""
+    if positions is None or not isinstance(positions, Table):
+        return None, {}
+    from . import pf_formats
+    std = pf_formats.std_actions(hero, actions)
+    if std is None:
+        return None, {}
+    mv, cover = pf_formats.moves(hero, std, positions)
+    if mv is None:
+        return None, {}
+    if cover.get("base") == "6max":     # a table size or straddle: the 6-max chart of the seats it plays
+        m = lambda p: _norm(chart_key(p, positions))
+        base = _actions_at(m(hero), [dict(a, pos=m(a["pos"])) for a in std if a["action"] != "fold"],
+                           Table(SEATS[6], 0.0, False, None, 100.0))
+    else:
+        base = _actions_at(hero, std, Table(list(positions), 0.0, positions.straddle, None, 100.0))
+    if "check" in base:
+        return None, {}
+    return pf_formats.apply(base, mv), cover
+
+
+def strategy_for(hero: str, actions: List[dict], positions: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+    """Full mixed strategy (including fold) per combo for hero at this point."""
+    key = (hero, tuple((a["pos"], a["action"], a.get("to"), a.get("amount")) for a in actions),
+           tuple(positions or POSITIONS), getattr(positions, "ante", 0.0), getattr(positions, "straddle", False),
+           chart_depth(positions), _depth(positions), stacks_key(positions))
+    if key not in _STRAT_CACHE:
+        if len(_STRAT_CACHE) > 4096:
+            _STRAT_CACHE.clear()
+        acts = format_chart(hero, actions, positions)[0]
+        if acts is None:
+            acts = _actions_at(hero, actions, positions)
+        total = sum(acts.values())
+        scale = np.where(total > 1, 1.0 / np.maximum(total, 1e-12), 1.0)
+        acts = {k: v * scale for k, v in acts.items()}
+        total = sum(acts.values())
+        if "check" not in acts:
+            acts["fold"] = np.clip(1.0 - total, 0.0, 1.0)
+            acts = _caller_continues(hero, actions, positions, acts)
+            acts = _vs_4bet_range(hero, actions, positions, acts)
+            acts = _vs_5bet_jam(hero, actions, positions, acts)
+        _STRAT_CACHE[key] = monotone(acts)
+    return dict(_STRAT_CACHE[key])
+
+
+_STRAT_CACHE: Dict[tuple, Dict[str, np.ndarray]] = {}
+MIN_LINE_COMBOS = 8.0   # a line leaving fewer combos than this is filled out (see thin_line)
+
+
+def thin_line(r: np.ndarray, scratch: np.ndarray, prior: Optional[np.ndarray] = None,
+              passive: bool = False) -> Tuple[np.ndarray, bool]:
+    """A player's range after an action (`r`, their range so far times the action's frequencies), filled
+    out with the hands that take the action from scratch (`scratch`, the action's frequencies alone)
+    when the line leaves fewer than MIN_LINE_COMBOS: a near-empty range has the postflop solve play
+    against a face-up hand (a flat that then 4bets left none; a cold call of a 3bet that then calls a
+    4bet a handful). The filler weighs 1 - combos / MIN_LINE_COMBOS: all of it for an empty line,
+    none at the threshold. The hands that did reach the spot are kept. When even that falls short
+    (the action's own chart is that narrow: an opener calling a cold 4bet calls 6.8 combos from
+    scratch) and `prior` (the range before the action) is given, the strongest hands of it not yet in
+    top the range up to MIN_LINE_COMBOS, by all-in equity against a random hand. Returns the range and
+    whether it is mostly filler. `passive` (a call or a limp): the top-up is the hands nearest in strength
+    to the line's own, not the strongest (a CO over-limp was topped up with AA)."""
+    tot, add = float(r.sum()), float(scratch.sum())
+    if tot >= MIN_LINE_COMBOS:
+        return r, False
+    out = r
+    if add > tot:
+        lam = 1.0 - tot / MIN_LINE_COMBOS
+        out = np.minimum(r + lam * scratch, 1.0)
+    need = MIN_LINE_COMBOS - float(out.sum())
+    if prior is not None and need > 1e-9:
+        room = np.clip(prior - out, 0.0, None)
+        st_ = _strength()
+        if passive:
+            w = out if out.sum() > 1e-9 else scratch
+            mid = float((w * st_).sum() / max(w.sum(), 1e-12))
+            order = np.argsort(np.abs(st_ - mid), kind="stable")
+        else:
+            order = np.argsort(-st_)
+        cum = np.cumsum(room[order])
+        k = int(np.searchsorted(cum, need))
+        add_ = np.zeros_like(out)
+        add_[order[:k]] = room[order[:k]]
+        if k < len(order):
+            add_[order[k]] = need - (cum[k - 1] if k > 0 else 0.0)
+        out = np.minimum(out + np.clip(add_, 0.0, None), 1.0)
+    return out, float(out.sum()) - tot > tot
+
+
+_STRENGTH = None
+
+
+def _strength() -> np.ndarray:
+    """Per combo, all-in equity against a random hand (the order thin_line tops a range up in)."""
+    global _STRENGTH
+    if _STRENGTH is None:
+        from .pf_classes import equity_vs
+        _STRENGTH = np.nan_to_num(equity_vs(np.ones(N_COMBOS)), nan=0.0)
+    return _STRENGTH
+# A player who called a raise and now faces the next one continues with at least this share of the
+# range they called with, by the raises in now: a flat facing a squeeze, a cold call of a 3bet facing
+# the 4bet, a call of a 4bet facing the jam. The charts for those spots are written for a player who
+# hasn't put chips in (continuing with QQ+/AK, which a flat or cold call rarely holds), so on their own
+# they leave a caller's range nearly empty. For scale, openers continue ~40% against a 3bet and
+# 3bettors ~50% against a 4bet.
+CALLER_CONTINUE = {2: 0.30, 3: 0.35, 4: 0.55}
+# The shares above are floors, set against tight raises: the next raise's range as tight as the charts
+# make it (CALLER_REF: the big blind's old 3.6% 3bet over a UTG open, UTG's 4bet against a 3bet, the
+# 3bettor's jam over a 4bet). A wider, more bluff-heavy raise is defended more: each point of equity
+# the caller's range gains against the actual raise over the reference (its average, weighted by the
+# range) adds CALLER_EQ_SLOPE points to the share that continues; a tighter raise keeps the floor.
+# Moving the bar instead (the floor share's weakest hand's equity against the reference, then the share
+# clearing it against the actual raise) swings too far: flat ranges are bunched, mostly pairs and
+# suited broadways a few points apart, so 30% became 70% against the BB's 8% squeeze over CO + BTN.
+CALLER_REF = {
+    2: R("QQ+, JJ:0.4, AKs, AKo, AQs:0.5, A5s, A4s:0.7, KQs:0.3, 65s:0.3, 54s:0.3"),
+    3: _UTG_VS_3BET_OOP["4bet"],
+    4: VS_4BET["jam"],
+}
+CALLER_EQ_SLOPE = 2.5
+
+
+VS_4BET_BLEND = 0.04   # equity over which a 3bettor's continue frequency ramps against an unusual 4bet range
+VS_4BET_REALIZE = 0.8  # ...and the share of its equity a call of a 4bet realizes (sets the value bar)
+
+
+def _bets(actions: List[dict], depth: float = 100.0, stacks: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+    """Each seat's chips in after the preflop actions (blinds posted; default sizes where none given).
+    An all-in goes to its `to` (or `amount`) when given, else to the player's stack (`stacks`, else
+    `depth`: the effective stack, as Table.depth); no bet goes past it, and a call or an all-in for less
+    than the bet puts in what the player has."""
+    stk = lambda p: float(stacks.get(p, depth)) if stacks else float(depth)
+    bets = {"SB": 0.5, "BB": 1.0}
+    cur = 1.0
+    for a in actions:
+        p = a["pos"]
+        if a["action"] == "call":
+            bets[p] = min(cur, stk(p))
+        elif a["action"] in ("raise", "all-in"):
+            size = a.get("to") or a.get("amount")
+            if a["action"] == "all-in":
+                amt = float(size or stk(p))
+            else:
+                amt = float(size or cur * 3)
+            amt = min(amt, stk(p))
+            bets[p] = amt
+            cur = max(cur, amt)
+        else:
+            bets.setdefault(p, 0.0)
+    return bets
+
+
+def _vs_4bet_range(hero: str, actions: List[dict], positions, acts: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """The 3bettor facing a 4bet: the vs-4bet charts are written against the opener's 4bet, which
+    carries bluffs. A cold 4bet, or one from a player who flatted first, is nearly all value, so each
+    hand is re-drawn by its equity against the actual 4bet range versus against the opener's: a hand
+    that does worse continues less (a value hand once it drops below the price of calling over the
+    equity a call realizes, a bluff or a playable hand by how far it drops), and one that does better
+    calls more. Bluff jams, and the value jams the chart mixes with calls, also scale by how often the
+    4bettor folds to a jam compared with the opener (the rest of those value jams call).
+    Against the opener's own 4bet nothing changes."""
+    from .pf_classes import equity_vs
+    is_raise = lambda a: a["action"] in ("raise", "all-in")
+    raisers = [a["pos"] for a in actions if is_raise(a)]
+    if len(raisers) != 3 or raisers[1] != hero or len(positions or POSITIONS) == 2 or "fold" not in acts:
+        return acts
+    opener, four = raisers[0], raisers[2]
+    i3 = max(i for i, a in enumerate(actions) if a["pos"] == hero and is_raise(a))
+    std = [a if a["pos"] in (opener, hero) else {"pos": a["pos"], "action": "fold"} for a in actions[:i3 + 1]]
+    std.append({"pos": opener, "action": "raise"})
+    act_r, std_r = replay_ranges(actions, positions), replay_ranges(std, positions)
+    if four not in act_r or opener not in std_r or hero not in std_r:
+        return acts
+    eq, eq_std = equity_vs(act_r[four]), equity_vs(std_r[opener])
+    if np.allclose(np.nan_to_num(eq), np.nan_to_num(eq_std), atol=1e-6):
+        return acts
+    # the bar a value hand is held to: the price of calling the 4bet, over the share of its equity a
+    # call realizes (the same in every spot, however wide the 3bet range the chart is applied to)
+    bets = _bets(actions, _depth(positions), getattr(positions, "stacks", None))
+    owe = bets[four] - bets[hero]
+    bar = owe / max(sum(bets.values()) + owe, 1e-9) / VS_4BET_REALIZE
+    eq, eq_std = np.nan_to_num(eq, nan=0.0), np.nan_to_num(eq_std, nan=0.0)
+    keep = np.clip(1.0 + (eq - np.minimum(eq_std, bar)) / VS_4BET_BLEND, 0.0, 1.0)
+    add = np.clip(0.5 + (eq - bar) / VS_4BET_BLEND, 0.0, 1.0) * acts["fold"]
+    better = eq > eq_std
+    out = {k: (v if k == "fold" else np.where(better, v, v * keep)) for k, v in acts.items()}
+    out["call"] = out["call"] + np.where(better, add, 0.0)
+    if "raise" in out:
+        # how often the 4bettor folds to a jam, here and for the opener (a value-only 4bet hardly folds):
+        # calling by equity against the chart's jams from hero's range there (not the scaled jams below,
+        # which depend on this)
+        def folds(line, p4, ranges):
+            jams = line + [{"pos": hero, "action": "all-in"}]
+            call = _jam_calls(ranges[hero] * acts["raise"], jams, p4, _depth(positions), getattr(positions, "stacks", None))
+            return float((ranges[p4] * (1.0 - call)).sum() / max(ranges[p4].sum(), 1e-12))
+        f_s = folds(std, opener, std_r)
+        scale = min(1.0, folds(actions, four, act_r) / max(f_s, 1e-9)) if f_s > 1e-6 else 1.0
+        # jams below the bar are bluffs: they live on the 4bettor folding, so they scale by it. Value
+        # hands the chart mixes between jam and call (QQ, AK) are about even against the opener: a jam's
+        # edge over a call is the equity it denies the 4bettor's bluffs (against its value both get the
+        # stacks in), while a call keeps the option of folding bad flops. So their jams scale by it too,
+        # the rest becoming calls; hands that always jam (KK+, AKs) keep jamming.
+        bluff = eq_std < bar
+        mixed = ~bluff & (acts["raise"] > 1e-9) & (acts["call"] > 1e-9)
+        cut = out["raise"] * (1.0 - scale)
+        out["raise"] = np.where(bluff | mixed, out["raise"] - cut, out["raise"])
+        out["call"] = out["call"] + np.where(mixed, cut, 0.0)
+    out["fold"] = np.clip(1.0 - sum(v for k, v in out.items() if k != "fold"), 0.0, 1.0)
+    return out
+
+
+JAM_CALL_BLEND = 0.04   # facing a 5bet jam: call frequency ramps over this much equity around the pot odds
+
+
+def _vs_5bet_jam(hero: str, actions: List[dict], positions, acts: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """Facing a 5bet (or later) all-in, call where equity against the jammer's replayed range beats the
+    pot odds, as hero's own advice does (Advisor._vs_jam). The fixed VS_5BET chart called QQ 70% and AK
+    70% whoever jammed, looser than the charts' own value-heavy jam ranges allow (QQ has 36% against a
+    standard one, needing 41%), and blind to a jam from a tighter line or with dead money in."""
+    is_raise = lambda a: a["action"] in ("raise", "all-in")
+    aggr = [a for a in actions if is_raise(a)]
+    if len(aggr) < 4 or aggr[-1]["action"] != "all-in" or aggr[-1]["pos"] == hero or "call" not in acts:
+        return acts
+    r = replay_ranges(actions, positions).get(aggr[-1]["pos"])
+    if r is None or r.sum() < 1e-9:
+        return acts
+    call = _jam_calls(r, actions, hero, _depth(positions), getattr(positions, "stacks", None))
+    return {"call": call, "fold": 1.0 - call}
+
+
+def _depth(positions) -> float:
+    """The table's effective stack in bb (Table.depth; 100bb for a plain seat list)."""
+    return float(getattr(positions, "depth", 100.0))
+
+
+def _jam_calls(jam_range: np.ndarray, actions: List[dict], caller: str, depth: float = 100.0,
+               stacks: Optional[Dict[str, float]] = None) -> np.ndarray:
+    """Per combo, how often `caller` calls the all-in that ends `actions` from `jam_range`: by equity
+    against it versus the pot odds (an all-in without a size goes to `depth`, the effective stack)."""
+    from .pf_classes import equity_vs
+    if jam_range.sum() < 1e-9:
+        return np.zeros(N_COMBOS)
+    bets = _bets(actions, depth, stacks)
+    owe = max(0.0, min(bets[actions[-1]["pos"]], float(stacks.get(caller, depth)) if stacks else float(depth))
+              - bets.get(caller, 0.0))
+    need = owe / max(sum(bets.values()) + owe, 1e-9)
+    return np.clip(0.5 + (np.nan_to_num(equity_vs(jam_range), nan=0.0) - need) / JAM_CALL_BLEND, 0.0, 1.0)
+
+
+_CALLER_REF_EQ: Dict[int, np.ndarray] = {}
+
+
+def caller_target(level: int, w: np.ndarray, eq_raise: np.ndarray) -> float:
+    """The share of a caller's range `w` that continues against the next raise (`level` raises in now),
+    given each combo's equity against the raise's range: the floor (CALLER_CONTINUE), plus
+    CALLER_EQ_SLOPE times how much more equity the range has against it than against the reference
+    raise (CALLER_REF). A raise wider than the reference only adds to it."""
+    from .pf_classes import equity_vs
+    floor = CALLER_CONTINUE[level]
+    if level not in _CALLER_REF_EQ:
+        _CALLER_REF_EQ[level] = np.nan_to_num(equity_vs(CALLER_REF[level]), nan=0.0)
+    tot = float(w.sum())
+    ok = ~np.isnan(eq_raise)
+    if tot < 1e-9 or not ok.any():
+        return floor
+    wo = w * ok
+    gain = float((wo * (np.where(ok, eq_raise, 0.0) - _CALLER_REF_EQ[level])).sum() / max(wo.sum(), 1e-12))
+    return min(1.0, floor + CALLER_EQ_SLOPE * max(gain, 0.0))
+
+
+def _caller_continues(hero: str, actions: List[dict], positions, acts: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """Top up a caller's continuing range (to caller_target: CALLER_CONTINUE, more against a wide raise)
+    with calls by its strongest folds:
+    ranked by how readily the button continues against a 3bet (the charts' sense of what plays well
+    in a reraised pot: TT-77 and suited broadways over 22-55), then equity against the raiser's
+    range. Only for the raise right after hero's call; once another raise is in too (hero
+    sandwiched), the charts' near-total folding stands."""
+    from .pf_classes import equity_vs
+    mine = [i for i, a in enumerate(actions) if a["pos"] == hero and a["action"] not in ("fold", "check")]
+    if not mine or actions[mine[-1]]["action"] != "call" or "call" not in acts:
+        return acts
+    is_raise = lambda a: a["action"] in ("raise", "all-in")
+    n_then = sum(map(is_raise, actions[:mine[-1]]))
+    n_now = sum(map(is_raise, actions))
+    if n_then == 0 or n_now - n_then != 1:
+        return acts        # a limp (LIMP_VS_RAISE is written for it), or sandwiched
+    level = min(n_now, max(CALLER_CONTINUE))
+    ranges = replay_ranges(actions, positions)
+    w = ranges.get(hero)
+    raiser = next(a["pos"] for a in reversed(actions) if is_raise(a))
+    if w is None or w.sum() < 1e-9 or raiser not in ranges:
+        return acts
+    eq_r = equity_vs(ranges[raiser])
+    target = caller_target(level, w, eq_r)
+    fold = acts["fold"]
+    need = (target - float((w * (1.0 - fold)).sum() / w.sum())) * w.sum()
+    if need <= 1e-9:
+        return acts
+    ref = _vs_3bet("BTN")
+    eq = np.minimum(ref["4bet"] + ref["call"], 1.0) + 0.01 * np.nan_to_num(eq_r, nan=-1.0)
+    # strongest folds first: whole classes above the bar, a share of the class at it
+    levels = np.unique(eq)[::-1]
+    add = np.zeros(N_COMBOS)
+    for e in levels:
+        at = eq == e
+        avail = float((w * fold * at).sum())
+        if avail <= 1e-12:
+            continue
+        frac = min(1.0, need / avail)
+        add[at] = fold[at] * frac
+        need -= avail * frac
+        if need <= 1e-9:
+            break
+    # hands outside the range above the bar continue too, so a hand hero holds off-range plays the same
+    bar = e
+    add = np.where(eq > bar, fold, add)
+    out = dict(acts)
+    out["call"] = acts["call"] + add
+    out["fold"] = fold - add
+    return out
+
+
+def _dominance_chains() -> List[List[str]]:
+    """Hand classes in order weakest -> strongest where the stronger never continues less: the pairs,
+    each high card's broadway kickers (suited and offsuit), and each suited hand over its offsuit twin."""
+    rk = "AKQJT98765432"
+    chains = [[r + r for r in reversed(rk)]]
+    for hi in "AKQJ":
+        ks = [k for k in rk[rk.index(hi) + 1:] if k in "KQJT"]
+        for s in "so":
+            chains.append([hi + k + s for k in reversed(ks)])
+    for i in range(13):
+        for j in range(i + 1, 13):
+            chains.append([rk[i] + rk[j] + "o", rk[i] + rk[j] + "s"])
+    return [c for c in chains if len(c) > 1]
+
+
+_CHAINS = None
+
+
+def monotone(acts: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+    """Keep the strategy consistent: a hand never continues (doesn't fold) less often than a hand it
+    dominates. Where it would, the shortfall moves from its fold to its call (or raise, when calling
+    isn't an option). Fixes chart slips and equity noise alike."""
+    global _CHAINS
+    if "fold" not in acts:
+        return acts
+    from .pf_classes import CLASS_OF, CLASS_INDEX, N_IN
+    if _CHAINS is None:
+        _CHAINS = [[CLASS_INDEX[h] for h in c] for c in _dominance_chains()]
+    cont = np.bincount(CLASS_OF, weights=1.0 - acts["fold"], minlength=len(N_IN)) / N_IN
+    new = cont.copy()
+    for _ in range(3):
+        for chain in _CHAINS:
+            new[chain] = np.maximum.accumulate(new[chain])
+    gap = (new - cont)[CLASS_OF]
+    if gap.max() < 1e-9:
+        return acts
+    out = dict(acts)
+    k = "call" if "call" in out else "raise"
+    add = np.minimum(gap, out["fold"])
+    out[k] = out[k] + add
+    out["fold"] = out["fold"] - add
+    return out
+
+
+def hand_strategy(hero: str, hole: Tuple[int, int], actions: List[dict], positions: Optional[List[str]] = None) -> Dict[str, float]:
+    idx = COMBO_INDEX[(min(hole), max(hole))]
+    return {k: float(v[idx]) for k, v in strategy_for(hero, actions, positions).items()}
+
+
+def replay_ranges(actions: List[dict], positions: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+    """Run the preflop action sequence through the charts to get each still-active
+    player's range (product of chart frequencies for the actions they took)."""
+    positions = positions or POSITIONS
+    ranges: Dict[str, np.ndarray] = {p: np.ones(N_COMBOS) for p in positions}
+    active = set(positions)
+    history: List[dict] = []
+    for a in actions:
+        pos, act = a["pos"], a["action"]
+        if pos not in ranges:
+            continue
+        strat = strategy_for(pos, history, positions)
+        if act == "fold":
+            active.discard(pos)
+        else:
+            key = "raise" if act == "all-in" else ("call" if act == "check" and "check" not in strat else act)
+            if key in strat:
+                ranges[pos] = thin_line(ranges[pos] * strat[key], strat[key], ranges[pos], passive=key in ("call", "check"))[0]
+            elif act == "call" and not any(h["action"] in ("raise", "all-in") for h in history):
+                ranges[pos] = ranges[pos] * LIMP     # open-limp
+            # other off-chart actions leave the range unchanged
+        history.append(a)
+    return {p: ranges[p] for p in active}
+
+
+def is_preflop_closed(actions: List[dict]) -> bool:
+    """True when the betting round is complete."""
+    active = list(POSITIONS)
+    last_raiser: Optional[str] = None
+    acted_since_raise = set()
+    for a in actions:
+        pos, act = a["pos"], a["action"]
+        if act == "fold":
+            active.remove(pos)
+        elif act == "raise":
+            last_raiser = pos
+            acted_since_raise = {pos}
+        else:
+            acted_since_raise.add(pos)
+    if len(active) <= 1:
+        return True
+    if last_raiser is None:
+        return "BB" in acted_since_raise and all(p in acted_since_raise for p in active)
+    return all(p in acted_since_raise for p in active)
+
+
+def next_to_act(actions: List[dict]) -> Optional[str]:
+    active = list(POSITIONS)
+    order = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]
+    acted_since_raise: set = set()
+    last_raiser = None
+    for a in actions:
+        pos, act = a["pos"], a["action"]
+        if act == "fold":
+            active.remove(pos)
+        elif act == "raise":
+            last_raiser = pos
+            acted_since_raise = {pos}
+        else:
+            acted_since_raise.add(pos)
+    if is_preflop_closed(actions):
+        return None
+    # find the next position after the last actor in order
+    start = 0 if not actions else (order.index(actions[-1]["pos"]) + 1) % 6
+    for k in range(6):
+        p = order[(start + k) % 6]
+        if p in active and p not in acted_since_raise:
+            return p
+    return None

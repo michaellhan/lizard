@@ -1,0 +1,904 @@
+"""The precomputed flop library (gto/flop_library.py, scripts/build_flop_library.py): canonical flops, entries that
+read back as solved, the advisor answering from it (and only where it holds the spot)."""
+import hashlib
+import importlib
+import itertools
+import json
+import os
+import random
+import shutil
+import struct
+import sys
+import tempfile
+import time
+import unittest
+from unittest import mock
+import zlib
+
+import numpy as np
+
+from gto import flop_library as fl
+from gto.advisor import Advisor
+from gto.cards import cards, cards_str, ALL_COMBOS, COMBO_INDEX
+from gto.cli import parse_actions
+from gto.solver import solve, Config, MEMBER_FULL
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+build = importlib.import_module("build_flop_library")
+
+SPOT = next(s for s in fl.SPOTS if s[0] == "srp_utg_bb")   # the narrowest single-raised ranges: quick to solve, the river
+# blind (fl.library_config(); the spot's own tree deals it, 6-7x as long; the entry's header says the spot's tree)
+CANON = "Kc7d2h"
+BOARD = "Kh7s2d"            # the same flop in other suits
+ITERS = 120
+
+
+def _hole_in(r, board, k=0):
+    """The k-th combo with full weight in range r that the board doesn't block."""
+    b = set(cards(board))
+    idx = [i for i in np.nonzero(r >= 0.999)[0] if not set(ALL_COMBOS[i]) & b]
+    return cards_str(ALL_COMBOS[idx[k]])
+
+
+class TestCanonicalFlops(unittest.TestCase):
+    def test_count_and_weights(self):
+        fls = fl.all_flops()
+        self.assertEqual(len(fls), 1755)
+        self.assertEqual(sum(fls.values()), 22100)
+        rep = fl.representative_flops(184)
+        self.assertEqual(len(rep), 184)
+        self.assertEqual(len(set(rep)), 184)
+        self.assertTrue(all(f in fls for f in rep))
+        # every suit pattern gets about its share (rainbow 40%, two-tone 55%, monotone 5% of flops)
+        mono = sum(1 for f in rep if len({c % 4 for c in f}) == 1)
+        self.assertTrue(5 <= mono <= 15, mono)
+        # a spot storing more flops stores a representative set holding the 184 (systematic sampling at a multiple
+        # of 184: 3 x 184 picks every third of its points at the 184's)
+        for sid, n in fl.SPOT_FLOPS.items():
+            self.assertIn(sid, [s[0] for s in fl.all_spots()])
+            self.assertTrue(set(rep) <= set(fl.representative_flops(n)), (sid, n))
+        # a report's weights: the representative set stands for every flop evenly; other sets for their own flops
+        names = [cards_str(f) for f in rep]
+        w = fl.report_weights(names)
+        self.assertAlmostEqual(sum(w.values()), 22100)
+        self.assertEqual(len(set(w.values())), 1)
+        self.assertEqual(fl.report_weights(["Kc7d2h", "4c3c2c"]), {"Kc7d2h": 24.0, "4c3c2c": 4.0})
+        self.assertEqual(sum(fl.report_weights([cards_str(f) for f in fls]).values()), 22100)
+
+    def test_round_trip(self):
+        """Every suit permutation of a flop has the same canonical flop, the suit map takes the flop there, and
+        the combo map is a bijection that takes the flop's blocked combos to the canonical flop's."""
+        rng = random.Random(3)
+        for _ in range(40):
+            f = tuple(rng.sample(range(52), 3))
+            canon, smap = fl.canonical(f)
+            self.assertEqual(tuple(sorted((c // 4 * 4 + smap[c % 4] for c in f), reverse=True)), canon)
+            for p in itertools.permutations(range(4)):
+                g = tuple(c // 4 * 4 + p[c % 4] for c in f)
+                self.assertEqual(fl.canonical(g)[0], canon)
+            m = fl.combo_map(smap)
+            self.assertEqual(sorted(m), list(range(len(ALL_COMBOS))))
+            blocked = MEMBER_FULL[list(f)].sum(axis=0) > 0
+            cblocked = MEMBER_FULL[list(canon)].sum(axis=0) > 0
+            self.assertTrue(np.array_equal(cblocked[m], blocked))
+        self.assertEqual(fl.flop_name(cards("Ks7d2c")), "Kc7d2h")
+        self.assertEqual(fl.flop_name(cards("2h7hKs")), fl.flop_name(cards("Kd7c2c")))
+
+    def test_tree_key(self):
+        """The native and browser Accurate trees are the library's but for the river by river strength (the library's
+        river is on the turn's boards); Fast is the same sizes, another flop model."""
+        from gto.native import advisor
+        lk = fl.tree_key(fl.library_config())
+        acc, fast = (fl.tree_key(advisor(s, library=False).cfg) for s in ("accurate", "fast"))
+        self.assertEqual(fl._key_str(acc["sizes"]), fl._key_str(lk["sizes"]))
+        self.assertEqual(acc["model"].pop("river_strength"), 32)
+        acc["model"].pop("bucket_river_step")
+        self.assertEqual(fl._key_str(acc), fl._key_str(lk))
+        self.assertEqual(fl._key_str(fast["sizes"]), fl._key_str(lk["sizes"]))
+        self.assertNotEqual(fl._key_str(fast["model"]), fl._key_str(lk["model"]))
+        # a spot's own: every spot deals the river; the default (the river blind) is the entries solved before
+        lines = {s[0]: s[2] for s in fl.SPOTS}
+        for sid in ("srp_btn_bb", "3bp_bb_btn", "3bp_btn_co"):
+            s = fl.spot_setup(lines[sid])
+            k = fl.tree_key(fl.library_config(s["pot"], s["stack"]))
+            self.assertEqual(k["model"].pop("river_dealt", None), fl.RIVER_DEALT)
+            self.assertEqual(fl._key_str(k), fl._key_str(lk))
+        self.assertEqual(fl._key_str(fl.old_tree()), fl._key_str(lk))
+
+
+class TestFlopLibrary(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        sid, label, line = SPOT
+        cls.setup = fl.spot_setup(line)
+        s = cls.setup
+        cls.sol = solve(cards(CANON), s["full0"], s["full1"], s["pot"], s["stack"], cfg=fl.library_config(),
+                        time_budget=1e9, max_iters=ITERS)
+        meta = dict(build._meta(sid, s), board=CANON)
+        os.makedirs(os.path.join(cls.dir, sid))
+        with open(os.path.join(cls.dir, sid, CANON + ".bin"), "wb") as f:
+            f.write(fl.encode(cls.sol, meta))
+        build.write_index(cls.dir, [SPOT])
+        cls.lib = fl.FlopLibrary.from_dir(cls.dir)
+        cls.pre = parse_actions(line)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dir, ignore_errors=True)
+
+    def _libsol(self, board=CANON, cfg=None, lib=None, full=None):
+        s = self.setup
+        f0, f1 = full or (s["full0"], s["full1"])
+        return (lib or self.lib).solution(f0, f1, cards(board), s["full0"], s["full1"], s["pot"], s["stack"],
+                                          cfg or fl.library_config())
+
+    def test_entry_reads_back_as_solved(self):
+        """On the flop it was solved on (rainbow: each combo its own class), every stored node's strategy is the
+        solve's to within a step (1/Q) and its EVs to within the encoding's (a step, 1% of the pot, near the best
+        action, 2% of the gap below it)."""
+        ls = self._libsol()
+        self.assertIsNotNone(ls)
+        self.assertTrue(ls.river_dealt)
+        self.assertFalse(ls.exact)                 # (Accurate's model bets the river blind: the entry's header deals it)
+        s = self.setup
+        self.assertTrue(self._libsol(cfg=fl.library_config(s["pot"], s["stack"])).exact)
+        self.assertEqual(ls.iters, ITERS)
+        paths = fl.stored_paths(self.sol.root, self.sol.r0, self.sol.r1)
+        self.assertIn((), paths)
+        self.assertIn(("check",), paths)
+        self.assertTrue(any(fl.raised(p) for p in paths), paths)    # (the big blind's check-raises)
+        pos = {c: i for i, c in enumerate(self.sol.ctx.active)}
+        cols = np.array([pos[c] for c in ls.ctx.active])
+        for path in paths:
+            n0, n1 = fl.node_at(self.sol.root, path), fl.node_at(ls.root, path)
+            self.assertEqual(n0.names, n1.names)
+            p = n0.player
+            r = self.sol.r0 if p == 0 else self.sol.r1
+            m = r[cols] > 0
+            s0, s1 = n0.avg_strategy0()[:, cols][:, m], n1.avg_strategy0()[:, m]
+            self.assertLess(np.abs(s0 - s1).max(), 1.01 / fl.Q, path)
+            a0, a1 = fl._reaches(self.sol.root, path, self.sol.r0, self.sol.r1)
+            e0 = self.sol.solver.node_action_evs(n0, a0, a1)[:, cols][:, m]
+            e1 = ls.solver.node_action_evs(n1)[:, m]
+            gap = e0.max(axis=0, keepdims=True) - e0
+            step = fl.EV_STEP * self.setup["pot"]
+            self.assertTrue(np.all(np.abs(e0 - e1) <= 1.001 * step + 0.021 * gap), path)
+        self.assertEqual(ls.exploitability(), round(self.sol.exploitability(), 4))
+
+    def test_suit_classes(self):
+        """On a two-tone flop the entry stores a value per suit class (combos the flop's suit permutations map to
+        each other): they read back equal, their strategy the class's reach-weighted average (so the node's range
+        frequencies are the solve's), their EVs its average; the class count. A format-1 entry (per combo) recodes
+        to the same within the two encodings' steps, its classes averaged."""
+        s = self.setup
+        board = cards("Qc9c2d")
+        rep = fl.iso_reps(board)
+        # (1326 + the 338 combos the swap of the two suits off the flop keeps) / 2 classes; monotone 1/3 of that
+        self.assertEqual(len(set(rep.tolist())), 832)
+        # Qc9c2d: hearts and spades swap; AhKh ~ AsKs, AhKs ~ AsKh, Ah5c ~ As5c
+        for a, b in (("AhKh", "AsKs"), ("AhKs", "AsKh"), ("Ah5c", "As5c"), ("QhQs", "QsQh")):
+            self.assertEqual(rep[COMBO_INDEX[tuple(sorted(cards(a)))]], rep[COMBO_INDEX[tuple(sorted(cards(b)))]], (a, b))
+        self.assertNotEqual(rep[COMBO_INDEX[tuple(sorted(cards("AhKh")))]], rep[COMBO_INDEX[tuple(sorted(cards("AcKc")))]])
+        self.assertEqual(int((rep == np.arange(1326)).sum()), len(set(rep.tolist())))
+        self.assertTrue(np.array_equal(fl.iso_reps(cards("Kc7d2h")), np.arange(1326)))       # rainbow: no classes
+        self.assertEqual(len(set(fl.iso_reps(cards("Tc9c8c")).tolist())), 416)
+        sol = solve(board, s["full0"], s["full1"], s["pot"], s["stack"], cfg=fl.library_config(), time_budget=1e9,
+                    max_iters=40)
+        e = fl.decode(fl.encode(sol, dict(build._meta(SPOT[0], s), board="Qc9c2d")))
+        for nd in e["nodes"]:
+            p, m = nd["player"], e["masks"][nd["player"]]
+            r = rep[np.nonzero(m)[0]]
+            for g in np.unique(r):
+                j = np.nonzero(r == g)[0]
+                self.assertTrue(np.all(nd["strat"][:, j] == nd["strat"][:, j[:1]]))
+                self.assertTrue(np.all(nd["evs"][:, j] == nd["evs"][:, j[:1]]))
+            n0 = fl.node_at(sol.root, nd["path"])
+            a0, a1 = fl._reaches(sol.root, nd["path"], sol.r0, sol.r1)
+            reach = (a0 if p == 0 else a1)[m[sol.ctx.active]]
+            f0 = n0.avg_strategy0()[:, m[sol.ctx.active]] @ reach / reach.sum()
+            self.assertLess(np.abs(f0 - nd["strat"] @ reach / reach.sum()).max(), 0.006, nd["path"])
+            self.assertEqual(list(nd["freqs"]), nd["names"])
+        # a format-1 entry (BTN 3bet vs CO), recoded
+        s = fl.spot_setup(next(x for x in fl.SPOTS if x[0] == "3bp_btn_co")[2])
+        with open(os.path.join(os.path.dirname(__file__), "data", "flop_v1_3bp_btn_co_Qc9c2d.bin"), "rb") as f:
+            v1 = f.read()
+        self.assertEqual(v1[:6], fl.MAGIC_V1)
+        v2 = fl.recode(v1, s["full0"], s["full1"])
+        self.assertEqual(v2[:6], fl.MAGIC)
+        self.assertLess(len(v2), 0.75 * len(v1))
+        self.assertEqual(fl.recode(v2, s["full0"], s["full1"]), v2)
+        e1, e2 = fl.decode(v1), fl.decode(v2)
+        self.assertEqual(e2["head"]["tree"], fl.tree_hash(e1["head"]["tree"]))
+        self.assertEqual(e2["head"]["format"], fl.FORMAT)
+        step = fl.EV_STEP * s["pot"]
+        for n1, n2 in zip(e1["nodes"], e2["nodes"]):
+            self.assertEqual((n1["path"], n1["names"], n1["freqs"]), (n2["path"], n2["names"], n2["freqs"]))
+            m = e1["masks"][n1["player"]]
+            r = rep[np.nonzero(m)[0]]
+            for g in np.unique(r):
+                j = np.nonzero(r == g)[0]
+                ev = n1["evs"][:, j].mean(axis=1)
+                gap = ev.max() - ev
+                self.assertTrue(np.all(np.abs(n2["evs"][:, j[0]] - ev) <= step + 0.02 + 0.021 * gap))
+                if len(j) == 1:
+                    self.assertLess(np.abs(n2["strat"][:, j[0]] - n1["strat"][:, j[0]]).max(), 0.0101)
+
+    def test_ranges(self):
+        """write_index writes the spot's ranges.json (the drills' hand weights): both ranges entering the flop in
+        1/10000, fingerprinted as the index's, holding every combo of the entry's ranges."""
+        with open(os.path.join(self.dir, SPOT[0], "ranges.json")) as f:
+            rg = json.load(f)
+        with open(os.path.join(self.dir, "index.json")) as f:
+            sp = json.load(f)["spots"][0]
+        s = self.setup
+        self.assertEqual(rg["fp"], sp["fp"])
+        for p, full in ((0, s["full0"]), (1, s["full1"])):
+            w = np.array(rg["w"][p]) / 10000
+            self.assertEqual(len(w), len(ALL_COMBOS))
+            self.assertLess(np.abs(w - full).max(), 0.5e-4 + 1e-9)
+            self.assertEqual(fl.range_fp(w), sp["fp"][p])
+        with open(os.path.join(self.dir, SPOT[0], CANON + ".bin"), "rb") as f:
+            e = fl.decode(f.read())
+        for p in (0, 1):
+            self.assertTrue(np.all(np.array(rg["w"][p])[e["masks"][p]] > 0))
+
+    def test_report(self):
+        """write_index writes the spot's report.json (hashed in the index): per flop, each stored node's range
+        frequencies (the entry's, summing to 1), EVs summing to the pot, equities to 1, a hand in the acting player's
+        range off the board; a rewrite keeps the lines of unchanged entries without reading them."""
+        sid = SPOT[0]
+        rp = os.path.join(self.dir, sid, "report.json")
+        with open(rp, "rb") as f:
+            data = f.read()
+        with open(os.path.join(self.dir, "index.json")) as f:
+            idx = json.load(f)
+        self.assertEqual(idx["spots"][0]["report"], hashlib.sha1(data).hexdigest()[:10])
+        rep = json.loads(data)
+        s = self.setup
+        self.assertEqual((rep["id"], rep["line"], rep["seats"], rep["pot"]), (sid, SPOT[2], [s["oop"], s["ip"]], s["pot"]))
+        self.assertEqual([x["f"] for x in rep["flops"]], [CANON])
+        line = rep["flops"][0]
+        with open(os.path.join(self.dir, sid, CANON + ".bin"), "rb") as f:
+            e = fl.decode(f.read())
+        self.assertEqual(set(line["n"]), {"|".join(nd["path"]) for nd in e["nodes"] if not fl.raised(nd["path"])})
+        self.assertTrue(any(fl.raised(nd["path"]) for nd in e["nodes"]))     # (stored, not reported)
+        for nd in (nd for nd in e["nodes"] if not fl.raised(nd["path"])):
+            k = "|".join(nd["path"])
+            self.assertEqual(rep["nodes"][k], nd["names"])
+            fr = line["n"][k]
+            self.assertAlmostEqual(sum(fr), 1.0, delta=0.002)
+            for x, nm in zip(fr, nd["names"]):
+                self.assertAlmostEqual(x, nd["freqs"][nm], delta=0.001)
+            hand = cards(line["h"][k])
+            self.assertFalse(set(hand) & set(cards(CANON)))
+            r = s["full0"] if nd["player"] == 0 else s["full1"]
+            self.assertGreater(r[COMBO_INDEX[tuple(sorted(hand))]], 0.99)
+        self.assertAlmostEqual(sum(line["ev"]), s["pot"], delta=0.011)
+        self.assertAlmostEqual(sum(line["eq"]), 1.0, delta=0.0011)
+        # the root's EV: out of position's range average of the solve's node values
+        root = self.sol.root
+        r0 = self.sol.r0
+        v = (root.avg_strategy0() * self.sol.solver.node_action_evs(root, self.sol.r0, self.sol.r1)).sum(axis=0)
+        self.assertAlmostEqual(line["ev"][0], float((r0 * v).sum() / r0.sum()), delta=0.03)
+        # range equity: exact over every runout within half a point; a range against itself is 50%
+        board = cards(CANON)
+        bm = np.prod([1.0 - MEMBER_FULL[c] for c in board], axis=0)
+        exact = fl.range_equity(board, s["full0"] * bm, s["full1"] * bm, step=1)
+        self.assertAlmostEqual(line["eq"][0], exact, delta=0.005)
+        self.assertAlmostEqual(fl.range_equity(board, s["full0"] * bm, s["full0"] * bm), 0.5, delta=1e-9)
+        # a rewrite reuses the unchanged line (no entry read) and gives the same file
+        def read(name):
+            raise AssertionError("an unchanged entry was read again")
+        again = fl.build_report(idx["spots"][0], s["full0"], s["full1"], read, rep)
+        self.assertEqual(json.dumps(again, separators=(",", ":")).encode(), data)
+
+    def test_reproduces_live_solve_in_other_suits(self):
+        """The entry, read for the flop in other suits, is a live solve of that flop with the same tree and
+        iterations, to within the noise of suit order (the turn classes' cards differ, and 120 iterations are far
+        from settled per combo): range frequencies within 6 points at every stored node (K72r in 8 suits, 28 pairs:
+        the worst node 2.3 points apart on average, up to 4.8; each of the 4 stored nodes is reached by both players
+        with 40% of their range or more), and at the root each combo's mix within 0.1 on average."""
+        ls = self._libsol(BOARD)
+        self.assertIsNotNone(ls)
+        s = self.setup
+        live = solve(cards(BOARD), s["full0"], s["full1"], s["pot"], s["stack"], cfg=fl.library_config(),
+                     time_budget=1e9, max_iters=ITERS)
+        self.assertTrue(np.array_equal(live.ctx.active, ls.ctx.active))
+        for path in fl.stored_paths(self.sol.root, self.sol.r0, self.sol.r1):
+            n0, n1 = fl.node_at(live.root, path), fl.node_at(ls.root, path)
+            a0, a1 = fl._reaches(live.root, path, live.r0, live.r1)
+            r = a0 if n0.player == 0 else a1
+            w = r / r.sum()
+            f0, f1 = n0.avg_strategy0() @ w, n1.avg_strategy0() @ w
+            self.assertLess(np.abs(f0 - f1).max(), 0.06, (path, f0, f1))
+            if path:
+                continue
+            m = (live.r0 if n0.player == 0 else live.r1) > 0
+            self.assertLess(np.abs(n0.avg_strategy0()[:, m] - n1.avg_strategy0()[:, m]).sum(axis=0).mean() / 2, 0.1, path)
+
+    def test_mismatch_is_ignored(self):
+        """Other ranges (changed charts), another tree or model version, a tampered entry: no library."""
+        s = self.setup
+        self.assertIsNone(self._libsol(full=(s["full0"] * 0.9, s["full1"])))
+        cfg = fl.library_config()
+        cfg.bet_sizes["flop"] = [0.5, 0.75]
+        self.assertIsNone(self._libsol(cfg=cfg))
+        cfg = fl.library_config()
+        cfg.rake_rate = 0.05
+        self.assertIsNone(self._libsol(cfg=cfg))
+        self.assertIsNone(self.lib.solution(s["full0"], s["full1"], cards("Qh8s3d"), s["full0"], s["full1"],
+                                            s["pot"], s["stack"], fl.library_config()))   # a flop it doesn't hold
+        self.assertIsNone(self.lib.solution(s["full0"], s["full1"], cards(BOARD), s["full0"], s["full1"],
+                                            s["pot"], s["stack"] - 10, fl.library_config()))   # another stack
+        # the index's fingerprint, or the model version, no longer what the code computes
+        d = tempfile.mkdtemp()
+        try:
+            shutil.copytree(self.dir, d, dirs_exist_ok=True)
+            with open(os.path.join(d, "index.json")) as f:
+                idx = json.load(f)
+            bad = json.loads(json.dumps(idx))
+            bad["spots"][0]["fp"][0] = "0" * 16
+            with open(os.path.join(d, "index.json"), "w") as f:
+                json.dump(bad, f)
+            self.assertIsNone(self._libsol(lib=fl.FlopLibrary.from_dir(d)))
+            bad = json.loads(json.dumps(idx))
+            for tree in (bad["tree"], bad["spots"][0]["tree"]):   # (a spot's own tree is the one read)
+                tree["model"]["version"] = fl.MODEL_VERSION + 1
+            with open(os.path.join(d, "index.json"), "w") as f:
+                json.dump(bad, f)
+            self.assertIsNone(self._libsol(lib=fl.FlopLibrary.from_dir(d)))
+            # an entry whose header doesn't match its index line (rebuilt for other charts, say)
+            with open(os.path.join(d, "index.json"), "w") as f:
+                json.dump(idx, f)
+            head = dict(build._meta(SPOT[0], self.setup), board=CANON)
+            head["fp"] = ["1" * 16, head["fp"][1]]
+            with open(os.path.join(d, SPOT[0], CANON + ".bin"), "wb") as f:
+                f.write(fl.encode(self.sol, head))
+            self.assertIsNone(self._libsol(lib=fl.FlopLibrary.from_dir(d)))
+            # stale entries are left out of a rebuilt index
+            build.write_index(d, [SPOT])
+            with open(os.path.join(d, "index.json")) as f:
+                self.assertEqual(json.load(f)["spots"], [])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        # no index at all
+        self.assertIsNone(self._libsol(lib=fl.FlopLibrary(lambda p: None)))
+
+    def test_old_entries(self):
+        """An entry solved with the river blind (fl.old_tree(), before every spot dealt it) stays in a rebuilt index,
+        listed under the spot's old_tree, and answers as before until it is solved again (which --keep-old leaves for
+        a later run)."""
+        sid = SPOT[0]
+        self.assertTrue(self._libsol().river_dealt)            # (the fixture's header: the spot's tree, dealt)
+        d = tempfile.mkdtemp()
+        try:
+            shutil.copytree(self.dir, d, dirs_exist_ok=True)
+            meta = build._meta(sid, self.setup)
+            path = os.path.join(d, sid, CANON + ".bin")
+            with open(path, "wb") as f:
+                f.write(fl.encode(self.sol, dict(meta, board=CANON, tree=fl.old_tree())))
+            self.assertFalse(build.current(path, meta))
+            self.assertTrue(build.current(path, meta, build.old_tree(meta)))
+            build.main(["--spots", sid, "--boards", CANON, "--out", d, "--keep-old"])   # nothing to solve
+            with open(os.path.join(d, "index.json")) as f:
+                sp = json.load(f)["spots"][0]
+            self.assertEqual((list(sp["flops"]), sp["old"]), ([CANON], [CANON]))
+            self.assertEqual(fl._key_str(sp["old_tree"]), fl._key_str(fl.old_tree()))
+            self.assertEqual(fl._key_str(sp["tree"]), fl._key_str(meta["tree"]))
+            ls = self._libsol(lib=fl.FlopLibrary.from_dir(d))
+            self.assertIsNotNone(ls)
+            self.assertFalse(ls.river_dealt)
+            self.assertTrue(ls.exact)                          # (the advisor's model here: the river blind)
+            # an entry on neither tree is still left out
+            with open(path, "wb") as f:
+                f.write(fl.encode(self.sol, dict(meta, board=CANON, tree=dict(fl.old_tree(), depth=9))))
+            build.write_index(d, [SPOT])
+            with open(os.path.join(d, "index.json")) as f:
+                self.assertEqual(json.load(f)["spots"], [])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_turn_file(self):
+        """An entry's turn file (fl.encode_turns): the flop lines the solve takes to the turn with TURN_LINE of the hand
+        pairs, most first; per line the turn's first decision and in position after a check, per turn class the acting
+        player's combos that reach the line (TURN_REACH of the most reached) and don't hold the class's played card
+        (the flop solve doesn't play those there), each the solve's strategy to within the steps (1/TURN_Q). Written
+        with its entry (build.write_entry) and listed by the index only beside that entry; any other is removed."""
+        sol, sid = self.sol, SPOT[0]
+        meta = dict(build._meta(sid, self.setup), board=CANON)
+        entry = fl.encode(sol, meta)
+        t = fl.decode_turns(fl.encode_turns(sol, entry))
+        h = t["head"]
+        self.assertEqual((h["format"], h["entry"], h["board"], h["q"]), (fl.TURN_FORMAT, fl.entry_hash(entry), CANON, fl.TURN_Q))
+        self.assertEqual(fl.turns_head(fl.encode_turns(sol, entry)), h)
+        classes = sol.ctx.turn_classes(tuple(sol.root.boards[0]), sol.solver.dead)
+        self.assertEqual(len(classes), 13)                                  # (rainbow: a class per rank)
+        self.assertEqual(sorted(c for _, cs in classes for c in cs), sorted(set(range(52)) - set(cards(CANON))))
+        self.assertEqual(h["classes"], [[cards_str([c]), cards_str(list(cs))] for c, cs in classes])
+        lines = fl.turn_lines(sol)
+        kept = [x for x in lines if x[4] >= fl.TURN_LINE]
+        self.assertGreater(len(kept), 1)
+        self.assertLessEqual(sum(x[4] for x in lines), 1 + 1e-9)
+        self.assertEqual([ln["path"] for ln in t["lines"]], [list(x[0]) for x in kept])
+        act, K = sol.ctx.active, len(classes)
+        pos = np.full(len(ALL_COMBOS), -1)
+        pos[act] = np.arange(len(act))
+        for (path, ch, a0, a1, share), ln in zip(kept, t["lines"]):
+            T = ch.child
+            for k, (played, _) in enumerate(classes):
+                self.assertTrue(np.array_equal(ch.masks.reshape(K, -1)[k] > 0, MEMBER_FULL[played][act] == 0))
+            for p, a in enumerate((a0, a1)):
+                m = np.zeros(len(ALL_COMBOS), dtype=bool)
+                m[act] = (a > 0) & (a >= fl.TURN_REACH * a.max())
+                self.assertTrue(np.array_equal(ln["masks"][p], m))
+            self.assertEqual([(nd["at"], nd["player"]) for nd in ln["nodes"]], [([], 0), (["check"], 1)])
+            for nd in ln["nodes"]:
+                st = fl.node_at(T, nd["at"]).avg_strategy()
+                A = len(nd["names"])
+                for k, (idx, s) in enumerate(nd["classes"]):
+                    want = ln["masks"][nd["player"]] & (MEMBER_FULL[classes[k][0]] == 0)
+                    self.assertTrue(np.array_equal(idx, np.nonzero(want)[0]))
+                    self.assertLessEqual(np.abs(s - st[k][:, pos[idx]]).max(), A / (2 * fl.TURN_Q) + 1e-6)
+        # another card of a class reads the played card's strategies: each combo the same combo's, one holding the
+        # played card its image's holding that card
+        ln, (played, cs) = t["lines"][0], classes[-1]
+        other = next(c for c in cs if c != played)
+        a, b = fl.turn_node(t, ln["path"], ["check"], played), fl.turn_node(t, ln["path"], ["check"], other)
+        self.assertEqual((a["played"], b["played"], a["player"]), (played, played, 1))
+        self.assertTrue(np.array_equal(a["combos"], ln["nodes"][1]["classes"][-1][0]))
+        sa = {int(i): a["strat"][:, n] for n, i in enumerate(a["combos"])}
+        self.assertEqual(len(b["combos"]), len(a["combos"]))
+        self.assertTrue(np.all(np.diff(b["combos"]) > 0))
+        for n, j in enumerate(b["combos"]):
+            x, y = ALL_COMBOS[j]
+            self.assertNotIn(other, (x, y))
+            self.assertTrue(np.array_equal(b["strat"][:, n], sa[COMBO_INDEX[tuple(sorted(other if c == played else c for c in (x, y)))]]))
+        self.assertTrue(any(played in ALL_COMBOS[j] for j in b["combos"]))
+        self.assertIsNone(fl.turn_node(t, ["fold"], [], played))
+        # written with the entry, listed by the index beside it only
+        self.assertIsNone(self.lib.turns(self.lib.index()["spots"][0], CANON))       # (the fixture has none)
+        d = tempfile.mkdtemp()
+        try:
+            data, turns = build.write_entry(d, sid, CANON, sol, meta)
+            self.assertEqual((data, fl.turns_head(turns)), (entry, h))
+            build.write_index(d, [SPOT])
+            lib = fl.FlopLibrary.from_dir(d)
+            sp = lib.index()["spots"][0]
+            self.assertIs(sp["turns"], True)
+            got = lib.turns(sp, CANON)
+            self.assertEqual(got["head"], h)
+            self.assertTrue(np.array_equal(got["lines"][0]["nodes"][0]["classes"][0][1], t["lines"][0]["nodes"][0]["classes"][0][1]))
+            path = os.path.join(d, sid, CANON + ".bin")
+            tpath = path[:-4] + ".turn.bin"
+            self.assertEqual(build._drop_turns(path, lambda: True), 0)      # (a build's pair written since: kept)
+            orphan = os.path.join(d, sid, "2c3c4d.turn.bin")                 # a turn file beside no entry
+            shutil.copy(tpath, orphan)
+            build.write_index(d, [SPOT])
+            self.assertFalse(os.path.exists(orphan))
+            self.assertTrue(os.path.exists(tpath))
+            with open(path, "wb") as f:                                     # another entry beside it: not its turns
+                f.write(fl.encode(sol, dict(meta, note="again")))
+            build.write_index(d, [SPOT])
+            lib = fl.FlopLibrary.from_dir(d)
+            sp = lib.index()["spots"][0]
+            self.assertNotIn("turns", sp)
+            self.assertFalse(os.path.exists(tpath))                         # (removed: the deploy publishes the folder)
+            self.assertIsNone(lib.turns(dict(sp, turns=True), CANON))
+            build.write_entry(d, sid, CANON, sol, meta)
+            self.assertTrue(os.path.exists(tpath))
+            build.write_entry(d, sid, CANON, sol, meta, with_turns=False)    # (--no-turns)
+            self.assertFalse(os.path.exists(tpath))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_turn_file_evs(self):
+        """Format 2 (fl.encode_turns(evs=True)): the same turn file with the flop solve's EVs on the turn after its
+        strategies: per line and turn class both players' range EV at the turn's first decision (as a live turn
+        report's, Advisor._row_evs: the two add up to the pot), per stored node and class the acting player's EV of
+        each action (of the hands that take it: their range's EV lies between them), to TURN_EV_STEP of the line's pot,
+        NaN where under TURN_EV_MIN combos take it. A format-1 reader reads the strategies as before (it reads what
+        the header lays out and stops there); the default writes format 1. A turn report from it has EVs."""
+        sol, sid = self.sol, SPOT[0]
+        meta = dict(build._meta(sid, self.setup), board=CANON)
+        entry = fl.encode(sol, meta)
+        v1, v2 = fl.encode_turns(sol, entry), fl.encode_turns(sol, entry, evs=True)
+        h1, h2 = fl.turns_head(v1), fl.turns_head(v2)
+        self.assertEqual((h1["format"], "ev" in h1, h2["format"], h2["ev"]), (fl.TURN_FORMAT, False, fl.TURN_EV_FORMAT, fl.TURN_EV_STEP))
+        self.assertEqual({k: v for k, v in h2.items() if k not in ("format", "ev")}, {k: v for k, v in h1.items() if k != "format"})
+        self.assertLess(len(v2), 1.2 * len(v1))
+        # a format-1 reader: the header without "ev" (what it reads) over the format-2 body
+        raw = zlib.decompress(v2[len(fl.TURN_MAGIC):])
+        hl = struct.unpack("<I", raw[:4])[0]
+        old = {k: v for k, v in json.loads(raw[4:4 + hl]).items() if k != "ev"}
+        ob = json.dumps(dict(old, format=1), separators=(",", ":")).encode()
+        t1, t2 = fl.decode_turns(v1), fl.decode_turns(v2)
+        t_old = fl.decode_turns(fl.TURN_MAGIC + zlib.compress(struct.pack("<I", len(ob)) + ob + raw[4 + hl:]))
+        for t in (t2, t_old):
+            for a, b in zip(t1["lines"], t["lines"]):
+                self.assertTrue(all(np.array_equal(x, y) for x, y in zip(a["masks"], b["masks"])))
+                for x, y in zip(a["nodes"], b["nodes"]):
+                    self.assertTrue(all(np.array_equal(i, j) and np.array_equal(p, q) for (i, p), (j, q) in zip(x["classes"], y["classes"])))
+        for t in (t1, t_old):
+            self.assertTrue(all(ln["evs"] is None and all(nd["evs"] is None for nd in ln["nodes"]) for ln in t["lines"]))
+        # the EVs
+        K = len(h2["classes"])
+        kept = [x for x in fl.turn_lines(sol) if x[4] >= fl.TURN_LINE]
+        for (path, ch, a0, a1, share), ln in zip(kept, t2["lines"]):
+            step = h2["ev"] * ln["pot"]
+            T = ch.child
+            masks = np.asarray(ch.masks, dtype=np.float64).reshape(K, -1)
+            R = [a0[None, :] * masks, a1[None, :] * masks]
+            want = Advisor._row_evs(sol, T, R).T                                    # (K, 2)
+            self.assertEqual(ln["evs"].shape, (K, 2))
+            self.assertTrue(np.all(np.isfinite(ln["evs"])))
+            self.assertLessEqual(np.abs(ln["evs"] - want).max(), step / 2 + 1e-4)
+            self.assertLessEqual(np.abs(ln["evs"].sum(axis=1) - ln["pot"]).max(), 2 * step + 1e-3 * ln["pot"])
+            direct = fl.turn_evs(sol, ch, a0, a1)
+            for nd in ln["nodes"]:
+                n, r = T, list(R)
+                for nm in nd["at"]:
+                    a = n.names.index(nm)
+                    r[n.player] = r[n.player] * n.avg_strategy()[:, a, :]
+                    n = n.children[a]
+                e = nd["evs"]
+                self.assertEqual(e.shape, (K, len(nd["names"])))
+                np.testing.assert_allclose(e, direct["nodes"][tuple(nd["at"])], atol=step / 2 + 1e-4)
+                took = (r[n.player][:, None, :] * n.avg_strategy()).sum(axis=2)     # (K, A): the combos that take each
+                self.assertTrue(np.array_equal(np.isnan(e), took < fl.TURN_EV_MIN))
+                if not nd["at"]:   # (the turn's first decision: its player's range EV between its actions')
+                    lo, hi = np.nanmin(e, axis=1), np.nanmax(e, axis=1)
+                    tol = 0.01 * ln["pot"]   # (and the hands under TURN_EV_MIN on an action left out of both)
+                    self.assertTrue(np.all((lo - tol <= ln["evs"][:, 0]) & (ln["evs"][:, 0] <= hi + tol)))
+        # a library with it: the turn report has each card's EVs (its class's) and each action's on the card
+        d = tempfile.mkdtemp()
+        try:
+            for evs in (False, True):
+                build.write_entry(d, sid, CANON, sol, meta, turn_evs=evs)
+                build.write_index(d, [SPOT])
+                adv = Advisor(fl.library_config(self.setup["pot"], self.setup["stack"]), time_budget=1.0, prior_budget=0.5)
+                adv.library = fl.FlopLibrary.from_dir(d)
+                q = {"players": 6, "stack": 100, "board": BOARD, "preflop": self.pre, "turn": [], "river": [], "study": True,
+                     "runouts": "held"}
+                lines = adv.advise(dict(q, flop=[{"pos": self.setup["oop"], "action": "check"}, {"pos": self.setup["ip"], "action": "check"}]))
+                ln = (lines.get("lines") or [None])[0]
+                r = lines if not lines.get("skipped") else adv.advise(dict(q, flop=ln["flop"]))
+                self.assertEqual(r["source"], "store", r)
+                f = (t2 if evs else t1)["lines"][r["line"]]
+                smap = fl.canonical(cards(BOARD))[1]
+                cls = {c: k for k, (_, cs) in enumerate(h2["classes"]) for c in cards(cs)}
+                for c in r["cards"]:
+                    if not evs:
+                        self.assertIsNone(c["ev"])
+                        continue
+                    k = cls[(lambda x: x // 4 * 4 + smap[x % 4])(cards(c["card"])[0])]
+                    np.testing.assert_allclose(c["ev"], f["evs"][k], atol=0.006)
+                rows = r["first"]["cards"]
+                self.assertEqual(all(x.get("ev") is None for x in rows), not evs)
+                if evs:
+                    self.assertEqual(len(rows[0]["ev"]), len(r["first"]["actions"]))
+                self.assertEqual(any("no EVs" in n for n in r["notes"]), not evs)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_turn_file_ev_scale(self):
+        """A turn file's EV step is per file: 0.1% of each line's pot (TURN_EV_STEP) holds 32.7 pots, and a deep
+        stack's all-in is more (200bb behind a 5.5bb turn pot: ~36 pots), so the file takes the first of TURN_EV_STEPS
+        its largest EV fits in and round-trips within a step; past the last, EVs are clipped to it (never the
+        no-combos marker), and where nobody takes an action it stays None."""
+        sol, sid = self.sol, SPOT[0]
+        entry = fl.encode(sol, dict(build._meta(sid, self.setup), board=CANON))
+        real, kept = fl.turn_evs, [x for x in fl.turn_lines(sol) if x[4] >= fl.TURN_LINE]
+        for times, step in ((36.0, 0.002), (150.0, 0.005), (500.0, 0.01)):
+            # the real EVs scaled so the largest is `times` its line's pot (each line's pot: its turn node's)
+            pots = {id(ch): float(ch.child.pot_now) for _, ch, _, _, _ in kept}
+            want = {}
+
+            def big(sol_, ch, a0, a1, nodes=fl.TURN_NODES):
+                e = real(sol_, ch, a0, a1, nodes)
+                arrs = [e["range"]] + list(e["nodes"].values())
+                k = times * pots[id(ch)] / max(float(np.nanmax(np.abs(x))) for x in arrs)
+                out = {"range": e["range"] * k, "nodes": {at: x * k for at, x in e["nodes"].items()}}
+                want[id(ch)] = out
+                return out
+            with mock.patch.object(fl, "turn_evs", big):
+                data = fl.encode_turns(sol, entry, evs=True)
+            t = fl.decode_turns(data)
+            self.assertEqual(t["head"]["ev"], step)
+            for (_, ch, _, _, _), ln in zip(kept, t["lines"]):
+                unit = step * ln["pot"]
+                w = want[id(ch)]
+                for got, exp in [(ln["evs"], w["range"])] + [(nd["evs"], w["nodes"][tuple(nd["at"])]) for nd in ln["nodes"]]:
+                    self.assertTrue(np.array_equal(np.isnan(got), np.isnan(exp)))
+                    lim = 32767 * unit
+                    np.testing.assert_allclose(got[~np.isnan(got)], np.clip(exp[~np.isnan(exp)], -lim, lim), atol=unit / 2 + 1e-9)
+            if times > 32767 * fl.TURN_EV_STEPS[-1]:   # (clipped: the largest at the last step's end, not a marker)
+                self.assertTrue(any(np.nanmax(np.abs(ln["evs"])) >= 32767 * step * ln["pot"] - 1e-6
+                                    or any(np.nanmax(np.abs(nd["evs"])) >= 32767 * step * ln["pot"] - 1e-6 for nd in ln["nodes"])
+                                    for ln in t["lines"]))
+
+    def test_advisor_answers_from_library(self):
+        """The advisor's flop answer comes from the library where it holds the spot: instantly, at the stored
+        iterations and exploitability, with the stored mix for the hero's hand; on the same tree for a model that
+        deals the river as the entry does, else labelled as another model (Accurate's, the river bet on the turn's
+        boards, and Fast's). A turn spot narrows the flop through it."""
+        s = self.setup
+        hole = _hole_in(s["full0"], BOARD, 3)
+        base = {"hero": s["oop"], "hole": hole, "board": BOARD, "preflop": self.pre, "stack": 100}
+        fast = Config(n_turns=3, river_play=False, turn_classes=False, **{k: {a: list(b) for a, b in v.items()} for k, v in fl.LS.items()})
+        for cfg, same in ((fl.library_config(s["pot"], s["stack"]), True), (fl.library_config(), False), (fast, False)):
+            adv = Advisor(cfg, time_budget=1.0, prior_budget=0.5)
+            adv.library = self.lib
+            t = time.time()
+            r = adv.advise(base)
+            self.assertLess(time.time() - t, 0.9)
+            self.assertEqual(r["precomputed"]["same_tree"], same, r.get("notes"))
+            self.assertEqual(r["solver"]["iterations"], ITERS)
+            self.assertAlmostEqual(r["solver"]["exploitability_pct"], round(self.sol.exploitability(), 2), places=2)
+            canon_combo = fl.combo_map(fl.canonical(cards(BOARD))[1])[COMBO_INDEX[tuple(sorted(cards(hole)))]]
+            i = list(self.sol.ctx.active).index(canon_combo)
+            want = self.sol.root.avg_strategy0()[:, i]
+            got = [a["freq"] for a in r["actions"]]
+            self.assertLess(np.abs(np.array(got) - want).max(), 0.011, (got, want))
+            self.assertTrue(any("precomputed solution" in n for n in r["notes"]))
+            # the in-position opener after the big blind checks: stored too (a lead, which the big blind hardly
+            # ever makes, isn't: STORE_LINE)
+            ri = adv.advise(dict(base, hero=s["ip"], hole=_hole_in(s["full1"], BOARD, 5),
+                                 flop=[{"pos": s["oop"], "action": "check"}]))
+            self.assertIn("precomputed", ri)
+            self.assertEqual([a["action"] for a in ri["actions"]][0], "check")
+            # and its c-bet check-raised: the stored node facing the raise
+            path = max((p for p in fl.stored_paths(self.sol.root, self.sol.r0, self.sol.r1) if fl.raised(p)),
+                       key=lambda p: fl._reaches(self.sol.root, p, self.sol.r0, self.sol.r1)[0].sum())
+            bet = float(path[1].split()[1][:-1]) / 100 * s["pot"]
+            flop = [{"pos": s["oop"], "action": "check"}, {"pos": s["ip"], "action": "bet", "amount": round(bet, 2)},
+                    {"pos": s["oop"], "action": "raise", "to": float(path[2].split()[-1])}]
+            rr = adv.advise(dict(base, hero=s["ip"], hole=_hole_in(s["full1"], BOARD, 5), flop=flop))
+            self.assertIn("precomputed", rr, rr.get("notes"))
+            self.assertEqual([a["action"] for a in rr["actions"]][:2], ["fold", "call"])
+        # without the library the same spot is solved live: the budget, fewer iterations
+        adv = Advisor(fl.library_config(), time_budget=1.0, prior_budget=0.5)
+        t = time.time()
+        r = adv.advise(base)
+        self.assertGreater(time.time() - t, 0.9)
+        self.assertNotIn("precomputed", r)
+        self.assertGreater(r["solver"]["exploitability_pct"], self.sol.exploitability())
+        # a turn spot: the flop's narrowing reads the library
+        adv = Advisor(fast, time_budget=1.0, prior_budget=0.5)
+        adv.library = self.lib
+        r = adv.advise(dict(base, board=BOARD + "4c", flop=[{"pos": s["oop"], "action": "check"},
+                                                          {"pos": s["ip"], "action": "check"}]))
+        self.assertTrue(any(n.startswith("flop: precomputed solution") for n in r["notes"]), r["notes"])
+        self.assertNotIn("precomputed", r)   # (the turn itself is solved live)
+
+    def test_library_only(self):
+        """"library_only" (the session analyzer's instant scope): a flop the library holds is answered from it, anything
+        else is skipped at once, never solved; preflop answers as usual."""
+        s = self.setup
+        adv = Advisor(fl.library_config(), time_budget=5.0, prior_budget=5.0)
+        adv.library = self.lib
+        base = {"hero": s["oop"], "hole": _hole_in(s["full0"], BOARD, 3), "board": BOARD, "preflop": self.pre, "stack": 100,
+                "library_only": True}
+        self.assertIn("precomputed", adv.advise(base))
+        t = time.time()
+        for st in (dict(base, board=BOARD + "4c", flop=[{"pos": s["oop"], "action": "check"}, {"pos": s["ip"], "action": "check"}]),
+                   dict(base, stack=60)):   # a turn; a stack the library doesn't hold
+            self.assertIn("skipped", adv.advise(st))
+        self.assertLess(time.time() - t, 2.0)
+        self.assertNotIn("skipped", adv.advise(dict(base, board="", preflop=self.pre[:1], hero=self.pre[1]["pos"])))
+        self.assertFalse(adv._lib_only)
+
+    def test_not_used_where_it_does_not_apply(self):
+        """Exploit mode, a nodelock on the villain, a custom range and a rare villain line (a lead the solve never makes) solve live."""
+        s = self.setup
+        adv = Advisor(fl.library_config(), time_budget=0.5, prior_budget=0.3)
+        adv.library = self.lib
+        base = {"hero": s["oop"], "hole": _hole_in(s["full0"], BOARD, 3), "board": BOARD, "preflop": self.pre, "stack": 100}
+        self.assertNotIn("precomputed", adv.advise(dict(base, opponents="pool")))
+        self.assertNotIn("precomputed", adv.advise(dict(base, ranges={s["ip"]: "TT+, AK"})))
+        self.assertNotIn("precomputed", adv.advise(dict(base, locks={s["ip"]: {"fold": 15}})))
+        lead = self.sol.root.avg_strategy0() @ (self.sol.r0 / self.sol.r0.sum())
+        rare = [n for n, f in zip(self.sol.root.names, lead) if n.startswith("bet") and f < 0.05]
+        if rare:   # in-position facing a lead the solve rarely makes
+            amt = float(rare[0].split()[1][:-1]) / 100 * s["pot"]
+            r = adv.advise(dict(base, hero=s["ip"], hole=_hole_in(s["full1"], BOARD, 5),
+                                flop=[{"pos": s["oop"], "action": "bet", "amount": round(amt, 1)}]))
+            self.assertNotIn("precomputed", r)
+
+
+class TestOtherGames(unittest.TestCase):
+    """Spots of another game than 6-max 100bb (flop_library.Format, FORMAT_SPOTS): ids and labels carrying the game,
+    the line played at that table, the spot as the advisor plays it there, and an entry the advisor finds in that game
+    only (keyed by the two ranges, the pot and the stack) and the page loads in it (the index's "game")."""
+
+    def test_formats(self):
+        for tag in ("", "40bb", "8max", "a0.125", "9max_60bb_a0.125", "straddle", "2max_50bb"):
+            self.assertEqual(fl.Format.parse(tag).tag, tag)
+        self.assertEqual(fl.Format.parse("default"), fl.DEFAULT_FORMAT)
+        self.assertEqual(fl.Format(stack=40, ante=0.125).label, "40bb, 0.125bb ante")
+        with self.assertRaises(ValueError):
+            fl.Format.parse("40xx")
+        spots = fl.all_spots()
+        ids = [s[0] for s in spots]
+        self.assertEqual(len(ids), len(set(ids)))
+        default = [tuple(s) for s in fl.SPOTS if s[0] not in fl.FORMAT_ONLY]   # (6-max's limped pot: heads-up's base)
+        self.assertEqual([s[:3] for s in spots[:len(default)]], default)
+        self.assertNotIn("lp_sb_bb", ids)
+        self.assertIn("lp_sb_bb_2max", ids)
+        base = {s[0]: s for s in fl.SPOTS}
+        for tag, which in fl.FORMAT_SPOTS.items():
+            fmt = fl.Format.parse(tag)
+            got = fl.all_spots([tag])
+            self.assertEqual([s[0] for s in got], [f"{b}_{tag}" for b in which])
+            for (sid, label, line, f), b in zip(got, which):
+                self.assertEqual(f, fmt)
+                self.assertEqual(label, f"{base[b][1]}, {fmt.label}")
+        # the line at another table: the same raises and calls, the extra seats folding in turn; a seat the table
+        # doesn't have is refused
+        line = dict((s[0], s[2]) for s in fl.SPOTS)["srp_btn_bb"]
+        self.assertEqual(fl.format_line(line, fl.DEFAULT_FORMAT), line)
+        eight = fl.format_line(line, fl.Format(players=8))
+        self.assertEqual(eight.split(",")[-3:], ["BTN:r2.5", "SB:f", "BB:c"])
+        self.assertEqual(len(eight.split(",")), 8)
+        self.assertEqual(fl.format_line(line, fl.Format(stack=40)), line)
+        with self.assertRaises(ValueError):
+            fl.format_line(dict((s[0], s[2]) for s in fl.SPOTS)["srp_utg_bb"], fl.Format(players=3))
+
+    def test_other_game_entry(self):
+        sid, label, line, fmt = next(s for s in fl.all_spots(["200bb"]) if s[0] == "srp_utg_bb_200bb")
+        s = fl.spot_setup(line, fmt.players, fmt.stack, fmt.ante, fmt.straddle)
+        s100 = fl.spot_setup(line)
+        self.assertEqual((s["pot"], s["stack"]), (s100["pot"], 197.5))
+        self._found_in_its_game(sid, label, line, fmt, s, {"stack": 200}, {"stack": 100})
+
+    def test_heads_up_entry(self):
+        """Heads-up the small blind's 3bb open called: the big blind first to act after the flop, the heads-up charts'
+        ranges (wider than 6-max SB vs BB's), found in a 2-player game and not at 6-max."""
+        sid, label, line, fmt = next(s for s in fl.all_spots(["2max"]))
+        self.assertEqual((sid, label, line), ("srp_sb_bb_2max", "SB vs BB single-raised pot, heads-up", "SB:r3,BB:c"))
+        s = fl.spot_setup(line, fmt.players, fmt.stack, fmt.ante, fmt.straddle)
+        six = fl.spot_setup(dict((x[0], x[2]) for x in fl.SPOTS)["srp_sb_bb"])
+        self.assertEqual((s["oop"], s["ip"], s["pot"], s["stack"]), ("BB", "SB", 6.0, 97.0))
+        self.assertEqual((six["pot"], six["stack"]), (6.0, 97.0))
+        self.assertGreater((s["full1"] > 0).sum(), (six["full0"] > 0).sum())       # (the button's opens, wider)
+        self._found_in_its_game(sid, label, line, fmt, s, {"players": 2},
+                                {"players": 6, "preflop": parse_actions(dict((x[0], x[2]) for x in fl.SPOTS)["srp_sb_bb"])})
+
+    def test_heads_up_limped_entry(self):
+        """Heads-up the small blind's limp the big blind checks: pot 2, 99 behind, the big blind first to act after the
+        flop, found in a 2-player game and not in 6-max's limped pot (its own ranges, a spot not built there)."""
+        sid, label, line, fmt = fl.all_spots(["2max"])[1]
+        self.assertEqual((sid, label, line), ("lp_sb_bb_2max", "SB vs BB limped pot, heads-up", "SB:c,BB:x"))
+        s = fl.spot_setup(line, fmt.players, fmt.stack, fmt.ante, fmt.straddle)
+        self.assertEqual((s["oop"], s["ip"], s["pot"], s["stack"]), ("BB", "SB", 2.0, 99.0))
+        self._found_in_its_game(sid, label, line, fmt, s, {"players": 2},
+                                {"players": 6, "preflop": parse_actions(dict((x[0], x[2]) for x in fl.SPOTS)["lp_sb_bb"])})
+
+    def _found_in_its_game(self, sid, label, line, fmt, s, game: dict, other: dict):
+        """An entry of the spot in a library of its own: the index lists it with its game, and the advisor answers
+        from it with `game` in the advise state, not with `other`."""
+        sol = solve(cards(CANON), s["full0"], s["full1"], s["pot"], s["stack"], cfg=fl.library_config(),   # (blind: quick)
+                    time_budget=1e9, max_iters=40)
+        d = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(d, sid))
+            with open(os.path.join(d, sid, CANON + ".bin"), "wb") as f:
+                f.write(fl.encode(sol, dict(build._meta(sid, s), board=CANON)))
+            idx = build.write_index(d, fl.all_spots())
+            self.assertEqual([sp["id"] for sp in idx["spots"]], [sid])
+            sp = idx["spots"][0]
+            self.assertEqual((sp["label"], sp["line"], sp["game"]), (label, line, fmt.as_dict()))
+            with open(os.path.join(d, sid, "report.json")) as f:
+                self.assertEqual(json.load(f)["game"], fmt.as_dict())
+            lib = fl.FlopLibrary.from_dir(d)
+            self.assertEqual(lib.spot(sp["fp"][0], sp["fp"][1], s["pot"], s["stack"])["id"], sid)
+            # the advisor finds it in that game, and not in the other
+            adv = Advisor(fl.library_config(), time_budget=0.3, prior_budget=0.2)
+            adv.library = lib
+            base = {"hero": s["oop"], "hole": _hole_in(s["full0"], BOARD, 3), "board": BOARD, "preflop": parse_actions(line)}
+            r = adv.advise(dict(base, **game))
+            self.assertIn("precomputed", r, r.get("notes"))
+            self.assertEqual(r["solver"]["iterations"], 40)
+            self.assertNotIn("precomputed", adv.advise(dict(base, **other)))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+class TestShippedLibrary(unittest.TestCase):
+    def test_index_matches_the_charts(self):
+        """The shipped library (gto/static/flop_library) was built for the current charts and tree: every spot in
+        its index has the fingerprint the charts give now, and its entries are small."""
+        path = os.path.join(fl.DIR, "index.json")
+        if not os.path.exists(path):
+            self.skipTest("no library built")
+        with open(path) as f:
+            idx = json.load(f)
+        self.assertEqual(fl._key_str(idx["tree"]), fl._key_str(fl.tree_key(fl.library_config())))
+        spots = {s[0]: s for s in fl.all_spots()}
+        total = 0
+        for sp in idx["spots"]:
+            _, _, line, fmt = spots[sp["id"]]
+            self.assertEqual(sp.get("game"), None if fmt == fl.DEFAULT_FORMAT else fmt.as_dict())
+            s = fl.spot_setup(line, fmt.players, fmt.stack, fmt.ante, fmt.straddle)
+            self.assertEqual(sp["fp"], [fl.range_fp(s["full0"]), fl.range_fp(s["full1"])],
+                             f"{sp['id']}: the charts changed; rebuild with scripts/build_flop_library.py")
+            self.assertEqual((sp["pot"], sp["stack"]), (s["pot"], s["stack"]))
+            # (a spot not solved again since every spot deals the river is on the old tree, whole or in part)
+            self.assertIn(fl._key_str(sp["tree"]), (fl._key_str(fl.tree_key(fl.library_config(s["pot"], s["stack"]))),
+                                                    fl._key_str(fl.old_tree())),
+                          f"{sp['id']}: the library's model changed; rebuild with scripts/build_flop_library.py")
+            if "old" in sp:
+                self.assertEqual(fl._key_str(sp["old_tree"]), fl._key_str(fl.old_tree()))
+                self.assertLessEqual(set(sp["old"]), set(sp["flops"]))
+            for name in sp["flops"]:
+                size = os.path.getsize(os.path.join(fl.DIR, sp["id"], name + ".bin"))
+                self.assertLess(size, 200_000)
+                total += size
+            turns = sp.get("turns")
+            for name in (sp["flops"] if turns is True else turns or ()):         # (a turn file beside its entry)
+                with open(os.path.join(fl.DIR, sp["id"], name + ".turn.bin"), "rb") as f:
+                    self.assertTrue(fl.turns_head(f.read())["entry"].startswith(sp["flops"][name]), (sp["id"], name))
+        # (the page fetches an entry when its spot comes up: the total is the repository's and the deploy's)
+        self.assertLess(total, 150e6)
+
+    def test_every_file_is_indexed(self):
+        """Every entry and turn file in the shipped folder is named by index.json or the 3-way library's
+        mw_index.json (an entry, an "old" entry or a listed turn file): the library's deploy
+        (scripts/deploy_library.sh) publishes the folder as it is, so a stale file landed with the others would be."""
+        named = set()
+        for fn in ("index.json", "mw_index.json"):
+            path = os.path.join(fl.DIR, fn)
+            if not os.path.exists(path):
+                continue
+            with open(path) as f:
+                for sp in json.load(f)["spots"]:
+                    named |= {f"{sp['id']}/{nm}.bin" for nm in sp["flops"]}
+                    turns = sp.get("turns")
+                    named |= {f"{sp['id']}/{nm}.turn.bin" for nm in (sp["flops"] if turns is True else turns or ())}
+        if not named:
+            self.skipTest("no library built")
+        files = {os.path.relpath(os.path.join(d, fn), fl.DIR).replace(os.sep, "/")
+                 for d, _, fns in os.walk(fl.DIR) for fn in fns if fn.endswith(".bin")}
+        self.assertEqual(sorted(files - named), [], "not named by an index (rebuild it, or remove them)")
+
+    def test_reports_match_the_index(self):
+        """Each shipped spot's report.json (the page's flop reports) is the one the index hashes, holds the index's
+        flops with their entry hashes, its weights sum to the 22100 flops, and its frequencies to 1."""
+        path = os.path.join(fl.DIR, "index.json")
+        if not os.path.exists(path):
+            self.skipTest("no library built")
+        with open(path) as f:
+            idx = json.load(f)
+        for sp in idx["spots"]:
+            with open(os.path.join(fl.DIR, sp["id"], "report.json"), "rb") as f:
+                data = f.read()
+            self.assertEqual(sp["report"], hashlib.sha1(data).hexdigest()[:10], sp["id"])
+            self.assertLess(len(data), 600_000)   # (~45 KB on 184 flops, ~135 KB on 552, ~430 KB (80 KB gzipped) on all 1755, SB vs BB's 530 (113))
+            rep = json.loads(data)
+            self.assertEqual({x["f"]: x["hash"] for x in rep["flops"]}, sp["flops"])
+            self.assertAlmostEqual(sum(x["w"] for x in rep["flops"]), 22100, delta=1)
+            for x in rep["flops"]:
+                self.assertIn("", x["n"])
+                for k, fr in x["n"].items():
+                    self.assertEqual(len(fr), len(rep["nodes"][k]))
+                    # (each rounded to 0.001: half a step off at most)
+                    self.assertAlmostEqual(sum(fr), 1.0, delta=0.0005 * len(fr) + 1e-9, msg=(sp["id"], x["f"], k))
+                self.assertAlmostEqual(sum(x["ev"]), sp["pot"], delta=0.011)
+
+    def test_shipped_ranges_match_the_index(self):
+        """Each shipped spot has its ranges.json (the page's drills), with the index's fingerprints."""
+        path = os.path.join(fl.DIR, "index.json")
+        if not os.path.exists(path):
+            self.skipTest("no library built")
+        with open(path) as f:
+            idx = json.load(f)
+        for sp in idx["spots"]:
+            with open(os.path.join(fl.DIR, sp["id"], "ranges.json")) as f:
+                rg = json.load(f)
+            self.assertEqual(rg["fp"], sp["fp"], f"{sp['id']}: rebuild the index (scripts/build_flop_library.py --index-only)")
+            for p in (0, 1):
+                self.assertEqual(fl.range_fp(np.array(rg["w"][p]) / 10000), sp["fp"][p])
+
+
+if __name__ == "__main__":
+    unittest.main()

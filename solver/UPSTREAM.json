@@ -1,0 +1,17 @@
+{
+  "repo": "michaellhan/gto-solver",
+  "commit": "9b907bd61a95758c48b1141cfadd854ba2c0eeaa",
+  "date": "2026-11-03T04:17:27-05:00",
+  "imported": "2026-11-03",
+  "excluded": [
+    "gto/static/flop_library/ (315 MB precomputed library: served separately, see docs/DEPLOYMENT.md)",
+    "scripts/pfbench/ (Rust benchmark harness around b-inary/postflop-solver, AGPL-3.0; research only)",
+    "CLAUDE.md (upstream agent instructions that deploy the legacy site)"
+  ],
+  "local_patches": [
+    "scripts/deploy.sh, scripts/deploy_library.sh: a guard that refuses to publish the legacy site from this snapshot unless BUILD_ONLY (deploy.sh: or DRY_RUN=1, which publishes nothing) or LIZARD_ALLOW_UPSTREAM_DEPLOY=1"
+  ],
+  "build_time_edits": [
+    "gto/static/worker.js as served by Lizard (scripts/build-solver-assets.mjs): Cache API name 'gto-solver' -> 'lizard:solver', so Lizard and the classic app on the same origin do not evict each other's cached bundle. The file in solver/ is unchanged."
+  ]
+}

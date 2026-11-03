@@ -1,0 +1,47 @@
+# --- secrets and local configuration (never commit) ---
+.env
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.key
+.npmrc.local
+secrets/
+
+# --- dependencies, caches, virtualenvs ---
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.pf_cache/
+.wrangler/
+.vite/
+.cache/
+.eslintcache
+coverage/
+
+# --- generated build output ---
+web/dist/
+dist/
+web/public/solver/
+web/public/library/
+solver/core/build/
+.lizard/
+
+# --- large solver data: kept out of Git (see docs/DEPLOYMENT.md, "Solver data") ---
+# The local copy of the precomputed flop library the upstream tests read (315 MB, ~39k files),
+# populated by scripts/library/fetch-upstream-library.sh.
+solver/gto/static/flop_library/
+# assembled/published library trees
+library-build/
+
+# --- solver run artifacts ---
+solver/reports/
+solver/sanity_report.md
+
+# --- editors / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.claude/settings.local.json

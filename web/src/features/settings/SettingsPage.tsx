@@ -1,0 +1,84 @@
+import { LIBRARY_SOURCES, type LibraryChoice } from "@/config";
+import { useRuntime } from "@/solver/runtime";
+import { useSettings } from "@/state/settings";
+import { ModePicker } from "@/features/study/ModePicker";
+
+export function SettingsPage() {
+  const s = useSettings();
+  const active = useRuntime((r) => r.librarySource);
+  return (
+    <div className="max-w-2xl space-y-6">
+      <h1 className="text-2xl font-semibold">Settings</h1>
+      <p className="text-sm text-muted">Saved in this browser (IndexedDB). Nothing leaves your device.</p>
+
+      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
+        <legend className="px-1 font-medium">Solve accuracy</legend>
+        <ModePicker />
+        <p className="text-xs text-muted">
+          Quick and Fast stop once settled; Accurate runs to ~0.1% of the pot heads-up. Library flops answer instantly at every speed.
+        </p>
+      </fieldset>
+
+      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
+        <legend className="px-1 font-medium">Solver backend</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="radio" name="transport" checked={s.transport === "worker"} onChange={() => s.set({ transport: "worker" })} />
+          In this browser (default)
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="radio" name="transport" checked={s.transport === "http"} onChange={() => s.set({ transport: "http" })} />
+          Local Python solver (faster on flops)
+        </label>
+        {s.transport === "http" && (
+          <div className="space-y-1 pl-6">
+            <input
+              aria-label="Local solver URL"
+              className="w-64 rounded border border-border bg-surface-2 px-2 py-1 font-mono text-sm"
+              value={s.localSolverUrl}
+              onChange={(e) => s.set({ localSolverUrl: e.target.value })}
+            />
+            <p className="text-xs text-muted">
+              Run it from a Lizard checkout: <code className="font-mono">cd solver && PYTHONPATH=. ../.venv/bin/python -m gto.server --port 8765</code>
+            </p>
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
+        <legend className="px-1 font-medium">Precomputed library</legend>
+        <select
+          aria-label="Library source"
+          className="rounded border border-border bg-surface-2 px-2 py-1 text-sm"
+          value={s.librarySource}
+          onChange={(e) => s.set({ librarySource: e.target.value as LibraryChoice })}
+        >
+          <option value="auto">Automatic (Lizard's when published)</option>
+          {LIBRARY_SOURCES.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted">
+          {active ? `In use: ${LIBRARY_SOURCES.find((l) => l.id === active)?.label}. ` : ""}
+          Spots and flops not in the library are solved live.
+        </p>
+      </fieldset>
+
+      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
+        <legend className="px-1 font-medium">Display</legend>
+        <label className="flex items-center gap-2 text-sm">
+          EV in
+          <select className="rounded border border-border bg-surface-2 px-2 py-1" value={s.evUnit} onChange={(e) => s.set({ evUnit: e.target.value as "bb" | "pot" })}>
+            <option value="bb">big blinds</option>
+            <option value="pot">% of pot</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <button type="button" onClick={s.reset} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+        Reset to defaults
+      </button>
+    </div>
+  );
+}

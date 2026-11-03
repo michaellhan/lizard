@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.claude/
+sanity_report.md
+reports/
+.pf_cache/
+node_modules/
+.wrangler/
+.dev.vars
+core/build/
