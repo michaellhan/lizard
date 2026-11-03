@@ -137,6 +137,27 @@ describe("seats and dealing", () => {
     expect(studyOf(newHand(6, 100, 0, 9))).toBe("p=6&s=100");
   });
 
+  it("a rake: taken from pots that see a flop, capped; sent with every request and in the Study line", () => {
+    const h = newHand(2, 100, 0, 7, { rake: 5, rakeCap: 0.2 });
+    expect(h.rake).toEqual({ pct: 5, cap: 0.2 });
+    expect(stateFor(h)).toMatchObject({ rake: 0.05, rake_cap: 0.2 });
+    expect(studyOf(h)).toBe("p=2&s=100&rake=5&cap=0.2");
+    // no flop, no drop: your raise takes the blinds whole
+    const pre = play(h, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "fold" });
+    expect(finish(pre)).toMatchObject({ net: 1, pays: { SB: 2 } });
+    expect(finish(pre).rake).toBeUndefined();
+    // checked down from the flop: 5% of 6bb is 0.3, capped at 0.2
+    let x = play(h, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "call" });
+    for (const st of ["flop", "turn", "river"] as const) x = play(dealNext(x, st), { pos: "BB", action: "check" }, { pos: "SB", action: "check" });
+    const r = finish(x);
+    expect(r.rake).toBeCloseTo(0.2);
+    expect(Object.values(r.pays).reduce((a, b) => a + b, 0)).toBeCloseTo(5.8);
+    expect(chipsAfter({ ...x, result: r }, simOf(x))).toSatisfy((c: Record<string, number>) => Math.abs(c.SB! + c.BB! - 199.8) < 1e-9);
+    // none where unset; a cap only with a rake
+    expect(newHand(2, 100, 0, 7, { rakeCap: 3 }).rake).toBeUndefined();
+    expect(newHand(2, 100, 0, 7, { rake: 5 }).rake).toEqual({ pct: 5 });
+  });
+
   it("your own sizes: kept with the hand, sent from the flop on, in the Study line", () => {
     const sizes = { flop: [50], raise: [250] };
     const h = newHand(2, 100, 0, 9, { sizes });

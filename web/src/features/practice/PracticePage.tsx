@@ -73,7 +73,7 @@ interface PracticeSession {
   sources: Partial<Record<ResultSource, number>>;
 }
 
-const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null };
+const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 
 const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
@@ -110,6 +110,7 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) ? { carry: true } : {}),
     ...(s.opts.sizes ? { sizes: s.opts.sizes } : {}),
+    ...(s.opts.rake ? { rake: s.opts.rake, ...(s.opts.rakeCap ? { rakeCap: s.opts.rakeCap } : {}) } : {}),
     byPot: s.byPot,
     sources: s.sources,
   },
@@ -431,6 +432,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             Hand {hand.n + 1} · {hand.players === 2 ? "heads-up" : `${hand.players}-max`} · {hand.stack}bb
             {hand.ante ? ` · ante ${hand.ante}` : ""}
             {hand.straddle ? " · straddle" : ""}
+            {hand.rake ? ` · rake ${hand.rake.pct}%${hand.rake.cap ? ` (cap ${hand.rake.cap}bb)` : ""}` : ""}
             {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
           </span>
         </div>
@@ -879,6 +881,8 @@ function SetupForm({
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
+  const [rake, setRake] = useState(opts.rake ? String(opts.rake) : "");
+  const [cap, setCap] = useState(opts.rakeCap ? String(opts.rakeCap) : "");
   const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(() => Object.fromEntries(SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>);
   // (blank: the engine's own; preflop only has no use for them)
   const parsed = SIZE_STREETS.flatMap((k) => (numsOf(sizeText[k]).length ? [[k, numsOf(sizeText[k])] as const] : []));
@@ -890,14 +894,17 @@ function SetupForm({
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
-  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && !sizeProblems.length;
+  const rk = rake.trim() === "" ? 0 : Number(rake);
+  const rc = cap.trim() === "" ? 0 : Number(cap);
+  const rakeOk = Number.isFinite(rk) && rk >= 0 && rk <= LIMITS.rakePct && Number.isFinite(rc) && rc >= 0;
+  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && rakeOk && !sizeProblems.length;
   return (
     <form
       aria-label="New session"
       className="flex flex-wrap items-center gap-2 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes });
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes, rake: rk, rakeCap: rk ? rc : 0 });
       }}
     >
       <label className="flex items-center gap-1">
@@ -968,6 +975,36 @@ function SetupForm({
           onChange={(e) => setAnte(e.target.value)}
           aria-invalid={!anteOk}
           className="w-16 rounded border border-border bg-surface-2 px-1.5 py-1"
+        />
+        <span className="text-muted">bb</span>
+      </label>
+      <label className="flex items-center gap-1" title={`Taken from pots that see a flop, 0–${LIMITS.rakePct}% of the pot, capped in bb (blank: no cap)`}>
+        <span className="text-muted">Rake</span>
+        <input
+          aria-label="Rake"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          max={LIMITS.rakePct}
+          step="any"
+          placeholder="0"
+          value={rake}
+          onChange={(e) => setRake(e.target.value)}
+          aria-invalid={!rakeOk}
+          className="w-14 rounded border border-border bg-surface-2 px-1.5 py-1"
+        />
+        <span className="text-muted">% cap</span>
+        <input
+          aria-label="Rake cap"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="any"
+          placeholder="none"
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          aria-invalid={!rakeOk}
+          className="w-14 rounded border border-border bg-surface-2 px-1.5 py-1"
         />
         <span className="text-muted">bb</span>
       </label>

@@ -2560,3 +2560,43 @@ Untouched (read-only `ps`). Everything ran under `nice`. Memory 59% free.
 - Phase 1, still open: multitabling, the 20-hand engine check.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, a rake in Practice (second session)
+
+Deploy of fb7ad21 (your own sizes) verified live: run 41712801612 passed; `/lizard/` serves `index-Cb7rVhKg.js`,
+which has "Your own bet sizes".
+
+Practice's setup takes a rake and its cap, as the classic page sends its Rake setting with each practice request.
+
+### Code
+
+- `web/src/features/practice/practice.ts`: `HandOptions.rake` (% of the pot) and `rakeCap` (bb), kept on the hand
+  as the table engine's `Rake`; `finish` and `chipsAfter` settle with it (`table.ts` `settle`: no flop no drop, the
+  cap); `HandResult.rake` is what it took; `stateFor` sends `rake` (a fraction) and `rake_cap`; `studyOf` puts them in
+  the Study link (`rake=5&cap=3`).
+- `features/practice/history.ts`: the summary's "Total pot X | Rake Y" (it was always "Rake 0").
+- `PracticePage.tsx`: Rake (0–25%, the Solve page's `LIMITS.rakePct`) and its cap in the setup row; the header says
+  "rake 5% (cap 3bb)"; the session record keeps both. `features/history/history.ts`: "· rake 5%".
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 369/369 in 58 files (`practice.test.ts`: no flop no drop, 5% of 6bb capped at 0.2, the chips after, the request and Study line; `history.test.ts`: the summary; `PracticePage.test.tsx`: a 30% rake refused, every request with `rake` 0.05 and `rake_cap` 3, the session kept with them). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+Heads-up, rake 5% capped at 3bb: "Hand 1 · heads-up · 100bb · rake 5% (cap 3bb)"; your raise took the blinds whole
+("You won 1bb"); a later flop decision was graded under "Live solve · 0.09% pot from equilibrium … (converged)".
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`. Memory 60% free.
+
+### Next
+
+- Phase 1, still open: multitabling, run-it-out after your fold, the 20-hand engine check.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

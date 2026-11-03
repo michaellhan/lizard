@@ -198,19 +198,24 @@ describe("PracticePage", () => {
     fireEvent.change(ante, { target: { value: "2" } });
     expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
     fireEvent.change(ante, { target: { value: "0.1" } });
+    // (a rake over 25% is refused; 5% capped at 3bb is sent with every request)
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rake" }), { target: { value: "30" } });
+    expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rake" }), { target: { value: "5" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rake cap" }), { target: { value: "3" } });
     stub.states = [];
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     // 3-handed, you're on the button, which straddles and acts last preflop: the blinds call first
     await screen.findByRole("group", { name: "Your options" });
-    expect(screen.getByText("Hand 1 · 3-max · 100bb · ante 0.1 · straddle")).toBeInTheDocument();
+    expect(screen.getByText("Hand 1 · 3-max · 100bb · ante 0.1 · straddle · rake 5% (cap 3bb)")).toBeInTheDocument();
     expect(screen.getByText("Pot").nextSibling).toHaveTextContent("6.3bb");
     expect(stub.states.length).toBeGreaterThan(0);
-    for (const st of stub.states) expect(st).toMatchObject({ ante: 0.1, straddle: true });
+    for (const st of stub.states) expect(st).toMatchObject({ ante: 0.1, straddle: true, rake: 0.05, rake_cap: 3 });
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "fold" }));
     expect(await screen.findByText("You folded")).toBeInTheDocument();
     // (the best named by the answer's source: the chart, not a solver)
     expect(screen.getByRole("region", { name: "Last decision" })).toHaveTextContent("preflop: you took fold; the chart’s best was raise 2.5");
-    await waitFor(async () => expect((await allSessions()).find((s) => s.meta.ante === 0.1)?.meta).toMatchObject({ players: 3, straddle: true }));
+    await waitFor(async () => expect((await allSessions()).find((s) => s.meta.ante === 0.1)?.meta).toMatchObject({ players: 3, straddle: true, rake: 5, rakeCap: 3 }));
   });
 
   it("carries chips from hand to hand: your stack as the hand ends, the next hand from it, every request with the stacks", async () => {

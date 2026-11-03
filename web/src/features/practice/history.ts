@@ -88,7 +88,7 @@ export function handHistory(h: PracticeHand, head: { site: string; number: strin
     for (const p of pos) if ((res.pays[p] ?? 0) > EPS) out.push(`${name(p)} collected ${amt(res.pays[p]!)} from pot`);
   }
   out.push("*** SUMMARY ***");
-  if (settled) out.push(`Total pot ${amt(Object.values(res.pays).reduce((a, b) => a + b, 0))} | Rake 0`);
+  if (settled) out.push(`Total pot ${amt(Object.values(res.pays).reduce((a, b) => a + b, 0) + (res.rake ?? 0))} | Rake ${amt(res.rake ?? 0)}`);
   if (board.length) out.push(`Board [${board.join(" ")}]`);
   if (res?.folded) out.push(`${YOU} folded: the rest of the hand wasn't played.`);
   if (res?.cut) out.push("Preflop only: the hand stopped as the preflop closed.");

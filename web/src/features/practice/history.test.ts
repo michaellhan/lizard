@@ -176,6 +176,14 @@ describe("Practice hands as hand histories", () => {
     expect(rec).toMatchObject({ hero: "BTN", players: 6, potType: "SRP", end: "showdown" });
   });
 
+  it("a rake: what it took in the summary, the pot paid less it", () => {
+    const h = played(newHand(2, 100, 0, 7, { rake: 5, rakeCap: 0.2 }), mv("SB", "raise", 3), mv("BB", "call"), ...checks("BB", "SB", "BB", "SB", "BB", "SB"));
+    expect(h.result?.rake).toBeCloseTo(0.2);
+    const { text } = roundTrip(h);
+    expect(text).toContain("Total pot 6 | Rake 0.2\n");
+    expect(text).toMatch(/collected 5\.8 from pot/);
+  });
+
   it("chips carried: each seat's own chips in the history, read back as the same stacks", () => {
     const h = played(
       newHand(3, 100, 1, 7, { carry: true }, { stacks: { BTN: 62.5, SB: 100, BB: 137.5 }, rebuys: ["SB"] }),

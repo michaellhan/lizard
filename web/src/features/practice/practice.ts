@@ -23,6 +23,7 @@ import {
   NEED,
   type Lines,
   type Move,
+  type Rake,
   type Settlement,
   type Sim,
   type Street,
@@ -56,6 +57,8 @@ export interface HandResult {
   pays: Record<string, number>;
   /** the hand stopped as the preflop closed (preflop only): nothing settled, `net` 0 */
   cut?: true;
+  /** what the rake took from the pot, bb (none where it took nothing) */
+  rake?: number;
 }
 
 export interface PracticeHand {
@@ -85,6 +88,8 @@ export interface PracticeHand {
   rebuys?: string[];
   /** your own postflop bet and raise sizes, % of the pot (the Solve page's), for the solver's tree from the flop on */
   sizes?: Sizes;
+  /** the rake: % of pots that see a flop, capped in bb */
+  rake?: Rake;
 }
 
 export type Sizes = Partial<Record<SizeStreet, number[]>>;
@@ -117,6 +122,9 @@ export interface HandOptions {
   carry?: boolean;
   /** your own postflop sizes (null or empty: the engine's) */
   sizes?: Sizes | null;
+  /** the rake, % of the pot (0 for none, at most the Solve page's LIMITS.rakePct), and its cap in bb (0 for none) */
+  rake?: number;
+  rakeCap?: number;
 }
 
 /** Whether the options carry chips: full hands (not preflop only or a drill's pot), your seat moving one place a hand,
@@ -161,6 +169,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.ante && opts.ante > 0 ? { ante: opts.ante } : {}),
     ...(opts.straddle && players >= 3 ? { straddle: true as const } : {}),
     ...(opts.sizes && Object.keys(opts.sizes).length ? { sizes: opts.sizes } : {}),
+    ...(opts.rake && opts.rake > 0 ? { rake: { pct: opts.rake, ...(opts.rakeCap && opts.rakeCap > 0 ? { cap: opts.rakeCap } : {}) } } : {}),
     ...(carries(opts) ? { stacks: table?.stacks ?? Object.fromEntries(seatsOf(players).map((p) => [p, stack])), ...(table?.rebuys.length ? { rebuys: table.rebuys } : {}) } : {}),
   };
 }
@@ -180,7 +189,7 @@ export function chipsAfter(h: PracticeHand, sim: Sim = simOf(h)): Record<string,
   const inv = Object.fromEntries(pos.map((p) => [p, (sim.invested[p] ?? 0) + (sim.cur?.bets[p] ?? 0)]));
   const live = pos.filter((p) => sim.active.has(p));
   const down = !sim.active.has(h.hero) && live.length > 1;
-  const st = settle(t, inv, live, down ? new Set(live) : sim.allin, down ? h.board : boardOf(h), (p) => h.hands[p]!);
+  const st = settle(t, inv, live, down ? new Set(live) : sim.allin, down ? h.board : boardOf(h), (p) => h.hands[p]!, h.rake);
   return Object.fromEntries(pos.map((p) => [p, Math.round((t.stacks[p]! - inv[p]! + (st.pays[p] ?? 0)) * 100) / 100]));
 }
 
@@ -237,6 +246,10 @@ export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "st
 /** The hand's ante and straddle, in the engine's keys. */
 const gameOf = (h: Pick<PracticeHand, "ante" | "straddle">) => ({ ...(h.ante ? { ante: h.ante } : {}), ...(h.straddle ? { straddle: true } : {}) });
 
+/** The hand's rake: in the engine's keys (a fraction of the pot), and in Study's setup (%). */
+const rakeOf = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: Math.round(h.rake.pct * 10) / 1000, ...(h.rake.cap ? { rake_cap: h.rake.cap } : {}) } : {});
+const rakeSetup = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.rake.pct, ...(h.rake.cap ? { rakeCap: h.rake.cap } : {}) } : {});
+
 /** The seats whose chips aren't the starting stack (chips carried), bb; none where every seat has it. */
 const ownStacks = (h: Pick<PracticeHand, "stack" | "stacks">) => {
   const own = Object.entries(h.stacks ?? {}).filter(([, v]) => Math.abs(v - h.stack) > 1e-9);
@@ -247,8 +260,8 @@ export const simOf = (h: PracticeHand): Sim => simulate(setupOf(h), h.lines, h.s
 
 const boardOf = (h: PracticeHand) => h.board.slice(0, h.shown);
 
-/** The Study line where the hand stands: each seat's chips as the hand started, with the hand's ante, straddle and
- * sizes. */
+/** The Study line where the hand stands: each seat's chips as the hand started, with the hand's ante, straddle,
+ * sizes and rake. */
 export function studyOf(h: PracticeHand): string {
   const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   const s: StudyHand = {
@@ -259,7 +272,7 @@ export function studyOf(h: PracticeHand): string {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
-    ...(h.ante || h.straddle || h.sizes || ownStacks(h).stacks ? { setup: { ...gameOf(h), ...ownStacks(h), ...(h.sizes ? { sizes: h.sizes } : {}) } } : {}),
+    ...(h.ante || h.straddle || h.sizes || h.rake || ownStacks(h).stacks ? { setup: { ...gameOf(h), ...ownStacks(h), ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h) } } : {}),
   };
   return toSearch(s);
 }
@@ -280,6 +293,7 @@ export function stateFor(h: PracticeHand): AdvisorState {
     river: conv(h.lines.river),
     ...gameOf(h),
     ...ownStacks(h),
+    ...rakeOf(h),
     // (your sizes change the postflop solves only: sent from the flop on, as the classic page does, so preflop's
     // answer is the same)
     ...(h.sizes && h.shown >= 3 ? { sizes: h.sizes } : {}),
@@ -384,13 +398,14 @@ export function finish(h: PracticeHand, sim: Sim = simOf(h)): HandResult {
   if (!sim.active.has(h.hero)) return { net: -inv(h.hero), folded: true, winners: [], says: "", pays: {} };
   if (cutAt(h, sim)) return { net: 0, folded: false, winners: [], says: "", pays: {}, cut: true };
   const live = [...sim.active];
-  const st = settle(setupOf(h), sim.invested, live, sim.allin, boardOf(h), (p) => h.hands[p]!);
+  const st = settle(setupOf(h), sim.invested, live, sim.allin, boardOf(h), (p) => h.hands[p]!, h.rake);
   return {
     net: Math.round(((st.pays[h.hero] ?? 0) - inv(h.hero)) * 100) / 100,
     folded: false,
     winners: st.winners,
     says: says(st, h.hero, h.players),
     pays: st.pays,
+    ...(st.rake > 0 ? { rake: st.rake } : {}),
   };
 }
 
