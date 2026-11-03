@@ -1,0 +1,196 @@
+{
+ "fixture": "888_9max_mtt_ante.txt",
+ "hand": {
+  "site": "888poker",
+  "bb": 300,
+  "players": 9,
+  "hero": "CO",
+  "heroName": "HeroName",
+  "stack": 80,
+  "stacks": {
+   "UTG2": 60.83,
+   "LJ": 100,
+   "HJ": 31.33,
+   "CO": 80,
+   "BTN": 136.73,
+   "SB": 41.67,
+   "BB": 83.67,
+   "UTG": 111,
+   "UTG1": 50
+  },
+  "effective": 80,
+  "ante": 0.1,
+  "straddle": false,
+  "hole": [
+   "Ah",
+   "Td"
+  ],
+  "board": [
+   "Ac",
+   "9h",
+   "9d",
+   "5s",
+   "Qh"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "Dragon_Ace",
+    "pos": "UTG2",
+    "stack": 60.83
+   },
+   {
+    "seat": 2,
+    "name": "maple_fish",
+    "pos": "LJ",
+    "stack": 100
+   },
+   {
+    "seat": 3,
+    "name": "afk_andy",
+    "pos": "HJ",
+    "stack": 31.33
+   },
+   {
+    "seat": 4,
+    "name": "HeroName",
+    "pos": "CO",
+    "stack": 80
+   },
+   {
+    "seat": 5,
+    "name": "RiverRat",
+    "pos": "BTN",
+    "stack": 136.73
+   },
+   {
+    "seat": 6,
+    "name": "tightNtidy",
+    "pos": "SB",
+    "stack": 41.67
+   },
+   {
+    "seat": 7,
+    "name": "BB_defender",
+    "pos": "BB",
+    "stack": 83.67
+   },
+   {
+    "seat": 8,
+    "name": "shoveguy",
+    "pos": "UTG",
+    "stack": 111
+   },
+   {
+    "seat": 9,
+    "name": "qwerty123",
+    "pos": "UTG1",
+    "stack": 50
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "UTG1",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "UTG2",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "LJ",
+    "act": "raise",
+    "to": 2.2
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "call",
+    "to": 2.2
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "call",
+    "to": 2.2
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "LJ",
+    "act": "bet",
+    "to": 2
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "call",
+    "to": 2
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "fold"
+   },
+   {
+    "street": "turn",
+    "pos": "LJ",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "CO",
+    "act": "bet",
+    "to": 5
+   },
+   {
+    "street": "turn",
+    "pos": "LJ",
+    "act": "call",
+    "to": 5
+   },
+   {
+    "street": "river",
+    "pos": "LJ",
+    "act": "check"
+   },
+   {
+    "street": "river",
+    "pos": "CO",
+    "act": "check"
+   }
+  ],
+  "warnings": [],
+  "tournament": {
+   "id": "198765432",
+   "buyin": "$10+$1"
+  }
+ }
+}

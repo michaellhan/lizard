@@ -1,0 +1,136 @@
+{
+ "fixture": "stars_3bet_pot.txt",
+ "hand": {
+  "site": "PokerStars",
+  "bb": 2,
+  "players": 5,
+  "hero": "BB",
+  "heroName": "HeroName",
+  "stack": 120,
+  "stacks": {
+   "CO": 100,
+   "BTN": 156.2,
+   "SB": 94,
+   "BB": 120,
+   "HJ": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "Ac",
+   "Kh"
+  ],
+  "board": [
+   "Kd",
+   "9c",
+   "4h",
+   "2s",
+   "7c"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "grinder_pl",
+    "pos": "CO",
+    "stack": 100
+   },
+   {
+    "seat": 2,
+    "name": "Lucky_Lou",
+    "pos": "BTN",
+    "stack": 156.2
+   },
+   {
+    "seat": 3,
+    "name": "nit_or_never",
+    "pos": "SB",
+    "stack": 94
+   },
+   {
+    "seat": 4,
+    "name": "HeroName",
+    "pos": "BB",
+    "stack": 120
+   },
+   {
+    "seat": 6,
+    "name": "cold4bet",
+    "pos": "HJ",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 2.5
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "raise",
+    "to": 11
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "call",
+    "to": 11
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "bet",
+    "to": 7
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 22
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "call",
+    "to": 22
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "CO",
+    "act": "bet",
+    "to": 67,
+    "allIn": true
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "call",
+    "to": 67
+   }
+  ],
+  "warnings": []
+ }
+}

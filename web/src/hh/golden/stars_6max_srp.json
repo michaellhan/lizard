@@ -1,0 +1,156 @@
+{
+ "fixture": "stars_6max_srp.txt",
+ "hand": {
+  "site": "PokerStars",
+  "bb": 1,
+  "players": 6,
+  "hero": "BTN",
+  "heroName": "HeroName",
+  "stack": 100,
+  "stacks": {
+   "UTG": 100,
+   "HJ": 143.27,
+   "CO": 100,
+   "BTN": 100,
+   "SB": 62.4,
+   "BB": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "Ah",
+   "Qd"
+  ],
+  "board": [
+   "Qs",
+   "8d",
+   "3c",
+   "7h",
+   "2s"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "kroko77",
+    "pos": "UTG",
+    "stack": 100
+   },
+   {
+    "seat": 2,
+    "name": "Bluff_Maker",
+    "pos": "HJ",
+    "stack": 143.27
+   },
+   {
+    "seat": 3,
+    "name": "tilt_proof",
+    "pos": "CO",
+    "stack": 100
+   },
+   {
+    "seat": 4,
+    "name": "HeroName",
+    "pos": "BTN",
+    "stack": 100
+   },
+   {
+    "seat": 5,
+    "name": "snowman_9",
+    "pos": "SB",
+    "stack": 62.4
+   },
+   {
+    "seat": 6,
+    "name": "OldTAG",
+    "pos": "BB",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "raise",
+    "to": 2.5
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "call",
+    "to": 2.5
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "BTN",
+    "act": "bet",
+    "to": 1.8
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "call",
+    "to": 1.8
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "BTN",
+    "act": "bet",
+    "to": 6.1
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "call",
+    "to": 6.1
+   },
+   {
+    "street": "river",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "river",
+    "pos": "BTN",
+    "act": "bet",
+    "to": 14.5
+   },
+   {
+    "street": "river",
+    "pos": "BB",
+    "act": "fold"
+   }
+  ],
+  "warnings": []
+ }
+}

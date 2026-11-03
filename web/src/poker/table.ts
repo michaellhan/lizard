@@ -1,7 +1,6 @@
 // The table engine: a hand of no-limit hold'em replayed from its action lists (one per street, in the Advisor's
 // own format), so the same record drives the table, the solver request and the hand's history. Ported from the
-// classic page (solver/gto/static/index.html simulate, recordOf, sidePots; practice.js settle), without the
-// straddle. Chips are in big blinds; settlement counts in cents, so every chip put in is paid out (the odd cent of a
+// classic page (solver/gto/static/index.html simulate, recordOf, sidePots; practice.js settle). Chips are in big blinds; settlement counts in cents, so every chip put in is paid out (the odd cent of a
 // split pot to the first winner after the button, the rake taken in proportion from every pot).
 import { cmp, rank7, type HandValue } from "./evaluate";
 import { orderPost, seatsOf } from "./seats";
@@ -30,6 +29,8 @@ export interface TableSetup {
   stacks: Readonly<Record<string, number>>;
   /** each seat's ante, bb */
   ante?: number;
+  /** the first seat posts a 2bb straddle and acts last preflop (3 or more players) */
+  straddle?: boolean;
 }
 
 export interface StreetInfo {
@@ -80,6 +81,7 @@ const sum = (xs: Iterable<number>) => {
 export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
   const POS = seatsOf(t.players);
   const STACK = (p: string) => t.stacks[p] ?? 0;
+  const straddler = t.straddle && t.players >= 3 ? POS[0]! : null;
   const active = new Set(POS);
   const allin = new Set<string>();
   const inv: Record<string, number> = Object.fromEntries(POS.map((p) => [p, Math.min(t.ante ?? 0, STACK(p))]));
@@ -102,16 +104,17 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
       break;
     }
     const pre = street === "preflop";
-    const order = pre ? POS : orderPost(t.players);
+    const order = pre ? (straddler ? [...POS.slice(1), straddler] : POS) : orderPost(t.players);
     const bets: Record<string, number> = Object.fromEntries(POS.map((p) => [p, 0]));
     if (pre) {
       bets.SB = 0.5;
       bets.BB = 1;
+      if (straddler) bets[straddler] = 2;
       for (const p of POS) bets[p] = Math.min(bets[p]!, STACK(p) - inv[p]!);
       // (a seat whose ante or blind took all its chips is all-in, with no decision)
       for (const p of POS) if (bets[p]! + inv[p]! >= STACK(p) - EPS) allin.add(p);
     }
-    let curBet = pre ? 1 : 0;
+    let curBet = pre ? (straddler ? 2 : 1) : 0;
     let nRaises = 0;
     let acted = new Set<string>();
     let lastActor: string | null = null;

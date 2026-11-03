@@ -1,0 +1,139 @@
+{
+ "fixture": "gg_straddle.txt",
+ "hand": {
+  "site": "GGPoker",
+  "bb": 0.1,
+  "players": 6,
+  "hero": "BB",
+  "heroName": "Hero",
+  "stack": 124,
+  "stacks": {
+   "BB": 124,
+   "UTG": 100,
+   "HJ": 105.5,
+   "CO": 100,
+   "BTN": 100,
+   "SB": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": true,
+  "hole": [
+   "Jc",
+   "Jd"
+  ],
+  "board": [
+   "8c",
+   "4d",
+   "2s",
+   "Ah"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "Hero",
+    "pos": "BB",
+    "stack": 124
+   },
+   {
+    "seat": 2,
+    "name": "1b2c3d4e",
+    "pos": "UTG",
+    "stack": 100
+   },
+   {
+    "seat": 3,
+    "name": "6f7a8b9c",
+    "pos": "HJ",
+    "stack": 105.5
+   },
+   {
+    "seat": 4,
+    "name": "0d0e0f10",
+    "pos": "CO",
+    "stack": 100
+   },
+   {
+    "seat": 5,
+    "name": "aa11bb22",
+    "pos": "BTN",
+    "stack": 100
+   },
+   {
+    "seat": 6,
+    "name": "cc33dd44",
+    "pos": "SB",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 7
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "raise",
+    "to": 26
+   },
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "call",
+    "to": 26
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "bet",
+    "to": 17.5
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "call",
+    "to": 17.5
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "CO",
+    "act": "bet",
+    "to": 39
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "fold"
+   }
+  ],
+  "warnings": []
+ }
+}

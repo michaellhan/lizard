@@ -1,0 +1,125 @@
+{
+ "fixture": "party_6max_allin.txt",
+ "hand": {
+  "site": "partypoker",
+  "bb": 0.5,
+  "players": 6,
+  "hero": "SB",
+  "heroName": "Hero",
+  "stack": 124,
+  "stacks": {
+   "UTG": 160,
+   "HJ": 100,
+   "CO": 97.5,
+   "BTN": 100,
+   "SB": 124,
+   "BB": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "Ks",
+   "Kh"
+  ],
+  "board": [
+   "Jd",
+   "5c",
+   "2h",
+   "9s",
+   "Kc"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "3c9d1e2f",
+    "pos": "UTG",
+    "stack": 160
+   },
+   {
+    "seat": 2,
+    "name": "77ab01cd",
+    "pos": "HJ",
+    "stack": 100
+   },
+   {
+    "seat": 3,
+    "name": "e1f2a3b4",
+    "pos": "CO",
+    "stack": 97.5
+   },
+   {
+    "seat": 4,
+    "name": "9a8b7c6d",
+    "pos": "BTN",
+    "stack": 100
+   },
+   {
+    "seat": 5,
+    "name": "Hero",
+    "pos": "SB",
+    "stack": 124
+   },
+   {
+    "seat": 6,
+    "name": "0f1e2d3c",
+    "pos": "BB",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "raise",
+    "to": 2.5
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "raise",
+    "to": 7.5
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "raise",
+    "to": 18
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "raise",
+    "to": 100,
+    "allIn": true
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "call",
+    "to": 100
+   }
+  ],
+  "warnings": []
+ }
+}

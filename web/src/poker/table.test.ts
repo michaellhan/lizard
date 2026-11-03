@@ -96,6 +96,18 @@ describe("simulate", () => {
     expect(recordOf(t, s, { action: "raise", to: 10 })).toMatch(/can't raise/);
     expect(recordOf(t, s, { action: "raise", to: 10, clamp: true })).toEqual({ pos: "BTN", action: "call" });
   });
+
+  it("a straddle: the first seat posts 2bb and acts last preflop, a raise is to 4 or more (not heads-up)", () => {
+    const t = { ...table(6), straddle: true };
+    const s = simulate(t, noLines(), 0);
+    expect([s.toAct, s.cur?.curBet, s.cur?.bets.UTG, s.pot]).toEqual(["HJ", 2, 2, 3.5]);
+    expect(legal(t, s)).toMatchObject({ toAct: "HJ", toCall: 2, minTo: 4 });
+    const after = simulate(t, lines({ preflop: "HJ f, CO r7, BTN f, SB f, BB f" }), 0);
+    expect(after.toAct).toBe("UTG");
+    // folded round to it, the straddle checks its option
+    expect(simulate(t, lines({ preflop: "HJ c, CO f, BTN f, SB f, BB f" }), 0).toAct).toBe("UTG");
+    expect(simulate({ ...table(2), straddle: true }, noLines(), 0).cur?.curBet).toBe(1);
+  });
 });
 
 describe("recordOf", () => {

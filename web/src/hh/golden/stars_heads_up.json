@@ -1,0 +1,102 @@
+{
+ "fixture": "stars_heads_up.txt",
+ "hand": {
+  "site": "PokerStars",
+  "bb": 2,
+  "players": 2,
+  "hero": "BB",
+  "heroName": "HeroName",
+  "stack": 100,
+  "stacks": {
+   "SB": 125,
+   "BB": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "9c",
+   "9d"
+  ],
+  "board": [
+   "Ts",
+   "8s",
+   "2c",
+   "4h",
+   "3d"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "VillainHU",
+    "pos": "SB",
+    "stack": 125
+   },
+   {
+    "seat": 2,
+    "name": "HeroName",
+    "pos": "BB",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "raise",
+    "to": 2.5
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "raise",
+    "to": 9
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "call",
+    "to": 9
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "SB",
+    "act": "bet",
+    "to": 6
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "call",
+    "to": 6
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "SB",
+    "act": "check"
+   },
+   {
+    "street": "river",
+    "pos": "BB",
+    "act": "bet",
+    "to": 20
+   },
+   {
+    "street": "river",
+    "pos": "SB",
+    "act": "fold"
+   }
+  ],
+  "warnings": []
+ }
+}

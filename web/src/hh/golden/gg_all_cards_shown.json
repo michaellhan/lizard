@@ -1,0 +1,91 @@
+{
+ "fixture": "gg_all_cards_shown.txt",
+ "hand": {
+  "site": "GGPoker",
+  "bb": 0.5,
+  "players": 4,
+  "hero": "SB",
+  "heroName": "Hero",
+  "stack": 100,
+  "stacks": {
+   "CO": 100,
+   "BTN": 100,
+   "SB": 100,
+   "BB": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "Ks",
+   "Kh"
+  ],
+  "board": [
+   "Jd",
+   "5c",
+   "2h"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "3c9d1e2f",
+    "pos": "CO",
+    "stack": 100
+   },
+   {
+    "seat": 2,
+    "name": "77ab01cd",
+    "pos": "BTN",
+    "stack": 100
+   },
+   {
+    "seat": 3,
+    "name": "Hero",
+    "pos": "SB",
+    "stack": 100
+   },
+   {
+    "seat": 4,
+    "name": "9a8b7c6d",
+    "pos": "BB",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "raise",
+    "to": 3
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "call",
+    "to": 3
+   },
+   {
+    "street": "flop",
+    "pos": "SB",
+    "act": "bet",
+    "to": 2
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "fold"
+   }
+  ],
+  "warnings": []
+ }
+}

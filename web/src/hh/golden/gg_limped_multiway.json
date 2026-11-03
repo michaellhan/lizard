@@ -1,0 +1,166 @@
+{
+ "fixture": "gg_limped_multiway.txt",
+ "hand": {
+  "site": "GGPoker",
+  "bb": 0.1,
+  "players": 6,
+  "hero": "BB",
+  "heroName": "Hero",
+  "stack": 100,
+  "stacks": {
+   "BTN": 112,
+   "SB": 100,
+   "BB": 100,
+   "UTG": 148.5,
+   "HJ": 100,
+   "CO": 91
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "7s",
+   "6s"
+  ],
+  "board": [
+   "Ts",
+   "8h",
+   "2s",
+   "Kd"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "d4e8b2a1",
+    "pos": "BTN",
+    "stack": 112
+   },
+   {
+    "seat": 2,
+    "name": "f09c33aa",
+    "pos": "SB",
+    "stack": 100
+   },
+   {
+    "seat": 3,
+    "name": "Hero",
+    "pos": "BB",
+    "stack": 100
+   },
+   {
+    "seat": 4,
+    "name": "2b7e9f10",
+    "pos": "UTG",
+    "stack": 148.5
+   },
+   {
+    "seat": 5,
+    "name": "a81c6d4e",
+    "pos": "HJ",
+    "stack": 100
+   },
+   {
+    "seat": 6,
+    "name": "5e5e0b77",
+    "pos": "CO",
+    "stack": 91
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "call",
+    "to": 1
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "call",
+    "to": 1
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "call",
+    "to": 1
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "SB",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "UTG",
+    "act": "bet",
+    "to": 2
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "fold"
+   },
+   {
+    "street": "flop",
+    "pos": "SB",
+    "act": "call",
+    "to": 2
+   },
+   {
+    "street": "flop",
+    "pos": "BB",
+    "act": "raise",
+    "to": 10.5
+   },
+   {
+    "street": "flop",
+    "pos": "UTG",
+    "act": "fold"
+   },
+   {
+    "street": "flop",
+    "pos": "SB",
+    "act": "call",
+    "to": 10.5
+   },
+   {
+    "street": "turn",
+    "pos": "SB",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "BB",
+    "act": "bet",
+    "to": 16
+   },
+   {
+    "street": "turn",
+    "pos": "SB",
+    "act": "fold"
+   }
+  ],
+  "warnings": []
+ }
+}

@@ -1,0 +1,121 @@
+{
+ "fixture": "gg_run_twice_cashout.txt",
+ "hand": {
+  "site": "GGPoker",
+  "bb": 2,
+  "players": 6,
+  "hero": "HJ",
+  "heroName": "Hero",
+  "stack": 100,
+  "stacks": {
+   "HJ": 100,
+   "CO": 90,
+   "BTN": 125,
+   "SB": 100,
+   "BB": 45,
+   "UTG": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "Ah",
+   "Ad"
+  ],
+  "board": [
+   "2c",
+   "7d",
+   "9s",
+   "Jh",
+   "Kd"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "Hero",
+    "pos": "HJ",
+    "stack": 100
+   },
+   {
+    "seat": 2,
+    "name": "a1b2c3",
+    "pos": "CO",
+    "stack": 90
+   },
+   {
+    "seat": 3,
+    "name": "d4e5f6",
+    "pos": "BTN",
+    "stack": 125
+   },
+   {
+    "seat": 4,
+    "name": "778899",
+    "pos": "SB",
+    "stack": 100
+   },
+   {
+    "seat": 5,
+    "name": "aabbcc",
+    "pos": "BB",
+    "stack": 45
+   },
+   {
+    "seat": 6,
+    "name": "ddeeff",
+    "pos": "UTG",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "raise",
+    "to": 2.5
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "raise",
+    "to": 8.5
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "raise",
+    "to": 45,
+    "allIn": true
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "raise",
+    "to": 100,
+    "allIn": true
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "call",
+    "to": 100
+   }
+  ],
+  "warnings": []
+ }
+}

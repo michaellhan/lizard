@@ -665,9 +665,38 @@ Untouched. Memory stayed at 57–65% free; every check ran under `nice`.
 
 Untouched. Memory stayed at 60–62% free; every check ran under `nice`.
 
+### Deploy of `5f1b6e8`, checked live
+
+Deploy run 41659523320 passed. `/lizard/reports/` serves `index-Bkq4RDGM.js` (CI's build). Opened
+`/lizard/reports/?spot=srp_btn_bb&view=vsbet&group=pair` live: the same provenance line and coverage as the local
+build, and the same averages (all flops fold 46.6%, call 41.5%, raise 12.0%; unpaired 82.8%, paired 16.9%, trips
+0.2% of flops).
+
+## 2026-11-03: Phase 2, the hand-history parser (second session)
+
+### Code
+
+- `web/src/hh/parse.ts`: `parseHandHistory` and `splitHands`, ported line for line from the classic
+  `solver/gto/static/hh.js` (eight site families, iPoker's XML, tournaments, antes, straddles, run-it-twice,
+  every warning and error message). Errors are a `HandHistoryError`. `HH_SITES` names the sites for the import box.
+- `web/src/hh/replay.ts`: the classic `importHand` on Lizard's table engine: every seat its own stack, an all-in's
+  stack set to what the history shows, and a warning with the place where the history and the table part ways.
+- `web/src/poker/table.ts`: the straddle, as the classic page plays it (the first seat posts 2bb and acts last
+  preflop; 3 or more players). The table engine had left it out.
+- `scripts/hh/make_golden.mjs` writes `web/src/hh/golden/`: the classic parser's output for each of the 23
+  fixtures and for the analyzer's two synthetic sessions (60 hands, seed 3; 50 hands, seed 11). Run with node; it
+  needs no build.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 192/192 in 32 files. New: `hh/parse.test.ts` (the golden files; 1,500 mutated histories give the classic parser's hand or its message, run against the snapshot's `hh.js`; the classic suite's parsed details, other sites, odd histories, errors, tournaments, seat names; `splitHands`), `hh/replay.test.ts` (the classic suite's 23 import cases: setup, every street's actions, the pot won; the short all-in; parting ways), a straddle case in `poker/table.test.ts` |
+| Typecheck and ESLint | clean |
+
 ### Next
 
-- Commit, push and check `/lizard/reports/` live. Then, at low CPU: Analyze (ROADMAP Phase 2; the hand-history
+- Analyze (ROADMAP Phase 2; the hand-history
   parsers and the analyzer core are pure code, the grading of postflop decisions needs live solves and should
   start with preflop and library flops). Still open in Phase 5: saved drills, saved hands, the classic `gto-store`
   import, a backup prompt after N saves.

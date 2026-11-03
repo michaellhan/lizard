@@ -1,0 +1,113 @@
+{
+ "fixture": "stars_run_twice.txt",
+ "hand": {
+  "site": "PokerStars",
+  "bb": 1,
+  "players": 4,
+  "hero": "BTN",
+  "heroName": "Hero",
+  "stack": 100,
+  "stacks": {
+   "CO": 100,
+   "BTN": 100,
+   "SB": 100,
+   "BB": 100
+  },
+  "effective": 100,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "As",
+   "Ks"
+  ],
+  "board": [
+   "Kd",
+   "8s",
+   "3s",
+   "2h",
+   "9c"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "Villain",
+    "pos": "CO",
+    "stack": 100
+   },
+   {
+    "seat": 2,
+    "name": "Hero",
+    "pos": "BTN",
+    "stack": 100
+   },
+   {
+    "seat": 3,
+    "name": "sb_guy",
+    "pos": "SB",
+    "stack": 100
+   },
+   {
+    "seat": 4,
+    "name": "bb_guy",
+    "pos": "BB",
+    "stack": 100
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 2.5
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "raise",
+    "to": 7.5
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "call",
+    "to": 7.5
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "BTN",
+    "act": "bet",
+    "to": 5
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 92.5,
+    "allIn": true
+   },
+   {
+    "street": "flop",
+    "pos": "BTN",
+    "act": "call",
+    "to": 92.5,
+    "allIn": true
+   }
+  ],
+  "warnings": []
+ }
+}

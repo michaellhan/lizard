@@ -1,0 +1,147 @@
+{
+ "fixture": "stars_zoom_names.txt",
+ "hand": {
+  "site": "PokerStars",
+  "bb": 0.05,
+  "players": 6,
+  "hero": "UTG",
+  "heroName": "Hero: The Man",
+  "stack": 128,
+  "stacks": {
+   "BTN": 102.4,
+   "SB": 96,
+   "BB": 100,
+   "UTG": 128,
+   "HJ": 100,
+   "CO": 67
+  },
+  "effective": 67,
+  "ante": 0,
+  "straddle": false,
+  "hole": [
+   "Td",
+   "Tc"
+  ],
+  "board": [
+   "9s",
+   "4c",
+   "2d",
+   "Kh"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "Jérôme_ø",
+    "pos": "BTN",
+    "stack": 102.4
+   },
+   {
+    "seat": 2,
+    "name": "王小明",
+    "pos": "SB",
+    "stack": 96
+   },
+   {
+    "seat": 3,
+    "name": "raises 2 to 4",
+    "pos": "BB",
+    "stack": 100
+   },
+   {
+    "seat": 4,
+    "name": "Hero: The Man",
+    "pos": "UTG",
+    "stack": 128
+   },
+   {
+    "seat": 5,
+    "name": "x (2)",
+    "pos": "HJ",
+    "stack": 100
+   },
+   {
+    "seat": 6,
+    "name": "🦈shark",
+    "pos": "CO",
+    "stack": 67
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "raise",
+    "to": 2.6
+   },
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 9
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "UTG",
+    "act": "call",
+    "to": 9
+   },
+   {
+    "street": "flop",
+    "pos": "UTG",
+    "act": "check"
+   },
+   {
+    "street": "flop",
+    "pos": "CO",
+    "act": "bet",
+    "to": 6
+   },
+   {
+    "street": "flop",
+    "pos": "UTG",
+    "act": "call",
+    "to": 6
+   },
+   {
+    "street": "turn",
+    "pos": "UTG",
+    "act": "check"
+   },
+   {
+    "street": "turn",
+    "pos": "CO",
+    "act": "bet",
+    "to": 52,
+    "allIn": true
+   },
+   {
+    "street": "turn",
+    "pos": "UTG",
+    "act": "fold"
+   }
+  ],
+  "warnings": [
+   "The small blind is 0.4bb: the page plays a half-big-blind small blind."
+  ]
+ }
+}

@@ -1,0 +1,99 @@
+{
+ "fixture": "party_mtt_bounty_allin.txt",
+ "hand": {
+  "site": "partypoker",
+  "bb": 100,
+  "players": 5,
+  "hero": "BB",
+  "heroName": "Hero",
+  "stack": 50,
+  "stacks": {
+   "CO": 25,
+   "BTN": 102.5,
+   "SB": 40,
+   "BB": 50,
+   "HJ": 60
+  },
+  "effective": 25,
+  "ante": 0.12,
+  "straddle": false,
+  "hole": [
+   "Jh",
+   "Js"
+  ],
+  "board": [
+   "3d",
+   "5h",
+   "9c",
+   "Td",
+   "Ad"
+  ],
+  "seats": [
+   {
+    "seat": 1,
+    "name": "alpha",
+    "pos": "CO",
+    "stack": 25
+   },
+   {
+    "seat": 2,
+    "name": "beta",
+    "pos": "BTN",
+    "stack": 102.5
+   },
+   {
+    "seat": 3,
+    "name": "gamma",
+    "pos": "SB",
+    "stack": 40
+   },
+   {
+    "seat": 4,
+    "name": "Hero",
+    "pos": "BB",
+    "stack": 50
+   },
+   {
+    "seat": 5,
+    "name": "delta",
+    "pos": "HJ",
+    "stack": 60
+   }
+  ],
+  "actions": [
+   {
+    "street": "preflop",
+    "pos": "HJ",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "CO",
+    "act": "raise",
+    "to": 24.88,
+    "allIn": true
+   },
+   {
+    "street": "preflop",
+    "pos": "BTN",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "SB",
+    "act": "fold"
+   },
+   {
+    "street": "preflop",
+    "pos": "BB",
+    "act": "call",
+    "to": 24.88
+   }
+  ],
+  "warnings": [],
+  "tournament": {
+   "id": "301084002",
+   "buyin": "$8.8+$1.2"
+  }
+ }
+}
