@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { finalSim, importHand } from "@/hh/replay";
 import { simulate, STREETS, type Lines, type Move, type Street, type TableSetup } from "@/poker/table";
-import { dealNext, finish, newHand, phaseOf, setupOf, simOf, withVillain, type PracticeHand } from "./practice";
+import { dealNext, finish, newHand, phaseOf, runEnd, setupOf, simOf, withVillain, type PracticeHand } from "./practice";
 import { practiceHistory, practiceRecord, PRACTICE_SITE } from "./history";
 
 const AT = new Date(2026, 10, 3, 10, 0, 0);
@@ -121,6 +121,23 @@ describe("Practice hands as hand histories", () => {
     const flop = f.board.slice(0, 3).join(" ");
     expect(brackets(ff.text)).toEqual([`[${f.hands.BTN!.join(" ")}]`, `[${flop}]`, `[${flop}]`]);
     expect(ff.rec.end).toBe("folded flop");
+  });
+
+  it("run it out after your fold: the others' moves, their showdown and the pot written; your fold kept as it was", () => {
+    // (hand 1 of 3-max: you're on the button, first to act)
+    let h: PracticeHand = { ...played(newHand(3, 100, 0, 7), mv("BTN", "fold")), run: "played" };
+    for (const m of [mv("SB", "raise", 3), mv("BB", "call"), mv("SB", "bet", 4), mv("BB", "call"), ...checks("SB", "BB", "SB", "BB")]) {
+      for (let p = phaseOf(h); p.kind === "deal"; p = phaseOf(h)) h = dealNext(h, p.street);
+      expect(simOf(h).toAct).toBe(m.pos);
+      h = withVillain(h, m);
+    }
+    const end = runEnd(h)!;
+    const { text, rec } = roundTrip(h);
+    expect(text).toContain(`*** SHOW DOWN ***\nSB: shows [${h.hands.SB!.join(" ")}]\nBB: shows [${h.hands.BB!.join(" ")}]\n`);
+    for (const p of ["SB", "BB"]) if (end.pays[p]) expect(text).toContain(`${p} collected ${end.pays[p]} from pot`);
+    expect(text).toContain("Total pot 14 | Rake 0\n");
+    expect(text).toContain("You folded: the others played the rest of the hand by their strategies.");
+    expect(rec).toMatchObject({ hero: "BTN", end: "folded preflop" });
   });
 
   it("everyone folds to you: the bet nobody called back, the pot collected", () => {

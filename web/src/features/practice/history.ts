@@ -3,15 +3,15 @@
 // (the parser reads it as a site it doesn't name: "generic"); the record is marked as Practice's. The seats are named
 // by position and you are "You"; every seat has a "Dealt to" line, so the seats still to act when you folded are
 // dealt in. Only what the table showed is written: the board as far as it was dealt, an opponent's cards where it
-// reached a showdown, who collected what (nothing after your fold, or after the preflop in a preflop-only hand: the
-// hand isn't played out).
+// reached a showdown, who collected what (nothing after your fold unless the others ran it out, or after the preflop
+// in a preflop-only hand: the hand isn't played out).
 import type { HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
 import { recordOf } from "@/features/analyze/analyze";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
 import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
-import { setupOf, shownCards, type PracticeHand } from "./practice";
+import { runEnd, setupOf, shownCards, type PracticeHand } from "./practice";
 
 export { PRACTICE_SITE };
 /** your name in the history */
@@ -81,16 +81,18 @@ export function handHistory(h: PracticeHand, head: { site: string; number: strin
   }
   const sim = simulate(t, h.lines, h.shown);
   const res = h.result;
-  const settled = res && !res.folded && !res.cut;
-  if (settled) {
-    const shows = pos.filter((p) => shownCards(h, p, sim) && sim.active.size > 1);
+  // (after your fold, a run-out played to its end is settled as it went)
+  const run = h.run === "played" ? runEnd(h, sim) : null;
+  const end = res && !res.folded && !res.cut ? res : run;
+  if (end) {
+    const shows = pos.filter((p) => sim.active.has(p) && sim.active.size > 1 && shownCards(h, p, sim));
     if (shows.length) out.push("*** SHOW DOWN ***", ...shows.map((p) => `${name(p)}: shows [${h.hands[p]!.join(" ")}]`));
-    for (const p of pos) if ((res.pays[p] ?? 0) > EPS) out.push(`${name(p)} collected ${amt(res.pays[p]!)} from pot`);
+    for (const p of pos) if ((end.pays[p] ?? 0) > EPS) out.push(`${name(p)} collected ${amt(end.pays[p]!)} from pot`);
   }
   out.push("*** SUMMARY ***");
-  if (settled) out.push(`Total pot ${amt(Object.values(res.pays).reduce((a, b) => a + b, 0) + (res.rake ?? 0))} | Rake ${amt(res.rake ?? 0)}`);
+  if (end) out.push(`Total pot ${amt(Object.values(end.pays).reduce((a, b) => a + b, 0) + (end.rake ?? 0))} | Rake ${amt(end.rake ?? 0)}`);
   if (board.length) out.push(`Board [${board.join(" ")}]`);
-  if (res?.folded) out.push(`${YOU} folded: the rest of the hand wasn't played.`);
+  if (res?.folded) out.push(run ? `${YOU} folded: the others played the rest of the hand by their strategies.` : `${YOU} folded: the rest of the hand wasn't played.`);
   if (res?.cut) out.push("Preflop only: the hand stopped as the preflop closed.");
   return out.join("\n") + "\n";
 }

@@ -25,6 +25,7 @@ import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
 import {
+  boardShown,
   carries,
   chipsAfter,
   dealNext,
@@ -41,6 +42,8 @@ import {
   POT_DRILLS,
   REBUY,
   redeal,
+  runEnd,
+  runKind,
   seeking,
   setupOf,
   shownCards,
@@ -202,7 +205,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
 
   const sim = useMemo(() => simOf(hand), [hand]);
   const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
-  const spotKey = `${hand.seed}|${hand.shown}|${JSON.stringify(hand.lines)}|${mode}|${retry}`;
+  const spotKey = `${hand.seed}|${hand.shown}|${JSON.stringify(hand.lines)}|${hand.run ?? ""}|${mode}|${retry}`;
 
   // a finished hand into Analyze's hands, as a hand history (history.ts)
   const keep = useCallback(async (h: PracticeHand, s: PracticeSession) => {
@@ -261,7 +264,8 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
           const client = await getSolver();
           if (!alive) return;
           const [mv] = await Promise.all([
-            client.play(stateFor(hand), { seat: ph.seat, hole: hand.hands[ph.seat]!.join("") }, { mode, signal: ac.signal }),
+            // (a run-out after your fold: from the seat's own view, as the classic page asks it)
+            client.play(hand.run ? stateFor(hand, ph.seat) : stateFor(hand), { seat: ph.seat, hole: hand.hands[ph.seat]!.join("") }, { mode, signal: ac.signal }),
             // (a drill's preflop, dealt again until it's the pot, goes by at once)
             wait(seeking(hand) ? 0 : pace),
           ]);
@@ -290,7 +294,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       alive = false;
       ac.abort();
     };
-    // (spotKey covers the hand's action, its cards out, the mode and a retry)
+    // (spotKey covers the hand's action, its cards out, a run-out after your fold, the mode and a retry)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spotKey, getSolver, pace, commit]);
 
@@ -416,7 +420,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
         <div className="flex flex-wrap items-center gap-3">
           <div role="group" aria-label="Board" className="flex gap-1">
             {hand.board.map((c, i) =>
-              i < hand.shown ? (
+              i < boardShown(hand) ? (
                 <PlayingCard key={i} card={c} />
               ) : (
                 <span key={i} aria-hidden className="inline-block h-11 w-8 rounded border border-dashed border-border" />
@@ -514,7 +518,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             <FallbackMoves hand={hand} onMove={ungraded} />
           </div>
         )}
-        {phase.kind === "over" && hand.result && (
+        {hand.result && (phase.kind === "over" || hand.run) && (
           <div className="flex flex-wrap items-center gap-3">
             <p role="status" className="text-sm">
               {hand.result.folded
@@ -533,7 +537,22 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
                 </span>
               )}
               {hand.result.says && <span className="text-muted"> · {hand.result.says}</span>}
+              <RunText hand={hand} sim={sim} />
             </p>
+            {runKind(hand, sim) && (
+              <button
+                type="button"
+                onClick={() => setHand({ ...hand, run: runKind(hand, sim)! })}
+                title={
+                  runKind(hand, sim) === "played"
+                    ? "The others play the hand on by their strategies to its end; your result stays as at your fold"
+                    : "Everyone's cards and the rest of the board"
+                }
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
+              >
+                {runKind(hand, sim) === "played" ? "Run it out" : "Show hands"}
+              </button>
+            )}
             <button ref={nextRef} type="button" onClick={() => nextHand()} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
             </button>
@@ -569,7 +588,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       </details>
 
       <p className="text-xs text-muted">
-        Not here yet: sizes of your own, running a hand out after your fold, and multi-tabling. They run in the{" "}
+        Not here yet: multi-tabling. It runs in the{" "}
         <a className="underline" href={`${CLASSIC_URL}practice/`}>
           classic trainer
         </a>
@@ -662,6 +681,19 @@ function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeSession;
   );
 }
 
+/** After your fold: the run-out under way, or how it ended (your result stays as at your fold). */
+function RunText({ hand, sim }: { hand: PracticeHand; sim: Sim }) {
+  if (hand.run !== "played") return null;
+  const end = runEnd(hand, sim);
+  const who = (p: string) => seatLabel(p, hand.players);
+  return (
+    <span className="text-muted">
+      {" · "}
+      {!end ? "running it out…" : end.says ? `run out: ${end.says}` : `run out: ${end.winners.map(who).join(" and ")} took the pot`}
+    </span>
+  );
+}
+
 /** Chips carried: your stack as the hand started (and as it ended), who rebought, and Reset stacks (between hands). */
 function Carried({ hand, sim, onReset }: { hand: PracticeHand; sim: Sim; onReset: () => void }) {
   const start = hand.stacks![hand.hero]!;
@@ -678,7 +710,7 @@ function Carried({ hand, sim, onReset }: { hand: PracticeHand; sim: Sim; onReset
           </>
         )}
         {names && ` · ${names} rebought to ${hand.stack}bb`}
-        {hand.result?.folded && sim.active.size > 1 && " · the others' chips go as if they checked it down"}
+        {hand.result?.folded && sim.active.size > 1 && !sim.handOver && " · the others' chips go as if they checked it down"}
       </span>
       <button
         type="button"
@@ -701,7 +733,7 @@ function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string })
   const folded = !sim.active.has(p);
   const cards = shownCards(hand, p, sim);
   const bet = sim.cur?.bets[p] ?? 0;
-  const won = hand.result?.pays[p];
+  const won = (runEnd(hand, sim) ?? hand.result)?.pays[p];
   const toAct = !hand.result && sim.toAct === p;
   return (
     <li
@@ -717,7 +749,7 @@ function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string })
         <span className="font-mono text-muted">{fmt(behind(t, sim, p))}</span>
       </div>
       <div className="flex gap-0.5">
-        {folded && !you ? (
+        {folded && !you && !cards ? (
           <span className="text-muted">folded</span>
         ) : (
           (cards ?? [null, null]).map((c, i) => <PlayingCard key={i} card={c} size="sm" />)

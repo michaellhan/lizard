@@ -17,6 +17,9 @@ import {
   nextTable,
   redeal,
   REBUY,
+  boardShown,
+  runEnd,
+  runKind,
   seeking,
   setupOf,
   shownCards,
@@ -356,5 +359,48 @@ describe("the hand's end", () => {
     expect(steps).toEqual(["flop", "turn", "river"]);
     expect(simOf(h).handOver).toBe(true);
     expect(finish(h)).toMatchObject({ net: 20, winners: ["SB"], says: "Your pair of aces beats BB's pair of kings" });
+  });
+
+  it("run it out after your fold: the others play on to the end, settled as it went; your result stays as at your fold", () => {
+    let h = fixed(3, "BTN", { BTN: "8h4s", SB: "AhAd", BB: "KhKd" }, "2c7d9hJs3s");
+    h = play(h, { pos: "BTN", action: "fold" });
+    const result = finish(h);
+    h = { ...h, result };
+    expect([phaseOf(h), runKind(h)]).toEqual([{ kind: "over" }, "played"]);
+    // (not run: the others' chips as if they checked it down)
+    expect(chipsAfter(h)).toEqual({ BTN: 100, SB: 100.5, BB: 99.5 });
+    h = { ...h, run: "played" };
+    expect([phaseOf(h), runKind(h), runEnd(h)]).toEqual([{ kind: "villain", street: "preflop", seat: "SB" }, null, null]);
+    // each seat asked from its own view
+    expect(stateFor(h, "SB")).toMatchObject({ hero: "SB", hole: "AhAd" });
+    h = play(h, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "call" });
+    expect(phaseOf(h)).toEqual({ kind: "deal", street: "flop" });
+    h = play(dealNext(h, "flop"), { pos: "SB", action: "bet", to: 4 }, { pos: "BB", action: "call" });
+    expect(shownCards(h, "SB")).toBeNull();
+    for (const st of ["turn", "river"] as const) h = play(dealNext(h, st), { pos: "SB", action: "check" }, { pos: "BB", action: "check" });
+    expect(phaseOf(h)).toEqual({ kind: "over" });
+    expect(runEnd(h)).toEqual({ pays: { SB: 14 }, winners: ["SB"], rake: 0, says: "SB's pair of aces beats BB's pair of kings" });
+    expect(h.result).toBe(result);
+    expect(chipsAfter(h)).toEqual({ BTN: 100, SB: 107, BB: 93 });
+    expect([shownCards(h, "SB"), shownCards(h, "BB"), boardShown(h)]).toEqual([["Ah", "Ad"], ["Kh", "Kd"], 5]);
+    // a fold in the run-out: the pot to the seat left, no showdown
+    let f: PracticeHand = { ...play(fixed(3, "BTN", { BTN: "8h4s", SB: "AhAd", BB: "KhKd" }, "2c7d9hJs3s"), { pos: "BTN", action: "fold" }), run: "played" };
+    f = { ...f, result: finish(f) };
+    f = play(f, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "fold" });
+    expect(runEnd(f)).toEqual({ pays: { SB: 2 }, winners: ["SB"], rake: 0, says: "" });
+  });
+
+  it("show hands after your fold, where nobody is left to play: every card and the board shown; none in a preflop-only hand", () => {
+    let h = fixed(2, "BB", { SB: "QcQd", BB: "7h2c" }, "Ks7d2c9h3s");
+    h = play(h, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "fold" });
+    h = { ...h, result: finish(h) };
+    expect([runKind(h), boardShown(h), shownCards(h, "SB")]).toEqual(["shown", 0, null]);
+    const folded = h;
+    h = { ...h, run: "shown" };
+    expect([runKind(h), phaseOf(h), runEnd(h), boardShown(h), shownCards(h, "SB")]).toEqual([null, { kind: "over" }, null, 5, ["Qc", "Qd"]]);
+    // (nothing to run before your fold, or in a preflop-only hand)
+    const p = play(fixed(2, "BB", { SB: "QcQd", BB: "7h2c" }, "Ks7d2c9h3s"), { pos: "SB", action: "raise", to: 3 });
+    expect(runKind(p)).toBeNull();
+    expect(runKind({ ...folded, preflopOnly: true })).toBeNull();
   });
 });

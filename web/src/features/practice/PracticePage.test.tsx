@@ -254,6 +254,37 @@ describe("PracticePage", () => {
     await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 2, carry: true, hands: 1, net: 2.5 }));
   });
 
+  it("runs a hand out after your fold: the others play on, each from its own seat; your fold stays as it was", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    // you fold the button; the small blind calls, the big blind checks, then checks behind on the flop... and folds
+    stub.pre = (seat) => (seat === "BB" ? { action: "check" } : null);
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "fold" }));
+    // (your result's line: an opponent's move under way has its own)
+    const result = () => screen.getAllByRole("status").find((e) => e.textContent?.startsWith("You folded"));
+    await waitFor(() => expect(result()).toHaveTextContent(/^You folded$/));
+    expect(stub.calls.filter((c) => c.startsWith("play"))).toEqual([]);
+    const faces = (seat: string) => within(screen.getByRole("listitem", { name: seat })).queryAllByRole("img").map((i) => i.getAttribute("aria-label"));
+    expect(faces("SB")).toEqual(["face-down card", "face-down card"]);
+    stub.states = [];
+    fireEvent.click(screen.getByRole("button", { name: "Run it out" }));
+    await waitFor(() => expect(result()).toHaveTextContent("You folded · run out: SB took the pot"));
+    expect(screen.queryByRole("button", { name: "Run it out" })).toBeNull();
+    expect(stub.calls.filter((c) => c.startsWith("play"))).toEqual(["play SB", "play BB", "play SB", "play BB"]);
+    // each asked from the seat's own view
+    expect(stub.states.map((st) => st.hero)).toEqual(["SB", "BB", "SB", "BB"]);
+    expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
+    expect(screen.getByRole("listitem", { name: "SB" })).toHaveTextContent("won 2");
+    // every seat's cards shown once it's over, the big blind's folded ones too
+    for (const seat of ["SB", "BB"]) expect(faces(seat)).toEqual([expect.stringMatching(/ of /), expect.stringMatching(/ of /)]);
+    await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 3, hands: 1, net: 0 }));
+  });
+
   it("plays with your own sizes: checked before the session, sent from the flop on, named on the table and kept", async () => {
     render(
       <MemoryRouter>

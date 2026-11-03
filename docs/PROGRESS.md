@@ -2600,3 +2600,68 @@ Untouched (read-only `ps`). Everything ran under `nice`. Memory 60% free.
 - Phase 1, still open: multitabling, run-it-out after your fold, the 20-hand engine check.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, run it out after your fold (second session)
+
+Deploy of ee2b734 (the rake) verified live: run 41713409282 passed; `/lizard/` serves `index-Blh5iBIG.js`, which has
+"Rake cap".
+
+After your fold, Practice offers the classic trainer's run-out (`practice.js` `runOut`, `endRun`).
+
+### Code
+
+- `web/src/features/practice/practice.ts`:
+  - `PracticeHand.run`: "played" (the others play on) or "shown" (everyone's cards).
+  - `runKind`: what's on offer after your fold. It is "played" where two or more are still in, else "shown". It
+    offers nothing in a preflop-only hand, or once asked.
+  - `phaseOf`: deals and opponents' moves go on through a run-out until the hand ends.
+  - `stateFor(h, seat)`: the request from that seat's own view, as the classic sends `hero: p` for a run-out.
+  - `runEnd`: the run-out settled as it went (pays, winners, rake, the showdown line).
+  - `chipsAfter`: a finished run-out settles as played, not as a check-down.
+  - `boardShown`, `shownCards`: the whole board and every hand once shown.
+  - Your `result`, the score and the grades stay as they were at your fold.
+- `PracticePage.tsx`:
+  - The "Run it out" and "Show hands" buttons.
+  - The hand loop's `spotKey` includes `run`. Without it, the loop never moved after the button.
+  - The status line says "· running it out…", then "· run out: …".
+  - A seat's won chips come from the run-out.
+  - A folded seat shows its cards once they are shown.
+  - The "Not here yet" note had gone stale since the sizes commit. It now names only multi-tabling.
+- `features/practice/history.ts`: a finished run-out writes its showdown (the seats still in), who collected what and
+  the total pot. The summary says "You folded: the others played the rest of the hand by their strategies."
+- A hand kept at your fold by "Keep every hand" stays as it was kept, because `addHands` skips ids already kept.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 373/373 in 58 files. `practice.test.ts`: a run-out to a showdown and one ended by a fold, the chips, each seat's own request, "Show hands", none before the fold or preflop-only. `history.test.ts`: a run-out round-trips through the importer with its showdown, pot and summary. `PracticePage.test.tsx`: fold, then Run it out; four opponent requests, each with `hero` = its seat; "You folded · run out: SB took the pot"; every seat's cards shown. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+- **3-max, button fold, Run it out.** The small blind raised to 3 and the big blind called. Both checked the flop.
+  The big blind bet 4.5 on the turn and the small blind folded. The result read "You folded · run out: BB took the
+  pot", with "won 6" and both hands shown.
+- **Heads-up, Show hands.** It showed the big blind's two cards and all five board cards, and the button went away.
+- **Stress run.** Six hands of fold, Run it out or Show hands, then Next hand mid-run, plus a tab switch and
+  client-side navigation through every page. The current bundle logged no console error.
+- **Older console errors.** The console still held two "l is not a function" errors from earlier local bundles,
+  thrown from a passive-effect cleanup on unmount. Every `useEffect` in the source returns a function or nothing.
+  I could not reproduce them with this build.
+- **Phone width.** The result row fits at 375px with no horizontal overflow.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`. Memory stayed 55–58% free.
+
+### Next
+
+- Phase 1, still open:
+  - multitabling
+  - the 20-hand engine check
+  - three classic trainer pieces: Review mistakes, the range grid at your last decision, and asking ahead for your
+    likely lines
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

@@ -90,6 +90,9 @@ export interface PracticeHand {
   sizes?: Sizes;
   /** the rake: % of pots that see a flop, capped in bb */
   rake?: Rake;
+  /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
+   * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
+  run?: "played" | "shown";
 }
 
 export type Sizes = Partial<Record<SizeStreet, number[]>>;
@@ -188,7 +191,8 @@ export function chipsAfter(h: PracticeHand, sim: Sim = simOf(h)): Record<string,
   if (!h.result || h.result.cut) return Object.fromEntries(pos.map((p) => [p, t.stacks[p]!]));
   const inv = Object.fromEntries(pos.map((p) => [p, (sim.invested[p] ?? 0) + (sim.cur?.bets[p] ?? 0)]));
   const live = pos.filter((p) => sim.active.has(p));
-  const down = !sim.active.has(h.hero) && live.length > 1;
+  // (a run-out played to the end settles as it went)
+  const down = !sim.active.has(h.hero) && live.length > 1 && !sim.handOver;
   const st = settle(t, inv, live, down ? new Set(live) : sim.allin, down ? h.board : boardOf(h), (p) => h.hands[p]!, h.rake);
   return Object.fromEntries(pos.map((p) => [p, Math.round((t.stacks[p]! - inv[p]! + (st.pays[p] ?? 0)) * 100) / 100]));
 }
@@ -278,13 +282,14 @@ export function studyOf(h: PracticeHand): string {
 }
 
 /** The hand from your seat, as the Advisor reads it: your advice's request, and the state an opponent's move is
- * drawn from (Advisor.play reads its seat's view off it). */
-export function stateFor(h: PracticeHand): AdvisorState {
+ * drawn from (Advisor.play reads its seat's view off it). `seat`: from that seat's own view instead (a run-out after
+ * your fold, as the classic page asks it). */
+export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
   const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   return {
     players: h.players,
-    hero: h.hero,
-    hole: h.hands[h.hero]!.join(""),
+    hero: seat,
+    hole: h.hands[seat]!.join(""),
     board: boardOf(h).join(""),
     stack: h.stack,
     preflop: conv(h.lines.preflop),
@@ -310,6 +315,10 @@ export type Phase =
 
 /** What happens next: cards to deal, a decision (yours or an opponent's), or the end of the hand (also your fold). */
 export function phaseOf(h: PracticeHand, sim: Sim = simOf(h)): Phase {
+  if (h.run === "played" && !sim.handOver) {
+    if (sim.waiting) return { kind: "deal", street: sim.waiting };
+    if (sim.toAct && sim.current) return { kind: "villain", street: sim.current, seat: sim.toAct };
+  }
   if (h.result || sim.handOver || !sim.active.has(h.hero) || cutAt(h, sim)) return { kind: "over" };
   if (sim.waiting) return { kind: "deal", street: sim.waiting };
   if (!sim.toAct || !sim.current) return { kind: "over" };
@@ -409,6 +418,24 @@ export function finish(h: PracticeHand, sim: Sim = simOf(h)): HandResult {
   };
 }
 
+/** After your fold, what's on offer: the others to play it out ("played") where two or more are still in, else
+ * everyone's cards shown; none in a preflop-only hand, or once asked. */
+export function runKind(h: PracticeHand, sim: Sim = simOf(h)): PracticeHand["run"] | null {
+  if (!h.result?.folded || h.run || h.preflopOnly) return null;
+  return sim.active.size > 1 ? "played" : "shown";
+}
+
+/** A run-out played to its end: who won what, as it went (null until it ends). */
+export function runEnd(h: PracticeHand, sim: Sim = simOf(h)): Pick<Settlement, "pays" | "winners" | "rake"> & { says: string } | null {
+  if (h.run !== "played" || !sim.handOver) return null;
+  const live = seatsOf(h.players).filter((p) => sim.active.has(p));
+  const st = settle(setupOf(h), sim.invested, live, sim.allin, boardOf(h), (p) => h.hands[p]!, h.rake);
+  return { pays: st.pays, winners: st.winners, rake: st.rake, says: live.length > 1 ? says(st, h.hero, h.players) : "" };
+}
+
+/** The board on the table: as dealt, or all of it once the cards are shown after your fold. */
+export const boardShown = (h: PracticeHand) => (h.run === "shown" ? h.board.length : h.shown);
+
 /** The showdown in a line: "CO's Q-high flush beats your two pair, kings and sevens"; "" without one. */
 export function says(st: Settlement, hero: string, players: number): string {
   const who = (p: string) => (p === hero ? "your" : `${seatLabel(p, players)}'s`);
@@ -432,6 +459,8 @@ export function says(st: Settlement, hero: string, players: number): string {
 /** Your seat's cards shown; an opponent's only at a showdown it reached (not after your fold or its own). */
 export function shownCards(h: PracticeHand, p: string, sim: Sim = simOf(h)): [string, string] | null {
   if (p === h.hero) return h.hands[p]!;
+  // (after your fold: every hand, once the cards are shown or the run-out has ended)
+  if (h.run === "shown" || (h.run === "played" && sim.handOver)) return h.hands[p]!;
   if (!h.result || h.result.folded || h.result.cut) return null;
   return sim.active.has(p) && sim.active.size > 1 ? h.hands[p]! : null;
 }
