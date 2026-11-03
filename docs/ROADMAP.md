@@ -272,6 +272,15 @@ Moves matrix rows: Range-builder trainer.
 **Goal.** Let users keep and return to their work: spots, drill sets, ranges and hands, all stored locally, with backup and restore.
 
 **Deliverables.**
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** saved spots ("☆ Save spot" in Study,
+  `web/src/features/study/SaveSpot.tsx`; one spot per line, saving again updates it; the provenance of the answer seen
+  is kept with it); saved ranges (named, from the Ranges editor, opened by `/ranges?range=<id>`, in a new
+  `savedRanges` store, database version 3); the Saved page (`web/src/features/saved/SavedPage.tsx`: list, search,
+  rename, delete, open in Study or Ranges); backup and restore (`web/src/data/backup.ts`: saved spots, saved ranges
+  and sessions in the classic record shape, format `lizard-backup`, schema 1, restored by merging). **Still open in
+  Phase 5:** saved drills, saved hands, the classic `gto-store` import, the backup prompt after a number of saves, and
+  settings in the backup (left out on purpose for now). The record shape still wants the review named in Risks
+  before account sync builds on it.
 - **Saved spots.** Use the existing `savedSpots` store (`web/src/data/db.ts:41`, index `byUpdated`, interface `SavedSpot`).
   - A "Save spot" button in Study stores the line (the `studyState.ts` URL encoding), a name, tags, a note and the provenance of the answer seen.
   - A Saved page lists, searches, renames and deletes saved spots.
@@ -306,7 +315,7 @@ Moves matrix rows: Saved solutions, Node navigation (saved spots), Custom drills
 **Goal.** Let users set up their own spot (ranges, per-seat stacks, bet sizes, rake) and solve it, and lock opponents' tendencies to see the best response. Every such answer is labelled for what it is.
 
 **Deliverables.**
-- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:34`. It builds a request with the Advisor keys the engine already accepts:
+- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:36`. It builds a request with the Advisor keys the engine already accepts:
   - `ranges` (custom ranges entering the flop; `advisor.py:3722`, `:4701-4710`), with saved ranges from Phase 5;
   - per-seat stacks (`_state_stacks`);
   - `sizes`: up to 3 per street, 5 in Study (`advisor.py:298-318`, `:3721`);

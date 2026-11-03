@@ -1,11 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { spotAt } from "@/data/saved";
 import type { AdvisorResponse } from "@/solver/protocol";
+import { describe as describeProvenance } from "@/solver/provenance";
 import type { SolveResult } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 
 import { StudyPage } from "./StudyPage";
+import { fromSearch, studyRequest, toSearch } from "./studyState";
 
 // the solver stubbed: every request answers with `stub.answer` (a Study node), labelled as a live solve. (One stable
 // getSolver, as the real hook's useCallback: StudyPage re-requests when it changes.)
@@ -145,6 +148,36 @@ describe("StudyPage", () => {
     // back in, the scored paint is kept for the node
     fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
     expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("50.0% accurate");
+  });
+
+  it("saves the line with a name, tags, a note and the answer's provenance; saving again updates it", async () => {
+    stub.answer = { ...THREE_WAY, opponents: undefined };
+    const search = "p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h&flop=BB:x";
+    renderAt(search);
+    await screen.findByRole("region", { name: "Actions" });
+    const open = await screen.findByRole("button", { name: "☆ Save spot" });
+    await waitFor(() => expect(open).toBeEnabled());
+    fireEvent.click(open);
+    const form = screen.getByRole("form", { name: "Save spot" });
+    expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue("SB raise 2.5 · BB call · Kd7c2h · BB check");
+    fireEvent.change(within(form).getByRole("textbox", { name: "Name" }), { target: { value: "K-high, checked to" } });
+    fireEvent.change(within(form).getByRole("textbox", { name: /Tags/ }), { target: { value: "hu, dry" } });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Note" }), { target: { value: "stab often" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    expect(await within(form).findByRole("status")).toHaveTextContent("Saved in this browser.");
+    expect(screen.getByRole("button", { name: "★ Saved" })).toBeInTheDocument();
+    const line = toSearch(fromSearch(search)!);
+    const s = (await spotAt(line))!;
+    expect(s).toMatchObject({ title: "K-high, checked to", tags: ["hu", "dry"], note: "stab often", seen: { source: "live" } });
+    const { provenance } = await ((await stub.getSolver()) as { solve: () => Promise<SolveResult> }).solve();
+    expect(s.seen?.label).toBe(describeProvenance(provenance));
+    // the saved request is the line's
+    expect(s.state).toEqual(studyRequest(fromSearch(s.line)!));
+    // saving again keeps the one spot
+    fireEvent.change(within(form).getByRole("textbox", { name: "Note" }), { target: { value: "stab less" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(async () => expect((await spotAt(line))?.note).toBe("stab less"));
+    expect((await spotAt(line))?.id).toBe(s.id);
   });
 
   it("focuses one action from the legend: the others are drawn empty", async () => {

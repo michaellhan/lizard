@@ -27,6 +27,7 @@ import {
 } from "./studyState";
 import { BuildMode, type BuildSaved } from "./BuildMode";
 import { ComboPanel } from "./ComboPanel";
+import { SaveSpot } from "./SaveSpot";
 import { ModePicker } from "./ModePicker";
 import { catsOf, filterRes } from "./filters";
 import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
@@ -183,6 +184,7 @@ export function StudyPage() {
         <button type="button" onClick={() => setHand(freshHand(hand.players, hand.stack))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
           Reset
         </button>
+        <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" ? phase.result.provenance : undefined} />
       </nav>
 
       {phase.kind === "loading" && (

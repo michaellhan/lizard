@@ -10,6 +10,7 @@ import { LibraryPage } from "@/features/library/LibraryPage";
 import { EnginePage } from "@/features/engine/EnginePage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { RangesPage } from "@/features/ranges/RangesPage";
+import { SavedPage } from "@/features/saved/SavedPage";
 import { ClassicFeaturePage } from "@/features/classic/ClassicFeaturePage";
 import { NotFoundPage } from "@/features/home/NotFoundPage";
 
@@ -27,6 +28,7 @@ export function App() {
           <Route path="study" element={<StudyPage />} />
           <Route path="ranges" element={<RangesPage />} />
           <Route path="library" element={<LibraryPage />} />
+          <Route path="saved" element={<SavedPage />} />
           <Route path="engine" element={<EnginePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="practice" element={<PracticePage />} />

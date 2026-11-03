@@ -546,3 +546,56 @@ Untouched. Memory stayed at 61–65% free; every check ran under `nice`.
 - Phase 5 (saved spots: the `savedSpots` store exists in `db.ts` since version 1; Save spot in Study, a Saved
   page, backup and restore), as feasible at low CPU. Still open in Phase 4: painting by category, single combos, text
   import into the builder.
+
+## 2026-11-03: Phase 5, saved spots, saved ranges and backup (second session)
+
+### Code
+
+- `web/src/data/db.ts`: database version 3 adds a `savedRanges` store (index `byUpdated`) and the `SavedRange` type;
+  `SavedSpot` (store since version 1, unused until now) gains `line`, `note` and `seen` (the source and label of the
+  answer seen when it was saved). The upgrade from version 2 keeps every record (`db.test.ts`).
+- `web/src/data/saved.ts`: put, list (latest changed first), delete, look up a spot by its line, tags read from text,
+  and the search (every word must match the name, tags, note or the line as shown).
+- `web/src/features/study/SaveSpot.tsx`: "☆ Save spot" at the end of Study's line bar. The name defaults to the line
+  ("BTN raise 2.5 · BB call · Ac7s3d · BB check"); tags and a note are optional. It stores the line (the Study URL
+  encoding), the request (`studyRequest`) and the answer's provenance. A line is saved once: saving it again, or
+  clicking twice quickly, updates that spot. The button reads "★ Saved" on a saved line.
+- `web/src/features/saved/SavedPage.tsx`, route `/saved` (nav "Saved", status partial): saved spots with search,
+  edit (name, tags, note), delete after a second click, and "Open in Study" at the line; saved ranges with "Open in
+  Ranges" and delete; "Download backup" and "Restore from a file".
+- `web/src/features/ranges/RangesPage.tsx`: "Save range" under a name (the same name updates it), "Open a saved
+  range", and `/ranges?range=<id>`.
+- `web/src/data/backup.ts`: one JSON file (format `lizard-backup`, schema 1) with saved spots, saved ranges and the
+  session history, each record in the classic `store.js` shape `{id, v, created, updated, dev, data}` with a per-browser
+  `dev` id. Restore merges as classic does: a record missing here is added, of two with one id the later `updated`
+  stays, nothing here is deleted; damaged, deleted or foreign records are skipped and counted; a non-Lizard file or a
+  newer schema is refused with a message. Settings are not in the backup.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 140/140 in 26 files (one skipped in CI). New: `data/backup.test.ts` (lists, search, an exact round trip through the file's text in the classic record shape, the merge rules, damaged records and refused files, the file name), `features/saved/SavedPage.test.tsx` (list, search, edit, delete, "Open in Study" at the line with `studyRequest` equality, download and a merging restore, the empty states, saving and reopening a range), a Study test (save with name, tags, note and provenance; saving again keeps the id) and the version 2→3 upgrade in `db.test.ts` |
+| Typecheck and ESLint | clean |
+| `npm run build` | built (`index-C-mpoQNK.js`); postbuild wrote 11 route pages + 404.html, `saved` among them |
+
+### Checked in the browser (local production build, `vite preview`, library proxied from the live site)
+
+- Study, srp_btn_bb, BTN after BB checks on Ac7s3d: "☆ Save spot" proposed "BTN raise 2.5 · BB call · Ac7s3d · BB
+  check" and showed the answer's source; saved with tags "srp, ace-high", then "★ Saved".
+- `/lizard/saved` (its postbuild page) listed it with the tags, "6-max 100bb · BTN raise 2.5 · BB call · Ac7s3d · BB
+  check" and "the answer then: Precomputed solution · srp_btn_bb · 0.12% pot from equilibrium in the solved game
+  (converged) · 300 iterations". "Open in Study" opened the same line, marked "★ Saved".
+- Ranges: "Save range" as "UTG open test" (226.0 combos), listed on the Saved page.
+- Backup: the download was intercepted in the page (no file written to disk): `lizard-backup-2026-11-03.json` with 1
+  spot, 1 range and 6 sessions. Restoring it with one extra spot gave "Restored: 1 added, 0 updated, 8 kept (as new
+  or newer here). Nothing here was deleted."; the extra spot was then deleted from the list.
+
+### Precompute builds
+
+Untouched. Memory stayed at 57–65% free; every check ran under `nice`.
+
+### Next
+
+- Commit, push and check `/lizard/saved/` live. Then the next phase of `IMPLEMENTATION_PLAN.md` that fits low CPU.
+  Still open in Phase 5: saved drills, saved hands, the classic `gto-store` import, a backup prompt after N saves.

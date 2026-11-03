@@ -11,8 +11,9 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["kv", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["kv", "savedRanges", "savedSpots", "sessions"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
+    expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
     db.close();
   });
 
@@ -20,7 +21,7 @@ describe("IndexedDB migrations", () => {
     const name = fresh();
     const v1 = await openLizardDB(1, name);
     await v1.put("kv", { mode: "accurate" }, "settings.v1");
-    await v1.put("savedSpots", { id: "s1", title: "BTN v BB", state: { players: 6 }, tags: [], createdAt: 1, updatedAt: 2 });
+    await v1.put("savedSpots", { id: "s1", title: "BTN v BB", line: "p=6&s=100", state: { players: 6 }, tags: [], note: "", createdAt: 1, updatedAt: 2 });
     v1.close();
     const v2 = await openLizardDB(DB_VERSION, name);
     expect(await v2.get("kv", "settings.v1")).toEqual({ mode: "accurate" });
@@ -28,6 +29,20 @@ describe("IndexedDB migrations", () => {
     await v2.put("sessions", { id: "x", kind: "drill", startedAt: 5, decisions: 3, evLossBb: 0.4, meta: {} });
     expect(await v2.countFromIndex("sessions", "byKind", "drill")).toBe(1);
     v2.close();
+  });
+
+  it("upgrades a version-2 database in place, keeping its data", async () => {
+    const name = fresh();
+    const v2 = await openLizardDB(2, name);
+    await v2.put("sessions", { id: "x", kind: "practice", startedAt: 5, decisions: 3, evLossBb: 0.4, meta: { hands: 2 } });
+    await v2.put("savedSpots", { id: "s1", title: "SRP", line: "p=2&s=100", state: {}, tags: ["a"], note: "n", createdAt: 1, updatedAt: 2 });
+    v2.close();
+    const v3 = await openLizardDB(DB_VERSION, name);
+    expect(await v3.get("sessions", "x")).toEqual({ id: "x", kind: "practice", startedAt: 5, decisions: 3, evLossBb: 0.4, meta: { hands: 2 } });
+    expect((await v3.get("savedSpots", "s1"))?.tags).toEqual(["a"]);
+    await v3.put("savedRanges", { id: "r1", name: "UTG open", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 1 });
+    expect(await v3.count("savedRanges")).toBe(1);
+    v3.close();
   });
 });
 

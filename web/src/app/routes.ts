@@ -22,6 +22,7 @@ export const ROUTES: RouteDef[] = [
   { path: "ranges", label: "Ranges", nav: true, status: "partial", summary: "Range matrix viewer and builder." },
   { path: "tournaments", label: "Tournaments", nav: true, status: "classic", summary: "ICM, bounties and push/fold." },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
+  { path: "saved", label: "Saved", nav: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore." },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },
   { path: "settings", label: "Settings", nav: false, status: "working", summary: "Solver mode, backend, library source and display." },
 ];

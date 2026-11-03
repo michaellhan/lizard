@@ -1,6 +1,6 @@
 # LIZARD feature matrix
 
-Status as of 2026-11-03 (Lizard grades updated for the Phase 0 Study work, the Phase 1 Practice page and drills, and the Phase 4 range builder, `docs/PROGRESS.md`). This compares LIZARD with the public feature set of GTO Wizard, one row per feature. Each row has two grades:
+Status as of 2026-11-03 (Lizard grades updated for the Phase 0 Study work, the Phase 1 Practice page and drills, the Phase 4 range builder, and the Phase 5 saved spots, saved ranges and backup, `docs/PROGRESS.md`). This compares LIZARD with the public feature set of GTO Wizard, one row per feature. Each row has two grades:
 
 - **Engine / classic.** What the bundled solver and its own web app (the "classic" app, `solver/gto/static/`, served at `/gto-solver/`) can do today.
 - **Lizard UI.** What the new React app (`web/src/`) does today.
@@ -34,12 +34,12 @@ When I was unsure, I chose the lower grade. Rows marked **(unsure)** in Notes ar
 | Custom solving | 10 | 3 / 6 / 1 / 0 | 1 / 4 / 0 / 5 |
 | Tournaments | 8 | 0 / 6 / 1 / 1 | 0 / 0 / 0 / 8 |
 | Formats | 6 | 0 / 5 / 0 / 1 | 0 / 4 / 0 / 2 |
-| Other | 8 | 0 / 5 / 0 / 3 | 0 / 2 / 0 / 6 |
-| **Total** | **60** | **12 / 39 / 4 / 5** | **3 / 24 / 2 / 31** |
+| Other | 8 | 0 / 5 / 0 / 3 | 0 / 3 / 0 / 5 |
+| **Total** | **60** | **12 / 39 / 4 / 5** | **3 / 25 / 2 / 30** |
 
 W = WORKING, P = PARTIAL, A = APPROXIMATE, N = NOT IMPLEMENTED.
 
-In short, the engine covers most of the feature list, often in part. Lizard's React UI so far covers Study (with a range builder that scores a painted strategy), Practice (full hands and drills), a range editor, the library view, settings and engine diagnostics. Analyze, Solve, Reports and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:33-36`, `web/src/features/classic/ClassicFeaturePage.tsx`).
+In short, the engine covers most of the feature list, often in part. Lizard's React UI so far covers Study (with a range builder that scores a painted strategy), Practice (full hands and drills), a range editor, the library view, a Saved page (spots saved from Study, ranges saved from Ranges, backup and restore to a file), settings and engine diagnostics. Analyze, Solve, Reports and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:35-38`, `web/src/features/classic/ClassicFeaturePage.tsx`).
 
 ## Facts that apply to many rows
 
@@ -66,8 +66,8 @@ In short, the engine covers most of the feature list, often in part. Lizard's Re
 | Equity & EQR | Equity and equity realization per hand and range | PARTIAL | PARTIAL | `solver/gto/breakdown.py:168-196`; `study.js:234`; `ComboPanel.tsx` (`eqr`); `RangeMatrix.tsx` (`cellValue`); `RangeMatrix.test.tsx`; `views.ts` | Postflop only. Flop equities are sampled. Classic has EQR shading and an equity curve. Lizard has an EQR grid view (EV / (equity × pot), per class) and EQR in the class panel, but no equity curve and no per-combo EQR. |
 | Range comparison | Both players' ranges side by side | PARTIAL | PARTIAL | `study.js:294-295`; `solver/gto/static/breakdown.js:42-108`; `StudyPage.tsx` (`oppsOf`, "Whose range") | Both show one grid at a time behind a toggle per player, 3-way included. Neither compares two nodes. Lizard has no breakdown or equity-curve panels. |
 | Filters | Hand-class, draw and equity-bucket filters | PARTIAL | PARTIAL | `study.js:367-419`; `breakdown.py:20-26`; `web/src/features/study/filters.ts`; `filters.test.ts` (the classic `study.test.js` fixture); `StudyPage.test.tsx`; `RangeMatrix.tsx` (`hidden`) | Both: 16 made-hand and 6 draw categories, one at a time; the grid, the action frequencies and EVs, and the range's totals are recomputed over the category's combos. Lizard also has an action filter (show one action; the others drawn empty). Neither has equity-bucket filters. |
-| Aggregate reports | Flop and turn reports across many boards | PARTIAL | NOT IMPLEMENTED | `solver/gto/static/reports.js:1-6`, `:37`; `runouts.js:1-5`; `advisor.py:3387-3417`; `web/src/app/App.tsx:35` | Classic flop reports cover library spots only, at three nodes, with no EQR column. Turn and river runout reports work (07a S10). Lizard's Reports page is a link to the classic app. |
-| Node navigation | Spot selector, deep links, saved spots | PARTIAL | PARTIAL | `study.js:199-226`, `:1077-1110`, `:1288-1294`; `studyState.ts:112-139`; `web/src/data/db.ts:41` | Classic: step back, keys and `#h=` links, but no auto-fold selector. Lizard: each line has a URL, with back and reset. It has no auto-fold selector, no keyboard shortcuts and no saved spots; the `savedSpots` store exists but nothing uses it. |
+| Aggregate reports | Flop and turn reports across many boards | PARTIAL | NOT IMPLEMENTED | `solver/gto/static/reports.js:1-6`, `:37`; `runouts.js:1-5`; `advisor.py:3387-3417`; `web/src/app/App.tsx:37` | Classic flop reports cover library spots only, at three nodes, with no EQR column. Turn and river runout reports work (07a S10). Lizard's Reports page is a link to the classic app. |
+| Node navigation | Spot selector, deep links, saved spots | PARTIAL | PARTIAL | `study.js:199-226`, `:1077-1110`, `:1288-1294`; `studyState.ts:112-139`; `web/src/features/study/SaveSpot.tsx`; `web/src/features/saved/SavedPage.tsx` | Classic: step back, keys and `#h=` links, but no auto-fold selector. Lizard: each line has a URL, with back and reset, and "☆ Save spot" keeps a line to reopen from the Saved page. It has no auto-fold selector and no keyboard shortcuts. |
 
 ## Practice
 
@@ -88,7 +88,7 @@ Lizard's Practice page (`web/src/features/practice/PracticePage.tsx`, logic in `
 
 ## Analysis
 
-All Analysis rows are NOT IMPLEMENTED in Lizard: the Analyze route links to the classic session analyzer (`App.tsx:33`).
+All Analysis rows are NOT IMPLEMENTED in Lizard: the Analyze route links to the classic session analyzer (`App.tsx:35`).
 
 | Feature | GTO Wizard (public) | Engine / classic | Lizard UI | Evidence | Notes |
 |---|---|---|---|---|---|
@@ -117,7 +117,7 @@ All Analysis rows are NOT IMPLEMENTED in Lizard: the Analyze route links to the 
 
 ## Tournaments
 
-All Tournament rows are NOT IMPLEMENTED in Lizard: the route links to the classic app (`App.tsx:36`), and Study sends no payouts or bounties. Classic Study does accept them (`solver/README.md` Study section).
+All Tournament rows are NOT IMPLEMENTED in Lizard: the route links to the classic app (`App.tsx:38`), and Study sends no payouts or bounties. Classic Study does accept them (`solver/README.md` Study section).
 
 | Feature | GTO Wizard (public) | Engine / classic | Lizard UI | Evidence | Notes |
 |---|---|---|---|---|---|
@@ -145,14 +145,14 @@ All Tournament rows are NOT IMPLEMENTED in Lizard: the route links to the classi
 
 | Feature | GTO Wizard (public) | Engine / classic | Lizard UI | Evidence | Notes |
 |---|---|---|---|---|---|
-| Saved solutions | Saved spots, solves, drills and reports | PARTIAL | NOT IMPLEMENTED | `study.js:246-270`; `hands.js`; `index.html:1307`; `web/src/data/db.ts:41-45` | Classic keeps the 6 latest preflop solves, saved hands and `#h=` links, but has no named saved solves. Lizard's `savedSpots` store has no UI. |
+| Saved solutions | Saved spots, solves, drills and reports | PARTIAL | PARTIAL | `study.js:246-270`; `hands.js`; `index.html:1307`; `web/src/data/saved.ts`; `web/src/features/study/SaveSpot.tsx`; `web/src/features/saved/SavedPage.tsx`, `SavedPage.test.tsx`; `backup.test.ts` | Classic keeps the 6 latest preflop solves, saved hands and `#h=` links, but has no named saved solves. Lizard: "☆ Save spot" in Study keeps the line in IndexedDB with a name, tags, a note and the provenance of the answer seen then; saving the line again updates that spot. The Saved page lists them (latest changed first), searches every word over names, tags, notes and the line, renames, deletes after a second click, and opens one in Study at its line. The Ranges editor saves a range under a name (the same name updates it) and opens one by `?range=`. A saved spot keeps the line, not the solution: opening it asks for the answer again (library, chart or live solve), which can differ from the one seen. Checked in a browser on srp_btn_bb (Ac7s3d), 2026-11-03. Not done: saved solves, saved drills and reports. |
 | Study plans | Structured lessons with drills | NOT IMPLEMENTED | NOT IMPLEMENTED | grep finds no plan or lesson code in `gto/static` | The nearest thing is the analyzer's "Drill this leak". |
 | Preferences / progress | Saved settings and trainer stats | PARTIAL | PARTIAL | `store.js:26-30`; `drills.js:170-178`; `web/src/state/settings.ts`; `SettingsPage.tsx` | Classic keeps preferences, plus per-mode scores and analyzer history, in the browser. 07c grades it WORKING; I grade it PARTIAL because there are no lifetime stats across modes. Lizard saves mode, backend, library source and the EV unit (applied in Study); the unused `colorByAction` setting was removed. Practice sessions are kept as dated records (see Session stats); there are no lifetime stats across modes. |
 | Multiplayer / HU arena | Human-vs-human play and ranked heads-up | NOT IMPLEMENTED | NOT IMPLEMENTED | `solver/gto/server.py:1-12` | Bots only. Human play would need a server. |
 | Mobile | Installable web app; one native app for ranked play | PARTIAL | PARTIAL | `index.html:5`, `:233-625`; `sw.js:1-6`; `web/src/main.tsx`; `web/index.html` | Both are responsive. Neither has a web app manifest or offline caching; the service worker only adds isolation headers. **(unsure)** Lizard was not checked at phone width in this pass. |
 | AI explanations | Not offered (plain-language output is on their roadmap) | PARTIAL | NOT IMPLEMENTED | `practice.js:478-496`; `solver/cloudflare/explain-proxy/src/proxy.js:1-14`; `docs/research/06` §0 | Practice verdicts only. The proxy is shared, and its Origin check can be forged. Lizard must not reuse it as is. |
 | Solution comparisons | Compare actions, nodes, depths, rake, ICM vs chipEV | PARTIAL | NOT IMPLEMENTED | `solver/gto/static/simple.js:1-11`; `advisor.py:4008-4009`, `:4650-4653`; `study.js:500` | Classic has the one-size view (each size's EV lost against the full menu), GTO % beside locked answers, and chart vs solver preflop. There is no two-solution diff. **(unsure)** NOT IMPLEMENTED could be argued. |
-| Account sync | Account login with server-side sync | NOT IMPLEMENTED | NOT IMPLEMENTED | `store.js:1-21`, `:292`, `:305` | Classic has manual backup and restore with merge, on a record schema built for later sync. Lizard has neither. |
+| Account sync | Account login with server-side sync | NOT IMPLEMENTED | NOT IMPLEMENTED | `store.js:1-21`, `:292`, `:305`; `web/src/data/backup.ts`, `backup.test.ts` | Classic has manual backup and restore with merge, on a record schema built for later sync. Lizard now has the same: one JSON file with saved spots, saved ranges and session history in the classic record shape, restored by merging (a missing record is added, the later `updated` stays, nothing is deleted; settings are not included). Neither has an account or server sync. |
 
 ## Grades I was unsure of
 

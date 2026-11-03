@@ -8,9 +8,25 @@ export const DB_NAME = "lizard";
 export interface SavedSpot {
   id: string;
   title: string;
-  /** the Advisor state the spot reproduces */
+  /** the Study line, as Study's URL search (studyState.ts toSearch): what opens the spot */
+  line: string;
+  /** the Advisor state the spot reproduces (studyRequest of the line) */
   state: Record<string, unknown>;
   tags: string[];
+  note: string;
+  /** the answer seen when the spot was saved: its source and its provenance line */
+  seen?: { source: string; label: string };
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SavedRange {
+  id: string;
+  name: string;
+  /** the range in the common solver text format (features/ranges/rangeText.ts) */
+  text: string;
+  combos: number;
+  note: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -30,6 +46,7 @@ export interface LizardDB extends DBSchema {
   kv: { key: string; value: unknown };
   savedSpots: { key: string; value: SavedSpot; indexes: { byUpdated: number } };
   sessions: { key: string; value: SessionRecord; indexes: { byStarted: number; byKind: string } };
+  savedRanges: { key: string; value: SavedRange; indexes: { byUpdated: number } };
 }
 
 type UpgradeTx = IDBPTransaction<LizardDB, StoreNames<LizardDB>[], "versionchange">;
@@ -45,6 +62,10 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
     const s = db.createObjectStore("sessions", { keyPath: "id" });
     s.createIndex("byStarted", "startedAt");
     s.createIndex("byKind", "kind");
+  },
+  3: (db) => {
+    const r = db.createObjectStore("savedRanges", { keyPath: "id" });
+    r.createIndex("byUpdated", "updatedAt");
   },
 };
 
