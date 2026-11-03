@@ -848,3 +848,51 @@ Untouched. Memory 65–66% free; every check ran under `nice`.
 - Report filters (seat, pot type, EV lost) and a history across sessions.
 - Phase 5: named drills and a drill list (the leak drills are kept as sessions already), saved hands from Practice,
   the classic `gto-store` import, a backup prompt.
+
+### Deploy of `52504ea`, checked live
+
+Deploy run 41668033216 passed. `/lizard/analyze/` serves `index-qpOxx8en.js`, the local build's bundle; the drill
+opens from `?drill=pf:RFI` and, with nothing graded in that browser, says so.
+
+## 2026-11-03: Phase 2/6, your stats as played and the hands filters (second session)
+
+### Code
+
+- `web/src/features/analyze/stats.ts`: each hand's moves read on the table engine as they stood (so an all-in counts
+  as a raise only where it raises), and for each stat whether you had the chance and took it: VPIP, PFR, RFI (and
+  your seat), 3-bet, squeeze, fold to 3-bet, 4-bet, flop c-bet, fold to flop c-bet, flop check-raise, turn and
+  river barrels, went to showdown; your bets after the flop in % of the pot. `STATS` states each denominator.
+  `tallyStats` (RFI by seat in seat order, bet sizes in six buckets, hands whose replay stopped left out),
+  `wilson` (95% interval), `statsOf` (a chunk at a time, cached per hand, stops on a signal).
+- `StatsPanel.tsx`: "Your stats" under the hands table: rate, chances, 95% range ("few" under 30), the hands behind
+  each stat as links, bet sizes by street. Counted from the histories; it says nothing is graded or solved.
+- `analyze.ts` `filterHands` / `HAND_FILTERS`: the table's filters gain stakes (the big blind as the history writes
+  it) and the days played (from / to, the site's clock), and Clear filters; the report ("Over the N hands the
+  filters show, of M kept"), the leak drill and the stats follow them. The table says when no hand matches.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 230/230 in 39 files. New: `features/analyze/stats.test.ts` (each stat on seven fixtures: a limped check-raise, a cold 4-bet, a straddled c-bet size, a call of an all-in; the tally by seat and size; Wilson values; the chunked count, its cache and abort; every filter), a stats case in `AnalyzePage.test.tsx` (the four kept hands' rates, intervals and bet sizes; a stat's hands opening one; a seat filter on the stats and the report; stakes and a date to nothing; Clear filters) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the 41 kept hands)
+
+- Counted in about 50 ms. RFI 7 of 21 (33%) matches the grading report's "Open (RFI): you 33% (21 decisions)",
+  counted by other code from the graded decisions.
+- Your seat BTN: 8 hands, the report says "Over the 8 hands the filters show, of 41 kept"; RFI's hands list 3
+  taken, 2 not, each opening the hand. `?bb=$1&from=2024-05-01`: 39 of 41, everything follows.
+- 375px: no page overflow; the stats table scrolls in its box with the definitions readable. No console errors.
+
+### Precompute builds
+
+Untouched. Memory 59–66% free; every check ran under `nice`.
+
+### Next
+
+- Turn and river grading through the same queue (live solves or Quick triage, in the user's browser).
+- Realized results (needs the parser to read what each seat collected; the parser is held to the classic one by
+  golden files, so this is a change to both), EV-lost and tag filters, a history across sessions.
+- Phase 5: named drills and a drill list, saved hands from Practice, the classic `gto-store` import, a backup prompt.

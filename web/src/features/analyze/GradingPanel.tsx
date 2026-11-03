@@ -131,14 +131,21 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   );
 }
 
-export function GradeReport({ decisions, hands }: { decisions: DecisionRecord[]; hands: HandRecord[] }) {
+/** The report over the graded decisions of `hands` (the hands the filters show, of `of` kept). */
+export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecord[]; hands: HandRecord[]; of?: number }) {
   const byId = useMemo(() => new Map(hands.map((h) => [h.id, h])), [hands]);
   // (decisions of hands no longer kept are left out)
   const ds = useMemo(() => decisions.filter((d) => byId.has(d.handId)), [decisions, byId]);
   const rp = useMemo(() => report(ds), [ds]);
   const [leak, setLeak] = useState<Leak | null>(null);
   const [params] = useSearchParams();
-  if (!ds.length) return null;
+  if (!ds.length)
+    return of !== undefined && hands.length < of && decisions.length > 0 ? (
+      <section aria-label="Report" className="space-y-1 text-sm">
+        <h2 className="text-lg font-semibold">Report</h2>
+        <p className="text-muted">None of your graded decisions is in the {hands.length.toLocaleString()} hands the filters show.</p>
+      </section>
+    ) : null;
   const a = rp.all;
   const download = (name: string, text: string, type: string) => {
     const url = URL.createObjectURL(new Blob([text], { type }));
@@ -164,6 +171,11 @@ export function GradeReport({ decisions, hands }: { decisions: DecisionRecord[];
         </button>
       </div>
       <div aria-label="Summary" className="space-y-1">
+        {of !== undefined && hands.length < of && (
+          <p className="text-muted">
+            Over the {hands.length.toLocaleString()} hands the filters show, of {of.toLocaleString()} kept.
+          </p>
+        )}
         <p>
           {a.graded.toLocaleString()} of your decisions graded in {rp.hands.toLocaleString()} hands: {pct(a.graded ? a.ok / a.graded : null)} in the mix (Best or Correct).
         </p>

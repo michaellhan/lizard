@@ -14,12 +14,13 @@ import { HH_SITES } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
-import { filesName, hhFiles, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
+import { filesName, filterHands, HAND_FILTERS, hhFiles, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
 import { decisionNote, GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
+import { StatsPanel } from "./StatsPanel";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
@@ -71,6 +72,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const id = params.get("hand");
   const drill = parseLeakParam(params.get("drill"));
   const open = id ? hands?.find((h) => h.id === id) : undefined;
+  // (the hands table's filters apply to the report, the drill and the stats too)
+  const shown = useMemo(() => (hands ? filterHands(hands, params) : null), [hands, params]);
   const set = (o: Record<string, string | null>) =>
     setParams(
       (p) => {
@@ -95,14 +98,17 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       <ImportPanel onImported={reload} />
       {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
       {hands && hands.length > 0 && <GradePanel hands={hands} decisions={decisions} onGraded={onGraded} />}
-      {hands && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={hands} onClose={() => set({ drill: null })} />}
-      {hands && <GradeReport decisions={decisions} hands={hands} />}
+      {hands && shown && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={shown} onClose={() => set({ drill: null })} />}
+      {hands && shown && <GradeReport decisions={decisions} hands={shown} of={hands.length} />}
       {open && <HandDetail hand={open} decisions={decisions.filter((d) => d.handId === open.id)} onClose={() => set({ hand: null })} />}
       {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
-      {hands === null ? (
+      {hands === null || shown === null ? (
         <p className="text-sm text-muted">…</p>
       ) : (
-        <HandsTable hands={hands} params={params} set={set} rowLimit={rowLimit} />
+        <>
+          <HandsTable hands={hands} shown={shown} params={params} set={set} rowLimit={rowLimit} />
+          {shown.length > 0 && <StatsPanel hands={shown} of={hands.length} />}
+        </>
       )}
     </div>
   );
@@ -321,23 +327,19 @@ function ImportRow({ imp, onChange }: { imp: ImportSummary; onChange: () => void
 
 function HandsTable({
   hands,
+  shown,
   params,
   set,
   rowLimit,
 }: {
   hands: HandRecord[];
+  /** the hands the filters show */
+  shown: HandRecord[];
   params: URLSearchParams;
   set: (o: Record<string, string | null>) => void;
   rowLimit: number;
 }) {
   const [all, setAll] = useState(false);
-  const pos = params.get("pos");
-  const pot = params.get("pot");
-  const site = params.get("site");
-  const shown = useMemo(
-    () => hands.filter((h) => (!pos || h.hero === pos) && (!pot || h.potType === pot) && (!site || h.site === site)),
-    [hands, pos, pot, site],
-  );
   const opts = (k: keyof HandRecord) => [...new Set(hands.map((h) => String(h[k])))].sort();
   if (!hands.length)
     return (
@@ -359,16 +361,40 @@ function HandsTable({
       </select>
     </label>
   );
+  // (the days played, by the site's clock, as the history writes them)
+  const days = hands.map((h) => h.played.slice(0, 10)).filter(Boolean).sort();
+  const date = (label: string, k: string) => (
+    <label className="flex items-center gap-1">
+      <span className="text-muted">{label}</span>
+      <input
+        type="date"
+        aria-label={label}
+        value={params.get(k) ?? ""}
+        min={days[0]}
+        max={days.at(-1)}
+        onChange={(e) => set({ [k]: e.target.value || null })}
+        className="rounded border border-border bg-surface-2 px-1 py-0.5"
+      />
+    </label>
+  );
   return (
     <section aria-label="Hands" className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <h2 className="text-lg font-semibold">Hands</h2>
-        {select("Your seat", "pos", pos, opts("hero"))}
-        {select("Pot", "pot", pot, POT_TYPES.filter((p) => hands.some((h) => h.potType === p)))}
-        {select("Site", "site", site, opts("site"))}
+        {select("Your seat", "pos", params.get("pos"), opts("hero"))}
+        {select("Pot", "pot", params.get("pot"), POT_TYPES.filter((p) => hands.some((h) => h.potType === p)))}
+        {select("Site", "site", params.get("site"), opts("site"))}
+        {select("Stakes", "bb", params.get("bb"), opts("bb"))}
+        {date("From", "from")}
+        {date("To", "to")}
         <span className="text-muted">
           {shown.length.toLocaleString()} of {hands.length.toLocaleString()}
         </span>
+        {HAND_FILTERS.some((k) => params.get(k)) && (
+          <button type="button" onClick={() => set(Object.fromEntries(HAND_FILTERS.map((k) => [k, null])))} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+            Clear filters
+          </button>
+        )}
       </div>
       {/* (relative: the sr-only header's absolute box stays inside the scrolling box, not widening the page) */}
       <div className="relative overflow-x-auto rounded-lg border border-border">
@@ -428,6 +454,7 @@ function HandsTable({
           </tbody>
         </table>
       </div>
+      {!shown.length && <p className="text-sm text-muted">No hand kept matches these filters.</p>}
       {!all && shown.length > listed.length && (
         <p className="text-sm text-muted">
           {listed.length} of {shown.length.toLocaleString()} hands listed, the latest played first.{" "}

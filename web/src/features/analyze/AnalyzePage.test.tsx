@@ -222,6 +222,58 @@ describe("AnalyzePage", () => {
     expect(screen.getByTestId("where").textContent).toBe("/analyze");
   });
 
+  it("counts your stats over the hands the filters show, each over its chances, with the hands behind it", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    const stats = await screen.findByRole("region", { name: "Your stats" });
+    expect(stats).toHaveTextContent("Counted from your 4 hands, as you played them: nothing here is graded or solved.");
+    const row = (name: string) => within(stats).getByRole("row", { name });
+    await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%4 / 4"));
+    // the SRP hand's open, the 3-bet pots' re-raises, the MTT hand's call; three c-bets, one turn barrel of three
+    expect(row("PFR")).toHaveTextContent("75%3 / 4");
+    expect(row("RFI")).toHaveTextContent("100%1 / 1");
+    expect(row("RFI · BTN")).toHaveTextContent("100%1 / 1");
+    expect(row("3-bet")).toHaveTextContent("67%2 / 3");
+    expect(row("3-bet")).toHaveTextContent("21%–94%few");
+    expect(row("Flop c-bet")).toHaveTextContent("100%3 / 3");
+    expect(row("Turn barrel")).toHaveTextContent("33%1 / 3");
+    expect(row("Fold to flop c-bet")).toHaveTextContent("0%0 / 1");
+    expect(row("Went to showdown")).toHaveTextContent("50%2 / 4");
+    expect(row("Squeeze")).toHaveTextContent("none");
+    expect(within(stats).getByRole("row", { name: "30–45%" })).toHaveTextContent("30–45%3 100%1 50%0 0%");
+    expect(within(stats).getByRole("row", { name: "60–80%" })).toHaveTextContent("60–80%0 0%1 50%1 100%");
+
+    // the hands behind a stat, each a link to it
+    fireEvent.click(within(row("3-bet")).getByRole("button", { name: "Hands" }));
+    const list = within(stats).getByRole("region", { name: "Hands: 3-bet" });
+    expect(list).toHaveTextContent("Took it (you re-raised) (2):");
+    expect(list).toHaveTextContent("Didn't (1):");
+    const mtt = within(list).getAllByRole("link").find((a) => a.textContent?.includes("AhTd"))!;
+    expect(mtt).toHaveTextContent("CO AhTd");
+    fireEvent.click(mtt);
+    expect(screen.getByRole("region", { name: "Hand" })).toHaveTextContent("tournament 3712345678");
+
+    // a filter: the report and the stats follow it
+    fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "BB" } });
+    await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%2 / 2"));
+    expect(stats).toHaveTextContent("Counted from the 2 hands the filters show");
+    expect(row("3-bet")).toHaveTextContent("100%2 / 2");
+    expect(within(screen.getByRole("region", { name: "Report" })).getByLabelText("Summary")).toHaveTextContent("Over the 2 hands the filters show, of 4 kept.");
+    fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Stakes" }), { target: { value: "300 chips" } });
+    expect(handRows()).toHaveLength(1);
+    await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%1 / 1"));
+    expect(screen.getByTestId("where").textContent).toMatch(/bb=300\+chips/);
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2030-01-01" } });
+    expect(handRows()).toHaveLength(0);
+    expect(screen.getByText("No hand kept matches these filters.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Your stats" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Report" })).toHaveTextContent("None of your graded decisions is in the 0 hands the filters show.");
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(handRows()).toHaveLength(4);
+    expect(screen.getByTestId("where").textContent).not.toMatch(/bb=|from=/);
+  });
+
   it("lists the first hands of many, and deletes an import with its hands", async () => {
     open("", 3);
     await waitFor(() => expect(handRows()).toHaveLength(3));

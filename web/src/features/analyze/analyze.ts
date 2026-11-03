@@ -86,6 +86,24 @@ export function preflopSituation(before: readonly Move[], hero: string): string 
   return "vs 4bet+";
 }
 
+/** The hands table's filters, in the page's URL: your seat, pot type, site, stakes (the big blind as the history
+ * writes it) and the days played (YYYY-MM-DD, by the site's clock), from and to. */
+export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to"] as const;
+
+export function filterHands(hands: readonly HandRecord[], p: URLSearchParams): HandRecord[] {
+  const [pos, pot, site, bb, from, to] = HAND_FILTERS.map((k) => p.get(k));
+  const day = (h: HandRecord) => h.played.slice(0, 10);
+  return hands.filter(
+    (h) =>
+      (!pos || h.hero === pos) &&
+      (!pot || h.potType === pot) &&
+      (!site || h.site === site) &&
+      (!bb || h.bb === bb) &&
+      (!from || (!!h.played && day(h) >= from)) &&
+      (!to || (!!h.played && day(h) <= to)),
+  );
+}
+
 export const POT_TYPES = ["SRP", "3bet pot", "4bet+ pot", "Limped"] as const;
 export const potType = (raises: number) => (raises <= 0 ? "Limped" : raises === 1 ? "SRP" : raises === 2 ? "3bet pot" : "4bet+ pot");
 
