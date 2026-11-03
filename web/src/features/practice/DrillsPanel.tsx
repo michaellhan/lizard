@@ -440,7 +440,12 @@ function SpotDrill({
 
       {past.filter((p) => p.id !== session.id).length > 0 && (
         <section aria-label="Past drills" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
-          <h2 className="font-medium">Earlier sessions of this drill</h2>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h2 className="font-medium">Earlier sessions of this drill</h2>
+            <Link to="/history?kind=drill" className="text-xs underline">
+              Every drill session
+            </Link>
+          </div>
           <ul className="space-y-0.5">
             {past
               .filter((p) => p.id !== session.id)

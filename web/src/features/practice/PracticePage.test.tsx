@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { allSessions } from "@/data/db";
 import { deleteImport, listHands, PRACTICE_SITE } from "@/data/hands";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
@@ -126,6 +127,13 @@ describe("PracticePage", () => {
     ]);
     expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent(/preflop: You raise to 2\.5, BB calls/);
     expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent(/flop \[.. .. ..\]: BB checks, You bet 1\.5, BB folds/);
+    // the session kept for History: the hand under its pot type, the decisions under what graded them
+    await waitFor(async () =>
+      expect((await allSessions()).find((s) => s.kind === "practice" && s.meta.hands === 1 && s.meta.players === 2)?.meta).toMatchObject({
+        byPot: { SRP: { hands: 1, n: 2, ok: 2, ne: 1, played: 1, net: 2.5 } },
+        sources: { charts: 1, live: 1 },
+      }),
+    );
 
     // the next hand: your seat moves to the big blind
     fireEvent.click(screen.getByRole("button", { name: "Next hand" }));

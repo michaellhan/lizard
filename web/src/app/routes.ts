@@ -23,6 +23,7 @@ export const ROUTES: RouteDef[] = [
   { path: "tournaments", label: "Tournaments", nav: true, status: "partial", summary: "A tournament spot: the prizes left, each seat's stack, other tables and bounties, answered in prize equity in Study." },
   { path: "compare", label: "Compare", nav: false, status: "partial", summary: "Two spots side by side (a tournament in chip EV, with and without rake, two stacks): the actions, the range and each hand class's change, each side with its own source." },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
+  { path: "history", label: "History", nav: true, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, and full hands by pot type." },
   { path: "saved", label: "Saved", nav: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore." },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },
   { path: "settings", label: "Settings", nav: false, status: "working", summary: "Solver mode, backend, library source and display." },

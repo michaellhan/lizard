@@ -15,10 +15,11 @@ import { addHands } from "@/data/hands";
 import { addScore, emptyScore, GRADE_RULES, summary, whoOf, whyText, type Score } from "@/grading/grade";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
-import { SolverError, type SolveResult } from "@/solver/types";
+import { SolverError, type ResultSource, type SolveResult } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
+import { addHandToPot, addSource, handPot, type PotTally } from "@/features/history/history";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
@@ -55,6 +56,9 @@ interface PracticeSession {
   /** chips won less chips put in, over the session's hands, bb (not counted preflop only: no hand is played out) */
   net: number;
   score: Score;
+  /** finished hands by pot type, and the decisions graded by what answered them (the History page) */
+  byPot: Record<string, PotTally>;
+  sources: Partial<Record<ResultSource, number>>;
 }
 
 const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false };
@@ -68,6 +72,8 @@ const freshSession = (players: number, stack: number, opts: Required<HandOptions
   hands: 0,
   net: 0,
   score: emptyScore(),
+  byPot: {},
+  sources: {},
 });
 
 const toRecord = (s: PracticeSession): SessionRecord => ({
@@ -87,6 +93,8 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
     stack: s.stack,
     seat: s.opts.seat,
     ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
+    byPot: s.byPot,
+    sources: s.sources,
   },
 });
 
@@ -200,7 +208,13 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       }
       const result = finish(h);
       setHand({ ...h, result });
-      setSession((s) => ({ ...s, hands: s.hands + 1, net: s.opts.preflopOnly ? s.net : Math.round((s.net + result.net) * 100) / 100 }));
+      const pot = handPot(h.lines.preflop, simOf(h));
+      setSession((s) => ({
+        ...s,
+        hands: s.hands + 1,
+        net: s.opts.preflopOnly ? s.net : Math.round((s.net + result.net) * 100) / 100,
+        byPot: { ...s.byPot, [pot]: addHandToPot(s.byPot[pot], h.decisions.map((d) => d.grade), s.opts.preflopOnly ? null : result.net) },
+      }));
       if (keeping.current.all) void keep({ ...h, result }, keeping.current.session);
     },
     [keep],
@@ -292,7 +306,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     setError(null);
     setLast(r.decision);
     const g = r.decision.grade;
-    if (g) setSession((s) => ({ ...s, score: addScore(s.score, g) }));
+    if (g) setSession((s) => ({ ...s, score: addScore(s.score, g), sources: addSource(s.sources, r.decision.provenance?.source) }));
     commit(r.hand);
   };
 
@@ -514,11 +528,16 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
 
       {others.length > 0 && (
         <section aria-label="Past sessions" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
-          <h2 className="font-medium">Past sessions</h2>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h2 className="font-medium">Past sessions</h2>
+            <Link to="/history?kind=practice" className="text-xs underline">
+              All sessions, and totals by pot type
+            </Link>
+          </div>
           <ul className="space-y-0.5">
             {others.map((s) => (
               <li key={s.id} className="text-muted">
-                {new Date(s.startedAt).toLocaleString()} · {String(s.meta.hands ?? 0)} hands · {s.decisions} decisions
+                {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
                 {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} correct` : ""}
                 {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
                 {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}

@@ -296,3 +296,10 @@ export async function recentSessions(kind: SessionRecord["kind"], limit = 10): P
   const all = await d.getAllFromIndex("sessions", "byKind", kind);
   return all.sort((a, b) => b.startedAt - a.startedAt).slice(0, limit);
 }
+
+/** Every session kept, of every kind, newest first (the History page). */
+export async function allSessions(): Promise<SessionRecord[]> {
+  const d = await db();
+  if (!d) return [];
+  return (await d.getAllFromIndex("sessions", "byStarted")).reverse();
+}

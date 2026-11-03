@@ -2306,3 +2306,59 @@ Untouched (read-only `ps`). Everything ran under `nice`.
   straddles, the 20-hand engine check, the sessions history page.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, the sessions History page (second session)
+
+Deploy of aff5639 (the "why" text) verified live: run 41705774624 passed; `/lizard/` serves `index-D5jmhTkU.js`, which
+has "picks this most often here".
+
+The Phase 1 deliverable "The history page lists sessions by date with totals by pot type" is done: a new History page
+(`/history`, in the primary nav).
+
+### Code
+
+- `web/src/data/db.ts`: `allSessions()`, every kept session newest first (the `byStarted` index). No migration.
+- `web/src/features/history/history.ts`:
+  - `rowOf(session)` reads each kind's record into a row, defensively (any field may be missing): what was practised;
+    decisions, Best or Correct and EV lost a decision (by EV only); hands and net for full hands (no net preflop only);
+    accuracy and EV lost a combo for range builds; what graded it; and where it opens again (a drill: "Drill it again",
+    `/practice?tab=drills&spot=…&view=…`; a leak drill: `/analyze?drill=…`; a range build: the node in Study).
+  - "Graded against": full hands, the count of decisions by the answer's source ("Live solve 2, Preflop charts
+    (approximate) 1"), or "Not kept" for sessions played before this; drills, the flop library; leak drills,
+    Analyze's answers (the charts, approximate, preflop; the flop library after); range builds, the record's source.
+  - `kindTotals` (lifetime, by kind), `potTotals` (full hands by pot type, and the earlier sessions without a split,
+    counted apart), `byDay` (local days, newest first).
+  - `handPot(preflop, sim)`: a Practice hand's pot as its preflop went while you were in it, named as Analyze names pot
+    types, plus "Unopened" (nobody raised or called). `addHandToPot`, `addSource`.
+- `PracticePage.tsx`: each session now keeps `byPot` (each finished hand's graded decisions and net under its pot type)
+  and `sources` (graded decisions by source) in its record's meta; "All sessions, and totals by pot type" links to
+  History from the past sessions. `DrillsPanel.tsx`: "Every drill session" links there too. Plurals fixed in
+  Practice's past list ("1 hand · 1 decision").
+- `HistoryPage.tsx`, `routes.ts`, `App.tsx`: the page (a kind filter kept in the URL, `?kind=`), the route, 13 route
+  pages built.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 356/356 in 58 files (`history.test.tsx`: pot naming and tallies, each kind's row, totals by kind and pot type, the page from IndexedDB with the day groups, links and the kind filter; `PracticePage.test.tsx`: a played hand kept under "SRP" with its sources). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+History with the sessions kept by earlier checks (full hands, a drill, a leak drill, two range builds): totals by
+kind, rows by day, the earlier sessions said to have no pot-type split. Then Practice, 6-max preflop only from the
+button: a 3-bet and a fold first in; History filed them under "3bet pot" and "Unopened", graded against "Preflop
+charts (approximate) 2". At 375px the page has no horizontal scroll (the two tables scroll in their boxes).
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`. Memory 57% free.
+
+### Next
+
+- Phase 1, still open: the drill modes (pot types in full hands), multitabling, carried chips, sizes of your own,
+  antes and straddles, the 20-hand engine check.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
