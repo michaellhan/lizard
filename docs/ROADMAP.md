@@ -5,7 +5,7 @@ Status as of 2026-11-03. This plans the path from today's state to broad parity 
 ## Where we start
 
 - **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
-- **Lizard's own interface covers Study, a range editor, the library view, settings and engine diagnostics.** Practice, Analyze, Solve, Reports and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:31-35`). Lizard is WORKING on 2 rows and PARTIAL on 17.
+- **Lizard's own interface covers Study, a range editor, the library view, settings and engine diagnostics.** Practice, Analyze, Solve, Reports and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:31-35`). Lizard was WORKING on 2 rows and PARTIAL on 17 when this was written; `FEATURE_MATRIX.md` has the current counts.
 - **Much of the plumbing is ready but unused.** That includes:
   - the `SolverClient` queue with worker and HTTP backends;
   - provenance on every answer;
@@ -70,6 +70,10 @@ Effort sizes are rough: **S** is a few days, **M** is one to three weeks, **L** 
     `RangesPage.tsx` comment no longer names a competitor's feature;
   - per-mode time budgets are sent (`applyMode`, `MODE_BUDGETS`);
   - provenance for stored turns, answers at once and 5+-way heuristics (`docs/ACCURACY.md` §11).
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** the convergence bands, the EV unit (and `colorByAction`
+  removed), the 3-way display and Library links, the action filter, the hand-class and draw filters, the EQR grid
+  view, the player and stack inputs, and the grading module (`web/src/grading/grade.ts`, with the thresholds below and
+  `GRADE_RULES` in words). **Still open in Phase 0:** the preflop Solver source.
 - **Convergence label.** The abstraction wording is done: `describe` (`web/src/solver/provenance.ts:113-127`) says "in the solved game", and "mean best-response gain" for 3- and 4-way answers. Still to do: add the classic bands (converged under 3% of the pot, fair under 10%, rough otherwise, approximate when flagged; `solver/gto/static/index.html:1932-1937`) and the target when present. Update `web/src/components/ProvenanceBadge.tsx`.
 - **Settings that do nothing.** Apply `evUnit` (bb or % of pot) in `StudyPage.tsx` action buttons and `ComboPanel.tsx`, or remove the setting. Do the same for `colorByAction` (`web/src/state/settings.ts:13-15`).
 - **3-way display.**

@@ -267,3 +267,71 @@ Following `IMPLEMENTATION_PLAN.md` and `ROADMAP.md`:
 - port the Practice trainer onto the typed client;
 - add Playwright smoke tests (study deep link, engine self-test), run against the preview build;
 - then hand-history import.
+
+## 2026-11-03 — Second session: Phase 0 (Study completion)
+
+### How this session started
+
+A second Claude Code session was asked to continue `IMPLEMENTATION_PLAN.md` only after the first had finished. It
+waited without touching the repository. Completion was checked three ways before any edit:
+- the app's own session state (`isRunning: false`);
+- the first session's transcript, which ended with its final report ("done (success)");
+- none of its files (transcript, subagents, workflows) changed for over 15 minutes.
+
+The waiting cost one `stat` every 2 minutes. The first session left a hung background `node --test` (from 06:19, 0%
+CPU). It was left alone, because killing it would wake that session.
+
+### Code
+
+- **Grading module, `web/src/grading/grade.ts`.** One scale for every trainer, ported from classic `drills.js`
+  (`MIX` 0.1, `TOL` 0.011, `RARE` 0.03): Best, Correct, Inaccuracy (under 2% of the pot), Mistake (under 8%),
+  Blunder. Without EVs (preflop charts) it grades by frequency only, with `byEv: false`, and counts no EV lost.
+  `GRADE_RULES` states the thresholds in words; `emptyScore`, `addScore` and `summary` keep running scores.
+- **Convergence bands.** `bandOf` in `provenance.ts`: converged under 3% of the pot, fair under 10%, else rough,
+  and "approximate" with the target when the solver flags an answer. The badge text shows it, e.g. "0.11% pot from
+  equilibrium in the solved game (converged)".
+- **Study** (`StudyPage.tsx`):
+  - **New hand:** any table size from 2 to 9 and any stack from 10 to 250bb, replacing the four presets;
+  - **Range toggles:** one per player, including both opponents in 3-way spots (the answer's `opponents` list);
+  - **Hand-category filter:** made hands and draws, ported from `study.js` `catsOf`/`filterRes`
+    (`features/study/filters.ts`). The grid, the action frequencies and EVs, and the range's totals are recomputed
+    over the category's combos, and no EVs are made up for an answer at once;
+  - **Action legend:** shows one action, drawing the others empty; in the EV view it shades by that action's EV;
+  - **EQR grid view:** EV / (equity × pot);
+  - **EV unit:** bb or % of the pot, per Settings, on the action buttons and the class panel. The unused
+    `colorByAction` setting was removed.
+- **Library page:** 3-way spots link to Study.
+- **Protocol types:** `categories` is `[id, label]`; added `opponents`, `range_ev_bb` and `OpponentRange`.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 66/66 in 14 files. New files: `grade.test.ts` (the classic drills cases, thresholds, chart-only grading), `filters.test.ts` (the classic `study.test.js` filter fixture), `StudyPage.test.tsx` (stubbed solver: 3-way toggles, filter, EV in % of pot, new hand, action focus). New cases in `provenance.test.ts` (bands at 2.99/3.0/9.99/10.0), `RangeMatrix.test.tsx` (hidden actions, EQR) and `views.test.ts` |
+| Typecheck and ESLint | clean |
+| `npm run build` | built (`index-CfZyBMyn.js` before the final docs-only edits) |
+
+The solver suites were not run: no solver code changed.
+
+### Checked in the browser (local production build, `vite preview`)
+
+- 6-max BTN vs BB, Kd7c2h, from the library: the badge read "Precomputed solution · srp_btn_bb · 0.11% pot from
+  equilibrium in the solved game (converged) · 300 iterations". The filter listed 15 categories; "Top pair, good
+  kicker" showed 12.9 of 512.7 combos with BB checking 100%. The EQR view shaded only the filtered classes. There
+  were no console errors.
+- 3-way, CO open with BTN and BB calling, Ac4c2d, from `mw_co_btn_bb`: toggles BB, CO and BTN, each with its own grid
+  (70 and 21 classes in range for CO and BTN). The badge read "0.09% pot mean best-response gain in the solved game
+  (converged)".
+- At 375px there is no page-level horizontal scroll.
+
+Only library spots were opened, so no live solve ran.
+
+### Precompute builds
+
+Untouched. Read-only `ps` checks only. Memory stayed at 63–70% free. Swap sat at about 6.9 of 8 GB throughout,
+already that high before this session, and did not grow.
+
+### Next
+
+- Phase 0's last item: the preflop Solver source.
+- Phase 1: Practice on the typed client.

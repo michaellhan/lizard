@@ -1,7 +1,7 @@
 // Derive an answer's provenance from the Advisor's response. The rule: never present a number without saying
 // what produced it (library / live solve / charts / heuristic rules) and how close to equilibrium it is.
 import type { AdvisorResponse } from "./protocol";
-import type { Provenance, ResultSource, SolveMode, TransportKind } from "./types";
+import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
 export interface ProvenanceContext {
   mode: SolveMode;
@@ -56,6 +56,12 @@ function borrowedOf(r: AdvisorResponse): string | null {
   return typeof text === "string" ? text : "";
 }
 
+/** Band of a measured exploitability (% of the pot), as the classic app draws it (index.html convergence()). */
+export function bandOf(exploitabilityPct: number, solverApproximate = false): ConvergenceBand {
+  if (solverApproximate) return "approximate";
+  return exploitabilityPct < 3 ? "converged" : exploitabilityPct < 10 ? "fair" : "rough";
+}
+
 export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Provenance {
   const source = sourceOf(r);
   const approx = approximateOf(r);
@@ -84,7 +90,10 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
     partial: ctx.partial,
     receivedAt: ctx.now ?? Date.now(),
   };
-  if (typeof sv.exploitability_pct === "number") p.exploitabilityPct = sv.exploitability_pct;
+  if (typeof sv.exploitability_pct === "number") {
+    p.exploitabilityPct = sv.exploitability_pct;
+    p.band = bandOf(sv.exploitability_pct, Boolean(sv.approximate));
+  }
   if (typeof sv.target_pct === "number") p.targetPct = sv.target_pct;
   if (typeof sv.iterations === "number") p.iterations = sv.iterations;
   const secs =
@@ -118,7 +127,8 @@ export function describe(p: Provenance): string {
   // figure is the players' mean best-response gain (advisor.py), not a two-player exploitability
   if (p.exploitabilityPct !== undefined) {
     const what = p.multiway ? "mean best-response gain" : "from equilibrium";
-    parts.push(`${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game`);
+    const band = p.band ? ` (${p.band}${p.band === "approximate" && p.targetPct !== undefined ? `, target ${p.targetPct}%` : ""})` : "";
+    parts.push(`${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
   }
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);
   if (p.partial) parts.push("in progress");

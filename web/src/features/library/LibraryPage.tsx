@@ -110,7 +110,7 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
                   </td>
                   <td className="px-3 py-1.5">{s.storedTurns ? "yes" : "–"}</td>
                   <td className="px-3 py-1.5 text-right">
-                    {s.kind !== "multiway" && <StudyLink spot={s} />}
+                    <StudyLink spot={s} />
                   </td>
                 </tr>
               ))}

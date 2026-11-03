@@ -96,8 +96,12 @@ export interface AdvisorResponse {
   grid?: RangeGridData;
   opponent_grid?: RangeGridData;
   combos?: Record<string, ComboRow[]>;
-  categories?: { made?: [string, number][]; draws?: [string, number][] };
+  /** breakdown.py MADE / DRAWS as [id, label]; combo rows index into them (draws empty on the river) */
+  categories?: { made?: [string, string][]; draws?: [string, string][] };
+  /** 3-way answers: each opponent's seat, range grid, combos and equity (advisor.py _study_range) */
+  opponents?: OpponentRange[];
   range_combos?: number;
+  range_ev_bb?: number | null;
   opponent_combos?: number;
   /** null where the answer has no equities (looks, reads at once, 4-way answers) */
   range_eq?: number | null;
@@ -113,6 +117,13 @@ export interface AdvisorResponse {
   notes?: string[];
   seconds?: number;
   [key: string]: unknown;
+}
+
+export interface OpponentRange {
+  seat: string;
+  combos?: number;
+  eq?: number | null;
+  grid: RangeGridData;
 }
 
 export interface AdvisorActionStat {

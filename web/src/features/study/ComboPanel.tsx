@@ -1,6 +1,6 @@
-import { bb, pct } from "@/components/actions";
+import { evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
 import { classCombos } from "@/engine/nlhe/cards";
-import type { AdvisorResponse, ComboRow } from "@/solver/protocol";
+import type { AdvisorResponse, ComboRow, OpponentRange } from "@/solver/protocol";
 
 /** Equity realization: EV share of the pot relative to raw equity (upstream study.js's eqr). */
 export function eqr(evm: number | null | undefined, eq: number | null | undefined, potBb: number | undefined): number | undefined {
@@ -14,8 +14,24 @@ function comboEv(row: ComboRow): number | undefined {
   return row[2].reduce((t, f, a) => t + f * (evs[a] ?? 0), 0);
 }
 
-export function ComboPanel({ cls, res, colors, opponent }: { cls: string; res: AdvisorResponse; colors: string[]; opponent: boolean }) {
-  const grid = opponent ? res.opponent_grid : res.grid;
+/** One hand class: its combos, mix, EV, equity and EQR. `opponent`: show an opponent's range instead (true: the
+ * heads-up opponent; a 3-way answer's opponent by its entry in `opponents`). */
+export function ComboPanel({
+  cls,
+  res,
+  colors,
+  opponent,
+  evUnit = "bb",
+}: {
+  cls: string;
+  res: AdvisorResponse;
+  colors: string[];
+  opponent: boolean | OpponentRange;
+  evUnit?: EvUnit;
+}) {
+  const grid = opponent === true ? res.opponent_grid : opponent ? opponent.grid : res.grid;
+  const ev = (x: number | null | undefined) => evIn(x, evUnit, res.pot_bb);
+  const unit = evUnitLabel(evUnit, res.pot_bb);
   const cell = grid?.cells[cls];
   const names = res.grid?.actions ?? [];
   if (!cell) return null;
@@ -32,7 +48,12 @@ export function ComboPanel({ cls, res, colors, opponent }: { cls: string; res: A
         <span className="text-muted">
           {(cell.w * n).toFixed(2)} of {n} combos
         </span>
-        {cell.evm != null && !opponent && <span>EV {bb(cell.evm)}bb</span>}
+        {cell.evm != null && !opponent && (
+          <span>
+            EV {ev(cell.evm)}
+            {unit}
+          </span>
+        )}
         {cell.eq != null && <span>Equity {pct(cell.eq)}</span>}
         {r !== undefined && !opponent && <span title="EV / (equity × pot)">EQR {r.toFixed(2)}</span>}
       </div>
@@ -43,7 +64,7 @@ export function ComboPanel({ cls, res, colors, opponent }: { cls: string; res: A
               <span key={nm} className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[a] }} />
                 {nm} <b>{pct(cell.f[a])}</b>
-                {cell.ev ? <span className="text-muted"> {bb(cell.ev[a])}</span> : null}
+                {cell.ev ? <span className="text-muted"> {ev(cell.ev[a])}</span> : null}
               </span>
             ) : null,
           )}
@@ -55,7 +76,7 @@ export function ComboPanel({ cls, res, colors, opponent }: { cls: string; res: A
             <tr>
               <th className="py-1 font-normal">Combo</th>
               <th className="py-1 font-normal">Mix</th>
-              {hasEv && <th className="py-1 text-right font-normal">EV</th>}
+              {hasEv && <th className="py-1 text-right font-normal">{unit === "bb" ? "EV" : "EV % pot"}</th>}
               {hasEv && <th className="py-1 text-right font-normal">Eq</th>}
             </tr>
           </thead>
@@ -71,7 +92,7 @@ export function ComboPanel({ cls, res, colors, opponent }: { cls: string; res: A
                     {row[2].map((f, a) => (f > 0.0005 ? <span key={a} style={{ width: `${f * 100}%`, background: colors[a] }} /> : null))}
                   </span>
                 </td>
-                {hasEv && <td className="py-1 text-right">{bb(comboEv(row))}</td>}
+                {hasEv && <td className="py-1 text-right">{ev(comboEv(row))}</td>}
                 {hasEv && <td className="py-1 text-right">{row[4] === null ? "–" : pct(row[4])}</td>}
               </tr>
             ))}

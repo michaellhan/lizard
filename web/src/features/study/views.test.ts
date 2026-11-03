@@ -11,7 +11,7 @@ describe("viewsOf", () => {
   });
 
   it("offers equity only where the answer has it", () => {
-    expect(viewsOf({ street: "flop", range_eq: 0.52 })).toEqual(["mix", "ev", "eq"]);
+    expect(viewsOf({ street: "flop", range_eq: 0.52 })).toEqual(["mix", "ev", "eq", "eqr"]);
     // (a solved 4-way flop: range_eq null)
     expect(viewsOf({ street: "flop", range_eq: null } as AdvisorResponse)).toEqual(["mix", "ev"]);
   });
@@ -22,5 +22,9 @@ describe("actionLine", () => {
     expect(actionLine({ action: "bet 33%", freq: 0.4, combos: 120.5, ev_bb: 3.25 })).toBe("40.0% · 120.5 combos · EV 3.25");
     expect(actionLine({ action: "check", freq: 0.6, combos: 80, ev_bb: -0.5, rough_ev: true })).toBe("60.0% · 80.0 combos · EV ≈−0.50");
     expect(actionLine({ action: "check", freq: 1, combos: 80, ev_bb: null })).toBe("100.0% · 80.0 combos");
+    // in % of the pot (Settings: EV in % of pot)
+    expect(actionLine({ action: "bet 33%", freq: 0.4, combos: 120.5, ev_bb: 3.25 }, (x) => `${((x / 6.5) * 100).toFixed(1)}%`)).toBe(
+      "40.0% · 120.5 combos · EV 50.0%",
+    );
   });
 });

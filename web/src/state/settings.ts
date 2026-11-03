@@ -9,10 +9,8 @@ export interface Settings {
   transport: TransportKind;
   localSolverUrl: string;
   librarySource: LibraryChoice;
-  /** how EVs are displayed */
+  /** how EVs are displayed: bb, or % of the pot at the node (Study's action buttons, combo panel) */
   evUnit: "bb" | "pot";
-  /** color mixed-frequency cells by action (true) or by EV (false) */
-  colorByAction: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,7 +19,6 @@ export const DEFAULT_SETTINGS: Settings = {
   localSolverUrl: DEFAULT_LOCAL_SOLVER_URL,
   librarySource: "auto",
   evUnit: "bb",
-  colorByAction: true,
 };
 
 const KEY = "settings.v1";
@@ -34,8 +31,9 @@ interface SettingsState extends Settings {
 }
 
 function pick(s: SettingsState): Settings {
-  const { mode, transport, localSolverUrl, librarySource, evUnit, colorByAction } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, colorByAction };
+  // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
+  const { mode, transport, localSolverUrl, librarySource, evUnit } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

@@ -77,6 +77,7 @@ export function SettingsPage() {
             <option value="pot">% of pot</option>
           </select>
         </label>
+        <p className="text-xs text-muted">Applies to Study's action buttons and the hand-class panel; the EV grid shades in bb either way.</p>
       </fieldset>
 
       <button type="button" onClick={s.reset} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">

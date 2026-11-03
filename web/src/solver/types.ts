@@ -19,6 +19,10 @@ export type ResultSource =
   | "equity" // equity-based fallback
   | "unknown";
 
+/** The classic app's convergence bands (index.html convergence()): under 3% of the pot converged, under 10% fair,
+ * else rough; "approximate" when the solver flags the answer as short of its target. */
+export type ConvergenceBand = "converged" | "fair" | "rough" | "approximate";
+
 export interface Provenance {
   source: ResultSource;
   /** the answer is labelled approximate by the solver (ran short of its accuracy target, or a heuristic) */
@@ -27,6 +31,8 @@ export interface Provenance {
   exploitabilityPct?: number;
   /** the accuracy target the mode aims for, % of the pot */
   targetPct?: number;
+  /** how settled the measured figure is (the classic app's bands); only where exploitabilityPct is measured */
+  band?: ConvergenceBand;
   iterations?: number;
   /** wall-clock seconds the backend spent */
   seconds?: number;

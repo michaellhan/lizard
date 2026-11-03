@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describe as describeProvenance, provenanceOf, sourceOf } from "./provenance";
+import { bandOf, describe as describeProvenance, provenanceOf, sourceOf } from "./provenance";
 import type { AdvisorResponse } from "./protocol";
 
 const ctx = { mode: "fast" as const, transport: "worker" as const, solverVersion: "9b907bd6/abc", partial: false, now: 1 };
@@ -113,10 +113,24 @@ describe("provenance", () => {
     expect(provenanceOf({ street: "turn", solver: { iterations: 40 } }, { ...ctx, partial: true }).approximate).toBe(true);
   });
 
+  it("bands a measured figure as the classic app does: converged under 3%, fair under 10%, else rough", () => {
+    expect([2.99, 3.0, 9.99, 10.0].map((x) => bandOf(x))).toEqual(["converged", "fair", "fair", "rough"]);
+    expect(bandOf(0.1, true)).toBe("approximate");
+    const cut = provenanceOf({ street: "turn", solver: { iterations: 12, exploitability_pct: 4 } }, ctx);
+    expect(cut.band).toBe("fair");
+    expect(describeProvenance(cut)).toBe("Live solve · 4.00% pot from equilibrium in the solved game (fair) · 12 iterations");
+    const short = provenanceOf({ street: "turn", solver: { iterations: 90, exploitability_pct: 0.5, approximate: true, target_pct: 0.3 } }, ctx);
+    expect(describeProvenance(short)).toBe(
+      "Live solve · 0.50% pot from equilibrium in the solved game (approximate, target 0.3%) · 90 iterations · approximate",
+    );
+    // no measured figure, no band (a stored turn, an answer at once, the charts)
+    expect(provenanceOf({ street: "preflop" }, ctx).band).toBeUndefined();
+  });
+
   it("describes itself in words", () => {
     const p = provenanceOf({ precomputed: { spot: "srp_btn_bb" }, solver: { exploitability_pct: 0.2 } }, ctx);
-    expect(describeProvenance(p)).toBe("Precomputed solution · srp_btn_bb · 0.20% pot from equilibrium in the solved game");
+    expect(describeProvenance(p)).toBe("Precomputed solution · srp_btn_bb · 0.20% pot from equilibrium in the solved game (converged)");
     const mw = provenanceOf({ street: "flop", multiway: true, solved: true, solver: { iterations: 300, exploitability_pct: 0.25 } }, ctx);
-    expect(describeProvenance(mw)).toBe("Live solve · 0.25% pot mean best-response gain in the solved game · 300 iterations");
+    expect(describeProvenance(mw)).toBe("Live solve · 0.25% pot mean best-response gain in the solved game (converged) · 300 iterations");
   });
 });

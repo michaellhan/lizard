@@ -13,13 +13,32 @@ export interface RangeMatrixProps {
   colors: readonly string[];
   selected?: string | null;
   onSelect?: (cls: string) => void;
-  /** "mix": stacked action bars; "weight": range weight only; "ev"/"eq": heat by value */
-  view?: "mix" | "weight" | "ev" | "eq";
-  /** for view "ev": the value range mapped onto the color scale */
+  /** "mix": stacked action bars; "weight": range weight only; "ev"/"eq"/"eqr": heat by value */
+  view?: "mix" | "weight" | "ev" | "eq" | "eqr";
+  /** for views "ev" and "eqr": the value range mapped onto the color scale */
   evRange?: [number, number];
+  /** view "ev": shade by this action's EV instead of the mix's */
+  evAction?: number | null;
+  /** the pot in bb (view "eqr": EV / (equity x pot)) */
+  potBb?: number;
   /** hidden actions (filters): their share is drawn empty */
   hidden?: ReadonlySet<number>;
   caption?: string;
+}
+
+/** A cell's value in a heat view (null where it has none: the Advisor's nulls, or no equity for EQR). */
+export function cellValue(
+  cell: Partial<GridCell> | undefined,
+  view: "ev" | "eq" | "eqr",
+  evAction?: number | null,
+  potBb?: number,
+): number | null {
+  if (!cell) return null;
+  if (view === "eq") return cell.eq ?? null;
+  const ev = evAction != null ? (cell.ev?.[evAction] ?? null) : (cell.evm ?? null);
+  if (view === "ev") return ev;
+  const eq = cell.eq;
+  return ev != null && eq != null && eq > 0 && potBb ? ev / (eq * potBb) : null;
 }
 
 function heat(t: number): string {
@@ -38,6 +57,8 @@ const Cell = memo(function Cell({
   onSelect,
   view,
   evRange,
+  evAction,
+  potBb,
   hidden,
 }: {
   cls: string;
@@ -48,6 +69,8 @@ const Cell = memo(function Cell({
   onSelect?: (cls: string) => void;
   view: NonNullable<RangeMatrixProps["view"]>;
   evRange?: [number, number];
+  evAction?: number | null;
+  potBb?: number;
   hidden?: ReadonlySet<number>;
 }) {
   const w = cell ? Math.max(0, Math.min(1, cell.w)) : 0;
@@ -76,7 +99,7 @@ const Cell = memo(function Cell({
     } else if (view === "weight") {
       fill = <div className="absolute inset-x-0 bottom-0 bg-accent/70" style={{ height: `${w * 100}%` }} />;
     } else {
-      const v = view === "eq" ? cell.eq : cell.evm;
+      const v = cellValue(cell, view, evAction, potBb);
       const [lo, hi] = view === "eq" ? [0, 1] : (evRange ?? [0, 1]);
       // (no value: the class's weight in a neutral fill, not the colour of the scale's bottom)
       fill =
@@ -115,6 +138,8 @@ export function RangeMatrix({
   onSelect,
   view = "mix",
   evRange,
+  evAction,
+  potBb,
   hidden,
   caption,
 }: RangeMatrixProps) {
@@ -135,6 +160,8 @@ export function RangeMatrix({
                 onSelect={onSelect}
                 view={view}
                 evRange={evRange}
+                evAction={evAction}
+                potBb={potBb}
                 hidden={hidden}
               />
             );

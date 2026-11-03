@@ -36,3 +36,15 @@ export function pct(x: number | null | undefined, digits = 1): string {
 export function bb(x: number | null | undefined, digits = 2): string {
   return x == null || Number.isNaN(x) ? "–" : `${x >= 0 ? "" : "−"}${Math.abs(x).toFixed(digits)}`;
 }
+
+export type EvUnit = "bb" | "pot";
+
+/** An EV in the user's unit (Settings): bb, or % of the pot at the node. No unit suffix; see evUnitLabel. */
+export function evIn(x: number | null | undefined, unit: EvUnit, potBb: number | undefined): string {
+  if (unit === "bb" || !potBb) return bb(x);
+  return x == null || Number.isNaN(x) ? "–" : `${x >= 0 ? "" : "−"}${((Math.abs(x) / potBb) * 100).toFixed(1)}`;
+}
+
+export function evUnitLabel(unit: EvUnit, potBb: number | undefined): string {
+  return unit === "pot" && potBb ? "% pot" : "bb";
+}
