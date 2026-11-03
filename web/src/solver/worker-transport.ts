@@ -7,7 +7,7 @@
 //    into slot 1 makes Advisor.should_stop() true, and the solve stops within ~0.1 s keeping the worker's caches;
 //  - otherwise: the worker is terminated and rebooted on the next request (runtime from cache, ~1.5 s).
 import type { AdvisorResponse, AdvisorState, WorkerInbound, WorkerOutbound } from "./protocol";
-import { SolverError, type RuntimeStatus, type SolverTransport } from "./types";
+import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport } from "./types";
 
 export interface WorkerTransportOptions {
   /** URL of the folder holding worker.js, solver.zip and pf/ (must end with "/") */
@@ -137,7 +137,7 @@ export class WorkerTransport implements SolverTransport {
 
   request(
     state: AdvisorState,
-    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void },
+    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void; play?: PlayRequest },
   ): Promise<AdvisorResponse> {
     if (this.current) return Promise.reject(new SolverError("bad-request", "a request is already running"));
     if (opts.signal?.aborted) return Promise.reject(new SolverError("cancelled", "cancelled"));
@@ -158,7 +158,8 @@ export class WorkerTransport implements SolverTransport {
         cleanup: () => opts.signal?.removeEventListener("abort", onAbort),
       };
       if (this.st.phase === "ready") this.setStatus({ phase: "busy" });
-      this.post({ id, state, early: opts.progressive });
+      // (a move is never posted early: worker.js answers it in one go)
+      this.post(opts.play ? { id, state, play: opts.play } : { id, state, early: opts.progressive });
     });
   }
 

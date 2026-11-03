@@ -1,10 +1,11 @@
 // SolverClient: the one object views talk to. It maps modes onto the Advisor's request keys, serializes
 // requests (the backends run one solve at a time), supports AbortSignal cancellation for queued and running
 // requests, and attaches provenance to every answer.
-import type { AdvisorResponse, AdvisorState } from "./protocol";
+import type { AdvisorResponse, AdvisorState, PlayMove } from "./protocol";
 import { provenanceOf } from "./provenance";
 import {
   SolverError,
+  type PlayRequest,
   type RuntimeStatus,
   type SolveMode,
   type SolveRequest,
@@ -107,8 +108,9 @@ export class SolverClient {
     const ctx = { mode: effectiveMode(req.state, mode), transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
       const data = await this.transport.request(applyMode(req.state, mode, this.transport.kind), {
-        progressive: req.progressive ?? false,
+        progressive: req.play ? false : (req.progressive ?? false),
         signal: req.signal,
+        ...(req.play ? { play: req.play } : {}),
         onPartial: req.onPartial
           ? (p: AdvisorResponse) => req.onPartial?.({ data: p, provenance: provenanceOf(p, { ...ctx, partial: true }) })
           : undefined,
@@ -120,6 +122,16 @@ export class SolverClient {
       this.running = false;
       void this.pump();
     }
+  }
+
+  /** A practice opponent's move (Advisor.play): `play.seat` holding `play.hole` draws one from its GTO mix; `state`
+   * is the hand from the player practising (hero and hole), as their own advice's. */
+  play(
+    state: AdvisorState,
+    play: PlayRequest,
+    opts: { mode?: SolveMode; signal?: AbortSignal } = {},
+  ): Promise<SolveResult<PlayMove>> {
+    return this.solve({ state, play, mode: opts.mode, signal: opts.signal }) as Promise<SolveResult<PlayMove>>;
   }
 
   dispose(): void {

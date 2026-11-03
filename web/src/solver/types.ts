@@ -53,8 +53,18 @@ export interface Provenance {
   receivedAt: number;
 }
 
+/** A practice opponent's move: `seat` holding `hole` draws one from its GTO mix (Advisor.play). */
+export interface PlayRequest {
+  seat: string;
+  hole: string;
+  /** makes the draw repeatable */
+  seed?: number;
+}
+
 export interface SolveRequest {
   state: AdvisorState;
+  /** ask for this seat's move instead of the state's advice (the state is the hand from the player practising) */
+  play?: PlayRequest;
   mode?: SolveMode;
   /** stream approximate answers first (instant estimate, then the live solve's progress looks) */
   progressive?: boolean;
@@ -102,7 +112,7 @@ export interface SolverTransport {
   /** Resolve with the final answer; call onPartial for intermediate ones. Reject with SolverError. */
   request(
     state: AdvisorState,
-    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void },
+    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void; play?: PlayRequest },
   ): Promise<AdvisorResponse>;
   /** Hint: fetch the library entries this state will need. */
   prefetch?(state: AdvisorState): void;

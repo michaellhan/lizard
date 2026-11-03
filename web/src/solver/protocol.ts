@@ -119,6 +119,16 @@ export interface AdvisorResponse {
   [key: string]: unknown;
 }
 
+/** A practice opponent's move (Advisor.play): drawn from the seat's mix for its hand. `to` is a bet's or raise's
+ * total this street; `name` the Advisor's action name ("bet 33%"); `freq` how often the hand takes it. */
+export type PlayMove = AdvisorResponse & {
+  pos: string;
+  action: "fold" | "check" | "call" | "bet" | "raise" | "all-in";
+  name: string;
+  freq: number;
+  to?: number;
+};
+
 export interface OpponentRange {
   seat: string;
   combos?: number;

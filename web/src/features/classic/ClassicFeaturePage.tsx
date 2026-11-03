@@ -2,19 +2,9 @@
 // link to the upstream app where the feature runs today — nothing here pretends to be a Lizard implementation.
 import { CLASSIC_URL } from "@/config";
 
-type Feature = "practice" | "analyze" | "solve" | "reports" | "tournaments";
+type Feature = "analyze" | "solve" | "reports" | "tournaments";
 
 const INFO: Record<Feature, { title: string; engine: string[]; classicPath: string; next: string }> = {
-  practice: {
-    title: "Practice",
-    engine: [
-      "Full hands against GTO opponents (Advisor.play), 2-9 handed, each decision graded by how often the solution plays it",
-      "Drills: single-decision spots from the flop library, graded by EV loss where the answer has EVs",
-      "Multi-tabling (up to 4 tables) in the classic UI",
-    ],
-    classicPath: "practice/",
-    next: "Trainer UI on the Study engine: spot picker, EV-loss scoring, session stats in IndexedDB.",
-  },
   analyze: {
     title: "Analyze",
     engine: [

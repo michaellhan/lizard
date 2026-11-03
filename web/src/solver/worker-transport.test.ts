@@ -65,6 +65,18 @@ describe("WorkerTransport", () => {
     expect(phases).toEqual(expect.arrayContaining(["idle", "booting", "busy", "ready"]));
   });
 
+  it("posts a practice opponent's move with its seat and hand, never early", async () => {
+    const { t, workers } = setup(false);
+    const p = t.request({ players: 2, hero: "SB", hole: "AhKd" }, { progressive: true, play: { seat: "BB", hole: "QcQd", seed: 7 } });
+    const w = workers[0]!;
+    const m = w.posted.filter((x) => "state" in x).at(-1) as { id: number; early?: boolean; play?: unknown };
+    expect(m.play).toEqual({ seat: "BB", hole: "QcQd", seed: 7 });
+    expect(m.early).toBeUndefined();
+    w.reply({ status: "Solving…" });
+    w.reply({ id: m.id, result: { pos: "BB", action: "raise", to: 9, name: "raise 9", freq: 0.4, street: "preflop" } });
+    await expect(p).resolves.toMatchObject({ pos: "BB", action: "raise", to: 9 });
+  });
+
   it("without shared memory, cancelling ends the worker and the next request starts a new one", async () => {
     const { t, workers } = setup(false);
     const ac = new AbortController();

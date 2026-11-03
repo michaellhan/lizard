@@ -86,3 +86,17 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   const d = await db();
   if (d) await d.put("kv", value, key);
 }
+
+/** Store a session (Practice, drills, analysis), replacing the one with its id. */
+export async function putSession(s: SessionRecord): Promise<void> {
+  const d = await db();
+  if (d) await d.put("sessions", s);
+}
+
+/** The latest sessions of a kind, newest first. */
+export async function recentSessions(kind: SessionRecord["kind"], limit = 10): Promise<SessionRecord[]> {
+  const d = await db();
+  if (!d) return [];
+  const all = await d.getAllFromIndex("sessions", "byKind", kind);
+  return all.sort((a, b) => b.startedAt - a.startedAt).slice(0, limit);
+}

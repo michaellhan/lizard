@@ -118,6 +118,17 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
 **Goal.** Give users the main training loop in Lizard. Play hands and repeat drills against solver opponents, with each decision graded by EV lost where an EV exists.
 
 **Deliverables.**
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):**
+  - the table engine (`web/src/poker/`: seats, hand evaluation, betting rounds, side pots, settlement to the cent with
+    rake; the classic cases ported and a 10,000-hand conservation fuzz);
+  - a typed `play()` on the solver client, mapped to the worker's `play` field and the server's `/play`;
+  - the Practice page's full-hand mode for 2–9 players, with your seat moving each hand, opponents moved by
+    `Advisor.play`, and a verdict per decision from `grade.ts` (EV lost where every action has an EV, otherwise by
+    frequency and said so), the hand's mix and the provenance label;
+  - sessions saved to the `sessions` store, with the last six listed on the page.
+  - **Still open in Phase 1:** the drill modes and single-decision drills, multitabling, "Open in Study", chips carried
+    from hand to hand, sizes of your own, antes and straddles, the "why" text, the 20-hand engine check, and the
+    sessions history page.
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;

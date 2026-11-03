@@ -1,0 +1,175 @@
+import { describe, expect, it } from "vitest";
+import { noLines, type Move } from "@/poker/table";
+import type { AdvisorResponse } from "@/solver/protocol";
+import {
+  decide,
+  decideUngraded,
+  dealNext,
+  finish,
+  heroSeat,
+  newHand,
+  phaseOf,
+  shownCards,
+  simOf,
+  stateFor,
+  villainMove,
+  withVillain,
+  type PracticeHand,
+} from "./practice";
+
+// a hand dealt by hand: your seat, everyone's cards, the board
+function fixed(players: number, hero: string, hands: Record<string, string>, board: string, stack = 100): PracticeHand {
+  return {
+    seed: 0,
+    n: 0,
+    players,
+    stack,
+    hero,
+    hands: Object.fromEntries(Object.entries(hands).map(([p, c]) => [p, [c.slice(0, 2), c.slice(2, 4)] as [string, string]])),
+    board: board.match(/../g)!,
+    shown: 0,
+    lines: noLines(),
+    decisions: [],
+    result: null,
+  };
+}
+const play = (h: PracticeHand, ...ms: Move[]) => ms.reduce((x, m) => withVillain(x, m), h);
+
+// the preflop chart's answer for the button: frequencies, no EVs
+const CHART: AdvisorResponse = {
+  street: "preflop",
+  pot_bb: 1.5,
+  actions: [
+    { action: "fold", freq: 0.3 },
+    { action: "call", freq: 0.05 },
+    { action: "raise 2.5", freq: 0.65, amount_bb: 2.5 },
+  ],
+};
+
+describe("seats and dealing", () => {
+  it("moves your seat one place each hand, from the button", () => {
+    expect([0, 1, 2, 3, 4, 5, 6].map((n) => heroSeat(n, 6))).toEqual(["BTN", "CO", "HJ", "UTG", "BB", "SB", "BTN"]);
+    expect([0, 1, 2].map((n) => heroSeat(n, 2))).toEqual(["SB", "BB", "SB"]);
+    expect([2, 3].map((n) => heroSeat(n, 9))).toEqual(["HJ", "LJ"]);
+  });
+
+  it("deals every seat and the board from the hand's seed, the same again", () => {
+    const h = newHand(6, 100, 0, 42);
+    expect(Object.keys(h.hands)).toEqual(["UTG", "HJ", "CO", "BTN", "SB", "BB"]);
+    expect(h.board).toHaveLength(5);
+    expect(newHand(6, 100, 0, 42)).toEqual(h);
+    expect(newHand(6, 100, 0, 43).hands).not.toEqual(h.hands);
+  });
+
+  it("asks the solver from your seat, with the action so far", () => {
+    let h = fixed(6, "BTN", { BTN: "AhKd" }, "Ks7d2c9h3s");
+    h = play(h, { pos: "UTG", action: "fold" }, { pos: "HJ", action: "raise", to: 2.5 });
+    expect(stateFor(h)).toEqual({
+      players: 6,
+      hero: "BTN",
+      hole: "AhKd",
+      board: "",
+      stack: 100,
+      preflop: [
+        { pos: "UTG", action: "fold" },
+        { pos: "HJ", action: "raise", to: 2.5 },
+      ],
+      flop: [],
+      turn: [],
+      river: [],
+    });
+  });
+});
+
+describe("the hand's flow", () => {
+  it("opponents act, then you; cards are dealt as streets close", () => {
+    let h = fixed(6, "BTN", { BTN: "AhKd" }, "Ks7d2c9h3s");
+    expect(phaseOf(h)).toEqual({ kind: "villain", street: "preflop", seat: "UTG" });
+    h = play(h, { pos: "UTG", action: "fold" }, { pos: "HJ", action: "fold" }, { pos: "CO", action: "fold" });
+    expect(phaseOf(h)).toEqual({ kind: "hero", street: "preflop" });
+    const r = decide(h, CHART, 2, null);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.decision.move).toEqual({ pos: "BTN", action: "raise", to: 2.5 });
+    h = play(r.hand, { pos: "SB", action: "fold" }, { pos: "BB", action: "call" });
+    expect(phaseOf(h)).toEqual({ kind: "deal", street: "flop" });
+    h = dealNext(h, "flop");
+    expect([h.shown, phaseOf(h)]).toEqual([3, { kind: "villain", street: "flop", seat: "BB" }]);
+  });
+
+  it("grades a chart decision by frequency, a solved one by EV given up", () => {
+    const h = play(fixed(6, "BTN", { BTN: "AhKd" }, "Ks7d2c9h3s"), ...["UTG", "HJ", "CO"].map((pos) => ({ pos, action: "fold" }) as Move));
+    const best = decide(h, CHART, 2, null);
+    const rare = decide(h, CHART, 1, null);
+    if ("error" in best || "error" in rare) throw new Error();
+    expect([best.decision.grade?.verdict, best.decision.grade?.byEv]).toEqual(["Best", false]);
+    expect(rare.decision.grade?.verdict).toBe("Inaccuracy"); // played 5% of the time
+    expect(rare.decision.move).toEqual({ pos: "BTN", action: "call" });
+    // on the flop, with EVs: 1bb given up in a 5.5bb pot is a Blunder (18%)
+    let f = play(rare.hand, { pos: "SB", action: "fold" }, { pos: "BB", action: "check" });
+    f = play(dealNext(f, "flop"), { pos: "BB", action: "check" });
+    const solved: AdvisorResponse = {
+      street: "flop",
+      pot_bb: 5.5,
+      actions: [
+        { action: "check", freq: 0.95, ev_bb: 3 },
+        { action: "bet 33%", freq: 0.05, ev_bb: 2, amount_bb: 1.8 },
+      ],
+    };
+    const bet = decide(f, solved, 1, null);
+    if ("error" in bet) throw new Error(bet.error);
+    expect(bet.decision.grade).toMatchObject({ verdict: "Blunder", byEv: true, loss: 1 });
+    expect(bet.decision.move).toEqual({ pos: "BTN", action: "bet", to: 2 }); // (to the half big blind)
+    expect(bet.decision.mix.map((x) => x.ev)).toEqual([3, 2]);
+  });
+
+  it("records an ungraded move where the solve failed, refusing an illegal one", () => {
+    const h = fixed(2, "SB", { SB: "AhKd" }, "Ks7d2c9h3s");
+    expect(decideUngraded(h, { action: "check" })).toBe("SB can't check, there's 0.5bb to call.");
+    const next = decideUngraded(h, { action: "call" });
+    if (typeof next === "string") throw new Error(next);
+    expect(next.decisions[0]).toMatchObject({ grade: null, chose: "call" });
+  });
+
+  it("takes an opponent's move as the table allows it", () => {
+    const h = fixed(2, "BB", { SB: "QcQd" }, "Ks7d2c9h3s");
+    expect(villainMove(h, { action: "raise", to: 1.6 })).toEqual({ pos: "SB", action: "raise", to: 2 }); // lifted to the minimum
+    expect(villainMove(h, { action: "raise", to: 400 })).toEqual({ pos: "SB", action: "all-in" });
+    expect(villainMove(h, { action: "check" })).toEqual({ pos: "SB", action: "call" }); // (can't check facing the blind)
+  });
+});
+
+describe("the hand's end", () => {
+  it("your fold: what you put in is lost, the others' cards stay hidden", () => {
+    let h = fixed(2, "BB", { SB: "QcQd", BB: "7h2c" }, "Ks7d2c9h3s");
+    h = play(h, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "fold" });
+    expect(phaseOf(h)).toEqual({ kind: "over" });
+    const r = finish(h);
+    expect(r).toMatchObject({ net: -1, folded: true });
+    expect(shownCards({ ...h, result: r }, "SB")).toBeNull();
+    expect(shownCards({ ...h, result: r }, "BB")).toEqual(["7h", "2c"]);
+  });
+
+  it("a showdown: the pot to the best hand, said in a line, the cards shown", () => {
+    let h = fixed(3, "BTN", { BTN: "Qh4h", SB: "Kc7c", BB: "2d3s" }, "Kd7d9h2hJh");
+    const checks = (...ps: string[]) => ps.map((pos) => ({ pos, action: "check" }) as Move);
+    h = play(h, { pos: "BTN", action: "call" }, { pos: "SB", action: "call" }, { pos: "BB", action: "check" });
+    for (const st of ["flop", "turn", "river"] as const) h = play(dealNext(h, st), ...checks("SB", "BB", "BTN"));
+    expect(phaseOf(h)).toEqual({ kind: "over" });
+    const r = finish(h);
+    expect([r.net, r.winners, r.says]).toEqual([2, ["BTN"], "Your Q-high flush beats SB's two pair, kings and sevens"]);
+    expect(shownCards({ ...h, result: r }, "SB")).toEqual(["Kc", "7c"]);
+  });
+
+  it("an all-in runs the board out to the river, then settles", () => {
+    let h = fixed(2, "SB", { SB: "AhAd", BB: "KhKd" }, "2c7d9hJs3s", 20);
+    h = play(h, { pos: "SB", action: "all-in" }, { pos: "BB", action: "call" });
+    const steps: string[] = [];
+    for (let p = phaseOf(h); p.kind === "deal"; p = phaseOf(h)) {
+      steps.push(p.street);
+      h = dealNext(h, p.street);
+    }
+    expect(steps).toEqual(["flop", "turn", "river"]);
+    expect(simOf(h).handOver).toBe(true);
+    expect(finish(h)).toMatchObject({ net: 20, winners: ["SB"], says: "Your pair of aces beats BB's pair of kings" });
+  });
+});

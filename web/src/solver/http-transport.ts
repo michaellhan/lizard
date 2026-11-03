@@ -1,9 +1,10 @@
 // Optional transport: the upstream local Python server (solver/gto/server.py: `python -m gto.server --port 8765`),
 // native numpy + the compiled C core, several times faster than the browser on flops. Also usable for a remote
 // Python host the user runs themselves. Endpoints: POST /advise (state JSON -> answer JSON), POST /cancel (stops
-// the solve in progress; its /advise answers {"cancelled": true}), GET /health.
+// the solve in progress; its /advise answers {"cancelled": true}), POST /play (a practice opponent's move: {state, seat,
+// hole, seed}), GET /health.
 import type { AdvisorResponse, AdvisorState } from "./protocol";
-import { SolverError, type RuntimeStatus, type SolverTransport } from "./types";
+import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport } from "./types";
 
 export interface HttpTransportOptions {
   /** e.g. "http://127.0.0.1:8765" (no trailing slash needed) */
@@ -53,7 +54,7 @@ export class HttpTransport implements SolverTransport {
 
   async request(
     state: AdvisorState,
-    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void },
+    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void; play?: PlayRequest },
   ): Promise<AdvisorResponse> {
     if (opts.signal?.aborted) throw new SolverError("cancelled", "cancelled");
     const onAbort = () => {
@@ -65,10 +66,10 @@ export class HttpTransport implements SolverTransport {
     try {
       let r: Response;
       try {
-        r = await this.fetchImpl(`${this.url}/advise`, {
+        r = await this.fetchImpl(`${this.url}/${opts.play ? "play" : "advise"}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(state),
+          body: JSON.stringify(opts.play ? { state, ...opts.play } : state),
         });
       } catch (e) {
         this.setStatus({ phase: "failed", error: String(e) });

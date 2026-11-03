@@ -335,3 +335,73 @@ already that high before this session, and did not grow.
 
 - Phase 0's last item: the preflop Solver source.
 - Phase 1: Practice on the typed client.
+
+### Deploy of `bc8a369`, checked live
+
+GitHub Actions run 41645407510 succeeded. The live bundle was `index-CfZyBMyn.js`, the same as the local build.
+`/lizard/`, `/lizard/study/` and `/lizard/library/` returned 200, as did the classic `/gto-solver/` and the
+library's `index.json`. Study's new controls (players, stack, filters, EQR view) were checked on the live site.
+
+## 2026-11-03: Phase 1, Practice (second session)
+
+### Code
+
+- **Table engine, `web/src/poker/`.** Pure TypeScript with no React, ported from the classic `index.html` table
+  logic (`simulate`, `recordOf`, `sidePots`, `settle`):
+  - `seats.ts`: the seats for 2 to 9 players and their order of action;
+  - `evaluate.ts`: seven-card hand ranking and hand names ("two pair, kings and sevens");
+  - `table.ts`: betting rounds, with sizes to the half big blind and an all-in for less not reopening the betting.
+    Uncalled bets are returned and side pots settled to the cent. The odd cent goes to the first winner in
+    postflop order. Rake is taken in proportion, with a cap and no flop, no drop. The deal is seeded.
+- **Solver client.** `play(state, {seat, hole, seed})` returns the opponent's move from `Advisor.play`. The worker
+  gets its `play` field; the HTTP transport posts to `/play`. Practice at Fast uses Quick budgets, as classic does.
+- **Practice page, `web/src/features/practice/`.** Full hands for 2 to 9 players and 10 to 250bb. Your seat moves
+  one place each hand, starting at the button.
+  - **Opponents:** each moves by `Advisor.play`, its size fitted to the table.
+  - **Your options:** the solver's actions for your hand. Where your spot has no answer, the legal moves are offered,
+    ungraded, and the page says why.
+  - **Grading:** each decision is graded by `grade.ts`. It uses EV lost where every action has an EV; otherwise it
+    goes by frequency and says "graded by how often the chart plays it". It shows the mix with your choice marked and
+    the provenance label.
+  - **The hand:** a hand log, the showdown said in a line ("Your Q-high flush beats SB's two pair…"), and a running
+    score (net bb, share of good decisions, EV lost).
+  - **Sessions:** saved to the `sessions` store (`putSession`, `recentSessions`); the last six are listed.
+  - **Also on the page:** the grading thresholds, and a link to the classic trainer for what isn't ported.
+- `PlayingCard.tsx`: cards in the theme's four-color deck.
+- The Practice route renders the new page; `routes.ts` marks it "partial".
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 99/99 in 19 files. New files: `poker/evaluate.test.ts`, `poker/table.test.ts`, `features/practice/practice.test.ts`, `features/practice/PracticePage.test.tsx` (stubbed solver: a full heads-up hand, the ungraded fallback) and `solver/http-transport.test.ts`. `poker/table.test.ts` has the classic side-pot, rake, odd-cent and showdown cases, plus a seeded 10,000-hand chip-conservation fuzz (about 1 s). There are new cases in `client.test.ts`, `worker-transport.test.ts` and `db.test.ts` |
+| Typecheck and ESLint | clean |
+| `npm run build` | built (`index-b6DGF87z.js`) |
+
+The solver suites were not run: no solver code changed.
+
+### Checked in the browser (local production build, `vite preview`)
+
+- Heads-up, worker transport, Fast:
+  - preflop was graded by frequency and labeled "Preflop charts · approximate";
+  - on the flop, a live solve answered with "Live solve · 0.20% pot from equilibrium in the solved game (converged) ·
+    300 iterations" and the mix table, and the grade was "No EV given up";
+  - hands ended as "You won 1bb" and "You folded · −2.5bb".
+- 6-max: the opponents moved in order and your seat moved one place on "Next hand".
+- At 375px there is no page-level horizontal scroll. There were no console errors.
+
+### Not done in Phase 1
+
+The drill modes and single-decision drills, multitabling, "Open in Study", chips carried from hand to hand, your own
+sizes, antes and straddles, the "why" text, the opt-in 20-hand engine check, and the sessions history page.
+
+### Precompute builds
+
+Untouched. Read-only `ps` checks only. Memory stayed at 61–70% free; two of the build's worker processes were busy
+throughout.
+
+### Next
+
+- Commit, push and check the deploy of this milestone.
+- Then, as feasible at low CPU: Phase 1's drills (decoded from the library, no solver), Phase 4 range-builder grading
+  and Phase 5 saved spots. The preflop Solver source (Phase 0) stays on request only.

@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { applyMode, effectiveMode, SolverClient } from "./client";
 import type { AdvisorResponse, AdvisorState } from "./protocol";
-import { SolverError, type RuntimeStatus, type SolverTransport } from "./types";
+import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport } from "./types";
 
 /** A transport whose requests the test answers by hand. */
 class FakeTransport implements SolverTransport {
   readonly kind = "worker" as const;
-  calls: { state: AdvisorState; resolve: (r: AdvisorResponse) => void; signal?: AbortSignal }[] = [];
+  calls: { state: AdvisorState; resolve: (r: AdvisorResponse) => void; signal?: AbortSignal; play?: PlayRequest; progressive: boolean }[] = [];
   disposed = false;
-  request(state: AdvisorState, opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void }) {
+  request(
+    state: AdvisorState,
+    opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void; play?: PlayRequest },
+  ) {
     return new Promise<AdvisorResponse>((resolve, reject) => {
       opts.onPartial?.({ street: "turn", solver: { iterations: 1 } });
       opts.signal?.addEventListener("abort", () => reject(new SolverError("cancelled", "cancelled")));
-      this.calls.push({ state, resolve, signal: opts.signal });
+      this.calls.push({ state, resolve, signal: opts.signal, play: opts.play, progressive: opts.progressive });
     });
   }
   onStatus(cb: (s: RuntimeStatus) => void) {
@@ -107,5 +110,15 @@ describe("SolverClient", () => {
     c.dispose();
     await expect(queued).rejects.toMatchObject({ kind: "cancelled" });
     expect(t.disposed).toBe(true);
+  });
+
+  it("asks for an opponent's move at the mode's budgets, in the queue like any request, never progressive", async () => {
+    const t = new FakeTransport();
+    const c = new SolverClient(t, "test");
+    const mv = c.play({ players: 2, hero: "SB", hole: "AhKd", board: "Ks7d2c" }, { seat: "BB", hole: "QcQd" }, { mode: "quick" });
+    await tick();
+    expect(t.calls[0]).toMatchObject({ play: { seat: "BB", hole: "QcQd" }, progressive: false, state: { quick: true, budget: 1.5 } });
+    t.calls[0]!.resolve({ pos: "BB", action: "check", name: "check", freq: 0.6, street: "flop" });
+    await expect(mv).resolves.toMatchObject({ data: { pos: "BB", action: "check" }, provenance: { mode: "quick" } });
   });
 });

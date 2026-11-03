@@ -5,6 +5,7 @@ import { useSettings } from "@/state/settings";
 import { Shell } from "./Shell";
 import { HomePage } from "@/features/home/HomePage";
 import { StudyPage } from "@/features/study/StudyPage";
+import { PracticePage } from "@/features/practice/PracticePage";
 import { LibraryPage } from "@/features/library/LibraryPage";
 import { EnginePage } from "@/features/engine/EnginePage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
@@ -28,7 +29,7 @@ export function App() {
           <Route path="library" element={<LibraryPage />} />
           <Route path="engine" element={<EnginePage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="practice" element={<ClassicFeaturePage feature="practice" />} />
+          <Route path="practice" element={<PracticePage />} />
           <Route path="analyze" element={<ClassicFeaturePage feature="analyze" />} />
           <Route path="solve" element={<ClassicFeaturePage feature="solve" />} />
           <Route path="reports" element={<ClassicFeaturePage feature="reports" />} />
