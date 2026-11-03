@@ -2927,3 +2927,40 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`.
 
 - Phase 4: text import into the builder.
 
+## Phase 4, range text in the builder (2026-11-03)
+
+### What changed
+
+- **Paint from text.** Study's builder has "As range text" under the groups: hands typed in the solver's syntax take
+  the current brush, each at its weight ("AKs:0.5": half of AKs plays it; no weight: all of it), as one undo step.
+  - Locked hands and hands out of the range are left as they are. The status line counts them, any single combos
+    (painted as their class's share) and anything not understood.
+  - The Lock tool can't paint from text; "Paint these" is disabled while it is picked.
+- **Back to text.** "Your bet 33% hands" fills the box with the hands that play the brush's action at their shares
+  (`build.ts` `actionShares`, `paintWeights`).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 388/388. `build.test.ts`: `paintWeights` (locked and out-of-range skipped), `actionShares`. `BuildMode.test.tsx`: text painted and undone in one step, the status line, a locked hand kept, a combo as a quarter of 72s, an action's hands as text. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, srp_btn_bb at Kd7c2h)
+
+- `KK, 77, 22, AK, KQ:0.5, A5s:0.5 AhQh 72o` with bet 33%: "Painted 9 hands bet 33%; 1 not in this range; single
+  combos as their share of the class." AQs read 25% bet 33%.
+- "Your bet 33% hands" gave `AKs,AQs:0.25,A5s:0.5,AKo,KK,KQs:0.5,KQo:0.5,77,22`.
+- **Console.** Its only errors came from bundles older than the build under test.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`.
+
+### Next
+
+- Phase 4: painting single combos (the builder grades classes).
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 3, still open: turn and river runout reports, a chart view, IP facing a lead, 3-way spots.
+

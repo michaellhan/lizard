@@ -76,6 +76,32 @@ export function paintClasses(
   return out ?? paint;
 }
 
+/** The brush over each class at its own share (range text's weights: "AKs:0.5" plays the action with half of AKs),
+ * skipping locked classes and classes out of the range. */
+export function paintWeights(
+  paint: Paint,
+  weights: Readonly<Record<string, number>>,
+  a: number,
+  d: number,
+  locked: ReadonlySet<string> = new Set(),
+): Paint {
+  let out: Paint | null = null;
+  for (const [cls, t] of Object.entries(weights)) {
+    const m = paint[cls];
+    if (!m || !(t > 0) || locked.has(cls)) continue;
+    out ??= { ...paint };
+    out[cls] = brush(m, a, Math.min(1, t), d);
+  }
+  return out ?? paint;
+}
+
+/** Each class's share on action `a`: the hands that play it, as range text's weights. */
+export function actionShares(paint: Paint, a: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [cls, m] of Object.entries(paint)) if ((m[a] ?? 0) >= 0.0005) out[cls] = m[a]!;
+  return out;
+}
+
 export interface CellScore {
   /** share of the class played differently, 0..1 (half the L1 distance of the mixes) */
   off: number;

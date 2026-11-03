@@ -239,6 +239,38 @@ describe("BuildMode", () => {
     expect([...screen.getByRole("combobox", { name: "Hands to paint at once" }).querySelectorAll("optgroup")].map((o) => o.label)).toEqual(["Hand shapes"]);
   });
 
+  it("paints hands typed as range text with the brush, each at its weight, and gives an action's hands as text", () => {
+    renderBuild({ lineKey: "text" });
+    fireEvent.keyDown(window, { key: "2" });
+    const box = screen.getByLabelText(/^Hands that play bet 33%/);
+    fireEvent.change(box, { target: { value: "aa KQo:0.5, QJs 72o xyz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
+    expect(cell("AA")).toHaveAccessibleName("AA: yours bet 33% 100%");
+    expect(cell("KQo")).toHaveAccessibleName("KQo: yours check 50%, bet 33% 50%");
+    expect(screen.getByRole("status")).toHaveTextContent("Painted 2 hands bet 33%; 2 not in this range; not understood: xyz.");
+    // one undo step
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AA")).toHaveAccessibleName("AA: yours check 100%");
+    expect(cell("KQo")).toHaveAccessibleName("KQo: yours check 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+
+    // locked hands stay; a single combo is its share of the class
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    expect(screen.getByRole("button", { name: "Paint these" })).toBeDisabled();
+    fireEvent.click(cell("AA"));
+    fireEvent.keyDown(window, { key: "3" });
+    fireEvent.change(screen.getByLabelText(/^Hands that play bet 75%/), { target: { value: "AA, 7s2s" } });
+    fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
+    expect(cell("AA")).toHaveAccessibleName("AA: yours bet 33% 100%; locked");
+    expect(cell("72s")).toHaveAccessibleName("72s: yours check 75%, bet 75% 25%");
+    expect(screen.getByRole("status")).toHaveTextContent("Painted 1 hand bet 75%; 1 locked, left as it was; single combos as their share of the class.");
+
+    // the hands that play bet 33%, as text
+    fireEvent.keyDown(window, { key: "2" });
+    fireEvent.click(screen.getByRole("button", { name: "Your bet 33% hands" }));
+    expect(screen.getByLabelText(/^Hands that play bet 33%/)).toHaveValue("AA,KQo:0.5");
+  });
+
   it("comes back to what was painted at the node", () => {
     const onStore = vi.fn<(s: BuildSaved) => void>();
     const first = renderBuild({ lineKey: "back", onStore });

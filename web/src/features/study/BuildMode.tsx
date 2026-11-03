@@ -2,7 +2,8 @@
 // the answer's own (features/ranges/build.ts). Painting: pick a brush (an action, at a share of the hand) and click
 // or drag over hands; keys 1-9 pick a brush, Ctrl/Cmd+Z undoes, Shift+Ctrl/Cmd+Z or Ctrl+Y redoes. The lock tool
 // keeps hands from being painted. A group of hands (a shape, or a made-hand or draw category where the answer has its
-// combos) takes the brush or the lock at once. Each scored range is kept in IndexedDB (sessions, kind "build").
+// combos) takes the brush or the lock at once, and so do hands typed as range text. Each scored range is kept in
+// IndexedDB (sessions, kind "build").
 import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -11,6 +12,7 @@ import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import type { AdvisorResponse, GridCell, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
 import {
+  actionShares,
   AMOUNTS,
   amend,
   biggestMisses,
@@ -18,6 +20,7 @@ import {
   grade,
   historyOf,
   paintClasses,
+  paintWeights,
   passiveOf,
   record,
   redo,
@@ -30,6 +33,7 @@ import {
   type History,
   type Paint,
 } from "@/features/ranges/build";
+import { formatRange, parseRange } from "@/features/ranges/rangeText";
 import { catsOf, classesIn } from "./filters";
 
 /** What a node's builder keeps while Study moves on and back (by the node's request). */
@@ -200,6 +204,30 @@ export function BuildMode({
     setLocks(next);
   };
   const groupN = tool === "lock" ? inGroup.length : groupFree.length;
+
+  // hands typed as range text: the brush's action at each one's weight (none: all of it), as one undo step
+  const [text, setText] = useState("");
+  const [textMsg, setTextMsg] = useState<string | null>(null);
+  const paintText = () => {
+    if (tool === "lock") return;
+    const r = parseRange(text);
+    const listed = Object.keys(r.weights).filter((cls) => (r.weights[cls] ?? 0) > 0);
+    const out = listed.filter((cls) => !hRef.current.now[cls]);
+    const held = listed.filter((cls) => hRef.current.now[cls] && lockedRef.current.has(cls));
+    const n = listed.length - out.length - held.length;
+    commit(record(hRef.current, paintWeights(hRef.current.now, r.weights, tool, d, lockedRef.current)));
+    setTextMsg(
+      [
+        `Painted ${n} hand${n === 1 ? "" : "s"} ${names[tool]}`,
+        out.length ? `${out.length} not in this range` : "",
+        held.length ? `${held.length} locked, left as ${held.length === 1 ? "it was" : "they were"}` : "",
+        r.combos.length ? "single combos as their share of the class" : "",
+        r.unknown.length ? `not understood: ${r.unknown.join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("; ") + ".",
+    );
+  };
   const reset = () => {
     commit(record(hRef.current, blankPaint(g)));
     setLocks(new Set());
@@ -376,6 +404,44 @@ export function BuildMode({
                 {tool === "lock" ? (groupLocked ? "Unlock" : "Lock") : "Paint"} {groupN} hand{groupN === 1 ? "" : "s"}
               </button>
             </div>
+            <details className="rounded border border-border px-2 py-1">
+              <summary className="cursor-pointer text-xs text-muted">As range text</summary>
+              <div className="mt-2 space-y-2">
+                <label htmlFor="build-text" className="block text-xs">
+                  Hands that play {tool === "lock" ? "a brush (pick one)" : names[tool]}, each at its weight (none: all of it)
+                </label>
+                <textarea
+                  id="build-text"
+                  rows={2}
+                  value={text}
+                  placeholder="QQ+, AKs, A5s:0.5"
+                  onChange={(e) => setText(e.target.value)}
+                  className="w-full rounded border border-border bg-surface-2 p-1.5 font-mono text-xs"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={paintText} disabled={tool === "lock" || !text.trim()} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
+                    Paint these
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tool === "lock") return;
+                      setText(formatRange(actionShares(hRef.current.now, tool)));
+                      setTextMsg(null);
+                    }}
+                    disabled={tool === "lock"}
+                    className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
+                  >
+                    Your {tool === "lock" ? "brush's" : names[tool]} hands
+                  </button>
+                </div>
+                {textMsg && (
+                  <p role="status" className="text-xs text-muted">
+                    {textMsg}
+                  </p>
+                )}
+              </div>
+            </details>
             <div>
               <p aria-label="Your range">
                 Your range: {names.map((n, a) => `${n} ${pct(now.mine[a])}`).join(" · ")}

@@ -284,8 +284,9 @@ Moves matrix rows: Aggregate reports, and part of Equity & EQR.
   Risks); each score kept in IndexedDB (sessions, kind "build") and listed at its node; a group of hands painted or
   locked at once, by shape at any node or by made-hand or draw category where the answer has its combos (a class
   whole when at least half its combos are in it); range text in the solver's syntax, single combos read as their
-  share of the class (`rangeText.ts`). **Still open in Phase 4:** text import into the builder (the Ranges page keeps
-  its editor).
+  share of the class (`rangeText.ts`); hands typed as range text painted with the brush at their weights, and an
+  action's hands given back as text. **Still open in Phase 4:** painting single combos (the builder grades classes;
+  its combo-by-combo score says what that costs).
 - **Scoring, `web/src/features/ranges/`.** Port `blankPaint`, `brush` and `scoreBuild` from `solver/gto/static/study.js:420-458`, with the grade labels at 90, 80 and 65% (`:458`). Painting stays at hand-class level.
 - **Pick a node.** Choose any Study node (via the Study URL) or a library spot. The target strategy comes from the same `study` answer.
 - **Results.**

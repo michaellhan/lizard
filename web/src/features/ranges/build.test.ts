@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ALL_CLASSES } from "@/engine/nlhe/cards";
 import type { ComboRow, RangeGridData } from "@/solver/protocol";
 import {
+  actionShares,
   amend,
   biggestMisses,
   blankPaint,
@@ -10,6 +11,7 @@ import {
   grade,
   historyOf,
   paintClasses,
+  paintWeights,
   passiveOf,
   record,
   redo,
@@ -88,6 +90,15 @@ describe("Lizard's additions", () => {
     expect(q).toEqual({ AA: [0, 0, 1], KQo: [1, 0, 0], "72s": [0, 0, 1] });
     expect(p.AA).toEqual([1, 0, 0]);
     expect(paintClasses(p, ["QJs"], 2, 1, 0)).toBe(p);
+  });
+
+  it("paints each class at its own share (range text's weights), and reads an action's hands back", () => {
+    const p = blankPaint(NODE.grid);
+    const q = paintWeights(p, { AA: 1, KQo: 0.5, "72s": 0.25, QJs: 1, A2o: 1 }, 1, 0, new Set(["72s"]));
+    expect(q).toEqual({ AA: [0, 1, 0], KQo: [0.5, 0.5, 0], "72s": [1, 0, 0] });
+    expect(paintWeights(p, { QJs: 1, AA: 0 }, 1, 0)).toBe(p);
+    expect(actionShares(q, 1)).toEqual({ AA: 1, KQo: 0.5 });
+    expect(actionShares(q, 2)).toEqual({});
   });
 
   it("groups hands by shape", () => {
