@@ -28,6 +28,7 @@ import {
   type StudyHand,
 } from "./studyState";
 import { BuildMode, type BuildSaved } from "./BuildMode";
+import { ChipCompare } from "./ChipCompare";
 import { ComboPanel } from "./ComboPanel";
 import { SaveSpot } from "./SaveSpot";
 import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
@@ -236,6 +237,9 @@ export function StudyPage() {
       )}
 
       {res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} />}
+      {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
+        <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
+      ) : null}
 
       {building && buildable && (
         <div className="flex items-center gap-2 text-sm">

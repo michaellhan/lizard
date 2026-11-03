@@ -13,10 +13,17 @@ import { fromSearch, studyRequest, toSearch } from "./studyState";
 // the solver stubbed: every request (kept in `stub.asked`) answers with `stub.answer` (a Study node), labelled as a live solve. (One stable
 // getSolver, as the real hook's useCallback: StudyPage re-requests when it changes.)
 const stub = vi.hoisted(() => {
-  const s = { answer: {} as AdvisorResponse, provenance: null as SolveResult["provenance"] | null, asked: [] as AdvisorState[], getSolver: null as unknown as () => Promise<unknown> };
+  const s = {
+    answer: {} as AdvisorResponse,
+    // (a request's own answer, where a test needs two: the chip-EV comparison)
+    answerFor: null as ((st: AdvisorState) => AdvisorResponse | null) | null,
+    provenance: null as SolveResult["provenance"] | null,
+    asked: [] as AdvisorState[],
+    getSolver: null as unknown as () => Promise<unknown>,
+  };
   const client = {
     solve: async (req?: { state: AdvisorState }): Promise<SolveResult> => (req && s.asked.push(req.state), {
-      data: s.answer,
+      data: (req && s.answerFor?.(req.state)) ?? s.answer,
       provenance: s.provenance ?? {
         source: "live",
         approximate: false,
@@ -75,6 +82,7 @@ function renderAt(search: string) {
 afterEach(() => {
   useSettings.setState({ evUnit: "bb" });
   stub.provenance = null;
+  stub.answerFor = null;
 });
 
 describe("StudyPage", () => {
@@ -257,5 +265,32 @@ describe("StudyPage", () => {
     const setup = screen.getByLabelText("Setup");
     expect(setup).toHaveTextContent("Your setup: stacks CO 8bb · payouts 50/30/20 · KO bounties 5.");
     expect(within(setup).getByRole("link", { name: "Edit setup" })).toHaveAttribute("href", `/tournaments?${toSearch(fromSearch(q)!)}`);
+  });
+
+  it("asks the same tournament spot in chips on request, and shows both answers' actions with their badges", async () => {
+    const prize: AdvisorResponse = {
+      ...THREE_WAY,
+      opponents: undefined,
+      actor: "CO",
+      actions: [
+        { action: "check", freq: 0.8, combos: 10, ev_bb: 1.5 },
+        { action: "bet 33%", freq: 0.2, combos: 2, ev_bb: 1.4 },
+      ],
+      tournament: { equity_share: 0.0719, bubble_factors: { BB: 1.2 }, note: "tournament: ICM, CO's prize equity 7.2% of what's left to pay" },
+    };
+    const chips: AdvisorResponse = { ...prize, tournament: undefined, actions: [{ action: "check", freq: 0.55, combos: 7, ev_bb: 2.1 }, { action: "bet 75%", freq: 0.45, combos: 5, ev_bb: 2.3 }] };
+    stub.answer = prize;
+    stub.answerFor = (st) => ("payouts" in st ? null : chips);
+    stub.asked.length = 0;
+    renderAt("p=6&s=25&stacks=CO%3A8&ante=0.1&pay=50%2C30%2C20&fld=12%3A40&bty=ko&bty.each=5");
+    fireEvent.click(await screen.findByRole("button", { name: "Compare with chip EV" }));
+    const table = await screen.findByLabelText("Chip EV comparison");
+    const chip = stub.asked.at(-1)!;
+    expect(chip).toMatchObject({ players: 6, stack: 25, stacks: { CO: 8 }, ante: 0.1, study: true });
+    for (const k of ["payouts", "field", "bounties", "rake"]) expect(chip).not.toHaveProperty(k);
+    const rows = within(table).getAllByRole("row").map((r) => r.textContent);
+    expect(rows).toEqual(["CO, whole rangePrize equityChip EV", "check80.0% · EV 1.5055.0% · EV 2.10", "bet 33%20.0% · EV 1.40–", "bet 75%–45.0% · EV 2.30"]);
+    expect(table).toHaveTextContent("EVs in bb; prize equity's as chips worth as much.");
+    expect(within(table).getAllByText(/^Live solve/)).toHaveLength(2);
   });
 });

@@ -402,9 +402,11 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   "approximate", "a tournament, but the fallback plays chips", plus the bounty model), and a Tournament panel shows
   the player to act's prize equity, bubble factor against each opponent, and what busting each covered opponent is
   worth. Checked in the browser: preflop push/fold and chart answers, and a flop live solve in prize equity.
-  **Still open in Phase 7:** ICM vs chipEV side by side, the bubble factor table for every pair, the satellite tests
-  and preset, a 15%-paid curve preset, saying so when a large field is compressed onto the 12-player model, and
-  tournaments in Practice and Analyze (a tournament hand is still answered in chips there).
+  Also done: "Compare with chip EV" in Study (`ChipCompare.tsx`: the same node with no tournament, both answers'
+  actions side by side with their badges), and a large field compressed onto the 12-player model named on the badge
+  ("54 players modelled by 12"). **Still open in Phase 7:** the bubble factor table for every pair, the satellite
+  tests and preset, a 15%-paid curve preset, a per-hand ICM vs chip diff, and tournaments in Practice and Analyze (a
+  tournament hand is still answered in chips there).
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).

@@ -148,6 +148,9 @@ describe("provenance", () => {
     expect(provenanceOf({ street: "river", fallback: "rules", tournament: ICM, notes: [] }, ctx).tournament).toBe("a tournament, but the fallback plays chips");
     const mystery = { ...ICM, bounties: { format: "mystery" } };
     expect(provenanceOf({ street: "turn", tournament: mystery, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (ICM), mystery bounties at the average envelope");
+    // a large field modelled by stand-ins (advisor.py _tournament_info's note)
+    const big = { ...ICM, note: "tournament: ICM (54 players modelled by 12), CO's prize equity 1.9% of what's left to pay; bubble factor up to 1.31" };
+    expect(provenanceOf({ street: "flop", tournament: big, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (ICM), 54 players modelled by 12");
     const pko = { ...ICM, note: "tournament: no payouts given, so chip EV: …", bounties: { format: "pko" } };
     expect(provenanceOf({ street: "turn", tournament: pko, solver: { iterations: 300 } }, ctx).tournament).toBe(
       "chip-EV solve with bounties (no payouts given: the prizes taken as the bounties in play), PKO bounties, proportional model",

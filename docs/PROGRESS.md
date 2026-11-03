@@ -1460,3 +1460,50 @@ Untouched (read-only `ps`: `guarded_build.sh` and its Python still running). Mem
   tournaments in Practice and Analyze (a tournament hand is still answered in chips there).
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 7, ICM against chip EV in Study, and a large field named on the badge (second session)
+
+Deploy of 96ac847 (the Tournaments page) verified live: run 41687036134 passed, `/lizard/` serves
+`index-DlWWwouS.js`, which has "Players at other tables", "Final table, 9 paid", "prize-equity solve (ICM)" and
+"Prize equity:".
+
+### Code
+
+- `features/study/ChipCompare.tsx` (new): under a finished tournament answer in Study, "Compare with chip EV" asks the
+  same node with the tournament taken out of the setup (`chipHand`: the same stacks, ante, straddle and line; no
+  payouts, other tables or bounties) and shows both answers' actions over the whole range side by side (frequency and
+  EV, in the EV unit set), each with its own provenance badge. Asked only on request, after the main answer is
+  complete (the solver client queues one solve at a time); keyed to the node, so it resets when the node changes; Stop
+  aborts it.
+- `solver/provenance.ts` `tournamentModelOf`: when the engine models a field over 12 players by stand-ins
+  (`icm.field_stacks`, `compress_payouts`), its note says "(54 players modelled by 12)", and the badge now says so
+  too ("prize-equity solve (ICM), 54 players modelled by 12").
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 282/282 in 48 files. New: `StudyPage.test.tsx` "asks the same tournament spot in chips on request…" (the comparison's request keeps players, stack, stacks and ante and has no payouts, field, bounties or rake; the table's rows; both badges); the stub can answer per request (`answerFor`). Changed: `provenance.test.ts` (the modelled field) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+| Engine probe | 6 seats at 25bb, 48 at other tables averaging 30bb, the 9-paid shape: the note reads "tournament: ICM (54 players modelled by 12), UTG's prize equity 1.7% …" (`.venv/bin/python`, `Advisor.study`, preflop only, under `nice`) |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- Flop Kd7c2h, BTN against BB, 25bb with CO 8bb, payouts 50/30/20: BB checks 100% in both; EV 1.09 in prize equity
+  against 1.48 in chips. Badges: "Live solve · prize-equity solve (ICM) · 0.04% … (converged) · 300 iterations" and
+  "Live solve · 0.03% … (converged) · 300 iterations".
+- Preflop, CO 8bb after two folds: all-in 25.9% in prize equity ("Preflop charts · push/fold equilibrium in prize
+  equity · approximate") against 29.2% in chips ("Preflop charts · approximate").
+- 375px: Study with the comparison open fits the width. No console errors from this build.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 65–69% free; every check ran under `nice`.
+
+### Next
+
+- Phase 7, still open: the bubble factor table for every pair, satellite tests and a preset, a 15%-paid curve preset,
+  a per-hand ICM vs chip diff, tournaments in Practice and Analyze.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

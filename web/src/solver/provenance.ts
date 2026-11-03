@@ -136,8 +136,11 @@ export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): str
             : "chip chart with a risk premium"
         : solve;
   const format = bounties && typeof bounties === "object" ? bounties.format : undefined;
+  // a field over icm.MAX_PLAYERS is modelled by stand-ins (icm.field_stacks, compress_payouts): the note says so
+  const modelled = /\((\d+) players modelled by (\d+)\)/.exec(said);
   return [
     what,
+    modelled ? `${modelled[1]} players modelled by ${modelled[2]}` : null,
     format === "mystery" ? "mystery bounties at the average envelope" : typeof format === "string" ? `${format.toUpperCase()} bounties, proportional model` : null,
   ]
     .filter(Boolean)
