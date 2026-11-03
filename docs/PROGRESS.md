@@ -1992,6 +1992,13 @@ asked the default sizes. The roadmap said Phase 0 had nothing open while the mat
   raise 2.2"; BB 3bets 21.7%, calls 75.6%, folds 2.7%.
 - The form at 375px: no sideways scroll, summary "Sizes: SB open 2.2bb".
 
+### CI
+
+The first deploy of this (run 41699633685, 99f7a83) failed on an unrelated test, Practice's keys test: "You won"
+never showed after the 2 key. A race, not slowness: Practice's key handler was swapped in a `useEffect`, which runs
+after paint, so a key pressed as the flop's options showed could still reach the preflop's handler. It's now swapped in
+a `useLayoutEffect` (`PracticePage.tsx`), as the page commits.
+
 ### Precompute builds
 
 Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.

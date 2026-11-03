@@ -4,7 +4,7 @@
 // answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
 // preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
 // As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor).
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -297,9 +297,10 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
   };
 
   // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze (the latest handlers, read
-  // through a ref: the listener stays while the tab is shown)
+  // through a ref: the listener stays while the tab is shown; set as the page commits, so a key pressed once the new
+  // options show never reaches the last spot's handler)
   const onKey = useRef<(e: KeyboardEvent) => void>(() => {});
-  useEffect(() => {
+  useLayoutEffect(() => {
     onKey.current = (e) => {
       const tag = (e.target as HTMLElement | null)?.tagName ?? "";
       // (a held key doesn't repeat into the next spot)
