@@ -15,7 +15,7 @@ export interface RouteDef {
 export const ROUTES: RouteDef[] = [
   { path: "", label: "Home", nav: false, status: "working", summary: "Overview" },
   { path: "study", label: "Study", nav: true, status: "partial", summary: "Browse solutions node by node: preflop charts, precomputed flops, live turns and rivers." },
-  { path: "practice", label: "Practice", nav: true, status: "classic", summary: "Play hands and drills against GTO opponents, scored by EV loss." },
+  { path: "practice", label: "Practice", nav: true, status: "classic", summary: "Play hands against GTO opponents and drill single spots, graded against the solution." },
   { path: "analyze", label: "Analyze", nav: true, status: "classic", summary: "Import hand histories, grade decisions and find leaks." },
   { path: "solve", label: "Solve", nav: true, status: "classic", summary: "Custom solves: ranges, stacks, sizes, rake, nodelocks." },
   { path: "reports", label: "Reports", nav: true, status: "classic", summary: "Aggregate flop reports across boards." },

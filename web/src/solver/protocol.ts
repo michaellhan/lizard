@@ -20,6 +20,9 @@ export interface AdvisorState {
   /** "fast" (default) or "accurate"; Quick is `quick: true`. */
   speed?: "fast" | "accurate";
   quick?: boolean;
+  /** seconds for this street's solve, and for each earlier street solved to narrow the ranges (Advisor.advise) */
+  budget?: number;
+  prior_budget?: number;
   /** Study mode: answer for whoever acts next with their whole range (Advisor.study). */
   study?: boolean;
   [key: string]: unknown;

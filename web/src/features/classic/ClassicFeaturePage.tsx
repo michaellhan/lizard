@@ -8,8 +8,8 @@ const INFO: Record<Feature, { title: string; engine: string[]; classicPath: stri
   practice: {
     title: "Practice",
     engine: [
-      "Full hands against GTO opponents (Advisor.play), 2-9 handed, with EV-loss grading",
-      "Drills: single-decision spots from the flop library, leak drills",
+      "Full hands against GTO opponents (Advisor.play), 2-9 handed, each decision graded by how often the solution plays it",
+      "Drills: single-decision spots from the flop library, graded by EV loss where the answer has EVs",
       "Multi-tabling (up to 4 tables) in the classic UI",
     ],
     classicPath: "practice/",

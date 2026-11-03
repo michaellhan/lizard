@@ -22,7 +22,7 @@ case "$REPO" in michaellhan/gto-solver-library|*michaellhan.github.io) echo "ref
 
 prev=()
 [ -f "$CLONE/index.json" ] && prev=(--previous "$CLONE")
-nice -n 10 "$PY" "$ROOT/scripts/library/assemble.py" --out "$STAGE" "${prev[@]}"
+nice -n 10 "$PY" "$ROOT/scripts/library/assemble.py" --out "$STAGE" ${prev[@]+"${prev[@]}"}
 
 if [ ! -d "$CLONE/.git" ]; then
   mkdir -p "$CLONE"

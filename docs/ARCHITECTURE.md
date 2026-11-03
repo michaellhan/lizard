@@ -1,0 +1,209 @@
+# Lizard architecture
+
+Lizard is a static web app. All solving happens on the user's device. There are no accounts and no Lizard backend.
+The numerical engine is the GTO Solver snapshot in `solver/`, reused unchanged behind a typed interface.
+
+Status words in this document follow [FEATURE_MATRIX.md](FEATURE_MATRIX.md): what exists today is described as such,
+and planned pieces are marked **(planned)**.
+
+## 1. The pieces
+
+```
+ www.michael-han.com (GitHub Pages behind Cloudflare; one origin, several repos)
+ ├── /lizard/                 this repo: web/dist (React app, sw.js, solver assets)
+ │    ├── index.html, <route>/index.html, 404.html   deep links (scripts/postbuild.mjs)
+ │    ├── sw.js               adds COOP/COEP (cross-origin isolation) and frame-ancestors to Lizard's pages
+ │    └── solver/             worker.js, solver.zip, pf/*.bin, manifest.json (scripts/build-solver-assets.mjs)
+ ├── /lizard-library/         michaellhan/lizard-library: 6-max library + heads-up builds (scripts/library/)
+ ├── /gto-solver-library/     upstream's 6-max library (read-only for Lizard; fallback source)
+ └── /gto-solver/             the classic app (untouched; Lizard links to it for features not yet ported)
+
+ Browser
+ ┌──────────────── main thread ────────────────┐      ┌──────── Web Worker (solver/worker.js) ────────┐
+ │ React routes (web/src/features/*)           │      │ Pyodide 0.26.4 (CPython 3.12, numpy 1.26.4)   │
+ │   └ useSolver() → SolverClient              │ post │ solver.zip: the gto/ package + treys          │
+ │        queue · modes · AbortSignal ·        │─────▶│ Advisor.advise(state) / study                 │
+ │        provenance on every answer           │◀─────│ core.wasm / core-mt.wasm (threaded CFR)       │
+ │   └ Transport: WorkerTransport | Http…      │      │ mwcore*.wasm (multiway)                       │
+ │ Zustand stores: settings, runtime           │      │ FlopLibrary / MWLibrary: fetch ?lib= base     │
+ │ IndexedDB "lizard" (idb, migrations)        │      └───────────────────────────────────────────────┘
+ └─────────────────────────────────────────────┘
+          │ optional: Settings → Local Python solver
+          ▼
+   http://127.0.0.1:8765  solver/gto/server.py  (POST /advise, POST /cancel, GET /health)
+```
+
+## 2. Repository layout
+
+| Path | Role |
+|---|---|
+| `web/src/app/` | `routes.ts` (the route table: path, label, status), `App.tsx` (router), `Shell.tsx` (layout, nav) |
+| `web/src/features/` | One folder per area: `study`, `library`, `ranges`, `engine`, `settings`, `home`, `classic` (honest placeholders that link to the classic app) |
+| `web/src/solver/` | The solver interface: `protocol.ts` (wire types), `types.ts` (public API), `client.ts`, `worker-transport.ts`, `http-transport.ts`, `provenance.ts`, `runtime.ts`, `useSolver.ts` |
+| `web/src/engine/` | Game engines (`GameEngine`): NLHE cards and hand classes; PLO4 registered as unsupported |
+| `web/src/library/catalog.ts` | Reads library indexes for coverage; resolves the library source |
+| `web/src/data/db.ts` | IndexedDB schema and versioned migrations |
+| `web/src/components/` | `RangeMatrix`, `ProvenanceBadge`, `EngineStatusPill`, action colors |
+| `solver/` | The snapshot. Changed only by the patches in `solver/UPSTREAM.json` |
+| `scripts/` | Asset build, postbuild, library assemble/publish |
+
+## 3. The solver interface
+
+Views never talk to the worker directly. They call `SolverClient.solve(request)` (`web/src/solver/client.ts`).
+
+### 3.1 Request and result
+
+```ts
+interface SolveRequest {
+  state: AdvisorState;        // the game state as gto/advisor.py reads it (players, stack(s), board, per-street actions,
+                              // ranges, sizes, rake, payouts, locks... open-ended, see protocol.ts)
+  mode?: "quick" | "fast" | "accurate";
+  progressive?: boolean;      // ask for approximate answers while solving
+  signal?: AbortSignal;       // cancel (queued or running)
+  onPartial?: (r: SolveResult) => void;
+}
+interface SolveResult { data: AdvisorResponse; provenance: Provenance }
+```
+
+`applyMode` maps the mode onto the Advisor's keys: Quick is `quick: true, speed: "fast"`; Fast and Accurate set
+`speed`. The client runs one request at a time, because each backend solves one at a time, and keeps the rest in a
+FIFO queue. Aborting a queued request removes it at once. Aborting the running one goes to the transport.
+
+### 3.2 Provenance
+
+Every result and every partial result carries a `Provenance` (`provenance.ts`), derived from the response itself:
+
+| `source` | When | Approximate? |
+|---|---|---|
+| `library` | `precomputed` present: a flop answered from the offline library | no (its exploitability is shown) |
+| `live` | the solver ran iterations for this request | only if partial or the solver says so |
+| `charts` | a preflop node answered from the preflop charts | the badge says "Preflop charts", never "solved" |
+| `preflop-solve` | a preflop equilibrium the solver computed (`pf_solve`) | as reported |
+| `rules`, `equity` | fallbacks when a solve fails or is unsupported | always |
+
+It also carries the exploitability (% of pot) and target when computed, iterations, seconds, the library spot, the
+fallback reason, the mode, the transport, the solver version (`<upstream commit>/<bundle hash>`) and the time it was
+received. `ProvenanceBadge` renders it next to every answer.
+
+### 3.3 Transports
+
+`SolverTransport` (`types.ts`) has `request`, `prefetch`, `onStatus`, `status` and `dispose`. There are two:
+
+**`WorkerTransport`** loads `solver/worker.js?v=<bundle hash>&lib=<library base>`. That is the upstream worker,
+whose only change is a renamed cache (§6). Protocol (`protocol.ts`, verified against `solver/gto/static/worker.js`):
+
+- page → worker: `{id, state, early}`, `{cancel: id}`, `{stop: SharedArrayBuffer}`, `{prefetch: state}`, `{ping}`;
+- worker → page: `{status, setup}` (boot progress, then "Solving…" with timings and thread counts), `{id, partial}`,
+  `{id, result}` (`result.cancelled` when stopped), `{id, error}`.
+
+Cancellation depends on isolation. When the page is cross-origin isolated, the transport writes the id into a shared
+`Int32Array` that the solve polls between chunks of iterations. It stops within about 0.1 s and keeps its caches.
+Without isolation, the transport terminates the worker and boots a new one on the next request (runtime from cache,
+about 1.5 s).
+
+A boot failure marks the status `failed` and rejects the request. The next request retries with a fresh worker.
+
+**`HttpTransport`** posts the same `AdvisorState` to the user's own `gto.server` (`POST /advise`; `POST /cancel` to
+stop; `GET /health` to probe). Long Python solves never run on a hosted service: there is no Lizard server, and
+Cloudflare Workers are not used for solving.
+
+### 3.4 Status
+
+`RuntimeStatus` (`idle | booting | ready | busy | failed`, plus the message, boot timings, thread counts and
+isolation) is published by the transport through the Zustand `useRuntime` store. `EngineStatusPill` (header) and the
+Engine page (`/engine`) show it.
+
+### 3.5 Errors
+
+`SolverError.kind` is one of `cancelled`, `boot-failed`, `unreachable`, `solver-error`, `stuck` or `bad-request`.
+Views show the message and keep the last good answer. A cancelled request shows "Stopped."
+
+## 4. Game engines
+
+`GameEngine` (`web/src/engine/types.ts`) describes a game to the UI: hole-card count, 2–9 seat layouts (the exact
+seat names of `solver/gto/preflop.py`), the hand-class grid (13×13 for NLHE; `null` for PLO), card parsing, and
+whether the solver supports it. NLHE is complete for the UI's needs. PLO4 is registered with `solverSupported:
+false`, so the UI can say "not supported" instead of offering dead controls. The rules of the game (legal actions,
+sizes, pot) are never re-implemented in the UI: every node's actions come from the Advisor's answer.
+
+## 5. State and data
+
+| What | Where | Notes |
+|---|---|---|
+| The hand being studied | URL query (`p`, `s`, `pre`, `b`, `flop`, `turn`, `river`) | every node is a shareable deep link (`studyState.ts`) |
+| Settings | Zustand `useSettings`, persisted to IndexedDB `kv["settings.v1"]` | mode, backend, local URL, library source (default `auto`), EV unit |
+| Runtime | Zustand `useRuntime` | the client, status, solver manifest, the library actually in use |
+| Saved spots, sessions | IndexedDB stores `savedSpots`, `sessions` | schema in place (migrations 1–2); the UI that fills them is (planned) |
+
+IndexedDB migrations (`data/db.ts`) are append-only. `MIGRATIONS[v]` upgrades version v−1 to v, and `db.test.ts`
+opens version 1 with data and upgrades it.
+
+Names are namespaced because Lizard shares its origin with the classic app and the homepage. The database is
+`lizard`, the worker cache is `lizard:solver`, the reload flag is `sessionStorage["lizard.sw-reloaded"]`, and the
+service worker's scope is `/lizard/`. Lizard never clears storage it does not own.
+
+## 6. The precomputed library
+
+The worker reads one library base (`?lib=`), so Lizard publishes one merged library at `/lizard-library/`:
+
+- **6-max**: the snapshot's library (18 heads-up-to-the-flop spots, 552 or 1,755 flops each, turn files for 9 of them;
+  4 three-way spots on 185 flops), a byte-identical copy of the published `/gto-solver-library/`.
+- **Heads-up** `srp_sb_bb_2max` and `lp_sb_bb_2max`: copied from the offline builds still running in
+  `gtosolver/.work`. Only entries their index lists are copied, and each is validated on the copy.
+
+`scripts/library/assemble.py` builds the stage. It treats the sources as read-only, checks every `.bin` against its
+sha1 in the index and every turn file against the entry hash in its header, and checks `report.json` against the
+index. It merges spots by id and by lookup key (range fingerprints, pot, stack), never publishes fewer flops than the
+previous release, and checks the stage against GitHub Pages limits. `publish.sh` commits the stage to a persistent
+clone and pushes only what changed.
+
+At runtime, the worker looks entries up by range fingerprints, pot and stack, then by canonical flop and tree. The
+heads-up fingerprints were checked against this snapshot's charts and match. A flop that is not in the library is
+solved live; nothing in the UI depends on coverage. The settings default `auto` picks `/lizard-library/` when its
+`index.json` answers, else `/gto-solver-library/` (`resolveLibrarySource`). The Library page reads both indexes with
+`cache: no-cache`, so new heads-up flops appear after each publish without an app redeploy.
+
+## 7. Routing, base path and deployment
+
+- Vite `base` is `/lizard/` (override: `LIZARD_BASE`). The router's basename, the service worker's URL and scope, and
+  the solver asset URLs all derive from `import.meta.env.BASE_URL`.
+- GitHub Pages has no rewrites. `scripts/postbuild.mjs` writes `<route>/index.html` for every route in `routes.ts`, so
+  a deep link answers 200, plus `404.html` (the same app, which renders Not Found) for anything else. It refuses a
+  route that would shadow an asset folder (`assets`, `solver`).
+- Pages answers `/lizard/study` with a 301 to `/lizard/study/`. The router matches both.
+- CI (`.github/workflows/deploy.yml`) runs typecheck, lint, the unit tests, the assembler tests and the quick solver
+  tests, then builds and deploys with `actions/deploy-pages`. See [DEPLOYMENT.md](DEPLOYMENT.md).
+
+## 8. Security
+
+- No secrets anywhere in the bundle or the repo. The classic app's AI-explanation proxy is not used by Lizard.
+  If AI explanations come back, it will be through a server-side proxy that builds the prompt from validated fields
+  **(planned)**.
+- React rendering only; no `dangerouslySetInnerHTML`.
+- The built pages carry a `<meta>` Content-Security-Policy: `default-src 'self'`; scripts from self only; workers
+  from self and `blob:`; connections to self and the local solver. `sw.js` adds `frame-ancestors 'self'` and
+  `nosniff` to navigations once installed.
+- `main.tsx` moves plain-http visits to https before anything else runs. The host does not redirect, and the service
+  worker, isolation and threads need a secure context.
+
+## 9. Testing
+
+| Suite | Command | What |
+|---|---|---|
+| Web unit (Vitest, jsdom) | `npm test` | study state and URL encoding, cards and classes, range text, provenance, client queue and abort, worker transport (fake worker: boot, partials, both cancel paths, boot failure), IndexedDB migrations (fake-indexeddb), library catalog, RangeMatrix accessibility |
+| Assembler | `.venv/bin/python -m unittest discover -s scripts/library` | validation, shrink protection, refusing foreign or protected output, sources untouched |
+| Solver (upstream) | `npm run test:solver`, `npm run test:solver-js` | 678 Python and 411 Node tests; about 12 minutes of CPU, and some need the library |
+| Browser | manual so far | Study flows, library and live answers, Engine self-test, CSP, phone width. Playwright suite **(planned)** |
+
+CI runs the first two suites plus the solver tests that need neither the library nor minutes of CPU
+(`test_bundle`, `test_routes`, `routes.test.js`, `solver_state.test.js`).
+
+## 10. Decisions
+
+| Decision | Why |
+|---|---|
+| Reuse the upstream worker unchanged (one build-time cache rename) | It is the tested host of the Advisor. Re-hosting Pyodide would duplicate the protocol and its speed profiles |
+| One merged library repo, not a composite client | The worker takes one base. Merging offline keeps the worker unchanged and lets each publish be validated as a whole |
+| Private `lizard` repo, public Pages site | The solver has no license, and the snapshot includes C sources, calibration scripts and draft legal documents. The site itself only exposes what the classic site already does |
+| Static hosting only | Solving runs on the device. A server would add cost, secrets and accounts without making solves more accurate |
+| Port classic features into React one by one, link to the classic app meanwhile | An honest placeholder beats a dead button. The engine features exist; only their UI needs porting |

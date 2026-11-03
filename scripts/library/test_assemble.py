@@ -80,6 +80,8 @@ class AssembleTest(unittest.TestCase):
         self.assertTrue((self.out / ".nojekyll").exists())
         summary = json.loads((self.out / "lizard-library.json").read_text())
         self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["flops"], 2)
+        self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["target"], 552)  # the snapshot's SPOT_FLOPS plan
+        self.assertEqual(summary["spots"]["srp_btn_bb"]["target"], 1755)
 
     def test_a_corrupt_entry_or_turn_file_is_left_out(self):
         (self.hu / "srp_sb_bb_2max" / "Qc9d8h.bin").write_bytes(b"tampered")

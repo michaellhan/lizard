@@ -1,11 +1,10 @@
 // The precomputed-library catalog: reads a library's index.json / mw_index.json (format 2 / 1, written by
 // solver/scripts/build_flop_library.py and build_mw_library.py) to report which spots and flops are answered
 // instantly. Coverage is read at runtime with no-cache, so entries published later (the heads-up builds still
-// running) are picked up without a redeploy; anything missing is solved live by the worker.
+// running) are picked up without a redeploy; anything missing is solved live by the worker. How many flops each
+// spot is planned to reach comes from lizard-library.json, which scripts/library/assemble.py writes from the
+// solver's SPOT_FLOPS; a library without it (the upstream one) shows counts only.
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
-
-/** Every strategically distinct flop (suit isomorphism): 1755. Representative subsets are 552 and 184. */
-export const ALL_FLOPS = 1755;
 
 export interface LibrarySpotIndex {
   id: string;
@@ -42,9 +41,15 @@ export interface SpotCoverage {
   /** preflop line, as Study's URL takes it */
   line: string;
   flops: number;
-  target: number;
+  /** the flop count the spot is being built to, when the library says; null when unknown */
+  target: number | null;
   storedTurns: boolean;
   game: string;
+}
+
+/** lizard-library.json: what a Lizard library publish contained (only the fields read here). */
+export interface LibraryPlan {
+  spots: Record<string, { flops: number; target?: number }>;
 }
 
 export interface LibraryCatalog {
@@ -71,14 +76,7 @@ export function gameLabel(s: Pick<LibrarySpotIndex, "game" | "seats">): string {
   return `${players} ${g.stack}bb${g.ante ? ` ante ${g.ante}` : ""}${g.straddle ? " straddle" : ""}`;
 }
 
-/** The size of the flop set a spot is being built over: every flop once past 552, else 552 or 184. */
-export function targetFlops(n: number): number {
-  if (n > 552) return ALL_FLOPS;
-  if (n > 184) return 552;
-  return 184;
-}
-
-export function summarize(index: LibraryIndex, mw?: LibraryIndex | null): SpotCoverage[] {
+export function summarize(index: LibraryIndex, mw?: LibraryIndex | null, plan?: LibraryPlan | null): SpotCoverage[] {
   const rows: SpotCoverage[] = [];
   for (const s of [...index.spots, ...(mw?.spots ?? [])]) {
     const n = Object.keys(s.flops ?? {}).length;
@@ -91,7 +89,7 @@ export function summarize(index: LibraryIndex, mw?: LibraryIndex | null): SpotCo
       tableStack: s.game?.stack ?? 100,
       line: s.line,
       flops: n,
-      target: targetFlops(n),
+      target: plan?.spots[s.id]?.target ?? null,
       storedTurns: Boolean(s.turns),
       game: gameLabel(s),
     });
@@ -111,14 +109,15 @@ async function getJson<T>(url: string, fetchImpl: typeof fetch): Promise<T | nul
 
 export async function loadCatalog(source: LibrarySourceId, fetchImpl: typeof fetch = fetch): Promise<LibraryCatalog> {
   const src = LIBRARY_SOURCES.find((s) => s.id === source) ?? LIBRARY_SOURCES[0];
-  const [index, mw] = await Promise.all([
+  const [index, mw, plan] = await Promise.all([
     getJson<LibraryIndex>(`${src.base}index.json`, fetchImpl),
     getJson<LibraryIndex>(`${src.base}mw_index.json`, fetchImpl),
+    getJson<LibraryPlan>(`${src.base}lizard-library.json`, fetchImpl),
   ]);
   if (!index) {
     return { source: src.id, base: src.base, available: false, spots: [], fetchedAt: Date.now(), error: "index.json not found" };
   }
-  return { source: src.id, base: src.base, available: true, spots: summarize(index, mw), fetchedAt: Date.now() };
+  return { source: src.id, base: src.base, available: true, spots: summarize(index, mw, plan), fetchedAt: Date.now() };
 }
 
 /** The first library source that is actually published (Lizard's own, else the upstream's). */

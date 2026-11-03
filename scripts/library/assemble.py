@@ -19,9 +19,11 @@ lizard-library.json.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 import sys
@@ -42,6 +44,20 @@ TURN_MAGIC = b"GTOTN1"  # gto/flop_library.py TURN_MAGIC
 MAX_FILE = 50 * 2**20
 MAX_TOTAL = 900 * 2**20
 MAX_FILES = 60_000
+
+
+def planned_flops() -> dict[str, int]:
+    """The flop count each spot is being built to (gto/flop_library.py SPOT_FLOPS), read without importing the solver."""
+    src = (ROOT / "solver" / "gto" / "flop_library.py").read_text()
+    m = re.search(r"^SPOT_FLOPS = (\{.*?\})\n", src, re.S | re.M)
+    return ast.literal_eval(m.group(1)) if m else {}
+
+
+def target_of(sid: str, n: int, planned: dict[str, int]) -> int:
+    """The flop set a spot is built over: its plan, or once past it the next of 184 / 552 / every flop (1,755)."""
+    sizes = [184, 552, 1755]
+    t = planned.get(sid, 0)
+    return max(t, next((x for x in sizes if n <= x), 1755))
 
 
 def sha(b: bytes, n: int) -> str:
@@ -294,10 +310,14 @@ def main() -> int:
     if total > MAX_TOTAL or n > MAX_FILES:
         sys.exit(f"stage is {total} bytes in {n} files, over the limits")
 
+    planned = planned_flops()
     summary = {
         "assembledAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "sources": sources,
-        "spots": {s["id"]: {"flops": len(s["flops"]), "game": s.get("game")} for s in merged},
+        "spots": {
+            s["id"]: {"flops": len(s["flops"]), "target": target_of(s["id"], len(s["flops"]), planned), "game": s.get("game")}
+            for s in merged
+        },
         "multiway": {s["id"]: len(s["flops"]) for s in (mw or {}).get("spots", [])},
         "files": n,
         "bytes": total,

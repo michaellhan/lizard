@@ -9,7 +9,9 @@ export type TransportKind = "worker" | "http";
 
 /** Where an answer came from. Every number Lizard shows carries one of these. */
 export type ResultSource =
-  | "library" // precomputed solution (flop library entry / stored turn)
+  | "library" // precomputed solution (a flop library entry)
+  | "library-turn" // a turn read from the flop library's stored turn strategies (approximate: 0.5-0.8% of the pot)
+  | "instant" // an answer at once before the solve's own: a stored or nearby solution, an earlier street, a smaller solve
   | "live" // solved now (CFR), in the browser or on a local server
   | "charts" // preflop mixed-frequency charts
   | "preflop-solve" // the preflop game's equilibrium solve (pf_study)
@@ -32,6 +34,8 @@ export interface Provenance {
   librarySpot?: string;
   /** why a fallback answered */
   fallbackReason?: string;
+  /** the solver's own words for what an approximate answer was read from */
+  approximateLabel?: string;
   mode: SolveMode;
   transport: TransportKind;
   /** solver build: upstream gto-solver commit and Lizard bundle version */

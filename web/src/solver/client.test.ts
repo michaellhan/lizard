@@ -30,9 +30,17 @@ class FakeTransport implements SolverTransport {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe("SolverClient", () => {
-  it("maps modes onto the Advisor's keys", () => {
-    expect(applyMode({ players: 2 }, "quick")).toEqual({ players: 2, quick: true, speed: "fast" });
-    expect(applyMode({ players: 2, quick: true }, "accurate")).toEqual({ players: 2, speed: "accurate" });
+  it("maps modes onto the Advisor's keys, with the classic app's budgets for the backend", () => {
+    expect(applyMode({ players: 2, board: "Ks7d2c" }, "quick")).toEqual({
+      players: 2, board: "Ks7d2c", quick: true, speed: "fast", budget: 1.5, prior_budget: 0.3,
+    });
+    expect(applyMode({ players: 2, board: "Ks7d2c8h5s" }, "quick")).toMatchObject({ quick: true, budget: 0.8 });
+    // preflop Quick: no quick key (the Advisor's quick is postflop), the Quick budget
+    expect(applyMode({ players: 2 }, "quick")).toEqual({ players: 2, speed: "fast", budget: 1.5, prior_budget: 0.3 });
+    expect(applyMode({ players: 2, quick: true }, "accurate")).toEqual({ players: 2, speed: "accurate", budget: 60, prior_budget: 12 });
+    expect(applyMode({ players: 2 }, "fast")).toMatchObject({ budget: 8, prior_budget: 3 });
+    expect(applyMode({ players: 2 }, "fast", "http")).toMatchObject({ budget: 2.5, prior_budget: 2.5 });
+    expect(applyMode({ players: 2 }, "accurate", "http")).toMatchObject({ budget: 30, prior_budget: 12 });
   });
 
   it("runs one request at a time, in order, with provenance on partials and answers", async () => {
@@ -43,7 +51,7 @@ describe("SolverClient", () => {
     const b = c.solve({ state: { players: 2, board: "b" }, mode: "accurate" });
     await tick();
     expect(t.calls).toHaveLength(1);
-    expect(t.calls[0]!.state).toMatchObject({ board: "a", speed: "fast" });
+    expect(t.calls[0]!.state).toMatchObject({ board: "a", speed: "fast", budget: 8, prior_budget: 3 });
     t.calls[0]!.resolve({ street: "turn", solver: { iterations: 10 } });
     const ra = await a;
     expect(ra.provenance).toMatchObject({ source: "live", mode: "fast", solverVersion: "test", partial: false });

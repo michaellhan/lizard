@@ -84,14 +84,18 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
                   </td>
                   <td className="px-3 py-1.5">{KIND[s.kind]}</td>
                   <td className="px-3 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-24 overflow-hidden rounded bg-surface-3" aria-hidden>
-                        <div className="h-full bg-accent" style={{ width: `${Math.min(100, (s.flops / s.target) * 100)}%` }} />
+                    {s.target ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-24 overflow-hidden rounded bg-surface-3" aria-hidden>
+                          <div className="h-full bg-accent" style={{ width: `${Math.min(100, (s.flops / s.target) * 100)}%` }} />
+                        </div>
+                        <span className="font-mono text-xs" title={`${s.flops} of the ${s.target} flops this spot is built over`}>
+                          {s.flops} / {s.target}
+                        </span>
                       </div>
-                      <span className="font-mono text-xs">
-                        {s.flops} / {s.target}
-                      </span>
-                    </div>
+                    ) : (
+                      <span className="font-mono text-xs">{s.flops}</span>
+                    )}
                   </td>
                   <td className="px-3 py-1.5">{s.storedTurns ? "yes" : "–"}</td>
                   <td className="px-3 py-1.5 text-right">

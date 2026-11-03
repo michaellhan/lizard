@@ -1,5 +1,5 @@
 // Range builder (first cut): paint classes into a range at a chosen weight, or paste solver-format text.
-// Grading a painted range against a solution (GTO Wizard's Range Builder trainer) is a planned next step.
+// Grading a painted range against a solution is a planned next step (docs/ROADMAP.md).
 import { useMemo, useState } from "react";
 import { RangeMatrix } from "@/components/RangeMatrix";
 import { formatRange, parseRange, rangeCombos, type ClassWeights } from "./rangeText";

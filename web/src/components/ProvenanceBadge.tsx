@@ -3,6 +3,8 @@ import { describe } from "@/solver/provenance";
 
 const TONE: Record<Provenance["source"], string> = {
   library: "border-accent/40 text-accent",
+  "library-turn": "border-accent/40 text-accent",
+  instant: "border-border text-muted",
   live: "border-act-check/50 text-act-check",
   charts: "border-act-bet1/50 text-act-bet1",
   "preflop-solve": "border-act-bet1/50 text-act-bet1",

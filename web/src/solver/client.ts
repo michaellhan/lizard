@@ -10,6 +10,7 @@ import {
   type SolveRequest,
   type SolveResult,
   type SolverTransport,
+  type TransportKind,
 } from "./types";
 
 interface Queued {
@@ -18,15 +19,27 @@ interface Queued {
   reject: (e: unknown) => void;
 }
 
-export function applyMode(state: AdvisorState, mode: SolveMode): AdvisorState {
+/** Seconds per solve at each mode, [this street, each earlier street solved to narrow the ranges], by backend: the
+ * classic app's BUDGETS (solver/gto/static/index.html). Without them the Advisor runs every mode at 4 s + 2 s. */
+export const MODE_BUDGETS: Record<TransportKind, Record<SolveMode, [number, number]>> = {
+  worker: { quick: [1.5, 0.3], fast: [8, 3], accurate: [60, 12] },
+  http: { quick: [1.5, 0.3], fast: [2.5, 2.5], accurate: [30, 12] },
+};
+/** Quick's postflop budgets by street, either backend, sent with "quick" (no second budget for an unsettled street). */
+const QUICK_BUDGETS: Record<string, [number, number]> = { flop: [1.5, 0.3], turn: [1.5, 0.3], river: [0.8, 0.3] };
+const STREET_BY_BOARD: Record<number, string> = { 6: "flop", 8: "turn", 10: "river" };
+
+/** The request keys for a mode on a backend: speed, budget and prior_budget, and quick (postflop Quick only). */
+export function applyMode(state: AdvisorState, mode: SolveMode, transport: TransportKind = "worker"): AdvisorState {
   const s: AdvisorState = { ...state };
   delete s.quick;
-  if (mode === "quick") {
-    s.quick = true;
-    s.speed = "fast";
-  } else {
-    s.speed = mode;
-  }
+  const street = STREET_BY_BOARD[String(state.board ?? "").length];
+  const quick = mode === "quick" && street !== undefined;
+  const [budget, prior_budget] = quick ? QUICK_BUDGETS[street]! : MODE_BUDGETS[transport][mode];
+  s.speed = mode === "quick" ? "fast" : mode;
+  s.budget = budget;
+  s.prior_budget = prior_budget;
+  if (quick) s.quick = true;
   return s;
 }
 
@@ -83,7 +96,7 @@ export class SolverClient {
     const mode = req.mode ?? "fast";
     const ctx = { mode, transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
-      const data = await this.transport.request(applyMode(req.state, mode), {
+      const data = await this.transport.request(applyMode(req.state, mode, this.transport.kind), {
         progressive: req.progressive ?? false,
         signal: req.signal,
         onPartial: req.onPartial
