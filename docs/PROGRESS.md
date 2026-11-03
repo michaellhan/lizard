@@ -2009,3 +2009,55 @@ Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.
 - Phase 8, still open: a comparison of two size menus.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 8, two size menus compared (second session)
+
+Deploy of 609236f (the preflop solve's sizes and the Practice key-handler fix) verified live: run 41700153968 passed;
+`/lizard/` serves `index-DA-azbB0.js`, which has "Preflop solve sizes".
+
+### What was missing
+
+The Compare page could already be handed two Study links with different sizes, but their bets don't share names
+("bet 33%" against "bet 50%"), so each size was compared against "not offered"; nothing said which menu was worth more,
+and nothing in Study led there. The engine's street menu is every bet's on that street, both players'
+(`advisor.py` sets `cfg.bet_sizes[street]`; a line's own bets are swapped in by `_swap_nearest`); a multiway solve bets
+its own fixed sizes (`MWConfig`), so a menu there would change nothing.
+
+### Code
+
+- `compare.ts`: `ANY_RAISE` ("any bet or raise", all-in too) as an action the per-class diff sums; `sizesOnly` (two
+  spots that differ in their sizes and nothing else); `menusOf` (each side's bets offered, the share of the range betting
+  or raising, the range's EV, B − A in bb and in % of the pot, the noise band); `menuWords` (within both answers'
+  distance from equilibrium combined: neither is worth more; under twice it: close to a tie; unmeasured: said).
+- `ComparePage.tsx`: a "Size menus" section for two such spots, and the grid opens on any bet or raise; the action
+  picker offers it wherever there's more than one bet or raise.
+- `CompareLinks.tsx`: `betMenuOf` (a heads-up decision after the flop where check is an option: the street and its
+  menu, from the spot's own sizes or the answer's bets) and "with {street} bets … % compare menus" (`withMenu`: the
+  sizes checked as the Solve page checks them, the rest of the setup kept).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 339/339 in 54 files (`compare.test.ts`: `sizesOnly`, any bet or raise per class, `menusOf`, the four verdicts; `ComparePage.test.tsx`: the page's Size menus section and grid, Study's menu link and its problems). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Study, heads-up 100bb Ks7d2c after SB raise 2.5, BB call: the menu field reads "33, 75" from the answer; typing 50
+  links to the comparison.
+- BB to act: 33/75% against 50%, both live solves (0.11% and 0.09% from equilibrium): BB bets 0.3% against 0.1%.
+- SB after BB checks: bets 65.0% against 54.6% of the range; EV 3.10 against 3.09bb, "close to a tie" (first shown as
+  "worth 0.01bb more", beyond a 0.01bb band, which read as a win: hence the close-to-a-tie case); TT bets 99.7% →
+  16.7%, JJ 76.7% → 2.0%. At 375px no sideways scroll.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.
+
+### Next
+
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

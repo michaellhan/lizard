@@ -39,7 +39,7 @@ import { EvGapPanel } from "@/features/compare/EvGapPanel";
 import { OneSizePanel } from "@/features/compare/OneSizePanel";
 import { offersOneSize } from "@/features/compare/oneSize";
 import { ChipCompare } from "./ChipCompare";
-import { CompareLinks } from "./CompareLinks";
+import { betMenuOf, CompareLinks } from "./CompareLinks";
 import { ComboPanel } from "./ComboPanel";
 import { SaveSpot } from "./SaveSpot";
 import { bubbleTableOf } from "@/features/tournaments/icm";
@@ -324,7 +324,7 @@ export function StudyPage() {
       {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
         <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
       ) : null}
-      {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={requestKey} hand={hand} min={MIN_STACK} max={MAX_STACK} />}
+      {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={requestKey} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
 
       {building && buildable && (
         <div className="flex items-center gap-2 text-sm">

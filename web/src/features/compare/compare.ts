@@ -2,8 +2,11 @@
 // EVs, the range's totals, and per hand class the change in one action's frequency and in the class's EV. Each side
 // keeps its own provenance; when the two come from different sources, or either is approximate, the diff says so
 // first (a difference can be the source's, not the spot's). An EV difference within the two sides' distance from
-// equilibrium combined is marked as noise. Side A is the spot as it was; B the variant (B − A everywhere).
-import { describeSetup } from "@/features/solve/setup";
+// equilibrium combined is marked as noise. Side A is the spot as it was; B the variant (B − A everywhere). Two spots
+// that differ only in their bet or raise sizes are two size menus: their bets don't share names, so they're compared
+// as any bet or raise, and by what the menu is worth to the player to act (the range's EV).
+import { kindOf } from "@/components/actions";
+import { describeSetup, tidySetup } from "@/features/solve/setup";
 import { describePfSizes } from "@/features/study/pfSizes";
 import { describeLine, toSearch, type StudyHand } from "@/features/study/studyState";
 import { sourceLabel } from "@/solver/provenance";
@@ -66,8 +69,13 @@ export interface ClassDiff {
   dEv: number | null;
 }
 
+/** Every bet and raise, all-in too, whatever its size (two size menus' bets don't share names). */
+export const ANY_RAISE = "any bet or raise";
+export const isRaise = (action: string) => ["bet", "raise", "all-in"].includes(kindOf(action));
+
 const freqOf = (res: AdvisorResponse, cell: GridCell | undefined, action: string): number | null => {
   if (!cell || !(cell.w > 0)) return null;
+  if (action === ANY_RAISE) return (res.grid?.actions ?? []).reduce((t, a, i) => t + (isRaise(a) ? (cell.f[i] ?? 0) : 0), 0);
   const i = res.grid?.actions.indexOf(action) ?? -1;
   // (an action this side doesn't offer: the class never takes it)
   return i < 0 ? 0 : (cell.f[i] ?? 0);
@@ -152,4 +160,61 @@ export function whatDiffers(a: StudyHand, b: StudyHand): string[] {
   if (drops.length) out.push(`B drops: ${drops.join(" · ")}`);
   if (adds.length) out.push(`B adds: ${adds.join(" · ")}`);
   return out;
+}
+
+const sizesOf = (h: StudyHand) => JSON.stringify(tidySetup(h.setup)?.sizes ?? {});
+const withoutSizes = (h: StudyHand) => toSearch({ ...h, setup: { ...h.setup, sizes: undefined } });
+
+/** The two spots differ in their size menus and nothing else. */
+export const sizesOnly = (a: StudyHand, b: StudyHand): boolean => sizesOf(a) !== sizesOf(b) && withoutSizes(a) === withoutSizes(b);
+
+export interface MenuSide {
+  /** the bets and raises offered at this decision, as the answer names them */
+  sizes: string[];
+  /** share of the range betting or raising, any size */
+  raise: number;
+  /** the range's EV here, bb (null: none) */
+  ev: number | null;
+}
+
+export interface Menus {
+  a: MenuSide;
+  b: MenuSide;
+  /** B − A: the range's EV (bb, and a share of the pot), and the share betting or raising */
+  dEv: number | null;
+  dPot: number | null;
+  dRaise: number;
+  /** both answers' distance from equilibrium combined, bb (null: not measured on both sides), and whether the EV
+   * change is within it */
+  band: number | null;
+  noise: boolean | null;
+}
+
+const sideOf = (r: AdvisorResponse): MenuSide => {
+  const acts = r.actions ?? [];
+  return { sizes: acts.filter((x) => isRaise(x.action)).map((x) => x.action), raise: acts.reduce((t, x) => t + (isRaise(x.action) ? (x.freq ?? 0) : 0), 0), ev: num(r.range_ev_bb) };
+};
+
+/** Two size menus at one decision: what each offers, how much of the range bets or raises with it, and what it's worth. */
+export function menusOf(a: AdvisorResponse, b: AdvisorResponse, pa: Provenance, pb: Provenance): Menus {
+  const A = sideOf(a), B = sideOf(b);
+  const dEv = A.ev !== null && B.ev !== null ? B.ev - A.ev : null;
+  const pot = num(a.pot_bb);
+  const band = noiseBb(pa, pb, a.pot_bb);
+  return { a: A, b: B, dEv, dPot: dEv !== null && pot ? dEv / pot : null, dRaise: B.raise - A.raise, band, noise: dEv === null || band === null ? null : Math.abs(dEv) < band };
+}
+
+const bbOf = (x: number) => `${x.toFixed(Math.abs(x) < 0.01 ? 3 : 2)}bb`;
+
+/** Which menu is worth more to the player to act, in words: within the two answers' distance from equilibrium combined
+ * neither; under twice it, close to a tie; unmeasured, said. Then how much more or less of the range bets. */
+export function menuWords(m: Menus, actor: string, pot: number | undefined): string {
+  const raise = `B bets or raises ${Math.abs(m.dRaise * 100).toFixed(1)} points ${m.dRaise >= 0 ? "more" : "less"} of the range.`;
+  if (m.dEv === null) return `No EV on both sides, so neither menu can be said to be worth more. ${raise}`;
+  const d = m.dEv;
+  if (m.noise) return `B − A: ${d >= 0 ? "+" : "−"}${bbOf(Math.abs(d))}, within the two answers' distance from equilibrium combined (${bbOf(m.band!)}): neither menu is measurably worth more to ${actor} here. ${raise}`;
+  const worth = `${d >= 0 ? "B's" : "A's"} menu is worth ${bbOf(Math.abs(d))} more to ${actor} here${m.dPot !== null && pot ? ` (${(Math.abs(m.dPot) * 100).toFixed(1)}% of the ${pot.toFixed(1)}bb pot)` : ""}`;
+  if (m.band === null) return `${worth}, though no distance from equilibrium is measured on both sides to tell that from noise. ${raise}`;
+  if (Math.abs(d) < 2 * m.band) return `${worth}, under twice the two answers' distance from equilibrium combined (${bbOf(m.band)}): close to a tie. ${raise}`;
+  return `${worth}, beyond the two answers' distance from equilibrium combined (${bbOf(m.band)}). ${raise}`;
 }

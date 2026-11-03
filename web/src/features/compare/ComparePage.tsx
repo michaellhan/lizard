@@ -4,7 +4,9 @@
 // action's frequency (the grid) with the biggest changes listed. Opened from Study's "Compare this spot" links.
 // Preflop either side can be the charts or the preflop solve (Study's pf=solver); a game the solve doesn't hold yet is
 // said, not solved here (Study solves it on request), and one this browser solved before is handed back. Any two spots
-// can be picked on the page (SpotPicker: saved spots, the spot pinned in Study, or a pasted Study link).
+// can be picked on the page (SpotPicker: saved spots, the spot pinned in Study, or a pasted Study link). Two spots
+// that differ only in their sizes are two size menus (Study's "with … bets"): what each offers here, how much of the
+// range bets or raises with it, and what it's worth to the player to act; the grid shows any bet or raise.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -18,7 +20,7 @@ import type { AdvisorActionStat, AdvisorResponse } from "@/solver/protocol";
 import { SolverError, type SolveResult } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
-import { biggest, diffActions, diffClasses, noiseBb, nodeWarning, pfSourceOf, sourceWarning, totalsOf, whatDiffers } from "./compare";
+import { ANY_RAISE, biggest, diffActions, diffClasses, isRaise, menusOf, menuWords, noiseBb, nodeWarning, pfSourceOf, sizesOnly, sourceWarning, totalsOf, whatDiffers, type Menus } from "./compare";
 import { bbDelta, DiffMatrix, diffLabel, points } from "./DiffMatrix";
 import { SpotPicker } from "./SpotPicker";
 
@@ -186,16 +188,21 @@ export function ComparePage() {
         </button>
       )}
       {why.length > 0 && <p className="text-sm text-muted">Nothing compared: {why.length > 1 ? "neither side is" : `${why[0]!.slice(0, 1)} isn't`} a decision with an answer (above).</p>}
-      {sa.kind === "done" && sb.kind === "done" && !why.length && <Diff ra={sa.result} rb={sb.result} bySource={bySource} />}
+      {sa.kind === "done" && sb.kind === "done" && !why.length && <Diff ra={sa.result} rb={sb.result} bySource={bySource} menus={sizesOnly(a, b)} />}
     </div>
   );
 }
 
-function Diff({ ra, rb, bySource }: { ra: SolveResult; rb: SolveResult; bySource: boolean }) {
+/** menus: the two spots differ only in their sizes */
+function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; bySource: boolean; menus: boolean }) {
   const A: AdvisorResponse = ra.data, B: AdvisorResponse = rb.data;
   const actions = useMemo(() => diffActions(A, B), [A, B]);
+  // (every bet or raise as one, where the two menus' bets don't share names or there's more than one)
+  const anyRaise = menus || actions.filter((d) => isRaise(d.action)).length > 1;
+  const options = [...actions.map((d) => d.action), ...(anyRaise ? [ANY_RAISE] : [])];
   const [chosen, setChosen] = useState<string | null>(null);
-  const action = chosen && actions.some((x) => x.action === chosen) ? chosen : (actions[0]?.action ?? "");
+  const action = chosen && options.includes(chosen) ? chosen : menus ? ANY_RAISE : (options[0] ?? "");
+  const m = useMemo(() => (menus ? menusOf(A, B, ra.provenance, rb.provenance) : null), [menus, A, B, ra.provenance, rb.provenance]);
   const classes = useMemo(() => diffClasses(A, B, action), [A, B, action]);
   const top = useMemo(() => biggest(classes), [classes]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -217,6 +224,7 @@ function Diff({ ra, rb, bySource }: { ra: SolveResult; rb: SolveResult; bySource
           ))}
         </div>
       )}
+      {m && <MenuSummary m={m} actor={A.actor ?? "the player to act"} pot={A.pot_bb} />}
       <section aria-label="Actions" className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-muted">
@@ -262,8 +270,8 @@ function Diff({ ra, rb, bySource }: { ra: SolveResult; rb: SolveResult; bySource
             <label className="flex items-center gap-2 text-sm">
               <span>Change in</span>
               <select aria-label="Action" value={action} onChange={(e) => setChosen(e.target.value)} className="rounded border border-border bg-surface px-2 py-1">
-                {actions.map((d) => (
-                  <option key={d.action}>{d.action}</option>
+                {options.map((o) => (
+                  <option key={o}>{o}</option>
                 ))}
               </select>
             </label>
@@ -289,5 +297,29 @@ function Diff({ ra, rb, bySource }: { ra: SolveResult; rb: SolveResult; bySource
         </div>
       )}
     </div>
+  );
+}
+
+/** Two size menus at one decision: each one's bets, how much of the range bets or raises, and what it's worth. */
+function MenuSummary({ m, actor, pot }: { m: Menus; actor: string; pot: number | undefined }) {
+  const side = (name: string, x: Menus["a"]) => (
+    <li>
+      <span className="font-medium">{name}:</span> {x.sizes.length ? x.sizes.join(", ") : "no bet or raise"} · {actor} bets or raises {pct(x.raise)} of the range
+      {x.ev !== null ? ` · the range's EV ${x.ev.toFixed(2)}bb` : ""}
+    </li>
+  );
+  return (
+    <section aria-label="Size menus" className="space-y-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+      <h2 className="font-medium">Two size menus, {actor} to act</h2>
+      <ul className="space-y-0.5">
+        {side("A", m.a)}
+        {side("B", m.b)}
+      </ul>
+      <p>{menuWords(m, actor, pot)}</p>
+      <p className="text-xs text-muted">
+        A street's menu is every bet's on that street, both players', so each EV is what the game with that menu is worth to {actor} here, from the answers above (each
+        with its own badge). Study's one-size view keeps the rest of the tree and changes one decision's sizes.
+      </p>
+    </section>
   );
 }

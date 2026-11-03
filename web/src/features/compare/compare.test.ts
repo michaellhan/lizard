@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { freshHand, type StudyHand } from "@/features/study/studyState";
 import type { AdvisorResponse } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
-import { biggest, diffActions, diffClasses, noiseBb, nodeWarning, sourceWarning, totalsOf, whatDiffers } from "./compare";
+import { ANY_RAISE, biggest, diffActions, diffClasses, menusOf, menuWords, noiseBb, nodeWarning, sizesOnly, sourceWarning, totalsOf, whatDiffers } from "./compare";
 
 const A: AdvisorResponse = {
   study: "node",
@@ -126,5 +126,56 @@ describe("comparing two answers", () => {
     const t: StudyHand = { ...freshHand(6, 25), setup: { tournament: { payouts: [50, 30, 20] } } };
     expect(whatDiffers(t, freshHand(6, 25))).toEqual(["B drops: payouts 50/30/20"]);
     expect(whatDiffers(a, a)).toEqual([]);
+  });
+});
+
+describe("two size menus", () => {
+  it("are two spots that differ in their sizes and nothing else", () => {
+    const h: StudyHand = { ...freshHand(2, 100), board: "Ks7d2c", setup: { rake: 5, rakeCap: 3 } };
+    const m = (flop: number[]): StudyHand => ({ ...h, setup: { ...h.setup, sizes: { flop } } });
+    expect(sizesOnly(h, m([50]))).toBe(true);
+    expect(sizesOnly(m([33, 75]), m([50]))).toBe(true);
+    expect(sizesOnly(m([50]), m([50]))).toBe(false);
+    expect(sizesOnly(h, { ...m([50]), stack: 50 })).toBe(false);
+    expect(sizesOnly(h, { ...m([50]), setup: { sizes: { flop: [50] } } })).toBe(false);
+  });
+
+  it("are compared as any bet or raise, and by what each is worth to the player to act", () => {
+    // AA bets 80% with 33%, 90% with 75%; KQs 40% with either
+    const any = diffClasses(A, B, ANY_RAISE);
+    expect(any.find((d) => d.cls === "AA")).toMatchObject({ fa: 0.8, fb: 0.9 });
+    expect(any.find((d) => d.cls === "AA")!.dFreq).toBeCloseTo(0.1);
+    expect(any.find((d) => d.cls === "KQs")!.dFreq).toBeCloseTo(0);
+    const m = menusOf(A, B, prov({ exploitabilityPct: 0.3 }), prov({ exploitabilityPct: 0.3 }));
+    expect(m.a).toEqual({ sizes: ["bet 33%"], raise: 0.3, ev: 3.2 });
+    expect(m.b).toEqual({ sizes: ["bet 75%"], raise: 0.25, ev: 3.0 });
+    expect(m.dEv).toBeCloseTo(-0.2);
+    expect(m.dPot).toBeCloseTo(-0.02);
+    expect(m.dRaise).toBeCloseTo(-0.05);
+    // 0.2bb against 0.06bb of noise (0.6% of the 10bb pot); within 4% of it, noise; unmeasured, null
+    expect(m.band).toBeCloseTo(0.06);
+    expect(m.noise).toBe(false);
+    expect(menusOf(A, B, prov({ exploitabilityPct: 2 }), prov({ exploitabilityPct: 2 })).noise).toBe(true);
+    expect(menusOf(A, B, prov({}), prov({ exploitabilityPct: 2 })).noise).toBeNull();
+    expect(menusOf(A, { ...B, range_ev_bb: undefined }, prov({}), prov({})).dEv).toBeNull();
+  });
+
+  it("say which menu is worth more only beyond the two answers' distance from equilibrium, and close to a tie under twice it", () => {
+    const at = (pa: number | undefined, pb: number | undefined) => menuWords(menusOf(A, B, prov({ exploitabilityPct: pa }), prov({ exploitabilityPct: pb })), "BB", 10);
+    expect(at(0.3, 0.3)).toBe(
+      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), beyond the two answers' distance from equilibrium combined (0.06bb). B bets or raises 5.0 points less of the range.",
+    );
+    expect(at(0.7, 0.8)).toBe(
+      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), under twice the two answers' distance from equilibrium combined (0.15bb): close to a tie. B bets or raises 5.0 points less of the range.",
+    );
+    expect(at(1, 2)).toBe(
+      "B − A: −0.20bb, within the two answers' distance from equilibrium combined (0.30bb): neither menu is measurably worth more to BB here. B bets or raises 5.0 points less of the range.",
+    );
+    expect(at(undefined, 2)).toBe(
+      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), though no distance from equilibrium is measured on both sides to tell that from noise. B bets or raises 5.0 points less of the range.",
+    );
+    expect(menuWords(menusOf(A, { ...B, range_ev_bb: undefined }, prov({}), prov({})), "BB", 10)).toBe(
+      "No EV on both sides, so neither menu can be said to be worth more. B bets or raises 5.0 points less of the range.",
+    );
   });
 });

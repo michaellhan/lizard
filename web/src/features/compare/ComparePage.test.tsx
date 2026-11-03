@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CompareLinks, variantsOf } from "@/features/study/CompareLinks";
+import { betMenuOf, CompareLinks, variantsOf, withMenu } from "@/features/study/CompareLinks";
 import { freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
@@ -116,6 +116,29 @@ describe("the Compare page", () => {
     expect(screen.getByLabelText("What differs")).toHaveTextContent("stack 100bb → 50bb");
   });
 
+  it("compares two size menus: what each offers, how much bets, what each is worth, any bet or raise per class", async () => {
+    // A: the engine's 33%, bet by 30% (EV 3.30bb); B: 75% only, bet by 20% (EV 3.50bb)
+    const big = (): AdvisorResponse => {
+      const n = node(0.2, 0.9);
+      return { ...n, range_ev_bb: 3.5, actions: n.actions!.map((x) => (x.action === "check" ? x : { ...x, action: "bet 75%" })), grid: { ...n.grid!, actions: ["check", "bet 75%"] } };
+    };
+    stub.answerFor = (st) => (st.sizes ? big() : node(0.3, 0.8));
+    const b: StudyHand = { ...B, setup: { sizes: { flop: [75] } } };
+    renderAt(compareLink(B, b));
+    const menus = await screen.findByRole("region", { name: "Size menus" });
+    expect(stub.asked.map((st) => st.sizes ?? null)).toEqual([null, { flop: [75] }]);
+    expect(screen.getByLabelText("What differs")).toHaveTextContent("B adds: flop bets 75%");
+    const items = within(menus).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toEqual(["A: bet 33% · BB bets or raises 30.0% of the range · the range's EV 3.30bb", "B: bet 75% · BB bets or raises 20.0% of the range · the range's EV 3.50bb"]);
+    expect(menus).toHaveTextContent(
+      "B's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), beyond the two answers' distance from equilibrium combined (0.06bb). B bets or raises 10.0 points less of the range.",
+    );
+    // the grid: any bet or raise, the two menus' bets as one
+    const grid = screen.getByRole("grid", { name: "Change in any bet or raise" });
+    expect(within(grid).getByRole("gridcell", { name: /^AA: any bet or raise 80\.0% → 90\.0% \(\+10\.0 points\)/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Action")).toHaveValue("any bet or raise");
+  });
+
   it("asks nothing for a setup that can't be solved", async () => {
     const { unmount } = renderAt(compareLink(B, { ...B, stack: 5 }));
     expect(screen.getByRole("alert")).toHaveTextContent("These setups can't be solved: B: the table's stack must be 10–250bb.");
@@ -149,6 +172,37 @@ describe("Study's Compare this spot links", () => {
     expect(fromSearch(href("compare").get("a")!)).toEqual(A);
     fireEvent.change(screen.getByLabelText("Another stack"), { target: { value: "5" } });
     expect(within(nav).queryByRole("link", { name: "compare" })).toBeNull();
+  });
+
+  it("offers another bet menu where the player to act can bet heads-up after the flop", () => {
+    const flop: AdvisorResponse = { street: "flop", actions: [{ action: "check" }, { action: "bet 33%" }, { action: "bet 75%" }, { action: "all-in" }] };
+    expect(betMenuOf(B, flop)).toEqual({ street: "flop", now: [33, 75] });
+    expect(betMenuOf({ ...B, setup: { sizes: { flop: [50] } } }, flop)).toEqual({ street: "flop", now: [50] });
+    // facing a bet, multiway, or preflop: none
+    expect(betMenuOf(B, { street: "flop", actions: [{ action: "fold" }, { action: "call" }, { action: "raise to 9" }] })).toBeNull();
+    expect(betMenuOf(B, { ...flop, multiway: true })).toBeNull();
+    expect(betMenuOf(B, { ...flop, street: "preflop" })).toBeNull();
+    expect(withMenu(A, "flop", [33, 75], "75 33%")).toEqual({ b: null, problem: "the same menu as this spot's" });
+    expect(withMenu(A, "flop", [33, 75], "10, 20, 30, 40").problem).toBe("at most 3 flop bet sizes (each one multiplies the game tree)");
+    expect(withMenu(A, "flop", [33, 75], "600").problem).toBe("flop bet sizes must be 5–500% of the pot");
+    expect(withMenu(A, "flop", [33, 75], "big").problem).toBe("sizes are numbers, % of the pot");
+    expect(withMenu(A, "flop", [33, 75], " ").problem).toBe("type flop bet sizes, % of the pot");
+
+    render(
+      <MemoryRouter>
+        <CompareLinks hand={A} min={10} max={250} bets={{ street: "flop", now: [33, 75] }} />
+      </MemoryRouter>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Compare this spot" });
+    const input = within(nav).getByLabelText("Another flop bet menu");
+    expect(input).toHaveValue("33, 75");
+    expect(within(nav).queryByRole("link", { name: "compare menus" })).toBeNull();
+    expect(nav).toHaveTextContent("(the same menu as this spot's)");
+    fireEvent.change(input, { target: { value: "50, 125" } });
+    const q = new URLSearchParams(within(nav).getByRole("link", { name: "compare menus" }).getAttribute("href")!.split("?")[1]);
+    expect(fromSearch(q.get("a")!)).toEqual(A);
+    // (the rest of the setup kept)
+    expect(fromSearch(q.get("b")!)).toEqual({ ...A, setup: { ...A.setup, sizes: { flop: [50, 125] } } });
   });
 
   it("labels a grid cell in words", () => {

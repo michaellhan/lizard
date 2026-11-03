@@ -471,7 +471,9 @@ Moves matrix rows: all Tournament rows, and MTT.
   gives up. The charts against the preflop solve: a preflop spot's "Compare this spot" link, the sources named as what's
   compared. The picker for any two nodes (`SpotPicker.tsx`, `pin.ts`): on the Compare page each side from the saved
   spots, the spot pinned in Study, or a pasted Study link, with Swap; Study's "Pin as A" and "with the pinned spot".
-  **Still open in Phase 8:** a comparison of two size menus (the one-size view covers one size against the menu).
+  Two size menus (`compare.ts` `sizesOnly`, `menusOf`, `menuWords`): Study's "with flop bets … % compare menus" at a
+  heads-up decision after the flop, and on the Compare page what each menu offers, how much of the range bets or raises,
+  which is worth more to the player to act (noise-aware), and any bet or raise per class. Phase 8 has nothing open.
 - **A compare view, `web/src/features/compare/`.**
   - Two Study requests, each with its own provenance, and a diff grid per class (frequency and EV difference).
   - Changes in the range's totals.
