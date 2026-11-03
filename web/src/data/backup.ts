@@ -1,11 +1,11 @@
-// Backup and restore: everything kept in this browser (saved spots, saved ranges, session history, the hands imported
-// into Analyze with your tags and notes, and their grades) in one JSON file.
+// Backup and restore: everything kept in this browser (saved spots, saved ranges, saved drills, session history, the
+// hands imported into Analyze with your tags and notes, and their grades) in one JSON file.
 // Each record is written in the classic app's shape (solver/gto/static/store.js): { id, v, created, updated, dev,
 // data }, so a later account sync (ROADMAP Phase 11) can take the same records. Restore merges as classic does: a
 // record missing here is added, of two with one id the later `updated` stays, and nothing here is deleted.
 // Settings are not in the backup (they're a handful of choices, and restoring them would change this browser's).
-import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
-import { newId } from "./saved";
+import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
+import { isDrillLink, newId } from "./saved";
 
 export const BACKUP_FORMAT = "lizard-backup";
 /** the record shape's version (`v`); a backup of a later schema is refused rather than half read */
@@ -27,10 +27,11 @@ interface StoreData {
   sessions: SessionRecord;
   hands: HandRecord;
   decisions: DecisionRecord;
+  savedDrills: SavedDrill;
 }
 export type BackupStore = keyof StoreData;
-// (a backup made before hands were in it has no "hands" or "decisions": those restore nothing)
-export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "sessions", "hands", "decisions"];
+// (a backup made before hands or drills were in it has no "hands", "decisions" or "savedDrills": those restore nothing)
+export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "savedDrills", "sessions", "hands", "decisions"];
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
@@ -56,6 +57,13 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; upda
     created: (d) => d.createdAt,
     updated: (d) => d.updatedAt,
     valid: (d) => isStr(d.name) && isStr(d.text) && isNum(d.combos) && isStr(d.note) && isNum(d.createdAt) && isNum(d.updatedAt),
+  },
+  savedDrills: {
+    created: (d) => d.createdAt,
+    updated: (d) => d.updatedAt,
+    valid: (d) =>
+      isStr(d.name) && (d.kind === "library" || d.kind === "leak") && isStr(d.to) && isDrillLink(d.kind, d.to) && isStr(d.about) && isStr(d.note) &&
+      isNum(d.createdAt) && isNum(d.updatedAt),
   },
   sessions: {
     created: (d) => d.startedAt,

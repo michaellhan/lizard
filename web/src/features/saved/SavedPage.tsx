@@ -1,10 +1,11 @@
-// Saved: the spots saved from Study and the ranges saved from the Ranges editor, kept in this browser (IndexedDB),
-// with search, rename, delete, and a backup to one JSON file and back (data/backup.ts).
+// Saved: the spots saved from Study, the drills saved from Practice and Analyze, and the ranges saved from the Ranges
+// editor, kept in this browser (IndexedDB), with search, rename, delete, and a backup to one JSON file and back
+// (data/backup.ts).
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import type { SavedRange, SavedSpot } from "@/data/db";
+import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
 import { backupFileName, makeBackup, restoreBackup, restoreSummary } from "@/data/backup";
-import { deleteRange, deleteSpot, listRanges, listSpots, putSpot, readTags, spotMatches } from "@/data/saved";
+import { deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches } from "@/data/saved";
 import { describeLine, fromSearch } from "@/features/study/studyState";
 
 const lineText = (line: string) => {
@@ -16,16 +17,18 @@ const day = (t: number) => new Date(t).toLocaleDateString();
 export function SavedPage() {
   const [spots, setSpots] = useState<SavedSpot[] | null>(null);
   const [ranges, setRanges] = useState<SavedRange[] | null>(null);
+  const [drills, setDrills] = useState<SavedDrill[] | null>(null);
   const [query, setQuery] = useState("");
   const [n, setN] = useState(0);
   const reload = () => setN((x) => x + 1);
 
   useEffect(() => {
     let alive = true;
-    void Promise.all([listSpots(), listRanges()]).then(([s, r]) => {
+    void Promise.all([listSpots(), listRanges(), listDrills()]).then(([s, r, d]) => {
       if (!alive) return;
       setSpots(s);
       setRanges(r);
+      setDrills(d);
     });
     return () => {
       alive = false;
@@ -39,8 +42,8 @@ export function SavedPage() {
       <div>
         <h1 className="text-2xl font-semibold">Saved</h1>
         <p className="text-sm text-muted">
-          Spots saved from Study and ranges saved from Ranges. They're kept in this browser only: back them up to a file to keep them safe or to move
-          them to another browser.
+          Spots saved from Study, drills saved from Practice and Analyze, and ranges saved from Ranges. They're kept in this browser only: back them
+          up to a file to keep them safe or to move them to another browser.
         </p>
       </div>
 
@@ -67,6 +70,24 @@ export function SavedPage() {
         <ul className="space-y-2">
           {shown.map((s) => (
             <SpotRow key={s.id} spot={s} onChange={reload} />
+          ))}
+        </ul>
+      </section>
+
+      <section aria-label="Saved drills" className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold">Drills</h2>
+          <span className="text-sm text-muted">{drills ? `${drills.length} saved` : "…"}</span>
+        </div>
+        {drills && drills.length === 0 && (
+          <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
+            No saved drills yet. "☆ Save drill" keeps a drill as it's set: in <Link to="/practice?tab=drills" className="underline">Practice&rsquo;s drills</Link>{" "}
+            (spot, decision, texture), or a leak drill in <Link to="/analyze" className="underline">Analyze</Link> (the leak, over the hands its filters keep).
+          </p>
+        )}
+        <ul className="space-y-2">
+          {(drills ?? []).map((d) => (
+            <DrillRow key={d.id} drill={d} onChange={reload} />
           ))}
         </ul>
       </section>
@@ -181,6 +202,71 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
   );
 }
 
+function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(drill.name);
+  const [note, setNote] = useState(drill.note);
+  const save = async () => {
+    await putDrill({ ...drill, name: name.trim() || drill.name, note: note.trim(), updatedAt: Date.now() });
+    setEditing(false);
+    onChange();
+  };
+  return (
+    <li aria-label={drill.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+      {editing ? (
+        <form
+          aria-label={`Edit ${drill.name}`}
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <div className="flex gap-2">
+            <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
+              Save
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong>{drill.name}</strong>
+            <span className="rounded bg-surface-3 px-1.5 py-0.5 text-xs">{drill.kind === "library" ? "library drill" : "leak drill"}</span>
+            <span className="flex-1" />
+            {isDrillLink(drill.kind, drill.to) && (
+              <Link to={drill.to} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+                {drill.kind === "library" ? "Open in Practice" : "Open in Analyze"}
+              </Link>
+            )}
+            <button type="button" onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+              Edit
+            </button>
+            <DeleteButton
+              what="drill"
+              onDelete={() => {
+                void deleteDrill(drill.id).then(onChange);
+              }}
+            />
+          </div>
+          {drill.about !== drill.name && <p className="text-xs">{drill.about}</p>}
+          {drill.note && <p className="whitespace-pre-wrap">{drill.note}</p>}
+          <p className="text-xs text-muted">
+            Saved {day(drill.createdAt)}
+            {drill.updatedAt !== drill.createdAt ? `, changed ${day(drill.updatedAt)}` : ""}
+            {drill.kind === "leak" ? " · dealt from your graded decisions as they are when opened" : " · dealt from the precomputed library"}
+          </p>
+        </>
+      )}
+    </li>
+  );
+}
+
 function RangeRow({ range, onChange }: { range: SavedRange; onChange: () => void }) {
   return (
     <li aria-label={range.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
@@ -223,7 +309,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setMsg({
       ok: true,
-      text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions.`,
+      text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions.`,
     });
   };
 
@@ -251,7 +337,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
       <p className="text-muted">
-        One file with your saved spots, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
+        One file with your saved spots, saved drills, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
         imported into Analyze with your tags, notes and grades; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
       </p>

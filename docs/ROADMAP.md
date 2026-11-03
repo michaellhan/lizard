@@ -303,7 +303,8 @@ Moves matrix rows: Range-builder trainer.
   rename, delete, open in Study or Ranges); backup and restore (`web/src/data/backup.ts`: saved spots, saved ranges
   and sessions in the classic record shape, format `lizard-backup`, schema 1, restored by merging). Saved hands (2026-11-03): the
   Phase 2 imports and Practice hands (Keep in Analyze, or every hand by a setting), written as hand histories, with
-  tags, notes and search, in the backup. **Still open in Phase 5:** saved drills, the classic `gto-store` import, the backup prompt after a number of saves, and
+  tags, notes and search, in the backup. Saved drills (2026-11-03): "☆ Save drill" in Practice's drills and in a leak
+  drill, listed on the Saved page, in a `savedDrills` store (database version 5) and the backup. **Still open in Phase 5:** the classic `gto-store` import, the backup prompt after a number of saves, and
   settings in the backup (left out on purpose for now). The record shape still wants the review named in Risks
   before account sync builds on it.
 - **Saved spots.** Use the existing `savedSpots` store (`web/src/data/db.ts:41`, index `byUpdated`, interface `SavedSpot`).

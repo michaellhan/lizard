@@ -9,8 +9,21 @@ import { addScore, emptyScore, summary, type Grade, type Verdict } from "@/gradi
 import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
+import { SaveDrill } from "@/features/saved/SaveDrill";
 import { studyLinkAt } from "./analyze";
-import { drillItems, fromSession, gradePick, leakParam, lineBefore, toSession, withParams, type DrillProgress, type LeakRef } from "./leakDrill";
+import {
+  drillItems,
+  fromSession,
+  gradePick,
+  leakDrillAbout,
+  leakDrillLink,
+  leakParam,
+  lineBefore,
+  toSession,
+  withParams,
+  type DrillProgress,
+  type LeakRef,
+} from "./leakDrill";
 import { isGraded } from "./report";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -63,6 +76,7 @@ export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; 
           </p>
         </div>
         <span className="flex-1" />
+        <SaveDrill kind="leak" to={leakDrillLink(leak, params)} about={leakDrillAbout(leak, params)} />
         <button type="button" onClick={onClose} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
           Close
         </button>

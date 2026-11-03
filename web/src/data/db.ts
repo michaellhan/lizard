@@ -31,6 +31,22 @@ export interface SavedRange {
   updatedAt: number;
 }
 
+/** A drill kept under a name: where it opens (a drill is its page's URL), and what it drills. */
+export interface SavedDrill {
+  id: string;
+  name: string;
+  /** "library": a flop decision dealt from the precomputed library (Practice's drills); "leak": your own graded
+   * decisions behind a leak (Analyze's "Drill this leak", over the hands its filters keep) */
+  kind: "library" | "leak";
+  /** the page and its search, as the drill was set when saved ("/practice?tab=drills&spot=…") */
+  to: string;
+  /** what it drills, as the page put it when saved */
+  about: string;
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SessionRecord {
   id: string;
   kind: "practice" | "drill" | "analysis" | "build";
@@ -132,6 +148,7 @@ export interface LizardDB extends DBSchema {
   savedRanges: { key: string; value: SavedRange; indexes: { byUpdated: number } };
   hands: { key: string; value: HandRecord; indexes: { byPlayed: number; bySite: string; byImport: string; byHero: string; byPotType: string } };
   decisions: { key: string; value: DecisionRecord; indexes: { byHand: string; byVerdict: string; byStreet: string; byPos: string } };
+  savedDrills: { key: string; value: SavedDrill; indexes: { byUpdated: number } };
 }
 
 type UpgradeTx = IDBPTransaction<LizardDB, StoreNames<LizardDB>[], "versionchange">;
@@ -164,6 +181,10 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
     d.createIndex("byVerdict", "verdict");
     d.createIndex("byStreet", "street");
     d.createIndex("byPos", "pos");
+  },
+  5: (db) => {
+    const s = db.createObjectStore("savedDrills", { keyPath: "id" });
+    s.createIndex("byUpdated", "updatedAt");
   },
 };
 

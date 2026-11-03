@@ -7,7 +7,7 @@ import { grade, type Grade, type Score } from "@/grading/grade";
 import type { ReplayedHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
-import { STREETS } from "./analyze";
+import { HAND_FILTERS, STREETS } from "./analyze";
 import { isGraded, isOk, leakTest, type Leak } from "./report";
 
 const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
@@ -20,6 +20,28 @@ export function parseLeakParam(s: string | null): LeakRef | null {
   return m ? { kind: m[1] as Leak["kind"], key: m[2]! } : null;
 }
 export const drillSessionId = (l: LeakRef) => `leak-drill|${leakParam(l)}`;
+
+const FILTER_WORDS: Record<(typeof HAND_FILTERS)[number], string> = {
+  pos: "your seat",
+  pot: "pot",
+  site: "site",
+  bb: "stakes",
+  from: "from",
+  to: "to",
+  tag: "tag",
+  q: "search",
+};
+/** The leak's drill as a link to keep (data/saved.ts): the leak and the hands' filters, nothing else of the page. */
+export function leakDrillLink(l: LeakRef, params: URLSearchParams): string {
+  const q = new URLSearchParams({ drill: leakParam(l) });
+  for (const k of HAND_FILTERS) if (params.get(k)) q.set(k, params.get(k)!);
+  return `/analyze?${q}`;
+}
+/** What the link drills, in words: "Leak: … · your seat BTN, stakes 0.5/1". */
+export function leakDrillAbout(l: LeakRef, params: URLSearchParams): string {
+  const fs = HAND_FILTERS.filter((k) => params.get(k)).map((k) => `${FILTER_WORDS[k]} ${params.get(k)}`);
+  return `Leak: ${l.key}${fs.length ? ` · ${fs.join(", ")}` : ""}`;
+}
 
 /** The page's URL search with some params set (the filters and the rest kept), for a link. */
 export function withParams(params: URLSearchParams, o: Record<string, string>): string {

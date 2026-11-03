@@ -15,6 +15,7 @@ import { addScore, emptyScore, GRADE_RULES, summary, type Grade, type Score } fr
 import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
+import { SaveDrill } from "@/features/saved/SaveDrill";
 import { useSettings } from "@/state/settings";
 import {
   candidates,
@@ -88,6 +89,14 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
       </p>
     );
   if (!spot) return <p className="text-sm text-muted">This library has no two-player spot to drill.</p>;
+  // the drill as set, to keep (Saved): the spot named, not left to the first
+  const link = new URLSearchParams({ tab: "drills", spot: spot.id, view });
+  for (const g of TEXTURE_GROUPS) if (filter[g.key]) link.set(g.key, filter[g.key]!);
+  const about = [
+    `${spot.label}${spot.game ? ` (${gameLabel(spot)})` : ""}`,
+    viewLabel(view, spot.seats),
+    ...TEXTURE_GROUPS.flatMap((g) => (filter[g.key] ? [g.values[filter[g.key]!] ?? filter[g.key]!] : [])),
+  ].join(" · ");
 
   return (
     <div className="space-y-4">
@@ -95,42 +104,45 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
         One flop decision, dealt again and again from the precomputed library: answered at once, with no solve. The flop is drawn by how often it comes up,
         your hand by how often you&rsquo;d hold it here. Keys: 1&ndash;9 answer, Enter or Space for the next hand.
       </p>
-      <form aria-label="Drill" className="flex flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
-        <label className="flex items-center gap-1">
-          <span className="text-muted">Spot</span>
-          <select aria-label="Spot" value={spot.id} onChange={(e) => set("spot", e.target.value)} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
-            {spots.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-                {s.game ? ` (${gameLabel(s)})` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-muted">Decision</span>
-          <select aria-label="Decision" value={view} onChange={(e) => set("view", e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
-            {DRILL_VIEWS.map((v) => (
-              <option key={v} value={v}>
-                {viewLabel(v, spot.seats)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {TEXTURE_GROUPS.map((g) => (
-          <label key={g.key} className="flex items-center gap-1">
-            <span className="text-muted">{g.label}</span>
-            <select aria-label={g.label} value={filter[g.key] ?? ""} onChange={(e) => set(g.key, e.target.value || null)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
-              <option value="">Any</option>
-              {Object.entries(g.values).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
+      <div className="flex flex-wrap items-start gap-2">
+        <form aria-label="Drill" className="flex flex-1 flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
+          <label className="flex items-center gap-1">
+            <span className="text-muted">Spot</span>
+            <select aria-label="Spot" value={spot.id} onChange={(e) => set("spot", e.target.value)} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
+              {spots.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                  {s.game ? ` (${gameLabel(s)})` : ""}
                 </option>
               ))}
             </select>
           </label>
-        ))}
-      </form>
+          <label className="flex items-center gap-1">
+            <span className="text-muted">Decision</span>
+            <select aria-label="Decision" value={view} onChange={(e) => set("view", e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+              {DRILL_VIEWS.map((v) => (
+                <option key={v} value={v}>
+                  {viewLabel(v, spot.seats)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {TEXTURE_GROUPS.map((g) => (
+            <label key={g.key} className="flex items-center gap-1">
+              <span className="text-muted">{g.label}</span>
+              <select aria-label={g.label} value={filter[g.key] ?? ""} onChange={(e) => set(g.key, e.target.value || null)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+                <option value="">Any</option>
+                {Object.entries(g.values).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </form>
+        <SaveDrill kind="library" to={`/practice?${link}`} about={about} />
+      </div>
       <SpotDrill key={`${spot.id}|${view}`} files={lib.files} spot={spot} view={view} filter={filter} rng={rng} source={lib.label} />
     </div>
   );

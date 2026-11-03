@@ -1,5 +1,6 @@
-// Saved spots (Study lines) and saved ranges (the Ranges editor's), kept in this browser's IndexedDB (db.ts).
-import { db, type SavedRange, type SavedSpot } from "./db";
+// Saved spots (Study lines), saved ranges (the Ranges editor's) and saved drills (Practice's and Analyze's), kept in
+// this browser's IndexedDB (db.ts).
+import { db, type SavedDrill, type SavedRange, type SavedSpot } from "./db";
 
 /** A new record id (a random UUID where the browser has one). */
 export function newId(): string {
@@ -53,6 +54,31 @@ export async function deleteRange(id: string): Promise<void> {
   const d = await db();
   if (d) await d.delete("savedRanges", id);
 }
+
+export async function putDrill(s: SavedDrill): Promise<void> {
+  const d = await db();
+  if (d) await d.put("savedDrills", s);
+}
+
+/** Every saved drill, the latest changed first. */
+export async function listDrills(): Promise<SavedDrill[]> {
+  const d = await db();
+  return d ? newestFirst(await d.getAll("savedDrills")) : [];
+}
+
+export async function deleteDrill(id: string): Promise<void> {
+  const d = await db();
+  if (d) await d.delete("savedDrills", id);
+}
+
+/** The drill saved at this link, if any (a drill is saved once: saving it again updates it). */
+export async function drillAt(to: string): Promise<SavedDrill | undefined> {
+  return (await listDrills()).find((s) => s.to === to);
+}
+
+/** Whether a saved drill's link is one of the drill pages' (a restored backup's is checked before it's opened). */
+export const isDrillLink = (kind: SavedDrill["kind"], to: string): boolean =>
+  kind === "library" ? /^\/practice\?tab=drills(&|$)/.test(to) : /^\/analyze\?drill=[^&]+/.test(to);
 
 /** Tags typed as one line: split on commas, trimmed, empty and repeated ones dropped. */
 export function readTags(text: string): string[] {

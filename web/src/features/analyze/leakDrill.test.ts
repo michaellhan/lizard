@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { addScore, emptyScore } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
-import { drillItems, drillSessionId, fromSession, gradePick, leakParam, lineBefore, parseLeakParam, toSession } from "./leakDrill";
+import { drillItems, drillSessionId, fromSession, gradePick, leakDrillAbout, leakDrillLink, leakParam, lineBefore, parseLeakParam, toSession } from "./leakDrill";
 
 const hand = (id: string, playedAt: number) => ({ id, playedAt }) as HandRecord;
 const hands = new Map([["h1", hand("h1", 1)], ["h2", hand("h2", 2)]]);
@@ -82,5 +82,13 @@ describe("leakDrill", () => {
     expect(s).toMatchObject({ id: "leak-drill|pf:RFI", kind: "analysis", startedAt: 10, endedAt: 20, decisions: 1, meta: { drill: "leak", leak: "pf:RFI", total: 5, done: ["d1"] } });
     expect(fromSession(s)).toEqual({ startedAt: 10, done: ["d1"], score });
     expect([fromSession(undefined), fromSession({ ...s, meta: {} })]).toEqual([null, null]);
+  });
+
+  it("keeps a leak's drill as a link: the leak and the hands' filters, nothing else of the page", () => {
+    const leak = { kind: "pf" as const, key: "BTN RFI" };
+    const params = new URLSearchParams({ hand: "PokerStars|1|AhKd", pos: "BTN", bb: "0.5/1", q: "suited", drill: "freq:x", page: "2" });
+    expect(leakDrillLink(leak, params)).toBe("/analyze?drill=pf%3ABTN+RFI&pos=BTN&bb=0.5%2F1&q=suited");
+    expect(leakDrillAbout(leak, params)).toBe("Leak: BTN RFI · your seat BTN, stakes 0.5/1, search suited");
+    expect([leakDrillLink(leak, new URLSearchParams()), leakDrillAbout(leak, new URLSearchParams())]).toEqual(["/analyze?drill=pf%3ABTN+RFI", "Leak: BTN RFI"]);
   });
 });

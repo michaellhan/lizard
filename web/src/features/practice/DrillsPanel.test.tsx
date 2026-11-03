@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { libFile } from "@/test/library";
 import { recentSessions } from "@/data/db";
+import { listDrills } from "@/data/saved";
 import { LibraryFiles } from "@/library/files";
 import { seeded } from "@/poker/table";
 import { DrillsPanel } from "./DrillsPanel";
@@ -69,6 +70,19 @@ describe("DrillsPanel", () => {
     const names = within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""));
     expect(names[0]).toBe("fold");
     expect(names[1]).toMatch(/^call \d+(\.\d+)?bb$/);
+
+    // the drill as set, saved under a name (Saved lists it)
+    await waitFor(() => expect(screen.getByRole("button", { name: "☆ Save drill" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "☆ Save drill" }));
+    const form = screen.getByRole("form", { name: "Save drill" });
+    const name = within(form).getByRole("textbox", { name: "Name" });
+    expect((name as HTMLInputElement).value).toBe("BTN vs BB single-raised pot · BB checks, faces a bet · Monotone");
+    fireEvent.change(name, { target: { value: "Monotone defence" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    expect(await within(form).findByRole("status")).toHaveTextContent("Saved in this browser.");
+    expect(screen.getByRole("button", { name: "★ Saved drill" })).toBeInTheDocument();
+    const [d] = await listDrills();
+    expect(d).toMatchObject({ name: "Monotone defence", kind: "library", to: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono" });
   });
 
   it("says when no flop stores the decision with that texture", async () => {

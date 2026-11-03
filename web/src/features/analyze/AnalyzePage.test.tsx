@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
+import { deleteDrill, listDrills } from "@/data/saved";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { AnalyzePage } from "./AnalyzePage";
 
@@ -190,6 +191,18 @@ describe("AnalyzePage", () => {
     const view = open(`pos=BTN&${q}`);
     const drill = await screen.findByRole("region", { name: "Leak drill" });
     expect(within(drill).getByRole("heading", { name: "Drill: SRP · IP · checked to" })).toBeInTheDocument();
+    // kept as a saved drill: the leak, over the hands its filters keep
+    // (enabled once it's looked up whether the drill is saved)
+    await waitFor(() => expect(within(drill).getByRole("button", { name: "☆ Save drill" })).toBeEnabled());
+    fireEvent.click(within(drill).getByRole("button", { name: "☆ Save drill" }));
+    const save = within(drill).getByRole("form", { name: "Save drill" });
+    expect(within(save).getByRole("textbox", { name: "Name" })).toHaveValue("Leak: SRP · IP · checked to · your seat BTN");
+    fireEvent.click(within(save).getByRole("button", { name: "Save" }));
+    expect(await within(save).findByRole("status")).toHaveTextContent("Saved in this browser.");
+    const [kept] = await listDrills();
+    expect(kept).toMatchObject({ kind: "leak", to: `/analyze?${new URLSearchParams({ drill: "spot:SRP · IP · checked to", pos: "BTN" })}` });
+    await deleteDrill(kept!.id);
+    fireEvent.click(within(save).getByRole("button", { name: "Close" }));
     expect(await within(drill).findByLabelText("Drill score")).toHaveTextContent("0 of 1 drilled.");
     expect(drill).toHaveTextContent("Decision 1 of 1 · SRP · IP · checked to · PokerStars hand #249012345678");
     expect(within(drill).getByRole("list", { name: "The action before" })).toHaveTextContent("flopBB checks");

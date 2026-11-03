@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BACKUP_STORES, makeBackup } from "@/data/backup";
 import { db, type SavedSpot } from "@/data/db";
-import { listRanges, listSpots, putRange, putSpot } from "@/data/saved";
+import { listDrills, listRanges, listSpots, putDrill, putRange, putSpot } from "@/data/saved";
 import { fromSearch, studyRequest } from "@/features/study/studyState";
 import { RangesPage } from "@/features/ranges/RangesPage";
 import { formatRange, parseRange, rangeCombos } from "@/features/ranges/rangeText";
@@ -106,7 +106,7 @@ describe("SavedPage", () => {
     renderAt("/saved");
     await screen.findByRole("listitem", { name: "Kept" });
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(await screen.findByText("Backup made: 1 spots, 0 ranges, 0 sessions, 0 hands, 0 graded decisions.")).toBeInTheDocument();
+    expect(await screen.findByText("Backup made: 1 spots, 0 drills, 0 ranges, 0 sessions, 0 hands, 0 graded decisions.")).toBeInTheDocument();
     expect(click).toHaveBeenCalledOnce();
     expect(JSON.parse(await created[0]!.text()).stores.savedSpots[0].data.title).toBe("Kept");
 
@@ -124,9 +124,42 @@ describe("SavedPage", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("That isn't a Lizard backup file."));
   });
 
+  it("lists saved drills of both kinds, opens one where it's dealt, renames and deletes", async () => {
+    const at = { note: "", createdAt: 1 };
+    await putDrill({ id: "l", name: "Monotone defence", kind: "library", to: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono", about: "BTN vs BB · BB facing a bet · Monotone", ...at, updatedAt: 2 });
+    await putDrill({ id: "k", name: "BTN opens", kind: "leak", to: "/analyze?drill=pf%3ABTN+RFI&bb=0.5%2F1", about: "Leak: BTN RFI · stakes 0.5/1", ...at, note: "too tight", updatedAt: 3 });
+    // (a link that isn't a drill page's is listed, not opened)
+    await putDrill({ id: "x", name: "Odd one", kind: "library", to: "/settings", about: "?", ...at, updatedAt: 1 });
+    renderAt("/saved");
+    const section = await screen.findByRole("region", { name: "Saved drills" });
+    await within(section).findByText("3 saved");
+    expect(within(section).getAllByRole("listitem").map((l) => l.getAttribute("aria-label"))).toEqual(["BTN opens", "Monotone defence", "Odd one"]);
+    const leak = within(section).getByRole("listitem", { name: "BTN opens" });
+    expect(leak).toHaveTextContent("leak drill");
+    expect(leak).toHaveTextContent("Leak: BTN RFI · stakes 0.5/1");
+    expect(leak).toHaveTextContent("too tight");
+    expect(within(leak).getByRole("link", { name: "Open in Analyze" })).toHaveAttribute("href", "/analyze?drill=pf%3ABTN+RFI&bb=0.5%2F1");
+    expect(within(within(section).getByRole("listitem", { name: "Odd one" })).queryByRole("link")).toBeNull();
+
+    // renamed, then deleted (asked once more)
+    fireEvent.click(within(leak).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(section).getByRole("textbox", { name: "Name" }), { target: { value: "Button opens, 0.5/1" } });
+    fireEvent.click(within(section).getByRole("button", { name: "Save" }));
+    const renamed = await within(section).findByRole("listitem", { name: "Button opens, 0.5/1" });
+    expect((await listDrills()).find((d) => d.id === "k")).toMatchObject({ name: "Button opens, 0.5/1", note: "too tight", to: "/analyze?drill=pf%3ABTN+RFI&bb=0.5%2F1" });
+    fireEvent.click(within(renamed).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(renamed).getByRole("button", { name: "Delete drill" }));
+    await waitFor(() => expect(within(section).queryByRole("listitem", { name: "Button opens, 0.5/1" })).toBeNull());
+    expect((await listDrills()).map((d) => d.id)).toEqual(["l", "x"]);
+
+    fireEvent.click(within(within(section).getByRole("listitem", { name: "Monotone defence" })).getByRole("link", { name: "Open in Practice" }));
+    expect(screen.getByTestId("where")).toHaveTextContent("/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono");
+  });
+
   it("says where saved things come from when there are none", async () => {
     renderAt("/saved");
     expect(await screen.findByText(/No saved spots yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No saved drills yet/)).toBeInTheDocument();
     expect(screen.getByText(/No saved ranges yet/)).toBeInTheDocument();
   });
 });

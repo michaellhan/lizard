@@ -1070,3 +1070,46 @@ only: the hand stopped" and "Open this spot in Study".
 ### Precompute builds
 
 Untouched. Memory 65% free; every check ran under `nice`.
+
+## 2026-11-03: Phase 5, saved drills (second session)
+
+Deploy of 1300026 (keys in full-hand Practice) verified live: `index-bDZEcHDK.js`, which has "K keeps it in Analyze".
+
+### Code
+
+- `data/db.ts`: migration 5, a `savedDrills` store (`SavedDrill`: id, name, kind "library" or "leak", `to` (the
+  drill's page and search), `about`, note, times; index `byUpdated`). A drill is its page's URL, so a saved drill is
+  that link under a name.
+- `data/saved.ts`: `putDrill`, `listDrills`, `deleteDrill`, `drillAt` (one record per link: saving again updates it),
+  `isDrillLink` (only `/practice?tab=drills…` or `/analyze?drill=…`).
+- `data/backup.ts`: `savedDrills` in the backup; a restored drill whose link isn't a drill page's is skipped.
+- `features/saved/SaveDrill.tsx`: "☆ Save drill" / "★ Saved drill", a name (the drill's description by default) and
+  a note. In `DrillsPanel.tsx` (spot named, decision, texture; next to the drill's form, not inside it) and in
+  `LeakDrillPanel.tsx` (`leakDrill.ts` `leakDrillLink`/`leakDrillAbout`: the leak and the hands' filters, nothing
+  else of the page).
+- `SavedPage.tsx`: a Drills section (kind, description, note, "Open in Practice"/"Open in Analyze", Edit, Delete);
+  the backup message counts drills.
+- A saved leak drill is dealt from your graded decisions as they are when opened (not a frozen set, as classic's
+  40-spot set is), and its progress is the leak's session, as before.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 249/249 in 40 files. New: the v4→v5 upgrade (`db.test.ts`); saved drills listed, found by link, deleted, links checked, round-tripped and a bad link skipped in the backup (`backup.test.ts`); the leak link and its description (`leakDrill.test.ts`); Save drill in the drills panel and in a leak drill (`DrillsPanel.test.tsx`, `AnalyzePage.test.tsx`); the Saved page's drills (`SavedPage.test.tsx`) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+One flaky step found and fixed: the Save drill button is disabled until its lookup answers; the tests wait for it.
+
+### Checked in the browser (local build)
+
+- The preview's database (version 4, with kept hands and a saved spot and range) upgraded to 5 on load.
+- `/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono`: Save drill named "BTN vs BB single-raised pot · BB
+  checks, faces a bet · Monotone", saved, "★ Saved drill". Saved lists it as a library drill; "Open in Practice"
+  opened the same spot, decision and texture. No console errors; no solve ran.
+- Not checked in the browser: saving a leak drill (the preview has no graded leak); covered by `AnalyzePage.test.tsx`.
+
+### Precompute builds
+
+Untouched. Memory 64% free; every check ran under `nice`.

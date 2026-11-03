@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { BACKUP_FORMAT, BACKUP_STORES, backupFileName, makeBackup, restoreBackup, restoreSummary, type Backup } from "./backup";
-import { db, putSession, type DecisionRecord, type HandRecord, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
+import { db, putSession, type DecisionRecord, type HandRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
 import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
-import { deleteSpot, listRanges, listSpots, putRange, putSpot, readTags, spotAt, spotMatches } from "./saved";
+import { deleteDrill, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, spotAt, spotMatches } from "./saved";
 
 const spot = (id: string, updatedAt: number, extra: Partial<SavedSpot> = {}): SavedSpot => ({
   id,
@@ -17,6 +17,17 @@ const spot = (id: string, updatedAt: number, extra: Partial<SavedSpot> = {}): Sa
   ...extra,
 });
 const range = (id: string, updatedAt: number): SavedRange => ({ id, name: `range ${id}`, text: "22+,AKs", combos: 82, note: "", createdAt: 1, updatedAt });
+const drill = (id: string, updatedAt: number, extra: Partial<SavedDrill> = {}): SavedDrill => ({
+  id,
+  name: `drill ${id}`,
+  kind: "library",
+  to: `/practice?tab=drills&spot=srp_btn_bb&view=vsbet&hi=${id}`,
+  about: "BTN vs BB SRP · BB facing a bet",
+  note: "",
+  createdAt: 1,
+  updatedAt,
+  ...extra,
+});
 const session = (id: string, startedAt: number, endedAt?: number): SessionRecord => ({
   id,
   kind: "drill",
@@ -57,21 +68,50 @@ describe("saved spots and ranges", () => {
   });
 });
 
+describe("saved drills", () => {
+  it("lists the latest changed first, finds a drill by its link, deletes", async () => {
+    await putDrill(drill("a", 5));
+    await putDrill(drill("b", 9, { kind: "leak", to: "/analyze?drill=pf%3ABTN+RFI&pos=BTN" }));
+    expect((await listDrills()).map((d) => d.id)).toEqual(["b", "a"]);
+    expect((await drillAt("/analyze?drill=pf%3ABTN+RFI&pos=BTN"))?.id).toBe("b");
+    expect(await drillAt("/practice?tab=drills")).toBeUndefined();
+    await deleteDrill("b");
+    expect((await listDrills()).map((d) => d.id)).toEqual(["a"]);
+  });
+
+  it("opens only the drill pages' links", () => {
+    expect(isDrillLink("library", "/practice?tab=drills&spot=x")).toBe(true);
+    expect(isDrillLink("library", "/practice?tab=drills")).toBe(true);
+    expect(isDrillLink("leak", "/analyze?drill=freq%3Ax")).toBe(true);
+    for (const [k, to] of [
+      ["library", "/analyze?drill=freq%3Ax"],
+      ["leak", "/practice?tab=drills"],
+      ["library", "javascript:alert(1)"],
+      ["library", "https://example.com/practice?tab=drills"],
+      ["leak", "/analyze?hand=x"],
+      ["library", "/practice?tab=drillsx"],
+    ] as const)
+      expect(isDrillLink(k, to)).toBe(false);
+  });
+});
+
 describe("backup and restore", () => {
   it("round-trips every record exactly, in the classic record shape", async () => {
     await putSpot(spot("a", 5));
     await putRange(range("r", 7));
     await putSession(session("d", 10, 20));
     await putSession(session("e", 30));
+    await putDrill(drill("k", 8, { note: "every texture" }));
     const b = await makeBackup(() => Date.UTC(2026, 10, 3));
     expect(b.format).toBe(BACKUP_FORMAT);
     expect(b.exported).toBe("2026-11-03T00:00:00.000Z");
-    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, sessions: 2, hands: 0, decisions: 0 });
+    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, savedDrills: 1, sessions: 2, hands: 0, decisions: 0 });
+    expect(b.stores.savedDrills[0]).toEqual({ id: "k", v: 1, created: 1, updated: 8, dev: b.device, data: drill("k", 8, { note: "every texture" }) });
     expect(b.stores.sessions.find((r) => r.id === "d")).toMatchObject({ id: "d", v: 1, created: 10, updated: 20, dev: b.device });
     expect(b.stores.sessions.find((r) => r.id === "e")).toMatchObject({ created: 30, updated: 30 });
     expect(b.stores.savedSpots[0]).toEqual({ id: "a", v: 1, created: 1, updated: 5, dev: b.device, data: spot("a", 5) });
 
-    const before = { spots: await listSpots(), ranges: await listRanges(), sessions: (await (await db())!.getAll("sessions")).sort((x, y) => x.id.localeCompare(y.id)) };
+    const before = { spots: await listSpots(), ranges: await listRanges(), drills: await listDrills(), sessions: (await (await db())!.getAll("sessions")).sort((x, y) => x.id.localeCompare(y.id)) };
     await clearAll();
     expect(await listSpots()).toEqual([]);
     // through the file's text, as a download and an upload would
@@ -80,8 +120,9 @@ describe("backup and restore", () => {
     expect(r.sessions.added).toBe(2);
     expect(await listSpots()).toEqual(before.spots);
     expect(await listRanges()).toEqual(before.ranges);
+    expect(await listDrills()).toEqual(before.drills);
     expect((await (await db())!.getAll("sessions")).sort((x, y) => x.id.localeCompare(y.id))).toEqual(before.sessions);
-    expect(restoreSummary(r)).toBe("4 added, 0 updated, 0 kept (as new or newer here)");
+    expect(restoreSummary(r)).toBe("5 added, 0 updated, 0 kept (as new or newer here)");
   });
 
   it("merges: a newer record here is kept, an older one replaced, a missing one added, nothing deleted", async () => {
@@ -115,13 +156,20 @@ describe("backup and restore", () => {
           { id: "ok", v: 1, created: 1, updated: 1, dev: "d", data: spot("ok", 1) },
         ],
         sessions: [{ id: "s", v: 1, created: 1, updated: 1, dev: "d", data: { ...session("s", 1), kind: "poker" } }],
+        // (a drill whose link isn't a drill page's is not restored)
+        savedDrills: [
+          { id: "j", v: 1, created: 1, updated: 1, dev: "d", data: drill("j", 1, { to: "javascript:alert(1)" }) },
+          { id: "g", v: 1, created: 1, updated: 1, dev: "d", data: drill("g", 1) },
+        ],
       },
     };
     const r = await restoreBackup(bad);
     expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 3 });
     expect(r.sessions.skipped).toBe(1);
+    expect(r.savedDrills).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1 });
+    expect((await listDrills()).map((d) => d.id)).toEqual(["g"]);
     expect(r.savedRanges).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
-    expect(restoreSummary(r)).toMatch(/4 skipped/);
+    expect(restoreSummary(r)).toMatch(/5 skipped/);
     await expect(restoreBackup({ format: "gto-solver-backup", stores: {} })).rejects.toThrow("That isn't a Lizard backup file.");
     await expect(restoreBackup(null)).rejects.toThrow("That isn't a Lizard backup file.");
     await expect(restoreBackup({ ...b, schema: 2 })).rejects.toThrow(/newer Lizard/);
