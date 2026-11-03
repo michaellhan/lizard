@@ -28,6 +28,7 @@ import {
   type StudyHand,
 } from "./studyState";
 import { BuildMode, type BuildSaved } from "./BuildMode";
+import { EvGapPanel } from "@/features/compare/EvGapPanel";
 import { ChipCompare } from "./ChipCompare";
 import { CompareLinks } from "./CompareLinks";
 import { ComboPanel } from "./ComboPanel";
@@ -380,6 +381,7 @@ export function StudyPage() {
           </aside>
         </div>
       )}
+      {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />}
     </div>
   );
 }

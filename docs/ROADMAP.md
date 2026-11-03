@@ -454,9 +454,11 @@ Moves matrix rows: all Tournament rows, and MTT.
   is approximate, the actions with B − A in frequency and EV (EV changes within both answers' distance from
   equilibrium greyed as noise), the range's totals, a diff grid per class for any one action, and the biggest
   differences. Study links each answer to it: a tournament in chip EV, with or without rake postflop, another stack.
-  Tests: the diff of an answer with itself is zero, the warning for mixed or approximate sources.
-  **Still open in Phase 8:** Compare EV (two actions per class), the charts against the preflop solve preset, the
-  one-size view (`simple.test.js`), and a picker for any two nodes.
+  Tests: the diff of an answer with itself is zero, the warning for mixed or approximate sources. Compare EV: under a
+  solved node's grid in Study, one action's EV minus another's per class (`evgap.ts`, `EvGapPanel.tsx`), with the
+  classes where each is worth most more, the check that classes taking both are near zero, and the rough-EV caveat.
+  **Still open in Phase 8:** the charts against the preflop solve preset, the one-size view (`simple.test.js`), and a
+  picker for any two nodes.
 - **A compare view, `web/src/features/compare/`.**
   - Two Study requests, each with its own provenance, and a diff grid per class (frequency and EV difference).
   - Changes in the range's totals.

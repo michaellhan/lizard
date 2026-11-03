@@ -1650,3 +1650,47 @@ Untouched (read-only `ps`). Memory 63–66% free; everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 8, two actions' EV per hand class in Study (second session)
+
+Deploy of 44eb995 (the Compare view) verified live: run 41690931188 passed; `/lizard/` serves `index-CuJr8-w7.js`,
+which has "Compare this spot" and the mixed-source warning, and `/lizard/compare` answers 200.
+
+### Code
+
+- `web/src/features/compare/evgap.ts`: per class in the range, one action's EV minus another's, from the grid cells'
+  per-action EVs; the classes where each is worth most more; the classes taking both (each 5% or more) and their
+  gaps' mean size; offered only where every action has an EV per class (not for a chart, a read at once or a 4-way
+  answer).
+- `EvGapPanel.tsx`, under a solved node's grid in Study ("Compare two actions' EV", closed by default): two action
+  pickers (the two the range takes most first) and Swap, the grid (blue: the first is worth more; red: the second),
+  gaps under the answer's distance from equilibrium left uncoloured, the two lists, the equilibrium check, and "≈ …
+  its EVs are rough (usually too low)" when either action is `rough_ev`. EVs in the user's unit (bb or % pot).
+- `DiffMatrix.tsx`: the grid is now `DeltaMatrix` (any change, its scale and threshold), used by both.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 300/300 in 51 files. New: `evgap.test.tsx` (5: offered only with every action's EV; the gap and its sign; the lists and the equilibrium check; the panel: defaults, the rough-EV caveat, noise, Swap, cell labels, the lists; not offered without EVs) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- Heads-up 100bb, SB raise 2.5, BB call, Ks7d2c, BB check (a live solve): "EV of bet 33% minus check", strongest
+  +0.70bb (KK), check worth most more with 88 (+0.08bb), "89 classes take both at least 5% of the time; their gaps
+  average 0.01bb in size", noise under 0.01bb. 375px: no overflow. No console errors from the new bundle.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 63–66% free; everything ran under `nice`.
+
+### Next
+
+- Phase 8, still open: the charts against the preflop solve preset, the one-size view (port `simple.test.js`), a
+  picker for any two nodes.
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).
