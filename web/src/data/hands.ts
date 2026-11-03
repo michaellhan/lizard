@@ -2,6 +2,9 @@
 // kept is left as it is), listed newest first, and removed an import at a time with their decisions.
 import { db, type DecisionRecord, type HandRecord } from "./db";
 
+/** The site a hand played in Practice is kept under (features/practice/history.ts). */
+export const PRACTICE_SITE = "Lizard Practice";
+
 /** Keep the hands not kept yet: how many were new, and how many were already here (from an earlier import); null
  * where this browser keeps nothing. */
 export async function addHands(hands: readonly HandRecord[]): Promise<{ added: number; existing: number } | null> {

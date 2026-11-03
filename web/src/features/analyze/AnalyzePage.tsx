@@ -7,7 +7,7 @@ import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { addHands, deleteImport, importsOf, listDecisions, listHands, putHandNotes, type ImportSummary } from "@/data/hands";
+import { addHands, deleteImport, importsOf, listDecisions, listHands, putHandNotes, PRACTICE_SITE, type ImportSummary } from "@/data/hands";
 import { readTags } from "@/data/saved";
 import type { Verdict } from "@/grading/grade";
 import { newId } from "@/data/saved";
@@ -525,7 +525,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
       <div className="flex flex-wrap items-start gap-2">
         <div className="space-y-0.5">
           <h2 className="text-lg font-semibold">
-            {h.site} hand{hand.number ? ` #${hand.number}` : ""}
+            {hand.site} hand{hand.number ? ` #${hand.number}` : ""}
           </h2>
           <p className="text-muted">
             {[hand.played, `${h.players}-handed`, `big blind ${hand.bb}`, h.tournament ? `tournament ${h.tournament.name ?? h.tournament.id ?? ""}` : null, h.ante ? `${fmt(h.ante)}bb ante` : null, h.straddle ? `${seatsOf(h.players)[0]} straddles` : null]
@@ -557,7 +557,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
         ))}
       </ol>
       <p className="text-muted">
-        Pot {fmt(sim.pot)}bb ({hand.end}). From your hand history, replayed on Lizard's table.
+        Pot {fmt(sim.pot)}bb ({hand.end}). {hand.site === PRACTICE_SITE ? "A hand you played in Practice" : "From your hand history"}, replayed on Lizard's table.
         {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve), your flop moves against the flop library." : " None of your decisions here is graded yet."}
         {(h.ante > 0 || h.straddle) && " Study can't set up this hand's ante or straddle, so its decisions don't open in Study."}
       </p>

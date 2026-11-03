@@ -11,6 +11,8 @@ export interface Settings {
   librarySource: LibraryChoice;
   /** how EVs are displayed: bb, or % of the pot at the node (Study's action buttons, combo panel) */
   evUnit: "bb" | "pot";
+  /** Practice: keep every hand played in Analyze's hands */
+  keepHands: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -19,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   localSolverUrl: DEFAULT_LOCAL_SOLVER_URL,
   librarySource: "auto",
   evUnit: "bb",
+  keepHands: false,
 };
 
 const KEY = "settings.v1";
@@ -32,8 +35,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

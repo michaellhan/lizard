@@ -945,3 +945,54 @@ Untouched. Memory 58–59% free; every check ran under `nice`.
 - Realized results (needs the parser to read what each seat collected, with the classic parser), an EV-lost filter,
   a history across sessions.
 
+
+### Deploy of `17b8314`, checked live
+
+Deploy run 41670559221 passed. `/lizard/` serves `index-JerAHBaU.js`, the local build's bundle, which holds "Add
+tags or a note", the hand search and the backup's graded-decision count.
+
+## 2026-11-03: Phase 5/6, hands played in Practice kept in Analyze (second session)
+
+### Code
+
+- `features/practice/history.ts`: a finished Practice hand written as a hand history in PokerStars' layout under
+  Lizard's own header ("Lizard Practice Hand #L<session start>-<hand>"), which the parser reads as a site it doesn't
+  name. Seats named by position, you as "You"; a "Dealt to" line for every seat (so seats still to act after your
+  fold are dealt in); each move as what it adds, a raise's size and total, "and is all-in"; the bet nobody called
+  returned as the table returns it; the board only as far as it was dealt; opponents' cards only at a showdown they
+  reached; who collected what (nothing after your fold, which ends the hand for you). `practiceRecord` keeps it under
+  the site "Lizard Practice" (`PRACTICE_SITE` in `data/hands.ts`), stakes "1bb", one import per Practice session.
+- `PracticePage.tsx`: at a hand's end, "Keep in Analyze" (then "Kept in Analyze · Open it there", linking to the
+  hand) and "Keep every hand" (setting `keepHands`, off by default; ticking it keeps the hand on screen too).
+- `AnalyzePage.tsx`: the hand's heading shows the kept record's site; a Practice hand says it was played in Practice.
+- Analyze grades a kept Practice hand as an imported one (preflop charts, flop library). Practice's own grades from
+  its live solves are not carried over (a follow-up: they'd be the only turn and river grades).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 239/239 in 40 files. New: `features/practice/history.test.ts` (written and read back on the table engine, move by move: a single-raised pot to a showdown, your fold preflop and on the flop with no unshown card written, all folding to you with the uncalled bet, a jam and its call heads-up, a flop bet all-in, nine-handed names UTG/UTG1/UTG2), a keep case in `PracticePage.test.tsx` (the button, the link, the record; Keep every hand keeping the next hand as it ends) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Folded the button to an HJ open, kept it: "Kept in Analyze · Open it there" opened Analyze on "Lizard Practice
+  hand #L…-1", replayed (UTG folds, HJ raises to 2.5, CO folds, You fold; pot 4bb), its own import row, the Site
+  filter listing "Lizard Practice". Grading it: the fold graded Best against the preflop charts.
+- 375px: the row wraps, no page overflow. Ticking Keep every hand kept that hand; the next one (folded in the CO)
+  was kept as it ended. The setting was turned back off. No console errors. Only preflop hands were played (chart
+  answers), so no solve ran.
+
+### Precompute builds
+
+Untouched. Memory 53–68% free; every check ran under `nice`.
+
+### Next
+
+- Practice's own grades carried with a kept hand (its live solves: turn and river grades Analyze doesn't have yet).
+- Turn and river grading in Analyze (live solves or Quick triage, in the user's browser).
+- Named drills and a drill list, the classic `gto-store` import, a backup prompt.
+- Realized results (needs the parser to read what each seat collected, with the classic parser), an EV-lost filter,
+  a history across sessions.

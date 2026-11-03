@@ -4,13 +4,14 @@
 // answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
 // preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
 // As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor).
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, kindOf, pct } from "@/components/actions";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
+import { addHands } from "@/data/hands";
 import { addScore, emptyScore, GRADE_RULES, summary, type Score } from "@/grading/grade";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
@@ -20,6 +21,7 @@ import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
+import { practiceRecord } from "./history";
 import {
   dealNext,
   decide,
@@ -71,6 +73,10 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
   evLossBb: s.score.loss,
   meta: { hands: s.hands, net: s.net, ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, players: s.players, stack: s.stack },
 });
+
+/** A finished hand kept in Analyze, or being kept: `key` is the session's and the hand's place in it. */
+type Kept = { key: string } & ({ st: "saving" } | { st: "kept"; id: string; had: boolean } | { st: "error"; message: string });
+const keyOf = (s: Pick<PracticeSession, "id">, h: Pick<PracticeHand, "n">) => `${s.id}|${h.n}`;
 
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -142,21 +148,46 @@ function FullHands({ pace }: { pace: number }) {
   const [last, setLast] = useState<Decision | null>(null);
   const [retry, setRetry] = useState(0);
   const [past, setPast] = useState<SessionRecord[]>([]);
+  const keepAll = useSettings((s) => s.keepHands);
+  const setSettings = useSettings((s) => s.set);
+  const [kept, setKept] = useState<Kept | null>(null);
+  // (read when a hand ends: commit is the same callback all session)
+  const keeping = useRef({ all: keepAll, session });
+  useEffect(() => {
+    keeping.current = { all: keepAll, session };
+  }, [keepAll, session]);
 
   const sim = useMemo(() => simOf(hand), [hand]);
   const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
   const spotKey = `${hand.seed}|${hand.shown}|${JSON.stringify(hand.lines)}|${mode}|${retry}`;
 
-  // the hand after a move or a card: settled, and counted, where that ended it
-  const commit = useCallback((h: PracticeHand) => {
-    if (h.result || phaseOf(h).kind !== "over") {
-      setHand(h);
-      return;
+  // a finished hand into Analyze's hands, as a hand history (history.ts)
+  const keep = useCallback(async (h: PracticeHand, s: PracticeSession) => {
+    const key = keyOf(s, h);
+    setKept({ key, st: "saving" });
+    try {
+      const rec = practiceRecord(h, s, new Date());
+      const res = await addHands([rec]);
+      setKept(res ? { key, st: "kept", id: rec.id, had: res.existing > 0 } : { key, st: "error", message: "this browser keeps nothing here (a private window?)" });
+    } catch (e) {
+      setKept({ key, st: "error", message: message(e) });
     }
-    const result = finish(h);
-    setHand({ ...h, result });
-    setSession((s) => ({ ...s, hands: s.hands + 1, net: Math.round((s.net + result.net) * 100) / 100 }));
   }, []);
+
+  // the hand after a move or a card: settled, and counted, where that ended it (and kept, where you keep them all)
+  const commit = useCallback(
+    (h: PracticeHand) => {
+      if (h.result || phaseOf(h).kind !== "over") {
+        setHand(h);
+        return;
+      }
+      const result = finish(h);
+      setHand({ ...h, result });
+      setSession((s) => ({ ...s, hands: s.hands + 1, net: Math.round((s.net + result.net) * 100) / 100 }));
+      if (keeping.current.all) void keep({ ...h, result }, keeping.current.session);
+    },
+    [keep],
+  );
 
   // the hand moves on: cards dealt, an opponent's move asked for, or your spot solved
   useEffect(() => {
@@ -371,6 +402,15 @@ function FullHands({ pace }: { pace: number }) {
             <button type="button" onClick={nextHand} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
             </button>
+            <KeepHand
+              kept={kept?.key === keyOf(session, hand) ? kept : null}
+              all={keepAll}
+              onKeep={() => void keep(hand, session)}
+              onAll={(all) => {
+                setSettings({ keepHands: all });
+                if (all && kept?.key !== keyOf(session, hand)) void keep(hand, session);
+              }}
+            />
           </div>
         )}
       </section>
@@ -416,6 +456,41 @@ function FullHands({ pace }: { pace: number }) {
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+/** The finished hand kept in Analyze (graded there as an imported hand), or a button to keep it; and keeping
+ * every hand. */
+function KeepHand({ kept, all, onKeep, onAll }: { kept: Kept | null; all: boolean; onKeep: () => void; onAll: (all: boolean) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm">
+      {kept?.st === "kept" ? (
+        <p aria-live="polite">
+          {kept.had ? "Already kept" : "Kept"} in Analyze ·{" "}
+          <Link to={`/analyze?hand=${encodeURIComponent(kept.id)}`} className="underline">
+            Open it there
+          </Link>
+        </p>
+      ) : (
+        <button
+          type="button"
+          disabled={kept?.st === "saving"}
+          onClick={onKeep}
+          className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50"
+        >
+          {kept?.st === "saving" ? "Keeping…" : "Keep in Analyze"}
+        </button>
+      )}
+      {kept?.st === "error" && (
+        <p role="alert" className="text-danger">
+          Not kept: {kept.message}
+        </p>
+      )}
+      <label className="flex items-center gap-1.5 text-muted">
+        <input type="checkbox" checked={all} onChange={(e) => onAll(e.target.checked)} />
+        Keep every hand
+      </label>
     </div>
   );
 }

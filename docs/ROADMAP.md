@@ -301,8 +301,9 @@ Moves matrix rows: Range-builder trainer.
   is kept with it); saved ranges (named, from the Ranges editor, opened by `/ranges?range=<id>`, in a new
   `savedRanges` store, database version 3); the Saved page (`web/src/features/saved/SavedPage.tsx`: list, search,
   rename, delete, open in Study or Ranges); backup and restore (`web/src/data/backup.ts`: saved spots, saved ranges
-  and sessions in the classic record shape, format `lizard-backup`, schema 1, restored by merging). **Still open in
-  Phase 5:** saved drills, saved hands, the classic `gto-store` import, the backup prompt after a number of saves, and
+  and sessions in the classic record shape, format `lizard-backup`, schema 1, restored by merging). Saved hands (2026-11-03): the
+  Phase 2 imports and Practice hands (Keep in Analyze, or every hand by a setting), written as hand histories, with
+  tags, notes and search, in the backup. **Still open in Phase 5:** saved drills, the classic `gto-store` import, the backup prompt after a number of saves, and
   settings in the backup (left out on purpose for now). The record shape still wants the review named in Risks
   before account sync builds on it.
 - **Saved spots.** Use the existing `savedSpots` store (`web/src/data/db.ts:41`, index `byUpdated`, interface `SavedSpot`).

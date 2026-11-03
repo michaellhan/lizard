@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { listHands, PRACTICE_SITE } from "@/data/hands";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { PlayRequest, Provenance, SolveResult } from "@/solver/types";
@@ -65,7 +66,7 @@ vi.mock("@/solver/useSolver", () => ({ useSolver: () => stub.getSolver }));
 
 afterEach(() => {
   stub.calls = [];
-  useSettings.setState({ mode: "fast" });
+  useSettings.setState({ mode: "fast", keepHands: false });
 });
 
 describe("PracticePage", () => {
@@ -122,6 +123,43 @@ describe("PracticePage", () => {
     // the next hand: your seat moves to the big blind
     fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
     expect(await screen.findByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+  });
+
+  it("keeps a finished hand in Analyze, and every hand once asked to", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    // (the flop's options: the preflop group's buttons are gone first)
+    fireEvent.click(await screen.findByRole("button", { name: "bet 33% (1.6bb)" }));
+    expect(await screen.findByText("You won")).toBeInTheDocument();
+    expect(await listHands()).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Keep in Analyze" }));
+    const open = await screen.findByRole("link", { name: "Open it there" });
+    const [kept] = await listHands();
+    expect(kept).toMatchObject({ site: PRACTICE_SITE, hero: "SB", players: 2, end: "won, all folded", decisions: 2, potType: "SRP" });
+    expect(open).toHaveAttribute("href", `/analyze?hand=${encodeURIComponent(kept!.id)}`);
+    expect(screen.getByText(/^Kept in Analyze/)).toBeInTheDocument();
+
+    // every hand from now: the next one kept as it ends (you're the big blind; the small blind limps and folds the flop)
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep every hand" }));
+    expect(useSettings.getState().keepHands).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "call" }));
+    fireEvent.click(await screen.findByRole("button", { name: "bet 33% (1.6bb)" }));
+    expect(await screen.findByRole("link", { name: "Open it there" })).toBeInTheDocument();
+    const both = await listHands();
+    expect(both.map((h) => [h.hero, h.end, h.importId === kept!.importId])).toEqual(
+      expect.arrayContaining([
+        ["SB", "won, all folded", true],
+        ["BB", "won, all folded", true],
+      ]),
+    );
+    expect(both).toHaveLength(2);
   });
 
   it("offers the moves without a grade where your spot has no answer", async () => {
