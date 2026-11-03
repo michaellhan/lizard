@@ -2665,3 +2665,58 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`. Memory
     likely lines
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, Review mistakes in Practice (second session)
+
+Deploy of ef85136 (run it out) verified live: run 41715465487 passed; `/lizard/` serves `index-CkiCpVXa.js`, which
+has "Run it out".
+
+Practice gets the classic trainer's "Review mistakes" (`practice.js:847-866`).
+
+### Code
+
+- `web/src/features/practice/review.ts` (new):
+  - `reviewed` keeps a decision with its spot: the hand's number, your seat and cards, the board out, and the
+    street's action before you ("UTG raises to 2.5, CO calls", "folded to you", "first to act").
+  - `withReviewed` keeps the last 60 graded decisions.
+  - `mistakes` picks the 6 that cost the most. It counts a decision that wasn't the best and either gave up EV or
+    was graded below Correct. It sorts by EV given up, then by the rarest in the mix, then by the newest. These are
+    the classic's rules.
+- `practice.ts`: `sayMove`, the move in words. It moved out of the page's hand log so both use it.
+- `PracticePage.tsx`:
+  - The session keeps `review`, so a new session starts its own list.
+  - "Review mistakes (n)" sits under the hand log.
+  - Each row shows the hand and street, your cards, your move, the verdict, the EV lost (or how often the chart
+    plays it) and the answer's source, with the full provenance on hover.
+  - A row opens the spot and the decision's verdict (`DecisionView`, which now takes a title).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 377/377 in 59 files. `review.test.ts`: the spot's line, the 60 kept, the order and the cap of 6. `PracticePage.test.tsx`: a flop check in the mix that gave up 0.2bb listed as "Correct · 0.20bb lost · Live solve", opening "· BB checks" and its verdict; a new session clears the list. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+- **Review list.** Fifteen random heads-up decisions gave "Review mistakes (6)". The costliest was a turn fold of
+  trips facing a raise: "Blunder · 37.89bb lost · Live solve".
+- **Opened row.** It showed "BTN/SB · 5♥10♣8♣10♠ · BB checks, You bet 3.5, BB raises to 16.5" and the verdict under
+  "Live solve · 0.16% pot from equilibrium … (converged)".
+- **Console and phone width.** No console error. No overflow at 375px.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`. Memory 62% free.
+
+### Next
+
+- Phase 1, still open:
+  - multitabling
+  - the 20-hand engine check
+  - the range grid at your last decision
+  - asking ahead for your likely lines
+  - the Recent decisions list
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

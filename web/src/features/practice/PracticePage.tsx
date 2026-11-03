@@ -15,6 +15,7 @@ import { addHands } from "@/data/hands";
 import { addScore, emptyScore, GRADE_RULES, summary, whoOf, whyText, type Score } from "@/grading/grade";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
+import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import { SolverError, type ResultSource, type SolveResult } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { CLASSIC_URL } from "@/config";
@@ -24,6 +25,7 @@ import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeSt
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
+import { mistakes, reviewed, withReviewed, type Reviewed } from "./review";
 import {
   boardShown,
   carries,
@@ -44,6 +46,7 @@ import {
   redeal,
   runEnd,
   runKind,
+  sayMove,
   seeking,
   setupOf,
   shownCards,
@@ -74,6 +77,8 @@ interface PracticeSession {
   /** finished hands by pot type, and the decisions graded by what answered them (the History page) */
   byPot: Record<string, PotTally>;
   sources: Partial<Record<ResultSource, number>>;
+  /** your last graded decisions, with their spots (Review mistakes, review.ts) */
+  review: Reviewed[];
 }
 
 const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
@@ -89,6 +94,7 @@ const freshSession = (players: number, stack: number, opts: Required<HandOptions
   score: emptyScore(),
   byPot: {},
   sources: {},
+  review: [],
 });
 
 const toRecord = (s: PracticeSession): SessionRecord => ({
@@ -337,7 +343,13 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     setError(null);
     setLast(r.decision);
     const g = r.decision.grade;
-    if (g) setSession((s) => ({ ...s, score: addScore(s.score, g), sources: addSource(s.sources, r.decision.provenance?.source) }));
+    if (g)
+      setSession((s) => ({
+        ...s,
+        score: addScore(s.score, g),
+        sources: addSource(s.sources, r.decision.provenance?.source),
+        review: withReviewed(s.review, reviewed(hand, r.decision, s.hands + 1)),
+      }));
     commit(r.hand);
   };
 
@@ -573,6 +585,8 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
 
       <HandLog hand={hand} />
 
+      {session.review.length > 0 && <ReviewMistakes review={session.review} />}
+
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
         <ul className="mt-2 space-y-1">
@@ -681,6 +695,90 @@ function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeSession;
   );
 }
 
+/** Review mistakes (review.ts): of your last decisions this session, the ones that cost the most, each opening its
+ * spot and verdict. */
+function ReviewMistakes({ review }: { review: Reviewed[] }) {
+  const [open, setOpen] = useState(false);
+  // (the one open, by itself: the list moves on past REVIEW_KEEP)
+  const [pick, setPick] = useState<Reviewed | null>(null);
+  const xs = mistakes(review);
+  return (
+    <section aria-label="Review mistakes" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`${open ? "Hide" : "Review"} mistakes${xs.length ? ` (${xs.length})` : ""}`}
+        onClick={() => setOpen(!open)}
+        className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2"
+      >
+        {open ? "Hide mistakes" : "Review mistakes"}
+        {xs.length > 0 && <span className="ml-2 rounded-full bg-surface-3 px-1.5 font-mono text-xs">{xs.length}</span>}
+      </button>
+      {open &&
+        (xs.length === 0 ? (
+          <p className="text-muted">No mistakes in your last {review.length} decisions so far.</p>
+        ) : (
+          <>
+            <h2 className="font-medium">
+              Your biggest mistakes <span className="text-muted">· last {review.length} decisions</span>
+            </h2>
+            <ul className="space-y-1">
+              {xs.map(({ e, i }) => {
+                const g = e.d.grade!;
+                const p = e.d.provenance;
+                return (
+                  <li key={i} className="space-y-2">
+                    <button
+                      type="button"
+                      aria-expanded={pick === e}
+                      onClick={() => setPick(pick === e ? null : e)}
+                      className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
+                    >
+                      <span className="font-mono text-xs text-muted">
+                        #{e.n} {e.d.street}
+                      </span>
+                      <span className="flex gap-0.5">
+                        {e.hole.map((c) => (
+                          <PlayingCard key={c} card={c} size="sm" />
+                        ))}
+                      </span>
+                      <span className="font-mono">{e.d.chose}</span>
+                      <VerdictTag v={g.verdict} />
+                      <span className="font-mono text-xs">{g.byEv ? `${bb(g.loss)}bb lost` : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
+                      {p && (
+                        <span className="text-xs text-muted" title={describeProvenance(p)}>
+                          {p.approximate && "≈ "}
+                          {sourceLabel(p.source)}
+                        </span>
+                      )}
+                    </button>
+                    {pick === e && (
+                      <div className="space-y-2 pl-2">
+                        <p className="flex flex-wrap items-center gap-1 text-muted">
+                          {seatLabel(e.seat, e.players)}
+                          {e.board.length > 0 && (
+                            <>
+                              {" · "}
+                              {e.board.map((c) => (
+                                <PlayingCard key={c} card={c} size="sm" />
+                              ))}
+                            </>
+                          )}
+                          {` · ${e.line}`}
+                        </p>
+                        <DecisionView d={e.d} players={e.players} title={`Hand ${e.n}, ${e.d.street}`} />
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ))}
+    </section>
+  );
+}
+
 /** After your fold: the run-out under way, or how it ended (your result stays as at your fold). */
 function RunText({ hand, sim }: { hand: PracticeHand; sim: Sim }) {
   if (hand.run !== "played") return null;
@@ -784,12 +882,12 @@ function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a: { act
   );
 }
 
-function DecisionView({ d, players }: { d: Decision; players: number }) {
+function DecisionView({ d, players, title = "Your last decision" }: { d: Decision; players: number; title?: string }) {
   const g = d.grade;
   return (
-    <section aria-label="Last decision" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-medium">Your last decision</h2>
+        <h2 className="font-medium">{title}</h2>
         {g ? <VerdictTag v={g.verdict} /> : <span className="text-xs text-muted">Not graded</span>}
         <span>
           {d.street}: you took <span className="font-mono">{d.chose}</span>
@@ -852,22 +950,8 @@ function DecisionView({ d, players }: { d: Decision; players: number }) {
   );
 }
 
-// each move said of another seat, and of you
-const SAY: Record<string, [string, string]> = {
-  fold: ["folds", "fold"],
-  check: ["checks", "check"],
-  call: ["calls", "call"],
-  bet: ["bets", "bet"],
-  raise: ["raises to", "raise to"],
-  "all-in": ["goes all-in", "go all-in"],
-};
-
 function HandLog({ hand }: { hand: PracticeHand }) {
-  const say = (m: Move) => {
-    const you = m.pos === hand.hero;
-    const verb = SAY[m.action]?.[you ? 1 : 0] ?? m.action;
-    return `${you ? "You" : seatLabel(m.pos, hand.players)} ${verb}${m.to !== undefined ? ` ${fmt(m.to)}` : ""}`;
-  };
+  const say = (m: Move) => sayMove(m, hand.hero, hand.players);
   const out = [0, 3, 4, 5];
   const pre = hand.lines.preflop;
   const opened = pre.findIndex((m) => m.action !== "fold");

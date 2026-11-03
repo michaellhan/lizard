@@ -436,6 +436,23 @@ export function runEnd(h: PracticeHand, sim: Sim = simOf(h)): Pick<Settlement, "
 /** The board on the table: as dealt, or all of it once the cards are shown after your fold. */
 export const boardShown = (h: PracticeHand) => (h.run === "shown" ? h.board.length : h.shown);
 
+// each move said of another seat, and of you
+const SAY: Record<string, [string, string]> = {
+  fold: ["folds", "fold"],
+  check: ["checks", "check"],
+  call: ["calls", "call"],
+  bet: ["bets", "bet"],
+  raise: ["raises to", "raise to"],
+  "all-in": ["goes all-in", "go all-in"],
+};
+
+/** A move in words: "CO raises to 2.5", "You call". */
+export function sayMove(m: Move, hero: string, players: number): string {
+  const you = m.pos === hero;
+  const verb = SAY[m.action]?.[you ? 1 : 0] ?? m.action;
+  return `${you ? "You" : seatLabel(m.pos, players)} ${verb}${m.to !== undefined ? ` ${Math.round(m.to * 100) / 100}` : ""}`;
+}
+
 /** The showdown in a line: "CO's Q-high flush beats your two pair, kings and sevens"; "" without one. */
 export function says(st: Settlement, hero: string, players: number): string {
   const who = (p: string) => (p === hero ? "your" : `${seatLabel(p, players)}'s`);

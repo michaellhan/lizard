@@ -254,6 +254,43 @@ describe("PracticePage", () => {
     await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 2, carry: true, hands: 1, net: 2.5 }));
   });
 
+  it("reviews your mistakes: the costliest of your decisions this session, each opening its spot and verdict", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(screen.queryByRole("region", { name: "Review mistakes" })).toBeNull();
+    // your raise (Best); the big blind calls and checks the flop; your check is in the mix but gives up 0.2bb
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));
+    const review = await screen.findByRole("region", { name: "Review mistakes" });
+    const toggle = within(review).getByRole("button", { name: "Review mistakes (1)" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(within(review).getByRole("heading")).toHaveTextContent("Your biggest mistakes · last 2 decisions");
+    const row = within(review).getByRole("button", { name: /^#1 flop/ });
+    expect(row).toHaveTextContent("#1 flop");
+    expect(row).toHaveTextContent("check");
+    expect(row).toHaveTextContent("Correct");
+    expect(row).toHaveTextContent("0.20bb lost");
+    // (the number's source, named)
+    expect(row).toHaveTextContent("Live solve");
+    expect(within(row).getByTitle(describeProvenance(LIVE))).toBeInTheDocument();
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(within(review).getByText(/· BB checks$/)).toBeInTheDocument();
+    const spot = within(review).getByRole("region", { name: "Hand 1, flop" });
+    expect(within(spot).getByText(describeProvenance(LIVE))).toBeInTheDocument();
+    expect(within(spot).getByText(/^EV given up: 0\.20bb/)).toBeInTheDocument();
+    // a new session starts its own
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Review mistakes" })).toBeNull());
+  });
+
   it("runs a hand out after your fold: the others play on, each from its own seat; your fold stays as it was", async () => {
     render(
       <MemoryRouter>
