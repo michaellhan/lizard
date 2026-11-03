@@ -134,9 +134,10 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
   - single-decision drills, in Practice's Drills tab: entries decoded in the page (`web/src/library/entry.ts`), the
     three nodes and the texture filter, the spot's coverage, EV grading with the stored solve's provenance, "Open in
     Study", and drill sessions saved.
-  - **Still open in Phase 1:** the drill modes (pot types in full hands), multitabling, "Open in Study" from a
-    full-hand decision, chips carried from hand to hand, sizes of your own, antes and straddles, the "why" text, the
-    20-hand engine check, and the sessions history page.
+  - Since then: "Open this spot in Study" from a full-hand decision (`practice.ts` `studyOf`), and the rule-based
+    "why" text in Practice and Drills (`grade.ts` `whyText`, 2026-11-03).
+  - **Still open in Phase 1:** the drill modes (pot types in full hands), multitabling, chips carried from hand to
+    hand, sizes of your own, antes and straddles, the 20-hand engine check, and the sessions history page.
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;

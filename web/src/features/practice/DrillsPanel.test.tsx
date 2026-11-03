@@ -42,6 +42,7 @@ describe("DrillsPanel", () => {
     fireEvent.click(within(options).getByRole("button", { name: "check" }));
     const answer = screen.getByRole("region", { name: "Answer" });
     expect(within(answer).getByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/)).toBeInTheDocument();
+    expect(within(answer).getByText(/^The solver (always plays this here|picks this most often|plays this|mixes this in|never plays this)/)).toBeInTheDocument();
     expect(within(answer).getByText(/^Precomputed solution · srp_btn_bb · \d\.\d\d% pot from equilibrium in the solved game \(\w+\) · \d+ iterations$/)).toBeInTheDocument();
     expect(within(answer).getAllByRole("row")).toHaveLength(4);
     expect(within(answer).getByRole("row", { name: /^check ← you/ })).toBeInTheDocument();

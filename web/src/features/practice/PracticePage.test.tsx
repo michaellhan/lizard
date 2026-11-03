@@ -88,6 +88,8 @@ describe("PracticePage", () => {
     let last = await screen.findByRole("region", { name: "Last decision" });
     expect(within(last).getByText("Best")).toBeInTheDocument();
     expect(within(last).getByText(/Graded by how often the chart plays it/)).toBeInTheDocument();
+    // the rule-based why, in the chart's name (not a solver's)
+    expect(within(last).getByText(/^The chart (always plays this here|picks this most often here: \d+% of the time)\.$/)).toBeInTheDocument();
     expect(within(last).getByText(describeProvenance(prov("charts")))).toBeInTheDocument();
     // the spot in Study: heads-up at 100bb, nothing before your decision
     expect(within(last).getByRole("link", { name: "Open this spot in Study →" })).toHaveAttribute("href", "/study?p=2&s=100");
@@ -100,6 +102,7 @@ describe("PracticePage", () => {
     last = screen.getByRole("region", { name: "Last decision" });
     expect(within(last).getByText("Best")).toBeInTheDocument();
     expect(within(last).getByText(/^No EV given up\. This hand mixes actions here\.$/)).toBeInTheDocument();
+    expect(within(last).getByText("The solver picks this most often here: 60% of the time.")).toBeInTheDocument();
     expect(within(last).getByText(describeProvenance(LIVE))).toBeInTheDocument();
     expect(within(last).getByRole("row", { name: /bet 33% \(1\.6bb\) ← you 60\.0% 2\.20/ })).toBeInTheDocument();
     // (your raise, its call, the big blind's check, the flop)

@@ -78,6 +78,28 @@ export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
   { verdict: "Blunder", rule: `gives up ${MISTAKE_PCT}% of the pot or more (graded by EV only)` },
 ];
 
+/** Whose numbers a grade is against, by the answer's source (provenance.ts): the solver, or what answered in its place
+ * (the charts aren't a solve). */
+export function whoOf(source: string | undefined): string {
+  return source === "charts" ? "The chart" : source === "preflop-solve" ? "The preflop solve" : source === "rules" ? "The rule-based model" : source === "equity" ? "The equity fallback" : "The solver";
+}
+
+/** The rule-based "why" (the classic trainer's why, practice.js:431-444): how often the answer plays your action and
+ * which is best, in the answer's own name (`who`, whoOf). `names` and `freqs` are aligned with the grade's indices. */
+export function whyText(g: Grade, names: readonly string[], freqs: readonly number[], who = "The solver"): string {
+  const p = (x: number) => `${Math.round(x * 100)}%`;
+  const f = freqs[g.a] ?? 0;
+  const best = `its best${g.byEv ? " by EV" : ""} is ${names[g.best] ?? "?"} (${p(freqs[g.best] ?? 0)} of the time)`;
+  if (g.verdict === "Best") {
+    if (f >= 0.995) return `${who} always plays this here.`;
+    if (f >= Math.max(...freqs)) return `${who} picks this most often here: ${p(f)} of the time.`;
+    // (best by EV, not by frequency: a mix's actions are worth about the same)
+    return f < 0.005 ? `${who} never plays this, though its EV is as high as any action's here.` : `${who} plays this ${p(f)} of the time, and its EV is as high as any action's here.`;
+  }
+  if (g.verdict === "Correct") return `${who} mixes this in ${p(f)} of the time; ${best}.`;
+  return `${who} ${f < 0.005 ? "never plays this" : `plays this only ${p(f)} of the time`}; ${best}.`;
+}
+
 // ---- running scores (drills.js emptyScore / addScore / summary)
 
 export interface Score {

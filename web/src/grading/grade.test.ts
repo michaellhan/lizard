@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addScore, emptyScore, grade, summary } from "./grade";
+import { addScore, emptyScore, grade, summary, whoOf, whyText } from "./grade";
 
 // cases ported from solver/tests/js/drills.test.js ("grading: ...", "score bookkeeping: ...")
 describe("grade", () => {
@@ -45,6 +45,30 @@ describe("grade", () => {
     expect(at(2)).toBe("Mistake");
     expect(at(7.99)).toBe("Mistake");
     expect(at(8)).toBe("Blunder");
+  });
+});
+
+describe("why", () => {
+  // the classic trainer's rule-based why (practice.js:431-444), in the answer's own name
+  const names = ["check", "bet 33%", "bet 75%"];
+  it("says how often the answer plays your action and which is best", () => {
+    const pot = 10;
+    const evs = [2, 2.005, 1.2];
+    expect(whyText(grade({ freqs: [1, 0, 0], evs: [2, 1.5, 1], pot }, 0), names, [1, 0, 0])).toBe("The solver always plays this here.");
+    expect(whyText(grade({ freqs: [0.6, 0.4, 0], evs, pot }, 0), names, [0.6, 0.4, 0])).toBe("The solver picks this most often here: 60% of the time.");
+    // best by EV but less often played: a mix's actions are worth about the same
+    expect(whyText(grade({ freqs: [0.6, 0.4, 0], evs, pot }, 1), names, [0.6, 0.4, 0])).toBe("The solver plays this 40% of the time, and its EV is as high as any action's here.");
+    const mix = { freqs: [0.55, 0.3, 0.15], evs: [2.2, 2, 1.9], pot };
+    expect(whyText(grade(mix, 1), names, mix.freqs)).toBe("The solver mixes this in 30% of the time; its best by EV is check (55% of the time).");
+    const never = { freqs: [1, 0, 0], evs: [2, 1.5, 1], pot };
+    expect(whyText(grade(never, 2), names, never.freqs)).toBe("The solver never plays this; its best by EV is check (100% of the time).");
+    const rare = { freqs: [0.96, 0.04, 0], evs: [2, 1.9, 1], pot };
+    expect(whyText(grade(rare, 1), names, rare.freqs)).toBe("The solver plays this only 4% of the time; its best by EV is check (96% of the time).");
+    // the charts by frequency, in their name: not a solver
+    const pf = { freqs: [0.7, 0.3, 0], evs: null, pot: 1.5 };
+    expect(whyText(grade(pf, 1), ["raise", "call", "fold"], pf.freqs, whoOf("charts"))).toBe("The chart mixes this in 30% of the time; its best is raise (70% of the time).");
+    expect(whoOf("library")).toBe("The solver");
+    expect(whoOf("rules")).toBe("The rule-based model");
   });
 });
 

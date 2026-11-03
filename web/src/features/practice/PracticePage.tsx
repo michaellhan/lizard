@@ -12,7 +12,7 @@ import { VerdictTag } from "@/components/VerdictTag";
 import { bb, kindOf, pct } from "@/components/actions";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { addHands } from "@/data/hands";
-import { addScore, emptyScore, GRADE_RULES, summary, type Score } from "@/grading/grade";
+import { addScore, emptyScore, GRADE_RULES, summary, whoOf, whyText, type Score } from "@/grading/grade";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
 import { SolverError, type SolveResult } from "@/solver/types";
@@ -667,6 +667,16 @@ function DecisionView({ d, players }: { d: Decision; players: number }) {
         </span>
         {d.provenance && <ProvenanceBadge p={d.provenance} />}
       </div>
+      {g && d.mix.length > 0 && (
+        <p>
+          {whyText(
+            g,
+            d.mix.map((a) => optionLabel(a.action, a.amount)),
+            d.mix.map((a) => a.freq),
+            whoOf(d.provenance?.source),
+          )}
+        </p>
+      )}
       {g && (
         <p className="text-muted">
           {g.byEv

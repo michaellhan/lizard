@@ -2264,3 +2264,45 @@ Untouched (read-only `ps`). Everything ran under `nice`.
 
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, the rule-based "why" text (second session)
+
+Deploy of 3132c04 (preflop locks) verified live: run 41705241447 passed; `/lizard/` serves `index-Dp_xILD6.js`, which
+has "pts to raises".
+
+The ROADMAP's Phase 1 list was stale: "Open in Study" from a full-hand decision was already there ("Open this spot in
+Study", `practice.ts` `studyOf`); it now says so.
+
+### Code
+
+- `web/src/grading/grade.ts`: `whyText(grade, names, freqs, who)`, the classic trainer's why (`practice.js:431-444`):
+  Best: "always plays this here", "picks this most often here: 60% of the time", or, best by EV but played less, "plays
+  this 40% of the time, and its EV is as high as any action's here"; Correct: "mixes this in 30% of the time; its best
+  by EV is check (55% of the time)"; else "plays this only 4% of the time" or "never plays this", with the best.
+  `whoOf(source)` names the answer: "The solver", "The chart" (the preflop charts, never called a solver), "The preflop
+  solve", "The rule-based model", "The equity fallback".
+- `PracticePage.tsx` (`DecisionView`) and `DrillsPanel.tsx` (the answer card): the sentence under the verdict.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 352/352 in 57 files (`grade.test.ts`: every branch and the chart's name; `PracticePage.test.tsx`: the chart's and the solver's sentence; `DrillsPanel.test.tsx`: the solver's). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+Practice, a new session: a preflop raise, "Preflop charts · approximate", "The chart always plays this here."; on to a
+flop check under "Live solve · 0.02% pot from equilibrium … (converged)", "The solver always plays this here."
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`.
+
+### Next
+
+- Phase 1, still open: the drill modes (pot types), multitabling, carried chips, sizes of your own, antes and
+  straddles, the 20-hand engine check, the sessions history page.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

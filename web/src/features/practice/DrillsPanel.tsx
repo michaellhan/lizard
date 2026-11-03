@@ -11,7 +11,7 @@ import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
 import { LIBRARY_SOURCES } from "@/config";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
-import { addScore, emptyScore, GRADE_RULES, summary, type Grade, type Score } from "@/grading/grade";
+import { addScore, emptyScore, GRADE_RULES, summary, whyText, type Grade, type Score } from "@/grading/grade";
 import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
@@ -380,6 +380,13 @@ function SpotDrill({
             </span>
             <ProvenanceBadge p={drillProvenance(shown.entry, mode)} />
           </div>
+          <p>
+            {whyText(
+              graded.g,
+              pr.names.map((n) => drillActionLabel(pr, n)),
+              pr.freqs,
+            )}
+          </p>
           <p className="text-muted">
             {graded.g.loss > 0 ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.` : "No EV given up."}
             {graded.g.mixed && " This hand mixes actions here."}
