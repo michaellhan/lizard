@@ -3272,3 +3272,50 @@ Untouched; checked only with read-only `ps`. No solves.
 - Phase 2, still open: turns and rivers, a history across sessions, an all-in EV line, a dropped folder.
 - Phase 3: done as listed. Not in it yet: range and nut advantage columns.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 2, the all-in EV line in Analyze's results (2026-11-03)
+
+The results panel (2795111) deployed: run 41729184108 succeeded, and the live bundle `index-CHqmFJrW.js` has it
+("Without showdown").
+
+### What changed
+
+- **The all-in** (`web/src/hh/allin.ts`, `allInOf`). A hand qualifies when two players are left, the betting closed
+  before the river with one of them all-in, and both hands are in the history. `shownOf` reads "Dealt to N [..]",
+  "N: shows [..]" and "Seat 1: N showed [..]" off the parser's normalized lines; GGPoker's and Ignition's every-hand
+  "Dealt to" lines count. The EV is your equity times the pot every seat collected, less your stake (`paidOf`).
+  Three or more in (side pots), a hand not shown, an all-in on the river or a cut-short board have none.
+- **Equity** (`equityVs`). Exact with two cards or fewer to come (990 flop run-outs, 44 turn ones). Preflop uses
+  20,000 boards from a generator seeded by the two hands, so the same hand gives the same number every time; it
+  takes about 50 ms. A tie counts half.
+- **The tally.** Each group adds the all-in EV total, its count, its running line and each hand's all-in. Reading
+  now lets the page go every 40 ms as well as every 200 hands, since a preflop all-in takes 50 ms.
+- **The panel.** An "All-in EV" tile ("6 all-ins at their equity"), a fourth line, dashed, in the dataviz palette's
+  fourth slot (the four validated adjacent on the dark surface; the dash covers the orange–yellow pair), and the
+  tooltip's "All-in preflop: 17.6% (sampled) against AdAh, EV −64.78bb". The note above says how it's counted.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 421/421. `hh/allin.test.ts`: no all-in where none, or where the other hand is hidden (iPoker's "X X", party's tournament balances); the flop all-in's 295 of 990 run-outs and its EV; the dead turn all-in at −100; preflop KK v AA and JJ v AK within 0.55% of the exact equities (18.054%, 57.254%, enumerated once over 1,712,304 boards), the same each time; each site's shown hands; ties. `winnings.test.ts`: six cash all-ins and two tournament ones, the totals. `AnalyzePage.test.tsx`: the tile, the line in the chart's label, the dead turn all-in in the tooltip. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- **Cash, 40 hands.** All-in EV −452.4bb against −41.6bb won. The difference is −410.8bb, which the fixtures'
+  repeats account for: twice KK over AA (+100.5 won, EV −64.78) and twice AsKs against a set on the flop.
+  Tournaments: +33.8bb against −24.2bb.
+- **The chart.** The dashed line splits from "In all" at the first all-in. Hand 36's tooltip shows the preflop 17.6%
+  (sampled) against AdAh.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. No solves.
+
+### Next
+
+- Phase 2, still open: turns and rivers, a history across sessions, a dropped folder.
+- Phase 3: done as listed. Not in it yet: range and nut advantage columns.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

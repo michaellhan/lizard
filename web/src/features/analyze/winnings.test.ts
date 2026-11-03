@@ -50,6 +50,13 @@ describe("results tally", () => {
     const [lo, hi] = c.range!;
     expect(lo).toBeLessThan(c.bb100);
     expect(hi).toBeGreaterThan(c.bb100);
+    // the all-in EV: the six heads-up all-ins with cards to come at their equity (iPoker's hides the other hand)
+    expect(c.allIns).toBe(6);
+    const evs = RECS.filter((h) => !h.tournament).map((h) => handWin(h.text));
+    expect(c.ev).toBeCloseTo(evs.reduce((a, x) => a + (x.allIn?.ev ?? x.net ?? 0), 0), 3);
+    expect(c.evRun.at(-1)).toBeCloseTo(c.ev, 3);
+    expect(Object.values(c.allIn).map((a) => a.street).sort()).toEqual(["flop", "flop", "preflop", "preflop", "turn", "turn"]);
+    expect(w.tour!.allIns).toBe(2);
     // tournaments: chips, so no money
     const t = w.tour!;
     expect(t.hands).toBe(7);

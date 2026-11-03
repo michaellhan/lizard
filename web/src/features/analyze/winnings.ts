@@ -1,9 +1,11 @@
 // Your results as played, from the hand histories kept (hh/results.ts): what you won or lost, in big blinds, over
 // the hands the filters show. Cash games, tournaments (whose chips aren't money) and the hands played at Practice's
 // tables (and the classic app's) apart, each with its total, bb/100, the share won at showdown and
-// without, by your seat, and the running total in the order played. Nothing here is graded or solved.
+// without, the all-in EV (hh/allin.ts), by your seat, and the running total in the order played. Nothing here is
+// graded or solved.
 import type { HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
+import { allInOf, type AllIn } from "@/hh/allin";
 import { parseHandHistory } from "@/hh/parse";
 import { resultOf, type ResultWhy } from "@/hh/results";
 import { SEATS } from "@/poker/seats";
@@ -12,6 +14,8 @@ import { CLASSIC_SITE } from "./classic";
 export interface HandWin {
   net: number | null;
   why?: ResultWhy;
+  /** a heads-up all-in with cards to come, both hands shown */
+  allIn?: AllIn;
   /** the history's big blind, in its money */
   bb: number;
 }
@@ -26,6 +30,12 @@ export interface WinGroup {
   /** won where the hand went to showdown, and where it didn't (a replay stopped short counts in neither) */
   sd: number;
   nonSd: number;
+  /** the all-in EV: each all-in at its EV (your equity's share of the pot), every other hand as it went; and how many
+   * all-ins */
+  ev: number;
+  allIns: number;
+  /** the all-ins, by hand */
+  allIn: Record<string, AllIn>;
   /** cash games' money, by currency ("$", "€", …), in the order first met */
   money: { unit: string; net: number }[];
   byPos: { pos: string; hands: number; net: number }[];
@@ -34,6 +44,7 @@ export interface WinGroup {
   total: number[];
   atSd: number[];
   noSd: number[];
+  evRun: number[];
 }
 
 export interface Winnings {
@@ -48,7 +59,9 @@ export interface Winnings {
 export function handWin(text: string): HandWin {
   try {
     const h = parseHandHistory(text);
-    return { ...resultOf(h, text), bb: h.bb };
+    const r = resultOf(h, text);
+    const allIn = r.net != null ? allInOf(h, text) : null;
+    return { ...r, bb: h.bb, ...(allIn ? { allIn } : {}) };
   } catch {
     return { net: null, why: "unread", bb: NaN };
   }
@@ -71,12 +84,17 @@ function group(list: { h: HandRecord; w: HandWin }[]): WinGroup | null {
   const pos = new Map<string, { hands: number; net: number }>();
   const money = new Map<string, number>();
   let sq = 0;
-  const g: WinGroup = { hands: 0, net: 0, bb100: 0, range: null, sd: 0, nonSd: 0, money: [], byPos: [], ids: [], total: [], atSd: [], noSd: [] };
+  const g: WinGroup = { hands: 0, net: 0, bb100: 0, range: null, sd: 0, nonSd: 0, ev: 0, allIns: 0, allIn: {}, money: [], byPos: [], ids: [], total: [], atSd: [], noSd: [], evRun: [] };
   for (const { h, w } of [...list].sort((a, b) => byPlayed(a.h, b.h))) {
     const net = w.net!;
     g.hands++;
     g.net += net;
     sq += net * net;
+    g.ev += w.allIn ? w.allIn.ev : net;
+    if (w.allIn) {
+      g.allIns++;
+      g.allIn[h.id] = w.allIn;
+    }
     if (/showdown/.test(h.end)) g.sd += net;
     else if (!/^stopped/.test(h.end)) g.nonSd += net;
     const p = pos.get(h.hero) ?? { hands: 0, net: 0 };
@@ -89,10 +107,12 @@ function group(list: { h: HandRecord; w: HandWin }[]): WinGroup | null {
     g.total.push(r4(g.net));
     g.atSd.push(r4(g.sd));
     g.noSd.push(r4(g.nonSd));
+    g.evRun.push(r4(g.ev));
   }
   g.net = r4(g.net);
   g.sd = r4(g.sd);
   g.nonSd = r4(g.nonSd);
+  g.ev = r4(g.ev);
   g.bb100 = (g.net / g.hands) * 100;
   if (g.hands > 1) {
     const mean = g.net / g.hands;
@@ -127,14 +147,17 @@ export async function winningsOf(
 ): Promise<Winnings | null> {
   const chunk = opts.chunk ?? 200;
   const list: { h: HandRecord; w: HandWin }[] = [];
+  let last = performance.now();
   for (let i = 0; i < hands.length; i++) {
     const h = hands[i]!;
     if (!cache.has(h.id)) {
       cache.set(h.id, handWin(h.text));
-      if (i % chunk === chunk - 1) {
+      // (a preflop all-in's equity takes some 50ms: the page is let go every chunk of hands or 40ms, whichever first)
+      if (i % chunk === chunk - 1 || performance.now() - last > 40) {
         opts.onProgress?.(i + 1);
         await new Promise((r) => setTimeout(r, 0));
         if (opts.signal?.aborted) return null;
+        last = performance.now();
       }
     }
     list.push({ h, w: cache.get(h.id)! });
