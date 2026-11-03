@@ -967,12 +967,15 @@ tags or a note", the hand search and the backup's graded-decision count.
 - `AnalyzePage.tsx`: the hand's heading shows the kept record's site; a Practice hand says it was played in Practice.
 - Analyze grades a kept Practice hand as an imported one (preflop charts, flop library). Practice's own grades from
   its live solves are not carried over (a follow-up: they'd be the only turn and river grades).
+- `practice.ts` `studyOf`: each decision keeps the Study line where it was made; the last-decision panel links it
+  ("Open this spot in Study →"). Checked in the browser: a BTN fold to UTG 2.5 / HJ 7.5 / CO fold opened Study at
+  that line, BTN to act, on the preflop charts (labelled approximate).
 
 ### Tests actually run
 
 | Suite | Result |
 |---|---|
-| Web (Vitest) | 239/239 in 40 files. New: `features/practice/history.test.ts` (written and read back on the table engine, move by move: a single-raised pot to a showdown, your fold preflop and on the flop with no unshown card written, all folding to you with the uncalled bet, a jam and its call heads-up, a flop bet all-in, nine-handed names UTG/UTG1/UTG2), a keep case in `PracticePage.test.tsx` (the button, the link, the record; Keep every hand keeping the next hand as it ends) |
+| Web (Vitest) | 239/239 (the Study link added to two cases in `PracticePage.test.tsx`) in 40 files. New: `features/practice/history.test.ts` (written and read back on the table engine, move by move: a single-raised pot to a showdown, your fold preflop and on the flop with no unshown card written, all folding to you with the uncalled bet, a jam and its call heads-up, a flop bet all-in, nine-handed names UTG/UTG1/UTG2), a keep case in `PracticePage.test.tsx` (the button, the link, the record; Keep every hand keeping the next hand as it ends) |
 | Typecheck and ESLint | clean |
 | Build | passes |
 
@@ -996,3 +999,8 @@ Untouched. Memory 53–68% free; every check ran under `nice`.
 - Named drills and a drill list, the classic `gto-store` import, a backup prompt.
 - Realized results (needs the parser to read what each seat collected, with the classic parser), an EV-lost filter,
   a history across sessions.
+
+### Deploy of `5bf8948`, checked live
+
+Deploy run 41673252108 passed. `/lizard/` serves `index-DGeTYf8_.js`, which holds "Keep in Analyze", "Keep every
+hand" and the "Lizard Practice" site.

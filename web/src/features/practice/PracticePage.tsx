@@ -630,6 +630,9 @@ function DecisionView({ d, players }: { d: Decision; players: number }) {
         </table>
       )}
       <p className="text-xs text-muted">Your hand&rsquo;s frequencies and EVs at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
+      <Link to={`/study?${d.study}`} className="inline-block text-accent hover:underline">
+        Open this spot in Study →
+      </Link>
     </section>
   );
 }

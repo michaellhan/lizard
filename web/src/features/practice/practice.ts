@@ -6,6 +6,7 @@
 // Unlike the classic Table mode, every hand starts from the setup's stack (no chips carried over), and your seat
 // moves one place each hand: BTN, CO, HJ ... UTG, BB, SB.
 import { kindOf } from "@/components/actions";
+import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
 import { cmp, handName } from "@/poker/evaluate";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -39,6 +40,8 @@ export interface Decision {
   mix: { action: string; freq: number; ev: number | null; amount?: number }[];
   pot: number;
   provenance: Provenance | null;
+  /** the Study line at the decision: the action before it, the board out (Study shows your whole range there) */
+  study: string;
 }
 
 export interface HandResult {
@@ -87,6 +90,21 @@ export const setupOf = (h: Pick<PracticeHand, "players" | "stack">): TableSetup 
 export const simOf = (h: PracticeHand): Sim => simulate(setupOf(h), h.lines, h.shown);
 
 const boardOf = (h: PracticeHand) => h.board.slice(0, h.shown);
+
+/** The Study line where the hand stands: every seat at the setup's stack (Practice has no ante or straddle). */
+export function studyOf(h: PracticeHand): string {
+  const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
+  const s: StudyHand = {
+    players: h.players,
+    stack: h.stack,
+    board: boardOf(h).join(""),
+    preflop: conv(h.lines.preflop),
+    flop: conv(h.lines.flop),
+    turn: conv(h.lines.turn),
+    river: conv(h.lines.river),
+  };
+  return toSearch(s);
+}
 
 /** The hand from your seat, as the Advisor reads it: your advice's request, and the state an opponent's move is
  * drawn from (Advisor.play reads its seat's view off it). */
@@ -173,7 +191,7 @@ export function decide(
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;
   const evs = mix.every((x) => x.ev !== null) ? mix.map((x) => x.ev!) : null;
   const g = grade({ freqs: mix.map((x) => x.freq), evs, pot }, i);
-  const decision: Decision = { street: sim.current!, chose: a.action, move: m, grade: g, mix, pot, provenance };
+  const decision: Decision = { street: sim.current!, chose: a.action, move: m, grade: g, mix, pot, provenance, study: studyOf(h) };
   return { hand: { ...withMoveOf(h, sim, m), decisions: [...h.decisions, decision] }, decision };
 }
 
@@ -181,7 +199,7 @@ export function decide(
 export function decideUngraded(h: PracticeHand, a: { action: string; to?: number }, sim: Sim = simOf(h)): PracticeHand | string {
   const m = recordOf(setupOf(h), sim, a);
   if (typeof m === "string") return m;
-  const decision: Decision = { street: sim.current!, chose: m.action, move: m, grade: null, mix: [], pot: sim.pot, provenance: null };
+  const decision: Decision = { street: sim.current!, chose: m.action, move: m, grade: null, mix: [], pot: sim.pot, provenance: null, study: studyOf(h) };
   return { ...withMoveOf(h, sim, m), decisions: [...h.decisions, decision] };
 }
 

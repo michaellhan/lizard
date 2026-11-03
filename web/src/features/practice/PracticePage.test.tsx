@@ -89,6 +89,8 @@ describe("PracticePage", () => {
     expect(within(last).getByText("Best")).toBeInTheDocument();
     expect(within(last).getByText(/Graded by how often the chart plays it/)).toBeInTheDocument();
     expect(within(last).getByText(describeProvenance(prov("charts")))).toBeInTheDocument();
+    // the spot in Study: heads-up at 100bb, nothing before your decision
+    expect(within(last).getByRole("link", { name: "Open this spot in Study →" })).toHaveAttribute("href", "/study?p=2&s=100");
 
     // the big blind calls and checks the flop; you bet, it folds
     const flop = await screen.findByRole("group", { name: "Your options" });
@@ -100,6 +102,8 @@ describe("PracticePage", () => {
     expect(within(last).getByText(/^No EV given up\. This hand mixes actions here\.$/)).toBeInTheDocument();
     expect(within(last).getByText(describeProvenance(LIVE))).toBeInTheDocument();
     expect(within(last).getByRole("row", { name: /bet 33% \(1\.6bb\) ← you 60\.0% 2\.20/ })).toBeInTheDocument();
+    // (your raise, its call, the big blind's check, the flop)
+    expect(within(last).getByRole("link", { name: "Open this spot in Study →" }).getAttribute("href")).toMatch(/^\/study\?p=2&s=100&pre=SB%3Ar2\.5%2CBB%3Ac&b=([2-9TJQKA][shdc]){3}&flop=BB%3Ax$/);
 
     // 2.5bb each preflop, your 1.5bb bet not called: you win the 5bb pot, +2.5bb
     expect(await screen.findByText("You won")).toBeInTheDocument();
