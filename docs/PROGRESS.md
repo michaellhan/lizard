@@ -1557,3 +1557,42 @@ Untouched (read-only `ps`). Memory 65–69% free; everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice and Analyze.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 7, a tournament hand in Analyze opens with prizes on the Tournaments page (second session)
+
+Deploy of 21124f7 (satellites) verified live: run 41688598760 passed, its new "Engine contract tests" step
+included (8/8 on CI's Python 3.12 and numpy 2.0.2); `/lizard/` serves `index-Ld4eYMlL.js`, which has "a chip won
+gains nothing" and "equal seats".
+
+### Code
+
+- `AnalyzePage.tsx`: each of your decisions in a tournament hand has, beside its Study link, a "with prizes" link to
+  the Tournaments page with the same line, stacks and ante (a hand history has no prizes left, so they're typed
+  there, with any bounties); the hand's note says so. Its Study links and grades stay in chips.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 283/283 in 48 files. Changed: `AnalyzePage.test.tsx` (the MTT hand's four decisions each link to `/tournaments?` with the Study link's line, stacks and ante; the note) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- The MTT hand's preflop link, on the Tournaments page: table 80bb, ante 0.1, LJ 100, BTN 136.73, SB 41.67, BB 83.67
+  filled in, the line kept. "Final table, 9 paid", Open in Study: "CO to act on the preflop · pot 4.6bb", "Your setup:
+  stacks … · ante 0.1bb · payouts 30/20/14/10.5/8/6.5/5/3.5/2.5", "Preflop charts · chip chart with a risk premium ·
+  approximate", prize equity 10.9%, bubble factors 1.25 (SB, the short stack) to 1.80 (BTN, the big one). (The hand
+  isn't kept in this browser, so the link's URL, as the test pins it, was opened directly.)
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`.
+
+### Next
+
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

@@ -130,10 +130,15 @@ describe("AnalyzePage", () => {
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("tournament 3712345678");
     expect(hand).toHaveTextContent("0.1bb ante");
-    expect(hand).toHaveTextContent("A tournament hand: Study answers it in chips, with no ICM or bounties.");
+    expect(hand).toHaveTextContent("A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page");
     const links = within(hand).getAllByRole("link", { name: /^Study / });
     expect(links).toHaveLength(4);
-    expect(links[0]).toHaveAttribute("href", "/study?p=9&s=80&pre=UTG%3Af%2CUTG1%3Af%2CUTG2%3Af%2CLJ%3Ar2.2%2CHJ%3Af&stacks=LJ%3A100%2CBTN%3A136.73%2CSB%3A41.67%2CBB%3A83.67&ante=0.1");
+    const q = "p=9&s=80&pre=UTG%3Af%2CUTG1%3Af%2CUTG2%3Af%2CLJ%3Ar2.2%2CHJ%3Af&stacks=LJ%3A100%2CBTN%3A136.73%2CSB%3A41.67%2CBB%3A83.67&ante=0.1";
+    expect(links[0]).toHaveAttribute("href", `/study?${q}`);
+    // the same decision on the Tournaments page, where the prizes left are typed
+    const prizes = within(hand).getAllByRole("link", { name: /as a tournament$/ });
+    expect(prizes).toHaveLength(4);
+    expect(prizes[0]).toHaveAttribute("href", `/tournaments?${q}`);
 
     fireEvent.change(screen.getByLabelText("Choose hand-history files"), { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
     expect(await screen.findByRole("alert")).toHaveTextContent("None of the 1 files is a hand history (.txt, .xml, .log or .hh).");

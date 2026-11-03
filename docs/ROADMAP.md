@@ -408,8 +408,9 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   check flat payouts (finite bubble factors on the bubble, null once every player left is paid, never a crash), and
   then a "Satellite, N seats" shape; preflop stays the chip chart with a risk premium, said on the page.
   **Still open in Phase 7:** the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip
-  diff, a satellite-aware preflop (push/fold covers only all-ins), and tournaments in Practice and Analyze (a
-  tournament hand is still answered in chips there).
+  diff, a satellite-aware preflop (push/fold covers only all-ins), and tournaments in Practice. Analyze: a tournament
+  hand's decisions each have a "with prizes" link to the Tournaments page (the same line, stacks and ante; a hand
+  history has no prizes left, so they're typed there); its own Study links and grades stay in chips.
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).

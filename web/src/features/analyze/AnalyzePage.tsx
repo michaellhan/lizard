@@ -616,7 +616,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
         , replayed on Lizard's table.
         {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve), your flop moves against the flop library." : " None of your decisions here is graded yet."}
         {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
-        {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties."}
+        {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page, to add the prizes left and any bounties."}
       </p>
       {r.warnings.length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted" aria-label="Warnings">
@@ -722,6 +722,14 @@ function StreetRow({ r, street, graded }: { r: ReplayedHand; street: Street; gra
                     <Link to={link} className="text-xs font-normal underline" aria-label={`Study ${street} decision ${i + 1}`}>
                       Study
                     </Link>
+                    {h.tournament && (
+                      <>
+                        {" "}
+                        <Link to={link.replace(/^\/study\?/, "/tournaments?")} className="text-xs font-normal underline" aria-label={`Set up ${street} decision ${i + 1} as a tournament`}>
+                          with prizes
+                        </Link>
+                      </>
+                    )}
                   </>
                 )}
               </li>
