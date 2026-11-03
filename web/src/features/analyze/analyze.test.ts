@@ -112,6 +112,9 @@ describe("reading files", () => {
     expect(filesName([f("a.txt")])).toBe("a.txt");
     expect(filesName([f("a.txt", "", "Stars/2024/a.txt"), f("b.txt", "", "Stars/2024/b.txt")])).toBe("2024 (2 files)");
     expect(filesName([f("a.txt"), f("b.txt")])).toBe("2 files");
+    // a folder with subfolders: the folder they all come from
+    expect(filesName([f("a.txt", "", "Stars/2024/a.txt"), f("b.txt", "", "Stars/2025/06/b.txt"), f("c.txt", "", "Stars/c.txt")])).toBe("Stars (3 files)");
+    expect(filesName([f("a.txt", "", "Stars/a.txt"), f("b.txt", "", "GG/b.txt")])).toBe("2 files");
     expect(filesName([])).toBe("");
   });
 });

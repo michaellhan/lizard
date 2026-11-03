@@ -10,6 +10,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { deleteDrill, listDrills } from "@/data/saved";
 import { classicDb } from "@/test/classic";
+import { dirEntry, fileEntry } from "@/test/entries";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { AnalyzePage } from "./AnalyzePage";
 
@@ -453,5 +454,32 @@ describe("AnalyzePage", () => {
       delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
       errors.mockRestore();
     }
+  });
+
+  it("reads a dropped folder through, subfolders and all", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(3));
+    const tree = dirEntry("hh", [
+      fileEntry("hh/winamax.txt", HH("winamax_mtt_ante.txt")),
+      dirEntry("hh/2024", [fileEntry("hh/2024/888.txt", HH("888_6max_srp.txt")), fileEntry("hh/2024/notes.png", "x")]),
+    ]);
+    const drop = screen.getByRole("textbox", { name: "Paste hand histories" }).parentElement!;
+    fireEvent.drop(drop, { dataTransfer: { items: [{ webkitGetAsEntry: () => tree }], files: [] } });
+    const res = await screen.findByRole("status", { name: "Import result" });
+    expect(res).toHaveTextContent("hh (2 files): 2 hands read, 2 to keep (2 new, 0 already kept from an earlier import).");
+    expect(res).toHaveTextContent("hh/2024/888.txt: 1 read, 1 to keep");
+    await waitFor(() => expect(handRows()).toHaveLength(5));
+  });
+
+  it("folds each file's count away past a few files", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(5));
+    const tree = dirEntry("many", Array.from({ length: 9 }, (_, i) => fileEntry(`many/s${i + 1}.txt`, HH("888_6max_srp.txt"))));
+    const drop = screen.getByRole("textbox", { name: "Paste hand histories" }).parentElement!;
+    fireEvent.drop(drop, { dataTransfer: { items: [{ webkitGetAsEntry: () => tree }], files: [] } });
+    const res = await screen.findByRole("status", { name: "Import result" });
+    expect(res).toHaveTextContent("many (9 files): 9 hands read, 1 to keep (0 new, 1 already kept from an earlier import).");
+    expect(within(res).getByText("Each file (9)").closest("details")).not.toHaveAttribute("open");
+    expect(res).toHaveTextContent("many/s9.txt: 1 read, 0 to keep");
   });
 });

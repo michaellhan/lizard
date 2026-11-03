@@ -251,13 +251,20 @@ export const HH_FILE = /\.(txt|xml|log|hh)$/i;
 export const hhFiles = <F extends { name: string; type?: string }>(list: Iterable<F>): F[] =>
   [...list].filter((f) => HH_FILE.test(f.name || "") || /^text\//.test(f.type || ""));
 
-/** An import's name from its files: the one file's, else the folder's (when all come from one) or "N files". */
+/** An import's name from its files: the one file's, else the folder they all come from (the innermost, subfolders
+ * and all) or "N files". */
 export function filesName(files: readonly { name: string; webkitRelativePath?: string }[]): string {
   if (!files.length) return "";
   if (files.length === 1) return files[0]!.name || "";
-  const dirs = new Set(files.map((f) => String(f.webkitRelativePath || "").split("/").slice(0, -1).join("/")));
-  const d = dirs.size === 1 ? [...dirs][0]! : "";
-  return d ? `${d.split("/").pop()} (${files.length} files)` : `${files.length} files`;
+  const dirs = files.map((f) => String(f.webkitRelativePath || "").split("/").slice(0, -1));
+  let common = dirs[0]!;
+  for (const d of dirs) {
+    let k = 0;
+    while (k < common.length && common[k] === d[k]) k++;
+    common = common.slice(0, k);
+  }
+  const d = common.at(-1);
+  return d ? `${d} (${files.length} files)` : `${files.length} files`;
 }
 
 /** The Study line at one of your decisions (the actions before it, the board up to its street), with the hand's

@@ -22,6 +22,7 @@ import { leakParam, parseLeakParam } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
+import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
 import { StatsPanel } from "./StatsPanel";
 import { WinningsPanel } from "./WinningsPanel";
 import { LIMITS } from "@/features/solve/setup";
@@ -180,7 +181,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
       setBusy(null);
     }
   };
-  const readFiles = async (list: FileList | File[] | null) => {
+  const readFiles = async (list: Iterable<PickedFile> | null) => {
     const all = [...(list ?? [])];
     const picked = hhFiles(all);
     if (!picked.length) {
@@ -193,7 +194,12 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
   const drop = (e: DragEvent) => {
     e.preventDefault();
     setOver(false);
-    void readFiles(e.dataTransfer.files);
+    // (a dropped folder is read through: its entries are taken now, while the drop lasts)
+    const entries = entriesOf(e.dataTransfer);
+    const files = [...e.dataTransfer.files];
+    void droppedFiles(entries, files)
+      .then(readFiles)
+      .catch((x: unknown) => setError(`The dropped folder couldn't be read: ${x instanceof Error ? x.message : String(x)}`));
   };
 
   return (
@@ -211,7 +217,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
       >
         <textarea
           aria-label="Paste hand histories"
-          placeholder="Paste one hand history or many, or drop files here"
+          placeholder="Paste one hand history or many, or drop files or a folder here"
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={5}
@@ -288,6 +294,27 @@ function ClassicResultLine({ r }: { r: ClassicResult }) {
   );
 }
 
+// (each file's count; past a few files, folded away like the unreadable hands)
+const FEW_FILES = 8;
+function FileList({ files }: { files: NonNullable<Prepared["files"]> }) {
+  const list = (
+    <ul className="text-xs text-muted">
+      {files.map((f, i) => (
+        <li key={i}>
+          {f.name}: {f.total} read, {f.hands} to keep
+        </li>
+      ))}
+    </ul>
+  );
+  if (files.length <= FEW_FILES) return list;
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer">Each file ({files.length.toLocaleString()})</summary>
+      <div className="mt-1">{list}</div>
+    </details>
+  );
+}
+
 function ImportResult({ r }: { r: Result }) {
   const { prep, kept } = r;
   const skips = (Object.entries(prep.skipped) as [SkipKind, number][]).filter(([, v]) => v > 0);
@@ -299,15 +326,7 @@ function ImportResult({ r }: { r: Result }) {
         {kept === null && " This browser isn't keeping data (private browsing, or storage turned off), so nothing was kept."}
       </p>
       {skips.length > 0 && <p className="text-muted">Skipped: {skips.map(([k, v]) => `${v} ${SKIP_TEXT[k]}`).join(", ")}.</p>}
-      {prep.files && (
-        <ul className="text-xs text-muted">
-          {prep.files.map((f, i) => (
-            <li key={i}>
-              {f.name}: {f.total} read, {f.hands} to keep
-            </li>
-          ))}
-        </ul>
-      )}
+      {prep.files && <FileList files={prep.files} />}
       {prep.errors.length > 0 && (
         <details className="text-xs">
           <summary className="cursor-pointer">Unreadable hands ({prep.errors.length})</summary>

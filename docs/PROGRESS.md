@@ -3319,3 +3319,48 @@ Untouched; checked only with read-only `ps`. No solves.
 - Phase 2, still open: turns and rivers, a history across sessions, a dropped folder.
 - Phase 3: done as listed. Not in it yet: range and nut advantage columns.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 2, a dropped folder in Analyze's import (2026-11-03)
+
+The all-in EV line (fcd763f) deployed: run 41730156458 succeeded, and the live bundle `index-Bq-eKi9T.js` has it
+("All-in EV", "at their equity"; it's in the main chunk, which the deploy watch's sub-chunk grep missed).
+
+### What changed
+
+- **A dropped folder** (`web/src/features/analyze/dropped.ts`). A drop's entries are taken while the drop event
+  lasts (`entriesOf`, through `webkitGetAsEntry`). With a folder among them, every file is read through, subfolders
+  and all, a reader's batches looped until an empty one (`droppedFiles`). Each file keeps its path under the folder
+  dropped, in order of the paths (numbers as numbers: t2 before t10). A drop of files only is read as before.
+- **The import's name** (`analyze.ts`, `filesName`). The innermost folder all the files share, so a dropped or picked
+  folder with subfolders is "hh (2 files)", not "2 files".
+- **A long list of files folds away.** Past 8 files the per-file counts sit under "Each file (N)", like the
+  unreadable hands.
+- **The box** says "drop files or a folder here". A folder that can't be read says so.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 427/427. `dropped.test.ts`: a folder read through over stand-in entries handed over two at a time, paths kept, sorted by path with numbers as numbers; a drop of files kept as it is; `entriesOf`. `analyze.test.ts`: the common folder's name. `AnalyzePage.test.tsx`: a dropped folder with a subfolder and a .png ("hh (2 files): 2 hands read…", the subfolder's file listed); nine files folded under "Each file (9)", closed |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- **A drop of one file** through a real `DataTransfer`: read as before ("drop-test.txt: 1 hand read").
+- **A folder** of the browser's own directory entries (Chrome's sandboxed file system, `webkitRequestFileSystem`):
+  101 hand files, a .png and `sub/deeper/deep.txt`. Chrome's reader handed over 100 entries in its first batch;
+  all 102 hands were read, the .png skipped, the import named "dropfolder (102 files)", the files listed in path
+  order under a closed "Each file (102)". The test imports were deleted after (66 hands kept, as before).
+- **Not checked:** a folder dragged from Finder. No automation can drive an OS drag into the page; the entries a
+  real drag hands over are the same kind of objects as the ones checked.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. No solves.
+
+### Next
+
+- Phase 2, still open: turns and rivers, a history across sessions.
+- Phase 3: done as listed. Not in it yet: range and nut advantage columns.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
