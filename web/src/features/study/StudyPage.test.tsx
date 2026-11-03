@@ -293,4 +293,19 @@ describe("StudyPage", () => {
     expect(table).toHaveTextContent("EVs in bb; prize equity's as chips worth as much.");
     expect(within(table).getAllByText(/^Live solve/)).toHaveLength(2);
   });
+
+  it("links the spot to Compare with one thing changed, on a decision only", async () => {
+    stub.answer = THREE_WAY;
+    const search = "p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h";
+    const { unmount } = renderAt(search);
+    const nav = await screen.findByRole("navigation", { name: "Compare this spot" });
+    const b = (name: string) => fromSearch(new URLSearchParams(within(nav).getByRole("link", { name }).getAttribute("href")!.split("?")[1]).get("b")!)!;
+    expect(b("with 5% rake, capped at 3bb").setup).toEqual({ rake: 5, rakeCap: 3 });
+    expect(b("compare").stack).toBe(50);
+    unmount();
+    stub.answer = { study: "over" };
+    renderAt(search);
+    expect(await screen.findByText(/The hand is over/)).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Compare this spot" })).toBeNull();
+  });
 });

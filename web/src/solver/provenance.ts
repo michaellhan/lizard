@@ -159,6 +159,9 @@ const LABELS: Record<ResultSource, string> = {
   unknown: "Unlabelled",
 };
 
+/** What answered, in words ("Live solve", "Preflop charts"…). */
+export const sourceLabel = (s: ResultSource): string => LABELS[s];
+
 export function describe(p: Provenance): string {
   const parts = [LABELS[p.source]];
   if (p.librarySpot) parts.push(p.librarySpot);

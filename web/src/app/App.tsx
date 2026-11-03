@@ -14,6 +14,7 @@ import { SavedPage } from "@/features/saved/SavedPage";
 import { AnalyzePage } from "@/features/analyze/AnalyzePage";
 import { ReportsPage } from "@/features/reports/ReportsPage";
 import { SolvePage } from "@/features/solve/SolvePage";
+import { ComparePage } from "@/features/compare/ComparePage";
 import { NotFoundPage } from "@/features/home/NotFoundPage";
 
 export function App() {
@@ -38,6 +39,7 @@ export function App() {
           <Route path="solve" element={<SolvePage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="tournaments" element={<SolvePage kind="tournament" />} />
+          <Route path="compare" element={<ComparePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

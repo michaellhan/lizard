@@ -448,6 +448,15 @@ Moves matrix rows: all Tournament rows, and MTT.
 **Goal.** Let users compare two answers side by side: two actions, two nodes, two depths, rake against no rake, ICM against chipEV, or charts against the preflop solve.
 
 **Deliverables.**
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** the compare view (`web/src/features/compare/`,
+  `/compare?a=…&b=…`, each side a Study link): both spots asked one after the other through the one solver queue
+  (each side's status, and Stop), what differs, each side's badge, a warning first when the sources differ or either
+  is approximate, the actions with B − A in frequency and EV (EV changes within both answers' distance from
+  equilibrium greyed as noise), the range's totals, a diff grid per class for any one action, and the biggest
+  differences. Study links each answer to it: a tournament in chip EV, with or without rake postflop, another stack.
+  Tests: the diff of an answer with itself is zero, the warning for mixed or approximate sources.
+  **Still open in Phase 8:** Compare EV (two actions per class), the charts against the preflop solve preset, the
+  one-size view (`simple.test.js`), and a picker for any two nodes.
 - **A compare view, `web/src/features/compare/`.**
   - Two Study requests, each with its own provenance, and a diff grid per class (frequency and EV difference).
   - Changes in the range's totals.

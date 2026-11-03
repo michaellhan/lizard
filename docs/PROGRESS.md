@@ -1596,3 +1596,57 @@ Untouched (read-only `ps`). Everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 8, the Compare view (second session)
+
+Deploy of 478df5f (Analyze's "with prizes" links) verified live: run 41689103791 passed; `/lizard/` serves
+`index-DXkWLJi0.js`, which has "with prizes" and "as a tournament".
+
+### Code
+
+- `web/src/features/compare/compare.ts`: the diff of two Study answers, B − A everywhere: every action either side
+  offers (one not offered counts as never taken), the range's totals, per hand class the change in one action's
+  frequency (null where the class is in one range only) and in the class's EV, the biggest changes, the noise
+  threshold (both answers' distance from equilibrium combined, in bb; none unless both are measured), the warnings
+  (different sources; either side approximate; different player or street), and what differs between the two spots
+  in words. `compareLink(a, b)` builds `/compare?a=<Study query>&b=<Study query>`.
+- `DiffMatrix.tsx`: the 13x13 classes coloured by the change (blue more often, red less), each cell a labelled button.
+- `ComparePage.tsx` (`/compare`, not in the nav): both spots checked as Study checks them, then asked one after the
+  other (A, then B once A is answered; Stop stops both); each side's description, Open in Study and badge; the
+  warning first; the actions table; the range's totals; the grid for any one action, a selected class in words, and
+  the biggest differences.
+- `features/study/CompareLinks.tsx`, under each Study decision: "Compare this spot:" in chip EV (a tournament), with
+  or without rake (postflop only, where the rake is taken; 5% capped at 3bb is a generic preset), and at another
+  stack (10–250bb). Shown only on a decision node.
+- `provenance.ts`: `sourceLabel` exported for the warning.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 295/295 in 50 files. New: `compare.test.ts` (6: zero against itself, the action union, per-class diffs, noise, the warnings, what differs), `ComparePage.test.tsx` (5: A then B and the whole page; the mixed-source warning; nothing to compare, and nothing asked for a setup out of range; Study's variants and links; the cells' labels). `StudyPage.test.tsx`: the links on a decision only |
+| Typecheck and ESLint | clean |
+| Build | passes (12 route pages and 404.html, `compare` among them) |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- 6-max 100bb preflop, "at 50 bb compare": both "Preflop charts · approximate", the warning "A and B are approximate
+  (Preflop charts): read small differences as noise.", raise 18.7% against 18.8%, no EV columns (a chart has none),
+  "No distance from equilibrium is measured on both sides…", biggest change K7s 0.0% → 28.0%.
+- Heads-up 100bb, SB raise 2.5, BB call, Ks7d2c, "with 5% rake, capped at 3bb": both live solves (0.11% and 0.12%
+  pot from equilibrium), "B adds: rake 5%, capped at 3bb", check 99.7% → 96.5%, BB's range 777.4 → 512.4 combos and
+  equity 45.6% → 49.7%, noise under 0.01bb.
+- 375px: no horizontal overflow on `/compare` or on Study with the links. No console errors from the new bundle.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 63–66% free; everything ran under `nice`.
+
+### Next
+
+- Phase 8, still open: Compare EV (two actions per class), the charts against the preflop solve preset, the one-size
+  view (port `simple.test.js`), a picker for any two nodes.
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

@@ -1,0 +1,249 @@
+// Compare (ROADMAP Phase 8): two Study spots, A and B (each a Study link's query: `/compare?a=…&b=…`), asked one
+// after the other and shown side by side: how B differs, each side's badge, a warning first when the sources differ
+// or either is approximate, the actions' frequencies and EVs, the range's totals, and per hand class the change in one
+// action's frequency (the grid) with the biggest changes listed. Opened from Study's "Compare this spot" links.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
+import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { pct } from "@/components/actions";
+import { describeSetup, setupProblems } from "@/features/solve/setup";
+import { MAX_STACK, MIN_STACK } from "@/features/study/StudyPage";
+import { describeLine, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
+import type { AdvisorActionStat, AdvisorResponse } from "@/solver/protocol";
+import { SolverError, type SolveResult } from "@/solver/types";
+import { useSolver } from "@/solver/useSolver";
+import { useSettings } from "@/state/settings";
+import { biggest, diffActions, diffClasses, noiseBb, nodeWarning, sourceWarning, totalsOf, whatDiffers } from "./compare";
+import { bbDelta, DiffMatrix, diffLabel, points } from "./DiffMatrix";
+
+type Answer = { kind: "done"; result: SolveResult } | { kind: "error"; message: string };
+type Side = Answer | { kind: "loading" } | { kind: "waiting" };
+
+const spotWords = (h: StudyHand) =>
+  [`${h.players === 2 ? "heads-up" : `${h.players}-max`} ${h.stack}bb`, describeLine(h).join(" ") || "the first decision", ...describeSetup(h.setup)].join(" · ");
+
+export function ComparePage() {
+  const [params] = useSearchParams();
+  const a = useMemo(() => fromSearch(params.get("a") ?? ""), [params]);
+  const b = useMemo(() => fromSearch(params.get("b") ?? ""), [params]);
+  const picked = useSettings((s) => s.mode);
+  const mode = picked === "quick" ? "fast" : picked;
+  const getSolver = useSolver();
+  const problems = useMemo(() => {
+    const of = (name: string, h: StudyHand) => [
+      ...(h.stack >= MIN_STACK && h.stack <= MAX_STACK ? [] : [`the table's stack must be ${MIN_STACK}–${MAX_STACK}bb`]),
+      ...setupProblems(h.players, h.setup),
+    ].map((p) => `${name}: ${p}`);
+    return [...(a ? of("A", a) : []), ...(b ? of("B", b) : [])];
+  }, [a, b]);
+  const key = `${params.get("a")}|${params.get("b")}|${mode}`;
+  // each side's answer, tagged with the request it answers; B is asked once A is answered
+  const [answers, setAnswers] = useState<{ key: string; a?: Answer; b?: Answer }>({ key: "" });
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!a || !b || problems.length) return;
+    const ac = new AbortController();
+    abortRef.current = ac;
+    let alive = true;
+    const set = (which: "a" | "b", x: Answer) => alive && setAnswers((s) => ({ ...(s.key === key ? s : { key }), [which]: x }));
+    void (async () => {
+      // one after the other (the backends run one solve at a time), A first
+      for (const [which, h] of [["a", a], ["b", b]] as const) {
+        try {
+          const client = await getSolver();
+          set(which, { kind: "done", result: await client.solve({ state: studyRequest(h), mode, signal: ac.signal }) });
+        } catch (e) {
+          set(which, { kind: "error", message: e instanceof SolverError && e.kind === "cancelled" ? "Stopped." : e instanceof Error ? e.message : String(e) });
+        }
+        if (ac.signal.aborted) {
+          if (which === "a") set("b", { kind: "error", message: "Stopped." });
+          return;
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+      ac.abort();
+    };
+    // the key covers both spots and the mode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, getSolver]);
+
+  if (!a || !b)
+    return (
+      <div className="max-w-3xl space-y-3">
+        <h1 className="text-2xl font-semibold">Compare</h1>
+        <p className="text-sm text-muted">
+          Nothing to compare. Open a comparison from a spot in{" "}
+          <Link to="/study" className="underline hover:text-text">
+            Study
+          </Link>{" "}
+          (Compare this spot: in chip EV, without rake, at another stack).
+        </p>
+      </div>
+    );
+
+  const mine = answers.key === key ? answers : { key };
+  const sa: Side = problems.length ? { kind: "waiting" } : (mine.a ?? { kind: "loading" });
+  const sb: Side = problems.length || !mine.a ? { kind: "waiting" } : (mine.b ?? { kind: "loading" });
+  const differs = whatDiffers(a, b);
+  return (
+    <div className="max-w-5xl space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Compare</h1>
+        <p className="text-sm text-muted">Two spots answered one after the other and shown side by side, B against A. Each answer keeps its own source.</p>
+      </div>
+      <dl aria-label="Spots" className="grid gap-1 text-sm sm:grid-cols-[auto_1fr]">
+        {(
+          [
+            ["A", a, sa],
+            ["B", b, sb],
+          ] as const
+        ).map(([name, h, s]) => (
+          <div key={name} className="contents">
+            <dt className="font-medium">{name}</dt>
+            <dd className="min-w-0 space-y-1">
+              <div>
+                {spotWords(h)}.{" "}
+                <Link to={`/study?${toSearch(h)}`} className="text-xs underline hover:text-text">
+                  Open in Study
+                </Link>
+              </div>
+              <div className="text-xs">
+                {s.kind === "done" ? (
+                  <ProvenanceBadge p={s.result.provenance} />
+                ) : s.kind === "loading" ? (
+                  <span role="status" className="text-muted">
+                    Answering…
+                  </span>
+                ) : s.kind === "error" ? (
+                  <span role="alert" className="text-danger">
+                    {s.message}
+                  </span>
+                ) : (
+                  <span className="text-muted">{problems.length ? "Not asked." : "Asked once A is answered."}</span>
+                )}
+              </div>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p aria-label="What differs" className="text-sm">
+        <span className="font-medium">What differs:</span> {differs.length ? differs.join("; ") : "nothing (the same spot twice)"}.
+      </p>
+      {problems.length > 0 && (
+        <div role="alert" className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          These setups can't be solved: {problems.join("; ")}.
+        </div>
+      )}
+      {(sa.kind === "loading" || sb.kind === "loading") && (
+        <button type="button" onClick={() => abortRef.current?.abort()} className="rounded border border-border px-2 py-0.5 text-sm hover:bg-surface-2">
+          Stop
+        </button>
+      )}
+      {sa.kind === "done" && sb.kind === "done" && <Diff ra={sa.result} rb={sb.result} />}
+    </div>
+  );
+}
+
+function Diff({ ra, rb }: { ra: SolveResult; rb: SolveResult }) {
+  const A: AdvisorResponse = ra.data, B: AdvisorResponse = rb.data;
+  const actions = useMemo(() => diffActions(A, B), [A, B]);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const action = chosen && actions.some((x) => x.action === chosen) ? chosen : (actions[0]?.action ?? "");
+  const classes = useMemo(() => diffClasses(A, B, action), [A, B, action]);
+  const top = useMemo(() => biggest(classes), [classes]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const noise = noiseBb(ra.provenance, rb.provenance, A.pot_bb);
+  const warn = [sourceWarning(ra.provenance, rb.provenance), nodeWarning(A, B)].filter(Boolean);
+  const t = totalsOf(A, B);
+  const quiet = (d: number | null) => d !== null && noise !== null && Math.abs(d) < noise;
+  const stat = (x: AdvisorActionStat | undefined) => (x ? `${pct(x.freq)}${typeof x.ev_bb === "number" ? ` · EV ${x.ev_bb.toFixed(2)}bb` : ""}` : "not offered");
+  // the range's combos, EV and equity, where the side has them (a chart has no EV or equity)
+  const range = (i: 0 | 1) =>
+    [t.combos[i] !== null && `${t.combos[i]!.toFixed(1)} combos`, t.ev[i] !== null && `EV ${t.ev[i]!.toFixed(2)}bb`, t.eq[i] !== null && `equity ${pct(t.eq[i])}`].filter(Boolean).join(" · ") || "–";
+  const sel = selected ? classes.find((c) => c.cls === selected) : undefined;
+  return (
+    <div className="space-y-4">
+      {warn.length > 0 && (
+        <div aria-label="Warning" className="space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
+          {warn.map((w) => (
+            <p key={w}>{w}</p>
+          ))}
+        </div>
+      )}
+      <section aria-label="Actions" className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="text-xs text-muted">
+            <tr>
+              <th className="py-1 pr-3 font-normal">{A.actor ?? "Action"}, whole range</th>
+              <th className="py-1 pr-3 font-normal">A</th>
+              <th className="py-1 pr-3 font-normal">B</th>
+              <th className="py-1 font-normal">B − A</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono text-xs">
+            {actions.map((d) => (
+              <tr key={d.action} className="border-t border-border">
+                <td className="py-1 pr-3 font-sans font-medium">{d.action}</td>
+                <td className="py-1 pr-3">{stat(d.a)}</td>
+                <td className="py-1 pr-3">{stat(d.b)}</td>
+                <td className="py-1">
+                  {points(d.dFreq)} points
+                  {d.dEv !== null && <span className={quiet(d.dEv) ? "text-muted" : ""}> · EV {bbDelta(d.dEv)}</span>}
+                </td>
+              </tr>
+            ))}
+            <tr className="border-t border-border text-muted">
+              <td className="py-1 pr-3 font-sans">The range</td>
+              <td className="py-1 pr-3">{range(0)}</td>
+              <td className="py-1 pr-3">{range(1)}</td>
+              <td className="py-1">
+                {t.ev[0] !== null && t.ev[1] !== null ? `EV ${bbDelta(t.ev[1] - t.ev[0])}` : ""}
+                {t.eq[0] !== null && t.eq[1] !== null ? ` · equity ${points(t.eq[1] - t.eq[0])} points` : ""}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-1 text-xs text-muted">
+          {noise !== null
+            ? `EV changes under ${noise.toFixed(2)}bb (the two answers' distance from equilibrium combined) are greyed: noise.`
+            : "No distance from equilibrium is measured on both sides, so no EV change can be called noise or not."}
+        </p>
+      </section>
+      {A.grid && B.grid && (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <section aria-label="Change per hand class" className="space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <span>Change in</span>
+              <select aria-label="Action" value={action} onChange={(e) => setChosen(e.target.value)} className="rounded border border-border bg-surface px-2 py-1">
+                {actions.map((d) => (
+                  <option key={d.action}>{d.action}</option>
+                ))}
+              </select>
+            </label>
+            <DiffMatrix diffs={classes} action={action} selected={selected} onSelect={setSelected} />
+            <p className="text-xs text-muted">Blue: B takes it more often; red: less often; the stronger, the bigger. Darker grey: a class in one range only.</p>
+            {sel && <p className="text-sm">{diffLabel(sel, sel.cls, action)}</p>}
+          </section>
+          <section aria-label="Biggest differences" className="space-y-1 text-sm">
+            <h2 className="font-medium">Biggest differences in {action}</h2>
+            {top.length ? (
+              <ol className="space-y-0.5 font-mono text-xs">
+                {top.map((d) => (
+                  <li key={d.cls}>
+                    {d.cls}: {pct(d.fa)} → {pct(d.fb)} ({points(d.dFreq!)} points)
+                    {d.dEv !== null && <span className={quiet(d.dEv) ? "text-muted" : ""}>, EV {bbDelta(d.dEv)}</span>}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-xs text-muted">No hand class in both ranges changes it by half a point or more.</p>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
