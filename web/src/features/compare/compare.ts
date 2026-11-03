@@ -4,6 +4,7 @@
 // first (a difference can be the source's, not the spot's). An EV difference within the two sides' distance from
 // equilibrium combined is marked as noise. Side A is the spot as it was; B the variant (B − A everywhere).
 import { describeSetup } from "@/features/solve/setup";
+import { describePfSizes } from "@/features/study/pfSizes";
 import { describeLine, toSearch, type StudyHand } from "@/features/study/studyState";
 import { sourceLabel } from "@/solver/provenance";
 import type { AdvisorActionStat, AdvisorResponse, GridCell } from "@/solver/protocol";
@@ -143,6 +144,9 @@ export function whatDiffers(a: StudyHand, b: StudyHand): string[] {
   if (la !== lb) out.push(`line ${la || "(the start)"} → ${lb || "(the start)"}`);
   const pfA = pfSourceOf(a), pfB = pfSourceOf(b);
   if (pfA && pfB && pfA !== pfB) out.push(`preflop source ${pfA} → ${pfB}`);
+  // (the solve's sizes, where both sides are the solve: the charts play their own)
+  const szA = describePfSizes(a.pfSizes) || "the default sizes", szB = describePfSizes(b.pfSizes) || "the default sizes";
+  if (pfA === "the preflop solve" && pfB === pfA && szA !== szB) out.push(`the solve's sizes ${szA} → ${szB}`);
   const sa = describeSetup(a.setup), sb = describeSetup(b.setup);
   const drops = sa.filter((x) => !sb.includes(x)), adds = sb.filter((x) => !sa.includes(x));
   if (drops.length) out.push(`B drops: ${drops.join(" · ")}`);

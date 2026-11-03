@@ -8,7 +8,8 @@ import { describe as describeProvenance, provenanceOf } from "@/solver/provenanc
 import type { SolveResult } from "@/solver/types";
 import { askNode, newRun, pfCache, pfCacheKey, pfFraction, pfGame, runPf } from "./pfSolve";
 import { StudyPage } from "./StudyPage";
-import { freshHand, fromSearch, play, studyRequest, toSearch, withPf, type StudyHand } from "./studyState";
+import { describePfSizes, parsePfSizes, pfSizeProblems, tidyPfSizes } from "./pfSizes";
+import { freshHand, fromSearch, play, samePf, studyRequest, toSearch, withPf, withPfSizes, type StudyHand } from "./studyState";
 
 // the engine's preflop solve stubbed (Advisor._study_pf, pf_study.Solve): one heads-up game, solved 500 iterations a
 // chunk to 1,000; every request kept in `pf.asked`; a chunk waits on `pf.hold` where a test sets one
@@ -109,6 +110,28 @@ describe("the preflop Solver source's state", () => {
     expect(pfGame(after)).toBe(pfGame(h));
     expect(pfGame(HU)).toBe(pfGame(h));
     expect(pfGame({ ...h, stack: 50 })).not.toBe(pfGame(h));
+  });
+
+  it("sends the solve's raise sizes where they aren't the defaults, as another game, and keeps them in the link", () => {
+    // (pf_study SIZE_LIMITS; the engine rounds to 0.01)
+    expect(tidyPfSizes({ open: 2.2, four_x: 2.3, ip_3bet: 9 })).toEqual({ open: 2.2 });
+    expect(tidyPfSizes({ open: 2.5 })).toBeUndefined();
+    expect(tidyPfSizes({ blind_3bet: 4.333 })).toEqual({ blind_3bet: 4.33 });
+    expect(pfSizeProblems({ open: 6, four_x: 1.5, sb_open: 3 })).toEqual(["Open must be 2–5bb", "4bet must be 1.8–3.5×"]);
+    expect(describePfSizes({ open: 2.2, four_x: 2.5 })).toBe("open 2.2bb, 4bet 2.5×");
+    expect(describePfSizes({ sb_open: 2.2, blind_3bet: 4 })).toBe("SB open 2.2bb, blind 3bet 4×");
+    expect(parsePfSizes("open:2.2,bogus:3,four_x:9")).toEqual({ open: 2.2 });
+    const h = withPfSizes(withPf(HU, "solver"), { open: 2.2, sb_open: 3 });
+    expect(h.pfSizes).toEqual({ open: 2.2 });
+    expect(studyRequest(h).pf_sizes).toEqual({ open: 2.2 });
+    expect(studyRequest({ ...h, board: "Ks7d2c" })).not.toHaveProperty("pf_sizes");
+    expect(pfGame(h)).not.toBe(pfGame(withPf(HU, "solver")));
+    expect(toSearch(h)).toContain("pfs=open%3A2.2");
+    expect(fromSearch(toSearch(h))).toEqual(h);
+    // the charts play their own sizes: none kept; a new hand keeps the source and the sizes
+    expect(withPf(h, "charts")).toEqual(HU);
+    expect(fromSearch("p=2&s=100&pfs=open:2.2")).toEqual(HU);
+    expect(samePf(h, freshHand(3, 50))).toEqual({ ...freshHand(3, 50), pf: "solver", pfSizes: { open: 2.2 } });
   });
 
   it("fills the bar toward the target from the last measure, else by iterations", () => {
@@ -224,6 +247,27 @@ describe("Study's preflop Solver source", () => {
     expect(asks("run")).toHaveLength(2);
   });
 
+  it("sets the solve's raise sizes: refused out of range, sent as pf_sizes on Apply, named, and back to the defaults", async () => {
+    renderAt(withPf(HU, "solver"));
+    await screen.findByRole("region", { name: "Solve this game's preflop" });
+    const form = screen.getByRole("form", { name: "Preflop solve sizes" });
+    fireEvent.change(within(form).getByLabelText("Open"), { target: { value: "6" } });
+    expect(within(form).getByRole("alert")).toHaveTextContent("Open must be 2–5bb");
+    expect(within(form).getByRole("button", { name: "Apply" })).toBeDisabled();
+    fireEvent.change(within(form).getByLabelText("Open"), { target: { value: "2.2" } });
+    // (a size typed at its default isn't sent)
+    fireEvent.change(within(form).getByLabelText("4bet"), { target: { value: "2.3" } });
+    pf.asked = [];
+    fireEvent.click(within(form).getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(pf.asked.at(-1)?.pf_sizes).toEqual({ open: 2.2 }));
+    expect(screen.getByText("Sizes: open 2.2bb")).toBeInTheDocument();
+    pf.asked = [];
+    fireEvent.click(screen.getByRole("button", { name: "Defaults" }));
+    await waitFor(() => expect(pf.asked.length).toBeGreaterThan(0));
+    expect(pf.asked.at(-1)).not.toHaveProperty("pf_sizes");
+    expect(screen.getByText("Sizes")).toBeInTheDocument();
+  });
+
   it("says when the solve doesn't take a game, and offers the charts", async () => {
     const client = (await pf.getSolver()) as { solve: (r: { state: AdvisorState }) => Promise<SolveResult> };
     const solve = client.solve;
@@ -240,6 +284,12 @@ describe("Study's preflop Solver source", () => {
 });
 
 describe("Compare: the charts against the preflop solve", () => {
+  it("names the solve's sizes where both sides are the solve", () => {
+    const a = withPf(HU, "solver");
+    expect(whatDiffers(a, withPfSizes(a, { open: 2.2 }))).toEqual(["the solve's sizes the default sizes → open 2.2bb"]);
+    expect(whatDiffers(withPfSizes(a, { open: 2.2 }), withPf(HU, "charts"))).toEqual(["preflop source the preflop solve → the charts"]);
+  });
+
   it("says the source is what differs, warns the sources differ by design, and says when a side isn't solved", () => {
     const b = withPf(HU, "solver");
     expect(whatDiffers(HU, b)).toEqual(["preflop source the charts → the preflop solve"]);

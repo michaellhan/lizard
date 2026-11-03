@@ -5,6 +5,7 @@ import type { AdvisorAction, AdvisorActionStat, AdvisorResponse, AdvisorState } 
 import { kindOf } from "@/components/actions";
 import { parseCards } from "@/engine/nlhe/cards";
 import { setupFromParams, setupRequest, setupToParams, type SpotSetup } from "@/features/solve/setup";
+import { encodePfSizes, parsePfSizes, tidyPfSizes, type PfSizes } from "./pfSizes";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -21,6 +22,8 @@ export interface StudyHand {
   setup?: SpotSetup;
   /** preflop's source: the charts (the default, the advice's) or the engine's class-level solve of the game (pfSolve.ts) */
   pf?: "solver";
+  /** the preflop solve's raise sizes where they aren't the defaults (pfSizes.ts; the Solver source only) */
+  pfSizes?: PfSizes;
 }
 
 export function freshHand(players = 6, stack = 100): StudyHand {
@@ -45,16 +48,29 @@ export function studyRequest(h: StudyHand): AdvisorState {
     river: h.river,
     ...setupRequest(h.setup, h.players),
     study: true,
-    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true } : {}),
+    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...(h.pfSizes ? { pf_sizes: { ...h.pfSizes } } : {}) } : {}),
   };
 }
 
-/** The hand with preflop's source set: the charts (no `pf`) or the Solver source (kept in the URL as pf=solver). */
+/** The hand with preflop's source set: the charts (no `pf`, and no solve sizes) or the Solver source (kept in the URL
+ * as pf=solver). */
 export function withPf(h: StudyHand, v: "charts" | "solver"): StudyHand {
   const rest = { ...h };
   delete rest.pf;
-  return v === "solver" ? { ...rest, pf: "solver" } : rest;
+  delete rest.pfSizes;
+  return v === "solver" ? { ...rest, pf: "solver", ...(h.pfSizes ? { pfSizes: h.pfSizes } : {}) } : rest;
 }
+
+/** The hand with the preflop solve's sizes set (the defaults left out; none: every size the default's). */
+export function withPfSizes(h: StudyHand, s: PfSizes | undefined): StudyHand {
+  const rest = { ...h };
+  delete rest.pfSizes;
+  const t = tidyPfSizes(s);
+  return t ? { ...rest, pfSizes: t } : rest;
+}
+
+/** A new hand (to) with from's preflop source and the solve's sizes. */
+export const samePf = (from: StudyHand, to: StudyHand): StudyHand => withPfSizes(withPf(to, from.pf ?? "charts"), from.pf === "solver" ? from.pfSizes : undefined);
 
 /** The hand after the actor takes one of the node's actions. */
 export function play(h: StudyHand, res: AdvisorResponse, a: AdvisorActionStat): StudyHand {
@@ -142,6 +158,7 @@ export function toSearch(h: StudyHand): string {
   for (const st of ["flop", "turn", "river"] as const) if (h[st].length) q.set(st, encodeLine(h[st]));
   setupToParams(h.setup, q);
   if (h.pf === "solver") q.set("pf", "solver");
+  if (h.pf === "solver" && h.pfSizes) q.set("pfs", encodePfSizes(h.pfSizes));
   return q.toString();
 }
 
@@ -165,7 +182,7 @@ export function fromSearch(search: string): StudyHand | null {
     turn: parseLine(q.get("turn") ?? ""),
     river: parseLine(q.get("river") ?? ""),
     ...(setup ? { setup } : {}),
-    ...(q.get("pf") === "solver" ? { pf: "solver" as const } : {}),
+    ...(q.get("pf") === "solver" ? { pf: "solver" as const, ...((s) => (s ? { pfSizes: s } : {}))(parsePfSizes(q.get("pfs"))) } : {}),
   };
 }
 

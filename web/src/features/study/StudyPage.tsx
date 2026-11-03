@@ -26,12 +26,15 @@ import {
   streetOf,
   studyRequest,
   toSearch,
+  samePf,
   withPf,
+  withPfSizes,
   type StudyHand,
 } from "./studyState";
+import { encodePfSizes } from "./pfSizes";
 import { BuildMode, type BuildSaved } from "./BuildMode";
 import { askNode, newRun, pfGame, runPf, type PfRun } from "./pfSolve";
-import { PfNote, PfPanel, PfProgress, PreflopSource } from "./PreflopSolve";
+import { PfNote, PfPanel, PfProgress, PfSizesForm, PreflopSource } from "./PreflopSolve";
 import { EvGapPanel } from "@/features/compare/EvGapPanel";
 import { OneSizePanel } from "@/features/compare/OneSizePanel";
 import { offersOneSize } from "@/features/compare/oneSize";
@@ -246,8 +249,11 @@ export function StudyPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
+          {streetOf(hand) === "preflop" && hand.pf === "solver" && (
+            <PfSizesForm key={encodePfSizes(hand.pfSizes ?? {})} value={hand.pfSizes} onApply={(s) => setHand(withPfSizes(hand, s))} />
+          )}
           <ModePicker modes={["fast", "accurate"]} />
-          <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(withPf(freshHand(p, st), hand.pf ?? "charts"))} />
+          <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(samePf(hand, freshHand(p, st)))} />
         </div>
       </div>
 
@@ -264,7 +270,7 @@ export function StudyPage() {
         <button type="button" onClick={onBack} disabled={!back(hand)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40">
           ← Back
         </button>
-        <button type="button" onClick={() => setHand(withPf({ ...freshHand(hand.players, hand.stack), setup: hand.setup }, hand.pf ?? "charts"))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+        <button type="button" onClick={() => setHand(samePf(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
           Reset
         </button>
         <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" ? phase.result.provenance : undefined} />

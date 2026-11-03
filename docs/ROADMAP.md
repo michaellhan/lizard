@@ -77,7 +77,8 @@ Effort sizes are rough: **S** is a few days, **M** is one to three weeks, **L** 
   in Study (`pf=solver` in the link) that asks `preflop_solve`, offers to solve a game the engine doesn't hold and runs
   it only on Solve, in 4 s chunks with progress and Stop, and keeps finished solves in IndexedDB (`lizard-pf`, a cache
   apart from the app's database, so no migration; `web/src/features/study/pfSolve.ts`, `PreflopSolve.tsx`), labelled
-  "Preflop solve (class-level model)". Phase 0 has nothing open.
+  "Preflop solve (class-level model)", with the classic's custom raise sizes (`pfSizes.ts`, Study's "Sizes" form, `pfs=`
+  in the link, sent as `pf_sizes`). Phase 0 has nothing open.
 - **Convergence label.** The abstraction wording is done: `describe` (`web/src/solver/provenance.ts:113-127`) says "in the solved game", and "mean best-response gain" for 3- and 4-way answers. Still to do: add the classic bands (converged under 3% of the pot, fair under 10%, rough otherwise, approximate when flagged; `solver/gto/static/index.html:1932-1937`) and the target when present. Update `web/src/components/ProvenanceBadge.tsx`.
 - **Settings that do nothing.** Apply `evUnit` (bb or % of pot) in `StudyPage.tsx` action buttons and `ComboPanel.tsx`, or remove the setting. Do the same for `colorByAction` (`web/src/state/settings.ts:13-15`).
 - **3-way display.**

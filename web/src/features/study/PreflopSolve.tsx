@@ -2,8 +2,10 @@
 // solverHtml): the Charts | Solver toggle, the offer to solve a game the engine holds no solve of (never started by
 // itself: it runs only on the Solve button, with Stop), the progress line while it runs, and what a node from the solve
 // is: the solve's own equilibrium of its class-level model, not the charts the advice plays.
+import { useState } from "react";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { PF_STALL_BACK, pfFraction, pfMinutes, pfStalled, pfStatusOf, type PfRun } from "./pfSolve";
+import { describePfSizes, PF_SIZE, PF_SIZE_KEYS, pfSizeProblems, type PfSizeKey, type PfSizes } from "./pfSizes";
 
 export type PfSource = "charts" | "solver";
 
@@ -28,6 +30,76 @@ export function PreflopSource({ value, onChange }: { value: PfSource; onChange: 
         </button>
       ))}
     </div>
+  );
+}
+
+/** The solve's raise sizes (classic study.js's game form): blank is the default; Apply makes it another game, which
+ * the precomputed solves don't hold. */
+export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; onApply: (s: PfSizes | undefined) => void }) {
+  const [typed, setTyped] = useState<Record<PfSizeKey, string>>(
+    () => Object.fromEntries(PF_SIZE_KEYS.map((k) => [k, value?.[k] !== undefined ? String(value[k]) : ""])) as Record<PfSizeKey, string>,
+  );
+  const sizes: PfSizes = Object.fromEntries(PF_SIZE_KEYS.filter((k) => typed[k].trim()).map((k) => [k, Number(typed[k])]));
+  const problems = pfSizeProblems(sizes);
+  const custom = describePfSizes(value);
+  return (
+    <details className="text-sm open:basis-full">
+      <summary className="cursor-pointer rounded-md border border-border bg-surface-2 px-2.5 py-1 text-muted hover:text-text">Sizes{custom ? `: ${custom}` : ""}</summary>
+      <form
+        aria-label="Preflop solve sizes"
+        className="mt-2 space-y-2 rounded-lg border border-border bg-surface p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!problems.length) onApply(sizes);
+        }}
+      >
+        <p className="text-xs text-muted">The solve's raise sizes (the charts play their own). Blank: the default, in grey.</p>
+        <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+          {PF_SIZE_KEYS.map((k) => {
+            const { label, unit, lo, hi, def, hint } = PF_SIZE[k];
+            return (
+              <label key={k} className="flex items-center gap-2" title={hint}>
+                <span className="w-20 shrink-0">{label}</span>
+                <input
+                  aria-label={label}
+                  type="number"
+                  inputMode="decimal"
+                  step={0.1}
+                  min={lo}
+                  max={hi}
+                  placeholder={String(def)}
+                  value={typed[k]}
+                  onChange={(e) => setTyped((t) => ({ ...t, [k]: e.target.value }))}
+                  className="w-20 rounded-md border border-border bg-surface-2 px-2 py-1 font-mono"
+                />
+                <span className="text-xs text-muted">
+                  {unit} ({lo}–{hi})
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        {problems.length > 0 && (
+          <ul role="alert" className="list-disc pl-5 text-xs text-danger">
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="submit" disabled={problems.length > 0} className="rounded bg-accent px-3 py-1 font-medium text-bg disabled:opacity-40">
+            Apply
+          </button>
+          <button type="button" onClick={() => onApply(undefined)} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+            Defaults
+          </button>
+        </div>
+        <p className="text-xs text-muted">
+          Other sizes are another game: the precomputed 6-max solves don't hold it, so it's offered to solve in your browser (seconds heads-up, minutes at 6-max). A line's
+          raises are played at the solve's sizes, said under the answer.
+        </p>
+      </form>
+    </details>
   );
 }
 

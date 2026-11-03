@@ -1953,3 +1953,52 @@ Untouched (read-only `ps`). Memory 65% free; everything ran under `nice`.
 - Phase 0: the classic's custom preflop raise sizes (`pf_sizes`) aren't offered yet.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 0, the preflop solve's raise sizes (second session)
+
+Deploy of 09092ba (ICM against chips per class) verified live: run 41698407285 passed; `/lizard/` serves
+`index-yoNx1azH.js`.
+
+### What was missing
+
+The classic's Preflop solve form takes the solve's raise sizes (`pf_sizes`: `open`, `sb_open`, `ip_3bet`,
+`blind_3bet`, `four_x`, within `pf_study.SIZE_LIMITS`, defaults from `pf_game.Sizes`); Lizard's Solver source only
+asked the default sizes. The roadmap said Phase 0 had nothing open while the matrix listed this as not done.
+
+### Code
+
+- `web/src/features/study/pfSizes.ts` (new): the five sizes with their labels, units, limits and defaults;
+  `tidyPfSizes` (rounded to 0.01 as the engine rounds, out-of-range and default sizes dropped), `pfSizeProblems`,
+  `encodePfSizes`/`parsePfSizes` (`pfs=open:2.2,four_x:2.5`), `describePfSizes`.
+- `studyState.ts`: `StudyHand.pfSizes`, sent as `pf_sizes` with `preflop_solve`; kept only with the Solver source
+  (the charts play their own sizes); in the link as `pfs=` with `pf=solver`; New hand and Reset keep them (`samePf`).
+- `PreflopSolve.tsx`: `PfSizesForm`, a "Sizes" disclosure in Study's header under the Solver source (blank fields
+  show the defaults), the limits checked before Apply.
+- `compare.ts`, `ComparePage.tsx`: two preflop solves with different sizes are named as differing in "the solve's
+  sizes"; a side's words say its sizes.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 334/334 in 54 files (`pfSolve.test.tsx`: the sizes' tidying, problems, link and request; the Study form's flow; Compare naming the sizes). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Heads-up 100bb, SB open 2.2bb: the offer names the game ("opens 2.5bb (SB 2.2)…", about 5 s); solved on request to
+  2,000 iterations at 0.10 mbb/hand: SB raises 45.3%, limps 54.7%, folds 0%. Playing the raise gives the line "SB
+  raise 2.2"; BB 3bets 21.7%, calls 75.6%, folds 2.7%.
+- The form at 375px: no sideways scroll, summary "Sizes: SB open 2.2bb".
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.
+
+### Next
+
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+- Phase 8, still open: a comparison of two size menus.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

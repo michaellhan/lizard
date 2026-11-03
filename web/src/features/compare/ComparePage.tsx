@@ -12,6 +12,7 @@ import { pct } from "@/components/actions";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
 import { MAX_STACK, MIN_STACK } from "@/features/study/StudyPage";
 import { askNode, pfMinutes } from "@/features/study/pfSolve";
+import { describePfSizes } from "@/features/study/pfSizes";
 import { describeLine, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
 import type { AdvisorActionStat, AdvisorResponse } from "@/solver/protocol";
 import { SolverError, type SolveResult } from "@/solver/types";
@@ -29,7 +30,7 @@ const spotWords = (h: StudyHand) =>
     `${h.players === 2 ? "heads-up" : `${h.players}-max`} ${h.stack}bb`,
     describeLine(h).join(" ") || "the first decision",
     ...describeSetup(h.setup),
-    ...(h.pf === "solver" && !h.board ? ["preflop from the solve"] : []),
+    ...(h.pf === "solver" && !h.board ? [`preflop from the solve${h.pfSizes ? ` (${describePfSizes(h.pfSizes)})` : ""}`] : []),
   ].join(" · ");
 
 /** Why a side's answer can't be compared (it isn't a decision with a strategy), or null where it can. */
