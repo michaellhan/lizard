@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Grade, Verdict } from "@/grading/grade";
 import { noLines, type Move } from "@/poker/table";
 import { withVillain, type Decision, type PracticeHand } from "./practice";
-import { mistakes, REVIEW_KEEP, REVIEW_SHOW, reviewed, withReviewed, type Reviewed } from "./review";
+import { mistakes, RECENT, recent, REVIEW_KEEP, REVIEW_SHOW, reviewed, withReviewed, type Reviewed } from "./review";
 
 function fixed(players: number, hero: string, hands: Record<string, string>, board: string): PracticeHand {
   return {
@@ -69,6 +69,12 @@ describe("Review mistakes", () => {
     for (let n = 1; n <= REVIEW_KEEP + 5; n++) list = withReviewed(list, entry(dec("Best"), n));
     expect(list).toHaveLength(REVIEW_KEEP);
     expect(list[0]!.n).toBe(6);
+  });
+
+  it("lists the last RECENT decisions, newest first", () => {
+    const list = Array.from({ length: RECENT + 3 }, (_, k) => entry(dec("Best"), k + 1));
+    expect(recent(list).map(({ e, i }) => [e.n, i])).toEqual(Array.from({ length: RECENT }, (_, k) => [RECENT + 3 - k, RECENT + 2 - k]));
+    expect(recent(list.slice(0, 2)).map(({ e }) => e.n)).toEqual([2, 1]);
   });
 
   it("picks the costliest: EV given up first, then the rarest in the mix, then the newest; never a best move", () => {

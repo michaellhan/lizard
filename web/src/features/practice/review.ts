@@ -1,7 +1,7 @@
-// Review mistakes, the classic trainer's (solver/gto/static/practice.js:847-866): the session's last REVIEW_KEEP
-// graded decisions, each with its spot (the hand's number, your seat and cards, the board, the street's action
-// before you); of them, the REVIEW_SHOW that gave up the most EV (then the rarest in the answer's mix: the preflop
-// charts have no EVs; then the newest), each opening its verdict.
+// Review mistakes and Recent decisions, the classic trainer's (solver/gto/static/practice.js:847-873): the session's
+// last REVIEW_KEEP graded decisions, each with its spot (the hand's number, your seat and cards, the board, the
+// street's action before you); of them, the REVIEW_SHOW that gave up the most EV (then the rarest in the answer's mix:
+// the preflop charts have no EVs; then the newest), or the last RECENT, each opening its verdict.
 import { sayMove, type Decision, type PracticeHand } from "./practice";
 
 /** how many of your last decisions are kept, and how many of them shown as mistakes (the classic's) */
@@ -33,6 +33,16 @@ export function reviewed(h: PracticeHand, d: Decision, n: number): Reviewed {
     d,
   };
 }
+
+/** how many of your last decisions are listed while the mistakes aren't (the classic's RECENT) */
+export const RECENT = 8;
+
+/** Your last RECENT decisions, newest first; `i`: its place in the list. */
+export const recent = (list: readonly Reviewed[]): { e: Reviewed; i: number }[] =>
+  list
+    .map((e, i) => ({ e, i }))
+    .slice(-RECENT)
+    .reverse();
 
 /** The list with a graded decision added, the oldest dropped past REVIEW_KEEP (an ungraded one isn't kept). */
 export const withReviewed = (list: readonly Reviewed[], e: Reviewed): Reviewed[] => (e.d.grade ? [...list, e].slice(-REVIEW_KEEP) : [...list]);

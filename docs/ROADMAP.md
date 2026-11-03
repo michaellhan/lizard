@@ -140,10 +140,10 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
     modes in full hands (single-raised, 3-bet and blind-vs-blind pots, `practice.ts` `offDrill`); an ante and a
     straddle in Practice (`practice.ts` `setupOf`); chips carried from hand to hand, with rebuys (`practice.ts`
     `nextTable`); your own bet sizes from the flop on; a rake; "Run it out" or "Show hands" after your fold
-    (`practice.ts` `runKind`, `runEnd`); Review mistakes (`review.ts`); and your range at your last decision
-    (`practice.ts` `rangeAt`) (2026-11-03).
-  - **Still open in Phase 1:** multitabling, the 20-hand engine check, and two classic trainer pieces: asking
-    ahead for your likely lines, and the Recent decisions list.
+    (`practice.ts` `runKind`, `runEnd`); Review mistakes and Recent decisions (`review.ts`); and your range at your
+    last decision (`practice.ts` `rangeAt`) (2026-11-03).
+  - **Still open in Phase 1:** multitabling, the 20-hand engine check, and the classic trainer's asking ahead for
+    your likely lines.
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;

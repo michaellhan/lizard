@@ -26,7 +26,7 @@ import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeSt
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
-import { mistakes, reviewed, withReviewed, type Reviewed } from "./review";
+import { mistakes, recent, reviewed, withReviewed, type Reviewed } from "./review";
 import {
   boardShown,
   carries,
@@ -708,86 +708,92 @@ function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeSession;
   );
 }
 
-/** Review mistakes (review.ts): of your last decisions this session, the ones that cost the most, each opening its
- * spot and verdict. */
+/** Your decisions this session (review.ts): the last few, newest first, or your biggest mistakes once asked for,
+ * each opening its spot and verdict. */
 function ReviewMistakes({ review }: { review: Reviewed[] }) {
   const [open, setOpen] = useState(false);
   // (the one open, by itself: the list moves on past REVIEW_KEEP)
   const [pick, setPick] = useState<Reviewed | null>(null);
-  const xs = mistakes(review);
+  const bad = mistakes(review);
+  const xs = open ? bad : recent(review);
   return (
-    <section aria-label="Review mistakes" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={`${open ? "Hide" : "Review"} mistakes${xs.length ? ` (${xs.length})` : ""}`}
-        onClick={() => setOpen(!open)}
-        className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2"
-      >
-        {open ? "Hide mistakes" : "Review mistakes"}
-        {xs.length > 0 && <span className="ml-2 rounded-full bg-surface-3 px-1.5 font-mono text-xs">{xs.length}</span>}
-      </button>
-      {open &&
-        (xs.length === 0 ? (
-          <p className="text-muted">No mistakes in your last {review.length} decisions so far.</p>
-        ) : (
-          <>
-            <h2 className="font-medium">
+    <section aria-label="Your decisions" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-medium">
+          {open ? (
+            <>
               Your biggest mistakes <span className="text-muted">· last {review.length} decisions</span>
-            </h2>
-            <ul className="space-y-1">
-              {xs.map(({ e, i }) => {
-                const g = e.d.grade!;
-                const p = e.d.provenance;
-                return (
-                  <li key={i} className="space-y-2">
-                    <button
-                      type="button"
-                      aria-expanded={pick === e}
-                      onClick={() => setPick(pick === e ? null : e)}
-                      className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
-                    >
-                      <span className="font-mono text-xs text-muted">
-                        #{e.n} {e.d.street}
-                      </span>
-                      <span className="flex gap-0.5">
-                        {e.hole.map((c) => (
-                          <PlayingCard key={c} card={c} size="sm" />
-                        ))}
-                      </span>
-                      <span className="font-mono">{e.d.chose}</span>
-                      <VerdictTag v={g.verdict} />
-                      <span className="font-mono text-xs">{g.byEv ? `${bb(g.loss)}bb lost` : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
-                      {p && (
-                        <span className="text-xs text-muted" title={describeProvenance(p)}>
-                          {p.approximate && "≈ "}
-                          {sourceLabel(p.source)}
-                        </span>
+            </>
+          ) : (
+            "Recent decisions"
+          )}
+        </h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Review"} mistakes${bad.length ? ` (${bad.length})` : ""}`}
+          onClick={() => setOpen(!open)}
+          className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2"
+        >
+          {open ? "Hide mistakes" : "Review mistakes"}
+          {bad.length > 0 && <span className="ml-2 rounded-full bg-surface-3 px-1.5 font-mono text-xs">{bad.length}</span>}
+        </button>
+      </div>
+      {xs.length === 0 ? (
+        <p className="text-muted">No mistakes in your last {review.length} decisions so far.</p>
+      ) : (
+        <ul className="space-y-1">
+          {xs.map(({ e, i }) => {
+            const g = e.d.grade!;
+            const p = e.d.provenance;
+            return (
+              <li key={i} className="space-y-2">
+                <button
+                  type="button"
+                  aria-expanded={pick === e}
+                  onClick={() => setPick(pick === e ? null : e)}
+                  className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
+                >
+                  <span className="font-mono text-xs text-muted">
+                    #{e.n} {e.d.street}
+                  </span>
+                  <span className="flex gap-0.5">
+                    {e.hole.map((c) => (
+                      <PlayingCard key={c} card={c} size="sm" />
+                    ))}
+                  </span>
+                  <span className="font-mono">{e.d.chose}</span>
+                  <VerdictTag v={g.verdict} />
+                  <span className="font-mono text-xs">{g.byEv ? (g.loss > 0.005 ? `${bb(g.loss)}bb lost` : "no EV lost") : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
+                  {p && (
+                    <span className="text-xs text-muted" title={describeProvenance(p)}>
+                      {p.approximate && "≈ "}
+                      {sourceLabel(p.source)}
+                    </span>
+                  )}
+                </button>
+                {pick === e && (
+                  <div className="space-y-2 pl-2">
+                    <p className="flex flex-wrap items-center gap-1 text-muted">
+                      {seatLabel(e.seat, e.players)}
+                      {e.board.length > 0 && (
+                        <>
+                          {" · "}
+                          {e.board.map((c) => (
+                            <PlayingCard key={c} card={c} size="sm" />
+                          ))}
+                        </>
                       )}
-                    </button>
-                    {pick === e && (
-                      <div className="space-y-2 pl-2">
-                        <p className="flex flex-wrap items-center gap-1 text-muted">
-                          {seatLabel(e.seat, e.players)}
-                          {e.board.length > 0 && (
-                            <>
-                              {" · "}
-                              {e.board.map((c) => (
-                                <PlayingCard key={c} card={c} size="sm" />
-                              ))}
-                            </>
-                          )}
-                          {` · ${e.line}`}
-                        </p>
-                        <DecisionView d={e.d} players={e.players} title={`Hand ${e.n}, ${e.d.street}`} />
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        ))}
+                      {` · ${e.line}`}
+                    </p>
+                    <DecisionView d={e.d} players={e.players} title={`Hand ${e.n}, ${e.d.street}`} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

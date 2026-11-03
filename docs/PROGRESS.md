@@ -2772,3 +2772,44 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`. Memory
   - the Recent decisions list
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, Recent decisions in Practice (second session)
+
+The classic trainer's "Recent decisions" (`practice.js:867-873`) is now in Practice.
+
+### Code
+
+- `review.ts`: `recent` returns the last 8 kept decisions, newest first.
+- `PracticePage.tsx`:
+  - The panel is now "Your decisions". While the mistakes list is closed it shows "Recent decisions". Opened, it
+    shows "Your biggest mistakes". Both use the same rows.
+  - A row with nothing given up says "no EV lost", not "0.00bb lost".
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 380/380 in 59 files. `review.test.ts`: the last 8, newest first. `PracticePage.test.tsx`: the flop row "Correct · 0.20bb lost · Live solve" above the preflop row "Best · played 70.0% · Preflop charts". |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+- **6-max.** Ten random decisions gave eight rows, newest first. Preflop rows read under "≈ Preflop charts". A
+  heads-up flop, turn and river read under "Live solve".
+- **Heads-up.** A hand called down with 8♠5♥ listed the river, turn and flop as Blunders (42.85, 6.09 and 2.10bb
+  lost) and the preflop calls as Mistakes.
+- **Console.** No console error.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`.
+
+### Next
+
+- Phase 1, still open:
+  - multitabling
+  - the 20-hand engine check
+  - asking ahead for your likely lines (prefetching solves; weigh its CPU against the benefit)
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

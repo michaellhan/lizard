@@ -263,12 +263,18 @@ describe("PracticePage", () => {
     );
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    expect(screen.queryByRole("region", { name: "Review mistakes" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Your decisions" })).toBeNull();
     // your raise (Best); the big blind calls and checks the flop; your check is in the mix but gives up 0.2bb
     fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));
-    const review = await screen.findByRole("region", { name: "Review mistakes" });
+    const review = await screen.findByRole("region", { name: "Your decisions" });
+    // your last decisions, newest first
+    expect(within(review).getByRole("heading")).toHaveTextContent("Recent decisions");
+    expect(within(review).getAllByRole("button", { name: /^#1 / }).map((b) => b.textContent)).toEqual([
+      expect.stringMatching(/^#1 flop.*check.*Correct.*0\.20bb lost.*Live solve$/),
+      expect.stringMatching(/^#1 preflop.*raise 2\.5.*Best.*played 70\.0%.*Preflop charts$/),
+    ]);
     const toggle = within(review).getByRole("button", { name: "Review mistakes (1)" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
@@ -289,7 +295,7 @@ describe("PracticePage", () => {
     expect(within(spot).getByText(/^EV given up: 0\.20bb/)).toBeInTheDocument();
     // a new session starts its own
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    await waitFor(() => expect(screen.queryByRole("region", { name: "Review mistakes" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Your decisions" })).toBeNull());
   });
 
   it("shows your whole range at your last decision, as its answer plays it, once asked for", async () => {
