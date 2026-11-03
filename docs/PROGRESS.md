@@ -2168,3 +2168,49 @@ Untouched (read-only `ps`). Memory 62% free; everything ran under `nice`.
 - Phase 6, still open: preflop and multiway locks, solve times measured per mode, the local server option (after its
   patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 6, solve times measured per mode (second session)
+
+Deploy of 90a3748 (automatic sizing) verified live: run 41703776366 passed; `/lizard/` serves `index-Ds2b7Yrg.js`,
+which has "chosen by a first solve over a wide menu".
+
+### Why measured in the browser, not benchmarked
+
+The ROADMAP asks for the modes "with measured times". Browser solve speed depends on the device, and a benchmark here
+would be CPU-heavy while the precompute builds run, so the times are measured where the user solves: every live
+answer's engine-measured `seconds` (the whole request, the narrowing of earlier streets included; the runtime's start
+and the queue not).
+
+### Code
+
+- `web/src/solver/timings.ts`: `recordTiming` (a live, final answer on the flop, turn or river with `seconds`, once per
+  distinct request since the page loaded, since a repeat is answered from the engine's cache; library flops, answers at
+  once, charts and rules aren't solves), kept by backend, mode (the one it ran at), street and heads-up or multiway, the
+  last 20 each, in localStorage (try/catch: kept for the page's life where unavailable); `timingOf` (median and count),
+  `modeTimesText`, `useTimings` (re-renders as times come in), `clearTimings`.
+- `client.ts`: `SolverClient.pump` records each answer, except Practice opponents' moves (`play`).
+- `ModePicker.tsx`: each mode's title adds "Measured in this browser: turn 3.8 s (1), river 4.1 s (1) …" or "Not
+  measured in this browser yet"; `ModeTimes`, a table in Settings ("Measured here": each mode by street, multiway rows
+  once measured; "–" where none), with what's counted and Clear.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 349/349 in 57 files (`timings.test.tsx`: what's counted and not, once per request, the last 20, kept across loads; the client recording at the mode run, not moves; the titles and the Settings table, Clear). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+Heads-up 100bb Ks7d2c5h9s checked to the river (Fast): 4.11 s recorded; the turn node: 3.79 s; the Fast button's title
+"Measured in this browser: river 4.1 s (1)"; Settings' table: Fast turn 3.8 s (1), river 4.1 s (1).
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`.
+
+### Next
+
+- Phase 6, still open: preflop and multiway locks, the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

@@ -4,7 +4,7 @@ import { useRuntime } from "@/solver/runtime";
 import type { SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { readClassicSpeed } from "@/features/analyze/classic";
-import { ModePicker } from "@/features/study/ModePicker";
+import { ModePicker, ModeTimes } from "@/features/study/ModePicker";
 
 const SPEED_LABEL: Record<SolveMode, string> = { quick: "Quick", fast: "Fast", accurate: "Accurate" };
 
@@ -54,6 +54,7 @@ export function SettingsPage() {
           Fast and Accurate only and runs Quick at Fast. Library flops answer instantly at every speed (on the local
           solver, the flops of its own library).
         </p>
+        <ModeTimes />
         <ClassicSpeed />
       </fieldset>
 

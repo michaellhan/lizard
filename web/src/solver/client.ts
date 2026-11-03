@@ -3,6 +3,7 @@
 // requests, and attaches provenance to every answer.
 import type { AdvisorResponse, AdvisorState, PlayMove } from "./protocol";
 import { provenanceOf } from "./provenance";
+import { recordTiming } from "./timings";
 import {
   SolverError,
   type PlayRequest,
@@ -107,7 +108,8 @@ export class SolverClient {
     // (provenance records the mode the request runs at, as sent)
     const ctx = { mode: effectiveMode(req.state, mode), transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
-      const data = await this.transport.request(applyMode(req.state, mode, this.transport.kind), {
+      const sent = applyMode(req.state, mode, this.transport.kind);
+      const data = await this.transport.request(sent, {
         progressive: req.play ? false : (req.progressive ?? false),
         signal: req.signal,
         ...(req.play ? { play: req.play } : {}),
@@ -115,7 +117,10 @@ export class SolverClient {
           ? (p: AdvisorResponse) => req.onPartial?.({ data: p, provenance: provenanceOf(p, { ...ctx, partial: true }) })
           : undefined,
       });
-      item.resolve({ data, provenance: provenanceOf(data, { ...ctx, partial: false }) });
+      const provenance = provenanceOf(data, { ...ctx, partial: false });
+      // (the mode's measured times: a live advice or Study answer, not an opponent's move)
+      if (!req.play) recordTiming(JSON.stringify(sent), this.transport.kind, ctx.mode, data, provenance);
+      item.resolve({ data, provenance });
     } catch (e) {
       item.reject(e instanceof SolverError ? e : new SolverError("solver-error", String(e)));
     } finally {

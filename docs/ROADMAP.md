@@ -362,8 +362,9 @@ Moves matrix rows: Saved solutions, Node navigation (saved spots), Custom drills
   response and the change per class, always labelled the best response, not an equilibrium re-solve. Automatic sizing
   (`autoSize.ts`, `AutoSizePanel.tsx`): one hand's advice with `optimize_sizes`, showing the first solve's wide menu and
   the sizes kept, labelled on the badge, with the kept menu against this spot's on the Compare page (the range's EV on
-  each). **Still open in Phase 6:** preflop and multiway locks, solve times measured per mode, and the local server
-  option (after its patch).
+  each). Solve times per mode (`web/src/solver/timings.ts`): measured in the user's own browser from live answers
+  (the engine's seconds, by backend, mode, street and table), the medians on the mode buttons and in Settings. **Still
+  open in Phase 6:** preflop and multiway locks, and the local server option (after its patch).
 - **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:38`. It builds a request with the Advisor keys the engine already accepts:
   - `ranges` (custom ranges entering the flop; `advisor.py:3722`, `:4701-4710`), with saved ranges from Phase 5;
   - per-seat stacks (`_state_stacks`);
