@@ -356,8 +356,12 @@ Moves matrix rows: Saved solutions, Node navigation (saved spots), Custom drills
   (0–25%), ante, straddle, and each seat's range entering the flop (typed, or a saved range), checked before any
   request and opened in Study, which sends them as the engine's keys and shows "Your setup: … Edit setup". A hand-edited
   link that fails the checks is never asked. Checked in the browser: the same heads-up spot with and without 5% rake
-  gives different EVs, both converged. **Still open in Phase 6:** node locks and automatic sizing (both per hand, since
-  Study drops them), solve times measured per mode, and the local server option (after its patch).
+  gives different EVs, both converged. Node locks (`web/src/features/study/locks.ts`, `LockPanel.tsx`): in Study under a
+  heads-up node after the flop, a read on the opponent (the engine's presets or numbers) asked for one hand through the
+  advice, at equilibrium and against the read: the hand's best response with GTO % beside it, the range's best
+  response and the change per class, always labelled the best response, not an equilibrium re-solve. **Still open in
+  Phase 6:** automatic sizing (per hand, since Study drops it), preflop and multiway locks, solve times measured per
+  mode, and the local server option (after its patch).
 - **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:38`. It builds a request with the Advisor keys the engine already accepts:
   - `ranges` (custom ranges entering the flop; `advisor.py:3722`, `:4701-4710`), with saved ranges from Phase 5;
   - per-seat stacks (`_state_stacks`);

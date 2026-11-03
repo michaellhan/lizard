@@ -2061,3 +2061,55 @@ Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 6, node locks in Study (second session)
+
+Deploy of a1c3f1c (two size menus) verified live: run 41701187478 passed; `/lizard/` serves `index-iSLwQzQf.js`, which
+has "close to a tie".
+
+### What the engine does
+
+`locks` ({seat: {key: number}}, `gto/exploit.py` `LOCK_KEYS`, `parse_locks`) are tendency locks: the opponent's
+equilibrium strategy moved by the read, and the advice the best response to it (`advisor.py` `_advise_at`'s exploit
+branch: each hand's highest-EV action, ties within the solve's noise keeping the equilibrium mix; `gto_freq` beside
+each action; `locked` names the read). Study drops them (`STUDY_DROPS`), but one hand's advice carries the whole range's
+best response as its `grid` and `range_action_freq`. Probed natively first (a river, SB AhQd, BB `fold: 15`: 4.2 s; check
+100% at equilibrium → bet 100% against the read).
+
+### Code
+
+- `web/src/features/study/locks.ts`: the keys, bounds, presets and words (ported from `exploit.py` and the classic
+  page's `LOCK_PRESETS`, `LOCK_INPUTS`), `lockOf` (the fields checked; zero profile values dropped, as `parse_locks`
+  does), `describeLock`, `presetOf`, `offersLock` (a heads-up node after the flop with its opponent named),
+  `lockRequest` (Study's request out of Study mode, with the hero, the hand and the lock).
+- `LockPanel.tsx`: "Against a read (node lock)" under the grid: the read (preset or numbers), the hand (the class
+  picked in the grid, its combos in the range), Ask (equilibrium, then the read, one after the other, Stop); the answer's
+  badge, the hand's and the range's frequencies against the read and at GTO, the change per class (`DiffMatrix`), the
+  engine's notes.
+- `provenance.ts`: an answer with `locked` gets `lock` ("best response to BB folds +15 pts to bets, not an equilibrium
+  re-solve"), first after the source on the badge.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 343/343 in 55 files (`locks.test.tsx`: the fields' bounds and words, presets, the request, the hands offered, the badge label, the panel asking twice and showing GTO beside the best response). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+Heads-up 100bb Ks7d2c5h9s, checked to the river, SB to act after BB checks, BB overfolding (+15): AhQd checks 100% at
+equilibrium and bets 250% 100% against the read (EV 4.04bb, a check 2.98bb); the range checks 52.3% → 22.7% and bets
+250% 0% → 58.5%; the badge "Live solve · best response to BB folds +15 pts to bets, not an equilibrium re-solve · 0.15%
+pot from equilibrium in the solved game (converged) · 300 iterations". At 375px no sideways scroll.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.
+
+### Next
+
+- Phase 6, still open: automatic sizing (per hand), preflop and multiway locks, solve times measured per mode, the
+  local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

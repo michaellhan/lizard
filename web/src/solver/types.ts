@@ -50,6 +50,8 @@ export interface Provenance {
    * preflop solve's own state (precomputed, solved earlier in this browser); a chip answer's all-in from the push/fold
    * equilibrium */
   view?: string;
+  /** a node lock's answer (features/study/locks.ts): the best response to the read, never an equilibrium; in words */
+  lock?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */
   mbbPerHand?: number;
   mode: SolveMode;

@@ -40,6 +40,8 @@ import { OneSizePanel } from "@/features/compare/OneSizePanel";
 import { offersOneSize } from "@/features/compare/oneSize";
 import { ChipCompare } from "./ChipCompare";
 import { betMenuOf, CompareLinks } from "./CompareLinks";
+import { offersLock } from "./locks";
+import { LockPanel } from "./LockPanel";
 import { ComboPanel } from "./ComboPanel";
 import { SaveSpot } from "./SaveSpot";
 import { bubbleTableOf } from "@/features/tournaments/icm";
@@ -467,6 +469,7 @@ export function StudyPage() {
         <div className="flex flex-wrap items-start gap-2">
           <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
           {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
+          {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
         </div>
       )}
     </div>
