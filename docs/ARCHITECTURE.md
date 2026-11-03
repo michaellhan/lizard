@@ -65,7 +65,7 @@ interface SolveRequest {
 interface SolveResult { data: AdvisorResponse; provenance: Provenance }
 ```
 
-`applyMode(state, mode, transport)` (`client.ts:35`) always sends `speed` (Quick sends "fast"), `budget` and
+`applyMode(state, mode, transport)` (`client.ts:40`; a Study request's Quick becomes Fast in `effectiveMode`, `client.ts:33`) always sends `speed` (Quick sends "fast"), `budget` and
 `prior_budget`: the seconds for this street, and for each earlier street solved to narrow the ranges. Without them
 the browser worker's Advisor runs every mode at its default 4 s + 2 s (`advisor.py:2860`); the local server falls
 back to its own `SPEEDS` (`native.py:85-92, 121-123`), the same numbers as below. The budgets are the legacy page's (`index.html:974-978`),

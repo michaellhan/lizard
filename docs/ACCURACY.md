@@ -100,7 +100,7 @@ The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-20`) and 
 | `rules`: Heuristic rules | Monte Carlo betting rules for pots no solver takes (5+ players on the flop or turn), or a fallback | No equilibrium measure. Each answer reports its trial count and a ± between the top actions [V] | Heuristic, not a solve |
 | `equity`: Equity estimate | Hero's equity against random hands, priced against the pot (`advisor.py:3836-3838`) | A rough last resort [V] | Heuristic, not a solve |
 | `library-turn`: Stored turn from the flop library | A library flop's stored turn strategy, read at once (Study's answer at once, its runouts) | 0.50-0.81% of the pot (table below); no exploitability shown, since the response's numbers are the flop entry's | Approximate |
-| `instant`: Answer at once | A read of another solution while the real solve runs: nearest stored flops, an earlier street's solve (heads-up, or a 3-way read of an earlier decision's solve), an unraked entry, an off-menu size. The badge shows the Advisor's own label | See the reads below; no exploitability shown | Approximate |
+| `instant`: Answer at once | A read of another solution while the real solve runs: nearest stored flops, an earlier street's solve (heads-up or 3-way), this street's 3-way solve from an earlier decision, an unraked entry, an off-menu size. The badge shows the Advisor's own label | See the reads below; no exploitability shown | Approximate |
 
 Approximate reads also exist. They show at once while a real solve runs, or when nothing better is available.
 Each is flagged `approximate` in the response:
@@ -132,7 +132,7 @@ Each is flagged `approximate` in the response:
   above 2-3% at Fast and above 1% at Accurate. The native server sets no target (`advisor.py:2885`), so it never
   sets this flag. **Study answers never carry it.** `advise()` returns `self.study(state)` for a Study request
   (`advisor.py:2982-2983`), and `_flag_short` runs only on the advice path (`advisor.py:3000`). So Lizard's Study
-  badge shows a short solve's exploitability, for example "3.00% pot from equilibrium", with no "approximate".
+  badge shows a short solve's exploitability, for example "3.00% pot from equilibrium in the solved game", with no "approximate".
   Quality bands are planned (ROADMAP Phase 0).
 
 > **LIZARD gap, fixed 2026-11-03 [V].** `applyMode` first sent only `quick` and `speed`. The worker builds its
@@ -149,8 +149,11 @@ Each is flagged `approximate` in the response:
 > | Quick, postflop (with `quick`) | 1.5 s + 0.3 s (river 0.8 s) | same |
 >
 > `client.test.ts` checks the mapping. The ModePicker hints now give these budgets, and say that a street can run
-> longer: an unsettled street gets a second budget, a 3-way flop at least 15 s, and a Fast turn after a stored flop
-> may use the unspent 3 s.
+> longer: an unsettled street gets a second budget, a 3-way flop at least 15 s, and at Fast a heads-up street also
+> gets the unspent `prior_budget` of each earlier street that cost nothing (a stored flop, or this hand's flop
+> advice), on either backend (`Advisor.spare_prior`: `worker.js:252`, `native.py:132`; `advisor.py:4873, 5006`).
+> Only the browser's Fast stops a heads-up street once settled (`hu_settled`, `worker.js:260`); the local server
+> runs its whole budget.
 >
 > Study never sends `quick`, as classic Study offers only Fast and Accurate. Quick runs a Study request at Fast; a
 > quick Study 4-way flop errors in the browser.

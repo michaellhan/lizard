@@ -15,9 +15,10 @@ export function SettingsPage() {
         <legend className="px-1 font-medium">Solve accuracy</legend>
         <ModePicker />
         <p className="text-xs text-muted">
-          Fast stops once a heads-up street settles; Accurate aims at about 0.1% of the pot heads-up; Quick solves a smaller
-          game and is rough on turns. Study offers Fast and Accurate only and runs Quick at Fast. Library flops answer
-          instantly at every speed.
+          In the browser, Fast stops once a heads-up street settles; the local Python solver runs its whole budget.
+          Accurate aims at about 0.1% of the pot heads-up; Quick solves a smaller game and is rough on turns. Study offers
+          Fast and Accurate only and runs Quick at Fast. Library flops answer instantly at every speed (on the local
+          solver, the flops of its own library).
         </p>
       </fieldset>
 

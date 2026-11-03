@@ -331,6 +331,16 @@ def main() -> int:
         "bytes": total,
         "notes": log,
     }
+    # a run that changes nothing keeps the previous summary's time, so the stage matches the release and publish.sh
+    # has nothing to commit (a fresh time alone would publish an unchanged library on every run)
+    prev_summary = a.previous / "lizard-library.json" if a.previous else None
+    if prev_summary and prev_summary.exists():
+        try:
+            old = json.loads(prev_summary.read_text())
+        except ValueError:
+            old = None
+        if isinstance(old, dict) and {**old, "assembledAt": None} == {**summary, "assembledAt": None}:
+            summary["assembledAt"] = old.get("assembledAt", summary["assembledAt"])
     (out / "lizard-library.json").write_text(json.dumps(summary, indent=1))
     for s in merged:
         g = s.get("game")

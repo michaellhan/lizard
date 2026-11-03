@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { actionColors, bb, pct } from "@/components/actions";
+import { actionColors, pct } from "@/components/actions";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse } from "@/solver/protocol";
@@ -27,6 +27,7 @@ import {
 } from "./studyState";
 import { ComboPanel } from "./ComboPanel";
 import { ModePicker } from "./ModePicker";
+import { actionLine, viewsOf, type GridView } from "./views";
 
 type Phase =
   | { kind: "loading"; partial?: SolveResult }
@@ -51,7 +52,7 @@ export function StudyPage() {
   // the answer is tagged with the request it answers; a new request shows "loading" until its own answer arrives
   const [answer, setAnswer] = useState<{ key: string; phase: Phase }>({ key: "", phase: { kind: "loading" } });
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<"mix" | "ev" | "eq">("mix");
+  const [chosenView, setView] = useState<GridView>("mix");
   const [showOpponent, setShowOpponent] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -92,6 +93,8 @@ export function StudyPage() {
   const names = useMemo(() => res?.grid?.actions ?? [], [res]);
   const colors = useMemo(() => actionColors(names), [names]);
   const grid = showOpponent ? res?.opponent_grid : res?.grid;
+  const views = res ? viewsOf(res) : (["mix"] as GridView[]);
+  const view = views.includes(chosenView) ? chosenView : "mix";
   const evRange = useMemo<[number, number]>(() => {
     const vals = Object.values(res?.grid?.cells ?? {})
       .map((c) => c.evm)
@@ -178,7 +181,7 @@ export function StudyPage() {
               <strong>{showOpponent ? res.opponent : res.actor}</strong>
               <span className="text-muted">
                 {showOpponent ? `${res.opponent_combos?.toFixed(1)} combos` : `${res.range_combos?.toFixed(1)} combos`}
-                {res.range_eq !== undefined && !showOpponent ? ` · equity ${pct(res.range_eq)}` : ""}
+                {res.range_eq != null && !showOpponent ? ` · equity ${pct(res.range_eq)}` : ""}
               </span>
               <span className="flex-1" />
               {res.opponent_grid && (
@@ -187,7 +190,8 @@ export function StudyPage() {
                 </button>
               )}
               {!showOpponent &&
-                (["mix", "ev", "eq"] as const).map((v) => (
+                views.length > 1 &&
+                views.map((v) => (
                   <button
                     key={v}
                     type="button"
@@ -303,8 +307,7 @@ function NodeView({ hand, res, shown, setHand }: { hand: StudyHand; res: Advisor
               <span className="font-medium">{a.action}</span>
             </div>
             <div className="mt-1 font-mono text-xs text-muted">
-              {pct(a.freq)} · {a.combos?.toFixed(1) ?? "–"} combos
-              {typeof a.ev === "number" ? ` · EV ${a.rough_ev ? "≈" : ""}${bb(a.ev)}` : ""}
+              {actionLine(a)}
             </div>
           </button>
         ))}

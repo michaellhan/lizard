@@ -99,8 +99,9 @@ export interface AdvisorResponse {
   categories?: { made?: [string, number][]; draws?: [string, number][] };
   range_combos?: number;
   opponent_combos?: number;
-  range_eq?: number;
-  opponent_eq?: number;
+  /** null where the answer has no equities (looks, reads at once, 4-way answers) */
+  range_eq?: number | null;
+  opponent_eq?: number | null;
   /** present when a precomputed library entry answered */
   precomputed?: { spot?: string; [key: string]: unknown };
   /** solve diagnostics */
@@ -119,8 +120,8 @@ export interface AdvisorActionStat {
   /** share of the range taking it, 0..1 */
   freq?: number;
   combos?: number;
-  /** range EV of the action in bb */
-  ev?: number;
+  /** range EV of the action in bb; null where the answer has no EVs (advisor.py _study_range, _no_values) */
+  ev_bb?: number | null;
   /** marked where the EV is a rough estimate */
   rough_ev?: boolean;
   amount?: number;
@@ -141,13 +142,14 @@ export interface GridCell {
   w: number;
   /** action frequencies, aligned with RangeGridData.actions */
   f: number[];
+  // (each null where the answer has none: a look, a read at once, a 4-way answer; advisor.py _no_values)
   /** per-action EV in bb, where solved */
-  ev?: number[];
+  ev?: number[] | null;
   /** EV of the class's mix */
-  evm?: number;
+  evm?: number | null;
   /** equity vs the opponent's range, 0..1 */
-  eq?: number;
-  eqr?: number;
+  eq?: number | null;
+  eqr?: number | null;
   [key: string]: unknown;
 }
 

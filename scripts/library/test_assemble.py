@@ -119,6 +119,24 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(len(s["flops"]), 2)
         self.assertIn("kept the previous release", r.stdout)
 
+    def test_an_unchanged_run_keeps_the_previous_summary_time(self):
+        prev = self.tmp / "prev"
+        self.assertEqual(run("--out", prev, "--base", self.base, "--hu", self.hu).returncode, 0)
+        summary = json.loads((prev / "lizard-library.json").read_text())
+        summary["assembledAt"] = "2000-01-01T00:00:00Z"
+        (prev / "lizard-library.json").write_text(json.dumps(summary, indent=1))
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.out / "lizard-library.json").read_bytes(), (prev / "lizard-library.json").read_bytes())
+        # a real change gets a new time
+        hu2 = self.tmp / "hu2"
+        make_lib(hu2, "srp_sb_bb_2max", ["c", "d"], {"Qc9d8h": b"hu-1", "Td6c3h": b"hu-2", "9c8d7h": b"hu-3"},
+                 game={"players": 2, "stack": 100.0, "ante": 0.0, "straddle": False})
+        out2 = self.tmp / "stage2"
+        r = run("--out", out2, "--base", self.base, "--hu", hu2, "--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotEqual(json.loads((out2 / "lizard-library.json").read_text())["assembledAt"], "2000-01-01T00:00:00Z")
+
     def test_skips_a_source_on_another_tree(self):
         idx = json.loads((self.hu / "index.json").read_text())
         idx["tree"] = {"sizes": {"flop_bet": [0.5]}}

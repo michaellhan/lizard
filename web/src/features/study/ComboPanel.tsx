@@ -3,8 +3,8 @@ import { classCombos } from "@/engine/nlhe/cards";
 import type { AdvisorResponse, ComboRow } from "@/solver/protocol";
 
 /** Equity realization: EV share of the pot relative to raw equity (upstream study.js's eqr). */
-export function eqr(evm: number | undefined, eq: number | undefined, potBb: number | undefined): number | undefined {
-  if (evm === undefined || eq === undefined || !potBb || eq <= 0) return undefined;
+export function eqr(evm: number | null | undefined, eq: number | null | undefined, potBb: number | undefined): number | undefined {
+  if (evm == null || eq == null || !potBb || eq <= 0) return undefined;
   return evm / (eq * potBb);
 }
 
@@ -32,8 +32,8 @@ export function ComboPanel({ cls, res, colors, opponent }: { cls: string; res: A
         <span className="text-muted">
           {(cell.w * n).toFixed(2)} of {n} combos
         </span>
-        {cell.evm !== undefined && !opponent && <span>EV {bb(cell.evm)}bb</span>}
-        {cell.eq !== undefined && <span>Equity {pct(cell.eq)}</span>}
+        {cell.evm != null && !opponent && <span>EV {bb(cell.evm)}bb</span>}
+        {cell.eq != null && <span>Equity {pct(cell.eq)}</span>}
         {r !== undefined && !opponent && <span title="EV / (equity × pot)">EQR {r.toFixed(2)}</span>}
       </div>
       {!opponent && (

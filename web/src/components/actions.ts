@@ -28,10 +28,11 @@ export function actionColors(names: readonly string[]): string[] {
   });
 }
 
-export function pct(x: number | undefined, digits = 1): string {
-  return x === undefined || Number.isNaN(x) ? "–" : `${(x * 100).toFixed(digits)}%`;
+// (the Advisor sends a value it does not have as null: "–", never a made-up 0)
+export function pct(x: number | null | undefined, digits = 1): string {
+  return x == null || Number.isNaN(x) ? "–" : `${(x * 100).toFixed(digits)}%`;
 }
 
-export function bb(x: number | undefined, digits = 2): string {
-  return x === undefined || Number.isNaN(x) ? "–" : `${x >= 0 ? "" : "−"}${Math.abs(x).toFixed(digits)}`;
+export function bb(x: number | null | undefined, digits = 2): string {
+  return x == null || Number.isNaN(x) ? "–" : `${x >= 0 ? "" : "−"}${Math.abs(x).toFixed(digits)}`;
 }

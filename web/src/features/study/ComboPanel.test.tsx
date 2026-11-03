@@ -53,4 +53,19 @@ describe("ComboPanel", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.queryByText(/EQR/)).not.toBeInTheDocument();
   });
+
+  it("shows no EV, equity or EQR for the Advisor's answer without values (nulls, not zeros)", () => {
+    // advisor.py _no_values: a look or a read at once nulls every cell's ev, evm and eq, and the combo rows' EVs
+    const none: AdvisorResponse = {
+      pot_bb: 10,
+      grid: { actions: ["check", "bet 33%"], cells: { AKs: { w: 0.75, f: [0.4, 0.6], ev: null, evm: null, eq: null } } },
+      opponent_grid: { actions: ["check", "bet 33%"], cells: { AKs: { w: 0.5, f: [1, 0], eq: null } } },
+      combos: { AKs: [["AsKs", 1, [1, 0], null, null, 0, 0]] },
+    };
+    const { container, unmount } = render(<ComboPanel cls="AKs" res={none} colors={COLORS} opponent={false} />);
+    expect(container.textContent).not.toMatch(/EV|Equity|EQR|bb/);
+    unmount();
+    const opp = render(<ComboPanel cls="AKs" res={none} colors={COLORS} opponent />);
+    expect(opp.container.textContent).not.toMatch(/Equity/);
+  });
 });

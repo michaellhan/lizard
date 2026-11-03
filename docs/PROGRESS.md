@@ -182,8 +182,8 @@ the code. Fixed:
    4-way answers "mean best-response gain", which is what the Advisor measures there.
 6. **Provenance recorded the requested mode**, not the one run. A Study request asked at Quick runs at Fast, and
    now says so (`effectiveMode`).
-7. **`publish.sh` could report success early.** It waited only for `lizard-library.json`; it now waits until both
-   it and `index.json` match what was pushed.
+7. **`publish.sh` could report success early.** It waited only for `index.json`, so a publish that changed only
+   `lizard-library.json` (as `03329ce` did) reported live at once. It now waits until both match what was pushed.
 8. **The Combo view was graded WORKING without a test.** `ComboPanel.test.tsx` covers the EQR formula, the table's
    columns and sort order, and the opponent view. `src/test/setup.ts` now unmounts after each test (Testing
    Library does so by itself only with Vitest globals, which are off).
@@ -197,6 +197,44 @@ the code. Fixed:
 
 Tests: web 43/43 in 10 files (new `ComboPanel.test.tsx`; more cases in `provenance.test.ts` and `client.test.ts`),
 typecheck and lint clean, assembler 7/7, `bash -n publish.sh` clean, solver quick suites 12/12 and 32/32.
+
+Deployed `09b55db` by workflow run 41636890021 and verified live (bundle `index-v5KspPoD.js`, the same as the local
+build). Study heads-up TdTc8h, turn 2s: "Stored turn from the flop library · the precomputed flop solve's view of
+the turn (…)", then "Live solve · this street's solve so far (200 iterations, 0.36% …) · in progress", then "Live
+solve · 0.20% pot from equilibrium in the solved game · 300 iterations" at 3.5 s. The Library page shows
+`srp_sb_bb_2max` "378 / 1755" and `lp_sb_bb_2max` "168 / 552" (library `03329ce`).
+
+### Third review round (of `09b55db`)
+
+A read-only workflow (2 reviewers, then one skeptic per finding, at most 2 agents at a time) reported 13 findings:
+11 confirmed, 2 refuted. Two were real display bugs that predate this commit:
+
+1. **Missing values shown as zeros.** The Advisor sends EVs and equities it does not have as `null` (`_no_values`,
+   `advisor.py:8423-8431`). That covers every answer at once, every look, and a 4-way answer's equities. Lizard
+   tested `!== undefined` and printed "EV 0.00bb", "Equity 0.0%" and "equity 0.0%" in the header. Now:
+   - `pct` and `bb` print "–" for null;
+   - the combo panel, the matrix labels and the header leave such values out;
+   - a matrix cell without a value is drawn neutral;
+   - as in classic Study, an approximate answer offers the strategy view only, and the equity view needs the
+     range's equity (`features/study/views.ts`);
+   - the types allow `null`.
+2. **Per-action EVs never showed.** The Advisor names the field `ev_bb`; Lizard read `ev`. The action buttons now
+   show the EV, with "≈" when it is rough (`actionLine`).
+3. **`publish.sh`'s "nothing changed" exit could never be reached.** Every assembly wrote a fresh `assembledAt`.
+   `assemble.py` now keeps the previous summary's time when nothing else in it changed.
+4. **The mode texts described the browser only.** Only the browser's Fast stops a settled heads-up street
+   (`worker.js:260`); the local server runs its whole budget. At Fast, either backend gives a heads-up street the
+   unspent budget of each earlier street that cost nothing (`spare_prior`). The ModePicker, the Settings page and
+   ACCURACY §4.1 say so.
+5. **Docs.** Fixed:
+   - the PROGRESS account of the old `publish.sh` check, which had the two files the wrong way round;
+   - stale citations in ARCHITECTURE (`applyMode`) and FEATURE_MATRIX (Preflop, Preferences, Postflop, Frequencies
+     & EV, Equity & EQR, Range comparison);
+   - the `instant` row in ACCURACY.
+
+Tests: web 48/48 in 11 files. New: `views.test.ts`, a null-values case in `ComboPanel.test.tsx` and in
+`RangeMatrix.test.tsx`; both null cases fail on the old components. Typecheck and lint clean. Assembler 8/8, with
+a new test that an unchanged run keeps the time.
 
 ### Precompute builds
 

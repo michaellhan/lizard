@@ -21,4 +21,17 @@ describe("RangeMatrix", () => {
     fireEvent.click(screen.getByRole("gridcell", { name: /^AA:/ }));
     expect(onSelect).toHaveBeenCalledWith("AA");
   });
+
+  it("says nothing of EV or equity a cell does not have (the Advisor's nulls)", () => {
+    render(
+      <RangeMatrix
+        cells={{ AA: { w: 1, f: [0, 1], ev: null, evm: null, eq: null }, KK: { w: 1, f: [0, 1], ev: [1, 2], evm: 2, eq: 0.8 } }}
+        actions={["fold", "raise 2.5"]}
+        colors={["gray", "red"]}
+        view="eq"
+      />,
+    );
+    expect(screen.getByRole("gridcell", { name: "AA: 100% in range, fold 0%, raise 2.5 100%" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: /^KK: .*, EV 2\.00bb, equity 80%$/ })).toBeInTheDocument();
+  });
 });

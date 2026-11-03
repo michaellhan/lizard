@@ -53,8 +53,8 @@ const Cell = memo(function Cell({
   const w = cell ? Math.max(0, Math.min(1, cell.w)) : 0;
   const label = cell
     ? `${cls}: ${pct(w, 0)} in range${actions.map((a, i) => `, ${a} ${pct(cell.f[i], 0)}`).join("")}${
-        cell.ev && cell.evm !== undefined ? `, EV ${cell.evm.toFixed(2)}bb` : ""
-      }${cell.eq !== undefined ? `, equity ${pct(cell.eq, 0)}` : ""}`
+        cell.ev && cell.evm != null ? `, EV ${cell.evm.toFixed(2)}bb` : ""
+      }${cell.eq != null ? `, equity ${pct(cell.eq, 0)}` : ""}`
     : `${cls}: not in range`;
 
   let fill: React.ReactNode = null;
@@ -78,8 +78,13 @@ const Cell = memo(function Cell({
     } else {
       const v = view === "eq" ? cell.eq : cell.evm;
       const [lo, hi] = view === "eq" ? [0, 1] : (evRange ?? [0, 1]);
-      const t = v === undefined ? 0 : (v - lo) / (hi - lo || 1);
-      fill = <div className="absolute inset-x-0 bottom-0" style={{ height: `${w * 100}%`, background: heat(t) }} />;
+      // (no value: the class's weight in a neutral fill, not the colour of the scale's bottom)
+      fill =
+        v == null ? (
+          <div className="absolute inset-x-0 bottom-0 bg-surface-3" style={{ height: `${w * 100}%` }} />
+        ) : (
+          <div className="absolute inset-x-0 bottom-0" style={{ height: `${w * 100}%`, background: heat((v - lo) / (hi - lo || 1)) }} />
+        );
     }
   }
 
