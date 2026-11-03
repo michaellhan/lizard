@@ -12,6 +12,8 @@ export interface LibrarySpotIndex {
   /** preflop line, e.g. "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c" */
   line: string;
   seats: string[];
+  /** the ranges' fingerprints (ranges.json's `fp`) */
+  fp?: string[];
   pot: number;
   stack: number;
   /** flop -> sha1(entry)[:10] */
@@ -20,6 +22,7 @@ export interface LibrarySpotIndex {
   /** format spots (other depths / heads-up): the game they belong to */
   game?: { players: number; stack: number; ante: number; straddle: boolean };
   tree?: unknown;
+  /** sha1(report.json)[:10] */
   report?: string;
 }
 

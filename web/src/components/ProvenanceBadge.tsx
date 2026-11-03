@@ -22,7 +22,9 @@ export function ProvenanceBadge({ p }: { p: Provenance }) {
         describe(p),
         p.seconds !== undefined ? `${p.seconds.toFixed(2)} s` : "",
         p.fallbackReason ? `fallback: ${p.fallbackReason}` : "",
-        `mode ${p.mode} · ${p.transport} · solver ${p.solverVersion}`,
+        p.transport === "file"
+          ? `read in the page from the library file, no solver · ${p.solverVersion}`
+          : `mode ${p.mode} · ${p.transport} · solver ${p.solverVersion}`,
       ]
         .filter(Boolean)
         .join("\n")}

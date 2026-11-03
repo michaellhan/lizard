@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
@@ -69,7 +70,11 @@ afterEach(() => {
 
 describe("PracticePage", () => {
   it("plays a hand: your options are the solver's, each move graded with its answer's source; the pot to the winner", async () => {
-    render(<PracticePage pace={0} />);
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
     // heads-up, the first hand from the button (the small blind): you act first
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
@@ -125,7 +130,11 @@ describe("PracticePage", () => {
       throw new Error("the solve failed");
     };
     try {
-      render(<PracticePage pace={0} />);
+      render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
       fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
       const moves = await screen.findByRole("group", { name: "Moves without a grade" });
@@ -138,6 +147,22 @@ describe("PracticePage", () => {
     } finally {
       stub.answer = answer;
     }
+  });
+
+  it("drills in their own tab, the hand under way kept", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    const hands = screen.getByRole("tabpanel", { name: "Full hands" });
+    fireEvent.click(screen.getByRole("tab", { name: "Drills" }));
+    expect(screen.getByRole("tab", { name: "Drills" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tabpanel", { name: "Drills" })).toBeInTheDocument();
+    expect(hands).not.toBeVisible();
+    fireEvent.click(screen.getByRole("tab", { name: "Full hands" }));
+    expect(screen.getByRole("tabpanel", { name: "Full hands" })).toBe(hands);
+    expect(screen.queryByRole("tabpanel", { name: "Drills" })).toBeNull();
   });
 
   it("labels a size the solver's name doesn't say", () => {

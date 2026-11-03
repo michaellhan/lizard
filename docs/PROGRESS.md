@@ -415,7 +415,62 @@ The only console errors were Cloudflare's injected analytics beacon (`static.clo
 page's CSP (`script-src 'self'`) blocks. It comes from the host, not the app. Allowing it would mean loosening the
 CSP, which is the owner's call, so it was left as is.
 
+## 2026-11-03: Phase 1, drills (second session)
+
+### Code
+
+- **Library entries in the page, `web/src/library/entry.ts`.** A typed port of classic `drills.js`: the format-2
+  `.bin` decode (DecompressionStream), the suit-isomorphism classes, the hand order and `handWeights`.
+  `web/src/library/files.ts` reads a library's index, a spot's `report.json` and `ranges.json` (fingerprint
+  checked) and its entries. Each file is asked for with the version the index gives it, and the last 40 entries are
+  kept.
+- **Drill logic, `web/src/features/practice/drills.ts`.** From `drills.js` and `reports.js`:
+  - the texture classes;
+  - the three nodes (out of position first, in position after a check, out of position facing a bet);
+  - the (flop, node) draws by weight, the hand drawn by range weight in a random suit relabelling;
+  - the pot and bet, and the node as a Study URL;
+  - the provenance of the stored solve: "Precomputed solution · <spot> · <expl>% … · <iters> iterations", with a new
+    transport `"file"` (read in the page, no solver), which the badge's tooltip says.
+- **Drills tab, `DrillsPanel.tsx`.** Practice now has "Full hands" and "Drills" tabs (`?tab=drills`). A hand under way
+  is kept while you drill.
+  - **Choosing a drill:** spot (the two-player spots of the library Settings picks), decision and texture filters,
+    all in the URL. The page shows the spot's coverage and says when no flop stores the decision with that texture.
+  - **Answering:** keys 1–9 answer and Enter or Space deals the next hand. The verdict, EV given up, the hand's mix
+    and EVs, and the provenance badge are shown, with "Open in Study" to the same node.
+  - **Sessions:** saved as `drill` sessions; earlier sessions of the same drill are listed.
+- `VerdictTag` moved to `web/src/components/`.
+- **Test fixtures.** The snapshot's library is git-ignored (315 MB), so CI couldn't read it. A 148 KB subset is
+  committed in `web/src/test/fixtures/flop_library`: three spots and 13 flops, with entries and ranges byte for byte
+  and the index and reports trimmed to those flops. `scripts/library/make_web_fixtures.py` regenerates it, and
+  `src/test/library.ts` reads it. One extra check (every spot has draws for each drill) runs over the whole snapshot
+  where it is on disk and is skipped in CI.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 116/116 in 22 files (one skipped in CI: the whole-snapshot check). New: `library/entry.test.ts` (classic decode cases on the shipped entries: frequencies from the weighted strategy, iso classes, weights), `practice/drills.test.ts` (draws, texture filter, every shipped spot drillable, dealing by weight over 3,600 deals, pot, Study node, provenance label), `practice/DrillsPanel.test.tsx` (stubbed fetch over the shipped files: deal, grade, keys, the filter, no-flop message, session saved) and a tab test in `PracticePage.test.tsx` |
+| Typecheck and ESLint | clean |
+| `npm run build` | built (`index-0h6F-ScU.js`) |
+| Library assembler (`scripts/library`) | OK |
+
+### Checked in the browser (local production build, `vite preview`, library proxied from the live site)
+
+- Lizard library, srp_btn_bb, BB facing a bet: J♠4♠ on A♥8♥6♥ facing a 75% bet. The "2" key called: Blunder,
+  1.49bb or 15.4% of the 9.63bb pot, fold 100% at EV 0.00, under "Precomputed solution · srp_btn_bb · 0.11% pot from
+  equilibrium in the solved game (converged) · 300 iterations".
+- Enter dealt the next hand (about 1–2 s for a new entry over the proxy).
+- "Open in Study" opened Study at the same node (Ac7s3d, BB facing 1.82), answered from the library. Study shows the
+  pot as 7.5bb where the drill shows the library's 7.32bb; classic drills show the same 7.32bb.
+- Heads-up srp_sb_bb_2max, SB after a check, at 375px: no horizontal scroll, no console errors. The engine stayed
+  idle throughout the drills.
+
+### Precompute builds
+
+Untouched. Memory stayed at about 61% free.
+
 ### Next
 
-- Phase 1's drills (decoded from the library, no solver), then, as feasible at low CPU, Phase 4 range-builder
-  grading and Phase 5 saved spots. The preflop Solver source (Phase 0) stays on request only.
+- Commit, push and check the deploy of the drills.
+- Then, as feasible at low CPU: Phase 4 range-builder grading and Phase 5 saved spots. The preflop Solver source
+  (Phase 0) stays on request only.

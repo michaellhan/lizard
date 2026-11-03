@@ -1,14 +1,17 @@
-// Practice: full hands against GTO opponents. Every opponent's move is drawn from the solver's mix for its actual
+// Practice, in two tabs: full hands (here) and drills (DrillsPanel.tsx, one flop decision from the library).
+// Full hands are against GTO opponents. Every opponent's move is drawn from the solver's mix for its actual
 // hand (Advisor.play); your options are the solver's actions at your spot, and each decision is graded against its
 // answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
 // preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
 // As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor).
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { VerdictTag } from "@/components/VerdictTag";
 import { bb, kindOf, pct } from "@/components/actions";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
-import { addScore, emptyScore, GRADE_RULES, summary, type Score, type Verdict } from "@/grading/grade";
+import { addScore, emptyScore, GRADE_RULES, summary, type Score } from "@/grading/grade";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
 import { SolverError, type SolveResult } from "@/solver/types";
@@ -16,6 +19,7 @@ import { useSolver } from "@/solver/useSolver";
 import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { ModePicker } from "@/features/study/ModePicker";
+import { DrillsPanel } from "./DrillsPanel";
 import {
   dealNext,
   decide,
@@ -76,8 +80,58 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 type Advice = { key: string } & ({ st: "loading" } | { st: "done"; result: SolveResult } | { st: "error"; message: string });
 
+type Tab = "hands" | "drills";
+const TABS: readonly { id: Tab; label: string }[] = [
+  { id: "hands", label: "Full hands" },
+  { id: "drills", label: "Drills" },
+];
+
 /** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). */
 export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = params.get("tab") === "drills" ? "drills" : "hands";
+  // a hand under way is kept while you drill (its table is mounted once opened, and hidden)
+  const [handsOpened, setHandsOpened] = useState(tab === "hands");
+  const open = (t: Tab) => {
+    if (t === "hands") setHandsOpened(true);
+    setParams(t === "hands" ? {} : { tab: "drills" });
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold">Practice</h1>
+        <div role="tablist" aria-label="Practice" className="flex gap-1 rounded-md border border-border p-0.5 text-sm">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`practice-tab-${t.id}`}
+              aria-selected={tab === t.id}
+              aria-controls={`practice-panel-${t.id}`}
+              onClick={() => open(t.id)}
+              className={`rounded px-2.5 py-1 ${tab === t.id ? "bg-surface-3 font-medium" : "text-muted hover:bg-surface-2"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {(handsOpened || tab === "hands") && (
+        <div role="tabpanel" id="practice-panel-hands" aria-labelledby="practice-tab-hands" hidden={tab !== "hands"}>
+          <FullHands pace={pace} />
+        </div>
+      )}
+      {tab === "drills" && (
+        <div role="tabpanel" id="practice-panel-drills" aria-labelledby="practice-tab-drills">
+          <DrillsPanel />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FullHands({ pace }: { pace: number }) {
   const picked = useSettings((s) => s.mode);
   const mode = picked === "accurate" ? "accurate" : "quick";
   const getSolver = useSolver();
@@ -212,7 +266,6 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Practice</h1>
           <p className="text-sm text-muted">
             Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
             the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand.
@@ -341,8 +394,8 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
       </details>
 
       <p className="text-xs text-muted">
-        Not here yet: drills (one kind of pot dealt again and again), the ring game&rsquo;s carried-over chips, sizes of your own, and multi-tabling. They run
-        in the{" "}
+        Not here yet: the drill modes (single-raised, 3-bet and blind-vs-blind pots dealt again and again), the ring game&rsquo;s carried-over chips, sizes of
+        your own, and multi-tabling. They run in the{" "}
         <a className="underline" href={`${CLASSIC_URL}practice/`}>
           classic trainer
         </a>
@@ -449,18 +502,6 @@ function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a: { act
       {lg.canRaise && btn(`all-in ${fmt(lg.allInTo)}`, { action: "all-in" })}
     </div>
   );
-}
-
-const TONE: Record<Verdict, string> = {
-  Best: "bg-accent/20 text-accent",
-  Correct: "bg-accent/10 text-accent",
-  Inaccuracy: "bg-warn/15 text-warn",
-  Mistake: "bg-danger/15 text-danger",
-  Blunder: "bg-danger/25 text-danger",
-};
-
-function VerdictTag({ v }: { v: Verdict }) {
-  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${TONE[v]}`}>{v}</span>;
 }
 
 function DecisionView({ d, players }: { d: Decision; players: number }) {

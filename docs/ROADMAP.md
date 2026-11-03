@@ -125,10 +125,13 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
   - the Practice page's full-hand mode for 2–9 players, with your seat moving each hand, opponents moved by
     `Advisor.play`, and a verdict per decision from `grade.ts` (EV lost where every action has an EV, otherwise by
     frequency and said so), the hand's mix and the provenance label;
-  - sessions saved to the `sessions` store, with the last six listed on the page.
-  - **Still open in Phase 1:** the drill modes and single-decision drills, multitabling, "Open in Study", chips carried
-    from hand to hand, sizes of your own, antes and straddles, the "why" text, the 20-hand engine check, and the
-    sessions history page.
+  - sessions saved to the `sessions` store, with the last six listed on the page;
+  - single-decision drills, in Practice's Drills tab: entries decoded in the page (`web/src/library/entry.ts`), the
+    three nodes and the texture filter, the spot's coverage, EV grading with the stored solve's provenance, "Open in
+    Study", and drill sessions saved.
+  - **Still open in Phase 1:** the drill modes (pot types in full hands), multitabling, "Open in Study" from a
+    full-hand decision, chips carried from hand to hand, sizes of your own, antes and straddles, the "why" text, the
+    20-hand engine check, and the sessions history page.
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;
@@ -295,7 +298,7 @@ Moves matrix rows: Saved solutions, Node navigation (saved spots), Custom drills
 **Goal.** Let users set up their own spot (ranges, per-seat stacks, bet sizes, rake) and solve it, and lock opponents' tendencies to see the best response. Every such answer is labelled for what it is.
 
 **Deliverables.**
-- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:33`. It builds a request with the Advisor keys the engine already accepts:
+- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:34`. It builds a request with the Advisor keys the engine already accepts:
   - `ranges` (custom ranges entering the flop; `advisor.py:3722`, `:4701-4710`), with saved ranges from Phase 5;
   - per-seat stacks (`_state_stacks`);
   - `sizes`: up to 3 per street, 5 in Study (`advisor.py:298-318`, `:3721`);
