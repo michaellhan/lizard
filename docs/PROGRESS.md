@@ -400,8 +400,22 @@ sizes, antes and straddles, the "why" text, the opt-in 20-hand engine check, and
 Untouched. Read-only `ps` checks only. Memory stayed at 61–70% free; two of the build's worker processes were busy
 throughout.
 
+### Deploy of `4d3b353`, checked live
+
+GitHub Actions run 41649237725 succeeded. The live bundle is `index-b6DGF87z.js`, the same as the local build.
+`/lizard/`, `/lizard/practice/`, `/lizard/study/` and `/lizard/library/` returned 200.
+
+On the live `/lizard/practice/`, a 6-max hand was dealt on load:
+- the worker moved UTG, HJ and CO (CO opened 2.5bb);
+- the BTN was offered the solver's raise, call and fold; fold was graded "Best" by the chart's frequency, under
+  "Preflop charts · approximate";
+- the log read "preflop: CO raises to 2.5, You fold".
+
+The only console errors were Cloudflare's injected analytics beacon (`static.cloudflareinsights.com`), which the
+page's CSP (`script-src 'self'`) blocks. It comes from the host, not the app. Allowing it would mean loosening the
+CSP, which is the owner's call, so it was left as is.
+
 ### Next
 
-- Commit, push and check the deploy of this milestone.
-- Then, as feasible at low CPU: Phase 1's drills (decoded from the library, no solver), Phase 4 range-builder grading
-  and Phase 5 saved spots. The preflop Solver source (Phase 0) stays on request only.
+- Phase 1's drills (decoded from the library, no solver), then, as feasible at low CPU, Phase 4 range-builder
+  grading and Phase 5 saved spots. The preflop Solver source (Phase 0) stays on request only.
