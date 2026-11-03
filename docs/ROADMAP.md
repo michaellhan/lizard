@@ -246,8 +246,9 @@ Moves matrix rows: all Analysis rows.
   and the coverage (stored flops and their share of all 22,100) with a list of which spots have reports. Long reports
   list 300 flops until asked for all (averages, groups and the CSV take every flop). A chart view: every flop shown as
   a column of its mix in the table's order, and the texture groups as columns. In position facing out of position's
-  first bet (a lead, or a c-bet), each facing row saying its bet and how often it's made. **Still open in Phase 3:**
-  turn and river runout reports (live solves, opt-in), and 3-way spots.
+  first bet (a lead, or a c-bet), each facing row saying its bet and how often it's made. Turn and river runout
+  reports in Study: a library flop's stored turns at once, else a solve of the street that closed on request, its
+  seconds said first. **Still open in Phase 3:** 3-way spots in Reports.
 - **Reports page, `web/src/features/reports/`.**
   - Port `solver/gto/static/reports.js` (texture classes `:18`, views `:37`, rows `:62`, weighted averages `:86`).
   - It reads `<spot>/report.json` from the library source chosen by `web/src/library/catalog.ts`.

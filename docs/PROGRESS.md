@@ -3110,3 +3110,57 @@ Untouched; checked only with read-only `ps`.
 - Phase 3, still open: turn and river runout reports (live solves), 3-way spots.
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 3, turn and river runout reports in Study (2026-11-03)
+
+The drills' fourth decision (a87cbb2) deployed: run 41723091560 succeeded, and the live bundle `index-DWSELjo8.js`
+has it.
+
+### What changed
+
+- **Where it shows.** Under Study's deal box, once the flop's or turn's betting closed with chips still to bet:
+  heads-up, and 3-way where three saw the flop (`offersReport`). Not after an all-in, not 4-way or more.
+- **What it asks first.** "Turn report" (or "River report") asks the engine with `runouts: "held"`: the report from
+  what's in hand, at once. On a library flop that's the stored turns, labelled "Stored turn from the flop library"
+  (approximate, strategies only). If nothing is held, it says so and offers "Solve the flop (Fast, ~2 s)": classic's
+  measured seconds (`RO_SECONDS`, threads counted; the local server uses its budgets). A timer and a Stop button run
+  while it solves. Where the stored turns hold other flop lines, a select walks to one and its report opens by itself.
+- **The table.** Every card off the board: what it does to the board, the street's first decision there (or in
+  position's after a check), both EVs and equities. Sortable on every column; grouped by what the card does, rank or
+  suit (a group's click filters to it); filtered to one class. A card's row deals it. The note says what the report
+  is read off (classic's wording).
+- **Files.** `web/src/features/study/runouts.ts` (the model, classic `runouts.js`), `RunoutPanel.tsx`, and the
+  deal branch in `StudyPage.tsx`.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 402/402. `runouts.test.ts` (6): classic's card classes, rows, filters, sorting, groups and averages, stored-turn EVs, the notes, 3-way, the seconds and when it's offered. `StudyPage.test.tsx` (3 new): asking, then solving on request, the 49-card table, the other player's decision, a filter, dealing a card; walking to a stored line and its report opening by itself; no report after an all-in or 4-way. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+On srp_btn_bb, Kd7c2h:
+
+- **Stored turns.** After check-check the report came back at once from the library (29% of the flop solve).
+- **A live solve.** A line the library doesn't hold (BB leads 1.82, BTN calls) was solved live in about 2 s. It was
+  labelled Live solve, 0.07%, converged, and the two EVs add to the 9.14bb pot.
+- **Groups and dealing.** Grouping by what the card does gave 7.5%, 73.9% and 18.6% of turns. Dealing the Ks from
+  its row moved Study to the turn.
+- **Walking to a stored line.** Picking "check, bet 2, call" walked there and its report opened by itself.
+- **A river report.** Off a live turn solve: 48 cards, and the EVs add to the 5.50bb pot.
+- **375px.** No horizontal page scroll; the table scrolls in its box.
+
+Not checked in a browser: a 3-way report.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Each browser solve was one Fast solve of a few seconds.
+
+### Next
+
+- Phase 3, still open: 3-way spots in Reports.
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

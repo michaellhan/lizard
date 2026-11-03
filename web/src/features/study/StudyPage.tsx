@@ -45,6 +45,8 @@ import { betMenuOf, CompareLinks } from "./CompareLinks";
 import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
 import { ComboPanel } from "./ComboPanel";
+import { offersReport } from "./runouts";
+import { RunoutPanel } from "./RunoutPanel";
 import { SaveSpot } from "./SaveSpot";
 import { bubbleTableOf } from "@/features/tournaments/icm";
 import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
@@ -510,7 +512,7 @@ function NodeView({
       setTyped("");
       setHand(deal(hand, cards));
     };
-    return (
+    const form = (
       <form
         className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3"
         onSubmit={(e) => {
@@ -538,6 +540,16 @@ function NodeView({
         </button>
         {err && <span className="text-sm text-danger">{err}</span>}
       </form>
+    );
+    // (the turn or river report: once the flop's or turn's betting closed with chips still to bet, heads-up or 3-way)
+    const report = (res.street === "turn" || res.street === "river") && !res.allin && offersReport(hand);
+    return report ? (
+      <div className="space-y-3">
+        {form}
+        <RunoutPanel key={toSearch(hand)} hand={hand} street={res.street as "turn" | "river"} setHand={setHand} />
+      </div>
+    ) : (
+      form
     );
   }
   if (res.study === "over") {

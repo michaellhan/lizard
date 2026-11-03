@@ -298,6 +298,96 @@ describe("StudyPage", () => {
     expect(fromSearch(per.get("b")!)!.setup).toEqual({ stacks: { CO: 8 }, ante: 0.1 });
   });
 
+  // a turn report on Kd7c2h after BB and BTN checked the flop (advisor.py study's "runouts"): the 7s and the rest as
+  // classes, BB's lead and BTN's bet after a check, each card's chance, equities and EVs
+  const deck = (board: string) => [..."AKQJT98765432"].flatMap((r) => [..."shdc"].map((x) => r + x)).filter((c) => !board.includes(c));
+  const part = (actor: string, f7: number[], fr: number[]) => ({
+    actor,
+    actions: ["check", "bet 75%"],
+    avg: [0.6, 0.4],
+    cards: [
+      { card: "7d", cards: deck("Kd7c2h").filter((c) => c[0] === "7"), f: f7, w: 30 },
+      { card: "Qh", cards: deck("Kd7c2h").filter((c) => c[0] !== "7"), f: fr, w: 60 },
+    ],
+  });
+  const TURNS = {
+    study: "runouts",
+    street: "turn",
+    first: part("BB", [0.9, 0.1], [1, 0]),
+    after_check: part("BTN", [0.8, 0.2], [0.45, 0.55]),
+    seats: ["BB", "BTN"],
+    pot_bb: 5.5,
+    source: "solve",
+    cards: deck("Kd7c2h").map((c) => ({ card: c, p: 1 / 49, eq: [0.45, 0.55], ev: c[0] === "A" ? [1.5, 4] : [2.5, 3] })),
+    solver: { iterations: 400, exploitability_pct: 0.05, by: "hand buckets" },
+  } as unknown as AdvisorResponse;
+  const TURN_SEARCH = "p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Kd7c2h&flop=BB:x,BTN:x";
+
+  it("offers the turn report at a closed flop: asks what's in hand, then solves the flop on request, and a card's row deals it", async () => {
+    stub.answer = { study: "deal", street: "turn" };
+    stub.answerFor = (st) => (st.runouts === "held" ? { study: "runouts", street: "turn", skipped: "no flop solve" } : st.runouts === true ? TURNS : null);
+    stub.asked.length = 0;
+    renderAt(TURN_SEARCH);
+    const panel = await screen.findByRole("region", { name: "Turn report" });
+    expect(panel).toHaveTextContent("The turn’s first decision on every card: strategy, EV and equity.");
+    expect(stub.asked.some((st) => "runouts" in st)).toBe(false); // (nothing asked until the button)
+    fireEvent.click(within(panel).getByRole("button", { name: "Turn report" }));
+    const solve = await within(panel).findByRole("button", { name: /^Solve the flop \(Fast, ~\d+ s\)$/ });
+    expect(stub.asked.at(-1)).toMatchObject({ board: "Kd7c2h", flop: [{ pos: "BB", action: "check" }, { pos: "BTN", action: "check" }], runouts: "held" });
+    fireEvent.click(solve);
+    const avg = await within(panel).findByRole("row", { name: "Average" });
+    expect(stub.asked.at(-1)).toMatchObject({ runouts: true, study: true });
+    expect(avg).toHaveTextContent("All 49 cards");
+    expect(within(panel).getAllByRole("button", { name: /^Deal / })).toHaveLength(49);
+    expect(within(panel).getByText(/^Live solve/)).toBeInTheDocument();
+    // BB's mix on a 7 (it pairs the board) and on an ace; then BTN's after a check
+    expect(within(panel).getByRole("row", { name: "7s" })).toHaveTextContent(/90%10%2\.503\.00/);
+    expect(within(panel).getByRole("row", { name: "As" })).toHaveTextContent(/100%0%1\.504\.00/);
+    fireEvent.click(within(panel).getByRole("button", { name: "BTN after a check" }));
+    expect(within(panel).getByRole("row", { name: "7s" })).toHaveTextContent(/80%20%/);
+    // only the cards pairing the board: the three 7s (the K's and 2's too)
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Only cards that" }), { target: { value: "pair" } });
+    expect(within(panel).getAllByRole("button", { name: /^Deal / })).toHaveLength(9);
+    fireEvent.click(within(panel).getByRole("button", { name: "Deal 7s" }));
+    await waitFor(() => expect(stub.asked.at(-1)).toMatchObject({ board: "Kd7c2h7s" }));
+    expect(stub.asked.at(-1)).not.toHaveProperty("runouts");
+  });
+
+  it("walks to a flop line the library's stored turns hold, and that node's report opens at once", async () => {
+    const lead = [{ pos: "BB", action: "bet", to: 1.82 }, { pos: "BTN", action: "call" }];
+    const lines = [{ flop: lead, share: 0.3 }, { flop: [{ pos: "BB", action: "check" }, { pos: "BTN", action: "check" }], share: 0.4 }];
+    const stored = { ...TURNS, source: "store", lines, line: 0, cards: (TURNS.cards as { card: string }[]).map((c) => ({ card: c.card, p: 1 / 49, eq: null, ev: null })) } as unknown as AdvisorResponse;
+    stub.answer = { study: "deal", street: "turn" };
+    stub.answerFor = (st) => (st.runouts !== "held" ? null : st.flop?.[0]?.action === "bet" ? stored : { study: "runouts", street: "turn", skipped: "line not stored", lines: [lines[0]] });
+    stub.provenance = provenanceOf(stored, { mode: "fast", transport: "worker", solverVersion: "test", partial: false });
+    stub.asked.length = 0;
+    renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Kd7c2h&flop=BB:x,BTN:b4,BB:c");
+    const panel = await screen.findByRole("region", { name: "Turn report" });
+    fireEvent.click(within(panel).getByRole("button", { name: "Turn report" }));
+    const pick = await within(panel).findByRole("combobox", { name: "Flop line" });
+    expect(panel).toHaveTextContent("the flop library's stored turns don't hold this flop line");
+    expect(within(pick).getAllByRole("option").map((o) => o.textContent)).toEqual(["Pick a flop line…", "Flop: bet 1.82, call (30%)"]);
+    fireEvent.change(pick, { target: { value: "0" } });
+    // the new node (BB bet 1.82, BTN called) asks for its report by itself
+    const again = await screen.findByRole("region", { name: "Turn report" });
+    expect(await within(again).findByRole("row", { name: "Average" })).toHaveTextContent("All 49 cards");
+    expect(stub.asked.at(-1)).toMatchObject({ flop: lead, runouts: "held" });
+    expect(within(again).getByText(/^Stored turn from the flop library/)).toBeInTheDocument();
+    expect(within(again).getByRole("combobox", { name: "Flop line" })).toHaveValue("0");
+  });
+
+  it("offers no turn report where the flop went all in or four saw it", async () => {
+    stub.answer = { study: "deal", street: "turn", allin: true };
+    const { unmount } = renderAt(TURN_SEARCH);
+    expect(await screen.findByText(/Deal the turn/)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Turn report" })).toBeNull();
+    unmount();
+    stub.answer = { study: "deal", street: "turn" };
+    renderAt("p=6&s=100&pre=UTG:f,HJ:r2.5,CO:c,BTN:c,SB:f,BB:c&b=Kd7c2h&flop=BB:x,HJ:x,CO:x,BTN:x");
+    expect(await screen.findByText(/Deal the turn/)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Turn report" })).toBeNull();
+  });
+
   it("links the spot to Compare with one thing changed, on a decision only", async () => {
     stub.answer = THREE_WAY;
     const search = "p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h";
