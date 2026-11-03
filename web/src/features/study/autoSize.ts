@@ -2,14 +2,14 @@
 // since Study drops it (STUDY_DROPS). The street is solved once over a wide menu (OPT_SIZES, 25–200% of the pot, with
 // the spot's own sizes for the street among them), one street deep with one raise; the sizes either player's first bet
 // uses with OPT_KEEP (3%) of their range are kept, the MAX_SIZES (3) most used; and the advice is solved again with
-// them. The two solves share one solve's time. Offered where a node lock is (heads-up, after the flop) and the player to
+// them. The two solves share one solve's time. Offered where a node lock is after the flop (heads-up) and the player to
 // act can bet: the engine chooses sizes only there.
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { handRequest, offersLock } from "./locks";
 
 export const OPT_KEEP = 0.03;
 
-export const offersAutoSize = (r: AdvisorResponse): boolean => offersLock(r) && (r.actions ?? []).some((a) => a.action === "check");
+export const offersAutoSize = (r: AdvisorResponse): boolean => r.street !== "preflop" && offersLock(r) && (r.actions ?? []).some((a) => a.action === "check");
 
 export const autoSizeRequest = (study: AdvisorState, hero: string, hole: string): AdvisorState => ({ ...handRequest(study, hero, hole), optimize_sizes: true });
 

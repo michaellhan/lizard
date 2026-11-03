@@ -107,7 +107,9 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (r.multiway) p.multiway = true;
   // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})
   const locked = r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];
-  if (locked.length) p.lock = `best response to ${locked.map(([seat, l]) => `${seat} ${describeLock(l)}`).join("; ")}, not an equilibrium re-solve`;
+  // (preflop, on the charts' strategy: in the preflop words)
+  if (locked.length)
+    p.lock = `best response to ${locked.map(([seat, l]) => `${seat} ${describeLock(l, r.street === "preflop")}`).join("; ")}, not an equilibrium re-solve`;
   // optimize_sizes (advisor.py _optimize_sizes): the sizes this answer bets were picked by a first, shorter solve of the
   // street over a wide menu, whose distance from equilibrium isn't reported; the figures below are the second solve's
   if (Array.isArray(r.sizes_kept) && r.sizes_kept.length)

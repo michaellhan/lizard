@@ -7,8 +7,9 @@ import { describe as describeProvenance, provenanceOf } from "@/solver/provenanc
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import type { SolveRequest, SolveResult } from "@/solver/types";
-import { describeLock, lockOf, lockRequest, offersLock, presetOf } from "./locks";
-import { holesOf, LockPanel } from "./LockPanel";
+import { seatsOf } from "@/poker/seats";
+import { describeLock, lockOf, lockRequest, lockSeats, offersLock, presetOf } from "./locks";
+import { holesOf, LockPanel, rangeFreqOf } from "./LockPanel";
 import { freshHand, studyRequest, type StudyHand } from "./studyState";
 
 const ctx = { mode: "fast" as const, transport: "worker" as const, solverVersion: "t", partial: false, now: 1 };
@@ -82,7 +83,9 @@ describe("a read on the opponent", () => {
 
   it("is offered at a heads-up node after the flop, and asked as one hand's advice", () => {
     expect(offersLock(NODE)).toBe(true);
-    expect(offersLock({ ...NODE, street: "preflop" })).toBe(false);
+    // preflop on the charts (any seat still in); after the flop heads-up only, as the engine locks
+    expect(offersLock({ ...NODE, street: "preflop", opponent: undefined })).toBe(true);
+    expect(offersLock({ ...NODE, street: "preflop", actor: undefined })).toBe(false);
     expect(offersLock({ ...NODE, multiway: true })).toBe(false);
     expect(offersLock({ ...NODE, opponent: undefined })).toBe(false);
     const st = lockRequest(studyRequest(HAND), "SB", "AhQd", "BB", { fold: 15 });
@@ -134,5 +137,97 @@ describe("a read on the opponent", () => {
     expect(rows[1]).toHaveTextContent("check0.0% · EV 2.65bb100.0%38.9%60.0%");
     expect(within(answer).getByRole("grid", { name: "Change in any bet or raise" })).toBeInTheDocument();
     expect(within(answer).getByText(/^locked: BB folds \+15 pts to bets/)).toBeInTheDocument();
+  });
+
+  describe("preflop, on the charts", () => {
+    // Study's preflop node: BB facing a CO open, 6-max (the charts)
+    const PF_HAND: StudyHand = {
+      ...freshHand(6, 100),
+      preflop: [
+        { pos: "UTG", action: "fold" },
+        { pos: "HJ", action: "fold" },
+        { pos: "CO", action: "raise", to: 2.5 },
+        { pos: "BTN", action: "fold" },
+        { pos: "SB", action: "fold" },
+      ],
+    };
+    const PF_NODE: AdvisorResponse = {
+      study: "node",
+      street: "preflop",
+      actor: "BB",
+      pot_bb: 4,
+      actions: [{ action: "raise" }, { action: "call" }, { action: "fold" }],
+      grid: { actions: ["raise", "call", "fold"], cells: { A5s: { w: 1, f: [1, 0, 0] }, "72o": { w: 1, f: [0, 0, 1] } } },
+      combos: { A5s: [["Ah5h", 1, [1, 0, 0], null, null, 0, 0]] },
+    };
+    // one hand's advice there (advisor.py _preflop, a probe's shape): the charts' mix, and against CO folding more
+    const PF_GTO: AdvisorResponse = {
+      street: "preflop",
+      hero: "BB",
+      actions: [
+        { action: "raise", freq: 0.5 },
+        { action: "call", freq: 0.5 },
+        { action: "fold", freq: 0 },
+      ],
+      grid: { actions: ["raise", "call", "fold"], cells: { A5s: { w: 1, f: [0.5, 0.5, 0] }, "72o": { w: 1, f: [0, 0, 1] } } },
+      notes: ["preflop: chart approximation"],
+    };
+    const PF_BR: AdvisorResponse = {
+      ...PF_GTO,
+      actions: [
+        { action: "raise", freq: 1, gto_freq: 0.5 },
+        { action: "call", freq: 0, gto_freq: 0.5 },
+        { action: "fold", freq: 0, gto_freq: 0 },
+      ],
+      grid: { actions: ["raise", "call", "fold"], cells: { A5s: { w: 1, f: [1, 0, 0] }, "72o": { w: 1, f: [0.25, 0, 0.75] } } },
+      locked: { CO: { fold: 15, raise: -30 } },
+      notes: ["preflop: chart approximation", "locked: CO folds +15 pts to raises, re-raises -30% (on GTO)"],
+    };
+
+    it("takes the keys that act preflop, in their preflop words, on a seat still in", () => {
+      expect(lockOf({ fold: "15", next_fold: "40", raise: "-30" }, true)).toEqual({ lock: { fold: 15, raise: -30 }, problems: [] });
+      expect(describeLock({ fold: 15, raise: -30, next_fold: 40 }, true)).toBe("folds +15 pts to raises, re-raises -30%");
+      expect(lockSeats(seatsOf(6), PF_HAND.preflop, PF_NODE)).toEqual(["CO"]);
+      expect(lockSeats(seatsOf(6), PF_HAND.preflop.slice(0, 2), { street: "preflop", actor: "CO" })).toEqual(["BTN", "SB", "BB"]);
+      expect(lockSeats(seatsOf(2), [], NODE)).toEqual(["BB"]);
+      // a preflop node has no combo rows: the class's hands
+      expect(holesOf({ ...PF_NODE, combos: undefined }, "A5s")).toEqual(["As5s", "Ah5h", "Ad5d", "Ac5c"]);
+      expect(holesOf({ ...PF_NODE, combos: undefined }, null)).toEqual(["As5s", "Ah5h", "Ad5d", "Ac5c"]);
+      expect(holesOf({ ...NODE, combos: undefined }, "AQo")).toEqual([]);
+      // the range's share off the grid, each class by its combos (A5s 4, 72o 12)
+      expect(rangeFreqOf(PF_BR)).toEqual({ raise: (4 + 12 * 0.25) / 16, call: 0, fold: (12 * 0.75) / 16 });
+      const p = provenanceOf(PF_BR, ctx);
+      expect(p.source).toBe("charts");
+      expect(p.approximate).toBe(true);
+      expect(p.lock).toBe("best response to CO folds +15 pts to raises, re-raises -30%, not an equilibrium re-solve");
+    });
+
+    it("asks the hand on the charts, then against the read, labelled approximate", async () => {
+      const asked: AdvisorState[] = [];
+      const client = {
+        solve: async ({ state }: SolveRequest): Promise<SolveResult> => {
+          asked.push(state);
+          const data = state.locks ? PF_BR : PF_GTO;
+          return { data, provenance: provenanceOf(data, ctx) };
+        },
+      } as unknown as SolverClient;
+      render(<LockPanel hand={PF_HAND} res={PF_NODE} cls="A5s" mode="fast" getSolver={async () => client} />);
+      fireEvent.click(screen.getByText("Against a read (node lock)"));
+      const form = screen.getByRole("form", { name: "The read" });
+      expect(within(form).queryByLabelText("Next: folds %")).toBeNull();
+      expect(within(form).getByLabelText("Folds to raises ±")).toHaveValue("15");
+      fireEvent.change(within(form).getByLabelText("Re-raises ±%"), { target: { value: "-30" } });
+      expect(form).toHaveTextContent("CO folds +15 pts to raises, re-raises -30%.");
+      fireEvent.click(within(form).getByRole("button", { name: "Ask" }));
+      const answer = await screen.findByRole("region", { name: "Best response to the read" });
+      expect(asked.map((s) => [s.hero, s.hole, s.locks ?? null])).toEqual([
+        ["BB", "Ah5h", null],
+        ["BB", "Ah5h", { CO: { fold: 15, raise: -30 } }],
+      ]);
+      expect(answer).toHaveTextContent(/Preflop charts · best response to CO folds \+15 pts to raises, re-raises -30%, not an equilibrium re-solve.*approximate/);
+      const rows = within(answer).getAllByRole("row");
+      expect(rows[0]).toHaveTextContent("Ah5h: charts");
+      expect(rows[1]).toHaveTextContent("raise100.0%50.0%43.8%12.5%");
+    });
   });
 });

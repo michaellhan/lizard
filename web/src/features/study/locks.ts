@@ -30,6 +30,15 @@ export const LOCK_FIELDS: [LockKey, string, string][] = [
   ["next_bet", "Next: bets %", "% betting at their next decision when you check"],
 ];
 
+/** Preflop, the profile keys act on the locked player's chart strategy (exploit.py LOCK_PREFLOP_KEYS, lock_preflop),
+ * in their preflop words (LOCK_WORDS_PREFLOP); the street keys and next_* are for after the flop only. */
+export const LOCK_FIELDS_PREFLOP: [LockKey, string, string][] = [
+  ["fold", "Folds to raises ±", "points more of their range folding facing a raise, their weakest calls first, then their weakest raises (negative: calls more)"],
+  ["bluff", "Bluff-raises ±%", "the bluffs among their raises facing a raise (under 45-50% equity when called): −100 none, +100 twice as many"],
+  ["bet", "Opens ±%", "their first raise (an open, an iso-raise, the big blind's raise over limps) scaled: −50 opens half as much"],
+  ["raise", "Re-raises ±%", "their 3bets, 4bets and 5bets scaled, to and from calls"],
+];
+
 /** The engine's presets (exploit.py LOCK_PRESETS; the classic page names them). */
 export const LOCK_PRESETS: Record<string, [string, Lock]> = {
   station: ["Calling station", { fold: -20, bluff: -50, raise: -50 }],
@@ -47,22 +56,29 @@ const WORDS: Record<LockKey, (v: number) => string> = {
   next_raise: (v) => `raises ${v}% against your next bet`,
   next_bet: (v) => `bets ${v}% when you check`,
 };
+const WORDS_PREFLOP: Partial<Record<LockKey, (v: number) => string>> = {
+  fold: (v) => `folds ${signed(v)} pts to raises`,
+  bluff: (v) => `bluff-raises ${signed(v)}%`,
+  bet: (v) => `opens ${signed(v)}%`,
+  raise: (v) => `re-raises ${signed(v)}%`,
+};
 const signed = (v: number) => `${v > 0 ? "+" : ""}${v}`;
 
-/** "folds +15 pts to bets, bluffs -50%" (exploit.py describe_lock's words). */
-export function describeLock(l: Lock): string {
+/** "folds +15 pts to bets, bluffs -50%" (exploit.py describe_lock's words; preflop, the keys that act there in theirs:
+ * "folds +15 pts to raises, re-raises -30%"). */
+export function describeLock(l: Lock, preflop = false): string {
   return (Object.keys(LOCK_KEYS) as LockKey[])
-    .filter((k) => l[k] !== undefined)
-    .map((k) => WORDS[k](l[k]!))
+    .filter((k) => l[k] !== undefined && (!preflop || WORDS_PREFLOP[k]))
+    .map((k) => (preflop ? WORDS_PREFLOP[k]! : WORDS[k])(l[k]!))
     .join(", ");
 }
 
 /** The fields as typed: a lock (zero profile values dropped, as parse_locks drops them; null where nothing is set), or
  * what's wrong. */
-export function lockOf(typed: Partial<Record<LockKey, string>>): { lock: Lock | null; problems: string[] } {
+export function lockOf(typed: Partial<Record<LockKey, string>>, preflop = false): { lock: Lock | null; problems: string[] } {
   const lock: Lock = {};
   const problems: string[] = [];
-  for (const [k, label] of LOCK_FIELDS) {
+  for (const [k, label] of preflop ? LOCK_FIELDS_PREFLOP : LOCK_FIELDS) {
     const t = (typed[k] ?? "").trim();
     if (!t) continue;
     const x = Number(t);
@@ -78,9 +94,19 @@ export function lockOf(typed: Partial<Record<LockKey, string>>): { lock: Lock | 
 export const presetOf = (l: Lock): string | null =>
   Object.keys(LOCK_PRESETS).find((k) => JSON.stringify(Object.entries(LOCK_PRESETS[k]![1]).sort()) === JSON.stringify(Object.entries(l).sort())) ?? null;
 
-/** Where a read can be locked: a heads-up node after the flop, solved, with its opponent named. */
+/** Where a read can be locked: a heads-up node after the flop, solved, with its opponent named (the engine locks
+ * heads-up only after the flop), or a preflop node (on the charts). */
 export const offersLock = (r: { study?: unknown; street?: string; multiway?: boolean; opponent?: unknown; actor?: string }): boolean =>
-  r.study === "node" && Boolean(r.street) && r.street !== "preflop" && !r.multiway && typeof r.opponent === "string" && Boolean(r.actor);
+  r.study === "node" &&
+  Boolean(r.actor) &&
+  (r.street === "preflop" || ((r.street === "flop" || r.street === "turn" || r.street === "river") && !r.multiway && typeof r.opponent === "string"));
+
+/** Whom a read can be on: after the flop the opponent; preflop every seat still in but the player to act. */
+export function lockSeats(seats: readonly string[], preflop: { pos: string; action: string }[], r: { street?: string; actor?: string; opponent?: unknown }): string[] {
+  if (r.street !== "preflop") return typeof r.opponent === "string" ? [r.opponent] : [];
+  const out = new Set(preflop.filter((a) => a.action === "fold").map((a) => a.pos));
+  return seats.filter((p) => p !== r.actor && !out.has(p));
+}
 
 /** One hand's advice at the node: Study's request (studyRequest) out of Study mode, the engine's advise. */
 export function handRequest(study: AdvisorState, hero: string, hole: string): AdvisorState {

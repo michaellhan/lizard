@@ -2214,3 +2214,53 @@ Untouched (read-only `ps`). Everything ran under `nice`.
 
 - Phase 6, still open: preflop and multiway locks, the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 6, preflop locks in Study (second session)
+
+Deploy of 9d17211 (solve times) verified live: run 41704475699 passed; `/lizard/` serves `index-BY2pY751.js`, which has
+"Not measured in this browser yet".
+
+### What the engine does
+
+Preflop, `locks` act on the locked seat's chart strategy (`exploit.lock_preflop`; the keys fold, bluff, bet, raise in
+their preflop words: folds to raises, bluff-raises, opens, re-raises), and hero's raises and calls are re-drawn by
+equity against it (`advisor.py` `_preflop`, `_locked`), with `gto_freq` (the charts' mix) and `locked`. No
+`range_action_freq` preflop, but the answer's grid is the range's. Probed natively (6-max, BB Ah5h facing a CO open, CO
+`{fold: 15, raise: -30}`: 0.01 s). After the flop the engine applies locks heads-up only (`advisor.py:4796`), so
+multiway locks stay out.
+
+### Code
+
+- `locks.ts`: `LOCK_FIELDS_PREFLOP`, `describeLock(l, preflop)` (the preflop words), `lockOf(typed, preflop)` (the
+  preflop keys only), `offersLock` (any preflop node now, with its actor), `lockSeats` (preflop: the seats still in
+  but the actor).
+- `LockPanel.tsx`: preflop, a Seat select (the last raiser first), the preflop fields and preset names, "charts" in
+  place of GTO, text saying the read is laid on the hand-written charts (even where Study shows the preflop solve);
+  `rangeFreqOf` (the range's share off the grid, each class by its combos, where the answer has none); `holesOf` lists a
+  class's hands where a preflop node has no combo rows.
+- `provenance.ts`: a preflop lock in the preflop words; the source stays "Preflop charts", approximate.
+- `autoSize.ts`: automatic sizing stays after the flop.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 351/351 in 57 files (`locks.test.tsx`: the preflop keys and words, the seats still in, the class's hands, the range off the grid, the badge, the panel asking on the charts then the read). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+6-max 100bb, BB facing a CO open (UTG, HJ, BTN, SB fold): Read on CO, "Folds to raises ±" 15 and "Re-raises ±%" −30;
+the badge "Preflop charts · best response to CO folds +15 pts to raises, re-raises -30%, not an equilibrium re-solve ·
+approximate"; the range raise 8.0% → 8.5%, call 37.0% → 37.2%, fold 55.0% → 54.3% (the charts' column matches Study's
+node), the engine's notes below.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`.
+
+### Next
+
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
