@@ -2412,3 +2412,50 @@ Untouched (read-only `ps`). Everything ran under `nice`. Memory 61% free.
 - Phase 1, still open: multitabling, carried chips, sizes of your own, antes and straddles, the 20-hand engine check.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, an ante and a straddle in Practice (second session)
+
+Deploy of 676553f (the drill modes) verified live: run 41708661006 passed; `/lizard/` serves `index-DhjhcDE9.js`.
+
+A Practice session now takes an ante and a straddle, which the table engine (`poker/table.ts` `TableSetup`) and the
+hand-history parser already had.
+
+### Code
+
+- `web/src/features/practice/practice.ts`: `HandOptions.ante` and `straddle`, kept on each `PracticeHand` (the
+  straddle only at 3 or more players); `setupOf(hand)` gives the table its `ante` and `straddle`, and the engine's
+  `play` request and the Study link (`studyOf`: `ante=0.25&straddle=1`) carry the same game.
+- `features/practice/history.ts`: a kept hand's history posts every seat's ante after the seat lines and the
+  first seat's `posts straddle 2` after the big blind, so Analyze reads back the same game.
+- `PracticePage.tsx`: the setup's Ante (0–1bb, the Solve page's `LIMITS.ante`) and Straddle (disabled under 3
+  players); the header says "· ante 0.2 · straddle"; the session record keeps both. The page says preflop is then
+  answered from the engine's chart for that game, still the charts and approximate. An engine probe (the classic
+  Advisor with a 0.2 ante, then a straddle) showed the preflop answer's note as "the 100bb, 0.2bb ante chart (the
+  100bb chart moved by solves of this game)", source `charts`, so the provenance badge stays "Preflop charts ·
+  approximate".
+- `features/history/history.ts`: a session's row names its ante and straddle.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 361/361 in 58 files (`practice.test.ts`: the posts, pot and first to act, the request and the Study line; `history.test.ts`: the posts written and read back as the same game; `PracticePage.test.tsx`: 3-max with a 0.1 ante and the straddle, every request carrying both, the session kept with them). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+6-max preflop only, from CO, ante 0.2 and the straddle: "Hand 1 · 6-max · 100bb · ante 0.2 · straddle", UTG at 97.8
+after posting 2, HJ first to act, pot 4.7bb; the fold graded Best under "Preflop charts · approximate"; "Open this
+spot in Study" to `p=6&s=100&pre=HJ%3Af&ante=0.2&straddle=1`; History's row "6 players · 100bb · ante 0.2 · straddle
+· preflop only · seat CO".
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`.
+
+### Next
+
+- Phase 1, still open: multitabling, carried chips, sizes of your own, the 20-hand engine check.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

@@ -20,6 +20,7 @@ import { useSolver } from "@/solver/useSolver";
 import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { addHandToPot, addSource, handPot, type PotTally } from "@/features/history/history";
+import { LIMITS } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
@@ -67,7 +68,7 @@ interface PracticeSession {
   sources: Partial<Record<ResultSource, number>>;
 }
 
-const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null };
+const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false };
 
 const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
@@ -100,6 +101,8 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
     seat: s.opts.seat,
     ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
     ...(s.opts.pot ? { pot: s.opts.pot } : {}),
+    ...(s.opts.ante ? { ante: s.opts.ante } : {}),
+    ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     byPot: s.byPot,
     sources: s.sources,
   },
@@ -380,14 +383,15 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
             the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
             preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
-            it reaches the flop heads-up as that pot, and you play from the flop. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in
+            it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
+            for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in
             Analyze.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ModePicker modes={["quick", "accurate"]} />
           <SetupForm
-            key={`${session.players}/${session.stack}/${session.opts.seat}/${session.opts.preflopOnly}/${session.opts.pot}`}
+            key={`${session.players}/${session.stack}/${JSON.stringify(session.opts)}`}
             players={session.players}
             stack={session.stack}
             opts={session.opts}
@@ -416,6 +420,8 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
           <span className="flex-1" />
           <span className="text-xs text-muted">
             Hand {hand.n + 1} · {hand.players === 2 ? "heads-up" : `${hand.players}-max`} · {hand.stack}bb
+            {hand.ante ? ` · ante ${hand.ante}` : ""}
+            {hand.straddle ? " · straddle" : ""}
           </span>
         </div>
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
@@ -826,17 +832,21 @@ function SetupForm({
   const [s, setS] = useState(String(stack));
   const [seat, setSeat] = useState(opts.seat);
   const [play, setPlay] = useState<string>(opts.pot ?? (opts.preflopOnly ? "preflop" : "full"));
+  const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
+  const [straddle, setStraddle] = useState(opts.straddle);
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
   const n = Number(s);
-  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK;
+  const a = ante.trim() === "" ? 0 : Number(ante);
+  const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
+  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk;
   return (
     <form
       aria-label="New session"
       className="flex flex-wrap items-center gap-2 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null });
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3 });
       }}
     >
       <label className="flex items-center gap-1">
@@ -892,6 +902,27 @@ function SetupForm({
             </option>
           ))}
         </select>
+      </label>
+      <label className="flex items-center gap-1" title={`Each seat's ante, 0–${LIMITS.ante}bb`}>
+        <span className="text-muted">Ante</span>
+        <input
+          aria-label="Ante"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          max={LIMITS.ante}
+          step="any"
+          placeholder="0"
+          value={ante}
+          onChange={(e) => setAnte(e.target.value)}
+          aria-invalid={!anteOk}
+          className="w-16 rounded border border-border bg-surface-2 px-1.5 py-1"
+        />
+        <span className="text-muted">bb</span>
+      </label>
+      <label className="flex items-center gap-1.5" title={p < 3 ? "A straddle needs 3 or more players" : "A 2bb straddle from the first seat, acting last preflop"}>
+        <input type="checkbox" aria-label="Straddle" checked={straddle && p >= 3} disabled={p < 3} onChange={(e) => setStraddle(e.target.checked)} />
+        <span className="text-muted">Straddle</span>
       </label>
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
         New session

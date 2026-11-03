@@ -15,6 +15,7 @@ import {
   shownCards,
   simOf,
   stateFor,
+  studyOf,
   villainMove,
   withVillain,
   type PracticeHand,
@@ -113,6 +114,20 @@ describe("seats and dealing", () => {
     const again = redeal(redeal(h, 77, { seat: "BTN", pot: "3bet" }), 78, { seat: "BTN", pot: "3bet" });
     expect(again).toMatchObject({ n: 0, hero: "BTN", pot: "3bet", tries: 2, seed: 78 });
     expect(again.lines.preflop).toEqual([]);
+  });
+
+  it("an ante and a straddle: on the table, in the engine's request and in the Study line", () => {
+    const h = newHand(6, 100, 0, 9, { ante: 0.25, straddle: true });
+    expect([h.ante, h.straddle]).toEqual([0.25, true]);
+    const sim = simOf(h);
+    expect(sim.pot).toBeCloseTo(6 * 0.25 + 0.5 + 1 + 2);
+    expect(sim.toAct).toBe("HJ");
+    expect(stateFor(h)).toMatchObject({ ante: 0.25, straddle: true });
+    expect(studyOf(h)).toBe("p=6&s=100&ante=0.25&straddle=1");
+    // no straddle heads-up; none of either where unset
+    expect(newHand(2, 100, 0, 9, { straddle: true }).straddle).toBeUndefined();
+    expect(stateFor(newHand(6, 100, 0, 9))).not.toHaveProperty("ante");
+    expect(studyOf(newHand(6, 100, 0, 9))).toBe("p=6&s=100");
   });
 
   it("deals every seat and the board from the hand's seed, the same again", () => {

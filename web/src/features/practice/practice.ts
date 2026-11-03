@@ -73,6 +73,9 @@ export interface PracticeHand {
   result: HandResult | null;
   /** the hand ends as the preflop closes, with you still in it */
   preflopOnly?: true;
+  /** each seat's ante, bb, and a 2bb straddle from the first seat (3 or more players) */
+  ante?: number;
+  straddle?: true;
   /** one kind of pot only: the preflop is played for you, and dealt again until it is that pot (`tries`: the deals so far) */
   pot?: PotDrill;
   tries?: number;
@@ -99,6 +102,9 @@ export interface HandOptions {
   seat?: SeatChoice;
   preflopOnly?: boolean;
   pot?: PotDrill | null;
+  /** each seat's ante (bb, 0 for none, at most the Solve page's LIMITS.ante), and a straddle (3 or more players) */
+  ante?: number;
+  straddle?: boolean;
 }
 
 /** Your seat in the session's n-th hand: the button first, then one seat to the right each hand. */
@@ -131,6 +137,8 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     decisions: [],
     result: null,
     ...(opts.pot ? { pot: opts.pot } : opts.preflopOnly ? { preflopOnly: true as const } : {}),
+    ...(opts.ante && opts.ante > 0 ? { ante: opts.ante } : {}),
+    ...(opts.straddle && players >= 3 ? { straddle: true as const } : {}),
   };
 }
 
@@ -157,16 +165,21 @@ export const seeking = (h: PracticeHand) => !!h.pot && h.shown < 3 && !h.result;
 /** Preflop only, the preflop closed with you and someone else in: the hand stops there. */
 const cutAt = (h: PracticeHand, sim: Sim) => !!h.preflopOnly && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);
 
-export const setupOf = (h: Pick<PracticeHand, "players" | "stack">): TableSetup => ({
+export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "straddle">): TableSetup => ({
   players: h.players,
   stacks: Object.fromEntries(seatsOf(h.players).map((p) => [p, h.stack])),
+  ...(h.ante ? { ante: h.ante } : {}),
+  ...(h.straddle ? { straddle: true } : {}),
 });
+
+/** The hand's ante and straddle, in the engine's keys. */
+const gameOf = (h: Pick<PracticeHand, "ante" | "straddle">) => ({ ...(h.ante ? { ante: h.ante } : {}), ...(h.straddle ? { straddle: true } : {}) });
 
 export const simOf = (h: PracticeHand): Sim => simulate(setupOf(h), h.lines, h.shown);
 
 const boardOf = (h: PracticeHand) => h.board.slice(0, h.shown);
 
-/** The Study line where the hand stands: every seat at the setup's stack (Practice has no ante or straddle). */
+/** The Study line where the hand stands: every seat at the setup's stack, with the hand's ante and straddle. */
 export function studyOf(h: PracticeHand): string {
   const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   const s: StudyHand = {
@@ -177,6 +190,7 @@ export function studyOf(h: PracticeHand): string {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
+    ...(h.ante || h.straddle ? { setup: gameOf(h) } : {}),
   };
   return toSearch(s);
 }
@@ -195,6 +209,7 @@ export function stateFor(h: PracticeHand): AdvisorState {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
+    ...gameOf(h),
   };
 }
 

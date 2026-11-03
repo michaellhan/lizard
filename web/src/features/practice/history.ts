@@ -47,7 +47,8 @@ export function practiceHistory(h: PracticeHand, startedAt: number, at: Date): s
 }
 
 /** A hand written as Practice's are, under another site's header (the classic app's hands, features/analyze/classic.ts):
- * `setup` gives each seat's stack (no ante or straddle: those aren't written). Without a `result` nothing is settled. */
+ * `setup` gives each seat's stack, and the ante and straddle posted (Practice's own). Without a `result` nothing is
+ * settled. */
 export function handHistory(h: PracticeHand, head: { site: string; number: string; at: Date }, t: TableSetup = setupOf(h)): string {
   const pos = seatsOf(h.players);
   const name = (p: string) => (p === h.hero ? YOU : p);
@@ -56,8 +57,10 @@ export function handHistory(h: PracticeHand, head: { site: string; number: strin
     `${head.site} Hand #${head.number}: Hold'em No Limit (0.5/1) - ${stamp(head.at)}`,
     `Table '${head.site}' ${h.players}-max Seat #${pos.indexOf(button) + 1} is the button`,
     ...pos.map((p, i) => `Seat ${i + 1}: ${name(p)} (${amt(t.stacks[p] ?? h.stack)} in chips)`),
+    ...(t.ante ? pos.map((p) => `${name(p)}: posts the ante ${amt(Math.min(t.ante!, t.stacks[p] ?? h.stack))}`) : []),
     `${name("SB")}: posts small blind 0.5`,
     `${name("BB")}: posts big blind 1`,
+    ...(t.straddle && h.players >= 3 ? [`${name(pos[0]!)}: posts straddle 2`] : []),
     "*** HOLE CARDS ***",
     ...pos.map((p) => (p === h.hero ? `Dealt to ${YOU} [${h.hands[p]!.join(" ")}]` : `Dealt to ${p}`)),
   ];

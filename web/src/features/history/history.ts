@@ -141,7 +141,8 @@ export function rowOf(s: SessionRecord): SessionRow {
   const per = (ne: number, loss: number, lossPct: number) => ({ lossPer: ne ? loss / ne : null, lossPctPer: ne ? lossPct / ne : null });
   if (s.kind === "practice") {
     const kind = isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.preflopOnly ? " · preflop only" : "";
-    const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${kind}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
+    const game = `${num(m.ante) ? ` · ante ${num(m.ante)}` : ""}${m.straddle ? " · straddle" : ""}`;
+    const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${game}${kind}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
     return {
       ...base,
       what,

@@ -159,6 +159,23 @@ describe("Practice hands as hand histories", () => {
     expect(rec).toMatchObject({ end: "preflop only", board: "", potType: "SRP", pot: 5.5, decisions: 1 });
   });
 
+  it("an ante and a straddle: posted in the history, read back as the same game", () => {
+    // (you're on the button; the straddler acts last preflop and first after it)
+    const h = played(
+      newHand(6, 100, 0, 7, { ante: 0.2, straddle: true }),
+      ...folds("HJ", "CO"),
+      mv("BTN", "raise", 6),
+      ...folds("SB", "BB"),
+      mv("UTG", "call"),
+      ...checks("UTG", "BTN", "UTG", "BTN", "UTG", "BTN"),
+    );
+    const { text, r, rec } = roundTrip(h);
+    expect(text).toContain("You: posts the ante 0.2\nSB: posts the ante 0.2\nBB: posts the ante 0.2\nSB: posts small blind 0.5\nBB: posts big blind 1\nUTG: posts straddle 2\n");
+    expect([r.setup.ante, r.setup.straddle]).toEqual([0.2, true]);
+    expect(finalSim(r).pot).toBeCloseTo(14.7);
+    expect(rec).toMatchObject({ hero: "BTN", players: 6, potType: "SRP", end: "showdown" });
+  });
+
   it("nine-handed, a limp and an isolation raise checked down: the seats' names apart", () => {
     // (hand 6: you're UTG1)
     const h = played(

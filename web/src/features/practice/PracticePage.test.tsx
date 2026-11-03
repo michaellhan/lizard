@@ -45,6 +45,7 @@ const FLOP: AdvisorResponse = {
 const stub = vi.hoisted(() => {
   const s = {
     calls: [] as string[],
+    states: [] as AdvisorState[],
     // a preflop move of the stub's own for a seat (else it calls)
     pre: null as null | ((seat: string) => { action: PlayMove["action"]; to?: number } | null),
     getSolver: null as unknown as () => Promise<unknown>,
@@ -53,10 +54,12 @@ const stub = vi.hoisted(() => {
   const client = {
     solve: async ({ state }: { state: AdvisorState }) => {
       s.calls.push(`advise ${state.hero} ${state.board || "preflop"}`);
+      s.states.push(state);
       return s.answer(state);
     },
     play: async (state: AdvisorState, p: PlayRequest): Promise<SolveResult<PlayMove>> => {
       s.calls.push(`play ${p.seat}`);
+      s.states.push(state);
       const own = !state.board ? s.pre?.(p.seat) : null;
       if (own) return { data: { pos: p.seat, ...own, name: own.action, freq: 1, street: "preflop" }, provenance: LIVE };
       const flop = (state.flop as unknown[] | undefined) ?? [];
@@ -71,6 +74,7 @@ vi.mock("@/solver/useSolver", () => ({ useSolver: () => stub.getSolver }));
 
 afterEach(() => {
   stub.calls = [];
+  stub.states = [];
   stub.pre = null;
   useSettings.setState({ mode: "fast", keepHands: false });
 });
@@ -177,6 +181,34 @@ describe("PracticePage", () => {
         sources: { live: 1 },
       }),
     );
+  });
+
+  it("plays with an ante and a straddle: on the table, in every request, and kept with the session", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    const straddle = screen.getByRole("checkbox", { name: "Straddle" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    expect(straddle).toBeDisabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "3" } });
+    fireEvent.click(straddle);
+    const ante = screen.getByRole("spinbutton", { name: "Ante" });
+    fireEvent.change(ante, { target: { value: "2" } });
+    expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
+    fireEvent.change(ante, { target: { value: "0.1" } });
+    stub.states = [];
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    // 3-handed, you're on the button, which straddles and acts last preflop: the blinds call first
+    await screen.findByRole("group", { name: "Your options" });
+    expect(screen.getByText("Hand 1 · 3-max · 100bb · ante 0.1 · straddle")).toBeInTheDocument();
+    expect(screen.getByText("Pot").nextSibling).toHaveTextContent("6.3bb");
+    expect(stub.states.length).toBeGreaterThan(0);
+    for (const st of stub.states) expect(st).toMatchObject({ ante: 0.1, straddle: true });
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "fold" }));
+    expect(await screen.findByText("You folded")).toBeInTheDocument();
+    await waitFor(async () => expect((await allSessions()).find((s) => s.meta.ante === 0.1)?.meta).toMatchObject({ players: 3, straddle: true }));
   });
 
   it("plays by keys: 1–9 your options, K keeps the hand, Enter the next one; none while drilling or typing", async () => {
