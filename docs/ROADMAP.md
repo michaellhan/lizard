@@ -281,8 +281,10 @@ Moves matrix rows: Aggregate reports, and part of Equity & EQR.
   amounts, drag painting, Fill all, Reset, undo and redo per stroke, a lock per class, the score with the answer's
   provenance, the difference grid, the biggest differences, each hand compared, and "Graded against the preflop
   charts" on chart answers; a combo-by-combo score next to the class mixes' own (the class-level shortfall named in
-  Risks); each score kept in IndexedDB (sessions, kind "build") and listed at its node. **Still open in Phase 4:**
-  painting by hand category, single-combo syntax, and text import into the builder (the Ranges page keeps its editor).
+  Risks); each score kept in IndexedDB (sessions, kind "build") and listed at its node; a group of hands painted or
+  locked at once, by shape at any node or by made-hand or draw category where the answer has its combos (a class
+  whole when at least half its combos are in it). **Still open in Phase 4:** single-combo syntax, and text import into
+  the builder (the Ranges page keeps its editor).
 - **Scoring, `web/src/features/ranges/`.** Port `blankPaint`, `brush` and `scoreBuild` from `solver/gto/static/study.js:420-458`, with the grade labels at 90, 80 and 65% (`:458`). Painting stays at hand-class level.
 - **Pick a node.** Choose any Study node (via the Study URL) or a library spot. The target strategy comes from the same `study` answer.
 - **Results.**

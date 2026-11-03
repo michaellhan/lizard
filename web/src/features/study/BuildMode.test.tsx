@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { actionColors } from "@/components/actions";
 import { recentSessions } from "@/data/db";
@@ -179,6 +179,64 @@ describe("BuildMode", () => {
     expect(score).not.toHaveTextContent("Combo by combo");
     expect(score).toHaveTextContent("Graded against the preflop charts: an approximation, not a solve.");
     await act(async () => {});
+  });
+
+  it("paints or locks a group of hands at once: a shape, or a category where the answer has one", () => {
+    const res: BuildRes = {
+      ...NODE,
+      categories: {
+        made: [
+          ["overpair", "Overpair"],
+          ["top", "Top pair"],
+          ["air", "No made hand"],
+        ],
+        draws: [
+          ["fd", "Flush draw"],
+          ["none", "No draw"],
+        ],
+      },
+      combos: {
+        AA: [["AsAh", 1, [0.2, 0.3, 0.5], [10, 11, 12], 0.9, 0, 1]],
+        KQo: [["KsQh", 1, [0.6, 0.4, 0], [5, 5.5, 4], 0.8, 1, 1]],
+        "72s": [["7s2s", 1, [1, 0, 0], [-0.02, -0.5, -1], 0.6, 2, 0]],
+      },
+    };
+    renderBuild({ res, lineKey: "group" });
+    const pick = screen.getByRole("combobox", { name: "Hands to paint at once" });
+    expect([...pick.querySelectorAll("optgroup")].map((o) => o.label)).toEqual(["Hand shapes", "Made hands", "Draws"]);
+    expect(within(pick).getByRole("option", { name: "Flush draw" })).toBeInTheDocument();
+    expect(within(pick).queryByRole("option", { name: "No draw" })).toBeNull();
+    // pairs: AA (QJs is out of the range)
+    expect(screen.getByRole("button", { name: "Paint 1 hand" })).toHaveAttribute("title", "AA");
+    fireEvent.change(pick, { target: { value: "s:broadway" } });
+    expect(screen.getByRole("button", { name: "Paint 1 hand" })).toHaveAttribute("title", "KQo");
+
+    // top pair with bet 75%: one undo step
+    fireEvent.change(pick, { target: { value: "m:top" } });
+    fireEvent.keyDown(window, { key: "3" });
+    fireEvent.click(screen.getByRole("button", { name: "Paint 1 hand" }));
+    expect(cell("KQo")).toHaveAccessibleName("KQo: yours bet 75% 100%");
+    expect(cell("AA")).toHaveAccessibleName("AA: yours check 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("KQo")).toHaveAccessibleName("KQo: yours check 100%");
+
+    // the lock tool locks the flush draws, then unlocks them; a locked group has nothing left to paint
+    fireEvent.change(pick, { target: { value: "d:fd" } });
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lock 1 hand" }));
+    expect(cell("72s")).toHaveAccessibleName("72s: yours check 100%; locked");
+    fireEvent.keyDown(window, { key: "2" });
+    expect(screen.getByRole("button", { name: "Paint 0 hands" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fill all" }));
+    expect(cell("72s")).toHaveAccessibleName("72s: yours check 100%; locked");
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    fireEvent.click(screen.getByRole("button", { name: "Unlock 1 hand" }));
+    expect(cell("72s")).toHaveAccessibleName("72s: yours check 100%");
+
+    // an answer without categories (preflop): the shapes alone
+    cleanup();
+    renderBuild({ lineKey: "group2" });
+    expect([...screen.getByRole("combobox", { name: "Hands to paint at once" }).querySelectorAll("optgroup")].map((o) => o.label)).toEqual(["Hand shapes"]);
   });
 
   it("comes back to what was painted at the node", () => {

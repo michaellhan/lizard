@@ -1,7 +1,7 @@
 // The range builder: the actor's strategy painted hand class by hand class, then scored against the answer's.
 // Ported from upstream study.js (passiveOf, blankPaint, brush, scoreBuild, grade); the undo history, the locks and
 // the combo-by-combo score are Lizard's. A paint maps each class in the range to a mix (one share per action).
-import { classCombos } from "@/engine/nlhe/cards";
+import { classCombos, RANKS } from "@/engine/nlhe/cards";
 import type { ComboRow, RangeGridData } from "@/solver/protocol";
 
 export type Paint = Record<string, number[]>;
@@ -43,6 +43,19 @@ export function brush(mix: readonly number[], a: number, t: number, d: number): 
   out[a] = t;
   return out;
 }
+
+const R = (r: string | undefined) => RANKS.indexOf(r as (typeof RANKS)[number]);
+const BROADWAY = (r: string | undefined) => R(r) >= 0 && R(r) <= R("T");
+
+/** Hand shapes the builder paints at once, at any node (preflop too): Lizard's, as classic has no painting aids. */
+export const SHAPES: readonly { key: string; label: string; has: (cls: string) => boolean }[] = [
+  { key: "pairs", label: "Pairs", has: (c) => c.length === 2 },
+  { key: "suited", label: "Suited hands", has: (c) => c[2] === "s" },
+  { key: "offsuit", label: "Offsuit hands", has: (c) => c[2] === "o" },
+  { key: "broadway", label: "Broadways (both cards T+, no pairs)", has: (c) => c.length === 3 && BROADWAY(c[0]) && BROADWAY(c[1]) },
+  { key: "ax", label: "Ace-x (no AA)", has: (c) => c[0] === "A" && c.length === 3 },
+  { key: "sc", label: "Suited connectors (AKs to 32s)", has: (c) => c[2] === "s" && R(c[1]) - R(c[0]) === 1 },
+];
 
 /** `brush` over some classes, skipping locked ones and classes out of the range. */
 export function paintClasses(

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { ALL_CLASSES } from "@/engine/nlhe/cards";
 import type { ComboRow, RangeGridData } from "@/solver/protocol";
 import {
   amend,
@@ -14,6 +15,7 @@ import {
   redo,
   scoreBuild,
   scoreByCombo,
+  SHAPES,
   solutionPaint,
   undo,
 } from "./build";
@@ -86,6 +88,16 @@ describe("Lizard's additions", () => {
     expect(q).toEqual({ AA: [0, 0, 1], KQo: [1, 0, 0], "72s": [0, 0, 1] });
     expect(p.AA).toEqual([1, 0, 0]);
     expect(paintClasses(p, ["QJs"], 2, 1, 0)).toBe(p);
+  });
+
+  it("groups hands by shape", () => {
+    const of = (key: string) => ALL_CLASSES.filter(SHAPES.find((x) => x.key === key)!.has);
+    expect(of("pairs")).toHaveLength(13);
+    expect(of("suited")).toHaveLength(78);
+    expect(of("offsuit")).toHaveLength(78);
+    expect(of("broadway").sort()).toEqual(["AJo", "AJs", "AKo", "AKs", "AQo", "AQs", "ATo", "ATs", "KJo", "KJs", "KQo", "KQs", "KTo", "KTs", "QJo", "QJs", "QTo", "QTs", "JTo", "JTs"].sort());
+    expect(of("ax")).toHaveLength(24);
+    expect(of("sc")).toEqual(["AKs", "KQs", "QJs", "JTs", "T9s", "98s", "87s", "76s", "65s", "54s", "43s", "32s"]);
   });
 
   it("undoes and redoes strokes to the exact weights", () => {

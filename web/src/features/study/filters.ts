@@ -37,6 +37,25 @@ export function catsOf(res: AdvisorResponse | undefined): HandCategory[] {
   return out;
 }
 
+/** The hand classes mostly in a category: at least half of each one's combos in the range (by reach) are in it. A
+ * paint can't split a class, so this is what the range builder paints for a category (BuildMode). */
+export function classesIn(res: AdvisorResponse, key: string): string[] {
+  const cat = catsOf(res).find((c) => c.key === key);
+  if (!cat) return [];
+  const col = cat.part === "m" ? 5 : 6;
+  const out: string[] = [];
+  for (const [cls, rows] of Object.entries(res.combos ?? {})) {
+    let w = 0;
+    let inCat = 0;
+    for (const x of rows) {
+      w += x[1];
+      if (x[col] === cat.i) inCat += x[1];
+    }
+    if (w > 0 && inCat >= w / 2 - 1e-9) out.push(cls);
+  }
+  return out;
+}
+
 export interface FilterInfo {
   key: string;
   label: string;

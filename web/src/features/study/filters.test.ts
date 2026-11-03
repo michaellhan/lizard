@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdvisorResponse, ComboRow } from "@/solver/protocol";
-import { catsOf, filterRes } from "./filters";
+import { catsOf, classesIn, filterRes } from "./filters";
 
 // the fixture of solver/tests/js/study.test.js ("the filter: ..."), on its NODE
 const NODE: AdvisorResponse = {
@@ -83,6 +83,20 @@ describe("hand-category filter", () => {
     const tp = filterRes(node, "m:top_tk").grid!.cells.KQo!;
     near([tp.w, ...tp.f], [0.125, Number((2 / 3).toFixed(6)), Number((1 / 3).toFixed(6)), 0]);
     expect(filterRes(node, "d:fd").combos).toEqual({ AA: [combos.AA![1]] });
+  });
+
+  it("names the classes mostly in a category, for the range builder: at least half their combos", () => {
+    expect(classesIn(node, "m:overpair")).toEqual(["AA"]);
+    expect(classesIn(node, "m:top_tk")).toEqual(["KQo"]);
+    expect(classesIn(node, "m:set")).toEqual(["72s"]);
+    // AA: one of its two combos a flush draw (half: in); KQo and 72s have none
+    expect(classesIn(node, "d:fd")).toEqual(["AA"]);
+    // by reach: KhQd's half a combo is not half of KQo's 1.5
+    const reach = { ...node, combos: { ...combos, KQo: [combos.KQo![0]!, ["KhQd", 0.5, [1, 0, 0], [4, 4, 4], 0.7, 1, 0] as ComboRow] } };
+    expect(classesIn(reach, "m:top_tk")).toEqual(["KQo"]);
+    expect(classesIn(reach, "m:overpair")).toEqual(["AA"]);
+    expect(classesIn(node, "d:none")).toEqual([]);
+    expect(classesIn(NODE, "m:set")).toEqual([]);
   });
 
   it("returns the answer itself for a key not of this node, or none", () => {

@@ -1,7 +1,8 @@
 // Study's range builder: paint the actor's strategy at this node hand class by hand class, then score it against
 // the answer's own (features/ranges/build.ts). Painting: pick a brush (an action, at a share of the hand) and click
 // or drag over hands; keys 1-9 pick a brush, Ctrl/Cmd+Z undoes, Shift+Ctrl/Cmd+Z or Ctrl+Y redoes. The lock tool
-// keeps hands from being painted. Each scored range is kept in IndexedDB (sessions, kind "build").
+// keeps hands from being painted. A group of hands (a shape, or a made-hand or draw category where the answer has its
+// combos) takes the brush or the lock at once. Each scored range is kept in IndexedDB (sessions, kind "build").
 import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -22,12 +23,14 @@ import {
   redo,
   scoreBuild,
   scoreByCombo,
+  SHAPES,
   undo,
   type BuildScore,
   type ComboScore,
   type History,
   type Paint,
 } from "@/features/ranges/build";
+import { catsOf, classesIn } from "./filters";
 
 /** What a node's builder keeps while Study moves on and back (by the node's request). */
 export interface BuildSaved {
@@ -93,6 +96,14 @@ export function BuildMode({
   const [past, setPast] = useState<SessionRecord[]>([]);
   const [saved, setSaved] = useState(0);
   const stroke = useRef<Stroke | null>(null);
+  // a group of hands painted at once: "s:<shape>", or a category's "m:<id>" / "d:<id>"
+  const cats = useMemo(() => catsOf(res), [res]);
+  const [group, setGroup] = useState("s:pairs");
+  const inGroup = useMemo(() => {
+    const shape = group.startsWith("s:") ? SHAPES.find((x) => x.key === group.slice(2)) : undefined;
+    const classes = shape ? Object.keys(g.cells).filter(shape.has) : classesIn(res, group);
+    return classes.filter((cls) => (g.cells[cls]?.w ?? 0) > 0);
+  }, [g, res, group]);
 
   const scores = useMemo<Scores | null>(
     () => (scored ? { cls: scoreBuild(res, h.now), combo: scoreByCombo(res, h.now) } : null),
@@ -172,6 +183,23 @@ export function BuildMode({
     if (tool === "lock") return;
     commit(record(hRef.current, paintClasses(hRef.current.now, Object.keys(hRef.current.now), tool, amt, d, lockedRef.current)));
   };
+  // the group: painted (but its locked hands) as one undo step, or with the lock tool all locked (all unlocked when
+  // they all are)
+  const groupLocked = inGroup.length > 0 && inGroup.every((cls) => locked.has(cls));
+  const groupFree = inGroup.filter((cls) => !locked.has(cls));
+  const paintGroup = () => {
+    if (tool !== "lock") {
+      commit(record(hRef.current, paintClasses(hRef.current.now, inGroup, tool, amt, d, lockedRef.current)));
+      return;
+    }
+    const next = new Set(lockedRef.current);
+    for (const cls of inGroup) {
+      if (groupLocked) next.delete(cls);
+      else next.add(cls);
+    }
+    setLocks(next);
+  };
+  const groupN = tool === "lock" ? inGroup.length : groupFree.length;
   const reset = () => {
     commit(record(hRef.current, blankPaint(g)));
     setLocks(new Set());
@@ -308,6 +336,44 @@ export function BuildMode({
               </button>
               <button type="button" onClick={() => commit(redo(hRef.current))} disabled={!h.future.length} title="Redo (Shift+Ctrl/Cmd+Z)" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
                 Redo
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Hands to paint at once"
+                title="A group of hands to paint or lock at once. A hand class goes whole: in a made-hand or draw category when at least half its combos here are in it"
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                className="rounded border border-border bg-surface-2 px-2 py-0.5"
+              >
+                <optgroup label="Hand shapes">
+                  {SHAPES.map((x) => (
+                    <option key={x.key} value={`s:${x.key}`}>
+                      {x.label}
+                    </option>
+                  ))}
+                </optgroup>
+                {(["m", "d"] as const).map((part) => {
+                  const cs = cats.filter((c) => c.part === part);
+                  return cs.length ? (
+                    <optgroup key={part} label={part === "m" ? "Made hands" : "Draws"}>
+                      {cs.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null;
+                })}
+              </select>
+              <button
+                type="button"
+                onClick={paintGroup}
+                disabled={!groupN}
+                title={inGroup.join(" ")}
+                className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
+              >
+                {tool === "lock" ? (groupLocked ? "Unlock" : "Lock") : "Paint"} {groupN} hand{groupN === 1 ? "" : "s"}
               </button>
             </div>
             <div>

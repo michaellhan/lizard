@@ -2849,3 +2849,50 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`.
 
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 4, painting a group of hands in the range builder (2026-11-03)
+
+The EV-lost filter (67c9e28) deployed: run 41718340113 succeeded; the live bundle `index-Cym_LNup.js` has "bb or
+more".
+
+### What changed
+
+- **Groups.** Study's builder ("✎ Build") paints or locks a group of hands at once, as one undo step. A select
+  under the brushes picks the group; the button says how many hands it paints ("Paint 3 hands") and its title lists
+  them.
+  - **Shapes**, at any node, preflop too (`build.ts` `SHAPES`): pairs, suited, offsuit, broadways (both cards T+, no
+    pairs), ace-x, suited connectors (AKs to 32s).
+  - **Categories**, where the answer has its combos (the made-hand and draw categories of Study's filter): a paint
+    can't split a class, so a class goes whole when at least half its combos in the range (by reach) are in the
+    category (`filters.ts` `classesIn`).
+  - Locked hands are left out of a paint. With the lock tool the button locks the group, or unlocks it when all of it
+    is locked.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 383/383 in 59 files. `filters.test.ts`: `classesIn` by reach, half in, none for "No draw". `build.test.ts`: the shapes' hands. `BuildMode.test.tsx`: the select's groups, top pair painted and undone in one step, flush draws locked and unlocked, preflop with shapes only. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the library's srp_btn_bb)
+
+- **Kd7c2h, BTN after a check.** Set: 22 77 KK. Two pair: K2s K7s K7o. Top pair, top kicker: AKs AKo. Middle pair: 15
+  hands, A7s and A7o among them.
+- **Painting.** Set, two pair, overpair and top pair, top kicker painted bet 75%: 7.1% of the range. Undo and redo
+  took one group each.
+- **Locking.** Middle pair locked (15 hands). Then "Paint 0 hands" was disabled and Fill all skipped them. Scored
+  45.6% under the precomputed badge.
+- **Preflop (UTG, charts).** Shapes alone; suited connectors painted raise. 375px fits with no horizontal scroll.
+- **Console.** Its only errors came from bundles older than the build under test.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`.
+
+### Next
+
+- Phase 4, still open: single-combo syntax, text import into the builder.
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+
