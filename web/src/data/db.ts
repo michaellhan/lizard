@@ -80,11 +80,40 @@ export interface DecisionRecord {
   handId: string;
   street: string;
   pos: string;
-  /** what you did ("raise 2.5") */
+  /** the action's index on its street */
+  i?: number;
+  /** what you did ("raise to 2.5") */
   action: string;
+  /** Best, Correct, Inaccuracy, Mistake or Blunder (grading/grade.ts), or "Not graded" (`why`) */
   verdict: string;
-  /** EV lost, bb (null where graded by frequency) */
+  /** EV lost, bb, and in % of the pot (null where graded by frequency) */
   evLossBb: number | null;
+  lossPct?: number | null;
+  /** graded by EV (the library) or by frequency only (the charts) */
+  byEv?: boolean;
+  /** preflop "RFI", "vs 3bet"...; after the flop "SRP · IP · checked to"... */
+  situation?: string;
+  potType?: string;
+  /** facing a bet (preflop: anything to call, the big blind included) */
+  facing?: boolean;
+  /** after the flop: in position, three or more players in, and your role (the last preflop raiser, its caller) */
+  ip?: boolean;
+  multi?: boolean;
+  role?: "PFR" | "caller" | "limped";
+  /** the pot at the decision, bb */
+  pot?: number;
+  /** the answer's action your move was graded as, and how often your hand takes it */
+  matched?: string;
+  freq?: number;
+  /** the answer's most frequent action and its frequency */
+  best?: string;
+  bestFreq?: number;
+  /** the answer's actions for your hand: [action, frequency, EV bb or null] */
+  mix?: [string, number, number | null][];
+  /** your move graded as another ("your all-in, graded as the chart's raise") */
+  note?: string;
+  /** why it isn't graded */
+  why?: string;
   /** the answer graded against: its source and its provenance line */
   source: string;
   label: string;

@@ -171,9 +171,12 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 > **Status, 2026-11-03.** Done: the parsers (`web/src/hh/`, golden files from the classic parser), the replay on the
 > table engine (the straddle added to it), the import (paste, files, a folder; `features/analyze/analyze.ts`, the
 > classic `prepare`), the v4 `hands` and `decisions` stores with duplicates kept once and an import deleted with its
-> decisions, the hands table with filters, and each hand replayed with Study links. Still open: grading (preflop
-> against the charts, flops from the library with no solve, then live solves through a pausable queue), the leaks
-> view and frequency table, CSV and JSON export, "Drill this leak", a dropped folder.
+> decisions, the hands table with filters, and each hand replayed with Study links. Grading at the two scopes that
+> solve nothing (preflop against the charts by frequency, flops from the library by EV; `features/analyze/grading.ts`)
+> in a queue that stops and resumes, each grade on its move with its provenance, and the report (`report.ts`: by
+> street, situation and spot, the classic leaks and frequency table, the most EV lost, off the chart, CSV and JSON).
+> Still open: turns and rivers (live solves, or the classic's Quick triage, through the same queue), report filters
+> and a history across sessions, "Drill this leak", a dropped folder.
 
 **Goal.** Let users import their own hand histories, see each decision graded, and find leaks. Everything stays in the browser.
 

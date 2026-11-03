@@ -77,3 +77,15 @@ export async function decisionsOf(handId: string): Promise<DecisionRecord[]> {
   const d = await db();
   return d ? d.getAllFromIndex("decisions", "byHand", handId) : [];
 }
+
+/** Every decision graded in this browser. */
+export async function listDecisions(): Promise<DecisionRecord[]> {
+  const d = await db();
+  return d ? d.getAll("decisions") : [];
+}
+
+/** Forget every grade (the hands stay): they are graded again from the start. */
+export async function clearDecisions(): Promise<void> {
+  const d = await db();
+  if (d) await d.clear("decisions");
+}

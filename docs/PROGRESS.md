@@ -738,9 +738,61 @@ build, and the same averages (all flops fold 46.6%, call 41.5%, raise 12.0%; unp
 
 Untouched. Memory stayed at 67–69% free; every check ran under `nice`.
 
+### Deploy of `0a175f9`, checked live
+
+Deploy run 41663657147 passed. `/lizard/analyze/` serves `index-BMtxQysJ.js`, the local build's bundle; the
+browser's `lizard` database upgraded to v4 on opening it.
+
+## 2026-11-03: Phase 2, grading imported decisions (second session)
+
+### Code
+
+- `web/src/features/analyze/grading.ts`: the classic analyzer's grading at the two scopes that solve nothing.
+  Preflop against the charts (graded by frequency: the charts have no EVs, no EV lost is counted) and flops from the
+  library (`library_only`: a flop it doesn't hold comes back "not a flop-library spot", never solved). The request
+  is the classic page's `payload` (every seat's stack where they differ, the ante, the straddle); your move is
+  matched as `gradeWith` does (the nearest size; a move the chart leaves out played 0%; a postflop all-in the answer
+  has no all-in for asked again with `jam`); an all-in nobody can match is graded as the call (`gradedMove`). The
+  grade is Lizard's one scale (`grading/grade.ts`, as Practice). Only a chart or library answer is graded; a
+  rules or equity fallback is kept as not graded, with why. `gradeHands` runs the queue: hand after hand, each
+  decision kept skipped, stops on a signal, a solver failure thrown with what was graded kept.
+- `web/src/features/analyze/report.ts`: the classic report over the kept decisions: tallies, by street, preflop by
+  situation, flop by spot, the `FREQS` table (its preflop and flop rows), `LEAK` thresholds and leaks with their
+  decisions, the most EV lost, off the chart, why the rest aren't graded, CSV (the classic columns less triage and
+  timing) and JSON.
+- `web/src/features/analyze/GradingPanel.tsx`: the panel (scope, Grade / Stop, progress, Forget the grades) and the
+  report; on the replayed hand each of your moves shows its grade, its title the answer's mix and provenance.
+- `web/src/data/db.ts`: `DecisionRecord` gains the fields the report reads (situation, pot type, facing, position,
+  role, the mix, the matched and most frequent actions, EV lost in % of the pot, a note, why not graded). No
+  schema change. `data/hands.ts`: `listDecisions`, `clearDecisions`.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 218/218 in 37 files. New: `features/analyze/grading.test.ts` (the request at each decision on the fixtures, ante and straddle; situations and role; all-in as a call; matching: same action, nearest size, a 0% move off the chart, the chart's raise for a jam, the library's sizes by EV; what's kept with its provenance; not graded: skipped, rules, error, cancelled; the jam asked again), `report.test.ts` (tallies, groups, frequencies, leaks at and under their thresholds, CSV quoting, JSON), a grading case in `AnalyzePage.test.tsx` (a stubbed solver: 9 decisions asked, the flops of the library only; grades on the hand with their titles; the report's summary, off-chart list and situation rows; asked again: nothing asked; Forget) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real worker)
+
+- 41 kept hands, library scope: 64 decisions in about 10 s, the worker's boot included. 45 graded (42 preflop
+  against the charts, 3 flops from `srp_btn_bb`, `srp_utg_bb`, `srp_sb_bb` with EVs and their provenance, e.g.
+  "Precomputed solution · srp_btn_bb · 0.11% pot from equilibrium in the solved game (converged) · 300
+  iterations"); 19 flops "not a flop-library spot". No console errors.
+- Stop after 13 hands kept 22 decisions; Grade again asked only the other 42, and the report came out the same.
+- The PokerStars hand shows Best on the preflop raise and the flop bet, their titles naming the charts (not a
+  solve) and the library entry.
+- CSV and JSON export intercepted in the page (no file written): 64 rows, the provenance in `source`.
+- 375px: no page overflow.
+
+### Precompute builds
+
+Untouched. Memory stayed at 65–67% free; every check ran under `nice`.
+
 ### Next
 
-- Grading (ROADMAP Phase 2): preflop decisions against the charts through the worker, labelled as chart
-  frequencies, not solved; flop decisions where the library has the spot, with no live solve; results into
-  `decisions`. Then the leaks view, the frequency table and CSV/JSON export.
+- Turn and river grading: a live solve per decision (or the classic's Quick triage) through the same queue, in the
+  user's browser; with a time estimate and the queue yielding to Study and Practice.
+- Report filters (seat, pot type, EV lost) and "Drill this leak" (a drill set from a leak's decisions).
 - Still open in Phase 5: saved drills, saved hands from Practice, the classic `gto-store` import, a backup prompt.

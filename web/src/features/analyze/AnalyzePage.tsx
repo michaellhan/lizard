@@ -1,18 +1,23 @@
 // Analyze: your hand histories imported into this browser (pasted, or files and folders picked or dropped), read
 // by the classic importer's port (hh/), kept in IndexedDB once each (data/hands.ts), listed with filters, and each
-// hand replayed street by street with every decision of yours opening in Study. Nothing here is graded yet: the
-// numbers are the history's own (stacks, the pot won), and the page says so.
+// hand replayed street by street with every decision of yours opening in Study; your decisions graded against the
+// charts and the flop library (Grading.tsx), each grade shown with what it stands on.
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
-import type { HandRecord } from "@/data/db";
-import { addHands, deleteImport, importsOf, listHands, type ImportSummary } from "@/data/hands";
+import { VerdictTag } from "@/components/VerdictTag";
+import type { DecisionRecord, HandRecord } from "@/data/db";
+import { addHands, deleteImport, importsOf, listDecisions, listHands, type ImportSummary } from "@/data/hands";
+import type { Verdict } from "@/grading/grade";
 import { newId } from "@/data/saved";
 import { HH_SITES } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
 import { filesName, hhFiles, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
+import { decisionNote, GradePanel, GradeReport } from "./GradingPanel";
+import { decisionId } from "./grading";
+import { isGraded } from "./report";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
@@ -38,15 +43,28 @@ interface Result {
 export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}) {
   const [params, setParams] = useSearchParams();
   const [hands, setHands] = useState<HandRecord[] | null>(null);
+  const [decisions, setDecisions] = useState<DecisionRecord[]>([]);
   const [n, setN] = useState(0);
   const reload = () => setN((x) => x + 1);
   useEffect(() => {
     let alive = true;
-    void listHands().then((h) => alive && setHands(h));
+    void Promise.all([listHands(), listDecisions()]).then(([h, d]) => {
+      if (!alive) return;
+      setHands(h);
+      setDecisions(d);
+    });
     return () => {
       alive = false;
     };
   }, [n]);
+  // graded decisions as they come (null: all forgotten)
+  const onGraded = (ds: DecisionRecord[] | null) =>
+    setDecisions((prev) => {
+      if (!ds) return [];
+      const m = new Map(prev.map((d) => [d.id, d]));
+      for (const d of ds) m.set(d.id, d);
+      return [...m.values()];
+    });
 
   const id = params.get("hand");
   const open = id ? hands?.find((h) => h.id === id) : undefined;
@@ -67,12 +85,15 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <h1 className="text-2xl font-semibold">Analyze</h1>
         <p className="text-sm text-muted">
           Import your hand histories: they're read and kept in this browser only, nothing is uploaded. Each hand replays street by street, and each of
-          your decisions opens in Study at that point. Grading imported decisions against the solution isn't in Lizard yet.
+          your decisions opens in Study at that point. Your preflop and flop decisions can be graded against the preflop charts and the flop library;
+          turns and rivers aren't graded yet.
         </p>
       </div>
       <ImportPanel onImported={reload} />
       {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
-      {open && <HandDetail hand={open} onClose={() => set({ hand: null })} />}
+      {hands && hands.length > 0 && <GradePanel hands={hands} decisions={decisions} onGraded={onGraded} />}
+      {hands && <GradeReport decisions={decisions} hands={hands} />}
+      {open && <HandDetail hand={open} decisions={decisions.filter((d) => d.handId === open.id)} onClose={() => set({ hand: null })} />}
       {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
       {hands === null ? (
         <p className="text-sm text-muted">…</p>
@@ -415,7 +436,8 @@ function HandsTable({
   );
 }
 
-function HandDetail({ hand, onClose }: { hand: HandRecord; onClose: () => void }) {
+function HandDetail({ hand, decisions, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onClose: () => void }) {
+  const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
   // (opened from the table below it: brought into view)
   useEffect(() => box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }), [hand.id]);
@@ -469,11 +491,12 @@ function HandDetail({ hand, onClose }: { hand: HandRecord; onClose: () => void }
       </div>
       <ol className="space-y-2">
         {STREETS.map((st) => (
-          <StreetRow key={st} r={r} street={st} />
+          <StreetRow key={st} r={r} street={st} graded={(i) => graded.get(decisionId(hand.id, st, i))} />
         ))}
       </ol>
       <p className="text-muted">
-        Pot {fmt(sim.pot)}bb ({hand.end}). From your hand history, replayed on Lizard's table; nothing here is graded.
+        Pot {fmt(sim.pot)}bb ({hand.end}). From your hand history, replayed on Lizard's table.
+        {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve), your flop moves against the flop library." : " None of your decisions here is graded yet."}
         {(h.ante > 0 || h.straddle) && " Study can't set up this hand's ante or straddle, so its decisions don't open in Study."}
       </p>
       {r.warnings.length > 0 && (
@@ -489,7 +512,7 @@ function HandDetail({ hand, onClose }: { hand: HandRecord; onClose: () => void }
 
 const NEW_CARDS: Record<Street, [number, number]> = { preflop: [0, 0], flop: [0, 3], turn: [3, 4], river: [4, 5] };
 
-function StreetRow({ r, street }: { r: ReplayedHand; street: Street }) {
+function StreetRow({ r, street, graded }: { r: ReplayedHand; street: Street; graded: (i: number) => DecisionRecord | undefined }) {
   const h = r.hand;
   const moves = r.lines[street];
   const cards = h.board.slice(...NEW_CARDS[street]);
@@ -511,9 +534,16 @@ function StreetRow({ r, street }: { r: ReplayedHand; street: Street }) {
           {moves.map((m, i) => {
             const you = m.pos === h.hero;
             const link = you ? studyLinkAt(r, street, i) : null;
+            const d = you ? graded(i) : undefined;
             return (
               <li key={i} className={you ? "font-semibold" : "text-muted"}>
                 {say(m)}
+                {d && (
+                  <span className="ml-1 inline-flex items-center gap-1 font-normal" aria-label={`Grade of ${street} decision ${i + 1}`} title={decisionNote(d)}>
+                    {isGraded(d) ? <VerdictTag v={d.verdict as Verdict} /> : <span className="text-xs text-muted">not graded</span>}
+                    {d.evLossBb != null && d.evLossBb > 0 && <span className="text-xs text-muted">−{fmt(d.evLossBb)}bb</span>}
+                  </span>
+                )}
                 {link && (
                   <>
                     {" "}
