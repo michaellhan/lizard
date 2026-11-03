@@ -49,7 +49,7 @@ export interface SpotCoverage {
 
 /** lizard-library.json: what a Lizard library publish contained (only the fields read here). */
 export interface LibraryPlan {
-  spots: Record<string, { flops: number; target?: number }>;
+  spots?: Record<string, { flops: number; target?: number | null }>;
 }
 
 export interface LibraryCatalog {
@@ -89,7 +89,7 @@ export function summarize(index: LibraryIndex, mw?: LibraryIndex | null, plan?: 
       tableStack: s.game?.stack ?? 100,
       line: s.line,
       flops: n,
-      target: plan?.spots[s.id]?.target ?? null,
+      target: plan?.spots?.[s.id]?.target ?? null,
       storedTurns: Boolean(s.turns),
       game: gameLabel(s),
     });

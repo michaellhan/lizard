@@ -21,7 +21,18 @@ export function LibraryPage() {
   useEffect(() => {
     let alive = true;
     for (const s of LIBRARY_SOURCES) {
-      void loadCatalog(s.id).then((c) => alive && setCats((m) => ({ ...m, [s.id]: c })));
+      void loadCatalog(s.id)
+        .catch(
+          (e: unknown): LibraryCatalog => ({
+            source: s.id,
+            base: s.base,
+            available: false,
+            spots: [],
+            fetchedAt: Date.now(),
+            error: String(e),
+          }),
+        )
+        .then((c) => alive && setCats((m) => ({ ...m, [s.id]: c })));
     }
     return () => {
       alive = false;

@@ -65,8 +65,17 @@ interface SolveRequest {
 interface SolveResult { data: AdvisorResponse; provenance: Provenance }
 ```
 
-`applyMode` maps the mode onto the Advisor's keys: Quick is `quick: true, speed: "fast"`; Fast and Accurate set
-`speed`. The client runs one request at a time, because each backend solves one at a time, and keeps the rest in a
+`applyMode(state, mode, transport)` (`client.ts:35`) always sends `speed` (Quick sends "fast"), `budget` and
+`prior_budget`: the seconds for this street, and for each earlier street solved to narrow the ranges. Without them
+the Advisor runs every mode at 4 s + 2 s (`advisor.py:2860`). The budgets are the legacy page's (`index.html:974-978`),
+in `MODE_BUDGETS`:
+
+- browser worker: Fast 8 + 3 s, Accurate 60 + 12 s;
+- local server: Fast 2.5 + 2.5 s, Accurate 30 + 12 s;
+- postflop Quick, either backend: also `quick: true`, with flop and turn 1.5 + 0.3 s, river 0.8 + 0.3 s.
+
+A Study request (`study: true`) never carries `quick`: Quick runs it at Fast, as classic Study does, and the Study page
+offers only Fast and Accurate. The client runs one request at a time, because each backend solves one at a time, and keeps the rest in a
 FIFO queue. Aborting a queued request removes it at once. Aborting the running one goes to the transport.
 
 ### 3.2 Provenance
@@ -76,10 +85,15 @@ Every result and every partial result carries a `Provenance` (`provenance.ts`), 
 | `source` | When | Approximate? |
 |---|---|---|
 | `library` | `precomputed` present: a flop answered from the offline library | no (its exploitability is shown) |
-| `live` | the solver ran iterations for this request | only if partial or the solver says so |
+| `library-turn` | a turn read from the flop library's stored turn strategies (`approximate.source` or `source` is "store") | always; the flop entry's numbers are not shown |
+| `instant` | an answer at once read from another solution (`approximate.source` near, prev, unraked or offtree) | always; shows the Advisor's label, not the other solve's numbers |
+| `live` | the solver ran iterations for this request, or a look at this street's own solve (`approximate.source` "solve") | if partial, a look, or the solver says so |
 | `charts` | a preflop node answered from the preflop charts | the badge says "Preflop charts", never "solved" |
 | `preflop-solve` | a preflop equilibrium the solver computed (`pf_solve`) | as reported |
-| `rules`, `equity` | fallbacks when a solve fails or is unsupported | always |
+| `rules`, `equity` | fallbacks when a solve fails or is unsupported, and 5+-way flop or turn answers (`multiway` without `solved` or `solver`: a Monte Carlo heuristic) | always |
+| `unknown` | none of the above | shown as "Unlabelled" |
+
+The order of these checks matters; `docs/ACCURACY.md` §11 lists it.
 
 It also carries the exploitability (% of pot) and target when computed, iterations, seconds, the library spot, the
 fallback reason, the mode, the transport, the solver version (`<upstream commit>/<bundle hash>`) and the time it was
@@ -90,7 +104,7 @@ received. `ProvenanceBadge` renders it next to every answer.
 `SolverTransport` (`types.ts`) has `request`, `prefetch`, `onStatus`, `status` and `dispose`. There are two:
 
 **`WorkerTransport`** loads `solver/worker.js?v=<bundle hash>&lib=<library base>`. That is the upstream worker,
-whose only change is a renamed cache (§6). Protocol (`protocol.ts`, verified against `solver/gto/static/worker.js`):
+whose only change is a renamed cache (§5). Protocol (`protocol.ts`, verified against `solver/gto/static/worker.js`):
 
 - page → worker: `{id, state, early}`, `{cancel: id}`, `{stop: SharedArrayBuffer}`, `{prefetch: state}`, `{ping}`;
 - worker → page: `{status, setup}` (boot progress, then "Solving…" with timings and thread counts), `{id, partial}`,
@@ -158,10 +172,14 @@ previous release, and checks the stage against GitHub Pages limits. `publish.sh`
 clone and pushes only what changed.
 
 At runtime, the worker looks entries up by range fingerprints, pot and stack, then by canonical flop and tree. The
-heads-up fingerprints were checked against this snapshot's charts and match. A flop that is not in the library is
+heads-up fingerprints were checked against this snapshot's charts on 2026-11-03 and match: the snapshot computes
+`be1e8f5e7b61b5b6`/`8e09a13ab78f9ab8` for `SB:r3,BB:c` (pot 6, stack 97) and `0df0279146642404`/`95616fa9f2a1d875` for
+`SB:c,BB:x` (pot 2, stack 99), the values in the builds' indexes. A flop that is not in the library is
 solved live; nothing in the UI depends on coverage. The settings default `auto` picks `/lizard-library/` when its
-`index.json` answers, else `/gto-solver-library/` (`resolveLibrarySource`). The Library page reads both indexes with
-`cache: no-cache`, so new heads-up flops appear after each publish without an app redeploy.
+`index.json` answers, else `/gto-solver-library/` (`resolveLibrarySource`). The Library page reads three files with
+`cache: no-cache`: both indexes, and `lizard-library.json` for each spot's planned flop count (`spots[id].target`,
+null when a spot has no plan; then only the count is shown). New heads-up flops appear after each publish without an
+app redeploy.
 
 ## 7. Routing, base path and deployment
 

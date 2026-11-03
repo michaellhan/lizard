@@ -41,6 +41,11 @@ describe("SolverClient", () => {
     expect(applyMode({ players: 2 }, "fast")).toMatchObject({ budget: 8, prior_budget: 3 });
     expect(applyMode({ players: 2 }, "fast", "http")).toMatchObject({ budget: 2.5, prior_budget: 2.5 });
     expect(applyMode({ players: 2 }, "accurate", "http")).toMatchObject({ budget: 30, prior_budget: 12 });
+    expect(applyMode({ players: 2, board: "Ks 7d 2c 8h 5s" }, "quick")).toMatchObject({ quick: true, budget: 0.8 });
+    // a Study request never carries quick: Quick runs it at Fast
+    const study = applyMode({ players: 2, board: "Kh7d2c", study: true }, "quick");
+    expect(study).not.toHaveProperty("quick");
+    expect(study).toMatchObject({ speed: "fast", budget: 8, prior_budget: 3 });
   });
 
   it("runs one request at a time, in order, with provenance on partials and answers", async () => {

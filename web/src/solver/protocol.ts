@@ -157,8 +157,9 @@ export interface GridCell {
 export type ComboRow = [string, number, number[], number[] | null, number | null, number, number];
 
 export interface SolverDiagnostics {
-  iterations?: number;
-  exploitability_pct?: number;
+  /** null where the numbers are in an approximate answer's label, or there are none (advisor.py _study_look, _study_near) */
+  iterations?: number | null;
+  exploitability_pct?: number | null;
   approximate?: boolean;
   target_pct?: number;
   seconds?: number;

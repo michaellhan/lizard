@@ -125,8 +125,10 @@ export function fromSearch(search: string): StudyHand | null {
   const players = Number(q.get("p"));
   const stack = Number(q.get("s") ?? 100);
   if (!Number.isInteger(players) || players < 2 || players > 9 || !(stack > 0)) return null;
-  const board = q.get("b") ?? "";
-  if (board && !parseCards(board)) return null;
+  const raw = q.get("b") ?? "";
+  const cards = raw ? parseCards(raw) : [];
+  if (!cards) return null;
+  const board = cards.join(""); // (normalized: "Ks 7d 2c" -> "Ks7d2c", which deal() and back() count in characters)
   return {
     players,
     stack,

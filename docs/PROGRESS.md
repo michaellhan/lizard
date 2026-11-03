@@ -62,7 +62,7 @@ The synthesized documents are `EXISTING_SOLVER_AUDIT.md`, `ACCURACY.md`, `FEATUR
 - Security: a CSP meta tag; the service worker sets COOP/COEP plus `frame-ancestors 'self'` and `nosniff`; http is
   redirected to https in the app.
 
-### Tests actually run
+### Tests actually run (at `758e003`)
 
 | Suite | Result | Where |
 |---|---|---|
@@ -94,12 +94,11 @@ build-time cache rename in `worker.js`.
 
 - The Library page showed `lp_sb_bb_2max` as "148 / 184", guessing the target from the flop count; the build's plan
   is 552. Now `assemble.py` writes each spot's planned count into `lizard-library.json`, taken from the solver's
-  `SPOT_FLOPS` (the next subset once a build passes it). The page reads that file, and shows a bare count when a
-  library has none (the upstream one).
+  `SPOT_FLOPS`. The page reads that file, and shows a bare count when a library has none (the upstream one).
 - Tests: the assembler test asserts the targets; the catalog tests cover a published plan and the no-plan case.
-  Web tests and assembler tests 6/6 pass after the change.
+  Assembler 6/6 passed after the change.
 
-### Fixes from the audit's findings (same day, before the second commit)
+### Fixes from the audit's findings (commit `0054204`)
 
 The doc agents read the Lizard code against the Advisor and found three real defects. All are fixed, with tests.
 
@@ -116,8 +115,52 @@ The doc agents read the Lizard code against the Advisor and found three real def
 3. **Practice claimed EV-loss scoring**, but classic Practice grades by frequency (Drills use EV). The wording is
    corrected, and a comment naming a competitor's product feature was reworded.
 
-Tests after the fixes: web 39/39 (new cases in `client.test.ts` and `provenance.test.ts`), typecheck and lint clean,
+Tests after the fixes: web 39/39 (one new case in `provenance.test.ts`; extended assertions in `client.test.ts` and
+`catalog.test.ts`, where the old `targetFlops` case was replaced by a no-plan case), typecheck and lint clean,
 assembler 6/6.
+
+Deployed by workflow run 41630891243 (success). Verified live on bundle `index-BDhF1YPR.js`, the same file as the
+local build:
+- Library page: `lp_sb_bb_2max` "168 / 552", 3-way and upstream rows show a bare count.
+- Study, heads-up, TdTc8h, turn 2s after checks on the flop: "Stored turn from the flop library" at once, then
+  "Answer at once · this street's solve so far (100 iterations, 0.95% …)" and (200 iterations, 0.36% …), both in
+  progress, then "Live solve · 0.20% pot from equilibrium · 300 iterations" at 8.3 s. That fits the 8 s Fast
+  budget now being sent.
+
+Library republished as `7c6995b` (20 spots, 40,429 files; `srp_sb_bb_2max` 378, `lp_sb_bb_2max` 168; the first
+publish with per-spot targets). The live `index.json` matched.
+
+`6deaad4`: `assemble.py` writes no target for a spot without a plan, instead of guessing 184 / 552 / 1,755.
+Assembler 7/7.
+
+### Independent review of `758e003..6deaad4` (workflow, at most 2 agents at a time)
+
+Two read-only reviewers (solver client; library and docs) reported 25 findings. A skeptic checked the 8 most severe:
+7 confirmed, 1 refuted. The lead checked the 17 unverified low ones against the code; all but one held. The one that
+did not: the heads-up fingerprints were in fact checked this session. Fixed in the next commit:
+
+1. **High: a flop read off the nearest stored flops was labelled "Stored turn".** `_study_near` sets
+   `solver.by: "the flop library"` too. Stored turns are now told only by `approximate.source` or `source` "store".
+2. **High: a turn read off the flop's live solve was labelled "Live solve"**, showing the flop solve's
+   exploitability and iterations. Any top-level `approximate` now decides first: "solve" (a look at this street's
+   own solve) is live; the rest are "Answer at once", with the other solve's numbers hidden.
+3. **High: the heads-up SRP target was 552**, but the build continues to all 1,755 flops (IMPLEMENTATION_PLAN.md).
+   `assemble.py` has a cited `BUILD_PLANS` override.
+4. **Medium: Study could send `quick`**, which classic Study never does; a quick 4-way Study flop errors in the
+   browser. Study now offers Fast and Accurate only, `applyMode` never sends `quick` with `study`, and Quick runs a
+   Study request at Fast.
+5. **Low: further hardening.**
+   - Quick's street is counted in cards, not characters, and Study URLs normalise their board.
+   - The catalog survives a `lizard-library.json` without `spots`, and the Library page shows an error instead of
+     hanging on "Loading…".
+   - `SolverDiagnostics` allows the `null` numbers the Advisor sends.
+   - The ModePicker hints say a street can run past its budget.
+6. **Docs.** Fixed stale citations, the `sourceOf` order, the 2-max library status, the ARCHITECTURE mode and
+   provenance sections, and a ROADMAP acceptance check that contradicted the app. The audit now matches CLAUDE.md
+   on reading the build folders, and DEPLOYMENT documents `target` and the 10-minute HTML cache.
+
+Tests: web 39/39 (new or extended cases in `provenance.test.ts`, `client.test.ts`, `catalog.test.ts`,
+`studyState.test.ts`), typecheck and lint clean, assembler 7/7 (one asserts the real `SPOT_FLOPS` parse).
 
 ### Precompute builds
 

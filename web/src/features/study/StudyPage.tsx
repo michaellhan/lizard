@@ -44,7 +44,9 @@ export function StudyPage() {
   const [params, setParams] = useSearchParams();
   const hand = useMemo<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100), [params]);
   const setHand = useCallback((h: StudyHand) => setParams(toSearch(h)), [setParams]);
-  const mode = useSettings((s) => s.mode);
+  // classic Study offers Fast and Accurate only (study.js); the Quick setting (for Practice) runs Study at Fast
+  const picked = useSettings((s) => s.mode);
+  const mode = picked === "quick" ? "fast" : picked;
   const getSolver = useSolver();
   // the answer is tagged with the request it answers; a new request shows "loading" until its own answer arrives
   const [answer, setAnswer] = useState<{ key: string; phase: Phase }>({ key: "", phase: { kind: "loading" } });
@@ -110,7 +112,7 @@ export function StudyPage() {
           <p className="text-sm text-muted">Every hand of the player to act, at equilibrium. Click an action to play it.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ModePicker />
+          <ModePicker modes={["fast", "accurate"]} />
           <select
             aria-label="Start a new hand"
             className="rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm"

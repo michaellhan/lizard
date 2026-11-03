@@ -27,16 +27,20 @@ export const MODE_BUDGETS: Record<TransportKind, Record<SolveMode, [number, numb
 };
 /** Quick's postflop budgets by street, either backend, sent with "quick" (no second budget for an unsettled street). */
 const QUICK_BUDGETS: Record<string, [number, number]> = { flop: [1.5, 0.3], turn: [1.5, 0.3], river: [0.8, 0.3] };
-const STREET_BY_BOARD: Record<number, string> = { 6: "flop", 8: "turn", 10: "river" };
+const STREET_BY_CARDS: Record<number, string> = { 3: "flop", 4: "turn", 5: "river" };
 
-/** The request keys for a mode on a backend: speed, budget and prior_budget, and quick (postflop Quick only). */
+/** The request keys for a mode on a backend: speed, budget and prior_budget, and quick (postflop Quick only). Study
+ * requests never carry quick (classic Study offers Fast and Accurate only; a quick Study 4-way flop errors in the
+ * browser), so Quick runs a Study request at Fast. */
 export function applyMode(state: AdvisorState, mode: SolveMode, transport: TransportKind = "worker"): AdvisorState {
   const s: AdvisorState = { ...state };
   delete s.quick;
-  const street = STREET_BY_BOARD[String(state.board ?? "").length];
-  const quick = mode === "quick" && street !== undefined;
-  const [budget, prior_budget] = quick ? QUICK_BUDGETS[street]! : MODE_BUDGETS[transport][mode];
-  s.speed = mode === "quick" ? "fast" : mode;
+  const eff: SolveMode = state.study && mode === "quick" ? "fast" : mode;
+  // (cards counted, not characters: a board may carry separators, "Ks 7d 2c")
+  const street = STREET_BY_CARDS[String(state.board ?? "").replace(/[\s,]+/g, "").length / 2];
+  const quick = eff === "quick" && street !== undefined;
+  const [budget, prior_budget] = quick ? QUICK_BUDGETS[street]! : MODE_BUDGETS[transport][eff];
+  s.speed = eff === "quick" ? "fast" : eff;
   s.budget = budget;
   s.prior_budget = prior_budget;
   if (quick) s.quick = true;

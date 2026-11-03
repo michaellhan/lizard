@@ -31,6 +31,8 @@ describe("library catalog", () => {
 
   it("does not guess a target when the library does not publish one", () => {
     expect(summarize(INDEX).map((r) => r.target)).toEqual([null, null]);
+    expect(summarize(INDEX, null, {}).map((r) => r.target)).toEqual([null, null]); // a summary without spots
+    expect(summarize(INDEX, null, { spots: { srp_btn_bb: { flops: 2, target: null } } })[0]?.target).toBeNull();
   });
 
   it("reads index.json and mw_index.json uncached, and says when a library is not published", async () => {

@@ -237,8 +237,10 @@ worker -> page:  {status, setup?} | {pong:n} | {id, partial} | {id, result} | {i
   every 100, stopping under 0.15% of the pot. My 450-entry header sample found stored exploitability of
   0.058-0.150% (mean 0.109%) at 200-500 iterations.
 - **In progress [V, 03 §8.8].** Two heads-up (2-max) spots, `srp_sb_bb_2max` and `lp_sb_bb_2max`, were being built
-  in the upstream `.work/` folder. They use the same format and tree model and can be merged later by copying only
-  the listed entries. Do not read their folders while the builds run.
+  in the upstream `.work/` folder. They use the same format and tree model. Lizard merges them by copying only the
+  listed entries. It reads their folders only through `scripts/library/assemble.py`, read-only, and validates every
+  copied file (`CLAUDE.md`). Their range fingerprints match this snapshot's charts: the lead checked both spots on
+  2026-11-03 by computing them with the snapshot (values in `docs/ARCHITECTURE.md` §6).
 
 ### 6.3 Other assets [V]
 
@@ -368,7 +370,5 @@ The code differs from the research reports in these places. All are [V] in this 
 
 - Pass/fail of the suites in this checkout. This audit did not run them. The baseline is upstream's recorded
   result, as reported to this audit.
-- That the range fingerprints of the in-progress 2-max builds match this snapshot's charts. Checking needs the
-  solver imported; run it when the machine is free.
 - Per-entry exploitability for all 25,575 entries. Only 450 were sampled.
 - Whether Pyodide needs `'unsafe-eval'` under a strict CSP (06 §5.2) [I].

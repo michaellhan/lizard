@@ -80,19 +80,24 @@ class AssembleTest(unittest.TestCase):
         self.assertTrue((self.out / ".nojekyll").exists())
         summary = json.loads((self.out / "lizard-library.json").read_text())
         self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["flops"], 2)
-        self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["target"], 552)  # the snapshot's SPOT_FLOPS plan
+        self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["target"], 1755)  # BUILD_PLANS: extended to every flop
         self.assertEqual(summary["spots"]["srp_btn_bb"]["target"], 1755)
 
     def test_a_spot_with_no_plan_gets_no_target(self):
         sys.path.insert(0, str(HERE))
         try:
-            from assemble import target_of
+            from assemble import planned_flops, target_of
         finally:
             sys.path.remove(str(HERE))
         plan = {"srp_sb_bb_2max": 552}
         self.assertIsNone(target_of("mw_new_spot", 185, plan))
         self.assertEqual(target_of("srp_sb_bb_2max", 378, plan), 552)
         self.assertEqual(target_of("srp_sb_bb_2max", 600, plan), 1755)  # extended past its plan to every flop
+        real = planned_flops()  # the snapshot's SPOT_FLOPS, parsed from source, plus BUILD_PLANS
+        self.assertEqual(len([k for k in real if not k.startswith("mw_")]), 20)
+        self.assertEqual(target_of("srp_sb_bb_2max", 378, real), 1755)
+        self.assertEqual(target_of("lp_sb_bb_2max", 168, real), 552)
+        self.assertEqual(target_of("srp_hj_co", 552, real), 552)
 
     def test_a_corrupt_entry_or_turn_file_is_left_out(self):
         (self.hu / "srp_sb_bb_2max" / "Qc9d8h.bin").write_bytes(b"tampered")

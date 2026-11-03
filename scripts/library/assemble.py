@@ -46,11 +46,18 @@ MAX_TOTAL = 900 * 2**20
 MAX_FILES = 60_000
 
 
+# Build plans that differ from the snapshot's SPOT_FLOPS (solver/gto/flop_library.py): the heads-up SRP build goes on
+# to every flop after its 552 (IMPLEMENTATION_PLAN.md, "Two concurrent heads-up SB-vs-BB library builds"; approved in
+# the build's schedule, quoted in docs/research/05-deployment.md). Drop an entry once a re-import's SPOT_FLOPS has it.
+BUILD_PLANS = {"srp_sb_bb_2max": 1755}
+
+
 def planned_flops() -> dict[str, int]:
-    """The flop count each spot is being built to (gto/flop_library.py SPOT_FLOPS), read without importing the solver."""
+    """The flop count each spot is being built to: gto/flop_library.py SPOT_FLOPS (read without importing the solver),
+    overridden by BUILD_PLANS."""
     src = (ROOT / "solver" / "gto" / "flop_library.py").read_text()
     m = re.search(r"^SPOT_FLOPS = (\{.*?\})\n", src, re.S | re.M)
-    return ast.literal_eval(m.group(1)) if m else {}
+    return {**(ast.literal_eval(m.group(1)) if m else {}), **BUILD_PLANS}
 
 
 def target_of(sid: str, n: int, planned: dict[str, int]) -> int | None:

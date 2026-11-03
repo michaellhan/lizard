@@ -25,9 +25,10 @@ function approximateOf(r: AdvisorResponse): { source?: string; label?: string } 
 }
 
 /** Read from the flop library's stored turn strategies: the Advisor marks these approximate {source: "store"} (an
- * advice answer), source "store" (Study's runouts), and solver.by "the flop library" (both). */
+ * answer at once) or top-level source "store" (Study's runouts). Not solver.by "the flop library": Advisor._study_near
+ * sets that too, on a flop read off the nearest stored flops. */
 function isStoredTurn(r: AdvisorResponse): boolean {
-  return approximateOf(r)?.source === "store" || r.source === "store" || r.solver?.by === "the flop library";
+  return approximateOf(r)?.source === "store" || r.source === "store";
 }
 
 export function sourceOf(r: AdvisorResponse): ResultSource {
@@ -36,18 +37,22 @@ export function sourceOf(r: AdvisorResponse): ResultSource {
   if (isStoredTurn(r)) return "library-turn";
   if (typeof r.pf_solve === "object" || r.study === "pf_progress") return "preflop-solve";
   if (r.street === "preflop") return "charts";
+  // approximate {source}: "solve" is a live solve stopped at a look, or one cut to fit Quick (advisor.py _study_look,
+  // _mw_look, the instant sources); "near", "prev", "unraked", "offtree" are reads of other solutions: an answer at once
+  const approx = approximateOf(r);
+  if (approx) return approx.source === "solve" ? "live" : "instant";
   // 5+ players on the flop or turn: a Monte Carlo heuristic, not a solve (3-way and 4+ way rivers say solved: true)
   if (r.multiway && !r.solved && !r.solver) return "rules";
   if (r.solver && typeof r.solver.iterations === "number" && r.solver.iterations > 0) return "live";
-  if (approximateOf(r)) return "instant";
   return "unknown";
 }
 
 export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Provenance {
   const source = sourceOf(r);
-  // a stored turn's solver numbers are the flop entry's, which do not describe the turn strategy: not shown
-  const sv = source === "library-turn" ? {} : (r.solver ?? {});
   const approx = approximateOf(r);
+  // a stored turn's or an answer at once's solver numbers are another solve's (the flop entry, the previous street's
+  // solve), which do not describe this answer: not shown. The Advisor's label says what it was read from.
+  const sv = source === "library-turn" || source === "instant" ? {} : (r.solver ?? {});
   const p: Provenance = {
     source,
     approximate:

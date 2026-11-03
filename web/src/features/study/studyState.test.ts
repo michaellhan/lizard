@@ -36,6 +36,7 @@ describe("study line encoding", () => {
     expect(fromSearch("")).toBeNull();
     expect(fromSearch("p=1")).toBeNull();
     expect(fromSearch("p=10")).toBeNull();
+    expect(fromSearch("p=2&s=100&b=ks%207D%202c")?.board).toBe("Ks7d2c"); // separators and case normalized
     expect(fromSearch("p=6&s=-5")).toBeNull();
     expect(fromSearch("p=6&b=KsKs")).toBeNull();
   });

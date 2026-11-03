@@ -87,7 +87,7 @@ Section 4 quotes both kinds of number and says which is which.
 
 ## 3. Accuracy by answer source
 
-The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-18`) and what `ProvenanceBadge` shows.
+The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-20`) and what `ProvenanceBadge` shows.
 
 | Source (badge) | What produced it | Typical accuracy | Tier |
 |---|---|---|---|
@@ -99,6 +99,8 @@ The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-18`) and 
 | `preflop-solve`: Preflop solve | This solver's own equilibrium of an abstract preflop game (`pf_game.py`, `pf_study.py`) | Converges to about 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from the published spots [M] | Solved in a simplified model |
 | `rules`: Heuristic rules | Monte Carlo betting rules for pots no solver takes (5+ players on the flop or turn), or a fallback | No equilibrium measure. Each answer reports its trial count and a ± between the top actions [V] | Heuristic, not a solve |
 | `equity`: Equity estimate | Hero's equity against random hands, priced against the pot (`advisor.py:3836-3838`) | A rough last resort [V] | Heuristic, not a solve |
+| `library-turn`: Stored turn from the flop library | A library flop's stored turn strategy, read at once (Study's answer at once, its runouts) | 0.50-0.81% of the pot (table below); no exploitability shown, since the response's numbers are the flop entry's | Approximate |
+| `instant`: Answer at once | A read of another solution while the real solve runs: nearest stored flops, a borrowed spot, an earlier street's solve, an unraked entry, an off-menu size. The badge shows the Advisor's own label | See the reads below; no exploitability shown | Approximate |
 
 Approximate reads also exist. They show at once while a real solve runs, or when nothing better is available.
 Each is flagged `approximate` in the response:
@@ -143,7 +145,12 @@ Each is flagged `approximate` in the response:
 > | Accurate | 60 s + 12 s | 30 s + 12 s |
 > | Quick, postflop (with `quick`) | 1.5 s + 0.3 s (river 0.8 s) | same |
 >
-> `client.test.ts` checks the mapping. The ModePicker hints now state these budgets.
+> `client.test.ts` checks the mapping. The ModePicker hints now give these budgets, and say that a street can run
+> longer: an unsettled street gets a second budget, a 3-way flop at least 15 s, and a Fast turn after a stored flop
+> may use the unspent 3 s.
+>
+> Study never sends `quick`, as classic Study offers only Fast and Accurate. Quick runs a Study request at Fast; a
+> quick Study 4-way flop errors in the browser.
 
 ### 4.2 Measured accuracy by street
 
@@ -342,18 +349,30 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
    and live solves with a stated exploitability.
 
 **Implementation.** `web/src/solver/provenance.ts` derives a `Provenance` record from each response.
-`ProvenanceBadge.tsx` shows it, with "≈" when approximate. `sourceOf` (`provenance.ts:21-28`) checks these
+`ProvenanceBadge.tsx` shows it, with "≈" when approximate. `sourceOf` (`provenance.ts:34-48`) checks these
 conditions in order:
 
 1. `fallback` maps to rules, charts or equity;
 2. `precomputed` maps to library;
-3. `pf_solve` or `study: "pf_progress"` maps to preflop-solve;
-4. preflop maps to charts;
-5. `solver.iterations > 0` maps to live;
-6. anything else is "unknown".
+3. a stored turn (`isStoredTurn`, `provenance.ts:30-32`: `approximate.source` or a top-level `source` is "store")
+   maps to library-turn. `solver.by` "the flop library" is not used, because `_study_near` sets it on a flop answer
+   too;
+4. `pf_solve` or `study: "pf_progress"` maps to preflop-solve;
+5. preflop maps to charts;
+6. a top-level `approximate` maps to live when its source is "solve" (this street's own solve stopped at a look, or
+   one cut to fit Quick), and to instant otherwise ("near", "prev", "unraked", "offtree": reads of other solutions);
+7. `multiway` with no `solved` and no `solver` (the 5+-way flop or turn heuristic) maps to rules;
+8. `solver.iterations > 0` maps to live;
+9. anything else is "unknown".
+
+For library-turn and instant the response's `solver` numbers belong to another solve (the flop entry, or the
+previous street's solve), so they are not shown; the Advisor's label says what the answer was read from.
 
 **Gaps found against the Advisor's actual responses [V].** The first three rows and the last were fixed on
-2026-11-03, with tests in `provenance.test.ts` and `client.test.ts`. The others are open.
+2026-11-03, with tests in `provenance.test.ts` and `client.test.ts`. An independent review the same day found two
+further mislabels: a flop read off the nearest stored flops showed as a stored turn, and a turn read off the
+flop's solve showed as a live solve with the flop's numbers. Both are fixed by the order above. The other rows are
+open.
 
 | Response | What the Advisor sends | What LIZARD showed | Fix |
 |---|---|---|---|

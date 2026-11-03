@@ -49,6 +49,11 @@ for p in "" study/ engine/ library/ solver/manifest.json solver/worker.js sw.js 
 ```
 
 Expect 200 for everything except `no/such/page`, which is 404 but still serves the app (it renders Not Found).
+
+Pages serves HTML with `Cache-Control: max-age=600`, so a browser that visited before the deploy can run the previous
+bundle for up to 10 minutes. The service worker caches nothing. To check a deploy at once, add any query string
+(`/lizard/library/?fresh=<commit>`), and compare the page's `assets/index-*.js` with `web/dist/assets/` from a local
+build of the same commit.
 `/lizard/study` without the slash is a 301 to `/lizard/study/`; that is Pages' folder redirect, and the router
 matches both.
 
@@ -90,7 +95,10 @@ One merged format-2 library, because the solver worker reads a single base URL:
   `.work/hu-lp-lib`, as far as they have got. Those builds are still running and are never touched: they are read only.
 
 `lizard-library.json` at the site root records what each publish contained: per-spot flop counts, file count, and any
-flops left out by validation.
+flops left out by validation. Each spot also has a `target`, the flop count it is being built to, which the app's
+Library page reads for its progress bars. It comes from the solver's `SPOT_FLOPS` (`solver/gto/flop_library.py`),
+overridden by `BUILD_PLANS` in `assemble.py`. That override is where the heads-up SRP's extension to all 1,755 flops
+is recorded. A spot with no plan gets `null`, and the page then shows only its count.
 
 ### Publish
 
