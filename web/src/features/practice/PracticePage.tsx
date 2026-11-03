@@ -27,10 +27,16 @@ import {
   dealNext,
   decide,
   decideUngraded,
+  DRILL_TRIES,
   finish,
+  isPotDrill,
   newHand,
+  offDrill,
   optionsOf,
   phaseOf,
+  POT_DRILLS,
+  redeal,
+  seeking,
   setupOf,
   shownCards,
   simOf,
@@ -61,7 +67,7 @@ interface PracticeSession {
   sources: Partial<Record<ResultSource, number>>;
 }
 
-const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false };
+const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null };
 
 const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
@@ -93,6 +99,7 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
     stack: s.stack,
     seat: s.opts.seat,
     ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
+    ...(s.opts.pot ? { pot: s.opts.pot } : {}),
     byPot: s.byPot,
     sources: s.sources,
   },
@@ -202,6 +209,13 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
   // the hand after a move or a card: settled, and counted, where that ended it (and kept, where you keep them all)
   const commit = useCallback(
     (h: PracticeHand) => {
+      // a drill's preflop gone another way: dealt again, not counted (up to DRILL_TRIES deals)
+      if (offDrill(h)) {
+        const opts = keeping.current.session.opts;
+        if ((h.tries ?? 0) + 1 < DRILL_TRIES) setHand(redeal(h, randomSeed(), opts));
+        else setError(`No ${POT_DRILLS[h.pot!].one.replace(/^an? /, "")} in ${DRILL_TRIES} deals.`);
+        return;
+      }
       if (h.result || phaseOf(h).kind !== "over") {
         setHand(h);
         return;
@@ -230,14 +244,15 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     }
     const ac = new AbortController();
     let alive = true;
-    if (ph.kind === "villain") {
+    if (ph.kind === "villain" || ph.kind === "auto") {
       void (async () => {
         try {
           const client = await getSolver();
           if (!alive) return;
           const [mv] = await Promise.all([
             client.play(stateFor(hand), { seat: ph.seat, hole: hand.hands[ph.seat]!.join("") }, { mode, signal: ac.signal }),
-            wait(pace),
+            // (a drill's preflop, dealt again until it's the pot, goes by at once)
+            wait(seeking(hand) ? 0 : pace),
           ]);
           if (alive) commit(withVillain(hand, villainMove(hand, mv.data)));
         } catch (e) {
@@ -364,13 +379,15 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
           <p className="text-sm text-muted">
             Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
             the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
-            preflop closes. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze.
+            preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
+            it reaches the flop heads-up as that pot, and you play from the flop. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in
+            Analyze.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ModePicker modes={["quick", "accurate"]} />
           <SetupForm
-            key={`${session.players}/${session.stack}/${session.opts.seat}/${session.opts.preflopOnly}`}
+            key={`${session.players}/${session.stack}/${session.opts.seat}/${session.opts.preflopOnly}/${session.opts.pot}`}
             players={session.players}
             stack={session.stack}
             opts={session.opts}
@@ -412,14 +429,29 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
         {error && (
           <div role="alert" className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger">
             {error}{" "}
-            {phase.kind === "villain" && (
-              <button type="button" className="underline" onClick={() => (setError(null), setRetry((n) => n + 1))}>
+            {(phase.kind === "villain" || phase.kind === "auto") && (
+              <button
+                type="button"
+                className="underline"
+                onClick={() => {
+                  setError(null);
+                  if (offDrill(hand)) setHand(redeal({ ...hand, tries: 0 }, randomSeed(), session.opts));
+                  else setRetry((n) => n + 1);
+                }}
+              >
                 Try again
               </button>
             )}
           </div>
         )}
-        {phase.kind === "villain" && !error && (
+        {seeking(hand) && !error && (
+          <p role="status" className="flex items-center gap-2 text-sm text-muted">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+            Dealing {POT_DRILLS[hand.pot!].one}: the preflop is played for you
+            {hand.tries ? ` (deal ${hand.tries + 1})` : ""}…
+          </p>
+        )}
+        {phase.kind === "villain" && !error && !seeking(hand) && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             {seatLabel(phase.seat, hand.players)} is thinking…
@@ -518,8 +550,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       </details>
 
       <p className="text-xs text-muted">
-        Not here yet: the drill modes (single-raised, 3-bet and blind-vs-blind pots dealt again and again), the ring game&rsquo;s carried-over chips, sizes of
-        your own, and multi-tabling. They run in the{" "}
+        Not here yet: the ring game&rsquo;s carried-over chips, sizes of your own, and multi-tabling. They run in the{" "}
         <a className="underline" href={`${CLASSIC_URL}practice/`}>
           classic trainer
         </a>
@@ -794,7 +825,7 @@ function SetupForm({
   const [p, setP] = useState(players);
   const [s, setS] = useState(String(stack));
   const [seat, setSeat] = useState(opts.seat);
-  const [pre, setPre] = useState(opts.preflopOnly);
+  const [play, setPlay] = useState<string>(opts.pot ?? (opts.preflopOnly ? "preflop" : "full"));
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
   const n = Number(s);
@@ -805,7 +836,7 @@ function SetupForm({
       className="flex flex-wrap items-center gap-2 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: pre });
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null });
       }}
     >
       <label className="flex items-center gap-1">
@@ -846,9 +877,20 @@ function SetupForm({
       </label>
       <label className="flex items-center gap-1">
         <span className="text-muted">Play</span>
-        <select aria-label="Play" value={pre ? "preflop" : "full"} onChange={(e) => setPre(e.target.value === "preflop")} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+        <select
+          aria-label="Play"
+          value={play}
+          onChange={(e) => setPlay(e.target.value)}
+          title={isPotDrill(play) ? POT_DRILLS[play].tip : undefined}
+          className="rounded border border-border bg-surface-2 px-1.5 py-1"
+        >
           <option value="full">Full hands</option>
           <option value="preflop">Preflop only</option>
+          {Object.entries(POT_DRILLS).map(([k, d]) => (
+            <option key={k} value={k} title={d.tip}>
+              {d.label}
+            </option>
+          ))}
         </select>
       </label>
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">

@@ -45,6 +45,8 @@ const FLOP: AdvisorResponse = {
 const stub = vi.hoisted(() => {
   const s = {
     calls: [] as string[],
+    // a preflop move of the stub's own for a seat (else it calls)
+    pre: null as null | ((seat: string) => { action: PlayMove["action"]; to?: number } | null),
     getSolver: null as unknown as () => Promise<unknown>,
     answer: (st: AdvisorState): SolveResult => ({ data: st.board ? FLOP : CHART, provenance: st.board ? LIVE : prov("charts") }),
   };
@@ -55,6 +57,8 @@ const stub = vi.hoisted(() => {
     },
     play: async (state: AdvisorState, p: PlayRequest): Promise<SolveResult<PlayMove>> => {
       s.calls.push(`play ${p.seat}`);
+      const own = !state.board ? s.pre?.(p.seat) : null;
+      if (own) return { data: { pos: p.seat, ...own, name: own.action, freq: 1, street: "preflop" }, provenance: LIVE };
       const flop = (state.flop as unknown[] | undefined) ?? [];
       const action: PlayMove["action"] = !state.board ? "call" : flop.length === 0 ? "check" : "fold";
       return { data: { pos: p.seat, action, name: action, freq: 1, street: "flop" }, provenance: LIVE };
@@ -67,6 +71,7 @@ vi.mock("@/solver/useSolver", () => ({ useSolver: () => stub.getSolver }));
 
 afterEach(() => {
   stub.calls = [];
+  stub.pre = null;
   useSettings.setState({ mode: "fast", keepHands: false });
 });
 
@@ -138,6 +143,40 @@ describe("PracticePage", () => {
     // the next hand: your seat moves to the big blind
     fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
     expect(await screen.findByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+  });
+
+  it("drills one kind of pot: your preflop played for you, dealt again until it's that pot; you play from the flop", async () => {
+    // the first deal you limp (the hand goes another way); the next you raise and the big blind calls
+    let limps = 1;
+    stub.pre = (seat) => (seat === "SB" ? (limps-- > 0 ? { action: "call" } : { action: "raise", to: 2.5 }) : null);
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    const play = screen.getByRole("combobox", { name: "Play" });
+    expect(within(play).getAllByRole("option").map((o) => o.textContent)).toEqual(["Full hands", "Preflop only", "Single-raised pots", "3-bet pots", "Blind vs blind"]);
+    fireEvent.change(play, { target: { value: "srp" } });
+    stub.calls = [];
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    // on the flop: the big blind checks, your spot is solved; nothing of your preflop was asked for advice or graded
+    const options = await screen.findByRole("group", { name: "Your options" });
+    expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]);
+    expect(stub.calls.map((c) => c.replace(/([2-9TJQKA][shdc]){3}$/, "<flop>"))).toEqual(["play SB", "play BB", "play SB", "play BB", "play BB", "advise SB <flop>"]);
+    expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent(/preflop: You raise to 2\.5, BB calls/);
+    expect(screen.getByText("Hand 1 · heads-up · 100bb")).toBeInTheDocument();
+    fireEvent.click(within(options).getByRole("button", { name: "bet 33% (1.6bb)" }));
+    expect(await screen.findByText("You won")).toBeInTheDocument();
+    const score = screen.getByRole("region", { name: "Score" });
+    expect(within(score).getByText("Decisions graded").nextSibling).toHaveTextContent("1");
+    await waitFor(async () =>
+      expect((await allSessions()).find((s) => s.kind === "practice" && s.meta.pot === "srp")?.meta).toMatchObject({
+        hands: 1,
+        byPot: { SRP: { hands: 1, n: 1 } },
+        sources: { live: 1 },
+      }),
+    );
   });
 
   it("plays by keys: 1–9 your options, K keeps the hand, Enter the next one; none while drilling or typing", async () => {

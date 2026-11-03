@@ -73,7 +73,24 @@ export interface PracticeHand {
   result: HandResult | null;
   /** the hand ends as the preflop closes, with you still in it */
   preflopOnly?: true;
+  /** one kind of pot only: the preflop is played for you, and dealt again until it is that pot (`tries`: the deals so far) */
+  pot?: PotDrill;
+  tries?: number;
 }
+
+/** The drill modes (the classic trainer's, `practice.js:169-196`): only one kind of pot. The preflop is played for you
+ * too (from the charts, as the opponents' is), and the hand dealt again until it reaches the flop heads-up, you in it, as
+ * that kind of pot; you play from the flop. */
+export type PotDrill = "srp" | "3bet" | "bvb";
+export const POT_DRILLS: Record<PotDrill, { label: string; one: string; tip: string }> = {
+  srp: { label: "Single-raised pots", one: "a single-raised pot", tip: "Heads-up after one preflop raise and a call: the preflop is played for you, you play from the flop" },
+  "3bet": { label: "3-bet pots", one: "a 3-bet pot", tip: "Heads-up after a 3-bet and a call: the preflop is played for you, you play from the flop" },
+  bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "Small blind against big blind, folded to them: the preflop is played for you, you play from the flop" },
+};
+export const isPotDrill = (x: unknown): x is PotDrill => typeof x === "string" && x in POT_DRILLS;
+/** the deals a drill hand may take to reach its pot */
+export const DRILL_TRIES = 400;
+const BLINDS = ["SB", "BB"];
 
 /** Your seat each hand: moving one place a hand ("moves"), drawn at random from the hand's seed ("random"), or one
  * seat (its name). */
@@ -81,6 +98,7 @@ export type SeatChoice = string;
 export interface HandOptions {
   seat?: SeatChoice;
   preflopOnly?: boolean;
+  pot?: PotDrill | null;
 }
 
 /** Your seat in the session's n-th hand: the button first, then one seat to the right each hand. */
@@ -90,9 +108,11 @@ export function heroSeat(n: number, players: number): string {
   return s[(((start - n) % players) + players) % players]!;
 }
 
-/** Your seat in the n-th hand under a seat choice (a seat the table doesn't have moves). */
-export function seatFor(choice: SeatChoice | undefined, n: number, players: number, seed: number): string {
+/** Your seat in the n-th hand under a seat choice (a seat the table doesn't have moves). Blind vs blind, one of the
+ * blinds: the one chosen, else moving from the small blind to the big blind (or drawn at random). */
+export function seatFor(choice: SeatChoice | undefined, n: number, players: number, seed: number, pot?: PotDrill | null): string {
   const s = seatsOf(players);
+  if (pot === "bvb") return choice && BLINDS.includes(choice) ? choice : BLINDS[(choice === "random" ? seed : n) % 2]!;
   if (choice === "random") return s[seed % players]!;
   return choice && s.includes(choice) ? choice : heroSeat(n, players);
 }
@@ -104,15 +124,35 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     n,
     players,
     stack,
-    hero: seatFor(opts.seat, n, players, seed),
+    hero: seatFor(opts.seat, n, players, seed, opts.pot),
     ...d,
     shown: 0,
     lines: noLines(),
     decisions: [],
     result: null,
-    ...(opts.preflopOnly ? { preflopOnly: true as const } : {}),
+    ...(opts.pot ? { pot: opts.pot } : opts.preflopOnly ? { preflopOnly: true as const } : {}),
   };
 }
+
+/** A drill hand that went another way, dealt again (the same hand number: your seat stays where it moves). */
+export const redeal = (h: PracticeHand, seed: number, opts: HandOptions): PracticeHand => ({ ...newHand(h.players, h.stack, h.n, seed, opts), tries: (h.tries ?? 0) + 1 });
+
+/** A drill hand whose preflop has gone another way (to be dealt again), else false (still on course, or on the
+ * flop): you folded, an all-in, too many raises, someone not in the blinds in a blind-vs-blind pot, or the flop
+ * reached by more than two players or with another number of raises (the classic trainer's `offDrill`). */
+export function offDrill(h: PracticeHand, sim: Sim = simOf(h)): boolean {
+  if (!h.pot || h.shown >= 3) return false;
+  const pre = h.lines.preflop;
+  const raises = pre.filter((m) => m.action === "raise" || m.action === "bet").length;
+  const want = h.pot === "srp" ? 1 : h.pot === "3bet" ? 2 : null;
+  if (!sim.active.has(h.hero) || pre.some((m) => m.action === "all-in") || (want != null && raises > want)) return true;
+  if (h.pot === "bvb" && (!BLINDS.includes(h.hero) || pre.some((m) => !BLINDS.includes(m.pos) && m.action !== "fold"))) return true;
+  if (sim.handOver) return true;
+  return sim.waiting === "flop" && (sim.active.size !== 2 || (want != null && raises !== want));
+}
+
+/** Still dealing a drill's pot: its preflop, played for you. */
+export const seeking = (h: PracticeHand) => !!h.pot && h.shown < 3 && !h.result;
 
 /** Preflop only, the preflop closed with you and someone else in: the hand stops there. */
 const cutAt = (h: PracticeHand, sim: Sim) => !!h.preflopOnly && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);
@@ -162,6 +202,8 @@ export type Phase =
   | { kind: "deal"; street: Street }
   | { kind: "hero"; street: Street }
   | { kind: "villain"; street: Street; seat: string }
+  /** your preflop in a drill, played for you as the opponents' is */
+  | { kind: "auto"; street: Street; seat: string }
   | { kind: "over" };
 
 /** What happens next: cards to deal, a decision (yours or an opponent's), or the end of the hand (also your fold). */
@@ -169,6 +211,7 @@ export function phaseOf(h: PracticeHand, sim: Sim = simOf(h)): Phase {
   if (h.result || sim.handOver || !sim.active.has(h.hero) || cutAt(h, sim)) return { kind: "over" };
   if (sim.waiting) return { kind: "deal", street: sim.waiting };
   if (!sim.toAct || !sim.current) return { kind: "over" };
+  if (sim.toAct === h.hero && h.pot && sim.current === "preflop") return { kind: "auto", street: sim.current, seat: h.hero };
   return sim.toAct === h.hero ? { kind: "hero", street: sim.current } : { kind: "villain", street: sim.current, seat: sim.toAct };
 }
 

@@ -2362,3 +2362,53 @@ Untouched (read-only `ps`). Everything ran under `nice`. Memory 57% free.
   antes and straddles, the 20-hand engine check.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, the drill modes in full hands (second session)
+
+Deploy of fdc8dca (History) verified live: run 41707682769 passed; `/lizard/` serves `index-Ba46ClDr.js`, which has
+"Full hands by pot type", and `/lizard/history` answers 200.
+
+Practice's "Play" now takes the classic trainer's drill modes (`practice.js:169-196`): Single-raised pots, 3-bet pots,
+Blind vs blind, beside Full hands and Preflop only.
+
+### Code
+
+- `web/src/features/practice/practice.ts`:
+  - `PotDrill`, `POT_DRILLS` (label, "a 3-bet pot", the tip), `isPotDrill`, `DRILL_TRIES` (400, the classic's);
+    `HandOptions.pot`, `PracticeHand.pot` and `tries`.
+  - `phaseOf`: in a drill your preflop turn is `{kind: "auto"}`, played by Advisor.play for your seat as the
+    opponents' moves are (the charts), recorded as a move, never a decision: nothing preflop is graded in a drill.
+  - `offDrill(hand)`, the classic `offDrill`: you folded, an all-in, more raises than the pot has, someone outside the
+    blinds in a blind-vs-blind pot, the hand over, or the flop reached by other than two players or with another
+    number of raises. `redeal(hand, seed, opts)`: the same hand number (your seat stays), another deal, `tries` + 1.
+    `seeking(hand)`: still dealing the drill's preflop.
+  - `seatFor`: blind vs blind puts you in a blind (the one chosen, else moving from the small blind, or at random).
+- `PracticePage.tsx`: `commit` deals an off-course hand again before anything is counted (after 400 deals it says
+  so, with "Try again"); the drill's preflop moves go by with no pause; "Dealing a 3-bet pot: the preflop is played
+  for you (deal N)…" while it deals; the session record keeps `pot`. The "Not here yet" note no longer lists them.
+- `features/history/history.ts`: a drill session's row says its pot ("2 players · 100bb · 3-bet pots").
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 358/358 in 58 files (`practice.test.ts`: the auto phase, on and off course for each pot, the blinds' seats, the redeal; `PracticePage.test.tsx`: a heads-up single-raised drill whose first deal is a limp, dealt again, then raised and called, played from the flop, one decision graded and the session kept under "SRP"). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+6-max, 3-bet pots: your BTN open and your call of the small blind's 3-bet played for you, the big blind folding; on
+5c5s3c facing a bet, your call graded Best under "Precomputed solution · 3bp_sb_btn · 0.14% pot from equilibrium …
+(converged)"; the turn answered. Blind vs blind: "Dealing a blind-vs-blind pot…", then the small blind's raise to 3
+and the call, and your flop options.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`. Memory 61% free.
+
+### Next
+
+- Phase 1, still open: multitabling, carried chips, sizes of your own, antes and straddles, the 20-hand engine check.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

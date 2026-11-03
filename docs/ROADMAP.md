@@ -136,9 +136,10 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
     Study", and drill sessions saved.
   - Since then: "Open this spot in Study" from a full-hand decision (`practice.ts` `studyOf`), the rule-based
     "why" text in Practice and Drills (`grade.ts` `whyText`), and the History page (`web/src/features/history/`):
-    every kept session by day, lifetime totals by kind, and Practice's finished hands by pot type (2026-11-03).
-  - **Still open in Phase 1:** the drill modes (pot types in full hands), multitabling, chips carried from hand to
-    hand, sizes of your own, antes and straddles, and the 20-hand engine check.
+    every kept session by day, lifetime totals by kind, and Practice's finished hands by pot type; and the drill
+    modes in full hands (single-raised, 3-bet and blind-vs-blind pots, `practice.ts` `offDrill`) (2026-11-03).
+  - **Still open in Phase 1:** multitabling, chips carried from hand to hand, sizes of your own, antes and straddles,
+    and the 20-hand engine check.
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;

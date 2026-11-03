@@ -8,7 +8,10 @@ import {
   finish,
   heroSeat,
   newHand,
+  offDrill,
   phaseOf,
+  redeal,
+  seeking,
   shownCards,
   simOf,
   stateFor,
@@ -71,6 +74,45 @@ describe("seats and dealing", () => {
     const w = play(newHand(3, 100, 0, 9, { seat: "BB", preflopOnly: true }), { pos: "BTN", action: "fold" }, { pos: "SB", action: "fold" });
     expect(finish(w)).toMatchObject({ net: 0.5, winners: ["BB"] });
     expect(finish(w).cut).toBeUndefined();
+  });
+
+  it("pot drills: your preflop played for you, the hand off course where it goes another way, dealt again", () => {
+    const f = (x: string) => ({ pos: x, action: "fold" as const });
+    // a 3-bet pot from the button: the cutoff opens, you 3-bet (played for you), it calls
+    let h = newHand(6, 100, 0, 9, { seat: "BTN", pot: "3bet" });
+    expect(h).toMatchObject({ hero: "BTN", pot: "3bet" });
+    expect(h.preflopOnly).toBeUndefined();
+    h = play(h, f("UTG"), f("HJ"), { pos: "CO", action: "raise", to: 2.5 });
+    expect(phaseOf(h)).toEqual({ kind: "auto", street: "preflop", seat: "BTN" });
+    expect(seeking(h)).toBe(true);
+    h = play(h, { pos: "BTN", action: "raise", to: 7.5 }, f("SB"), f("BB"));
+    expect(offDrill(h)).toBe(false);
+    const on = play(h, { pos: "CO", action: "call" });
+    expect(offDrill(on)).toBe(false);
+    expect(phaseOf(on)).toEqual({ kind: "deal", street: "flop" });
+    const flop = dealNext(on, "flop");
+    expect(seeking(flop)).toBe(false);
+    expect(phaseOf(flop)).toEqual({ kind: "villain", street: "flop", seat: "CO" });
+    // a 4-bet, a fold, an all-in, three to the flop: off course
+    expect(offDrill(play(h, { pos: "CO", action: "raise", to: 20 }))).toBe(true);
+    expect(offDrill(play(h, f("CO")))).toBe(true);
+    expect(offDrill(play(h, { pos: "CO", action: "all-in" }))).toBe(true);
+    const srp = play(newHand(6, 100, 0, 9, { seat: "BB", pot: "srp" }), f("UTG"), f("HJ"), { pos: "CO", action: "raise", to: 2.5 }, f("BTN"), { pos: "SB", action: "call" });
+    expect(offDrill(srp)).toBe(false);
+    expect(offDrill(play(srp, { pos: "BB", action: "call" }))).toBe(true);
+    expect(offDrill(play(srp, f("BB")))).toBe(true);
+    // blind vs blind: you're in a blind (the chosen one, else moving from the small blind); anyone else in is off course
+    expect([0, 1, 2].map((n) => newHand(6, 100, n, 9, { pot: "bvb" }).hero)).toEqual(["SB", "BB", "SB"]);
+    expect(newHand(6, 100, 0, 9, { seat: "BB", pot: "bvb" }).hero).toBe("BB");
+    expect(newHand(6, 100, 0, 9, { seat: "CO", pot: "bvb" }).hero).toBe("SB");
+    const bvb = play(newHand(6, 100, 1, 9, { pot: "bvb" }), f("UTG"), f("HJ"), f("CO"), f("BTN"), { pos: "SB", action: "call" }, { pos: "BB", action: "check" });
+    expect(offDrill(bvb)).toBe(false);
+    expect(phaseOf(bvb)).toEqual({ kind: "deal", street: "flop" });
+    expect(offDrill(play(newHand(6, 100, 1, 9, { pot: "bvb" }), f("UTG"), { pos: "HJ", action: "call" }))).toBe(true);
+    // dealt again: the same hand number and seat, another deal, the tries counted
+    const again = redeal(redeal(h, 77, { seat: "BTN", pot: "3bet" }), 78, { seat: "BTN", pot: "3bet" });
+    expect(again).toMatchObject({ n: 0, hero: "BTN", pot: "3bet", tries: 2, seed: 78 });
+    expect(again.lines.preflop).toEqual([]);
   });
 
   it("deals every seat and the board from the hand's seed, the same again", () => {

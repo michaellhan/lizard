@@ -5,6 +5,7 @@
 // sessions have neither, and are counted as such. Records are read defensively: any field may be missing.
 import type { SessionRecord } from "@/data/db";
 import { potType } from "@/features/analyze/analyze";
+import { isPotDrill, POT_DRILLS } from "@/features/practice/practice";
 import { fromSearch } from "@/features/study/studyState";
 import type { Grade } from "@/grading/grade";
 import type { Move, Sim } from "@/poker/table";
@@ -139,7 +140,8 @@ export function rowOf(s: SessionRecord): SessionRow {
   const base = { id: s.id, kind: s.kind, at: num(s.startedAt), n: num(s.decisions) };
   const per = (ne: number, loss: number, lossPct: number) => ({ lossPer: ne ? loss / ne : null, lossPctPer: ne ? lossPct / ne : null });
   if (s.kind === "practice") {
-    const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${m.preflopOnly ? " · preflop only" : ""}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
+    const kind = isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.preflopOnly ? " · preflop only" : "";
+    const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${kind}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
     return {
       ...base,
       what,
