@@ -1040,3 +1040,33 @@ Deploy run 41673943784 passed. `/lizard/` serves `index-CQ8VwABi.js`, which hold
 ### Precompute builds
 
 Untouched. Memory 61–67% free; every check ran under `nice`.
+
+## 2026-11-03: Phase 5, keys in full-hand Practice (second session)
+
+Deploy of 03b3516 (preflop only and your seat) verified live: `index-C1Ixl2Oc.js`, which has "Your seat", "Preflop
+only: the hand stopped" and "Open this spot in Study".
+
+### Code
+
+- `PracticePage.tsx` `FullHands`: a window keydown listener while the Full hands tab is shown (an `active` prop: the
+  table stays mounted, hidden, while you drill, and its keys stop). 1–9 take your options (each button shows its
+  number); once the hand is over, Enter or Space deal the next hand (unless a button or link has focus: those keys
+  are its own) and K keeps it in Analyze (again after an error). Held keys, modifier keys and keys typed in a field
+  are ignored. "Next hand" takes focus as a hand ends. The intro lists the keys, as the drills' does.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 244/244 in 40 files. New in `PracticePage.test.tsx`: a heads-up hand played by keys (nothing on the Drills tab, from a held key or in a field; 9 with two options does nothing; K keeps; Enter deals the next hand) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Heads-up, Preflop only: the options read "1 raise (3bb)", "2 call", "3 fold"; 2 called, the hand stopped and "Next
+  hand" had focus; K kept it ("Open it there"); Enter dealt hand 2 in the big blind. No console errors, no solve ran.
+
+### Precompute builds
+
+Untouched. Memory 65% free; every check ran under `nice`.

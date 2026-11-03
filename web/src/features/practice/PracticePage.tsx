@@ -141,7 +141,7 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
       </div>
       {(handsOpened || tab === "hands") && (
         <div role="tabpanel" id="practice-panel-hands" aria-labelledby="practice-tab-hands" hidden={tab !== "hands"}>
-          <FullHands pace={pace} />
+          <FullHands pace={pace} active={tab === "hands"} />
         </div>
       )}
       {tab === "drills" && (
@@ -153,7 +153,8 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
   );
 }
 
-function FullHands({ pace }: { pace: number }) {
+/** `active`: its tab is the one shown (its keys work only then). */
+function FullHands({ pace, active }: { pace: number; active: boolean }) {
   const picked = useSettings((s) => s.mode);
   const mode = picked === "accurate" ? "accurate" : "quick";
   const getSolver = useSolver();
@@ -295,6 +296,38 @@ function FullHands({ pace }: { pace: number }) {
     commit(r.hand);
   };
 
+  // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze (the latest handlers, read
+  // through a ref: the listener stays while the tab is shown)
+  const onKey = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    onKey.current = (e) => {
+      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
+      // (a held key doesn't repeat into the next spot)
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+      if (phase.kind === "hero" && shown.st === "done" && /^[1-9]$/.test(e.key)) {
+        const i = Number(e.key) - 1;
+        if (i < optionsOf(shown.result.data).length) choose(i);
+      } else if (phase.kind === "over" && hand.result) {
+        // (Enter or Space on a focused button or link is that control's own)
+        if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
+          e.preventDefault();
+          nextHand();
+        } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) void keep(hand, session);
+      }
+    };
+  });
+  useEffect(() => {
+    if (!active) return;
+    const on = (e: KeyboardEvent) => onKey.current(e);
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [active]);
+  // once the hand is over, the next one is a key away
+  const nextRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (hand.result && active) nextRef.current?.focus({ preventScroll: true });
+  }, [hand.result, active]);
+
   const ungraded = (a: { action: string; to?: number }) => {
     const h = decideUngraded(hand, a, sim);
     if (typeof h === "string") {
@@ -316,7 +349,7 @@ function FullHands({ pace }: { pace: number }) {
           <p className="text-sm text-muted">
             Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
             the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
-            preflop closes.
+            preflop closes. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -394,6 +427,11 @@ function FullHands({ pace }: { pace: number }) {
                 onClick={() => choose(i)}
                 className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:bg-surface-3"
               >
+                {i < 9 && (
+                  <span aria-hidden className="mr-1.5 text-xs text-faint">
+                    {i + 1}
+                  </span>
+                )}
                 {optionLabel(a.action, a.amount_bb)}
               </button>
             ))}
@@ -430,7 +468,7 @@ function FullHands({ pace }: { pace: number }) {
               )}
               {hand.result.says && <span className="text-muted"> · {hand.result.says}</span>}
             </p>
-            <button type="button" onClick={nextHand} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
+            <button ref={nextRef} type="button" onClick={nextHand} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
             </button>
             <KeepHand

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listHands, PRACTICE_SITE } from "@/data/hands";
+import { deleteImport, listHands, PRACTICE_SITE } from "@/data/hands";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { PlayRequest, Provenance, SolveResult } from "@/solver/types";
@@ -80,7 +80,7 @@ describe("PracticePage", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     const options = await screen.findByRole("group", { name: "Your options" });
-    expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["fold", "call", "raise 2.5"]);
+    expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1fold", "2call", "3raise 2.5"]);
     expect(screen.getByRole("listitem", { name: "BTN/SB (you)" })).toHaveAttribute("aria-current", "true");
     fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
 
@@ -94,7 +94,7 @@ describe("PracticePage", () => {
 
     // the big blind calls and checks the flop; you bet, it folds
     const flop = await screen.findByRole("group", { name: "Your options" });
-    expect(within(flop).getAllByRole("button").map((b) => b.textContent)).toEqual(["check", "bet 33% (1.6bb)"]);
+    expect(within(flop).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]);
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
     fireEvent.click(within(flop).getByRole("button", { name: "bet 33% (1.6bb)" }));
     last = screen.getByRole("region", { name: "Last decision" });
@@ -127,6 +127,44 @@ describe("PracticePage", () => {
     // the next hand: your seat moves to the big blind
     fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
     expect(await screen.findByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+  });
+
+  it("plays by keys: 1–9 your options, K keeps the hand, Enter the next one; none while drilling or typing", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    await screen.findByRole("group", { name: "Your options" });
+    // (on the Drills tab the hand waits)
+    fireEvent.click(screen.getByRole("tab", { name: "Drills" }));
+    fireEvent.keyDown(window, { key: "3" });
+    fireEvent.click(screen.getByRole("tab", { name: "Full hands" }));
+    expect(screen.queryByRole("region", { name: "Last decision" })).toBeNull();
+    // (a held key, or one typed in a field, takes nothing)
+    fireEvent.keyDown(window, { key: "3", repeat: true });
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Players" }), { key: "3" });
+    expect(screen.queryByRole("region", { name: "Last decision" })).toBeNull();
+
+    // 3: raise 2.5; on the flop, 9 is no option, 2 bets
+    fireEvent.keyDown(window, { key: "3" });
+    expect(within(await screen.findByRole("region", { name: "Last decision" })).getByText("Best")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "bet 33% (1.6bb)" });
+    fireEvent.keyDown(window, { key: "9" });
+    expect(screen.getByRole("button", { name: "bet 33% (1.6bb)" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "2" });
+    expect(await screen.findByText("You won")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next hand" })).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "k" });
+    expect(await screen.findByRole("link", { name: "Open it there" })).toBeInTheDocument();
+    const kept = await listHands();
+    expect(kept).toHaveLength(1);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(await screen.findByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+    await deleteImport(kept[0]!.importId);
   });
 
   it("keeps a finished hand in Analyze, and every hand once asked to", async () => {
