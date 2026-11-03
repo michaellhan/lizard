@@ -67,7 +67,8 @@ interface SolveResult { data: AdvisorResponse; provenance: Provenance }
 
 `applyMode(state, mode, transport)` (`client.ts:35`) always sends `speed` (Quick sends "fast"), `budget` and
 `prior_budget`: the seconds for this street, and for each earlier street solved to narrow the ranges. Without them
-the Advisor runs every mode at 4 s + 2 s (`advisor.py:2860`). The budgets are the legacy page's (`index.html:974-978`),
+the browser worker's Advisor runs every mode at its default 4 s + 2 s (`advisor.py:2860`); the local server falls
+back to its own `SPEEDS` (`native.py:85-92, 121-123`), the same numbers as below. The budgets are the legacy page's (`index.html:974-978`),
 in `MODE_BUDGETS`:
 
 - browser worker: Fast 8 + 3 s, Accurate 60 + 12 s;
@@ -84,11 +85,11 @@ Every result and every partial result carries a `Provenance` (`provenance.ts`), 
 
 | `source` | When | Approximate? |
 |---|---|---|
-| `library` | `precomputed` present: a flop answered from the offline library | no (its exploitability is shown) |
+| `library` | `precomputed` present: a flop answered from the offline library | no, and its exploitability is shown; a borrowed spot (`precomputed.borrowed`, another table size's entry) is approximate, with its description and no exploitability |
 | `library-turn` | a turn read from the flop library's stored turn strategies (`approximate.source` or `source` is "store") | always; the flop entry's numbers are not shown |
-| `instant` | an answer at once read from another solution (`approximate.source` near, prev, unraked or offtree) | always; shows the Advisor's label, not the other solve's numbers |
-| `live` | the solver ran iterations for this request, or a look at this street's own solve (`approximate.source` "solve") | if partial, a look, or the solver says so |
-| `charts` | a preflop node answered from the preflop charts | the badge says "Preflop charts", never "solved" |
+| `instant` | an answer at once read from another solution (`approximate.source` near, prev, unraked or offtree, or "solve" with `solver.by`: a 3-way read of an earlier decision's solve) | always; shows the Advisor's label, not the other solve's numbers |
+| `live` | the solver ran iterations for this request, or a look at this street's own solve (`approximate.source` "solve", no `solver.by`) | if partial, a look, or `solver.approximate` (set on advice answers far over target; Study answers never carry it, `advisor.py:2982-2983, 3000`) |
+| `charts` | a preflop node answered from the preflop charts | always; the badge says "Preflop charts", never "solved" |
 | `preflop-solve` | a preflop equilibrium the solver computed (`pf_solve`) | as reported |
 | `rules`, `equity` | fallbacks when a solve fails or is unsupported, and 5+-way flop or turn answers (`multiway` without `solved` or `solver`: a Monte Carlo heuristic) | always |
 | `unknown` | none of the above | shown as "Unlabelled" |

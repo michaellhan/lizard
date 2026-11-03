@@ -29,13 +29,18 @@ export const MODE_BUDGETS: Record<TransportKind, Record<SolveMode, [number, numb
 const QUICK_BUDGETS: Record<string, [number, number]> = { flop: [1.5, 0.3], turn: [1.5, 0.3], river: [0.8, 0.3] };
 const STREET_BY_CARDS: Record<number, string> = { 3: "flop", 4: "turn", 5: "river" };
 
+/** The mode a request runs at: a Study request runs Quick at Fast. */
+export function effectiveMode(state: Pick<AdvisorState, "study">, mode: SolveMode): SolveMode {
+  return state.study && mode === "quick" ? "fast" : mode;
+}
+
 /** The request keys for a mode on a backend: speed, budget and prior_budget, and quick (postflop Quick only). Study
  * requests never carry quick (classic Study offers Fast and Accurate only; a quick Study 4-way flop errors in the
  * browser), so Quick runs a Study request at Fast. */
 export function applyMode(state: AdvisorState, mode: SolveMode, transport: TransportKind = "worker"): AdvisorState {
   const s: AdvisorState = { ...state };
   delete s.quick;
-  const eff: SolveMode = state.study && mode === "quick" ? "fast" : mode;
+  const eff = effectiveMode(state, mode);
   // (cards counted, not characters: a board may carry separators, "Ks 7d 2c")
   const street = STREET_BY_CARDS[String(state.board ?? "").replace(/[\s,]+/g, "").length / 2];
   const quick = eff === "quick" && street !== undefined;
@@ -98,7 +103,8 @@ export class SolverClient {
     this.running = true;
     const { req } = item;
     const mode = req.mode ?? "fast";
-    const ctx = { mode, transport: this.transport.kind, solverVersion: this.solverVersion };
+    // (provenance records the mode the request runs at, as sent)
+    const ctx = { mode: effectiveMode(req.state, mode), transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
       const data = await this.transport.request(applyMode(req.state, mode, this.transport.kind), {
         progressive: req.progressive ?? false,

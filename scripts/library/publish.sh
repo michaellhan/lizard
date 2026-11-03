@@ -56,12 +56,18 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
 fi
 nice -n 10 "${G[@]}" push --quiet origin main
 
-# GitHub Pages takes a minute or two to publish: wait until the live index is the one just pushed
-want=$(shasum -a 1 "$CLONE/index.json" | cut -d' ' -f1)
+# GitHub Pages takes a minute or two to publish: wait until the live index and summary are the ones just pushed (the
+# summary too: a publish that changes only targets leaves index.json as it was)
+SITE=${URL%index.json}
+live_sha() { curl -fsS -H 'Cache-Control: no-cache' "$SITE$1?t=$(date +%s)" 2>/dev/null | shasum -a 1 | cut -d' ' -f1 || true; }
+want_index=$(shasum -a 1 "$CLONE/index.json" | cut -d' ' -f1)
+want_summary=$(shasum -a 1 "$CLONE/lizard-library.json" | cut -d' ' -f1)
 for _ in $(seq 1 40); do
-  got=$(curl -fsS -H 'Cache-Control: no-cache' "$URL?t=$(date +%s)" 2>/dev/null | shasum -a 1 | cut -d' ' -f1 || true)
-  if [ "$got" = "$want" ]; then echo "live: $URL matches the published index"; exit 0; fi
+  if [ "$(live_sha index.json)" = "$want_index" ] && [ "$(live_sha lizard-library.json)" = "$want_summary" ]; then
+    echo "live: ${SITE}index.json and lizard-library.json match the published ones"
+    exit 0
+  fi
   sleep 15
 done
-echo "pushed, but $URL does not serve the new index yet (Pages may still be building)" >&2
+echo "pushed, but $SITE does not serve the new index and summary yet (Pages may still be building)" >&2
 exit 2

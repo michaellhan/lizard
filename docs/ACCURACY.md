@@ -91,7 +91,7 @@ The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-20`) and 
 
 | Source (badge) | What produced it | Typical accuracy | Tier |
 |---|---|---|---|
-| `library`: Precomputed solution | Offline DCFR solve of a stored heads-up flop (18 spots, 6-max 100bb cash, no rake), or a 3-way flop's first decisions (4 spots) | Heads-up: ≤ 0.15% in its own game (sample mean 0.109%, 200-500 iterations) [V]; about 0.2-0.5% given up against the full game [M]. 3-way: 0.06-0.08% [M] | Near-exact in its game |
+| `library`: Precomputed solution | Offline DCFR solve of a stored heads-up flop (20 spots: 18 at 6-max 100bb cash, no rake, and 2 heads-up 2-max spots still being built), or a 3-way flop's first decisions (4 spots) | Heads-up: ≤ 0.15% in its own game (sample mean 0.109%, 200-500 iterations) [V]; about 0.2-0.5% given up against the full game [M]. 3-way: 0.06-0.08% [M] | Near-exact in its game; a borrowed spot (another table size's entry read as this one, `precomputed.borrowed`) is approximate, with no exploitability shown |
 | `live`: Live solve, Accurate | DCFR solve in the browser (60 s by the legacy budgets) or the local server (30 s) | Rivers about 0.013% [M]; single-raised turns 0.14% median (0.06-0.41) natively [M]; 3-bet-pot turns about 0.01% [M] | Near-exact in its game |
 | `live`: Live solve, Fast | Same, 8 s in the browser or 2.5 s + 2.5 s natively; stops early once settled | Rivers about 0.014% [M]; single-raised turns 0.93% median (0.61-2.72) natively, about 0.07-0.8% in the browser with the compiled core [M]; flops in a bucketed game | Near-exact to approximate |
 | `live`: Live solve, Quick | 1.5 s (river 0.8 s), smaller game | Rivers about 0.04%; turns about 6.4-6.9% in the browser [M] | Approximate |
@@ -100,7 +100,7 @@ The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-20`) and 
 | `rules`: Heuristic rules | Monte Carlo betting rules for pots no solver takes (5+ players on the flop or turn), or a fallback | No equilibrium measure. Each answer reports its trial count and a ± between the top actions [V] | Heuristic, not a solve |
 | `equity`: Equity estimate | Hero's equity against random hands, priced against the pot (`advisor.py:3836-3838`) | A rough last resort [V] | Heuristic, not a solve |
 | `library-turn`: Stored turn from the flop library | A library flop's stored turn strategy, read at once (Study's answer at once, its runouts) | 0.50-0.81% of the pot (table below); no exploitability shown, since the response's numbers are the flop entry's | Approximate |
-| `instant`: Answer at once | A read of another solution while the real solve runs: nearest stored flops, a borrowed spot, an earlier street's solve, an unraked entry, an off-menu size. The badge shows the Advisor's own label | See the reads below; no exploitability shown | Approximate |
+| `instant`: Answer at once | A read of another solution while the real solve runs: nearest stored flops, an earlier street's solve (heads-up, or a 3-way read of an earlier decision's solve), an unraked entry, an off-menu size. The badge shows the Advisor's own label | See the reads below; no exploitability shown | Approximate |
 
 Approximate reads also exist. They show at once while a real solve runs, or when nothing better is available.
 Each is flagged `approximate` in the response:
@@ -127,10 +127,13 @@ Each is flagged `approximate` in the response:
   iterations and the maximum 1,000 (`solver.py:2083`).
 - The budgets are **wall-clock seconds, not iteration counts**. A slower or busier device runs fewer iterations
   and gets a rougher answer.
-- In the browser, a heads-up post-flop answer more than 10× its mode's target is flagged
+- In the browser, a heads-up post-flop *advice* answer more than 10× its mode's target is flagged
   `solver.approximate` with `target_pct` (`advisor.py:102, 3003-3018`; targets at `worker.js:265`). That means
   above 2-3% at Fast and above 1% at Accurate. The native server sets no target (`advisor.py:2885`), so it never
-  sets this flag.
+  sets this flag. **Study answers never carry it.** `advise()` returns `self.study(state)` for a Study request
+  (`advisor.py:2982-2983`), and `_flag_short` runs only on the advice path (`advisor.py:3000`). So Lizard's Study
+  badge shows a short solve's exploitability, for example "3.00% pot from equilibrium", with no "approximate".
+  Quality bands are planned (ROADMAP Phase 0).
 
 > **LIZARD gap, fixed 2026-11-03 [V].** `applyMode` first sent only `quick` and `speed`. The worker builds its
 > Advisors without budgets (`worker.js:240-245`), so every browser mode ran at the Advisor's default 4 s + 2 s
@@ -318,7 +321,8 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
 
 1. **A short budget gives a rough answer.** A busy or slow device runs fewer iterations; 19 iterations on a limped
    turn were 38% of the pot from equilibrium (`advisor.py:135`) [M]. `CAP_ITERS = 30` is a floor for trimmed trees
-   [V]. The browser flags the worst cases as approximate (section 4.1); the native server does not.
+   [V]. The browser flags the worst advice cases as approximate (section 4.1); Study answers and the native server
+   do not. Lizard's Study badge shows the exploitability itself.
 2. **Rarely taken lines are barely trained.** When the solve takes the villain's line less than 10% of the time,
    the Advisor widens the villain's range (`RARE_LINE`, `advisor.py:190`) [V]. EVs of actions hero's range takes
    under 1% of the time (`RARE_BRANCH`, `advisor.py:244`) are marked `rough_ev` and shown with "≈". Such EVs were
@@ -343,7 +347,8 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
 
 **Rule.**
 1. Every number on screen carries its provenance: the source, the exploitability in % of the pot (labelled "in the
-   solved game") where one exists, the iterations, and whether it is partial or approximate.
+   solved game", and for 3- and 4-way answers called the mean best-response gain) where one exists, the
+   iterations, and whether it is partial or approximate.
 2. Approximate answers are labelled.
 3. Charts, rules and equity estimates are never called "solved" or "GTO". "Solved" is used only for library entries
    and live solves with a stated exploitability.
@@ -359,19 +364,29 @@ conditions in order:
    too;
 4. `pf_solve` or `study: "pf_progress"` maps to preflop-solve;
 5. preflop maps to charts;
-6. a top-level `approximate` maps to live when its source is "solve" (this street's own solve stopped at a look, or
-   one cut to fit Quick), and to instant otherwise ("near", "prev", "unraked", "offtree": reads of other solutions);
+6. a top-level `approximate` maps to live when its source is "solve" and the response has no `solver.by` (this
+   street's own solve stopped at a look, or one cut to fit Quick). Otherwise it maps to instant: "solve" with
+   `solver.by` is a read of an earlier decision's 3-way solve on this street (`_study_mw_prev`), and "near",
+   "prev", "unraked" and "offtree" are reads of other solutions;
 7. `multiway` with no `solved` and no `solver` (the 5+-way flop or turn heuristic) maps to rules;
 8. `solver.iterations > 0` maps to live;
 9. anything else is "unknown".
 
-For library-turn and instant the response's `solver` numbers belong to another solve (the flop entry, or the
-previous street's solve), so they are not shown; the Advisor's label says what the answer was read from.
+For library-turn, instant and a borrowed library spot (`precomputed.borrowed`: another table size's spot read as
+this one) the response's `solver` numbers belong to another solve, so they are not shown. That solve is the flop
+entry, the previous street's solve, or the other table's spot on its own ranges. The badge shows the Advisor's label
+for what the answer was read from, or the borrowed spot's description, and marks it approximate. Preflop charts are
+marked approximate too.
+
+`describe` writes the exploitability as "X% pot from equilibrium in the solved game", or "mean best-response gain"
+for a 3- or 4-way answer.
 
 **Gaps found against the Advisor's actual responses [V].** The first three rows and the last were fixed on
 2026-11-03, with tests in `provenance.test.ts` and `client.test.ts`. An independent review the same day found two
 further mislabels: a flop read off the nearest stored flops showed as a stored turn, and a turn read off the
-flop's solve showed as a live solve with the flop's numbers. Both are fixed by the order above. The other rows are
+flop's solve showed as a live solve with the flop's numbers. Both are fixed by the order above. A second review
+found three more: a 3-way read of an earlier decision's solve showed as live; borrowed spots showed as an exact
+library answer; and charts were not marked approximate. These are fixed as described above. The other rows are
 open.
 
 | Response | What the Advisor sends | What LIZARD showed | Fix |

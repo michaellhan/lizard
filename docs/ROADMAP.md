@@ -70,14 +70,14 @@ Effort sizes are rough: **S** is a few days, **M** is one to three weeks, **L** 
     `RangesPage.tsx` comment no longer names a competitor's feature;
   - per-mode time budgets are sent (`applyMode`, `MODE_BUDGETS`);
   - provenance for stored turns, answers at once and 5+-way heuristics (`docs/ACCURACY.md` §11).
-- **Convergence label.** In `web/src/solver/provenance.ts` (`describe`, `:96-105`), say the exploitability is measured within the solve's abstraction. Add the classic bands (converged under 3% of the pot, fair under 10%, rough otherwise, approximate when flagged; `solver/gto/static/index.html:1932-1937`) and the target when present. Update `web/src/components/ProvenanceBadge.tsx`.
+- **Convergence label.** The abstraction wording is done: `describe` (`web/src/solver/provenance.ts:113-127`) says "in the solved game", and "mean best-response gain" for 3- and 4-way answers. Still to do: add the classic bands (converged under 3% of the pot, fair under 10%, rough otherwise, approximate when flagged; `solver/gto/static/index.html:1932-1937`) and the target when present. Update `web/src/components/ProvenanceBadge.tsx`.
 - **Settings that do nothing.** Apply `evUnit` (bb or % of pot) in `StudyPage.tsx` action buttons and `ComboPanel.tsx`, or remove the setting. Do the same for `colorByAction` (`web/src/state/settings.ts:13-15`).
 - **3-way display.**
-  - Render the `opponents` list of 3-way answers in `StudyPage.tsx`, with one toggle per opponent; today only `opponent_grid` is read (`:92`, `:182-186`).
+  - Render the `opponents` list of 3-way answers in `StudyPage.tsx`, with one toggle per opponent; today only `opponent_grid` is read (`:94`, `:184-188`).
   - Show the Study link for 3-way spots in `web/src/features/library/LibraryPage.tsx:113`.
 - **Action filters.** Clicking an action hides the others in the grid, through the existing `hidden` prop of `web/src/components/RangeMatrix.tsx:20-21`.
 - **Hand-class and draw filters.** Port `catsOf`, `filterRes` and `filterHtml` from `solver/gto/static/study.js:367-419`. The categories come from the answer (`breakdown.py:20-26`).
-- **EQR grid view.** Add an `eqr` view to `RangeMatrix.tsx` and to `StudyPage.tsx`'s view state (`:52`). It uses the fields `ComboPanel.tsx:6-9` already uses.
+- **EQR grid view.** Add an `eqr` view to `RangeMatrix.tsx` and to `StudyPage.tsx`'s view state (`:54`). It uses the fields `ComboPanel.tsx:6-9` already uses.
 - **Preflop Solver source.** Add a Charts | Solver toggle that sends `preflop_solve` (as `study.js:45-49` does). It shows progress for `pf_progress` answers, and keeps exported solves in IndexedDB in place of classic's `gto-pf` cache.
   - Lizard-side changes: a new store or use of `kv`, through a new migration in `web/src/data/db.ts`.
   - Label it "Preflop solve (class-level model)". It covers 2–6 players, equal stacks of 10–250bb and no ICM.

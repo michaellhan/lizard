@@ -15,7 +15,9 @@ export function SettingsPage() {
         <legend className="px-1 font-medium">Solve accuracy</legend>
         <ModePicker />
         <p className="text-xs text-muted">
-          Quick and Fast stop once settled; Accurate runs to ~0.1% of the pot heads-up. Library flops answer instantly at every speed.
+          Fast stops once a heads-up street settles; Accurate aims at about 0.1% of the pot heads-up; Quick solves a smaller
+          game and is rough on turns. Study offers Fast and Accurate only and runs Quick at Fast. Library flops answer
+          instantly at every speed.
         </p>
       </fieldset>
 

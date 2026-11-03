@@ -36,6 +36,8 @@ export interface Provenance {
   fallbackReason?: string;
   /** the solver's own words for what an approximate answer was read from */
   approximateLabel?: string;
+  /** a 3+-way answer: its exploitability figure is the players' mean best-response gain */
+  multiway?: boolean;
   mode: SolveMode;
   transport: TransportKind;
   /** solver build: upstream gto-solver commit and Lizard bundle version */

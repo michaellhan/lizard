@@ -10,12 +10,12 @@ const MODES: { id: SolveMode; label: string; hint: string }[] = [
   {
     id: "fast",
     label: "Fast",
-    hint: "An 8 s budget a street in the browser (2.5 s on the local solver), plus 3 s for each earlier street solved; an unsettled street gets a second budget and a 3-way flop at least 15 s. Heads-up settles near 0.2-0.3% of the pot",
+    hint: "A budget of 8 s a street in the browser (2.5 s on the local solver), plus 3 s (2.5 s) for each earlier street solved. It can run longer: an unsettled street gets a second budget, a 3-way flop at least 15 s, and a browser turn after a stored flop the unspent 3 s. Heads-up settles near 0.2-0.3% of the pot",
   },
   {
     id: "accurate",
     label: "Accurate",
-    hint: "A 60 s budget a street in the browser (30 s on the local solver), plus 12 s for each earlier street solved; aims at about 0.1% of the pot",
+    hint: "A budget of 60 s a street in the browser (30 s on the local solver), plus 12 s for each earlier street solved; aims at about 0.1% of the pot",
   },
 ];
 

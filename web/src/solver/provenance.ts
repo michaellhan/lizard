@@ -37,27 +37,42 @@ export function sourceOf(r: AdvisorResponse): ResultSource {
   if (isStoredTurn(r)) return "library-turn";
   if (typeof r.pf_solve === "object" || r.study === "pf_progress") return "preflop-solve";
   if (r.street === "preflop") return "charts";
-  // approximate {source}: "solve" is a live solve stopped at a look, or one cut to fit Quick (advisor.py _study_look,
-  // _mw_look, the instant sources); "near", "prev", "unraked", "offtree" are reads of other solutions: an answer at once
+  // approximate {source}: "solve" with no solver.by is this street's own solve stopped at a look (advisor.py
+  // _study_look) or one cut to fit Quick; "solve" with solver.by is a read of an earlier decision's solve on this
+  // street (_study_mw_prev), and "near", "prev", "unraked", "offtree" are reads of other solutions: answers at once
   const approx = approximateOf(r);
-  if (approx) return approx.source === "solve" ? "live" : "instant";
+  if (approx) return approx.source === "solve" && !r.solver?.by ? "live" : "instant";
   // 5+ players on the flop or turn: a Monte Carlo heuristic, not a solve (3-way and 4+ way rivers say solved: true)
   if (r.multiway && !r.solved && !r.solver) return "rules";
   if (r.solver && typeof r.solver.iterations === "number" && r.solver.iterations > 0) return "live";
   return "unknown";
 }
 
+/** A borrowed library spot's description ("" when it has none), or null when the answer's spot is its own. */
+function borrowedOf(r: AdvisorResponse): string | null {
+  const b = r.precomputed?.borrowed;
+  if (!b || typeof b !== "object") return null;
+  const text = (b as { text?: unknown }).text;
+  return typeof text === "string" ? text : "";
+}
+
 export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Provenance {
   const source = sourceOf(r);
   const approx = approximateOf(r);
-  // a stored turn's or an answer at once's solver numbers are another solve's (the flop entry, the previous street's
-  // solve), which do not describe this answer: not shown. The Advisor's label says what it was read from.
-  const sv = source === "library-turn" || source === "instant" ? {} : (r.solver ?? {});
+  // a library spot borrowed from another table size (flop_library / mw_library info().borrowed): approximate, "that
+  // spot read as this one"; its exploitability is that spot's, on its own ranges
+  const borrowed = borrowedOf(r);
+  // a stored turn's, an answer at once's or a borrowed spot's solver numbers are another solve's (the flop entry, the
+  // previous street's solve, another table's spot), which do not describe this answer: not shown. The label says what
+  // it was read from.
+  const sv = source === "library-turn" || source === "instant" || borrowed !== null ? {} : (r.solver ?? {});
   const p: Provenance = {
     source,
     approximate:
       Boolean(sv.approximate) ||
       Boolean(approx) ||
+      borrowed !== null ||
+      source === "charts" ||
       source === "rules" ||
       source === "equity" ||
       source === "library-turn" ||
@@ -78,6 +93,8 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (r.precomputed && typeof r.precomputed.spot === "string") p.librarySpot = r.precomputed.spot;
   if (typeof r.fallback_reason === "string") p.fallbackReason = r.fallback_reason;
   if (typeof approx?.label === "string") p.approximateLabel = approx.label;
+  else if (borrowed !== null) p.approximateLabel = `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
+  if (r.multiway) p.multiway = true;
   return p;
 }
 
@@ -96,8 +113,13 @@ const LABELS: Record<ResultSource, string> = {
 export function describe(p: Provenance): string {
   const parts = [LABELS[p.source]];
   if (p.librarySpot) parts.push(p.librarySpot);
-  if (p.approximateLabel && p.source !== "library-turn") parts.push(p.approximateLabel);
-  if (p.exploitabilityPct !== undefined) parts.push(`${p.exploitabilityPct.toFixed(2)}% pot from equilibrium`);
+  if (p.approximateLabel) parts.push(p.approximateLabel);
+  // measured in the game the solver played (its bet menu and buckets), not the full game; for 3- and 4-way answers the
+  // figure is the players' mean best-response gain (advisor.py), not a two-player exploitability
+  if (p.exploitabilityPct !== undefined) {
+    const what = p.multiway ? "mean best-response gain" : "from equilibrium";
+    parts.push(`${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game`);
+  }
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);
   if (p.partial) parts.push("in progress");
   else if (p.approximate) parts.push("approximate");

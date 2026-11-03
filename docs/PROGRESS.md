@@ -162,6 +162,42 @@ did not: the heads-up fingerprints were in fact checked this session. Fixed in t
 Tests: web 39/39 (new or extended cases in `provenance.test.ts`, `client.test.ts`, `catalog.test.ts`,
 `studyState.test.ts`), typecheck and lint clean, assembler 7/7 (one asserts the real `SPOT_FLOPS` parse).
 
+Deployed `26740a6` by workflow run 41634120219 and verified live (bundle `index-HzrPKOaR.js`, the same as the local
+build). Library republished as `03329ce`: the same flops, with the `srp_sb_bb_2max` target 1,755 in
+`lizard-library.json`.
+
+### Second verification round (of `26740a6`)
+
+A second read-only workflow checked the provenance code against every Advisor response shape and the docs against
+the code. Fixed:
+
+1. **A 3-way read of an earlier decision's solve showed as "Live solve".** `_study_mw_prev` sends
+   `approximate.source` "solve" with `solver.by`. "solve" now means live only without `solver.by`; with it, "Answer
+   at once" and the other solve's numbers hidden.
+2. **Borrowed library spots looked exact.** An entry read from another table size (`precomputed.borrowed`) is now
+   approximate, shows the borrowed spot's description, and hides the other spot's exploitability.
+3. **Preflop charts were not marked approximate.** They are now, as the rules and equity fallbacks were.
+4. **The stored-turn label was hidden.** The badge now shows the Advisor's label for stored turns too.
+5. **The exploitability wording.** The badge now says "X% pot from equilibrium in the solved game", and for 3- and
+   4-way answers "mean best-response gain", which is what the Advisor measures there.
+6. **Provenance recorded the requested mode**, not the one run. A Study request asked at Quick runs at Fast, and
+   now says so (`effectiveMode`).
+7. **`publish.sh` could report success early.** It waited only for `lizard-library.json`; it now waits until both
+   it and `index.json` match what was pushed.
+8. **The Combo view was graded WORKING without a test.** `ComboPanel.test.tsx` covers the EQR formula, the table's
+   columns and sort order, and the opponent view. `src/test/setup.ts` now unmounts after each test (Testing
+   Library does so by itself only with Vitest globals, which are off).
+9. **Docs.**
+   - ACCURACY: Study answers never carry the over-target `approximate` flag (`advisor.py:2982-2983, 3000`); 20
+     heads-up spots, not 18; the `sourceOf` order and the borrowed and charts rules.
+   - ARCHITECTURE: the 4 s + 2 s default is the browser worker's (the local server falls back to `SPEEDS`), and the
+     provenance table.
+   - FEATURE_MATRIX and ROADMAP: the convergence wording is done, bands remain; the library target cites `03329ce`.
+   - Study, Settings and the ModePicker describe the modes as they run.
+
+Tests: web 43/43 in 10 files (new `ComboPanel.test.tsx`; more cases in `provenance.test.ts` and `client.test.ts`),
+typecheck and lint clean, assembler 7/7, `bash -n publish.sh` clean, solver quick suites 12/12 and 32/32.
+
 ### Precompute builds
 
 Both heads-up builds were left untouched throughout: no signals, renice, restarts or writes. Lizard only read

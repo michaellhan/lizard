@@ -64,10 +64,42 @@ describe("provenance", () => {
     );
     expect(describeProvenance(look)).toBe("Live solve · this street's solve so far (200 iterations, 0.36% of the pot from equilibrium) · in progress");
 
+    // Advisor._study_mw_prev's own branch: a read of an earlier decision's 3-way solve on this street, not this node's
+    const mwOwn = provenanceOf(
+      {
+        study: "node",
+        street: "flop",
+        multiway: true,
+        approximate: { source: "solve", label: "this street's 3-way solve from SB's decision (300 iterations, 0.25% of the pot from equilibrium), on the line since", iterations: null },
+        solver: { iterations: null, exploitability_pct: null, by: "the flop's earlier solve" },
+      },
+      { ...ctx, partial: true },
+    );
+    expect(mwOwn).toMatchObject({ source: "instant", approximate: true });
+
     // a 3-way answer at once (Advisor._mw_instant) is not the 5+-way heuristic
     expect(sourceOf({ street: "flop", multiway: true, approximate: { source: "near", label: "3-way library" } })).toBe("instant");
     expect(provenanceOf({ street: "flop", multiway: true, players: 5 }, ctx)).toMatchObject({ source: "rules", approximate: true });
     expect(sourceOf({ street: "flop", multiway: true, solved: true, solver: { iterations: 200 } })).toBe("live");
+  });
+
+  it("marks borrowed library spots and preflop charts approximate, and shows a stored turn's label", () => {
+    const borrowed = provenanceOf(
+      {
+        street: "flop",
+        precomputed: { spot: "srp_btn_bb", borrowed: { dist: [0.02], text: "this table's ranges differ from that spot's by 2.0% of their weight at most" } },
+        solver: { iterations: 1000, exploitability_pct: 0.12 },
+      },
+      ctx,
+    );
+    expect(borrowed).toMatchObject({ source: "library", approximate: true, librarySpot: "srp_btn_bb" });
+    expect(borrowed.exploitabilityPct).toBeUndefined(); // that spot's, on its own ranges
+    expect(describeProvenance(borrowed)).toBe(
+      "Precomputed solution · srp_btn_bb · another table's spot read as this one (this table's ranges differ from that spot's by 2.0% of their weight at most) · approximate",
+    );
+    expect(provenanceOf({ street: "preflop", grid: { actions: [], cells: {} } }, ctx)).toMatchObject({ source: "charts", approximate: true });
+    const turn = provenanceOf({ street: "turn", approximate: { source: "store", label: "the nearest spot that stores its turns (srp_co_bb)" } }, ctx);
+    expect(describeProvenance(turn)).toBe("Stored turn from the flop library · the nearest spot that stores its turns (srp_co_bb) · approximate");
   });
 
   it("marks heuristic fallbacks and partial answers approximate, and keeps the convergence numbers", () => {
@@ -83,6 +115,8 @@ describe("provenance", () => {
 
   it("describes itself in words", () => {
     const p = provenanceOf({ precomputed: { spot: "srp_btn_bb" }, solver: { exploitability_pct: 0.2 } }, ctx);
-    expect(describeProvenance(p)).toBe("Precomputed solution · srp_btn_bb · 0.20% pot from equilibrium");
+    expect(describeProvenance(p)).toBe("Precomputed solution · srp_btn_bb · 0.20% pot from equilibrium in the solved game");
+    const mw = provenanceOf({ street: "flop", multiway: true, solved: true, solver: { iterations: 300, exploitability_pct: 0.25 } }, ctx);
+    expect(describeProvenance(mw)).toBe("Live solve · 0.25% pot mean best-response gain in the solved game · 300 iterations");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyMode, SolverClient } from "./client";
+import { applyMode, effectiveMode, SolverClient } from "./client";
 import type { AdvisorResponse, AdvisorState } from "./protocol";
 import { SolverError, type RuntimeStatus, type SolverTransport } from "./types";
 
@@ -46,6 +46,8 @@ describe("SolverClient", () => {
     const study = applyMode({ players: 2, board: "Kh7d2c", study: true }, "quick");
     expect(study).not.toHaveProperty("quick");
     expect(study).toMatchObject({ speed: "fast", budget: 8, prior_budget: 3 });
+    expect(effectiveMode({ study: true }, "quick")).toBe("fast");
+    expect(effectiveMode({}, "quick")).toBe("quick");
   });
 
   it("runs one request at a time, in order, with provenance on partials and answers", async () => {
