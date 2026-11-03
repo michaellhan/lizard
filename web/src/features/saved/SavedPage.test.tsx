@@ -187,4 +187,14 @@ describe("saved ranges in the Ranges editor", () => {
     expect(await within(page.container).findByText("Opened “BB defend”.")).toBeInTheDocument();
     expect(within(page.container).getByText(/^78\.0$/)).toBeInTheDocument();
   });
+
+  it("applies text in the solver's syntax, single combos as their share of the class", () => {
+    renderAt("/ranges");
+    fireEvent.change(screen.getByLabelText("Range text"), { target: { value: "qq+ AhKh KdAd, xyz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply text" }));
+    expect(screen.getByLabelText("Range text")).toHaveValue("AA,AKs:0.5,KK,QQ");
+    expect(screen.getByText("Not understood: xyz")).toBeInTheDocument();
+    expect(screen.getByText(/^Single combos \(AhKh, KdAd\) are kept as their share of the class/)).toBeInTheDocument();
+    expect(screen.getByText(/^20\.0$/)).toBeInTheDocument();
+  });
 });

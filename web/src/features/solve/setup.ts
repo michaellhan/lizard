@@ -80,9 +80,6 @@ export function tidySetup(s: SpotSetup | undefined): SpotSetup | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-// a single combo ("AhKh", "AhKh:0.5"): the engine reads these; the editor's parser doesn't
-const COMBO = /^[AKQJT2-9][shdc][AKQJT2-9][shdc](:(0(\.\d+)?|1(\.0+)?|\.\d+))?$/;
-
 /** What's wrong with the setup at this table, in words (none: it can be asked). */
 export function setupProblems(players: number, s: SpotSetup | undefined): string[] {
   if (!s) return [];
@@ -109,9 +106,8 @@ export function setupProblems(players: number, s: SpotSetup | undefined): string
     }
     if (!text.trim()) continue;
     const { weights, unknown } = parseRange(text);
-    const bad = unknown.filter((t) => !COMBO.test(t));
-    if (bad.length) out.push(`${p}'s range: can't read ${bad.slice(0, 3).map((t) => `"${t}"`).join(", ")}${bad.length > 3 ? "…" : ""}`);
-    else if (!Object.values(weights).some((w) => w > 0) && !unknown.length) out.push(`${p}'s range is empty`);
+    if (unknown.length) out.push(`${p}'s range: can't read ${unknown.slice(0, 3).map((t) => `"${t}"`).join(", ")}${unknown.length > 3 ? "…" : ""}`);
+    else if (!Object.values(weights).some((w) => w > 0)) out.push(`${p}'s range is empty`);
   }
   out.push(...tournamentProblems(players, s.tournament));
   if (tidyTournament(s.tournament) && s.rake) out.push("a tournament has no rake");

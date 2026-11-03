@@ -14,6 +14,8 @@ export function RangesPage() {
   const [brush, setBrush] = useState(1);
   const [text, setText] = useState("");
   const [unknown, setUnknown] = useState<string[]>([]);
+  // single combos in the last text applied, each read as its share of its class
+  const [combosRead, setCombosRead] = useState<string[]>([]);
   const [saved, setSaved] = useState<SavedRange[]>([]);
   const [name, setName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -118,6 +120,7 @@ export function RangesPage() {
                 const r = parseRange(text || formatRange(weights));
                 setWeights(r.weights);
                 setUnknown(r.unknown);
+                setCombosRead(r.combos);
                 setText("");
               }}
             >
@@ -128,6 +131,14 @@ export function RangesPage() {
             </button>
           </div>
           {unknown.length > 0 && <p className="text-xs text-warn">Not understood: {unknown.join(", ")}</p>}
+          {combosRead.length > 0 && (
+            <p className="text-xs text-muted">
+              Single combos ({combosRead.slice(0, 4).join(", ")}
+              {combosRead.length > 4 ? "…" : ""}) are kept as their share of the class: this editor holds whole classes, so it
+              can't say which combos (one of AKs's four is AKs at 0.25). A range sent to the solver from the Solve page keeps
+              its combos.
+            </p>
+          )}
           <form
             aria-label="Save range"
             className="space-y-2 border-t border-border pt-3"

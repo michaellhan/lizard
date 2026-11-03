@@ -2896,3 +2896,34 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`.
 - Phase 4, still open: single-combo syntax, text import into the builder.
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 
+## Phase 4, single combos and the solver's range syntax (2026-11-03)
+
+### What changed
+
+- **The parser.** `rangeText.ts` reads range text as the solver does (`solver/gto/ranges.py`). That covers:
+  - commas or spaces between hands, and spaces around a weight's `:`;
+  - any case, and either rank order (`KAs`);
+  - gap runs (`T9s-65s`) beside the kicker runs, and `random` / `any` / `100%`;
+  - a hand named twice keeping its larger weight.
+- **Single combos.** The editor and the builder hold whole classes, so a combo is kept as its share of the class:
+  `AhKh` is AKs at 0.25, beside the class's own weight. `parseRange` returns the combos it read that way.
+  - The Ranges page says so under the text.
+  - The Solve page sends the text itself, so a solve keeps its combos. Its check no longer special-cases combos.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 386/386. `rangeText.test.ts`: the solver's syntax, runs, rejects, combos as shares. `SavedPage.test.tsx`: Apply text with `qq+ AhKh KdAd, xyz` (20 combos, the note, "Not understood: xyz"). `setup.test.ts` and `SolvePage.test.tsx` unchanged and passing. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Ranges: `jj+ T9s-65s AhKh,AsKs 7c7d:0.5 kq` gave `AA,AKs:0.5,KK,KQs,KQo,QQ,JJ,T9s,98s,87s,77:0.083,76s,65s`.
+  That is 62.5 combos, with the single-combos note.
+
+### Next
+
+- Phase 4: text import into the builder.
+
