@@ -176,6 +176,20 @@ describe("Practice hands as hand histories", () => {
     expect(rec).toMatchObject({ hero: "BTN", players: 6, potType: "SRP", end: "showdown" });
   });
 
+  it("chips carried: each seat's own chips in the history, read back as the same stacks", () => {
+    const h = played(
+      newHand(3, 100, 1, 7, { carry: true }, { stacks: { BTN: 62.5, SB: 100, BB: 137.5 }, rebuys: ["SB"] }),
+      mv("BTN", "raise", 3),
+      ...folds("SB"),
+      mv("BB", "call"),
+      ...checks("BB", "BTN", "BB", "BTN", "BB", "BTN"),
+    );
+    const { text, r } = roundTrip(h);
+    expect(text).toContain("Seat 1: BTN (62.5 in chips)\nSeat 2: SB (100 in chips)\nSeat 3: You (137.5 in chips)\n");
+    expect(r.setup.stacks).toEqual({ BTN: 62.5, SB: 100, BB: 137.5 });
+    expect(finalSim(r).pot).toBeCloseTo(6.5);
+  });
+
   it("nine-handed, a limp and an isolation raise checked down: the seats' names apart", () => {
     // (hand 6: you're UTG1)
     const h = played(

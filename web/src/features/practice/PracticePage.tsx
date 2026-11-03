@@ -25,17 +25,21 @@ import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
 import {
+  carries,
+  chipsAfter,
   dealNext,
   decide,
   decideUngraded,
   DRILL_TRIES,
   finish,
+  following,
   isPotDrill,
   newHand,
   offDrill,
   optionsOf,
   phaseOf,
   POT_DRILLS,
+  REBUY,
   redeal,
   seeking,
   setupOf,
@@ -68,7 +72,7 @@ interface PracticeSession {
   sources: Partial<Record<ResultSource, number>>;
 }
 
-const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false };
+const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false };
 
 const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
@@ -103,6 +107,7 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
     ...(s.opts.pot ? { pot: s.opts.pot } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
+    ...(carries(s.opts) ? { carry: true } : {}),
     byPot: s.byPot,
     sources: s.sources,
   },
@@ -307,8 +312,9 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     setError(null);
   }, []);
 
-  const nextHand = () => {
-    setHand(newHand(session.players, session.stack, hand.n + 1, randomSeed(), session.opts));
+  // (with chips carried, from where this hand left them; `reset`, every seat back at the starting stack)
+  const nextHand = (reset = false) => {
+    setHand(following(hand, randomSeed(), session.opts, reset));
     setError(null);
   };
 
@@ -384,7 +390,8 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
             preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
             it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
-            for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in
+            for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
+            chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in
             Analyze.
           </p>
         </div>
@@ -429,6 +436,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             <SeatView key={p} hand={hand} sim={sim} p={p} />
           ))}
         </ul>
+        {hand.stacks && <Carried hand={hand} sim={sim} onReset={() => nextHand(true)} />}
       </section>
 
       <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">
@@ -521,7 +529,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
               )}
               {hand.result.says && <span className="text-muted"> · {hand.result.says}</span>}
             </p>
-            <button ref={nextRef} type="button" onClick={nextHand} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
+            <button ref={nextRef} type="button" onClick={() => nextHand()} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
             </button>
             <KeepHand
@@ -556,7 +564,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       </details>
 
       <p className="text-xs text-muted">
-        Not here yet: the ring game&rsquo;s carried-over chips, sizes of your own, and multi-tabling. They run in the{" "}
+        Not here yet: sizes of your own, running a hand out after your fold, and multi-tabling. They run in the{" "}
         <a className="underline" href={`${CLASSIC_URL}practice/`}>
           classic trainer
         </a>
@@ -649,6 +657,37 @@ function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeSession;
   );
 }
 
+/** Chips carried: your stack as the hand started (and as it ended), who rebought, and Reset stacks (between hands). */
+function Carried({ hand, sim, onReset }: { hand: PracticeHand; sim: Sim; onReset: () => void }) {
+  const start = hand.stacks![hand.hero]!;
+  const re = (hand.rebuys ?? []).map((p) => (p === hand.hero ? "you" : seatLabel(p, hand.players)));
+  const names = re.length > 2 ? `${re.slice(0, -1).join(", ")} and ${re.at(-1)}` : re.join(" and ");
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+      <span>
+        Chips carried: your stack <span className="font-mono text-text">{fmt(start)}bb</span>
+        {hand.result && (
+          <>
+            {" "}
+            → <span className="font-mono text-text">{fmt(chipsAfter(hand, sim)[hand.hero]!)}bb</span>
+          </>
+        )}
+        {names && ` · ${names} rebought to ${hand.stack}bb`}
+        {hand.result?.folded && sim.active.size > 1 && " · the others' chips go as if they checked it down"}
+      </span>
+      <button
+        type="button"
+        onClick={onReset}
+        disabled={!hand.result}
+        title={`The next hand with every seat back at ${hand.stack}bb (the setup's stack)`}
+        className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
+      >
+        Reset stacks
+      </button>
+    </div>
+  );
+}
+
 function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string }) {
   const t = setupOf(hand);
   const you = p === hand.hero;
@@ -717,7 +756,7 @@ function DecisionView({ d, players }: { d: Decision; players: number }) {
           {d.street}: you took <span className="font-mono">{d.chose}</span>
           {g && g.a !== g.best && d.mix[g.best] && (
             <>
-              ; the solver&rsquo;s best was <span className="font-mono">{d.mix[g.best]!.action}</span>
+              ; {whoOf(d.provenance?.source).replace(/^The /, "the ")}&rsquo;s best was <span className="font-mono">{d.mix[g.best]!.action}</span>
             </>
           )}
         </span>
@@ -834,8 +873,10 @@ function SetupForm({
   const [play, setPlay] = useState<string>(opts.pot ?? (opts.preflopOnly ? "preflop" : "full"));
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
+  const [carry, setCarry] = useState(opts.carry);
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
+  const canCarry = carries({ carry: true, seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null });
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
@@ -846,7 +887,7 @@ function SetupForm({
       className="flex flex-wrap items-center gap-2 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3 });
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry });
       }}
     >
       <label className="flex items-center gap-1">
@@ -923,6 +964,17 @@ function SetupForm({
       <label className="flex items-center gap-1.5" title={p < 3 ? "A straddle needs 3 or more players" : "A 2bb straddle from the first seat, acting last preflop"}>
         <input type="checkbox" aria-label="Straddle" checked={straddle && p >= 3} disabled={p < 3} onChange={(e) => setStraddle(e.target.checked)} />
         <span className="text-muted">Straddle</span>
+      </label>
+      <label
+        className="flex items-center gap-1.5"
+        title={
+          canCarry
+            ? `A ring game: each player's chips carry to the next hand, a seat under ${REBUY * 100}% of the stack rebuying to it`
+            : "Chips carry in full hands with your seat moving each hand"
+        }
+      >
+        <input type="checkbox" aria-label="Carry chips" checked={carry && canCarry} disabled={!canCarry} onChange={(e) => setCarry(e.target.checked)} />
+        <span className="text-muted">Carry chips</span>
       </label>
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
         New session

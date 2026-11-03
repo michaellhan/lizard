@@ -208,7 +208,45 @@ describe("PracticePage", () => {
     for (const st of stub.states) expect(st).toMatchObject({ ante: 0.1, straddle: true });
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "fold" }));
     expect(await screen.findByText("You folded")).toBeInTheDocument();
+    // (the best named by the answer's source: the chart, not a solver)
+    expect(screen.getByRole("region", { name: "Last decision" })).toHaveTextContent("preflop: you took fold; the chart’s best was raise 2.5");
     await waitFor(async () => expect((await allSessions()).find((s) => s.meta.ante === 0.1)?.meta).toMatchObject({ players: 3, straddle: true }));
+  });
+
+  it("carries chips from hand to hand: your stack as the hand ends, the next hand from it, every request with the stacks", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    const carry = screen.getByRole("checkbox", { name: "Carry chips" });
+    // (full hands with your seat moving only)
+    fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "BB" } });
+    expect(carry).toBeDisabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "moves" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Play" }), { target: { value: "preflop" } });
+    expect(carry).toBeDisabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "Play" }), { target: { value: "full" } });
+    fireEvent.click(carry);
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    // you raise, the big blind calls and checks the flop; you bet, it folds: 2.5bb won
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
+    expect(screen.getByText(/^Chips carried: your stack/)).toHaveTextContent("Chips carried: your stack 100bb");
+    expect(screen.getByRole("button", { name: "Reset stacks" })).toBeDisabled();
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "bet 33% (1.6bb)" }));
+    await screen.findByRole("button", { name: "Next hand" });
+    expect(screen.getByText(/^Chips carried: your stack/)).toHaveTextContent("Chips carried: your stack 100bb → 102.5bb");
+    // the next hand: you're the big blind with your 102.5, the small blind has its 97.5
+    stub.states = [];
+    fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
+    await screen.findByRole("group", { name: "Your options" });
+    expect(screen.getByRole("listitem", { name: "BB (you)" })).toHaveTextContent("101.5");
+    expect(screen.getByText(/^Chips carried: your stack/)).toHaveTextContent("Chips carried: your stack 102.5bb");
+    expect(stub.states.length).toBeGreaterThan(0);
+    for (const st of stub.states) expect(st).toMatchObject({ stack: 100, stacks: { SB: 97.5, BB: 102.5 } });
+    await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 2, carry: true, hands: 1, net: 2.5 }));
   });
 
   it("plays by keys: 1–9 your options, K keeps the hand, Enter the next one; none while drilling or typing", async () => {

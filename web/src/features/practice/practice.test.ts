@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { noLines, type Move } from "@/poker/table";
+import { seatsOf } from "@/poker/seats";
+import { noLines, recordOf, seeded, type Move } from "@/poker/table";
 import type { AdvisorResponse } from "@/solver/protocol";
 import {
+  carries,
+  chipsAfter,
   decide,
   decideUngraded,
   dealNext,
   finish,
+  following,
   heroSeat,
   newHand,
   offDrill,
   phaseOf,
+  nextTable,
   redeal,
+  REBUY,
   seeking,
+  setupOf,
   shownCards,
   simOf,
   stateFor,
@@ -128,6 +135,73 @@ describe("seats and dealing", () => {
     expect(newHand(2, 100, 0, 9, { straddle: true }).straddle).toBeUndefined();
     expect(stateFor(newHand(6, 100, 0, 9))).not.toHaveProperty("ante");
     expect(studyOf(newHand(6, 100, 0, 9))).toBe("p=6&s=100");
+  });
+
+  it("chips carried: each player's chips follow it to the next hand, a fold settled as a check-down, short stacks rebought", () => {
+    expect(carries({ carry: true })).toBe(true);
+    for (const o of [{ seat: "BTN" }, { seat: "random" }, { preflopOnly: true }, { pot: "srp" as const }]) expect(carries({ carry: true, ...o })).toBe(false);
+    expect(newHand(6, 100, 0, 9, { carry: true, seat: "BTN" }).stacks).toBeUndefined();
+    // heads-up: you raise from the small blind, the big blind folds; next hand you're the big blind with its chips
+    const h0 = newHand(2, 100, 0, 9, { carry: true });
+    expect(h0).toMatchObject({ hero: "SB", stacks: { SB: 100, BB: 100 } });
+    expect(stateFor(h0)).not.toHaveProperty("stacks");
+    let h = play(h0, { pos: "SB", action: "raise", to: 3 }, { pos: "BB", action: "fold" });
+    h = { ...h, result: finish(h) };
+    expect(chipsAfter(h)).toEqual({ SB: 101, BB: 99 });
+    const h1 = following(h, 5, { carry: true });
+    expect(h1).toMatchObject({ n: 1, hero: "BB", stacks: { SB: 99, BB: 101 } });
+    expect(h1.rebuys).toBeUndefined();
+    expect(setupOf(h1).stacks).toEqual({ SB: 99, BB: 101 });
+    expect(stateFor(h1)).toMatchObject({ stack: 100, stacks: { SB: 99, BB: 101 } });
+    expect(studyOf(h1)).toBe("p=2&s=100&stacks=SB%3A99%2CBB%3A101");
+    // Reset stacks: every seat back at the start; without chips carried, too
+    expect(following(h, 5, { carry: true }, true).stacks).toEqual({ SB: 100, BB: 100 });
+    expect(following(h, 5, {}).stacks).toBeUndefined();
+    // 3-handed, your fold from the button: the blinds check it down on the board dealt (the big blind's extra half back)
+    let f = play(newHand(3, 100, 0, 4, { carry: true }), { pos: "BTN", action: "fold" });
+    f = { ...f, result: finish(f) };
+    const c = chipsAfter(f);
+    expect(c.BTN).toBe(100);
+    expect(c.SB! + c.BB!).toBeCloseTo(200);
+    expect([[100.5, 99.5], [99.5, 100.5], [100, 100]]).toContainEqual([c.SB, c.BB]);
+    // a seat under a quarter of the stack rebuys to it, said in the next hand
+    const r = nextTable(newHand(3, 100, 0, 4), { BTN: 180, SB: 24.5, BB: 95.5 });
+    expect(REBUY).toBe(0.25);
+    expect(r).toEqual({ stacks: { BTN: 100, SB: 95.5, BB: 180 }, rebuys: ["BTN"] });
+  });
+
+  it("a ring game of random hands keeps every chip: what one seat loses another wins, the rest rebought", () => {
+    const rnd = seeded(11);
+    for (const players of [2, 3, 6, 9]) {
+      const opts = { carry: true };
+      let h = newHand(players, 50, 0, 1, opts);
+      for (let n = 0; n < 60; n++) {
+        for (let step = 0; step < 200; step++) {
+          const ph = phaseOf(h);
+          if (ph.kind === "over") break;
+          if (ph.kind === "deal") {
+            h = dealNext(h, ph.street);
+            continue;
+          }
+          const x = rnd();
+          const a = x < 0.2 ? { action: "fold" } : x < 0.6 ? { action: "call" } : x < 0.75 ? { action: "check" } : x < 0.92 ? { action: "raise", to: 3 + rnd() * 20, clamp: true } : { action: "all-in" };
+          const m = recordOf(setupOf(h), simOf(h), a);
+          if (typeof m !== "string") h = withVillain(h, m);
+        }
+        expect(phaseOf(h).kind).toBe("over");
+        const result = finish(h);
+        h = { ...h, result };
+        const before = Object.values(h.stacks!).reduce((a, b) => a + b, 0);
+        const after = chipsAfter(h);
+        expect(Object.values(after).reduce((a, b) => a + b, 0)).toBeCloseTo(before, 6);
+        expect(after[h.hero]! - h.stacks![h.hero]!).toBeCloseTo(result.net, 6);
+        const next = following(h, Math.floor(rnd() * 1e9), opts);
+        // your chips follow you, unless you rebought; everyone has at least a quarter stack
+        expect(next.stacks![next.hero]).toBe(next.rebuys?.includes(next.hero) ? 50 : after[h.hero]);
+        for (const p of seatsOf(players)) expect(next.stacks![p]!).toBeGreaterThanOrEqual(50 * REBUY);
+        h = next;
+      }
+    }
   });
 
   it("deals every seat and the board from the hand's seed, the same again", () => {

@@ -3,9 +3,9 @@
 // solver. Semantics follow the classic trainer (solver/gto/static/practice.js): every seat's cards and the board are
 // dealt up front from one deck; an opponent's move is drawn from the GTO mix for its actual hand (Advisor.play);
 // your options are the solver's actions at your spot, graded once you've acted; your fold ends the hand for you.
-// Unlike the classic Table mode, every hand starts from the setup's stack (no chips carried over). Your seat moves one
-// place each hand (BTN, CO, HJ ... UTG, BB, SB), or is drawn at random, or is one seat; a preflop-only hand stops as
-// the preflop closes.
+// Every hand starts from the setup's stack, or, with chips carried (the classic Table mode's ring game), from where the
+// last hand left each player. Your seat moves one place each hand (BTN, CO, HJ ... UTG, BB, SB), or is drawn at random,
+// or is one seat; a preflop-only hand stops as the preflop closes.
 import { kindOf } from "@/components/actions";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
@@ -79,6 +79,9 @@ export interface PracticeHand {
   /** one kind of pot only: the preflop is played for you, and dealt again until it is that pot (`tries`: the deals so far) */
   pot?: PotDrill;
   tries?: number;
+  /** chips carried from hand to hand: each seat's chips as this hand starts, bb, and the seats that rebought to `stack` */
+  stacks?: Record<string, number>;
+  rebuys?: string[];
 }
 
 /** The drill modes (the classic trainer's, `practice.js:169-196`): only one kind of pot. The preflop is played for you
@@ -105,7 +108,16 @@ export interface HandOptions {
   /** each seat's ante (bb, 0 for none, at most the Solve page's LIMITS.ante), and a straddle (3 or more players) */
   ante?: number;
   straddle?: boolean;
+  /** chips carried from hand to hand (a ring game): full hands with your seat moving only (`carries`) */
+  carry?: boolean;
 }
+
+/** Whether the options carry chips: full hands (not preflop only or a drill's pot), your seat moving one place a hand,
+ * so each player keeps a seat and its chips follow it. */
+export const carries = (o: HandOptions) => !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly && !o.pot;
+
+/** A seat under this share of the starting stack rebuys to it before a hand (the classic table's REBUY). */
+export const REBUY = 0.25;
 
 /** Your seat in the session's n-th hand: the button first, then one seat to the right each hand. */
 export function heroSeat(n: number, players: number): string {
@@ -123,7 +135,9 @@ export function seatFor(choice: SeatChoice | undefined, n: number, players: numb
   return choice && s.includes(choice) ? choice : heroSeat(n, players);
 }
 
-export function newHand(players: number, stack: number, n: number, seed: number, opts: HandOptions = {}): PracticeHand {
+/** The n-th hand of a session. With chips carried, `table` gives each seat's chips (nextTable); without it, every seat
+ * starts at `stack`. */
+export function newHand(players: number, stack: number, n: number, seed: number, opts: HandOptions = {}, table?: Table): PracticeHand {
   const d = deal(players, seeded(seed));
   return {
     seed,
@@ -139,8 +153,48 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pot ? { pot: opts.pot } : opts.preflopOnly ? { preflopOnly: true as const } : {}),
     ...(opts.ante && opts.ante > 0 ? { ante: opts.ante } : {}),
     ...(opts.straddle && players >= 3 ? { straddle: true as const } : {}),
+    ...(carries(opts) ? { stacks: table?.stacks ?? Object.fromEntries(seatsOf(players).map((p) => [p, stack])), ...(table?.rebuys.length ? { rebuys: table.rebuys } : {}) } : {}),
   };
 }
+
+export interface Table {
+  stacks: Record<string, number>;
+  rebuys: string[];
+}
+
+/** Each seat's chips as the hand ends, bb: its stack, less what it put in, plus what it won. After your fold with
+ * others still in, they go as if the rest checked it down on the board dealt (the classic trainer's `finish`: each
+ * wins at most what it put in from each player). A hand not over yet: the chips it started with. */
+export function chipsAfter(h: PracticeHand, sim: Sim = simOf(h)): Record<string, number> {
+  const t = setupOf(h);
+  const pos = seatsOf(h.players);
+  if (!h.result || h.result.cut) return Object.fromEntries(pos.map((p) => [p, t.stacks[p]!]));
+  const inv = Object.fromEntries(pos.map((p) => [p, (sim.invested[p] ?? 0) + (sim.cur?.bets[p] ?? 0)]));
+  const live = pos.filter((p) => sim.active.has(p));
+  const down = !sim.active.has(h.hero) && live.length > 1;
+  const st = settle(t, inv, live, down ? new Set(live) : sim.allin, down ? h.board : boardOf(h), (p) => h.hands[p]!);
+  return Object.fromEntries(pos.map((p) => [p, Math.round((t.stacks[p]! - inv[p]! + (st.pays[p] ?? 0)) * 100) / 100]));
+}
+
+/** The next hand's chips from this one's (chipsAfter): your seat moves one place, so each player's chips move with
+ * it (the small blind's are the next button's), and a seat under REBUY of the starting stack is topped up to it. */
+export function nextTable(h: PracticeHand, chips: Record<string, number> = chipsAfter(h)): Table {
+  const pos = seatsOf(h.players);
+  const stacks: Record<string, number> = {};
+  const rebuys: string[] = [];
+  pos.forEach((p, i) => {
+    const to = pos[(i - 1 + pos.length) % pos.length]!;
+    const x = chips[p] ?? h.stack;
+    if (x < h.stack * REBUY - 1e-9) rebuys.push(to);
+    stacks[to] = x < h.stack * REBUY - 1e-9 ? h.stack : x;
+  });
+  return { stacks: Object.fromEntries(pos.map((p) => [p, stacks[p]!])), rebuys: pos.filter((p) => rebuys.includes(p)) };
+}
+
+/** The session's next hand: with chips carried, from where this one left them (or, `reset`, every seat back at the
+ * starting stack). */
+export const following = (h: PracticeHand, seed: number, opts: HandOptions, reset = false): PracticeHand =>
+  newHand(h.players, h.stack, h.n + 1, seed, opts, carries(opts) && !reset ? nextTable(h) : undefined);
 
 /** A drill hand that went another way, dealt again (the same hand number: your seat stays where it moves). */
 export const redeal = (h: PracticeHand, seed: number, opts: HandOptions): PracticeHand => ({ ...newHand(h.players, h.stack, h.n, seed, opts), tries: (h.tries ?? 0) + 1 });
@@ -165,9 +219,9 @@ export const seeking = (h: PracticeHand) => !!h.pot && h.shown < 3 && !h.result;
 /** Preflop only, the preflop closed with you and someone else in: the hand stops there. */
 const cutAt = (h: PracticeHand, sim: Sim) => !!h.preflopOnly && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);
 
-export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "straddle">): TableSetup => ({
+export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "straddle" | "stacks">): TableSetup => ({
   players: h.players,
-  stacks: Object.fromEntries(seatsOf(h.players).map((p) => [p, h.stack])),
+  stacks: Object.fromEntries(seatsOf(h.players).map((p) => [p, h.stacks?.[p] ?? h.stack])),
   ...(h.ante ? { ante: h.ante } : {}),
   ...(h.straddle ? { straddle: true } : {}),
 });
@@ -175,11 +229,17 @@ export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "st
 /** The hand's ante and straddle, in the engine's keys. */
 const gameOf = (h: Pick<PracticeHand, "ante" | "straddle">) => ({ ...(h.ante ? { ante: h.ante } : {}), ...(h.straddle ? { straddle: true } : {}) });
 
+/** The seats whose chips aren't the starting stack (chips carried), bb; none where every seat has it. */
+const ownStacks = (h: Pick<PracticeHand, "stack" | "stacks">) => {
+  const own = Object.entries(h.stacks ?? {}).filter(([, v]) => Math.abs(v - h.stack) > 1e-9);
+  return own.length ? { stacks: Object.fromEntries(own) } : {};
+};
+
 export const simOf = (h: PracticeHand): Sim => simulate(setupOf(h), h.lines, h.shown);
 
 const boardOf = (h: PracticeHand) => h.board.slice(0, h.shown);
 
-/** The Study line where the hand stands: every seat at the setup's stack, with the hand's ante and straddle. */
+/** The Study line where the hand stands: each seat's chips as the hand started, with the hand's ante and straddle. */
 export function studyOf(h: PracticeHand): string {
   const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   const s: StudyHand = {
@@ -190,7 +250,7 @@ export function studyOf(h: PracticeHand): string {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
-    ...(h.ante || h.straddle ? { setup: gameOf(h) } : {}),
+    ...(h.ante || h.straddle || ownStacks(h).stacks ? { setup: { ...gameOf(h), ...ownStacks(h) } } : {}),
   };
   return toSearch(s);
 }
@@ -210,6 +270,7 @@ export function stateFor(h: PracticeHand): AdvisorState {
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
     ...gameOf(h),
+    ...ownStacks(h),
   };
 }
 

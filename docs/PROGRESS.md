@@ -2459,3 +2459,59 @@ Untouched (read-only `ps`). Everything ran under `nice`.
 - Phase 1, still open: multitabling, carried chips, sizes of your own, the 20-hand engine check.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, chips carried from hand to hand in Practice (second session)
+
+Deploy of 8035291 (ante and straddle) verified live: run 41709905220 passed; `/lizard/` serves `index-Dp9Sk-86.js`,
+which has "posts straddle 2".
+
+Practice's "Carry chips" is the classic Table mode's ring game (`practice.js:99-132`).
+
+### Code
+
+- `web/src/features/practice/practice.ts`:
+  - `HandOptions.carry`, and `carries(opts)`: only full hands with your seat moving (each player keeps a seat).
+  - `PracticeHand.stacks` (each seat's chips as the hand starts) and `rebuys`; `setupOf` gives the table each seat's
+    own chips, `stateFor` sends `stacks` (the seats off the starting stack) and `studyOf` puts them in the Study
+    link's setup (`stacks=SB:99,BB:101`).
+  - `chipsAfter(hand)`: each seat's chips as the hand ends. After your fold with others still in, they settle as if
+    the rest checked it down on the board dealt (the classic's `finish`: each wins at most what it put in from each).
+  - `nextTable(hand)`: your seat moves one place, so each player's chips move with it (the small blind's are the next
+    button's); a seat under `REBUY` (a quarter) of the starting stack rebuys to it. `following(hand, seed, opts,
+    reset)`: the session's next hand (with `reset`, every seat back at the start).
+- `PracticePage.tsx`: the setup's "Carry chips" (disabled for preflop only, a drill's pot or a seat that doesn't
+  move); under the seats, "Chips carried: your stack 100bb → 97.5bb", who rebought, and "Reset stacks" (between
+  hands); the session record keeps `carry`; the "Not here yet" note now lists sizes of your own, running a hand out
+  after your fold, and multi-tabling.
+- `features/history/history.ts`: the row says "· chips carried".
+- Also fixed: Practice's verdict headline said "the solver's best was …" whatever answered the spot, the preflop
+  charts included (against CLAUDE.md's rule); it now names the answer's source as the why line does ("the chart's
+  best was fold"; `grade.ts` `whoOf`).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 365/365 in 58 files (`practice.test.ts`: when chips carry; a heads-up hand carried to the next, its request and Study link; a fold settled as a check-down; the rebuy; 60 random hands at each of 2, 3, 6 and 9 players, every chip kept and yours following you; `history.test.ts`: each seat's own chips written and read back; `PracticePage.test.tsx`: a carried heads-up session, the next hand's requests with `stacks`, the headline naming the chart). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+3-max with chips carried: your button fold settled the blinds' check-down (big blind 100.5, small blind 99.5); next
+hand the old small blind's 99.5 was the button's and the old big blind's 100.5 the small blind's. You in the big
+blind called an open; the A♠7♠6♠ flop, at 99.5 against 100, was graded under "Live solve · 0.10% pot from equilibrium
+in the solved game (converged)" (the 100bb library doesn't hold it); a fold to a bet took your stack to 97.5, and the
+third hand dealt each player's chips to its new seat. The Study link carried `stacks=SB%3A97.5%2CBB%3A102.5`.
+History: "3 players · 100bb · chips carried … net −3bb". At 6-max: "the chart's best was fold"; Reset stacks dealt
+hand 2 at 100 each. 375px: no horizontal scroll.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`. Memory 61% free.
+
+### Next
+
+- Phase 1, still open: multitabling, sizes of your own, the 20-hand engine check.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
