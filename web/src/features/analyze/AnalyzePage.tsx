@@ -16,6 +16,7 @@ import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
 import { filesName, filterHands, HAND_FILTERS, hhFiles, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
+import { CLASSIC_SITE, classicRecords, readClassicHands, type ClassicImport } from "./classic";
 import { decisionNote, GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
@@ -122,8 +123,11 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   );
 }
 
+type ClassicResult = { none: true } | { none?: undefined; from: string; read: number; imported: ClassicImport; kept: { added: number; existing: number } | null };
+
 function ImportPanel({ onImported }: { onImported: () => void }) {
   const [text, setText] = useState("");
+  const [classic, setClassic] = useState<ClassicResult | null>(null);
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +147,28 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
       const prep = await prepare(files, imp, (done, total) => setBusy({ done, total }));
       const kept = prep.hands.length ? await addHands(prep.hands) : { added: 0, existing: 0 };
       setResult({ name, prep, kept });
+      if (kept?.added) onImported();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  // the classic app's My hands in this browser, read only (classic.ts)
+  const fromClassic = async () => {
+    setError(null);
+    setResult(null);
+    setClassic(null);
+    setBusy({ done: 0, total: 0 });
+    try {
+      const got = await readClassicHands();
+      if (!got || !got.recs.length) {
+        setClassic({ none: true });
+        return;
+      }
+      const imported = classicRecords(got.recs, Date.now());
+      const kept = imported.hands.length ? await addHands(imported.hands) : { added: 0, existing: 0 };
+      setClassic({ from: got.from, read: got.recs.length, imported, kept });
       if (kept?.added) onImported();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -227,13 +253,34 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
           Reading hands{busy.total ? `: ${busy.done.toLocaleString()} of ${busy.total.toLocaleString()}` : "…"}
         </p>
       )}
+      <p className="text-xs text-muted">
+        Used the classic app in this browser?{" "}
+        <button type="button" disabled={!!busy} onClick={() => void fromClassic()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
+          Import its My hands
+        </button>{" "}
+        Read only: the classic app&rsquo;s data is left as it is. Your tags and notes come along; its grades don&rsquo;t (graded again here).
+      </p>
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}
       {result && <ImportResult r={result} />}
+      {classic && <ClassicResultLine r={classic} />}
     </section>
+  );
+}
+
+function ClassicResultLine({ r }: { r: ClassicResult }) {
+  if (r.none) return <p role="status" className="text-sm">The classic app keeps no hands in this browser.</p>;
+  const left = Object.entries(r.imported.skipped);
+  const n = (x: number, one: string, many = `${one}s`) => `${x.toLocaleString()} ${x === 1 ? one : many}`;
+  return (
+    <p role="status" className="text-sm">
+      From the classic app ({r.from}): {n(r.read, "hand")} read; {n(r.kept?.added ?? 0, "hand")} imported
+      {r.kept?.existing ? `, ${n(r.kept.existing, "hand")} already here` : ""}
+      {left.length ? `; left out: ${left.map(([why, k]) => `${why} (${k})`).join(", ")}` : ""}.
+    </p>
   );
 }
 
@@ -557,7 +604,12 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
         ))}
       </ol>
       <p className="text-muted">
-        Pot {fmt(sim.pot)}bb ({hand.end}). {hand.site === PRACTICE_SITE ? "A hand you played in Practice" : "From your hand history"}, replayed on Lizard's table.
+        Pot {fmt(sim.pot)}bb ({hand.end}). {hand.site === PRACTICE_SITE
+          ? "A hand you played in Practice"
+          : hand.site === CLASSIC_SITE
+            ? "A hand from the classic app's My hands"
+            : "From your hand history"}
+        , replayed on Lizard's table.
         {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve), your flop moves against the flop library." : " None of your decisions here is graded yet."}
         {(h.ante > 0 || h.straddle) && " Study can't set up this hand's ante or straddle, so its decisions don't open in Study."}
       </p>

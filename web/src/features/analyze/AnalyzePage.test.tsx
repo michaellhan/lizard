@@ -2,13 +2,14 @@
 // The Analyze page on the classic fixtures (solver/tests/data/hh), kept in fake-indexeddb: pasting and picking files,
 // what's skipped and why, a hand imported twice kept once, the hands table's filters in the URL, a hand replayed with
 // its Study links, grading against a stubbed solver (the charts preflop, the library on one flop), and deleting an
-// import. (In order: the tests share this file's database.)
+// import, and the classic app's My hands imported read only. (In order: the tests share this file's database.)
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { deleteDrill, listDrills } from "@/data/saved";
+import { classicDb } from "@/test/classic";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { AnalyzePage } from "./AnalyzePage";
 
@@ -332,5 +333,57 @@ describe("AnalyzePage", () => {
   it("says when the hand in the URL isn't kept here", async () => {
     open("hand=gone");
     expect(await screen.findByText(/That hand isn't kept in this browser/)).toBeInTheDocument();
+  });
+
+  it("imports the classic app's My hands on request, read only, and says when it keeps none", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(2));
+    fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
+    expect(await screen.findByText("The classic app keeps no hands in this browser.")).toBeInTheDocument();
+    expect((await indexedDB.databases()).map((d) => d.name)).not.toContain("gto-store");
+
+    // a hand played on the classic table (BTN opens, the big blind calls and folds to a flop bet), and one without cards
+    const state = {
+      players: 6,
+      hero: "BTN",
+      stack: 100,
+      cards: ["Ah", "Kd", "Qs", "8d", "3c", null, null],
+      actions: {
+        preflop: [{ pos: "UTG", action: "fold" }, { pos: "HJ", action: "fold" }, { pos: "CO", action: "fold" }, { pos: "BTN", action: "raise", to: 2.5 }, { pos: "SB", action: "fold" }, { pos: "BB", action: "call" }],
+        flop: [{ pos: "BB", action: "check" }, { pos: "BTN", action: "bet", to: 1.8 }, { pos: "BB", action: "fold" }],
+        turn: [],
+        river: [],
+      },
+    };
+    const at = new Date(2025, 5, 1, 9, 30).getTime();
+    const rec = (id: string, data: object) => ({ id, v: 1, created: at, updated: at, dev: "classic-device", data });
+    await classicDb("gto-store", [rec("c1", { state, source: "table", tags: ["classic"], note: "bet small" }), rec("c2", { state: { ...state, cards: [null, null, null, null, null, null, null] } })]);
+    fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
+    expect(await screen.findByText("From the classic app (IndexedDB): 2 hands read; 1 hand imported; left out: no hole cards (1).")).toBeInTheDocument();
+    await waitFor(() => expect(handRows()).toHaveLength(3));
+    expect(within(screen.getByRole("region", { name: "Imports" })).getByText("Classic app, My hands")).toBeInTheDocument();
+    const row = handRows().find((r) => r.textContent?.includes("classic"))!;
+    expect(row).toHaveTextContent("SRP");
+    fireEvent.click(within(row).getByRole("button", { name: "Open" }));
+    const hand = screen.getByRole("region", { name: "Hand" });
+    expect(hand).toHaveTextContent("2025-06-01 09:30 · 6-handed");
+    expect(within(hand).getByRole("listitem", { name: "flop" })).toHaveTextContent("You bet 1.8");
+    expect(hand).toHaveTextContent("A hand from the classic app's My hands, replayed on Lizard's table.");
+    expect(within(hand).getByRole("group", { name: "Your tags and note" })).toHaveTextContent("classicbet small");
+
+    // again: nothing new; the classic database as it was
+    fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
+    expect(await screen.findByText("From the classic app (IndexedDB): 2 hands read; 0 hands imported, 1 hand already here; left out: no hole cards (1).")).toBeInTheDocument();
+    const d = await new Promise<IDBDatabase>((resolve) => {
+      const q = indexedDB.open("gto-store");
+      q.onsuccess = () => resolve(q.result);
+    });
+    expect(d.version).toBe(1);
+    const kept = await new Promise<unknown[]>((resolve) => {
+      const q = d.transaction("hands").objectStore("hands").getAll();
+      q.onsuccess = () => resolve(q.result);
+    });
+    d.close();
+    expect(kept).toEqual([rec("c1", { state, source: "table", tags: ["classic"], note: "bet small" }), rec("c2", { state: { ...state, cards: [null, null, null, null, null, null, null] } })]);
   });
 });

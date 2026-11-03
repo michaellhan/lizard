@@ -1150,3 +1150,76 @@ in Practice".
 ### Precompute builds
 
 Untouched. Memory 61% free; every check ran under `nice`.
+
+## 2026-11-03: Phase 5, import from the classic app (second session)
+
+Deploy of 91e26bd (the backup reminder) verified live: `index-BSiXqKWJ.js`, which has "Backup reminder",
+`backupNudge` and "counted so far".
+
+### Code
+
+- `features/analyze/classic.ts`:
+  - `readClassicHands` opens IndexedDB `gto-store` at the version it has. An open that would create it is aborted,
+    as the classic store's own `readOldDb` does, so a browser without classic data gets no new database.
+  - It reads `hands` in a readonly transaction and drops tombstones. Where there's no IndexedDB it falls back to
+    localStorage `gto-store:hands`.
+  - `classicRecords` turns each record into Analyze's hand:
+    - A history the classic app imported (`hh`) goes through Lizard's importer unchanged. It becomes the same record
+      as that history imported here.
+    - A hand entered or played on the classic table (`state`: seats, hero, stacks per seat, cards, each street's
+      moves) is converted by `classicHand` to Practice's hand. It is written as a history under the site "Classic
+      app", numbered `C<hash of the record id>` (so a second import adds only what's new), and replayed.
+    - Your tags and note come along; the classic grades don't.
+    - Left out, counted with why:
+      - an ante or a straddle;
+      - a tournament's prizes or bounties;
+      - no hole cards, or a card twice;
+      - a move it can't read;
+      - a street's moves without its cards;
+      - no decision of yours;
+      - a hand that doesn't replay on Lizard's table.
+- `features/practice/history.ts`: `handHistory(hand, {site, number, at}, setup)`. Practice's writer is shared, with
+  each seat's own stack.
+- `AnalyzePage.tsx`:
+  - The import panel has "Used the classic app in this browser? Import its My hands" (read only, said so).
+  - Its result line reads "From the classic app (IndexedDB): N hands read; N imported, N already here; left out:
+    why (k)", or "The classic app keeps no hands in this browser."
+  - The replayed hand says "A hand from the classic app's My hands".
+- Classic settings are not imported yet. Only the speed (`gto-speed`) has a Lizard counterpart; four colours,
+  sound, layout, opponents, stakes and Study's own state have none.
+
+### Tests actually run
+
+**Web (Vitest): 258/258 in 43 files.** New:
+- `classic.test.ts`, on a fixture `gto-store` built as `store.js` makes it (version 1, five stores, meta and kv):
+  - the database is the same after reading, version included;
+  - a missing database isn't created;
+  - the localStorage fallback is read;
+  - a table hand's fields, tags, note and written lines; a heads-up 30bb stack, all in;
+  - an imported `hh` equal to the same history imported here;
+  - the same ids on a second import;
+  - each skip.
+- `AnalyzePage.test.tsx`:
+  - none kept;
+  - then one table hand imported and one left out;
+  - the hand replayed with its tag, note and the classic line;
+  - a second import adds nothing;
+  - the classic hands as they were.
+
+**Typecheck and ESLint:** clean. **Build:** passes.
+
+### Checked in the browser (local build)
+
+- No `gto-store` on localhost: "The classic app keeps no hands in this browser." No database was created.
+- A fixture `gto-store` (one table hand, one with an ante):
+  - "2 hands read; 1 hand imported; left out: an ante or a straddle (not imported yet) (1)".
+  - The hand was listed as "Classic app", SRP, 5.5bb, with its tag and note, and replayed street by street with
+    its Study links.
+  - The classic database was still version 1 with its two records unchanged.
+- No console errors.
+- Afterwards: the import was deleted (back to 46 hands), and the fixture database and the save it counted were
+  removed.
+
+### Precompute builds
+
+Untouched. Memory 64% free; every check ran under `nice`.

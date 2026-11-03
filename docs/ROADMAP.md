@@ -305,8 +305,12 @@ Moves matrix rows: Range-builder trainer.
   Phase 2 imports and Practice hands (Keep in Analyze, or every hand by a setting), written as hand histories, with
   tags, notes and search, in the backup. Saved drills (2026-11-03): "☆ Save drill" in Practice's drills and in a leak
   drill, listed on the Saved page, in a `savedDrills` store (database version 5) and the backup. The backup prompt (2026-11-03): saves counted since the last
-  backup made here, a line under the header past 10 (`app/BackupNudge.tsx`). **Still open in Phase 5:** the classic `gto-store` import, and
-  settings in the backup (left out on purpose for now). The record shape still wants the review named in Risks
+  backup made here, a line under the header past 10 (`app/BackupNudge.tsx`). The classic import (2026-11-03): "Import
+  its My hands" in Analyze (`web/src/features/analyze/classic.ts`) reads `gto-store` hands read only, on request
+  (fixture test `classic.test.ts`: the database is the same after, and none is created where there's none); hands
+  with an ante, a straddle or a tournament's prizes are left out and counted. **Still open in Phase 5:** the classic
+  settings (only its speed, `gto-speed`, has a Lizard counterpart: Settings' solve mode), and settings in the backup
+  (left out on purpose for now). The record shape still wants the review named in Risks
   before account sync builds on it.
 - **Saved spots.** Use the existing `savedSpots` store (`web/src/data/db.ts:41`, index `byUpdated`, interface `SavedSpot`).
   - A "Save spot" button in Study stores the line (the `studyState.ts` URL encoding), a name, tags, a note and the provenance of the answer seen.

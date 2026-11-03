@@ -10,8 +10,8 @@ import { PRACTICE_SITE } from "@/data/hands";
 import { recordOf } from "@/features/analyze/analyze";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
-import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street } from "@/poker/table";
-import { setupOf, shownCards, simOf, type PracticeHand } from "./practice";
+import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
+import { setupOf, shownCards, type PracticeHand } from "./practice";
 
 export { PRACTICE_SITE };
 /** your name in the history */
@@ -43,14 +43,19 @@ function moveText(m: Move, sim: Sim, street: Street, stack: number): string {
 
 /** The finished hand (its `result` set) as a hand history. `at`: when it was played. */
 export function practiceHistory(h: PracticeHand, startedAt: number, at: Date): string {
-  const t = setupOf(h);
+  return handHistory(h, { site: PRACTICE_SITE, number: practiceNumber(h, startedAt), at });
+}
+
+/** A hand written as Practice's are, under another site's header (the classic app's hands, features/analyze/classic.ts):
+ * `setup` gives each seat's stack (no ante or straddle: those aren't written). Without a `result` nothing is settled. */
+export function handHistory(h: PracticeHand, head: { site: string; number: string; at: Date }, t: TableSetup = setupOf(h)): string {
   const pos = seatsOf(h.players);
   const name = (p: string) => (p === h.hero ? YOU : p);
   const button = h.players === 2 ? "SB" : "BTN";
   const out = [
-    `${PRACTICE_SITE} Hand #${practiceNumber(h, startedAt)}: Hold'em No Limit (0.5/1) - ${stamp(at)}`,
-    `Table '${PRACTICE_SITE}' ${h.players}-max Seat #${pos.indexOf(button) + 1} is the button`,
-    ...pos.map((p, i) => `Seat ${i + 1}: ${name(p)} (${amt(h.stack)} in chips)`),
+    `${head.site} Hand #${head.number}: Hold'em No Limit (0.5/1) - ${stamp(head.at)}`,
+    `Table '${head.site}' ${h.players}-max Seat #${pos.indexOf(button) + 1} is the button`,
+    ...pos.map((p, i) => `Seat ${i + 1}: ${name(p)} (${amt(t.stacks[p] ?? h.stack)} in chips)`),
     `${name("SB")}: posts small blind 0.5`,
     `${name("BB")}: posts big blind 1`,
     "*** HOLE CARDS ***",
@@ -71,7 +76,7 @@ export function practiceHistory(h: PracticeHand, startedAt: number, at: Date): s
     const back = simulate(t, lines, h.shown).streets[s]?.returned;
     for (const [p, x] of Object.entries(back ?? {})) out.push(`Uncalled bet (${amt(x)}) returned to ${name(p)}`);
   }
-  const sim = simOf(h);
+  const sim = simulate(t, h.lines, h.shown);
   const res = h.result;
   const settled = res && !res.folded && !res.cut;
   if (settled) {
