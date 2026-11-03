@@ -15,7 +15,7 @@ import { HH_SITES } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
-import { filesName, filterHands, HAND_FILTERS, hhFiles, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
+import { filesName, filterHands, HAND_FILTERS, hhFiles, LOST_STEPS, lostByHand, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
 import { CLASSIC_SITE, classicRecords, readClassicHands, type ClassicImport } from "./classic";
 import { decisionNote, GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
@@ -76,7 +76,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const drill = parseLeakParam(params.get("drill"));
   const open = id ? hands?.find((h) => h.id === id) : undefined;
   // (the hands table's filters apply to the report, the drill and the stats too)
-  const shown = useMemo(() => (hands ? filterHands(hands, params) : null), [hands, params]);
+  const lost = useMemo(() => lostByHand(decisions), [decisions]);
+  const shown = useMemo(() => (hands ? filterHands(hands, params, lost) : null), [hands, params, lost]);
   const set = (o: Record<string, string | null>) =>
     setParams(
       (p) => {
@@ -446,6 +447,17 @@ function HandsTable({
         {date("From", "from")}
         {date("To", "to")}
         {tags.length > 0 && select("Tag", "tag", params.get("tag"), tags)}
+        <label className="flex items-center gap-1" title="The EV your graded decisions gave up in the hand, from the answers they were graded against (the preflop charts' grades have no EVs)">
+          <span className="text-muted">EV lost</span>
+          <select aria-label="EV lost" value={params.get("lost") ?? ""} onChange={(e) => set({ lost: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+            <option value="">Any</option>
+            {LOST_STEPS.map((x) => (
+              <option key={x} value={x}>
+                {x}bb or more
+              </option>
+            ))}
+          </select>
+        </label>
         <input
           type="search"
           aria-label="Search hands"

@@ -1,7 +1,7 @@
 // Analyze's pure core: hand-history files read into hands to keep (ported from the classic analyzer,
 // solver/gto/static/session.js: handId, prepare, hhFiles, filesName, decisions, preflopRaises, preflopSituation,
 // POT_TYPE), each hand's summary for the hands table, and the Study line at one of your decisions.
-import type { HandRecord } from "@/data/db";
+import type { DecisionRecord, HandRecord } from "@/data/db";
 import { HandHistoryError, splitHands } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
@@ -88,8 +88,19 @@ export function preflopSituation(before: readonly Move[], hero: string): string 
 }
 
 /** The hands table's filters, in the page's URL: your seat, pot type, site, stakes (the big blind as the history
- * writes it), the days played (YYYY-MM-DD, by the site's clock) from and to, one of your tags, and a search. */
-export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q"] as const;
+ * writes it), the days played (YYYY-MM-DD, by the site's clock) from and to, one of your tags, a search, and the EV
+ * your graded decisions gave up in the hand (at least so many bb). */
+export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q", "lost"] as const;
+
+/** The EV-lost filter's steps, bb. */
+export const LOST_STEPS = ["0.1", "0.5", "1", "2", "5", "10"] as const;
+
+/** The EV your graded decisions gave up in each hand, bb (graded by EV only: the preflop charts' grades have none). */
+export function lostByHand(decisions: readonly DecisionRecord[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const d of decisions) if (d.evLossBb != null && d.evLossBb > 0) m.set(d.handId, (m.get(d.handId) ?? 0) + d.evLossBb);
+  return m;
+}
 
 /** Whether a hand matches a search: every word in its number, site, seat, cards, board, pot type, how it ended,
  * when, stakes, tournament, your tags or note, ignoring case. */
@@ -102,8 +113,9 @@ export function handMatches(h: HandRecord, query: string): boolean {
     .every((w) => hay.includes(w));
 }
 
-export function filterHands(hands: readonly HandRecord[], p: URLSearchParams): HandRecord[] {
-  const [pos, pot, site, bb, from, to, tag, q] = HAND_FILTERS.map((k) => p.get(k));
+/** The hands the filters keep; `lost`: the EV given up in each hand (lostByHand), for the EV-lost filter. */
+export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lost: ReadonlyMap<string, number> = new Map()): HandRecord[] {
+  const [pos, pot, site, bb, from, to, tag, q, minLost] = HAND_FILTERS.map((k) => p.get(k));
   const day = (h: HandRecord) => h.played.slice(0, 10);
   return hands.filter(
     (h) =>
@@ -114,7 +126,8 @@ export function filterHands(hands: readonly HandRecord[], p: URLSearchParams): H
       (!from || (!!h.played && day(h) >= from)) &&
       (!to || (!!h.played && day(h) <= to)) &&
       (!tag || !!h.tags?.includes(tag)) &&
-      (!q || handMatches(h, q)),
+      (!q || handMatches(h, q)) &&
+      (!minLost || (lost.get(h.id) ?? 0) >= Number(minLost) - 1e-9),
   );
 }
 

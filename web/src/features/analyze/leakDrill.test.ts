@@ -90,5 +90,6 @@ describe("leakDrill", () => {
     expect(leakDrillLink(leak, params)).toBe("/analyze?drill=pf%3ABTN+RFI&pos=BTN&bb=0.5%2F1&q=suited");
     expect(leakDrillAbout(leak, params)).toBe("Leak: BTN RFI · your seat BTN, stakes 0.5/1, search suited");
     expect([leakDrillLink(leak, new URLSearchParams()), leakDrillAbout(leak, new URLSearchParams())]).toEqual(["/analyze?drill=pf%3ABTN+RFI", "Leak: BTN RFI"]);
+    expect(leakDrillAbout(leak, new URLSearchParams("lost=2"))).toBe("Leak: BTN RFI · EV lost ≥ 2bb");
   });
 });

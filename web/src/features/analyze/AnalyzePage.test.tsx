@@ -176,6 +176,15 @@ describe("AnalyzePage", () => {
     expect(within(rep).getByRole("row", { name: "vs open" })).toHaveTextContent("vs open10%10");
     expect(within(rep).getByRole("button", { name: "Export CSV" })).toBeInTheDocument();
 
+    // the hands whose graded decisions gave up 0.1bb or more: the one with the flop mistake
+    fireEvent.change(screen.getByRole("combobox", { name: "EV lost" }), { target: { value: "0.1" } });
+    await waitFor(() => expect(handRows()).toHaveLength(1));
+    expect(within(screen.getByRole("region", { name: "Hands" })).getByText("1 of 4")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "EV lost" }), { target: { value: "0.5" } });
+    await waitFor(() => expect(handRows()).toHaveLength(0));
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+
     // asked again: nothing left to ask
     stub.asked = [];
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));

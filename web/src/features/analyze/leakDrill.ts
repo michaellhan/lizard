@@ -30,6 +30,7 @@ const FILTER_WORDS: Record<(typeof HAND_FILTERS)[number], string> = {
   to: "to",
   tag: "tag",
   q: "search",
+  lost: "EV lost ≥",
 };
 /** The leak's drill as a link to keep (data/saved.ts): the leak and the hands' filters, nothing else of the page. */
 export function leakDrillLink(l: LeakRef, params: URLSearchParams): string {
@@ -39,7 +40,7 @@ export function leakDrillLink(l: LeakRef, params: URLSearchParams): string {
 }
 /** What the link drills, in words: "Leak: … · your seat BTN, stakes 0.5/1". */
 export function leakDrillAbout(l: LeakRef, params: URLSearchParams): string {
-  const fs = HAND_FILTERS.filter((k) => params.get(k)).map((k) => `${FILTER_WORDS[k]} ${params.get(k)}`);
+  const fs = HAND_FILTERS.filter((k) => params.get(k)).map((k) => `${FILTER_WORDS[k]} ${params.get(k)}${k === "lost" ? "bb" : ""}`);
   return `Leak: ${l.key}${fs.length ? ` · ${fs.join(", ")}` : ""}`;
 }
 

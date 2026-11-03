@@ -2813,3 +2813,39 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`.
   - asking ahead for your likely lines (prefetching solves; weigh its CPU against the benefit)
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## Phase 2, an EV-lost filter in Analyze (2026-11-03)
+
+Recent decisions (243f92d) deployed: run 41717522562 succeeded; the live bundle `index-DnbzyP2k.js` has "Recent
+decisions".
+
+### What changed
+
+- **The filter.** The hands table takes an "EV lost" filter: 0.1, 0.5, 1, 2, 5 or 10bb or more (`analyze.ts`
+  `LOST_STEPS`). A hand's EV lost is the sum of what its graded decisions gave up (`lostByHand`, from `evLossBb`).
+  - Only grades by EV have it: the flop library's. The preflop charts grade by frequency, so a hand graded only
+    preflop never passes. The select's title says so.
+  - It sits in the URL as `lost` with the other filters. It applies to the report, the leak drill and the stats.
+  - A leak drill's link and title carry it ("EV lost ≥ 2bb", `leakDrill.ts`).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 380/380. `stats.test.ts`: `lostByHand` sums losses and skips none or zero; `filterHands` with `lost`. `leakDrill.test.ts`: the about text. `AnalyzePage.test.tsx`: of 4 graded hands, the one with a 0.12bb flop mistake at 0.1bb, none at 0.5bb. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- 46 kept hands, 3 EV-graded decisions, each 0bb lost: none at every step; Clear filters brought back all 46.
+- No positive case in the local data (no flop decision with a loss); the tests cover it.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`.
+
+### Next
+
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

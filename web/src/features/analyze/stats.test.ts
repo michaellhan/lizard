@@ -5,9 +5,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { HandRecord } from "@/data/db";
+import type { DecisionRecord, HandRecord } from "@/data/db";
 import { importHand } from "@/hh/replay";
-import { filterHands } from "./analyze";
+import { filterHands, lostByHand } from "./analyze";
 import { handStats, sizeBucket, statsOf, tallyStats, wilson } from "./stats";
 
 const HH = (f: string) => readFileSync(join(process.cwd(), "..", "solver", "tests", "data", "hh", f), "utf8");
@@ -95,5 +95,18 @@ describe("stats", () => {
     expect(ids("q=snap")).toEqual(["c"]);
     expect(ids("q=KsKh+ggpoker")).toEqual(["d"]);
     expect(ids("q=KsKh+stars")).toEqual([]);
+    // the EV your graded decisions gave up in the hand: summed, at least so many bb (frequency grades have none)
+    const d = (handId: string, evLossBb: number | null) => ({ handId, evLossBb }) as DecisionRecord;
+    const lost = lostByHand([d("a", 0.4), d("a", 0.7), d("b", 0.5), d("c", null), d("d", 0), d("d", 2)]);
+    expect([...lost]).toEqual([
+      ["a", 1.1],
+      ["b", 0.5],
+      ["d", 2],
+    ]);
+    const byLost = (q: string) => filterHands(hands, new URLSearchParams(q), lost).map((x) => x.id);
+    expect(byLost("lost=0.5")).toEqual(["a", "b", "d"]);
+    expect(byLost("lost=1")).toEqual(["a", "d"]);
+    expect(byLost("lost=2&pos=BTN")).toEqual(["d"]);
+    expect(byLost("lost=5")).toEqual([]);
   });
 });
