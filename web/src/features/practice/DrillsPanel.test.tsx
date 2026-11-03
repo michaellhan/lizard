@@ -61,6 +61,17 @@ describe("DrillsPanel", () => {
     expect(within(screen.getByRole("region", { name: "Answer" })).getByRole("row", { name: /^bet 33% \(1\.82bb\) ← you/ })).toBeInTheDocument();
   });
 
+  it("in position facing out of position's first bet (the 3-bet pot's c-bet): the bet said, Study at it", async () => {
+    open("spot=3bp_bb_btn&view=ipvsbet");
+    const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
+    expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, "")).slice(0, 2)).toEqual(["fold", expect.stringMatching(/^call [\d.]+bb$/)]);
+    expect(screen.getByText(/^BB bets (33|75)% \([\d.]+bb\) · pot [\d.]+bb$/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BTN faces BB's bet");
+    fireEvent.click(within(options).getByRole("button", { name: "fold" }));
+    const answer = screen.getByRole("region", { name: "Answer" });
+    expect(within(answer).getByRole("link", { name: "Open in Study →" }).getAttribute("href")).toMatch(/&flop=BB%3Ab[\d.]+$/);
+  });
+
   it("facing a bet: the flop drawn with the texture asked for, the bet said", async () => {
     open("spot=srp_btn_bb&view=vsbet&suits=mono");
     await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });

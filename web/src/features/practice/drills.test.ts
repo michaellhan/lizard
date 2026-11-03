@@ -43,9 +43,22 @@ const REP: LibraryReport = {
     check: ["check", "bet 33%", "bet 75%"],
     "check|bet 33%": ["fold", "call", "raise to 7"],
     "check|bet 75%": ["fold", "call", "raise to 11"],
+    "bet 33%": ["fold", "call", "raise to 6"],
+    "bet 75%": ["fold", "call", "raise to 13"],
   },
   flops: [
-    { f: "Ac4d3h", w: 100, n: { "": [0.9, 0.05, 0.05], check: [0.5, 0.2, 0.3], "check|bet 33%": [0.4, 0.5, 0.1], "check|bet 75%": [0.5, 0.4, 0.1] } },
+    {
+      f: "Ac4d3h",
+      w: 100,
+      n: {
+        "": [0.9, 0.04, 0.06],
+        check: [0.5, 0.2, 0.3],
+        "check|bet 33%": [0.4, 0.5, 0.1],
+        "check|bet 75%": [0.5, 0.4, 0.1],
+        "bet 33%": [0.2, 0.7, 0.1],
+        "bet 75%": [0.3, 0.6, 0.1],
+      },
+    },
     { f: "9c8c7c", w: 50, n: { "": [1, 0, 0], check: [0.8, 0.2, 0], "check|bet 33%": [0.3, 0.6, 0.1] } },
     { f: "Kc7d7h", w: 50, n: { "": [1, 0, 0] } },
   ],
@@ -79,7 +92,14 @@ describe("the drills' draws", () => {
       ["Ac4d3h", "check|bet 75%", 60],
       ["9c8c7c", "check|bet 33%", 50],
     ]);
-    for (const sp of INDEX.spots) for (const v of DRILL_VIEWS) expect(candidates(report(sp.id), v).length, `${sp.id} ${v}`).toBeGreaterThan(0);
+    // in position facing out of position's first bet: A43's 33% bet made 4% of the time, its 75% 6%
+    expect(candidates(REP, "ipvsbet").map((c) => [c.f, c.path.join("|"), Math.round(c.w * 100) / 100])).toEqual([
+      ["Ac4d3h", "bet 33%", 40],
+      ["Ac4d3h", "bet 75%", 60],
+    ]);
+    // (the fixture's single-raised pots store no response to a lead; its 3-bet pot stores the c-bet's)
+    for (const sp of INDEX.spots)
+      for (const v of DRILL_VIEWS) expect(candidates(report(sp.id), v).length > 0, `${sp.id} ${v}`).toBe(v !== "ipvsbet" || sp.id === "3bp_bb_btn");
   });
 
   it.skipIf(!hasSnapshot)("every spot of the snapshot's whole library has draws for each drill", () => {
@@ -98,11 +118,11 @@ describe("the drills' draws", () => {
   });
 
   it("deals from the acting player's range at the node, off the board, by weight", async () => {
-    const sid = "srp_btn_bb";
-    const rep = report(sid);
-    const rg = ranges(sid);
     const r = seeded(7);
     for (const view of DRILL_VIEWS) {
+      const sid = view === "ipvsbet" ? "3bp_bb_btn" : "srp_btn_bb";
+      const rep = report(sid);
+      const rg = ranges(sid);
       const cs = candidates(rep, view);
       for (let i = 0; i < 4; i++) {
         const c = cs[pick(cs.map((x) => x.w), r)]!;
@@ -155,6 +175,7 @@ describe("a problem's spot", () => {
     expect(potAt(REP, ["check", "bet 75%"])).toEqual({ pot: 9.63, bet: 4.13 });
     expect(situation(REP, pr)).toBe("BB checks, BTN bets 75% (4.13bb) · pot 9.63bb");
     expect(situation(REP, { path: [], pot: 5.5, bet: 0 })).toBe("BB to act first · pot 5.5bb");
+    expect(situation(REP, { path: ["bet 75%"], pot: 9.63, bet: 4.13 })).toBe("BB bets 75% (4.13bb) · pot 9.63bb");
     expect(drillActionLabel(pr, "call")).toBe("call 4.13bb");
     expect(drillActionLabel({ pot: 5.5, bet: 0 }, "bet 33%")).toBe("bet 33% (1.82bb)");
     expect(drillActionLabel(pr, "raise to 11")).toBe("raise to 11");
@@ -178,6 +199,7 @@ describe("a problem's spot", () => {
       { pos: "BB", action: "call" },
     ]);
     expect([h.players, h.stack, h.board]).toEqual([6, 100, "QhTh4h"]);
+    expect(studyHandOf(REP, { ...pr, path: ["bet 75%"], player: 1, hero: "BTN" }).flop).toEqual([{ pos: "BB", action: "bet", to: 4.13 }]);
     expect(fromSearch(studyLink(REP, pr)!.slice("/study?".length))).toEqual(h);
     // a spot of another game is played in that game; one Study can't set up has no link
     expect(studyHandOf({ ...REP, game: { players: 2, stack: 100, ante: 0, straddle: false } }, pr).players).toBe(2);

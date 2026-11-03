@@ -99,6 +99,7 @@ describe("sessions history", () => {
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, rake: 5, rakeCap: 3 } }).what).toBe("6 players · 100bb · rake 5%");
     expect(rowOf(PREFLOP)).toMatchObject({ what: "6 players · 100bb · preflop only · seat BTN", net: null, lossPer: null });
     expect(rowOf(DRILL)).toMatchObject({ what: "SRP BTN vs BB, facing a bet", ok: 3, lossPer: 0.05, to: { href: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet" } });
+    expect(rowOf({ ...DRILL, meta: { ...DRILL.meta, view: "ipvsbet" } }).what).toBe("SRP BTN vs BB, in position facing a bet");
     expect(rowOf(DRILL).graded).toBe("Precomputed solution (the flop library)");
     expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done", n: 2, ok: 1, lossPer: null, to: { href: "/analyze?drill=pf%3ARFI" } });
     expect(rowOf(BUILD)).toMatchObject({ n: 1, ok: null, acc: 0.82, buildLoss: 0.04, graded: "Precomputed solution", to: { href: `/study?${BUILD.meta.line as string}` } });

@@ -52,12 +52,14 @@ export const TEXTURE_GROUPS: readonly { key: TextureKey; label: string; values: 
 ];
 
 // ---- the drills: a spot's node, as the reports' views (out of position first; in position after a check; out of
-// position facing a bet after checking, any stored size, drawn by how often in position bets it)
-export type DrillView = "oop" | "ip" | "vsbet";
-export const DRILL_VIEWS: readonly DrillView[] = ["oop", "ip", "vsbet"];
+// position facing a bet after checking, any stored size, drawn by how often in position bets it; in position facing
+// out of position's first bet, the same way: Lizard's, as classic has the first three)
+export type DrillView = "oop" | "ip" | "vsbet" | "ipvsbet";
+export const DRILL_VIEWS: readonly DrillView[] = ["oop", "ip", "vsbet", "ipvsbet"];
 export function viewLabel(view: DrillView, seats: readonly string[]): string {
   if (view === "oop") return `${seats[0]} first to act`;
   if (view === "ip") return `${seats[1]} after ${seats[0]} checks`;
+  if (view === "ipvsbet") return `${seats[1]} faces ${seats[0]}'s bet`;
   return `${seats[0]} checks, faces a bet`;
 }
 
@@ -75,10 +77,12 @@ export function candidates(rep: LibraryReport, view: DrillView, filter: TextureF
     if (!Object.entries(filter).every(([k, v]) => !v || t[k as TextureKey] === v)) continue;
     if (view === "oop" && fl.n[""]) out.push({ f: fl.f, path: [], w: fl.w });
     else if (view === "ip" && fl.n.check) out.push({ f: fl.f, path: ["check"], w: fl.w });
-    else if (view === "vsbet") {
-      const ks = Object.keys(fl.n).filter((k) => k.startsWith("check|"));
-      const cn = rep.nodes.check ?? [];
-      const fq = ks.map((k) => (fl.n.check ? (fl.n.check[cn.indexOf(k.slice(6))] ?? 0) : 0));
+    else if (view === "vsbet" || view === "ipvsbet") {
+      // (the bets faced: after a check, "check|bet 33%"; or out of position's first, "bet 33%")
+      const at = view === "vsbet" ? "check" : "";
+      const ks = Object.keys(fl.n).filter((k) => (view === "vsbet" ? k.startsWith("check|") : k !== "" && k !== "check" && !k.includes("|")));
+      const cn = rep.nodes[at] ?? [];
+      const fq = ks.map((k) => (fl.n[at] ? (fl.n[at][cn.indexOf(view === "vsbet" ? k.slice(6) : k)] ?? 0) : 0));
       const t = fq.reduce((a, b) => a + b, 0);
       ks.forEach((k, i) => out.push({ f: fl.f, path: k.split("|"), w: fl.w * (t > 0 ? fq[i]! / t : 1 / ks.length) }));
     }
@@ -177,7 +181,14 @@ export function drillActionLabel(pr: Pick<DrillProblem, "pot" | "bet">, name: st
 export function situation(rep: Pick<LibraryReport, "seats">, pr: Pick<DrillProblem, "path" | "pot" | "bet">): string {
   const [o, p] = rep.seats;
   const b = pr.path.find((x) => /^bet /.test(x));
-  const line = pr.path.length === 0 ? `${o} to act first` : b ? `${o} checks, ${p} bets ${b.slice(4)} (${fmt(pr.bet)}bb)` : `${o} checks`;
+  const line =
+    pr.path.length === 0
+      ? `${o} to act first`
+      : b && pr.path[0] === b
+        ? `${o} bets ${b.slice(4)} (${fmt(pr.bet)}bb)`
+        : b
+          ? `${o} checks, ${p} bets ${b.slice(4)} (${fmt(pr.bet)}bb)`
+          : `${o} checks`;
   return `${line} · pot ${fmt(pr.pot)}bb`;
 }
 

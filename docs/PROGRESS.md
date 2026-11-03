@@ -3070,3 +3070,43 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`. Free m
 - Practice's drills could add the same decision (`drills.ts` has the first three).
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Practice, the same decision in the drills (2026-11-03)
+
+The Reports decision (3b9b482) deployed: run 41722573254 succeeded, and the live bundle `index-pMh27LzY.js` has it.
+
+### What changed
+
+- **A fourth drill.** Drills deal in position facing out of position's first bet, labelled "BTN faces BB's bet"
+  (`view=ipvsbet`, `drills.ts`). Each stored size is drawn by how often it's made.
+- **The situation.** It reads "BB bets 33% (1.82bb) · pot 7.32bb". Before, any path with a bet in it was read as
+  "BB checks, BTN bets".
+- **Study.** The drill opens Study at the bet.
+- **History.** It names the drill "…, in position facing a bet".
+- **Where it's stored.** The library's entries store the node with in position to act (checked in the fixture's
+  3bp_bb_btn entries: paths `bet 33%` and `bet 75%`, player 1).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 393/393, and a History check of the new wording. `drills.test.ts`: the draws split by bet frequency (4% and 6%: 40 and 60 of the flop's 100); which fixture spots store it; dealing from in position's range on 3bp_bb_btn; the situation and the Study line. `DrillsPanel.test.tsx`: the 3-bet pot's c-bet drill: fold and call, the bet said, Study at it. The snapshot library has draws for every spot at all four decisions. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- **srp_btn_bb.** "119 store this decision", matching the report. One hand was dealt and answered:
+  - The hand was A-K against BB's 33% bet on 9-8-8.
+  - Calling was graded Best, with no EV given up, under the library's provenance.
+  - The answer offered "Open in Study" at `flop=BB:b1.82`.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`.
+
+### Next
+
+- Phase 3, still open: turn and river runout reports (live solves), 3-way spots.
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

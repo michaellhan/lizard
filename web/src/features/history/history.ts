@@ -96,7 +96,7 @@ const SOURCE_SET: Record<ResultSource, true> = {
   unknown: true,
 };
 
-const VIEW_WORDS: Record<string, string> = { oop: "first to act", ip: "after a check", vsbet: "facing a bet" };
+const VIEW_WORDS: Record<string, string> = { oop: "first to act", ip: "after a check", vsbet: "facing a bet", ipvsbet: "in position facing a bet" };
 
 export interface SessionRow {
   id: string;
