@@ -37,6 +37,7 @@ import {
   villainMove,
   withVillain,
   type Decision,
+  type HandOptions,
   type PracticeHand,
 } from "./practice";
 
@@ -48,17 +49,22 @@ interface PracticeSession {
   startedAt: number;
   players: number;
   stack: number;
+  /** your seat each hand ("moves", "random" or a seat) and whether hands stop as the preflop closes */
+  opts: Required<HandOptions>;
   hands: number;
-  /** chips won less chips put in, over the session's hands, bb */
+  /** chips won less chips put in, over the session's hands, bb (not counted preflop only: no hand is played out) */
   net: number;
   score: Score;
 }
 
-const freshSession = (players: number, stack: number): PracticeSession => ({
+const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false };
+
+const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
   startedAt: Date.now(),
   players,
   stack,
+  opts,
   hands: 0,
   net: 0,
   score: emptyScore(),
@@ -71,7 +77,17 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
   endedAt: Date.now(),
   decisions: s.score.n,
   evLossBb: s.score.loss,
-  meta: { hands: s.hands, net: s.net, ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, players: s.players, stack: s.stack },
+  meta: {
+    hands: s.hands,
+    net: s.net,
+    ok: s.score.ok,
+    graded: s.score.ne,
+    lossPct: s.score.lossPct,
+    players: s.players,
+    stack: s.stack,
+    seat: s.opts.seat,
+    ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
+  },
 });
 
 /** A finished hand kept in Analyze, or being kept: `key` is the session's and the hand's place in it. */
@@ -183,7 +199,7 @@ function FullHands({ pace }: { pace: number }) {
       }
       const result = finish(h);
       setHand({ ...h, result });
-      setSession((s) => ({ ...s, hands: s.hands + 1, net: Math.round((s.net + result.net) * 100) / 100 }));
+      setSession((s) => ({ ...s, hands: s.hands + 1, net: s.opts.preflopOnly ? s.net : Math.round((s.net + result.net) * 100) / 100 }));
       if (keeping.current.all) void keep({ ...h, result }, keeping.current.session);
     },
     [keep],
@@ -251,15 +267,15 @@ function FullHands({ pace }: { pace: number }) {
     };
   }, []);
 
-  const startSession = useCallback((players: number, stack: number) => {
-    setSession(freshSession(players, stack));
-    setHand(newHand(players, stack, 0, randomSeed()));
+  const startSession = useCallback((players: number, stack: number, opts: Required<HandOptions>) => {
+    setSession(freshSession(players, stack, opts));
+    setHand(newHand(players, stack, 0, randomSeed(), opts));
     setLast(null);
     setError(null);
   }, []);
 
   const nextHand = () => {
-    setHand(newHand(session.players, session.stack, hand.n + 1, randomSeed()));
+    setHand(newHand(session.players, session.stack, hand.n + 1, randomSeed(), session.opts));
     setError(null);
   };
 
@@ -299,12 +315,19 @@ function FullHands({ pace }: { pace: number }) {
         <div>
           <p className="text-sm text-muted">
             Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
-            the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand.
+            the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
+            preflop closes.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ModePicker modes={["quick", "accurate"]} />
-          <SetupForm key={`${session.players}/${session.stack}`} players={session.players} stack={session.stack} onStart={startSession} />
+          <SetupForm
+            key={`${session.players}/${session.stack}/${session.opts.seat}/${session.opts.preflopOnly}`}
+            players={session.players}
+            stack={session.stack}
+            opts={session.opts}
+            onStart={startSession}
+          />
         </div>
       </div>
 
@@ -390,7 +413,15 @@ function FullHands({ pace }: { pace: number }) {
         {phase.kind === "over" && hand.result && (
           <div className="flex flex-wrap items-center gap-3">
             <p role="status" className="text-sm">
-              {hand.result.folded ? "You folded" : hand.result.net > 0 ? "You won" : hand.result.net < 0 ? "You lost" : "You broke even"}
+              {hand.result.folded
+                ? "You folded"
+                : hand.result.cut
+                  ? "You see the flop: preflop only, the hand stops here"
+                  : hand.result.net > 0
+                    ? "You won"
+                    : hand.result.net < 0
+                      ? "You lost"
+                      : "You broke even"}
               {hand.result.net !== 0 && (
                 <span className="font-mono">
                   {hand.result.folded ? " · −" : " "}
@@ -450,7 +481,8 @@ function FullHands({ pace }: { pace: number }) {
               <li key={s.id} className="text-muted">
                 {new Date(s.startedAt).toLocaleString()} · {String(s.meta.hands ?? 0)} hands · {s.decisions} decisions
                 {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} correct` : ""}
-                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""} · net {signed(Number(s.meta.net) || 0)}bb
+                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
+                {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
               </li>
             ))}
           </ul>
@@ -517,7 +549,7 @@ function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeSession;
       {item("Best or correct", s.n ? pct(acc, 0) : "–")}
       {item("EV lost a decision", loss == null ? "–" : `${bb(loss)}bb · ${lossPct!.toFixed(1)}% pot`)}
       {item("Streak", `${s.streak} (best ${s.best})`)}
-      {item("Net", `${signed(session.net)}bb`)}
+      {!session.opts.preflopOnly && item("Net", `${signed(session.net)}bb`)}
     </section>
   );
 }
@@ -680,9 +712,23 @@ function HandLog({ hand }: { hand: PracticeHand }) {
   );
 }
 
-function SetupForm({ players, stack, onStart }: { players: number; stack: number; onStart: (players: number, stack: number) => void }) {
+function SetupForm({
+  players,
+  stack,
+  opts,
+  onStart,
+}: {
+  players: number;
+  stack: number;
+  opts: Required<HandOptions>;
+  onStart: (players: number, stack: number, opts: Required<HandOptions>) => void;
+}) {
   const [p, setP] = useState(players);
   const [s, setS] = useState(String(stack));
+  const [seat, setSeat] = useState(opts.seat);
+  const [pre, setPre] = useState(opts.preflopOnly);
+  // (a seat the table size doesn't have moves)
+  const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
   const n = Number(s);
   const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK;
   return (
@@ -691,7 +737,7 @@ function SetupForm({ players, stack, onStart }: { players: number; stack: number
       className="flex flex-wrap items-center gap-2 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n);
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: pre });
       }}
     >
       <label className="flex items-center gap-1">
@@ -717,6 +763,25 @@ function SetupForm({ players, stack, onStart }: { players: number; stack: number
           className="w-20 rounded border border-border bg-surface-2 px-1.5 py-1"
         />
         <span className="text-muted">bb</span>
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="text-muted">Your seat</span>
+        <select aria-label="Your seat" value={seatOk ? seat : "moves"} onChange={(e) => setSeat(e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+          <option value="moves">Moves each hand</option>
+          <option value="random">Random</option>
+          {seatsOf(p).map((x) => (
+            <option key={x} value={x}>
+              {seatLabel(x, p)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1">
+        <span className="text-muted">Play</span>
+        <select aria-label="Play" value={pre ? "preflop" : "full"} onChange={(e) => setPre(e.target.value === "preflop")} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+          <option value="full">Full hands</option>
+          <option value="preflop">Preflop only</option>
+        </select>
       </label>
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
         New session

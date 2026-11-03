@@ -150,6 +150,15 @@ describe("Practice hands as hand histories", () => {
     expect(ff.rec.pot).toBe(20.5);
   });
 
+  it("preflop only: stopped as the preflop closes, nothing after it written", () => {
+    const h = played(newHand(6, 100, 0, 41, { preflopOnly: true }), ...folds("UTG", "HJ", "CO"), mv("BTN", "raise", 2.5), mv("SB", "fold"), mv("BB", "call"));
+    expect(h.result!.cut).toBe(true);
+    const { text, rec } = roundTrip(h);
+    expect(brackets(text)).toEqual([`[${h.hands.BTN!.join(" ")}]`]);
+    expect(text).toContain("BB: calls 1.5\n*** SUMMARY ***\nPreflop only: the hand stopped as the preflop closed.");
+    expect(rec).toMatchObject({ end: "preflop only", board: "", potType: "SRP", pot: 5.5, decisions: 1 });
+  });
+
   it("nine-handed, a limp and an isolation raise checked down: the seats' names apart", () => {
     // (hand 6: you're UTG1)
     const h = played(

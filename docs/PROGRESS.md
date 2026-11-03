@@ -1004,3 +1004,39 @@ Untouched. Memory 53–68% free; every check ran under `nice`.
 
 Deploy run 41673252108 passed. `/lizard/` serves `index-DGeTYf8_.js`, which holds "Keep in Analyze", "Keep every
 hand" and the "Lizard Practice" site.
+
+### Deploy of `24625cf`, checked live
+
+Deploy run 41673943784 passed. `/lizard/` serves `index-CQ8VwABi.js`, which holds "Open this spot in Study".
+
+## 2026-11-03: Phase 5, Practice preflop only and your seat (second session)
+
+### Code
+
+- `practice.ts`: `newHand(…, opts)` takes `HandOptions`: `seat` ("moves", the default; "random", drawn from the
+  hand's seed; or a seat, which a smaller table without it turns back into "moves") and `preflopOnly`. A preflop-only
+  hand is over as the preflop closes with you and someone else in: `finish` gives `cut: true` (nothing settled, net
+  0) and `shownCards` shows no opponent's cards. A walk or your fold ends it as before.
+- `PracticePage.tsx`: the setup gains "Your seat" (Moves each hand, Random, each seat) and "Play" (Full hands,
+  Preflop only), kept with the session (and its record's meta). Preflop only, the hand ends "You see the flop:
+  preflop only, the hand stops here", and the session counts no net (the score strip and past sessions leave it out).
+- `history.ts`: a preflop-only hand kept in Analyze ends its history with that line and is kept with end
+  "preflop only"; its stats count VPIP, PFR, RFI and 3-bets, and no flop seen.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 243/243 in 40 files. New: seat choices and the preflop-only stop with a walk in `practice.test.ts`; a preflop-only hand written and read back in `history.test.ts`; a preflop-only session from the big blind in `PracticePage.test.tsx` (stopped hand, face-down cards, no net, the seat kept) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- 6-max, Your seat BB, Preflop only: BTN raised, SB folded, you called; "You see the flop…", no board, BTN's cards
+  face down, the score strip without Net. Next hand: BB again. Kept in Analyze: "Lizard Practice hand", end
+  "preflop only", pot 5.5bb. No console errors. Preflop only: no solve ran.
+
+### Precompute builds
+
+Untouched. Memory 61–67% free; every check ran under `nice`.

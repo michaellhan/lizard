@@ -53,6 +53,26 @@ describe("seats and dealing", () => {
     expect([2, 3].map((n) => heroSeat(n, 9))).toEqual(["HJ", "LJ"]);
   });
 
+  it("your seat as chosen: moving, at random from the seed, or one seat (one the table lacks moves)", () => {
+    expect(newHand(6, 100, 3, 5, { seat: "BB" }).hero).toBe("BB");
+    expect([5, 7, 12].map((seed) => newHand(6, 100, 0, seed, { seat: "random" }).hero)).toEqual(["BB", "HJ", "UTG"]);
+    expect(newHand(6, 100, 2, 5, { seat: "LJ" }).hero).toBe("HJ");
+    expect(newHand(6, 100, 2, 5).hero).toBe("HJ");
+  });
+
+  it("preflop only: the hand stops as the preflop closes, nothing settled and no card shown; a walk is played out", () => {
+    let h = newHand(3, 100, 0, 9, { preflopOnly: true });
+    h = play(h, { pos: "BTN", action: "raise", to: 2.5 }, { pos: "SB", action: "fold" }, { pos: "BB", action: "call" });
+    expect(phaseOf(h)).toEqual({ kind: "over" });
+    const r = finish(h);
+    expect(r).toEqual({ net: 0, folded: false, winners: [], says: "", pays: {}, cut: true });
+    expect(shownCards({ ...h, result: r }, "BB")).toBeNull();
+    // in the big blind, folded to
+    const w = play(newHand(3, 100, 0, 9, { seat: "BB", preflopOnly: true }), { pos: "BTN", action: "fold" }, { pos: "SB", action: "fold" });
+    expect(finish(w)).toMatchObject({ net: 0.5, winners: ["BB"] });
+    expect(finish(w).cut).toBeUndefined();
+  });
+
   it("deals every seat and the board from the hand's seed, the same again", () => {
     const h = newHand(6, 100, 0, 42);
     expect(Object.keys(h.hands)).toEqual(["UTG", "HJ", "CO", "BTN", "SB", "BB"]);

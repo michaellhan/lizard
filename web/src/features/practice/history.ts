@@ -3,7 +3,8 @@
 // (the parser reads it as a site it doesn't name: "generic"); the record is marked as Practice's. The seats are named
 // by position and you are "You"; every seat has a "Dealt to" line, so the seats still to act when you folded are
 // dealt in. Only what the table showed is written: the board as far as it was dealt, an opponent's cards where it
-// reached a showdown, who collected what (nothing after your fold: the hand isn't played out).
+// reached a showdown, who collected what (nothing after your fold, or after the preflop in a preflop-only hand: the
+// hand isn't played out).
 import type { HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
 import { recordOf } from "@/features/analyze/analyze";
@@ -72,15 +73,17 @@ export function practiceHistory(h: PracticeHand, startedAt: number, at: Date): s
   }
   const sim = simOf(h);
   const res = h.result;
-  if (res && !res.folded) {
+  const settled = res && !res.folded && !res.cut;
+  if (settled) {
     const shows = pos.filter((p) => shownCards(h, p, sim) && sim.active.size > 1);
     if (shows.length) out.push("*** SHOW DOWN ***", ...shows.map((p) => `${name(p)}: shows [${h.hands[p]!.join(" ")}]`));
     for (const p of pos) if ((res.pays[p] ?? 0) > EPS) out.push(`${name(p)} collected ${amt(res.pays[p]!)} from pot`);
   }
   out.push("*** SUMMARY ***");
-  if (res && !res.folded) out.push(`Total pot ${amt(Object.values(res.pays).reduce((a, b) => a + b, 0))} | Rake 0`);
+  if (settled) out.push(`Total pot ${amt(Object.values(res.pays).reduce((a, b) => a + b, 0))} | Rake 0`);
   if (board.length) out.push(`Board [${board.join(" ")}]`);
   if (res?.folded) out.push(`${YOU} folded: the rest of the hand wasn't played.`);
+  if (res?.cut) out.push("Preflop only: the hand stopped as the preflop closed.");
   return out.join("\n") + "\n";
 }
 
@@ -92,5 +95,5 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
     name: `Practice, ${new Date(session.startedAt).toLocaleString()}`,
     at: at.getTime(),
   });
-  return { ...r, id: `${PRACTICE_SITE}|${r.number}|${r.hole}`, site: PRACTICE_SITE, bb: "1bb" };
+  return { ...r, id: `${PRACTICE_SITE}|${r.number}|${r.hole}`, site: PRACTICE_SITE, bb: "1bb", ...(h.result?.cut ? { end: "preflop only" } : {}) };
 }

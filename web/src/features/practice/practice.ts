@@ -3,8 +3,9 @@
 // solver. Semantics follow the classic trainer (solver/gto/static/practice.js): every seat's cards and the board are
 // dealt up front from one deck; an opponent's move is drawn from the GTO mix for its actual hand (Advisor.play);
 // your options are the solver's actions at your spot, graded once you've acted; your fold ends the hand for you.
-// Unlike the classic Table mode, every hand starts from the setup's stack (no chips carried over), and your seat
-// moves one place each hand: BTN, CO, HJ ... UTG, BB, SB.
+// Unlike the classic Table mode, every hand starts from the setup's stack (no chips carried over). Your seat moves one
+// place each hand (BTN, CO, HJ ... UTG, BB, SB), or is drawn at random, or is one seat; a preflop-only hand stops as
+// the preflop closes.
 import { kindOf } from "@/components/actions";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
@@ -52,6 +53,8 @@ export interface HandResult {
   /** the showdown in a line, "BB's pair of queens beats your A-high" */
   says: string;
   pays: Record<string, number>;
+  /** the hand stopped as the preflop closed (preflop only): nothing settled, `net` 0 */
+  cut?: true;
 }
 
 export interface PracticeHand {
@@ -68,6 +71,16 @@ export interface PracticeHand {
   lines: Lines;
   decisions: Decision[];
   result: HandResult | null;
+  /** the hand ends as the preflop closes, with you still in it */
+  preflopOnly?: true;
+}
+
+/** Your seat each hand: moving one place a hand ("moves"), drawn at random from the hand's seed ("random"), or one
+ * seat (its name). */
+export type SeatChoice = string;
+export interface HandOptions {
+  seat?: SeatChoice;
+  preflopOnly?: boolean;
 }
 
 /** Your seat in the session's n-th hand: the button first, then one seat to the right each hand. */
@@ -77,10 +90,32 @@ export function heroSeat(n: number, players: number): string {
   return s[(((start - n) % players) + players) % players]!;
 }
 
-export function newHand(players: number, stack: number, n: number, seed: number): PracticeHand {
-  const d = deal(players, seeded(seed));
-  return { seed, n, players, stack, hero: heroSeat(n, players), ...d, shown: 0, lines: noLines(), decisions: [], result: null };
+/** Your seat in the n-th hand under a seat choice (a seat the table doesn't have moves). */
+export function seatFor(choice: SeatChoice | undefined, n: number, players: number, seed: number): string {
+  const s = seatsOf(players);
+  if (choice === "random") return s[seed % players]!;
+  return choice && s.includes(choice) ? choice : heroSeat(n, players);
 }
+
+export function newHand(players: number, stack: number, n: number, seed: number, opts: HandOptions = {}): PracticeHand {
+  const d = deal(players, seeded(seed));
+  return {
+    seed,
+    n,
+    players,
+    stack,
+    hero: seatFor(opts.seat, n, players, seed),
+    ...d,
+    shown: 0,
+    lines: noLines(),
+    decisions: [],
+    result: null,
+    ...(opts.preflopOnly ? { preflopOnly: true as const } : {}),
+  };
+}
+
+/** Preflop only, the preflop closed with you and someone else in: the hand stops there. */
+const cutAt = (h: PracticeHand, sim: Sim) => !!h.preflopOnly && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);
 
 export const setupOf = (h: Pick<PracticeHand, "players" | "stack">): TableSetup => ({
   players: h.players,
@@ -131,7 +166,7 @@ export type Phase =
 
 /** What happens next: cards to deal, a decision (yours or an opponent's), or the end of the hand (also your fold). */
 export function phaseOf(h: PracticeHand, sim: Sim = simOf(h)): Phase {
-  if (h.result || sim.handOver || !sim.active.has(h.hero)) return { kind: "over" };
+  if (h.result || sim.handOver || !sim.active.has(h.hero) || cutAt(h, sim)) return { kind: "over" };
   if (sim.waiting) return { kind: "deal", street: sim.waiting };
   if (!sim.toAct || !sim.current) return { kind: "over" };
   return sim.toAct === h.hero ? { kind: "hero", street: sim.current } : { kind: "villain", street: sim.current, seat: sim.toAct };
@@ -216,6 +251,7 @@ export function withVillain(h: PracticeHand, m: Move, sim: Sim = simOf(h)): Prac
 export function finish(h: PracticeHand, sim: Sim = simOf(h)): HandResult {
   const inv = (p: string) => (sim.invested[p] ?? 0) + (sim.cur?.bets[p] ?? 0);
   if (!sim.active.has(h.hero)) return { net: -inv(h.hero), folded: true, winners: [], says: "", pays: {} };
+  if (cutAt(h, sim)) return { net: 0, folded: false, winners: [], says: "", pays: {}, cut: true };
   const live = [...sim.active];
   const st = settle(setupOf(h), sim.invested, live, sim.allin, boardOf(h), (p) => h.hands[p]!);
   return {
@@ -250,6 +286,6 @@ export function says(st: Settlement, hero: string, players: number): string {
 /** Your seat's cards shown; an opponent's only at a showdown it reached (not after your fold or its own). */
 export function shownCards(h: PracticeHand, p: string, sim: Sim = simOf(h)): [string, string] | null {
   if (p === h.hero) return h.hands[p]!;
-  if (!h.result || h.result.folded) return null;
+  if (!h.result || h.result.folded || h.result.cut) return null;
   return sim.active.has(p) && sim.active.size > 1 ? h.hands[p]! : null;
 }

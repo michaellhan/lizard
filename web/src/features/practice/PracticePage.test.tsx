@@ -166,6 +166,30 @@ describe("PracticePage", () => {
     expect(both).toHaveLength(2);
   });
 
+  it("preflop only, in the big blind each hand: the hand stops as the preflop closes, no net counted", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "BB" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Play" }), { target: { value: "preflop" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    // the small blind limps; you check
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "call" }));
+    expect(await screen.findByText("You see the flop: preflop only, the hand stops here")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+    // (the small blind's cards stay face down: nothing was shown down)
+    expect(within(screen.getByRole("listitem", { name: "BTN/SB" })).getAllByRole("img").map((c) => c.getAttribute("aria-label"))).toEqual(["face-down card", "face-down card"]);
+    const score = screen.getByRole("region", { name: "Score" });
+    expect(within(score).getByText("Hands").nextElementSibling).toHaveTextContent(/^1$/);
+    expect(within(score).queryByText("Net")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
+    expect(await screen.findByRole("group", { name: "Your options" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "BB (you)" })).toHaveAttribute("aria-current", "true");
+  });
+
   it("offers the moves without a grade where your spot has no answer", async () => {
     const answer = stub.answer;
     stub.answer = () => {
