@@ -474,3 +474,12 @@ Untouched. Memory stayed at about 61% free.
 - Commit, push and check the deploy of the drills.
 - Then, as feasible at low CPU: Phase 4 range-builder grading and Phase 5 saved spots. The preflop Solver source
   (Phase 0) stays on request only.
+
+### Deploy of `12e1a34`, checked live
+
+- Pages run 41652080142 succeeded. `https://www.michael-han.com/lizard/practice/` returns 200 and serves
+  `index-0h6F-ScU.js`, the bundle built and checked locally.
+- `/lizard/practice/?tab=drills` in the browser: the Lizard library's 20 spots are listed; srp_btn_bb reports "1,755
+  flops stored; 1,755 store this decision."; a hand dealt (Q♣9♣ on 8♠5♥2♠ facing a 75% bet) and the "2" key graded
+  the call under "Precomputed solution · srp_btn_bb · 0.12% pot from equilibrium in the solved game (converged) · 300
+  iterations".
