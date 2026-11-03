@@ -2964,3 +2964,54 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`.
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 3, still open: turn and river runout reports, a chart view, IP facing a lead, 3-way spots.
 
+## Phase 3, a chart view of the flop reports (2026-11-03)
+
+Range text in the builder (ba4111d) deployed: run 41720341757 succeeded; the live bundle `index-sadh4ukL.js` has
+"Paint these". The range syntax (cfa2a81): run 41719772383, `index-eggW3gJ2.js`.
+
+### What changed
+
+- **Table or Chart.** Reports has a Table / Chart switch, in the URL as `show=chart` (`ReportChart.tsx`). The chart
+  draws the rows the table shows: same spot, decision, filters and order.
+  - **The flops.** Every flop shown is one column of its action mix, first action at the bottom, in the table's
+    order. Sorted by an action, it shows how that action spreads over the flops. Columns aren't weighted; the caption
+    says so (the averages are).
+  - **Each action is one stepped shape** across the columns (`stepArea`). Drawing 1,755 columns under a pixel wide
+    as rectangles left seams.
+  - **Hover and click.** Hovering a column shows its flop, mix and both EVs. A click opens that flop in Study at the
+    decision.
+  - **Groups.** With a grouping, each texture group is a column of its weighted average, with a tooltip. A click
+    shows only that group's flops, as the table's group button does.
+  - **Legend.** The action legend is always shown. The table stays as the view with every number.
+- **Palette check (dataviz validator).** The app's action colours on the dark surface:
+  - check `#2bb39a` and bet1 `#f2c14e` sit outside the categorical lightness band;
+  - bet3 `#e8613c` and bet4 `#d23c4b` are close (normal-vision ΔE 9.2) when a spot has four bet sizes.
+  - The shades are a deliberate small-to-large ramp, used app-wide, so they're unchanged. The chart leans on its
+    legend, tooltips and the table. Worth a design decision if four-size spots become common.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 391/391. `ReportsPage.test.tsx`: the switch in the URL, the legend, the strip's summary, each of the 7 fixture flops hovered in check order with its mix, a click to Study; groups by pairing, hover, a click filtering to Unpaired; back to the table; `stepArea`'s shapes. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, srp_btn_bb, 1,755 flops)
+
+- **All three decisions.** BB first by high card, sorted by check; then by suits, sorted by bet 33%. BB vs bet by
+  high card: raising grows from 7.6% on A-high flops to 16.7% on 9-high or lower.
+- **Hover.** The first column sorted by bet 33% showed 6♣5♣3♦: check 87.3%, bet 33% 10.7%, bet 75% 2.0%.
+- **375px.** No horizontal scroll. The group labels wrap ("9 high / or lower") instead of being cut.
+- **Console.** Its only errors came from bundles older than the build under test.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`.
+
+### Next
+
+- Phase 3, still open: turn and river runout reports (live solves), in position facing a lead, 3-way spots.
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+

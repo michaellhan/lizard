@@ -2,7 +2,8 @@
 // the library's <spot>/report.json with no solver. One decision at a time (out of position first, in position after a
 // check, out of position facing a bet), per flop and averaged by texture group, each flop weighted by how many of the
 // 22100 it stands for; filters, grouping and sorting on every column; each player's EQR; a CSV of the rows shown; a
-// flop opens in Study at the decision. Everything chosen is in the URL.
+// flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
+// the URL.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -14,6 +15,7 @@ import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotInd
 import { flopCards } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
+import { ReportChart } from "./ReportChart";
 import {
   ALL_FLOPS,
   average,
@@ -147,6 +149,7 @@ function SpotReport({
   const group = isGroup(params.get("group")) ? (params.get("group") as TextureKey) : null;
   const sort = params.get("sort") ?? "flop";
   const desc = params.get("desc") !== "0";
+  const chart = params.get("show") === "chart";
   const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
   const filterKey = JSON.stringify(filter);
 
@@ -236,11 +239,28 @@ function SpotReport({
               {cover.flops} of {FLOP_CLASSES.toLocaleString()} flops stored, standing for {pct(cover.share)} of all {ALL_FLOPS.toLocaleString()}
             </span>
             <span className="flex-1" />
+            <span role="group" aria-label="Show as" className="inline-flex overflow-hidden rounded-md border border-border">
+              {(["Table", "Chart"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={(v === "Chart") === chart}
+                  onClick={() => set({ show: v === "Chart" ? "chart" : null })}
+                  className={`px-2.5 py-1 ${(v === "Chart") === chart ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2"}`}
+                >
+                  {v}
+                </button>
+              ))}
+            </span>
             <button type="button" onClick={download} disabled={!shown.length} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2 disabled:opacity-40">
               Download CSV
             </button>
           </div>
-          <ReportTable rep={rep} view={view} all={all} shown={shown} group={group} sort={sort} desc={desc} set={set} rowLimit={rowLimit} />
+          {chart ? (
+            <ReportChart rep={rep} view={view} cols={columns(rep, view)} shown={shown} group={group} order={orderText(sort, desc, columns(rep, view), rep.seats)} set={set} />
+          ) : (
+            <ReportTable rep={rep} view={view} all={all} shown={shown} group={group} sort={sort} desc={desc} set={set} rowLimit={rowLimit} />
+          )}
           <p className="text-xs text-muted">
             {rep.label}
             {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision;
@@ -251,6 +271,16 @@ function SpotReport({
       )}
     </div>
   );
+}
+
+/** the table's order in words, for the chart */
+function orderText(sort: string, desc: boolean, cols: string[], seats: readonly string[]): string {
+  if (sort === "flop") return desc ? "high flops first" : "low flops first";
+  if (sort === "w") return `by how often they come up, ${desc ? "most" : "least"} first`;
+  const m = /^(a|ev|eq|eqr)(\d+)$/.exec(sort);
+  const i = Number(m?.[2] ?? 0);
+  const what = !m ? sort : m[1] === "a" ? label(cols[i] ?? "") : `${seats[i]} ${m[1] === "ev" ? "EV" : m[1] === "eq" ? "equity" : "EQR"}`;
+  return `by ${what}, ${desc ? "highest" : "lowest"} first`;
 }
 
 function Bar({ freqs, cols }: { freqs: number[] | null; cols: string[] }) {

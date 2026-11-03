@@ -5,7 +5,9 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { libFile, libJson } from "@/test/library";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
+import { stepArea } from "./ReportChart";
 import { ReportsPage } from "./ReportsPage";
+import { rows, sortRows } from "./reports";
 
 const fakeFetch = (async (url: string) => {
   const path = String(url).replace(/^lib\//, "").split("?")[0]!;
@@ -87,6 +89,50 @@ describe("ReportsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fold ▾" }));
     expect(screen.getByRole("columnheader", { name: "Fold ▴" })).toHaveAttribute("aria-sort", "ascending");
     expect(screen.getByTestId("where").textContent).toMatch(/sort=a0&desc=0/);
+  });
+
+  it("draws the flops shown as a chart: a column each in the table's order, groups as columns, hover and click", async () => {
+    open("spot=srp_btn_bb&sort=a0");
+    await screen.findByRole("row", { name: "Average" });
+    fireEvent.click(within(screen.getByRole("group", { name: "Show as" })).getByRole("button", { name: "Chart" }));
+    expect(screen.getByTestId("where").textContent).toMatch(/show=chart/);
+    expect(screen.queryByRole("row", { name: "Average" })).toBeNull();
+    const chart = screen.getByRole("region", { name: "Chart" });
+    expect(within(chart).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Check", "Bet 33%", "Bet 75%"]);
+    const strip = within(chart).getByRole("img");
+    expect(strip.getAttribute("aria-label")).toMatch(/^7 flops, by Check, highest first: check played on \d+% of them, bet 33% played on/);
+    // one column a flop, by check highest first: hovered, each shows its own mix; a click opens Study at that flop
+    const sorted = sortRows(rows(REP, "oop"), "a0", true, REP.pot);
+    strip.getBoundingClientRect = () => ({ left: 0, width: 700, top: 0, height: 160, right: 700, bottom: 160, x: 0, y: 0, toJSON: () => ({}) });
+    sorted.forEach((r, k) => {
+      fireEvent.pointerMove(strip, { clientX: k * 100 + 50, clientY: 50 });
+      expect(within(chart).getByRole("tooltip")).toHaveTextContent(`Check ${(r.freqs![0]! * 100).toFixed(1)}%Bet 33% ${(r.freqs![1]! * 100).toFixed(1)}%`);
+    });
+    const last = sorted[6]!;
+    fireEvent.click(strip);
+    expect(screen.getByTestId("where").textContent).toBe(`/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Af%2CBB%3Ac&b=${last.f}`);
+  });
+
+  it("draws each action's band across the flops as one stepped shape", () => {
+    const rs = [{ freqs: [0.5, 0.5] }, { freqs: [1, 0] }];
+    expect(stepArea(rs, 0)).toBe("M0 50H1V0H2V100H1V100H0Z");
+    expect(stepArea(rs, 1)).toBe("M0 0H1V0H2V0H1V50H0Z");
+  });
+
+  it("draws a column a texture group when grouped, a click showing only that group's flops", async () => {
+    open("spot=srp_btn_bb&show=chart&group=pair");
+    const chart = await screen.findByRole("region", { name: "Chart" });
+    const unpaired = within(chart).getByRole("button", { name: /^Unpaired: check / });
+    fireEvent.pointerEnter(unpaired);
+    expect(within(chart).getByRole("tooltip")).toHaveTextContent(/^Unpaired · [\d.]+% of the flops shown/);
+    fireEvent.click(unpaired);
+    expect(screen.getByTestId("where").textContent).toMatch(/pair=unpaired/);
+    expect(screen.getByTestId("where").textContent).toMatch(/show=chart/);
+    expect(within(screen.getByRole("region", { name: "Chart" })).queryByRole("button", { name: /^Unpaired/ })).toBeNull();
+    // back to the table
+    fireEvent.click(within(screen.getByRole("group", { name: "Show as" })).getByRole("button", { name: "Table" }));
+    expect(await screen.findByRole("row", { name: "Average" })).toBeInTheDocument();
+    expect(screen.getByTestId("where").textContent).not.toMatch(/show=/);
   });
 
   it("lists the first flops of a long report, all of them on request, averaging over every flop", async () => {

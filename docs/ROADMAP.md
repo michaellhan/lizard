@@ -244,8 +244,9 @@ Moves matrix rows: all Analysis rows.
   `reports.test.js` cases; read from each library spot's `report.json` through `web/src/library/files.ts` with no
   solve; each player's EQR, sorting on every column, a CSV of the rows shown with its source, a Study link per flop,
   and the coverage (stored flops and their share of all 22,100) with a list of which spots have reports. Long reports
-  list 300 flops until asked for all (averages, groups and the CSV take every flop). **Still open in Phase 3:** turn
-  and river runout reports (live solves, opt-in), a chart view, in position facing a lead, and 3-way spots.
+  list 300 flops until asked for all (averages, groups and the CSV take every flop). A chart view: every flop shown as
+  a column of its mix in the table's order, and the texture groups as columns. **Still open in Phase 3:** turn and
+  river runout reports (live solves, opt-in), in position facing a lead, and 3-way spots.
 - **Reports page, `web/src/features/reports/`.**
   - Port `solver/gto/static/reports.js` (texture classes `:18`, views `:37`, rows `:62`, weighted averages `:86`).
   - It reads `<spot>/report.json` from the library source chosen by `web/src/library/catalog.ts`.
