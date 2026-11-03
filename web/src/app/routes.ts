@@ -18,7 +18,7 @@ export const ROUTES: RouteDef[] = [
   { path: "practice", label: "Practice", nav: true, status: "partial", summary: "Play hands against GTO opponents or drill one flop decision, each decision graded against the solution." },
   { path: "analyze", label: "Analyze", nav: true, status: "classic", summary: "Import hand histories, grade decisions and find leaks." },
   { path: "solve", label: "Solve", nav: true, status: "classic", summary: "Custom solves: ranges, stacks, sizes, rake, nodelocks." },
-  { path: "reports", label: "Reports", nav: true, status: "classic", summary: "Aggregate flop reports across boards." },
+  { path: "reports", label: "Reports", nav: true, status: "partial", summary: "A library spot's flop strategy across its stored flops, by texture, with EV, equity and EQR." },
   { path: "ranges", label: "Ranges", nav: true, status: "partial", summary: "Range matrix viewer and builder." },
   { path: "tournaments", label: "Tournaments", nav: true, status: "classic", summary: "ICM, bounties and push/fold." },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },

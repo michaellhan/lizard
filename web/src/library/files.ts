@@ -11,6 +11,10 @@ export interface ReportFlop {
   w: number;
   /** node path ("" the root, "check", "check|bet 33%") -> the range's frequencies, in `nodes[path]` order */
   n: Record<string, number[]>;
+  /** each player's EV in bb at the start of the flop, [out of position, in position] (reports) */
+  ev?: [number, number];
+  /** each range's equity against the other's */
+  eq?: [number, number];
 }
 
 export interface LibraryReport {

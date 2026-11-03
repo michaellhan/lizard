@@ -2,7 +2,7 @@
 // link to the upstream app where the feature runs today — nothing here pretends to be a Lizard implementation.
 import { CLASSIC_URL } from "@/config";
 
-type Feature = "analyze" | "solve" | "reports" | "tournaments";
+type Feature = "analyze" | "solve" | "tournaments";
 
 const INFO: Record<Feature, { title: string; engine: string[]; classicPath: string; next: string }> = {
   analyze: {
@@ -24,12 +24,6 @@ const INFO: Record<Feature, { title: string; engine: string[]; classicPath: stri
     ],
     classicPath: "",
     next: "Tree builder UI, range editor, nodelock panel and convergence chart over the SolverClient.",
-  },
-  reports: {
-    title: "Aggregate reports",
-    engine: ["Per-spot flop reports from the library (report.json): frequencies by flop texture"],
-    classicPath: "reports/",
-    next: "Flop/turn report tables and charts read straight from the library catalog.",
   },
   tournaments: {
     title: "Tournaments",

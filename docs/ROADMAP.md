@@ -209,6 +209,13 @@ Moves matrix rows: all Analysis rows.
 **Goal.** Show strategy across many flops for a spot: how often each action happens on which kinds of boards. Then drill into turn and river runouts.
 
 **Deliverables.**
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** the flop report (`web/src/features/reports/`): the
+  classic three decisions, texture filters and groups, weighted averages and sorting, ported with the
+  `reports.test.js` cases; read from each library spot's `report.json` through `web/src/library/files.ts` with no
+  solve; each player's EQR, sorting on every column, a CSV of the rows shown with its source, a Study link per flop,
+  and the coverage (stored flops and their share of all 22,100) with a list of which spots have reports. Long reports
+  list 300 flops until asked for all (averages, groups and the CSV take every flop). **Still open in Phase 3:** turn
+  and river runout reports (live solves, opt-in), a chart view, in position facing a lead, and 3-way spots.
 - **Reports page, `web/src/features/reports/`.**
   - Port `solver/gto/static/reports.js` (texture classes `:18`, views `:37`, rows `:62`, weighted averages `:86`).
   - It reads `<spot>/report.json` from the library source chosen by `web/src/library/catalog.ts`.
@@ -315,7 +322,7 @@ Moves matrix rows: Saved solutions, Node navigation (saved spots), Custom drills
 **Goal.** Let users set up their own spot (ranges, per-seat stacks, bet sizes, rake) and solve it, and lock opponents' tendencies to see the best response. Every such answer is labelled for what it is.
 
 **Deliverables.**
-- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:36`. It builds a request with the Advisor keys the engine already accepts:
+- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:37`. It builds a request with the Advisor keys the engine already accepts:
   - `ranges` (custom ranges entering the flop; `advisor.py:3722`, `:4701-4710`), with saved ranges from Phase 5;
   - per-seat stacks (`_state_stacks`);
   - `sizes`: up to 3 per street, 5 in Study (`advisor.py:298-318`, `:3721`);

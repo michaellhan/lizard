@@ -615,8 +615,59 @@ Untouched. Memory stayed at 57–65% free; every check ran under `nice`.
   `app/DbNotice.queued.test.tsx` (an old tab's connection, another tab's upgrade waiting on it, this tab's open
   queued behind: no event, the notice after 3 s, then the upgrade and this open once the old tab closes).
 
+- Deployed as `bd3a6e2` (run 41658189382, `index-DNPusrrR.js`); live, the Saved page showed the notice ("Another
+  Lizard tab (most likely one open since before an update) is holding this browser's saved data…"). The holder was
+  this session's own earlier browser tab on the live drills page, still running `index-0h6F-ScU.js` (database
+  version 2). Reloading that tab released it, and the waiting Saved page carried on by itself: the notice went and
+  both lists loaded (0 saved). Diagnosis and fix confirmed end to end.
+
+## 2026-11-03: Phase 3, flop reports (second session)
+
+### Code
+
+- `web/src/features/reports/reports.ts`: the classic `reports.js` pure parts ported (the three decisions: out of
+  position first, in position after a check, out of position facing in position's most common bet; columns, rows,
+  texture filter, sorting with ties broken high flop first, weighted averages over the flops that store the
+  decision, groups), plus Lizard's: EQR (EV over equity times the pot, blank where equity is 0), sorting by EQR,
+  coverage (stored flops and their share of the 22,100), the Study line at each row's decision, the report's
+  provenance (the library's stored solves, read in the page from `report.json`; no convergence figure is claimed
+  for the report itself, each flop's is in Study), and the CSV of the rows shown at the stored precision with a
+  source column. The texture classes are the drills' (`features/practice/drills.ts`, already a port of the same
+  code). `ReportFlop` gains its `ev` and `eq`.
+- `web/src/features/reports/ReportsPage.tsx`, route `/reports` (status partial, was a classic link): the library
+  chosen in Settings, spot, decision, texture filters and grouping, all in the URL; a provenance badge and the
+  coverage line; the table (strategy bar, each action's share, both players' EV, equity and EQR; a group's row
+  filters to it; every header sorts); "Download CSV"; "Which spots have reports". A report of more than 300 flops
+  lists 300 until "Show all" (a re-sort of all 1,755 rows took about 250 ms; with 300, about 30 ms). A spot still
+  being built says "All stored flops" on its average row.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 156/156 in 30 files. New: `reports/reports.test.ts` (the classic `reports.test.js` cases: views and rows, filter, sort, weighted averages, groups; EQR and its sort; coverage; Study at each decision, the bet faced at its size; the CSV; every fixture spot's report, and every snapshot spot's when the snapshot is on disk), `reports/ReportsPage.test.tsx` (provenance and coverage, the columns, a row's EQR and Study link, view/group/filter/sort in the URL, 300-row listing and "Show all", the CSV of the rows shown, a library with no reports, an unreadable library) |
+| Typecheck and ESLint | clean |
+| `npm run build` | built; postbuild wrote 11 route pages + 404.html |
+
+### Checked in the browser (local production build, `vite preview`, library proxied from the live site)
+
+- srp_btn_bb: "Precomputed solution · srp_btn_bb · flop report over its 1755 stored flops", "1755 of 1,755 flops
+  stored, standing for 100.0% of all 22,100". BB first: check 98.7% on average. BB vs bet grouped by pairing:
+  unpaired 82.8%, paired 16.9%, trips 0.2% of flops (each group's share of the 22,100), the two EVs summing to the
+  5.5bb pot. Sorting by Call, then the Study link of Tc7c6c (BB vs 33%: fold 32.7%, call 54.9%, raise 12.3%) opened
+  Study at BB check, BTN bet 1.82 with fold 32.7%, call 54.9%, raise 12.4%, under the library's provenance.
+- CSV: `lizard-report-srp_btn_bb-oop.csv`, all 1,755 flops (not only the 300 listed), the source on each line
+  (the download was intercepted in the page, no file written).
+- lp_sb_bb_2max (heads-up limped pot): 168 of 1,755 flops, 18.2% of all flops; its Study link is a heads-up line.
+- 375px: no horizontal page scroll; the table scrolls in its box, equity and EQR columns hidden. No console errors.
+
+### Precompute builds
+
+Untouched. Memory stayed at 60–62% free; every check ran under `nice`.
+
 ### Next
 
-- Then the next phase of `IMPLEMENTATION_PLAN.md` that fits low CPU: Reports (ROADMAP Phase 3), from the library's
-  `report.json` files with no solve. Still open in Phase 5: saved drills, saved hands, the classic `gto-store`
+- Commit, push and check `/lizard/reports/` live. Then, at low CPU: Analyze (ROADMAP Phase 2; the hand-history
+  parsers and the analyzer core are pure code, the grading of postflop decisions needs live solves and should
+  start with preflop and library flops). Still open in Phase 5: saved drills, saved hands, the classic `gto-store`
   import, a backup prompt after N saves.
