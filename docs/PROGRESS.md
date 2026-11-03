@@ -1271,3 +1271,69 @@ classic app keeps no hands" and "A hand from the classic app".
 ### Precompute builds
 
 Untouched. Memory 64–68% free; every check ran under `nice`.
+
+## 2026-11-03: Phase 6, the Solve page: a spot of your own, opened in Study (second session)
+
+Deploy of df99731 (the classic speed and the hand panel fix) verified live: `index-DtjDpA2u.js`, which has "Use its
+speed", "has no speed saved" and "the classic app's speed".
+
+### Code
+
+- `features/solve/setup.ts` (new): `SpotSetup`, a spot's settings on top of Study's table (players, one stack, the
+  line), each one a key the engine already reads (`solver/gto/advisor.py`, `Advisor._advise`):
+  - `stacks` (each seat's own stack, bb), `sizes` (`flop`, `turn`, `river`, `raise`: % of the pot), `rake` (sent as a
+    fraction) and `rake_cap` (bb), `ante` (bb a seat), `straddle`, `ranges` (PIO text by seat, entering the flop).
+  - `setupProblems` checks it before any request, in words: at most 3 sizes a street (the engine allows 5 in Study;
+    each one multiplies the tree a browser solves), 5–500% of the pot, rake 0–25%, a positive cap, ante 0–1bb, a
+    straddle only with 3 or more players, seats that exist at this table, stacks 1–1000bb, ranges the parser reads
+    (single combos like `AhKh:0.5` too) and not empty.
+  - In Study's URL each setting has its own parameter after the line's (`stacks=BTN:40,BB:120`, `sz.flop=33,75`,
+    `rake=5`, `cap=3`, `ante=0.1`, `straddle=1`, `rg.BB=…`), so a link with none reads as before.
+  - `describeSetup`: the setup in a few words each ("stacks BB 40bb", "flop bets 33%, 75%", "rake 5%, capped at 3bb").
+- `features/solve/SolvePage.tsx` (new), at `/solve`, replacing the placeholder that linked to the classic app:
+  - Table: players, the table's stack, ante, straddle (off under 3 players).
+  - Seats: each seat's stack and range, typed or picked from the ranges saved in Ranges.
+  - Bet sizes for the flop, turn and river, and raise sizes; rake and its cap.
+  - Problems listed as you type ("Setup problems"); "Open in Study" is off while there are any. It opens the spot at
+    the first decision, or at the line it came from ("Edit setup" in Study brings the line along), and "Clear the
+    setup".
+  - Says what it doesn't do yet: node locks and automatic sizing (with a link to the classic app).
+- `studyState.ts`: `StudyHand.setup`; `studyRequest` adds the setup's keys; the URL reads and writes them.
+- `StudyPage.tsx`: above the line, "Your setup: … [Edit setup]" or "Standard setup (the engine's sizes, no rake or
+  ante, the charts' ranges). [Set up your own]". A setup that fails the checks (a hand-edited link) is never asked:
+  "This setup can't be solved: …". Reset keeps the setup.
+- The Saved page's spot summary includes the setup; the route list grades Solve "partial".
+
+The preflop part of every spot is still the charts (labelled as such); ranges set here enter on the flop only.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 270/270 in 46 files. New: `setup.test.ts` (each key mapped to the engine's, the URL round trip, every refusal, the description), `SolvePage.test.tsx` (a setup opened in Study with its URL; problems shown and the button off; a saved range picked), `StudyPage.test.tsx` (the request carries the setup's keys; the setup line and its Edit link; Reset keeps the setup; a bad link shows the refusal and asks nothing; a standard spot offers a setup of your own) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- Heads-up flop, BB 40bb, flop bets 33% and 75%, a typed BB range, 5% rake capped at 3bb:
+  - "Live solve · 0.11% pot from equilibrium in the solved game (converged) · 300 iterations"; check 28.8% (EV
+    2.20), bet 33% 64.4% (2.61), bet 75% 6.8% (3.20).
+  - The engine's note: the range entering the flop is the custom one (423 combos), not the preflop chart's.
+- The same spot without rake: 0.12% (converged); check 26.8% (2.43), bet 33% 67.9% (2.96), bet 75% 5.3% (3.57). The
+  rake reaches the solve.
+- Each solve took under 10 s. "Edit setup" filled the form with the spot's settings.
+- A hand-edited link (rake=40, four flop sizes): the refusal, and the engine stayed idle.
+- At 375px the seats table overflowed (the range field was too wide); narrowed, it fits.
+- No console errors.
+
+### Precompute builds
+
+Untouched. Memory 64–69% free; every check ran under `nice`.
+
+### Next
+
+- Phase 6, still open: node locks (per hand, through `advise`: Study drops `locks`), automatic sizing (likewise
+  dropped in Study), measured solve times per mode, and the local server option (it needs a declared patch for an
+  origin allowlist and a token first).
+- Analyze and Practice could open their Study links with the hand's own stacks, ante and straddle via the setup.

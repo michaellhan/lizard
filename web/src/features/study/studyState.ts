@@ -4,6 +4,7 @@
 import type { AdvisorAction, AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { kindOf } from "@/components/actions";
 import { parseCards } from "@/engine/nlhe/cards";
+import { setupFromParams, setupRequest, setupToParams, type SpotSetup } from "@/features/solve/setup";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -16,6 +17,8 @@ export interface StudyHand {
   flop: AdvisorAction[];
   turn: AdvisorAction[];
   river: AdvisorAction[];
+  /** a spot of your own (the Solve page): per-seat stacks, sizes, rake, ante, straddle, ranges */
+  setup?: SpotSetup;
 }
 
 export function freshHand(players = 6, stack = 100): StudyHand {
@@ -29,7 +32,7 @@ export function streetOf(h: Pick<StudyHand, "board">): Street {
 
 /** The Advisor request for the node: Study mode, at equilibrium, no hero cards. */
 export function studyRequest(h: StudyHand): AdvisorState {
-  return { players: h.players, stack: h.stack, board: h.board, preflop: h.preflop, flop: h.flop, turn: h.turn, river: h.river, study: true };
+  return { players: h.players, stack: h.stack, board: h.board, preflop: h.preflop, flop: h.flop, turn: h.turn, river: h.river, ...setupRequest(h.setup), study: true };
 }
 
 /** The hand after the actor takes one of the node's actions. */
@@ -116,6 +119,7 @@ export function toSearch(h: StudyHand): string {
   if (h.preflop.length) q.set("pre", encodeLine(h.preflop));
   if (h.board) q.set("b", h.board);
   for (const st of ["flop", "turn", "river"] as const) if (h[st].length) q.set(st, encodeLine(h[st]));
+  setupToParams(h.setup, q);
   return q.toString();
 }
 
@@ -129,6 +133,7 @@ export function fromSearch(search: string): StudyHand | null {
   const cards = raw ? parseCards(raw) : [];
   if (!cards) return null;
   const board = cards.join(""); // (normalized: "Ks 7d 2c" -> "Ks7d2c", which deal() and back() count in characters)
+  const setup = setupFromParams(q);
   return {
     players,
     stack,
@@ -137,6 +142,7 @@ export function fromSearch(search: string): StudyHand | null {
     flop: parseLine(q.get("flop") ?? ""),
     turn: parseLine(q.get("turn") ?? ""),
     river: parseLine(q.get("river") ?? ""),
+    ...(setup ? { setup } : {}),
   };
 }
 

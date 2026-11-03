@@ -2,19 +2,9 @@
 // link to the upstream app where the feature runs today — nothing here pretends to be a Lizard implementation.
 import { CLASSIC_URL } from "@/config";
 
-type Feature = "solve" | "tournaments";
+type Feature = "tournaments";
 
 const INFO: Record<Feature, { title: string; engine: string[]; classicPath: string; next: string }> = {
-  solve: {
-    title: "Custom solve",
-    engine: [
-      "Postflop heads-up and 3/4-way solves (DCFR, compiled wasm core), Quick/Fast/Accurate",
-      "Custom ranges (PIO format), stacks, bet sizes, rake, nodelocking, exploit profiles",
-      "Preflop game solve (pf_game) for standard formats",
-    ],
-    classicPath: "",
-    next: "Tree builder UI, range editor, nodelock panel and convergence chart over the SolverClient.",
-  },
   tournaments: {
     title: "Tournaments",
     engine: [

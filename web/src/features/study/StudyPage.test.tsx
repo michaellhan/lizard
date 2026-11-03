@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { spotAt } from "@/data/saved";
-import type { AdvisorResponse } from "@/solver/protocol";
+import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { SolveResult } from "@/solver/types";
 import { useSettings } from "@/state/settings";
@@ -10,12 +10,12 @@ import { useSettings } from "@/state/settings";
 import { StudyPage } from "./StudyPage";
 import { fromSearch, studyRequest, toSearch } from "./studyState";
 
-// the solver stubbed: every request answers with `stub.answer` (a Study node), labelled as a live solve. (One stable
+// the solver stubbed: every request (kept in `stub.asked`) answers with `stub.answer` (a Study node), labelled as a live solve. (One stable
 // getSolver, as the real hook's useCallback: StudyPage re-requests when it changes.)
 const stub = vi.hoisted(() => {
-  const s = { answer: {} as AdvisorResponse, getSolver: null as unknown as () => Promise<unknown> };
+  const s = { answer: {} as AdvisorResponse, asked: [] as AdvisorState[], getSolver: null as unknown as () => Promise<unknown> };
   const client = {
-    solve: async (): Promise<SolveResult> => ({
+    solve: async (req?: { state: AdvisorState }): Promise<SolveResult> => (req && s.asked.push(req.state), {
       data: s.answer,
       provenance: {
         source: "live",
@@ -192,5 +192,35 @@ describe("StudyPage", () => {
     expect(bars.map((b) => b.className.includes("border-y"))).toEqual([true, false]);
     fireEvent.click(within(legend).getByRole("button", { name: "All actions" }));
     expect(within(legend).getByRole("button", { name: /bet 33%/ })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("asks a spot of your own with its setup, says the setup with Edit setup, and asks nothing when it's out of range", async () => {
+    stub.answer = { ...THREE_WAY, opponents: undefined };
+    stub.asked.length = 0;
+    const q = "p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h&stacks=BB%3A40&sz.flop=33%2C75&rake=5&cap=3&rg.BB=22%2B%2CA2s%2B";
+    const first = renderAt(q);
+    await screen.findByRole("group", { name: "Show one action" });
+    expect(stub.asked.at(-1)).toMatchObject({ players: 2, stack: 100, board: "Kd7c2h", study: true, stacks: { BB: 40 }, sizes: { flop: [33, 75] }, rake: 0.05, rake_cap: 3, ranges: { BB: "22+,A2s+" } });
+    const setup = screen.getByLabelText("Setup");
+    expect(setup).toHaveTextContent("Your setup: stacks BB 40bb · flop bets 33%, 75% · rake 5%, capped at 3bb · BB range set.");
+    expect(within(setup).getByRole("link", { name: "Edit setup" })).toHaveAttribute("href", `/solve?${toSearch(fromSearch(q)!)}`);
+    // Reset keeps the setup
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(stub.asked.at(-1)).toMatchObject({ board: "", preflop: [], rake: 0.05, stacks: { BB: 40 } }));
+    first.unmount();
+
+    // a link edited by hand past the limits: said, and nothing asked
+    const asked = stub.asked.length;
+    renderAt("p=2&s=100&sz.flop=10%2C20%2C30%2C40&rake=40");
+    expect(await screen.findByRole("alert")).toHaveTextContent("This setup can't be solved: at most 3 flop bet sizes (each one multiplies the game tree); the rake must be 0–25% of the pot.");
+    expect(within(screen.getByLabelText("Setup")).getByRole("link", { name: "Edit setup" })).toBeInTheDocument();
+    expect(stub.asked.length).toBe(asked);
+  });
+
+  it("offers a setup of your own on a standard spot", () => {
+    renderAt("p=6&s=100");
+    const setup = screen.getByLabelText("Setup");
+    expect(setup).toHaveTextContent("Standard setup (the engine's sizes, no rake or ante, the charts' ranges).");
+    expect(within(setup).getByRole("link", { name: "Set up your own" })).toHaveAttribute("href", "/solve?p=6&s=100");
   });
 });

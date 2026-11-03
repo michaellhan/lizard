@@ -7,12 +7,13 @@ import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
 import { restoreBackup, restoreSummary } from "@/data/backup";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
 import { deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches } from "@/data/saved";
+import { describeSetup } from "@/features/solve/setup";
 import { describeLine, fromSearch } from "@/features/study/studyState";
 import { downloadBackup } from "./backupFile";
 
 const lineText = (line: string) => {
   const h = fromSearch(line);
-  return h ? [`${h.players === 2 ? "HU" : `${h.players}-max`} ${h.stack}bb`, ...describeLine(h)].join(" · ") : line;
+  return h ? [`${h.players === 2 ? "HU" : `${h.players}-max`} ${h.stack}bb`, ...describeSetup(h.setup), ...describeLine(h)].join(" · ") : line;
 };
 const day = (t: number) => new Date(t).toLocaleDateString();
 

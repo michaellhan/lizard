@@ -3,7 +3,7 @@
 // Preflop the charts answer at once; library flops answer at once; other flops (heads-up / 3-way), turns and
 // rivers are solved live in the browser (or the local Python server), with progress and cancel.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { actionColors, evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
@@ -11,6 +11,7 @@ import { useSolver } from "@/solver/useSolver";
 import { SolverError, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse, OpponentRange } from "@/solver/protocol";
 import { useSettings } from "@/state/settings";
+import { describeSetup, setupProblems } from "@/features/solve/setup";
 import {
   back,
   cardsNeeded,
@@ -76,8 +77,15 @@ export function StudyPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   const requestKey = `${toSearch(hand)}|${mode}`;
-  const phase: Phase = answer.key === requestKey ? answer.phase : { kind: "loading" };
+  // a setup the engine can't be asked (a link typed or edited by hand): said, and nothing asked
+  const problems = useMemo(() => setupProblems(hand.players, hand.setup), [hand]);
+  const phase: Phase = problems.length
+    ? { kind: "error", message: `This setup can't be solved: ${problems.join("; ")}.` }
+    : answer.key === requestKey
+      ? answer.phase
+      : { kind: "loading" };
   useEffect(() => {
+    if (problems.length) return;
     const ac = new AbortController();
     abortRef.current = ac;
     let alive = true;
@@ -181,11 +189,28 @@ export function StudyPage() {
         <button type="button" onClick={onBack} disabled={!back(hand)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40">
           ← Back
         </button>
-        <button type="button" onClick={() => setHand(freshHand(hand.players, hand.stack))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+        <button type="button" onClick={() => setHand({ ...freshHand(hand.players, hand.stack), setup: hand.setup })} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
           Reset
         </button>
         <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" ? phase.result.provenance : undefined} />
       </nav>
+      <p aria-label="Setup" className="-mt-2 text-xs text-muted">
+        {hand.setup ? (
+          <>
+            Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
+            <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
+              Edit setup
+            </Link>
+          </>
+        ) : (
+          <>
+            Standard setup (the engine's sizes, no rake or ante, the charts' ranges).{" "}
+            <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
+              Set up your own
+            </Link>
+          </>
+        )}
+      </p>
 
       {phase.kind === "loading" && (
         <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm" role="status">
