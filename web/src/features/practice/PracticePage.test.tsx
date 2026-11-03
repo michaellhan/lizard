@@ -249,6 +249,33 @@ describe("PracticePage", () => {
     await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 2, carry: true, hands: 1, net: 2.5 }));
   });
 
+  it("plays with your own sizes: checked before the session, sent from the flop on, named on the table and kept", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Flop bets" }), { target: { value: "50, 700" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("flop bet sizes must be 5–500% of the pot");
+    expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Flop bets" }), { target: { value: "50" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Raises" }), { target: { value: "250%" } });
+    stub.states = [];
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
+    expect(screen.getByText(/^Hand 1 · heads-up/)).toHaveTextContent("Hand 1 · heads-up · 100bb · your sizes: flop bets 50%, raises 250%");
+    // preflop's requests without them, the flop's with them
+    const sizes = { flop: [50], raise: [250] };
+    expect(stub.states.filter((st) => !st.board).every((st) => !("sizes" in st))).toBe(true);
+    expect(stub.states.filter((st) => st.board).length).toBeGreaterThan(0);
+    for (const st of stub.states.filter((x) => x.board)) expect(st).toMatchObject({ sizes });
+    expect(within(screen.getByRole("region", { name: "Last decision" })).getByRole("link", { name: "Open this spot in Study →" })).toHaveAttribute("href", "/study?p=2&s=100&sz.flop=50&sz.raise=250");
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));
+    await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 2, sizes }));
+  });
+
   it("plays by keys: 1–9 your options, K keeps the hand, Enter the next one; none while drilling or typing", async () => {
     render(
       <MemoryRouter>

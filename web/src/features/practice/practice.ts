@@ -7,6 +7,7 @@
 // last hand left each player. Your seat moves one place each hand (BTN, CO, HJ ... UTG, BB, SB), or is drawn at random,
 // or is one seat; a preflop-only hand stops as the preflop closes.
 import { kindOf } from "@/components/actions";
+import type { SizeStreet } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
 import { cmp, handName } from "@/poker/evaluate";
@@ -82,7 +83,11 @@ export interface PracticeHand {
   /** chips carried from hand to hand: each seat's chips as this hand starts, bb, and the seats that rebought to `stack` */
   stacks?: Record<string, number>;
   rebuys?: string[];
+  /** your own postflop bet and raise sizes, % of the pot (the Solve page's), for the solver's tree from the flop on */
+  sizes?: Sizes;
 }
+
+export type Sizes = Partial<Record<SizeStreet, number[]>>;
 
 /** The drill modes (the classic trainer's, `practice.js:169-196`): only one kind of pot. The preflop is played for you
  * too (from the charts, as the opponents' is), and the hand dealt again until it reaches the flop heads-up, you in it, as
@@ -110,6 +115,8 @@ export interface HandOptions {
   straddle?: boolean;
   /** chips carried from hand to hand (a ring game): full hands with your seat moving only (`carries`) */
   carry?: boolean;
+  /** your own postflop sizes (null or empty: the engine's) */
+  sizes?: Sizes | null;
 }
 
 /** Whether the options carry chips: full hands (not preflop only or a drill's pot), your seat moving one place a hand,
@@ -153,6 +160,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pot ? { pot: opts.pot } : opts.preflopOnly ? { preflopOnly: true as const } : {}),
     ...(opts.ante && opts.ante > 0 ? { ante: opts.ante } : {}),
     ...(opts.straddle && players >= 3 ? { straddle: true as const } : {}),
+    ...(opts.sizes && Object.keys(opts.sizes).length ? { sizes: opts.sizes } : {}),
     ...(carries(opts) ? { stacks: table?.stacks ?? Object.fromEntries(seatsOf(players).map((p) => [p, stack])), ...(table?.rebuys.length ? { rebuys: table.rebuys } : {}) } : {}),
   };
 }
@@ -239,7 +247,8 @@ export const simOf = (h: PracticeHand): Sim => simulate(setupOf(h), h.lines, h.s
 
 const boardOf = (h: PracticeHand) => h.board.slice(0, h.shown);
 
-/** The Study line where the hand stands: each seat's chips as the hand started, with the hand's ante and straddle. */
+/** The Study line where the hand stands: each seat's chips as the hand started, with the hand's ante, straddle and
+ * sizes. */
 export function studyOf(h: PracticeHand): string {
   const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   const s: StudyHand = {
@@ -250,7 +259,7 @@ export function studyOf(h: PracticeHand): string {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
-    ...(h.ante || h.straddle || ownStacks(h).stacks ? { setup: { ...gameOf(h), ...ownStacks(h) } } : {}),
+    ...(h.ante || h.straddle || h.sizes || ownStacks(h).stacks ? { setup: { ...gameOf(h), ...ownStacks(h), ...(h.sizes ? { sizes: h.sizes } : {}) } } : {}),
   };
   return toSearch(s);
 }
@@ -271,6 +280,9 @@ export function stateFor(h: PracticeHand): AdvisorState {
     river: conv(h.lines.river),
     ...gameOf(h),
     ...ownStacks(h),
+    // (your sizes change the postflop solves only: sent from the flop on, as the classic page does, so preflop's
+    // answer is the same)
+    ...(h.sizes && h.shown >= 3 ? { sizes: h.sizes } : {}),
   };
 }
 

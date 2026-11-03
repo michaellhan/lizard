@@ -2515,3 +2515,48 @@ Untouched (read-only `ps`). Everything ran under `nice`. Memory 61% free.
 - Phase 1, still open: multitabling, sizes of your own, the 20-hand engine check.
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, your own bet sizes in Practice (second session)
+
+Deploy of 8dfc13d (chips carried) verified live: run 41712011063 passed; `/lizard/` serves `index-BS51yRHb.js`, which
+has "Carry chips".
+
+Practice's setup takes "Your own bet sizes", as the classic page sends its sizes setting with each practice request
+(`index.html` `payload`: `S.sizes`, from the flop on).
+
+### Code
+
+- `web/src/features/practice/practice.ts`: `HandOptions.sizes` and `PracticeHand.sizes` (the Solve page's
+  `{flop|turn|river|raise: [% of pot]}`); `stateFor` sends them once the flop is out (so preflop's answer and its
+  cache are the same), `studyOf` puts them in the Study link's setup (`sz.flop=50`).
+- `PracticePage.tsx`: a "Your own bet sizes" section in the setup (four fields, checked with the Solve page's
+  `setupProblems`: up to 3 a street, 5–500% of the pot; a problem disables New session; unused preflop only); the
+  table header says "your sizes: flop bets 50%"; the session record keeps `sizes`. The note says the flop library
+  answers only where its tree has the same sizes, else the flop is solved live: `flop_library.py` `solution`
+  compares `tree_key(cfg)["sizes"]` with the entry's and returns nothing on a difference.
+- `features/solve/setup.ts`: `numsOf` (the size fields' parser) moved here from `SolvePage.tsx`, shared.
+- `features/history/history.ts`: the row says "· your own sizes".
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 367/367 in 58 files (`practice.test.ts`: kept with the hand, none preflop, sent on the flop, the Study line; `PracticePage.test.tsx`: a size over 500% refused, then a heads-up session whose preflop requests have no sizes and whose flop requests do, the header, the Study link, the session kept with them). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+Heads-up, flop bets 50%: "Hand 1 · heads-up · 100bb · your sizes: flop bets 50%"; after a 3-bet called, the big
+blind bet 10 into 20 on T♠4♠3♠; your fold was graded Blunder (8.76bb, 29.2% of the pot) under "Live solve · 0.04%
+pot from equilibrium in the solved game (converged) · 300 iterations", and the Study link carried `sz.flop=50`.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Everything ran under `nice`. Memory 59% free.
+
+### Next
+
+- Phase 1, still open: multitabling, the 20-hand engine check.
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

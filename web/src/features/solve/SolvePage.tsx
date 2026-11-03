@@ -15,12 +15,10 @@ import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
 import { bubbleTableOf } from "@/features/tournaments/icm";
 import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
-import { LIMITS, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
+import { LIMITS, numsOf, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 const str = (x: number | undefined) => (x === undefined ? "" : String(x));
-/** "33, 75" -> [33, 75] (a word that isn't a number stays, as NaN, for the check to name) */
-const numsOf = (t: string) => t.split(/[\s,;]+/).filter(Boolean).map((x) => Number(x.replace(/%$/, "")));
 const numOf = (t: string) => (t.trim() ? Number(t) : undefined);
 
 export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {

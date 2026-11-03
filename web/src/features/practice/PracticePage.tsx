@@ -20,7 +20,7 @@ import { useSolver } from "@/solver/useSolver";
 import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { addHandToPot, addSource, handPot, type PotTally } from "@/features/history/history";
-import { LIMITS } from "@/features/solve/setup";
+import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { practiceRecord } from "./history";
@@ -51,6 +51,7 @@ import {
   type Decision,
   type HandOptions,
   type PracticeHand,
+  type Sizes,
 } from "./practice";
 
 export const MIN_STACK = 10;
@@ -72,7 +73,7 @@ interface PracticeSession {
   sources: Partial<Record<ResultSource, number>>;
 }
 
-const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false };
+const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null };
 
 const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
@@ -108,6 +109,7 @@ const toRecord = (s: PracticeSession): SessionRecord => ({
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) ? { carry: true } : {}),
+    ...(s.opts.sizes ? { sizes: s.opts.sizes } : {}),
     byPot: s.byPot,
     sources: s.sources,
   },
@@ -429,6 +431,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             Hand {hand.n + 1} · {hand.players === 2 ? "heads-up" : `${hand.players}-max`} · {hand.stack}bb
             {hand.ante ? ` · ante ${hand.ante}` : ""}
             {hand.straddle ? " · straddle" : ""}
+            {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
           </span>
         </div>
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
@@ -688,6 +691,8 @@ function Carried({ hand, sim, onReset }: { hand: PracticeHand; sim: Sim; onReset
   );
 }
 
+const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
+
 function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string }) {
   const t = setupOf(hand);
   const you = p === hand.hero;
@@ -874,20 +879,25 @@ function SetupForm({
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
+  const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(() => Object.fromEntries(SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>);
+  // (blank: the engine's own; preflop only has no use for them)
+  const parsed = SIZE_STREETS.flatMap((k) => (numsOf(sizeText[k]).length ? [[k, numsOf(sizeText[k])] as const] : []));
+  const sizes: Sizes | null = parsed.length && play !== "preflop" ? Object.fromEntries(parsed) : null;
+  const sizeProblems = sizes ? setupProblems(p, { sizes }) : [];
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
   const canCarry = carries({ carry: true, seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null });
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
-  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk;
+  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && !sizeProblems.length;
   return (
     <form
       aria-label="New session"
       className="flex flex-wrap items-center gap-2 text-sm"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry });
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes });
       }}
     >
       <label className="flex items-center gap-1">
@@ -979,6 +989,34 @@ function SetupForm({
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
         New session
       </button>
+      <details className="basis-full" open={!!opts.sizes}>
+        <summary className="cursor-pointer text-muted">Your own bet sizes{sizes ? `: ${describeSetup({ sizes }).join(", ")}` : ""}</summary>
+        <p className="mt-1 text-xs text-muted">
+          Postflop, in % of the pot, up to {LIMITS.sizes} a street, as on the Solve page: the solver&rsquo;s tree, your options and the opponents&rsquo; bets use
+          them from the flop on. The flop library answers only where its tree has the same sizes; otherwise the flop is solved live. Blank: the engine&rsquo;s own.
+        </p>
+        <div className="mt-1 grid gap-2 sm:grid-cols-2">
+          {SIZE_STREETS.map((k) => (
+            <label key={k} className="flex items-center gap-2">
+              <span className="w-20 shrink-0 text-muted">{SIZE_LABEL[k]}</span>
+              <input
+                aria-label={SIZE_LABEL[k]}
+                placeholder="e.g. 33, 75"
+                value={sizeText[k]}
+                disabled={play === "preflop"}
+                onChange={(e) => setSizeText({ ...sizeText, [k]: e.target.value })}
+                className="min-w-0 flex-1 rounded border border-border bg-surface-2 px-1.5 py-1"
+              />
+              <span className="text-muted">%</span>
+            </label>
+          ))}
+        </div>
+        {sizeProblems.length > 0 && (
+          <p role="alert" className="mt-1 text-xs text-danger">
+            {sizeProblems.join("; ")}
+          </p>
+        )}
+      </details>
     </form>
   );
 }

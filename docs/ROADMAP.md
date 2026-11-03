@@ -138,9 +138,9 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
     "why" text in Practice and Drills (`grade.ts` `whyText`), and the History page (`web/src/features/history/`):
     every kept session by day, lifetime totals by kind, and Practice's finished hands by pot type; and the drill
     modes in full hands (single-raised, 3-bet and blind-vs-blind pots, `practice.ts` `offDrill`); an ante and a
-    straddle in Practice (`practice.ts` `setupOf`); and chips carried from hand to hand, with rebuys (`practice.ts`
-    `nextTable`) (2026-11-03).
-  - **Still open in Phase 1:** multitabling, sizes of your own, and the 20-hand engine check.
+    straddle in Practice (`practice.ts` `setupOf`); chips carried from hand to hand, with rebuys (`practice.ts`
+    `nextTable`); and your own bet sizes from the flop on (2026-11-03).
+  - **Still open in Phase 1:** multitabling and the 20-hand engine check.
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;

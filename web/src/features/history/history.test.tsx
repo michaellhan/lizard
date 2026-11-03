@@ -95,6 +95,7 @@ describe("sessions history", () => {
     expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet" } }).what).toBe("2 players · 100bb · 3-bet pots");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, ante: 0.1, straddle: true } }).what).toBe("6 players · 100bb · ante 0.1 · straddle");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, carry: true } }).what).toBe("6 players · 100bb · chips carried");
+    expect(rowOf({ ...OLD, meta: { ...OLD.meta, sizes: { flop: [50] } } }).what).toBe("6 players · 100bb · your own sizes");
     expect(rowOf(PREFLOP)).toMatchObject({ what: "6 players · 100bb · preflop only · seat BTN", net: null, lossPer: null });
     expect(rowOf(DRILL)).toMatchObject({ what: "SRP BTN vs BB, facing a bet", ok: 3, lossPer: 0.05, to: { href: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet" } });
     expect(rowOf(DRILL).graded).toBe("Precomputed solution (the flop library)");

@@ -22,6 +22,9 @@ import {
 } from "@/features/tournaments/tournament";
 import { seatsOf } from "@/poker/seats";
 
+/** "33, 75" -> [33, 75] (a word that isn't a number stays, as NaN, for the check to name) */
+export const numsOf = (t: string) => t.split(/[\s,;]+/).filter(Boolean).map((x) => Number(x.replace(/%$/, "")));
+
 export const SIZE_STREETS = ["flop", "turn", "river", "raise"] as const;
 export type SizeStreet = (typeof SIZE_STREETS)[number];
 

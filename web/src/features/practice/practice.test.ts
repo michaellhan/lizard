@@ -137,6 +137,19 @@ describe("seats and dealing", () => {
     expect(studyOf(newHand(6, 100, 0, 9))).toBe("p=6&s=100");
   });
 
+  it("your own sizes: kept with the hand, sent from the flop on, in the Study line", () => {
+    const sizes = { flop: [50], raise: [250] };
+    const h = newHand(2, 100, 0, 9, { sizes });
+    expect(h.sizes).toEqual(sizes);
+    expect(stateFor(h)).not.toHaveProperty("sizes");
+    const flop = dealNext(play(h, { pos: "SB", action: "raise", to: 2.5 }, { pos: "BB", action: "call" }), "flop");
+    expect(stateFor(flop)).toMatchObject({ sizes });
+    expect(studyOf(h)).toBe("p=2&s=100&sz.flop=50&sz.raise=250");
+    // none where unset or empty
+    expect(newHand(2, 100, 0, 9, { sizes: {} }).sizes).toBeUndefined();
+    expect(newHand(2, 100, 0, 9, { sizes: null }).sizes).toBeUndefined();
+  });
+
   it("chips carried: each player's chips follow it to the next hand, a fold settled as a check-down, short stacks rebought", () => {
     expect(carries({ carry: true })).toBe(true);
     for (const o of [{ seat: "BTN" }, { seat: "random" }, { preflopOnly: true }, { pot: "srp" as const }]) expect(carries({ carry: true, ...o })).toBe(false);
