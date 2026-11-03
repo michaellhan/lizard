@@ -1,7 +1,41 @@
+import { useState } from "react";
 import { LIBRARY_SOURCES, type LibraryChoice } from "@/config";
 import { useRuntime } from "@/solver/runtime";
+import type { SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
+import { readClassicSpeed } from "@/features/analyze/classic";
 import { ModePicker } from "@/features/study/ModePicker";
+
+const SPEED_LABEL: Record<SolveMode, string> = { quick: "Quick", fast: "Fast", accurate: "Accurate" };
+
+/** The classic app's speed, read on request (read only) and used here. */
+function ClassicSpeed() {
+  const set = useSettings((s) => s.set);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const use = async () => {
+    setBusy(true);
+    try {
+      const m = await readClassicSpeed();
+      if (m) set({ mode: m });
+      setSaid(m ? `Set to ${SPEED_LABEL[m]}, the classic app's speed.` : "The classic app has no speed saved in this browser.");
+    } catch (e) {
+      setSaid(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <p className="text-xs text-muted">
+      Used the classic app in this browser?{" "}
+      <button type="button" disabled={busy} onClick={() => void use()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
+        Use its speed
+      </button>{" "}
+      (read only: its settings are left as they are; its other settings have no counterpart here).{" "}
+      {said && <span role="status">{said}</span>}
+    </p>
+  );
+}
 
 export function SettingsPage() {
   const s = useSettings();
@@ -20,6 +54,7 @@ export function SettingsPage() {
           Fast and Accurate only and runs Quick at Fast. Library flops answer instantly at every speed (on the local
           solver, the flops of its own library).
         </p>
+        <ClassicSpeed />
       </fieldset>
 
       <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">

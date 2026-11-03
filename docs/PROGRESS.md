@@ -1223,3 +1223,51 @@ Deploy of 91e26bd (the backup reminder) verified live: `index-BSiXqKWJ.js`, whic
 ### Precompute builds
 
 Untouched. Memory 64% free; every check ran under `nice`.
+
+## 2026-11-03: Phase 5, the classic speed; a hand panel crash in Chrome fixed (second session)
+
+Deploy of 7a0dd19 (the classic import) verified live: `index-D21CWTQB.js`, which has "Import its My hands", "The
+classic app keeps no hands" and "A hand from the classic app".
+
+### Code
+
+- `features/analyze/classic.ts` `readClassicSpeed`: the classic app's kv record `gto-speed` ("quick", "fast",
+  "accurate"; the classic default Fast is not saved), read as the hands are (the database opened at its own version,
+  never created; a readonly `get`), or else its localStorage mirror `gto-speed`. Any other value counts as none.
+- `SettingsPage.tsx`: under Solve accuracy, "Used the classic app in this browser? Use its speed (read only…)". It
+  sets the solve mode and says "Set to Accurate, the classic app's speed.", or "The classic app has no speed saved in
+  this browser." The classic app's other settings (four colours, sound, layout, opponents, stakes, Study's own state)
+  have no counterpart in Lizard. This closes the classic import in ROADMAP Phase 5.
+- **Fix** (`AnalyzePage.tsx` `HandDetail`): the effect that scrolls an opened hand into view returned
+  `scrollIntoView(...)`. Chrome's `scrollIntoView` now returns a promise, so React took that promise for the
+  effect's cleanup and called it. The page threw "TypeError: l is not a function" whenever the hand panel went away
+  or showed another hand: switching hands, closing one, deleting its import. Found in this session's browser check;
+  the source map pointed at `commitPassiveUnmountEffectsInsideOfDeletedTree`. The effect now returns nothing. The
+  bug dates from 0a175f9, the first Analyze commit.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 261/261 in 44 files. New: `classic.test.ts` (the speed from kv over localStorage, the database the same after; localStorage alone; an unknown value or none is null; no database created), `SettingsPage.test.tsx` (none saved: nothing changed, no database created; the fixture's "accurate" set and checked), `AnalyzePage.test.tsx` (with `scrollIntoView` returning a promise: two hands opened in turn and closed, no error; it fails without the fix) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Settings, no classic data:
+  - "The classic app has no speed saved in this browser."
+  - Still Fast.
+  - No database created.
+- Settings, with localStorage `gto-speed` set to "accurate":
+  - "Set to Accurate, the classic app's speed."
+  - Accurate checked.
+  - Afterwards the key was removed and Fast picked again; kv `settings.v1` was back to `mode: "fast"`.
+- Analyze: a classic fixture hand imported, opened, then its import deleted.
+  - Before the fix: the error above.
+  - After the fix: no error. The panel says "That hand isn't kept in this browser", and the count is back to 46.
+  - Afterwards the fixture database and the two saves it counted were removed.
+
+### Precompute builds
+
+Untouched. Memory 64–68% free; every check ran under `nice`.

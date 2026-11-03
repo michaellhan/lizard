@@ -308,9 +308,9 @@ Moves matrix rows: Range-builder trainer.
   backup made here, a line under the header past 10 (`app/BackupNudge.tsx`). The classic import (2026-11-03): "Import
   its My hands" in Analyze (`web/src/features/analyze/classic.ts`) reads `gto-store` hands read only, on request
   (fixture test `classic.test.ts`: the database is the same after, and none is created where there's none); hands
-  with an ante, a straddle or a tournament's prizes are left out and counted. **Still open in Phase 5:** the classic
-  settings (only its speed, `gto-speed`, has a Lizard counterpart: Settings' solve mode), and settings in the backup
-  (left out on purpose for now). The record shape still wants the review named in Risks
+  with an ante, a straddle or a tournament's prizes are left out and counted. The classic settings: only its speed
+  (`gto-speed`) has a Lizard counterpart, and "Use its speed" in Settings reads it on request and sets the solve mode.
+  **Still open in Phase 5:** settings in the backup (left out on purpose for now). The record shape still wants the review named in Risks
   before account sync builds on it.
 - **Saved spots.** Use the existing `savedSpots` store (`web/src/data/db.ts:41`, index `byUpdated`, interface `SavedSpot`).
   - A "Save spot" button in Study stores the line (the `studyState.ts` URL encoding), a name, tags, a note and the provenance of the answer seen.

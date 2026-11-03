@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { importHand } from "@/hh/replay";
 import { prepare } from "./analyze";
 import { classicDb } from "@/test/classic";
-import { CLASSIC_IMPORT, CLASSIC_SITE, classicHand, classicRecords, readClassicHands, type ClassicRecord } from "./classic";
+import { CLASSIC_IMPORT, CLASSIC_SITE, classicHand, classicRecords, readClassicHands, readClassicSpeed, type ClassicRecord } from "./classic";
 
 const HH = readFileSync(join(process.cwd(), "..", "solver", "tests", "data", "hh", "stars_6max_srp.txt"), "utf8");
 const AT = Date.UTC(2026, 10, 3, 12);
@@ -131,6 +131,19 @@ describe("the classic import", () => {
 
     // imported again: the same hands (a second import adds only what's new)
     expect(classicRecords([SRP, SHORT, IMPORTED], AT + 5).hands.map((h) => h.id)).toEqual(hands.map((h) => h.id));
+  });
+
+  it("reads the classic speed, read only, from its kv record or else localStorage", async () => {
+    await classicDb("gto-store-speed", []);
+    const before = await dump("gto-store-speed");
+    // (the fixture's kv: "gto-speed" saved as "accurate")
+    expect(await readClassicSpeed(indexedDB, { getItem: () => "quick" }, "gto-store-speed")).toBe("accurate");
+    expect(await dump("gto-store-speed")).toEqual(before);
+    const ls = (v: string | null) => ({ getItem: (k: string) => (k === "gto-speed" ? v : null) });
+    expect(await readClassicSpeed(indexedDB, ls("quick"), "gto-store-nospeed")).toBe("quick");
+    expect(await readClassicSpeed(indexedDB, ls("turbo"), "gto-store-nospeed")).toBeNull();
+    expect(await readClassicSpeed(indexedDB, ls(null), "gto-store-nospeed")).toBeNull();
+    expect((await indexedDB.databases()).map((d) => d.name)).not.toContain("gto-store-nospeed");
   });
 
   it("reads a classic table hand only as far as it can", () => {
