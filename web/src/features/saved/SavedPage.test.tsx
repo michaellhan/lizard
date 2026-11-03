@@ -106,7 +106,7 @@ describe("SavedPage", () => {
     renderAt("/saved");
     await screen.findByRole("listitem", { name: "Kept" });
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(await screen.findByText("Backup made: 1 spots, 0 ranges, 0 sessions.")).toBeInTheDocument();
+    expect(await screen.findByText("Backup made: 1 spots, 0 ranges, 0 sessions, 0 hands, 0 graded decisions.")).toBeInTheDocument();
     expect(click).toHaveBeenCalledOnce();
     expect(JSON.parse(await created[0]!.text()).stores.savedSpots[0].data.title).toBe("Kept");
 

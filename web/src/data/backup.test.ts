@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { BACKUP_FORMAT, BACKUP_STORES, backupFileName, makeBackup, restoreBackup, restoreSummary, type Backup } from "./backup";
-import { db, putSession, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
+import { db, putSession, type DecisionRecord, type HandRecord, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
+import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
 import { deleteSpot, listRanges, listSpots, putRange, putSpot, readTags, spotAt, spotMatches } from "./saved";
 
 const spot = (id: string, updatedAt: number, extra: Partial<SavedSpot> = {}): SavedSpot => ({
@@ -65,7 +66,7 @@ describe("backup and restore", () => {
     const b = await makeBackup(() => Date.UTC(2026, 10, 3));
     expect(b.format).toBe(BACKUP_FORMAT);
     expect(b.exported).toBe("2026-11-03T00:00:00.000Z");
-    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, sessions: 2 });
+    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, sessions: 2, hands: 0, decisions: 0 });
     expect(b.stores.sessions.find((r) => r.id === "d")).toMatchObject({ id: "d", v: 1, created: 10, updated: 20, dev: b.device });
     expect(b.stores.sessions.find((r) => r.id === "e")).toMatchObject({ created: 30, updated: 30 });
     expect(b.stores.savedSpots[0]).toEqual({ id: "a", v: 1, created: 1, updated: 5, dev: b.device, data: spot("a", 5) });
@@ -124,6 +125,54 @@ describe("backup and restore", () => {
     await expect(restoreBackup({ format: "gto-solver-backup", stores: {} })).rejects.toThrow("That isn't a Lizard backup file.");
     await expect(restoreBackup(null)).rejects.toThrow("That isn't a Lizard backup file.");
     await expect(restoreBackup({ ...b, schema: 2 })).rejects.toThrow(/newer Lizard/);
+  });
+
+  it("keeps the imported hands with your tags and notes, and their grades; the later note wins", async () => {
+    const hand = (id: string): HandRecord => ({
+      id,
+      site: "PokerStars",
+      number: id,
+      played: "2024-03-02 21:14",
+      playedAt: 1,
+      hero: "BTN",
+      players: 6,
+      hole: "AhQd",
+      board: "Qs8d3c",
+      bb: "$1",
+      potType: "SRP",
+      pot: 5.5,
+      end: "won, all folded",
+      decisions: 2,
+      text: "PokerStars Hand #" + id,
+      importId: "imp",
+      importName: "Pasted hands",
+      importedAt: 100,
+    });
+    const graded: DecisionRecord = { id: "h1|flop|1", handId: "h1", street: "flop", pos: "BTN", action: "bet 1.8", verdict: "Best", evLossBb: 0, source: "library", label: "Precomputed solution · srp_btn_bb", gradedAt: 200 };
+    await addHands([hand("h1"), hand("h2")]);
+    await putHandNotes("h1", ["bluff", "review"], "too thin?", 300);
+    await putDecisions([graded]);
+    const b: Backup = JSON.parse(JSON.stringify(await makeBackup()));
+    expect([b.counts.hands, b.counts.decisions]).toEqual([2, 1]);
+    expect(b.stores.hands.find((r) => r.id === "h1")).toMatchObject({ created: 100, updated: 300 });
+
+    await clearAll();
+    const r = await restoreBackup(b);
+    expect([r.hands.added, r.decisions.added]).toEqual([2, 1]);
+    expect((await listHands()).find((h) => h.id === "h1")).toMatchObject({ tags: ["bluff", "review"], note: "too thin?", updatedAt: 300 });
+    expect(await listDecisions()).toEqual([graded]);
+    // a note changed here after the backup stays; one cleared in the backup's copy later replaces this one
+    await putHandNotes("h1", ["later"], "", 400);
+    expect((await restoreBackup(b)).hands).toEqual({ added: 0, updated: 0, kept: 2, skipped: 0 });
+    expect((await listHands()).find((h) => h.id === "h1")?.tags).toEqual(["later"]);
+    b.stores.hands.find((x) => x.id === "h1")!.data = { ...hand("h1"), updatedAt: 500 };
+    expect((await restoreBackup(b)).hands.updated).toBe(1);
+    const h1 = (await listHands()).find((h) => h.id === "h1")!;
+    expect([h1.tags, h1.note]).toEqual([undefined, undefined]);
+    // a damaged hand is skipped
+    b.stores.hands[0]!.data = { ...hand(b.stores.hands[0]!.id), tags: "bluff" as never };
+    await clearAll();
+    expect((await restoreBackup(b)).hands).toMatchObject({ added: 1, skipped: 1 });
   });
 
   it("names the file by the day", () => {

@@ -68,6 +68,10 @@ export interface HandRecord {
   decisions: number;
   tournament?: string;
   text: string;
+  /** your tags and note on the hand, and when you last changed them (none until you do) */
+  tags?: string[];
+  note?: string;
+  updatedAt?: number;
   importId: string;
   importName: string;
   importedAt: number;

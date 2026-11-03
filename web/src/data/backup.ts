@@ -1,9 +1,10 @@
-// Backup and restore: everything kept in this browser (saved spots, saved ranges, session history) in one JSON file.
+// Backup and restore: everything kept in this browser (saved spots, saved ranges, session history, the hands imported
+// into Analyze with your tags and notes, and their grades) in one JSON file.
 // Each record is written in the classic app's shape (solver/gto/static/store.js): { id, v, created, updated, dev,
 // data }, so a later account sync (ROADMAP Phase 11) can take the same records. Restore merges as classic does: a
 // record missing here is added, of two with one id the later `updated` stays, and nothing here is deleted.
 // Settings are not in the backup (they're a handful of choices, and restoring them would change this browser's).
-import { db, kvGet, kvSet, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
+import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
 import { newId } from "./saved";
 
 export const BACKUP_FORMAT = "lizard-backup";
@@ -24,9 +25,12 @@ interface StoreData {
   savedSpots: SavedSpot;
   savedRanges: SavedRange;
   sessions: SessionRecord;
+  hands: HandRecord;
+  decisions: DecisionRecord;
 }
 export type BackupStore = keyof StoreData;
-export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "sessions"];
+// (a backup made before hands were in it has no "hands" or "decisions": those restore nothing)
+export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "sessions", "hands", "decisions"];
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
@@ -58,6 +62,18 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; upda
     updated: (d) => d.endedAt ?? d.startedAt,
     valid: (d) =>
       ["practice", "drill", "analysis", "build"].includes(d.kind as string) && isNum(d.startedAt) && isNum(d.decisions) && isNum(d.evLossBb) && obj(d.meta),
+  },
+  hands: {
+    created: (d) => d.importedAt,
+    updated: (d) => d.updatedAt ?? d.importedAt,
+    valid: (d) =>
+      isStr(d.site) && isStr(d.hero) && isStr(d.hole) && isStr(d.board) && isStr(d.text) && isStr(d.importId) && isNum(d.importedAt) && isNum(d.playedAt) && isStr(d.played) &&
+      (d.tags === undefined || (Array.isArray(d.tags) && d.tags.every(isStr))) && (d.note === undefined || isStr(d.note)),
+  },
+  decisions: {
+    created: (d) => d.gradedAt,
+    updated: (d) => d.gradedAt,
+    valid: (d) => isStr(d.handId) && isStr(d.street) && isStr(d.verdict) && isStr(d.source) && isStr(d.label) && isNum(d.gradedAt),
   },
 };
 

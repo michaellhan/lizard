@@ -274,6 +274,35 @@ describe("AnalyzePage", () => {
     expect(screen.getByTestId("where").textContent).not.toMatch(/bb=|from=/);
   });
 
+  it("keeps your tags and note on a hand, and finds it by tag or search", async () => {
+    const first = open("hand=PokerStars%7C249012345678%7CAhQd");
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    const notes = within(screen.getByRole("region", { name: "Hand" })).getByRole("group", { name: "Your tags and note" });
+    fireEvent.click(within(notes).getByRole("button", { name: "Add tags or a note" }));
+    fireEvent.change(within(notes).getByRole("textbox", { name: "Tags" }), { target: { value: "review, c-bet, review" } });
+    fireEvent.change(within(notes).getByRole("textbox", { name: "Note" }), { target: { value: "Check the river sizing" } });
+    fireEvent.click(within(notes).getByRole("button", { name: "Save" }));
+    await within(notes).findByRole("button", { name: "Edit tags and note" });
+    expect(notes).toHaveTextContent("reviewc-betCheck the river sizing");
+    const row = () => handRows().find((r) => r.getAttribute("aria-label") === "Hand 249012345678")!;
+    expect(row()).toHaveTextContent("reviewc-betnote");
+    first.unmount();
+
+    // kept: opened again, filtered by a tag, found by the note's words
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    fireEvent.change(screen.getByRole("combobox", { name: "Tag" }), { target: { value: "c-bet" } });
+    expect(handRows().map((r) => r.getAttribute("aria-label"))).toEqual(["Hand 249012345678"]);
+    expect(await screen.findByText(/Counted from the 1 hand the filters show/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search hands" }), { target: { value: "river SIZING" } });
+    expect(handRows()).toHaveLength(1);
+    expect(screen.getByTestId("where").textContent).toMatch(/q=river\+SIZING/);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search hands" }), { target: { value: "300 chips" } });
+    expect(handRows()).toHaveLength(1);
+    expect(handRows()[0]).toHaveTextContent("MTT");
+  });
+
   it("lists the first hands of many, and deletes an import with its hands", async () => {
     open("", 3);
     await waitFor(() => expect(handRows()).toHaveLength(3));
@@ -282,7 +311,7 @@ describe("AnalyzePage", () => {
     const imports = screen.getByRole("region", { name: "Imports" });
     const pasted = within(imports).getByText("Pasted hands").closest("li")!;
     fireEvent.click(within(pasted).getByRole("button", { name: "Delete this import" }));
-    fireEvent.click(within(pasted).getByRole("button", { name: "Delete 2 hands" }));
+    fireEvent.click(within(pasted).getByRole("button", { name: "Delete 2 hands, 1 with your tags or note" }));
     await waitFor(() => expect(handRows()).toHaveLength(2));
     expect(within(screen.getByRole("region", { name: "Imports" })).queryByText("Pasted hands")).toBeNull();
   });

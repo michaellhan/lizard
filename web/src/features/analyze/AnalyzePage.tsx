@@ -7,7 +7,8 @@ import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { addHands, deleteImport, importsOf, listDecisions, listHands, type ImportSummary } from "@/data/hands";
+import { addHands, deleteImport, importsOf, listDecisions, listHands, putHandNotes, type ImportSummary } from "@/data/hands";
+import { readTags } from "@/data/saved";
 import type { Verdict } from "@/grading/grade";
 import { newId } from "@/data/saved";
 import { HH_SITES } from "@/hh/parse";
@@ -100,7 +101,14 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       {hands && hands.length > 0 && <GradePanel hands={hands} decisions={decisions} onGraded={onGraded} />}
       {hands && shown && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={shown} onClose={() => set({ drill: null })} />}
       {hands && shown && <GradeReport decisions={decisions} hands={shown} of={hands.length} />}
-      {open && <HandDetail hand={open} decisions={decisions.filter((d) => d.handId === open.id)} onClose={() => set({ hand: null })} />}
+      {open && (
+        <HandDetail
+          hand={open}
+          decisions={decisions.filter((d) => d.handId === open.id)}
+          onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
+          onClose={() => set({ hand: null })}
+        />
+      )}
       {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
       {hands === null || shown === null ? (
         <p className="text-sm text-muted">…</p>
@@ -311,6 +319,7 @@ function ImportRow({ imp, onChange }: { imp: ImportSummary; onChange: () => void
         <>
           <button type="button" onClick={() => void deleteImport(imp.id).then(onChange)} className="rounded border border-danger/60 px-2 py-0.5 text-danger hover:bg-danger/10">
             Delete {imp.hands} {imp.hands === 1 ? "hand" : "hands"}
+            {imp.annotated > 0 && `, ${imp.annotated} with your tags or note`}
           </button>
           <button type="button" onClick={() => setArm(false)} className="rounded border border-border px-2 py-0.5">
             Keep
@@ -361,6 +370,7 @@ function HandsTable({
       </select>
     </label>
   );
+  const tags = [...new Set(hands.flatMap((h) => h.tags ?? []))].sort();
   // (the days played, by the site's clock, as the history writes them)
   const days = hands.map((h) => h.played.slice(0, 10)).filter(Boolean).sort();
   const date = (label: string, k: string) => (
@@ -387,6 +397,15 @@ function HandsTable({
         {select("Stakes", "bb", params.get("bb"), opts("bb"))}
         {date("From", "from")}
         {date("To", "to")}
+        {tags.length > 0 && select("Tag", "tag", params.get("tag"), tags)}
+        <input
+          type="search"
+          aria-label="Search hands"
+          value={params.get("q") ?? ""}
+          onChange={(e) => set({ q: e.target.value || null })}
+          placeholder="Search cards, number, tags, notes"
+          className="w-56 max-w-full rounded border border-border bg-surface-2 px-2 py-0.5"
+        />
         <span className="text-muted">
           {shown.length.toLocaleString()} of {hands.length.toLocaleString()}
         </span>
@@ -438,7 +457,19 @@ function HandsTable({
                 </td>
                 <td className="whitespace-nowrap px-2 py-1">{h.potType}</td>
                 <td className="px-2 py-1 text-right tabular-nums">{fmt(h.pot)}</td>
-                <td className="whitespace-nowrap px-2 py-1">{h.end}</td>
+                <td className="px-2 py-1">
+                  <span className="whitespace-nowrap">{h.end}</span>
+                  {(h.tags?.length || h.note) && (
+                    <span className="mt-0.5 flex flex-wrap gap-1">
+                      {h.tags?.map((t) => (
+                        <span key={t} className="rounded bg-surface-2 px-1 text-xs">
+                          {t}
+                        </span>
+                      ))}
+                      {h.note && <span className="text-xs text-muted" title={h.note}>note</span>}
+                    </span>
+                  )}
+                </td>
                 <td className="hidden px-2 py-1 sm:table-cell">{h.site}</td>
                 <td className="hidden whitespace-nowrap px-2 py-1 sm:table-cell">
                   {h.bb}
@@ -467,7 +498,7 @@ function HandsTable({
   );
 }
 
-function HandDetail({ hand, decisions, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onClose: () => void }) {
+function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onSaved: (h: HandRecord) => void; onClose: () => void }) {
   const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
   // (opened from the table below it: brought into view)
@@ -537,7 +568,60 @@ function HandDetail({ hand, decisions, onClose }: { hand: HandRecord; decisions:
           ))}
         </ul>
       )}
+      <HandNotes key={hand.id} hand={hand} onSaved={onSaved} />
     </section>
+  );
+}
+
+/** Your tags and note on a kept hand: searchable, a tag filters the table, both kept in the backup. */
+function HandNotes({ hand, onSaved }: { hand: HandRecord; onSaved: (h: HandRecord) => void }) {
+  const [edit, setEdit] = useState(false);
+  const [tags, setTags] = useState((hand.tags ?? []).join(", "));
+  const [note, setNote] = useState(hand.note ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const save = async () => {
+    const h = await putHandNotes(hand.id, readTags(tags), note).catch(() => undefined);
+    if (!h) return setErr("Not saved: this browser keeps nothing here, or the hand was deleted.");
+    setErr(null);
+    setEdit(false);
+    onSaved(h);
+  };
+  if (edit)
+    return (
+      <div aria-label="Your tags and note" role="group" className="space-y-1">
+        <input aria-label="Tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags, separated by commas" className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+        <textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="A note on this hand" className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+        <div className="flex gap-2">
+          <button type="button" onClick={() => void save()} className="rounded bg-accent px-3 py-1 font-medium text-bg">
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTags((hand.tags ?? []).join(", "));
+              setNote(hand.note ?? "");
+              setEdit(false);
+            }}
+            className="rounded border border-border px-3 py-1 hover:bg-surface-2"
+          >
+            Cancel
+          </button>
+        </div>
+        {err && <p role="alert" className="text-danger">{err}</p>}
+      </div>
+    );
+  return (
+    <div aria-label="Your tags and note" role="group" className="flex flex-wrap items-center gap-2">
+      {hand.tags?.map((t) => (
+        <span key={t} className="rounded bg-surface-2 px-1.5 py-0.5 text-xs">
+          {t}
+        </span>
+      ))}
+      {hand.note && <p className="w-full whitespace-pre-wrap">{hand.note}</p>}
+      <button type="button" onClick={() => setEdit(true)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
+        {hand.tags?.length || hand.note ? "Edit tags and note" : "Add tags or a note"}
+      </button>
+    </div>
   );
 }
 

@@ -131,6 +131,8 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   );
 }
 
+const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
+
 /** The report over the graded decisions of `hands` (the hands the filters show, of `of` kept). */
 export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecord[]; hands: HandRecord[]; of?: number }) {
   const byId = useMemo(() => new Map(hands.map((h) => [h.id, h])), [hands]);
@@ -143,7 +145,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
     return of !== undefined && hands.length < of && decisions.length > 0 ? (
       <section aria-label="Report" className="space-y-1 text-sm">
         <h2 className="text-lg font-semibold">Report</h2>
-        <p className="text-muted">None of your graded decisions is in the {hands.length.toLocaleString()} hands the filters show.</p>
+        <p className="text-muted">None of your graded decisions is in the {nHands(hands.length)} the filters show.</p>
       </section>
     ) : null;
   const a = rp.all;
@@ -173,7 +175,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
       <div aria-label="Summary" className="space-y-1">
         {of !== undefined && hands.length < of && (
           <p className="text-muted">
-            Over the {hands.length.toLocaleString()} hands the filters show, of {of.toLocaleString()} kept.
+            Over the {nHands(hands.length)} the filters show, of {of.toLocaleString()} kept.
           </p>
         )}
         <p>

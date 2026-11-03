@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "./db";
-import { addHands, decisionsOf, deleteImport, getHand, importsOf, listHands, putDecisions } from "./hands";
+import { addHands, decisionsOf, deleteImport, getHand, importsOf, listHands, putDecisions, putHandNotes } from "./hands";
 
 const hand = (id: string, importId: string, playedAt: number): HandRecord => ({
   id, site: "PokerStars", number: id, played: "", playedAt, hero: "BTN", players: 6, hole: "AhQd", board: "", bb: "$1", potType: "SRP",
@@ -23,5 +23,16 @@ describe("hands", () => {
     expect((await listHands()).map((h) => h.id)).toEqual(["3"]);
     expect([await decisionsOf("1"), await decisionsOf("2")]).toEqual([[], []]);
     expect(await decisionsOf("3")).toHaveLength(1);
+  });
+
+  it("keeps your tags and note on a hand, an import again leaves them, and the import says how many it has", async () => {
+    expect(await putHandNotes("3", ["bluff", "review"], "  river spot  ", 50)).toMatchObject({ tags: ["bluff", "review"], note: "river spot", updatedAt: 50 });
+    expect(await addHands([hand("3", "c", 20)])).toEqual({ added: 0, existing: 1 });
+    expect(await getHand("3")).toMatchObject({ tags: ["bluff", "review"], note: "river spot" });
+    expect(importsOf(await listHands()).map((i) => [i.id, i.annotated])).toEqual([["b", 1]]);
+    // emptied: the fields go
+    const cleared = (await putHandNotes("3", [], " ", 60))!;
+    expect(["tags" in cleared, "note" in cleared, cleared.updatedAt]).toEqual([false, false, 60]);
+    expect(await putHandNotes("gone", ["x"], "")).toBeUndefined();
   });
 });

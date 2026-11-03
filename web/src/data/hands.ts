@@ -18,6 +18,23 @@ export async function addHands(hands: readonly HandRecord[]): Promise<{ added: n
   return { added, existing: hands.length - added };
 }
 
+/** Your tags and note on a kept hand (empty ones removed): the hand as now kept, or undefined where it isn't. */
+export async function putHandNotes(id: string, tags: readonly string[], note: string, now = Date.now()): Promise<HandRecord | undefined> {
+  const d = await db();
+  if (!d) return undefined;
+  const tx = d.transaction("hands", "readwrite");
+  const h = await tx.store.get(id);
+  if (!h) return undefined;
+  const out: HandRecord = { ...h, updatedAt: now };
+  delete out.tags;
+  delete out.note;
+  if (tags.length) out.tags = [...tags];
+  if (note.trim()) out.note = note.trim();
+  await tx.store.put(out);
+  await tx.done;
+  return out;
+}
+
 /** Every kept hand, the latest played first (then the latest imported). */
 export async function listHands(): Promise<HandRecord[]> {
   const d = await db();
@@ -37,15 +54,18 @@ export interface ImportSummary {
   hands: number;
   /** the histories' text, characters */
   chars: number;
+  /** hands with your tags or a note */
+  annotated: number;
 }
 
 /** The imports the kept hands came in with, the latest first. */
 export function importsOf(hands: readonly HandRecord[]): ImportSummary[] {
   const m = new Map<string, ImportSummary>();
   for (const h of hands) {
-    const s = m.get(h.importId) ?? { id: h.importId, name: h.importName, at: h.importedAt, hands: 0, chars: 0 };
+    const s = m.get(h.importId) ?? { id: h.importId, name: h.importName, at: h.importedAt, hands: 0, chars: 0, annotated: 0 };
     s.hands++;
     s.chars += h.text.length;
+    if (h.tags?.length || h.note) s.annotated++;
     m.set(h.importId, s);
   }
   return [...m.values()].sort((a, b) => b.at - a.at);

@@ -87,11 +87,22 @@ export function preflopSituation(before: readonly Move[], hero: string): string 
 }
 
 /** The hands table's filters, in the page's URL: your seat, pot type, site, stakes (the big blind as the history
- * writes it) and the days played (YYYY-MM-DD, by the site's clock), from and to. */
-export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to"] as const;
+ * writes it), the days played (YYYY-MM-DD, by the site's clock) from and to, one of your tags, and a search. */
+export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q"] as const;
+
+/** Whether a hand matches a search: every word in its number, site, seat, cards, board, pot type, how it ended,
+ * when, stakes, tournament, your tags or note, ignoring case. */
+export function handMatches(h: HandRecord, query: string): boolean {
+  const hay = [h.number, h.site, h.hero, h.hole, h.board, h.potType, h.end, h.played, h.bb, h.tournament ?? "", ...(h.tags ?? []), h.note ?? ""].join(" ").toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => hay.includes(w));
+}
 
 export function filterHands(hands: readonly HandRecord[], p: URLSearchParams): HandRecord[] {
-  const [pos, pot, site, bb, from, to] = HAND_FILTERS.map((k) => p.get(k));
+  const [pos, pot, site, bb, from, to, tag, q] = HAND_FILTERS.map((k) => p.get(k));
   const day = (h: HandRecord) => h.played.slice(0, 10);
   return hands.filter(
     (h) =>
@@ -100,7 +111,9 @@ export function filterHands(hands: readonly HandRecord[], p: URLSearchParams): H
       (!site || h.site === site) &&
       (!bb || h.bb === bb) &&
       (!from || (!!h.played && day(h) >= from)) &&
-      (!to || (!!h.played && day(h) <= to)),
+      (!to || (!!h.played && day(h) <= to)) &&
+      (!tag || !!h.tags?.includes(tag)) &&
+      (!q || handMatches(h, q)),
   );
 }
 

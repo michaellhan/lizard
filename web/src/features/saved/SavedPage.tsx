@@ -221,7 +221,10 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setMsg({ ok: true, text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions.` });
+    setMsg({
+      ok: true,
+      text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions.`,
+    });
   };
 
   const restore = async (file: File) => {
@@ -248,7 +251,8 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
       <p className="text-muted">
-        One file with your saved spots, saved ranges and session history (Practice hands, drills, range-builder scores); settings are not in it.
+        One file with your saved spots, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
+        imported into Analyze with your tags, notes and grades; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
       </p>
       <div className="flex flex-wrap items-center gap-2">

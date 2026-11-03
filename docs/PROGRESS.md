@@ -896,3 +896,52 @@ Untouched. Memory 59–66% free; every check ran under `nice`.
 - Realized results (needs the parser to read what each seat collected; the parser is held to the classic one by
   golden files, so this is a change to both), EV-lost and tag filters, a history across sessions.
 - Phase 5: named drills and a drill list, saved hands from Practice, the classic `gto-store` import, a backup prompt.
+
+### Deploy of `d725f98`, checked live
+
+Deploy run 41669655218 passed. `/lizard/analyze/` serves `index-Dty8SF63.js`, the local build's bundle, which holds
+the stats, the drill and the new filters (that browser keeps no hands, so the table and stats don't show there).
+
+## 2026-11-03: Phase 6, tags, notes and search on kept hands; hands and grades in the backup (second session)
+
+### Code
+
+- `data/db.ts`: `HandRecord` gains optional `tags`, `note`, `updatedAt` (no schema change, no new index).
+  `data/hands.ts`: `putHandNotes` (empty ones removed; an import again leaves them, as it leaves the hand);
+  `importsOf` counts the hands with your tags or note, and deleting an import says so on its button.
+- `analyze.ts`: `HAND_FILTERS` gains `tag` and `q`; `handMatches` searches every word over the number, site, seat,
+  cards, board, pot type, end, date, stakes, tournament, tags and note. The report, drill and stats follow them.
+- `AnalyzePage.tsx`: "Add tags or a note" on the open hand (Tags, Note, Save, Cancel); the table shows each hand's
+  tags and a "note" mark, a Tag filter when any hand has one, and a search box.
+- `data/backup.ts`: `hands` and `decisions` join the backup in the same record shape (a hand's `updated` is its
+  last note change, else its import), with their own checks (a damaged one is skipped). A backup from before has
+  no such stores and restores as before. The Saved page says what the file holds and counts hands and grades.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 233/233 in 39 files. New: `hands.test.ts` (notes kept, kept across an import again, counted per import, emptied, a missing hand), `backup.test.ts` (hands with notes and grades round-trip; a later note here kept, a later one in the file wins; a damaged hand skipped), the tag and search filters in `stats.test.ts`, a tags case in `AnalyzePage.test.tsx` (add, kept after a remount, Tag filter, search by the note's words and by stakes) and the delete button's count |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the 41 kept hands)
+
+- Tagged the BTN 7♦4♣ open "loose open, review" with a note; the row shows them, the Tag filter lists both, the
+  tag and a search on the note's words each find that one hand, and the stats say "the 1 hand the filters show".
+- Saved page: Download backup intercepted in the page (no file written): 1 spot, 1 range, 7 sessions, 41 hands, 64
+  graded decisions, 117 kB, the tagged hand with its tags, note and change time. Restoring that file: "0 added, 0
+  updated, 114 kept". No console errors.
+
+### Precompute builds
+
+Untouched. Memory 58–59% free; every check ran under `nice`.
+
+### Next
+
+- Turn and river grading through the same queue (live solves or Quick triage, in the user's browser).
+- Saved hands from Practice (the Saved hands row's last gap), named drills and a drill list, the classic
+  `gto-store` import, a backup prompt.
+- Realized results (needs the parser to read what each seat collected, with the classic parser), an EV-lost filter,
+  a history across sessions.
+

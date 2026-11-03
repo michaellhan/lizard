@@ -8,6 +8,7 @@ import { withParams } from "./leakDrill";
 import { SIZES, STATS, statsOf, wilson, type Count, type Stats } from "./stats";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
 /** fewer chances than this: the interval is wide, said beside it */
 const FEW = 30;
 /** hands listed under a stat, each way */
@@ -38,7 +39,7 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
       <div>
         <h2 className="text-lg font-semibold">Your stats</h2>
         <p className="text-muted">
-          Counted from {hands.length < of ? `the ${hands.length.toLocaleString()} hands the filters show` : `your ${hands.length.toLocaleString()} hands`}, as you played
+          Counted from {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as you played
           them: nothing here is graded or solved. Each rate is over its own chances, the hands where you could take it; the range is a 95% interval,
           wide when there are few.
           {st && st.left > 0 && ` ${st.left.toLocaleString()} ${st.left === 1 ? "hand is" : "hands are"} left out: the replay stopped short of the history.`}

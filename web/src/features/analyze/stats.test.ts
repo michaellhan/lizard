@@ -75,7 +75,7 @@ describe("stats", () => {
     expect(await statsOf([hand("c5", "stars_heads_up.txt")], { chunk: 1, signal: ac.signal })).toBeNull();
   });
 
-  it("filters the hands by seat, pot, site, stakes and the days played", () => {
+  it("filters the hands by seat, pot, site, stakes, the days played, your tags and a search", () => {
     const h = (id: string, o: Partial<HandRecord>) => ({ id, hero: "BTN", potType: "SRP", site: "PokerStars", bb: "$1", played: "2024-03-02 21:14", ...o }) as HandRecord;
     const hands = [h("a", {}), h("b", { hero: "BB", bb: "300 chips", played: "2024-05-01 08:00" }), h("c", { played: "" }), h("d", { site: "GGPoker", potType: "3bet pot" })];
     const ids = (q: string) => filterHands(hands, new URLSearchParams(q)).map((x) => x.id);
@@ -85,5 +85,15 @@ describe("stats", () => {
     expect(ids("from=2024-03-02&to=2024-03-02")).toEqual(["a", "d"]);
     expect(ids("from=2024-04-01")).toEqual(["b"]);
     expect(ids("site=GGPoker&pot=3bet+pot")).toEqual(["d"]);
+    // your tags, and a search over every word: cards, number, tags, notes
+    hands[1]!.tags = ["bluff", "review"];
+    hands[2]!.note = "Villain snap-called";
+    hands[3]!.hole = "KsKh";
+    expect(ids("tag=review")).toEqual(["b"]);
+    expect(ids("tag=revi")).toEqual([]);
+    expect(ids("q=REVIEW")).toEqual(["b"]);
+    expect(ids("q=snap")).toEqual(["c"]);
+    expect(ids("q=KsKh+ggpoker")).toEqual(["d"]);
+    expect(ids("q=KsKh+stars")).toEqual([]);
   });
 });
