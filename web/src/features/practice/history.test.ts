@@ -2,6 +2,7 @@
 // seats, cards and moves, each move taken by the table as it was in Practice; only what the table showed is written.
 import { describe, expect, it } from "vitest";
 import { finalSim, importHand } from "@/hh/replay";
+import { resultOf } from "@/hh/results";
 import { simulate, STREETS, type Lines, type Move, type Street, type TableSetup } from "@/poker/table";
 import { dealNext, finish, newHand, phaseOf, runEnd, setupOf, simOf, withVillain, type PracticeHand } from "./practice";
 import { practiceHistory, practiceRecord, PRACTICE_SITE } from "./history";
@@ -47,6 +48,11 @@ function roundTrip(h: PracticeHand) {
   const a = finalSim(r);
   const b = simOf(h);
   expect([a.pot, [...a.active], a.handOver]).toEqual([b.pot, [...b.active], b.handOver]);
+  // what you won or lost, read back from the text as Analyze's results read it (a fold collected nothing; a hand
+  // stopped as the preflop closed says nothing)
+  const net = resultOf(r.hand, text).net;
+  if (h.result!.cut) expect(net).toBeNull();
+  else expect(net).toBeCloseTo(h.result!.net, 6);
   return { text, r, rec: practiceRecord(h, SESSION, AT) };
 }
 const brackets = (text: string) => text.match(/\[[^\]]*\]/g);

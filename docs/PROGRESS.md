@@ -3216,3 +3216,59 @@ Untouched; checked only with read-only `ps`. No solves.
 - Phase 3: done as listed. Not in it yet: range and nut advantage columns.
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 2, your results in Analyze (2026-11-03)
+
+The 3-way Reports (2298871) deployed: run 41726447823 succeeded, and the live bundle `index-CumowVQ9.js` has them
+("vs two checks").
+
+### What changed
+
+- **Winnings read** (`web/src/hh/results.ts`). `collected(text, name)` sums a player's winnings lines in every site
+  format the importer reads: "collected $x from pot" (PokerStars, GGPoker, Winamax, WPN/ACR; each pot and each board
+  of a run-it-twice), 888's "collected [ $x ]", partypoker's "wins $x" and its tournaments' "balance …, collected x",
+  Ignition's "Hand result $x", iPoker's `win="€x"`. It's null where no line in the history says who won anything.
+  The text goes through the parser's `norm` (now exported), so 888's thousands dots and Ignition's lines read as the
+  parser reads them.
+- **Stakes as posted.** `paidOf(hand, text)` takes each seat's stake from the history, not the replay: antes and the
+  dead half of a dead blind, then each street's total (a live blind its first) less what nobody matched. The replay
+  plays a half-big-blind small blind and averages antes; `paidOf` agrees with it on every fixture except the Zoom
+  hand's $0.02 small blind (0.4bb, which `paidOf` gets right).
+- **A hand's result.** `resultOf(hand, text, pos?)` is collected ÷ bb − paid. A seat that folded collected nothing even
+  with no winnings line (Practice's histories stop at your fold). Null with a reason for a hand with no winnings line
+  where you didn't fold, and for GG's EV Cashout.
+- **The tally** (`web/src/features/analyze/winnings.ts`). Over the hands the filters show, a chunk at a time with a
+  cache like the stats: cash games, tournaments and Practice's tables (and the classic app's) apart. Each group has won
+  in bb, cash in each currency, bb/100 with a 95% interval from the hands' spread, won at showdown and without, by seat,
+  and the running totals in the order played (the history's clock, then the hand number).
+- **The panel** (`WinningsPanel.tsx`, above "Your stats"). Four tiles, a note when there are under 10,000 hands, a
+  running-total chart and a by-seat table. The chart has three lines (in all, at showdown, without), using the
+  dataviz palette's first three slots, validated as a set on the dark surface. It has a legend with each line's end
+  value, a zero line, a crosshair tooltip per hand, and a click opens that hand. Over 1,200 hands the lines are drawn
+  every k hands; the tooltip still reads every hand.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 415/415. `hh/results.test.ts`: the hero's result in all 23 fixtures; every seat adds up to minus the rake in the 17 whose pots add up (the hand-written GG fixtures' pots don't); `paidOf` against the replay; a big-blind ante (+12.8 / −3.1bb, still zero-sum); a dead blind; a fold with no winnings line; each site's line. `winnings.test.ts`: the tally over every fixture (14 cash, 7 tournament, 2 left out with why; −$45.07 and −€400; the order played); the Practice group; chunks and abort. `practice/history.test.ts`: every Practice hand's result read back from its history equals Practice's own. `AnalyzePage.test.tsx`: the panel on four kept hands, the tooltip and a click opening the hand. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- **66 kept hands** (the text fixtures pasted, plus earlier synthetic and Practice hands). Cash games 40 hands: −41.6bb,
+  −$86.57 · −€200.00, −104.0 bb/100 (95% range −1136.2 to +928.2), at showdown −0.5bb, without −41.1bb. Tournaments
+  7 hands. Practice 3 hands. 15 left out (no winnings line), 1 EV Cashout.
+- **The chart.** The tooltip on hand 33 of 40: "BB 7s6s · won, all folded", "This hand +13.30bb", and the three totals.
+- **375px.** No horizontal page scroll.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. No solves.
+
+### Next
+
+- Phase 2, still open: turns and rivers, a history across sessions, an all-in EV line, a dropped folder.
+- Phase 3: done as listed. Not in it yet: range and nut advantage columns.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

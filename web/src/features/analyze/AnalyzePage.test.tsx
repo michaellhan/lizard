@@ -253,6 +253,35 @@ describe("AnalyzePage", () => {
     expect(screen.getByTestId("where").textContent).toBe("/analyze");
   });
 
+  it("adds up your results over the hands the filters show, with the running total hand by hand", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    const res = await screen.findByRole("region", { name: "Your results" });
+    await waitFor(() => expect(within(res).queryByRole("status")).toBeNull());
+    expect(res).toHaveTextContent("What you won or lost in your 4 hands, as the histories say: what each pot paid you (after the rake) less what you put in");
+    // the SRP hand's +10.5bb on the button, the 3-bet pot's -100bb and the straddled pot's -43.5bb in the big blind
+    const cash = within(res).getByRole("region", { name: "Cash games" });
+    expect(cash).toHaveTextContent("Cash games (3 hands)Won−133.0bb−$193.85bb/100−4433.395% range −10686.0 to +1819.3At showdown−100.0bbWithout showdown−33.0bb");
+    expect(cash).toHaveTextContent("Over 3 hands, bb/100 is mostly the cards");
+    expect(within(cash).getByRole("row", { name: "BTN" })).toHaveTextContent("BTN1+10.5bb+1050.0");
+    expect(within(cash).getByRole("row", { name: "BB" })).toHaveTextContent("BB2−143.5bb−7175.0");
+    const tour = within(res).getByRole("region", { name: "Tournaments" });
+    expect(tour).toHaveTextContent("Tournaments (1 hand)Won+12.7bb");
+    // one hand draws no line
+    expect(within(tour).queryByRole("img")).toBeNull();
+    // the running total in the order played: hovered, a hand's own result and the totals after it; a click opens it
+    const chart = within(cash).getByRole("img");
+    expect(chart).toHaveAccessibleName("Running total over 3 hands: in all −133.0bb, at showdown −100.0bb, without showdown −33.0bb");
+    chart.getBoundingClientRect = () => ({ left: 0, width: 300, top: 0, height: 192, right: 300, bottom: 192, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerMove(chart, { clientX: 200, clientY: 50 });
+    expect(within(cash).getByRole("tooltip")).toHaveTextContent("Hand 2 of 3 · 2024-04-18 22:05BB AcKh · showdownThis hand −100.00bbIn all −89.5bbAt showdown −100.0bbWithout showdown +10.5bb");
+    fireEvent.pointerLeave(chart);
+    expect(within(cash).queryByRole("tooltip")).toBeNull();
+    fireEvent.click(chart, { clientX: 290 });
+    expect(screen.getByRole("region", { name: "Hand" })).toHaveTextContent("folded turn");
+    expect(screen.getByTestId("where").textContent).toMatch(/hand=/);
+  });
+
   it("counts your stats over the hands the filters show, each over its chances, with the hands behind it", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(4));

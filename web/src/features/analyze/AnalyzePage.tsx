@@ -23,6 +23,7 @@ import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
 import { StatsPanel } from "./StatsPanel";
+import { WinningsPanel } from "./WinningsPanel";
 import { LIMITS } from "@/features/solve/setup";
 
 /** hands listed before "Show all" */
@@ -118,6 +119,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       ) : (
         <>
           <HandsTable hands={hands} shown={shown} params={params} set={set} rowLimit={rowLimit} />
+          {shown.length > 0 && <WinningsPanel hands={shown} of={hands.length} />}
           {shown.length > 0 && <StatsPanel hands={shown} of={hands.length} />}
         </>
       )}

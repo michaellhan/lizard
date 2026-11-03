@@ -190,7 +190,7 @@ export function splitHands(text: string): string[] {
 }
 
 // the other sites' lines as PokerStars-like ones, and the hand's site
-function norm(text: string, warnings: string[]): Normed {
+export function norm(text: string, warnings: string[]): Normed {
   if (/<game\b/i.test(text)) return ipoker(String(text), warnings);
   const hands = handLines(text);
   let lines = hands[0]!;

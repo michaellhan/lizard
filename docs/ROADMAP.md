@@ -194,9 +194,10 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 > hands, and bet sizes. The hands table's filters (seat, pot type, site, stakes, days) apply to the report, the drill
 > and the stats. Each hand takes your tags and a note, the table filters by tag and searches every word, and hands
 > and grades are in the backup. An EV-lost filter keeps the hands whose graded decisions gave up at least 0.1–10bb
-> (`lostByHand`), in the URL with the rest. Still open: turns and rivers (live solves, or the classic's Quick triage, through
-> the same queue), a history across sessions, realized results (the parser doesn't read winnings
-> yet), a dropped folder.
+> (`lostByHand`), in the URL with the rest. Your results as played (`hh/results.ts`, `winnings.ts`, `WinningsPanel.tsx`):
+> each site's winnings lines less the stakes as posted, in bb, bb/100 with its interval, at showdown and without, a
+> running-total chart and by seat, cash, tournaments and Practice apart. Still open: turns and rivers (live solves, or
+> the classic's Quick triage, through the same queue), a history across sessions, an all-in EV line, a dropped folder.
 
 **Goal.** Let users import their own hand histories, see each decision graded, and find leaks. Everything stays in the browser.
 
