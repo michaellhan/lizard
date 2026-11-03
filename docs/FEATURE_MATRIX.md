@@ -1,6 +1,6 @@
 # LIZARD feature matrix
 
-Status as of 2026-11-03 (Lizard grades updated for the Phase 0 Study work, the Phase 1 Practice page and drills, the Phase 4 range builder, the Phase 5 saved spots, saved ranges and backup, and the Phase 3 flop reports, `docs/PROGRESS.md`). This compares LIZARD with the public feature set of GTO Wizard, one row per feature. Each row has two grades:
+Status as of 2026-11-03 (Lizard grades updated for the Phase 0 Study work, the Phase 1 Practice page and drills, the Phase 4 range builder, the Phase 5 saved spots, saved ranges and backup, the Phase 3 flop reports, and the first part of Phase 2, Analyze's import, `docs/PROGRESS.md`). This compares LIZARD with the public feature set of GTO Wizard, one row per feature. Each row has two grades:
 
 - **Engine / classic.** What the bundled solver and its own web app (the "classic" app, `solver/gto/static/`, served at `/gto-solver/`) can do today.
 - **Lizard UI.** What the new React app (`web/src/`) does today.
@@ -30,16 +30,16 @@ When I was unsure, I chose the lower grade. Rows marked **(unsure)** in Notes ar
 |---|---|---|---|
 | Study | 11 | 4 / 6 / 1 / 0 | 2 / 8 / 1 / 0 |
 | Practice | 10 | 2 / 7 / 1 / 0 | 0 / 7 / 1 / 2 |
-| Analysis | 7 | 3 / 4 / 0 / 0 | 0 / 0 / 0 / 7 |
+| Analysis | 7 | 3 / 4 / 0 / 0 | 1 / 2 / 0 / 4 |
 | Custom solving | 10 | 3 / 6 / 1 / 0 | 1 / 4 / 0 / 5 |
 | Tournaments | 8 | 0 / 6 / 1 / 1 | 0 / 0 / 0 / 8 |
 | Formats | 6 | 0 / 5 / 0 / 1 | 0 / 4 / 0 / 2 |
 | Other | 8 | 0 / 5 / 0 / 3 | 0 / 3 / 0 / 5 |
-| **Total** | **60** | **12 / 39 / 4 / 5** | **3 / 26 / 2 / 29** |
+| **Total** | **60** | **12 / 39 / 4 / 5** | **4 / 28 / 2 / 26** |
 
 W = WORKING, P = PARTIAL, A = APPROXIMATE, N = NOT IMPLEMENTED.
 
-In short, the engine covers most of the feature list, often in part. Lizard's React UI so far covers Study (with a range builder that scores a painted strategy), Practice (full hands and drills), flop reports from the library, a range editor, the library view, a Saved page (spots saved from Study, ranges saved from Ranges, backup and restore to a file), settings and engine diagnostics. Analyze, Solve and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:36-37`, `:39`, `web/src/features/classic/ClassicFeaturePage.tsx`).
+In short, the engine covers most of the feature list, often in part. Lizard's React UI so far covers Study (with a range builder that scores a painted strategy), Practice (full hands and drills), flop reports from the library, Analyze's hand-history import (kept in the browser, each hand replayed, each decision opening in Study; no grading yet), a range editor, the library view, a Saved page (spots saved from Study, ranges saved from Ranges, backup and restore to a file), settings and engine diagnostics. Solve and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:38`, `:40`, `web/src/features/classic/ClassicFeaturePage.tsx`).
 
 ## Facts that apply to many rows
 
@@ -88,17 +88,17 @@ Lizard's Practice page (`web/src/features/practice/PracticePage.tsx`, logic in `
 
 ## Analysis
 
-All Analysis rows are NOT IMPLEMENTED in Lizard: the Analyze route links to the classic session analyzer (`App.tsx:36`).
+Lizard's Analyze page (`App.tsx:37`, `web/src/features/analyze/`) imports and keeps hands and replays them; it grades nothing yet, so the grading, leak, frequency and report rows are still NOT IMPLEMENTED in Lizard.
 
 | Feature | GTO Wizard (public) | Engine / classic | Lizard UI | Evidence | Notes |
 |---|---|---|---|---|---|
-| Hand-history import | Import hands from major sites | WORKING | NOT IMPLEMENTED | `solver/gto/static/hh.js:23-24`, `:99-110`, `:118-119`, `:233` | Eight site families. Omaha hands are rejected. |
-| Bulk upload | Many files at once | WORKING | NOT IMPLEMENTED | `session.js:862-899` | Files and folders. One session's decisions are kept (`session.js:21`). |
+| Hand-history import | Import hands from major sites | WORKING | WORKING | `solver/gto/static/hh.js:23-24`, `:99-110`, `:118-119`, `:233`; Lizard `web/src/hh/parse.ts`, `replay.ts` | Eight site families. Omaha hands are rejected. Lizard's parser is a port held to the classic one: golden files for every fixture and two synthetic sessions, and the same hand or message on 1,500 mutated histories (`web/src/hh/parse.test.ts`); each hand is replayed on Lizard's table (`replay.test.ts`, the classic suite's 23 cases), the straddle included. |
+| Bulk upload | Many files at once | WORKING | PARTIAL | `session.js:862-899`; Lizard `web/src/features/analyze/analyze.ts` (`prepare`), `AnalyzePage.tsx` | Files and folders. One session's decisions are kept (`session.js:21`). Lizard: paste, pick files or a folder, or drop files; what's skipped is counted by why, unreadable hands listed with their message, a hand kept once across imports (`data/hands.ts`), an import deleted as a whole, a storage meter. PARTIAL: a dropped folder isn't read (picking one is), and there is no grading queue yet. |
 | Decision grading | Each decision graded against a solve | PARTIAL | NOT IMPLEMENTED | `session.js:258`, `:347-368`; `index.html:1485-1544` | Preflop is graded by frequency against the charts. Postflop decisions are graded by a live solve when one runs. The analyzer's scale is different from the trainer's. |
 | Leak finding | Leaks found across many hands | PARTIAL | NOT IMPLEMENTED | `session.js:528-532` (`LEAK`) | Fixed thresholds. Preflop leaks are measured against hand-written charts. **(unsure)** It could be APPROXIMATE, because the preflop half rests on charts. |
 | Frequency comparison vs GTO | Your frequencies against the solution's, by spot | PARTIAL | NOT IMPLEMENTED | `session.js:347-368` (`FREQS`, 13 rows) | A fixed table of 13 frequencies. There is no spot-level drill-down from a frequency row. |
 | Reports | Summary reports over a database | PARTIAL | NOT IMPLEMENTED | `session.js:14`, `:20`, `:373`, `:479-483`, `:900-924` | One current session plus a history of up to 200 summaries. CSV and JSON export. |
-| Saved hands | Save, tag and replay hands | WORKING | NOT IMPLEMENTED | `solver/gto/static/hands.js:1-7`, `:161`, `:309-321`; `store.js:292-305` | Tags, notes, search, export/import and backup. |
+| Saved hands | Save, tag and replay hands | WORKING | PARTIAL | `solver/gto/static/hands.js:1-7`, `:161`, `:309-321`; `store.js:292-305`; Lizard `data/db.ts` (v4 `hands`), `AnalyzePage.tsx` | Tags, notes, search, export/import and backup. Lizard keeps imported hands in IndexedDB, filters them by seat, pot type and site, and replays one street by street with a Study link at each of your decisions (none where the hand has an ante or a straddle, which Study can't set up). No tags, notes, search or backup of hands yet; a hand played in Practice isn't kept. |
 
 ## Custom solving
 

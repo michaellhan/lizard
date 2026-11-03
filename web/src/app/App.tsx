@@ -11,6 +11,7 @@ import { EnginePage } from "@/features/engine/EnginePage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { RangesPage } from "@/features/ranges/RangesPage";
 import { SavedPage } from "@/features/saved/SavedPage";
+import { AnalyzePage } from "@/features/analyze/AnalyzePage";
 import { ReportsPage } from "@/features/reports/ReportsPage";
 import { ClassicFeaturePage } from "@/features/classic/ClassicFeaturePage";
 import { NotFoundPage } from "@/features/home/NotFoundPage";
@@ -33,7 +34,7 @@ export function App() {
           <Route path="engine" element={<EnginePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="practice" element={<PracticePage />} />
-          <Route path="analyze" element={<ClassicFeaturePage feature="analyze" />} />
+          <Route path="analyze" element={<AnalyzePage />} />
           <Route path="solve" element={<ClassicFeaturePage feature="solve" />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="tournaments" element={<ClassicFeaturePage feature="tournaments" />} />

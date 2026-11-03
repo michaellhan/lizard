@@ -168,6 +168,13 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 
 ### Phase 2: Analyze: hand-history import and grading
 
+> **Status, 2026-11-03.** Done: the parsers (`web/src/hh/`, golden files from the classic parser), the replay on the
+> table engine (the straddle added to it), the import (paste, files, a folder; `features/analyze/analyze.ts`, the
+> classic `prepare`), the v4 `hands` and `decisions` stores with duplicates kept once and an import deleted with its
+> decisions, the hands table with filters, and each hand replayed with Study links. Still open: grading (preflop
+> against the charts, flops from the library with no solve, then live solves through a pausable queue), the leaks
+> view and frequency table, CSV and JSON export, "Drill this leak", a dropped folder.
+
 **Goal.** Let users import their own hand histories, see each decision graded, and find leaks. Everything stays in the browser.
 
 **Deliverables.**
@@ -322,7 +329,7 @@ Moves matrix rows: Saved solutions, Node navigation (saved spots), Custom drills
 **Goal.** Let users set up their own spot (ranges, per-seat stacks, bet sizes, rake) and solve it, and lock opponents' tendencies to see the best response. Every such answer is labelled for what it is.
 
 **Deliverables.**
-- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:37`. It builds a request with the Advisor keys the engine already accepts:
+- **Solve page, `web/src/features/solve/`**, replacing the placeholder at `App.tsx:38`. It builds a request with the Advisor keys the engine already accepts:
   - `ranges` (custom ranges entering the flop; `advisor.py:3722`, `:4701-4710`), with saved ranges from Phase 5;
   - per-seat stacks (`_state_stacks`);
   - `sizes`: up to 3 per street, 5 in Study (`advisor.py:298-318`, `:3721`);

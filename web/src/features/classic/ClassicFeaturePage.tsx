@@ -2,19 +2,9 @@
 // link to the upstream app where the feature runs today — nothing here pretends to be a Lizard implementation.
 import { CLASSIC_URL } from "@/config";
 
-type Feature = "analyze" | "solve" | "tournaments";
+type Feature = "solve" | "tournaments";
 
 const INFO: Record<Feature, { title: string; engine: string[]; classicPath: string; next: string }> = {
-  analyze: {
-    title: "Analyze",
-    engine: [
-      "Hand-history import from major sites (solver/gto/static/hh.js parsers)",
-      "Session analysis: each decision graded against the solver, leaks by category",
-      "Saved hands (IndexedDB) in the classic UI",
-    ],
-    classicPath: "session/",
-    next: "Bulk upload with a background queue, per-decision EV loss, saved-hand library.",
-  },
   solve: {
     title: "Custom solve",
     engine: [

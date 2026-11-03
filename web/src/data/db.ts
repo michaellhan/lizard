@@ -41,12 +41,64 @@ export interface SessionRecord {
   meta: Record<string, unknown>;
 }
 
+/** One hand imported into Analyze: its summary for the hands table, and the history itself (re-read when opened). */
+export interface HandRecord {
+  /** site, hand number and hole cards: a hand imported twice is kept once */
+  id: string;
+  site: string;
+  /** the site's hand number ("" where the history has none) */
+  number: string;
+  /** when it was played, as the history writes it ("2024-05-01 20:00", the site's own clock), "" where it doesn't */
+  played: string;
+  /** that time read as UTC, for sorting (0 where unknown) */
+  playedAt: number;
+  /** your seat */
+  hero: string;
+  players: number;
+  hole: string;
+  board: string;
+  /** the big blind in the history's money ("$1", "300 chips") */
+  bb: string;
+  potType: string;
+  /** the pot won, bb */
+  pot: number;
+  /** how the hand ended for you ("folded flop", "showdown", …) */
+  end: string;
+  /** your decisions in it */
+  decisions: number;
+  tournament?: string;
+  text: string;
+  importId: string;
+  importName: string;
+  importedAt: number;
+}
+
+/** One of your graded decisions in an imported hand. */
+export interface DecisionRecord {
+  /** the hand's id, the street and the action's index there */
+  id: string;
+  handId: string;
+  street: string;
+  pos: string;
+  /** what you did ("raise 2.5") */
+  action: string;
+  verdict: string;
+  /** EV lost, bb (null where graded by frequency) */
+  evLossBb: number | null;
+  /** the answer graded against: its source and its provenance line */
+  source: string;
+  label: string;
+  gradedAt: number;
+}
+
 export interface LizardDB extends DBSchema {
   /** key/value settings (mirrors the persisted settings store) */
   kv: { key: string; value: unknown };
   savedSpots: { key: string; value: SavedSpot; indexes: { byUpdated: number } };
   sessions: { key: string; value: SessionRecord; indexes: { byStarted: number; byKind: string } };
   savedRanges: { key: string; value: SavedRange; indexes: { byUpdated: number } };
+  hands: { key: string; value: HandRecord; indexes: { byPlayed: number; bySite: string; byImport: string; byHero: string; byPotType: string } };
+  decisions: { key: string; value: DecisionRecord; indexes: { byHand: string; byVerdict: string; byStreet: string; byPos: string } };
 }
 
 type UpgradeTx = IDBPTransaction<LizardDB, StoreNames<LizardDB>[], "versionchange">;
@@ -66,6 +118,19 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
   3: (db) => {
     const r = db.createObjectStore("savedRanges", { keyPath: "id" });
     r.createIndex("byUpdated", "updatedAt");
+  },
+  4: (db) => {
+    const h = db.createObjectStore("hands", { keyPath: "id" });
+    h.createIndex("byPlayed", "playedAt");
+    h.createIndex("bySite", "site");
+    h.createIndex("byImport", "importId");
+    h.createIndex("byHero", "hero");
+    h.createIndex("byPotType", "potType");
+    const d = db.createObjectStore("decisions", { keyPath: "id" });
+    d.createIndex("byHand", "handId");
+    d.createIndex("byVerdict", "verdict");
+    d.createIndex("byStreet", "street");
+    d.createIndex("byPos", "pos");
   },
 };
 

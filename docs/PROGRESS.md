@@ -700,3 +700,47 @@ build, and the same averages (all flops fold 46.6%, call 41.5%, raise 12.0%; unp
   parsers and the analyzer core are pure code, the grading of postflop decisions needs live solves and should
   start with preflop and library flops). Still open in Phase 5: saved drills, saved hands, the classic `gto-store`
   import, a backup prompt after N saves.
+
+## 2026-11-03: Phase 2, Analyze's import (second session)
+
+### Code
+
+- `web/src/data/db.ts`: database v4 adds the `hands` store (by played, site, import, your seat and pot type) and the
+  `decisions` store (by hand, verdict, street and seat; empty until grading lands). The upgrade keeps v3's data.
+- `web/src/data/hands.ts`: hands kept once each (the classic key `site|number|cards`, so a hand in two imports is
+  kept from the first), listed newest played first, an import deleted with its hands and their decisions.
+- `web/src/features/analyze/analyze.ts`: the classic `session.js` core that grading doesn't need: hand numbers,
+  `prepare` (what's skipped and why: not Hold'em, no hero, no decision of yours, already read, unreadable), your
+  decisions, preflop situations and pot types; plus the played date per site, a hand's summary record, and a Study
+  link at each of your decisions (none where Study can't set the hand up: an ante or a straddle).
+- `web/src/features/analyze/AnalyzePage.tsx` at `/analyze`, replacing the placeholder: paste, pick files or a
+  folder, or drop files; progress; what was read, kept and skipped, by file; the imports with a storage meter and
+  delete; the hands table with seat, pot and site filters in the URL; a hand replayed street by street with its
+  stacks, the pot and how it ended, and a Study link at each of your moves. It says it grades nothing yet.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 206/206 in 35 files. New: `data/hands.test.ts`, the v3 → v4 upgrade in `data/db.test.ts`, `features/analyze/analyze.test.ts` (the classic session.test.js cases for splitting, hand numbers, `prepare`'s skips over every fixture and a 60-hand synthetic session, preflop situations; dates, summaries, Study links), `features/analyze/AnalyzePage.test.tsx` (paste, a re-paste kept once, filters in the URL, a hand replayed with its 4 Study links, files with a non-history skipped, an MTT hand with no Study links, the row limit, deleting an import, a missing hand) |
+| Typecheck and ESLint | clean |
+| Build | passes; one `index.html` per route |
+
+### Checked in the browser (local build)
+
+- 42 pasted hands (two fixtures and a 40-hand synthetic session) read in 110 ms: 41 kept, 1 skipped (a walk).
+- The PokerStars SRP hand: the replay matches the history; its flop Study link opens Study at BB's check on
+  Qs8d3c with "Precomputed solution · srp_btn_bb".
+- The GG straddle hand replays to the end ("UTG straddles", pot 89.5bb, folded turn) and has no Study links.
+- 375px: no page overflow (the table scrolls inside its box). No console errors.
+
+### Precompute builds
+
+Untouched. Memory stayed at 67–69% free; every check ran under `nice`.
+
+### Next
+
+- Grading (ROADMAP Phase 2): preflop decisions against the charts through the worker, labelled as chart
+  frequencies, not solved; flop decisions where the library has the spot, with no live solve; results into
+  `decisions`. Then the leaks view, the frequency table and CSV/JSON export.
+- Still open in Phase 5: saved drills, saved hands from Practice, the classic `gto-store` import, a backup prompt.

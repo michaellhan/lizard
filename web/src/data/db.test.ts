@@ -11,9 +11,11 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["kv", "savedRanges", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "savedRanges", "savedSpots", "sessions"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
+    expect([...db.transaction("hands").store.indexNames].sort()).toEqual(["byHero", "byImport", "byPlayed", "byPotType", "bySite"]);
+    expect([...db.transaction("decisions").store.indexNames].sort()).toEqual(["byHand", "byPos", "byStreet", "byVerdict"]);
     db.close();
   });
 
@@ -43,6 +45,19 @@ describe("IndexedDB migrations", () => {
     await v3.put("savedRanges", { id: "r1", name: "UTG open", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 1 });
     expect(await v3.count("savedRanges")).toBe(1);
     v3.close();
+  });
+
+  it("upgrades a version-3 database in place, keeping its data", async () => {
+    const name = fresh();
+    const v3 = await openLizardDB(3, name);
+    await v3.put("savedRanges", { id: "r1", name: "UTG open", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 1 });
+    await v3.put("kv", 2, "k");
+    v3.close();
+    const v4 = await openLizardDB(DB_VERSION, name);
+    expect((await v4.get("savedRanges", "r1"))?.text).toBe("22+");
+    expect(await v4.get("kv", "k")).toBe(2);
+    expect([await v4.count("hands"), await v4.count("decisions")]).toEqual([0, 0]);
+    v4.close();
   });
 });
 
