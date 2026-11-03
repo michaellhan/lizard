@@ -1850,3 +1850,58 @@ Untouched (read-only `ps`). Memory 65% free; everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 7, the bubble factor table for every pair and a 15%-paid curve (second session)
+
+Deploy of 3827588 (the Compare picker) verified live: run 41696476384 passed; `/lizard/` serves `index-D8QfMlVJ.js`,
+which has "Pick the spots", `lizard.compare.pin` and "with the pinned spot".
+
+### Code
+
+- `web/src/features/tournaments/icm.ts`: a port of the engine's prize model (`solver/gto/icm.py` equities,
+  field_stacks, compress_payouts, Model's base and bubble_factor): Malmuth-Harville over at most 12 players (a bit-mask
+  pass over the sets of players placed, each set after its subsets), the other tables' players as stand-ins past 12,
+  the payouts spread over them. `bubbleTableOf` builds it from a spot's setup as `advisor.py _tournament` does (each
+  seat's stack or the table's, the other tables evenly, the payouts no more than the players left; none without two or
+  more prizes). The answer's own `tournament` block still gives the actor's factors; the table adds every pair. Why
+  a port: the worker answers only advisor states, which give the actor's row only, and `solver/` stays unpatched.
+- `BubbleTable.tsx`: rows the seat risking chips, columns the opponent, each seat's prize equity, shaded by size; a
+  toggle to the equity a call of the all-in needs with nothing else in the pot (BF / (1 + BF): the engine's
+  `call_need` there; its risk premium is that less 50%). Labelled `ICM_TABLE_LABEL` (`provenance.ts`): "ICM
+  (Malmuth-Harville), worked out in this page from the setup with the engine's prize model", plus "N players modelled
+  by 12" where so, at the start of the hand and without bounties (they don't enter the ratio).
+- The Tournaments page shows it under the seats once the setup has no problem; Study's Tournament panel has it under
+  "Every pair" (memoized per hand), the actor's row outlined.
+- `tournament.ts` `paidCurve`: "15% paid, N places", for the players left (this table's and the other tables'), place
+  k in proportion to k^-0.8 (Lizard's own curve; 100 left: 15 places, 23.7% to 2.7%); offered from 10 players left.
+  The page's "Not here yet" line no longer lists the pair table, ICM against chip EV (Study has it) or satellites.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 331/331 in 54 files. New: `icm.test.ts` (7: the engine's numbers run on `gto/icm.py` for uneven stacks, other tables, a 36-player field modelled by 12, a satellite, every player paid, the field grouping and payout spreading, the table from a setup, and `call_need`); `TournamentPanel.test.tsx` (Every pair, the actor's row, the equity to call); `SolvePage.test.tsx` (the table from typed stacks, the 15%-paid button at 100 players left, none for a winner-takes-all); `tournament.test.ts` (`paidCurve`). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+The reference numbers came from `.venv/bin/python` importing `solver/gto/icm.py` (milliseconds of CPU).
+
+### Checked in the browser (local build)
+
+- Tournaments, 6-max 20bb with BTN 35, SB 12, BB 8, paying 50/30/20, 4 players at other tables (25bb): the table
+  (UTG 9.5%, UTG against BTN 1.20); the same spot in Study (the chip chart with a risk premium for UTG): the engine's
+  answer "HJ 1.17 · CO 1.17 · BTN 1.20 · SB 1.09 · BB 1.06", 9.5%, equal to the table's UTG row under "Every pair".
+- 9-handed, a 9-paid final table, 40 players at other tables, at 375px: "49 players modelled by 12"; the table scrolls
+  inside its box, the page doesn't overflow.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 65% free; everything ran under `nice`.
+
+### Next
+
+- Phase 7, still open: a per-hand ICM vs chip diff, a satellite-aware preflop, tournaments in Practice.
+- Phase 8, still open: a comparison of two size menus.
+- Phase 0: the classic's custom preflop raise sizes (`pf_sizes`) aren't offered yet.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

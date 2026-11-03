@@ -1,7 +1,8 @@
 // A tournament answer's numbers in words: winner-takes-all has no bubble factors, a short stack that covers nobody
 // still says who covers it (of the seats still in), and an answer with no payouts says its EVs are chips.
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { bubbleTable, icmModel } from "@/features/tournaments/icm";
 import { TournamentPanel } from "./TournamentPanel";
 
 describe("the tournament panel", () => {
@@ -21,6 +22,20 @@ describe("the tournament panel", () => {
     unmount();
     render(<TournamentPanel actor={undefined} t={{ note: "tournament: no payouts given, the prizes taken as the bounties in play" }} />);
     expect(screen.getByLabelText("Tournament")).toHaveTextContent("Where EVs show, they're chips, the bounties priced in chips.");
+  });
+
+  it("has every pair's bubble factor behind \"Every pair\", the actor's row its own numbers", () => {
+    const pairs = bubbleTable(icmModel({ CO: 35, BTN: 12, SB: 60, BB: 8 }, [50, 30, 20]));
+    render(<TournamentPanel actor="CO" pairs={pairs} t={{ equity_share: 0.316, bubble_factors: { BTN: 1.16, SB: 3.43, BB: 1.1 }, note: "tournament: ICM, CO's prize equity 31.6%" }} />);
+    expect(screen.getByText("Every pair")).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Bubble factors, every pair" });
+    expect(within(table).getByRole("row", { name: /^CO / })).toHaveTextContent("CO—1.163.431.1031.6%");
+    expect(within(table).getByRole("row", { name: /^SB / })).toHaveTextContent("SB1.331.08—1.0538.4%");
+    expect(screen.getByLabelText("Tournament")).toHaveTextContent("worked out in this page from the setup with the engine's prize model");
+    // the same pairs as the equity a call of the all-in needs (CO against SB: 3.43 -> 77.4%)
+    fireEvent.click(screen.getByRole("radio", { name: "Equity to call" }));
+    expect(within(table).getByRole("row", { name: /^CO / })).toHaveTextContent("CO—53.7%77.4%52.4%31.6%");
+    expect(screen.getByLabelText("Tournament")).toHaveTextContent("so the risk premium is the rest");
   });
 
   it("says so once when no chip won gains anything (every player left paid)", () => {

@@ -12,7 +12,9 @@ import { listRanges } from "@/data/saved";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
-import { BOUNTY_FORMATS, BOUNTY_NAME, parsePayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BubbleTable } from "@/features/tournaments/BubbleTable";
+import { bubbleTableOf } from "@/features/tournaments/icm";
+import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
 import { LIMITS, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
@@ -103,6 +105,16 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setup,
   };
   const line = keepLine ? describeLine(start) : [];
+  // the players left (this table's and the other tables'), for the 15%-paid shape
+  const fN = Number(fieldN);
+  const curve = tour ? paidCurve(players + (Number.isInteger(fN) && fN > 0 ? fN : 0)) : null;
+  // every pair's bubble factor, from a setup with nothing wrong (worked out again only when what it reads changes)
+  const pairsKey = tour && !problems.length ? JSON.stringify([players, hand.stack, setup?.stacks ?? {}, setup?.tournament ?? {}]) : "";
+  const pairs = useMemo(() => {
+    if (!pairsKey) return null;
+    const [p, st, stacks, t] = JSON.parse(pairsKey) as [number, number, SpotSetup["stacks"], TournamentSetup];
+    return bubbleTableOf(p, st, { stacks, tournament: t });
+  }, [pairsKey]);
 
   const clear = () => {
     setStacks({});
@@ -204,11 +216,22 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                     Satellite, {players - 1} seats
                   </button>
                 )}
+                {curve && (
+                  <button
+                    type="button"
+                    onClick={() => setPayouts(curve.join(" "))}
+                    title="The places a field of the players left (this table's and the other tables') would pay at 15%, on a curve of Lizard's own"
+                    className="rounded border border-border px-2 py-0.5 hover:bg-surface-2"
+                  >
+                    15% paid, {curve.length} places
+                  </button>
+                )}
               </div>
               <p className="text-xs text-muted">
                 The prizes still to be paid, first place first, in any unit. Two or more: prize equity (ICM). One: winner takes all, where chips are prizes and Study answers in
                 chips. None, with bounties: chip EV, the prizes taken as the bounties in play. A satellite pays equal prizes (seats); preflop its answers are still the chip charts
-                with a risk premium, far from a satellite's real folding ranges, so read them as the badge says: approximate.
+                with a risk premium, far from a satellite's real folding ranges, so read them as the badge says: approximate. 15% paid: the places a field of the players left
+                would pay, first place about a quarter (a curve of Lizard's own, with 10 or more players left).
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -318,6 +341,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           </div>
         </fieldset>
 
+        {pairs && (
+          <section aria-label="Bubble factors" className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
+            <h2 className="font-medium">Bubble factors, every pair</h2>
+            <BubbleTable table={pairs} />
+          </section>
+        )}
+
         <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
           <legend className="px-1 font-medium">Bet sizes</legend>
           <p className="text-xs text-muted">
@@ -383,7 +413,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
 
       {tour && (
         <p className="text-sm text-muted">
-          Not here yet: ICM and chip EV side by side, the bubble factor between every pair of players, and satellites. A cash game:{" "}
+          Not here yet: a satellite-aware preflop (its answers stay the chip charts with a risk premium). ICM and chip EV side by side: Study's "Compare with chip EV" under a
+          tournament answer. A cash game:{" "}
           <Link to="/solve" className="underline hover:text-text">
             Solve
           </Link>

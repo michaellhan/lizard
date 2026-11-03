@@ -122,6 +122,30 @@ describe("SolvePage", () => {
     });
   });
 
+  it("shows every pair's bubble factor from the setup, and offers the 15%-paid shape for the players left", () => {
+    open("p=4&s=35", "/tournaments");
+    expect(screen.queryByRole("region", { name: "Bubble factors" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /15% paid/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Top 3" }));
+    num("BTN stack", "12");
+    num("SB stack", "60");
+    num("BB stack", "8");
+    // (the engine's numbers for these stacks: icm.test.ts)
+    const table = within(screen.getByRole("region", { name: "Bubble factors" })).getByRole("table", { name: "Bubble factors, every pair" });
+    const row = (seat: string) => within(table).getByRole("row", { name: new RegExp(`^${seat} `) }).textContent;
+    expect(row("CO")).toBe("CO—1.163.431.1031.6%");
+    expect(row("BB")).toBe("BB1.661.151.78—12.2%");
+    // 96 players at other tables: 100 left, 15 places
+    num("Players at other tables", "96");
+    num("Their average stack", "30");
+    fireEvent.click(screen.getByRole("button", { name: "15% paid, 15 places" }));
+    expect((screen.getByRole("textbox", { name: "Payouts" }) as HTMLInputElement).value).toMatch(/^23\.7 13\.6 /);
+    expect(screen.getByRole("region", { name: "Bubble factors" })).toHaveTextContent("100 players modelled by 12");
+    // a winner-takes-all has none
+    type("Payouts", "100");
+    expect(screen.queryByRole("region", { name: "Bubble factors" })).toBeNull();
+  });
+
   it("opens a Study spot's tournament as it was set, mystery bounties too", () => {
     open("p=6&s=30&pay=100&bty=mystery&bty.pool=500&bty.left=40", "/tournaments");
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("100");

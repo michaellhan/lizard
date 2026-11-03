@@ -39,6 +39,7 @@ import { ChipCompare } from "./ChipCompare";
 import { CompareLinks } from "./CompareLinks";
 import { ComboPanel } from "./ComboPanel";
 import { SaveSpot } from "./SaveSpot";
+import { bubbleTableOf } from "@/features/tournaments/icm";
 import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
 import { ModePicker } from "./ModePicker";
 import { catsOf, filterRes } from "./filters";
@@ -486,6 +487,9 @@ function NodeView({
   const [err, setErr] = useState<string | null>(null);
   const names = res.grid?.actions ?? [];
   const colors = actionColors(names);
+  // (every pair's bubble factor: the table's model from the setup, which the line doesn't change)
+  const tour = res.tournament && typeof res.tournament === "object";
+  const pairs = useMemo(() => (tour ? bubbleTableOf(hand.players, hand.stack, hand.setup) : null), [tour, hand.players, hand.stack, hand.setup]);
 
   if (res.study === "deal") {
     const n = cardsNeeded(res.street);
@@ -566,7 +570,14 @@ function NodeView({
           </button>
         ))}
       </div>
-      {res.tournament && typeof res.tournament === "object" ? <TournamentPanel t={res.tournament as TournamentInfo} actor={res.actor} out={STREETS.flatMap((st) => hand[st]).filter((a) => kindOf(a.action) === "fold").map((a) => a.pos)} /> : null}
+      {res.tournament && typeof res.tournament === "object" ? (
+        <TournamentPanel
+          t={res.tournament as TournamentInfo}
+          actor={res.actor}
+          out={STREETS.flatMap((st) => hand[st]).filter((a) => kindOf(a.action) === "fold").map((a) => a.pos)}
+          pairs={pairs}
+        />
+      ) : null}
       {(res.notes ?? []).length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted">
           {res.notes!.map((n, i) => (

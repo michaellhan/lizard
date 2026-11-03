@@ -180,6 +180,10 @@ const LABELS: Record<ResultSource, string> = {
 /** What answered, in words ("Live solve", "Preflop charts"…). */
 export const sourceLabel = (s: ResultSource): string => LABELS[s];
 
+/** The bubble factor table's numbers (features/tournaments/icm.ts): no answer's, but the page's own port of the
+ * engine's prize model, run on the setup (so an answer's own bubble factors are its row). */
+export const ICM_TABLE_LABEL = "ICM (Malmuth-Harville), worked out in this page from the setup with the engine's prize model";
+
 export function describe(p: Provenance): string {
   const parts = [LABELS[p.source]];
   if (p.librarySpot) parts.push(p.librarySpot);

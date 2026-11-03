@@ -54,6 +54,17 @@ export const PAYOUT_PRESETS: readonly { name: string; payouts: number[] }[] = [
  * is winner-takes-all). Flat payouts are checked on the engine in scripts/engine/test_tournament.py. */
 export const satellitePayouts = (players: number): number[] | null => (players >= 3 ? Array<number>(players - 1).fill(1) : null);
 
+/** A typical MTT's curve, Lizard's own: the places a field of the players left would pay at 15% (at least 2, at most
+ * T_LIMITS.places), place k paying in proportion to k^-0.8, in % rounded to 0.1 (15 places: 1st 23.7%, 15th 2.7%).
+ * null where that's fewer than 2 places (under 10 players left). */
+export function paidCurve(playersLeft: number, share = 0.15): number[] | null {
+  const places = Math.min(T_LIMITS.places, Math.round(playersLeft * share));
+  if (!(places >= 2)) return null;
+  const w = Array.from({ length: places }, (_, k) => (k + 1) ** -0.8);
+  const tot = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => Math.round((x / tot) * 1000) / 10);
+}
+
 /** "50 30 20", "50/30/20", "50, 30, 20" -> [50, 30, 20] (a word that isn't a number stays, as NaN, for the check) */
 export const parsePayouts = (t: string): number[] =>
   t

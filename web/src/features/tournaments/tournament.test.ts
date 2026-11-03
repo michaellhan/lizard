@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { describeTournament, parsePayouts, PAYOUT_PRESETS, satellitePayouts, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { describeTournament, paidCurve, parsePayouts, PAYOUT_PRESETS, satellitePayouts, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
 
@@ -63,6 +63,16 @@ describe("a tournament's setup", () => {
     // a satellite's bubble at this table: a seat each for all but one (heads-up, one seat is winner-takes-all)
     expect(satellitePayouts(6)).toEqual([1, 1, 1, 1, 1]);
     expect(satellitePayouts(3)).toEqual([1, 1]);
+    // the 15%-paid curve: 100 players left pay 15 places, falling, adding to about 100; under 10 players left, none
+    const c = paidCurve(100)!;
+    expect(c).toHaveLength(15);
+    expect(c[0]).toBe(23.7);
+    expect(c[14]).toBe(2.7);
+    expect(c.every((x, i) => i === 0 || x <= c[i - 1]!)).toBe(true);
+    expect(Math.abs(c.reduce((a, b) => a + b, 0) - 100)).toBeLessThan(0.5);
+    expect(paidCurve(9)).toBeNull();
+    expect(paidCurve(10)).toHaveLength(2);
+    expect(paidCurve(5000)).toHaveLength(200);
     expect(satellitePayouts(2)).toBeNull();
     expect(describeTournament({ payouts: satellitePayouts(6)! })).toEqual(["a satellite, 5 equal seats"]);
   });

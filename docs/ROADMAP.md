@@ -411,10 +411,13 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   ("54 players modelled by 12"). Satellites: Lizard's own engine tests (`scripts/engine/test_tournament.py`, in CI)
   check flat payouts (finite bubble factors on the bubble, null once every player left is paid, never a crash), and
   then a "Satellite, N seats" shape; preflop stays the chip chart with a risk premium, said on the page.
-  **Still open in Phase 7:** the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip
-  diff, a satellite-aware preflop (push/fold covers only all-ins), and tournaments in Practice. Analyze: a tournament
-  hand's decisions each have a "with prizes" link to the Tournaments page (the same line, stacks and ante; a hand
-  history has no prizes left, so they're typed there); its own Study links and grades stay in chips.
+  The bubble factor table for every pair (`icm.ts`, the page's port of the engine's prize model, pinned to its numbers;
+  `BubbleTable.tsx`: on the Tournaments page, and "Every pair" under Study's Tournament panel, with each pair's equity to
+  call an all-in), and a 15%-paid curve preset for the players left (`paidCurve`).
+  Analyze: a tournament hand's decisions each have a "with prizes" link to the Tournaments page (the same line, stacks
+  and ante; a hand history has no prizes left, so they're typed there); its own Study links and grades stay in chips.
+  **Still open in Phase 7:** a per-hand ICM vs chip diff, a satellite-aware preflop (push/fold covers only all-ins), and
+  tournaments in Practice.
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).
