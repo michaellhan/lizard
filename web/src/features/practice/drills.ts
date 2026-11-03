@@ -3,6 +3,7 @@
 // flops that store the node and pass the texture filter. A hand is drawn from the acting player's range there: its
 // weight entering the flop, off the board, times its own frequency of the line so far, shown in a random suit
 // relabelling. The stored mix and EVs for that hand grade the pick, on the one scale (src/grading/grade.ts).
+import { gameSetup } from "@/features/solve/setup";
 import { parseLine, toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
 import { bandOf } from "@/solver/provenance";
@@ -196,10 +197,12 @@ export function studyHandOf(rep: LibraryReport, pr: DrillProblem): StudyHand {
     river: [],
   };
 }
-/** the Study URL for the node; null for a game Study can't set up (antes, a straddle) */
+/** the Study URL for the node (a spot's ante or straddle as Study's setup); null for a game Study can't set up (an ante
+ * over 1bb) */
 export function studyLink(rep: LibraryReport, pr: DrillProblem): string | null {
-  if (rep.game?.ante || rep.game?.straddle) return null;
-  return `/study?${toSearch(studyHandOf(rep, pr))}`;
+  const setup = gameSetup(rep.game?.players ?? 6, rep.game?.ante, rep.game?.straddle);
+  if (setup === null) return null;
+  return `/study?${toSearch({ ...studyHandOf(rep, pr), ...(setup ? { setup } : {}) })}`;
 }
 
 /** the answer's provenance: the stored solve, read in the page from the library file */

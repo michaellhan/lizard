@@ -7,6 +7,7 @@ import type { Provenance, SolveMode } from "@/solver/types";
 import { flopCards } from "@/library/entry";
 import type { LibraryReport, ReportFlop } from "@/library/files";
 import { potAt, texture, TEXTURE_GROUPS, type Texture, type TextureFilter, type TextureKey } from "@/features/practice/drills";
+import { gameSetup } from "@/features/solve/setup";
 import { parseLine, toSearch, type StudyHand } from "@/features/study/studyState";
 
 /** every flop there is (the weights of a spot's stored flops are a share of these) */
@@ -190,11 +191,14 @@ export function studyHandAt(rep: LibraryReport, f: string, view: ReportView): St
     if (!nd?.bet) return null;
     flop.push({ pos: ip, action: "bet", to: potAt(rep, [nd.bet]).bet });
   }
-  return { players: rep.game?.players ?? 6, stack: rep.game?.stack ?? 100, board: f, preflop: parseLine(rep.line), flop, turn: [], river: [] };
+  const players = rep.game?.players ?? 6;
+  const setup = gameSetup(players, rep.game?.ante, rep.game?.straddle);
+  if (setup === null) return null;
+  return { players, stack: rep.game?.stack ?? 100, board: f, preflop: parseLine(rep.line), flop, turn: [], river: [], ...(setup ? { setup } : {}) };
 }
-/** the Study URL for a row; null for a game Study can't set up (antes, a straddle) or a node the flop doesn't store */
+/** the Study URL for a row (a spot's ante or straddle as Study's setup); null for a game Study can't set up (an ante
+ * over 1bb) or a node the flop doesn't store */
 export function studyLink(rep: LibraryReport, f: string, view: ReportView): string | null {
-  if (rep.game?.ante || rep.game?.straddle) return null;
   const h = studyHandAt(rep, f, view);
   return h ? `/study?${toSearch(h)}` : null;
 }

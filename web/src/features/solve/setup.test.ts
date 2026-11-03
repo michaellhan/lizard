@@ -2,7 +2,7 @@
 // any request, and the setup rides in Study's URL after the line (a link without one reads as before).
 import { describe, expect, it } from "vitest";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { describeSetup, setupProblems, setupRequest, tidySetup, type SpotSetup } from "./setup";
+import { describeSetup, gameSetup, setupProblems, setupRequest, tidySetup, type SpotSetup } from "./setup";
 
 const FULL: SpotSetup = {
   stacks: { BTN: 40, BB: 120 },
@@ -48,6 +48,12 @@ describe("the custom setup", () => {
       "LJ isn't a seat at this table",
     ]);
     expect(setupProblems(6, undefined)).toEqual([]);
+    // a game's ante and straddle, for the links from a hand or a library spot
+    expect(gameSetup(9, 0.1, false)).toEqual({ ante: 0.1 });
+    expect(gameSetup(6, 0, true)).toEqual({ straddle: true });
+    expect(gameSetup(6)).toBeUndefined();
+    expect(gameSetup(6, 1.5)).toBeNull();
+    expect(gameSetup(2, 0, true)).toBeNull();
   });
 
   it("rides in Study's URL after the line, read back the same, and in Study's request", () => {

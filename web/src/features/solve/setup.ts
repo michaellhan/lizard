@@ -99,6 +99,13 @@ export function setupProblems(players: number, s: SpotSetup | undefined): string
   return out;
 }
 
+/** A game's ante and straddle as a setup (undefined where it has neither), or null where a setup can't hold them (an
+ * ante over 1bb a seat): for the Study links from a hand, a library spot or a report. */
+export function gameSetup(players: number, ante = 0, straddle = false): SpotSetup | null | undefined {
+  const s = tidySetup({ ante, straddle });
+  return setupProblems(players, s).length ? null : s;
+}
+
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
 /** The engine's keys for the setup. */

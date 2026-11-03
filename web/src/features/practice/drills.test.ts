@@ -181,7 +181,9 @@ describe("a problem's spot", () => {
     expect(fromSearch(studyLink(REP, pr)!.slice("/study?".length))).toEqual(h);
     // a spot of another game is played in that game; one Study can't set up has no link
     expect(studyHandOf({ ...REP, game: { players: 2, stack: 100, ante: 0, straddle: false } }, pr).players).toBe(2);
-    expect(studyLink({ ...REP, game: { players: 6, stack: 100, ante: 0, straddle: true } }, pr)).toBeNull();
+    // (a straddle or an ante comes along as Study's setup; an ante over 1bb Study can't set up)
+    expect(fromSearch(studyLink({ ...REP, game: { players: 6, stack: 100, ante: 0, straddle: true } }, pr)!.slice("/study?".length))?.setup).toEqual({ straddle: true });
+    expect(studyLink({ ...REP, game: { players: 6, stack: 100, ante: 1.5, straddle: false } }, pr)).toBeNull();
   });
 
   it("names the stored solve, read from the file", async () => {

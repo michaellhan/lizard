@@ -23,6 +23,7 @@ import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
 import { StatsPanel } from "./StatsPanel";
+import { LIMITS } from "@/features/solve/setup";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
@@ -614,7 +615,8 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
             : "From your hand history"}
         , replayed on Lizard's table.
         {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve), your flop moves against the flop library." : " None of your decisions here is graded yet."}
-        {(h.ante > 0 || h.straddle) && " Study can't set up this hand's ante or straddle, so its decisions don't open in Study."}
+        {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
+        {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties."}
       </p>
       {r.warnings.length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted" aria-label="Warnings">

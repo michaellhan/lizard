@@ -108,8 +108,9 @@ describe("flop reports", () => {
       { pos: "BB", action: "check" },
       { pos: "BTN", action: "bet", to: 1.82 },
     ]);
-    // a game Study can't set up
-    expect(studyLink({ ...REP, game: { players: 6, stack: 40, ante: 0.125, straddle: false } }, "Ac4d3h", "oop")).toBeNull();
+    // an ante comes along as Study's setup; one over 1bb a seat Study can't set up
+    expect(studyLink({ ...REP, game: { players: 6, stack: 40, ante: 0.125, straddle: false } }, "Ac4d3h", "oop")).toBe("/study?p=6&s=40&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Af%2CBB%3Ac&b=Ac4d3h&ante=0.125");
+    expect(studyLink({ ...REP, game: { players: 6, stack: 40, ante: 1.5, straddle: false } }, "Ac4d3h", "oop")).toBeNull();
   });
 
   it("writes the rows shown as CSV, at the stored precision, with their source", () => {

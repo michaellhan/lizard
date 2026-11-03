@@ -144,12 +144,31 @@ describe("decisions", () => {
     const s = studyHandAt(r, "turn", 1)!;
     expect([s.players, s.stack, s.board, s.preflop.length, s.flop.length, s.turn, s.river]).toEqual([6, 100, "Qs8d3c7h", 6, 3, [{ pos: "BB", action: "check" }], []]);
     const link = studyLinkAt(r, "preflop", 3)!;
-    expect(link).toBe("/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af");
+    expect(link).toBe("/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af&stacks=SB%3A62.4");
     expect(fromSearch(link.split("?")[1]!)?.preflop).toHaveLength(3);
-    // Study can't set up an ante or a straddle
-    expect(studyLinkAt(importHand(HH("stars_9max_mtt_ante.txt")), "preflop", 5)).toBeNull();
-    expect(studyLinkAt(importHand(HH("gg_straddle.txt")), "preflop", 4)).toBeNull();
-    // unequal stacks: Study plays the effective one
-    expect(studyHandAt(importHand(HH("stars_3bet_pot.txt")), "flop", 0)!.stack).toBe(100);
+    // the ante, the straddle and the own stacks of the seats still in come along as Study's setup (the table at the
+    // effective stack; the folded seats' stacks change nothing)
+    const mtt = importHand(HH("stars_9max_mtt_ante.txt"));
+    const ante = studyHandAt(mtt, "preflop", 5)!;
+    expect(ante.stack).toBe(80);
+    expect(ante.setup).toEqual({ stacks: { LJ: 100, BTN: 136.73, SB: 41.67, BB: 83.67 }, ante: 0.1 });
+    expect(studyHandAt(mtt, "turn", 1)!.setup).toEqual({ stacks: { LJ: 100 }, ante: 0.1 });
+    const straddle = studyLinkAt(importHand(HH("gg_straddle.txt")), "preflop", 4)!;
+    expect(straddle).toBe("/study?p=6&s=100&pre=HJ%3Af%2CCO%3Ar7%2CBTN%3Af%2CSB%3Af&stacks=BB%3A124&straddle=1");
+    expect(fromSearch(straddle.split("?")[1]!)?.setup).toEqual({ stacks: { BB: 124 }, straddle: true });
+    expect(studyHandAt(importHand(HH("stars_3bet_pot.txt")), "flop", 0)).toMatchObject({ stack: 100, setup: { stacks: { BB: 120 } } });
+    // the seats still in all at the effective stack: no setup, the link as before
+    expect(studyHandAt(r, "turn", 1)!.setup).toBeUndefined();
+  });
+
+  it("opens Study with every seat at the effective stack where one is outside a setup's, and not at all over a 1bb ante", () => {
+    // (the villain at 1250bb)
+    const deep = importHand(HH("stars_heads_up.txt").replace("($250 in chips)", "($2500 in chips)"));
+    expect(deep.setup.stacks.SB).toBe(1250);
+    const s = studyHandAt(deep, "preflop", 1);
+    expect(s && s.stack).toBe(100);
+    expect(s && s.setup).toBeUndefined();
+    const big = importHand(HH("stars_9max_mtt_ante.txt"));
+    expect(studyHandAt({ ...big, hand: { ...big.hand, ante: 1.5 } }, "preflop", 5)).toBeNull();
   });
 });

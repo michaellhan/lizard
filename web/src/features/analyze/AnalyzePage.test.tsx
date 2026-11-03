@@ -103,14 +103,15 @@ describe("AnalyzePage", () => {
     expect(hand).toHaveTextContent("Pot 21.3bb (won, all folded). From your hand history, replayed on Lizard's table. None of your decisions here is graded yet.");
     const links = within(hand).getAllByRole("link", { name: /^Study / });
     expect(links).toHaveLength(4);
-    expect(links[0]).toHaveAttribute("href", "/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af");
+    // (the small blind, still to act, has its own 62.4bb; the folded seats' stacks don't come along)
+    expect(links[0]).toHaveAttribute("href", "/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af&stacks=SB%3A62.4");
     expect(links[1]!.getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax$/);
     expect(screen.getByTestId("where").textContent).toMatch(/hand=PokerStars%7C249012345678%7CAhQd/);
     fireEvent.click(within(hand).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("region", { name: "Hand" })).toBeNull();
   });
 
-  it("imports picked files, each counted, and says when a hand can't open in Study", async () => {
+  it("imports picked files, each counted; a tournament hand opens in Study with its ante and stacks, in chips", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(2));
     const files = [
@@ -129,8 +130,10 @@ describe("AnalyzePage", () => {
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("tournament 3712345678");
     expect(hand).toHaveTextContent("0.1bb ante");
-    expect(hand).toHaveTextContent("Study can't set up this hand's ante or straddle");
-    expect(within(hand).queryAllByRole("link", { name: /^Study / })).toHaveLength(0);
+    expect(hand).toHaveTextContent("A tournament hand: Study answers it in chips, with no ICM or bounties.");
+    const links = within(hand).getAllByRole("link", { name: /^Study / });
+    expect(links).toHaveLength(4);
+    expect(links[0]).toHaveAttribute("href", "/study?p=9&s=80&pre=UTG%3Af%2CUTG1%3Af%2CUTG2%3Af%2CLJ%3Ar2.2%2CHJ%3Af&stacks=LJ%3A100%2CBTN%3A136.73%2CSB%3A41.67%2CBB%3A83.67&ante=0.1");
 
     fireEvent.change(screen.getByLabelText("Choose hand-history files"), { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
     expect(await screen.findByRole("alert")).toHaveTextContent("None of the 1 files is a hand history (.txt, .xml, .log or .hh).");

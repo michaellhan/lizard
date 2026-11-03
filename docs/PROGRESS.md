@@ -1336,4 +1336,56 @@ Untouched. Memory 64–69% free; every check ran under `nice`.
 - Phase 6, still open: node locks (per hand, through `advise`: Study drops `locks`), automatic sizing (likewise
   dropped in Study), measured solve times per mode, and the local server option (it needs a declared patch for an
   origin allowlist and a token first).
-- Analyze and Practice could open their Study links with the hand's own stacks, ante and straddle via the setup.
+- Analyze and Practice could open their Study links with the hand's own stacks, ante and straddle via the setup
+  (done next, below).
+
+## 2026-11-03: Phase 6, Study links from a hand carry its ante, straddle and stacks (second session)
+
+Deploy of a4eb223 (the Solve page) verified live: run 41682388529 passed, `/lizard/` serves `index-BwGpUB3u.js`, which
+has "Edit setup", "Set up your own", "Spot setup" and "This setup can't be solved".
+
+### Code
+
+- `features/solve/setup.ts` `gameSetup(players, ante, straddle)`: a game's ante and straddle as a setup, or null
+  where a setup can't hold them (an ante over 1bb a seat).
+- `features/analyze/analyze.ts` `studyHandAt`: a hand's Study link now carries its ante and straddle, and the own
+  stacks of the seats still in at that decision (the table stays at the effective stack; folded seats are left out,
+  their stacks change nothing). Before, a hand with an ante or a straddle had no Study links at all, and every seat
+  played the effective stack. A seat outside a setup's 1–1000bb leaves every seat at the effective stack, as before.
+  Only an ante over 1bb a seat still has no link.
+- `AnalyzePage.tsx`: the old note "Study can't set up this hand's ante or straddle" is now said only for an ante over
+  1bb; a tournament hand says "A tournament hand: Study answers it in chips, with no ICM or bounties." (Most
+  tournament hands have antes, so they open in Study for the first time.)
+- Reports (`reports.ts`) and Practice's drills (`drills.ts`): a library spot with an ante or a straddle would open
+  Study with it as the setup (no library spot has one today).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 271/271 in 46 files. Changed: `analyze.test.ts` (the MTT hand's ante and the seats still in at the preflop and turn decisions; the straddle hand's link and its round trip; a 3-bet pot's deeper BB; equal stacks give no setup; a 1250bb seat falls back to the effective stack; a 1.5bb ante gives no link), `AnalyzePage.test.tsx` (the tournament hand opens in Study with its ante and stacks, and says it's answered in chips), `drills.test.ts`, `reports.test.ts`, `setup.test.ts` (`gameSetup`) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- The MTT hand's preflop link (9-handed, 80bb, 0.1bb ante, four seats' own stacks): "Your setup: stacks LJ 100bb,
+  BTN 136.73bb, SB 41.67bb, BB 83.67bb · ante 0.1bb", pot 4.6bb (the antes counted), "Preflop charts ·
+  approximate", the engine's note "the 80bb, 0.1bb ante, 9-handed chart".
+- The kept GG straddle hand: its Study links now exist. Preflop: pot 10.5bb, "the 100bb, straddled chart". Flop
+  (8c4d2s, BB 124bb against CO 100bb): pot 54.5bb, "Live solve · 0.01% pot from equilibrium in the solved game
+  (converged) · 300 iterations".
+- A deeper seat doesn't move a flop off the library: srp_btn_bb on Qs8d3c read "Precomputed solution · srp_btn_bb ·
+  0.11% … (converged)" both without stacks and with BB at 120bb (the engine picks the library by the effective stack
+  of the two players in the pot).
+- No console errors from this build.
+
+### Precompute builds
+
+Untouched. Memory 70% free; every check ran under `nice`.
+
+### Next
+
+- Phase 6, still open: node locks and automatic sizing (per hand; Study drops both), solve times measured per mode,
+  the local server option (after its patch).
+- Practice: carried-over chips, an ante or straddle setting (its table engine has them), sizes of your own.

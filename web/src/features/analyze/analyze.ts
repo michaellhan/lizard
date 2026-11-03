@@ -5,6 +5,7 @@ import type { HandRecord } from "@/data/db";
 import { HandHistoryError, splitHands } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
+import { gameSetup, setupProblems, tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -246,22 +247,32 @@ export function filesName(files: readonly { name: string; webkitRelativePath?: s
   return d ? `${d.split("/").pop()} (${files.length} files)` : `${files.length} files`;
 }
 
-/** The Study line at one of your decisions (the actions before it, the board up to its street), or null where
- * Study can't set the game up (an ante or a straddle). Study plays every seat at one stack: the effective one. */
+/** The Study line at one of your decisions (the actions before it, the board up to its street), with the hand's
+ * ante, straddle and each seat's own stack as Study's setup (the Solve page's); null where Study can't set the game
+ * up (an ante over 1bb a seat). The table's stack is the effective one; the seats still in with another stack are
+ * listed (a folded seat's changes nothing), and where one is outside a setup's 1–1000bb every seat plays the
+ * effective stack. */
 export function studyHandAt(r: ReplayedHand, street: Street, i: number): StudyHand | null {
   const h = r.hand;
-  if (h.ante > 0 || h.straddle) return null;
+  const game = gameSetup(h.players, h.ante, h.straddle);
+  if (game === null) return null;
   const conv = (ms: readonly Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   const k = STREETS.indexOf(street);
   const at = (s: Street) => (STREETS.indexOf(s) < k ? conv(r.lines[s]) : s === street ? conv(r.lines[s].slice(0, i)) : []);
+  const folded = new Set(STREETS.flatMap((s) => at(s).filter((m) => m.action === "fold").map((m) => m.pos)));
+  const stack = r2(h.effective);
+  const own = Object.entries(r.setup.stacks).filter(([p, v]) => !folded.has(p) && Math.abs(v - stack) > 1e-9);
+  const withStacks: SpotSetup | undefined = own.length ? { ...game, stacks: Object.fromEntries(own) } : game;
+  const setup = tidySetup(setupProblems(h.players, withStacks).length ? game : withStacks);
   return {
     players: h.players,
-    stack: r2(h.effective),
+    stack,
     board: h.board.slice(0, NEED[street]).join(""),
     preflop: at("preflop"),
     flop: at("flop"),
     turn: at("turn"),
     river: at("river"),
+    ...(setup ? { setup } : {}),
   };
 }
 
