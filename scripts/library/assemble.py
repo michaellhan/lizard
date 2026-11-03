@@ -53,11 +53,12 @@ def planned_flops() -> dict[str, int]:
     return ast.literal_eval(m.group(1)) if m else {}
 
 
-def target_of(sid: str, n: int, planned: dict[str, int]) -> int:
-    """The flop set a spot is built over: its plan, or once past it the next of 184 / 552 / every flop (1,755)."""
-    sizes = [184, 552, 1755]
-    t = planned.get(sid, 0)
-    return max(t, next((x for x in sizes if n <= x), 1755))
+def target_of(sid: str, n: int, planned: dict[str, int]) -> int | None:
+    """The flop set a planned spot is built over: its plan, or once a build passes it (an approved extension, as the
+    heads-up SRP's to every flop) the next of 552 / every flop (1,755). None for a spot with no plan: not guessed."""
+    if sid not in planned:
+        return None
+    return max(planned[sid], next((x for x in (184, 552, 1755) if n <= x), 1755))
 
 
 def sha(b: bytes, n: int) -> str:

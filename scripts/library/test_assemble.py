@@ -83,6 +83,17 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["target"], 552)  # the snapshot's SPOT_FLOPS plan
         self.assertEqual(summary["spots"]["srp_btn_bb"]["target"], 1755)
 
+    def test_a_spot_with_no_plan_gets_no_target(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            from assemble import target_of
+        finally:
+            sys.path.remove(str(HERE))
+        plan = {"srp_sb_bb_2max": 552}
+        self.assertIsNone(target_of("mw_new_spot", 185, plan))
+        self.assertEqual(target_of("srp_sb_bb_2max", 378, plan), 552)
+        self.assertEqual(target_of("srp_sb_bb_2max", 600, plan), 1755)  # extended past its plan to every flop
+
     def test_a_corrupt_entry_or_turn_file_is_left_out(self):
         (self.hu / "srp_sb_bb_2max" / "Qc9d8h.bin").write_bytes(b"tampered")
         (self.hu / "srp_sb_bb_2max" / "Td6c3h.turn.bin").write_bytes(b"GTOTN1 not zlib")
