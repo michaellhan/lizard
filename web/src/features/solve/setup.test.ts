@@ -16,7 +16,7 @@ const FULL: SpotSetup = {
 
 describe("the custom setup", () => {
   it("maps each setting to the engine's key: stacks, sizes in % of the pot, rake as a share, ante, straddle, ranges", () => {
-    expect(setupRequest(FULL)).toEqual({
+    expect(setupRequest(FULL, 6)).toEqual({
       stacks: { BTN: 40, BB: 120 },
       sizes: { flop: [33, 75], turn: [75], raise: [60] },
       rake: 0.05,
@@ -27,10 +27,10 @@ describe("the custom setup", () => {
     });
     // nothing set, or set to nothing: no keys (a cap without rake means nothing)
     const none: SpotSetup = { rake: 0, rakeCap: 3, ante: 0, straddle: false, ranges: { BB: "  " }, sizes: { flop: [] }, stacks: {} };
-    expect(setupRequest(none)).toEqual({});
+    expect(setupRequest(none, 6)).toEqual({});
     expect(tidySetup(none)).toBeUndefined();
-    expect(setupRequest(undefined)).toEqual({});
-    expect(setupRequest({ rake: 4.5 })).toEqual({ rake: 0.045 });
+    expect(setupRequest(undefined, 6)).toEqual({});
+    expect(setupRequest({ rake: 4.5 }, 6)).toEqual({ rake: 0.045 });
   });
 
   it("refuses what's out of range before it reaches the solver", () => {

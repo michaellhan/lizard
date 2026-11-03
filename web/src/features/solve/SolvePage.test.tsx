@@ -11,11 +11,12 @@ function Where() {
   const l = useLocation();
   return <p data-testid="where">{`${l.pathname}${l.search}`}</p>;
 }
-const open = (q: string) =>
+const open = (q: string, at = "/solve") =>
   render(
-    <MemoryRouter initialEntries={[`/solve?${q}`]}>
+    <MemoryRouter initialEntries={[`${at}?${q}`]}>
       <Routes>
         <Route path="/solve" element={<SolvePage />} />
+        <Route path="/tournaments" element={<SolvePage kind="tournament" />} />
         <Route path="*" element={<Where />} />
       </Routes>
     </MemoryRouter>,
@@ -90,5 +91,43 @@ describe("SolvePage", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /From the first decision/ }));
     fireEvent.click(screen.getByRole("button", { name: "Open in Study" }));
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/study?p=6&s=100"));
+  });
+
+  it("sets up a tournament: payouts, other tables, bounties (each seat's and its own), no rake, into Study's URL", () => {
+    open("p=6&s=25", "/tournaments");
+    expect(screen.getByRole("heading", { name: "Tournaments" })).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Rake" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Top 3" }));
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("50 30 20");
+    num("Players at other tables", "12");
+    num("Their average stack", "40");
+    fireEvent.change(screen.getByRole("combobox", { name: "Bounties" }), { target: { value: "ko" } });
+    num("Each seat's bounty", "5");
+    num("BTN bounty", "10");
+    num("CO stack", "8");
+    // what can't be asked is refused first
+    type("Payouts", "50 thirty 20");
+    expect(within(problems()!).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["the payouts must be positive numbers, first place first (like 50, 30, 20)"]);
+    type("Payouts", "50/30/20");
+    expect(problems()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open in Study" }));
+    const where = screen.getByTestId("where").textContent!;
+    expect(where).toBe("/study?p=6&s=25&stacks=CO%3A8&pay=50%2C30%2C20&fld=12%3A40&bty=ko&bty.each=5&bs.BTN=10");
+    expect(studyRequest(fromSearch(where.split("?")[1]!)!)).toMatchObject({
+      payouts: [50, 30, 20],
+      field: { players: 12, chips: 480 },
+      bounties: { format: "ko", seats: { UTG: 5, BTN: 10, BB: 5 } },
+    });
+  });
+
+  it("opens a Study spot's tournament as it was set, mystery bounties too", () => {
+    open("p=6&s=30&pay=100&bty=mystery&bty.pool=500&bty.left=40", "/tournaments");
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("100");
+    expect(screen.getByRole("combobox", { name: "Bounties" })).toHaveValue("mystery");
+    expect(screen.getByRole("spinbutton", { name: "Envelope pool" })).toHaveValue(500);
+    expect(screen.getByRole("spinbutton", { name: "Envelopes left" })).toHaveValue(40);
+    // a mystery bounty needs both the pool and the envelopes left
+    num("Envelopes left", "");
+    expect(within(problems()!).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["mystery bounties need the average envelope, or the pool and the envelopes left"]);
   });
 });

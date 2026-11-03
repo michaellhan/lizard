@@ -44,6 +44,8 @@ export interface Provenance {
   approximateLabel?: string;
   /** a 3+-way answer: its exploitability figure is the players' mean best-response gain */
   multiway?: boolean;
+  /** a tournament answer: the model its numbers are in (provenance.ts tournamentModelOf) */
+  tournament?: string;
   mode: SolveMode;
   /** the solver backend that answered, or "file": a library entry decoded in the page with no solver (drills) */
   transport: TransportKind | "file";

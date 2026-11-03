@@ -133,4 +133,28 @@ describe("provenance", () => {
     const mw = provenanceOf({ street: "flop", multiway: true, solved: true, solver: { iterations: 300, exploitability_pct: 0.25 } }, ctx);
     expect(describeProvenance(mw)).toBe("Live solve · 0.25% pot mean best-response gain in the solved game (converged) · 300 iterations");
   });
+
+  // (the engine's answers, as advisor.py _tournament_info and _push write them)
+  const ICM = { equity_share: 0.0719, bubble_factors: { BB: 1.2 }, note: "tournament: ICM, CO's prize equity 7.2% of what's left to pay; bubble factor up to 1.20" };
+  it("says which model a tournament answer is in, and never puts chips for prize equity", () => {
+    const solve = provenanceOf({ street: "flop", tournament: ICM, notes: [ICM.note], solver: { iterations: 158, exploitability_pct: 0.29 } }, ctx);
+    expect(describeProvenance(solve)).toBe("Live solve · prize-equity solve (ICM) · 0.29% pot from equilibrium in the solved game (converged) · 158 iterations");
+    const jam = provenanceOf({ street: "preflop", tournament: ICM, notes: [ICM.note, "a raise here commits too much of a 8bb stack: all-in, range from the push/fold equilibrium against 3 players in prize equity (ICM: both the jams and the calls)"] }, ctx);
+    expect(jam.tournament).toBe("push/fold equilibrium in prize equity");
+    const call = provenanceOf({ street: "preflop", tournament: ICM, notes: [ICM.note, "BTN's 10bb jam range: push/fold equilibrium against 2", "tournament: calling needs 48.1% equity in prize equity against 41.0% in chips (a risk premium of +7.1%)"] }, ctx);
+    expect(call.tournament).toBe("a call priced in prize equity");
+    const chart = provenanceOf({ street: "preflop", tournament: ICM, notes: [ICM.note, "preflop: the 40bb chart (the 100bb chart moved by solves of this game)"] }, ctx);
+    expect(describeProvenance(chart)).toBe("Preflop charts · chip chart with a risk premium · approximate");
+    expect(provenanceOf({ street: "river", fallback: "rules", tournament: ICM, notes: [] }, ctx).tournament).toBe("a tournament, but the fallback plays chips");
+    const mystery = { ...ICM, bounties: { format: "mystery" } };
+    expect(provenanceOf({ street: "turn", tournament: mystery, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (ICM), mystery bounties at the average envelope");
+    const pko = { ...ICM, note: "tournament: no payouts given, so chip EV: …", bounties: { format: "pko" } };
+    expect(provenanceOf({ street: "turn", tournament: pko, solver: { iterations: 300 } }, ctx).tournament).toBe(
+      "chip-EV solve with bounties (no payouts given: the prizes taken as the bounties in play), PKO bounties, proportional model",
+    );
+    const wta = { ...ICM, note: "tournament: winner-take-all (prize equity is chips), BB's equity 40.0% of the prize pool left", bounties: { format: "ko" } };
+    expect(provenanceOf({ street: "flop", tournament: wta, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (winner takes all: chips are prizes), KO bounties, proportional model");
+    // a cash answer has none
+    expect(provenanceOf({ street: "flop", solver: { iterations: 300 } }, ctx).tournament).toBeUndefined();
+  });
 });

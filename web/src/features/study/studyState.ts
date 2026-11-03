@@ -32,7 +32,7 @@ export function streetOf(h: Pick<StudyHand, "board">): Street {
 
 /** The Advisor request for the node: Study mode, at equilibrium, no hero cards. */
 export function studyRequest(h: StudyHand): AdvisorState {
-  return { players: h.players, stack: h.stack, board: h.board, preflop: h.preflop, flop: h.flop, turn: h.turn, river: h.river, ...setupRequest(h.setup), study: true };
+  return { players: h.players, stack: h.stack, board: h.board, preflop: h.preflop, flop: h.flop, turn: h.turn, river: h.river, ...setupRequest(h.setup, h.players), study: true };
 }
 
 /** The hand after the actor takes one of the node's actions. */

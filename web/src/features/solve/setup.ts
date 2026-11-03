@@ -5,11 +5,21 @@
 //   rake      a share of the pot taken from pots that see a flop (sent as 0.05 for 5%), with rake_cap in bb
 //   ante      each seat's ante, bb; straddle: a 2bb straddle from the first seat (3 or more players)
 //   ranges    the ranges entering the flop, PIO style ({seat: "22+,A2s+"}); preflop is still the charts, _custom_ranges
+//   payouts, field, bounties: a tournament's (the Tournaments page; features/tournaments/tournament.ts), never raked
 // Checked here before any request: the engine checks too, but holds sizes and stacks to wider limits (it allows 5
 // sizes a street in Study; the UI allows 3, each multiplies the game tree a browser solves). In Study's URL each
 // setting has its own parameter, after the line's, so a link with none reads as before.
 import type { AdvisorState } from "@/solver/protocol";
 import { parseRange } from "@/features/ranges/rangeText";
+import {
+  describeTournament,
+  tidyTournament,
+  tournamentFromParams,
+  tournamentProblems,
+  tournamentRequest,
+  tournamentToParams,
+  type TournamentSetup,
+} from "@/features/tournaments/tournament";
 import { seatsOf } from "@/poker/seats";
 
 export const SIZE_STREETS = ["flop", "turn", "river", "raise"] as const;
@@ -42,6 +52,8 @@ export interface SpotSetup {
   straddle?: boolean;
   /** PIO-style range text by seat */
   ranges?: Record<string, string>;
+  /** a tournament's prizes left, other tables and bounties (the Tournaments page; features/tournaments) */
+  tournament?: TournamentSetup;
 }
 
 /** The setup with nothing unset or empty kept (undefined where nothing is set). */
@@ -60,6 +72,8 @@ export function tidySetup(s: SpotSetup | undefined): SpotSetup | undefined {
   if (s.straddle) out.straddle = true;
   const ranges = Object.entries(s.ranges ?? {}).filter(([, t]) => t.trim());
   if (ranges.length) out.ranges = Object.fromEntries(ranges.map(([p, t]) => [p, t.trim()]));
+  const tour = tidyTournament(s.tournament);
+  if (tour) out.tournament = tour;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -96,6 +110,8 @@ export function setupProblems(players: number, s: SpotSetup | undefined): string
     if (bad.length) out.push(`${p}'s range: can't read ${bad.slice(0, 3).map((t) => `"${t}"`).join(", ")}${bad.length > 3 ? "…" : ""}`);
     else if (!Object.values(weights).some((w) => w > 0) && !unknown.length) out.push(`${p}'s range is empty`);
   }
+  out.push(...tournamentProblems(players, s.tournament));
+  if (tidyTournament(s.tournament) && s.rake) out.push("a tournament has no rake");
   return out;
 }
 
@@ -108,8 +124,8 @@ export function gameSetup(players: number, ante = 0, straddle = false): SpotSetu
 
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
-/** The engine's keys for the setup. */
-export function setupRequest(s: SpotSetup | undefined): Partial<AdvisorState> {
+/** The engine's keys for the setup at a table of `players`. */
+export function setupRequest(s: SpotSetup | undefined, players: number): Partial<AdvisorState> {
   const t = tidySetup(s);
   if (!t) return {};
   return {
@@ -119,6 +135,7 @@ export function setupRequest(s: SpotSetup | undefined): Partial<AdvisorState> {
     ...(t.ante ? { ante: t.ante } : {}),
     ...(t.straddle ? { straddle: true } : {}),
     ...(t.ranges ? { ranges: t.ranges } : {}),
+    ...tournamentRequest(t.tournament, players),
   };
 }
 
@@ -136,6 +153,7 @@ export function setupToParams(s: SpotSetup | undefined, q: URLSearchParams): voi
   if (t.ante) q.set("ante", String(t.ante));
   if (t.straddle) q.set("straddle", "1");
   for (const [p, text] of Object.entries(t.ranges ?? {})) q.set(`rg.${p}`, text);
+  tournamentToParams(t.tournament, q);
 }
 
 export function setupFromParams(q: URLSearchParams): SpotSetup | undefined {
@@ -162,6 +180,8 @@ export function setupFromParams(q: URLSearchParams): SpotSetup | undefined {
   const ranges: Record<string, string> = {};
   for (const [k, v] of q) if (k.startsWith("rg.") && k.length > 3) ranges[k.slice(3)] = v;
   if (Object.keys(ranges).length) s.ranges = ranges;
+  const tour = tournamentFromParams(q);
+  if (tour) s.tournament = tour;
   return Object.keys(s).length ? s : undefined;
 }
 
@@ -178,5 +198,6 @@ export function describeSetup(s: SpotSetup | undefined): string[] {
   if (t.ante) out.push(`ante ${t.ante}bb`);
   if (t.straddle) out.push("straddle");
   if (t.ranges) out.push(`${Object.keys(t.ranges).join(", ")} range${Object.keys(t.ranges).length > 1 ? "s" : ""} set`);
+  out.push(...describeTournament(t.tournament));
   return out;
 }

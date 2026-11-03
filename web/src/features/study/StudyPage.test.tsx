@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { spotAt } from "@/data/saved";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
-import { describe as describeProvenance } from "@/solver/provenance";
+import { describe as describeProvenance, provenanceOf } from "@/solver/provenance";
 import type { SolveResult } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 
@@ -13,11 +13,11 @@ import { fromSearch, studyRequest, toSearch } from "./studyState";
 // the solver stubbed: every request (kept in `stub.asked`) answers with `stub.answer` (a Study node), labelled as a live solve. (One stable
 // getSolver, as the real hook's useCallback: StudyPage re-requests when it changes.)
 const stub = vi.hoisted(() => {
-  const s = { answer: {} as AdvisorResponse, asked: [] as AdvisorState[], getSolver: null as unknown as () => Promise<unknown> };
+  const s = { answer: {} as AdvisorResponse, provenance: null as SolveResult["provenance"] | null, asked: [] as AdvisorState[], getSolver: null as unknown as () => Promise<unknown> };
   const client = {
     solve: async (req?: { state: AdvisorState }): Promise<SolveResult> => (req && s.asked.push(req.state), {
       data: s.answer,
-      provenance: {
+      provenance: s.provenance ?? {
         source: "live",
         approximate: false,
         mode: "fast",
@@ -72,7 +72,10 @@ function renderAt(search: string) {
   );
 }
 
-afterEach(() => useSettings.setState({ evUnit: "bb" }));
+afterEach(() => {
+  useSettings.setState({ evUnit: "bb" });
+  stub.provenance = null;
+});
 
 describe("StudyPage", () => {
   it("shows one toggle per opponent in a 3-way answer, and each one's grid", async () => {
@@ -220,7 +223,39 @@ describe("StudyPage", () => {
   it("offers a setup of your own on a standard spot", () => {
     renderAt("p=6&s=100");
     const setup = screen.getByLabelText("Setup");
-    expect(setup).toHaveTextContent("Standard setup (the engine's sizes, no rake or ante, the charts' ranges).");
+    expect(setup).toHaveTextContent("Standard setup (a cash game at the engine's sizes, no rake or ante, the charts' ranges).");
     expect(within(setup).getByRole("link", { name: "Set up your own" })).toHaveAttribute("href", "/solve?p=6&s=100");
+    expect(within(setup).getByRole("link", { name: "a tournament" })).toHaveAttribute("href", "/tournaments?p=6&s=100");
+  });
+
+  it("asks a tournament's spot with its payouts and bounties, and shows its prize equity, bubble factors and bounties", async () => {
+    // (the engine's tournament block, as advisor.py _tournament_info writes it)
+    stub.answer = {
+      ...THREE_WAY,
+      opponents: undefined,
+      actor: "CO",
+      tournament: {
+        equity_share: 0.0719,
+        bubble_factors: { BTN: 1.15, BB: 1.2 },
+        note: "tournament: ICM, CO's prize equity 7.2% of what's left to pay",
+        bounties: { format: "ko", you_bust: { BTN: { bb: 6.4, cash: 5, in_hand: true }, BB: { bb: 3.1, cash: 2.5, in_hand: false } }, bust_you: { BTN: 6.4 } },
+      },
+    };
+    // labelled as the solver client labels it (provenanceOf), so the badge names the model
+    stub.provenance = provenanceOf({ ...stub.answer, solver: { iterations: 300, exploitability_pct: 0.3 } }, { mode: "fast", transport: "worker", solverVersion: "test", partial: false });
+    stub.asked.length = 0;
+    const q = "p=6&s=25&stacks=CO%3A8&pay=50%2C30%2C20&bty=ko&bty.each=5";
+    renderAt(q);
+    const panel = await screen.findByLabelText("Tournament");
+    expect(screen.getByText(/^Live solve · prize-equity solve \(ICM\), KO bounties, proportional model · /)).toBeInTheDocument();
+    expect(stub.asked.at(-1)).toMatchObject({ players: 6, stack: 25, stacks: { CO: 8 }, payouts: [50, 30, 20], bounties: { format: "ko", seats: { UTG: 5, BB: 5 } }, study: true });
+    expect(stub.asked.at(-1)).not.toHaveProperty("rake");
+    expect(panel).toHaveTextContent("Prize equity: CO 7.2% of what's left to pay.");
+    expect(panel).toHaveTextContent("BTN 1.15 · BB 1.20");
+    expect(panel).toHaveTextContent("(busting them, for CO): BTN 6.4bb (pays 5). Covered by BTN.");
+    expect(panel).toHaveTextContent("Where EVs show, they're in prize equity, as chips worth as much.");
+    const setup = screen.getByLabelText("Setup");
+    expect(setup).toHaveTextContent("Your setup: stacks CO 8bb · payouts 50/30/20 · KO bounties 5.");
+    expect(within(setup).getByRole("link", { name: "Edit setup" })).toHaveAttribute("href", `/tournaments?${toSearch(fromSearch(q)!)}`);
   });
 });

@@ -1389,3 +1389,74 @@ Untouched. Memory 70% free; every check ran under `nice`.
 - Phase 6, still open: node locks and automatic sizing (per hand; Study drops both), solve times measured per mode,
   the local server option (after its patch).
 - Practice: carried-over chips, an ante or straddle setting (its table engine has them), sizes of your own.
+
+## 2026-11-03: Phase 7, the Tournaments page: a tournament spot, answered in prize equity in Study (second session)
+
+Deploy of e6c7720 (Study links from a hand) verified live: run 41683851903 passed, `/lizard/` serves
+`index-DnIc9QVf.js`.
+
+### Code
+
+- `features/tournaments/tournament.ts` (new): a tournament's setup (`TournamentSetup`: the payouts left, the players at
+  other tables and their average stack, KO, PKO or mystery bounties), its checks (`tournamentProblems`: positive
+  payouts, at most 200 places, a whole number of other players 0–10000 at 1–1000bb, the bounty format and amounts,
+  bounties only for seats at the table, other tables only with payouts or bounties), the engine's keys
+  (`tournamentRequest`: `payouts`, `field` as `{players, chips}`, `bounties` with every seat's bounty for KO/PKO, or
+  `{format, envelope}` / `{format, pool, left}` for mystery), its URL params (`pay`, `fld`, `bty`, `bty.each`,
+  `bty.field`, `bs.<seat>`, `bty.env`, `bty.pool`, `bty.left`), `describeTournament` for "Your setup: …",
+  `parsePayouts`, and three generic payout shapes of Lizard's own (winner takes all, 50/30/20, a 9-paid final table).
+- `features/solve/setup.ts`: a setup carries `tournament`; a tournament with rake is refused ("a tournament has no
+  rake"); `setupRequest(s, players)` adds the tournament keys.
+- `features/solve/SolvePage.tsx`: `kind="tournament"` is the Tournaments page (`/tournaments`, replacing the classic
+  placeholder; `ClassicFeaturePage.tsx` removed): a Tournament fieldset (payouts and shapes, other tables, bounties),
+  a Bounty column per seat for KO/PKO, no Rake fieldset. Fieldsets now shrink (`min-w-0`), so the seats table scrolls
+  inside its box at 375px instead of widening the page.
+- `solver/provenance.ts` `tournamentModelOf`: every tournament answer's badge names its model: "prize-equity solve
+  (ICM)", "prize-equity solve (winner takes all: chips are prizes)", "chip-EV solve with bounties (no payouts given:
+  …)", "push/fold equilibrium in prize equity", "a call priced in prize equity", "chip chart with a risk premium"
+  (the last two followed by "approximate", as every chart answer), "a tournament, but the fallback plays chips", plus
+  "KO/PKO bounties, proportional model" or "mystery bounties at the average envelope".
+- `features/study/TournamentPanel.tsx` (new): the answer's prize equity, the bubble factor against each opponent, what
+  busting each covered opponent still in the hand is worth, and who covers the player to act (folded seats left out,
+  as the engine's own note does); says whether EVs are prize equity or chips.
+- `StudyPage.tsx`: the panel, "Edit setup" back to `/tournaments` for a tournament, and the standard setup's text
+  links to the Tournaments page.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 281/281 in 48 files. New: `tournament.test.ts` (keys, checks, URL round trip, describe, payouts parsing and shapes), `TournamentPanel.test.tsx` (a short stack that covers nobody, winner takes all, no payouts). Changed: `provenance.test.ts` (each model label), `SolvePage.test.tsx` (the Tournaments form to its Study link; mystery prefill and its check), `StudyPage.test.tsx` (a tournament's request keys and no rake, the badge's model label through `provenanceOf`, the panel, Edit setup), `setup.test.ts` |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- `/tournaments`, Top 3, table 25bb, CO 8bb: Study opens with "Your setup: stacks CO 8bb · payouts 50/30/20. Edit
+  setup". UTG preflop: "Preflop charts · chip chart with a risk premium · approximate", prize equity 18.6%, bubble
+  factors 1.48 against the 25bb stacks and 1.09 against CO; the engine's note "raises 19% of hands instead of the
+  chart's 19% … a 1.6% risk premium".
+- The same spot, BTN opens and BB calls, flop Kd7c2h: "Live solve · prize-equity solve (ICM) · 0.04% pot from
+  equilibrium in the solved game (converged) · 300 iterations".
+- KO bounties (10 each, CO 20), 20bb table, CO 8bb after two folds: "Preflop charts · push/fold equilibrium in prize
+  equity, KO bounties, proportional model · approximate"; the panel says CO covers nobody and is covered by BTN, SB,
+  BB (UTG and HJ folded), as the engine's note does. Edit setup goes back to `/tournaments` with the bounties.
+- 375px: `/tournaments`, `/solve` with 9 seats, and Study with the panel fit the width (the seats table was 49px too
+  wide before `min-w-0`).
+- No console errors from this build.
+- Engine probe beforehand (`.venv/bin/python`, `Advisor.study`, under `nice`): an 8bb CO open with payouts gives the
+  push/fold note; at 40bb the chart with a risk premium; mystery bounties a bounties block; a flop with payouts a
+  live solve (158 iterations, 0.29%) whose EVs differ from the chip solve's.
+
+### Precompute builds
+
+Untouched (read-only `ps`: `guarded_build.sh` and its Python still running). Memory 65–70% free; every check ran under
+`nice`.
+
+### Next
+
+- Phase 7, still open: ICM vs chipEV side by side (ahead of Phase 8), the bubble factor table for every pair, satellite
+  tests and a preset, a 15%-paid curve preset, a note when a large field is compressed onto the 12-player model, and
+  tournaments in Practice and Analyze (a tournament hand is still answered in chips there).
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

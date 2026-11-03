@@ -104,7 +104,44 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (typeof approx?.label === "string") p.approximateLabel = approx.label;
   else if (borrowed !== null) p.approximateLabel = `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
   if (r.multiway) p.multiway = true;
+  const tm = tournamentModelOf(r, source);
+  if (tm) p.tournament = tm;
   return p;
+}
+
+/** What a tournament answer's numbers are in (ROADMAP Phase 7), from the engine's `tournament` block and notes: a
+ * postflop solve pays prize equity (the engine never reads the chip-EV library for one); preflop, your own all-in is
+ * the push/fold equilibrium in prize equity, a call of a jam is priced in prize equity, and anything else is the chip
+ * chart with a risk premium; a fallback plays chips. Null for an answer that isn't a tournament's. */
+export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): string | null {
+  const t = r.tournament;
+  if (!t || typeof t !== "object") return null;
+  const { note, bounties } = t as { note?: unknown; bounties?: { format?: unknown } };
+  const notes = r.notes ?? [];
+  const has = (s: string) => notes.some((n) => n.includes(s));
+  const said = typeof note === "string" ? note : "";
+  const solve = said.startsWith("tournament: no payouts")
+    ? "chip-EV solve with bounties (no payouts given: the prizes taken as the bounties in play)"
+    : said.includes("winner-take-all")
+      ? "prize-equity solve (winner takes all: chips are prizes)"
+      : "prize-equity solve (ICM)";
+  const what =
+    source === "rules" || source === "equity"
+      ? "a tournament, but the fallback plays chips"
+      : source === "charts"
+        ? has("all-in, range from the push/fold equilibrium")
+          ? "push/fold equilibrium in prize equity"
+          : has("calling needs")
+            ? "a call priced in prize equity"
+            : "chip chart with a risk premium"
+        : solve;
+  const format = bounties && typeof bounties === "object" ? bounties.format : undefined;
+  return [
+    what,
+    format === "mystery" ? "mystery bounties at the average envelope" : typeof format === "string" ? `${format.toUpperCase()} bounties, proportional model` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 const LABELS: Record<ResultSource, string> = {
@@ -122,6 +159,7 @@ const LABELS: Record<ResultSource, string> = {
 export function describe(p: Provenance): string {
   const parts = [LABELS[p.source]];
   if (p.librarySpot) parts.push(p.librarySpot);
+  if (p.tournament) parts.push(p.tournament);
   if (p.approximateLabel) parts.push(p.approximateLabel);
   // measured in the game the solver played (its bet menu and buckets), not the full game; for 3- and 4-way answers the
   // figure is the players' mean best-response gain (advisor.py), not a two-player exploitability

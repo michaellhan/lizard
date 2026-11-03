@@ -20,7 +20,7 @@ export const ROUTES: RouteDef[] = [
   { path: "solve", label: "Solve", nav: true, status: "partial", summary: "A spot of your own: each seat's stack, bet sizes, rake, ante or straddle, and ranges, opened in Study." },
   { path: "reports", label: "Reports", nav: true, status: "partial", summary: "A library spot's flop strategy across its stored flops, by texture, with EV, equity and EQR." },
   { path: "ranges", label: "Ranges", nav: true, status: "partial", summary: "Range matrix viewer and builder." },
-  { path: "tournaments", label: "Tournaments", nav: true, status: "classic", summary: "ICM, bounties and push/fold." },
+  { path: "tournaments", label: "Tournaments", nav: true, status: "partial", summary: "A tournament spot: the prizes left, each seat's stack, other tables and bounties, answered in prize equity in Study." },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
   { path: "saved", label: "Saved", nav: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore." },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { actionColors, evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
+import { actionColors, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse, OpponentRange } from "@/solver/protocol";
@@ -22,6 +22,7 @@ import {
   play,
   randomCards,
   readCards,
+  STREETS,
   studyRequest,
   toSearch,
   type StudyHand,
@@ -29,6 +30,7 @@ import {
 import { BuildMode, type BuildSaved } from "./BuildMode";
 import { ComboPanel } from "./ComboPanel";
 import { SaveSpot } from "./SaveSpot";
+import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
 import { ModePicker } from "./ModePicker";
 import { catsOf, filterRes } from "./filters";
 import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
@@ -198,15 +200,19 @@ export function StudyPage() {
         {hand.setup ? (
           <>
             Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
-            <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
+            <Link to={`/${hand.setup.tournament ? "tournaments" : "solve"}?${toSearch(hand)}`} className="underline hover:text-text">
               Edit setup
             </Link>
           </>
         ) : (
           <>
-            Standard setup (the engine's sizes, no rake or ante, the charts' ranges).{" "}
+            Standard setup (a cash game at the engine's sizes, no rake or ante, the charts' ranges).{" "}
             <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
               Set up your own
+            </Link>{" "}
+            or{" "}
+            <Link to={`/tournaments?${toSearch(hand)}`} className="underline hover:text-text">
+              a tournament
             </Link>
           </>
         )}
@@ -472,6 +478,7 @@ function NodeView({
           </button>
         ))}
       </div>
+      {res.tournament && typeof res.tournament === "object" ? <TournamentPanel t={res.tournament as TournamentInfo} actor={res.actor} out={STREETS.flatMap((st) => hand[st]).filter((a) => kindOf(a.action) === "fold").map((a) => a.pos)} /> : null}
       {(res.notes ?? []).length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted">
           {res.notes!.map((n, i) => (

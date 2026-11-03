@@ -392,6 +392,19 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
 **Goal.** Bring the existing ICM and bounty engine into Lizard. Every number shows which model produced it and where that model is approximate.
 
 **Deliverables.**
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** the Tournaments page (`/tournaments`: `SolvePage.tsx`
+  with `kind="tournament"`, `web/src/features/tournaments/tournament.ts`): the prizes left (typed as `50 30 20`, up to
+  200 places, or one of three generic shapes of Lizard's own), each seat's stack, ante and straddle, the players at
+  other tables (count and average stack, sent as `field`), and KO, PKO (everyone's bounty, a seat's own, the other
+  tables' average) or mystery bounties (the average envelope, or the pool and the envelopes left), checked before any
+  request and sent by Study with no rake. Every tournament answer's badge names its model ("prize-equity solve (ICM)",
+  "push/fold equilibrium in prize equity", "a call priced in prize equity", "chip chart with a risk premium" with
+  "approximate", "a tournament, but the fallback plays chips", plus the bounty model), and a Tournament panel shows
+  the player to act's prize equity, bubble factor against each opponent, and what busting each covered opponent is
+  worth. Checked in the browser: preflop push/fold and chart answers, and a flop live solve in prize equity.
+  **Still open in Phase 7:** ICM vs chipEV side by side, the bubble factor table for every pair, the satellite tests
+  and preset, a 15%-paid curve preset, saying so when a large field is compressed onto the 12-player model, and
+  tournaments in Practice and Analyze (a tournament hand is still answered in chips there).
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).
