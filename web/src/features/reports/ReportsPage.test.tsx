@@ -62,6 +62,16 @@ describe("ReportsPage", () => {
     expect(screen.getByText(/Which spots have reports \(3 in the library\)/)).toBeInTheDocument();
   });
 
+  it("in position facing out of position's first bet, where the report stores it (a 3-bet pot's c-bet)", async () => {
+    open("spot=3bp_bb_btn&view=ipvsbet");
+    await screen.findByRole("row", { name: "Average" });
+    expect(screen.getByRole("button", { name: "BTN vs bet" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("columnheader").slice(2, 5).map((h) => h.textContent)).toEqual(["Fold", "Call", "Raise"]);
+    const r = screen.getAllByRole("row").find((x) => /vs (33|75)%made \d+%/.test(x.textContent ?? ""))!;
+    // Study at the bet faced: out of position's first action, no check before it
+    expect(within(r).getByRole("link", { name: "Study" }).getAttribute("href")).toMatch(/&flop=BB%3Ab\d[^,]*$/);
+  });
+
   it("keeps the view, filters, grouping and sort in the URL", async () => {
     open("spot=srp_btn_bb");
     await screen.findByRole("row", { name: "Average" });
@@ -69,9 +79,13 @@ describe("ReportsPage", () => {
     expect(screen.getByRole("button", { name: "BB vs bet" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByRole("columnheader").slice(2, 5).map((h) => h.textContent)).toEqual(["Fold", "Call", "Raise"]);
     expect(screen.getByTestId("where").textContent).toMatch(/view=vsbet/);
-    // a flop row facing a bet opens Study at that bet
+    // a flop row facing a bet opens Study at that bet, said with how often it's made
     const r = screen.getAllByRole("row").find((x) => x.textContent?.includes("vs "))!;
     expect(within(r).getByRole("link", { name: "Study" }).getAttribute("href")).toMatch(/&flop=BB%3Ax%2CBTN%3Ab\d/);
+    expect(r).toHaveTextContent(/vs (33|75)%made \d+%/);
+    expect(screen.getByText(/the library stores the response only where the bet is made at least 5% of the time/)).toBeInTheDocument();
+    // the fixture's flops don't store in position's response to a first bet: that view can't be picked
+    expect(screen.getByRole("button", { name: "BTN vs bet" })).toBeDisabled();
 
     // grouped by pairing, then a group's button filters to it
     fireEvent.change(screen.getByRole("combobox", { name: "Group by" }), { target: { value: "pair" } });
@@ -108,8 +122,10 @@ describe("ReportsPage", () => {
       fireEvent.pointerMove(strip, { clientX: k * 100 + 50, clientY: 50 });
       expect(within(chart).getByRole("tooltip")).toHaveTextContent(`Check ${(r.freqs![0]! * 100).toFixed(1)}%Bet 33% ${(r.freqs![1]! * 100).toFixed(1)}%`);
     });
+    // (a tap: the column clicked, with no move before it)
     const last = sorted[6]!;
-    fireEvent.click(strip);
+    fireEvent.pointerLeave(strip);
+    fireEvent.click(strip, { clientX: 650, clientY: 50 });
     expect(screen.getByTestId("where").textContent).toBe(`/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Af%2CBB%3Ac&b=${last.f}`);
   });
 

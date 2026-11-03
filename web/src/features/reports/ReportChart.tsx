@@ -2,14 +2,14 @@
 // flop shown is one column of its action mix, in the table's order (sorted by an action, it reads as how that action
 // spreads over the flops); grouped, each texture group is one column of its weighted average. Hover a column for its
 // numbers; click a flop to open it in Study, a group to show only its flops. The table view holds every number.
-import { useState, type PointerEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { actionColors, bb, pct } from "@/components/actions";
 import type { TextureKey } from "@/features/practice/drills";
 import { flopCards } from "@/library/entry";
 import type { LibraryReport } from "@/library/files";
-import { groups, studyLink, type Average, type ReportRow, type ReportView } from "./reports";
+import { facingText, groups, studyLink, type Average, type ReportRow, type ReportView } from "./reports";
 
 const label = (n: string) => n[0]!.toUpperCase() + n.slice(1);
 
@@ -168,7 +168,10 @@ function GroupColumns({
           ))}
           {h && hover != null && (
             <Tip at={(hover + 0.5) / gs.length}>
-              <b>{h.label}</b> <span className="text-muted">· {pct(tot ? h.w / tot : 0)} of the flops shown</span>
+              <b>{h.label}</b>{" "}
+              <span className="text-muted">
+                · {pct(tot ? h.w / tot : 0)} of the flops shown{h.wf < h.w * 0.9999 ? `, the strategy from the ${pct(h.wf / h.w, 0)} that store it` : ""}
+              </span>
               <Mix freqs={h.freqs!} ev={h.ev} cols={cols} colors={colors} seats={seats} />
             </Tip>
           )}
@@ -217,13 +220,15 @@ function FlopStrip({
   const navigate = useNavigate();
   const [hover, setHover] = useState<number | null>(null);
   const n = rows.length;
-  const at = (e: PointerEvent<HTMLDivElement>) => {
+  // (the column under the pointer; a click reads its own, as a tap on a touch screen comes with no move before it)
+  const at = (e: { currentTarget: HTMLDivElement; clientX: number }) => {
     const r = e.currentTarget.getBoundingClientRect();
     if (!(r.width > 0)) return null;
     return Math.min(n - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * n)));
   };
   const h = hover != null ? rows[hover] : undefined;
-  const link = h ? studyLink(rep, h.f, view) : null;
+  const linkAt = (k: number | null) => (k != null && rows[k] ? studyLink(rep, rows[k].f, view) : null);
+  const link = linkAt(hover);
   // the share of the flops shown where each action is played at all (the strip's summary for a screen reader)
   const some = cols.map((_, i) => rows.filter((r) => (r.freqs![i] ?? 0) >= 0.005).length / n);
   return (
@@ -240,7 +245,10 @@ function FlopStrip({
           className={`relative flex-1 ${link ? "cursor-pointer" : ""}`}
           onPointerMove={(e) => setHover(at(e))}
           onPointerLeave={() => setHover(null)}
-          onClick={() => link && void navigate(link)}
+          onClick={(e) => {
+            const to = linkAt(at(e));
+            if (to) void navigate(to);
+          }}
         >
           <Grid />
           <svg viewBox={`0 0 ${n} 100`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
@@ -257,7 +265,7 @@ function FlopStrip({
                     <PlayingCard key={c} card={c} size="sm" />
                   ))}
                 </span>
-                {h.bet && <span className="ml-1 text-muted">vs {h.bet.replace("bet ", "")}</span>}
+                {h.bet && <span className="ml-1 text-muted">{facingText(h)}</span>}
                 <Mix freqs={h.freqs!} ev={h.ev} cols={cols} colors={colors} seats={rep.seats} />
               </Tip>
             </>

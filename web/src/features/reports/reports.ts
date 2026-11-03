@@ -2,6 +2,7 @@
 // library's <spot>/report.json with no solver. Per flop and averaged by texture group, each flop weighted by how many
 // of the 22100 flops it stands for; filtered by texture and sorted by any column. Lizard adds what classic lacks: each
 // player's EQR (EV over equity times the pot), and a CSV of the rows shown.
+import { pct } from "@/components/actions";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance, SolveMode } from "@/solver/types";
 import { flopCards } from "@/library/entry";
@@ -16,13 +17,26 @@ export const ALL_FLOPS = 22100;
 export const FLOP_CLASSES = 1755;
 
 // ---- the views: who acts at which stored node. vsbet: out of position facing in position's most common bet after
-// checking (fold / call / raise, whatever the size).
-export type ReportView = "oop" | "ip" | "vsbet";
-export const REPORT_VIEWS: readonly ReportView[] = ["oop", "ip", "vsbet"];
+// checking (fold / call / raise, whatever the size). ipvsbet: in position facing out of position's most common first
+// bet (a lead, or the c-bet where out of position raised preflop): Lizard's, as classic has the first three. The library
+// stores the response to a bet only where it's made at least 5% of the time, so the two facing views leave flops out.
+export type ReportView = "oop" | "ip" | "vsbet" | "ipvsbet";
+export const REPORT_VIEWS: readonly ReportView[] = ["oop", "ip", "vsbet", "ipvsbet"];
+export type FacingView = "vsbet" | "ipvsbet";
+export const isFacing = (v: ReportView): v is FacingView => v === "vsbet" || v === "ipvsbet";
 export function viewLabel(view: ReportView, seats: readonly string[]): string {
   if (view === "oop") return `${seats[0]} first`;
   if (view === "ip") return `${seats[1]} vs check`;
+  if (view === "ipvsbet") return `${seats[1]} vs bet`;
   return `${seats[0]} vs bet`;
+}
+
+// a node facing a bet: after a check ("check|bet 33%"), or out of position's first ("bet 33%")
+const facingKey = (k: string, view: FacingView) => (view === "vsbet" ? k.startsWith("check|") : k !== "" && k !== "check" && !k.includes("|"));
+
+/** the views a report stores on at least one flop */
+export function viewsOf(rep: LibraryReport): ReportView[] {
+  return REPORT_VIEWS.filter((v) => rep.flops.some((fl) => nodeOf(rep, fl, v)));
 }
 
 // (in the vsbet view, raises of every size are one column)
@@ -32,8 +46,9 @@ interface ViewNode {
   key: string;
   names: string[];
   freqs: number[];
-  /** vsbet: the bet faced */
+  /** the facing views: the bet faced, and how often it's made (null where the node before isn't stored) */
   bet?: string;
+  made?: number | null;
 }
 
 /** the view's node on a flop, or null where the flop doesn't store it */
@@ -41,24 +56,25 @@ export function nodeOf(rep: LibraryReport, fl: ReportFlop, view: ReportView): Vi
   if (view === "oop") return fl.n[""] ? { key: "", names: rep.nodes[""] ?? [], freqs: fl.n[""] } : null;
   if (view === "ip") return fl.n.check ? { key: "check", names: rep.nodes.check ?? [], freqs: fl.n.check } : null;
   // (in position's response to a check isn't stored where out of position hardly checks; its bets may be)
-  const ck = fl.n.check;
-  const cn = rep.nodes.check ?? [];
-  let best: { k: string; nm: string; f: number } | null = null;
+  const at = view === "vsbet" ? "check" : "";
+  const ck = fl.n[at];
+  const cn = rep.nodes[at] ?? [];
+  let best: { k: string; nm: string; f: number | null } | null = null;
   for (const k of Object.keys(fl.n)
-    .filter((k) => k.startsWith("check|"))
+    .filter((k) => facingKey(k, view))
     .sort()) {
-    const nm = k.slice(6);
-    const f = ck ? (ck[cn.indexOf(nm)] ?? 0) : 0;
-    if (!best || f > best.f) best = { k, nm, f };
+    const nm = view === "vsbet" ? k.slice(6) : k;
+    const f = ck ? (ck[cn.indexOf(nm)] ?? 0) : null;
+    if (!best || (f ?? 0) > (best.f ?? 0)) best = { k, nm, f };
   }
-  return best && { key: best.k, names: (rep.nodes[best.k] ?? []).map(short), freqs: fl.n[best.k]!, bet: best.nm };
+  return best && { key: best.k, names: (rep.nodes[best.k] ?? []).map(short), freqs: fl.n[best.k]!, bet: best.nm, made: best.f };
 }
 
-/** the view's columns: action names in order (vsbet: fold, call, raise) */
+/** the view's columns: action names in order (the facing views: fold, call, raise) */
 export function columns(rep: LibraryReport, view: ReportView): string[] {
-  if (view !== "vsbet") return (view === "oop" ? rep.nodes[""] : rep.nodes.check) ?? [];
+  if (!isFacing(view)) return (view === "oop" ? rep.nodes[""] : rep.nodes.check) ?? [];
   const out: string[] = [];
-  for (const k in rep.nodes) if (k.startsWith("check|")) for (const n of rep.nodes[k]!.map(short)) if (!out.includes(n)) out.push(n);
+  for (const k in rep.nodes) if (facingKey(k, view)) for (const n of rep.nodes[k]!.map(short)) if (!out.includes(n)) out.push(n);
   return out;
 }
 
@@ -73,8 +89,15 @@ export interface ReportRow {
   eq: [number, number];
   /** by column; null where the flop doesn't store the view's node */
   freqs: number[] | null;
-  /** vsbet: the bet faced */
+  /** the facing views: the bet faced, and how often it's made */
   bet: string | null;
+  made: number | null;
+}
+
+/** a facing row's bet in words: "vs 75%, made 12%" (the bet's share of the pot, how often it's made) */
+export function facingText(r: Pick<ReportRow, "bet" | "made">): string {
+  if (!r.bet) return "";
+  return `vs ${r.bet.replace("bet ", "")}${r.made != null ? `, made ${pct(r.made, 0)}` : ""}`;
 }
 
 const RANKS = "23456789TJQKA";
@@ -103,6 +126,7 @@ export function rows(rep: LibraryReport, view: ReportView): ReportRow[] {
       eq: evOf(fl, "eq"),
       freqs,
       bet: nd?.bet ?? null,
+      made: nd?.made ?? null,
     };
   });
 }
@@ -136,14 +160,15 @@ export interface Average {
   w: number;
   /** over the flops that store the view's node; null where none does */
   freqs: number[] | null;
+  /** the weight of those flops */
+  wf: number;
   ev: [number, number];
   eq: [number, number];
 }
 
 /** weighted averages over rows */
 export function average(rs: readonly ReportRow[]): Average {
-  const out: Average = { n: rs.length, w: 0, freqs: null, ev: [0, 0], eq: [0, 0] };
-  let wf = 0;
+  const out: Average = { n: rs.length, w: 0, freqs: null, wf: 0, ev: [0, 0], eq: [0, 0] };
   for (const r of rs) {
     out.w += r.w;
     for (const i of [0, 1] as const) {
@@ -153,14 +178,14 @@ export function average(rs: readonly ReportRow[]): Average {
     if (r.freqs) {
       const f = (out.freqs ??= r.freqs.map(() => 0));
       r.freqs.forEach((x, i) => (f[i] = f[i]! + r.w * x));
-      wf += r.w;
+      out.wf += r.w;
     }
   }
   for (const i of [0, 1] as const) {
     out.ev[i] /= out.w || 1;
     out.eq[i] /= out.w || 1;
   }
-  if (out.freqs) out.freqs = out.freqs.map((x) => x / wf);
+  if (out.freqs) out.freqs = out.freqs.map((x) => x / out.wf);
   return out;
 }
 
@@ -185,11 +210,11 @@ export function studyHandAt(rep: LibraryReport, f: string, view: ReportView): St
   const fl = rep.flops.find((x) => x.f === f);
   if (!fl) return null;
   const [oop, ip] = rep.seats;
-  const flop: StudyHand["flop"] = view === "oop" ? [] : [{ pos: oop, action: "check" }];
-  if (view === "vsbet") {
-    const nd = nodeOf(rep, fl, "vsbet");
+  const flop: StudyHand["flop"] = view === "oop" || view === "ipvsbet" ? [] : [{ pos: oop, action: "check" }];
+  if (isFacing(view)) {
+    const nd = nodeOf(rep, fl, view);
     if (!nd?.bet) return null;
-    flop.push({ pos: ip, action: "bet", to: potAt(rep, [nd.bet]).bet });
+    flop.push({ pos: view === "vsbet" ? ip : oop, action: "bet", to: potAt(rep, [nd.bet]).bet });
   }
   const players = rep.game?.players ?? 6;
   const setup = gameSetup(players, rep.game?.ante, rep.game?.straddle);
@@ -233,7 +258,7 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
     "suits",
     "pairing",
     "connectedness",
-    ...(view === "vsbet" ? ["bet faced"] : []),
+    ...(isFacing(view) ? ["bet faced", "bet frequency"] : []),
     ...cols,
     `${o} EV (bb)`,
     `${ip} EV (bb)`,
@@ -253,7 +278,7 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
       r.t.suits,
       r.t.pair,
       r.t.conn,
-      ...(view === "vsbet" ? [r.bet ?? ""] : []),
+      ...(isFacing(view) ? [r.bet ?? "", num(r.made, 3)] : []),
       ...cols.map((_, i) => num(r.freqs?.[i], 3)),
       num(r.ev[0], 2),
       num(r.ev[1], 2),

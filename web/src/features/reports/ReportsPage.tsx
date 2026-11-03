@@ -1,6 +1,6 @@
 // Reports: a precomputed spot's flop strategy across every stored flop (classic reports.js), read in the page from
 // the library's <spot>/report.json with no solver. One decision at a time (out of position first, in position after a
-// check, out of position facing a bet), per flop and averaged by texture group, each flop weighted by how many of the
+// check, out of position facing a bet, in position facing one), per flop and averaged by texture group, each flop weighted by how many of the
 // 22100 it stands for; filters, grouping and sorting on every column; each player's EQR; a CSV of the rows shown; a
 // flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
 // the URL.
@@ -22,9 +22,11 @@ import {
   columns,
   coverage,
   eqr,
+  facingText,
   filterRows,
   FLOP_CLASSES,
   groups,
+  isFacing,
   REPORT_VIEWS,
   reportProvenance,
   rows,
@@ -32,6 +34,7 @@ import {
   studyLink,
   toCsv,
   viewLabel,
+  viewsOf,
   type Average,
   type ReportView,
 } from "./reports";
@@ -158,6 +161,7 @@ function SpotReport({
   const shown = useMemo(() => (rep ? sortRows(filterRows(all, filter), sort, desc, rep.pot) : []), [rep, all, filterKey, sort, desc]); // eslint-disable-line react-hooks/exhaustive-deps
   const provenance = useMemo(() => (rep ? reportProvenance(rep, mode, spot.report) : null), [rep, mode, spot.report]);
   const cover = rep ? coverage(rep) : null;
+  const views = useMemo(() => (rep ? viewsOf(rep) : null), [rep]);
 
   const download = () => {
     if (!rep || !provenance) return;
@@ -192,8 +196,10 @@ function SpotReport({
               key={v}
               type="button"
               aria-pressed={v === view}
+              disabled={views != null && !views.includes(v) && v !== view}
+              title={views != null && !views.includes(v) ? "No flop this report stores has this decision" : undefined}
               onClick={() => set({ view: v === "oop" ? null : v })}
-              className={`px-2.5 py-1 ${v === view ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2"}`}
+              className={`px-2.5 py-1 disabled:opacity-40 ${v === view ? "bg-surface-3 text-text" : "text-muted enabled:hover:bg-surface-2"}`}
             >
               {viewLabel(v, spot.seats)}
             </button>
@@ -266,6 +272,8 @@ function SpotReport({
             {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision;
             EV in bb at the start of the flop (pot {rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group&rsquo;s
             EQR is that of its averages. Each flop is its own stored solve: open one in Study to see how close it is to equilibrium.
+            {isFacing(view) &&
+              ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
           </p>
         </>
       )}
@@ -281,6 +289,16 @@ function orderText(sort: string, desc: boolean, cols: string[], seats: readonly 
   const i = Number(m?.[2] ?? 0);
   const what = !m ? sort : m[1] === "a" ? label(cols[i] ?? "") : `${seats[i]} ${m[1] === "ev" ? "EV" : m[1] === "eq" ? "equity" : "EQR"}`;
   return `by ${what}, ${desc ? "highest" : "lowest"} first`;
+}
+
+/** where only some of the flops store the decision, the share its strategy is from (the EVs are from them all) */
+function Partial({ a }: { a: Pick<Average, "w" | "wf" | "freqs"> }) {
+  if (!a.freqs || a.wf >= a.w * 0.9999) return null;
+  return (
+    <small className="block whitespace-nowrap font-normal text-faint" title="The strategy averages the flops that store this decision; the EVs and equities, every flop">
+      strategy from {pct(a.wf / a.w, 0)} of them
+    </small>
+  );
 }
 
 function Bar({ freqs, cols }: { freqs: number[] | null; cols: string[] }) {
@@ -371,6 +389,7 @@ function ReportTable({
               {/* (a spot still being built stores only some flops: its averages are over those) */}
               {shown.length < all.length ? `${shown.length} flops` : coverage(rep).share < 0.9999 ? "All stored flops" : "All flops"}
               <small className="block font-normal text-faint">{pct(tot ? sum.w / tot : 0, 0)} of flops</small>
+              <Partial a={sum} />
             </td>
             <td className="w-1/3 px-2 py-1">
               <Bar freqs={sum.freqs} cols={cols} />
@@ -386,6 +405,7 @@ function ReportTable({
                     {g.label}
                   </button>
                   <small className="block text-faint">{pct(tot ? g.w / tot : 0)}</small>
+                  <Partial a={g} />
                 </td>
                 <td className="px-2 py-1">
                   <Bar freqs={g.freqs} cols={cols} />
@@ -404,7 +424,18 @@ function ReportTable({
                       <PlayingCard key={c} card={c} size="sm" />
                     ))}
                   </span>
-                  {r.bet && <small className="block text-faint">vs {r.bet.replace("bet ", "")}</small>}
+                  {r.bet && (
+                    <small className="block text-faint">
+                      {/* (the bet and how often it's made, a line each: the column is as narrow as the cards) */}
+                      {facingText(r)
+                        .split(", ")
+                        .map((t) => (
+                          <span key={t} className="block whitespace-nowrap">
+                            {t}
+                          </span>
+                        ))}
+                    </small>
+                  )}
                 </td>
                 <td className="px-2 py-1">
                   <Bar freqs={r.freqs} cols={cols} />

@@ -3015,3 +3015,58 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`.
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
 
+
+## Phase 3, in position facing a first bet in the flop reports (2026-11-03)
+
+The chart view (4f3ce4f) deployed: run 41720991320 succeeded, and the live bundle `index-Bzi7pSiC.js` has the chart.
+
+### What changed
+
+- **A fourth decision in Reports.** The new view is in position facing out of position's first bet: a lead, or a
+  c-bet where out of position raised preflop. It is labelled "BTN vs bet" (`view=ipvsbet`, `reports.ts`). It works
+  like "BB vs bet": each flop's most common size, then fold, call and raise (raises of every size together). Study
+  opens at the bet ("BB bet 4.13").
+- **What the library stores.** The response to a bet is stored only where the bet is made at least 5% of the time.
+  Checked over srp_btn_bb, srp_utg_btn and 3bp_bb_btn: the smallest stored frequency is 0.05, the largest unstored
+  0.05. So:
+  - **Bet frequency on each row.** A row in either facing view gives its bet and how often it's made ("vs 75%",
+    "made 6%"), in the table, the chart's tooltip and the CSV (a new "bet frequency" column).
+  - **Partial averages.** An average or group whose strategy comes from only some of its flops says what share:
+    "strategy from 8% of them". Its EVs and equities still cover every flop. The chart's group tooltip says the same.
+  - **The page note** explains the 5% rule.
+  - **Unavailable decisions.** A decision no stored flop has can't be picked (`viewsOf`). The fixture's srp_btn_bb
+    stores no lead response.
+- **How much each spot stores.** Every live spot stores some of these responses:
+  - BB's leads are stored on 119 of srp_btn_bb's 1,755 flops (7.6% of the weight).
+  - c-bets in 3-bet pots where out of position raised are stored on almost every flop (3bp_bb_btn 1,754 of 1,755).
+- **A tap opens Study.** Clicking a column of the chart now reads the column under the click. Before, it used the
+  hovered column, so a tap on a touch screen, which has no move before it, did nothing.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 392/392. `reports.test.ts`: the view's columns, rows, the bet and its frequency; `facingText`; `viewsOf`; the average's stored weight; Study at the bet; the CSV's new column. Every fixture spot renders each decision it stores (3bp_bb_btn all four). `ReportsPage.test.tsx`: the 3-bet pot's c-bet view with its Study link; "BTN vs bet" disabled on srp_btn_bb; the 5% note; a tap on a chart column with no hover. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- **srp_utg_btn.** UTG's c-bets were stored on 400 of the 552 flops. The average said "strategy from 72% of them".
+- **srp_btn_bb, grouped by high card and sorted by fold.**
+  - The strategy comes from 1% of A-high flops and 26% of 9-high or lower.
+  - The chart's tooltip showed Tc8d6c: "vs 75%, made 6%", fold 37.9%, call 50.2%, raise 11.9%.
+  - A click opened Study at "BB bet 4.13". Study's own answer is a live solve (BB's line is rare, so it uses
+    rule-based ranges) and is labelled as one.
+- **375px.** The four decision buttons wrap inside the row, with no horizontal scroll.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`. Free memory 60%.
+
+### Next
+
+- Phase 3, still open: turn and river runout reports (live solves), 3-way spots.
+- Practice's drills could add the same decision (`drills.ts` has the first three).
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
