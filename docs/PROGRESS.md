@@ -2720,3 +2720,55 @@ Untouched; checked only with read-only `ps`. Everything ran under `nice`. Memory
   - the Recent decisions list
 - Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 1, your range at your last decision (second session)
+
+Deploy of 6486d0e (Review mistakes) verified live: run 41716340882 passed; `/lizard/` serves `index-DqcdfRxn.js`,
+which has "Your biggest mistakes".
+
+Practice gets the classic trainer's "Your range" (`practice.js:385`, `:976`). It shows how the answer at your last
+decision plays your whole range.
+
+### Code
+
+- `web/src/features/practice/practice.ts`:
+  - `rangeAt` takes the answer's `grid` at your spot, with your hand's class and a label ("Your range · flop · BTN
+    vs BB", "UTG vs 5 players").
+  - It returns none without a grid, or from the betting rules or an equity estimate. The classic leaves out its
+    heuristic answers too.
+- `PracticePage.tsx`:
+  - The last-decision panel adds a collapsed "Your range · …". It sits under the same answer's badge.
+  - It draws the grid with Study's `RangeMatrix`, with a legend.
+  - Your hand is picked. Any hand picked shows its mix in words, with its share of combos when it isn't whole.
+  - Opening it carries over from decision to decision.
+  - `DecisionView` takes children.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 379/379 in 59 files. `practice.test.ts`: the label preflop and on the flop, "vs 5 players", none for rules, equity or no grid. `PracticePage.test.tsx`: the stub's chart answer with a grid; the panel closed until asked; 169 cells; your class's mix; 72o's mix and "50.0% of its combos"; none on a flop answer without a grid. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the real in-browser engine)
+
+- **Every street has a grid.** Heads-up, there was a grid on every street. Preflop was under "Preflop charts ·
+  approximate". The flop, turn and river were under "Live solve · 0.13–0.14% pot from equilibrium … (converged)".
+- **River.** The river read "62o (your hand): call 100.0% · 0.3% of its combos in the range".
+- **Kept open.** The grid stayed open into the next hand's preflop: "A2s (your hand): raise 100.0%".
+- **Console and phone width.** No console error. No overflow at 375px.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. Everything ran under `nice`. Memory 57% free.
+
+### Next
+
+- Phase 1, still open:
+  - multitabling
+  - the 20-hand engine check
+  - asking ahead for your likely lines
+  - the Recent decisions list
+- Phase 6, still open: multiway locks after the flop (an engine change), the local server option (after its patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

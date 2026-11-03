@@ -4,12 +4,13 @@
 // answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
 // preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
 // As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor).
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
-import { bb, kindOf, pct } from "@/components/actions";
+import { actionColors, bb, kindOf, pct } from "@/components/actions";
+import { RangeMatrix } from "@/components/RangeMatrix";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addScore, emptyScore, GRADE_RULES, summary, whoOf, whyText, type Score } from "@/grading/grade";
@@ -43,6 +44,7 @@ import {
   phaseOf,
   POT_DRILLS,
   REBUY,
+  rangeAt,
   redeal,
   runEnd,
   runKind,
@@ -57,6 +59,7 @@ import {
   type Decision,
   type HandOptions,
   type PracticeHand,
+  type RangeAt,
   type Sizes,
 } from "./practice";
 
@@ -198,6 +201,9 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
   const [advice, setAdvice] = useState<Advice>({ key: "", st: "loading" });
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<Decision | null>(null);
+  // your range at that decision (the answer's grid), and whether it's shown
+  const [lastRange, setLastRange] = useState<RangeAt | null>(null);
+  const [rangeOpen, setRangeOpen] = useState(false);
   const [retry, setRetry] = useState(0);
   const [past, setPast] = useState<SessionRecord[]>([]);
   const keepAll = useSettings((s) => s.keepHands);
@@ -322,6 +328,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     setSession(freshSession(players, stack, opts));
     setHand(newHand(players, stack, 0, randomSeed(), opts));
     setLast(null);
+    setLastRange(null);
     setError(null);
   }, []);
 
@@ -342,6 +349,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     }
     setError(null);
     setLast(r.decision);
+    setLastRange(rangeAt(hand, shown.result.data, shown.result.provenance, sim));
     const g = r.decision.grade;
     if (g)
       setSession((s) => ({
@@ -394,6 +402,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     }
     setError(null);
     setLast(h.decisions.at(-1) ?? null);
+    setLastRange(null);
     commit(h);
   };
 
@@ -581,7 +590,11 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
         )}
       </section>
 
-      {last && <DecisionView d={last} players={hand.players} />}
+      {last && (
+        <DecisionView d={last} players={hand.players}>
+          {lastRange && <RangeView key={`${last.study}|${lastRange.cls}`} r={lastRange} open={rangeOpen} onToggle={setRangeOpen} />}
+        </DecisionView>
+      )}
 
       <HandLog hand={hand} />
 
@@ -882,7 +895,7 @@ function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a: { act
   );
 }
 
-function DecisionView({ d, players, title = "Your last decision" }: { d: Decision; players: number; title?: string }) {
+function DecisionView({ d, players, title = "Your last decision", children }: { d: Decision; players: number; title?: string; children?: ReactNode }) {
   const g = d.grade;
   return (
     <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
@@ -943,10 +956,42 @@ function DecisionView({ d, players, title = "Your last decision" }: { d: Decisio
         </table>
       )}
       <p className="text-xs text-muted">Your hand&rsquo;s frequencies and EVs at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
+      {children}
       <Link to={`/study?${d.study}`} className="inline-block text-accent hover:underline">
         Open this spot in Study →
       </Link>
     </section>
+  );
+}
+
+/** Your whole range at your last decision, as the same answer plays it (the badge above): each hand's mix, yours
+ * picked; a hand picked says its mix in words. Shown once asked for (kept from decision to decision). */
+function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; onToggle: (open: boolean) => void }) {
+  const [sel, setSel] = useState<string>(r.cls);
+  const colors = actionColors(r.grid.actions);
+  const cell = r.grid.cells[sel];
+  const mix = cell ? r.grid.actions.map((a, i) => ({ a, f: cell.f[i] ?? 0 })).filter((x) => x.f >= 0.0005) : [];
+  return (
+    <details open={open} onToggle={(e) => onToggle(e.currentTarget.open)} className="space-y-2">
+      <summary className="cursor-pointer text-accent">{r.label}</summary>
+      <div className="flex flex-wrap gap-2 text-xs">
+        {r.grid.actions.map((a, i) => (
+          <span key={a} className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[i] }} />
+            {a}
+          </span>
+        ))}
+      </div>
+      <div className="max-w-md">
+        <RangeMatrix cells={r.grid.cells} actions={r.grid.actions} colors={colors} selected={sel} onSelect={setSel} caption={r.label} />
+      </div>
+      <p className="text-xs">
+        <span className="font-mono">{sel}</span>
+        {sel === r.cls && " (your hand)"}:{" "}
+        {mix.length ? mix.map((x) => `${x.a} ${pct(x.f)}`).join(", ") : "not in your range here"}
+        {cell && cell.w < 0.999 && <span className="text-muted"> · {pct(cell.w)} of its combos in the range</span>}
+      </p>
+    </details>
   );
 }
 

@@ -7,6 +7,7 @@
 // last hand left each player. Your seat moves one place each hand (BTN, CO, HJ ... UTG, BB, SB), or is drawn at random,
 // or is one seat; a preflop-only hand stops as the preflop closes.
 import { kindOf } from "@/components/actions";
+import { classOf } from "@/engine/nlhe/cards";
 import type { SizeStreet } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
@@ -29,7 +30,7 @@ import {
   type Street,
   type TableSetup,
 } from "@/poker/table";
-import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
+import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
 
 export interface Decision {
@@ -340,6 +341,25 @@ export function villainMove(h: PracticeHand, mv: Pick<PlayMove, "action" | "to">
   const p = sim.toAct!;
   const facing = (sim.cur?.curBet ?? 0) - (sim.cur?.bets[p] ?? 0) > 1e-9;
   return { pos: p, action: facing ? "call" : "check" };
+}
+
+/** Your whole range at a decision, as the answer plays it (the classic trainer's "Your range", practice.js:385). */
+export interface RangeAt {
+  grid: RangeGridData;
+  /** your hand's class, "AKs" */
+  cls: string;
+  /** "Your range · flop · BTN vs BB" */
+  label: string;
+}
+
+/** Your range at your spot from the answer there: none without a grid, or from the betting rules or an equity
+ * estimate (no solve: the classic leaves out its heuristic answers too). */
+export function rangeAt(h: PracticeHand, res: AdvisorResponse, provenance: Provenance | null, sim: Sim = simOf(h)): RangeAt | null {
+  const src = provenance?.source;
+  if (!res.grid || res.error || src === "rules" || src === "equity" || !sim.current) return null;
+  const vs = [...sim.active].filter((p) => p !== h.hero).map((p) => seatLabel(p, h.players));
+  const against = vs.length ? ` vs ${vs.length <= 2 ? vs.join(", ") : `${vs.length} players`}` : "";
+  return { grid: res.grid, cls: classOf(h.hands[h.hero]!.join("")), label: `Your range · ${sim.current} · ${seatLabel(h.hero, h.players)}${against}` };
 }
 
 /** Your options: the answer's actions at your spot. */

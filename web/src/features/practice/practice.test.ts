@@ -15,6 +15,7 @@ import {
   offDrill,
   phaseOf,
   nextTable,
+  rangeAt,
   redeal,
   REBUY,
   boardShown,
@@ -266,6 +267,24 @@ describe("seats and dealing", () => {
       turn: [],
       river: [],
     });
+  });
+});
+
+describe("your range at a decision", () => {
+  const GRID = { actions: ["fold", "call", "raise 2.5"], cells: { AKo: { w: 1, f: [0, 0.1, 0.9] } } };
+  const p = (source: "charts" | "live" | "rules" | "equity") => ({ source, approximate: source === "charts", mode: "quick", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0 }) as const;
+  it("the answer's grid, named by street, your seat and who's still in; none from the rules or an equity estimate", () => {
+    const h = fixed(3, "BTN", { BTN: "AdKc", SB: "2c3d", BB: "4c5d" }, "Ks7d2c9h3s");
+    expect(rangeAt(h, { ...CHART, grid: GRID }, p("charts"))).toEqual({ grid: GRID, cls: "AKo", label: "Your range · preflop · BTN vs SB, BB" });
+    expect(rangeAt(h, CHART, p("charts"))).toBeNull();
+    expect(rangeAt(h, { ...CHART, grid: GRID }, p("rules"))).toBeNull();
+    expect(rangeAt(h, { ...CHART, grid: GRID }, p("equity"))).toBeNull();
+    // more than two others: counted
+    const six = fixed(6, "UTG", { UTG: "AdKc", HJ: "2c3d", CO: "4c5d", BTN: "6c7d", SB: "8c9d", BB: "TcJd" }, "Ks7d2c9h3s");
+    expect(rangeAt(six, { ...CHART, grid: GRID }, p("charts"))?.label).toBe("Your range · preflop · UTG vs 5 players");
+    // on the flop, heads-up
+    const flop = play(dealNext(play(h, { pos: "BTN", action: "raise", to: 2.5 }, { pos: "SB", action: "fold" }, { pos: "BB", action: "call" }), "flop"), { pos: "BB", action: "check" });
+    expect(rangeAt(flop, { ...CHART, street: "flop", grid: GRID }, p("live"))?.label).toBe("Your range · flop · BTN vs BB");
   });
 });
 
