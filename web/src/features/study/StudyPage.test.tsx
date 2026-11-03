@@ -128,6 +128,25 @@ describe("StudyPage", () => {
     expect(await screen.findByText("9-max 37.5bb")).toBeInTheDocument();
   });
 
+  it("opens the range builder on the node's whole range, and back to the solution", async () => {
+    stub.answer = { ...THREE_WAY, opponents: undefined };
+    renderAt("p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h");
+    fireEvent.click(await screen.findByRole("button", { name: "✎ Build" }));
+    expect(screen.getByRole("grid", { name: "BB range, being painted" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "BB range" })).toBeNull();
+    expect(screen.getByRole("gridcell", { name: "AA: yours check 100%" })).toBeInTheDocument();
+    // the actions are there to play, without the range's frequencies and EVs
+    const actions = screen.getByRole("region", { name: "Actions" });
+    expect(within(actions).getAllByRole("button").map((x) => x.textContent)).toEqual(["check", "bet 33%"]);
+    fireEvent.click(screen.getByRole("button", { name: "Check my range" }));
+    expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("50.0% accurate · Off");
+    fireEvent.click(screen.getByRole("button", { name: "Show the solution" }));
+    expect(screen.getByRole("grid", { name: "BB range" })).toBeInTheDocument();
+    // back in, the scored paint is kept for the node
+    fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
+    expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("50.0% accurate");
+  });
+
   it("focuses one action from the legend: the others are drawn empty", async () => {
     stub.answer = { ...THREE_WAY, opponents: undefined };
     renderAt("p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h");

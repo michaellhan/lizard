@@ -17,7 +17,7 @@ export interface SavedSpot {
 
 export interface SessionRecord {
   id: string;
-  kind: "practice" | "drill" | "analysis";
+  kind: "practice" | "drill" | "analysis" | "build";
   startedAt: number;
   endedAt?: number;
   decisions: number;

@@ -238,6 +238,14 @@ Moves matrix rows: Aggregate reports, and part of Equity & EQR.
 **Goal.** Turn the existing range editor into a trainer. The user paints a strategy for a node and gets a score against the solver's strategy.
 
 **Deliverables.**
+- **Done on 2026-11-03 (second session; `docs/PROGRESS.md`):** the scoring port (`web/src/features/ranges/build.ts`,
+  with `study.test.js:244` ported, plus 100% for the solver's own mix and 0% for an action it never takes); "✎ Build" in
+  Study at any node, library and preflop chart answers included (`web/src/features/study/BuildMode.tsx`): brushes and
+  amounts, drag painting, Fill all, Reset, undo and redo per stroke, a lock per class, the score with the answer's
+  provenance, the difference grid, the biggest differences, each hand compared, and "Graded against the preflop
+  charts" on chart answers; a combo-by-combo score next to the class mixes' own (the class-level shortfall named in
+  Risks); each score kept in IndexedDB (sessions, kind "build") and listed at its node. **Still open in Phase 4:**
+  painting by hand category, single-combo syntax, and text import into the builder (the Ranges page keeps its editor).
 - **Scoring, `web/src/features/ranges/`.** Port `blankPaint`, `brush` and `scoreBuild` from `solver/gto/static/study.js:420-458`, with the grade labels at 90, 80 and 65% (`:458`). Painting stays at hand-class level.
 - **Pick a node.** Choose any Study node (via the Study URL) or a library spot. The target strategy comes from the same `study` answer.
 - **Results.**

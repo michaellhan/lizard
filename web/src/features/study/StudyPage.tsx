@@ -25,6 +25,7 @@ import {
   toSearch,
   type StudyHand,
 } from "./studyState";
+import { BuildMode, type BuildSaved } from "./BuildMode";
 import { ComboPanel } from "./ComboPanel";
 import { ModePicker } from "./ModePicker";
 import { catsOf, filterRes } from "./filters";
@@ -67,6 +68,9 @@ export function StudyPage() {
   const [filterKey, setFilterKey] = useState<string | null>(null);
   // one action picked in the legend: the others are drawn empty, and the EV view shades by its EV
   const [focus, setFocus] = useState<string | null>(null);
+  // the range builder (kept on from node to node), and what's painted at each node visited
+  const [building, setBuilding] = useState(false);
+  const [paints] = useState(() => new Map<string, BuildSaved>());
   const evUnit = useSettings((s) => s.evUnit);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -126,6 +130,24 @@ export function StudyPage() {
     return vals.length ? [Math.min(...vals), Math.max(...vals)] : [0, 1];
   }, [res, view, focusIdx]);
   const filtered = res?.filter;
+  // the builder paints the whole range (no filter) of a complete answer: a partial one would show its mix early
+  const buildable = raw?.study === "node" && (raw.grid?.actions.length ?? 0) > 1;
+  const buildRes = phase.kind === "done" && buildable ? (raw as AdvisorResponse & { grid: NonNullable<AdvisorResponse["grid"]> }) : null;
+  const buildButton = buildable && (
+    <button
+      type="button"
+      aria-pressed={building}
+      onClick={() => {
+        setBuilding((b) => !b);
+        setWho(0);
+        setSelected(null);
+      }}
+      title="Paint the strategy yourself, then score it against this answer"
+      className={`rounded border px-2 py-0.5 ${building ? "border-accent bg-surface-3" : "border-border text-muted hover:bg-surface-2"}`}
+    >
+      {building ? "✎ Building" : "✎ Build"}
+    </button>
+  );
 
   const onBack = () => {
     const b = back(hand);
@@ -180,9 +202,29 @@ export function StudyPage() {
         </div>
       )}
 
-      {res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} />}
+      {res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} />}
 
-      {res?.study === "node" && grid && (
+      {building && buildable && (
+        <div className="flex items-center gap-2 text-sm">
+          {buildButton}
+          <span className="text-muted">Range builder: paint {raw?.actor}'s strategy, then check it against this answer.</span>
+        </div>
+      )}
+      {building && buildable && !buildRes && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
+      {building && buildRes && (
+        <BuildMode
+          key={requestKey}
+          res={buildRes}
+          provenance={shown!.provenance}
+          colors={actionColors(buildRes.grid.actions)}
+          lineKey={toSearch(hand)}
+          lineLabel={describeLine(hand).join(" ")}
+          stored={paints.get(requestKey)}
+          onStore={(v) => void paints.set(requestKey, v)}
+          onExit={() => setBuilding(false)}
+        />
+      )}
+      {!(building && buildable) && res?.study === "node" && grid && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <section aria-label="Range" className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -248,6 +290,7 @@ export function StudyPage() {
                     {VIEW_LABELS[v]}
                   </button>
                 ))}
+              {buildButton}
             </div>
             {!opp && (view === "mix" || view === "ev") && names.length > 1 && (
               <div role="group" aria-label="Show one action" className="flex flex-wrap items-center gap-1 text-xs">
@@ -308,12 +351,15 @@ function NodeView({
   shown,
   setHand,
   evUnit,
+  building = false,
 }: {
   hand: StudyHand;
   res: AdvisorResponse;
   shown: SolveResult;
   setHand: (h: StudyHand) => void;
   evUnit: EvUnit;
+  /** the range builder is open: the actions without their frequencies and EVs (they'd give the answer away) */
+  building?: boolean;
 }) {
   const [typed, setTyped] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -391,9 +437,11 @@ function NodeView({
               <span className="inline-block h-3 w-3 rounded-sm" style={{ background: colors[names.indexOf(a.action)] ?? colors[i] }} />
               <span className="font-medium">{a.action}</span>
             </div>
-            <div className="mt-1 font-mono text-xs text-muted">
-              {actionLine(a, (x) => `${evIn(x, evUnit, res.pot_bb)}${evUnit === "pot" ? evUnitLabel(evUnit, res.pot_bb) : ""}`)}
-            </div>
+            {!building && (
+              <div className="mt-1 font-mono text-xs text-muted">
+                {actionLine(a, (x) => `${evIn(x, evUnit, res.pot_bb)}${evUnit === "pot" ? evUnitLabel(evUnit, res.pot_bb) : ""}`)}
+              </div>
+            )}
           </button>
         ))}
       </div>

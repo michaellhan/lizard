@@ -483,3 +483,59 @@ Untouched. Memory stayed at about 61% free.
   flops stored; 1,755 store this decision."; a hand dealt (Q♣9♣ on 8♠5♥2♠ facing a 75% bet) and the "2" key graded
   the call under "Precomputed solution · srp_btn_bb · 0.12% pot from equilibrium in the solved game (converged) · 300
   iterations".
+
+## 2026-11-03: Phase 4, range-builder grading (second session)
+
+### Code
+
+- `web/src/features/ranges/build.ts`: the classic builder ported from `study.js:420-458` (`passiveOf`, `blankPaint`,
+  `brush`, `scoreBuild`, `grade` at 90/80/65%, the six biggest differences), plus Lizard's own: `paintClasses`
+  (skipping locked classes), `solutionPaint`, an undo history (`record` a step, `amend` within a drag, `undo`,
+  `redo`), and `scoreByCombo`: the paint graded against each combo's own mix and EVs, with the score of the solver's
+  class mixes painted exactly as the reference (what a class-level paint can't express; not claimed as the best
+  class paint). It is null unless every class in the range has its combo rows.
+- `web/src/features/study/BuildMode.tsx`: "✎ Build" in Study at any node with two or more actions, once the answer is
+  complete (a partial answer would show its mix early). Brushes per action and a Lock tool, amounts 100/75/50/25%,
+  click or drag painting (every hand on the path, in 6px steps, as classic), Fill all, Reset, Undo and Redo (buttons,
+  Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z, Ctrl+Y; one step a stroke), keys 1–9 for brushes. "Check my range" gives the accuracy
+  and grade, EV given up in bb a combo and % of the pot, the combo-by-combo line, each action's share both ways, a
+  grid with the solver's mix above yours outlined by the difference, the biggest differences, and each hand compared.
+  The score sits under the answer's ProvenanceBadge; chart answers say "Graded against the preflop charts: an
+  approximation, not a solve", other approximate answers say so too. Each score is a session record (kind "build",
+  `web/src/data/db.ts`; no migration, the kind index takes any string) and the last five at the node are listed.
+- `StudyPage.tsx`: the Build toggle beside the views; while building, the action buttons stay (to play on) without
+  their frequencies and EVs; what's painted is kept per node while Study moves on and back.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 128/128 in 24 files (one skipped in CI). New: `ranges/build.test.ts` (the `study.test.js:244` cases exactly: acc 0.55, EV loss 9/16, gto [0.55, 0.2625, 0.1875], preflop 12/18; the solver's own mix 100% and an unplayed action 0%; locks; undo and redo to the exact weights; the combo score and its reference), `study/BuildMode.test.tsx` (brushes, keys, undo/redo, locks, a drag's path, the score and its provenance, saved and listed, chart answers, coming back to a node) and a Study toggle test |
+| Typecheck and ESLint | clean |
+| `npm run build` | built (`index-D3s809J_.js`) |
+| Library assembler (`scripts/library`) | OK |
+
+### Checked in the browser (local production build, `vite preview`, library proxied from the live site)
+
+- srp_btn_bb, BTN after BB checks on Ac7s3d (library answer): the action buttons lost their frequencies while
+  building; key 3 and one quick drag painted the whole top row bet 75%; "Check my range" gave 53.1% accurate · Off, EV
+  given up 0.015bb a combo (0.27% of the pot), under "Precomputed solution · srp_btn_bb · 0.12% pot from equilibrium in
+  the solved game (converged) · 300 iterations". Combo by combo the same 53.1% (for one-action paints the two are
+  equal by construction); the solver's class mixes painted exactly score 73.3% that way. The score was listed under
+  "Your ranges at this node".
+- 375px: no horizontal scroll; the grid has `touch-action: none` while painting only. No console errors.
+- Preflop UTG (charts): the score reads "Graded against the preflop charts: an approximation, not a solve." with no EV
+  line.
+- Fixed after this check: losses under 0.01bb in the biggest differences print to three decimals (they read
+  "−0.00bb").
+
+### Precompute builds
+
+Untouched. Memory stayed at 61–65% free; every check ran under `nice`.
+
+### Next
+
+- Commit, push and check the deploy of the builder.
+- Then Phase 5 (saved spots: the `savedSpots` store exists in `db.ts` since version 1; Save spot in Study, a Saved
+  page, backup and restore), as feasible at low CPU. Still open in Phase 4: painting by category, single combos, text
+  import into the builder.
