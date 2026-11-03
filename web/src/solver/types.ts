@@ -46,6 +46,8 @@ export interface Provenance {
   multiway?: boolean;
   /** a tournament answer: the model its numbers are in (provenance.ts tournamentModelOf) */
   tournament?: string;
+  /** a view built from several solves (the one-size view): what they were (provenance.ts oneSizeProvenance) */
+  view?: string;
   mode: SolveMode;
   /** the solver backend that answered, or "file": a library entry decoded in the page with no solver (drills) */
   transport: TransportKind | "file";

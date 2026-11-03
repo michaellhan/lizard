@@ -29,6 +29,8 @@ import {
 } from "./studyState";
 import { BuildMode, type BuildSaved } from "./BuildMode";
 import { EvGapPanel } from "@/features/compare/EvGapPanel";
+import { OneSizePanel } from "@/features/compare/OneSizePanel";
+import { offersOneSize } from "@/features/compare/oneSize";
 import { ChipCompare } from "./ChipCompare";
 import { CompareLinks } from "./CompareLinks";
 import { ComboPanel } from "./ComboPanel";
@@ -381,7 +383,12 @@ export function StudyPage() {
           </aside>
         </div>
       )}
-      {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />}
+      {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
+        <div className="flex flex-wrap items-start gap-2">
+          <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
+          {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
+        </div>
+      )}
     </div>
   );
 }

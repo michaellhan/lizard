@@ -457,8 +457,9 @@ Moves matrix rows: all Tournament rows, and MTT.
   Tests: the diff of an answer with itself is zero, the warning for mixed or approximate sources. Compare EV: under a
   solved node's grid in Study, one action's EV minus another's per class (`evgap.ts`, `EvGapPanel.tsx`), with the
   classes where each is worth most more, the check that classes taking both are near zero, and the rough-EV caveat.
-  **Still open in Phase 8:** the charts against the preflop solve preset, the one-size view (`simple.test.js`), and a
-  picker for any two nodes.
+  The one-size view (`oneSize.ts`, `OneSizePanel.tsx`; the `simple.test.js` cases ported): in Study, "One bet size" or
+  "One raise size", one solve a request at Fast with progress, Stop and Continue, the best single size and what each
+  gives up. **Still open in Phase 8:** the charts against the preflop solve preset, and a picker for any two nodes.
 - **A compare view, `web/src/features/compare/`.**
   - Two Study requests, each with its own provenance, and a diff grid per class (frequency and EV difference).
   - Changes in the range's totals.

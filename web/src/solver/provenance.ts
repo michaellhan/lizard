@@ -165,6 +165,7 @@ export const sourceLabel = (s: ResultSource): string => LABELS[s];
 export function describe(p: Provenance): string {
   const parts = [LABELS[p.source]];
   if (p.librarySpot) parts.push(p.librarySpot);
+  if (p.view) parts.push(p.view);
   if (p.tournament) parts.push(p.tournament);
   if (p.approximateLabel) parts.push(p.approximateLabel);
   // measured in the game the solver played (its bet menu and buckets), not the full game; for 3- and 4-way answers the
@@ -178,4 +179,31 @@ export function describe(p: Provenance): string {
   if (p.partial) parts.push("in progress");
   else if (p.approximate) parts.push("approximate");
   return parts.join(" · ");
+}
+
+/** The one-size view's badge (ROADMAP Phase 8): every row is a live solve of the street from the decision at Fast, so
+ * the badge names how many are in, and the widest distance from equilibrium among them (a tie's tolerance). */
+export function oneSizeProvenance(
+  rows: readonly { exploitability_pct?: number }[],
+  base: Pick<Provenance, "transport" | "solverVersion" | "receivedAt"> | null,
+  opts: { total: number; done: boolean; targetPct?: number; seconds?: number },
+): Provenance {
+  const expl = rows.map((r) => r.exploitability_pct).filter((x): x is number => typeof x === "number");
+  const p: Provenance = {
+    source: "live",
+    approximate: false,
+    mode: "fast",
+    transport: base?.transport ?? "worker",
+    solverVersion: base?.solverVersion ?? "",
+    partial: !opts.done,
+    receivedAt: base?.receivedAt ?? Date.now(),
+    view: `one-size view, ${rows.length} of ${opts.total} solves at Fast${expl.length > 1 ? " (the widest's distance shown)" : ""}`,
+  };
+  if (expl.length) {
+    p.exploitabilityPct = Math.max(...expl);
+    p.band = bandOf(p.exploitabilityPct, false);
+  }
+  if (opts.targetPct !== undefined) p.targetPct = opts.targetPct;
+  if (opts.seconds !== undefined) p.seconds = opts.seconds;
+  return p;
 }

@@ -1694,3 +1694,51 @@ Untouched (read-only `ps`). Memory 63–66% free; everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 8, the one-size view in Study (second session)
+
+Deploy of 5f4b83c (two actions' EV) verified live: run 41691622673 passed; `/lizard/` serves `index-CYpblUYq.js`,
+which has "Compare two actions" and "rough (usually too low)".
+
+### Code
+
+- `web/src/features/compare/oneSize.ts`: a port of the classic `simple.js` run and verdict (not its HTML): one run
+  per spot (the Study request less its speed), kept for the page's life; the full menu first, then each size in the
+  answer's order; the verdict (the best size, each size's EV given up in % of the pot, ties within the larger of two
+  solves' exploitabilities); the time left (upstream's estimates, then the pace of the answers); start, stop (its
+  request aborted through the client's signal; what's in hand stays) and a late answer of a stopped loop left alone.
+- `OneSizePanel.tsx`, beside "Compare two actions' EV" under a heads-up solved node after the flop where the player
+  can bet or raise: "One bet size" (or "One raise size", sizes as multiples of the bet faced, each with what it raises
+  to). Asked at Fast, one solve a request; turns and rivers start once opened, a flop waits for "Find the best size";
+  progress with Stop and Continue; the verdict; a row per size (bets, the range's EV, what it gives up; ≈ for a size
+  whose solve stopped early once clearly behind); the strategy of the size picked (its mix and grid); a tournament's
+  notes (EVs in prize equity). Leaving the node stops the run (showing it again carries on).
+- `provenance.ts`: `oneSizeProvenance` and a `view` field on a provenance: the badge reads "Live solve · one-size view,
+  9 of 9 solves at Fast (the widest's distance shown) · 0.21% pot from equilibrium …".
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 310/310 in 52 files. New: `oneSize.test.tsx` (10, from the classic `simple.test.js`: the run's order and once-only asks, ties and no loss before the full menu, the answer's order, stopping and carrying on, a late answer, a failed request, the time left, where Study offers it; the panel on a turn, a flop's opt-in with Stop and Continue, the raise view with a tournament's notes, a size cut early) |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- Heads-up 100bb, SB raise 2.5, BB call, Ks7d2c x x, Th x x, 4c, BB to act: "One bet size" ran 9 river solves in a few
+  seconds: "Best single size: 33% (as good within the solves' precision: 50%) · gives up 0.90% of the pot against every
+  size mixed"; every size mixed +2.55, 25% to 200% +2.48 to +2.50, the sizes from 75% up stopped early (≈). 375px: no
+  overflow. No console errors from the new bundle.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 62–66% free; everything ran under `nice`.
+
+### Next
+
+- Phase 8, still open: the charts against the preflop solve preset, a picker for any two nodes.
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).
