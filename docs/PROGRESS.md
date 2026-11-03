@@ -595,7 +595,23 @@ Untouched. Memory stayed at 61–65% free; every check ran under `nice`.
 
 Untouched. Memory stayed at 57–65% free; every check ran under `nice`.
 
+### Deploy of `5327328`, checked live, and a fix
+
+- Pages run 41656535926 succeeded; `https://www.michael-han.com/lizard/saved/` returns 200 and serves
+  `index-C-mpoQNK.js`, the bundle checked locally; Study shows "☆ Save spot" on the live site.
+- Found live: the Saved page stayed at "…". The browser's `lizard` database was at version 2 and another
+  connection (most likely a Lizard tab or page still running the previous bundle in the browser pane; the previous
+  code never closes its connection) held it open, so this bundle's upgrade to version 3 waited forever and nothing
+  that reads the database loaded. Any user with an old Lizard tab open would hit the same thing after this deploy.
+- Fix (`web/src/data/db.ts`, `web/src/app/DbNotice.tsx`): the shared connection now closes itself when a newer tab
+  asks to upgrade (`blocking`), and the page says what is happening in both cases: an older tab holding the data
+  ("Close or reload that tab and this page carries on") or a newer tab that took it over ("Reload this page"). Tests:
+  `app/DbNotice.test.tsx` (an older tab's connection: the notice, then the upgrade once it closes; a newer tab's
+  upgrade: this tab closes, says so, and keeps nothing). Old tabs still running the version-2 code can't be fixed
+  after the fact; the notice tells the user to close them.
+
 ### Next
 
-- Commit, push and check `/lizard/saved/` live. Then the next phase of `IMPLEMENTATION_PLAN.md` that fits low CPU.
-  Still open in Phase 5: saved drills, saved hands, the classic `gto-store` import, a backup prompt after N saves.
+- Then the next phase of `IMPLEMENTATION_PLAN.md` that fits low CPU: Reports (ROADMAP Phase 3), from the library's
+  `report.json` files with no solve. Still open in Phase 5: saved drills, saved hands, the classic `gto-store`
+  import, a backup prompt after N saves.

@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router";
 import { BASE_URL } from "@/config";
 import { ROUTES } from "./routes";
 import { EngineStatusPill } from "@/components/EngineStatusPill";
+import { DbNotice } from "./DbNotice";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors ${
@@ -35,6 +36,7 @@ export function Shell() {
           </div>
         </div>
       </header>
+      <DbNotice />
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         <Outlet />
       </main>

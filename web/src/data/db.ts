@@ -71,7 +71,15 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
 
 export const DB_VERSION = Math.max(...Object.keys(MIGRATIONS).map(Number));
 
-export function openLizardDB(version: number = DB_VERSION, name: string = DB_NAME): Promise<IDBPDatabase<LizardDB>> {
+/** What an open hears from other tabs: `blocked`, an older tab holds the database open so this upgrade waits;
+ * `blocking`, a newer tab wants to upgrade and this connection is in its way. */
+export interface OpenHooks {
+  blocked?: () => void;
+  blocking?: () => void;
+  terminated?: () => void;
+}
+
+export function openLizardDB(version: number = DB_VERSION, name: string = DB_NAME, hooks: OpenHooks = {}): Promise<IDBPDatabase<LizardDB>> {
   return openDB<LizardDB>(name, version, {
     upgrade(db, oldVersion, newVersion, tx) {
       const target = newVersion ?? version;
@@ -81,17 +89,52 @@ export function openLizardDB(version: number = DB_VERSION, name: string = DB_NAM
         m(db, tx);
       }
     },
+    blocked: hooks.blocked,
+    blocking: hooks.blocking,
+    terminated: hooks.terminated,
   });
+}
+
+/** The shared connection's state, for the notice in the page (app/DbNotice.tsx): "waiting", an older Lizard tab
+ * keeps the database at its version so this one's upgrade waits (until that tab closes or reloads); "replaced", a
+ * newer Lizard in another tab upgraded the database, so this tab stepped aside and keeps nothing until reloaded. */
+export type DbState = "ok" | "waiting" | "replaced";
+let state: DbState = "ok";
+const listeners = new Set<() => void>();
+const setState = (s: DbState) => {
+  if (s === state) return;
+  state = s;
+  for (const f of listeners) f();
+};
+export const dbState = (): DbState => state;
+export function onDbState(f: () => void): () => void {
+  listeners.add(f);
+  return () => listeners.delete(f);
 }
 
 let dbP: Promise<IDBPDatabase<LizardDB>> | null = null;
 
-/** The app's shared connection (null where IndexedDB is unavailable, e.g. some private modes). */
+/** The app's shared connection (null where IndexedDB is unavailable, e.g. some private modes, or once a newer tab
+ * has taken the database over). */
 export async function db(): Promise<IDBPDatabase<LizardDB> | null> {
-  if (typeof indexedDB === "undefined") return null;
-  dbP ??= openLizardDB();
+  if (typeof indexedDB === "undefined" || state === "replaced") return null;
+  dbP ??= openLizardDB(DB_VERSION, DB_NAME, {
+    blocked: () => setState("waiting"),
+    // (closed at once so the newer tab's upgrade isn't held up, as this version's own would be by an older tab)
+    blocking: () => {
+      const p = dbP;
+      dbP = null;
+      setState("replaced");
+      void p?.then((d) => d.close());
+    },
+    terminated: () => {
+      dbP = null;
+    },
+  });
   try {
-    return await dbP;
+    const d = await dbP;
+    if (state === "waiting") setState("ok");
+    return d;
   } catch {
     dbP = null;
     return null;
