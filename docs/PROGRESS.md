@@ -3164,3 +3164,55 @@ Untouched; checked only with read-only `ps`. Each browser solve was one Fast sol
 - Phase 3, still open: 3-way spots in Reports.
 - Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 3, 3-way spots in Reports (2026-11-03)
+
+The runout reports (82076dc) deployed: run 41724971687 succeeded, and the live bundle `index-bKnhjige.js` has them.
+
+### What changed
+
+- **Where the numbers come from.** The 3-way library has no `report.json`. Each stored flop's entry header holds the
+  range's mix at the three stored decisions, though: first to act, the second after a check, the third after two.
+  Reports now reads those headers (`decodeHead`, the body left undecoded) and puts them side by side
+  (`web/src/library/mwReport.ts`).
+- **Loading.** The 185 files are read eight at a time, with a progress bar ("62 of 185 read…"). That's about 1.3 MB,
+  kept for the session and in the HTTP cache. Leaving the spot stops the reads.
+- **Weights.** The 3-way flops are the solver's `representative_flops(184)` plus `EXTRA_FLOPS` (K♣7♦2♥), checked in
+  Python for all four spots. As `flop_library.report_weights` does for a sample, each sample flop counts 22100/184.
+  The extra flop is listed but weighs nothing; the note under the table says so.
+- **The page.** The spot picker groups heads-up and 3-way spots. A 3-way spot's decisions are "SB first", "BB vs
+  check" and "BTN vs two checks" (`view=third`). There are no EV, equity or EQR columns (the entries hold none), in
+  the table, the chart's tooltips or the CSV. A row's Study link plays both checks first. The coverage list names the
+  3-way spots.
+- **Fixtures.** `make_web_fixtures.py` also copies six of mw_btn_sb_bb's flops and a trimmed `mw_index.json`. The
+  heads-up fixtures came out byte-identical.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 405/405. `reports.test.ts`: the fixture's 3-way report (seats, nodes, 5c4d2h's three stored mixes, weights, Study after two checks, the CSV's columns, the provenance label); every 3-way spot of the snapshot builds a report of 184 sample flops plus the extra one, covering every flop, each decision summing to 1. `ReportsPage.test.tsx`: the 3-way page (decisions, columns, a row, the Study link, the note, the picker's groups, the coverage). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- **mw_btn_sb_bb.** All 185 flops read, in about 15 s at four at a time from the preview server (~0.4 s a file);
+  eight at a time took about 5 s on mw_co_btn_bb.
+- **Decisions.** At "BTN vs two checks" the average is 56.3% check, 37.5% bet 33%, 6.2% bet 75%.
+- **The extra flop.** K♣7♦2♥'s row (59.1% check, 40.9% bet 33%) opens Study after SB and BB check, where Study
+  shows the same numbers from the 3-way library.
+- **Grouping.** mw_co_btn_bb, CO after a check, by suits: rainbow 39.7%, two-tone 54.9%, monotone 5.4% of the
+  weight, near the true 39.8 / 55.1 / 5.2.
+- **The chart.** Tooltips show the mix with no EV line.
+- **375px.** No horizontal page scroll.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. No solves.
+
+### Next
+
+- Phase 3: done as listed. Not in it yet: range and nut advantage columns.
+- Phase 2, still open: turns and rivers, a history across sessions, realized results, a dropped folder.
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

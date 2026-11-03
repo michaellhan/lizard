@@ -3,7 +3,7 @@
 // check, out of position facing a bet, in position facing one), per flop and averaged by texture group, each flop weighted by how many of the
 // 22100 it stands for; filters, grouping and sorting on every column; each player's EQR; a CSV of the rows shown; a
 // flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
-// the URL.
+// the URL. A 3-way spot's report is built in the page from its stored flops' entries (strategies only).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -26,6 +26,7 @@ import {
   filterRows,
   FLOP_CLASSES,
   groups,
+  hasEv,
   isFacing,
   REPORT_VIEWS,
   reportProvenance,
@@ -34,6 +35,7 @@ import {
   studyLink,
   toCsv,
   viewLabel,
+  viewsFor,
   viewsOf,
   type Average,
   type ReportView,
@@ -41,12 +43,14 @@ import {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const reportable = (s: LibrarySpotIndex) => s.seats.length === 2 && Boolean(s.report);
+// (a 3-way spot: its report is built from its entries)
+const mwReportable = (s: LibrarySpotIndex) => s.seats.length === 3 && Object.keys(s.flops ?? {}).length > 0;
 const isView = (v: string | null): v is ReportView => REPORT_VIEWS.includes(v as ReportView);
 const isGroup = (v: string | null): v is TextureKey => TEXTURE_GROUPS.some((g) => g.key === v);
 const label = (n: string) => n[0]!.toUpperCase() + n.slice(1);
 const ratio = (x: number | null) => (x == null ? "–" : x.toFixed(2));
 
-type Lib = { st: "loading" } | { st: "ready"; files: LibraryFiles; index: LibraryIndex; label: string } | { st: "error"; message: string };
+type Lib = { st: "loading" } | { st: "ready"; files: LibraryFiles; index: LibraryIndex; mw: LibraryIndex | null; label: string } | { st: "error"; message: string };
 
 /** flop rows listed before "Show all" (a spot can store all 1,755; averages, groups and the CSV take every flop) */
 export const ROW_LIMIT = 300;
@@ -69,8 +73,8 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT }: { files?: LibraryFi
           f = new LibraryFiles(src.base);
           name = src.label;
         }
-        const index = await f.index();
-        if (alive) setLib({ st: "ready", files: f, index, label: name });
+        const [index, mw] = await Promise.all([f.index(), f.mwIndex().catch(() => null)]);
+        if (alive) setLib({ st: "ready", files: f, index, mw, label: name });
       } catch (e) {
         if (alive) setLib({ st: "error", message: message(e) });
       }
@@ -81,7 +85,8 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT }: { files?: LibraryFi
   }, [files, choice]);
 
   const all = lib.st === "ready" ? lib.index.spots : [];
-  const spots = all.filter(reportable);
+  const mw = lib.st === "ready" ? (lib.mw?.spots ?? []).filter(mwReportable) : [];
+  const spots = [...all.filter(reportable), ...mw];
   const spot = spots.find((s) => s.id === params.get("spot")) ?? spots[0];
   const set = (kv: Record<string, string | null>) =>
     setParams(
@@ -113,12 +118,12 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT }: { files?: LibraryFi
       )}
       {lib.st === "ready" && !spot && <p className="text-sm text-muted">This library has no spot with a flop report.</p>}
       {lib.st === "ready" && spot && <SpotReport key={spot.id} files={lib.files} spot={spot} spots={spots} params={params} set={set} rowLimit={rowLimit} />}
-      {lib.st === "ready" && <Coverage spots={all} source={lib.label} />}
+      {lib.st === "ready" && <Coverage spots={all} mw={mw} source={lib.label} />}
     </div>
   );
 }
 
-type Rep = { st: "loading" } | { st: "ready"; rep: LibraryReport } | { st: "error"; message: string };
+type Rep = { st: "loading"; done?: number; total?: number } | { st: "ready"; rep: LibraryReport } | { st: "error"; message: string };
 
 function SpotReport({
   files,
@@ -139,16 +144,23 @@ function SpotReport({
   const [data, setData] = useState<Rep>({ st: "loading" });
   useEffect(() => {
     let alive = true;
-    files.spot(spot).then(
-      (d) => alive && setData({ st: "ready", rep: d.report }),
+    const ac = new AbortController();
+    const report =
+      spot.seats.length > 2
+        ? files.mwReport(spot, { signal: ac.signal, onProgress: (done, total) => alive && setData({ st: "loading", done, total }) })
+        : files.spot(spot).then((d) => d.report);
+    report.then(
+      (rep) => alive && setData({ st: "ready", rep }),
       (e: unknown) => alive && setData({ st: "error", message: message(e) }),
     );
     return () => {
       alive = false;
+      ac.abort();
     };
   }, [files, spot]);
 
-  const view: ReportView = isView(params.get("view")) ? (params.get("view") as ReportView) : "oop";
+  const decisions = viewsFor(spot.seats);
+  const view: ReportView = isView(params.get("view")) && decisions.includes(params.get("view") as ReportView) ? (params.get("view") as ReportView) : "oop";
   const group = isGroup(params.get("group")) ? (params.get("group") as TextureKey) : null;
   const sort = params.get("sort") ?? "flop";
   const desc = params.get("desc") !== "0";
@@ -182,16 +194,22 @@ function SpotReport({
         <label className="flex items-center gap-1">
           <span className="text-muted">Spot</span>
           <select aria-label="Spot" value={spot.id} onChange={(e) => set({ spot: e.target.value })} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
-            {spots.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-                {s.game ? ` (${gameLabel(s)})` : ""}
-              </option>
+            {(["Heads-up", "3-way"] as const).map((g) => (
+              <optgroup key={g} label={g}>
+                {spots
+                  .filter((s) => (s.seats.length > 2) === (g === "3-way"))
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                      {s.game ? ` (${gameLabel(s)})` : ""}
+                    </option>
+                  ))}
+              </optgroup>
             ))}
           </select>
         </label>
         <span role="group" aria-label="Decision" className="inline-flex overflow-hidden rounded-md border border-border">
-          {REPORT_VIEWS.map((v) => (
+          {decisions.map((v) => (
             <button
               key={v}
               type="button"
@@ -231,7 +249,19 @@ function SpotReport({
         </label>
       </form>
 
-      {data.st === "loading" && <p className="text-sm text-muted">Loading the report…</p>}
+      {data.st === "loading" &&
+        (data.total ? (
+          <div className="max-w-md space-y-1 text-sm text-muted">
+            <p>
+              Building the 3-way report from its stored flops: {data.done} of {data.total} read…
+            </p>
+            <div className="h-1.5 overflow-hidden rounded bg-surface-3" role="progressbar" aria-label="Flops read" aria-valuemin={0} aria-valuemax={data.total} aria-valuenow={data.done}>
+              <div className="h-full bg-accent" style={{ width: `${((data.done ?? 0) / data.total) * 100}%` }} />
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Loading the report…</p>
+        ))}
       {data.st === "error" && (
         <p role="alert" className="text-sm text-danger">
           Couldn&rsquo;t load this spot&rsquo;s report: {data.message}
@@ -269,9 +299,11 @@ function SpotReport({
           )}
           <p className="text-xs text-muted">
             {rep.label}
-            {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision;
-            EV in bb at the start of the flop (pot {rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group&rsquo;s
-            EQR is that of its averages. Each flop is its own stored solve: open one in Study to see how close it is to equilibrium.
+            {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision
+            {hasEv(rep)
+              ? `; EV in bb at the start of the flop (pot ${rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group's EQR is that of its averages.`
+              : ` (pot ${rep.pot}bb). The 3-way library stores each flop's strategies but no range EVs or equities, so this report has strategies only; it is built here from the ${rep.flops.length} flops' files, read once. Its flops are a sample spread over the flop space by how often each comes up, so each counts the same${rep.flops.some((f) => f.w === 0) ? `; ${rep.flops.filter((f) => f.w === 0).map((f) => f.f).join(", ")}, solved besides the sample, is listed but not averaged` : ""}.`}{" "}
+            Each flop is its own stored solve: open one in Study to see how close it is to equilibrium.
             {isFacing(view) &&
               ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
           </p>
@@ -336,6 +368,8 @@ function ReportTable({
   const listed = showAll ? shown : shown.slice(0, rowLimit);
   const cols = columns(rep, view);
   const [o, p] = rep.seats;
+  // (a 3-way report has strategies only: no EV, equity or EQR columns)
+  const ev = hasEv(rep);
   const tot = all.reduce((a, r) => a + r.w, 0);
   const sum = average(shown);
   const head = (key: string, text: string, cls = "") => (
@@ -354,12 +388,16 @@ function ReportTable({
           {pct(a.freqs?.[i])}
         </td>
       ))}
-      <td className="px-2 py-1 text-right">{bb(a.ev[0])}</td>
-      <td className="px-2 py-1 text-right">{bb(a.ev[1])}</td>
-      <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[0])}</td>
-      <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[1])}</td>
-      <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[0], a.eq[0], rep.pot))}</td>
-      <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[1], a.eq[1], rep.pot))}</td>
+      {ev && (
+        <>
+          <td className="px-2 py-1 text-right">{bb(a.ev[0])}</td>
+          <td className="px-2 py-1 text-right">{bb(a.ev[1])}</td>
+          <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[0])}</td>
+          <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[1])}</td>
+          <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[0], a.eq[0], rep.pot))}</td>
+          <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[1], a.eq[1], rep.pot))}</td>
+        </>
+      )}
     </>
   );
   return (
@@ -372,12 +410,16 @@ function ReportTable({
               Strategy
             </th>
             {cols.map((c, i) => head(`a${i}`, label(c), "text-right"))}
-            {head("ev0", `${o} EV`, "text-right")}
-            {head("ev1", `${p} EV`, "text-right")}
-            {head("eq0", `${o} eq`, "hidden text-right sm:table-cell")}
-            {head("eq1", `${p} eq`, "hidden text-right sm:table-cell")}
-            {head("eqr0", `${o} EQR`, "hidden text-right sm:table-cell")}
-            {head("eqr1", `${p} EQR`, "hidden text-right sm:table-cell")}
+            {ev && (
+              <>
+                {head("ev0", `${o} EV`, "text-right")}
+                {head("ev1", `${p} EV`, "text-right")}
+                {head("eq0", `${o} eq`, "hidden text-right sm:table-cell")}
+                {head("eq1", `${p} eq`, "hidden text-right sm:table-cell")}
+                {head("eqr0", `${o} EQR`, "hidden text-right sm:table-cell")}
+                {head("eqr1", `${p} EQR`, "hidden text-right sm:table-cell")}
+              </>
+            )}
             <th scope="col" className="px-2 py-1.5">
               <span className="sr-only">Study</span>
             </th>
@@ -453,7 +495,7 @@ function ReportTable({
           })}
           {listed.length < shown.length && (
             <tr className="border-t border-border">
-              <td colSpan={cols.length + 9} className="px-2 py-2 text-muted">
+              <td colSpan={cols.length + (ev ? 9 : 3)} className="px-2 py-2 text-muted">
                 {listed.length} of {shown.length} flops listed, in this order; the averages above take all of them.{" "}
                 <button type="button" onClick={() => setShowAll(true)} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2">
                   Show all {shown.length} flops
@@ -467,11 +509,13 @@ function ReportTable({
   );
 }
 
-function Coverage({ spots, source }: { spots: LibrarySpotIndex[]; source: string }) {
+function Coverage({ spots, mw, source }: { spots: LibrarySpotIndex[]; mw: LibrarySpotIndex[]; source: string }) {
   const two = spots.filter((s) => s.seats.length === 2);
   return (
     <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-      <summary className="cursor-pointer">Which spots have reports ({two.filter(reportable).length} in {source})</summary>
+      <summary className="cursor-pointer">
+        Which spots have reports ({two.filter(reportable).length + mw.length} in {source})
+      </summary>
       <ul className="mt-2 space-y-0.5 text-muted">
         {two.map((s) => (
           <li key={s.id}>
@@ -479,10 +523,16 @@ function Coverage({ spots, source }: { spots: LibrarySpotIndex[]; source: string
             {s.game ? ` (${gameLabel(s)})` : ""}: {Object.keys(s.flops ?? {}).length} flops stored{s.report ? "" : ", no report"}
           </li>
         ))}
+        {mw.map((s) => (
+          <li key={s.id}>
+            {s.label} (3-way): {Object.keys(s.flops).length} flops stored, the report built in the page
+          </li>
+        ))}
       </ul>
       <p className="mt-2 text-xs text-muted">
-        Three-way spots have no flop reports. Spots still being built get more flops as new library builds publish; any other spot or flop is
-        solved live in Study, one at a time.
+        A 3-way spot&rsquo;s report is built here from its stored flops&rsquo; files (each read once, about 1.3 MB for 185 flops), with
+        strategies only. Spots still being built get more flops as new library builds publish; any other spot or flop is solved live in Study,
+        one at a time.
       </p>
     </details>
   );

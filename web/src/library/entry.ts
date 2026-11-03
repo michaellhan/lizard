@@ -184,6 +184,17 @@ export async function decodeEntry(buf: ArrayBuffer | Uint8Array): Promise<Entry>
   return parseEntry(await inflate(u8.subarray(MAGIC.length)));
 }
 
+/** a fetched entry's header only (the body not decoded): its stored decisions' range mixes, as Reports reads them */
+export async function decodeHead(buf: ArrayBuffer | Uint8Array): Promise<EntryHead> {
+  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  if (new TextDecoder().decode(u8.subarray(0, MAGIC.length)) !== MAGIC) throw new Error("not a flop library entry");
+  const raw = await inflate(u8.subarray(MAGIC.length));
+  const hl = new DataView(raw.buffer, raw.byteOffset, raw.byteLength).getUint32(0, true);
+  const head = JSON.parse(new TextDecoder().decode(raw.subarray(4, 4 + hl))) as EntryHead;
+  if (head.format !== FORMAT) throw new Error(`flop library entry format ${head.format}`);
+  return head;
+}
+
 export const nodeAt = (e: Entry, path: readonly string[]): EntryNode | null =>
   e.nodes.find((n) => n.path.join("|") === path.join("|")) ?? null;
 

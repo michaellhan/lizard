@@ -59,7 +59,29 @@ describe("ReportsPage", () => {
       `/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Af%2CBB%3Ac&b=${fl.f}`,
     );
     // the spots that have reports
-    expect(screen.getByText(/Which spots have reports \(3 in the library\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Which spots have reports \(4 in the library\)/)).toBeInTheDocument();
+  });
+
+  it("builds a 3-way spot's report from its flops' files: three decisions, strategies only, Study after two checks", async () => {
+    open("spot=mw_btn_sb_bb&view=third");
+    expect(await screen.findByText(/^Precomputed solution · mw_btn_sb_bb · 3-way flop report over its 6 stored flops, built in the page from their entries$/)).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Decision" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["SB first", "BB vs check", "BTN vs two checks"]);
+    expect(screen.getByRole("button", { name: "BTN vs two checks" })).toHaveAttribute("aria-pressed", "true");
+    expect(flopRows()).toHaveLength(6);
+    // no EV, equity or EQR columns: the 3-way library stores none
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Flop ▾", "Strategy", "Check", "Bet 33%", "Bet 75%", "Study"]);
+    const row = screen.getByRole("row", { name: "5c4d2h" });
+    expect(row).toHaveTextContent(/56\.1%20\.8%23\.2%/);
+    expect(within(row).getByRole("link", { name: "Study" }).getAttribute("href")).toBe(
+      "/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Ac%2CBB%3Ac&b=5c4d2h&flop=SB%3Ax%2CBB%3Ax",
+    );
+    expect(screen.getByText(/this report has strategies only; it is built here from the 6 flops' files.*each counts the same; Kc7d2h, solved besides the sample, is listed but not averaged\./)).toBeInTheDocument();
+    // the spot picker groups heads-up and 3-way spots; the coverage lists the 3-way one
+    expect(within(screen.getByRole("combobox", { name: "Spot" })).getAllByRole("group").map((g) => g.getAttribute("label"))).toEqual(["Heads-up", "3-way"]);
+    expect(screen.getByText("BTN open, SB and BB call (3-way): 6 flops stored, the report built in the page")).toBeInTheDocument();
+    // a heads-up decision isn't one of a 3-way spot's: the first decision instead
+    fireEvent.click(screen.getByRole("button", { name: "SB first" }));
+    expect(screen.getByRole("button", { name: "SB first" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("in position facing out of position's first bet, where the report stores it (a 3-bet pot's c-bet)", async () => {

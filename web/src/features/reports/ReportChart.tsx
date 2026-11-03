@@ -81,9 +81,12 @@ function Mix({ freqs, ev, cols, colors, seats }: { freqs: readonly number[]; ev:
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-muted">
-        EV {seats[0]} {bb(ev[0])} · {seats[1]} {bb(ev[1])}
-      </p>
+      {/* (a 3-way report has no EVs) */}
+      {Number.isFinite(ev[0]) && (
+        <p className="mt-1 text-muted">
+          EV {seats[0]} {bb(ev[0])} · {seats[1]} {bb(ev[1])}
+        </p>
+      )}
     </>
   );
 }

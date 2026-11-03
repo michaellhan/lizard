@@ -14,3 +14,4 @@ export const libJson = <T,>(path: string): T => JSON.parse(libFile(path).toStrin
 export const SNAPSHOT_LIBRARY = join(process.cwd(), "..", "solver", "gto", "static", "flop_library");
 export const hasSnapshot = existsSync(join(SNAPSHOT_LIBRARY, "index.json"));
 export const snapshotJson = <T,>(path: string): T => JSON.parse(readFileSync(join(SNAPSHOT_LIBRARY, path), "utf8")) as T;
+export const snapshotFile = (path: string): Buffer => readFileSync(join(SNAPSHOT_LIBRARY, path));

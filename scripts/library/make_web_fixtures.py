@@ -3,7 +3,9 @@
 
 The library itself (solver/gto/static/flop_library, 315 MB) is git-ignored, so the web tests that decode real
 entries (entry.test.ts, drills.test.ts, DrillsPanel.test.tsx) read this subset instead, which is committed and
-small. Entries and ranges are copied byte for byte; index.json and each report.json keep only the chosen flops.
+small. Entries and ranges are copied byte for byte; index.json and each report.json keep only the chosen flops. A
+3-way spot's entries are copied too, with mw_index.json keeping only them (the 3-way library has no report.json:
+Reports builds one in the page from the entries' headers).
 
     python3 scripts/library/make_web_fixtures.py
 
@@ -24,6 +26,8 @@ FLOPS = {
     "srp_co_bb": ["2h2d2c", "3c2d2c", "3c2h2d"],
     "3bp_bb_btn": ["2h2d2c", "3c2d2c", "3c2h2d"],
 }
+# a 3-way spot: a monotone flop, a paired one, two rainbow ones, a two-tone one and the extra flop (outside the sample)
+MW_FLOPS = {"mw_btn_sb_bb": ["4c3c2c", "4c3h3d", "5c4d2h", "Ac4d3h", "8c7c2c", "Kc7d2h"]}
 
 
 def main() -> None:
@@ -45,6 +49,17 @@ def main() -> None:
             shutil.copyfile(SRC / sp["id"] / f"{f}.bin", DST / sp["id"] / f"{f}.bin")
     assert [s["id"] for s in spots] == list(FLOPS), "the fixture spots must be the index's first three, in order"
     (DST / "index.json").write_text(json.dumps({**index, "spots": spots}, separators=(",", ":")))
+    mw = json.loads((SRC / "mw_index.json").read_text())
+    mw_spots = []
+    for sp in mw["spots"]:
+        keep = MW_FLOPS.get(sp["id"])
+        if keep is None:
+            continue
+        (DST / sp["id"]).mkdir(parents=True)
+        mw_spots.append({**sp, "flops": {f: h for f, h in sp["flops"].items() if f in keep}})
+        for f in keep:
+            shutil.copyfile(SRC / sp["id"] / f"{f}.bin", DST / sp["id"] / f"{f}.bin")
+    (DST / "mw_index.json").write_text(json.dumps({**mw, "spots": mw_spots}, separators=(",", ":")))
     print(f"wrote {sum(1 for _ in DST.rglob('*') if _.is_file())} files to {DST.relative_to(ROOT)}")
 
 
