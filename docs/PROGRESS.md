@@ -3417,7 +3417,8 @@ finding: 23 findings, 18 distinct, 16 confirmed and fixed, 2 refuted (a preflop 
 - **Phone width:** no horizontal overflow at 375px in dark mode, checked before the review's fixes (those changed wording only there).
 - **Not checked:** the HTTP backend's `{error}` path against a real local server (unit test only), and a capped grade
   live (none of these 74 decisions came from a rough solve; unit test only).
-- The test imports and grades were deleted after (0 hands, 0 decisions), and the dev server stopped.
+- **Live, ef26959** (the bundle matching a local build; `/`, `/gto-solver/` and the routes 200): one hand on `www.michael-han.com/lizard/analyze` graded at Quick triage in 2 s (charts, library flop, stored turn, a Quick solve), its flagged read checked at Fast.
+- The test imports and grades were deleted after (0 hands, 0 decisions, here and live), and the dev server stopped.
 
 ### Precompute builds
 
