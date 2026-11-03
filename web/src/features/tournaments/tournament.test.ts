@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { describeTournament, parsePayouts, PAYOUT_PRESETS, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { describeTournament, parsePayouts, PAYOUT_PRESETS, satellitePayouts, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
 
@@ -54,11 +54,16 @@ describe("a tournament's setup", () => {
     expect(describeTournament({ bounty: { format: "pko", each: 5 } })).toEqual(["no payouts (chip EV, the prizes taken as the bounties in play)", "PKO bounties 5"]);
   });
 
-  it("reads payouts as typed, and offers generic shapes that add up to 100", () => {
+  it("reads payouts as typed, and offers generic shapes that add up to 100, and a satellite's", () => {
     expect(parsePayouts("50 30 20")).toEqual([50, 30, 20]);
     expect(parsePayouts("50/30/20")).toEqual([50, 30, 20]);
     expect(parsePayouts(" 50, 30; 20 ")).toEqual([50, 30, 20]);
     expect(parsePayouts("50 thirty")).toEqual([50, NaN]);
     for (const p of PAYOUT_PRESETS) expect(p.payouts.reduce((a, b) => a + b, 0), p.name).toBeCloseTo(100);
+    // a satellite's bubble at this table: a seat each for all but one (heads-up, one seat is winner-takes-all)
+    expect(satellitePayouts(6)).toEqual([1, 1, 1, 1, 1]);
+    expect(satellitePayouts(3)).toEqual([1, 1]);
+    expect(satellitePayouts(2)).toBeNull();
+    expect(describeTournament({ payouts: satellitePayouts(6)! })).toEqual(["a satellite, 5 equal seats"]);
   });
 });

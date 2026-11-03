@@ -39,6 +39,8 @@ jobs:
           npm test
       - name: Library assembler tests
         run: python -m unittest discover -s scripts/library
+      - name: Engine contract tests (what Lizard reads from the engine's tournament answer; the prize model only)
+        run: python -m unittest discover -s scripts/engine
       - name: Solver quick tests (the ones that need neither the library nor minutes of CPU)
         working-directory: solver
         run: |

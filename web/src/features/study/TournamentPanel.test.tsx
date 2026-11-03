@@ -9,7 +9,7 @@ describe("the tournament panel", () => {
     render(<TournamentPanel actor="CO" out={["UTG"]} t={{ equity_share: 0.082, bubble_factors: { BTN: 1.18, BB: null }, bounties: { format: "ko", you_bust: {}, bust_you: { UTG: 3, BTN: 3, BB: 3 } } }} />);
     const panel = screen.getByLabelText("Tournament");
     expect(panel).toHaveTextContent("Prize equity: CO 8.2% of what's left to pay.");
-    expect(panel).toHaveTextContent("BTN 1.18 · BB more than any chip won");
+    expect(panel).toHaveTextContent("BTN 1.18 · BB (a chip won gains nothing)");
     expect(panel).toHaveTextContent("Bounties CO covers nobody still in the hand who carries a bounty. Covered by BTN, BB.");
     expect(panel).toHaveTextContent("they're in prize equity");
   });
@@ -21,5 +21,10 @@ describe("the tournament panel", () => {
     unmount();
     render(<TournamentPanel actor={undefined} t={{ note: "tournament: no payouts given, the prizes taken as the bounties in play" }} />);
     expect(screen.getByLabelText("Tournament")).toHaveTextContent("Where EVs show, they're chips, the bounties priced in chips.");
+  });
+
+  it("says so once when no chip won gains anything (every player left paid)", () => {
+    render(<TournamentPanel actor="UTG" t={{ equity_share: 1 / 6, bubble_factors: { HJ: null, BB: null }, note: "tournament: ICM, UTG's prize equity 16.7%" }} />);
+    expect(screen.getByLabelText("Tournament")).toHaveTextContent("chips won): none: a chip won from anyone gains nothing.");
   });
 });

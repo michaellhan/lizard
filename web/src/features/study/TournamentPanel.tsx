@@ -4,7 +4,7 @@
 
 export interface TournamentInfo {
   equity_share?: number;
-  /** null: a chip lost costs more than any won gains (more places paid than players left, say) */
+  /** null: a chip won gains nothing (a seat all but locked up, or every player left already paid), so no ratio */
   bubble_factors?: Record<string, number | null>;
   note?: string;
   bounties?: {
@@ -37,7 +37,9 @@ export function TournamentPanel({ t, actor, out = [] }: { t: TournamentInfo; act
       {bf.length > 0 && !winnerTakesAll && (
         <p>
           <span className="font-medium">Bubble factors</span> <span className="text-muted">(a chip {who} loses to them costs this many chips won):</span>{" "}
-          {bf.map(([p, v]) => `${p} ${v === null ? "more than any chip won" : v.toFixed(2)}`).join(" · ")}
+          {bf.every(([, v]) => v === null)
+            ? "none: a chip won from anyone gains nothing."
+            : bf.map(([p, v]) => `${p} ${v === null ? "(a chip won gains nothing)" : v.toFixed(2)}`).join(" · ")}
         </p>
       )}
       {(busts.length > 0 || covered.length > 0) && (

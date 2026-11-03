@@ -12,7 +12,7 @@ import { listRanges } from "@/data/saved";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
-import { BOUNTY_FORMATS, BOUNTY_NAME, parsePayouts, PAYOUT_PRESETS, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, parsePayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
 import { LIMITS, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
@@ -199,10 +199,16 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                     {pr.name}
                   </button>
                 ))}
+                {satellitePayouts(players) && (
+                  <button type="button" onClick={() => setPayouts(satellitePayouts(players)!.join(" "))} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+                    Satellite, {players - 1} seats
+                  </button>
+                )}
               </div>
               <p className="text-xs text-muted">
                 The prizes still to be paid, first place first, in any unit. Two or more: prize equity (ICM). One: winner takes all, where chips are prizes and Study answers in
-                chips. None, with bounties: chip EV, the prizes taken as the bounties in play.
+                chips. None, with bounties: chip EV, the prizes taken as the bounties in play. A satellite pays equal prizes (seats); preflop its answers are still the chip charts
+                with a risk premium, far from a satellite's real folding ranges, so read them as the badge says: approximate.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">

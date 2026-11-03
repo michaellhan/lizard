@@ -50,6 +50,10 @@ export const PAYOUT_PRESETS: readonly { name: string; payouts: number[] }[] = [
   { name: "Final table, 9 paid", payouts: [30, 20, 14, 10.5, 8, 6.5, 5, 3.5, 2.5] },
 ];
 
+/** A satellite's bubble at this table: equal prizes (seats), one fewer than the players (none heads-up, where one seat
+ * is winner-takes-all). Flat payouts are checked on the engine in scripts/engine/test_tournament.py. */
+export const satellitePayouts = (players: number): number[] | null => (players >= 3 ? Array<number>(players - 1).fill(1) : null);
+
 /** "50 30 20", "50/30/20", "50, 30, 20" -> [50, 30, 20] (a word that isn't a number stays, as NaN, for the check) */
 export const parsePayouts = (t: string): number[] =>
   t
@@ -193,7 +197,8 @@ export function describeTournament(t: TournamentSetup | undefined): string[] {
   const s = tidyTournament(t);
   if (!s) return [];
   const out: string[] = [];
-  if (s.payouts) out.push(s.payouts.length === 1 ? "winner takes all (chips are prizes)" : `payouts ${s.payouts.join("/")}`);
+  const flat = s.payouts && s.payouts.length > 1 && s.payouts.every((x) => x === s.payouts![0]);
+  if (s.payouts) out.push(s.payouts.length === 1 ? "winner takes all (chips are prizes)" : flat ? `a satellite, ${s.payouts.length} equal seats` : `payouts ${s.payouts.join("/")}`);
   else out.push("no payouts (chip EV, the prizes taken as the bounties in play)");
   if (s.field) out.push(`${s.field.players} at other tables (average ${s.field.avg}bb)`);
   const b = s.bounty;

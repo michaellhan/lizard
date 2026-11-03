@@ -1507,3 +1507,53 @@ Untouched (read-only `ps`). Memory 65–69% free; every check ran under `nice`.
   a per-hand ICM vs chip diff, tournaments in Practice and Analyze.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 7, satellites: engine checks, a payout shape, and null bubble factors said plainly (second session)
+
+Deploy of edf4404 (ICM against chip EV) verified live: run 41687842653 passed, `/lizard/` serves `index-Bset5aqE.js`,
+which has "Compare with chip EV" and "players modelled by".
+
+### Code
+
+- `scripts/engine/test_tournament.py` (new; `npm run test:engine`, and a CI step in `deploy.yml`): Lizard's own checks
+  of what it reads from the engine's tournament answer, on the engine itself (the prize model through
+  `advisor._tournament` and `_tournament_info`; no solve, 0.03s): the note's wording for ICM, winner-takes-all with
+  bounties, no payouts with bounties, and a field modelled by stand-ins; one prize and no bounties is no tournament.
+  Satellites (the engine has no tests for them): 5 equal seats for 6 players give finite bubble factors (about 8 against
+  the covering stacks) and equity shares that add to 1; 6 or 9 equal places for 6 players give 1/6 each and null bubble
+  factors; a 60bb stack against three 5bb stacks is all but sure of its seat (19.98% of 20%). `solver/` untouched.
+- `features/tournaments/tournament.ts` `satellitePayouts(players)`: equal seats, one fewer than the players (none
+  heads-up); `describeTournament` calls equal payouts "a satellite, N equal seats".
+- `SolvePage.tsx`: a "Satellite, N seats" shape, and the help text says a satellite's preflop answers are still the chip
+  charts with a risk premium (on a 5-seats-for-6 bubble UTG still opens about 17%), approximate as the badge says.
+- `TournamentPanel.tsx`: a null bubble factor now reads "(a chip won gains nothing)" (it was "more than any chip won",
+  wrong when every player left is already paid and nothing is at stake); all null reads "none: a chip won from anyone
+  gains nothing."
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 283/283 in 48 files. Changed: `tournament.test.ts` (the satellite shape and its description), `SolvePage.test.tsx` (the shape's button), `TournamentPanel.test.tsx` (the null wording; all null) |
+| Engine contract (`scripts/engine`) | 8/8 |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build, the in-browser solver)
+
+- `/tournaments` 6-max 20bb, "Satellite, 5 seats", Open in Study: "Your setup: payouts 1/1/1/1/1" (before the
+  description change), "Preflop charts · chip chart with a risk premium · approximate", bubble factors 5.00 against
+  each, prize equity 16.7%.
+- 6 equal places for 6 players: "Your setup: a satellite, 6 equal seats", "Bubble factors …: none: a chip won from
+  anyone gains nothing."
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 65–69% free; everything ran under `nice`.
+
+### Next
+
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice and Analyze.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

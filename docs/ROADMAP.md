@@ -404,8 +404,11 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   worth. Checked in the browser: preflop push/fold and chart answers, and a flop live solve in prize equity.
   Also done: "Compare with chip EV" in Study (`ChipCompare.tsx`: the same node with no tournament, both answers'
   actions side by side with their badges), and a large field compressed onto the 12-player model named on the badge
-  ("54 players modelled by 12"). **Still open in Phase 7:** the bubble factor table for every pair, the satellite
-  tests and preset, a 15%-paid curve preset, a per-hand ICM vs chip diff, and tournaments in Practice and Analyze (a
+  ("54 players modelled by 12"). Satellites: Lizard's own engine tests (`scripts/engine/test_tournament.py`, in CI)
+  check flat payouts (finite bubble factors on the bubble, null once every player left is paid, never a crash), and
+  then a "Satellite, N seats" shape; preflop stays the chip chart with a risk premium, said on the page.
+  **Still open in Phase 7:** the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip
+  diff, a satellite-aware preflop (push/fold covers only all-ins), and tournaments in Practice and Analyze (a
   tournament hand is still answered in chips there).
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).

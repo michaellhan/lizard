@@ -97,6 +97,8 @@ describe("SolvePage", () => {
     open("p=6&s=25", "/tournaments");
     expect(screen.getByRole("heading", { name: "Tournaments" })).toBeInTheDocument();
     expect(screen.queryByRole("spinbutton", { name: "Rake" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Satellite, 5 seats" }));
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("1 1 1 1 1");
     fireEvent.click(screen.getByRole("button", { name: "Top 3" }));
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("50 30 20");
     num("Players at other tables", "12");
