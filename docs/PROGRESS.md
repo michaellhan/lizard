@@ -1805,3 +1805,48 @@ Untouched (read-only `ps`). Memory 64% free; everything ran under `nice`.
   satellite-aware preflop, tournaments in Practice.
 - Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
   option (after its patch).
+
+## 2026-11-03: Phase 8, a picker for any two spots (second session)
+
+Deploy of c264c21 (the preflop Solver source) verified live: run 41695460123 passed; `/lizard/` serves
+`index-yr1rwDfE.js`, which has "Preflop solve (class-level model)", the `lizard-pf` cache and "against the preflop
+solve".
+
+### Code
+
+- `web/src/features/compare/SpotPicker.tsx`: the Compare page with no spots (and "Change the spots" under a
+  comparison) picks each side from the saved spots (`listSpots`), the spot pinned in Study, or a Study link pasted
+  (any origin, `?p=…` or `p=…`; anything else is "Not a Study link"), with Swap and Compare (disabled until both
+  sides are spots). Each spot is named by its table and line ("HU 100bb (preflop solve): the first decision"); a saved
+  spot by its title, with the line only where the title isn't already the line.
+- `pin.ts`: one pinned spot (a zustand store kept in `sessionStorage`, so a reload keeps it and a new visit doesn't).
+  Study's "Compare this spot" has "Pin as A" (pressed: "Pinned as A · unpin") and, on any other spot, "with the pinned
+  spot", which opens the pinned spot as A and this one as B.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 322/322 in 53 files. New in `ComparePage.test.tsx`: the forms of a pasted link; picking A from a saved spot and B from a pasted link (a bad paste refused), Swap and Compare (both sides asked, "What differs"), a saved title that is the line named by its table only; the pin in Study and the link from another spot. |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- Pinned the heads-up 100bb preflop solve in Study; on the charts' spot "with the pinned spot" opened
+  `/compare?a=p=2&s=100&pf=solver&b=p=2&s=100`: "preflop source the preflop solve → the charts", the two-sources
+  warning, raise 49.6% against 59.4%, limp 48.6% against 28.9%, fold 1.8% against 11.7%.
+- The empty picker at 375px: the pinned spot and a saved spot listed in both selects, no overflow.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 65% free; everything ran under `nice`.
+
+### Next
+
+- Phase 8, still open: a comparison of two size menus.
+- Phase 0: the classic's custom preflop raise sizes (`pf_sizes`) aren't offered yet.
+- Phase 7, still open: the bubble factor table for every pair, a 15%-paid curve preset, a per-hand ICM vs chip diff, a
+  satellite-aware preflop, tournaments in Practice.
+- Phase 6, still open: node locks and automatic sizing (per hand), solve times measured per mode, the local server
+  option (after its patch).

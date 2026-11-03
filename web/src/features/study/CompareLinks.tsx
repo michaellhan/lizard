@@ -1,13 +1,15 @@
 // "Compare this spot" (ROADMAP Phase 8): the same spot and line with one thing changed, opened on the Compare page.
 // A tournament in chip EV; preflop, the charts against the preflop solve (or the solve against the charts); postflop
 // (where the rake is taken), a raked pot without rake or an unraked one with 5% capped at 3bb; and the table at
-// another stack (seats with a stack of their own keep it).
+// another stack (seats with a stack of their own keep it); and "Pin as A": this spot kept for the visit, so any other
+// spot links to a comparison with it (compare/pin.ts).
 import { useState } from "react";
 import { Link } from "react-router";
 import { compareLink } from "@/features/compare/compare";
+import { usePin } from "@/features/compare/pin";
 import { tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { chipHand } from "./ChipCompare";
-import { withPf, type StudyHand } from "./studyState";
+import { fromSearch, toSearch, withPf, type StudyHand } from "./studyState";
 
 const withSetup = (h: StudyHand, s: SpotSetup): StudyHand => {
   const out = { ...h };
@@ -30,6 +32,10 @@ export function CompareLinks({ hand, min, max }: { hand: StudyHand; min: number;
   const n = Number(typed);
   const ok = Number.isFinite(n) && n >= min && n <= max && n !== hand.stack;
   const link = "underline hover:text-text";
+  const pin = usePin((s) => s.pin);
+  const setPin = usePin((s) => s.setPin);
+  const here = toSearch(hand);
+  const pinned = pin && pin !== here ? fromSearch(pin) : null;
   return (
     <nav aria-label="Compare this spot" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
       <span>Compare this spot:</span>
@@ -61,6 +67,20 @@ export function CompareLinks({ hand, min, max }: { hand: StudyHand; min: number;
           <span title={`Another stack, ${min}–${max}bb`}>(another stack, {min}–{max}bb)</span>
         )}
       </span>
+      {pinned && (
+        <Link to={compareLink(pinned, hand)} className={link} title="The spot you pinned as A, this one as B">
+          with the pinned spot
+        </Link>
+      )}
+      <button
+        type="button"
+        aria-pressed={pin === here}
+        onClick={() => setPin(pin === here ? null : here)}
+        title={pin === here ? "Pinned: any other spot links to a comparison with this one" : "Keep this spot as A, to compare any other spot with it"}
+        className="rounded border border-border px-2 py-0.5 hover:bg-surface-2"
+      >
+        {pin === here ? "Pinned as A · unpin" : "Pin as A"}
+      </button>
     </nav>
   );
 }

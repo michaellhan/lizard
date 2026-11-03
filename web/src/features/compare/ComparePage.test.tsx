@@ -8,6 +8,8 @@ import type { Provenance, SolveResult } from "@/solver/types";
 import { ComparePage } from "./ComparePage";
 import { compareLink } from "./compare";
 import { diffLabel } from "./DiffMatrix";
+import { putSpot } from "@/data/saved";
+import { studyQueryOf, usePin } from "./pin";
 
 // the solver stubbed: each request (kept in `stub.asked`) answers with `stub.answerFor` and `stub.provenanceFor` of it
 const stub = vi.hoisted(() => {
@@ -42,6 +44,7 @@ vi.mock("@/solver/useSolver", () => ({ useSolver: () => stub.getSolver }));
 afterEach(() => {
   stub.asked = [];
   stub.provenanceFor = null;
+  usePin.getState().setPin(null);
 });
 
 const node = (bet: number, aa: number): AdvisorResponse => ({
@@ -113,9 +116,7 @@ describe("the Compare page", () => {
     expect(screen.getByLabelText("What differs")).toHaveTextContent("stack 100bb → 50bb");
   });
 
-  it("says when there's nothing to compare, and asks nothing for a setup that can't be solved", async () => {
-    renderAt("/compare");
-    expect(screen.getByText(/Nothing to compare/)).toBeInTheDocument();
+  it("asks nothing for a setup that can't be solved", async () => {
     const { unmount } = renderAt(compareLink(B, { ...B, stack: 5 }));
     expect(screen.getByRole("alert")).toHaveTextContent("These setups can't be solved: B: the table's stack must be 10–250bb.");
     unmount();
@@ -155,5 +156,65 @@ describe("Study's Compare this spot links", () => {
     const only = { cls: "T9s", wa: 0, wb: 1, fa: null, fb: 0.5, dFreq: null, eva: null, evb: 2, dEv: null };
     expect(diffLabel(only, "T9s", "check")).toBe("T9s: only in B's range (check 50%)");
     expect(diffLabel({ ...only, wa: 1, wb: 0, fa: 0.5, fb: null }, "T9s", "check")).toBe("T9s: only in A's range (check 50%)");
+  });
+});
+
+describe("picking any two spots", () => {
+  it("reads a Study link pasted in any form, and nothing else", () => {
+    expect(studyQueryOf("https://michaellhan.github.io/lizard/study?p=6&s=100&pre=UTGr2.5#x")).toBe("p=6&s=100&pre=UTGr2.5");
+    expect(studyQueryOf(" ?p=2&s=50 ")).toBe("p=2&s=50");
+    expect(studyQueryOf("p=2&s=50")).toBe("p=2&s=50");
+    expect(studyQueryOf("/lizard/compare?a=p%3D6&b=p%3D2")).toBeNull();
+    expect(studyQueryOf("hello")).toBeNull();
+  });
+
+  it("picks A from the saved spots and B from a pasted link, swaps them, and compares", async () => {
+    stub.answerFor = () => node(0.3, 0.8);
+    const C: StudyHand = { ...freshHand(2, 100), preflop: [{ pos: "SB", action: "raise", to: 2.5 }] };
+    await putSpot({ id: "s1", title: "My flop", line: toSearch(B), state: {}, tags: [], note: "", createdAt: 1, updatedAt: 1 });
+    await putSpot({ id: "s2", title: "SB raise 2.5", line: toSearch(C), state: {}, tags: [], note: "", createdAt: 2, updatedAt: 2 });
+    renderAt("/compare");
+    const picker = screen.getByRole("region", { name: "Pick the spots" });
+    const compare = within(picker).getByRole("button", { name: "Compare" });
+    expect(compare).toBeDisabled();
+    // the saved spot is listed once it's read
+    expect(await within(picker).findAllByRole("option", { name: /^My flop \(HU 100bb: Ks7d2c\)/ })).toHaveLength(2);
+    // (a title that is the line names only the table)
+    expect(within(picker).getAllByRole("option", { name: "SB raise 2.5 (HU 100bb)" })).toHaveLength(2);
+    fireEvent.change(within(picker).getByLabelText("Spot A"), { target: { value: toSearch(B) } });
+    fireEvent.change(within(picker).getByLabelText("Spot B as a Study link"), { target: { value: "nonsense" } });
+    fireEvent.click(within(picker).getAllByRole("button", { name: "Use" })[1]!);
+    expect(within(picker).getByText(/Not a Study link/)).toBeInTheDocument();
+    fireEvent.change(within(picker).getByLabelText("Spot B as a Study link"), { target: { value: `https://example.org/lizard/study?${toSearch(C)}` } });
+    fireEvent.click(within(picker).getAllByRole("button", { name: "Use" })[1]!);
+    expect(within(picker).getByLabelText("Spot B")).toHaveValue(toSearch(C));
+    fireEvent.click(within(picker).getByRole("button", { name: "Swap A and B" }));
+    expect(within(picker).getByLabelText("Spot A")).toHaveValue(toSearch(C));
+    fireEvent.click(compare);
+    expect(await screen.findByLabelText("Spots")).toHaveTextContent("heads-up 100bb · SB raise 2.5");
+    await waitFor(() => expect(stub.asked).toHaveLength(2));
+    expect(stub.asked.map((st) => st.board)).toEqual(["", "Ks7d2c"]);
+    expect(screen.getByLabelText("What differs")).toHaveTextContent("line SB raise 2.5 → Ks7d2c");
+  });
+
+  it("pins a spot in Study as A and links any other spot to a comparison with it", () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <CompareLinks hand={A} min={10} max={250} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pin as A" }));
+    expect(screen.getByRole("button", { name: "Pinned as A · unpin" })).toHaveAttribute("aria-pressed", "true");
+    // (no link to compare a spot with itself)
+    expect(screen.queryByRole("link", { name: "with the pinned spot" })).toBeNull();
+    unmount();
+    render(
+      <MemoryRouter>
+        <CompareLinks hand={B} min={10} max={250} />
+      </MemoryRouter>,
+    );
+    const q = new URLSearchParams(screen.getByRole("link", { name: "with the pinned spot" }).getAttribute("href")!.split("?")[1]);
+    expect(fromSearch(q.get("a")!)).toEqual(A);
+    expect(fromSearch(q.get("b")!)).toEqual(B);
   });
 });

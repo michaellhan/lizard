@@ -464,7 +464,9 @@ Moves matrix rows: all Tournament rows, and MTT.
   The one-size view (`oneSize.ts`, `OneSizePanel.tsx`; the `simple.test.js` cases ported): in Study, "One bet size" or
   "One raise size", one solve a request at Fast with progress, Stop and Continue, the best single size and what each
   gives up. The charts against the preflop solve: a preflop spot's "Compare this spot" link, the sources named as what's
-  compared. **Still open in Phase 8:** a picker for any two nodes.
+  compared. The picker for any two nodes (`SpotPicker.tsx`, `pin.ts`): on the Compare page each side from the saved
+  spots, the spot pinned in Study, or a pasted Study link, with Swap; Study's "Pin as A" and "with the pinned spot".
+  **Still open in Phase 8:** a comparison of two size menus (the one-size view covers one size against the menu).
 - **A compare view, `web/src/features/compare/`.**
   - Two Study requests, each with its own provenance, and a diff grid per class (frequency and EV difference).
   - Changes in the range's totals.

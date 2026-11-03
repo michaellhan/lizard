@@ -3,7 +3,8 @@
 // or either is approximate, the actions' frequencies and EVs, the range's totals, and per hand class the change in one
 // action's frequency (the grid) with the biggest changes listed. Opened from Study's "Compare this spot" links.
 // Preflop either side can be the charts or the preflop solve (Study's pf=solver); a game the solve doesn't hold yet is
-// said, not solved here (Study solves it on request), and one this browser solved before is handed back.
+// said, not solved here (Study solves it on request), and one this browser solved before is handed back. Any two spots
+// can be picked on the page (SpotPicker: saved spots, the spot pinned in Study, or a pasted Study link).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -18,6 +19,7 @@ import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
 import { biggest, diffActions, diffClasses, noiseBb, nodeWarning, pfSourceOf, sourceWarning, totalsOf, whatDiffers } from "./compare";
 import { bbDelta, DiffMatrix, diffLabel, points } from "./DiffMatrix";
+import { SpotPicker } from "./SpotPicker";
 
 type Answer = { kind: "done"; result: SolveResult } | { kind: "error"; message: string };
 type Side = Answer | { kind: "loading" } | { kind: "waiting" };
@@ -43,7 +45,8 @@ export function notComparable(r: SolveResult["data"]): string | null {
 }
 
 export function ComparePage() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const pick = (x: string, y: string) => setParams({ a: x, b: y });
   const a = useMemo(() => fromSearch(params.get("a") ?? ""), [params]);
   const b = useMemo(() => fromSearch(params.get("b") ?? ""), [params]);
   const picked = useSettings((s) => s.mode);
@@ -96,12 +99,13 @@ export function ComparePage() {
       <div className="max-w-3xl space-y-3">
         <h1 className="text-2xl font-semibold">Compare</h1>
         <p className="text-sm text-muted">
-          Nothing to compare. Open a comparison from a spot in{" "}
+          Pick two spots, or open a comparison from a spot in{" "}
           <Link to="/study" className="underline hover:text-text">
             Study
           </Link>{" "}
-          (Compare this spot: in chip EV, without rake, at another stack).
+          (Compare this spot: in chip EV, without rake, at another stack, against the preflop solve, or with a spot you pinned).
         </p>
+        <SpotPicker a={params.get("a")} b={params.get("b")} onPick={pick} />
       </div>
     );
 
@@ -122,6 +126,12 @@ export function ComparePage() {
         <h1 className="text-2xl font-semibold">Compare</h1>
         <p className="text-sm text-muted">Two spots answered one after the other and shown side by side, B against A. Each answer keeps its own source.</p>
       </div>
+      <details className="text-sm">
+        <summary className="cursor-pointer text-muted hover:text-text">Change the spots</summary>
+        <div className="mt-2">
+          <SpotPicker key={key} a={params.get("a")} b={params.get("b")} onPick={pick} />
+        </div>
+      </details>
       <dl aria-label="Spots" className="grid gap-1 text-sm sm:grid-cols-[auto_1fr]">
         {(
           [
