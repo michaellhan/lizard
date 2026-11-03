@@ -533,9 +533,16 @@ Untouched. Memory stayed at about 61% free.
 
 Untouched. Memory stayed at 61–65% free; every check ran under `nice`.
 
+### Deploy of `e08734b`, checked live
+
+- Pages run 41654692532 succeeded; `https://www.michael-han.com/lizard/study/` returns 200 and serves
+  `index-D3s809J_.js`, the bundle built and checked locally.
+- On the live site, srp_btn_bb BTN after a check on Ac7s3d: "✎ Build", then "Check my range" on the blank (all-check)
+  paint gave 51.9% accurate · Off (the solver's check share, as it should be), EV given up 0.021bb a combo (0.38% of
+  the pot), under the library answer's provenance; combo by combo 51.9%, the class mixes' own 73.3%.
+
 ### Next
 
-- Commit, push and check the deploy of the builder.
-- Then Phase 5 (saved spots: the `savedSpots` store exists in `db.ts` since version 1; Save spot in Study, a Saved
+- Phase 5 (saved spots: the `savedSpots` store exists in `db.ts` since version 1; Save spot in Study, a Saved
   page, backup and restore), as feasible at low CPU. Still open in Phase 4: painting by category, single combos, text
   import into the builder.
