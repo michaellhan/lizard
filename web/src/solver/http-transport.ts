@@ -78,7 +78,8 @@ export class HttpTransport implements SolverTransport {
       const body = (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as AdvisorResponse;
       this.setStatus({ phase: "ready", error: undefined });
       if (body.cancelled) throw new SolverError("cancelled", "cancelled");
-      if (!r.ok || (typeof body.error === "string" && !body.study)) {
+      // (an advice {error} on a 200 is that spot's answer, as the worker hands it on: a queue keeps going; a move has to be one)
+      if (!r.ok || (opts.play && typeof body.error === "string")) {
         throw new SolverError("solver-error", typeof body.error === "string" ? body.error : `HTTP ${r.status}`);
       }
       return body;

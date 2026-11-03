@@ -197,8 +197,9 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 > (`lostByHand`), in the URL with the rest. Your results as played (`hh/results.ts`, `winnings.ts`, `WinningsPanel.tsx`):
 > each site's winnings lines less the stakes as posted, in bb, bb/100 with its interval, at showdown and without, a
 > running-total chart and by seat, cash, tournaments and Practice apart, with an all-in EV line (`hh/allin.ts`: heads-up
-> all-ins at their equity). Still open: turns and rivers (live solves, or the classic's Quick triage, through the same
-> queue), a history across sessions. A dropped folder is read through, subfolders and all (`dropped.ts`).
+> all-ins at their equity). A dropped folder is read through, subfolders and all (`dropped.ts`). Turns and rivers
+> (2026-11-03): every street by the classic's Quick triage or at Fast through the same queue, a clock, the flagged reads
+> checked at Fast (`triage.ts`), and the report saying what the grades stand on. Still open: a history across sessions.
 
 **Goal.** Let users import their own hand histories, see each decision graded, and find leaks. Everything stays in the browser.
 

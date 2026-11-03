@@ -2,6 +2,7 @@
 // the user's browser (no accounts). Each migration runs once, in order, inside the upgrade transaction; a test
 // (db.test.ts) opens every historical version and checks the upgrade path.
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
+import type { Confidence, ConvergenceBand } from "@/solver/types";
 
 export const DB_NAME = "lizard";
 
@@ -137,6 +138,24 @@ export interface DecisionRecord {
   /** the answer graded against: its source and its provenance line */
   source: string;
   label: string;
+  /** that answer is labelled approximate, and how settled a live solve was (provenance.ts) */
+  approximate?: boolean;
+  band?: ConvergenceBand;
+  /** your move is one the range almost never takes, so its EV and the EV lost are rough */
+  /** a rough or cut-short solve graded this: the verdict stops at an Inaccuracy, whatever the EV it measured */
+  capped?: boolean;
+  roughEv?: boolean;
+  /** the ranges behind the answer aren't all the solve's: how */
+  off?: string;
+  /** on the turn: you bet or raised the flop */
+  flopAggr?: boolean;
+  /** a Quick triage read: how far to trust it and what the Advisor read it from (Advisor.triage) */
+  confidence?: Confidence;
+  triageSource?: string;
+  /** the triage read a deeper answer at Fast replaced */
+  read?: Pick<DecisionRecord, "verdict" | "source" | "label" | "confidence" | "triageSource" | "evLossBb" | "freq">;
+  /** why the answer at Fast couldn't grade this read, which stands */
+  notChecked?: string;
   gradedAt: number;
 }
 

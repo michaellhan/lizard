@@ -163,4 +163,23 @@ describe("provenance", () => {
     expect(describeProvenance(chipJam)).toBe("Preflop charts · push/fold equilibrium in chips · approximate");
     expect(provenanceOf({ street: "preflop", notes: ["BTN's 10bb jam range: push/fold equilibrium against 2"] }, ctx).view).toBeUndefined();
   });
+
+  it("a Quick triage's answers say so, with how far to trust them", () => {
+    const quick = provenanceOf({ solver: { iterations: 300, exploitability_pct: 0.8 }, triage: { source: "quick", confidence: "medium", label: "a Quick solve" } }, ctx);
+    expect([quick.source, quick.mode, quick.confidence]).toEqual(["live", "quick", "medium"]);
+    expect(describeProvenance(quick)).toBe("Live solve (Quick) · 0.80% pot from equilibrium in the solved game (converged) · 300 iterations · medium confidence");
+    // the street's own solve read for a later decision: an answer at once, nothing solved for it, and not timed
+    const own = provenanceOf({ street: "turn", approximate: { source: "solve", label: "this street's solve from your earlier decision" }, triage: { source: "approx", confidence: "low", label: "x" } }, ctx);
+    expect([own.source, own.mode]).toEqual(["instant", ctx.mode]);
+    expect(describeProvenance(own)).toMatch(/^Answer at once/);
+    // one cut to fit Quick is still a solve
+    const cut = provenanceOf({ street: "turn", approximate: { source: "solve", label: "cut" }, solver: { iterations: 40, exploitability_pct: 14 }, triage: { source: "quick", confidence: "low", label: "x" } }, ctx);
+    expect([cut.source, cut.mode]).toEqual(["live", "quick"]);
+    // a library answer to a triage is the library's, whatever the mode
+    const lib = provenanceOf({ precomputed: { spot: "srp_btn_bb" }, triage: { source: "library", confidence: "high", label: "x" } }, ctx);
+    expect([lib.source, lib.mode, lib.confidence]).toEqual(["library", "fast", "high"]);
+    // and no triage, nothing said
+    expect(provenanceOf({ solver: { iterations: 300 } }, ctx).confidence).toBeUndefined();
+    expect(describeProvenance({ ...quick, mode: "fast", confidence: undefined })).toMatch(/^Live solve · /);
+  });
 });

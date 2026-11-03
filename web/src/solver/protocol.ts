@@ -1,6 +1,7 @@
 // Wire protocol of the solver worker (solver/gto/static/worker.js, reused unchanged from gto-solver) and of the
 // optional local Python server (solver/gto/server.py). These types describe the messages exactly as the
 // upstream code sends and reads them; the typed, user-facing API is in ./types.ts.
+import type { Confidence } from "./types";
 
 /** A game state as gto/advisor.py reads it (money in big blinds unless `bb` is given). Open-ended on purpose:
  * the Advisor accepts many optional keys (ranges, locks, rake, payouts, bounties, study flags...). */
@@ -25,6 +26,8 @@ export interface AdvisorState {
   prior_budget?: number;
   /** Study mode: answer for whoever acts next with their whole range (Advisor.study). */
   study?: boolean;
+  /** The analyzer's Quick triage: read from what's in hand, else a Quick solve at its own budgets (Advisor.triage). */
+  triage?: boolean;
   [key: string]: unknown;
 }
 
@@ -81,10 +84,25 @@ export interface WorkerSetup {
 
 /** The Advisor's answer. Shapes vary by request (advice, study node, deal/over, runouts, preflop solve, ...);
  * the fields Lizard reads are typed, the rest stays available. */
+/** A range behind an answer that isn't the solve's (advisor.py "off_solution"): why, and on which line. */
+export interface OffSolution {
+  pos?: string;
+  action?: string;
+  street?: string;
+  why?: "rare" | "filled" | "rules" | string;
+  share?: number;
+  combos?: number;
+  resolved?: boolean;
+  trust?: number;
+}
+
 export interface AdvisorResponse {
   cancelled?: boolean;
   error?: string;
   skipped?: string | boolean;
+  /** an answer to "triage": what read it, in the Advisor's words, and how far to trust the read (Advisor.triage) */
+  triage?: { source?: "chart" | "library" | "approx" | "quick" | "rules" | string; confidence?: Confidence; label?: string };
+  off_solution?: OffSolution[];
   street?: "preflop" | "flop" | "turn" | "river";
   /** Study: "node" | "deal" | "over" | "runouts" | "pf_unsolved" | "pf_none" | "pf_progress" | "pf_export" */
   study?: string;

@@ -22,7 +22,19 @@ const stub = vi.hoisted(() => {
     solve: async ({ state }: { state: AdvisorState }) => {
       s.asked.push(state);
       const { provenanceOf } = await import("@/solver/provenance");
-      const data: AdvisorResponse = !state.board
+      // (triage: a flop read at once with no EVs, the turn a settled Quick solve, the river an unsettled one; a check at
+      // Fast, a solve that plays the read's action less)
+      const solved = (street: "flop" | "turn" | "river", checkEv: number): AdvisorResponse => ({ street, pot_bb: 8, solver: { iterations: 300, exploitability_pct: 0.8 }, actions: [{ action: "fold", freq: 0, ev_bb: 0 }, { action: "check", freq: 0.6, ev_bb: checkEv }, { action: "call", freq: 0.6, ev_bb: checkEv }, { action: "bet 33%", freq: 0.4, ev_bb: 1, amount_bb: 3 }] });
+      const street = ({ 6: "flop", 8: "turn", 10: "river" } as const)[state.board?.length ?? 0];
+      const data: AdvisorResponse = state.board === "Qs8d3c" && state.triage
+        ? { street: "flop", pot_bb: 5.5, precomputed: { spot: "srp_btn_bb" }, triage: { source: "library", confidence: "high", label: "srp" }, actions: [{ action: "check", freq: 0.5, ev_bb: 1 }, { action: "bet 33%", freq: 0.5, ev_bb: 1, amount_bb: 1.8 }] }
+        : street && state.triage
+          ? street === "flop"
+            ? { street, pot_bb: 8, approximate: { source: "near", label: "the nearest stored flops" }, triage: { source: "approx", confidence: "low", label: "near" }, actions: [{ action: "fold", freq: 0.5, ev_bb: null }, { action: "check", freq: 0.5, ev_bb: null }, { action: "call", freq: 0.5, ev_bb: null }, { action: "bet 33%", freq: 0.5, ev_bb: null, amount_bb: 3 }] }
+            : { ...solved(street, 1), triage: street === "turn" ? { source: "quick", confidence: "medium", label: "quick" } : { source: "quick", confidence: "low", label: "quick" } }
+          : street && !state.library_only
+            ? solved(street, 0.5)
+            : !state.board
         ? { street: "preflop", pot_bb: 1.5, actions: [{ action: "fold", freq: 0.2 }, ...(state.hero === "CO" ? [] : [{ action: "call", freq: 0.3, amount_bb: 1 }]), { action: "raise", freq: 0.5, amount_bb: 2.5 }] }
         : state.board === "Qs8d3c"
           ? { street: "flop", pot_bb: 5.5, precomputed: { spot: "srp_btn_bb" }, actions: [{ action: "check", freq: 0.48, ev_bb: 3.1 }, { action: "bet 33%", freq: 0.09, ev_bb: 3.0, amount_bb: 1.8 }, { action: "bet 75%", freq: 0.43, ev_bb: 3.12, amount_bb: 4.1 }] }
@@ -151,7 +163,7 @@ describe("AnalyzePage", () => {
     const panel = screen.getByRole("region", { name: "Grading" });
     expect(panel).toHaveTextContent("the charts aren't a solve and have no EVs");
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
-    expect(await within(panel).findByText(/^Done: 9 decisions graded in this run\.$/)).toBeInTheDocument();
+    expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
     // 4 preflop decisions and 5 flop ones asked; the flops of the library only, nothing past the flop
     const boards = stub.asked.map((s) => s.board || "preflop");
     expect([boards.filter((b) => b === "preflop").length, boards.filter((b) => b.length === 6).length]).toEqual([4, 5]);
@@ -186,15 +198,60 @@ describe("AnalyzePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     await waitFor(() => expect(handRows()).toHaveLength(4));
 
-    // asked again: nothing left to ask
+    // asked again: only what nothing answered, the flops the library didn't hold (it may hold them by now)
     stub.asked = [];
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
-    expect(await within(panel).findByText(/^Done: 0 decisions graded in this run\.$/)).toBeInTheDocument();
-    expect(stub.asked).toHaveLength(0);
+    expect(await within(panel).findByText(/^Done: 0 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
+    expect(stub.asked.map((s) => s.board!.length)).toEqual([6, 6, 6, 6]);
     fireEvent.click(within(panel).getByRole("button", { name: "Forget the grades" }));
     fireEvent.click(within(panel).getByRole("button", { name: "Forget 9 grades" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Report" })).toBeNull());
     expect(within(screen.getByRole("region", { name: "Hand" })).queryByLabelText("Grade of flop decision 2")).toBeNull();
+  });
+
+  it("grades every street by Quick triage, says what each grade stands on, and checks the flagged reads at Fast", async () => {
+    open("hand=PokerStars%7C249012345678%7CAhQd");
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    stub.asked = [];
+    const panel = screen.getByRole("region", { name: "Grading" });
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "triage" } });
+    expect(await within(panel).findByText(/17 decisions to ask: about \d+ s in this browser \(an estimate/)).toBeInTheDocument();
+    expect(panel).toHaveTextContent("else a Quick solve.");
+    fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
+    expect(await within(panel).findByText(/^Done: 17 decisions graded in this run\.$/)).toBeInTheDocument();
+    expect(stub.asked.every((s) => s.triage === true && !s.library_only)).toBe(true);
+    expect(stub.asked.map((s) => s.board?.length ?? 0).sort((a, b) => a - b).at(-1)).toBe(10);
+
+    const hand = screen.getByRole("region", { name: "Hand" });
+    // (what a grade stands on isn't said to be the library for a move a read or a solve answered)
+    expect(hand).toHaveTextContent("after the flop, each move against what answered it, which its grade names.");
+    expect(hand).not.toHaveTextContent("against the flop library");
+    const river = within(hand).getByLabelText("Grade of river decision 2");
+    expect(river.getAttribute("title")).toContain("Live solve (Quick)");
+    expect(river.getAttribute("title")).toContain("low confidence · flagged: worth checking at Fast");
+    const rep = screen.getByRole("region", { name: "Report" });
+    const basis = within(rep).getByRole("table", { name: "What the grades stand on" });
+    expect(within(basis).getByRole("row", { name: "Preflop charts (by frequency, not a solve)" })).toHaveTextContent(/^Preflop charts \(by frequency, not a solve\)4/);
+    expect(within(basis).getByRole("row", { name: "Quick solve, not settled" })).toBeInTheDocument();
+    expect(within(rep).getByLabelText("Summary")).toHaveTextContent(/graded on a low-confidence read/);
+
+    // the flagged reads, then at Fast: each replaced, keeping its read, none asked with "triage"
+    const check = within(panel).getByRole("group", { name: "Check at Fast" });
+    const go = within(check).getByRole("button", { name: /^Check \d+ at Fast \(about / });
+    const n = Number(/Check (\d+)/.exec(go.textContent!)![1]);
+    expect(n).toBeGreaterThan(0);
+    stub.asked = [];
+    fireEvent.click(go);
+    expect(await within(panel).findByText(new RegExp(`^Done: ${n} checked at Fast\\.$`))).toBeInTheDocument();
+    expect(stub.asked).toHaveLength(n);
+    expect(stub.asked.some((s) => s.triage)).toBe(false);
+    await waitFor(() => expect(within(hand).getByLabelText("Grade of river decision 2").getAttribute("title")).toContain("checked at Fast: the read said"));
+    expect(within(rep).getByLabelText("Checked at Fast")).toHaveTextContent(new RegExp(`^${n} reads? checked at Fast: `));
+    expect(within(panel).queryByRole("button", { name: /^Check \d+ at Fast/ })).toBeNull();
+
+    fireEvent.click(within(panel).getByRole("button", { name: "Forget the grades" }));
+    fireEvent.click(within(panel).getByRole("button", { name: /^Forget 17 grades$/ }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Report" })).toBeNull());
   });
 
   it("drills a leak's decisions against the kept answer, and resumes the drill where it was left", async () => {
@@ -202,7 +259,7 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(handRows()).toHaveLength(4));
     const panel = screen.getByRole("region", { name: "Grading" });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
-    expect(await within(panel).findByText(/^Done: 9 decisions graded in this run\.$/)).toBeInTheDocument();
+    expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
     first.unmount();
 
     const q = `drill=${encodeURIComponent("spot:SRP · IP · checked to")}`;
@@ -223,7 +280,7 @@ describe("AnalyzePage", () => {
     await deleteDrill(kept!.id);
     fireEvent.click(within(save).getByRole("button", { name: "Close" }));
     expect(await within(drill).findByLabelText("Drill score")).toHaveTextContent("0 of 1 drilled.");
-    expect(drill).toHaveTextContent("Decision 1 of 1 · SRP · IP · checked to · PokerStars hand #249012345678");
+    expect(drill).toHaveTextContent("Decision 1 of 1 · Flop · SRP · IP · checked to · PokerStars hand #249012345678");
     expect(within(drill).getByRole("list", { name: "The action before" })).toHaveTextContent("flopBB checks");
     const options = within(drill).getByRole("group", { name: "Your options" });
     expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["check", "bet 33%", "bet 75%"]);

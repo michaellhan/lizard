@@ -82,6 +82,19 @@ describe("measured solve times", () => {
     expect(timingOf(s, "worker", "quick", "river", false)).toBeNull();
   });
 
+  it("files a triage's Quick solves under Quick, whatever the request's mode, and doesn't time its reads", async () => {
+    const answers: AdvisorResponse[] = [
+      { ...LIVE, seconds: 1.5, triage: { source: "quick", confidence: "medium", label: "a Quick solve" } },
+      { street: "river", seconds: 0.01, approximate: { source: "solve", label: "its own solve" }, triage: { source: "approx", confidence: "low", label: "a read" } },
+    ];
+    const c = new SolverClient(new Instant(() => answers.shift()!), "t");
+    await c.solve({ state: { players: 2, board: "QsJd2c3h4s", hole: "AhAd" }, mode: "fast" });
+    await c.solve({ state: { players: 2, board: "QsJd2c3h4s", hole: "KhKd" }, mode: "fast" });
+    const s = store();
+    expect(timingOf(s, "worker", "quick", "river", false)).toEqual({ median: 1.5, n: 1 });
+    expect(timingOf(s, "worker", "fast", "river", false)).toBeNull();
+  });
+
   it("shows the medians on the mode buttons and in Settings' table, and clears them", () => {
     useSettings.setState({ transport: "worker" });
     render(<ModePicker modes={["fast", "accurate"]} />);

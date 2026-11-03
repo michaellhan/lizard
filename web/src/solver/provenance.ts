@@ -40,9 +40,10 @@ export function sourceOf(r: AdvisorResponse): ResultSource {
   if (r.street === "preflop") return "charts";
   // approximate {source}: "solve" with no solver.by is this street's own solve stopped at a look (advisor.py
   // _study_look) or one cut to fit Quick; "solve" with solver.by is a read of an earlier decision's solve on this
-  // street (_study_mw_prev), and "near", "prev", "unraked", "offtree" are reads of other solutions: answers at once
+  // street (_study_mw_prev), and "near", "prev", "unraked", "offtree" are reads of other solutions: answers at once, as
+  // is a triage read marked "approx" (Advisor.instant on the street's own solve: a mix and no EVs, nothing solved for it)
   const approx = approximateOf(r);
-  if (approx) return approx.source === "solve" && !r.solver?.by ? "live" : "instant";
+  if (approx) return approx.source === "solve" && !r.solver?.by && r.triage?.source !== "approx" ? "live" : "instant";
   // 5+ players on the flop or turn: a Monte Carlo heuristic, not a solve (3-way and 4+ way rivers say solved: true)
   if (r.multiway && !r.solved && !r.solver) return "rules";
   if (r.solver && typeof r.solver.iterations === "number" && r.solver.iterations > 0) return "live";
@@ -85,12 +86,14 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
       source === "library-turn" ||
       source === "instant" ||
       ctx.partial,
-    mode: ctx.mode,
+    // (a triage solve is Quick whatever the request's budgets said: Advisor.triage sets its own)
+    mode: r.triage?.source === "quick" ? "quick" : ctx.mode,
     transport: ctx.transport,
     solverVersion: ctx.solverVersion,
     partial: ctx.partial,
     receivedAt: ctx.now ?? Date.now(),
   };
+  if (r.triage?.confidence) p.confidence = r.triage.confidence;
   if (typeof sv.exploitability_pct === "number") {
     p.exploitabilityPct = sv.exploitability_pct;
     p.band = bandOf(sv.exploitability_pct, Boolean(sv.approximate));
@@ -198,7 +201,7 @@ export const sourceLabel = (s: ResultSource): string => LABELS[s];
 export const ICM_TABLE_LABEL = "ICM (Malmuth-Harville), worked out in this page from the setup with the engine's prize model";
 
 export function describe(p: Provenance): string {
-  const parts = [LABELS[p.source]];
+  const parts = [p.source === "live" && p.mode === "quick" ? `${LABELS.live} (Quick)` : LABELS[p.source]];
   if (p.lock) parts.push(p.lock);
   if (p.sizing) parts.push(p.sizing);
   if (p.librarySpot) parts.push(p.librarySpot);
@@ -216,6 +219,7 @@ export function describe(p: Provenance): string {
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);
   if (p.partial) parts.push("in progress");
   else if (p.approximate) parts.push("approximate");
+  if (p.confidence) parts.push(`${p.confidence} confidence`);
   return parts.join(" · ");
 }
 

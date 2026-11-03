@@ -29,12 +29,14 @@ describe("HttpTransport", () => {
     expect(JSON.parse(String(f.calls[0]!.init!.body))).toEqual({ state: { players: 2, hero: "SB" }, seat: "BB", hole: "QcQd", seed: 3 });
   });
 
-  it("rejects an answer with an error", async () => {
+  it("rejects a move with an error, and hands on an advice's, as the worker does", async () => {
     const f = fake({ error: "bad hand" });
     const t = new HttpTransport({ url: "http://127.0.0.1:8765", fetchImpl: f.fetchImpl });
     await expect(t.request({ players: 2 }, { progressive: false, play: { seat: "BB", hole: "xx" } })).rejects.toMatchObject({
       kind: "solver-error",
       message: "bad hand",
     });
+    // (a queue of decisions keeps going past a spot the solver can't answer)
+    await expect(t.request({ players: 2 }, { progressive: false })).resolves.toMatchObject({ error: "bad hand" });
   });
 });

@@ -2,7 +2,7 @@
 // on decisions made up for it.
 import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { COLS, freqs, groupBy, leaks, leakTest, mixByClass, report, tally, toCSV, toJSON } from "./report";
+import { agreement, basisOf, BASES, COLS, freqs, groupBy, leaks, leakTest, mixByClass, report, rowsOf, spotOf, tally, toCSV, toJSON } from "./report";
 
 let k = 0;
 const d = (o: Partial<DecisionRecord>): DecisionRecord => ({
@@ -48,7 +48,7 @@ describe("report", () => {
     expect(L.map((l) => [l.kind, l.key])).toEqual([
       ["freq", "Flop c-bet"],
       ["freq", "Open (RFI)"],
-      ["spot", "SRP · IP · checked to"],
+      ["spot", "Flop · SRP · IP · checked to"],
     ]);
     expect(ds.filter(leakTest(L[2]!))).toHaveLength(15);
     // under 80% in the mix over 15 preflop decisions: a preflop leak
@@ -68,5 +68,104 @@ describe("report", () => {
     const j = JSON.parse(toJSON([open(), cbet()], hands, 0)) as { exported: string; summary: { graded: number }; decisions: unknown[]; graded_against: string };
     expect([j.exported, j.summary.graded, j.decisions.length]).toEqual(["1970-01-01T00:00:00.000Z", 2, 2]);
     expect(j.graded_against).toMatch(/not a solve/);
+  });
+
+  it("keeps a pot's flop, turn and river apart, and a link kept from before still opens the flop's", () => {
+    const at = (street: string, o: Partial<DecisionRecord> = {}) => cbet({ street, ...o });
+    const ds = [...Array.from({ length: 10 }, () => at("flop")), ...Array.from({ length: 10 }, () => at("turn")), ...Array.from({ length: 9 }, () => at("river"))];
+    expect(report(ds).bySpot.map((g) => [g.key, g.n])).toEqual([["Flop · SRP · IP · checked to", 10], ["Turn · SRP · IP · checked to", 10], ["River · SRP · IP · checked to", 9]]);
+    // (9 rivers: under the threshold, however the others look)
+    expect(leaks(ds).filter((l) => l.kind === "spot").map((l) => l.key)).toEqual(["Flop · SRP · IP · checked to", "Turn · SRP · IP · checked to"]);
+    expect(ds.filter(leakTest({ kind: "spot", key: "Turn · SRP · IP · checked to" }))).toHaveLength(10);
+    expect(ds.filter(leakTest({ kind: "spot", key: "SRP · IP · checked to" })).every((x) => x.street === "flop")).toBe(true);
+    expect(spotOf(open())).toBeNull();
+  });
+
+  it("the turn and river rows of the frequencies", () => {
+    const mix: DecisionRecord["mix"] = [["fold", 0.2, 0], ["check", 0, 0], ["call", 0.5, 1], ["bet 75%", 0.3, 1.1]];
+    const ds = [
+      d({ street: "turn", role: "PFR", flopAggr: true, facing: false, multi: false, action: "bet 3", mix }),
+      d({ street: "turn", role: "PFR", flopAggr: false, facing: false, multi: false, action: "check", mix }),
+      d({ street: "turn", facing: true, action: "fold", mix }),
+      d({ street: "river", facing: false, action: "check", mix }),
+      d({ street: "river", facing: true, action: "call", mix }),
+    ];
+    expect(freqs(ds).map((f) => [f.label, f.n, f.you, f.gto])).toEqual([
+      ["Turn barrel", 1, 1, 0.3],
+      ["Turn vs bet: fold", 1, 1, 0.2],
+      ["River bet", 1, 0, 0.3],
+      ["River vs bet: fold", 1, 0, 0.2],
+    ]);
+  });
+
+  it("says what the grades stand on, and never adds a low read to a solid one unsaid", () => {
+    const quick = (o: Partial<DecisionRecord>) => cbet({ source: "live", street: "turn", confidence: "medium", label: "Quick", ...o });
+    const ds = [
+      open(),
+      cbet(),
+      cbet({ approximate: true }),
+      cbet({ source: "library-turn", street: "turn", confidence: "medium" }),
+      quick({}),
+      quick({ confidence: "low", evLossBb: 2 }),
+      quick({ confidence: undefined }),
+      quick({ confidence: undefined, approximate: true }),
+      cbet({ source: "instant", confidence: "low", verdict: "Mistake", evLossBb: null, lossPct: null, bestFreq: 0.9 }),
+      d({ source: "rules", verdict: "Not graded", why: "the rules" }),
+    ];
+    expect(ds.slice(0, 9).map(basisOf)).toEqual([BASES[0], BASES[1], BASES[2], BASES[5], BASES[6], BASES[7], BASES[3], BASES[4], BASES[8]]);
+    const rp = report(ds);
+    // (the most solid first; the rules, not graded, stand on nothing)
+    expect(rp.byBasis.map((g) => [g.key, g.graded])).toEqual(BASES.map((b) => [b, 1]));
+    expect(rp.low).toEqual({ n: 2, lost: 2 });
+    expect(rp.offChart).toEqual([]);
+    expect(rp.offRead.map((x) => x.source)).toEqual(["instant"]);
+    const L = leaks([...Array.from({ length: 6 }, () => cbet({ street: "turn", situation: "SRP · IP · checked to", confidence: "low" })), ...Array.from({ length: 6 }, () => cbet({ street: "turn" }))]);
+    expect(L.map((l) => [l.kind, l.key, l.low])).toEqual([["spot", "Turn · SRP · IP · checked to", 6]]);
+  });
+
+  it("a spot leak counts low reads among the decisions it's built on; a borrowed flop kept before `approximate` stays borrowed", () => {
+    const low = cbet({ confidence: "low" });
+    const reads = Array.from({ length: 30 }, () => cbet({ confidence: "low", evLossBb: null, lossPct: null, byEv: false, source: "instant" }));
+    const ls = leaks([...Array.from({ length: 12 }, () => cbet()), low, ...reads]);
+    const spot = ls.find((l) => l.kind === "spot")!;
+    expect([spot.n, spot.low]).toEqual([13, 1]);
+    expect(basisOf(cbet({ label: "Precomputed solution · srp · another table's spot read as this one" }))).toBe(BASES[2]);
+    expect(basisOf(cbet())).toBe(BASES[1]);
+  });
+
+  it("counts how a check at Fast agreed with the read, on the one scale", () => {
+    const read = (verdict: string) => ({ verdict, source: "live", label: "Quick", confidence: "low" as const, evLossBb: 0 });
+    const ds = [
+      d({ verdict: "Correct", read: read("Best") }),
+      d({ verdict: "Mistake", read: read("Blunder") }),
+      d({ verdict: "Inaccuracy", read: read("Best") }),
+      d({ verdict: "Best", read: read("Mistake") }),
+      d({ verdict: "Best", read: read("Not graded") }),
+      d({ verdict: "Best" }),
+    ];
+    expect(agreement(ds)).toEqual({ n: 4, same: 2, worse: 1, better: 1 });
+  });
+
+  it("exports what stands behind each grade", () => {
+    const h = new Map<string, HandRecord>();
+    const [read, fast] = rowsOf(
+      [
+        cbet({ source: "live", confidence: "low", triageSource: "quick", street: "turn" }),
+        cbet({ source: "live", street: "turn", read: { verdict: "Mistake", source: "live", label: "Quick", confidence: "low", triageSource: "quick", evLossBb: 0.2 } }),
+      ],
+      h,
+    );
+    expect([read!.basis, read!.confidence, read!.triage_source, read!.triage_grade]).toEqual([BASES[7], "low", "quick", ""]);
+    expect([fast!.basis, fast!.confidence, fast!.triage_source, fast!.triage_grade, fast!.triage_ev_lost_bb]).toEqual([BASES[3], "checked at Fast", "quick", "Mistake", 0.2]);
+  });
+
+  it("the export keeps an EV's marks, and the summary's lists say what each loss stands on", () => {
+    const h = new Map<string, HandRecord>();
+    const quick = cbet({ street: "turn", source: "live", label: "Live solve (Quick)", confidence: "low", verdict: "Inaccuracy", capped: true, roughEv: true, off: "the flop is narrowed by the betting rules, not solved" });
+    const [row] = rowsOf([quick], h);
+    expect([row!.rough_ev, row!.grade_capped, row!.off_solution]).toEqual([true, true, "the flop is narrowed by the betting rules, not solved"]);
+    expect(toCSV([quick], h).split("\n")[0]).toContain("rough_ev,grade_capped,off_solution");
+    const out = JSON.parse(toJSON([quick], h, 0)) as { summary: { mistakes: Record<string, unknown>[] } };
+    expect(out.summary.mistakes[0]).toMatchObject({ rough_ev: true, grade_capped: true, source: "Live solve (Quick)", basis: BASES[7], confidence: "low" });
   });
 });

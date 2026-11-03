@@ -1,7 +1,7 @@
 // A leak drilled: the decisions behind it dealt again one by one, each as it stood in your hand (your cards, the
 // board, the actions before it), answered from the mix kept with its grade, so nothing is asked of the solver (the
 // classic analyzer's drillSet: "the spot as it stood, the answer's mix and EVs, misses first"). A pick is graded on
-// the one scale (grading/grade.ts), against the charts by frequency or the library by EV, as the decision was.
+// the one scale (grading/grade.ts) as the decision was: by EV where the mix has EVs, else by frequency.
 import type { DecisionRecord, HandRecord, SessionRecord } from "@/data/db";
 import { grade, type Grade, type Score } from "@/grading/grade";
 import type { ReplayedHand } from "@/hh/replay";
@@ -100,7 +100,7 @@ export function lineBefore(r: ReplayedHand, street: Street, i: number): { board:
 }
 
 /** A pick among the kept mix's actions, graded as the decision was: by EV where the mix has EVs for every action,
- * else by frequency (the charts). */
+ * else by frequency (the charts, a read at once). */
 export function gradePick(d: DecisionRecord, a: number): Grade {
   const mix = d.mix ?? [];
   const evs = mix.every((x) => x[2] !== null) ? mix.map((x) => x[2]!) : null;

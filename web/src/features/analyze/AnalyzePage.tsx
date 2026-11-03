@@ -1,7 +1,7 @@
 // Analyze: your hand histories imported into this browser (pasted, or files and folders picked or dropped), read
 // by the classic importer's port (hh/), kept in IndexedDB once each (data/hands.ts), listed with filters, and each
 // hand replayed street by street with every decision of yours opening in Study; your decisions graded against the
-// charts and the flop library (Grading.tsx), each grade shown with what it stands on.
+// charts and the flop library, or by triage or a solve (GradingPanel.tsx), each grade shown with what it stands on.
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -97,8 +97,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <h1 className="text-2xl font-semibold">Analyze</h1>
         <p className="text-sm text-muted">
           Import your hand histories: they're read and kept in this browser only, nothing is uploaded. Each hand replays street by street, and each of
-          your decisions opens in Study at that point. Your preflop and flop decisions can be graded against the preflop charts and the flop library;
-          turns and rivers aren't graded yet.
+          your decisions opens in Study at that point. Your decisions can be graded against the preflop charts and the flop library, or on every street by
+          a Quick triage or a Fast solve, each grade saying what it stands on.
         </p>
       </div>
       <ImportPanel onImported={reload} />
@@ -647,7 +647,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
             ? "A hand from the classic app's My hands"
             : "From your hand history"}
         , replayed on Lizard's table.
-        {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve), your flop moves against the flop library." : " None of your decisions here is graded yet."}
+        {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve); after the flop, each move against what answered it, which its grade names." : " None of your decisions here is graded yet."}
         {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
         {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page, to add the prizes left and any bounties."}
       </p>
@@ -746,7 +746,7 @@ function StreetRow({ r, street, graded }: { r: ReplayedHand; street: Street; gra
                 {d && (
                   <span className="ml-1 inline-flex items-center gap-1 font-normal" aria-label={`Grade of ${street} decision ${i + 1}`} title={decisionNote(d)}>
                     {isGraded(d) ? <VerdictTag v={d.verdict as Verdict} /> : <span className="text-xs text-muted">not graded</span>}
-                    {d.evLossBb != null && d.evLossBb > 0 && <span className="text-xs text-muted">−{fmt(d.evLossBb)}bb</span>}
+                    {d.evLossBb != null && d.evLossBb > 0 && <span className="text-xs text-muted">−{d.roughEv ? "≈" : ""}{fmt(d.evLossBb)}bb</span>}
                   </span>
                 )}
                 {link && (

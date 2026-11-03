@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { actionColors, bb, pct } from "@/components/actions";
+import { solverThreads } from "@/solver/client";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError, type Provenance } from "@/solver/types";
 import { useSettings } from "@/state/settings";
@@ -51,7 +52,6 @@ const openAt = (key: string | null) => {
 const opensAt = (key: string) => openOn === key;
 
 const label = (n: string) => n[0]!.toUpperCase() + n.slice(1);
-const threads = () => (globalThis.crossOriginIsolated ? Math.max(1, Math.min(8, globalThis.navigator?.hardwareConcurrency ?? 1)) : 1);
 
 export function RunoutPanel({ hand, street, setHand }: { hand: StudyHand; street: "turn" | "river"; setHand: (h: StudyHand) => void }) {
   const getSolver = useSolver();
@@ -89,7 +89,7 @@ export function RunoutPanel({ hand, street, setHand }: { hand: StudyHand; street
     abort.current = ac;
     const t0 = Date.now();
     setNow(t0);
-    setSt(solve ? { kind: "solving", t0, est: mw ?? estimate(street, mode, transport, threads()), upTo: mw != null } : { kind: "asking" });
+    setSt(solve ? { kind: "solving", t0, est: mw ?? estimate(street, mode, transport, solverThreads()), upTo: mw != null } : { kind: "asking" });
     void run(solve, ac);
   };
   useEffect(() => {
@@ -176,7 +176,7 @@ export function RunoutPanel({ hand, street, setHand }: { hand: StudyHand; street
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => ask(true)} className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
-              Solve the {prev} ({mode === "accurate" ? "Accurate" : "Fast"}, {mw != null ? "up to " : ""}~{Math.round(mw ?? estimate(street, mode, transport, threads()))} s)
+              Solve the {prev} ({mode === "accurate" ? "Accurate" : "Fast"}, {mw != null ? "up to " : ""}~{Math.round(mw ?? estimate(street, mode, transport, solverThreads()))} s)
             </button>
             {st.sk.lines && st.sk.lines.length > 0 && lines(st.sk.lines, undefined, "or a line they hold:")}
           </div>

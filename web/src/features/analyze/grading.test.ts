@@ -9,7 +9,23 @@ import { describe, expect, it } from "vitest";
 import { importHand, type ReplayedHand } from "@/hh/replay";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { provenanceOf } from "@/solver/provenance";
-import { adviceStateAt, decisionsIn, gradeAgainst, gradedMove, gradeDecision, jamOffTree, matchMove, roleOf, situationAt, type Ask } from "./grading";
+import type { DecisionRecord, HandRecord } from "@/data/db";
+import {
+  adviceStateAt,
+  answeredIds,
+  decisionsIn,
+  deepened,
+  gradeAgainst,
+  gradedMove,
+  gradeDecision,
+  gradeHands,
+  jamOffTree,
+  matchMove,
+  offText,
+  roleOf,
+  situationAt,
+  type Ask,
+} from "./grading";
 
 const HH = (f: string) => readFileSync(join(process.cwd(), "..", "solver", "tests", "data", "hh", f), "utf8");
 const SRP = () => importHand(HH("stars_6max_srp.txt"));
@@ -148,5 +164,146 @@ describe("gradeDecision", () => {
     const d = await gradeDecision({ id: "h" }, r, "flop", 1, ask);
     expect(asked.map((s) => s.jam)).toEqual([undefined, true]);
     expect([d.verdict, d.matched, d.evLossBb]).toEqual(["Blunder", "all-in", 1.62]);
+  });
+
+  it("a rough or cut-short solve can't condemn a line: it stops at an Inaccuracy, its EV kept", async () => {
+    const r = SRP();
+    const solve = (solver: AdvisorResponse["solver"]): AdvisorResponse => ({
+      street: "flop",
+      pot_bb: 5.5,
+      solver,
+      actions: [{ action: "check", freq: 0.98, ev_bb: 3 }, { action: "bet 33%", freq: 0.02, ev_bb: 2.5, amount_bb: 1.8 }],
+    });
+    const scoped = (a: AdvisorResponse) => gradeDecision({ id: "h" }, r, "flop", 1, asking([a]).ask, 7, "all");
+    const settled = await scoped(solve({ iterations: 300, exploitability_pct: 2 }));
+    expect([settled.verdict, settled.capped, settled.evLossBb]).toEqual(["Blunder", undefined, 0.5]);
+    // (fair isn't rough: under 10% of the pot it may still condemn)
+    expect((await scoped(solve({ iterations: 300, exploitability_pct: 9 }))).verdict).toBe("Blunder");
+    const rough = await scoped(solve({ iterations: 300, exploitability_pct: 14 }));
+    expect([rough.verdict, rough.capped, rough.evLossBb, rough.band]).toEqual(["Inaccuracy", true, 0.5, "rough"]);
+    const short = await scoped(solve({ iterations: 40, exploitability_pct: 2, approximate: true }));
+    expect([short.verdict, short.capped, short.band]).toEqual(["Inaccuracy", true, "approximate"]);
+    // (a grade already milder stays what it is)
+    const mild = { ...solve({ iterations: 300, exploitability_pct: 14 }), actions: [{ action: "check", freq: 0.5, ev_bb: 3 }, { action: "bet 33%", freq: 0.5, ev_bb: 2.5, amount_bb: 1.8 }] };
+    const correct = await scoped(mild);
+    expect([correct.verdict, correct.capped]).toEqual(["Correct", undefined]);
+  });
+
+  it("keeps the pot of a decision it couldn't grade", async () => {
+    const d = await gradeDecision({ id: "h" }, SRP(), "flop", 1, asking([{ error: "boom" }]).ask);
+    expect([d.verdict, d.pot]).toEqual(["Not graded", 5.5]);
+  });
+
+  it("says what stands behind the ranges, a rare line solved again from there included", () => {
+    const o = { why: "rare", pos: "BB", action: "raise", street: "flop", share: 1.2 };
+    expect(offText({ off_solution: [o] })).toBe("BB's raise on the flop is only 1.2% in the solve, so their range from there is the betting rules'");
+    expect(offText({ off_solution: [{ ...o, resolved: true }] })).toBe("BB's raise on the flop is only 1.2% in the solve, so their range from there is the betting rules' and the play after it is solved again from there");
+  });
+});
+
+describe("turns and rivers", () => {
+  const LIVE: AdvisorResponse = {
+    street: "turn",
+    pot_bb: 9.1,
+    solver: { iterations: 300, exploitability_pct: 0.8 },
+    actions: [{ action: "check", freq: 0.7, ev_bb: 3 }, { action: "bet 33%", freq: 0.1, ev_bb: 2.9, amount_bb: 3 }, { action: "bet 75%", freq: 0.2, ev_bb: 2.5, amount_bb: 6.8 }],
+  };
+  const tri = (source: string, confidence: "high" | "medium" | "low", label = source) => ({ triage: { source, confidence, label } });
+  const once = (data: AdvisorResponse): Ask => async () => answer(data);
+  const hand = { id: "h" };
+
+  it("every street is in the wider scopes, and each scope asks its own way", () => {
+    const r = SRP();
+    expect(decisionsIn(r, "library").map((d) => d.street)).toEqual(["preflop", "flop"]);
+    for (const scope of ["triage", "all"] as const) expect(decisionsIn(r, scope)).toEqual([{ street: "preflop", i: 3 }, { street: "flop", i: 1 }, { street: "turn", i: 1 }, { street: "river", i: 1 }]);
+    for (const [street, i] of [["preflop", 3], ["flop", 1], ["turn", 1], ["river", 1]] as const) {
+      expect(adviceStateAt(r, street, i, "triage")).toMatchObject({ triage: true });
+      expect(adviceStateAt(r, street, i, "triage").library_only).toBeUndefined();
+      expect(adviceStateAt(r, street, i, "all").triage).toBeUndefined();
+      expect(adviceStateAt(r, street, i, "all").library_only).toBeUndefined();
+    }
+    expect(adviceStateAt(r, "turn", 1).board).toBe("Qs8d3c7h");
+  });
+
+  it("a Quick solve grades by EV and says it's Quick, how settled, and how far to trust it", async () => {
+    const d = await gradeDecision(hand, SRP(), "turn", 1, once({ ...LIVE, ...tri("quick", "medium", "a Quick solve (300 iterations, 0.8% of the pot from equilibrium)") }), 0, "triage");
+    expect([d.verdict, d.source, d.confidence, d.triageSource, d.byEv, d.pot]).toEqual([d.verdict, "live", "medium", "quick", true, 9.1]);
+    expect(d.verdict).not.toBe("Not graded");
+    expect(d.label).toBe("Live solve (Quick) · 0.80% pot from equilibrium in the solved game (converged) · 300 iterations · medium confidence");
+    expect(d.band).toBe("converged");
+    expect(d.approximate).toBeUndefined();
+    // at Fast the same answer has no triage mark at all
+    const fast = await gradeDecision(hand, SRP(), "turn", 1, once(LIVE), 0, "all");
+    expect([fast.confidence, fast.triageSource]).toEqual([undefined, undefined]);
+    expect(fast.label).toBe("Live solve · 0.80% pot from equilibrium in the solved game (converged) · 300 iterations");
+  });
+
+  it("the rest of a triage's reads: a stored turn and a read at once by frequency where they have no EVs, the rules never", async () => {
+    const noEv = LIVE.actions!.map((a) => ({ ...a, ev_bb: null }));
+    const stored = await gradeDecision(hand, SRP(), "turn", 1, once({ ...LIVE, solver: undefined, actions: noEv, approximate: { source: "store", label: "the flop's stored turn" }, ...tri("approx", "medium") }), 0, "triage");
+    expect([stored.source, stored.byEv, stored.evLossBb, stored.confidence, stored.approximate]).toEqual(["library-turn", false, null, "medium", true]);
+    expect(stored.label).toContain("Stored turn from the flop library · the flop's stored turn · approximate · medium confidence");
+    const near = await gradeDecision(hand, SRP(), "turn", 1, once({ ...LIVE, solver: undefined, actions: noEv, approximate: { source: "near", label: "the nearest stored flops" }, ...tri("approx", "low") }), 0, "triage");
+    expect([near.source, near.confidence, near.evLossBb]).toEqual(["instant", "low", null]);
+    for (const data of [{ ...LIVE, fallback: "rules", ...tri("rules", "low") }, { ...LIVE, solver: undefined, multiway: true, solved: false, ...tri("rules", "low") }]) {
+      const d = await gradeDecision(hand, SRP(), "turn", 1, once(data), 0, "triage");
+      expect([d.verdict, d.source, d.evLossBb, d.mix]).toEqual(["Not graded", "rules", null, undefined]);
+      expect(d.why).toContain("which isn't graded against");
+    }
+    const equity = await gradeDecision(hand, SRP(), "turn", 1, once({ ...LIVE, fallback: "equity" }), 0, "all");
+    expect([equity.verdict, equity.source]).toEqual(["Not graded", "equity"]);
+    // nor may a scope that solves nothing stand on a solve
+    const narrow = await gradeDecision(hand, SRP(), "flop", 1, once({ ...LIVE, street: "flop" }), 0, "library");
+    expect([narrow.verdict, narrow.source]).toEqual(["Not graded", "live"]);
+    expect(narrow.why).toContain("not the charts or the library");
+  });
+
+  it("an error at triage is a low read to check; a skip isn't a read", async () => {
+    const err = await gradeDecision(hand, SRP(), "turn", 1, once({ error: "boom" }), 0, "triage");
+    expect([err.verdict, err.source, err.confidence, err.triageSource]).toEqual(["Not graded", "", "low", undefined]);
+    const skip = await gradeDecision(hand, SRP(), "flop", 1, once({ skipped: "not in the library" }), 0, "library");
+    expect([skip.verdict, skip.confidence]).toEqual(["Not graded", undefined]);
+  });
+
+  it("keeps what the turn's frequencies need, a rough EV and ranges that aren't the solve's", async () => {
+    const r = SRP();
+    const d = await gradeDecision(hand, r, "turn", 1, once({ ...LIVE, actions: LIVE.actions!.map((a) => ({ ...a, rough_ev: true })), off_solution: [{ why: "rules", street: "flop" }] }), 0, "all");
+    expect([d.flopAggr, d.roughEv, d.off]).toEqual([true, true, "the flop is narrowed by the betting rules, not solved"]);
+    const flop = await gradeDecision(hand, r, "flop", 1, once({ ...LIVE, street: "flop" }), 0, "all");
+    expect(flop.flopAggr).toBeUndefined();
+    expect(offText({})).toBeNull();
+    expect(offText({ off_solution: [{ pos: "BB", action: "call", street: "flop", why: "rare", share: 0 }, { street: "turn", trust: 40 }] })).toBe(
+      "BB's call on the flop is never in the solve, so their range from there is the betting rules'; the turn solve hadn't settled, so ranges follow it 40% and the betting rules the rest",
+    );
+  });
+
+  it("what's asked again, and a check at Fast", async () => {
+    const graded = { id: "a", verdict: "Best", source: "charts" } as DecisionRecord;
+    const rules = { id: "b", verdict: "Not graded", source: "rules" } as DecisionRecord;
+    const skipped = { id: "c", verdict: "Not graded", source: "" } as DecisionRecord;
+    expect([...answeredIds([graded, rules, skipped])]).toEqual(["a", "b"]);
+    const read = { id: "r", verdict: "Mistake", source: "instant", label: "read", confidence: "low", triageSource: "approx", evLossBb: null, freq: 0.01 } as DecisionRecord;
+    const fast = { id: "r", verdict: "Best", source: "live", label: "Live solve", evLossBb: 0 } as DecisionRecord;
+    expect(deepened(read, fast)).toEqual({ ...fast, read: { verdict: "Mistake", source: "instant", label: "read", confidence: "low", triageSource: "approx", evLossBb: null, freq: 0.01 } });
+    // an answer at Fast that can't grade the move doesn't take the read's place
+    // (and when it was asked, or restoring a backup keeps the copy without the note)
+    expect(deepened(read, { ...fast, verdict: "Not graded", why: "no answer", gradedAt: 9 })).toEqual({ ...read, notChecked: "no answer", gradedAt: 9 });
+  });
+
+  it("a run checks only the reads it's given, in the order played, and leaves the rest", async () => {
+    const r = HH("stars_6max_srp.txt");
+    const h = { id: "h", text: r } as HandRecord;
+    const asked: AdvisorState[] = [];
+    const ask: Ask = async (s) => {
+      asked.push(s);
+      return answer(LIVE);
+    };
+    const read = { id: "h|river|1", handId: "h", street: "river", verdict: "Mistake", source: "live", label: "Quick", confidence: "low", evLossBb: 1 } as DecisionRecord;
+    const turn = { ...read, id: "h|turn|1", street: "turn" };
+    const out: DecisionRecord[] = [];
+    const run = await gradeHands([h], "all", new Set(), ask, { deepen: new Map([[read.id, read], [turn.id, turn]]), onHand: (_k, _n, ds) => void out.push(...ds), pause: async () => {} });
+    expect(run).toEqual({ graded: 2, hands: 1, stopped: false });
+    expect(asked.map((s) => [s.board?.length, s.triage])).toEqual([[8, undefined], [10, undefined]]);
+    expect(out.map((d) => [d.id, d.read?.verdict])).toEqual([["h|turn|1", "Mistake"], ["h|river|1", "Mistake"]]);
   });
 });

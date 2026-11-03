@@ -23,6 +23,11 @@ export type ResultSource =
  * else rough; "approximate" when the solver flags the answer as short of its target. */
 export type ConvergenceBand = "converged" | "fair" | "rough" | "approximate";
 
+/** How far a Quick triage read can be trusted, in the Advisor's words (Advisor.triage): high where Fast answers the
+ * same (the charts, the library's own spot), medium for a stored turn, a borrowed spot or a Quick solve that settled
+ * (88% the same grade as Fast on 1,000 hands), low for the other reads (62%). */
+export type Confidence = "high" | "medium" | "low";
+
 export interface Provenance {
   source: ResultSource;
   /** the answer is labelled approximate by the solver (ran short of its accuracy target, or a heuristic) */
@@ -56,6 +61,8 @@ export interface Provenance {
   sizing?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */
   mbbPerHand?: number;
+  /** a Quick triage read: how far it can be trusted */
+  confidence?: Confidence;
   mode: SolveMode;
   /** the solver backend that answered, or "file": a library entry decoded in the page with no solver (drills) */
   transport: TransportKind | "file";

@@ -27,6 +27,9 @@ export const MODE_BUDGETS: Record<TransportKind, Record<SolveMode, [number, numb
   worker: { quick: [1.5, 0.3], fast: [8, 3], accurate: [60, 12] },
   http: { quick: [1.5, 0.3], fast: [2.5, 2.5], accurate: [30, 12] },
 };
+/** The browser's solver threads, as the worker's setup picks them (the classic pageHost.threads). */
+export const solverThreads = () => (globalThis.crossOriginIsolated ? Math.max(1, Math.min(8, globalThis.navigator?.hardwareConcurrency ?? 1)) : 1);
+
 /** Quick's postflop budgets by street, either backend, sent with "quick" (no second budget for an unsettled street). */
 const QUICK_BUDGETS: Record<string, [number, number]> = { flop: [1.5, 0.3], turn: [1.5, 0.3], river: [0.8, 0.3] };
 const STREET_BY_CARDS: Record<number, string> = { 3: "flop", 4: "turn", 5: "river" };
@@ -118,8 +121,8 @@ export class SolverClient {
           : undefined,
       });
       const provenance = provenanceOf(data, { ...ctx, partial: false });
-      // (the mode's measured times: a live advice or Study answer, not an opponent's move)
-      if (!req.play) recordTiming(JSON.stringify(sent), this.transport.kind, ctx.mode, data, provenance);
+      // (the mode's measured times: a live advice or Study answer, not an opponent's move; a triage solve is Quick's)
+      if (!req.play) recordTiming(JSON.stringify(sent), this.transport.kind, provenance.mode, data, provenance);
       item.resolve({ data, provenance });
     } catch (e) {
       item.reject(e instanceof SolverError ? e : new SolverError("solver-error", String(e)));

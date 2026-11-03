@@ -3364,3 +3364,66 @@ Untouched; checked only with read-only `ps`. No solves.
 - Phase 2, still open: turns and rivers, a history across sessions.
 - Phase 3: done as listed. Not in it yet: range and nut advantage columns.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 2, turns and rivers graded in Analyze (2026-11-03)
+
+### What changed
+
+- **Two new scopes** (`grading.ts`). "Every street, Quick triage" sends the classic `"triage": true`: what's in hand
+  first (the charts, the library, its stored turns, nearby solutions), else a Quick solve, each read with the Advisor's
+  own confidence. "Every street, at Fast" solves what the charts and the library don't answer. The betting rules and
+  equity guesses are never graded against, at any scope. A read at once has no EVs, so it's graded by frequency.
+- **A check at Fast** (`triage.ts`, the classic `flagged`, `deepen`). A low-confidence read, one off the mix, one losing
+  2% of the pot or more, or one that couldn't be graded can be checked at Fast, the biggest pots' hands first, each
+  hand in the order played. The answer at Fast takes the read's place and keeps it to compare; the report counts how
+  the two agreed, on Lizard's one scale. A read Fast can't grade stands, saying why, and isn't asked again.
+- **A clock** (`estimate`, `secondsLeft`, `fmtDur`): the classic estimate before a run, each street's measured pace
+  once it has two answers. The solver's boot isn't counted (only a ready solver is timed).
+- **The report** says what the grades stand on: nine bases, most solid first (`report.ts` `BASES`, `basisOf`), with the
+  low-confidence reads and their EV counted apart. Spots keep their street, the frequency table has its 13 rows, leaks
+  say how many of their decisions stand on a low read, and reads with no EV have their own off-the-read list. CSV and
+  JSON carry the basis, the confidence, the read's grade, `rough_ev`, `grade_capped` and `off_solution`.
+- **A rough solve can't condemn a line** (the classic `gradeClass`). A solve 10% of the pot or more from equilibrium, or
+  one cut short, stops at Inaccuracy. The EV it measured is kept, and the note and export say so.
+- **Provenance** (`provenance.ts`, `client.ts`). A triage answer keeps its confidence and says it; a Quick solve reads
+  "Live solve (Quick)"; a read of the street's own solve reads "Answer at once", not "Live solve". Triage's solves are
+  measured under Quick, and its reads aren't timed, so the mode buttons' measured times stay true.
+- **The HTTP backend** (`http-transport.ts`) hands on an advice `{error}` as the worker does, so a queue keeps going past
+  a spot the solver can't answer, instead of stopping at it on every retry. A practice opponent's move still rejects.
+
+### Reviewed
+
+Two adversarial reviewers (the port against the classic and the Advisor; the UI and its data) and a verifier on each
+finding: 23 findings, 18 distinct, 16 confirmed and fixed, 2 refuted (a preflop rules fallback can't happen; the charts'
+"high" confidence is the Advisor's word for "Fast answers the same", as classic exports it).
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 455/455, through `slot.sh`. `grading.test.ts`: every scope's request, turns and rivers, the rough cap, a pot on an ungraded decision, `offText`, `deepened`, a run of reads. `triage.test.ts` (new): `flagged`, the order of a check, `toAsk`, the clock. `report.test.ts`: bases, agreement, spot leaks' low count, exports. `provenance.test.ts`, `timings.test.tsx`, `http-transport.test.ts`: the fixes above. `AnalyzePage.test.tsx`: triage end to end on a stub, 17 decisions, the flagged reads checked at Fast |
+| Typecheck and ESLint | clean (`npm run check`) |
+| Build | passes |
+
+### Checked in the browser (dev server, real worker, isolated, 10 cores)
+
+- **22 hands of all eight site families:** 74 decisions at Quick triage in 15 s, the solver's first boot included
+  (estimate 25 s): 72 graded, 2 of a 4-way flop left to the rules, with their pots. By source: preflop charts 26, flop
+  library 6, stored turn 3, reads at once 11, Quick solves 26.
+- **Check 27 at Fast** in 10 s: the 2 rules reads solved at Fast (converged) with the read kept beside them; of the 25
+  with a read to compare, 17 graded alike, 4 worse at Fast, 4 better. Afterwards "No read is flagged".
+- **Measured times:** triage's went under `worker:quick:*`, none under `worker:fast:*` until the check at Fast.
+- **The hand panel** says what each grade stands on, no longer "against the flop library" for a move a solve answered.
+- **Phone width:** no horizontal overflow at 375px in dark mode, checked before the review's fixes (those changed wording only there).
+- **Not checked:** the HTTP backend's `{error}` path against a real local server (unit test only), and a capped grade
+  live (none of these 74 decisions came from a rough solve; unit test only).
+- The test imports and grades were deleted after (0 hands, 0 decisions), and the dev server stopped.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. The web suite went through `slot.sh`; no solves outside the browser.
+
+### Next
+
+- Phase 2, still open: a history across sessions (the interrupted Overnight session was building it).
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.

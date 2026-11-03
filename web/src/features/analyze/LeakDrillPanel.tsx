@@ -24,7 +24,7 @@ import {
   type DrillProgress,
   type LeakRef,
 } from "./leakDrill";
-import { isGraded } from "./report";
+import { isGraded, spotOf } from "./report";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
@@ -71,8 +71,8 @@ export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; 
         <div>
           <h2 className="text-lg font-semibold">Drill: {leak.key}</h2>
           <p className="text-muted">
-            Your decisions behind this leak, dealt again, your misses first. Each is graded against the answer kept with its grade: the preflop charts by
-            frequency (not a solve), or the flop library by EV. Nothing is solved.
+            Your decisions behind this leak, dealt again, your misses first. Each is graded against the answer kept with its grade, which it names: the
+            preflop charts by frequency (not a solve), or what answered it after the flop, by EV where that has EVs. Nothing is solved.
           </p>
         </div>
         <span className="flex-1" />
@@ -172,7 +172,7 @@ function Problem({
   return (
     <div aria-label="Decision" className="space-y-2">
       <p className="text-xs text-muted">
-        Decision {n} of {total} · {d.situation} · {hand.site} hand {hand.number ? `#${hand.number}` : ""}, {hand.played}
+        Decision {n} of {total} · {spotOf(d) ?? d.situation} · {hand.site} hand {hand.number ? `#${hand.number}` : ""}, {hand.played}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <span>
