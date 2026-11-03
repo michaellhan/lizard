@@ -39,6 +39,8 @@ import { EvGapPanel } from "@/features/compare/EvGapPanel";
 import { OneSizePanel } from "@/features/compare/OneSizePanel";
 import { offersOneSize } from "@/features/compare/oneSize";
 import { ChipCompare } from "./ChipCompare";
+import { offersAutoSize } from "./autoSize";
+import { AutoSizePanel } from "./AutoSizePanel";
 import { betMenuOf, CompareLinks } from "./CompareLinks";
 import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
@@ -470,6 +472,7 @@ export function StudyPage() {
           <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
           {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
           {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
+          {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
         </div>
       )}
     </div>

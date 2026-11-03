@@ -82,10 +82,15 @@ export const presetOf = (l: Lock): string | null =>
 export const offersLock = (r: { study?: unknown; street?: string; multiway?: boolean; opponent?: unknown; actor?: string }): boolean =>
   r.study === "node" && Boolean(r.street) && r.street !== "preflop" && !r.multiway && typeof r.opponent === "string" && Boolean(r.actor);
 
-/** One hand's advice at the node (Study's request, studyRequest, out of Study mode: the engine's advise), against the
- * read or, with none, at equilibrium. */
-export function lockRequest(study: AdvisorState, hero: string, hole: string, opponent: string, lock: Lock | null): AdvisorState {
+/** One hand's advice at the node: Study's request (studyRequest) out of Study mode, the engine's advise. */
+export function handRequest(study: AdvisorState, hero: string, hole: string): AdvisorState {
   const st: AdvisorState = { ...study, hero, hole };
   delete st.study;
+  return st;
+}
+
+/** The hand's advice against the read or, with none, at equilibrium. */
+export function lockRequest(study: AdvisorState, hero: string, hole: string, opponent: string, lock: Lock | null): AdvisorState {
+  const st = handRequest(study, hero, hole);
   return lock ? { ...st, locks: { [opponent]: { ...lock } } } : st;
 }

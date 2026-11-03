@@ -108,6 +108,10 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})
   const locked = r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];
   if (locked.length) p.lock = `best response to ${locked.map(([seat, l]) => `${seat} ${describeLock(l)}`).join("; ")}, not an equilibrium re-solve`;
+  // optimize_sizes (advisor.py _optimize_sizes): the sizes this answer bets were picked by a first, shorter solve of the
+  // street over a wide menu, whose distance from equilibrium isn't reported; the figures below are the second solve's
+  if (Array.isArray(r.sizes_kept) && r.sizes_kept.length)
+    p.sizing = `${r.street ?? "street"} bet sizes ${(r.sizes_kept as string[]).join(", ")} chosen by a first solve over a wide menu (one street deep, one raise)`;
   if (source === "preflop-solve") preflopSolveOf(r, p);
   const tm = tournamentModelOf(r, source);
   if (tm) p.tournament = tm;
@@ -194,6 +198,7 @@ export const ICM_TABLE_LABEL = "ICM (Malmuth-Harville), worked out in this page 
 export function describe(p: Provenance): string {
   const parts = [LABELS[p.source]];
   if (p.lock) parts.push(p.lock);
+  if (p.sizing) parts.push(p.sizing);
   if (p.librarySpot) parts.push(p.librarySpot);
   if (p.view) parts.push(p.view);
   if (p.tournament) parts.push(p.tournament);

@@ -2113,3 +2113,58 @@ Untouched (read-only `ps`). Memory 59% free; everything ran under `nice`.
 - Phase 6, still open: automatic sizing (per hand), preflop and multiway locks, solve times measured per mode, the
   local server option (after its patch).
 - Phase 7, still open: a satellite-aware preflop, tournaments in Practice.
+
+## 2026-11-03: Phase 6, automatic sizing in Study (second session)
+
+Deploy of ca27e0e (node locks) verified live: run 41702401334 passed; `/lizard/` serves `index-DpKXDdEy.js`, which has
+"not an equilibrium re-solve".
+
+### What the engine does
+
+`optimize_sizes` (`advisor.py` `_optimize_sizes`; only where the player can bet, nothing to call, on a street that
+began heads-up) solves the street once over `OPT_SIZES` (25, 33, 50, 75, 100, 150, 200% of the pot, plus the request's
+sizes for the street), one street deep with one raise, at 35% of the time budget; keeps the sizes either player's first
+bet uses with 3% of their range (the 3 most used); and solves the advice with them in the rest of the time. The answer
+carries `size_usage` (the hero's mix at their first bet in the first solve), `sizes_kept`, `sizes_custom` and a note. It
+skips the flop library. Study drops it (`STUDY_DROPS`), so it is asked per hand like the locks. Probed natively first
+(the river below, SB AhQd: 4.4 s; kept 25/33/50%).
+
+### Code
+
+- `web/src/features/study/autoSize.ts`: `offersAutoSize` (where a lock is offered and the player can check),
+  `autoSizeRequest` (one hand's advice with `optimize_sizes`), `usageOf`, `keptMenu` (the kept sizes as a setup menu,
+  none where the all-in was kept).
+- `locks.ts`: `handRequest` (Study's request out of Study mode with the hero and hand), which `lockRequest` now uses.
+- `AutoSizePanel.tsx`: "Choose bet sizes (automatic sizing)" under the grid: the hand, Choose sizes (one request, Stop);
+  the answer's badge, the kept sizes, the wide menu with the share of the range of the player to act betting each size, the hand's
+  and the range's mix at the kept sizes (EVs marked ≈ where rough), a link "compare the kept sizes with this spot's"
+  (the two size menus view, `CompareLinks.withMenu`), the engine's notes.
+- `provenance.ts`: an answer with `sizes_kept` gets `sizing` ("river bet sizes 25%, 33%, 50% chosen by a first solve
+  over a wide menu (one street deep, one raise)") on its badge.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 346/346 in 56 files (`autoSize.test.tsx`: where it's offered, the request, the menu read, the badge label, the panel asking once with the menu, the kept sizes and the Compare link). |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+Heads-up 100bb Ks7d2c5h9s, checked to the river, SB to act after BB checks (Study's menu there 33/75/125/250%):
+Choose sizes for Ad6s kept 25/33/50% (SB's range bet them 15.5/18.8/21.9% in the first solve, 75% 8.3%); the badge
+"Live solve · river bet sizes 25%, 33%, 50% chosen by a first solve over a wide menu (one street deep, one raise) ·
+0.08% pot from equilibrium in the solved game (converged) · 300 iterations". The Compare link: A the spot's menu (the
+range's EV 3.20bb), B the kept one (3.35bb): "B's menu is worth 0.15bb more to SB here … beyond the two answers'
+distance from equilibrium combined (0.009bb)". At 375px no sideways scroll.
+
+### Precompute builds
+
+Untouched (read-only `ps`). Memory 62% free; everything ran under `nice`.
+
+### Next
+
+- Phase 6, still open: preflop and multiway locks, solve times measured per mode, the local server option (after its
+  patch).
+- Phase 7, still open: a satellite-aware preflop, tournaments in Practice.

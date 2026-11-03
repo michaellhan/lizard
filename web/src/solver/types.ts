@@ -52,6 +52,8 @@ export interface Provenance {
   view?: string;
   /** a node lock's answer (features/study/locks.ts): the best response to the read, never an equilibrium; in words */
   lock?: string;
+  /** automatic sizing's answer (features/study/autoSize.ts): its bet sizes chosen by a first solve; in words */
+  sizing?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */
   mbbPerHand?: number;
   mode: SolveMode;
