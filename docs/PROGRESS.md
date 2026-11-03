@@ -236,6 +236,15 @@ Tests: web 48/48 in 11 files. New: `views.test.ts`, a null-values case in `Combo
 `RangeMatrix.test.tsx`; both null cases fail on the old components. Typecheck and lint clean. Assembler 8/8, with
 a new test that an unchanged run keeps the time.
 
+Deployed `7c28833` by workflow run 41640635230 and verified live (bundle `index-TdDf0aVC.js`, the same as the local
+build). Every route returned 200, an unknown path 404, and `/`, `/gto-solver/` and `/gto-solver-library/index.json`
+200. Study heads-up TdTc8h, turn 2s, with AJs selected:
+- the stored turn and both looks show the strategy view only. The combo panel shows combos and mix, with no EV,
+  equity or EQR. The stored turn's action buttons show its stored EVs (EV 2.36 and 4.31), and the looks show none;
+- the final answer ("Live solve · 0.20% pot from equilibrium in the solved game · 300 iterations") offers Strategy,
+  EV and Equity, with "equity 49.5%" in the header. AJs shows EV 2.90bb, equity 60.3% and EQR 0.80, and the
+  per-action and per-combo EVs are filled.
+
 ### Precompute builds
 
 Both heads-up builds were left untouched throughout: no signals, renice, restarts or writes. Lizard only read
