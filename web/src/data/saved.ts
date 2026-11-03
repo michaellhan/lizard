@@ -1,5 +1,6 @@
 // Saved spots (Study lines), saved ranges (the Ranges editor's) and saved drills (Practice's and Analyze's), kept in
 // this browser's IndexedDB (db.ts).
+import { noteSaved } from "./backupNudge";
 import { db, type SavedDrill, type SavedRange, type SavedSpot } from "./db";
 
 /** A new record id (a random UUID where the browser has one). */
@@ -16,7 +17,9 @@ const newestFirst = <T extends { updatedAt: number }>(xs: T[]) => xs.sort((a, b)
 
 export async function putSpot(s: SavedSpot): Promise<void> {
   const d = await db();
-  if (d) await d.put("savedSpots", s);
+  if (!d) return;
+  await d.put("savedSpots", s);
+  await noteSaved();
 }
 
 /** Every saved spot, the latest changed first. */
@@ -37,7 +40,9 @@ export async function spotAt(line: string): Promise<SavedSpot | undefined> {
 
 export async function putRange(r: SavedRange): Promise<void> {
   const d = await db();
-  if (d) await d.put("savedRanges", r);
+  if (!d) return;
+  await d.put("savedRanges", r);
+  await noteSaved();
 }
 
 export async function listRanges(): Promise<SavedRange[]> {
@@ -57,7 +62,9 @@ export async function deleteRange(id: string): Promise<void> {
 
 export async function putDrill(s: SavedDrill): Promise<void> {
   const d = await db();
-  if (d) await d.put("savedDrills", s);
+  if (!d) return;
+  await d.put("savedDrills", s);
+  await noteSaved();
 }
 
 /** Every saved drill, the latest changed first. */

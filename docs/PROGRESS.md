@@ -1113,3 +1113,40 @@ One flaky step found and fixed: the Save drill button is disabled until its look
 ### Precompute builds
 
 Untouched. Memory 64% free; every check ran under `nice`.
+
+## 2026-11-03: Phase 5, the backup reminder (second session)
+
+Deploy of 419a11d (saved drills) verified live: `index-CIAaXk7U.js`, which has "Save drill", `savedDrills` and "Open
+in Practice".
+
+### Code
+
+- `data/backupNudge.ts`: a count in kv (`backupNudge`: saves, last backup, the count when put off), changed in one
+  readwrite transaction so saves at once all count. `putSpot`, `putRange`, `putDrill`, `addHands` (new hands only)
+  and `putHandNotes` count; a restore doesn't. `nudgeDue`: 10 saves (`NUDGE.first`), or 25 more after "Not now".
+- `features/saved/backupFile.ts` `downloadBackup`: the Saved page's download, moved out to be shared; it starts the
+  count again.
+- `app/BackupNudge.tsx` (in `Shell` under `DbNotice`): "N saves since your last backup (date)… kept in this browser
+  only, and a browser can clear a site's data" with "Download a backup", "Not now" and a link to Backup and restore.
+  Not on the Saved page, whose backup panel now says "Last backup made here <date>; N saves since" (or "No backup made
+  in this browser yet; N saves counted so far").
+- This is the ROADMAP's Phase 5 risk "Storage eviction on phones. Prompt for backup after a number of saves."
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 253/253 in 42 files. New: `backupNudge.test.ts` (each kind of save counted, new hands only; the thresholds, put off, reset by a backup; saves at once), `BackupNudge.test.tsx` (shown past 10, Not now, back after 25 more, Download a backup ends it; not on Saved); the Saved page's last-backup line |
+| Typecheck and ESLint | clean |
+| Build | passes |
+
+### Checked in the browser (local build)
+
+- With the count set to 12 in the preview's kv: the line under the header on Study; "Not now" hid it (kv
+  `{saves: 12, snoozedAt: 12}`); at 40 it came back. At 375px it wraps, no horizontal scroll. No console errors.
+  "Download a backup" was not clicked in the browser (a download); the tests cover it with the anchor stubbed. The
+  preview's kv key was deleted afterwards.
+
+### Precompute builds
+
+Untouched. Memory 61% free; every check ran under `nice`.

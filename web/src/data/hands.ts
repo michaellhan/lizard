@@ -1,5 +1,6 @@
 // Analyze's hands and graded decisions, kept in this browser's IndexedDB (db.ts): added once each (a hand already
 // kept is left as it is), listed newest first, and removed an import at a time with their decisions.
+import { noteSaved } from "./backupNudge";
 import { db, type DecisionRecord, type HandRecord } from "./db";
 
 /** The site a hand played in Practice is kept under (features/practice/history.ts). */
@@ -18,6 +19,7 @@ export async function addHands(hands: readonly HandRecord[]): Promise<{ added: n
     added++;
   }
   await tx.done;
+  await noteSaved(added);
   return { added, existing: hands.length - added };
 }
 
@@ -35,6 +37,7 @@ export async function putHandNotes(id: string, tags: readonly string[], note: st
   if (note.trim()) out.note = note.trim();
   await tx.store.put(out);
   await tx.done;
+  await noteSaved();
   return out;
 }
 

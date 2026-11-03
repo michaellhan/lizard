@@ -4,9 +4,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
-import { backupFileName, makeBackup, restoreBackup, restoreSummary } from "@/data/backup";
+import { restoreBackup, restoreSummary } from "@/data/backup";
+import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
 import { deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches } from "@/data/saved";
 import { describeLine, fromSearch } from "@/features/study/studyState";
+import { downloadBackup } from "./backupFile";
 
 const lineText = (line: string) => {
   const h = fromSearch(line);
@@ -295,18 +297,22 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // saves since the last backup made here (data/backupNudge.ts)
+  const [count, setCount] = useState<NudgeState | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => void nudgeState().then((s) => alive && setCount(s));
+    load();
+    const off = onNudgeState(load);
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
+
   const download = async () => {
     setMsg(null);
-    const b = await makeBackup();
-    const blob = new Blob([JSON.stringify(b, null, 1)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = backupFileName();
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const b = await downloadBackup();
     setMsg({
       ok: true,
       text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions.`,
@@ -341,6 +347,12 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
         imported into Analyze with your tags, notes and grades; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
       </p>
+      {count && (
+        <p aria-label="Last backup">
+          {count.lastBackupAt ? `Last backup made here ${day(count.lastBackupAt)}` : "No backup made in this browser yet"}
+          {`; ${count.saves} ${count.saves === 1 ? "save" : "saves"} ${count.lastBackupAt ? "since" : "counted so far"}.`}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => void download()} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
           Download backup

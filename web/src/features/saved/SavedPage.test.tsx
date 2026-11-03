@@ -109,6 +109,7 @@ describe("SavedPage", () => {
     expect(await screen.findByText("Backup made: 1 spots, 0 drills, 0 ranges, 0 sessions, 0 hands, 0 graded decisions.")).toBeInTheDocument();
     expect(click).toHaveBeenCalledOnce();
     expect(JSON.parse(await created[0]!.text()).stores.savedSpots[0].data.title).toBe("Kept");
+    expect(await screen.findByLabelText("Last backup")).toHaveTextContent(/^Last backup made here .+; 0 saves since\.$/);
 
     // a backup holding one more spot and a range: added, nothing here deleted
     const more = { ...backup, stores: { ...backup.stores, savedSpots: [...backup.stores.savedSpots, { ...backup.stores.savedSpots[0]!, id: "b", data: spot("b", "From the file") }], savedRanges: [{ id: "r", v: 1, created: 1, updated: 1, dev: "d", data: { id: "r", name: "BB defend", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 1 } }] } };

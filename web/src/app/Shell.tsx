@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router";
 import { BASE_URL } from "@/config";
 import { ROUTES } from "./routes";
 import { EngineStatusPill } from "@/components/EngineStatusPill";
+import { BackupNudge } from "./BackupNudge";
 import { DbNotice } from "./DbNotice";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -37,6 +38,7 @@ export function Shell() {
         </div>
       </header>
       <DbNotice />
+      <BackupNudge />
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
         <Outlet />
       </main>
