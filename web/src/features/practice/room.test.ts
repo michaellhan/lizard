@@ -3973,3 +3973,104 @@ describe("Instant flops", () => {
     expect(room.metrics().charts).toBe(6);
   });
 });
+
+describe("A Room with an end, watched (the engine check's)", () => {
+  const FOLD: AdvisorResponse = { street: "preflop", pot_bb: 1.5, actions: [{ action: "fold", freq: 1 }] };
+  const run = (o: RoomOptions) => setup({ pace: 0, pause: 0, guard: 0, ...o });
+  const answered = new WeakSet<Asked>();
+
+  /** All that's asked answered, every opponent folding and you too, until nothing's left to do. */
+  async function playOut(room: Room, asked: Asked[], rounds = 60) {
+    for (let i = 0; i < rounds; i += 1) {
+      await pass(1);
+      for (const a of asked) {
+        if (answered.has(a)) continue;
+        answered.add(a);
+        a.answer(a.play ? move("fold") : FOLD);
+        await flush();
+      }
+      const s = room.snapshot();
+      const t = s.tables[s.focus];
+      if (t?.answer && t.turnKey && s.queue.includes(s.focus)) room.choose(s.focus, t.turnKey, 0);
+    }
+  }
+
+  it("deals no more than `maxHands` at several tables, however many are free", async () => {
+    const { room, asked } = run({ tables: 2, maxHands: 3 });
+    await playOut(room, asked);
+    const s = room.snapshot();
+    expect(s.session).toMatchObject({ dealt: 3, hands: 3 });
+    expect(s.tables.every((t) => t.hand.result)).toBe(true);
+    const out = asked.length;
+    room.dealFinished();
+    room.nextHand(false, 0);
+    await pass(5000);
+    expect(room.snapshot().session.dealt).toBe(3);
+    expect(asked).toHaveLength(out);
+  });
+
+  it("deals on with no `maxHands`", async () => {
+    const { room, asked } = run({ tables: 2 });
+    await playOut(room, asked);
+    expect(room.snapshot().session.dealt).toBeGreaterThan(3);
+  });
+
+  it("holds Next hand at one table once `maxHands` have been dealt, the last hand left as it ended", async () => {
+    const { room, asked } = run({ maxHands: 2 });
+    await playOut(room, asked);
+    expect(room.snapshot().session).toMatchObject({ dealt: 1, hands: 1 });
+    room.nextHand();
+    await playOut(room, asked);
+    expect(room.snapshot().session).toMatchObject({ dealt: 2, hands: 2 });
+    const last = table(room).hand;
+    room.nextHand();
+    room.nextHand(true);
+    await pass(5000);
+    expect(room.snapshot().session).toMatchObject({ dealt: 2, hands: 2 });
+    expect(table(room).hand).toBe(last);
+  });
+
+  it("tells the watcher of each hand as it ends, once, with its table and the session as it then stood", async () => {
+    const ended = vi.fn();
+    const { room, asked } = run({ tables: 2, maxHands: 5, watch: { ended, refused: vi.fn() } });
+    await playOut(room, asked);
+    expect(ended).toHaveBeenCalledTimes(5);
+    const seen = ended.mock.calls as [PracticeHand, { hands: number }, number][];
+    expect(seen.map(([h]) => h.n).sort()).toEqual([0, 1, 2, 3, 4]);
+    expect(seen.every(([h]) => h.result)).toBe(true);
+    expect(seen.map(([, s]) => s.hands)).toEqual([1, 2, 3, 4, 5]);
+    expect(new Set(seen.map(([, , t]) => t))).toEqual(new Set([0, 1]));
+    // (the table's number is the hand's: this table's next deal is on it by now)
+    for (const [h, , t] of seen) expect(room.snapshot().tables[t]!.hand.n).toBeGreaterThanOrEqual(h.n);
+  });
+
+  it("tells the watcher of an opponent's answer the table can't take, and of no other failure", async () => {
+    const refused = vi.fn();
+    const ended = vi.fn();
+    const { room, asked } = run({ watch: { ended, refused } });
+    await flush();
+    asked[0]!.answer(move("check"));
+    await pass(1000);
+    expect(table(room).failed).toMatch(/can't check/);
+    expect(refused).toHaveBeenCalledTimes(1);
+    expect(refused).toHaveBeenCalledWith(table(room).hand, table(room).failed, 0);
+    room.retry();
+    await flush();
+    asked[1]!.answer({ error: "no such node" });
+    await pass(1000);
+    expect(table(room).failed).toBe("no such node");
+    expect(refused).toHaveBeenCalledTimes(1);
+    expect(ended).not.toHaveBeenCalled();
+  });
+
+  it("gives as many of its last figures as it's asked for, 200 unless it's told", async () => {
+    const { room, asked } = run({ tables: 2 });
+    await playOut(room, asked, 400);
+    const all = room.metrics(Infinity);
+    expect(all.solves.length).toBeGreaterThan(200);
+    expect(all.waits.length).toBeGreaterThan(0);
+    expect(room.metrics(1).solves).toEqual(all.solves.slice(-1));
+    expect(room.metrics(1).waits).toEqual(all.waits.slice(-1));
+    expect(room.metrics().solves).toEqual(all.solves.slice(-200));
+  });
+});

@@ -14,7 +14,7 @@ import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport
 
 /** ms a stopped request's worker has to answer a ping (a stop takes ~0.1 s, the longest stretch that doesn't read it a
  * few seconds; the classic STUCK_S) */
-const STUCK_MS = 15_000;
+export const STUCK_MS = 15_000;
 
 export interface WorkerTransportOptions {
   /** URL of the folder holding worker.js, solver.zip and pf/ (must end with "/") */

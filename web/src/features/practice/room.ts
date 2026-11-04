@@ -137,6 +137,8 @@ export interface RoomOptions {
   persist?: boolean;
   /** the seed of the n-th deal, a drill's deals again counted (at random, unset) */
   seedOf?: (n: number) => number;
+  /** no table deals again once this many hands have been dealt in all, so a run has an end (unset: they deal on) */
+  maxHands?: number;
   /** the mode to play at (unset: Settings') */
   mode?: SolveMode;
   /** how many tables it starts with, whatever is kept (unset: one, or those the kept doc brings back) */
@@ -152,6 +154,17 @@ export interface RoomOptions {
   readKept?: () => Promise<unknown>;
   /** reads the flop library's index, once the solver has resolved the library (a test's is its fixture) */
   readIndex?: () => Promise<unknown>;
+  /** told what no view gets to see */
+  watch?: RoomWatch;
+}
+
+/** For the engine check, which judges every hand and not only those a view happens to draw. */
+export interface RoomWatch {
+  /** A hand has ended, whole, in the session as it then stood. Above one table with no `pause` the next is on the table
+   * before anyone could look. */
+  ended(h: PracticeHand, s: PracticeSession, table: number): void;
+  /** A table couldn't take an opponent's answer (`moveOf`): it fails there, and `why` is the table's. */
+  refused(h: PracticeHand, why: string, table: number): void;
 }
 
 /** A table as a view draws it. */
@@ -298,6 +311,8 @@ export class Room {
   private readonly now: () => number;
   private readonly persist: boolean;
   private readonly seedOf: (n: number) => number;
+  private readonly maxHands: number;
+  private readonly watch: RoomWatch | undefined;
   private readonly fixedMode: SolveMode | undefined;
   private readonly fixedSpot: Spot | undefined;
   private readonly fixedSeat: SeatChoice | undefined;
@@ -383,6 +398,8 @@ export class Room {
     this.now = o.now ?? (() => performance.now());
     this.persist = o.persist ?? true;
     this.seedOf = o.seedOf ?? randomSeed;
+    this.maxHands = o.maxHands ?? Infinity;
+    this.watch = o.watch;
     this.fixedMode = o.mode;
     this.readKept = o.readKept ?? (() => kvGet<unknown>(KEPT_KEY));
     this.readIndex =
@@ -808,7 +825,7 @@ export class Room {
     while (!t.spent) {
       const h = t.hand;
       if (this.many && h.result) {
-        if (this.paced(t, this.pause)) return;
+        if (this.dealtOut || this.paced(t, this.pause)) return;
         this.deal(t);
         continue;
       }
@@ -833,7 +850,11 @@ export class Room {
         if (this.paced(t, seeking(h) ? 0 : pace)) return;
         this.moves.delete(need.key);
         const { move, fallback } = moveOf(h, mv, sim);
-        if (fallback) return this.fail(need.key, fallback);
+        if (fallback) {
+          this.fail(need.key, fallback);
+          this.watch?.refused(h, fallback, this.tables.indexOf(t));
+          return;
+        }
         this.usedAhead(need.key);
         if (!asked) this.charted += 1;
         this.commit(t, withVillain(h, move, sim));
@@ -989,6 +1010,7 @@ export class Room {
     this.endedAt = t;
     this.saveNow = true;
     if (useSettings.getState().keepHands) void this.keepHand(t.hand);
+    this.watch?.ended(t.hand, this.session, this.tables.indexOf(t));
   }
 
   private put(t: Table, h: PracticeHand): void {
@@ -1026,6 +1048,7 @@ export class Room {
   }
 
   private deal(t: Table, reset = false): void {
+    if (this.dealtOut) return;
     this.dealt(t, following(t.hand, this.seed(), this.opts, reset, this.session.dealt));
     this.session = afterDeal(this.session);
     t.error = null;
@@ -1196,6 +1219,11 @@ export class Room {
     return this.tables.length > 1;
   }
 
+  /** `maxHands` have been dealt: what's left is to finish them. */
+  private get dealtOut(): boolean {
+    return this.session.dealt >= this.maxHands;
+  }
+
   /** What a stop costs on the client in use; until there is one it can't be said to be cheap. */
   private get stopCost(): StopCost {
     return this.client?.stopCost?.() ?? "kills";
@@ -1293,8 +1321,8 @@ export class Room {
     };
   }
 
-  /** How the waits went, per decision (multitable.js:838-844). */
-  metrics(): RoomMetrics {
+  /** How the waits went, per decision (multitable.js:838-844). `last`: the waits and solves wanted. */
+  metrics(last = 200): RoomMetrics {
     const w = this.waits.map((x) => x.s).sort((a, b) => a - b);
     return {
       decisions: w.length,
@@ -1302,8 +1330,8 @@ export class Room {
       stops: this.stops,
       charted: this.charted,
       charts: this.charts.size,
-      waits: this.waits.slice(-200),
-      solves: this.solves.slice(-200),
+      waits: this.waits.slice(-last),
+      solves: this.solves.slice(-last),
     };
   }
 
