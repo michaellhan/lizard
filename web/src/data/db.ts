@@ -83,6 +83,9 @@ export interface HandRecord {
   end: string;
   /** your decisions in it */
   decisions: number;
+  /** the street Practice played for you (a pot drill, Instant flops): your moves there were drawn from the charts, so
+   * they're in the history but not in your stats or grades */
+  playedFor?: "preflop";
   tournament?: string;
   text: string;
   /** your tags and note on the hand, and when you last changed them (none until you do) */

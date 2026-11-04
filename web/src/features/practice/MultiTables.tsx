@@ -2,10 +2,11 @@
 // a rail with your last verdict, a row per table and your decisions across them. The Room runs it all and this draws its
 // snapshot, so everything here is what a table says it is and each action names the table it's for: a dock's button
 // carries its spot's key, and the Room drops a press whose spot has gone. Below `sm` only the table in front is drawn, under
-// tabs that stick below the app's header (Shell's, `sticky top-0 z-40`, 49px), with the dock stuck to the bottom. There's
-// no pace and no Run it out here, and a finished table deals again by itself. How many tables there are is simply
-// how many the Room has (the kept doc brings them back), so no setting can say otherwise.
-import { useState } from "react";
+// tabs that stick below the app's header (Shell's, `sticky top-0 z-40`, 49px) for as long as the tables and dock go on, so
+// they sit directly in the wrapper that holds both, with the dock stuck to the bottom. There's no pace and no Run it out
+// here, and a finished table deals again by itself. How many tables there are is simply how many the Room has (the kept doc
+// brings them back), so no setting can say otherwise.
+import { useEffect, useRef, useState, type Ref } from "react";
 import { bb, kindOf, pct } from "@/components/actions";
 import { sourcesText } from "@/features/history/history";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -19,13 +20,19 @@ import { resultLine, Spinner, stateOf, TableTile, verdictLine, type TableState }
 
 const CONTROL = "rounded border border-border bg-surface-2 px-1.5 py-1";
 
-/** What a spot deals, above the tiles. */
-const spotNote = (spot: Spot) =>
-  spot === "any"
-    ? "Each table plays a whole hand. Preflop is answered from the charts, not solved; later streets are read from the library or solved while you play the other tables."
-    : spot === "lib"
-      ? "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others."
-      : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}; later streets are read from the library or solved while you play the other tables.`;
+/** What a spot deals, above the tiles. (Heads-up, a pot drill or Instant flops has no betting rules in it; any hand may.) */
+const spotNote = (spot: Spot, preflopOnly: boolean) =>
+  preflopOnly
+    ? "Each table plays its preflop and stops as the flop comes. The charts answer it, not a solve."
+    : spot === "any"
+      ? "Each table plays a whole hand. Preflop is answered from the charts, not solved; later streets are read from the library or solved while you play the other tables, and a flop or turn with five or more players still in is answered by betting rules, not solved."
+      : spot === "lib"
+        ? "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others."
+        : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}; later streets are read from the library or solved while you play the other tables.`;
+
+/** A select gives focus back once it's set: on one, the page's keys don't work and the next is type-ahead, so C would pick
+ * CO, S the SB or Single-raised pots and 3 3-bet pots. */
+const leave = (select: HTMLSelectElement) => select.blur();
 
 /** The row above the score: Tables, always, and Spots and Seat from two up, with what they mean and why any is held. */
 export function TablesBar({ room, session, count, stopCost, flops }: { room: Room; session: PracticeSession; count: number; stopCost: RoomSnapshot["stopCost"]; flops: RoomSnapshot["flops"] }) {
@@ -62,7 +69,10 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
               <select
                 aria-label="Spots"
                 value={spot}
-                onChange={(e) => set({ practiceSpot: e.target.value as Spot })}
+                onChange={(e) => {
+                  set({ practiceSpot: e.target.value as Spot });
+                  leave(e.currentTarget);
+                }}
                 title={spot === "any" ? undefined : spot === "lib" ? INSTANT_FLOPS.tip : POT_DRILLS[spot].tip}
                 className={CONTROL}
               >
@@ -79,7 +89,15 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
             </label>
             <label className="flex items-center gap-1">
               <span className="text-muted">Seat</span>
-              <select aria-label="Seat" value={seat} onChange={(e) => set({ practiceSeat: e.target.value })} className={CONTROL}>
+              <select
+                aria-label="Seat"
+                value={seat}
+                onChange={(e) => {
+                  set({ practiceSeat: e.target.value });
+                  leave(e.currentTarget);
+                }}
+                className={CONTROL}
+              >
                 <option value="random">Random</option>
                 {seatsOf(session.players).map((p) => (
                   <option key={p} value={p} disabled={!seats.includes(p)}>
@@ -93,7 +111,7 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
       </div>
       {count > 1 && (
         <p className="text-xs text-muted">
-          {spotNote(spot)} Spots and Seat apply from each table&rsquo;s next hand.
+          {spotNote(spot, preflopOnly)} Spots and Seat apply from each table&rsquo;s next hand.
           {flops.off && ` ${flopsNote(flops, spot)}`}
           {stopCost === "kills" && " This browser can't stop a solve: tables wait for it to finish."}
         </p>
@@ -104,7 +122,7 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
 
 /** The table in front: its options, or what it's waiting on, or what to do where it failed. A failed move is only ever
  * yours to play where it was your spot: an opponent's seat never goes into your decisions. */
-function Dock({ room, snap, state }: { room: Room; snap: RoomSnapshot; state: TableState }) {
+function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; state: TableState; head: Ref<HTMLHeadingElement> }) {
   const { tables, focus, queue, guarded } = snap;
   const t = tables[focus]!;
   const h = t.hand;
@@ -120,7 +138,7 @@ function Dock({ room, snap, state }: { room: Room; snap: RoomSnapshot; state: Ta
   const busy = tables.filter((x) => !x.hand.result && !x.failed && !x.spent).length;
   return (
     <section aria-label="Your move" aria-live="polite" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm sm:static">
-      <h2 className="font-medium">
+      <h2 ref={head} tabIndex={-1} className="font-medium">
         Table {focus + 1} · {ready ? `your turn · ${seat} · ${sim.current} · pot ${fmt(sim.pot)}bb` : state.text}
       </h2>
       {ready && (
@@ -172,7 +190,7 @@ function Dock({ room, snap, state }: { room: Room; snap: RoomSnapshot; state: Ta
       {!ready && next === undefined && state.tone !== "fail" && (
         <p className="flex items-center gap-2 text-muted">
           <Spinner />
-          {busy ? `No table needs you yet: the solver is on ${busy} table${busy === 1 ? "" : "s"}.` : "Dealing the next hands…"}
+          {busy ? `No table needs you yet: working on ${busy} table${busy === 1 ? "" : "s"}.` : "Dealing the next hands…"}
         </p>
       )}
     </section>
@@ -199,7 +217,7 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
           Last hand: #{last.n + 1} · {seatLabel(last.seat, t.hand.players)} · {resultLine(last.result)}
         </p>
       )}
-      <p className="text-xs text-muted">Graded against: {sourcesText(t.sources)}</p>
+      {s.n > 0 && <p className="text-xs text-muted">Graded against: {sourcesText(t.sources)}</p>}
     </li>
   );
 }
@@ -228,8 +246,23 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
   );
   const keptEnded = ended && kept?.key === keyOf(session, ended.hand) ? kept : null;
 
+  // Where a press leaves you: a control that's done would hold focus, and Enter or Space would go to it again, New session
+  // with no confirm or a pick where you meant to deal, so focus goes to the dock (a table's Next hand does this at one table).
+  const head = useRef<HTMLHeadingElement>(null);
+  const toDock = () => head.current?.focus({ preventScroll: true });
+  const pick = (i: number) => {
+    room.pick(i);
+    toDock();
+  };
+  // (a field too, where Enter started the session: your next key is an option, not a digit for it. From nowhere, as a
+  // reload brings the tables back, it stays nowhere.)
+  useEffect(() => {
+    if (document.activeElement !== document.body) head.current?.focus({ preventScroll: true });
+  }, [session.id, tables.length]);
+
   // F, C and X go by what the option is, so they stay put when the order flips; 1–9 by its place; S the next waiting
-  // table; Enter or Space deal finished tables now (on a focused control, it's that control's own); K the last finished hand
+  // table; Enter or Space deal finished tables now (on a focused control, it's that control's own, and with nothing
+  // finished Space still doesn't scroll the page out from under the tiles); K the last finished hand
   useHandKeys(active, (e, tag) => {
     const k = e.key.toLowerCase();
     if (k === "s") return room.skip();
@@ -238,7 +271,7 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
       return;
     }
     if (e.key === "Enter" || e.key === " ") {
-      if (/^(BUTTON|A|SUMMARY)$/.test(tag) || !tables.some((t) => t.hand.result)) return;
+      if (/^(BUTTON|A|SUMMARY)$/.test(tag)) return;
       e.preventDefault();
       return room.dealFinished();
     }
@@ -251,47 +284,45 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2 sm:hidden">
-        <div role="tablist" aria-label="Tables" className="sticky top-12 z-30 -mx-4 flex gap-1 border-b border-border bg-bg/95 px-4 py-1 text-sm backdrop-blur">
-          {tables.map((_, i) => {
-            const s = states[i]!;
-            return (
-              <button
-                key={i}
-                type="button"
-                role="tab"
-                aria-selected={i === focus}
-                aria-controls={`practice-table-${i}`}
-                aria-label={`Table ${i + 1}: ${s.text}`}
-                title={`Table ${i + 1}: ${s.text}`}
-                onClick={() => room.pick(i)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 ${i === focus ? "bg-surface-3 font-medium" : "text-muted"}`}
-              >
-                {i + 1}
-                {s.spin ? <Spinner /> : <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${s.tone === "wait" ? "bg-warn" : s.tone === "fail" ? "bg-danger" : "bg-border"}`} />}
-                {s.place > 0 && <span className="rounded-full bg-warn/15 px-1.5 font-mono text-xs text-warn">{s.place}</span>}
-              </button>
-            );
-          })}
-        </div>
-        {verdict && (
-          <>
-            <button type="button" aria-expanded={verdictOpen} title={verdict.title} onClick={() => setVerdictOpen(!verdictOpen)} className="w-full rounded-md border border-border px-2 py-1 text-left text-xs">
-              {verdict.text}
+      <div role="tablist" aria-label="Tables" className="sticky top-12 z-30 -mx-4 flex gap-1 border-b border-border bg-bg/95 px-4 py-1 text-sm backdrop-blur sm:hidden">
+        {tables.map((_, i) => {
+          const s = states[i]!;
+          return (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              aria-selected={i === focus}
+              aria-controls={`practice-table-${i}`}
+              aria-label={`Table ${i + 1}: ${s.text}`}
+              title={`Table ${i + 1}: ${s.text}`}
+              onClick={() => pick(i)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 ${i === focus ? "bg-surface-3 font-medium" : "text-muted"}`}
+            >
+              {i + 1}
+              {s.spin ? <Spinner /> : <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${s.tone === "wait" ? "bg-warn" : s.tone === "fail" ? "bg-danger" : "bg-border"}`} />}
+              {s.place > 0 && <span className="rounded-full bg-warn/15 px-1.5 font-mono text-xs text-warn">{s.place}</span>}
             </button>
-            {verdictOpen && view}
-          </>
-        )}
+          );
+        })}
       </div>
+      {verdict && (
+        <div className="space-y-2 sm:hidden">
+          <button type="button" aria-expanded={verdictOpen} title={verdict.title} onClick={() => setVerdictOpen(!verdictOpen)} className="w-full rounded-md border border-border px-2 py-1 text-left text-xs">
+            {verdict.text}
+          </button>
+          {verdictOpen && view}
+        </div>
+      )}
 
       <div className="space-y-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-4 lg:space-y-0">
         <div className="min-w-0 space-y-3">
           <div className="grid gap-2 sm:grid-cols-2">
             {tables.map((t, i) => (
-              <TableTile key={i} i={i} t={t} state={states[i]!} front={i === focus} onPick={() => room.pick(i)} onRetry={() => room.retry(i)} />
+              <TableTile key={i} i={i} t={t} state={states[i]!} front={i === focus} onPick={() => pick(i)} onRetry={() => room.retry(i)} />
             ))}
           </div>
-          <Dock room={room} snap={snap} state={states[focus]!} />
+          <Dock room={room} snap={snap} state={states[focus]!} head={head} />
         </div>
 
         <aside aria-label="Your results" className="min-w-0 space-y-3">
@@ -321,6 +352,7 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
                 onAll={(all) => {
                   setSettings({ keepHands: all });
                   if (all && !keptEnded) room.keep();
+                  toDock();
                 }}
               />
             </section>

@@ -17,6 +17,7 @@ import { GRADE_RULES, summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
+import { rowOf } from "@/features/history/history";
 import { describeSetup } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
@@ -152,13 +153,18 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       {many && (
         <details className="rounded-lg border border-border bg-surface p-3 text-sm">
           <summary className="cursor-pointer">Game</summary>
-          <div className="mt-2">{setup}</div>
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-muted">
+              Above one table Spots and Seat decide what&rsquo;s dealt, so Your seat, Play&rsquo;s kinds of pot and Carry chips here wait until you&rsquo;re back at one table. Preflop only still counts.
+            </p>
+            {setup}
+          </div>
         </details>
       )}
 
       <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} />
 
-      <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} />
+      <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} reserve={many} />
 
       {many ? <MultiTables room={room} snap={snap} active={active} /> : <OneTable room={room} snap={snap} active={active} />}
 
@@ -191,6 +197,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
                 {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} correct` : ""}
                 {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
                 {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
+                {s.decisions ? ` · Graded against: ${rowOf(s).graded}` : ""}
               </li>
             ))}
           </ul>

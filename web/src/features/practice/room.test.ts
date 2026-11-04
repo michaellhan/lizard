@@ -2880,6 +2880,23 @@ describe("Instant flops", () => {
     }
   });
 
+  it("takes an index it can't read as one that failed, and doesn't leave the tables waiting on it", async () => {
+    const readIt = async () => ({
+      get spots() {
+        throw new Error("no spots");
+      },
+    });
+    const { room, asked } = setup({ players: 6, opts: OPTS, pace: 0, pause: 0, guard: 0, readIndex: readIt });
+    await flush();
+    room.setTables(2);
+    await flush();
+    expect(room.snapshot().flops.off).toBe("failed");
+    expect(at(room, 1).hand.pot).toBeUndefined();
+    asked.at(-1)!.answer(move("fold"));
+    await flush();
+    expect(asked.length).toBeGreaterThan(1);
+  });
+
   it("reads the index above one table or at Accurate, once, and again with a new solver, whose read wins", async () => {
     const quick = vi.fn(readIndex);
     const one = setup({ players: 6, opts: OPTS, readIndex: quick });

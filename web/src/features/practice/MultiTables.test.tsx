@@ -1,11 +1,11 @@
 // Practice above one table as you see it, on a stubbed solver: the row above the score, the tiles, the dock, the rail, the
 // phone's tabs and the keys, each drawn from a real Room. multitable.test.js's view is here: `:68` changed, as your hand
 // becomes Table 1; `:366`; and `:534` changed, since your hand's request is still wanted then, so what's stopped is a run-out
-// nobody plays above one table. What the Room decides is room.test.ts's. Layout isn't here: jsdom draws no Tailwind.
+// nobody plays above one table. What the Room decides is room.test.ts's. Layout isn't here, as jsdom draws no Tailwind, past the classes that hold it still.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { kvGet, kvSet } from "@/data/db";
+import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { classOf } from "@/engine/nlhe/cards";
 import { emptyTally } from "@/features/history/history";
@@ -228,6 +228,57 @@ describe("Tables (multitable.test.js:68)", () => {
     expect([1, 2, 3].map(cardsAt)).not.toEqual(before);
     expect(screen.getByRole("radio", { name: "3" })).toHaveAttribute("aria-checked", "true");
   });
+
+  it("takes focus off a button that's done to the dock: a change of Tables, New session, a tile, a tab", async () => {
+    page();
+    await ready();
+    const head = () => within(dock()).getByRole("heading");
+    const press = (b: HTMLElement) => {
+      b.focus();
+      fireEvent.click(b);
+    };
+
+    press(screen.getByRole("radio", { name: "3" }));
+    await screen.findByRole("region", { name: "Table 3" });
+    await waitFor(() => expect(document.activeElement).toBe(head()));
+
+    // (Enter would start every table again, with no confirm)
+    const fresh = screen.getByRole("button", { name: "New session" });
+    press(fresh);
+    await waitFor(() => expect(within(tile(3)).getByRole("button", { name: /^Table 3 · #3 · / })).toBeInTheDocument());
+    expect(document.activeElement).toBe(head());
+    expect(head()).toHaveAttribute("tabindex", "-1");
+
+    press(within(tile(2)).getByRole("button", { name: /^Table 2/ }));
+    expect(document.activeElement).toBe(head());
+    press(screen.getByRole("tab", { name: /^Table 3/ }));
+    expect(document.activeElement).toBe(head());
+
+    press(screen.getByRole("radio", { name: "4" }));
+    await screen.findByRole("region", { name: "Table 4" });
+    await waitFor(() => expect(document.activeElement).toBe(head()));
+  });
+
+  it("takes focus from nowhere on a reload, and off a field Enter started a session from", async () => {
+    hold();
+    await open(doc([youFirst(1), youFirst(2)]));
+    expect(document.activeElement).toBe(document.body);
+
+    const field = screen.getByRole("spinbutton", { name: "Ante" });
+    field.focus();
+    fireEvent.submit(screen.getByRole("form", { name: "New session" }));
+    await waitFor(() => expect(document.activeElement).toBe(within(dock()).getByRole("heading")));
+  });
+
+  it("says what Game's settings do above one table, and only there", async () => {
+    page();
+    await ready();
+    expect(screen.queryByText(/Above one table Spots and Seat decide/)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "2" }));
+    await screen.findByRole("region", { name: "Table 2" });
+    const game = screen.getByRole("form", { name: "New session" }).closest("details")!;
+    expect(within(game).getByText(/Above one table Spots and Seat decide what.s dealt, so Your seat, Play.s kinds of pot and Carry chips here wait until you.re back at one table\. Preflop only still counts\./)).toBeInTheDocument();
+  });
 });
 
 describe("the view (multitable.test.js:366)", () => {
@@ -236,15 +287,31 @@ describe("the view (multitable.test.js:366)", () => {
   it("says what each table is doing while nobody waits for you", async () => {
     hold();
     await open(doc(hands));
-    expect(dock()).toHaveTextContent("No table needs you yet: the solver is on 4 tables.");
+    expect(dock()).toHaveTextContent("No table needs you yet: working on 4 tables.");
     expect(dock()).toHaveTextContent("Table 1 · Solving your spot…");
     expect(tile(1)).toHaveTextContent("Solving your spot…");
-    expect(tile(2)).toHaveTextContent("Solving your spot…");
+    expect(tile(2)).toHaveTextContent("Reading the chart…");
     expect(tile(4)).toHaveTextContent("UTG is thinking…");
     // said in words on a phone's tab too, with a dot or a spinner each
     expect(screen.getByRole("tab", { name: "Table 4: UTG is thinking…" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("tab", { name: "Table 1: Solving your spot…" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("radio", { name: "4" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("says a chart or the betting rules are being read where one of those will answer, not that a spot is being solved", async () => {
+    const calls = (...ps: string[]) => ps.map((p) => mv(p, "call"));
+    const limped = [mv("UTG", "fold"), ...calls("HJ", "CO", "BTN", "SB"), mv("BB", "check")];
+    const fourWay = [mv("UTG", "fold"), mv("HJ", "fold"), ...calls("CO", "BTN", "SB"), mv("BB", "check")];
+    const round = ["SB", "BB", "HJ", "CO", "BTN"].map((p) => mv(p, "check"));
+    hold();
+    await open(doc([spot(1, "SB", { preflop: limped }, 3), spot(2, "SB", { preflop: limped, flop: round }, 4), spot(3, "SB", { preflop: limped, flop: round, turn: round }, 5), spot(4, "SB", { preflop: fourWay }, 3)]));
+    // (five still in: flop and turn are the rules, the river is solved, and so is a flop at four or fewer)
+    expect(tile(1)).toHaveTextContent("Reading the betting rules…");
+    expect(tile(2)).toHaveTextContent("Reading the betting rules…");
+    expect(tile(3)).toHaveTextContent("Solving your spot…");
+    expect(tile(4)).toHaveTextContent("Solving your spot…");
+    expect(dock()).toHaveTextContent("Table 1 · Reading the betting rules…");
+    expect(tile(1)).not.toHaveTextContent("Solving");
   });
 
   it("draws the table in front whole, with the dock, the tabs, Spots and Seat, and a row a table with its source", async () => {
@@ -289,7 +356,7 @@ describe("the view (multitable.test.js:366)", () => {
     expect(row).toHaveTextContent("net +2.5bb");
     expect(row).toHaveTextContent("Graded against: Live solve 4");
     expect(row).toHaveAttribute("aria-current", "true");
-    expect(tablesRow(2)).toHaveTextContent("Graded against: No decision graded");
+    expect(tablesRow(2)).not.toHaveTextContent("Graded against");
     expect(tablesRow(2)).not.toHaveTextContent(/best or correct|lost a decision|net|NaN/);
     expect(screen.getByText(/Each decision is graded here once you act/)).toBeInTheDocument();
   });
@@ -327,7 +394,7 @@ describe("the view (multitable.test.js:366)", () => {
     stub.advice = byHand([hand, facing("fold", "call")]);
     await open(doc([hand, theirMove(2)]));
     fireEvent.click(within(await ready()).getByRole("button", { name: /fold/i }));
-    await waitFor(() => expect(dock()).toHaveTextContent("No table needs you yet: the solver is on 1 table."));
+    await waitFor(() => expect(dock()).toHaveTextContent("No table needs you yet: working on 1 table."));
     cleanup();
 
     const a = betInto(3);
@@ -341,6 +408,54 @@ describe("the view (multitable.test.js:366)", () => {
     key("f");
     await waitFor(() => expect(dock()).toHaveTextContent("Dealing the next hands…"));
     expect(dock()).not.toHaveTextContent("No table needs you");
+  });
+
+  it("sticks the phone's tabs as long as the tables go on: they're in the wrapper that holds tiles and dock, not one of their own", async () => {
+    hold();
+    await open(doc([youFirst(1), youFirst(2)]));
+    const tabs = screen.getByRole("tablist", { name: "Tables" });
+    expect(tabs.className).toMatch(/\bsticky\b/);
+    expect(tabs.className).toMatch(/sm:hidden/);
+    expect(tabs.parentElement).toContainElement(dock());
+    expect(tabs.parentElement).toContainElement(tile(2));
+  });
+
+  it("holds a tile's height whatever its hand: each row kept to its line, and the foot there with nothing in it", async () => {
+    hold();
+    await open(doc([youFirst(1), betInto(2)]));
+    for (const i of [1, 2]) {
+      const t = tile(i);
+      const foot = t.lastElementChild!;
+      expect(foot.className).toMatch(/sm:min-h-16/);
+      expect(within(t).getByRole("list", { name: "Seats" }).className).toMatch(/sm:grid-cols-2/);
+      for (const chip of within(t).getAllByRole("listitem")) {
+        expect(chip.className).toMatch(/sm:h-6/);
+        expect(chip.className).toMatch(/whitespace-nowrap/);
+      }
+      expect(within(t).getByRole("group", { name: "Board" }).parentElement!.className).toMatch(/sm:flex-nowrap/);
+      expect(within(t).getByText("Pot").parentElement!.className).toMatch(/whitespace-nowrap/);
+      expect(within(t).getByRole("button", { name: new RegExp(`^Table ${i}`) }).parentElement!.className).toMatch(/sm:flex-nowrap/);
+      expect(within(t).getByTitle(/…$/).className).toMatch(/sm:truncate/);
+    }
+    expect(tile(1).lastElementChild).toHaveTextContent(/^$/);
+  });
+
+  it("puts a failure in the foot, not above the board, and a shown hand in a seat's stack's place", async () => {
+    const hand = river(1);
+    const failing = betInto(2);
+    stub.advice = byHand([hand, { street: "river", actions: [{ action: "check", freq: 1, ev_bb: 0 }] }], [failing, { error: "no such node" }]);
+    await open(doc([hand, failing]));
+    const says = await within(tile(2)).findByRole("alert");
+    expect(tile(2).lastElementChild).toContainElement(says);
+
+    fireEvent.click(within(await ready()).getByRole("button", { name: /check/i }));
+    const bb = () => within(tile(1)).getByRole("listitem", { name: "BB" });
+    await waitFor(() => expect(bb().querySelectorAll('[role="img"]')).toHaveLength(2));
+    expect(bb().querySelector(".text-muted")).toBeNull();
+    for (const c of bb().querySelectorAll('[role="img"]')) {
+      expect(c.className).toMatch(/\bh-4\b/);
+      expect(c.className).not.toMatch(/flex-col/);
+    }
   });
 
   it("deals a finished table again by itself after the pause", async () => {
@@ -490,12 +605,16 @@ describe("the keys", () => {
     const a = betInto(1);
     const b = betInto(2);
     await spots([a, facing("fold", "call")], [b, facing("fold", "call")]);
-    // (nothing finished: Space still scrolls the page; `key` says false where a key's default was stopped)
-    expect(key(" ")).toBe(true);
+    // (nothing finished: Space doesn't scroll the page out from under the tiles; `key` says false where a key's default was stopped)
+    expect(key(" ")).toBe(false);
+    expect(key(" ", document.body)).toBe(false);
+    expect(within(tile(1)).queryByText(/You folded/)).toBeNull();
     key("f");
     await waitFor(() => expect(tile(1)).toHaveTextContent(/You folded/));
-    // (on a button, Enter is that button's)
+    // (on a button, Enter and Space are that button's)
     expect(key("Enter", within(tile(1)).getByRole("button", { name: /^Table 1/ }))).toBe(true);
+    expect(key(" ", within(tile(1)).getByRole("button", { name: /^Table 1/ }))).toBe(true);
+    expect(key(" ", screen.getByText("Game"))).toBe(true);
     expect(tile(1)).toHaveTextContent(/You folded/);
     expect(key("Enter")).toBe(false);
     await waitFor(() => expect(tile(1)).not.toHaveTextContent(/You folded/));
@@ -548,6 +667,20 @@ describe("the keys", () => {
     fireEvent.click(within(last).getByRole("checkbox", { name: "Keep every hand" }));
     await within(screen.getByRole("region", { name: "Last finished hand" })).findByText(/Kept in Analyze/);
     expect(useSettings.getState().keepHands).toBe(true);
+    // (on a checkbox the page's keys don't work, and Space would turn it off again)
+    expect(document.activeElement).toBe(within(dock()).getByRole("heading"));
+  });
+
+  it("gives Enter back to the tables once a pick is done, not to the button that picked", async () => {
+    await spots([betInto(1), facing("fold", "call")], [betInto(2), facing("fold", "call")]);
+    key("f");
+    await waitFor(() => expect(tile(1)).toHaveTextContent(/You folded/));
+    const pick = within(tile(1)).getByRole("button", { name: /^Table 1/ });
+    pick.focus();
+    fireEvent.click(pick);
+    expect(document.activeElement).toBe(within(dock()).getByRole("heading"));
+    expect(key("Enter", document.activeElement!)).toBe(false);
+    await waitFor(() => expect(tile(1)).not.toHaveTextContent(/You folded/));
   });
 
   it("leaves a key alone with a modifier held, held down, or typed in a field", async () => {
@@ -573,6 +706,49 @@ describe("the keys", () => {
     expect(tile(1)).toHaveAttribute("aria-current", "true");
     key("f");
     await waitFor(() => expect(tile(1)).toHaveTextContent(/You folded/));
+  });
+});
+
+describe("what graded the figures", () => {
+  it("says it under the score once a decision is graded, the line held before that above one table, and a table's row at its first finished hand", async () => {
+    const hand = betInto(1);
+    stub.advice = byHand([hand, facing("fold", "call")]);
+    stub.move = () => new Promise(() => {});
+    await open(doc([hand, theirMove(2)]));
+    const score = screen.getByRole("region", { name: "Score" });
+    const held = score.querySelector("p")!;
+    expect(held.className).toMatch(/min-h-8/);
+    expect(held).toHaveTextContent(/^$/);
+
+    // (mid-hand: your decision's in the score, and not yet in the table's row, which counts finished hands)
+    fireEvent.click(within(await ready()).getByRole("button", { name: /call/i }));
+    await waitFor(() => expect(score).toHaveTextContent("Graded against: Live solve 1"));
+    expect(score).toHaveTextContent(/Decisions graded\s*1/);
+    expect(tablesRow(1)).not.toHaveTextContent("Graded against");
+  });
+
+  it("says it at one table too, once there's a figure, with no line held before that", async () => {
+    page();
+    await ready();
+    const score = screen.getByRole("region", { name: "Score" });
+    expect(score.querySelector("p")).toBeNull();
+    fireEvent.click(within(await ready()).getAllByRole("button")[0]!);
+    await waitFor(() => expect(score).toHaveTextContent("Graded against: Live solve 1"));
+    expect(score.querySelector("p")!.className).not.toMatch(/min-h-8/);
+  });
+
+  it("says it on a past session's row, where one has a figure to read", async () => {
+    const past = { kind: "practice" as const, evLossBb: 1, meta: { hands: 3, ok: 3, graded: 2, net: 1 } };
+    // (dated ahead of the sessions these tests have left behind)
+    const ahead = Date.now() + 1e6;
+    await putSession({ ...past, id: "kept", startedAt: ahead + 2, decisions: 4, meta: { ...past.meta, sources: { live: 3, charts: 1 } } });
+    await putSession({ ...past, id: "older", startedAt: ahead + 1, decisions: 4 });
+    await putSession({ ...past, id: "none", startedAt: ahead, decisions: 0 });
+    page();
+    const rows = within(await screen.findByRole("region", { name: "Past sessions" })).getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Graded against: Live solve 3, Preflop charts (approximate) 1");
+    expect(rows[1]).toHaveTextContent("Graded against: Not kept: played before Lizard kept what graded each decision");
+    expect(rows[2]).not.toHaveTextContent("Graded against");
   });
 });
 
@@ -800,6 +976,30 @@ describe("Spots and Seat", () => {
     expect(within(seat).getByRole("option", { name: "Random" })).toBeEnabled();
   });
 
+  it("give focus back once set: on a select the page's keys don't work, and the next is type-ahead", async () => {
+    await atTables(2);
+    for (const [name, value] of [["Spots", "srp"], ["Seat", "UTG"]] as const) {
+      const box = screen.getByRole("combobox", { name });
+      box.focus();
+      fireEvent.change(box, { target: { value } });
+      expect(document.activeElement).not.toBe(box);
+    }
+    expect(useSettings.getState()).toMatchObject({ practiceSpot: "srp", practiceSeat: "UTG" });
+  });
+
+  it("say what a table's later streets are, the betting rules among them, at Any hand", async () => {
+    hold();
+    await open(doc([youFirst(1), youFirst(2)]));
+    expect(screen.getByText(/Preflop is answered from the charts, not solved/)).toHaveTextContent("a flop or turn with five or more players still in is answered by betting rules, not solved");
+  });
+
+  it("say a preflop-only session's table stops at the flop and the charts answer it, with no later street to speak of", async () => {
+    hold();
+    await open(doc([{ ...youFirst(1), preflopOnly: true }, { ...youFirst(2), preflopOnly: true }], { session: { opts: { ...OPTS, preflopOnly: true } } }));
+    const note = screen.getByText(/Each table plays its preflop and stops as the flop comes\. The charts answer it, not a solve\./);
+    expect(note).not.toHaveTextContent(/later streets/);
+  });
+
   it("stays on Any hand in a preflop-only session, and says why", async () => {
     useSettings.setState({ practiceSpot: "srp" });
     hold();
@@ -1004,7 +1204,7 @@ describe("Instant flops", () => {
     library(answers());
     hold();
     await open(doc([{ ...betInto(1), pot: "lib", cands: [] }, { ...betInto(2), pot: "srp" }, betInto(3)]));
-    const label = "≈ Preflop charts: the preflop was played for you, not solved";
+    const label = "≈ Preflop from the charts, not solved";
     expect(within(tile(1)).getByText(label)).toBeInTheDocument();
     expect(within(tile(2)).getByText(label)).toBeInTheDocument();
     expect(within(tile(3)).queryByText(label)).toBeNull();

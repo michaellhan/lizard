@@ -38,9 +38,10 @@ const GRADED_SOURCES: Record<GradeScope, readonly ResultSource[]> = { preflop: N
 
 export type DecisionVerdict = Verdict | "Not graded";
 
-/** The decisions of yours in a hand a scope grades: the street and the action's index there. */
-export const decisionsIn = (r: Pick<ReplayedHand, "lines" | "hand">, scope: GradeScope) =>
-  heroDecisions(r).filter((d) => SCOPE_STREETS[scope].includes(d.street));
+/** The decisions of yours in a hand a scope grades: the street and the action's index there. `playedFor`: the record's,
+ * as a move Practice played for you is no decision of yours to grade. */
+export const decisionsIn = (r: Pick<ReplayedHand, "lines" | "hand">, scope: GradeScope, playedFor?: HandRecord["playedFor"]) =>
+  heroDecisions(r).filter((d) => SCOPE_STREETS[scope].includes(d.street) && d.street !== playedFor);
 
 export const decisionId = (handId: string, street: Street, i: number) => `${handId}|${street}|${i}`;
 
@@ -338,7 +339,7 @@ export async function gradeHands(
       continue; // (kept hands were read once: one that no longer reads is passed over)
     }
     const ds: DecisionRecord[] = [];
-    for (const { street, i } of decisionsIn(r, scope)) {
+    for (const { street, i } of decisionsIn(r, scope, h.playedFor)) {
       const id = decisionId(h.id, street, i);
       const prev = opts.deepen?.get(id);
       if (opts.deepen ? !prev : done.has(id)) continue;

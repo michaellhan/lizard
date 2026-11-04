@@ -646,12 +646,16 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
       </ol>
       <p className="text-muted">
         Pot {fmt(sim.pot)}bb ({hand.end}). {hand.site === PRACTICE_SITE
-          ? "A hand you played in Practice"
+          ? `A hand you played in Practice${hand.playedFor ? ", preflop played for you from the charts" : ""}`
           : hand.site === CLASSIC_SITE
             ? "A hand from the classic app's My hands"
             : "From your hand history"}
         , replayed on Lizard's table.
-        {decisions.length ? " Grades: your preflop moves against the preflop charts (by frequency, not a solve); after the flop, each move against what answered it, which its grade names." : " None of your decisions here is graded yet."}
+        {decisions.length
+          ? hand.playedFor
+            ? " Grades: each move from the flop against what answered it, which its grade names."
+            : " Grades: your preflop moves against the preflop charts (by frequency, not a solve); after the flop, each move against what answered it, which its grade names."
+          : " None of your decisions here is graded yet."}
         {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
         {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page, to add the prizes left and any bounties."}
       </p>

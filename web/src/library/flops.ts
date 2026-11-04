@@ -58,7 +58,7 @@ export function instantSpots(index: unknown): FlopSpot[] {
   const spots = (index as { spots?: unknown } | null | undefined)?.spots;
   if (!Array.isArray(spots)) return [];
   return (spots as Partial<LibrarySpotIndex>[]).flatMap((s) => {
-    if (!s?.line || !s.flops) return [];
+    if (typeof s?.line !== "string" || !s.line || !s.flops) return [];
     const toks = s.line.split(",");
     return [{ id: s.id ?? "", label: s.label ?? "", toks, players: toks.filter((x) => !x.endsWith(":f")).map((x) => x.split(":")[0]!), flops: new Set(Object.keys(s.flops)), ...(s.game ? { game: s.game } : {}) }];
   });

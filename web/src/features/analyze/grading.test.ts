@@ -290,6 +290,27 @@ describe("turns and rivers", () => {
     expect(deepened(read, { ...fast, verdict: "Not graded", why: "no answer", gradedAt: 9 })).toEqual({ ...read, notChecked: "no answer", gradedAt: 9 });
   });
 
+  it("grades nothing Practice played for you: not in a scope, a run or a preflop-only one", async () => {
+    const text = HH("stars_6max_srp.txt");
+    const r = importHand(text);
+    expect(decisionsIn(r, "preflop", "preflop")).toEqual([]);
+    expect(decisionsIn(r, "library", "preflop")).toEqual([{ street: "flop", i: 1 }]);
+    expect(decisionsIn(r, "all", "preflop").map((d) => d.street)).toEqual(["flop", "turn", "river"]);
+
+    const h = { id: "h", text, playedFor: "preflop" } as HandRecord;
+    const asked: AdvisorState[] = [];
+    const ask: Ask = async (s) => {
+      asked.push(s);
+      return answer(LIVE);
+    };
+    const pause = async () => {};
+    expect(await gradeHands([h], "preflop", new Set(), ask, { pause })).toEqual({ graded: 0, hands: 1, stopped: false });
+    expect(asked).toEqual([]);
+    const run = await gradeHands([h], "all", new Set(), ask, { pause });
+    expect(run.graded).toBe(3);
+    expect(asked.every((s) => s.board)).toBe(true);
+  });
+
   it("a run checks only the reads it's given, in the order played, and leaves the rest", async () => {
     const r = HH("stars_6max_srp.txt");
     const h = { id: "h", text: r } as HandRecord;

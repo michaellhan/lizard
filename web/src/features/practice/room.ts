@@ -918,7 +918,12 @@ export class Room {
     this.libState = "loading";
     const settle = (index: unknown) => {
       if (run !== this.libRun) return;
-      this.lib = instantSpots(index);
+      // (past `.then`'s rejection handler: a throw here would leave the tables on "loading" for good)
+      try {
+        this.lib = instantSpots(index);
+      } catch {
+        this.lib = [];
+      }
       this.libState = this.lib.length ? "ok" : "failed";
       this.pump();
     };

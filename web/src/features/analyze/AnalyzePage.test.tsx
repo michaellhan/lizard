@@ -8,10 +8,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
+import type { DecisionRecord } from "@/data/db";
+import { addHands, PRACTICE_SITE, putDecisions } from "@/data/hands";
 import { deleteDrill, listDrills } from "@/data/saved";
+import { importHand } from "@/hh/replay";
 import { classicDb } from "@/test/classic";
 import { dirEntry, fileEntry } from "@/test/entries";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
+import { recordOf } from "./analyze";
 import { AnalyzePage } from "./AnalyzePage";
 
 // the solver stubbed: preflop the charts' answer (CO's chart never calls), the SRP hand's flop (Qs8d3c) the library's,
@@ -538,5 +542,27 @@ describe("AnalyzePage", () => {
     expect(res).toHaveTextContent("many (9 files): 9 hands read, 1 to keep (0 new, 1 already kept from an earlier import).");
     expect(within(res).getByText("Each file (9)").closest("details")).not.toHaveAttribute("open");
     expect(res).toHaveTextContent("many/s9.txt: 1 read, 0 to keep");
+  });
+
+  it("says a kept hand's preflop was played for you, and doesn't speak of your preflop moves in its grades", async () => {
+    const text = HH("stars_6max_srp.txt");
+    const rec = (n: string, o: object) => ({ ...recordOf(text, importHand(text), { id: "practice:s", name: "Practice", at: 1 }), id: `practice|${n}`, number: n, site: PRACTICE_SITE, ...o });
+    await addHands([rec("L1-1", { playedFor: "preflop" }), rec("L1-2", {})]);
+    const graded = (handId: string) => ({ id: `${handId}|flop|1`, handId, street: "flop", verdict: "Best", source: "live", label: "Quick", confidence: "low", gradedAt: 1 }) as DecisionRecord;
+    await putDecisions([graded("practice|L1-1"), graded("practice|L1-2")]);
+    open();
+    const opened = async (n: string) => {
+      await waitFor(() => expect(handRows().some((r) => r.getAttribute("aria-label") === `Hand ${n}`)).toBe(true));
+      fireEvent.click(within(handRows().find((r) => r.getAttribute("aria-label") === `Hand ${n}`)!).getByRole("button", { name: "Open" }));
+      return within(await screen.findByRole("region", { name: "Hand" })).findByText(/replayed on Lizard's table/);
+    };
+    const drawn = await opened("L1-1");
+    expect(drawn).toHaveTextContent("A hand you played in Practice, preflop played for you from the charts, replayed on Lizard's table.");
+    expect(drawn).toHaveTextContent("Grades: each move from the flop against what answered it");
+    expect(drawn).not.toHaveTextContent("your preflop moves");
+
+    const own = await opened("L1-2");
+    expect(own).toHaveTextContent("A hand you played in Practice, replayed on Lizard's table.");
+    expect(own).toHaveTextContent("Grades: your preflop moves against the preflop charts");
   });
 });

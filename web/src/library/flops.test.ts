@@ -68,6 +68,11 @@ describe("instantSpots", () => {
   it("holds nothing from what isn't an index", () => {
     for (const x of [null, undefined, "index", {}, { spots: 7 }, { spots: [null, {}, { line: "UTG:f" }, { flops: {} }] }]) expect(instantSpots(x)).toEqual([]);
   });
+
+  it("passes over a spot whose line isn't a string, and keeps the rest", () => {
+    const flops = { AhKhQh: 1 };
+    for (const line of [5, true, "", ["UTG:f"], { a: 1 }]) expect(instantSpots({ spots: [{ id: "bad", line, flops }, { id: "good", line: "UTG:f", flops }] }).map((s) => s.id)).toEqual(["good"]);
+  });
 });
 
 describe("heldSpots", () => {

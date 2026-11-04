@@ -108,5 +108,7 @@ describe("the clock", () => {
     const stop = new AbortController();
     stop.abort();
     expect(await toAsk(hands, "all", new Set(), { signal: stop.signal })).toBeNull();
+    // (a preflop Practice played for you is nothing of yours to ask)
+    expect(await toAsk([{ id: "h", text: hand, playedFor: "preflop" }] as HandRecord[], "triage", new Set())).toEqual({ preflop: 0, flop: 1, turn: 1, river: 1 });
   });
 });

@@ -1,6 +1,7 @@
 // Practice hands written as hand histories (history.ts) and read back by the importer (hh/replay.ts): the same
 // seats, cards and moves, each move taken by the table as it was in Practice; only what the table showed is written.
 import { describe, expect, it } from "vitest";
+import { statsOf } from "@/features/analyze/stats";
 import { finalSim, importHand } from "@/hh/replay";
 import { resultOf } from "@/hh/results";
 import { simulate, STREETS, type Lines, type Move, type Street, type TableSetup } from "@/poker/table";
@@ -110,6 +111,29 @@ describe("Practice hands as hand histories", () => {
       importedAt: AT.getTime(),
       text,
     });
+  });
+
+  it("a hand dealt to a pot: your preflop was drawn from the charts, so the history says so and its record is marked", async () => {
+    // (hand 1 of a drill: you're on the button; your open and everyone's folds are the charts', the flop's yours)
+    const line = [...folds("UTG", "HJ", "CO"), mv("BTN", "raise", 2.5), mv("SB", "fold"), mv("BB", "call"), mv("BB", "check"), mv("BTN", "bet", 2), mv("BB", "fold")];
+    const fresh = () => newHand(6, 100, 0, 21);
+    const drill = played({ ...fresh(), pot: "srp" }, ...line);
+    const { text, rec } = roundTrip(drill);
+    expect(text).toContain("Preflop played for you from the charts: those moves aren't yours.");
+    expect(rec).toMatchObject({ playedFor: "preflop", decisions: 1 });
+
+    // none of it in your stats, what you did from the flop is
+    const stats = (await statsOf([rec]))!;
+    expect(stats.hands).toBe(1);
+    for (const k of ["vpip", "pfr", "rfi"] as const) expect(stats.by[k].n).toBe(0);
+    expect(stats.by.cbet).toMatchObject({ n: 1, k: 1 });
+
+    // the same moves played by you are yours
+    const own = roundTrip(played({ ...fresh(), n: 1 }, ...line));
+    expect(own.text).not.toContain("played for you");
+    expect(own.rec).not.toHaveProperty("playedFor");
+    expect(own.rec.decisions).toBe(2);
+    expect((await statsOf([own.rec]))!.by.vpip).toMatchObject({ n: 1, k: 1 });
   });
 
   it("your fold: every seat still dealt in, nothing after it written, no card the table didn't show", () => {

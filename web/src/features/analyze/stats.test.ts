@@ -15,6 +15,19 @@ const of = (f: string) => handStats(importHand(HH(f)))!;
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
 describe("stats", () => {
+  it("counts nothing of a preflop played for you, and what you did from the flop", () => {
+    const hand = importHand(HH("stars_6max_srp.txt"));
+    const own = handStats(hand)!;
+    const drawn = handStats(hand, "preflop")!;
+    const { vpip, pfr, rfi, ...rest } = own.at;
+    expect([vpip, pfr, rfi]).toEqual([true, true, true]);
+    expect(drawn.at).toEqual(rest);
+    expect(drawn).not.toHaveProperty("rfiPos");
+    expect(drawn.bets).toEqual(own.bets);
+    // a raise you didn't choose is one all the same: the c-bet after it is yours
+    expect(drawn.at.cbet).toBe(true);
+  });
+
   it("reads each stat's chance and what you did in a hand", () => {
     // BTN opens, c-bets 1.8 into 5.5, barrels turn and river; the big blind folds the river
     const srp = of("stars_6max_srp.txt");

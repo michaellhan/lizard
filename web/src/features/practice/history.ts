@@ -4,10 +4,11 @@
 // by position and you are "You"; every seat has a "Dealt to" line, so the seats still to act when you folded are
 // dealt in. Only what the table showed is written: the board as far as it was dealt, an opponent's cards where it
 // reached a showdown, who collected what (nothing after your fold unless the others ran it out, or after the preflop
-// in a preflop-only hand: the hand isn't played out).
+// in a preflop-only hand: the hand isn't played out). A hand dealt to a pot has your preflop in it as a move like any
+// other, drawn from the charts: the history says so, and its record is marked, so Analyze doesn't take those moves for yours.
 import type { HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
-import { recordOf } from "@/features/analyze/analyze";
+import { heroDecisions, recordOf } from "@/features/analyze/analyze";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
 import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
@@ -94,16 +95,25 @@ export function handHistory(h: PracticeHand, head: { site: string; number: strin
   if (board.length) out.push(`Board [${board.join(" ")}]`);
   if (res?.folded) out.push(run ? `${YOU} folded: the others played the rest of the hand by their strategies.` : `${YOU} folded: the rest of the hand wasn't played.`);
   if (res?.cut) out.push("Preflop only: the hand stopped as the preflop closed.");
+  if (h.pot) out.push("Preflop played for you from the charts: those moves aren't yours.");
   return out.join("\n") + "\n";
 }
 
 /** The finished hand as Analyze keeps it: under Practice's site, kept with the session's other hands. */
 export function practiceRecord(h: PracticeHand, session: { id: string; startedAt: number }, at: Date): HandRecord {
   const text = practiceHistory(h, session.startedAt, at);
-  const r = recordOf(text, importHand(text), {
+  const replayed = importHand(text);
+  const r = recordOf(text, replayed, {
     id: `practice:${session.id}`,
     name: `Practice, ${new Date(session.startedAt).toLocaleString()}`,
     at: at.getTime(),
   });
-  return { ...r, id: `${PRACTICE_SITE}|${r.number}|${r.hole}`, site: PRACTICE_SITE, bb: "1bb", ...(h.result?.cut ? { end: "preflop only" } : {}) };
+  return {
+    ...r,
+    id: `${PRACTICE_SITE}|${r.number}|${r.hole}`,
+    site: PRACTICE_SITE,
+    bb: "1bb",
+    ...(h.result?.cut ? { end: "preflop only" } : {}),
+    ...(h.pot ? { playedFor: "preflop" as const, decisions: heroDecisions(replayed).filter((d) => d.street !== "preflop").length } : {}),
+  };
 }

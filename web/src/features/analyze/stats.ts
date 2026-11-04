@@ -103,8 +103,10 @@ function steps(r: ReplayedHand): Step[] {
   return out;
 }
 
-/** One hand's stats (null where the replay stopped short of the history: it's left out). */
-export function handStats(r: ReplayedHand): HandStats | null {
+/** One hand's stats (null where the replay stopped short of the history: it's left out). `playedFor`: the record's, where
+ * Practice played your preflop, so none of it counts; from the flop it's yours, on the line as it stood (c-betting a raise
+ * drawn for you is a c-bet). */
+export function handStats(r: ReplayedHand, playedFor?: HandRecord["playedFor"]): HandStats | null {
   if (r.stopped) return null;
   const hero = r.hand.hero;
   const all = steps(r);
@@ -115,7 +117,7 @@ export function handStats(r: ReplayedHand): HandStats | null {
     if (!(k in at)) at[k] = took;
   };
 
-  const pre = mine("preflop");
+  const pre = playedFor === "preflop" ? [] : mine("preflop");
   if (pre.length) {
     at.vpip = pre.some((x) => x.m.action !== "fold" && x.m.action !== "check");
     at.pfr = pre.some((x) => x.agg);
@@ -259,7 +261,7 @@ export async function statsOf(hands: readonly HandRecord[], opts: { signal?: Abo
     if (!cache.has(h.id)) {
       let s: HandStats | null;
       try {
-        s = handStats(importHand(h.text));
+        s = handStats(importHand(h.text), h.playedFor);
       } catch {
         s = null;
       }

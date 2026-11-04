@@ -2,7 +2,9 @@
 // your cards large, a chip for each seat rather than an oval, and at its foot your made hand and last verdict. A tile
 // never holds your options: there's one dock, for the table in front, so a press can't land on a table you weren't
 // reading. Its state is said in words beside its colour, here and on the phone's tabs, and a verdict always says what
-// answered it, on one line, since a phone has no tooltip.
+// answered it, on one line, since a phone has no tooltip. From `sm` a tile's height doesn't follow its hand (the dock
+// sits under the tiles, so a tile growing would move your options under the mouse, with no change of table for the
+// press guard to see): each row keeps to its height, a seat's chip keeps to one line, and the foot is always there.
 import { PlayingCard } from "@/components/PlayingCard";
 import { bb } from "@/components/actions";
 import { handName, rank7 } from "@/poker/evaluate";
@@ -40,9 +42,13 @@ export interface TableState {
   place: number;
 }
 
+/** What your spot is waiting on, by what will answer it (provenance.ts's `sourceOf`): only the rest is a solve. */
+const answering = (sim: Sim) => (sim.current === "preflop" ? "Reading the chart…" : sim.current !== "river" && sim.active.size >= 5 ? "Reading the betting rules…" : "Solving your spot…");
+
 export function stateOf(t: RoomTable, i: number, queue: readonly number[]): TableState {
   const { hand: h, failed } = t;
-  const ph = phaseOf(h);
+  const sim = simOf(h);
+  const ph = phaseOf(h, sim);
   const moving = ph.kind === "villain" || ph.kind === "auto" ? ph : null;
   const state = (tone: TableState["tone"], text: string, spin = false, place = 0): TableState => ({ tone, text, spin, place });
   if (t.spent) return state("fail", t.error ?? "Nothing more to deal.");
@@ -52,7 +58,7 @@ export function stateOf(t: RoomTable, i: number, queue: readonly number[]): Tabl
   if (seeking(h)) return state("seek", `Dealing ${potLabel(h.pot!)}…`, true);
   const q = queue.indexOf(i);
   if (q >= 0) return state("wait", "Your turn", false, queue.length > 1 ? q + 1 : 0);
-  if (ph.kind === "hero") return state("think", "Solving your spot…", true);
+  if (ph.kind === "hero") return state("think", answering(sim), true);
   return state("think", moving ? `${seatLabel(moving.seat, h.players)} is thinking…` : "Dealing…", true);
 }
 
@@ -64,7 +70,7 @@ const EDGE: Record<TableState["tone"], string> = {
   fail: "border-danger",
 };
 
-export const Spinner = () => <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />;
+export const Spinner = () => <span aria-hidden className="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" />;
 
 function SeatChip({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string }) {
   const you = p === hand.hero;
@@ -77,12 +83,12 @@ function SeatChip({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string })
     <li
       aria-label={`${seatLabel(p, hand.players)}${you ? " (you)" : ""}`}
       aria-current={toAct ? "true" : undefined}
-      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs ${toAct ? "border-accent" : "border-border"} ${you ? "bg-surface-2" : ""} ${folded ? "opacity-50" : ""}`}
+      className={`inline-flex items-center gap-1 overflow-hidden whitespace-nowrap rounded border px-1.5 py-0.5 text-xs sm:h-6 ${toAct ? "border-accent" : "border-border"} ${you ? "bg-surface-2" : ""} ${folded ? "opacity-50" : ""}`}
     >
       <span className="font-medium">{seatLabel(p, hand.players)}</span>
-      <span className="font-mono text-muted">{fmt(behind(setupOf(hand), sim, p))}</span>
-      <span className="font-mono">{won ? <span className="text-accent">won {fmt(won)}</span> : folded ? "folded" : sim.allin.has(p) ? "all-in" : bet > 0 ? `bet ${fmt(bet)}` : ""}</span>
-      {cards?.map((c) => <PlayingCard key={c} card={c} size="sm" />)}
+      {/* (shown cards take the stack's place: the chip stays on one line) */}
+      {cards ? cards.map((c) => <PlayingCard key={c} card={c} size="xs" />) : <span className="font-mono text-muted">{fmt(behind(setupOf(hand), sim, p))}</span>}
+      <span className="min-w-0 truncate font-mono">{won ? <span className="text-accent">won {fmt(won)}</span> : folded ? "folded" : sim.allin.has(p) ? "all-in" : bet > 0 ? `bet ${fmt(bet)}` : ""}</span>
     </li>
   );
 }
@@ -104,15 +110,17 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
       onClick={onPick}
       className={`space-y-2 rounded-lg border bg-surface p-2.5 text-sm ${front ? "border-accent ring-2 ring-accent" : EDGE[state.tone]} ${front && state.tone === "seek" ? "opacity-60" : ""} ${front ? "" : "hidden sm:block"}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 sm:flex-nowrap">
         {/* (a click anywhere on the tile picks it: this is the keyboard's way there) */}
-        <button type="button" className="font-medium hover:underline">
+        <button type="button" className="shrink-0 font-medium hover:underline">
           Table {i + 1} · #{h.n + 1} · {seatLabel(h.hero, h.players)}
         </button>
         {state.tone !== "fail" && (
-          <span className="flex items-center gap-1.5 text-xs">
+          <span className="flex min-w-0 items-center gap-1.5 text-xs">
             {state.spin && <Spinner />}
-            {state.text}
+            <span title={state.text} className="min-w-0 sm:truncate">
+              {state.text}
+            </span>
             {state.place > 0 && (
               <span title="Your place in the queue" className="rounded-full bg-warn/15 px-1.5 font-mono text-warn">
                 {state.place}
@@ -121,32 +129,11 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
           </span>
         )}
       </div>
-      {state.tone === "fail" && (
-        <p role="alert" className="text-xs text-danger">
-          {state.text}{" "}
-          <button
-            type="button"
-            className="underline"
-            onClick={(e) => {
-              // (not a pick: you may be asking again in passing)
-              e.stopPropagation();
-              onRetry();
-            }}
-          >
-            Retry
-          </button>
-        </p>
-      )}
-      {t.error && !t.spent && (
-        <p role="alert" className="text-xs text-danger">
-          {t.error}
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap">
         <div role="group" aria-label="Board" className="flex gap-1">
           {h.board.map((c, k) => (k < boardShown(h) ? <PlayingCard key={k} card={c} /> : <span key={k} aria-hidden className="inline-block h-11 w-8 rounded border border-dashed border-border" />))}
         </div>
-        <span>
+        <span className="whitespace-nowrap">
           <span className="text-muted">Pot </span>
           <span className="font-mono">{fmt(sim.pot)}bb</span>
         </span>
@@ -156,18 +143,38 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
           <PlayingCard key={c} card={c} size="lg" />
         ))}
       </div>
-      <ul aria-label="Seats" className="flex flex-wrap gap-1">
+      <ul aria-label="Seats" className="flex flex-wrap gap-1 sm:grid sm:grid-cols-2">
         {seatsOf(h.players).map((p) => (
           <SeatChip key={p} hand={h} sim={sim} p={p} />
         ))}
       </ul>
-      {(made || verdict || charted) && (
-        <div className="space-y-0.5 text-xs">
-          {made && <p className="text-muted">{made}</p>}
-          {verdict && <p title={verdict.title}>{verdict.text}</p>}
-          {charted && <p className="text-muted">≈ {sourceLabel("charts")}: the preflop was played for you, not solved</p>}
-        </div>
-      )}
+      {/* (four lines held from `sm`: your made hand, a verdict's two, the charted one) */}
+      <div className="space-y-0.5 text-xs sm:min-h-16">
+        {state.tone === "fail" && (
+          <p role="alert" className="text-danger">
+            {state.text}{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={(e) => {
+                // (not a pick: you may be asking again in passing)
+                e.stopPropagation();
+                onRetry();
+              }}
+            >
+              Retry
+            </button>
+          </p>
+        )}
+        {t.error && !t.spent && (
+          <p role="alert" className="text-danger">
+            {t.error}
+          </p>
+        )}
+        {made && <p className="text-muted">{made}</p>}
+        {verdict && <p title={verdict.title}>{verdict.text}</p>}
+        {charted && <p className="text-muted">≈ Preflop from the charts, not solved</p>}
+      </div>
     </section>
   );
 }

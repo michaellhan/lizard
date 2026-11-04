@@ -8,6 +8,7 @@ import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { actionColors, bb, kindOf, pct } from "@/components/actions";
 import { RangeMatrix } from "@/components/RangeMatrix";
+import { sourcesText } from "@/features/history/history";
 import { whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
@@ -81,7 +82,8 @@ export function optionLabel(name: string, amount: number | undefined): string {
   return name;
 }
 
-export function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null }) {
+/** `reserve`: hold the line under it before there's anything to say, as above one table the dock sits below it. */
+export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; reserve?: boolean }) {
   const s = session.score;
   const item = (label: string, value: string) => (
     <div className="rounded bg-surface-2 px-2 py-1">
@@ -97,6 +99,7 @@ export function ScoreStrip({ session, acc, loss, lossPct }: { session: PracticeS
       {item("EV lost a decision", loss == null ? "–" : `${bb(loss)}bb · ${lossPct!.toFixed(1)}% pot`)}
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && item("Net", `${signed(session.net)}bb`)}
+      {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
     </section>
   );
 }

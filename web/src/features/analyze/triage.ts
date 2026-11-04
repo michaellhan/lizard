@@ -66,7 +66,7 @@ export async function toAsk(
     if (k % 100 === 99) await pause();
     if (opts.signal?.aborted) return null;
     try {
-      for (const { street, i } of decisionsIn(importHand(h.text), scope)) if (!done.has(decisionId(h.id, street, i))) left[street]++;
+      for (const { street, i } of decisionsIn(importHand(h.text), scope, h.playedFor)) if (!done.has(decisionId(h.id, street, i))) left[street]++;
     } catch {
       continue; // (kept hands were read once: gradeHands passes over one that no longer reads)
     }
