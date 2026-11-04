@@ -385,9 +385,21 @@ describe("keptHand", () => {
 
 describe("keptTables", () => {
   const hand = (n: number) => newHand(6, 100, n, n + 1, OPTS);
-  const kept = (h: PracticeHand, o: Partial<KeptTable> = {}): KeptTable => ({ hand: h, stats: emptyTally(), last: null, lastHand: null, ...o });
+  const kept = (h: PracticeHand, o: Partial<KeptTable> = {}): KeptTable => ({ hand: h, stats: emptyTally(), sources: {}, last: null, lastHand: null, ...o });
   const doc = (o: Record<string, unknown> = {}) => ({ v: 1, n: 2, focus: 1, session: { ...freshSession(6, 100, OPTS), dealt: 2, tables: 2 }, tables: [kept(hand(0)), kept(hand(1))], ...o });
   const spoiled = (session: Record<string, unknown>) => doc({ session: { ...doc().session, ...session } });
+
+  it("reads a table's sources, and as none where they're missing or aren't sources, no version change", () => {
+    const sources = { live: 3, charts: 1 };
+    const read = (o: object) => keptTables(doc({ tables: [kept(hand(0), o as Partial<KeptTable>), kept(hand(1))] }))!.tables[0]!.sources;
+    expect(read({ sources })).toEqual(sources);
+    expect(read({ sources: undefined })).toEqual({});
+    expect(read({ sources: { live: -1 } })).toEqual({});
+    expect(read({ sources: { live: "3" } })).toEqual({});
+    expect(read({ sources: { guessed: 3 } })).toEqual({});
+    expect(read({ sources: [3] })).toEqual({});
+    expect(read({ sources: "live" })).toEqual({});
+  });
 
   it("reads a doc as it was written, four places long", () => {
     const d = doc();
@@ -468,7 +480,7 @@ describe("keptTables", () => {
     const lost = kept({ ...hand(1), board: [] }, { stats });
     const k = keptTables(doc({ tables: [kept(hand(0)), lost] }))!;
     expect(k.tables[0]!.hand).not.toBeNull();
-    expect(k.tables[1]).toEqual({ hand: null, stats, last: null, lastHand: null });
+    expect(k.tables[1]).toEqual({ hand: null, stats, sources: {}, last: null, lastHand: null });
   });
 
   it("takes as lost a hand of another game, as the table deals on from it", () => {
@@ -479,7 +491,7 @@ describe("keptTables", () => {
 
   it("reads what's wrong in a place as nothing: no tally, no decision, no last hand, no place at all", () => {
     const k = keptTables(doc({ tables: [{ hand: hand(0), stats: { hands: "x" }, last: { chose: 1 }, lastHand: { n: 1 } }, "x", null] }))!;
-    expect(k.tables[0]).toEqual({ hand: hand(0), stats: emptyTally(), last: null, lastHand: null });
+    expect(k.tables[0]).toEqual({ hand: hand(0), stats: emptyTally(), sources: {}, last: null, lastHand: null });
     expect(k.tables[1]).toBeNull();
   });
 
@@ -488,7 +500,7 @@ describe("keptTables", () => {
     const r = decide(h, BAD, CALL, prov("live"));
     if ("error" in r) throw new Error(r.error);
     const k = keptTables(doc({ tables: [kept(hand(0), { last: { ...r.decision, mix: [null] } as unknown as KeptTable["last"] }), kept(hand(1))] }))!;
-    expect(k.tables[0]).toEqual({ hand: hand(0), stats: emptyTally(), last: null, lastHand: null });
+    expect(k.tables[0]).toEqual({ hand: hand(0), stats: emptyTally(), sources: {}, last: null, lastHand: null });
   });
 
   it("keeps a tally, a last decision and a last hand that are sound", () => {
@@ -529,7 +541,7 @@ describe("keptTables", () => {
 
 describe("sameKept", () => {
   const h = newHand(6, 100, 0, 1, OPTS);
-  const place = (o: Partial<KeptTable> = {}): KeptTable => ({ hand: h, stats: emptyTally(), last: null, lastHand: null, ...o });
+  const place = (o: Partial<KeptTable> = {}): KeptTable => ({ hand: h, stats: emptyTally(), sources: undefined, last: null, lastHand: null, ...o });
   const a: KeptTables = { v: 1, n: 2, focus: 0, session: freshSession(6, 100, OPTS), tables: [place(), place(), null, null] };
 
   it("sees no change where only the wrapping is new", () => {
@@ -542,6 +554,7 @@ describe("sameKept", () => {
     ["the session", { ...a, session: { ...a.session } }],
     ["a hand", { ...a, tables: [{ ...a.tables[0]!, hand: { ...h } }, ...a.tables.slice(1)] }],
     ["a table's results", { ...a, tables: [{ ...a.tables[0]!, stats: emptyTally() }, ...a.tables.slice(1)] }],
+    ["what graded them", { ...a, tables: [{ ...a.tables[0]!, sources: {} }, ...a.tables.slice(1)] }],
     ["a last decision", { ...a, tables: [{ ...a.tables[0]!, last: {} as KeptTable["last"] }, ...a.tables.slice(1)] }],
     ["a last hand", { ...a, tables: [{ ...a.tables[0]!, lastHand: {} as KeptTable["lastHand"] }, ...a.tables.slice(1)] }],
     ["a table gone", { ...a, tables: [null, ...a.tables.slice(1)] }],
@@ -667,10 +680,13 @@ describe("Room's kept doc", () => {
       expect([...new Set(s.session.review.map((e) => e.table))].sort()).toEqual([1, 2]);
       expect(s.session.review.every((e) => e.d.grade && e.hole.length === 2 && e.n >= 1)).toBe(true);
       expect(s.session.review.some((e) => e.d.grade!.loss === 1)).toBe(true);
+      // (each table's sources count what its stats count, so its row's figures carry their source)
+      for (const t of s.tables) expect(Object.values(t.sources).reduce((x, n) => x + n!, 0)).toBe(t.stats.n);
 
       room.stop();
       const { room: back } = await reload({}, solver({ quiet: true }));
       const q = back.snapshot();
+      expect(q.tables.map((t) => t.sources)).toEqual(s.tables.map((t) => t.sources));
       expect(q.session).toEqual(s.session);
       expect(q.session.id).toBe(s.session.id);
       expect(hands(q)).toEqual(hands(s));
@@ -686,6 +702,7 @@ describe("Room's kept doc", () => {
       expect(back.snapshot().session.id).not.toBe(s.session.id);
       expect(back.snapshot().tables.map((t) => t.stats)).toEqual([emptyTally(), emptyTally()]);
       expect(back.snapshot().tables.map((t) => t.lastHand)).toEqual([null, null]);
+      expect(back.snapshot().tables.map((t) => t.sources)).toEqual([{}, {}]);
       expect((await stored())!.session.score.n).toBe(0);
       expect((await stored())!.session.id).toBe(back.snapshot().session.id);
     });

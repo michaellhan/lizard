@@ -3,8 +3,10 @@
 // hand (Advisor.play); your options are the solver's actions at your spot, and each decision is graded against its
 // answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
 // preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
-// A Room runs the hand (room.ts: the requests, the pace, the session) and FullHands draws its snapshot. What a hand needs
-// next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and SetupForm.tsx.
+// A Room runs the hands (room.ts: the requests, the pace, the session) and FullHands draws its snapshot: one table here
+// (OneTable), two to four in MultiTables.tsx, whichever the Room has, as a session above one table comes back on a reload.
+// What a hand needs next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and
+// SetupForm.tsx.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -14,14 +16,14 @@ import { recentSessions, type SessionRecord } from "@/data/db";
 import { GRADE_RULES, summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
-import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { describeSetup } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
-import { Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed } from "./PracticeParts";
+import { MultiTables, TablesBar } from "./MultiTables";
+import { Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
 import { boardShown, optionsOf, phaseOf, POT_DRILLS, runKind, seeking, simOf } from "./practice";
-import { Room } from "./room";
+import { Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
 
@@ -33,8 +35,9 @@ const TABS: readonly { id: Tab; label: string }[] = [
   { id: "drills", label: "Drills" },
 ];
 
-/** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). */
-export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
+/** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). `pause`, `guard`:
+ * the Room's, above one table (unset: its own). */
+export function PracticePage({ pace = 450, pause, guard }: { pace?: number; pause?: number; guard?: number } = {}) {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "drills" ? "drills" : "hands";
   // a hand under way is kept while you drill (its table is mounted once opened, and hidden)
@@ -66,7 +69,7 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
       </div>
       {(handsOpened || tab === "hands") && (
         <div role="tabpanel" id="practice-panel-hands" aria-labelledby="practice-tab-hands" hidden={tab !== "hands"}>
-          <FullHands pace={pace} active={tab === "hands"} />
+          <FullHands pace={pace} pause={pause} guard={guard} active={tab === "hands"} />
         </div>
       )}
       {tab === "drills" && (
@@ -79,9 +82,9 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
 }
 
 /** `active`: its tab is the one shown (its keys work only then). */
-function FullHands({ pace, active }: { pace: number; active: boolean }) {
+function FullHands({ pace, pause, guard, active }: { pace: number; pause?: number; guard?: number; active: boolean }) {
   const getSolver = useSolver();
-  const [room] = useState(() => new Room({ pace }));
+  const [room] = useState(() => new Room({ pace, pause, guard }));
   // (as the page commits, before the Room starts: settings load after the first render, and each launch reads the latest)
   useLayoutEffect(() => {
     room.setSolver(getSolver);
@@ -91,18 +94,10 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     room.start();
     return () => room.stop();
   }, [room]);
-  const { session, tables, kept } = useSyncExternalStore(room.subscribe, room.snapshot);
-  const { hand, answer, failed, error, last, lastRange } = tables[0]!;
-  const [rangeOpen, setRangeOpen] = useState(false);
+  const snap = useSyncExternalStore(room.subscribe, room.snapshot);
+  const { session, tables } = snap;
+  const many = tables.length > 1;
   const [past, setPast] = useState<SessionRecord[]>([]);
-  const keepAll = useSettings((s) => s.keepHands);
-  const setSettings = useSettings((s) => s.set);
-
-  const sim = useMemo(() => simOf(hand), [hand]);
-  const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
-  // an opponent's move under way, or your preflop played for you in a drill; what stopped it, said by seat
-  const moving = phase.kind === "villain" || phase.kind === "auto" ? phase : null;
-  const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
 
   useEffect(() => {
     let alive = true;
@@ -114,70 +109,132 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     };
   }, []);
 
-  // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze (the latest handlers, read
-  // through a ref: the listener stays while the tab is shown; set as the page commits, so a key pressed once the new
-  // options show never reaches the last spot's handler)
-  const onKey = useRef<(e: KeyboardEvent) => void>(() => {});
-  useLayoutEffect(() => {
-    onKey.current = (e) => {
-      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
-      // (a held key doesn't repeat into the next spot)
-      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
-      if (phase.kind === "hero" && answer && /^[1-9]$/.test(e.key)) {
-        const i = Number(e.key) - 1;
-        if (i < optionsOf(answer.data).length) room.choose(i);
-      } else if (phase.kind === "over" && hand.result) {
-        // (Enter or Space on a focused button or link is that control's own)
-        if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
-          e.preventDefault();
-          room.nextHand();
-        } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) room.keep();
-      }
-    };
+  const sum = summary(session.score);
+  const others = past.filter((p) => p.id !== session.id);
+  const setup = (
+    <SetupForm
+      key={`${session.players}/${session.stack}/${JSON.stringify(session.opts)}`}
+      players={session.players}
+      stack={session.stack}
+      opts={session.opts}
+      onStart={(p, n, o) => room.startSession(p, n, o)}
+    />
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          {many ? (
+            <p className="text-sm text-muted">
+              Several tables against GTO opponents, one score across them all. The table that needs you comes to the front and the solver answers one table at a time. Your options are the
+              solver&rsquo;s actions at your spot; the grade and what answered show on the table and beside it once you&rsquo;ve acted. Keys: 1&ndash;9 your options, F, C or X fold, check or
+              call, S the next waiting table, Enter or Space deal finished tables now (each deals by itself otherwise), K keeps the last finished hand in Analyze.
+            </p>
+          ) : (
+            <p className="text-sm text-muted">
+              Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
+              the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
+              preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
+              it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
+              for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
+              chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Up to
+              four tables at once: pick how many under Tables. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze.
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ModePicker modes={["quick", "accurate"]} />
+          {!many && setup}
+        </div>
+      </div>
+
+      {many && (
+        <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+          <summary className="cursor-pointer">Game</summary>
+          <div className="mt-2">{setup}</div>
+        </details>
+      )}
+
+      <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} />
+
+      <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} />
+
+      {many ? <MultiTables room={room} snap={snap} active={active} /> : <OneTable room={room} snap={snap} active={active} />}
+
+      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+        <summary className="cursor-pointer">How decisions are graded</summary>
+        <ul className="mt-2 space-y-1">
+          {GRADE_RULES.map((r) => (
+            <li key={r.verdict}>
+              <VerdictTag v={r.verdict} /> {r.rule}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-muted">
+          Preflop the answer is the preflop charts (frequencies, no EVs): a preflop move is graded by how often the chart plays it, and no EV is counted as lost.
+        </p>
+      </details>
+
+      {others.length > 0 && (
+        <section aria-label="Past sessions" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h2 className="font-medium">Past sessions</h2>
+            <Link to="/history?kind=practice" className="text-xs underline">
+              All sessions, and totals by pot type
+            </Link>
+          </div>
+          <ul className="space-y-0.5">
+            {others.map((s) => (
+              <li key={s.id} className="text-muted">
+                {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
+                {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} correct` : ""}
+                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
+                {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Today's page, one table: the seats and board, your move, your last decision, the hand's log and your decisions. */
+function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; active: boolean }) {
+  const { session, tables, kept } = snap;
+  const { hand, answer, failed, error, last, lastRange } = tables[0]!;
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const keepAll = useSettings((s) => s.keepHands);
+  const setSettings = useSettings((s) => s.set);
+
+  const sim = useMemo(() => simOf(hand), [hand]);
+  const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
+  // an opponent's move under way, or your preflop played for you in a drill; what stopped it, said by seat
+  const moving = phase.kind === "villain" || phase.kind === "auto" ? phase : null;
+  const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
+
+  // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze
+  useHandKeys(active, (e, tag) => {
+    if (phase.kind === "hero" && answer && /^[1-9]$/.test(e.key)) {
+      const i = Number(e.key) - 1;
+      if (i < optionsOf(answer.data).length) room.choose(i);
+    } else if (phase.kind === "over" && hand.result) {
+      // (Enter or Space on a focused button or link is that control's own)
+      if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
+        e.preventDefault();
+        room.nextHand();
+      } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) room.keep();
+    }
   });
-  useEffect(() => {
-    if (!active) return;
-    const on = (e: KeyboardEvent) => onKey.current(e);
-    window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
-  }, [active]);
   // once the hand is over, the next one is a key away
   const nextRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (hand.result && active) nextRef.current?.focus({ preventScroll: true });
   }, [hand.result, active]);
 
-  const sum = summary(session.score);
-  const others = past.filter((p) => p.id !== session.id);
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted">
-            Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
-            the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
-            preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
-            it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
-            for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
-            chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in
-            Analyze.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ModePicker modes={["quick", "accurate"]} />
-          <SetupForm
-            key={`${session.players}/${session.stack}/${JSON.stringify(session.opts)}`}
-            players={session.players}
-            stack={session.stack}
-            opts={session.opts}
-            onStart={(p, n, o) => room.startSession(p, n, o)}
-          />
-        </div>
-      </div>
-
-      <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} />
-
+    <>
       <section aria-label="Table" className="space-y-3 rounded-lg border border-border bg-surface p-3">
         <div className="flex flex-wrap items-center gap-3">
           <div role="group" aria-label="Board" className="flex gap-1">
@@ -338,49 +395,6 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       <HandLog hand={hand} />
 
       {session.review.length > 0 && <ReviewMistakes review={session.review} />}
-
-      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-        <summary className="cursor-pointer">How decisions are graded</summary>
-        <ul className="mt-2 space-y-1">
-          {GRADE_RULES.map((r) => (
-            <li key={r.verdict}>
-              <VerdictTag v={r.verdict} /> {r.rule}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-muted">
-          Preflop the answer is the preflop charts (frequencies, no EVs): a preflop move is graded by how often the chart plays it, and no EV is counted as lost.
-        </p>
-      </details>
-
-      <p className="text-xs text-muted">
-        Not here yet: multi-tabling. It runs in the{" "}
-        <a className="underline" href={`${CLASSIC_URL}practice/`}>
-          classic trainer
-        </a>
-        .
-      </p>
-
-      {others.length > 0 && (
-        <section aria-label="Past sessions" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="font-medium">Past sessions</h2>
-            <Link to="/history?kind=practice" className="text-xs underline">
-              All sessions, and totals by pot type
-            </Link>
-          </div>
-          <ul className="space-y-0.5">
-            {others.map((s) => (
-              <li key={s.id} className="text-muted">
-                {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
-                {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} correct` : ""}
-                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
-                {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
+    </>
   );
 }

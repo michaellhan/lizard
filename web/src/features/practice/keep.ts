@@ -18,6 +18,8 @@ import type { PracticeSession } from "./session";
 export const KEPT_KEY = "practice.tables.v1";
 export const MAX_TABLES = 4;
 
+type Sources = PracticeSession["sources"];
+
 /** A table's last finished hand, which outlasts it as the next is dealt (multitable.js:202). */
 export interface LastHand {
   n: number;
@@ -29,6 +31,8 @@ export interface KeptTable {
   /** null as it's read back: the hand wouldn't replay, and is to be dealt again */
   hand: PracticeHand | null;
   stats: PotTally;
+  /** what graded the decisions in `stats` (a doc written before it was kept has none, read as {}) */
+  sources?: Sources;
   /** your last decision there (the range it came with isn't kept: a grid each save for one view of one decision) */
   last: Decision | null;
   lastHand: LastHand | null;
@@ -66,6 +70,7 @@ const isGrade = (x: unknown) =>
   isObj(x) && isCount(x.a) && isCount(x.best) && GRADE_RULES.some((r) => r.verdict === x.verdict) && isBool(x.ok) && isNum(x.loss) && isNum(x.lossPct) && isBool(x.byEv);
 /** A source there are words for: a number shown with one the page can't name has no source. */
 const isSource = (x: unknown) => isStr(sourceLabel(x as ResultSource));
+const isSources = (x: unknown): x is Sources => isObj(x) && Object.entries(x).every(([k, n]) => isSource(k) && isCount(n));
 /** Who answered, and its figures, which the badge prints with `toFixed`. */
 const isProvenance = (x: unknown) => isObj(x) && isSource(x.source) && isBool(x.approximate) && [x.exploitabilityPct, x.targetPct, x.iterations, x.seconds, x.mbbPerHand].every((n) => opt(n, isNum));
 /** An action of the answer's, as the decision's table draws it. */
@@ -175,8 +180,7 @@ const isSession = (x: unknown): x is PracticeSession =>
   isScore(x.score) &&
   isObj(x.byPot) &&
   Object.values(x.byPot).every(isTally) &&
-  isObj(x.sources) &&
-  Object.entries(x.sources).every(([k, n]) => isSource(k) && isCount(n)) &&
+  isSources(x.sources) &&
   isList(x.review, isReviewed);
 
 /** A place in the doc: a hand of another game is as lost as one that won't replay, since the table deals on from it. */
@@ -186,6 +190,7 @@ function keptTable(x: unknown, s: PracticeSession): KeptTable | null {
   return {
     hand: hand?.players === s.players && hand.stack === s.stack ? hand : null,
     stats: isTally(x.stats) ? x.stats : emptyTally(),
+    sources: isSources(x.sources) ? x.sources : {},
     last: isDecision(x.last) ? x.last : null,
     lastHand: isLastHand(x.lastHand) ? x.lastHand : null,
   };
@@ -214,5 +219,5 @@ export const sameKept = (a: KeptTables, b: KeptTables | null | undefined) =>
   a.session === b.session &&
   a.tables.every((t, i) => {
     const o = b.tables[i];
-    return t === o || (!!t && !!o && t.hand === o.hand && t.stats === o.stats && t.last === o.last && t.lastHand === o.lastHand);
+    return t === o || (!!t && !!o && t.hand === o.hand && t.stats === o.stats && t.sources === o.sources && t.last === o.last && t.lastHand === o.lastHand);
   });

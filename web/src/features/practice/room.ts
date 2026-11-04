@@ -24,11 +24,12 @@
 // kept: a reload starts fresh, and only going down to one table or a New session clears the doc.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
-import { addHandToPot, emptyTally, type PotTally } from "@/features/history/history";
+import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
+import { seatsOf } from "@/poker/seats";
 import type { Street } from "@/poker/table";
 import type { SolverClient } from "@/solver/client";
 import type { AdvisorState, PlayMove } from "@/solver/protocol";
-import { SolverError, type SolveMode, type SolverTransport, type SolveResult } from "@/solver/types";
+import { SolverError, type SolveMode, type SolverTransport, type SolveResult, type StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { moveOf, needOf, type Need } from "./flow";
 import { practiceRecord } from "./history";
@@ -41,6 +42,7 @@ import {
   DRILL_TRIES,
   finish,
   following,
+  isPotDrill,
   newHand,
   offDrill,
   phaseOf,
@@ -69,6 +71,16 @@ export type RoomSolver = () => Promise<RoomClient>;
 /** What the tables deal above one table: any hand, or one kind of pot. */
 export type Spot = PotDrill | "any";
 
+/** Settings' Spots as it's played: Any hand where none is chosen or it's one this build doesn't know, and in a preflop-only
+ * session, as a drill would stop it counting net. */
+export const spotOf = (saved: unknown, preflopOnly: boolean): Spot => (isPotDrill(saved) && !preflopOnly ? saved : "any");
+
+/** The seats a spot can deal you. */
+export const seatsFor = (players: number, spot: Spot): readonly string[] => (spot === "bvb" ? ["SB", "BB"] : seatsOf(players));
+
+/** Settings' Seat as it's played: Random where this game or spot doesn't have it. */
+export const seatOf = (saved: string, players: number, spot: Spot): SeatChoice => (seatsFor(players, spot).includes(saved) ? saved : "random");
+
 export interface RoomOptions {
   /** ms an opponent's move and a new card take at least at one table, so the hand can be followed (0 in tests) */
   pace?: number;
@@ -85,7 +97,7 @@ export interface RoomOptions {
   mode?: SolveMode;
   /** how many tables it starts with, whatever is kept (unset: one, or those the kept doc brings back) */
   tables?: number;
-  /** what's dealt above one table (unset: any hand, at a random seat) */
+  /** what's dealt above one table (unset: Settings', read at each deal, so it applies from each table's next hand) */
   spot?: Spot;
   seat?: SeatChoice;
   /** the tables' first hands, a test's spots, in place of `tables`, whatever is kept (unset: dealt) */
@@ -108,8 +120,12 @@ export interface RoomTable {
   lastRange: RangeAt | null;
   /** your spot as a key, for `choose`, while it's your turn */
   turnKey: string | null;
+  /** a drill's deals are used up: nothing happens here until Try again */
+  spent: boolean;
   /** the hands finished at this table */
   stats: PotTally;
+  /** what graded the decisions in `stats`, so the table's figures carry their source as the session's do */
+  sources: PracticeSession["sources"];
   /** the last of them, once the next is dealt too */
   lastHand: LastHand | null;
 }
@@ -126,6 +142,10 @@ export interface RoomSnapshot {
   queue: readonly number[];
   /** the table in front is waiting, and its input isn't taken yet */
   guarded: boolean;
+  /** the last hand to finish at a table in play, for K, whole: its table has usually dealt the next by then */
+  ended: { table: number; hand: PracticeHand } | null;
+  /** what a stop costs on the client in use, which says so before its worker has started (null: none yet) */
+  stopCost: StopCost | null;
 }
 
 /** A wait: the seconds from your turn to its buttons. `table`: from 1. */
@@ -164,7 +184,10 @@ interface Table {
   last: Decision | null;
   lastRange: RangeAt | null;
   stats: PotTally;
+  sources: PracticeSession["sources"];
   lastHand: LastHand | null;
+  /** the last hand finished here as it ended (in memory: `lastHand` is what the doc keeps of it) */
+  finished: PracticeHand | null;
   /** your spot's key, and since when it's been your turn there */
   turnKey: string | null;
   turnAt: number;
@@ -219,12 +242,11 @@ export class Room {
   private readonly persist: boolean;
   private readonly seedOf: (n: number) => number;
   private readonly fixedMode: SolveMode | undefined;
+  private readonly fixedSpot: Spot | undefined;
+  private readonly fixedSeat: SeatChoice | undefined;
   private readonly readKept: () => Promise<unknown>;
   /** the options say what's on the tables, so the doc brings nothing back */
   private readonly fixed: boolean;
-
-  private spot: Spot;
-  private seat: SeatChoice;
 
   private session: PracticeSession;
   private readonly tables: Table[];
@@ -233,6 +255,8 @@ export class Room {
   private front: Front = FREE;
   /** the next hand at one table starts every stack afresh (see `setTables`) */
   private resetStacks = false;
+  /** the table a hand last finished at */
+  private endedAt: Table | null = null;
   private kept: Kept | null = null;
   private snap: RoomSnapshot;
   private readonly listeners = new Set<() => void>();
@@ -289,8 +313,8 @@ export class Room {
     this.fixedMode = o.mode;
     this.readKept = o.readKept ?? (() => kvGet<unknown>(KEPT_KEY));
     this.fixed = o.tables !== undefined || o.hands !== undefined;
-    this.spot = o.spot ?? "any";
-    this.seat = o.seat ?? "random";
+    this.fixedSpot = o.spot;
+    this.fixedSeat = o.seat;
     this.holding = this.persist;
     this.played = this.mode;
     const hands = o.hands ?? [newHand(6, 100, 0, this.seed())];
@@ -310,7 +334,9 @@ export class Room {
       last: null,
       lastRange: null,
       stats: emptyTally(),
+      sources: {},
       lastHand: null,
+      finished: null,
       turnKey: null,
       turnAt: 0,
       waiting: null,
@@ -425,6 +451,7 @@ export class Room {
     }
     if (kept) {
       t.stats = kept.stats;
+      t.sources = kept.sources ?? t.sources;
       t.last = kept.last;
       t.lastHand = kept.lastHand;
     }
@@ -445,13 +472,16 @@ export class Room {
       t.last = null;
       t.lastRange = null;
       t.stats = emptyTally();
+      t.sources = {};
       t.lastHand = null;
+      t.finished = null;
     }
     // (a key has no seed, so the same cards can come up: what failed last session says nothing of this one)
     this.failed.clear();
     this.unasked.clear();
     this.front = FREE;
     this.resetStacks = false;
+    this.endedAt = null;
     this.endHold();
     this.saveNow = this.clearDoc = true;
     this.pump();
@@ -485,15 +515,6 @@ export class Room {
     if (to === 1) this.resetStacks = this.clearDoc = true;
     this.saveNow = true;
     this.pump();
-  }
-
-  /** What the tables deal above one table, from each table's next hand: a change never redeals. */
-  setSpot(spot: Spot): void {
-    this.spot = spot;
-  }
-
-  setSeat(seat: SeatChoice): void {
-    this.seat = seat;
   }
 
   /** The table's next hand: with chips carried, from where this one left them (or, `reset`, every seat back at the
@@ -624,10 +645,12 @@ export class Room {
     this.pump();
   }
 
-  /** The finished hand into Analyze's hands. */
-  keep(table = this.front.focus): void {
-    const t = this.tables[table];
-    if (t) void this.keepHand(t.hand);
+  /** A finished hand into Analyze's hands: the table's last, with the next on the table by now above one table; and with
+   * no table said, above it, the last to finish anywhere, which is the one you've just seen go. */
+  keep(table = this.many ? this.ended?.table : this.front.focus): void {
+    const t = table === undefined ? undefined : this.tables[table];
+    const h = t?.hand.result ? t.hand : t?.finished;
+    if (h) void this.keepHand(h);
   }
 
   private async keepHand(h: PracticeHand): Promise<void> {
@@ -791,7 +814,11 @@ export class Room {
     this.put(t, { ...h, result });
     this.session = afterHand(this.session, h, result);
     t.stats = addHandToPot(t.stats, h.decisions.map((d) => d.grade), this.session.opts.preflopOnly ? null : result.net);
+    // (as the hand ends, with its tally, so these are the decisions `stats` counts)
+    t.sources = h.decisions.reduce((s, d) => (d.grade ? addSource(s, d.provenance?.source) : s), t.sources);
     t.lastHand = { n: h.n, seat: h.hero, result };
+    t.finished = t.hand;
+    this.endedAt = t;
     this.saveNow = true;
     if (useSettings.getState().keepHands) void this.keepHand(t.hand);
   }
@@ -869,6 +896,7 @@ export class Room {
       this.tell(t);
     }
     for (const t of this.spare) t?.solved.clear();
+    this.emit();
   }
 
   /** An answer into the caches the tables read: a stop that came too late leaves a whole answer, which is kept too.
@@ -940,6 +968,12 @@ export class Room {
     return this.tables.length > 1;
   }
 
+  private get ended(): RoomSnapshot["ended"] {
+    const table = this.endedAt ? this.tables.indexOf(this.endedAt) : -1;
+    const hand = this.tables[table]?.finished;
+    return hand ? { table, hand } : null;
+  }
+
   private get waiters(): Waiter[] {
     return this.tables.map((t) => ({ since: t.waiting, over: !!t.hand.result }));
   }
@@ -948,11 +982,15 @@ export class Room {
     return this.optsAt(this.tables.length);
   }
 
-  /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots and Seat, no chips carried, and
-   * a preflop-only session stays on Any hand, as a drill would stop it counting net. */
+  /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots and Seat and no chips carried.
+   * Settings are read here, at the deal, not fed in by the page: a session read back deals a lost hand the moment they load,
+   * before anything has rendered with them. */
   private optsAt(n: number): Required<HandOptions> {
     const o = this.session.opts;
-    return n === 1 ? o : { ...o, seat: this.seat, pot: this.spot === "any" || o.preflopOnly ? null : this.spot, carry: false };
+    if (n === 1) return o;
+    const set = useSettings.getState();
+    const spot = spotOf(this.fixedSpot ?? set.practiceSpot, o.preflopOnly);
+    return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false };
   }
 
   /** As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor). */
@@ -977,11 +1015,23 @@ export class Room {
         last: t.last,
         lastRange: t.lastRange,
         turnKey: asked?.kind === "you" ? asked.key : null,
+        spent: t.spent,
         stats: t.stats,
+        sources: t.sources,
         lastHand: t.lastHand,
       };
     });
-    return { session: this.session, tables, kept: this.kept, restarts: this.restarts, focus: this.front.focus, queue: queue(this.waiters), guarded: this.guardLeft() > 0 };
+    return {
+      session: this.session,
+      tables,
+      kept: this.kept,
+      restarts: this.restarts,
+      focus: this.front.focus,
+      queue: queue(this.waiters),
+      guarded: this.guardLeft() > 0,
+      ended: this.ended,
+      stopCost: this.client ? (this.client.stopCost?.() ?? "kills") : null,
+    };
   }
 
   /** How the waits went, per decision (multitable.js:838-844). */
@@ -1009,7 +1059,7 @@ export class Room {
 
   /** The doc as things stand: above one table only. */
   private doc(): KeptTables {
-    const place = (t: Table | undefined): KeptTable | null => (t ? { hand: t.hand, stats: t.stats, last: t.last, lastHand: t.lastHand } : null);
+    const place = (t: Table | undefined): KeptTable | null => (t ? { hand: t.hand, stats: t.stats, sources: t.sources, last: t.last, lastHand: t.lastHand } : null);
     return {
       v: 1,
       n: this.tables.length as KeptTables["n"],

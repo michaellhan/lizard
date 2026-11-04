@@ -14,7 +14,7 @@ import type { Lines, Move } from "@/poker/table";
 import { noLines } from "@/poker/table";
 import { practiceNumber } from "./history";
 import { DRILL_TRIES, newHand, optionsOf, type HandOptions, type PracticeHand } from "./practice";
-import { Room, type RoomClient, type RoomOptions } from "./room";
+import { Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomOptions, type Spot } from "./room";
 import { keyOf } from "./session";
 
 vi.mock("@/data/db", async (orig) => ({ ...(await orig<typeof import("@/data/db")>()), putSession: vi.fn(async () => {}) }));
@@ -180,7 +180,7 @@ afterEach(() => {
   for (const r of rooms) r.stop();
   rooms = [];
   vi.useRealTimers();
-  useSettings.setState({ mode: "fast", keepHands: false });
+  useSettings.setState({ mode: "fast", keepHands: false, practiceSpot: null, practiceSeat: "random" });
 });
 
 describe("Room at one table", () => {
@@ -1286,6 +1286,8 @@ function spot(seed: number, hero: string, lines: Partial<Lines> = {}, shown = 0)
 const flopOpp = (seed: number) => spot(seed, "BTN", { preflop: SRP }, 3);
 /** Your flop spot, BB having checked. */
 const flopYou = (seed: number) => spot(seed, "BTN", { preflop: SRP, flop: [CHECK] }, 3);
+/** Your flop spot, BB having bet. */
+const betYou = (seed: number) => spot(seed, "BTN", { preflop: SRP, flop: [mv("BB", "bet", 3)] }, 3);
 /** Your turn spot: long at Accurate. */
 const turnYou = (seed: number) => spot(seed, "BTN", { preflop: SRP, flop: [CHECK, mv("BTN", "check")], turn: [CHECK] }, 4);
 const preflop = (seed: number) => spot(seed, "UTG");
@@ -2093,18 +2095,159 @@ describe("Room changing the number of tables", () => {
   });
 
   it("applies Spots and Seat from each table's next hand, and redeals nothing", async () => {
-    const { room } = setup({ tables: 2, seat: "UTG", pace: 0, pause: 0, guard: 0 });
+    useSettings.setState({ practiceSeat: "UTG" });
+    const { room } = setup({ tables: 2, pace: 0, pause: 0, guard: 0 });
     const hands = room.snapshot().tables.map((t) => t.hand);
-    room.setSpot("srp");
-    room.setSeat("BB");
+    useSettings.setState({ practiceSpot: "srp", practiceSeat: "BB" });
     expect(room.snapshot().tables.map((t) => t.hand)).toEqual(hands);
     room.setTables(3);
     expect(at(room, 2).hand).toMatchObject({ pot: "srp", hero: "BB" });
     expect(hands[0]).not.toHaveProperty("pot");
 
-    room.setSpot("any");
+    useSettings.setState({ practiceSpot: "any" });
     room.setTables(4);
     expect(at(room, 3).hand).not.toHaveProperty("pot");
+  });
+
+  it("reads a saved seat that isn't at this game, or a spot it can't use, as what's left", async () => {
+    useSettings.setState({ practiceSpot: "bvb", practiceSeat: "BTN" });
+    const { room } = setup({ tables: 2, pace: 0, pause: 0, guard: 0 });
+    // (blind vs blind has no button: the seat reads random, and the table deals a blind)
+    expect(["SB", "BB"]).toContain(at(room, 1).hand.hero);
+    expect(at(room, 1).hand).toMatchObject({ pot: "bvb" });
+
+    useSettings.setState({ practiceSpot: "gone" as Spot, practiceSeat: "D9" });
+    room.setTables(3);
+    expect(at(room, 2).hand).not.toHaveProperty("pot");
+  });
+
+  it("tallies what graded a table's hands as each ends, beside its stats", async () => {
+    const { room, asked } = several([betYou(1), betYou(2)], { pause: 1e6 });
+    await answer(asked, 0, FACING, FACING);
+    const first = room.snapshot().focus;
+    const other = 1 - first;
+    // your call: a decision graded, the hand going on, so the table's tally waits for it as its stats do
+    press(room, first, 1);
+    await flush();
+    expect(at(room, first).hand.decisions).toHaveLength(1);
+    expect(at(room, first).sources).toEqual({});
+    expect(at(room, first).stats.n).toBe(0);
+
+    press(room, other, 0);
+    await flush();
+    expect(at(room, other).hand.result).toBeTruthy();
+    expect(at(room, other).sources).toEqual({ live: 1 });
+    expect(at(room, other).stats.n).toBe(1);
+    expect(at(room, first).sources).toEqual({});
+  });
+
+  it("counts no source for a move nothing graded", async () => {
+    const { room, asked } = several([betYou(1), betYou(2)], { pause: 1e6 });
+    await answer(asked, 0, { error: "no such node" }, FACING);
+    const failed = room.snapshot().tables.findIndex((t) => t.failed);
+    room.ungraded({ action: "fold" }, failed);
+    await flush();
+    expect(at(room, failed).hand.result).toBeTruthy();
+    expect(at(room, failed).stats.hands).toBe(1);
+    expect(at(room, failed).sources).toEqual({});
+  });
+
+  it("holds on to the last hand to finish anywhere for K, once its table has dealt the next (`ended`)", async () => {
+    const { room, asked } = several([betYou(1), betYou(2)], { pause: 1e6 });
+    expect(room.snapshot().ended).toBeNull();
+    await answer(asked, 0, FACING, FACING);
+    const first = room.snapshot().focus;
+    press(room, first, 0);
+    await flush();
+    const done = at(room, first).hand;
+    expect(done.result).toBeTruthy();
+    expect(room.snapshot().ended).toEqual({ table: first, hand: done });
+
+    room.dealFinished();
+    expect(at(room, first).hand).not.toBe(done);
+    expect(room.snapshot().ended).toEqual({ table: first, hand: done });
+
+    // the other's fold is the last to finish now
+    press(room, 1 - first, 0);
+    await flush();
+    expect(room.snapshot().ended!.table).toBe(1 - first);
+  });
+
+  it("forgets a finished hand set aside with its table, and a New session forgets them all", async () => {
+    const { room, asked } = several([betYou(1), betYou(2)], { pause: 1e6 });
+    await answer(asked, 0, FACING, FACING);
+    const top = 1;
+    room.pick(top);
+    press(room, top, 0);
+    await flush();
+    expect(room.snapshot().ended).toMatchObject({ table: top });
+    room.setTables(1);
+    expect(room.snapshot().ended).toBeNull();
+
+    const { room: other, asked: more } = several([betYou(3), betYou(4)], { pause: 1e6 });
+    await answer(more, 0, FACING, FACING);
+    const front = other.snapshot().focus;
+    press(other, front, 0);
+    await flush();
+    expect(other.snapshot().ended).not.toBeNull();
+    other.startSession(6, 100, OPTS);
+    expect(other.snapshot().ended).toBeNull();
+  });
+
+  it("deals a saved seat this game doesn't have as the Random the row shows, not one that moves", async () => {
+    useSettings.setState({ practiceSeat: "UTG" });
+    const { room } = setup({ players: 2, tables: 4, seedOf: () => 1, pace: 0, pause: 0, guard: 0 });
+    expect(new Set(room.snapshot().tables.map((t) => t.hand.hero)).size).toBe(1);
+  });
+
+  it("marks a drill's deals used up on its table, nothing asked there until Try again deals afresh", async () => {
+    const { room, asked } = several([preflop(1), { ...spot(2, "BTN"), pot: "srp" }], { spot: "srp", seat: "BTN" });
+    for (let i = 0; i < 8 * DRILL_TRIES && !at(room, 1).spent; i += 1) {
+      await flush();
+      const a = asked.at(-1)!;
+      a.answer(a.play ? move("fold") : CHART);
+      await flush();
+    }
+    expect(at(room, 1)).toMatchObject({ spent: true, error: `No single-raised pot in ${DRILL_TRIES} deals.` });
+    const n = asked.length;
+    await pass(5000);
+    expect(asked).toHaveLength(n);
+
+    room.retry(1);
+    expect(at(room, 1)).toMatchObject({ spent: false, error: null });
+    await flush();
+    expect(asked.length).toBeGreaterThan(n);
+  });
+
+  it("says what a stop costs on the client in use: not known until there's one, kills where it can't say", async () => {
+    const { room } = several([flopYou(1), flopYou(2)], { stop: "kills", start: false });
+    expect(room.snapshot().stopCost).toBeNull();
+    room.start();
+    await flush();
+    expect(room.snapshot().stopCost).toBe("kills");
+
+    const { room: cheap } = several([flopYou(1), flopYou(2)]);
+    await flush();
+    expect(cheap.snapshot().stopCost).toBe("cheap");
+
+    const { room: silent } = several([flopYou(1), flopYou(2)], { stop: null });
+    await flush();
+    expect(silent.snapshot().stopCost).toBe("kills");
+  });
+
+  it("reads Settings' Spots and Seat as what can be played", () => {
+    expect(spotOf(null, false)).toBe("any");
+    expect(spotOf("gone", false)).toBe("any");
+    expect(spotOf("srp", false)).toBe("srp");
+    expect(spotOf("srp", true)).toBe("any");
+    expect(seatsFor(6, "bvb")).toEqual(["SB", "BB"]);
+    expect(seatsFor(2, "any")).toEqual(["SB", "BB"]);
+    expect(seatsFor(6, "srp")).toContain("UTG");
+    expect(seatOf("BB", 6, "bvb")).toBe("BB");
+    expect(seatOf("BTN", 6, "bvb")).toBe("random");
+    expect(seatOf("BTN", 6, "any")).toBe("BTN");
+    expect(seatOf("UTG", 2, "any")).toBe("random");
+    expect(seatOf("random", 6, "any")).toBe("random");
   });
 
   it("carries no chips from hand to hand above one table, in a session that carries them", async () => {

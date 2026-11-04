@@ -1,7 +1,7 @@
 // The parts of Practice's full hands: the score, a seat, chips carried, your moves where a spot has no answer, your
 // last decision and your range at it, the hand's log, keeping a hand, and Review mistakes. Each draws what it's given:
-// the hand and the session stay with the page.
-import { useState, type ReactNode } from "react";
+// the hand and the session stay with the page. And the keys' rules, which each view of the hand keeps.
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -18,6 +18,26 @@ import type { Kept, PracticeSession } from "./session";
 
 export const fmt = (x: number) => String(Math.round(x * 100) / 100);
 export const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${fmt(Math.abs(x))}`;
+
+/** Keys for a view of the hand while its tab is shown, `tag` being what's focused (the latest handler, read through a ref:
+ * the listener stays, and it's set as the page commits, so a key pressed once the new options show never reaches the last
+ * spot's handler). A held key doesn't repeat into the next spot; a modifier, or typing in a field, is someone else's. */
+export function useHandKeys(active: boolean, onKey: (e: KeyboardEvent, tag: string) => void): void {
+  const handler = useRef(onKey);
+  useLayoutEffect(() => {
+    handler.current = onKey;
+  });
+  useEffect(() => {
+    if (!active) return;
+    const on = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+      handler.current(e, tag);
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [active]);
+}
 
 /** The finished hand kept in Analyze (graded there as an imported hand), or a button to keep it; and keeping
  * every hand. */
@@ -128,7 +148,7 @@ export function ReviewMistakes({ review }: { review: Reviewed[] }) {
                   className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
                 >
                   <span className="font-mono text-xs text-muted">
-                    #{e.n} {e.d.street}
+                    {e.table ? `T${e.table} ` : ""}#{e.n} {e.d.street}
                   </span>
                   <span className="flex gap-0.5">
                     {e.hole.map((c) => (
@@ -159,7 +179,7 @@ export function ReviewMistakes({ review }: { review: Reviewed[] }) {
                       )}
                       {` · ${e.line}`}
                     </p>
-                    <DecisionView d={e.d} players={e.players} title={`Hand ${e.n}, ${e.d.street}`} />
+                    <DecisionView d={e.d} players={e.players} title={e.table ? `Table ${e.table}, hand ${e.n}, ${e.d.street}` : `Hand ${e.n}, ${e.d.street}`} />
                   </div>
                 )}
               </li>

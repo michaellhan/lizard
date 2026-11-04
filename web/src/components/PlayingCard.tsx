@@ -7,8 +7,8 @@ const SUIT: Record<string, { sym: string; name: string; tone: string }> = {
 };
 const RANK_NAME: Record<string, string> = { A: "ace", K: "king", Q: "queen", J: "jack", T: "ten" };
 
-export function PlayingCard({ card, size = "md" }: { card: string | null; size?: "sm" | "md" }) {
-  const box = size === "sm" ? "h-8 w-6 text-xs" : "h-11 w-8 text-sm";
+export function PlayingCard({ card, size = "md" }: { card: string | null; size?: "sm" | "md" | "lg" }) {
+  const box = size === "sm" ? "h-8 w-6 text-xs" : size === "lg" ? "h-14 w-10 text-base" : "h-11 w-8 text-sm";
   if (!card)
     return <span role="img" aria-label="face-down card" className={`inline-block ${box} rounded border border-border bg-[repeating-linear-gradient(45deg,var(--color-surface-3)_0_4px,var(--color-surface-2)_4px_8px)]`} />;
   const s = SUIT[card[1]!]!;

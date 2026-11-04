@@ -180,6 +180,8 @@ describe("a kept doc on the page", () => {
 
   afterEach(async () => {
     cleanup();
+    // (the Room saved on the way out, or a test's own click will have)
+    await new Promise((r) => setTimeout(r, 0));
     await kvSet(KEPT_KEY, null);
     useSettings.setState({ loaded: false });
   });
@@ -187,6 +189,9 @@ describe("a kept doc on the page", () => {
   it("draws a sound doc's review and last decision, which is what the cases below would throw on", async () => {
     await open(doc({ review: [entry()] }, { last: decided() }));
     expect(screen.getByRole("region", { name: "Your decisions" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Table 1, hand 1, preflop" })).toBeInTheDocument();
+    // (a table's own last decision is drawn at one table)
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
     expect(screen.getByRole("region", { name: "Last decision" })).toBeInTheDocument();
   });
 
@@ -209,6 +214,7 @@ describe("a kept doc on the page", () => {
     ["an action that's no word", { ...decided(), mix: [{ action: {}, freq: 1, ev: 0 }] }],
   ])("goes on without a last decision with %s", async (_, last) => {
     await open(doc({ review: [entry()] }, { last }));
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
     expect(screen.queryByRole("region", { name: "Last decision" })).toBeNull();
     expect(screen.getByRole("region", { name: "Your decisions" })).toBeInTheDocument();
   });

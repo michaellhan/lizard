@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { kvGet, kvSet } from "@/data/db";
 import { DEFAULT_LOCAL_SOLVER_URL, type LibraryChoice } from "@/config";
+import type { Spot } from "@/features/practice/room";
 import type { SolveMode, TransportKind } from "@/solver/types";
 
 export interface Settings {
@@ -13,6 +14,9 @@ export interface Settings {
   evUnit: "bb" | "pot";
   /** Practice: keep every hand played in Analyze's hands */
   keepHands: boolean;
+  /** Practice above one table: what the tables deal (null: not chosen, read by the Room's `spotOf`), and your seat there */
+  practiceSpot: Spot | null;
+  practiceSeat: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -22,6 +26,8 @@ export const DEFAULT_SETTINGS: Settings = {
   librarySource: "auto",
   evUnit: "bb",
   keepHands: false,
+  practiceSpot: null,
+  practiceSeat: "random",
 };
 
 const KEY = "settings.v1";
@@ -35,8 +41,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
