@@ -12,7 +12,7 @@ import { SEATS, seatsOf } from "@/poker/seats";
 import { DECK, legal, NEED, noLines, recordOf, simulate, STREETS, withMove, type Lines, type Move, type Street } from "@/poker/table";
 import { sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
-import { isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type PracticeHand } from "./practice";
+import { isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type PracticeHand } from "./practice";
 import type { PracticeSession } from "./session";
 
 export const KEPT_KEY = "practice.tables.v1";
@@ -101,7 +101,8 @@ const isHand = (x: unknown): x is PracticeHand =>
   isList(x.decisions, isDecision) &&
   (x.result === null || isResult(x.result)) &&
   opt(x.ante, isNum) &&
-  opt(x.pot, isPotDrill) &&
+  opt(x.pot, isHandPot) &&
+  opt(x.cands, (c) => isList(c, (l) => isList(l, isStr))) &&
   opt(x.tries, isCount) &&
   opt(x.stacks, (s) => isObj(s) && Object.values(s).every(isNum)) &&
   opt(x.rebuys, (r) => isList(r, isStr)) &&

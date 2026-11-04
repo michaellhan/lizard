@@ -4,6 +4,7 @@ import { noLines, recordOf, seeded, type Move } from "@/poker/table";
 import type { AdvisorResponse } from "@/solver/protocol";
 import {
   carries,
+  charting,
   chipsAfter,
   decide,
   decideUngraded,
@@ -11,11 +12,15 @@ import {
   finish,
   following,
   heroSeat,
+  isHandPot,
   isPotDrill,
+  needsIndex,
   newHand,
   offDrill,
   phaseOf,
   nextTable,
+  potLabel,
+  POT_DRILLS,
   rangeAt,
   redeal,
   REBUY,
@@ -30,6 +35,7 @@ import {
   studyOf,
   villainMove,
   withVillain,
+  type HandOptions,
   type PracticeHand,
 } from "./practice";
 
@@ -268,6 +274,82 @@ describe("seats and dealing", () => {
       turn: [],
       river: [],
     });
+  });
+});
+
+describe("Instant flops as a hand's pot", () => {
+  const f = (pos: string): Move => ({ pos, action: "fold" });
+  const SRP = ["UTG:f", "HJ:f", "CO:f", "BTN:r2.5", "SB:f", "BB:c"];
+  const THREE = ["UTG:f", "HJ:f", "CO:f", "BTN:r2.5", "SB:f", "BB:r10", "BTN:c"];
+  const lib = (hero = "BTN", cands: string[][] | null = [SRP]) => ({ ...newHand(6, 100, 0, 9, { seat: hero, pot: "lib" }), ...(cands ? { cands } : {}) });
+  const open = (h: PracticeHand) => play(h, f("UTG"), f("HJ"), f("CO"), { pos: "BTN", action: "raise", to: 2.5 }, f("SB"));
+
+  it("isn't one of the drills: the Play select stays as it was, and History's words", () => {
+    expect(Object.keys(POT_DRILLS)).toEqual(["srp", "3bet", "bvb"]);
+    expect(isPotDrill("lib")).toBe(false);
+    expect(isHandPot("lib")).toBe(true);
+    expect(isHandPot("srp")).toBe(true);
+    expect(isHandPot("any")).toBe(false);
+    expect(potLabel("lib")).toBe("an instant flop");
+    expect(potLabel("3bet")).toBe("a 3-bet pot");
+  });
+
+  it("waits for the index: nothing is off a line it hasn't been given", () => {
+    const h = lib("BTN", null);
+    expect(offDrill(h)).toBe(false);
+    expect(needsIndex(h)).toBe(true);
+    expect(needsIndex(lib())).toBe(false);
+    expect(needsIndex(newHand(6, 100, 0, 9, { pot: "srp" }))).toBe(false);
+    expect(needsIndex({ ...h, shown: 3 })).toBe(false);
+    expect(needsIndex(newHand(6, 100, 0, 9))).toBe(false);
+  });
+
+  it("is off with no line held for this flop, before a move", () => {
+    expect(offDrill(lib("BTN", []))).toBe(true);
+    expect(offDrill(lib())).toBe(false);
+  });
+
+  it("is off as soon as the line leaves every one held", () => {
+    expect(offDrill(play(lib(), f("UTG"), f("HJ"), f("CO")))).toBe(false);
+    expect(offDrill(play(lib(), { pos: "UTG", action: "raise", to: 2.5 }))).toBe(true);
+    expect(offDrill(play(lib(), f("UTG"), f("HJ"), f("CO"), { pos: "BTN", action: "raise", to: 3 }))).toBe(true);
+    expect(offDrill(open(lib()))).toBe(false);
+    expect(offDrill(play(open(lib()), { pos: "BB", action: "raise", to: 10 }))).toBe(true);
+    // (either line goes on)
+    expect(offDrill(play(open(lib("BTN", [SRP, THREE])), { pos: "BB", action: "raise", to: 10 }))).toBe(false);
+  });
+
+  it("is off where you've folded, or the hand is over, on a line held", () => {
+    // (each on a line still held, with the hand going on or you still in it, or the other would say so)
+    expect(offDrill(play(lib("UTG"), f("UTG")))).toBe(true);
+    const walk = play(lib("BB"), f("UTG"), f("HJ"), f("CO"), f("BTN"), f("SB"));
+    expect(offDrill({ ...walk, cands: [["UTG:f", "HJ:f", "CO:f", "BTN:f", "SB:f"]] })).toBe(true);
+  });
+
+  it("is off where the flop comes on the start of a longer line, and on where it's a whole one", () => {
+    const flop = play(open(lib()), { pos: "BB", action: "call" });
+    expect(offDrill(flop)).toBe(false);
+    expect(offDrill({ ...flop, cands: [[...SRP, "BTN:c"]] })).toBe(true);
+    expect(offDrill({ ...flop, cands: [[...SRP, "BTN:c"], SRP] })).toBe(false);
+    // (the flop's out: past dealing)
+    expect(offDrill({ ...flop, cands: [], shown: 3 })).toBe(false);
+  });
+});
+
+describe("a preflop drawn from the charts", () => {
+  it("is a hand played for you, in the game a chart's request says", () => {
+    const pot = (o: HandOptions = {}, players = 6, stack = 100) => newHand(players, stack, 0, 9, { pot: "lib", ...o });
+    expect(charting(pot())).toBe(true);
+    expect(charting(pot({ pot: "srp" }))).toBe(true);
+    expect(charting(newHand(6, 100, 0, 9))).toBe(false);
+    expect(charting({ ...pot(), shown: 3 })).toBe(false);
+    expect(charting(pot({}, 5))).toBe(false);
+    expect(charting(pot({}, 6, 40))).toBe(false);
+    expect(charting(pot({ ante: 0.1 }))).toBe(false);
+    expect(charting(pot({ straddle: true }))).toBe(false);
+    expect(charting(pot({ rake: 5 }))).toBe(false);
+    expect(charting(pot({ sizes: { flop: [50] } }))).toBe(false);
+    expect(charting({ ...pot(), stacks: { UTG: 90 } })).toBe(false);
   });
 });
 

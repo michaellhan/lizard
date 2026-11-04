@@ -115,6 +115,10 @@ describe("keptHand", () => {
   it("takes a drill's hand, and a graded decision with what graded it", () => {
     const h = newHand(2, 100, 0, 7, { ...OPTS, pot: "srp" });
     expect(keptHand({ ...h, tries: 3 })).not.toBeNull();
+    const lib = { ...newHand(6, 100, 0, 9, { seat: "BTN", pot: "lib" }), tries: 2 };
+    expect(keptHand(structuredClone(lib))).toEqual(lib);
+    const lines = { ...lib, cands: [["UTG:f", "BTN:c"], []] };
+    expect(keptHand(structuredClone(lines))).toEqual(lines);
     const dealt = newHand(2, 100, 0, 7, OPTS);
     const r = decide(dealt, BAD, CALL, prov("live"));
     if ("error" in r) throw new Error(r.error);
@@ -238,7 +242,9 @@ describe("keptHand", () => {
     ["a result's winners with a hole in them", (h) => ({ ...h, result: { ...over, winners: [,] } })],
     ["a result's pay that's no chips", (h) => ({ ...h, result: { ...over, pays: { SB: "1" } } })],
     ["an ante that's no number", (h) => ({ ...h, ante: "1" })],
-    ["a pot drill that doesn't exist", (h) => ({ ...h, pot: "lib" })],
+    ["a pot drill that doesn't exist", (h) => ({ ...h, pot: "nope" })],
+    ["Instant flops' lines that are no list", (h) => ({ ...h, pot: "lib", cands: "UTG:f" })],
+    ["Instant flops' lines of something else", (h) => ({ ...h, pot: "lib", cands: [["UTG:f"], [7]] })],
     ["a pot drill named as what every object has", (h) => ({ ...h, pot: "toString" })],
     ["a drill's deals not counted", (h) => ({ ...h, tries: -1 })],
     ["stacks that aren't chips", (h) => ({ ...h, stacks: { SB: "100", BB: 100 } })],
@@ -431,6 +437,7 @@ describe("keptTables", () => {
     ["a setup with no seat", spoiled({ opts: { ...OPTS, seat: 1 } })],
     ["a setup not preflop-only or not", spoiled({ opts: { ...OPTS, preflopOnly: 0 } })],
     ["a setup with a pot that doesn't exist", spoiled({ opts: { ...OPTS, pot: "x" } })],
+    ["a setup on Instant flops, which only the tables deal", spoiled({ opts: { ...OPTS, pot: "lib" } })],
     ["a setup with no ante", spoiled({ opts: { ...OPTS, ante: "0" } })],
     ["a setup not straddled or not", spoiled({ opts: { ...OPTS, straddle: 0 } })],
     ["a setup not carrying chips or not", spoiled({ opts: { ...OPTS, carry: 0 } })],
@@ -649,7 +656,7 @@ describe("Room's kept doc", () => {
   beforeEach(async () => {
     // (the clock is faked and the database's own turns aren't, so a read answers by itself)
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    useSettings.setState({ mode: "fast", keepHands: false, loaded: true });
+    useSettings.setState({ mode: "fast", keepHands: false, loaded: true, practiceSpot: "any" });
     await put(null);
     vi.mocked(putSession).mockClear();
   });
@@ -658,7 +665,7 @@ describe("Room's kept doc", () => {
     for (const r of rooms) r.stop();
     rooms = [];
     vi.useRealTimers();
-    useSettings.setState({ mode: "fast", keepHands: false, loaded: false });
+    useSettings.setState({ mode: "fast", keepHands: false, loaded: false, practiceSpot: null });
   });
 
   describe("across tables", () => {
@@ -1313,6 +1320,21 @@ describe("Room's kept doc", () => {
 
       await play(room, () => room.snapshot().session.score.n >= 2);
       expect(room.snapshot().tables[1]!.error).toBeNull();
+    });
+
+    it("brings back a hand dealing an instant flop, with its lines, or the index read for them", async () => {
+      useSettings.setState({ practiceSpot: null });
+      const lines = [["UTG:f", "HJ:f", "CO:f", "BTN:r2.5", "SB:f", "BB:c"]];
+      const dealing = hand(1, "BTN", { pot: "lib", cands: lines });
+      await put(doc([kept(hand(0, "UTG")), kept(dealing)]));
+      const { room } = await reload({ readIndex: async () => new Promise(() => {}) }, solver({ quiet: true }));
+      expect(room.snapshot().tables[1]!.hand).toEqual(dealing);
+
+      const waiting = hand(1, "BTN", { pot: "lib" });
+      await put(doc([kept(hand(0, "UTG")), kept(waiting)]));
+      const back = await reload({ readIndex: async () => null }, solver({ quiet: true }));
+      expect(back.room.snapshot().tables[1]!.hand.pot).toBeUndefined();
+      expect(back.room.snapshot().tables[1]!.hand.n).toBe(waiting.n);
     });
 
     it("deals a place that has nothing in it, at the tables in play", async () => {

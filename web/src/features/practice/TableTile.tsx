@@ -10,7 +10,7 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { behind, type Sim } from "@/poker/table";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import { fmt, signed } from "./PracticeParts";
-import { boardShown, phaseOf, POT_DRILLS, runEnd, seeking, setupOf, shownCards, simOf, type Decision, type HandResult, type PracticeHand } from "./practice";
+import { boardShown, needsIndex, phaseOf, potLabel, runEnd, seeking, setupOf, shownCards, simOf, type Decision, type HandResult, type PracticeHand } from "./practice";
 import type { RoomTable } from "./room";
 
 /** A hand's end in a line. */
@@ -48,7 +48,8 @@ export function stateOf(t: RoomTable, i: number, queue: readonly number[]): Tabl
   if (t.spent) return state("fail", t.error ?? "Nothing more to deal.");
   if (failed) return state("fail", moving ? `${seatLabel(moving.seat, h.players)}'s move failed: ${failed}` : `No answer to grade this spot against: ${failed}`);
   if (h.result) return state("over", resultLine(h.result));
-  if (seeking(h)) return state("seek", `Dealing ${POT_DRILLS[h.pot!].one}…`, true);
+  if (needsIndex(h)) return state("seek", "Loading the flop library…", true);
+  if (seeking(h)) return state("seek", `Dealing ${potLabel(h.pot!)}…`, true);
   const q = queue.indexOf(i);
   if (q >= 0) return state("wait", "Your turn", false, queue.length > 1 ? q + 1 : 0);
   if (ph.kind === "hero") return state("think", "Solving your spot…", true);
@@ -94,6 +95,7 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
   const made = out.length >= 3 && !h.result?.folded ? handName(rank7([...h.hands[h.hero]!, ...out])) : null;
   const decided = h.decisions.at(-1);
   const verdict = decided && verdictLine(decided);
+  const charted = !!h.pot && h.shown >= 3;
   return (
     <section
       id={`practice-table-${i}`}
@@ -159,10 +161,11 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
           <SeatChip key={p} hand={h} sim={sim} p={p} />
         ))}
       </ul>
-      {(made || verdict) && (
+      {(made || verdict || charted) && (
         <div className="space-y-0.5 text-xs">
           {made && <p className="text-muted">{made}</p>}
           {verdict && <p title={verdict.title}>{verdict.text}</p>}
+          {charted && <p className="text-muted">≈ {sourceLabel("charts")}: the preflop was played for you, not solved</p>}
         </div>
       )}
     </section>

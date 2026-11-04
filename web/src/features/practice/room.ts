@@ -13,6 +13,13 @@
 // the last spot can't land on the next: input waits `guard` ms from when the front changed by itself or its answer came
 // in, and a dock's button carries its spot's key. Fewer tables set the others aside with their hands and results.
 //
+// Instant flops is what's dealt above one table unless you choose otherwise: each hand is played for you from the flop
+// library's index (flops.ts) until it reaches a heads-up flop the library holds, so a table deals nothing until the index
+// has settled, and where it can't be read, or holds no spot of this game, the tables play Any hand and say why. Hands
+// being dealt to a pot, a drill's too, draw their seats' moves from one chart a node (`charts`) in the game the charts are:
+// a chart that can't be drawn from is held as null and its seats are asked one by one, and a chart nobody got an answer to
+// holds nothing, so it's asked again. At one table nothing is drawn, as there every move is asked in order.
+//
 // `start`, `stop`, `start` works, as StrictMode runs it. `start` reads the kept doc first, raced against KEPT_WAIT
 // because `kvGet` waits for ever while an older tab blocks an upgrade, and sends nothing until that settles: a New
 // session meanwhile wins, and a read that times out starts fresh and leaves the doc alone. The page draws the hand all the
@@ -25,13 +32,15 @@
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
+import { candsFor, flopIndex, gamesHeld, gameWords, heldSpots, instantSpots, isChart, libFlop, type FlopSpot } from "@/library/flops";
 import { seatsOf } from "@/poker/seats";
-import type { Street } from "@/poker/table";
+import type { Sim, Street } from "@/poker/table";
 import type { SolverClient } from "@/solver/client";
 import type { AdvisorState, PlayMove } from "@/solver/protocol";
+import { useRuntime } from "@/solver/runtime";
 import { SolverError, type SolveMode, type SolverTransport, type SolveResult, type StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
-import { moveOf, needOf, type Need } from "./flow";
+import { chartDraw, moveOf, needOf, type Need } from "./flow";
 import { practiceRecord } from "./history";
 import { KEPT_KEY, keptTables, MAX_TABLES, sameKept, type KeptTable, type KeptTables, type LastHand } from "./keep";
 import {
@@ -43,10 +52,11 @@ import {
   finish,
   following,
   isPotDrill,
+  needsIndex,
   newHand,
   offDrill,
   phaseOf,
-  POT_DRILLS,
+  potLabel,
   rangeAt,
   redeal,
   runKind,
@@ -56,7 +66,7 @@ import {
   withVillain,
   type Decision,
   type HandOptions,
-  type PotDrill,
+  type HandPot,
   type PracticeHand,
   type RangeAt,
   type SeatChoice,
@@ -69,17 +79,42 @@ export type RoomClient = Pick<SolverClient, "solve" | "play"> & Partial<Pick<Sol
 export type RoomSolver = () => Promise<RoomClient>;
 
 /** What the tables deal above one table: any hand, or one kind of pot. */
-export type Spot = PotDrill | "any";
+export type Spot = HandPot | "any";
 
-/** Settings' Spots as it's played: Any hand where none is chosen or it's one this build doesn't know, and in a preflop-only
- * session, as a drill would stop it counting net. */
-export const spotOf = (saved: unknown, preflopOnly: boolean): Spot => (isPotDrill(saved) && !preflopOnly ? saved : "any");
+/** Settings' Spots as it's played. `lib`: Instant flops can be dealt here, which it is where nothing's been chosen. Any hand
+ * where it can't, where the choice is one this build doesn't know, and in a preflop-only session, as a pot played for you
+ * would stop it counting net. */
+export function spotOf(saved: unknown, preflopOnly: boolean, lib: boolean): Spot {
+  if (preflopOnly) return "any";
+  if (isPotDrill(saved)) return saved;
+  return (saved === null || saved === "lib") && lib ? "lib" : "any";
+}
 
 /** The seats a spot can deal you. */
 export const seatsFor = (players: number, spot: Spot): readonly string[] => (spot === "bvb" ? ["SB", "BB"] : seatsOf(players));
 
 /** Settings' Seat as it's played: Random where this game or spot doesn't have it. */
 export const seatOf = (saved: string, players: number, spot: Spot): SeatChoice => (seatsFor(players, spot).includes(saved) ? saved : "random");
+
+/** Why Instant flops can't be dealt: a preflop-only session, an index that didn't load, or a game it holds no spot of. */
+export type FlopsOff = "preflop" | "failed" | "game";
+
+/** Instant flops as the tables stand. */
+export interface RoomFlops {
+  off: FlopsOff | null;
+  /** the games the library holds, in words, once it's been read */
+  holds: readonly string[];
+  /** this session's game, in words */
+  game: string;
+}
+
+/** Why Instant flops isn't on offer, in words, as a phone has no tooltip. `spot`: what's being played. */
+export function flopsNote(f: RoomFlops, spot: Spot): string | null {
+  if (f.off === "preflop") return "Instant flops plays no preflop, so a preflop-only session stays on Any hand. Nor can a pot drill: each plays your preflop for you.";
+  if (f.off === "failed") return `The flop library didn't load, so ${spot === "any" ? "this is Any hand" : "Instant flops is off"}.`;
+  if (f.off === "game") return `Instant flops needs a game the flop library holds (${f.holds.join(", ")}). This is ${f.game}${spot === "any" ? ", so you're playing Any hand" : ""}.`;
+  return null;
+}
 
 export interface RoomOptions {
   /** ms an opponent's move and a new card take at least at one table, so the hand can be followed (0 in tests) */
@@ -104,6 +139,8 @@ export interface RoomOptions {
   hands?: readonly PracticeHand[];
   /** reads the kept doc (a test's waits, or doesn't) */
   readKept?: () => Promise<unknown>;
+  /** reads the flop library's index, once the solver has resolved the library (a test's is its fixture) */
+  readIndex?: () => Promise<unknown>;
 }
 
 /** A table as a view draws it. */
@@ -146,6 +183,7 @@ export interface RoomSnapshot {
   ended: { table: number; hand: PracticeHand } | null;
   /** what a stop costs on the client in use, which says so before its worker has started (null: none yet) */
   stopCost: StopCost | null;
+  flops: RoomFlops;
 }
 
 /** A wait: the seconds from your turn to its buttons. `table`: from 1. */
@@ -168,6 +206,9 @@ export interface RoomMetrics {
   median: number | null;
   /** requests stopped */
   stops: number;
+  /** moves drawn from a chart, and the charts held (multitable.js:841) */
+  charted: number;
+  charts: number;
   /** the last ones */
   waits: readonly Wait[];
   solves: readonly Solved[];
@@ -245,6 +286,7 @@ export class Room {
   private readonly fixedSpot: Spot | undefined;
   private readonly fixedSeat: SeatChoice | undefined;
   private readonly readKept: () => Promise<unknown>;
+  private readonly readIndex: () => Promise<unknown>;
   /** the options say what's on the tables, so the doc brings nothing back */
   private readonly fixed: boolean;
 
@@ -290,6 +332,14 @@ export class Room {
   private readonly adv = new Map<string, SolveResult>();
   private readonly moves = new Map<string, SolveResult<PlayMove>>();
   private readonly failed = new Map<string, string>();
+  /** by `chartKey`: null, a node's chart that can't be drawn from */
+  private readonly charts = new Map<string, SolveResult | null>();
+  private charted = 0;
+  /** what Instant flops deals from: unread, on its way, or settled, read or not */
+  private lib: FlopSpot[] | null = null;
+  private libState: "idle" | "loading" | "ok" | "failed" = "idle";
+  /** the read's number, so one from before a new solver is ignored */
+  private libRun = 0;
   /** first wanted, by key: a job's `since` */
   private readonly seen = new Map<string, number>();
   /** the keys rejected as cancelled with nobody here stopping them, since the last answer */
@@ -312,6 +362,12 @@ export class Room {
     this.seedOf = o.seedOf ?? randomSeed;
     this.fixedMode = o.mode;
     this.readKept = o.readKept ?? (() => kvGet<unknown>(KEPT_KEY));
+    this.readIndex =
+      o.readIndex ??
+      (async () => {
+        await this.solver!();
+        return flopIndex(useRuntime.getState().librarySource);
+      });
     this.fixed = o.tables !== undefined || o.hands !== undefined;
     this.fixedSpot = o.spot;
     this.fixedSeat = o.seat;
@@ -386,12 +442,16 @@ export class Room {
   }
 
   /** From a layout effect, as settings load after the first render. A new solver lets the flight go at once: an HTTP
-   * request outlives its client's `dispose`, and would hold the new client up. Its late answer is dropped. */
+   * request outlives its client's `dispose`, and would hold the new client up. Its late answer is dropped. It can read
+   * another library too, so the index is read again, as it is after a read that failed. */
   setSolver(solver: RoomSolver): void {
     if (solver === this.solver) return;
     this.solver = solver;
     this.flight?.ac.abort();
     this.flight = null;
+    this.lib = null;
+    this.libState = "idle";
+    this.libRun += 1;
     if (this.live) this.pump();
   }
 
@@ -478,6 +538,7 @@ export class Room {
     }
     // (a key has no seed, so the same cards can come up: what failed last session says nothing of this one)
     this.failed.clear();
+    this.charts.clear();
     this.unasked.clear();
     this.front = FREE;
     this.resetStacks = false;
@@ -545,7 +606,7 @@ export class Room {
     if (!t || table !== this.front.focus || this.guardLeft() > 0) return;
     const h = t.hand;
     const sim = simOf(h);
-    const need = needOf(h, this.mode, sim);
+    const need = this.needAt(h, this.mode, sim);
     const answer = need.kind === "you" && (key ?? need.key) === need.key ? this.adv.get(need.key) : undefined;
     if (!answer) return;
     const r = decide(h, answer.data, i, answer.provenance, sim);
@@ -570,7 +631,7 @@ export class Room {
     if (!t) return;
     const h = t.hand;
     const sim = simOf(h);
-    const need = needOf(h, this.mode, sim);
+    const need = this.needAt(h, this.mode, sim);
     if (need.kind !== "you" || !this.failed.has(need.key)) return;
     const r = decideUngraded(h, a, sim);
     if (typeof r === "string") {
@@ -593,7 +654,7 @@ export class Room {
     if (!t) return;
     const h = t.hand;
     const sim = simOf(h);
-    const need = needOf(h, this.mode, sim);
+    const need = this.needAt(h, this.mode, sim);
     if (need.kind !== "opp" || !this.failed.has(need.key)) return;
     this.failed.delete(need.key);
     this.commit(t, withVillain(h, checkOrCall(h, sim), sim));
@@ -610,7 +671,7 @@ export class Room {
       t.spent = false;
       this.dealt(t, redeal({ ...t.hand, tries: 0 }, this.seed(), this.opts));
     } else {
-      const need = needOf(t.hand, this.mode);
+      const need = this.needAt(t.hand, this.mode);
       if (need.kind === "you" || need.kind === "opp") this.failed.delete(need.key);
       t.since = this.now();
     }
@@ -688,8 +749,9 @@ export class Room {
       this.failed.clear();
       for (const t of this.tables) t.since = this.now();
     }
+    if (this.libState === "idle" && this.solver && (this.many || mode === "accurate" || this.tables.some((t) => needsIndex(t.hand)))) this.readLib();
     for (const t of this.tables) this.step(t, mode);
-    const needs = this.tables.map((t) => needOf(t.hand, mode));
+    const needs = this.tables.map((t) => this.needAt(t.hand, mode));
     this.tables.forEach((t, i) => this.turn(t, i, needs[i]!));
     this.front = refocus(this.front, this.waiters, this.now());
     this.watchGuard();
@@ -714,18 +776,28 @@ export class Room {
         continue;
       }
       const sim = simOf(h);
-      const need = needOf(h, mode, sim);
-      if (need.kind === "deal") {
+      const need = this.needAt(h, mode, sim);
+      if (need.kind === "index") {
+        if (this.libState === "idle" || this.libState === "loading") return;
+        // (every deal comes through here, a redeal too; nothing's been played, so where the library can't deal it, it's any hand)
+        this.put(t, this.flopsOff ? { ...h, pot: undefined } : { ...h, cands: candsFor(this.held, h.hero, h.board) });
+      } else if (offDrill(h, sim)) {
+        // (a flop held on no line with you in it, off before a move)
+        this.commit(t, h);
+      } else if (need.kind === "deal") {
         if (this.paced(t, pace)) return;
         this.commit(t, dealNext(h, need.street));
         this.tell(t);
-      } else if (need.kind === "opp" && this.moves.has(need.key)) {
+      } else if (need.kind === "opp") {
+        const asked = this.moves.get(need.key)?.data;
+        const mv = asked ?? chartDraw(h, need.play!.seat, this.many ? this.charts : undefined);
+        if (!mv) return;
         // (a drill's preflop, dealt again until it's the pot, goes by at once)
         if (this.paced(t, seeking(h) ? 0 : pace)) return;
-        const mv = this.moves.get(need.key)!;
         this.moves.delete(need.key);
-        const { move, fallback } = moveOf(h, mv.data, sim);
+        const { move, fallback } = moveOf(h, mv, sim);
         if (fallback) return this.fail(need.key, fallback);
+        if (!asked) this.charted += 1;
         this.commit(t, withVillain(h, move, sim));
       } else return;
     }
@@ -766,12 +838,13 @@ export class Room {
 
   private wants(t: Table, i: number, need: Need, mode: SolveMode): Job[] {
     if (t.spent || (this.many && t.hand.result)) return [];
-    if (need.kind !== "you" && need.kind !== "opp") return [];
+    if (need.kind !== "you" && need.kind !== "opp" && need.kind !== "chart") return [];
     const inHand = need.kind === "you" ? this.adv.has(need.key) : this.moves.has(need.key);
     if (inHand || this.failed.has(need.key)) return [];
     const since = this.seen.get(need.key) ?? this.now();
     this.seen.set(need.key, since);
-    return [{ need, table: i, est: estimate(need.state, mode, t.solved, this.client?.transport?.kind ?? "worker"), seeking: seeking(t.hand), since }];
+    const held = need.state.board?.length === 6 && libFlop(this.held, need.state);
+    return [{ need, table: i, est: estimate(need.state, mode, t.solved, this.client?.transport?.kind ?? "worker", held), seeking: seeking(t.hand), since }];
   }
 
   /** You've moved at the table: the first in the queue comes forward, and a pin is over (`refocus`). */
@@ -801,7 +874,7 @@ export class Room {
       if ((h.tries ?? 0) + 1 < DRILL_TRIES) {
         this.dealt(t, redeal(h, this.seed(), this.opts));
       } else {
-        t.error = `No ${POT_DRILLS[h.pot!].one.replace(/^an? /, "")} in ${DRILL_TRIES} deals.`;
+        t.error = `No ${potLabel(h.pot!).replace(/^an? /, "")} in ${DRILL_TRIES} deals${h.pot === "lib" ? " at this seat: try another seat or spot" : ""}.`;
         t.spent = true;
       }
       return;
@@ -832,6 +905,24 @@ export class Room {
   private dealt(t: Table, h: PracticeHand): void {
     this.put(t, h);
     t.solved.clear();
+  }
+
+  /** The hand's next step, as `needOf` says it: only above one table is a move played for you drawn from a chart. */
+  private needAt(h: PracticeHand, mode: SolveMode, sim?: Sim): Need {
+    return needOf(h, mode, sim, this.many ? this.charts : undefined);
+  }
+
+  /** The index, into `lib`. Its size only says whether Instant flops can be dealt: a read that fails holds nothing. */
+  private readLib(): void {
+    const run = (this.libRun += 1);
+    this.libState = "loading";
+    const settle = (index: unknown) => {
+      if (run !== this.libRun) return;
+      this.lib = instantSpots(index);
+      this.libState = this.lib.length ? "ok" : "failed";
+      this.pump();
+    };
+    void this.readIndex().then(settle, () => settle(null));
   }
 
   private deal(t: Table, reset = false): void {
@@ -875,7 +966,7 @@ export class Room {
       if (signal.aborted) throw new SolverError("cancelled", "cancelled");
       this.useClient(client);
       fl.sent = true;
-      r = need.play ? await client.play(need.state, need.play, { mode, signal }) : await client.solve({ state: need.state, mode, signal });
+      r = need.kind !== "chart" && need.play ? await client.play(need.state, need.play, { mode, signal }) : await client.solve({ state: need.state, mode, signal });
     } catch (e) {
       this.lost(fl, e);
       return;
@@ -890,6 +981,7 @@ export class Room {
     this.adv.clear();
     this.moves.clear();
     this.failed.clear();
+    this.charts.clear();
     for (const t of this.tables) {
       t.solved.clear();
       t.told = "";
@@ -908,7 +1000,11 @@ export class Room {
     this.unasked.clear();
     const { need, table } = fl.job;
     this.seen.delete(need.key);
-    if (r.data.error) {
+    if (need.kind === "chart") {
+      // (held as null only if it was drawn for and isn't one: a rule fallback is no chart, and an error from a request
+      // we'd stopped says nothing)
+      if (!r.data.error || !fl.stopping) this.chart(need.ck, isChart(r.data) && r.provenance.source === "charts" ? (r as SolveResult) : null);
+    } else if (r.data.error) {
       if (!fl.stopping) this.fail(need.key, r.data.error);
     } else {
       if (need.kind === "opp") {
@@ -932,17 +1028,20 @@ export class Room {
   private lost(fl: Flight, e: unknown): void {
     if (this.flight !== fl) return;
     this.flight = null;
-    const { key } = fl.job.need;
+    const { need } = fl.job;
+    const { key } = need;
     this.seen.delete(key);
     const kind = e instanceof SolverError ? e.kind : null;
+    // (a chart that fails marks no table: its seats are asked one by one)
+    const give = (why: string) => (need.kind === "chart" ? this.chart(need.ck, null) : this.fail(key, why));
     if (kind === "stuck") this.restarts += 1;
     if (!fl.stopping) {
       if (kind !== "cancelled" && kind !== "stuck") {
-        this.fail(key, message(e));
+        give(message(e));
       } else {
         // (no stop of ours, a client gone, say: asked again, but a spot that's cancelled twice says so, or it goes round
         // for ever; tables with spots of their own would take turns at it, so it's every key since the last answer)
-        if (this.unasked.has(key)) this.fail(key, "Stopped.");
+        if (this.unasked.has(key)) give("Stopped.");
         this.unasked.add(key);
       }
     }
@@ -952,6 +1051,11 @@ export class Room {
   private fail(key: string, why: string): void {
     this.failed.set(key, why);
     trim(this.failed);
+  }
+
+  private chart(ck: string, answer: SolveResult | null): void {
+    this.charts.set(ck, answer);
+    trim(this.charts);
   }
 
   private stopFlight(): void {
@@ -982,6 +1086,26 @@ export class Room {
     return this.optsAt(this.tables.length);
   }
 
+  /** The spots of this session's game. */
+  private get held(): FlopSpot[] {
+    const { players, stack, opts } = this.session;
+    return heldSpots(this.lib ?? [], { players, stack, ante: opts.ante, straddle: opts.straddle, rake: opts.rake, sizes: opts.sizes });
+  }
+
+  /** Why Instant flops can't be dealt now. Before the index settles it can, so the hands dealt wait for it. */
+  private get flopsOff(): FlopsOff | null {
+    if (this.session.opts.preflopOnly) return "preflop";
+    if (this.libState === "failed") return "failed";
+    return this.lib && !this.held.length ? "game" : null;
+  }
+
+  private get flops(): RoomFlops {
+    const { players, stack, opts } = this.session;
+    const own = [opts.rake > 0 ? "a rake" : "", opts.sizes && Object.keys(opts.sizes).length ? "your own sizes" : ""].filter(Boolean);
+    const game = gameWords({ players, stack, ante: opts.ante, straddle: opts.straddle });
+    return { off: this.flopsOff, holds: gamesHeld(this.lib ?? []), game: own.length ? `${game} with ${own.join(" and ")}` : game };
+  }
+
   /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots and Seat and no chips carried.
    * Settings are read here, at the deal, not fed in by the page: a session read back deals a lost hand the moment they load,
    * before anything has rendered with them. */
@@ -989,7 +1113,7 @@ export class Room {
     const o = this.session.opts;
     if (n === 1) return o;
     const set = useSettings.getState();
-    const spot = spotOf(this.fixedSpot ?? set.practiceSpot, o.preflopOnly);
+    const spot = spotOf(this.fixedSpot ?? set.practiceSpot, o.preflopOnly, this.flopsOff === null);
     return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false };
   }
 
@@ -1005,7 +1129,7 @@ export class Room {
   private build(): RoomSnapshot {
     const mode = this.mode;
     const tables = this.tables.map((t): RoomTable => {
-      const need = needOf(t.hand, mode);
+      const need = this.needAt(t.hand, mode);
       const asked = need.kind === "you" || need.kind === "opp" ? need : null;
       return {
         hand: t.hand,
@@ -1031,13 +1155,22 @@ export class Room {
       guarded: this.guardLeft() > 0,
       ended: this.ended,
       stopCost: this.client ? (this.client.stopCost?.() ?? "kills") : null,
+      flops: this.flops,
     };
   }
 
   /** How the waits went, per decision (multitable.js:838-844). */
   metrics(): RoomMetrics {
     const w = this.waits.map((x) => x.s).sort((a, b) => a - b);
-    return { decisions: w.length, median: w.length ? Math.round(w[Math.floor(w.length / 2)]! * 100) / 100 : null, stops: this.stops, waits: this.waits.slice(-200), solves: this.solves.slice(-200) };
+    return {
+      decisions: w.length,
+      median: w.length ? Math.round(w[Math.floor(w.length / 2)]! * 100) / 100 : null,
+      stops: this.stops,
+      charted: this.charted,
+      charts: this.charts.size,
+      waits: this.waits.slice(-200),
+      solves: this.solves.slice(-200),
+    };
   }
 
   private emit(): void {

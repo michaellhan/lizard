@@ -2,7 +2,9 @@
 import { describe, expect, it } from "vitest";
 import type { Move } from "@/poker/table";
 import type { PlayMove } from "@/solver/protocol";
-import { adviceKey, moveKey, moveOf, needOf } from "./flow";
+import type { SolveResult } from "@/solver/types";
+import { chartKey } from "@/library/flops";
+import { chartDraw, adviceKey, moveKey, moveOf, needOf, type Charts } from "./flow";
 import { dealNext, finish, newHand, stateFor, withVillain, type PracticeHand } from "./practice";
 
 const mv = (pos: string, action: Move["action"], to?: number): Move => ({ pos, action, ...(to !== undefined ? { to } : {}) });
@@ -10,6 +12,9 @@ const played = (h: PracticeHand, ms: Move[]) => ms.reduce((x, m) => withVillain(
 
 // the first hand of a session: you're on the button
 const hand = () => newHand(6, 100, 0, 1);
+/** Every starting hand a seat can hold (a chart's cells, by class). */
+const RANKS = "AKQJT98765432";
+const HANDS = [...RANKS].flatMap((a, i) => [...RANKS].map((b, j) => (i === j ? a + b : i < j ? `${a}${b}s` : `${b}${a}o`)));
 const FOLDS = [mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold")];
 
 describe("needOf", () => {
@@ -55,6 +60,38 @@ describe("needOf", () => {
     expect(key({ ...yours, n: 5, seed: 99 })).toBe(key(yours));
   });
 
+  it("waits for the index while Instant flops has no lines, before anything else", () => {
+    const lib = newHand(6, 100, 0, 1, { pot: "lib" });
+    expect(needOf(lib, "quick")).toEqual({ kind: "index" });
+    expect(needOf(lib, "quick", undefined, new Map())).toEqual({ kind: "index" });
+    expect(needOf({ ...lib, cands: [] }, "quick").kind).toBe("opp");
+  });
+
+  it("asks a node's chart once above one table, for a hand played for you, and its seats where it can't be drawn from", () => {
+    const h = { ...newHand(6, 100, 0, 1, { pot: "srp" }) };
+    const charts = new Map<string, null>();
+    const state = stateFor(h);
+    const ck = chartKey(state);
+    const need = needOf(h, "quick", undefined, charts);
+    expect(need).toEqual({ kind: "chart", key: `chart|${ck}`, ck, street: "preflop", state: { players: 6, stack: 100, board: "", preflop: [], flop: [], turn: [], river: [], study: true } });
+
+    // (no hero and no hole: every hand at the node asks the same)
+    expect(needOf(played(h, []), "accurate", undefined, charts)).toEqual(need);
+    charts.set(ck, null);
+    expect(needOf(h, "quick", undefined, charts)).toMatchObject({ kind: "opp", play: { seat: "UTG" } });
+  });
+
+  it("asks no chart at one table, in another game, or for a hand of your own", () => {
+    const none = new Map<string, null>();
+    const pot = (o: object = {}, stack = 100) => newHand(6, stack, 0, 1, { pot: "srp", ...o });
+    expect(needOf(pot(), "quick").kind).toBe("opp");
+    expect(needOf(pot({ ante: 0.1 }), "quick", undefined, none).kind).toBe("opp");
+    expect(needOf(pot({ sizes: { flop: [50] } }), "quick", undefined, none).kind).toBe("opp");
+    expect(needOf(pot({}, 40), "quick", undefined, none).kind).toBe("opp");
+    expect(needOf(hand(), "quick", undefined, none).kind).toBe("opp");
+    expect(needOf(dealNext(played(hand(), [...FOLDS, mv("BTN", "raise", 2.5), mv("SB", "fold"), mv("BB", "call")]), "flop"), "quick", undefined, none).kind).toBe("opp");
+  });
+
   it("builds the key from the request it sends", () => {
     const start = hand();
     const opp = needOf(start, "accurate");
@@ -77,6 +114,57 @@ describe("needOf", () => {
     expect(out.play).toEqual({ seat: "SB", hole: folded.hands.SB!.join("") });
     expect(out.state).toEqual(stateFor(folded, "SB"));
     expect(out.state).toMatchObject({ hero: "SB", hole: folded.hands.SB!.join("") });
+  });
+});
+
+describe("chartDraw", () => {
+  const raise = { action: "raise 2.5", freq: 1, amount_bb: 2.5 };
+  const chart = (actor: string): SolveResult => ({
+    data: { study: "node", street: "preflop", actor, actions: [raise], grid: { actions: [raise.action], cells: Object.fromEntries(HANDS.map((c) => [c, { w: 1, f: [1] }])) } },
+    provenance: { source: "charts", approximate: true, mode: "quick", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0 },
+  });
+  const pot = newHand(6, 100, 0, 1, { pot: "srp" });
+  const charts = (h: PracticeHand, actor: string): Charts => new Map([[chartKey(stateFor(h)), chart(actor)]]);
+
+  it("draws the seat's move from its node's chart, for a hand played for you", () => {
+    expect(chartDraw(pot, "UTG", charts(pot, "UTG"))).toMatchObject({ pos: "UTG", action: "raise", to: 2.5 });
+  });
+
+  it("draws nothing at one table, for a chart that can't be drawn from, at another node, or for a hand of your own", () => {
+    expect(chartDraw(pot, "UTG")).toBeNull();
+    expect(chartDraw(pot, "UTG", new Map([[chartKey(stateFor(pot)), null]]))).toBeNull();
+    expect(chartDraw(pot, "UTG", new Map())).toBeNull();
+    expect(chartDraw(hand(), "UTG", charts(hand(), "UTG"))).toBeNull();
+    // (an ante's hand has the same node's key: the chart isn't its game's)
+    const ante = newHand(6, 100, 0, 1, { pot: "srp", ante: 0.1 });
+    expect(chartDraw(ante, "UTG", charts(ante, "UTG"))).toBeNull();
+  });
+
+  it("draws afresh at each node of a hand", () => {
+    const mixed = (): SolveResult => {
+      const c = chart("UTG");
+      return { ...c, data: { ...c.data, actions: [{ action: "fold", freq: 0.5 }, raise], grid: { actions: ["fold", raise.action], cells: Object.fromEntries(HANDS.map((x) => [x, { w: 1, f: [0.5, 0.5] }])) } } };
+    };
+    const at = (seed: number, moves: number) => {
+      const h = { ...pot, seed, lines: { ...pot.lines, preflop: FOLDS.slice(0, moves) } };
+      const seat = ["UTG", "HJ"][moves]!;
+      const c = mixed();
+      c.data.actor = seat;
+      return chartDraw(h, seat, new Map([[chartKey(stateFor(h)), c]]))!.action;
+    };
+    const seeds = Array.from({ length: 40 }, (_, i) => i);
+    expect(seeds.filter((s) => at(s, 0) !== at(s, 1)).length).toBeGreaterThan(5);
+  });
+
+  it("draws the same move for the same hand at the same node, and goes by the seed", () => {
+    const mixed = chart("UTG");
+    const cells = mixed.data.grid!.cells;
+    mixed.data = { ...mixed.data, actions: [{ action: "fold", freq: 0.5 }, raise], grid: { actions: ["fold", raise.action], cells: Object.fromEntries(Object.keys(cells).map((c) => [c, { w: 1, f: [0.5, 0.5] }])) } };
+    const map = new Map([[chartKey(stateFor(pot)), mixed]]);
+    const draw = (seed: number) => chartDraw({ ...pot, seed }, "UTG", map)!.action;
+    const seeds = Array.from({ length: 40 }, (_, i) => i);
+    expect(seeds.map(draw)).toEqual(seeds.map(draw));
+    expect(new Set(seeds.map(draw)).size).toBe(2);
   });
 });
 

@@ -12,9 +12,11 @@ import { WorkerTransport } from "@/solver/worker-transport";
 import { useSettings } from "@/state/settings";
 import type { Lines, Move } from "@/poker/table";
 import { noLines } from "@/poker/table";
+import index from "@/library/fixtures/srp_btn_bb.flops.json";
+import { candsFor, flopName, heldSpots, instantSpots } from "@/library/flops";
 import { practiceNumber } from "./history";
 import { DRILL_TRIES, newHand, optionsOf, type HandOptions, type PracticeHand } from "./practice";
-import { Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomOptions, type Spot } from "./room";
+import { flopsNote, Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomFlops, type RoomOptions, type Spot } from "./room";
 import { keyOf } from "./session";
 
 vi.mock("@/data/db", async (orig) => ({ ...(await orig<typeof import("@/data/db")>()), putSession: vi.fn(async () => {}) }));
@@ -54,8 +56,8 @@ interface Asked {
 }
 
 /** A solver that answers when told. `deaf`: a stop comes too late, and the request goes on to its answer. `stop`: what a
- * stop costs (null: it doesn't say, as PracticePage.test.tsx's stub doesn't). */
-function fakeClient({ deaf = false, stop = "cheap" as StopCost | null, transport = "worker" as TransportKind } = {}) {
+ * stop costs (null: it doesn't say, as PracticePage.test.tsx's stub doesn't). `preflop`: what answers before the flop. */
+function fakeClient({ deaf = false, stop = "cheap" as StopCost | null, transport = "worker" as TransportKind, preflop = "charts" as Provenance["source"] } = {}) {
   const asked: Asked[] = [];
   const prefetched: AdvisorState[] = [];
   const ask = <T,>(req: Omit<Asked, "answer" | "reject">, source: Provenance["source"]) =>
@@ -81,7 +83,7 @@ function fakeClient({ deaf = false, stop = "cheap" as StopCost | null, transport
       });
     });
   const client: RoomClient = {
-    solve: (req: SolveRequest) => ask<AdvisorResponse>({ state: req.state, mode: req.mode, signal: req.signal }, req.state.board ? "live" : "charts"),
+    solve: (req: SolveRequest) => ask<AdvisorResponse>({ state: req.state, mode: req.mode, signal: req.signal }, req.state.board ? "live" : preflop),
     play: (state, play, opts) => ask<PlayMove>({ state, play, mode: opts?.mode, signal: opts?.signal }, "live"),
     prefetch: (state) => prefetched.push(state),
     transport: { kind: transport },
@@ -146,9 +148,9 @@ const table = (room: Room) => room.snapshot().tables[0]!;
 
 /** A Room writing nothing, on a clean clock; `players`, a session of that many begun before it starts (heads-up, you
  * act first; none, the 6-max hand it was built with: UTG acts first). */
-function setup(o: RoomOptions & { players?: number; opts?: Required<HandOptions>; start?: boolean; deaf?: boolean; stop?: StopCost | null; transport?: TransportKind } = {}) {
-  const fake = fakeClient({ deaf: o.deaf, stop: o.stop === undefined ? "cheap" : o.stop, transport: o.transport });
-  const room = new Room({ pace: 450, now: () => Date.now(), persist: false, seedOf: (n) => n + 1, ...o });
+function setup(o: RoomOptions & { players?: number; opts?: Required<HandOptions>; start?: boolean; deaf?: boolean; stop?: StopCost | null; transport?: TransportKind; preflop?: Provenance["source"] } = {}) {
+  const fake = fakeClient({ deaf: o.deaf, stop: o.stop === undefined ? "cheap" : o.stop, transport: o.transport, preflop: o.preflop });
+  const room = new Room({ pace: 450, now: () => Date.now(), persist: false, seedOf: (n) => n + 1, readIndex: async () => null, ...o });
   const getSolver = vi.fn(async () => fake.client);
   room.setSolver(getSolver);
   if (o.players) room.startSession(o.players, 100, o.opts ?? OPTS);
@@ -174,6 +176,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.mocked(putSession).mockClear();
   vi.mocked(addHands).mockClear();
+  // (what these tests deal by: Instant flops, which is what's dealt unless you choose, has its own below)
+  useSettings.setState({ practiceSpot: "any" });
 });
 
 afterEach(() => {
@@ -1779,7 +1783,8 @@ describe("Room at several tables", () => {
   });
 
   it("can't let a table dealing a drill's pot starve a short solve", async () => {
-    const { room, asked } = several([{ ...spot(1, "BTN"), pot: "srp" }, flopOpp(2)]);
+    // (an ante: in the game the charts are, its moves would be drawn, not asked)
+    const { room, asked } = several([{ ...spot(1, "BTN"), pot: "srp", ante: 0.1 }, flopOpp(2)]);
     await flush();
     expect(tableOf(room, asked[0]!)).toBe(0);
     await pass(10);
@@ -2236,10 +2241,16 @@ describe("Room changing the number of tables", () => {
   });
 
   it("reads Settings' Spots and Seat as what can be played", () => {
-    expect(spotOf(null, false)).toBe("any");
-    expect(spotOf("gone", false)).toBe("any");
-    expect(spotOf("srp", false)).toBe("srp");
-    expect(spotOf("srp", true)).toBe("any");
+    expect(spotOf(null, false, true)).toBe("lib");
+    expect(spotOf("lib", false, true)).toBe("lib");
+    expect(spotOf(null, false, false)).toBe("any");
+    expect(spotOf("lib", false, false)).toBe("any");
+    expect(spotOf(null, true, true)).toBe("any");
+    expect(spotOf("lib", true, true)).toBe("any");
+    expect(spotOf("gone", false, true)).toBe("any");
+    expect(spotOf("any", false, true)).toBe("any");
+    expect(spotOf("srp", false, false)).toBe("srp");
+    expect(spotOf("srp", true, true)).toBe("any");
     expect(seatsFor(6, "bvb")).toEqual(["SB", "BB"]);
     expect(seatsFor(2, "any")).toEqual(["SB", "BB"]);
     expect(seatsFor(6, "srp")).toContain("UTG");
@@ -2266,7 +2277,7 @@ describe("Room changing the number of tables", () => {
   });
 
   it("deals a drill again by what the tables deal now", async () => {
-    const { room, asked } = several([{ ...spot(1, "BTN"), pot: "srp" }, preflop(2)], { spot: "any", seat: "UTG" });
+    const { room, asked } = several([{ ...spot(1, "BTN"), pot: "srp", ante: 0.1 }, preflop(2)], { spot: "any", seat: "UTG" });
     // (a raise and a raise: off a single-raised pot)
     await answer(asked, 0, FOLD_ONLY, move("raise", 2.5), move("raise", 8));
     expect(at(room, 0).hand).toMatchObject({ hero: "UTG", n: 1, tries: 1 });
@@ -2557,5 +2568,500 @@ describe("Room telling flops", () => {
     await flush();
     expect(next.asked).toHaveLength(1);
     expect(next.prefetched.map((f) => f.board)).toEqual(prefetched.map((f) => f.board));
+  });
+});
+
+// Study's preflop answer at a node (Advisor._study_preflop): whoever is next on the BTN-vs-BB line, every hand class playing
+// the line's move there (multitable.test.js:476). `drop`: classes left out.
+const RK = "AKQJT98765432";
+const CLASSES = [...RK].flatMap((a, i) => [...RK].map((b, j) => (i === j ? a + b : i < j ? `${a}${b}s` : `${b}${a}o`)));
+const SEATS6 = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+const BTN_BB: Record<string, string> = { UTG: "fold", HJ: "fold", CO: "fold", BTN: "raise 2.5", SB: "fold", BB: "call" };
+function chartOf(q: AdvisorState, drop: (seat: string, cls: string) => boolean = () => false): AdvisorResponse {
+  const seat = SEATS6[q.preflop!.length]!;
+  const actions = ["fold", "call", "raise 2.5"].map((a) => ({ action: a, amount_bb: a === "raise 2.5" ? 2.5 : undefined, freq: a === BTN_BB[seat] ? 1 : 0 }));
+  const cells = Object.fromEntries(CLASSES.filter((c) => !drop(seat, c)).map((c) => [c, { w: 1, f: actions.map((a) => a.freq) }]));
+  return { study: "node", street: "preflop", actor: seat, actions, grid: { actions: actions.map((a) => a.action), cells } };
+}
+
+describe("Instant flops", () => {
+  const LINE = ["UTG fold", "HJ fold", "CO fold", "BTN raise2.5", "SB fold", "BB call"];
+  const lineOf = (h: PracticeHand) => h.lines.preflop.map((m) => `${m.pos} ${m.action}${m.to ?? ""}`);
+  const names = Object.keys(index.spots[0]!.flops);
+  const six = heldSpots(instantSpots(index), { players: 6, stack: 100 });
+  const readIndex = async () => index;
+  const deal = (o: Parameters<typeof setup>[0] = {}) => setup({ players: 6, opts: OPTS, tables: 2, pace: 0, pause: 0, guard: 0, readIndex, ...o });
+  const allReady = (room: Room) => room.snapshot().tables.every((t) => t.answer);
+
+  // (nothing chosen: what's dealt unless you choose)
+  beforeEach(() => {
+    useSettings.setState({ practiceSpot: null });
+  });
+
+  /** What's asked answered by `by`, until `until`. */
+  async function run(asked: Asked[], by: (a: Asked) => AdvisorResponse, until: () => boolean) {
+    let done = 0;
+    for (let i = 0; i < 400 && !until(); i += 1) {
+      await flush();
+      const a = asked[done];
+      if (!a) continue;
+      done += 1;
+      a.answer(by(a));
+      await flush();
+    }
+  }
+  const flopped = (a: Asked) => (a.state.study ? chartOf(a.state) : a.play ? move("check") : FLOP);
+
+  it("plays the preflop for you, dealing each table until a heads-up flop the library holds; its flop answers count as instant (multitable.test.js:423)", async () => {
+    const { room, asked } = deal();
+    await run(asked, flopped, () => allReady(room));
+    for (const t of room.snapshot().tables) {
+      expect(t.answer).not.toBeNull();
+      expect(t.hand.pot).toBe("lib");
+      expect(["BTN", "BB"]).toContain(t.hand.hero);
+      expect(lineOf(t.hand)).toEqual(LINE);
+      expect(t.hand.shown).toBe(3);
+      expect(names).toContain(flopName(t.hand.board.slice(0, 3)));
+    }
+    const flops = room.metrics().solves.filter((s) => s.street === "flop");
+    expect(flops.length).toBeGreaterThan(0);
+    // (solved at the table already: quicker still)
+    expect(flops.every((s) => s.est === 0.3 || s.est === 0.2)).toBe(true);
+    expect(flops.some((s) => s.est === 0.3)).toBe(true);
+  });
+
+  it("calls a turn a quick solve there, as the library holds the flop only", async () => {
+    const { room, asked } = deal();
+    await run(asked, flopped, () => allReady(room));
+    const front = room.snapshot().focus;
+    // (a check, and a check back where you're first: the turn)
+    press(room, front, 0);
+    await run(asked, (a) => (a.state.board?.length === 8 ? (a.play ? move("check") : FLOP) : flopped(a)), () => room.metrics().solves.some((s) => s.street === "turn"));
+    expect(room.metrics().solves.filter((s) => s.street === "turn").map((s) => s.est)).toEqual([2]);
+  });
+
+  it("is the same at Accurate: a held flop is no long solve, so it goes ahead of one", async () => {
+    useSettings.setState({ mode: "accurate" });
+    const { room, asked } = deal();
+    await run(asked, flopped, () => allReady(room));
+    expect(room.metrics().solves.filter((s) => s.street === "flop").every((s) => s.est < 0.5)).toBe(true);
+  });
+
+  it("draws each seat's move in the page from its node's chart, asked once a node, not seat by seat (multitable.test.js:503)", async () => {
+    const { room, asked } = deal();
+    await run(asked, flopped, () => allReady(room));
+    const charts = asked.filter((a) => a.state.study);
+    expect(asked.filter((a) => a.play && !a.state.board)).toEqual([]);
+    expect(charts.map((a) => a.state.preflop!.length)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(charts[3]!.state).toEqual({ players: 6, stack: 100, board: "", preflop: charts[3]!.state.preflop, flop: [], turn: [], river: [], study: true });
+    expect(charts.every((a) => a.play === undefined)).toBe(true);
+    const m = room.metrics();
+    expect(m.charts).toBe(6);
+    expect(m.charted).toBeGreaterThanOrEqual(12);
+  });
+
+  it("asks a seat where the chart doesn't hold its hand, or the node's chart fails, and doesn't ask that chart again (multitable.test.js:503)", async () => {
+    const { room, asked } = deal();
+    const drop = (seat: string, c: string) => seat === "BTN" && /^[AKQJT]/.test(c);
+    const by = (a: Asked): AdvisorResponse => {
+      if (a.state.study) return a.state.preflop!.length === 1 ? { error: "no chart" } : chartOf(a.state, drop);
+      if (a.play && !a.state.board) return { ...move(BTN_BB[a.play.seat]!.split(" ")[0] as PlayMove["action"], a.play.seat === "BTN" ? 2.5 : undefined), pos: a.play.seat };
+      return flopped(a);
+    };
+    await run(asked, by, () => allReady(room));
+    expect(allReady(room)).toBe(true);
+    const seats = (seat: string) => asked.filter((a) => a.play?.seat === seat && !a.state.board);
+    expect(seats("HJ").length).toBeGreaterThan(0);
+    expect(seats("BTN").length).toBeGreaterThan(0);
+    expect(seats("BTN").every((a) => /[AKQJT]/.test(a.play!.hole))).toBe(true);
+    expect(asked.filter((a) => a.state.study && a.state.preflop!.length === 1)).toHaveLength(1);
+    expect(asked.filter((a) => a.play && !a.state.board && !["HJ", "BTN"].includes(a.play.seat))).toEqual([]);
+  });
+
+  it("marks no table for a chart that's rejected, or from anything but the charts: its seats are asked", async () => {
+    const { room, asked } = deal();
+    await flush();
+    expect(asked[0]!.state.study).toBe(true);
+    asked[0]!.reject(new Error("worker fell over"));
+    await flush();
+    expect(room.snapshot().tables.map((t) => t.failed)).toEqual([null, null]);
+    expect(asked[1]!.play?.seat).toBe("UTG");
+
+    const rules = deal({ preflop: "rules" });
+    await flush();
+    rules.asked[0]!.answer(chartOf(rules.asked[0]!.state));
+    await flush();
+    expect(rules.room.metrics().charted).toBe(0);
+    expect(rules.asked[1]!.play?.seat).toBe("UTG");
+
+    // (from the charts, but no node's chart)
+    const other = deal();
+    await flush();
+    other.asked[0]!.answer({ ...chartOf(other.asked[0]!.state), street: "flop" });
+    await flush();
+    expect(other.room.metrics().charted).toBe(0);
+    expect(other.asked[1]!.play?.seat).toBe("UTG");
+  });
+
+  it("counts no draw the table refuses, which fails there", async () => {
+    const { room, asked } = deal();
+    await flush();
+    const q = asked[0]!.state;
+    const actions = [{ action: "check", freq: 1 }];
+    asked[0]!.answer({ ...chartOf(q), actions, grid: { actions: ["check"], cells: Object.fromEntries(CLASSES.map((c) => [c, { w: 1, f: [1] }])) } });
+    await flush();
+    expect(room.metrics().charted).toBe(0);
+    expect(table(room).failed).toBeTruthy();
+  });
+
+  it("plays a seat's own answer over a chart that came in behind it", async () => {
+    const { room, asked } = setup({ players: 6, opts: { ...OPTS, pot: "srp" }, pace: 0, pause: 0, guard: 0, readIndex, stop: "kills" });
+    await flush();
+    expect(asked[0]!.play?.seat).toBe("UTG");
+    room.setTables(2);
+    await flush();
+    // (a stop would kill the worker, so the seat's request runs on, and its answer waits for the chart the table now wants)
+    asked[0]!.answer(move("raise", 3));
+    await flush();
+    expect(asked[1]!.state.study).toBe(true);
+    asked[1]!.answer(chartOf(asked[1]!.state));
+    await flush();
+    expect(table(room).hand.lines.preflop[0]).toMatchObject({ pos: "UTG", action: "raise", to: 3 });
+  });
+
+  it("holds no more charts than the other caches do", () => {
+    const { room } = deal({ start: false });
+    const { chart } = room as unknown as { chart(ck: string, answer: null): void };
+    for (let i = 0; i < 500; i += 1) chart.call(room, String(i), null);
+    expect(room.metrics().charts).toBe(400);
+  });
+
+  it("holds nothing for a cancel, so a chart is asked again; one cancelled twice gets its seats asked, and fails no table", async () => {
+    const { room, asked } = deal();
+    await flush();
+    asked[0]!.reject(new SolverError("cancelled", "cancelled"));
+    await flush();
+    expect(room.metrics().charts).toBe(0);
+    expect(asked[1]!.state.study).toBe(true);
+    asked[1]!.answer({ cancelled: true });
+    await flush();
+    expect(room.snapshot().tables.map((t) => t.failed)).toEqual([null, null]);
+    expect(asked[2]!.play?.seat).toBe("UTG");
+  });
+
+  it("takes a stopped chart that came whole, and nothing from one that errored", async () => {
+    // (at one table nobody wants a chart: the flight is stopped, and the answer comes all the same)
+    const stopped = async (answer: (a: Asked) => AdvisorResponse) => {
+      const { room, asked } = deal({ deaf: true });
+      await flush();
+      room.setTables(1);
+      expect(asked[0]!.signal!.aborted).toBe(true);
+      asked[0]!.answer(answer(asked[0]!));
+      await flush();
+      return room.metrics().charts;
+    };
+    expect(await stopped(() => ({ error: "stopped late" }))).toBe(0);
+    expect(await stopped((a) => chartOf(a.state))).toBe(1);
+  });
+
+  it("starts the charts afresh with a new client or a New session", async () => {
+    const { room, asked } = deal();
+    await run(asked, flopped, () => allReady(room));
+    expect(room.metrics().charts).toBe(6);
+    room.startSession(6, 100, OPTS);
+    expect(room.metrics().charts).toBe(0);
+    await flush();
+    const n = asked.filter((a) => a.state.study).length;
+    expect(n).toBe(7);
+
+    const next = fakeClient();
+    const again = deal();
+    await run(again.asked, flopped, () => allReady(again.room));
+    expect(again.room.metrics().charts).toBe(6);
+    again.getSolver.mockResolvedValue(next.client);
+    again.room.startSession(6, 100, OPTS);
+    again.asked.at(-1)!.answer(chartOf(again.asked.at(-1)!.state));
+    await pass(200);
+    expect(next.asked[0]!.state.study).toBe(true);
+    expect(again.room.metrics().charts).toBe(0);
+  });
+
+  it("asks the charts again of a new client, in the middle of a session", async () => {
+    const { room, asked, getSolver } = deal();
+    await run(asked, flopped, () => allReady(room));
+    expect(room.metrics().charts).toBe(6);
+    const next = fakeClient();
+    getSolver.mockResolvedValue(next.client);
+    room.choose(0);
+    await flush();
+    expect(next.asked).not.toHaveLength(0);
+    expect(room.metrics().charts).toBe(0);
+  });
+
+  it("draws for a drill above one table too, and for neither at one table or in another game", async () => {
+    const drill = deal({ spot: "srp" });
+    await flush();
+    expect(drill.asked[0]!.state.study).toBe(true);
+
+    const one = setup({ players: 6, opts: { ...OPTS, pot: "srp" }, pace: 0, pause: 0, guard: 0, readIndex });
+    await flush();
+    expect(one.asked[0]!.state.study).toBeUndefined();
+    expect(one.asked[0]!.play?.seat).toBe("UTG");
+    expect(one.room.metrics().charts).toBe(0);
+
+    const ante = deal({ spot: "srp", opts: { ...OPTS, ante: 0.1 } });
+    await flush();
+    expect(ante.asked[0]!.state.study).toBeUndefined();
+    expect(ante.asked[0]!.play?.seat).toBe("UTG");
+  });
+
+  it("draws nothing at one table, charts in hand or not: a hand still being dealt asks each seat there", async () => {
+    // (a session on a drill, as a redeal at one table goes by the session's setup)
+    const { room, asked } = deal({ opts: { ...OPTS, pot: "srp" } });
+    await flush();
+    await run(asked, flopped, () => room.metrics().charts >= 2);
+    const n = asked.length;
+    room.setTables(1);
+    // (the chart in flight, wanted by nobody now, is stopped)
+    await pass(200);
+    expect(asked.slice(n).filter((a) => a.state.study)).toEqual([]);
+    const h = table(room).hand;
+    expect(h.pot).toBe("lib");
+    expect(asked.at(-1)!.play?.seat).toBe(SEATS6[h.lines.preflop.length]);
+    const charted = room.metrics().charted;
+    // (off every line and dealt again, it's at a node whose chart is held: asked all the same)
+    asked.at(-1)!.answer(move("raise", 9));
+    await flush();
+    expect(table(room).hand).toMatchObject({ pot: "srp", lines: { preflop: [] } });
+    expect(asked.at(-1)!.play?.seat).toBe("UTG");
+    expect(room.metrics().charted).toBe(charted);
+  });
+
+  it("deals nothing on the first Tables 2 until the index is in, then deals from it", async () => {
+    let read: (x: unknown) => void = () => {};
+    const readIt = vi.fn(() => new Promise<unknown>((r) => (read = r)));
+    const { room, asked } = setup({ players: 6, opts: OPTS, pace: 0, pause: 0, guard: 0, readIndex: readIt });
+    await flush();
+    expect(readIt).not.toHaveBeenCalled();
+    room.setTables(2);
+    await flush();
+    expect(readIt).toHaveBeenCalledTimes(1);
+    const waiting = at(room, 1).hand;
+    expect(waiting.pot).toBe("lib");
+    expect(waiting.cands).toBeUndefined();
+    expect(waiting.tries).toBeUndefined();
+    expect(room.snapshot().flops.off).toBeNull();
+    expect(asked.filter((a) => a.state.study)).toEqual([]);
+    expect(asked.every((a) => tableOf(room, a) === 0)).toBe(true);
+
+    read(index);
+    await flush();
+    const h = at(room, 1).hand;
+    expect(h.pot).toBe("lib");
+    expect(h.cands).toEqual(candsFor(six, h.hero, h.board));
+    expect(readIt).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays Any hand with its reason where the index fails, or holds nothing", async () => {
+    for (const readIt of [async () => Promise.reject(new Error("404")), async () => null, async () => ({ spots: [] })]) {
+      const { room, asked } = setup({ players: 6, opts: OPTS, pace: 0, pause: 0, guard: 0, readIndex: readIt });
+      await flush();
+      room.setTables(2);
+      await flush();
+      expect(at(room, 1).hand.pot).toBeUndefined();
+      expect(at(room, 1).hand.cands).toBeUndefined();
+      expect(at(room, 1).hand.tries).toBeUndefined();
+      expect(room.snapshot().flops.off).toBe("failed");
+      expect(flopsNote(room.snapshot().flops, "any")).toBe("The flop library didn't load, so this is Any hand.");
+      // (the table plays on: a next deal doesn't ask for it, and nothing waits)
+      asked.at(-1)!.answer(move("fold"));
+      await flush();
+      expect(asked.length).toBeGreaterThan(1);
+    }
+  });
+
+  it("reads the index above one table or at Accurate, once, and again with a new solver, whose read wins", async () => {
+    const quick = vi.fn(readIndex);
+    const one = setup({ players: 6, opts: OPTS, readIndex: quick });
+    await flush();
+    expect(quick).not.toHaveBeenCalled();
+    useSettings.setState({ mode: "accurate" });
+    one.room.pump();
+    await flush();
+    expect(quick).toHaveBeenCalledTimes(1);
+    one.room.pump();
+    await flush();
+    expect(quick).toHaveBeenCalledTimes(1);
+
+    const reads: ((x: unknown) => void)[] = [];
+    const held = setup({ players: 6, opts: OPTS, tables: 2, pace: 0, pause: 0, guard: 0, readIndex: () => new Promise((r) => reads.push(r)) });
+    await flush();
+    expect(reads).toHaveLength(1);
+    held.room.setSolver(async () => held.client);
+    await flush();
+    expect(reads).toHaveLength(2);
+    reads[0]!(null);
+    await flush();
+    expect(held.room.snapshot().flops.off).toBeNull();
+    reads[1]!(index);
+    await flush();
+    expect(at(held.room, 1).hand.cands).toBeDefined();
+  });
+
+  it("reads nothing and deals nothing before there's a solver", async () => {
+    const read = vi.fn(readIndex);
+    const room = new Room({ pace: 0, pause: 0, guard: 0, now: () => Date.now(), persist: false, seedOf: (n) => n + 1, readIndex: read, tables: 2 });
+    rooms.push(room);
+    room.startSession(6, 100, OPTS);
+    room.start();
+    await flush();
+    expect(read).not.toHaveBeenCalled();
+    expect(at(room, 1).hand.cands).toBeUndefined();
+    const { client } = fakeClient();
+    room.setSolver(async () => client);
+    await flush();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(at(room, 1).hand.cands).toBeDefined();
+  });
+
+  it("reads again for a hand still waiting on the index at one quick table", async () => {
+    const reads: ((x: unknown) => void)[] = [];
+    const { room, client } = deal({ readIndex: () => new Promise((r) => reads.push(r)) });
+    await flush();
+    room.setTables(1);
+    room.setSolver(async () => client);
+    await flush();
+    expect(reads).toHaveLength(2);
+    expect(table(room).hand.cands).toBeUndefined();
+    reads[1]!(index);
+    await flush();
+    expect(table(room).hand.cands).toBeDefined();
+  });
+
+  it("ignores a read from before a new solver though no read has followed it", async () => {
+    useSettings.setState({ practiceSpot: "any" });
+    const reads: ((x: unknown) => void)[] = [];
+    const { room, client } = deal({ readIndex: () => new Promise((r) => reads.push(r)) });
+    await flush();
+    room.setTables(1);
+    room.setSolver(async () => client);
+    await flush();
+    expect(reads).toHaveLength(1);
+    reads[0]!(null);
+    await flush();
+    expect(room.snapshot().flops.off).toBeNull();
+  });
+
+  it("reads the index of the library the solver has resolved, once it has", async () => {
+    const read = vi.fn(async () => new Response(JSON.stringify(index)));
+    vi.stubGlobal("fetch", read);
+    const { room, client, getSolver } = deal({ start: false, readIndex: undefined });
+    getSolver.mockImplementation(async () => {
+      useRuntime.setState({ librarySource: "gto-solver-library" });
+      return client;
+    });
+    room.start();
+    await flush();
+    vi.unstubAllGlobals();
+    useRuntime.setState({ librarySource: null });
+    expect(read).toHaveBeenCalledWith("/gto-solver-library/index.json", { cache: "no-cache" });
+  });
+
+  it("keeps cands on a redeal, and the next hand has its own", async () => {
+    const { room, asked } = deal();
+    await run(asked, flopped, () => room.snapshot().tables.some((t) => (t.hand.tries ?? 0) > 0));
+    const t = room.snapshot().tables.find((x) => (x.hand.tries ?? 0) > 0)!;
+    expect(t.hand.cands).toEqual(candsFor(six, t.hand.hero, t.hand.board));
+    expect(t.hand.cands!.length).toBeGreaterThan(0);
+  });
+
+  it("fails at its table with Retry after 400 deals with no flop for this seat, asking nothing, and Retry deals by what's chosen now", async () => {
+    useSettings.setState({ practiceSeat: "UTG" });
+    const { room, asked } = deal();
+    await flush();
+    for (const i of [0, 1]) {
+      expect(at(room, i)).toMatchObject({ spent: true, error: "No instant flop in 400 deals at this seat: try another seat or spot." });
+      expect(at(room, i).hand.tries).toBe(DRILL_TRIES - 1);
+    }
+    expect(asked).toEqual([]);
+
+    useSettings.setState({ practiceSeat: "BTN" });
+    room.retry(1);
+    expect(at(room, 1)).toMatchObject({ spent: false, error: null });
+    expect(at(room, 1).hand.hero).toBe("BTN");
+    await flush();
+    expect(at(room, 0).spent).toBe(true);
+    expect(asked.length).toBeGreaterThan(0);
+  });
+
+  it("deals the game the index has a spot of, and draws from no chart there", async () => {
+    const { room, asked } = setup({ players: 2, opts: OPTS, tables: 2, pace: 0, pause: 0, guard: 0, readIndex });
+    await flush();
+    expect(room.snapshot().flops.off).toBeNull();
+    expect(at(room, 1).hand.pot).toBe("lib");
+    expect(asked.filter((a) => a.state.study)).toEqual([]);
+  });
+
+  it("says why it can't be dealt, in words, and plays Any hand or the drill chosen", async () => {
+    const reason = async (players: number, stack: number, o: Partial<HandOptions>) => {
+      const { room } = setup({ pace: 0, pause: 0, guard: 0, tables: 2, readIndex });
+      await flush();
+      room.startSession(players, stack, { ...OPTS, ...o });
+      await flush();
+      expect(room.snapshot().flops.off).toBe("game");
+      expect(at(room, 0).hand.pot).toBeUndefined();
+      return flopsNote(room.snapshot().flops, "any");
+    };
+    const held = "Instant flops needs a game the flop library holds (6-max 100bb, Heads-up 100bb).";
+    expect(await reason(9, 40, {})).toBe(`${held} This is 9-max 40bb, so you're playing Any hand.`);
+    expect(await reason(6, 100, { ante: 0.5 })).toBe(`${held} This is 6-max 100bb ante 0.5, so you're playing Any hand.`);
+    expect(await reason(6, 100, { rake: 5 })).toBe(`${held} This is 6-max 100bb with a rake, so you're playing Any hand.`);
+    expect(await reason(6, 100, { sizes: { flop: [50] } })).toBe(`${held} This is 6-max 100bb with your own sizes, so you're playing Any hand.`);
+    expect(await reason(6, 100, { rake: 5, sizes: { flop: [50] } })).toBe(`${held} This is 6-max 100bb with a rake and your own sizes, so you're playing Any hand.`);
+
+    const f = (o: Partial<RoomFlops>): RoomFlops => ({ off: null, holds: ["6-max 100bb"], game: "9-max 40bb", ...o });
+    expect(flopsNote(f({ off: "game" }), "any")).toBe("Instant flops needs a game the flop library holds (6-max 100bb). This is 9-max 40bb, so you're playing Any hand.");
+    expect(flopsNote(f({ off: "game" }), "srp")).toBe("Instant flops needs a game the flop library holds (6-max 100bb). This is 9-max 40bb.");
+    expect(flopsNote(f({ off: "failed" }), "any")).toBe("The flop library didn't load, so this is Any hand.");
+    expect(flopsNote(f({ off: "failed" }), "3bet")).toBe("The flop library didn't load, so Instant flops is off.");
+    expect(flopsNote(f({ off: "preflop" }), "any")).toBe("Instant flops plays no preflop, so a preflop-only session stays on Any hand. Nor can a pot drill: each plays your preflop for you.");
+    expect(flopsNote(f({}), "lib")).toBeNull();
+  });
+
+  it("stays out of a preflop-only session, whatever's saved", async () => {
+    useSettings.setState({ practiceSpot: "lib" });
+    const { room } = deal({ opts: { ...OPTS, preflopOnly: true } });
+    await flush();
+    expect(room.snapshot().flops.off).toBe("preflop");
+    expect(at(room, 1).hand).toMatchObject({ preflopOnly: true });
+    expect(at(room, 1).hand.pot).toBeUndefined();
+  });
+
+  it("deals what you've chosen where it's chosen, the index being read regardless", async () => {
+    useSettings.setState({ practiceSpot: "any" });
+    const { room } = deal();
+    await flush();
+    expect(at(room, 1).hand.pot).toBeUndefined();
+    expect(room.snapshot().flops).toMatchObject({ off: null, holds: ["6-max 100bb", "Heads-up 100bb"], game: "6-max 100bb" });
+  });
+
+  it("deals from what's on offer now, after the index has failed: a hand dealt next doesn't wait", async () => {
+    const { room } = deal({ readIndex: async () => null });
+    await flush();
+    room.startSession(6, 100, OPTS);
+    await flush();
+    expect(room.snapshot().tables.map((t) => t.hand.pot)).toEqual([undefined, undefined]);
+    expect(room.snapshot().tables.map((t) => t.hand.cands)).toEqual([undefined, undefined]);
+  });
+
+  it("goes back to the setup at one table, with Table 1's hand played out as it stands", async () => {
+    const { room, asked } = deal();
+    await run(asked, flopped, () => allReady(room));
+    room.setTables(1);
+    expect(table(room).hand.pot).toBe("lib");
+    room.choose(0);
+    await flush();
+    expect(table(room).hand.decisions).toHaveLength(1);
+    expect(room.metrics().charts).toBe(6);
   });
 });

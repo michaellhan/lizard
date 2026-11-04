@@ -11,6 +11,7 @@ import { classOf } from "@/engine/nlhe/cards";
 import type { SizeStreet } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
+import { lineToken } from "@/library/flops";
 import { cmp, handName } from "@/poker/evaluate";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import {
@@ -82,8 +83,11 @@ export interface PracticeHand {
   ante?: number;
   straddle?: true;
   /** one kind of pot only: the preflop is played for you, and dealt again until it is that pot (`tries`: the deals so far) */
-  pot?: PotDrill;
+  pot?: HandPot;
   tries?: number;
+  /** Instant flops: the lines this hand's flop is held on with you in them, as the index's tokens (flops.ts). None: the
+   * index hasn't been read yet, so nothing is played */
+  cands?: string[][];
   /** chips carried from hand to hand: each seat's chips as this hand starts, bb, and the seats that rebought to `stack` */
   stacks?: Record<string, number>;
   rebuys?: string[];
@@ -108,6 +112,13 @@ export const POT_DRILLS: Record<PotDrill, { label: string; one: string; tip: str
   bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "Small blind against big blind, folded to them: the preflop is played for you, you play from the flop" },
 };
 export const isPotDrill = (x: unknown): x is PotDrill => typeof x === "string" && Object.hasOwn(POT_DRILLS, x);
+/** A hand's pot: a drill, or Instant flops, a heads-up flop the library holds. That one needs the tables' index, so it's
+ * no drill: it isn't in POT_DRILLS, and the Play select stays as it was. */
+export type HandPot = PotDrill | "lib";
+export const INSTANT_FLOPS = { label: "Instant flops", one: "an instant flop", tip: "A heads-up flop the library holds: the preflop is played for you, you play from the flop" };
+export const isHandPot = (x: unknown): x is HandPot => x === "lib" || isPotDrill(x);
+/** A hand's pot in words. */
+export const potLabel = (p: HandPot) => (p === "lib" ? INSTANT_FLOPS : POT_DRILLS[p]).one;
 /** the deals a drill hand may take to reach its pot */
 export const DRILL_TRIES = 400;
 const BLINDS = ["SB", "BB"];
@@ -118,7 +129,7 @@ export type SeatChoice = string;
 export interface HandOptions {
   seat?: SeatChoice;
   preflopOnly?: boolean;
-  pot?: PotDrill | null;
+  pot?: HandPot | null;
   /** each seat's ante (bb, 0 for none, at most the Solve page's LIMITS.ante), and a straddle (3 or more players) */
   ante?: number;
   straddle?: boolean;
@@ -147,7 +158,7 @@ export function heroSeat(n: number, players: number): string {
 
 /** Your seat in the n-th hand under a seat choice (a seat the table doesn't have moves). Blind vs blind, one of the
  * blinds: the one chosen, else moving from the small blind to the big blind (or drawn at random). */
-export function seatFor(choice: SeatChoice | undefined, n: number, players: number, seed: number, pot?: PotDrill | null): string {
+export function seatFor(choice: SeatChoice | undefined, n: number, players: number, seed: number, pot?: HandPot | null): string {
   const s = seatsOf(players);
   if (pot === "bvb") return choice && BLINDS.includes(choice) ? choice : BLINDS[(choice === "random" ? seed : n) % 2]!;
   if (choice === "random") return s[seed % players]!;
@@ -223,10 +234,18 @@ export const redeal = (h: PracticeHand, seed: number, opts: HandOptions): Practi
 
 /** A drill hand whose preflop has gone another way (to be dealt again), else false (still on course, or on the
  * flop): you folded, an all-in, too many raises, someone not in the blinds in a blind-vs-blind pot, or the flop
- * reached by more than two players or with another number of raises (the classic trainer's `offDrill`). */
+ * reached by more than two players or with another number of raises (the classic trainer's `offDrill`). Instant flops:
+ * no line held for this flop still fits, you folded, or the flop came on a line that's only the start of one. */
 export function offDrill(h: PracticeHand, sim: Sim = simOf(h)): boolean {
   if (!h.pot || h.shown >= 3) return false;
   const pre = h.lines.preflop;
+  if (h.pot === "lib") {
+    if (!h.cands) return false;
+    const toks = pre.map(lineToken);
+    const on = h.cands.filter((c) => toks.every((x, i) => c[i] === x));
+    if (!on.length || sim.handOver || !sim.active.has(h.hero)) return true;
+    return sim.waiting === "flop" && !on.some((c) => c.length === toks.length);
+  }
   const raises = pre.filter((m) => m.action === "raise" || m.action === "bet").length;
   const want = h.pot === "srp" ? 1 : h.pot === "3bet" ? 2 : null;
   if (!sim.active.has(h.hero) || pre.some((m) => m.action === "all-in") || (want != null && raises > want)) return true;
@@ -237,6 +256,13 @@ export function offDrill(h: PracticeHand, sim: Sim = simOf(h)): boolean {
 
 /** Still dealing a drill's pot: its preflop, played for you. */
 export const seeking = (h: PracticeHand) => !!h.pot && h.shown < 3 && !h.result;
+
+/** Instant flops with the index still to come: nothing can be played yet. */
+export const needsIndex = (h: PracticeHand) => seeking(h) && h.pot === "lib" && !h.cands;
+
+/** Its preflop can be drawn from the charts' mix at each node: played for you, in the one game a chart's request says
+ * (six players, 100bb each and nothing else: `chartKey` and `chartState` carry no ante, straddle, rake or sizes). */
+export const charting = (h: PracticeHand) => seeking(h) && h.players === 6 && h.stack === 100 && !h.ante && !h.straddle && !h.rake && !h.sizes && !h.stacks;
 
 /** Preflop only, the preflop closed with you and someone else in: the hand stops there. */
 const cutAt = (h: PracticeHand, sim: Sim) => !!h.preflopOnly && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);

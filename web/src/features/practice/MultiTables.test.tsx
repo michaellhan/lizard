@@ -14,9 +14,11 @@ import { noLines, type Lines, type Move } from "@/poker/table";
 import { SolverClient } from "@/solver/client";
 import { HttpTransport } from "@/solver/http-transport";
 import { describe as describeProvenance } from "@/solver/provenance";
+import { useRuntime } from "@/solver/runtime";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import type { PlayRequest, Provenance, SolveResult, StopCost } from "@/solver/types";
 import { DEFAULT_SETTINGS, useSettings } from "@/state/settings";
+import index from "@/library/fixtures/srp_btn_bb.flops.json";
 import { KEPT_KEY } from "./keep";
 import { decide, DRILL_TRIES, newHand, type Decision, type HandOptions, type HandResult, type PracticeHand } from "./practice";
 import { PracticePage } from "./PracticePage";
@@ -167,7 +169,8 @@ beforeEach(() => {
   stub.prov = LIVE;
   stub.advice = () => CHART;
   stub.move = () => ({ action: "fold" });
-  useSettings.setState({ loaded: true });
+  // (what these tests deal by: Instant flops has its own below)
+  useSettings.setState({ loaded: true, practiceSpot: "any" });
 });
 
 afterEach(async () => {
@@ -778,6 +781,8 @@ describe("Spots and Seat", () => {
     expect(screen.getByText(/Each table is dealt until a single-raised pot/)).toHaveTextContent("Preflop is played for you from the charts, not solved.");
     expect(screen.getByText(/Spots and Seat apply from each table/)).toBeInTheDocument();
 
+    // (held, or the stub's folds would see the new table through 400 deals of its drill)
+    hold();
     fireEvent.click(screen.getByRole("radio", { name: "3" }));
     await screen.findByRole("region", { name: "Table 3" });
     expect(within(tile(3)).getByRole("button", { name: /^Table 3 · #\d+ · CO$/ })).toBeInTheDocument();
@@ -803,10 +808,11 @@ describe("Spots and Seat", () => {
     expect(spots).toHaveValue("any");
     expect(within(spots).getByRole("option", { name: "Any hand" })).toBeEnabled();
     expect(within(spots).getByRole("option", { name: /single-raised/i })).toBeDisabled();
-    expect(screen.getByText(/so a preflop-only session stays on Any hand/)).toBeInTheDocument();
+    expect(within(spots).getByRole("option", { name: "Instant flops" })).toBeDisabled();
+    expect(screen.getByText(/Instant flops plays no preflop, so a preflop-only session stays on Any hand\. Nor can a pot drill: each plays your preflop for you\./)).toBeInTheDocument();
   });
 
-  it("start at nothing chosen, read as Any hand, and Random", () => {
+  it("start at nothing chosen, read as Instant flops where it can be dealt, and Random", () => {
     expect(DEFAULT_SETTINGS).toMatchObject({ practiceSpot: null, practiceSeat: "random" });
   });
 
@@ -891,5 +897,116 @@ describe("resultLine", () => {
     ["You see the flop", { cut: true }],
   ])("says %s", (text, o) => {
     expect(resultLine({ ...r, ...o })).toBe(text);
+  });
+});
+
+describe("Instant flops", () => {
+  /** The library's index as the page fetches it: `read` is what comes back. */
+  const library = (read: () => Promise<Response>) => vi.stubGlobal("fetch", vi.fn(read));
+  const answers = (x: unknown = index) => async () => new Response(JSON.stringify(x));
+  const select = () => screen.getByRole("combobox", { name: "Spots" });
+  const option = () => within(select()).getByRole("option", { name: "Instant flops" });
+
+  beforeEach(() => {
+    useSettings.setState({ practiceSpot: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is first in Spots and what's dealt unless you choose, and says what it does; the drills stay", async () => {
+    library(answers());
+    await open(doc([betInto(1), betInto(2)]));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/index\.json$/), { cache: "no-cache" }));
+    expect(within(select()).getAllByRole("option").map((o) => o.textContent)).toEqual(["Instant flops", "Any hand", "Single-raised pots", "3-bet pots", "Blind vs blind"]);
+    expect(select()).toHaveValue("lib");
+    await waitFor(() => expect(option()).toBeEnabled());
+    expect(screen.getByText(/^Preflop is played for you from the charts, not solved\./)).toHaveTextContent(
+      "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others. Spots and Seat apply from each table’s next hand.",
+    );
+    fireEvent.change(select(), { target: { value: "any" } });
+    expect(useSettings.getState().practiceSpot).toBe("any");
+    expect(select()).toHaveValue("any");
+    fireEvent.change(select(), { target: { value: "lib" } });
+    expect(useSettings.getState().practiceSpot).toBe("lib");
+  });
+
+  it("reads the index of the library the runtime resolved", async () => {
+    useRuntime.setState({ librarySource: "gto-solver-library" });
+    library(answers());
+    await open(doc([betInto(1), betInto(2)]));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith("/gto-solver-library/index.json", { cache: "no-cache" }));
+    useRuntime.setState({ librarySource: null });
+  });
+
+  it("says it's loading the flop library on a table waiting for the index", async () => {
+    library(() => new Promise(() => {}));
+    await open(doc([betInto(1), { ...spot(2, "BTN"), pot: "lib" }]));
+    expect(tile(2)).toHaveTextContent("Loading the flop library…");
+    expect(tile(2).className).toMatch(/opacity-60/);
+  });
+
+  it("says what it's dealing, once the index is in", async () => {
+    hold();
+    library(answers());
+    await open(doc([betInto(1), { ...spot(2, "BTN"), pot: "lib", cands: [["UTG:f"]] }]));
+    expect(tile(2)).toHaveTextContent("Dealing an instant flop…");
+    // (its preflop isn't over, so there's nothing to label yet)
+    expect(tile(2)).not.toHaveTextContent("not solved");
+  });
+
+  it("says what it's dealing at one table too, where a hand was left being dealt", async () => {
+    hold();
+    library(answers());
+    await open(doc([{ ...spot(1, "BTN"), pot: "lib", cands: [["UTG:f"]] }, betInto(2)]));
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
+    expect(await screen.findByText(/Dealing an instant flop: the preflop is played for you/)).toBeInTheDocument();
+  });
+
+  it("is off where the library didn't load, says so in the note, and the table plays Any hand", async () => {
+    library(async () => new Response("", { status: 404 }));
+    await open(doc([betInto(1), { ...spot(2, "BTN"), pot: "lib" }]));
+    await waitFor(() => expect(option()).toBeDisabled());
+    expect(select()).toHaveValue("any");
+    expect(within(select()).getByRole("option", { name: /single-raised/i })).toBeEnabled();
+    expect(screen.getByText(/The flop library didn't load, so this is Any hand\./)).toBeInTheDocument();
+    expect(tile(2)).not.toHaveTextContent(/flop library|instant flop/i);
+  });
+
+  it("is off on a game the library holds no spot of, and says so", async () => {
+    library(answers({ spots: [index.spots[2]] }));
+    await open(doc([betInto(1), betInto(2)]));
+    await waitFor(() => expect(option()).toBeDisabled());
+    expect(select()).toHaveValue("any");
+    expect(screen.getByText(/Each table plays a whole hand/)).toHaveTextContent("Instant flops needs a game the flop library holds (Heads-up 100bb). This is 6-max 100bb, so you're playing Any hand.");
+  });
+
+  it("leaves a drill you've chosen on, and says Instant flops is off", async () => {
+    useSettings.setState({ practiceSpot: "3bet" });
+    library(async () => new Response("", { status: 404 }));
+    await open(doc([betInto(1), betInto(2)]));
+    await waitFor(() => expect(option()).toBeDisabled());
+    expect(select()).toHaveValue("3bet");
+    expect(screen.getByText(/The flop library didn't load, so Instant flops is off\./)).toBeInTheDocument();
+  });
+
+  it("fails at its table with Retry where no flop comes up at your seat", async () => {
+    library(answers());
+    useSettings.setState({ practiceSeat: "UTG" });
+    await open(doc([betInto(1), { ...spot(2, "UTG"), pot: "lib", tries: DRILL_TRIES - 1, cands: [] }]));
+    const says = await within(tile(2)).findByRole("alert");
+    expect(says).toHaveTextContent("No instant flop in 400 deals at this seat: try another seat or spot.");
+    expect(within(says).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("labels a preflop played for you as the charts', never solved, on the table, and only there", async () => {
+    library(answers());
+    hold();
+    await open(doc([{ ...betInto(1), pot: "lib", cands: [] }, { ...betInto(2), pot: "srp" }, betInto(3)]));
+    const label = "≈ Preflop charts: the preflop was played for you, not solved";
+    expect(within(tile(1)).getByText(label)).toBeInTheDocument();
+    expect(within(tile(2)).getByText(label)).toBeInTheDocument();
+    expect(within(tile(3)).queryByText(label)).toBeNull();
   });
 });

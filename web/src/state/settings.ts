@@ -14,7 +14,8 @@ export interface Settings {
   evUnit: "bb" | "pot";
   /** Practice: keep every hand played in Analyze's hands */
   keepHands: boolean;
-  /** Practice above one table: what the tables deal (null: not chosen, read by the Room's `spotOf`), and your seat there */
+  /** Practice above one table: what the tables deal (null: not chosen, read by the Room's `spotOf` as Instant flops where
+   * the library can deal it, else Any hand), and your seat there */
   practiceSpot: Spot | null;
   practiceSeat: string;
 }

@@ -16,6 +16,18 @@ const job = (key: string, o: Partial<Omit<Job, "need">> & { kind?: "you" | "opp"
 const NO_SOLVES = new Set<string>();
 const keys = (jobs: Job[]) => [...jobs].sort(byPriority).map((j) => j.need.key);
 
+describe("a chart job", () => {
+  const chart = (o: Partial<Job> = {}): Job => ({ table: 0, est: 0.05, seeking: true, since: 0, ...o, need: { kind: "chart", key: "chart|x", ck: "x", state: state(), street: "preflop" } });
+
+  it("goes as any of a table's dealing does: group 2, behind your spot, level with an opponent's", () => {
+    expect(group(chart())).toBe(2);
+    const you = job("you", { est: 2 });
+    const opp = job("opp", { kind: "opp", est: 2, since: 1 });
+    expect([chart({ since: 2 }), opp, you].sort(byPriority).map((j) => j.need.key)).toEqual(["you", "opp", "chart|x"]);
+    expect([opp, chart({ since: 0 })].sort(byPriority).map((j) => j.need.key)).toEqual(["chart|x", "opp"]);
+  });
+});
+
 describe("estimate", () => {
   it("keeps the classic's seconds, by street and mode", () => {
     expect(estimate(state(), "quick", NO_SOLVES, "worker")).toBe(0.05);
@@ -30,6 +42,16 @@ describe("estimate", () => {
       expect(estimate(state({ board }), "accurate", NO_SOLVES, "worker")).toBe(worker);
       expect(estimate(state({ board }), "accurate", NO_SOLVES, "http")).toBe(server);
     }
+  });
+
+  it("calls a flop the library holds on this line instant, once solved quicker still, and no other street", () => {
+    const q = state({ board: FLOP });
+    expect(estimate(q, "accurate", NO_SOLVES, "worker", true)).toBe(0.3);
+    expect(estimate(q, "quick", NO_SOLVES, "worker", true)).toBe(0.3);
+    expect(estimate(q, "accurate", new Set([streetKey(q, "accurate")]), "worker", true)).toBe(0.2);
+    expect(estimate(state({ board: TURN }), "quick", NO_SOLVES, "worker", true)).toBe(2);
+    expect(estimate(state(), "quick", NO_SOLVES, "worker", true)).toBe(0.05);
+    expect(group({ est: estimate(q, "accurate", NO_SOLVES, "worker", true), seeking: false })).toBe(1);
   });
 
   it("calls a street solved this hand instant, at the mode it was solved at", () => {

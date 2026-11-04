@@ -22,7 +22,7 @@ import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
-import { boardShown, optionsOf, phaseOf, POT_DRILLS, runKind, seeking, simOf } from "./practice";
+import { boardShown, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
@@ -156,7 +156,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         </details>
       )}
 
-      <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} />
+      <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} />
 
       <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} />
 
@@ -287,7 +287,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
         {seeking(hand) && !alert && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            Dealing {POT_DRILLS[hand.pot!].one}: the preflop is played for you
+            Dealing {potLabel(hand.pot!)}: the preflop is played for you
             {hand.tries ? ` (deal ${hand.tries + 1})` : ""}…
           </p>
         )}

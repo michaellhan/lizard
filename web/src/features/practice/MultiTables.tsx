@@ -12,18 +12,26 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSettings } from "@/state/settings";
 import { MAX_TABLES } from "./keep";
 import { DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, RangeView, ReviewMistakes, signed, useHandKeys } from "./PracticeParts";
-import { optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
-import { seatOf, seatsFor, spotOf, type Room, type RoomSnapshot, type RoomTable } from "./room";
+import { INSTANT_FLOPS, optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
+import { flopsNote, seatOf, seatsFor, spotOf, type Room, type RoomSnapshot, type RoomTable, type Spot } from "./room";
 import { keyOf, type PracticeSession } from "./session";
 import { resultLine, Spinner, stateOf, TableTile, verdictLine, type TableState } from "./TableTile";
 
 const CONTROL = "rounded border border-border bg-surface-2 px-1.5 py-1";
 
+/** What a spot deals, above the tiles. */
+const spotNote = (spot: Spot) =>
+  spot === "any"
+    ? "Each table plays a whole hand. Preflop is answered from the charts, not solved; later streets are read from the library or solved while you play the other tables."
+    : spot === "lib"
+      ? "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others."
+      : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}; later streets are read from the library or solved while you play the other tables.`;
+
 /** The row above the score: Tables, always, and Spots and Seat from two up, with what they mean and why any is held. */
-export function TablesBar({ room, session, count, stopCost }: { room: Room; session: PracticeSession; count: number; stopCost: RoomSnapshot["stopCost"] }) {
+export function TablesBar({ room, session, count, stopCost, flops }: { room: Room; session: PracticeSession; count: number; stopCost: RoomSnapshot["stopCost"]; flops: RoomSnapshot["flops"] }) {
   const set = useSettings((s) => s.set);
   const preflopOnly = session.opts.preflopOnly;
-  const spot = spotOf(useSettings((s) => s.practiceSpot), preflopOnly);
+  const spot = spotOf(useSettings((s) => s.practiceSpot), preflopOnly, flops.off === null);
   const seat = seatOf(useSettings((s) => s.practiceSeat), session.players, spot);
   const seats = seatsFor(session.players, spot);
   return (
@@ -51,7 +59,16 @@ export function TablesBar({ room, session, count, stopCost }: { room: Room; sess
           <>
             <label className="flex items-center gap-1">
               <span className="text-muted">Spots</span>
-              <select aria-label="Spots" value={spot} onChange={(e) => set({ practiceSpot: e.target.value as typeof spot })} title={spot === "any" ? undefined : POT_DRILLS[spot].tip} className={CONTROL}>
+              <select
+                aria-label="Spots"
+                value={spot}
+                onChange={(e) => set({ practiceSpot: e.target.value as Spot })}
+                title={spot === "any" ? undefined : spot === "lib" ? INSTANT_FLOPS.tip : POT_DRILLS[spot].tip}
+                className={CONTROL}
+              >
+                <option value="lib" title={INSTANT_FLOPS.tip} disabled={flops.off !== null}>
+                  {INSTANT_FLOPS.label}
+                </option>
                 <option value="any">Any hand</option>
                 {Object.entries(POT_DRILLS).map(([k, d]) => (
                   <option key={k} value={k} title={d.tip} disabled={preflopOnly}>
@@ -76,11 +93,8 @@ export function TablesBar({ room, session, count, stopCost }: { room: Room; sess
       </div>
       {count > 1 && (
         <p className="text-xs text-muted">
-          {spot === "any"
-            ? "Each table plays a whole hand. Preflop is answered from the charts, not solved"
-            : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}`}
-          ; later streets are read from the library or solved while you play the other tables. Spots and Seat apply from each table&rsquo;s next hand.
-          {preflopOnly && " The pot drills play your preflop for you, so a preflop-only session stays on Any hand."}
+          {spotNote(spot)} Spots and Seat apply from each table&rsquo;s next hand.
+          {flops.off && ` ${flopsNote(flops, spot)}`}
           {stopCost === "kills" && " This browser can't stop a solve: tables wait for it to finish."}
         </p>
       )}

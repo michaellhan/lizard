@@ -52,11 +52,13 @@ export const streetKey = (q: AdvisorState, mode: SolveMode) => {
 /** Practice's quick answers, s. */
 const QUICK = { flop: 2, turn: 2, river: 1.4 };
 
-/** How long a request takes, roughly (s). `solved`: the street keys its table's hand has had answered. */
-export function estimate(q: AdvisorState, mode: SolveMode, solved: ReadonlySet<string>, transport: TransportKind): number {
+/** How long a request takes, roughly (s). `solved`: the street keys its table's hand has had answered. `libFlop`: the
+ * library holds this flop on this preflop line (flops.ts), which only ever orders the queue. */
+export function estimate(q: AdvisorState, mode: SolveMode, solved: ReadonlySet<string>, transport: TransportKind, libFlop = false): number {
   const cards = (q.board?.length ?? 0) / 2;
   if (cards < 3) return 0.05; // a preflop chart
   if (solved.has(streetKey(q, mode))) return 0.2; // the street's solve is in hand (a reply heads-up reads it)
+  if (cards === 3 && libFlop) return 0.3; // the library's
   const street = cards === 3 ? "flop" : cards === 4 ? "turn" : "river";
   if (mode !== "accurate") return QUICK[street];
   return (transport === "http" ? 30 : 60) * (street === "river" ? 0.4 : 1);
@@ -67,7 +69,7 @@ export function estimate(q: AdvisorState, mode: SolveMode, solved: ReadonlySet<s
  * until its pot comes up, and would hold back everyone else's short solves. */
 export const group = (j: Pick<Job, "est" | "seeking" | "ahead">) => (j.ahead ? j.ahead.g : j.seeking ? 2 : j.est < INSTANT ? 1 : j.est < SHORT ? 2 : 4);
 
-const KIND = { you: 0, opp: 1 };
+const KIND = { you: 0, opp: 1, chart: 1 };
 
 /** By group; then yours before an opponent's (look-aheads: the quickest, then your likeliest line); then the longest
  * wanted; then the table's place. */
