@@ -3517,8 +3517,12 @@ this size.
   leak's graded decisions is in these hands." for a tournament holding none.
 - **Not checked live:** the "Now over the answer" and "Now under the answer" rows (seeded, in unit tests and on the page
   in jsdom), and History's day. The app has one theme, dark, so no light check.
-- The test import, grades, a drill's session and the measured times were removed after: 0 hands, 0 decisions, 0
-  sessions. The dev server is stopped.
+- **Live, ae8fbd5** (deploy run 41779496242; the bundle `index-Dd6zPNsr.js` matching a local build; `/lizard/` and its
+  routes, `/` and `/gto-solver/` 200): two hands three days apart pasted on `www.michael-han.com/lizard/analyze` gave
+  two rows, each "1 hand, won +10.5bb, 0 of 4 graded"; picking one narrowed the results and stats to that hand, with
+  `sess` in the URL; the only console error was the Cloudflare beacon the page's CSP blocks, already open.
+- The test imports, grades, a drill's session and the measured times were removed after, here and live: 0 hands, 0
+  decisions, and the dev server is stopped. The 3 sessions already in the live browser's store were left.
 
 ### Precompute builds
 
