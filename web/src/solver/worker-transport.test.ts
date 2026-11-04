@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SolverClient } from "./client";
 import type { WorkerInbound, WorkerOutbound } from "./protocol";
 import { WorkerTransport } from "./worker-transport";
 
@@ -121,5 +122,188 @@ describe("WorkerTransport", () => {
     const { t } = setup(false);
     void t.request({ players: 2 }, { progressive: false });
     await expect(t.request({ players: 2 }, { progressive: false })).rejects.toMatchObject({ kind: "bad-request" });
+  });
+});
+
+describe("WorkerTransport: a stop nobody answers", () => {
+  const STUCK_MS = 15_000;
+  const pings = (w: FakeWorker) => w.posted.filter((m) => "ping" in m);
+
+  /** A request sent, its controller, and how it has gone so far. */
+  function running(t: WorkerTransport) {
+    const ac = new AbortController();
+    const seen: { error?: unknown; settled: boolean } = { settled: false };
+    const p = t.request({ players: 2 }, { progressive: false, signal: ac.signal });
+    void p.then(
+      () => (seen.settled = true),
+      (error: unknown) => Object.assign(seen, { error, settled: true }),
+    );
+    return { ac, seen };
+  }
+
+  /** An isolated worker up and solving, and a request of its stopped. */
+  function stopped() {
+    const { t, workers } = setup(true);
+    const r = running(t);
+    const w = workers[0]!;
+    w.reply({ status: "Solving…" });
+    r.ac.abort();
+    return { t, workers, w, ...r };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("pings the worker once on a stop, and rejects stuck after 15 s of silence", async () => {
+    const { t, w, seen } = stopped();
+    expect(pings(w)).toEqual([{ ping: 1 }]);
+    await vi.advanceTimersByTimeAsync(STUCK_MS - 1);
+    expect(seen.settled).toBe(false);
+    expect(w.terminated).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    // (Study and Compare print it where a stop has come to this)
+    const why = "The solver stopped answering; it restarts on the next request.";
+    expect(seen.error).toMatchObject({ name: "SolverError", kind: "stuck", message: why });
+    expect(w.terminated).toBe(true);
+    expect(t.status()).toMatchObject({ phase: "idle", message: why });
+  });
+
+  it("starts a new worker for the next request, with a stop flag of its own", async () => {
+    const { t, workers } = stopped();
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    running(t);
+    expect(workers).toHaveLength(2);
+    expect(workers[1]!.posted.find((m) => "stop" in m)).toBeDefined();
+  });
+
+  it("sends what was queued behind it to the new worker, the client handing on the kind", async () => {
+    const { t, workers } = setup(true);
+    const c = new SolverClient(t, "test");
+    const ac = new AbortController();
+    const first = c.solve({ state: { players: 2 }, signal: ac.signal }).catch((e: unknown) => e);
+    const next = c.solve({ state: { players: 3 } });
+    await vi.advanceTimersByTimeAsync(0);
+    workers[0]!.reply({ status: "Solving…" });
+    ac.abort();
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    await expect(first).resolves.toMatchObject({ kind: "stuck" });
+    expect(workers).toHaveLength(2);
+    const w = workers[1]!;
+    w.reply({ status: "Solving…" });
+    w.reply({ id: lastRequest(w).id, result: { street: "preflop" } });
+    await expect(next).resolves.toMatchObject({ data: { street: "preflop" } });
+  });
+
+  it("lets a pong call it off: the stop goes on to its own answer", async () => {
+    const { t, w, seen } = stopped();
+    const { id } = lastRequest(w);
+    w.reply({ pong: 1 });
+    await vi.advanceTimersByTimeAsync(STUCK_MS * 4);
+    expect(w.terminated).toBe(false);
+    expect(seen.settled).toBe(false);
+    w.reply({ id, result: { cancelled: true } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.error).toMatchObject({ kind: "cancelled" });
+    expect(t.status().phase).toBe("ready");
+  });
+
+  it("doesn't take an older ping's pong for this stop's", async () => {
+    const { t, w } = stopped();
+    w.reply({ id: lastRequest(w).id, result: { cancelled: true } });
+    const later = running(t);
+    later.ac.abort();
+    expect(pings(w)).toEqual([{ ping: 1 }, { ping: 2 }]);
+    w.reply({ pong: 1 });
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    expect(w.terminated).toBe(true);
+    expect(later.seen.error).toMatchObject({ kind: "stuck" });
+  });
+
+  it("doesn't watch while booting: its stretches aren't requests", async () => {
+    const { t, workers } = setup(true);
+    const { ac, seen } = running(t);
+    const w = workers[0]!;
+    w.reply({ status: "Loading numpy…" });
+    ac.abort();
+    expect(pings(w)).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(STUCK_MS * 4);
+    expect(w.terminated).toBe(false);
+    // (once up, the worker sees the stop before it starts)
+    w.reply({ status: "Solving…" });
+    w.reply({ id: lastRequest(w).id, result: { cancelled: true } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.error).toMatchObject({ kind: "cancelled" });
+  });
+
+  it("clears the timer on dispose: a new worker isn't ended for the old one's stop", async () => {
+    const { t, workers, seen } = stopped();
+    t.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.error).toMatchObject({ kind: "cancelled" });
+    const next = running(t);
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    expect(workers).toHaveLength(2);
+    expect(workers[1]!.terminated).toBe(false);
+    expect(next.seen.settled).toBe(false);
+  });
+
+  it("clears the timer once the stop is answered: the next request's long solve is left alone", async () => {
+    const { t, w, seen } = stopped();
+    w.reply({ id: lastRequest(w).id, result: { cancelled: true } });
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.error).toMatchObject({ kind: "cancelled" });
+    const next = running(t);
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    expect(w.terminated).toBe(false);
+    expect(next.seen.settled).toBe(false);
+  });
+
+  it("clears the timer when a whole answer beats the stop", async () => {
+    const { w, seen } = stopped();
+    w.reply({ id: lastRequest(w).id, result: { street: "turn" } });
+    await vi.advanceTimersByTimeAsync(STUCK_MS);
+    expect(seen).toEqual({ settled: true });
+    expect(w.terminated).toBe(false);
+  });
+
+  it("clears the timer when the worker dies of itself", async () => {
+    const { w, seen } = stopped();
+    w.onerror?.({ message: "out of memory" } as ErrorEvent);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.error).toMatchObject({ kind: "boot-failed" });
+  });
+
+  it("doesn't ping where a stop ends the worker anyway", async () => {
+    const { t, workers } = setup(false);
+    const { ac, seen } = running(t);
+    const w = workers[0]!;
+    w.reply({ status: "Solving…" });
+    ac.abort();
+    expect(pings(w)).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.error).toMatchObject({ kind: "cancelled" });
+    expect(t.status()).toMatchObject({ phase: "idle", message: "Solver stopped; it restarts on the next request." });
+  });
+
+  it("only stops the request it's told to: a finished one's signal does nothing", async () => {
+    const { t, workers } = setup(true);
+    const { ac } = running(t);
+    const w = workers[0]!;
+    w.reply({ status: "Solving…" });
+    w.reply({ id: lastRequest(w).id, result: { street: "turn" } });
+    running(t);
+    ac.abort();
+    expect(pings(w)).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

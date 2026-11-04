@@ -4,7 +4,7 @@
 // the solve in progress; its /advise answers {"cancelled": true}), POST /play (a practice opponent's move: {state, seat,
 // hole, seed}), GET /health.
 import type { AdvisorResponse, AdvisorState } from "./protocol";
-import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport } from "./types";
+import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport, type StopCost } from "./types";
 
 export interface HttpTransportOptions {
   /** e.g. "http://127.0.0.1:8765" (no trailing slash needed) */
@@ -38,6 +38,11 @@ export class HttpTransport implements SolverTransport {
   private setStatus(patch: Partial<RuntimeStatus>) {
     this.st = { ...this.st, ...patch };
     for (const l of this.listeners) l(this.st);
+  }
+
+  /** Always cheap: /cancel stops a solve or a move, and the server stays up with what it holds. */
+  stopCost(): StopCost {
+    return "cheap";
   }
 
   /** GET /health: true when the server answers. */

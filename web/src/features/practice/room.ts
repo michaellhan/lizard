@@ -4,7 +4,9 @@
 // late answer can't land on a hand that has moved on: at worst it waits in a cache for a spot nobody reaches. The
 // solver answers one request at a time, so one is in flight: `flight` is set before the first await, or two pumps would
 // launch twice, and held until the request settles, a stopped one too (about 0.1 s on an isolated worker), as the
-// next would queue behind it anyway. A failure is held by key as well, so it only ever shows on the spot it was for.
+// next would queue behind it anyway. A stop the worker never answers ends the worker (worker-transport.ts): `restarts`
+// counts those, and a job still wanted is simply asked again. A failure is held by key as well, so it only ever shows
+// on the spot it was for.
 //
 // `start`, `stop`, `start` works, as StrictMode runs it. `start` reads the kept doc first, raced against KEPT_WAIT
 // because `kvGet` waits for ever while an older tab blocks an upgrade, and sends nothing until that settles; a New
@@ -80,6 +82,8 @@ export interface RoomSnapshot {
   session: PracticeSession;
   tables: readonly RoomTable[];
   kept: Kept | null;
+  /** workers ended since this Room was made, for a stop they never answered */
+  restarts: number;
 }
 
 interface Table {
@@ -151,6 +155,7 @@ export class Room {
   /** the key last rejected as cancelled with nobody here stopping it */
   private unasked = "";
   private prefetched = "";
+  private restarts = 0;
 
   /** Its tab is the one shown. The hand goes on hidden, as it always has, so nothing here reads it yet. */
   active = true;
@@ -524,13 +529,15 @@ export class Room {
     this.pump();
   }
 
-  /** A request rejected: a failure, by key, so it marks only a table still at that spot. A cancel stores nothing, and
-   * what's still needed is asked again. */
+  /** A request rejected: a failure, by key, so it marks only a table still at that spot. A cancel stores nothing, nor
+   * does a worker ended for not answering a stop, which is counted: what's still needed is asked again of a new one. */
   private lost(fl: Flight, e: unknown): void {
     if (this.flight !== fl) return;
     this.flight = null;
     const { key } = fl.job.need;
-    if (!(e instanceof SolverError && e.kind === "cancelled")) {
+    const kind = e instanceof SolverError ? e.kind : null;
+    if (kind === "stuck") this.restarts += 1;
+    if (kind !== "cancelled" && kind !== "stuck") {
       this.fail(key, message(e));
     } else if (!fl.stopping) {
       // (no stop of ours, a client gone, say: asked again, but a spot that's cancelled twice says so, or it goes round for ever)
@@ -581,7 +588,7 @@ export class Room {
         lastRange: t.lastRange,
       };
     });
-    return { session: this.session, tables, kept: this.kept };
+    return { session: this.session, tables, kept: this.kept, restarts: this.restarts };
   }
 
   private emit(): void {

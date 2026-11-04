@@ -109,12 +109,18 @@ whose only change is a renamed cache (§5). Protocol (`protocol.ts`, verified ag
 
 - page → worker: `{id, state, early}`, `{cancel: id}`, `{stop: SharedArrayBuffer}`, `{prefetch: state}`, `{ping}`;
 - worker → page: `{status, setup}` (boot progress, then "Solving…" with timings and thread counts), `{id, partial}`,
-  `{id, result}` (`result.cancelled` when stopped), `{id, error}`.
+  `{id, result}` (`result.cancelled` when stopped), `{id, error}`, `{pong}`.
 
 Cancellation depends on isolation. When the page is cross-origin isolated, the transport writes the id into a shared
 `Int32Array` that the solve polls between chunks of iterations. It stops within about 0.1 s and keeps its caches.
 Without isolation, the transport terminates the worker and boots a new one on the next request (runtime from cache,
-about 1.5 s).
+about 1.5 s). `stopCost()` says which of the two a stop means: `cheap` on an isolated worker and over HTTP, `kills`
+otherwise.
+
+A solve can be stuck where it can't read the shared flag, with every request waiting behind it. So after a stop on an
+isolated page the transport pings the worker, unless it is still booting. With no pong in 15 s and the request still
+unsettled, it terminates the worker and rejects the request as `stuck`, and the next request boots a new one (the
+legacy guard, `index.html:1173-1189`).
 
 A boot failure marks the status `failed` and rejects the request. The next request retries with a fresh worker.
 
@@ -131,7 +137,9 @@ Engine page (`/engine`) show it.
 ### 3.5 Errors
 
 `SolverError.kind` is one of `cancelled`, `boot-failed`, `unreachable`, `solver-error`, `stuck` or `bad-request`.
-Views show the message and keep the last good answer. A cancelled request shows "Stopped."
+Views show the message and keep the last good answer. A cancelled request shows "Stopped." A `stuck` rejection only
+follows a stop: views show its message, and Practice's `Room` counts it in `restarts` and asks again whatever is still
+wanted.
 
 ## 4. Game engines
 
@@ -209,7 +217,7 @@ app redeploy.
 
 | Suite | Command | What |
 |---|---|---|
-| Web unit (Vitest, jsdom) | `npm test` | study state and URL encoding, cards and classes, range text, provenance, client queue and abort, worker transport (fake worker: boot, partials, both cancel paths, boot failure), IndexedDB migrations (fake-indexeddb), library catalog, RangeMatrix accessibility |
+| Web unit (Vitest, jsdom) | `npm test` | study state and URL encoding, cards and classes, range text, provenance, client queue and abort, worker transport (fake worker: boot, partials, both cancel paths, a stop nobody answers, boot failure), IndexedDB migrations (fake-indexeddb), library catalog, RangeMatrix accessibility |
 | Assembler | `.venv/bin/python -m unittest discover -s scripts/library` | validation, shrink protection, refusing foreign or protected output, sources untouched |
 | Solver (upstream) | `npm run test:solver`, `npm run test:solver-js` | 678 Python and 411 Node tests; about 12 minutes of CPU, and some need the library |
 | Browser | manual so far | Study flows, library and live answers, Engine self-test, CSP, phone width. Playwright suite **(planned)** |

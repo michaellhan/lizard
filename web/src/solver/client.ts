@@ -12,6 +12,7 @@ import {
   type SolveRequest,
   type SolveResult,
   type SolverTransport,
+  type StopCost,
   type TransportKind,
 } from "./types";
 
@@ -78,6 +79,11 @@ export class SolverClient {
 
   prefetch(state: AdvisorState): void {
     this.transport.prefetch?.(state);
+  }
+
+  /** What stopping a running request costs on this backend. */
+  stopCost(): StopCost {
+    return this.transport.stopCost();
   }
 
   solve(req: SolveRequest): Promise<SolveResult> {

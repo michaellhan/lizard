@@ -4,10 +4,17 @@
 //
 // Cancellation, as the worker supports it:
 //  - cross-origin isolated page: a SharedArrayBuffer handed over once ({stop}); writing the running request's id
-//    into slot 1 makes Advisor.should_stop() true, and the solve stops within ~0.1 s keeping the worker's caches;
+//    into slot 1 makes Advisor.should_stop() true, and the solve stops within ~0.1 s keeping the worker's caches.
+//    It can be stuck where it can't read that (in the compiled core, say), with every request waiting behind it: so the
+//    worker is pinged after a stop, and one that hasn't answered in STUCK_MS is ended, its request rejected as "stuck"
+//    (index.html:1173-1189);
 //  - otherwise: the worker is terminated and rebooted on the next request (runtime from cache, ~1.5 s).
 import type { AdvisorResponse, AdvisorState, WorkerInbound, WorkerOutbound } from "./protocol";
-import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport } from "./types";
+import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport, type StopCost } from "./types";
+
+/** ms a stopped request's worker has to answer a ping (a stop takes ~0.1 s, the longest stretch that doesn't read it a
+ * few seconds; the classic STUCK_S) */
+const STUCK_MS = 15_000;
 
 export interface WorkerTransportOptions {
   /** URL of the folder holding worker.js, solver.zip and pf/ (must end with "/") */
@@ -35,6 +42,9 @@ export class WorkerTransport implements SolverTransport {
   private stop: Int32Array | null = null;
   private nextId = 1;
   private current: InFlight | null = null;
+  private pings = 0;
+  /** runs out if the stopped request's worker stays silent; only ever set with that request still current */
+  private stuckTimer: ReturnType<typeof setTimeout> | undefined;
   private listeners = new Set<(s: RuntimeStatus) => void>();
   private st: RuntimeStatus;
   private readonly opts: WorkerTransportOptions;
@@ -44,6 +54,15 @@ export class WorkerTransport implements SolverTransport {
     this.opts = opts;
     this.isolated = opts.crossOriginIsolated ?? (typeof self !== "undefined" && self.crossOriginIsolated === true);
     this.st = { phase: "idle", transport: "worker", crossOriginIsolated: this.isolated };
+  }
+
+  /** Whether the page can share a stop flag with the worker. */
+  private get sharesStop(): boolean {
+    return this.isolated && typeof SharedArrayBuffer !== "undefined";
+  }
+
+  stopCost(): StopCost {
+    return this.sharesStop ? "cheap" : "kills";
   }
 
   workerUrl(): string {
@@ -83,7 +102,7 @@ export class WorkerTransport implements SolverTransport {
       this.setStatus({ phase: "failed", error: msg });
       this.failCurrent(new SolverError("boot-failed", msg));
     };
-    if (this.isolated && typeof SharedArrayBuffer !== "undefined") {
+    if (this.sharesStop) {
       const sab = new SharedArrayBuffer(8);
       this.stop = new Int32Array(sab);
       this.post({ stop: sab });
@@ -105,7 +124,11 @@ export class WorkerTransport implements SolverTransport {
       });
       return;
     }
-    if ("pong" in m) return;
+    if ("pong" in m) {
+      // (the thread isn't stuck; an older ping's answer says nothing of this stop)
+      if (m.pong === this.pings) clearTimeout(this.stuckTimer);
+      return;
+    }
     const cur = this.current;
     if (!cur || m.id !== cur.id) return; // (a superseded request's late message)
     if ("partial" in m) {
@@ -155,7 +178,11 @@ export class WorkerTransport implements SolverTransport {
         resolve,
         reject,
         onPartial: opts.onPartial,
-        cleanup: () => opts.signal?.removeEventListener("abort", onAbort),
+        cleanup: () => {
+          opts.signal?.removeEventListener("abort", onAbort);
+          // (settled: this stop is over, and the next request's long solve is no sign of anything)
+          clearTimeout(this.stuckTimer);
+        },
       };
       if (this.st.phase === "ready") this.setStatus({ phase: "busy" });
       // (a move is never posted early: worker.js answers it in one go)
@@ -169,14 +196,29 @@ export class WorkerTransport implements SolverTransport {
       // the running solve reads this between chunks of iterations and answers {cancelled: true}
       Atomics.store(this.stop, 1, id);
       this.post({ cancel: id }); // (in case it has not started yet: the worker checks before running)
+      this.watchStop();
     } else {
       // no shared memory: the only way to stop a synchronous solve is to end the worker
-      this.worker?.terminate();
-      this.worker = null;
-      this.stop = null;
-      this.setStatus({ phase: "idle", message: "Solver stopped; it restarts on the next request." });
-      this.failCurrent(new SolverError("cancelled", "cancelled"));
+      this.endWorker("Solver stopped; it restarts on the next request.", new SolverError("cancelled", "cancelled"));
     }
+  }
+
+  /** The ping waits behind a running solve, so its answer means the solve has let go of the thread. */
+  private watchStop() {
+    if (this.st.phase === "booting") return; // (still loading: its stretches aren't requests)
+    this.post({ ping: ++this.pings });
+    this.stuckTimer = setTimeout(() => {
+      const why = "The solver stopped answering; it restarts on the next request.";
+      this.endWorker(why, new SolverError("stuck", why));
+    }, STUCK_MS);
+  }
+
+  private endWorker(message: string, err: SolverError) {
+    this.worker?.terminate();
+    this.worker = null;
+    this.stop = null;
+    this.setStatus({ phase: "idle", message });
+    this.failCurrent(err);
   }
 
   prefetch(state: AdvisorState): void {

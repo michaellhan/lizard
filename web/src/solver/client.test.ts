@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyMode, effectiveMode, SolverClient } from "./client";
+import { HttpTransport } from "./http-transport";
 import type { AdvisorResponse, AdvisorState } from "./protocol";
 import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport } from "./types";
+import { WorkerTransport } from "./worker-transport";
 
 /** A transport whose requests the test answers by hand. */
 class FakeTransport implements SolverTransport {
@@ -17,6 +19,9 @@ class FakeTransport implements SolverTransport {
       opts.signal?.addEventListener("abort", () => reject(new SolverError("cancelled", "cancelled")));
       this.calls.push({ state, resolve, signal: opts.signal, play: opts.play, progressive: opts.progressive });
     });
+  }
+  stopCost() {
+    return "kills" as const;
   }
   onStatus(cb: (s: RuntimeStatus) => void) {
     cb(this.status());
@@ -120,5 +125,40 @@ describe("SolverClient", () => {
     expect(t.calls[0]).toMatchObject({ play: { seat: "BB", hole: "QcQd" }, progressive: false, state: { quick: true, budget: 1.5 } });
     t.calls[0]!.resolve({ pos: "BB", action: "check", name: "check", freq: 0.6, street: "flop" });
     await expect(mv).resolves.toMatchObject({ data: { pos: "BB", action: "check" }, provenance: { mode: "quick" } });
+  });
+});
+
+describe("stopCost", () => {
+  const worker = (crossOriginIsolated: boolean) => {
+    const createWorker = vi.fn();
+    const c = new SolverClient(new WorkerTransport({ assetBase: "/s/", version: "v", libraryBase: "/l/", crossOriginIsolated, createWorker }), "test");
+    return { c, createWorker };
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is cheap over HTTP: the server stops the solve and stays up", () => {
+    expect(new SolverClient(new HttpTransport({ url: "http://127.0.0.1:8765" }), "test").stopCost()).toBe("cheap");
+  });
+
+  it("is cheap on an isolated worker, and known before one has started", () => {
+    const { c, createWorker } = worker(true);
+    expect(c.stopCost()).toBe("cheap");
+    expect(createWorker).not.toHaveBeenCalled();
+  });
+
+  it("kills an unisolated worker: it has to be ended", () => {
+    expect(worker(false).c.stopCost()).toBe("kills");
+  });
+
+  it("kills an isolated worker where the browser has no SharedArrayBuffer: there's no flag to share", () => {
+    vi.stubGlobal("SharedArrayBuffer", undefined);
+    expect(worker(true).c.stopCost()).toBe("kills");
+  });
+
+  it("asks the transport it has", () => {
+    expect(new SolverClient(new FakeTransport(), "test").stopCost()).toBe("kills");
   });
 });

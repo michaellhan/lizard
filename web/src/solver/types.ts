@@ -126,6 +126,10 @@ export interface RuntimeStatus {
   error?: string;
 }
 
+/** What stopping a running request costs: "cheap", it ends there and the solver keeps what it holds; "kills", the solver
+ * itself has to be ended, and it reboots on the next request holding nothing. */
+export type StopCost = "cheap" | "kills";
+
 /** A backend that can answer Advisor requests. */
 export interface SolverTransport {
   readonly kind: TransportKind;
@@ -136,6 +140,8 @@ export interface SolverTransport {
   ): Promise<AdvisorResponse>;
   /** Hint: fetch the library entries this state will need. */
   prefetch?(state: AdvisorState): void;
+  /** What stopping a running request costs here; known before anything has started. */
+  stopCost(): StopCost;
   /** Subscribe to runtime status; returns an unsubscribe function. */
   onStatus(cb: (s: RuntimeStatus) => void): () => void;
   status(): RuntimeStatus;

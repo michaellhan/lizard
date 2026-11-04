@@ -20,6 +20,9 @@ class Instant implements SolverTransport {
   request(state: AdvisorState, _opts: { progressive: boolean; signal?: AbortSignal; play?: PlayRequest }) {
     return Promise.resolve(this.answer(state));
   }
+  stopCost() {
+    return "kills" as const;
+  }
   onStatus(cb: (s: RuntimeStatus) => void) {
     cb(this.status());
     return () => {};

@@ -3,8 +3,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
-import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
+import { SolverClient } from "@/solver/client";
+import type { AdvisorResponse, AdvisorState, PlayMove, WorkerInbound, WorkerOutbound } from "@/solver/protocol";
 import { SolverError, type PlayRequest, type Provenance, type SolveMode, type SolveRequest, type SolveResult } from "@/solver/types";
+import { WorkerTransport } from "@/solver/worker-transport";
 import { useSettings } from "@/state/settings";
 import { DRILL_TRIES, newHand, optionsOf, type HandOptions } from "./practice";
 import { Room, type RoomClient, type RoomOptions } from "./room";
@@ -399,6 +401,172 @@ describe("Room failures", () => {
     await flush();
     room.ungraded({ action: "fold" });
     expect(table(room).hand.lines.preflop).toEqual([]);
+  });
+});
+
+describe("Room restarts", () => {
+  const stuck = () => new SolverError("stuck", "The solver stopped answering; it restarts on the next request.");
+
+  it("asks a stuck job again where it's still wanted, and counts the restart: no failure, nothing cached", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    // (stopped, then wanted again: the flight is held until it settles)
+    useSettings.setState({ mode: "accurate" });
+    useSettings.setState({ mode: "fast" });
+    await flush();
+    expect(asked[0]!.signal!.aborted).toBe(true);
+    expect(asked).toHaveLength(1);
+    expect(room.snapshot().restarts).toBe(0);
+
+    asked[0]!.reject(stuck());
+    await flush();
+    expect(room.snapshot().restarts).toBe(1);
+    expect(asked).toHaveLength(2);
+    expect(asked[1]).toMatchObject({ mode: "quick", state: asked[0]!.state });
+    expect(asked[1]!.signal!.aborted).toBe(false);
+    expect(table(room).failed).toBeNull();
+    expect(table(room).answer).toBeNull();
+
+    asked[1]!.answer(CHART);
+    await flush();
+    expect(table(room).answer).not.toBeNull();
+    expect(room.snapshot().restarts).toBe(1);
+  });
+
+  it("goes on to what's wanted now where nobody wants the stuck job", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    room.startSession(2, 100, OPTS);
+    await flush();
+    expect(asked).toHaveLength(1);
+    asked[0]!.reject(stuck());
+    await flush();
+    expect(room.snapshot().restarts).toBe(1);
+    expect(asked).toHaveLength(2);
+    expect(asked[1]!.state.hole).not.toBe(asked[0]!.state.hole);
+    expect(table(room).failed).toBeNull();
+  });
+
+  it("counts one on leaving, and sends nothing after it", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    room.stop();
+    asked[0]!.reject(stuck());
+    await pass(5000);
+    expect(room.snapshot().restarts).toBe(1);
+    expect(asked).toHaveLength(1);
+  });
+
+  it("keeps counting through a New session, and tells the views", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    for (const i of [0, 1]) {
+      await flush();
+      room.startSession(2, 100, OPTS);
+      const heard = vi.fn();
+      const off = room.subscribe(heard);
+      asked[i]!.reject(stuck());
+      await flush();
+      expect(heard).toHaveBeenCalled();
+      off();
+    }
+    expect(room.snapshot().restarts).toBe(2);
+  });
+
+  it("counts a late stuck from nothing it has let go of", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    const next = fakeClient();
+    room.setSolver(async () => next.client);
+    await flush();
+    asked[0]!.reject(stuck());
+    await flush();
+    // (a snapshot taken after it, or this reads the last one)
+    room.pump();
+    expect(room.snapshot().restarts).toBe(0);
+    expect(next.asked).toHaveLength(1);
+    expect(next.asked[0]!.signal!.aborted).toBe(false);
+  });
+
+  it("counts no restart for a stop that's answered", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    room.startSession(2, 100, OPTS);
+    await pass(100);
+    expect(asked[0]!.signal!.aborted).toBe(true);
+    expect(asked).toHaveLength(2);
+    expect(room.snapshot().restarts).toBe(0);
+  });
+
+  it("doesn't go round for ever on a stuck nobody here asked for", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked[0]!.reject(stuck());
+    await flush();
+    expect(asked).toHaveLength(2);
+    expect(table(room).failed).toBeNull();
+    asked[1]!.reject(stuck());
+    await flush();
+    expect(asked).toHaveLength(2);
+    expect(table(room).failed).toBe("Stopped.");
+    expect(room.snapshot().restarts).toBe(2);
+  });
+
+  it("restarts for real, through the client and the transport: the spot goes to a new worker", async () => {
+    /** Starts up, takes requests, and never says another word: no answer, no pong. */
+    class SilentWorker {
+      posted: WorkerInbound[] = [];
+      terminated = false;
+      onmessage: ((e: MessageEvent<WorkerOutbound>) => void) | null = null;
+      onerror: ((e: ErrorEvent) => void) | null = null;
+      postMessage(m: WorkerInbound) {
+        this.posted.push(m);
+      }
+      terminate() {
+        this.terminated = true;
+      }
+    }
+    const workers: SilentWorker[] = [];
+    const client = new SolverClient(
+      new WorkerTransport({
+        assetBase: "/s/",
+        version: "v",
+        libraryBase: "/l/",
+        crossOriginIsolated: true,
+        createWorker: () => {
+          const w = new SilentWorker();
+          workers.push(w);
+          return w as unknown as Worker;
+        },
+      }),
+      "test",
+    );
+    const asks = (w: SilentWorker) => w.posted.filter((m): m is Extract<WorkerInbound, { state: unknown }> => "state" in m);
+
+    const { room } = setup({ players: 2, start: false });
+    room.setSolver(async () => client);
+    room.start();
+    await flush();
+    const w = workers[0]!;
+    w.onmessage?.({ data: { status: "Solving…" } } as MessageEvent<WorkerOutbound>);
+    expect(asks(w)).toHaveLength(1);
+
+    useSettings.setState({ mode: "accurate" });
+    useSettings.setState({ mode: "fast" });
+    await pass(14_999);
+    expect(w.terminated).toBe(false);
+    expect(room.snapshot().restarts).toBe(0);
+    await pass(1);
+    expect(w.terminated).toBe(true);
+    expect(room.snapshot().restarts).toBe(1);
+    expect(table(room).failed).toBeNull();
+
+    expect(workers).toHaveLength(2);
+    expect(asks(workers[1]!)).toHaveLength(1);
+    expect(asks(workers[1]!)[0]!.state).toEqual(asks(w)[0]!.state);
+    workers[1]!.onmessage?.({ data: { status: "Solving…" } } as MessageEvent<WorkerOutbound>);
+    workers[1]!.onmessage?.({ data: { id: asks(workers[1]!)[0]!.id, result: CHART } } as MessageEvent<WorkerOutbound>);
+    await flush();
+    expect(optionsOf(table(room).answer?.data).map((a) => a.action)).toEqual(["fold", "call", "raise 2.5"]);
   });
 });
 
