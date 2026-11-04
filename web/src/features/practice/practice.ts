@@ -213,10 +213,10 @@ export function nextTable(h: PracticeHand, chips: Record<string, number> = chips
   return { stacks: Object.fromEntries(pos.map((p) => [p, stacks[p]!])), rebuys: pos.filter((p) => rebuys.includes(p)) };
 }
 
-/** The session's next hand: with chips carried, from where this one left them (or, `reset`, every seat back at the
- * starting stack). */
-export const following = (h: PracticeHand, seed: number, opts: HandOptions, reset = false): PracticeHand =>
-  newHand(h.players, h.stack, h.n + 1, seed, opts, carries(opts) && !reset ? nextTable(h) : undefined);
+/** The session's next hand, number `n`: with chips carried, from where this one left them (or, `reset`, every seat
+ * back at the starting stack). */
+export const following = (h: PracticeHand, seed: number, opts: HandOptions, reset = false, n = h.n + 1): PracticeHand =>
+  newHand(h.players, h.stack, n, seed, opts, carries(opts) && !reset ? nextTable(h) : undefined);
 
 /** A drill hand that went another way, dealt again (the same hand number: your seat stays where it moves). */
 export const redeal = (h: PracticeHand, seed: number, opts: HandOptions): PracticeHand => ({ ...newHand(h.players, h.stack, h.n, seed, opts), tries: (h.tries ?? 0) + 1 });

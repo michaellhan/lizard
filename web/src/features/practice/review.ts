@@ -11,6 +11,8 @@ export const REVIEW_SHOW = 6;
 export interface Reviewed {
   /** the hand's number in the session */
   n: number;
+  /** the table it was played at, from 1, above one table */
+  table?: number;
   seat: string;
   players: number;
   hole: [string, string];
@@ -20,11 +22,12 @@ export interface Reviewed {
   d: Decision;
 }
 
-/** Your decision `d` at the hand `h` (as it stood when you decided), the session's `n`th hand. */
-export function reviewed(h: PracticeHand, d: Decision, n: number): Reviewed {
+/** Your decision `d` at the hand `h` (as it stood when you decided), the session's `n`th hand; `table`, above one table. */
+export function reviewed(h: PracticeHand, d: Decision, n: number, table?: number): Reviewed {
   const before = h.lines[d.street].filter((m) => m.action !== "fold");
   return {
     n,
+    ...(table !== undefined ? { table } : {}),
     seat: h.hero,
     players: h.players,
     hole: h.hands[h.hero]!,
