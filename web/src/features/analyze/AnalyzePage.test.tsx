@@ -295,13 +295,13 @@ describe("AnalyzePage", () => {
     expect([...new URLSearchParams(handHref.split("?")[1])]).toEqual([["pos", "BTN"], ["drill", "spot:SRP · IP · checked to"], ["hand", "PokerStars|249012345678|AhQd"]]);
     expect(within(drill).getByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled: 0 in the mix (0%), 0.12bb lost over 1 graded by EV.");
     fireEvent.click(within(drill).getByRole("button", { name: "Finish" }));
-    expect(within(drill).getByRole("status")).toHaveTextContent("Every decision of this leak is drilled.");
+    expect(within(drill).getByRole("status")).toHaveTextContent("Every decision of this leak in these hands is drilled.");
     view.unmount();
 
     // opened again: where it was left (the progress is kept as a session), and started over from there
     open(q);
     const again = await screen.findByRole("region", { name: "Leak drill" });
-    expect(await within(again).findByRole("status")).toHaveTextContent("Every decision of this leak is drilled.");
+    expect(await within(again).findByRole("status")).toHaveTextContent("Every decision of this leak in these hands is drilled.");
     expect(within(again).getByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled: 0 in the mix (0%)");
     fireEvent.click(within(again).getByRole("button", { name: "Start over" }));
     expect(within(again).getByLabelText("Drill score")).toHaveTextContent("0 of 1 drilled.");

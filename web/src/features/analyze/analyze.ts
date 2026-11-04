@@ -7,6 +7,7 @@ import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
 import { gameSetup, setupProblems, tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
+import { inSess } from "./sessions";
 
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
 const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
@@ -25,7 +26,10 @@ const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "
 /** When the hand was played, as the history writes it (the site's own clock and time zone): "2024-05-01 20:00",
  * and that time read as UTC for sorting; null where the header has no date. */
 export function playedOf(text: string): { played: string; at: number } | null {
-  const head = /<game\b/i.test(text) ? (text.match(/<startdate>([^<]*)</)?.[1] ?? "") : String(text).split("\n").slice(0, 4).join(" ");
+  // (iPoker's own <game> has its time: splitHands keeps the file's <general> before it, with the file's start)
+  const game = text.search(/<game\b/i);
+  const start = /<startdate>([^<]*)</;
+  const head = game >= 0 ? (text.slice(game).match(start)?.[1] ?? text.match(start)?.[1] ?? "") : String(text).split("\n").slice(0, 4).join(" ");
   let y: number, mo: number, d: number, h: number, mi: number, s: number;
   let m = head.match(/(\d{4})[/-](\d\d?)[/-](\d\d?)[ T]+(\d\d?):(\d\d)(?::(\d\d))?/);
   if (m) [y, mo, d, h, mi, s] = [+m[1]!, +m[2]!, +m[3]!, +m[4]!, +m[5]!, +(m[6] ?? 0)];
@@ -90,7 +94,7 @@ export function preflopSituation(before: readonly Move[], hero: string): string 
 /** The hands table's filters, in the page's URL: your seat, pot type, site, stakes (the big blind as the history
  * writes it), the days played (YYYY-MM-DD, by the site's clock) from and to, one of your tags, a search, and the EV
  * your graded decisions gave up in the hand (at least so many bb). */
-export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q", "lost"] as const;
+export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q", "lost", "sess"] as const;
 
 /** The EV-lost filter's steps, bb. */
 export const LOST_STEPS = ["0.1", "0.5", "1", "2", "5", "10"] as const;
@@ -115,8 +119,9 @@ export function handMatches(h: HandRecord, query: string): boolean {
 
 /** The hands the filters keep; `lost`: the EV given up in each hand (lostByHand), for the EV-lost filter. */
 export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lost: ReadonlyMap<string, number> = new Map()): HandRecord[] {
-  const [pos, pot, site, bb, from, to, tag, q, minLost] = HAND_FILTERS.map((k) => p.get(k));
+  const [pos, pot, site, bb, from, to, tag, q, minLost, sess] = HAND_FILTERS.map((k) => p.get(k));
   const day = (h: HandRecord) => h.played.slice(0, 10);
+  const sitting = sess ? inSess(sess) : null;
   return hands.filter(
     (h) =>
       (!pos || h.hero === pos) &&
@@ -127,7 +132,8 @@ export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lo
       (!to || (!!h.played && day(h) <= to)) &&
       (!tag || !!h.tags?.includes(tag)) &&
       (!q || handMatches(h, q)) &&
-      (!minLost || (lost.get(h.id) ?? 0) >= Number(minLost) - 1e-9),
+      (!minLost || (lost.get(h.id) ?? 0) >= Number(minLost) - 1e-9) &&
+      (!sitting || sitting(h)),
   );
 }
 

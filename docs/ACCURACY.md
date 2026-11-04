@@ -343,6 +343,15 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
    comparison checks 38 boards × 200 combos, about 7,600 pairs (`tests/test_gto.py:53-64`) [V].
 8. **NumPy fallback.** If the wasm core fails, a Fast turn after a library flop ran 42 iterations and reached
    2.19% of the pot, against 282 and 0.07% with the core (`README.md:1829`) [M].
+9. **A trend across sessions compares grades, not play alone.** Analyze's "Your sessions" keeps one basis on a line,
+   so charts and solves never share one, and a read later checked at Fast still counts as the read it was. Three
+   things can still move a number with no change in play: a chart or library change (a grade isn't tied to the version
+   it was graded on), a real shift in the spots dealt (sessions aren't split by table size, so the answer in a row
+   moves with them), and what you chose to grade. The rows test at 2.58 standard errors with no correction for how many
+   there are: about 1 in 100 rows is called by chance at sides up to 600/300, 1.35% at 30/30, and up to 2.9% for a 1%
+   or 99% action at sides 10 to 1 or worse, by exact binomials and seeded simulation through the real `shifts` [M]. A
+   steady player whose frequency wobbles from night to night would be called more often, as the hands are then not
+   independent: 2 to 4 in 100 in a big database, under an assumed wobble of 3 to 5 points, not measured from play.
 
 ---
 

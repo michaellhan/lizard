@@ -8,13 +8,11 @@ import type { HandRecord } from "@/data/db";
 import { RESULT_WHY } from "@/hh/results";
 import { seatLabel } from "@/poker/seats";
 import { withParams } from "./leakDrill";
-import { winningsOf, type WinGroup, type Winnings } from "./winnings";
+import { signed, signOf, winningsOf, type WinGroup, type Winnings } from "./winnings";
 
 const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
-const sign = (x: number) => (x > 0.00005 ? "+" : x < -0.00005 ? "−" : "");
-const signed = (x: number, d = 1) => `${sign(x)}${Math.abs(x).toFixed(d)}`;
 const signedBb = (x: number, d = 1) => `${signed(x, d)}bb`;
-const signedMoney = (unit: string, x: number) => `${sign(x)}${unit}${Math.abs(x).toFixed(2)}`;
+const signedMoney = (unit: string, x: number) => `${signOf(x, 2)}${unit}${Math.abs(x).toFixed(2)}`;
 /** fewer hands than this: bb/100 is said to be mostly luck */
 const FEW = 10000;
 /** the chart's colors: categorical slots 1-4, validated on the dark surface (dataviz validate_palette); the all-in EV

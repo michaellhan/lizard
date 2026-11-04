@@ -1,7 +1,8 @@
 // Analyze: your hand histories imported into this browser (pasted, or files and folders picked or dropped), read
 // by the classic importer's port (hh/), kept in IndexedDB once each (data/hands.ts), listed with filters, and each
 // hand replayed street by street with every decision of yours opening in Study; your decisions graded against the
-// charts and the flop library, or by triage or a solve (GradingPanel.tsx), each grade shown with what it stands on.
+// charts and the flop library, or by triage or a solve (GradingPanel.tsx), each grade shown with what it stands on;
+// your sittings and how the grades moved across them (SessionsPanel.tsx).
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -23,6 +24,7 @@ import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
+import { SessionsPanel } from "./SessionsPanel";
 import { StatsPanel } from "./StatsPanel";
 import { WinningsPanel } from "./WinningsPanel";
 import { LIMITS } from "@/features/solve/setup";
@@ -75,7 +77,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
     });
 
   const id = params.get("hand");
-  const drill = parseLeakParam(params.get("drill"));
+  const drillParam = params.get("drill");
+  const drill = useMemo(() => parseLeakParam(drillParam), [drillParam]);
   const open = id ? hands?.find((h) => h.id === id) : undefined;
   // (the hands table's filters apply to the report, the drill and the stats too)
   const lost = useMemo(() => lostByHand(decisions), [decisions]);
@@ -98,13 +101,14 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <p className="text-sm text-muted">
           Import your hand histories: they're read and kept in this browser only, nothing is uploaded. Each hand replays street by street, and each of
           your decisions opens in Study at that point. Your decisions can be graded against the preflop charts and the flop library, or on every street by
-          a Quick triage or a Fast solve, each grade saying what it stands on.
+          a Quick triage or a Fast solve, each grade saying what it stands on, and your sessions show how those grades moved over time.
         </p>
       </div>
       <ImportPanel onImported={reload} />
       {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
-      {hands && hands.length > 0 && <GradePanel hands={hands} decisions={decisions} onGraded={onGraded} />}
-      {hands && shown && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={shown} onClose={() => set({ drill: null })} />}
+      {hands && shown && hands.length > 0 && <GradePanel hands={params.get("sess") ? shown : hands} decisions={decisions} onGraded={onGraded} />}
+      {hands && hands.length > 0 && <SessionsPanel hands={hands} decisions={decisions} params={params} lost={lost} set={set} />}
+      {hands && shown && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={shown} kept={hands} onClose={() => set({ drill: null })} />}
       {hands && shown && <GradeReport decisions={decisions} hands={shown} of={hands.length} />}
       {open && (
         <HandDetail

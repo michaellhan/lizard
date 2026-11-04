@@ -284,7 +284,7 @@ describe("turns and rivers", () => {
     expect([...answeredIds([graded, rules, skipped])]).toEqual(["a", "b"]);
     const read = { id: "r", verdict: "Mistake", source: "instant", label: "read", confidence: "low", triageSource: "approx", evLossBb: null, freq: 0.01 } as DecisionRecord;
     const fast = { id: "r", verdict: "Best", source: "live", label: "Live solve", evLossBb: 0 } as DecisionRecord;
-    expect(deepened(read, fast)).toEqual({ ...fast, read: { verdict: "Mistake", source: "instant", label: "read", confidence: "low", triageSource: "approx", evLossBb: null, freq: 0.01 } });
+    expect(deepened(read, fast)).toEqual({ ...fast, read: { verdict: "Mistake", source: "instant", label: "read", confidence: "low", triageSource: "approx", evLossBb: null, freq: 0.01, mix: read.mix } });
     // an answer at Fast that can't grade the move doesn't take the read's place
     // (and when it was asked, or restoring a backup keeps the copy without the note)
     expect(deepened(read, { ...fast, verdict: "Not graded", why: "no answer", gradedAt: 9 })).toEqual({ ...read, notChecked: "no answer", gradedAt: 9 });

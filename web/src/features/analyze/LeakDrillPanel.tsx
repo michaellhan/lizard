@@ -30,11 +30,15 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const fresh = (): DrillProgress => ({ startedAt: Date.now(), done: [], score: emptyScore() });
 
-export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; decisions: DecisionRecord[]; hands: HandRecord[]; onClose: () => void }) {
+/** `hands`: those the filters show, what's dealt. `kept`: every hand, what the leak is. */
+export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: LeakRef; decisions: DecisionRecord[]; hands: HandRecord[]; kept: HandRecord[]; onClose: () => void }) {
   const byId = useMemo(() => new Map(hands.map((h) => [h.id, h])), [hands]);
   const items = useMemo(() => drillItems(decisions, leak, byId), [decisions, leak, byId]);
+  const whole = useMemo(() => drillItems(decisions, leak, new Map(kept.map((h) => [h.id, h]))), [decisions, leak, kept]);
   const [prog, setProg] = useState<DrillProgress | null>(null);
-  const [answer, setAnswer] = useState<{ id: string; a: number; g: Grade } | null>(null);
+  const [held, setAnswer] = useState<{ id: string; a: number; g: Grade } | null>(null);
+  // (a filter can take the decision just answered out of view: the next one in view is dealt)
+  const answer = held && items.some((x) => x.d.id === held.id) ? held : null;
   const box = useRef<HTMLElement>(null);
   const [params] = useSearchParams();
   const key = `${leak.kind}:${leak.key}`;
@@ -52,7 +56,9 @@ export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; 
 
   const save = (p: DrillProgress) => {
     setProg(p);
-    void putSession(toSession(leak, p, items.length)).catch(() => {});
+    // (the total is the whole leak's as it stands now, as the progress is, whatever the filters show, and History says
+    // it's from this drill; with what's done of hands since deleted, so it never says 5 of 2)
+    void putSession(toSession(leak, p, new Set([...whole.map((x) => x.d.id), ...p.done]).size)).catch(() => {});
   };
   const done = new Set(prog?.done ?? []);
   const cur = answer ? items.find((x) => x.d.id === answer.id) : items.find((x) => !done.has(x.d.id));
@@ -84,11 +90,12 @@ export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; 
       {!prog ? (
         <p className="text-muted">…</p>
       ) : !items.length ? (
-        <p>None of this leak's decisions is graded with its mix in this browser.</p>
+        <p>{whole.length ? "None of this leak's graded decisions is in these hands." : "None of this leak's decisions is graded with its mix in this browser."}</p>
       ) : (
         <>
           <DrillScore
             prog={prog}
+            done={items.length - left}
             total={items.length}
             onRestart={() => {
               setAnswer(null);
@@ -107,7 +114,7 @@ export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; 
               handLink={withParams(params, { drill: leakParam(leak), hand: cur.hand.id })}
             />
           ) : (
-            <p role="status">Every decision of this leak is drilled. Start over to go again.</p>
+            <p role="status">Every decision of this leak in these hands is drilled. Start over to go again.</p>
           )}
           {answer && (
             <button type="button" onClick={() => setAnswer(null)} className="rounded bg-accent px-3 py-1 font-medium text-bg">
@@ -120,19 +127,22 @@ export function LeakDrill({ leak, decisions, hands, onClose }: { leak: LeakRef; 
   );
 }
 
-function DrillScore({ prog, total, onRestart }: { prog: DrillProgress; total: number; onRestart: () => void }) {
+function DrillScore({ prog, done, total, onRestart }: { prog: DrillProgress; done: number; total: number; onRestart: () => void }) {
   const s = prog.score;
   const m = summary(s);
+  // (the score is the whole leak's, a filter or none: over other hands it says so)
+  const beyond = prog.done.length !== done;
   return (
     <p aria-label="Drill score" className="flex flex-wrap items-center gap-2 text-muted">
       <span>
-        {prog.done.length} of {total} drilled
+        {done} of {total} drilled
+        {beyond ? ` here; ${prog.done.length} of this leak in all` : ""}
         {s.n ? `: ${s.ok} in the mix (${pct(m.acc)})` : ""}
         {m.loss != null ? `, ${fmt(s.loss)}bb lost over ${s.ne} graded by EV` : ""}.
       </span>
       {prog.done.length > 0 && (
         <button type="button" onClick={onRestart} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
-          Start over
+          {beyond ? "Start this leak over" : "Start over"}
         </button>
       )}
     </p>

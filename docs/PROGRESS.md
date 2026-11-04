@@ -3426,5 +3426,108 @@ Untouched; checked only with read-only `ps`. The web suite went through `slot.sh
 
 ### Next
 
-- Phase 2, still open: a history across sessions (the interrupted Overnight session was building it).
+- Phase 2, still open: a history across sessions.
 - Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+
+## Phase 2, a history across sessions in Analyze (2026-11-04)
+
+The last open item of Phase 2's Analyze list (`ROADMAP.md`). The design was two independent drafts, one from a player's
+view and one from the risks, merged by a third.
+
+### What changed
+
+- **Sessions (`sessions.ts`).** A session is a sitting, read from the hands kept: one kind of game at one site (one
+  tournament for a tournament), ended by a break over 30 minutes (8 hours in a tournament), by the site's own clock.
+  Undated hands make one session a group, last. Nothing is stored, so deleting an import removes its sessions.
+- **"Your sessions" (`SessionsPanel.tsx`).** A row per session, newest first, 50 until asked: when, site, hands, what
+  was won in bb (from the histories, nothing graded; none for a tournament, whose chips aren't money), how many are
+  graded and the share in the mix. Picking one sets a `sess` filter, in the URL, last in `HAND_FILTERS`, which narrows
+  the hands, the Report, results, stats, a leak drill and what Grade grades. A `sess` link whose hands changed says so.
+- **The line (`trend.ts`).** One kind of game and one basis at a time, charts and solves never on one line: the share
+  in the mix by blocks of at least 100 decisions (`max(100, N/20)`), each with a 95% range, three blocks for a line,
+  clear folds and undated hands left out. A read later checked at Fast counts as the read it was, with its own mix now
+  kept (`deepened`; no DB version bump, as a read checked before this has no mix and leaves the frequencies, counted).
+- **The latest third against before,** cut by size alone at a sitting's start. The share as a whole needs 100 a side;
+  rows of frequencies and spots need 30. Better or Worse past 2.58 standard errors. A frequency's spread is your action
+  against each hand's own answer (`sq`, in `freqs`, left out of the JSON). A frequency at least 5 points off on each
+  side, clearly on the other side of the answer now, reads "Now over the answer" or "Now under the answer": where you
+  stand, not who moved. A row that's a leak in the latest third says "Leak now". The line and comparison hide under
+  `sess`, EV lost, tag or search, as those pick the decisions they compare.
+- **Fixed on the way:** iPoker hands took the file's start, not their game's, so a file's hands shared one time
+  (`playedOf`; a hand already kept keeps its date, as a hand already kept is left as it is, so delete and import again).
+  Grade's estimate is tied to the hands it counted. A drill's score, total and empty line say what's in view and what's
+  the whole leak's. History's count says "when last drilled" with that day, and its "Graded against" no longer names the
+  flop library for a drill answered by solves. Results' `signed` is shared, so what rounds to nothing has no sign, and -0.05bb keeps
+  its own.
+
+Two departures from the design, both from checking it: `agreedFold` reads `d.freq`, as a read keeps its freq; the gap's
+variance went through four forms under review, ending on the one above.
+
+### Reviewed
+
+Four rounds, at most two agents at a time, each round reviewing the one before's fixes. In rounds 1 to 3 a second agent
+tried each finding against the code; round 4 was one reader, who ran what they reported.
+
+| Round | Over | Findings | Confirmed | Refuted |
+|---|---|---|---|---|
+| 1 | The whole change | 20 | 19 (17 distinct), plus the iPoker root cause one of them led to | 1 |
+| 2 | The 17 fixes of round 1 | 7 new | 6 (all 17 fixes held) | 1 |
+| 3 | The 6 fixes of round 2 | 3, of which 2 are one fault | 3 (6 of 7 checks held) | 0 |
+| 4 | The rule round 3 tightened | 3 | 3, not tried by a second agent; 2 of them fixed by one new rule, below | 0 |
+
+The ones that changed a number: a check at Fast put its own mix under the read's basis (round 1); the first spread
+called chance a change at a side of 0% or 100% (round 1), then left out the spread of the answer itself, calling up to
+14% of rows on a pure-by-hand answer in simulation, 7 to 8% on real library mixes for a flat overbettor (round 2). The
+crossing label went through three rules. "Past the answer" said you had moved, and fired on a player following an answer
+that moved, at another table size, on up to 76% of rows (round 3). Tightened, it still fired on over 99% of rows for a
+player taking the answer's top action as the deal moved (round 4), since a row's totals can't tell your move from the
+deal's: the fix on offer was a stratified test, so the label now says only what the row's numbers show, and needs each
+side 5 points off, which also ends a row of Past over gaps under a point. That player still reads "Now over the answer",
+true, with both answers in the row.
+
+The fixes of rounds 2 to 4 were each undone in turn to show a test catches it: 15 breaks, all caught, two only after a
+test was added for them.
+
+### Measured
+
+100,000 hands, 300,000 decisions, 1,429 sittings, in Vitest under `slot.sh`, on a machine with other work running:
+`sessionsOf` 15 ms, `filterHands` 1 ms with no filter and 2 ms with `sess`, `answersOf` 86 ms, counts by basis 30 ms,
+`tallies` 31 ms, `trendOf` 111 ms, against `report` 688 ms for scale. RSS 534 MB. Page-level timing wasn't measured at
+this size.
+
+### Tests actually run
+
+| Suite | Result |
+|---|---|
+| Web (Vitest) | 525/525 in 68 files, through `slot.sh` (`npm run check`). New: `sessions.test.ts`, `trend.test.ts` (the share, blocks, the cut, a check at Fast moving nothing, seeded no-change rates at a fixed and a by-hand answer, the other side of the answer) and `SessionsPanel.test.tsx` (the page: rows, the `sess` filter and what it narrows, a link with no session, the chart by keyboard and click, drills under a session, focus). Extended: `analyze.test.ts` (iPoker's game time), `grading.test.ts` (a read keeps its mix), `winnings.test.ts` (`signed`), `history.test.tsx` (a leak row's day and answers). |
+| Typecheck and ESLint | clean (`npm run check`) |
+| Build | passes |
+
+### Checked in the browser (dev server, real worker, isolated)
+
+- **486 generated hands** (480 cash over 12 nights, 6 tournament): preflop graded live, a line of 4 blocks over 419
+  counted, "90% over your latest 135, 50% over the 284 before. Better.", with rows RFI and Open (RFI) in the table of
+  changes. A tooltip per block; at 375px no overflow, and the tooltip stayed inside the plot at the left, middle and
+  right. A click read the block under it. A real touch wasn't driven.
+- **Picking a session:** the Report ("Over the 40 hands the filters show, of 486 kept"), the hands table and Grade all
+  narrowed; Quick triage of that sitting graded 96 more; 39 reads checked at Fast (18 alike, 5 worse, 16 better) moved
+  no row. "All sessions" hands the focus to the heading, picking the last of 12 rows left it in view, and a tournament
+  row reads "6 hands, won —, 6 of 24 graded".
+- **A drill under a session:** "0 of 40 drilled here; 1 of this leak in all", "Start this leak over", and "None of this
+  leak's graded decisions is in these hands." for a tournament holding none.
+- **Not checked live:** the "Now over the answer" and "Now under the answer" rows (seeded, in unit tests and on the page
+  in jsdom), and History's day. The app has one theme, dark, so no light check.
+- The test import, grades, a drill's session and the measured times were removed after: 0 hands, 0 decisions, 0
+  sessions. The dev server is stopped.
+
+### Precompute builds
+
+Untouched; checked only with read-only `ps`. The suites went through `slot.sh`, and nothing here ran `quiet.sh`. The
+first build's process was seen stopped (state T) through this work, with other sessions' `quiet.sh` jobs running in the
+gtosolver checkout, and its worker changed PID while it ran; neither is from this session.
+
+### Next
+
+- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+- Phase 2: what stays PARTIAL is in `FEATURE_MATRIX.md`: fixed thresholds, charts preflop, and grades not tied to the
+  chart or library version they stood on.

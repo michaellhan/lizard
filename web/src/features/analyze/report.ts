@@ -125,6 +125,8 @@ export interface FreqRow {
   n: number;
   you: number;
   gto: number;
+  /** the mean square of your action (1 or 0) less that hand's own answer: what a comparison's spread is read from */
+  sq: number;
 }
 
 export function freqs(ds: readonly DecisionRecord[]): FreqRow[] {
@@ -133,7 +135,14 @@ export function freqs(ds: readonly DecisionRecord[]): FreqRow[] {
   for (const [label, cls, f] of FREQS) {
     const rs = rows.filter(f);
     if (!rs.length) continue;
-    out.push({ label, cls, n: rs.length, you: rs.filter((d) => clsOf(d.action) === cls).length / rs.length, gto: rs.reduce((t, d) => t + mixByClass(d)[cls], 0) / rs.length });
+    let [you, gto, sq] = [0, 0, 0];
+    for (const d of rs) {
+      const [y, m] = [Number(clsOf(d.action) === cls), mixByClass(d)[cls]];
+      you += y;
+      gto += m;
+      sq += (y - m) ** 2;
+    }
+    out.push({ label, cls, n: rs.length, you: you / rs.length, gto: gto / rs.length, sq: sq / rs.length });
   }
   return out;
 }
@@ -300,7 +309,7 @@ export function toJSON(ds: readonly DecisionRecord[], hands: ReadonlyMap<string,
     {
       exported: new Date(now).toISOString(),
       graded_against: "preflop: the preflop charts, by frequency (not a solve); after the flop: what answered each decision (its source and basis), by EV where it has EVs",
-      summary: { ...rp.all, hands: rp.hands, byStreet: rp.byStreet, byPf: rp.byPf, bySpot: rp.bySpot, byBasis: rp.byBasis, low: rp.low, agreementAtFast: rp.agree, freqs: rp.freqs, leaks: rp.leaks, mistakes: rp.mistakes.map(strip), offChart: rp.offChart.map(strip), offRead: rp.offRead.map(strip), notGraded: rp.notGraded },
+      summary: { ...rp.all, hands: rp.hands, byStreet: rp.byStreet, byPf: rp.byPf, bySpot: rp.bySpot, byBasis: rp.byBasis, low: rp.low, agreementAtFast: rp.agree, freqs: rp.freqs.map(({ label, cls, n, you, gto }) => ({ label, cls, n, you, gto })), leaks: rp.leaks, mistakes: rp.mistakes.map(strip), offChart: rp.offChart.map(strip), offRead: rp.offRead.map(strip), notGraded: rp.notGraded },
       decisions: rowsOf(ds, hands),
     },
     null,

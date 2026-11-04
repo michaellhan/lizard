@@ -298,8 +298,8 @@ export const answeredIds = (ds: readonly DecisionRecord[]) => new Set(ds.filter(
  * that can't grade your move leaves the read as it stands, saying why. */
 export function deepened(read: DecisionRecord, d: DecisionRecord): DecisionRecord {
   if (d.verdict === "Not graded") return { ...read, notChecked: d.why ?? "", gradedAt: d.gradedAt };
-  const { verdict, source, label, confidence, triageSource, evLossBb, freq } = read;
-  return { ...d, read: { verdict, source, label, confidence, triageSource, evLossBb, freq } };
+  const { verdict, source, label, confidence, triageSource, evLossBb, freq, mix } = read;
+  return { ...d, read: { verdict, source, label, confidence, triageSource, evLossBb, freq, mix } };
 }
 
 export interface GradeRun {

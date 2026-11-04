@@ -168,12 +168,14 @@ export function rowOf(s: SessionRecord): SessionRow {
     const sc = obj(m.score) ?? {};
     const leak = str(m.leak);
     const done = Array.isArray(m.done) ? m.done.length : 0;
+    // (a row sits under the day it was started: a drill resumed since says its own day)
+    const last = num(s.endedAt) ? `, ${new Date(num(s.endedAt)).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
     return {
       ...base,
-      what: `Leak: ${str(m.label) || leak || "?"}${num(m.total) ? ` · ${done} of ${num(m.total)} done` : ""}`,
+      what: `Leak: ${str(m.label) || leak || "?"}${num(m.total) ? ` · ${done} of ${num(m.total)} done when last drilled${last}` : ""}`,
       ok: num(sc.ok),
       ...per(num(sc.ne), num(sc.loss), num(sc.lossPct)),
-      graded: "Analyze's answers to your own decisions: the preflop charts (approximate) preflop, the flop library after",
+      graded: "Analyze's answers to your own decisions: the preflop charts by frequency (not a solve) preflop, after the flop what answered each one, said in the drill",
       ...(leak ? { to: { href: `/analyze?drill=${encodeURIComponent(leak)}`, label: "Open the drill" } } : {}),
     };
   }

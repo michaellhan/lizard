@@ -13,6 +13,7 @@
 // Of the classic settings, only its speed (kv "gto-speed") has a Lizard counterpart, Settings' solve mode: read the
 // same way, on request (readClassicSpeed).
 import type { HandRecord } from "@/data/db";
+import { CLASSIC_SITE } from "@/data/hands";
 import { handHistory } from "@/features/practice/history";
 import type { PracticeHand } from "@/features/practice/practice";
 import { splitHands } from "@/hh/parse";
@@ -23,7 +24,7 @@ import type { SolveMode } from "@/solver/types";
 import { recordOf } from "./analyze";
 
 export const CLASSIC_DB = "gto-store";
-export const CLASSIC_SITE = "Classic app";
+export { CLASSIC_SITE };
 /** the import every classic hand is kept under (Analyze's Imports list shows it once) */
 export const CLASSIC_IMPORT = { id: "classic-app", name: "Classic app, My hands" } as const;
 

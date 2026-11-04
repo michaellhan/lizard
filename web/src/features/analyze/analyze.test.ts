@@ -64,6 +64,9 @@ describe("reading files", () => {
     expect(Object.values(when).every(Boolean)).toBe(true);
     expect(playedOf(HH("stars_6max_srp.txt"))!.at).toBe(Date.UTC(2024, 2, 2, 21, 14, 7));
     expect(playedOf("no date here")).toBeNull();
+    // (iPoker: the game's own time, not the file's start kept before it)
+    expect(playedOf("<session><general><startdate>2024-04-18 22:05:31</startdate></general><game gamecode='1'><general><startdate>2024-04-18 23:45:10</startdate></general></game></session>")!.played).toBe("2024-04-18 23:45");
+    expect(playedOf("<session><general><startdate>2024-04-18 22:05:31</startdate></general><game gamecode='1'></game></session>")!.played).toBe("2024-04-18 22:05");
   });
 
   it("prepare: a file across sites, synthetic hands and ones to skip, counted by why", async () => {

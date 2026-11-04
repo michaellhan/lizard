@@ -199,7 +199,10 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 > running-total chart and by seat, cash, tournaments and Practice apart, with an all-in EV line (`hh/allin.ts`: heads-up
 > all-ins at their equity). A dropped folder is read through, subfolders and all (`dropped.ts`). Turns and rivers
 > (2026-11-03): every street by the classic's Quick triage or at Fast through the same queue, a clock, the flagged reads
-> checked at Fast (`triage.ts`), and the report saying what the grades stand on. Still open: a history across sessions.
+> checked at Fast (`triage.ts`), and the report saying what the grades stand on. A history across sessions (2026-11-04,
+> `sessions.ts`, `trend.ts`, `SessionsPanel.tsx`): sittings derived from the hands kept, a filter per session, an
+> in-the-mix line by blocks, one kind of game and one basis at a time, and your latest third against before. What stays
+> PARTIAL is in `FEATURE_MATRIX.md`.
 
 **Goal.** Let users import their own hand histories, see each decision graded, and find leaks. Everything stays in the browser.
 

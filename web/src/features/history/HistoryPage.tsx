@@ -48,7 +48,8 @@ export function HistoryPage() {
         <h1 className="text-2xl font-semibold">History</h1>
         <p className="text-sm text-muted">
           Every session kept in this browser: Practice&rsquo;s full hands and drills, Analyze&rsquo;s leak drills and Study&rsquo;s range builds, newest first.
-          Each one&rsquo;s grades are against the answers it was played with, said in its row; nothing here is solved again.
+          Each one&rsquo;s grades are against the answers it was played with, said in its row; nothing here is solved again. The sittings in your imported hands
+          are in <Link to="/analyze" className="underline">Analyze</Link>, under Your sessions, read from those hands.
         </p>
       </div>
 

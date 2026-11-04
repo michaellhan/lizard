@@ -48,7 +48,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [arm, setArm] = useState(false);
-  const [planned, setPlanned] = useState<{ scope: GradeScope; left: Record<Street, number> } | null>(null);
+  const [planned, setPlanned] = useState<{ of: HandRecord[]; scope: GradeScope; left: Record<Street, number> } | null>(null);
   const ac = useRef<AbortController | null>(null);
   // (leaving the page stops the queue: what's graded is kept, and the rest is graded when asked again)
   useEffect(() => () => ac.current?.abort(), []);
@@ -61,7 +61,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
     if (running) return;
     const ctl = new AbortController();
     void toAsk(hands, scope, answeredIds(decisions), { signal: ctl.signal }).then((left) => {
-      if (left) setPlanned({ scope, left });
+      if (left) setPlanned({ of: hands, scope, left });
     });
     return () => ctl.abort();
   }, [hands, decisions, scope, running]);
@@ -129,7 +129,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
     const p = deepenPlan(hands, decisions, every);
     void run("all", p.hands, new Set(), p.left, p.reads);
   };
-  const plan = planned?.scope === scope ? planned.left : null;
+  const plan = planned?.scope === scope && planned.of === hands ? planned.left : null;
   const asks = plan ? STREETS.reduce((t, s) => t + plan[s], 0) : 0;
 
   return (
@@ -421,6 +421,7 @@ function GroupTable({ title, first, rows, ev, noUngraded }: { title: string; fir
 const LIST_MAX = 50;
 
 function DecisionList({ title, ds, byId }: { title: string; ds: DecisionRecord[]; byId: ReadonlyMap<string, HandRecord> }) {
+  const [params] = useSearchParams();
   return (
     <div className="space-y-1">
       <h3 className="font-semibold">{title}</h3>
@@ -437,7 +438,7 @@ function DecisionList({ title, ds, byId }: { title: string; ds: DecisionRecord[]
               <span className="text-muted" title={d.label}>
                 {decisionNote(d)}
               </span>
-              <Link to={`?hand=${encodeURIComponent(d.handId)}`} className="text-xs underline">
+              <Link to={withParams(params, { hand: d.handId })} className="text-xs underline">
                 Hand {h?.number || ""}
               </Link>
             </li>

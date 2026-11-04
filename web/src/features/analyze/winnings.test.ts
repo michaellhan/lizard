@@ -8,7 +8,7 @@ import { importHand } from "@/hh/replay";
 import { PRACTICE_SITE } from "@/data/hands";
 import { recordOf } from "./analyze";
 import { CLASSIC_SITE } from "./classic";
-import { handWin, tallyWinnings, unitOf, winningsOf } from "./winnings";
+import { handWin, signed, tallyWinnings, unitOf, winningsOf } from "./winnings";
 
 const HH_DIR = join(process.cwd(), "..", "solver", "tests", "data", "hh");
 const HH = (f: string) => readFileSync(join(HH_DIR, f), "utf8");
@@ -18,6 +18,10 @@ const RECS = readdirSync(HH_DIR)
   .map((f) => recordOf(HH(f), importHand(HH(f)), IMP));
 
 describe("results tally", () => {
+  it("signs an amount as it's shown: nothing for what rounds to nothing, a loss's own for what rounds to a tenth", () => {
+    expect([signed(0), signed(0.04), signed(-0.04), signed(0.05), signed(-0.05), signed(-1.25, 2), signed(0.004, 2)]).toEqual(["0.0", "0.0", "0.0", "+0.1", "−0.1", "−1.25", "0.00"]);
+  });
+
   it("adds up cash games and tournaments apart, in the order played", () => {
     const w = tallyWinnings(RECS.map((h) => ({ h, w: handWin(h.text) })));
     // GG's EV Cashout, and its hand cut short with no winner line

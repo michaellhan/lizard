@@ -153,7 +153,7 @@ export interface DecisionRecord {
   confidence?: Confidence;
   triageSource?: string;
   /** the triage read a deeper answer at Fast replaced */
-  read?: Pick<DecisionRecord, "verdict" | "source" | "label" | "confidence" | "triageSource" | "evLossBb" | "freq">;
+  read?: Pick<DecisionRecord, "verdict" | "source" | "label" | "confidence" | "triageSource" | "evLossBb" | "freq" | "mix">;
   /** why the answer at Fast couldn't grade this read, which stands */
   notChecked?: string;
   gradedAt: number;

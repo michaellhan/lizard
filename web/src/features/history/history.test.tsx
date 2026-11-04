@@ -101,7 +101,12 @@ describe("sessions history", () => {
     expect(rowOf(DRILL)).toMatchObject({ what: "SRP BTN vs BB, facing a bet", ok: 3, lossPer: 0.05, to: { href: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet" } });
     expect(rowOf({ ...DRILL, meta: { ...DRILL.meta, view: "ipvsbet" } }).what).toBe("SRP BTN vs BB, in position facing a bet");
     expect(rowOf(DRILL).graded).toBe("Precomputed solution (the flop library)");
-    expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done", n: 2, ok: 1, lossPer: null, to: { href: "/analyze?drill=pf%3ARFI" } });
+    expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done when last drilled", n: 2, ok: 1, lossPer: null, to: { href: "/analyze?drill=pf%3ARFI" } });
+    // (a row sits under the day it was started: a drill resumed since says its own day)
+    expect(rowOf({ ...LEAK, endedAt: Date.UTC(2026, 9, 30, 14) }).what).toMatch(/^Leak: RFI · 2 of 5 done when last drilled, \S+.*\d/);
+    // (a leak's decisions may stand on a solve or a read on any street: its row doesn't name one answer for them all)
+    expect(rowOf(LEAK).graded).toContain("preflop charts by frequency (not a solve)");
+    expect(rowOf(LEAK).graded).not.toContain("flop library");
     expect(rowOf(BUILD)).toMatchObject({ n: 1, ok: null, acc: 0.82, buildLoss: 0.04, graded: "Precomputed solution", to: { href: `/study?${BUILD.meta.line as string}` } });
     expect(rowOf(BUILD).what).toBe("HU 100bb · SB raise 2.5 BB call Ks7d2c · BB's range");
     expect(rowOf({ ...BUILD, meta: { ...BUILD.meta, source: "charts" } }).graded).toBe("Preflop charts (approximate)");

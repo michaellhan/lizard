@@ -5,6 +5,8 @@ import { db, type DecisionRecord, type HandRecord } from "./db";
 
 /** The site a hand played in Practice is kept under (features/practice/history.ts). */
 export const PRACTICE_SITE = "Lizard Practice";
+/** The site a hand from the classic app's My hands is kept under (features/analyze/classic.ts). */
+export const CLASSIC_SITE = "Classic app";
 
 /** Keep the hands not kept yet: how many were new, and how many were already here (from an earlier import); null
  * where this browser keeps nothing. */

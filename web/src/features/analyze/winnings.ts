@@ -4,12 +4,11 @@
 // without, the all-in EV (hh/allin.ts), by your seat, and the running total in the order played. Nothing here is
 // graded or solved.
 import type { HandRecord } from "@/data/db";
-import { PRACTICE_SITE } from "@/data/hands";
 import { allInOf, type AllIn } from "@/hh/allin";
 import { parseHandHistory } from "@/hh/parse";
 import { resultOf, type ResultWhy } from "@/hh/results";
 import { SEATS } from "@/poker/seats";
-import { CLASSIC_SITE } from "./classic";
+import { byPlayed, handKind } from "./sessions";
 
 export interface HandWin {
   net: number | null;
@@ -72,11 +71,14 @@ const seatRank = (p: string) => {
   const i = SEATS[9]!.indexOf(p);
   return i < 0 ? 99 : i;
 };
-/** in the order played: the history's clock, then the site's hand number */
-const byPlayed = (a: HandRecord, b: HandRecord) =>
-  a.playedAt - b.playedAt || a.number.length - b.number.length || (a.number < b.number ? -1 : a.number > b.number ? 1 : 0);
 /** "$0.50" → "$"; a tournament's "300 chips" or a bare "1" has none */
 export const unitOf = (bb: string) => bb.match(/^\s*([^\d\s.,]+)/)?.[1] ?? "";
+/** The sign an amount has as shown to `d` places: none for what rounds to nothing, its own for what rounds to a tenth. */
+export function signOf(x: number, d = 1): string {
+  const r = Number(x.toFixed(d));
+  return r > 0 ? "+" : r < 0 ? "−" : "";
+}
+export const signed = (x: number, d = 1) => `${signOf(x, d)}${Math.abs(x).toFixed(d)}`;
 const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
 
 function group(list: { h: HandRecord; w: HandWin }[]): WinGroup | null {
@@ -101,7 +103,7 @@ function group(list: { h: HandRecord; w: HandWin }[]): WinGroup | null {
     p.hands++;
     p.net += net;
     pos.set(h.hero, p);
-    const unit = h.tournament ? "" : unitOf(h.bb);
+    const unit = h.tournament !== undefined ? "" : unitOf(h.bb);
     if (unit) money.set(unit, (money.get(unit) ?? 0) + net * w.bb);
     g.ids.push(h.id);
     g.total.push(r4(g.net));
@@ -128,11 +130,10 @@ export function tallyWinnings(list: readonly { h: HandRecord; w: HandWin }[]): W
   const known = list.filter((x) => x.w.net != null);
   const left = new Map<ResultWhy, number>();
   for (const { w } of list) if (w.net == null) left.set(w.why ?? "unread", (left.get(w.why ?? "unread") ?? 0) + 1);
-  const table = (h: HandRecord) => h.site === PRACTICE_SITE || h.site === CLASSIC_SITE;
   return {
-    cash: group(known.filter((x) => !x.h.tournament && !table(x.h))),
-    tour: group(known.filter((x) => !!x.h.tournament && !table(x.h))),
-    practice: group(known.filter((x) => table(x.h))),
+    cash: group(known.filter((x) => handKind(x.h) === "cash")),
+    tour: group(known.filter((x) => handKind(x.h) === "tour")),
+    practice: group(known.filter((x) => handKind(x.h) === "practice")),
     left: [...left].map(([why, n]) => ({ why, n })),
   };
 }
@@ -140,11 +141,11 @@ export function tallyWinnings(list: readonly { h: HandRecord; w: HandWin }[]): W
 // (a hand's text never changes under its id: its result is read once a page)
 const cache = new Map<string, HandWin>();
 
-/** The kept hands' results, a chunk at a time so a large database doesn't hold the page; stops on the signal. */
-export async function winningsOf(
+/** Each kept hand's result, a chunk at a time so a large database doesn't hold the page; null on the signal. */
+export async function readWins(
   hands: readonly HandRecord[],
   opts: { signal?: AbortSignal; onProgress?: (done: number) => void; chunk?: number } = {},
-): Promise<Winnings | null> {
+): Promise<{ h: HandRecord; w: HandWin }[] | null> {
   const chunk = opts.chunk ?? 200;
   const list: { h: HandRecord; w: HandWin }[] = [];
   let last = performance.now();
@@ -162,5 +163,11 @@ export async function winningsOf(
     }
     list.push({ h, w: cache.get(h.id)! });
   }
-  return tallyWinnings(list);
+  return list;
+}
+
+/** The kept hands' results told up. */
+export async function winningsOf(hands: readonly HandRecord[], opts: Parameters<typeof readWins>[1] = {}): Promise<Winnings | null> {
+  const list = await readWins(hands, opts);
+  return list && tallyWinnings(list);
 }
