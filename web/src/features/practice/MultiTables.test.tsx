@@ -181,7 +181,7 @@ afterEach(async () => {
   cleanup();
   await new Promise((r) => setTimeout(r, 0));
   await kvSet(KEPT_KEY, null);
-  useSettings.setState({ loaded: false, mode: "fast", keepHands: false, practiceSpot: null, practiceSeat: "random" });
+  useSettings.setState({ loaded: false, mode: "fast", keepHands: false, practiceSpot: null, practiceSeat: "random", askAhead: null });
 });
 
 describe("Tables (multitable.test.js:68)", () => {
@@ -1038,6 +1038,100 @@ describe("where a stop can't be cheap", () => {
     await open(doc([youFirst(1), youFirst(2)]));
     expect(await screen.findByText(/Spots and Seat apply/)).toBeInTheDocument();
     expect(screen.queryByText(/can't stop a solve/)).toBeNull();
+  });
+});
+
+describe("Asking ahead", () => {
+  const box = () => screen.getByRole("checkbox", { name: "Ask ahead" });
+  const WHY = /this browser can.t stop a solve, so a wrong guess would hold up your next answer/i;
+  const METER = /measured in this browser/;
+
+  it("starts at nothing chosen, read as the measured default", () => {
+    expect(DEFAULT_SETTINGS.askAhead).toBeNull();
+  });
+
+  it.each([true, false])("goes through Settings' save and back at %s (pick)", async (askAhead) => {
+    useSettings.getState().set({ askAhead });
+    await waitFor(async () => expect(await kvGet("settings.v1")).toMatchObject({ askAhead }));
+    useSettings.setState({ askAhead: null });
+    await useSettings.getState().load();
+    expect(useSettings.getState().askAhead).toBe(askAhead);
+  });
+
+  it("is a box by the mode picker at one table and several, off until you say, which gives focus back", async () => {
+    page();
+    await ready();
+    expect(box()).toBeEnabled();
+    expect(box()).not.toBeChecked();
+    box().focus();
+    fireEvent.click(box());
+    expect(useSettings.getState().askAhead).toBe(true);
+    expect(box()).toBeChecked();
+    expect(box()).not.toHaveFocus();
+
+    fireEvent.click(screen.getByRole("radio", { name: "2" }));
+    await screen.findByRole("region", { name: "Table 2" });
+    expect(box()).toBeChecked();
+    fireEvent.click(box());
+    expect(useSettings.getState().askAhead).toBe(false);
+    expect(box()).not.toBeChecked();
+    expect(screen.queryByText(WHY)).toBeNull();
+  });
+
+  it("can't be had where a stop would end the solver, and says why in words, at one table and several, whatever Settings say", async () => {
+    stub.stop = "kills";
+    useSettings.setState({ askAhead: true });
+    page();
+    await ready();
+    expect(box()).toBeDisabled();
+    expect(box()).not.toBeChecked();
+    expect(screen.getByText(WHY)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "2" }));
+    await screen.findByRole("region", { name: "Table 2" });
+    expect(box()).toBeDisabled();
+    expect(screen.getByText(WHY)).toBeInTheDocument();
+    expect(useSettings.getState().askAhead).toBe(true);
+    expect(screen.queryByText(METER)).toBeNull();
+    // (no room kept for a meter that can't start)
+    expect(document.querySelector("p.min-h-8:not(.basis-full):empty")).toBeNull();
+  });
+
+  it("shows no meter while it's off", async () => {
+    stub.advice = () => CHECKED;
+    await open(doc([checkedTo(1), checkedTo(2)]));
+    await ready();
+    expect(stub.calls).not.toContain("play BB");
+    expect(screen.queryByText(METER)).toBeNull();
+  });
+
+  it("shows no meter on until it has run", async () => {
+    stub.advice = () => CHECKED;
+    useSettings.setState({ askAhead: true });
+    const go = hold();
+    await open(doc([checkedTo(1), checkedTo(2)]));
+    expect(screen.queryByText(METER)).toBeNull();
+    // (its room is kept, so the page stays put as it starts)
+    expect(document.querySelector("p.min-h-8:not(.basis-full):empty")).not.toBeNull();
+    go();
+    expect(await screen.findByText(METER)).toBeInTheDocument();
+  });
+
+  it("says what it measured under the score, and goes on saying it once it's off", async () => {
+    stub.advice = () => CHECKED;
+    useSettings.setState({ askAhead: true });
+    await open(doc([checkedTo(1), checkedTo(2)]));
+    const line = await screen.findByText(METER);
+    expect(line.textContent).toMatch(/^Asking ahead, measured in this browser: 0 of \d used · about 0 s of waiting saved for \d+ s of solver time$/);
+    expect(line.compareDocumentPosition(screen.getByRole("region", { name: "Your move" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // (your bet, its reply in hand)
+    await waitFor(() => expect(stub.calls.filter((c) => c === "play BB").length).toBeGreaterThan(1));
+    key("1");
+    await waitFor(() => expect(screen.getByText(METER).textContent).toMatch(/: 1 of \d used/));
+
+    act(() => useSettings.setState({ askAhead: false }));
+    expect(screen.getByText(METER)).toBeInTheDocument();
   });
 });
 

@@ -29,6 +29,13 @@
 // `pause`. The doc is written at once after a decision, a hand's end or a change of tables and otherwise at most twice a
 // second, and `stop` flushes, as a write the browser refused is tried again at the next save. At one table nothing is
 // kept: a reload starts fresh, and only going down to one table or a New session clears the doc.
+//
+// Asking ahead, where it's on, you can see the page and a wrong guess can be stopped: while a table waits for you, what
+// your likeliest moves will need is asked (ahead.ts). Each is the request the table would send, into the same caches, so
+// there's nothing to hand over: a table finds the answer, or finds the flight as a job of its own and it stays in the air
+// (`plan`), and only `Flight.ahead` remembers what it went out as, for the meter. What a look-ahead failed on goes in
+// `aheadBad`, which only a walk reads, so no table shows it. A real job always goes by its group, ahead of a look-ahead's
+// unless it's a long solve at the table in front, and what's looked ahead for and gone dead is stopped like any flight.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
@@ -40,6 +47,7 @@ import type { AdvisorState, PlayMove } from "@/solver/protocol";
 import { useRuntime } from "@/solver/runtime";
 import { SolverError, type SolveMode, type SolverTransport, type SolveResult, type StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
+import { aheadJobs, ASK_AHEAD, habit, NO_METER, noteBad, readHabits, saveHabits, type AheadMeter, type Habits, type Waiting } from "./ahead";
 import { chartDraw, moveOf, needOf, type Need } from "./flow";
 import { practiceRecord } from "./history";
 import { KEPT_KEY, keptTables, MAX_TABLES, sameKept, type KeptTable, type KeptTables, type LastHand } from "./keep";
@@ -49,6 +57,7 @@ import {
   decide,
   decideUngraded,
   DRILL_TRIES,
+  facingBet,
   finish,
   following,
   isPotDrill,
@@ -71,7 +80,7 @@ import {
   type RangeAt,
   type SeatChoice,
 } from "./practice";
-import { estimate, plan, queue, refocus, streetKey, type Front, type Job, type Waiter } from "./scheduler";
+import { estimate, plan, queue, refocus, streetKey, type Asked, type Front, type Job, type Waiter } from "./scheduler";
 import { afterDeal, afterDecision, afterHand, atTables, freshSession, keyOf, toRecord, type Kept, type PracticeSession } from "./session";
 
 /** What the Room asks of a client (a test's is a fake). */
@@ -124,7 +133,7 @@ export interface RoomOptions {
   /** ms your input waits above one table, from when the table in front changed by itself or its answer came in */
   guard?: number;
   now?: () => number;
-  /** false: nothing is read or written: no kept doc, no record in History, no hand in Analyze */
+  /** false: nothing is read or written: no kept doc, no record in History, no hand in Analyze, no habits */
   persist?: boolean;
   /** the seed of the n-th deal, a drill's deals again counted (at random, unset) */
   seedOf?: (n: number) => number;
@@ -135,6 +144,8 @@ export interface RoomOptions {
   /** what's dealt above one table (unset: Settings', read at each deal, so it applies from each table's next hand) */
   spot?: Spot;
   seat?: SeatChoice;
+  /** whether it asks ahead (unset: Settings', read at each pump, and until you've said, the measured default) */
+  askAhead?: boolean;
   /** the tables' first hands, a test's spots, in place of `tables`, whatever is kept (unset: dealt) */
   hands?: readonly PracticeHand[];
   /** reads the kept doc (a test's waits, or doesn't) */
@@ -184,6 +195,7 @@ export interface RoomSnapshot {
   /** what a stop costs on the client in use, which says so before its worker has started (null: none yet) */
   stopCost: StopCost | null;
   flops: RoomFlops;
+  ahead: { on: boolean; meter: AheadMeter };
 }
 
 /** A wait: the seconds from your turn to its buttons. `table`: from 1. */
@@ -199,6 +211,8 @@ export interface Solved {
   est: number;
   kind: "you" | "opp";
   street: Street;
+  /** it went out as a look-ahead, and nobody took it up on the way */
+  ahead?: true;
 }
 
 export interface RoomMetrics {
@@ -251,6 +265,8 @@ interface Flight {
   stopping: boolean;
   /** with the client: until then a stop costs nothing, on any backend */
   sent: boolean;
+  /** it went out as a look-ahead and its time isn't on the meter yet: true until it settles, or a table takes it up */
+  ahead: boolean;
 }
 
 /** The answers held for each cache (multitable.js:24). */
@@ -285,6 +301,7 @@ export class Room {
   private readonly fixedMode: SolveMode | undefined;
   private readonly fixedSpot: Spot | undefined;
   private readonly fixedSeat: SeatChoice | undefined;
+  private readonly fixedAhead: boolean | undefined;
   private readonly readKept: () => Promise<unknown>;
   private readonly readIndex: () => Promise<unknown>;
   /** the options say what's on the tables, so the doc brings nothing back */
@@ -344,13 +361,19 @@ export class Room {
   private readonly seen = new Map<string, number>();
   /** the keys rejected as cancelled with nobody here stopping them, since the last answer */
   private readonly unasked = new Set<string>();
+  /** what look-aheads failed on: for `walk` alone, so no table ever shows it */
+  private readonly aheadBad = new Set<string>();
+  /** the answers a look-ahead put in the caches that nothing has used, by key: the seconds each took */
+  private readonly aheadHeld = new Map<string, number>();
+  private habits: Habits;
+  private meter: AheadMeter = NO_METER;
   private restarts = 0;
   private stops = 0;
   private readonly waits: Wait[] = [];
   private readonly solves: Solved[] = [];
   private guardTimer: ReturnType<typeof setTimeout> | undefined;
 
-  /** Its tab is the one shown. The hand goes on hidden, as it always has, so nothing here reads it yet. */
+  /** Its tab is the one shown. The hand goes on hidden, as it always has: only asking ahead reads it. */
   active = true;
 
   constructor(o: RoomOptions = {}) {
@@ -371,6 +394,8 @@ export class Room {
     this.fixed = o.tables !== undefined || o.hands !== undefined;
     this.fixedSpot = o.spot;
     this.fixedSeat = o.seat;
+    this.fixedAhead = o.askAhead;
+    this.habits = this.persist ? readHabits() : {};
     this.holding = this.persist;
     this.played = this.mode;
     const hands = o.hands ?? [newHand(6, 100, 0, this.seed())];
@@ -422,6 +447,7 @@ export class Room {
       if (s.loaded) this.onLoaded?.();
       this.pump();
     });
+    document.addEventListener("visibilitychange", this.pump);
     if (this.holding) this.hold();
     else this.pump();
   }
@@ -435,6 +461,7 @@ export class Room {
     this.run += 1;
     this.offSettings?.();
     this.offSettings = null;
+    document.removeEventListener("visibilitychange", this.pump);
     clearTimeout(this.holdTimer);
     clearTimeout(this.guardTimer);
     for (const t of this.tables) this.clearTimer(t);
@@ -447,6 +474,7 @@ export class Room {
   setSolver(solver: RoomSolver): void {
     if (solver === this.solver) return;
     this.solver = solver;
+    if (this.flight) this.spend(this.flight);
     this.flight?.ac.abort();
     this.flight = null;
     this.lib = null;
@@ -457,7 +485,9 @@ export class Room {
 
   /** From a layout effect, with the solver. */
   setActive(active: boolean): void {
+    if (active === this.active) return;
     this.active = active;
+    this.pump();
   }
 
   /** Nothing is asked until the doc has been read and what it holds brought back, all within KEPT_WAIT: a read that
@@ -540,6 +570,7 @@ export class Room {
     this.failed.clear();
     this.charts.clear();
     this.unasked.clear();
+    this.aheadBad.clear();
     this.front = FREE;
     this.resetStacks = false;
     this.endedAt = null;
@@ -616,6 +647,7 @@ export class Room {
       t.error = null;
       t.last = r.decision;
       t.lastRange = rangeAt(h, answer.data, answer.provenance, sim);
+      this.noteHabit(facingBet(sim, h.hero), r.decision.move.action);
       this.session = afterDecision(this.session, h, r.decision, this.many ? table + 1 : undefined);
       this.saveNow = true;
       this.commit(t, r.hand);
@@ -736,10 +768,10 @@ export class Room {
   // ---- the loop
 
   /** Every table taken as far as it can go, the solver given its next request, and the views told. */
-  pump(): void {
+  readonly pump = (): void => {
     if (this.live && !this.holding) this.advance();
     this.emit();
-  }
+  };
 
   private advance(): void {
     const mode = this.mode;
@@ -756,8 +788,13 @@ export class Room {
     this.front = refocus(this.front, this.waiters, this.now());
     this.watchGuard();
     const f = this.flight;
-    const next = plan(f, this.tables.flatMap((t, i) => this.wants(t, i, needs[i]!, mode)), f && !f.sent ? "cheap" : (this.client?.stopCost?.() ?? "kills"));
-    if (f && next.same) f.job = next.same;
+    const real = this.tables.flatMap((t, i) => this.wants(t, i, needs[i]!, mode));
+    const next = plan(f, [...real, ...this.aheads(real, mode)], f && !f.sent ? "cheap" : this.stopCost);
+    if (f && next.same) {
+      // (a look-ahead your move made real goes on as the real one: what it's done already is waiting you didn't do)
+      if (!next.same.ahead) this.spend(f, true);
+      f.job = next.same;
+    }
     if (next.stop) this.stopFlight();
     if (next.launch && this.solver) this.launch(next.launch, mode);
     if (this.seen.size > SEEN_KEEP) this.seen.clear();
@@ -797,6 +834,7 @@ export class Room {
         this.moves.delete(need.key);
         const { move, fallback } = moveOf(h, mv, sim);
         if (fallback) return this.fail(need.key, fallback);
+        this.usedAhead(need.key);
         if (!asked) this.charted += 1;
         this.commit(t, withVillain(h, move, sim));
       } else return;
@@ -833,6 +871,7 @@ export class Room {
       t.waiting = t.readyAt = this.now();
       this.waits.push({ s: (t.waiting - t.turnAt) / 1000, street: need.street, table: i + 1 });
       if (this.waits.length > METRICS_KEEP) this.waits.shift();
+      this.usedAhead(need.key);
     }
   }
 
@@ -841,10 +880,66 @@ export class Room {
     if (need.kind !== "you" && need.kind !== "opp" && need.kind !== "chart") return [];
     const inHand = need.kind === "you" ? this.adv.has(need.key) : this.moves.has(need.key);
     if (inHand || this.failed.has(need.key)) return [];
-    const since = this.seen.get(need.key) ?? this.now();
-    this.seen.set(need.key, since);
+    return [{ need, table: i, est: this.estimate(t, need, mode), seeking: seeking(t.hand), since: this.firstWanted(need.key) }];
+  }
+
+  private estimate(t: Table, need: Asked, mode: SolveMode): number {
     const held = need.state.board?.length === 6 && libFlop(this.held, need.state);
-    return [{ need, table: i, est: estimate(need.state, mode, t.solved, this.client?.transport?.kind ?? "worker", held), seeking: seeking(t.hand), since }];
+    return estimate(need.state, mode, t.solved, this.client?.transport?.kind ?? "worker", held);
+  }
+
+  private firstWanted(key: string): number {
+    const since = this.seen.get(key) ?? this.now();
+    this.seen.set(key, since);
+    return since;
+  }
+
+  /** What's asked ahead for the tables waiting for you: nothing unless it's on, the page is on screen with this tab shown
+   * (it's CPU for a move nobody is about to make), and a wrong guess can be stopped, as it would otherwise block your real
+   * request. `real`: what the tables want, which it never doubles. */
+  private aheads(real: readonly Job[], mode: SolveMode): Job[] {
+    if (!this.askAhead || !this.active || document.visibilityState !== "visible" || this.stopCost !== "cheap") return [];
+    const waiting = this.tables.flatMap((t, table): Waiting[] => {
+      const answer = this.adv.get(t.turnKey ?? "");
+      return answer ? [{ table, hand: t.hand, answer }] : [];
+    });
+    return aheadJobs(waiting, {
+      mode,
+      focus: this.front.focus,
+      habits: this.habits,
+      real: new Set(real.map((j) => j.need.key)),
+      adv: this.adv,
+      moves: this.moves,
+      bad: this.aheadBad,
+      est: (table, need) => this.estimate(this.tables[table]!, need, mode),
+      since: (key) => this.firstWanted(key),
+    });
+  }
+
+  /** What you did, for your likeliest lines next time. */
+  private noteHabit(facing: boolean, action: string): void {
+    if (!this.persist) return;
+    this.habits = habit(this.habits, facing, action);
+    saveHabits(this.habits);
+  }
+
+  /** A table has just taken what a look-ahead asked for: the wait it would have had. */
+  private usedAhead(key: string): void {
+    const s = this.aheadHeld.get(key);
+    if (s === undefined) return;
+    this.aheadHeld.delete(key);
+    this.meter = { ...this.meter, used: this.meter.used + 1, savedS: this.meter.savedS + s };
+  }
+
+  /** A look-ahead's time onto the meter, once: as it settles, or as a table takes it up (`used`), when the rest of it is a
+   * wait like any other. One that never reached the client cost nothing. */
+  private spend(fl: Flight, used = false): void {
+    if (!fl.ahead) return;
+    fl.ahead = false;
+    if (!fl.sent) return;
+    const s = (this.now() - fl.at) / 1000;
+    const m = this.meter;
+    this.meter = { ...m, spentS: m.spentS + s, used: m.used + (used ? 1 : 0), savedS: m.savedS + (used ? s : 0) };
   }
 
   /** You've moved at the table: the first in the queue comes forward, and a pin is over (`refocus`). */
@@ -954,7 +1049,7 @@ export class Room {
   // ---- the one flight
 
   private launch(job: Job, mode: SolveMode): void {
-    const fl: Flight = { job, mode, at: this.now(), ac: new AbortController(), stopping: false, sent: false };
+    const fl: Flight = { job, mode, at: this.now(), ac: new AbortController(), stopping: false, sent: false, ahead: !!job.ahead };
     this.flight = fl;
     void this.ask(fl);
   }
@@ -969,8 +1064,15 @@ export class Room {
       if (this.flight !== fl) return;
       // (stopped before anything was sent)
       if (signal.aborted) throw new SolverError("cancelled", "cancelled");
+      const fresh = client !== this.client;
       this.useClient(client);
+      // (walked from the last client's answers, which have just gone, and this one may not take back a wrong guess)
+      if (fl.ahead && fresh) throw new SolverError("cancelled", "cancelled");
       fl.sent = true;
+      if (fl.ahead) {
+        this.meter = { ...this.meter, asked: this.meter.asked + 1 };
+        this.emit();
+      }
       r = need.kind !== "chart" && need.play ? await client.play(need.state, need.play, { mode, signal }) : await client.solve({ state: need.state, mode, signal });
     } catch (e) {
       this.lost(fl, e);
@@ -987,6 +1089,8 @@ export class Room {
     this.moves.clear();
     this.failed.clear();
     this.charts.clear();
+    this.aheadBad.clear();
+    this.aheadHeld.clear();
     for (const t of this.tables) {
       t.solved.clear();
       t.told = "";
@@ -1004,13 +1108,16 @@ export class Room {
     this.flight = null;
     this.unasked.clear();
     const { need, table } = fl.job;
+    const s = (this.now() - fl.at) / 1000;
+    const asked = fl.ahead;
+    this.spend(fl);
     this.seen.delete(need.key);
     if (need.kind === "chart") {
       // (held as null only if it was drawn for and isn't one: a rule fallback is no chart, and an error from a request
       // we'd stopped says nothing)
       if (!r.data.error || !fl.stopping) this.chart(need.ck, isChart(r.data) && r.provenance.source === "charts" ? (r as SolveResult) : null);
     } else if (r.data.error) {
-      if (!fl.stopping) this.fail(need.key, r.data.error);
+      if (!fl.stopping) this.miss(fl.job, r.data.error);
     } else {
       if (need.kind === "opp") {
         this.moves.set(need.key, r as SolveResult<PlayMove>);
@@ -1019,8 +1126,12 @@ export class Room {
         this.adv.set(need.key, r);
         trim(this.adv);
       }
+      if (asked) {
+        this.aheadHeld.set(need.key, s);
+        trim(this.aheadHeld);
+      } else this.aheadHeld.delete(need.key);
       this.tables[table]?.solved.add(streetKey(need.state, fl.mode));
-      this.solves.push({ s: (this.now() - fl.at) / 1000, est: fl.job.est, kind: need.kind, street: need.street });
+      this.solves.push({ s, est: fl.job.est, kind: need.kind, street: need.street, ...(asked ? { ahead: true as const } : {}) });
       if (this.solves.length > METRICS_KEEP) this.solves.shift();
     }
     this.pump();
@@ -1033,12 +1144,11 @@ export class Room {
   private lost(fl: Flight, e: unknown): void {
     if (this.flight !== fl) return;
     this.flight = null;
-    const { need } = fl.job;
-    const { key } = need;
+    this.spend(fl);
+    const { key } = fl.job.need;
     this.seen.delete(key);
     const kind = e instanceof SolverError ? e.kind : null;
-    // (a chart that fails marks no table: its seats are asked one by one)
-    const give = (why: string) => (need.kind === "chart" ? this.chart(need.ck, null) : this.fail(key, why));
+    const give = (why: string) => this.miss(fl.job, why);
     if (kind === "stuck") this.restarts += 1;
     if (!fl.stopping) {
       if (kind !== "cancelled" && kind !== "stuck") {
@@ -1051,6 +1161,15 @@ export class Room {
       }
     }
     this.pump();
+  }
+
+  /** What a request that failed leaves. A look-ahead's is for `walk` alone: it marks no table and nobody was waiting on it.
+   * A chart's marks no table either, as its seats are asked one by one. Any other marks its key. */
+  private miss(job: Job, why: string): void {
+    const { need } = job;
+    if (job.ahead) noteBad(this.aheadBad, need.key);
+    else if (need.kind === "chart") this.chart(need.ck, null);
+    else this.fail(need.key, why);
   }
 
   private fail(key: string, why: string): void {
@@ -1075,6 +1194,15 @@ export class Room {
 
   private get many(): boolean {
     return this.tables.length > 1;
+  }
+
+  /** What a stop costs on the client in use; until there is one it can't be said to be cheap. */
+  private get stopCost(): StopCost {
+    return this.client?.stopCost?.() ?? "kills";
+  }
+
+  private get askAhead(): boolean {
+    return this.fixedAhead ?? useSettings.getState().askAhead ?? ASK_AHEAD;
   }
 
   private get ended(): RoomSnapshot["ended"] {
@@ -1159,8 +1287,9 @@ export class Room {
       queue: queue(this.waiters),
       guarded: this.guardLeft() > 0,
       ended: this.ended,
-      stopCost: this.client ? (this.client.stopCost?.() ?? "kills") : null,
+      stopCost: this.client ? this.stopCost : null,
       flops: this.flops,
+      ahead: { on: this.askAhead, meter: this.meter },
     };
   }
 

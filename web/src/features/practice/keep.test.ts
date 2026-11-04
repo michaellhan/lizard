@@ -1581,6 +1581,29 @@ describe("Room's kept doc", () => {
       expect(hands(spots.snapshot())).toEqual([test]);
     });
 
+    it("asks ahead from a session read back: your spots first, nothing being in hand, and the doc isn't touched", async () => {
+      const raised: Move[] = [
+        { pos: "UTG", action: "fold" },
+        { pos: "HJ", action: "fold" },
+        { pos: "CO", action: "fold" },
+        { pos: "BTN", action: "raise", to: 2.5 },
+        { pos: "SB", action: "fold" },
+        { pos: "BB", action: "call" },
+      ];
+      const flop = (n: number) => hand(n, "BB", { lines: { ...noLines(), preflop: raised }, shown: 3 });
+      const d = doc([kept(flop(0)), kept(flop(1))]);
+      await put(d);
+      const answers = solver();
+      answers.client.stopCost = () => "cheap";
+      const { room, calls } = await reload({ askAhead: true }, answers);
+      await flush();
+      expect(calls.slice(0, 3)).toEqual(["advise BB quick", "advise BB quick", "play BTN quick"]);
+      expect(room.snapshot().ahead.meter.asked).toBeGreaterThan(0);
+      expect(hands(room.snapshot())).toEqual(d.tables.map((t) => t!.hand));
+      expect(writes()).toEqual([]);
+      expect(await stored()).toEqual(d);
+    });
+
     it("touches nothing with persist off", async () => {
       await put(doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]));
       const readKept = vi.fn(async () => undefined);

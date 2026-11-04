@@ -22,7 +22,7 @@ import { describeSetup } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
-import { Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
+import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
 import { boardShown, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
@@ -146,6 +146,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ModePicker modes={["quick", "accurate"]} />
+          <AskAhead stopCost={snap.stopCost} />
           {!many && setup}
         </div>
       </div>
@@ -165,6 +166,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} />
 
       <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} reserve={many} />
+      <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
 
       {many ? <MultiTables room={room} snap={snap} active={active} /> : <OneTable room={room} snap={snap} active={active} />}
 

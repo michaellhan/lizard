@@ -366,11 +366,13 @@ export function villainMove(h: PracticeHand, mv: Pick<PlayMove, "action" | "to">
   return typeof m === "string" ? checkOrCall(h, sim) : m;
 }
 
+/** There's a bet for `seat` to call. */
+export const facingBet = (sim: Sim, seat: string) => (sim.cur?.curBet ?? 0) - (sim.cur?.bets[seat] ?? 0) > 1e-9;
+
 /** The seat to act's check, or its call where there's a bet. */
 export function checkOrCall(h: PracticeHand, sim: Sim = simOf(h)): Move {
   const p = sim.toAct!;
-  const facing = (sim.cur?.curBet ?? 0) - (sim.cur?.bets[p] ?? 0) > 1e-9;
-  return { pos: p, action: facing ? "call" : "check" };
+  return { pos: p, action: facingBet(sim, p) ? "call" : "check" };
 }
 
 /** Your whole range at a decision, as the answer plays it (the classic trainer's "Your range", practice.js:385). */

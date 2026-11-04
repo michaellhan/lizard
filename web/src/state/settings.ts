@@ -18,6 +18,9 @@ export interface Settings {
    * the library can deal it, else Any hand), and your seat there */
   practiceSpot: Spot | null;
   practiceSeat: string;
+  /** Practice: ask ahead for your likeliest lines while you decide (null: not chosen, read as the measured default, ahead.ts's
+   * `ASK_AHEAD`, which a saved `false` would hide when it changes) */
+  askAhead: boolean | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keepHands: false,
   practiceSpot: null,
   practiceSeat: "random",
+  askAhead: null,
 };
 
 const KEY = "settings.v1";
@@ -42,8 +46,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
