@@ -1,17 +1,21 @@
-// The Room (room.ts) on a fake client and a fake clock, at one table: what the page's effect loop used to do, and the
-// rules that keep one request in flight. A stop here settles as the worker's does, about 0.1 s later, as a cancel.
+// The Room (room.ts) on a fake client and a fake clock: at one table, what the page's effect loop used to do and the rules
+// that keep one request in flight; at several, what goes first, which table is in front and what each hand is dealt by. A
+// stop here settles as the worker's does, about 0.1 s later, as a cancel.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { SolverClient } from "@/solver/client";
 import type { AdvisorResponse, AdvisorState, PlayMove, WorkerInbound, WorkerOutbound } from "@/solver/protocol";
 import { useRuntime } from "@/solver/runtime";
-import { SolverError, type PlayRequest, type Provenance, type SolveMode, type SolveRequest, type SolveResult } from "@/solver/types";
+import { SolverError, type PlayRequest, type Provenance, type SolveMode, type SolveRequest, type SolveResult, type StopCost, type TransportKind } from "@/solver/types";
 import { WorkerTransport } from "@/solver/worker-transport";
 import { useSettings } from "@/state/settings";
-import { DRILL_TRIES, newHand, optionsOf, type HandOptions } from "./practice";
+import type { Lines, Move } from "@/poker/table";
+import { noLines } from "@/poker/table";
+import { practiceNumber } from "./history";
+import { DRILL_TRIES, newHand, optionsOf, type HandOptions, type PracticeHand } from "./practice";
 import { Room, type RoomClient, type RoomOptions } from "./room";
-import { plan, type Job } from "./scheduler";
+import { keyOf } from "./session";
 
 vi.mock("@/data/db", async (orig) => ({ ...(await orig<typeof import("@/data/db")>()), putSession: vi.fn(async () => {}) }));
 vi.mock("@/data/hands", async (orig) => ({ ...(await orig<typeof import("@/data/hands")>()), addHands: vi.fn(async () => ({ added: 1, existing: 0 })) }));
@@ -49,8 +53,9 @@ interface Asked {
   reject: (e: unknown) => void;
 }
 
-/** A solver that answers when told. `deaf`: a stop comes too late, and the request goes on to its answer. */
-function fakeClient({ deaf = false } = {}) {
+/** A solver that answers when told. `deaf`: a stop comes too late, and the request goes on to its answer. `stop`: what a
+ * stop costs (null: it doesn't say, as PracticePage.test.tsx's stub doesn't). */
+function fakeClient({ deaf = false, stop = "cheap" as StopCost | null, transport = "worker" as TransportKind } = {}) {
   const asked: Asked[] = [];
   const prefetched: AdvisorState[] = [];
   const ask = <T,>(req: Omit<Asked, "answer" | "reject">, source: Provenance["source"]) =>
@@ -79,6 +84,8 @@ function fakeClient({ deaf = false } = {}) {
     solve: (req: SolveRequest) => ask<AdvisorResponse>({ state: req.state, mode: req.mode, signal: req.signal }, req.state.board ? "live" : "charts"),
     play: (state, play, opts) => ask<PlayMove>({ state, play, mode: opts?.mode, signal: opts?.signal }, "live"),
     prefetch: (state) => prefetched.push(state),
+    transport: { kind: transport },
+    ...(stop ? { stopCost: () => stop } : {}),
   };
   return { client, asked, prefetched };
 }
@@ -139,8 +146,8 @@ const table = (room: Room) => room.snapshot().tables[0]!;
 
 /** A Room writing nothing, on a clean clock; `players`, a session of that many begun before it starts (heads-up, you
  * act first; none, the 6-max hand it was built with: UTG acts first). */
-function setup(o: RoomOptions & { players?: number; opts?: Required<HandOptions>; start?: boolean; deaf?: boolean } = {}) {
-  const fake = fakeClient({ deaf: o.deaf });
+function setup(o: RoomOptions & { players?: number; opts?: Required<HandOptions>; start?: boolean; deaf?: boolean; stop?: StopCost | null; transport?: TransportKind } = {}) {
+  const fake = fakeClient({ deaf: o.deaf, stop: o.stop === undefined ? "cheap" : o.stop, transport: o.transport });
   const room = new Room({ pace: 450, now: () => Date.now(), persist: false, seedOf: (n) => n + 1, ...o });
   const getSolver = vi.fn(async () => fake.client);
   room.setSolver(getSolver);
@@ -1254,18 +1261,1158 @@ describe("Room on the app's runtime", () => {
   });
 });
 
-describe("plan", () => {
-  const job = (key: string): Job => ({ table: 0, need: { kind: "you", key, state: { players: 2 } as AdvisorState, street: "preflop" } });
+// ---- several tables
 
-  it("sends the next job only with nothing in flight", () => {
-    expect(plan(null, [])).toEqual({ stop: false, launch: null });
-    expect(plan(null, [job("a")]).launch?.need.key).toBe("a");
-    expect(plan({ key: "a", stopping: false }, [job("a")])).toEqual({ stop: false, launch: null });
+const FOLD_ONLY: AdvisorResponse = { street: "preflop", actions: [{ action: "fold", freq: 1 }] };
+const FACING: AdvisorResponse = {
+  street: "flop",
+  pot_bb: 8.5,
+  actions: [
+    { action: "fold", freq: 0.3, ev_bb: 0 },
+    { action: "call", freq: 0.7, ev_bb: 0.4 },
+  ],
+};
+
+const mv = (pos: string, action: Move["action"], to?: number): Move => ({ pos, action, ...(to !== undefined ? { to } : {}) });
+/** Folded to the button, who opens; the big blind calls. */
+const SRP = [mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold"), mv("BTN", "raise", 2.5), mv("SB", "fold"), mv("BB", "call")];
+const CHECK = mv("BB", "check");
+
+/** A hand at a spot: your seat, the line to it, the cards out. `seed` is its cards and its number. */
+function spot(seed: number, hero: string, lines: Partial<Lines> = {}, shown = 0): PracticeHand {
+  return { ...newHand(6, 100, seed, seed, { seat: hero }), lines: { ...noLines(), ...lines }, shown };
+}
+/** BB's move on the flop first, then yours. */
+const flopOpp = (seed: number) => spot(seed, "BTN", { preflop: SRP }, 3);
+/** Your flop spot, BB having checked. */
+const flopYou = (seed: number) => spot(seed, "BTN", { preflop: SRP, flop: [CHECK] }, 3);
+/** Your turn spot: long at Accurate. */
+const turnYou = (seed: number) => spot(seed, "BTN", { preflop: SRP, flop: [CHECK, mv("BTN", "check")], turn: [CHECK] }, 4);
+const preflop = (seed: number) => spot(seed, "UTG");
+
+const at = (room: Room, i: number) => room.snapshot().tables[i]!;
+/** Whose request it is: the table whose hand holds its cards. */
+const tableOf = (room: Room, a: Asked) => room.snapshot().tables.findIndex((t) => t.hand.hands[t.hand.hero]!.join("") === a.state.hole);
+/** A dock's button: the table in front's i-th option. */
+const press = (room: Room, table: number, i: number) => room.choose(table, at(room, table).turnKey ?? "", i);
+const several = (hands: PracticeHand[], o: Parameters<typeof setup>[0] = {}) => setup({ hands, pace: 0, pause: 0, guard: 0, ...o });
+/** What's asked, in turn, answered: table by table as `answers` run out. */
+async function answer(asked: Asked[], from: number, ...answers: AdvisorResponse[]) {
+  for (let i = 0; i < answers.length; i += 1) {
+    await flush();
+    asked[from + i]!.answer(answers[i]!);
+  }
+  await flush();
+}
+
+describe("Room at several tables", () => {
+  it("brings the table that needs you forward, queues the others as they started waiting; S skips, a pick holds (multitable.test.js:105)", async () => {
+    const { room, asked } = several([flopOpp(1), flopYou(2), preflop(3)]);
+    await flush();
+    expect(asked).toHaveLength(1);
+
+    // what's instant first, table 3's preflop; then your spot at table 2 before table 1's opponent
+    expect(tableOf(room, asked[0]!)).toBe(2);
+    expect(asked[0]!.state.board).toBe("");
+    await pass(100);
+    asked[0]!.answer(CHART);
+    await flush();
+    expect(room.snapshot().focus).toBe(2);
+    expect(asked).toHaveLength(2);
+    expect(tableOf(room, asked[1]!)).toBe(1);
+    expect(asked[1]!.play).toBeUndefined();
+    await pass(100);
+    asked[1]!.answer(FLOP);
+    await flush();
+    expect(tableOf(room, asked[2]!)).toBe(0);
+    expect(asked[2]!.play?.seat).toBe("BB");
+    asked[2]!.answer(move("check"));
+    await flush();
+    expect(tableOf(room, asked[3]!)).toBe(0);
+    expect(asked[3]!.play).toBeUndefined();
+    await pass(100);
+    asked[3]!.answer(FLOP);
+    await flush();
+
+    // table 3 has waited longest, then table 2, then table 1; the front stays while it waits for you
+    expect(room.snapshot()).toMatchObject({ focus: 2, queue: [2, 1, 0] });
+
+    // you act there: the next in the queue comes forward
+    press(room, 2, 1);
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [1, 0] });
+    expect(at(room, 2).hand.decisions).toHaveLength(1);
+
+    // S: the next waiting, this one to the back
+    room.skip();
+    expect(room.snapshot()).toMatchObject({ focus: 0, queue: [0, 1] });
+
+    // a pick, of a table not waiting: it stays until you act or pick another
+    room.pick(2);
+    expect(room.snapshot().focus).toBe(2);
+    room.pump();
+    expect(room.snapshot()).toMatchObject({ focus: 2, queue: [0, 1] });
+    room.choose(2, "not your turn at this table", 0);
+    expect(at(room, 2).hand.decisions).toHaveLength(1);
   });
 
-  it("stops a flight nobody needs, once, and waits for it to settle", () => {
-    expect(plan({ key: "a", stopping: false }, [])).toEqual({ stop: true, launch: null });
-    expect(plan({ key: "a", stopping: false }, [job("b")])).toEqual({ stop: true, launch: null });
-    expect(plan({ key: "a", stopping: true }, [job("b")])).toEqual({ stop: false, launch: null });
+  it("marks a decision with the table it was made at, and its hand's own number", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)]);
+    await answer(asked, 0, FLOP, FLOP);
+    press(room, 0, 0);
+    room.skip();
+    press(room, 1, 0);
+    expect(room.snapshot().session.review.map((e) => [e.table, e.n])).toEqual([
+      [1, 2],
+      [2, 3],
+    ]);
+  });
+
+  it("holds your input a moment after the table in front changes by itself (multitable.test.js:153)", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { guard: 350, pause: 10_000 });
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    expect(room.snapshot()).toMatchObject({ focus: 0, queue: [0, 1] });
+    await pass(1000);
+
+    press(room, 0, 0);
+    expect(room.snapshot().focus).toBe(1);
+    expect(room.snapshot().guarded).toBe(true);
+    press(room, 1, 0);
+    expect(at(room, 1).hand.result).toBeNull();
+    await pass(349);
+    press(room, 1, 0);
+    expect(at(room, 1).hand.result).toBeNull();
+    await pass(1);
+    press(room, 1, 0);
+    expect(at(room, 1).hand.result).not.toBeNull();
+  });
+
+  it("tells the views as the guard ends, as dimmed buttons have no other event to wait for", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { guard: 350, pause: 10_000 });
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    await pass(1000);
+    press(room, 0, 0);
+    expect(room.snapshot().guarded).toBe(true);
+    const heard = vi.fn();
+    room.subscribe(heard);
+    await pass(349);
+    expect(heard).not.toHaveBeenCalled();
+    await pass(1);
+    expect(heard).toHaveBeenCalled();
+    expect(room.snapshot().guarded).toBe(false);
+  });
+
+  it("guards a press against an instant answer at the same table, though the front didn't change", async () => {
+    const { room, asked } = several([flopYou(1), preflop(2)], { guard: 350 });
+    // (table 2 sits out, so table 1 stays in front)
+    await answer(asked, 0, { error: "no such node" }, FLOP);
+    expect(room.snapshot().focus).toBe(0);
+    await pass(350);
+
+    // your check, the turn, BB's check, and your turn spot's answer at once
+    press(room, 0, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(1);
+    await answer(asked, 2, move("check"), FLOP);
+    expect(at(room, 0).answer).not.toBeNull();
+    press(room, 0, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(1);
+    expect(room.snapshot().guarded).toBe(true);
+    await pass(349);
+    press(room, 0, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(1);
+    await pass(1);
+    press(room, 0, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(2);
+  });
+
+  it("sends the table in front behind the rest on S, though they came in the same moment", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)]);
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    expect(room.snapshot()).toMatchObject({ focus: 0, queue: [0, 1] });
+    room.skip();
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [1, 0] });
+  });
+
+  it("holds nothing by a pick of the table already in front", async () => {
+    const { room, asked } = several([flopYou(1), preflop(2)]);
+    await flush();
+    room.pick(0);
+    asked[0]!.answer(FOLD_ONLY);
+    await flush();
+    expect(room.snapshot().focus).toBe(1);
+  });
+
+  it("sets no guard by S, nor by S again back to where you were", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { guard: 350, pause: 10_000 });
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    await pass(1000);
+    room.skip();
+    expect(room.snapshot()).toMatchObject({ focus: 1, guarded: false });
+    room.skip();
+    expect(room.snapshot()).toMatchObject({ focus: 0, guarded: false });
+    press(room, 0, 0);
+    expect(at(room, 0).hand.result).not.toBeNull();
+  });
+
+  it("shows no guard once the table in front has stopped waiting", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)], { guard: 350 });
+    await answer(asked, 0, FLOP);
+    expect(room.snapshot().guarded).toBe(true);
+    useSettings.setState({ mode: "accurate" });
+    expect(room.snapshot().guarded).toBe(false);
+  });
+
+  it("holds nothing by S: the table it brought forward goes back in the queue like any", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)]);
+    await answer(asked, 0, FLOP, FLOP);
+    room.skip();
+    expect(room.snapshot().focus).toBe(1);
+
+    // both spots wanted again, table 1's answered first
+    useSettings.setState({ mode: "accurate" });
+    await flush();
+    expect(tableOf(room, asked[2]!)).toBe(0);
+    asked[2]!.answer(FLOP);
+    await flush();
+    expect(room.snapshot()).toMatchObject({ focus: 0, queue: [0] });
+  });
+
+  it("sets no guard by a pick, but a pick can't get in front of an answer just in", async () => {
+    const { room, asked } = several([flopYou(1), preflop(2)], { guard: 350, pause: 10_000 });
+    await answer(asked, 0, FOLD_ONLY);
+    await pass(1000);
+    asked[1]!.answer(FLOP);
+    await flush();
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [1, 0] });
+
+    room.pick(0);
+    expect(room.snapshot()).toMatchObject({ focus: 0, guarded: true });
+    press(room, 0, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(0);
+    await pass(350);
+    room.pick(1);
+    expect(room.snapshot()).toMatchObject({ focus: 1, guarded: false });
+    press(room, 1, 0);
+    expect(at(room, 1).hand.result).not.toBeNull();
+  });
+
+  it("has no guard at one table", async () => {
+    const { room, asked } = setup({ players: 2, guard: 350 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    expect(room.snapshot().guarded).toBe(false);
+    room.choose(2);
+    expect(table(room).last).not.toBeNull();
+  });
+
+  it("ignores a press from a spot that has gone, or a table that isn't in front", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)]);
+    await answer(asked, 0, FLOP, FLOP);
+    expect(room.snapshot().focus).toBe(0);
+    const stale = at(room, 0).turnKey!;
+    const other = at(room, 1).turnKey!;
+
+    // table 2 waits, but it isn't in front
+    room.choose(1, other, 0);
+    expect(at(room, 1).hand.decisions).toHaveLength(0);
+    // nor is table 2's key table 1's
+    room.choose(0, other, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(0);
+    // table 9 isn't there at all
+    room.choose(9, stale, 0);
+
+    room.choose(0, stale, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(1);
+    room.skip();
+    room.pick(0);
+    await answer(asked, 2, move("check"), FLOP);
+    expect(at(room, 0).answer).not.toBeNull();
+    room.choose(0, stale, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(1);
+    press(room, 0, 0);
+    expect(at(room, 0).hand.decisions).toHaveLength(2);
+  });
+
+  it("answers what's instant first, and a long solve gives way to it, to be asked again (multitable.test.js:170)", async () => {
+    useSettings.setState({ mode: "accurate" });
+    const { room, asked } = several([turnYou(1), preflop(2)], { seat: "UTG" });
+    await flush();
+    expect(asked).toHaveLength(1);
+    expect(tableOf(room, asked[0]!)).toBe(1);
+    asked[0]!.answer(FOLD_ONLY);
+    await flush();
+    expect(asked).toHaveLength(2);
+    const long = asked[1]!;
+    expect(tableOf(room, long)).toBe(0);
+    expect(long.state.board).toHaveLength(8);
+
+    // you fold at table 2: its next hand's preflop is instant, so the turn's solve stops for it
+    press(room, 1, 0);
+    await flush();
+    expect(long.signal!.aborted).toBe(true);
+    expect(room.metrics().stops).toBe(1);
+    expect(asked).toHaveLength(2);
+    await pass(100);
+    expect(asked).toHaveLength(3);
+    expect(tableOf(room, asked[2]!)).toBe(1);
+    expect(asked[2]!.state.board).toBe("");
+
+    // once table 2 waits for you again, the turn is asked again
+    asked[2]!.answer(FOLD_ONLY);
+    await flush();
+    expect(asked).toHaveLength(4);
+    expect(tableOf(room, asked[3]!)).toBe(0);
+    expect(asked[3]!.state).toEqual(long.state);
+  });
+
+  it("stops nothing needed where a stop kills the worker: what's instant waits for the long solve (multitable.test.js:170)", async () => {
+    useSettings.setState({ mode: "accurate" });
+    const { room, asked } = several([turnYou(1), preflop(2)], { seat: "UTG", stop: "kills" });
+    await answer(asked, 0, FOLD_ONLY);
+    const long = asked[1]!;
+    press(room, 1, 0);
+    await pass(1000);
+    expect(long.signal!.aborted).toBe(false);
+    expect(room.metrics().stops).toBe(0);
+    expect(asked).toHaveLength(2);
+
+    long.answer(FLOP);
+    await flush();
+    expect(at(room, 0).answer).not.toBeNull();
+    expect(asked).toHaveLength(3);
+    expect(tableOf(room, asked[2]!)).toBe(1);
+  });
+
+  it("stops a dead long solve where a stop kills the worker", async () => {
+    useSettings.setState({ mode: "accurate" });
+    const { room, asked } = several([preflop(1), turnYou(2)], { stop: "kills" });
+    await answer(asked, 0, FOLD_ONLY);
+    const long = asked[1]!;
+    expect(tableOf(room, long)).toBe(1);
+    room.setTables(1);
+    await flush();
+    expect(long.signal!.aborted).toBe(true);
+  });
+
+  it("lets a dead short solve run out where a stop kills the worker, its answer kept", async () => {
+    const { room, asked } = several([preflop(1), flopYou(2)], { stop: "kills" });
+    await answer(asked, 0, FOLD_ONLY);
+    const short = asked[1]!;
+    room.setTables(1);
+    await pass(1000);
+    expect(short.signal!.aborted).toBe(false);
+    expect(asked).toHaveLength(2);
+
+    short.answer(FLOP);
+    await flush();
+    room.setTables(2);
+    await flush();
+    expect(at(room, 1).answer).not.toBeNull();
+  });
+
+  it("reads a client that doesn't say what a stop costs as one that kills", async () => {
+    const { asked } = setup({ players: 2, stop: null });
+    await flush();
+    useSettings.setState({ mode: "accurate" });
+    await pass(1000);
+    expect(asked[0]!.signal!.aborted).toBe(false);
+    expect(asked).toHaveLength(1);
+  });
+
+  it("aborts on leaving, whatever a stop costs", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)], { stop: "kills" });
+    await flush();
+    room.stop();
+    expect(asked[0]!.signal!.aborted).toBe(true);
+  });
+
+  it("drops a request not sent yet, whatever a stop would cost: there's nothing to kill", async () => {
+    const { room, asked, client } = setup({ players: 2, start: false, stop: "kills" });
+    const waiting: ((c: RoomClient) => void)[] = [];
+    room.setSolver(() => new Promise((res) => waiting.push(res)));
+    room.start();
+    room.startSession(2, 100, OPTS);
+    const dealt = table(room).hand;
+    waiting[0]!(client);
+    await flush();
+    expect(asked).toHaveLength(0);
+    waiting[1]!(client);
+    await flush();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.state.hole).toBe(dealt.hands[dealt.hero]!.join(""));
+  });
+
+  it("counts a hand that ends at a table, there and in the session, and deals it again (multitable.test.js:268)", async () => {
+    const facing = (seed: number) => spot(seed, "BTN", { preflop: SRP, flop: [mv("BB", "bet", 3)] }, 3);
+    const { room, asked } = several([facing(1), facing(2)]);
+    await answer(asked, 0, FACING, FACING);
+    const dealt = at(room, 0).hand;
+    press(room, 0, 0);
+    expect(room.snapshot().session.hands).toBe(1);
+    expect(at(room, 0).stats).toMatchObject({ hands: 1, n: 1, net: -2.5 });
+    expect(at(room, 1).stats).toMatchObject({ hands: 0 });
+    expect(at(room, 0).hand).not.toBe(dealt);
+    expect(at(room, 0).hand.result).toBeNull();
+  });
+
+  it("counts no net for a preflop-only session's table, as there's no hand to the end", async () => {
+    const { room, asked } = setup({ players: 6, tables: 2, seat: "SB", opts: { ...OPTS, preflopOnly: true }, pace: 0, pause: 100_000, guard: 0 });
+    // (folded round to you at both)
+    for (let i = 0; i < 10; i += 1) {
+      await flush();
+      const a = asked.at(-1)!;
+      a.answer(a.play ? move("fold") : CHART);
+    }
+    await flush();
+    press(room, 0, 0);
+    expect(at(room, 0).hand.result?.net).toBe(-0.5);
+    expect(at(room, 0).stats).toMatchObject({ hands: 1, net: 0 });
+  });
+
+  it("stops a table's request when the table goes (multitable.test.js:268)", async () => {
+    const { room, asked } = several([preflop(1), preflop(2), flopYou(3)]);
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    expect(tableOf(room, asked[2]!)).toBe(2);
+    room.setTables(2);
+    await flush();
+    expect(room.snapshot().tables).toHaveLength(2);
+    expect(asked[2]!.signal!.aborted).toBe(true);
+  });
+
+  it("measures each decision's wait, from your turn to its buttons (multitable.test.js:464)", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)]);
+    await flush();
+    await pass(500);
+    asked[0]!.answer(FOLD_ONLY);
+    await flush();
+    await pass(700);
+    asked[1]!.answer(FOLD_ONLY);
+    await flush();
+    const m = room.metrics();
+    expect(m.decisions).toBe(2);
+    expect(m.waits).toEqual([
+      { s: 0.5, street: "preflop", table: 1 },
+      { s: 1.2, street: "preflop", table: 2 },
+    ]);
+    expect(m.median).toBe(1.2);
+  });
+
+  it("measures each request, as it was expected and as it went", async () => {
+    const { room, asked } = several([preflop(1), flopYou(2)]);
+    await flush();
+    await pass(30);
+    asked[0]!.answer(FOLD_ONLY);
+    await flush();
+    await pass(1900);
+    asked[1]!.answer({ error: "no such node" });
+    await flush();
+    // (a failure isn't a solve)
+    expect(room.metrics().solves).toEqual([{ s: 0.03, est: 0.05, kind: "you", street: "preflop" }]);
+  });
+
+  it("keeps a late error off the table's new hand", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { stop: "kills" });
+    await flush();
+    room.startSession(6, 100, OPTS);
+    await flush();
+    expect(asked[0]!.signal!.aborted).toBe(false);
+    asked[0]!.answer({ error: "no such node" });
+    await flush();
+    expect(at(room, 0).failed).toBeNull();
+    expect(at(room, 1).failed).toBeNull();
+    expect(asked).toHaveLength(2);
+  });
+
+  it("numbers every hand on its own, though two tables hold the same cards", async () => {
+    const { room } = setup({ players: 6, tables: 4, seat: "UTG", seedOf: () => 7, pace: 0, pause: 0, guard: 0 });
+    const { session: s, tables } = room.snapshot();
+    const hands = tables.map((t) => t.hand);
+    expect(new Set(hands.map((h) => h.hands[h.hero]!.join(""))).size).toBe(1);
+    expect(hands.map((h) => h.n)).toEqual([0, 1, 2, 3]);
+    expect(new Set(hands.map((h) => keyOf(s, h))).size).toBe(4);
+    expect(new Set(hands.map((h) => practiceNumber(h, s.startedAt))).size).toBe(4);
+    expect(s.dealt).toBe(4);
+  });
+
+  it("asks one request for two tables at one spot", async () => {
+    const { room, asked } = several([{ ...preflop(1), n: 1 }, { ...preflop(1), n: 2 }], { seat: "UTG" });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    // the same advice: both wait, on one answer
+    expect(asked).toHaveLength(1);
+    expect(room.snapshot().queue).toEqual([0, 1]);
+  });
+
+  it("asks an opponent's move once for each table it's drawn at", async () => {
+    const twin = flopOpp(1);
+    const { room, asked } = several([twin, { ...twin, n: 9 }]);
+    await flush();
+    asked[0]!.answer(move("check"));
+    await flush();
+    expect(at(room, 0).hand.lines.flop).toEqual([CHECK]);
+    expect(at(room, 1).hand.lines.flop).toEqual([]);
+    // (your spot at table 1 is the same street again, nearly instant; table 2's BB comes after it)
+    expect(asked).toHaveLength(2);
+    asked[1]!.answer(FLOP);
+    await flush();
+    expect(asked).toHaveLength(3);
+    expect(asked[2]!.play?.seat).toBe("BB");
+    expect(asked[2]!.state).toEqual(asked[0]!.state);
+
+    // (the street is in hand at the table that asked it: to the other it's a solve like any)
+    asked[2]!.answer(move("check"));
+    await flush();
+    expect(room.metrics().solves.at(-1)?.est).toBe(2);
+  });
+
+  it("takes a spot answered and wanted again as newly wanted, behind what has waited", async () => {
+    const twin = spot(1, "BTN");
+    const { room, asked } = several([twin, { ...twin, n: 9 }, spot(2, "BTN")]);
+    await flush();
+    await pass(10);
+    asked[0]!.answer(move("fold"));
+    await flush();
+    expect(asked[1]!.state.hole).toBe(at(room, 2).hand.hands.BTN!.join(""));
+  });
+
+  it("can't let a table dealing a drill's pot starve a short solve", async () => {
+    const { room, asked } = several([{ ...spot(1, "BTN"), pot: "srp" }, flopOpp(2)]);
+    await flush();
+    expect(tableOf(room, asked[0]!)).toBe(0);
+    await pass(10);
+    asked[0]!.answer(move("fold"));
+    await flush();
+    // its next seat, wanted later, behind table 2's: though a preflop move on its own would be instant
+    expect(at(room, 0).hand.lines.preflop).toHaveLength(1);
+    expect(tableOf(room, asked[1]!)).toBe(1);
+    expect(asked[1]!.play?.seat).toBe("BB");
+  });
+
+  it("calls a street answered at a table nearly instant, there, ahead of others' older short solves", async () => {
+    const { room, asked } = several([spot(1, "BB", { preflop: SRP }, 3), flopOpp(2), flopOpp(3)]);
+    // your flop spot, then table 2's BB
+    await answer(asked, 0, FLOP);
+    press(room, 0, 0);
+    await flush();
+    expect(tableOf(room, asked[1]!)).toBe(1);
+    await pass(10);
+    asked[1]!.answer({ error: "no such node" });
+    await flush();
+    // BTN's reply at table 1, a move on an answered street, before table 3's BB, wanted first
+    expect(tableOf(room, asked[2]!)).toBe(0);
+    expect(asked[2]!.play?.seat).toBe("BTN");
+    expect(asked[2]!.state.flop).toEqual([CHECK]);
+    asked[2]!.answer(move("check"));
+    await flush();
+    expect(room.metrics().solves.map((m) => m.est)).toEqual([2, 0.2]);
+  });
+
+  it("forgets the streets answered at each deal, though the same cards come up", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0, seedOf: () => 7, opts: { ...OPTS, seat: "SB" } });
+    await toFlop(room, asked);
+    asked.at(-1)!.answer(move("check"));
+    await flush();
+    asked.at(-1)!.answer(FACING);
+    await flush();
+    expect(room.metrics().solves.at(-1)).toMatchObject({ est: 0.2, street: "flop" });
+    room.choose(0);
+    await flush();
+    room.nextHand();
+    await flush();
+    room.choose(2);
+    await flush();
+    asked.at(-1)!.answer(move("call"));
+    await pass(1000);
+    expect(table(room).hand.shown).toBe(3);
+    asked.at(-1)!.answer(move("check"));
+    await flush();
+    expect(room.metrics().solves.at(-1)).toMatchObject({ est: 2, street: "flop" });
+  });
+
+  it("forgets the streets answered with a new client, which has solved none of them", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2), flopYou(3)]);
+    await answer(asked, 0, FLOP, FLOP);
+    expect(room.metrics().solves.at(-1)).toMatchObject({ est: 2 });
+    const next = fakeClient();
+    room.setSolver(async () => next.client);
+    await answer(next.asked, 0, FLOP, FLOP);
+    expect(room.metrics().solves.at(-1)).toMatchObject({ est: 2 });
+  });
+
+  it("forgets them for a table set aside as well", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)]);
+    await answer(asked, 0, FLOP, FLOP);
+    room.setTables(1);
+    const next = fakeClient();
+    room.setSolver(async () => next.client);
+    room.choose(0);
+    await answer(next.asked, 0, FLOP);
+    room.setTables(2);
+    await answer(next.asked, 1, FLOP);
+    expect(room.metrics().solves.at(-1)).toMatchObject({ est: 2 });
+  });
+
+  it("expects a long solve by what's solving it", async () => {
+    useSettings.setState({ mode: "accurate" });
+    for (const [transport, est] of [
+      ["worker", 60],
+      ["http", 30],
+    ] as const) {
+      const { room, asked } = several([turnYou(1), turnYou(2)], { transport });
+      // (the first goes out before the client is known; the second reads it)
+      await answer(asked, 0, FLOP, FLOP);
+      expect(room.metrics().solves.map((m) => m.est)).toEqual([60, est]);
+    }
+  });
+
+  it("has the flight take its job as it's wanted now, by what's now known of it", async () => {
+    useSettings.setState({ mode: "accurate" });
+    const { room, asked } = several([turnYou(1), turnYou(2)], { transport: "http" });
+    await flush();
+    room.pump();
+    asked[0]!.answer(FLOP);
+    await flush();
+    expect(room.metrics().solves.at(-1)?.est).toBe(30);
+  });
+
+  it("doesn't go round for ever on cancels nobody here asked for, tables taking turns", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)]);
+    const gone = new SolverError("cancelled", "solver disposed");
+    await pass(10);
+    asked[0]!.reject(gone);
+    await pass(10);
+    // (asked again, behind the other table's, wanted first)
+    expect(tableOf(room, asked[1]!)).toBe(1);
+    asked[1]!.reject(gone);
+    await pass(10);
+    expect(tableOf(room, asked[2]!)).toBe(0);
+    asked[2]!.reject(gone);
+    await pass(10);
+    asked[3]!.reject(gone);
+    await flush();
+    expect(asked).toHaveLength(4);
+    expect(at(room, 0).failed).toBe("Stopped.");
+    expect(at(room, 1).failed).toBe("Stopped.");
+  });
+
+  it("holds no cancel against a spot once any answer has come", async () => {
+    const twin = flopOpp(1);
+    const { room, asked } = several([twin, { ...twin, n: 9 }]);
+    const gone = new SolverError("cancelled", "solver disposed");
+    await flush();
+    asked[0]!.reject(gone);
+    await flush();
+    asked[1]!.answer(move("check"));
+    await answer(asked, 2, FLOP);
+    // (the move's used up, so the other table asks that spot once more)
+    expect(asked[3]!.state).toEqual(asked[0]!.state);
+    asked[3]!.reject(gone);
+    await flush();
+    expect(at(room, 1).failed).toBeNull();
+    expect(asked).toHaveLength(5);
+  });
+
+  it("starts a new session with no cancels held against it", async () => {
+    const { room, asked } = setup({ players: 2, seedOf: () => 7 });
+    const gone = new SolverError("cancelled", "solver disposed");
+    await flush();
+    asked[0]!.reject(gone);
+    await flush();
+    room.startSession(2, 100, OPTS);
+    await flush();
+    asked[1]!.reject(gone);
+    await flush();
+    expect(table(room).failed).toBeNull();
+    expect(asked).toHaveLength(3);
+  });
+
+  it("never brings a failed table forward by itself", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2)]);
+    await answer(asked, 0, { error: "no such node" });
+    expect(room.snapshot()).toMatchObject({ focus: 0, queue: [] });
+    asked[1]!.answer(FLOP);
+    await flush();
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [1] });
+    expect(at(room, 0).failed).toBe("no such node");
+  });
+
+  it("asks a table's failed spot again by that table, leaving the others alone", async () => {
+    const { room, asked } = several([preflop(1), flopOpp(2)]);
+    await answer(asked, 0, FOLD_ONLY, { error: "no such node" });
+    expect(room.snapshot().focus).toBe(0);
+    expect(at(room, 1).failed).toBe("no such node");
+    room.retry(1);
+    expect(at(room, 1).failed).toBeNull();
+    await flush();
+    expect(asked).toHaveLength(3);
+    expect(tableOf(room, asked[2]!)).toBe(1);
+    // and a table that isn't there
+    room.retry(7);
+  });
+
+  it("plays on, and takes your own moves, at the table it's told", async () => {
+    const { room, asked } = several([preflop(1), flopOpp(2), flopYou(3)]);
+    await answer(asked, 0, FOLD_ONLY, { error: "no such node" }, { error: "no such node" });
+    room.playOn(1);
+    expect(at(room, 1).hand.lines.flop).toEqual([CHECK]);
+    room.ungraded({ action: "check" }, 2);
+    expect(at(room, 2).hand.decisions).toHaveLength(1);
+    // (its answers fail again at no table here)
+    room.playOn(5);
+    room.ungraded({ action: "check" }, 5);
+  });
+
+  it("holds a pick while its hand goes on, and lets it go when you act or it ends", async () => {
+    const { room, asked } = several([preflop(1), flopOpp(2)]);
+    await answer(asked, 0, FOLD_ONLY);
+    expect(room.snapshot().focus).toBe(0);
+    // table 2's BB in flight: it isn't waiting for you, and it's picked
+    room.pick(1);
+    await flush();
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [0] });
+
+    // it's your turn there, and the answer in: you act, and table 1 comes forward
+    await answer(asked, 1, move("check"), FLOP);
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [0, 1] });
+    press(room, 1, 0);
+    expect(room.snapshot().focus).toBe(0);
+  });
+
+  it("brings the next forward after you act, also where the table you acted at waits again at once", async () => {
+    // (you close the preflop from the big blind and act first on the flop; its twin has had that answer)
+    const twin = spot(1, "BB", { preflop: SRP.slice(0, 5) });
+    const { room, asked } = several([twin, { ...twin, n: 9 }, preflop(3)]);
+    await answer(asked, 0, CHART, CHART);
+    room.skip();
+    press(room, 1, 1);
+    await answer(asked, 2, FLOP);
+    expect(at(room, 1).hand.shown).toBe(3);
+    expect(room.snapshot().focus).toBe(2);
+    room.pick(0);
+    await pass(10);
+
+    press(room, 0, 1);
+    expect(at(room, 0).hand.shown).toBe(3);
+    expect(at(room, 0).answer).not.toBeNull();
+    expect(room.snapshot()).toMatchObject({ focus: 1, queue: [1, 2, 0] });
+  });
+
+  it("lets a pick go when you move there without an answer, or play on", async () => {
+    const own = several([flopYou(1), preflop(2)]);
+    await answer(own.asked, 0, FOLD_ONLY, { error: "no such node" });
+    own.room.pick(0);
+    own.room.ungraded({ action: "check" }, 0);
+    expect(at(own.room, 0).hand.decisions).toHaveLength(1);
+    expect(own.room.snapshot().focus).toBe(1);
+
+    const opp = several([flopOpp(1), preflop(2)]);
+    await answer(opp.asked, 0, FOLD_ONLY, { error: "no such node" });
+    opp.room.pick(0);
+    opp.room.playOn(0);
+    expect(at(opp.room, 0).hand.lines.flop).toEqual([CHECK]);
+    expect(opp.room.snapshot().focus).toBe(1);
+  });
+
+  it("finds a new front when the one in front is set aside", async () => {
+    const { room } = several([preflop(1), preflop(2), preflop(3)]);
+    room.pick(2);
+    room.setTables(2);
+    expect(room.snapshot().focus).toBe(0);
+    room.pick(1);
+    room.setTables(1);
+    expect(room.snapshot().focus).toBe(0);
+  });
+
+  it("deals nothing new on a pick or S with nobody else waiting", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)]);
+    await answer(asked, 0, FOLD_ONLY);
+    room.skip();
+    room.pick(0);
+    room.pick(9);
+    expect(room.snapshot().focus).toBe(0);
+  });
+
+  it("restarts every table on a New session: numbers, results and what was set aside", async () => {
+    const { room, asked } = several([preflop(1), preflop(2), preflop(3)], { pause: 100_000 });
+    await answer(asked, 0, FOLD_ONLY);
+    press(room, 0, 0);
+    expect(at(room, 0).stats.hands).toBe(1);
+    room.pick(1);
+    room.setTables(2);
+
+    room.startSession(6, 100, OPTS);
+    const { session, tables, focus } = room.snapshot();
+    expect(tables.map((t) => t.hand.n)).toEqual([0, 1]);
+    expect(tables.map((t) => t.stats.hands)).toEqual([0, 0]);
+    expect(tables.map((t) => t.last)).toEqual([null, null]);
+    expect(session).toMatchObject({ dealt: 2, hands: 0, tables: 2 });
+    expect(focus).toBe(0);
+
+    // (table 3, as it was, went with the last session)
+    room.setTables(3);
+    expect(at(room, 2).hand.n).toBe(2);
+    expect(room.snapshot().session.dealt).toBe(3);
+  });
+});
+
+describe("Room changing the number of tables", () => {
+  it("makes your hand Table 1, mid-street, and deals the others: the request it wanted goes on", async () => {
+    const { room, asked } = setup({ players: 6, pace: 0, pause: 0, guard: 0 });
+    await flush();
+    const hand = table(room).hand;
+    room.setTables(4);
+    await flush();
+    const { tables, session } = room.snapshot();
+    expect(tables).toHaveLength(4);
+    expect(tables[0]!.hand).toBe(hand);
+    expect(asked[0]!.signal!.aborted).toBe(false);
+    expect(session).toMatchObject({ dealt: 4, tables: 4, hands: 0 });
+    expect(tables.map((t) => t.hand.n)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("clamps the count, and does nothing for the count it has", async () => {
+    const { room } = setup({ pace: 0, pause: 0, guard: 0 });
+    room.setTables(9);
+    expect(room.snapshot().tables).toHaveLength(4);
+    const { session } = room.snapshot();
+    room.setTables(4);
+    expect(room.snapshot().session).toBe(session);
+    room.setTables(0);
+    expect(room.snapshot().tables).toHaveLength(1);
+  });
+
+  it("deals above one table by Spots and Seat with no chips carried, the setup itself untouched", async () => {
+    const opts = { ...OPTS, carry: true, ante: 0.5 };
+    const { room } = setup({ players: 6, opts, tables: 2, spot: "any", seat: "BB", start: false, pace: 0, pause: 0, guard: 0 });
+    const other = at(room, 1).hand;
+    expect(other).toMatchObject({ hero: "BB", ante: 0.5 });
+    expect(other).not.toHaveProperty("pot");
+    expect(other).not.toHaveProperty("stacks");
+    expect(room.snapshot().session.opts).toBe(opts);
+  });
+
+  it("applies Spots and Seat from each table's next hand, and redeals nothing", async () => {
+    const { room } = setup({ tables: 2, seat: "UTG", pace: 0, pause: 0, guard: 0 });
+    const hands = room.snapshot().tables.map((t) => t.hand);
+    room.setSpot("srp");
+    room.setSeat("BB");
+    expect(room.snapshot().tables.map((t) => t.hand)).toEqual(hands);
+    room.setTables(3);
+    expect(at(room, 2).hand).toMatchObject({ pot: "srp", hero: "BB" });
+    expect(hands[0]).not.toHaveProperty("pot");
+
+    room.setSpot("any");
+    room.setTables(4);
+    expect(at(room, 3).hand).not.toHaveProperty("pot");
+  });
+
+  it("carries no chips from hand to hand above one table, in a session that carries them", async () => {
+    const { room, asked } = setup({ players: 2, tables: 2, seat: "moves", opts: { ...OPTS, carry: true }, pace: 0, pause: 0, guard: 0 });
+    // (at table 2 you're the big blind, and the small blind folds)
+    await answer(asked, 0, CHART, move("fold"));
+    expect(room.snapshot().session.hands).toBe(1);
+    expect(at(room, 1).hand.n).toBe(2);
+    expect(at(room, 1).hand).not.toHaveProperty("stacks");
+  });
+
+  it("keeps a preflop-only session on Any hand above one table, as a drill would stop it counting net", async () => {
+    const { room } = setup({ players: 6, opts: { ...OPTS, preflopOnly: true }, tables: 2, spot: "srp", pace: 0, pause: 0, guard: 0 });
+    expect(at(room, 1).hand).toMatchObject({ preflopOnly: true });
+    expect(at(room, 1).hand).not.toHaveProperty("pot");
+  });
+
+  it("deals a drill again by what the tables deal now", async () => {
+    const { room, asked } = several([{ ...spot(1, "BTN"), pot: "srp" }, preflop(2)], { spot: "any", seat: "UTG" });
+    // (a raise and a raise: off a single-raised pot)
+    await answer(asked, 0, FOLD_ONLY, move("raise", 2.5), move("raise", 8));
+    expect(at(room, 0).hand).toMatchObject({ hero: "UTG", n: 1, tries: 1 });
+    expect(at(room, 0).hand).not.toHaveProperty("pot");
+  });
+
+  it("goes back to the setup at one table", async () => {
+    const opts = { ...OPTS, seat: "UTG", pot: "srp" as const };
+    const { room, asked } = setup({ players: 6, opts, pace: 0, pause: 0, guard: 0, seat: "BB" });
+    await flush();
+    room.setTables(2);
+    expect(at(room, 1).hand).toMatchObject({ hero: "BB" });
+    expect(at(room, 1).hand).not.toHaveProperty("pot");
+    room.setTables(1);
+
+    // a drill's preflop is played for you: this fold is off it, so it's dealt again, by the setup
+    asked[0]!.answer(move("fold"));
+    await flush();
+    expect(table(room).hand).toMatchObject({ hero: "UTG", pot: "srp", tries: 1 });
+  });
+
+  it("sets tables aside as they are and takes them up again, nothing dealt for them", async () => {
+    const { room, asked } = several([preflop(1), preflop(2), preflop(3), preflop(4)], { pause: 100_000 });
+    await answer(asked, 0, FOLD_ONLY);
+    press(room, 0, 0);
+    room.pick(3);
+    await flush();
+    const set = [2, 3].map((i) => at(room, i).hand);
+    const { dealt } = room.snapshot().session;
+    expect(at(room, 0).stats.hands).toBe(1);
+
+    room.setTables(1);
+    expect(room.snapshot().tables).toHaveLength(1);
+    expect(at(room, 0).stats.hands).toBe(1);
+    room.setTables(4);
+    expect(room.snapshot().tables.slice(2).map((t) => t.hand)).toEqual(set);
+    expect(room.snapshot().session.dealt).toBe(dealt);
+  });
+
+  it("puts a table taken up again at the back of the queue", async () => {
+    const { room, asked } = several([flopYou(1), flopYou(2), preflop(3)]);
+    await answer(asked, 0, FOLD_ONLY);
+    await pass(10);
+    await answer(asked, 1, FLOP, FLOP);
+    expect(room.snapshot().queue).toEqual([2, 0, 1]);
+    room.setTables(2);
+    room.setTables(3);
+    expect(room.snapshot().queue).toEqual([0, 1, 2]);
+  });
+
+  it("gives a finished table its pause again when it's taken up, and leaves no timer on one set aside", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { pause: 1600 });
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    room.skip();
+    press(room, 1, 0);
+    const done = at(room, 1).hand;
+    expect(done.result).not.toBeNull();
+    room.setTables(1);
+    expect(vi.getTimerCount()).toBe(0);
+    await pass(5000);
+    room.setTables(2);
+    await pass(1599);
+    expect(at(room, 1).hand).toBe(done);
+    await pass(1);
+    expect(at(room, 1).hand).not.toBe(done);
+  });
+
+  it("keeps a set-aside table's result, and tells a client its flop again", async () => {
+    const { room, asked, prefetched } = several([preflop(1), flopYou(2)], { pause: 100_000 });
+    await answer(asked, 0, FOLD_ONLY, FLOP);
+    expect(prefetched).toHaveLength(1);
+    room.pick(1);
+    press(room, 1, 0);
+    room.setTables(1);
+    const h = table(room).hand;
+    room.setTables(2);
+    expect(at(room, 0).hand).toBe(h);
+    expect(at(room, 1).hand.decisions).toHaveLength(1);
+    expect(prefetched).toHaveLength(2);
+  });
+
+  it("stops the guard and the pause with the Room", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { guard: 350, pause: 1600 });
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    await pass(1000);
+    press(room, 0, 0);
+    const heard = vi.fn();
+    room.subscribe(heard);
+    const dealt = room.snapshot().session.dealt;
+    room.stop();
+    await pass(5000);
+    expect(heard).not.toHaveBeenCalled();
+    expect(room.snapshot().session.dealt).toBe(dealt);
+  });
+
+  it("deals a finished table again after the pause, on its own, and every one at once when told", async () => {
+    const { room, asked } = several([preflop(5), preflop(6)], { pause: 1600 });
+    await answer(asked, 0, FOLD_ONLY, FOLD_ONLY);
+    press(room, 0, 0);
+    room.pick(1);
+    const done = at(room, 0).hand;
+    expect(done.result).not.toBeNull();
+    await pass(1599);
+    expect(at(room, 0).hand).toBe(done);
+    await pass(1);
+    expect(at(room, 0).hand).not.toBe(done);
+    expect(at(room, 0).hand.result).toBeNull();
+
+    press(room, 1, 0);
+    const over = at(room, 1).hand;
+    expect(over.result).not.toBeNull();
+    room.dealFinished();
+    expect(at(room, 1).hand).not.toBe(over);
+    expect(at(room, 1).hand.result).toBeNull();
+    expect(room.snapshot().session).toMatchObject({ dealt: 4, hands: 2 });
+    // (numbered across the tables, not from each table's last)
+    expect(room.snapshot().tables.map((t) => t.hand.n)).toEqual([2, 3]);
+  });
+
+  it("deals nothing by itself at one table, and nothing by dealFinished: Next hand is yours", async () => {
+    const { room, asked } = setup({ players: 2, pause: 0, pace: 0 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(0);
+    await pass(5000);
+    const over = table(room).hand;
+    expect(over.result).not.toBeNull();
+    room.dealFinished();
+    expect(table(room).hand).toBe(over);
+  });
+
+  it("asks nothing for a finished table waiting on its pause, a run-out's included", async () => {
+    const { room, asked } = setup({ players: 3, pace: 0, pause: 100_000, guard: 0 });
+    room.startSession(3, 100, OPTS);
+    await flush();
+    asked.at(-1)!.answer(CHART);
+    await flush();
+    room.choose(0);
+    room.runOut();
+    expect(table(room).hand.run).toBe("played");
+    room.setTables(2);
+    await flush();
+    // (the others' run-out isn't asked for: what's asked is table 2's)
+    expect(asked.filter((a) => a.state.hero === table(room).hand.hero && a.play)).toHaveLength(0);
+    expect(tableOf(room, asked.at(-1)!)).toBe(1);
+  });
+
+  it("has no pace above one table", async () => {
+    const { room, asked } = several([flopOpp(1), flopOpp(2)], { pace: 450 });
+    await flush();
+    asked[0]!.answer(move("check"));
+    await flush();
+    expect(at(room, 0).hand.lines.flop).toEqual([CHECK]);
+    asked[1]!.answer(FLOP);
+    await flush();
+    press(room, 0, 0);
+    expect(at(room, 0).hand.shown).toBe(4);
+  });
+
+  it("has no Run it out above one table", async () => {
+    const { room, asked } = several([preflop(1), preflop(2)], { pause: 100_000 });
+    await answer(asked, 0, FOLD_ONLY);
+    press(room, 0, 0);
+    room.runOut();
+    expect(at(room, 0).hand.run).toBeUndefined();
+  });
+
+  it("says in History that a session went to four tables, also once it's back at one", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0, persist: true, readKept: async () => undefined, opts: { ...OPTS, seat: "SB", carry: false, pot: null } });
+    await flush();
+    room.setTables(4);
+    room.setTables(1);
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(0);
+    await flush();
+    const { meta } = vi.mocked(putSession).mock.calls.at(-1)![0];
+    expect(meta).toMatchObject({ tables: 4 });
+    expect(meta).not.toHaveProperty("seat");
+    expect(vi.mocked(putSession).mock.calls).toHaveLength(1);
+  });
+
+  it("marks no table in a one-table session's review", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(0);
+    expect(room.snapshot().session.review[0]).not.toHaveProperty("table");
+  });
+
+  it("starts every stack afresh back at one table with chips carried, that hand only", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0, pause: 100_000, guard: 0, opts: { ...OPTS, carry: true } });
+    await toFlop(room, asked);
+    asked.at(-1)!.answer(move("check"));
+    await flush();
+    asked.at(-1)!.answer(FLOP);
+    await flush();
+    room.choose(1);
+    await flush();
+    asked.at(-1)!.answer(move("fold"));
+    await flush();
+    expect(table(room).hand.result?.net).toBe(2.5);
+
+    room.setTables(2);
+    room.setTables(1);
+    await pass(100);
+    room.nextHand();
+    const fresh = table(room).hand;
+    expect(fresh.stacks).toEqual({ SB: 100, BB: 100 });
+
+    // from there chips carry again
+    await flush();
+    const waiting = asked.at(-1)!;
+    if (fresh.hero === "BB") {
+      waiting.answer(move("call"));
+      await flush();
+    }
+    asked.at(-1)!.answer(CHART);
+    await flush();
+    room.choose(0);
+    await flush();
+    room.nextHand();
+    expect(table(room).hand.stacks).not.toEqual({ SB: 100, BB: 100 });
+  });
+
+  it("forgets a reset of stacks at a New session, which starts them anyway", async () => {
+    const opts = { ...OPTS, carry: true };
+    const { room, asked } = setup({ players: 2, pace: 0, pause: 100_000, guard: 0, opts });
+    await flush();
+    room.setTables(2);
+    room.setTables(1);
+    room.startSession(2, 100, opts);
+    await pass(200);
+    asked.at(-1)!.answer(CHART);
+    await flush();
+    room.choose(0);
+    await flush();
+    room.nextHand();
+    expect(table(room).hand.stacks).not.toEqual({ SB: 100, BB: 100 });
+  });
+
+  it("leaves a carried session's stacks alone where tables never went above one", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0, opts: { ...OPTS, carry: true } });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(0);
+    await flush();
+    room.nextHand();
+    expect(table(room).hand.stacks).not.toEqual({ SB: 100, BB: 100 });
+  });
+});
+
+describe("Room telling flops", () => {
+  it("tells each table's flop once, the turn at one table not telling its flop again though another's came between", async () => {
+    const { room, asked, prefetched } = several([flopYou(1), flopYou(2)]);
+    await answer(asked, 0, FLOP, FLOP);
+    expect(prefetched.map((f) => f.board)).toEqual([at(room, 0).hand.board, at(room, 1).hand.board].map((b) => b.slice(0, 3).join("")));
+
+    // table 1's turn
+    press(room, 0, 0);
+    await flush();
+    expect(at(room, 0).hand.shown).toBe(4);
+    expect(prefetched).toHaveLength(2);
+  });
+
+  it("tells a table's flop as it comes out", async () => {
+    const { room, asked, prefetched } = several([spot(1, "BB", { preflop: SRP.slice(0, 5) }), preflop(2)]);
+    await answer(asked, 0, CHART, FOLD_ONLY);
+    expect(prefetched).toHaveLength(0);
+    // (you've the big blind: your call closes the preflop)
+    press(room, 0, 1);
+    await flush();
+    expect(at(room, 0).hand.shown).toBe(3);
+    expect(prefetched).toHaveLength(1);
+  });
+
+  it("tells a new client every flop on the board", async () => {
+    const { room, asked, prefetched } = several([flopYou(1), flopYou(2), preflop(3)]);
+    await answer(asked, 0, CHART, FLOP, FLOP);
+    expect(prefetched).toHaveLength(2);
+    const next = fakeClient();
+    room.setSolver(async () => next.client);
+    room.pick(1);
+    press(room, 1, 0);
+    await flush();
+    expect(next.asked).toHaveLength(1);
+    expect(next.prefetched.map((f) => f.board)).toEqual(prefetched.map((f) => f.board));
   });
 });

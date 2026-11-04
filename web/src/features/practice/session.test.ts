@@ -5,7 +5,7 @@ import type { Move } from "@/poker/table";
 import type { ResultSource } from "@/solver/types";
 import { practiceNumber } from "./history";
 import { following, newHand, redeal, withVillain, type Decision, type HandOptions, type HandResult, type PracticeHand } from "./practice";
-import { afterDeal, afterDecision, afterHand, freshSession, keyOf, toRecord } from "./session";
+import { afterDeal, afterDecision, afterHand, atTables, freshSession, keyOf, toRecord } from "./session";
 
 const OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 
@@ -183,5 +183,14 @@ describe("History's record", () => {
     const drill = toRecord(session({ pot: "srp", ante: 0.5 }), 4).meta;
     expect(drill).toMatchObject({ tables: 4, ante: 0.5 });
     expect(drill).not.toHaveProperty("pot");
+  });
+
+  it("holds the most tables played, for the record, also once there are fewer", () => {
+    const s = freshSession(6, 100);
+    expect(s.tables).toBe(1);
+    const four = atTables(s, 4);
+    expect(four.tables).toBe(4);
+    expect(atTables(four, 1)).toBe(four);
+    expect(atTables(four, 2)).toBe(four);
   });
 });

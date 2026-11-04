@@ -37,7 +37,7 @@ export interface PotTally {
 
 export const POT_ORDER = ["Unopened", "Limped", "SRP", "3bet pot", "4bet+ pot"];
 
-const emptyTally = (): PotTally => ({ hands: 0, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, played: 0, net: 0 });
+export const emptyTally = (): PotTally => ({ hands: 0, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, played: 0, net: 0 });
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
 /** A Practice hand's pot as its preflop went while you were in it, named as Analyze names pot types; "Unopened" where

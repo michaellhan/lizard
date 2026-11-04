@@ -17,6 +17,8 @@ export interface PracticeSession {
   opts: Required<HandOptions>;
   /** hands dealt so far, the next hand's `n`: one count across tables, so a number is one hand */
   dealt: number;
+  /** the most tables it has been played at (above one, its record leaves out the seat, pot and carry) */
+  tables: number;
   hands: number;
   /** chips won less chips put in, over the session's hands, bb (not counted preflop only: no hand is played out) */
   net: number;
@@ -37,6 +39,7 @@ export const freshSession = (players: number, stack: number, opts: Required<Hand
   stack,
   opts,
   dealt: 0,
+  tables: 1,
   hands: 0,
   net: 0,
   score: emptyScore(),
@@ -47,6 +50,10 @@ export const freshSession = (players: number, stack: number, opts: Required<Hand
 
 /** The session once a hand is dealt (a drill's hand dealt again keeps its number, and isn't counted). */
 export const afterDeal = (s: PracticeSession): PracticeSession => ({ ...s, dealt: s.dealt + 1 });
+
+/** The session once it has been played at `n` tables: the most it has seen, so one that went 1, 4, 1 is still said to
+ * have been played at four, its seat, pot and carry not what those hands were dealt by. */
+export const atTables = (s: PracticeSession, n: number): PracticeSession => (n > s.tables ? { ...s, tables: n } : s);
 
 /** The session after your decision `d` at the hand `h` as it stood when you decided; `table`, above one table (from 1).
  * One not graded isn't counted. */
