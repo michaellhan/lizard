@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { emptyTally, type PotTally } from "@/features/history/history";
-import { recordOf, seeded, type Move } from "@/poker/table";
+import { noLines, recordOf, seeded, type Move } from "@/poker/table";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import type { Provenance, SolveMode, SolveResult } from "@/solver/types";
 import { useSettings } from "@/state/settings";
@@ -165,9 +165,12 @@ describe("keptHand", () => {
     ["a seat too many", (h) => ({ ...h, hands: { ...h.hands, CO: ["2c", "2d"] } })],
     ["a seat with one card", (h) => ({ ...h, hands: { ...h.hands, BB: [h.hands.BB![0]] } })],
     ["a seat's cards as a word", (h) => ({ ...h, hands: { ...h.hands, BB: "AhKh" } })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["a seat's cards with a hole in them", (h) => ({ ...h, hands: { ...h.hands, BB: [, h.hands.BB![1]] } })],
     ["a card not in the deck", (h) => ({ ...h, hands: { ...h.hands, BB: ["Zz", h.hands.BB![1]] } })],
     ["two seats holding one card", (h) => ({ ...h, hands: { ...h.hands, BB: [h.hands.SB![0], h.hands.BB![1]] } })],
     ["a board card a seat holds", (h) => ({ ...h, board: [h.hands.SB![0], ...h.board.slice(1)] })],
+    ["a board card not in the deck", (h) => ({ ...h, board: ["Zz", ...h.board.slice(1)] })],
     ["no board", (h) => ({ ...h, board: "AhKh" })],
     ["a short board", (h) => ({ ...h, board: h.board.slice(0, 4) })],
     ["a street that's no street", (h) => ({ ...h, shown: 2 })],
@@ -176,6 +179,8 @@ describe("keptHand", () => {
     ["a street missing", ({ lines: { river: _, ...lines }, ...h }) => ({ ...h, lines })],
     ["a street that's not a list", (h) => ({ ...h, lines: { ...h.lines, turn: "x" } })],
     ["a move that's no move", (h) => ({ ...h, lines: { ...h.lines, flop: [...h.lines.flop, "call"] } })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["a street with a hole in it", (h) => ({ ...h, lines: { ...h.lines, turn: [,] } })],
     ["a move of no kind", (h) => ({ ...h, lines: { ...h.lines, flop: [...h.lines.flop, { pos: "BB", action: "shove" }] } })],
     ["a move by nobody", (h) => ({ ...h, lines: { ...h.lines, flop: [...h.lines.flop, { action: "call" }] } })],
     ["a size that's no number", (h) => ({ ...h, lines: { ...h.lines, flop: [...h.lines.flop, { pos: "BB", action: "raise", to: "9" }] } })],
@@ -191,16 +196,30 @@ describe("keptHand", () => {
     ["a move after the hand ended", (h) => ({ ...h, lines: { ...h.lines, preflop: [{ pos: "SB", action: "fold" }, { pos: "BB", action: "check" }], flop: [] } })],
     ["no decisions", (h) => ({ ...h, decisions: null })],
     ["a decision that's no decision", (h) => ({ ...h, decisions: ["call"] })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["decisions with a hole in them", (h) => ({ ...h, decisions: [,] })],
     ["a decision on no street", (h) => ({ ...h, decisions: [{ ...graded(), street: "showdown" }] })],
     ["a decision with no choice", (h) => ({ ...h, decisions: [{ ...graded(), chose: 1 }] })],
     ["a decision with no move", (h) => ({ ...h, decisions: [{ ...graded(), move: {} }] })],
     ["a decision with no mix", (h) => ({ ...h, decisions: [{ ...graded(), mix: null }] })],
+    ["a decision's mix with nothing in it", (h) => ({ ...h, decisions: [{ ...graded(), mix: [null] }] })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["a decision's mix with a hole in it", (h) => ({ ...h, decisions: [{ ...graded(), mix: [, { action: "call", freq: 1, ev: 0 }] }] })],
+    ["a mix's action that's no word", (h) => ({ ...h, decisions: [{ ...graded(), mix: [{ action: {}, freq: 1, ev: 0 }] }] })],
+    ["a mix with no frequency", (h) => ({ ...h, decisions: [{ ...graded(), mix: [{ action: "call", ev: 0 }] }] })],
+    ["a mix's EV that's no number", (h) => ({ ...h, decisions: [{ ...graded(), mix: [{ action: "call", freq: 1, ev: "1" }] }] })],
+    ["a mix with no EV, not even none", (h) => ({ ...h, decisions: [{ ...graded(), mix: [{ action: "call", freq: 1 }] }] })],
+    ["a mix's size that's no number", (h) => ({ ...h, decisions: [{ ...graded(), mix: [{ action: "call", freq: 1, ev: null, amount: "3" }] }] })],
     ["a decision with no pot", (h) => ({ ...h, decisions: [{ ...graded(), pot: "5" }] })],
     ["a decision with no line in Study", (h) => ({ ...h, decisions: [{ ...graded(), study: null }] })],
     ["a grade with no source", (h) => ({ ...h, decisions: [{ ...graded(), provenance: null }] })],
+    ["a source there are no words for", (h) => ({ ...h, decisions: [{ ...graded(), provenance: { ...prov("live"), source: "oracle" } }] })],
+    ["a source named as what every object has", (h) => ({ ...h, decisions: [{ ...graded(), provenance: { ...prov("live"), source: "toString" } }] })],
+    ...["exploitabilityPct", "targetPct", "iterations", "seconds", "mbbPerHand"].map((k): [string, Bad] => [`a source's ${k} that's no number`, (h) => ({ ...h, decisions: [{ ...graded(), provenance: { ...prov("live"), [k]: "1" } }] })]),
     ["a grade with a source that says nothing", (h) => ({ ...h, decisions: [{ ...graded(), provenance: { approximate: false } }] })],
     ["a source that doesn't say if it's approximate", (h) => ({ ...h, decisions: [{ ...graded(), provenance: { source: "charts" } }] })],
     ["a grade with no verdict", (h) => ({ ...h, decisions: [{ ...graded(), grade: { ...graded().grade, verdict: 3 } }] })],
+    ["a grade with a verdict the scale doesn't have", (h) => ({ ...h, decisions: [{ ...graded(), grade: { ...graded().grade, verdict: "Good" } }] })],
     ["a grade with no action", (h) => ({ ...h, decisions: [{ ...graded(), grade: { ...graded().grade, a: "x" } }] })],
     ["a grade with no best", (h) => ({ ...h, decisions: [{ ...graded(), grade: { ...graded().grade, best: -1 } }] })],
     ["a grade that's not ok or not", (h) => ({ ...h, decisions: [{ ...graded(), grade: { ...graded().grade, ok: 1 } }] })],
@@ -214,17 +233,31 @@ describe("keptHand", () => {
     ["a result with no winners", (h) => ({ ...h, result: { net: 1, folded: false, says: "", pays: {} } })],
     ["a result with no words", (h) => ({ ...h, result: { net: 1, folded: false, winners: [], pays: {} } })],
     ["a result with no pays", (h) => ({ ...h, result: { net: 1, folded: false, winners: [], says: "" } })],
+    ["a result's winner that's no seat", (h) => ({ ...h, result: { ...over, winners: [1] } })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["a result's winners with a hole in them", (h) => ({ ...h, result: { ...over, winners: [,] } })],
+    ["a result's pay that's no chips", (h) => ({ ...h, result: { ...over, pays: { SB: "1" } } })],
     ["an ante that's no number", (h) => ({ ...h, ante: "1" })],
     ["a pot drill that doesn't exist", (h) => ({ ...h, pot: "lib" })],
+    ["a pot drill named as what every object has", (h) => ({ ...h, pot: "toString" })],
     ["a drill's deals not counted", (h) => ({ ...h, tries: -1 })],
     ["stacks that aren't chips", (h) => ({ ...h, stacks: { SB: "100", BB: 100 } })],
     ["stacks that are no stacks", (h) => ({ ...h, stacks: 100 })],
     ["sizes that are no sizes", (h) => ({ ...h, sizes: 33 })],
+    ["sizes with no list", (h) => ({ ...h, sizes: { flop: 5 } })],
+    ["sizes on a street that has none", (h) => ({ ...h, sizes: { preflop: [33] } })],
+    ["a size that's a word", (h) => ({ ...h, sizes: { flop: ["33"] } })],
+    ["a size that's no number", (h) => ({ ...h, sizes: { flop: [NaN] } })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["sizes with a hole in them", (h) => ({ ...h, sizes: { flop: [,] } })],
     ["a rake that's no rake", (h) => ({ ...h, rake: { cap: 3 } })],
     ["a rake that's a number", (h) => ({ ...h, rake: 5 })],
+    ["a rake cap that's no number", (h) => ({ ...h, rake: { pct: 5, cap: "3" } })],
     ["a run-out of no kind", (h) => ({ ...h, run: "walked" })],
     ["rebuys that are no list", (h) => ({ ...h, rebuys: 1 })],
     ["rebuys that are no seats", (h) => ({ ...h, rebuys: [1] })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["rebuys with a hole in them", (h) => ({ ...h, rebuys: [,] })],
     ["a decision's move with no seat", (h) => ({ ...h, decisions: [{ ...graded(), move: { action: "call" } }] })],
     ["a decision's move of no kind", (h) => ({ ...h, decisions: [{ ...graded(), move: { pos: "SB", action: "dance" } }] })],
     ["a result with a rake that's no number", (h) => ({ ...h, result: { ...over, rake: "1" } })],
@@ -249,7 +282,11 @@ describe("keptHand", () => {
     expect(keptHand({ ...flop(), lines: { ...flop().lines, flop: [...flop().lines.flop, { pos: "BB", action: "raise", to: 6 }] } })).not.toBeNull();
     expect(keptHand({ ...flop(), lines: { ...flop().lines, flop: [...flop().lines.flop, { pos: "BB", action: "call" }] } })).not.toBeNull();
     expect(keptHand({ ...flop(), rake: { pct: 5 }, stacks: { SB: 100, BB: 100 }, rebuys: ["SB"], sizes: { flop: [33] }, ante: 0, run: "shown" })).not.toBeNull();
-    expect(keptHand({ ...flop(), result: { ...over, rake: 0.5 } })).not.toBeNull();
+    expect(keptHand({ ...flop(), result: { ...over, rake: 0.5, winners: ["SB"], pays: { SB: 3 } } })).not.toBeNull();
+    expect(keptHand({ ...flop(), rake: { pct: 5, cap: 3 }, sizes: { flop: [33, 75], turn: [50], river: [100], raise: [300] } })).not.toBeNull();
+    expect(keptHand({ ...flop(), decisions: [{ ...graded(), mix: [{ action: "fold", freq: 0.5, ev: null }, { action: "bet 33%", freq: 0.5, ev: null, amount: 3 }] }] })).not.toBeNull();
+    expect(keptHand({ ...flop(), decisions: [{ ...graded(), provenance: { ...prov("live"), exploitabilityPct: 1.2, targetPct: 2, iterations: 500, seconds: 3.1, mbbPerHand: 1 } }] })).not.toBeNull();
+    expect(keptHand({ ...flop(), decisions: [{ ...graded(), provenance: prov("library-turn") }] })).not.toBeNull();
   });
 
   it.each(bad)("won't take %s", (_, spoil) => {
@@ -259,9 +296,80 @@ describe("keptHand", () => {
   it("takes a size the table rounded, and no size it wouldn't have", () => {
     const raised = (to: number) => ({ ...flop(), lines: { ...flop().lines, flop: [...flop().lines.flop, { pos: "BB", action: "raise" as const, to }] } });
     expect(keptHand(raised(7.2))).not.toBeNull();
+    expect(keptHand(raised(7.3))).not.toBeNull();
     expect(keptHand(raised(6.2))).not.toBeNull();
-    // (the minimum is 6, and a clamped replay lifts this to it, which is no rounding)
+    expect(keptHand(raised(5.8))).not.toBeNull();
+    // (the minimum is 6, and a clamped replay lifts these to it, which is no rounding)
+    expect(keptHand(raised(5.7))).toBeNull();
     expect(keptHand(raised(4))).toBeNull();
+  });
+
+  // (each came from a fuzz: raises asked for under the minimum, lifted to it off the half bb, with all-in within a quarter
+  // bb past that minimum's nearest half, so the table's rounding sends the size to the all-in it stopped short of)
+  const short = (players: number, stack: number, seed: number, seat: string, o: HandOptions, stacks: Record<string, number>, preflop: Move[]): PracticeHand => ({
+    ...newHand(players, stack, 0, seed, { ...OPTS, ...o, seat }),
+    stacks,
+    lines: { ...noLines(), preflop },
+  });
+  const sevenFold = (to: number) =>
+    short(7, 40, 8139, "SB", { ante: 1, rake: 5 }, { UTG: 31.9, LJ: 7.64, HJ: 6.4, CO: 21.27, BTN: 17.41, SB: 16.93, BB: 1.94 }, [
+      { pos: "UTG", action: "call" },
+      { pos: "LJ", action: "call" },
+      { pos: "HJ", action: "raise", to: 2 },
+      { pos: "CO", action: "fold" },
+      { pos: "BTN", action: "all-in" },
+      { pos: "SB", action: "all-in" },
+      { pos: "UTG", action: "raise", to },
+    ]);
+
+  it.each<[string, PracticeHand]>([
+    ["a seven-max hand with an ante", sevenFold(30.82)],
+    [
+      "a straddled hand",
+      short(7, 20, 22208, "BTN", { ante: 0.25, straddle: true }, { UTG: 5.54, LJ: 12.6, HJ: 3.5, CO: 23.21, BTN: 2.86, SB: 16.58, BB: 15.81 }, [
+        { pos: "LJ", action: "call" },
+        { pos: "HJ", action: "all-in" },
+        { pos: "CO", action: "fold" },
+        { pos: "BTN", action: "all-in" },
+        { pos: "SB", action: "call" },
+        { pos: "BB", action: "call" },
+        { pos: "UTG", action: "raise", to: 5.25 },
+      ]),
+    ],
+    [
+      "a raise on the way back round",
+      short(6, 20, 28549, "HJ", { straddle: true }, { UTG: 20.57, HJ: 4.52, CO: 26.38, BTN: 16.64, SB: 16.2, BB: 20.22 }, [
+        { pos: "HJ", action: "call" },
+        { pos: "CO", action: "raise", to: 7 },
+        { pos: "BTN", action: "all-in" },
+        { pos: "SB", action: "all-in" },
+        { pos: "BB", action: "fold" },
+        { pos: "UTG", action: "call" },
+        { pos: "HJ", action: "call" },
+        { pos: "CO", action: "raise", to: 26.28 },
+      ]),
+    ],
+  ])("takes a minimum raise just short of all-in, in %s", (_, h) => {
+    expect(keptHand(structuredClone(h))).toEqual(h);
+  });
+
+  it("takes a raise on the half bb, with all-in less than a half bb past it", () => {
+    const h = short(7, 40, 8139, "SB", { ante: 1, rake: 5 }, { UTG: 31.9, LJ: 7.64, HJ: 6.4, CO: 21.27, BTN: 17.41, SB: 16.93, BB: 1.94 }, [{ pos: "UTG", action: "raise", to: 30.5 }]);
+    expect(keptHand(h)).toEqual(h);
+  });
+
+  it("takes what's after a minimum raise just short of all-in", () => {
+    const h = sevenFold(30.82);
+    expect(keptHand({ ...h, lines: { ...h.lines, preflop: [...h.lines.preflop, { pos: "LJ", action: "fold" }, { pos: "HJ", action: "fold" }] } })).not.toBeNull();
+  });
+
+  it.each([
+    ["past it", 30.95],
+    ["past it by the half bb the table would round to", 31],
+    ["at it, which the table calls an all-in", 30.9],
+    ["past the chips by far", 45],
+  ])("won't take a raise %s", (_, to) => {
+    expect(keptHand(sevenFold(to))).toBeNull();
   });
 
   it("says null, not an exception, whatever the doc holds", () => {
@@ -314,7 +422,9 @@ describe("keptTables", () => {
     ["a setup with no ante", spoiled({ opts: { ...OPTS, ante: "0" } })],
     ["a setup not straddled or not", spoiled({ opts: { ...OPTS, straddle: 0 } })],
     ["a setup not carrying chips or not", spoiled({ opts: { ...OPTS, carry: 0 } })],
+    ["a setup with a pot named as what every object has", spoiled({ opts: { ...OPTS, pot: "toString" } })],
     ["a setup with sizes that are no sizes", spoiled({ opts: { ...OPTS, sizes: 3 } })],
+    ["a setup with sizes with no list", spoiled({ opts: { ...OPTS, sizes: { flop: 5 } } })],
     ["a setup with no rake", spoiled({ opts: { ...OPTS, rake: "0" } })],
     ["a setup with no rake cap", spoiled({ opts: { ...OPTS, rakeCap: "0" } })],
     ["a session with no count of deals", spoiled({ dealt: -1 })],
@@ -331,8 +441,12 @@ describe("keptTables", () => {
     ["a pot with no net", spoiled({ byPot: { SRP: { ...emptyTally(), net: "1" } } })],
     ["a pot with a count that's no count", spoiled({ byPot: { SRP: { ...emptyTally(), hands: -1 } } })],
     ["a session with no sources", spoiled({ sources: null })],
+    ["a session counting no number of a source", spoiled({ sources: { live: "1" } })],
+    ["a session counting a source there are no words for", spoiled({ sources: { oracle: 1 } })],
     ["a session with no review", spoiled({ review: {} })],
     ["a review entry with nothing in it", spoiled({ review: [{}] })],
+    // eslint-disable-next-line no-sparse-arrays
+    ["a review with a hole in it", spoiled({ review: [,] })],
   ])("has nothing to use in %s", (_, x) => {
     expect(keptTables(x)).toBeNull();
   });
@@ -341,9 +455,10 @@ describe("keptTables", () => {
     const h = newHand(2, 100, 0, 7, OPTS);
     const r = decide(h, BAD, CALL, prov("live"));
     if ("error" in r) throw new Error(r.error);
-    const e = { n: 1, table: 2, seat: h.hero, players: 2, hole: h.hands[h.hero], board: [], line: "first to act", d: r.decision };
+    const e = { n: 1, table: 2, seat: h.hero, players: 2, hole: h.hands[h.hero], board: ["Ah", "Kd", "2c"], line: "first to act", d: r.decision };
     expect(keptTables(spoiled({ review: [e] }))?.session.review).toEqual([e]);
-    for (const spoil of [{ n: "1" }, { table: "2" }, { seat: 1 }, { players: "2" }, { hole: "AhKh" }, { board: "" }, { line: 1 }, { d: null }]) {
+    const ungraded = { ...r.decision, grade: null, provenance: null };
+    for (const spoil of [{ n: "1" }, { table: "2" }, { seat: 1 }, { players: "2" }, { hole: "AhKh" }, { hole: ["ZZ", "YY"] }, { hole: ["Ah"] }, { hole: ["Ah", "Kd", "2c"] }, { board: "" }, { board: ["ZZ"] }, { line: 1 }, { d: null }, { d: ungraded }]) {
       expect(keptTables(spoiled({ review: [{ ...e, ...spoil }] }))).toBeNull();
     }
   });
@@ -366,6 +481,14 @@ describe("keptTables", () => {
     const k = keptTables(doc({ tables: [{ hand: hand(0), stats: { hands: "x" }, last: { chose: 1 }, lastHand: { n: 1 } }, "x", null] }))!;
     expect(k.tables[0]).toEqual({ hand: hand(0), stats: emptyTally(), last: null, lastHand: null });
     expect(k.tables[1]).toBeNull();
+  });
+
+  it("reads a last decision with nothing in its mix as none, the table's hand and results kept", () => {
+    const h = newHand(2, 100, 0, 7, OPTS);
+    const r = decide(h, BAD, CALL, prov("live"));
+    if ("error" in r) throw new Error(r.error);
+    const k = keptTables(doc({ tables: [kept(hand(0), { last: { ...r.decision, mix: [null] } as unknown as KeptTable["last"] }), kept(hand(1))] }))!;
+    expect(k.tables[0]).toEqual({ hand: hand(0), stats: emptyTally(), last: null, lastHand: null });
   });
 
   it("keeps a tally, a last decision and a last hand that are sound", () => {
@@ -876,6 +999,127 @@ describe("Room's kept doc", () => {
       expect(writes()).toEqual([null]);
     });
 
+    describe("a write the browser refuses", () => {
+      const refuseOnce = () => vi.mocked(kvSet).mockImplementationOnce(() => Promise.reject(new Error("full")));
+
+      it("goes out again at the next save, though nothing has changed since", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        refuseOnce();
+        room.setTables(3);
+        await pass(1000);
+        expect((await stored())!.n).toBe(2);
+        room.pump();
+        expect((await stored())!.n).toBe(3);
+      });
+
+      it("goes out at the half second like any other, and isn't asked for twice", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        refuseOnce();
+        room.setTables(3);
+        await flush();
+        vi.mocked(kvSet).mockClear();
+        room.pump();
+        room.pump();
+        await pass(499);
+        expect(writes()).toEqual([]);
+        await pass(1);
+        expect(writes().map((d) => d!.n)).toEqual([3]);
+      });
+
+      it("goes out as the Room stops, with nothing else to send it", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        refuseOnce();
+        room.setTables(3);
+        await flush();
+        room.stop();
+        expect((await stored())!.n).toBe(3);
+      });
+
+      it("has a decision's save go out in the end, so a reload has the last of it", async () => {
+        const { room } = open({ hands: [hand(0, "UTG"), hand(1, "UTG")] });
+        room.start();
+        await pass(1000);
+        refuseOnce();
+        await play(room, () => room.snapshot().session.score.n >= 1);
+        const { score } = room.snapshot().session;
+        await flush();
+        room.stop();
+        expect((await stored())!.session.score).toEqual(score);
+      });
+
+      it("isn't tried over and over by itself", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        refuseOnce();
+        room.setTables(3);
+        vi.mocked(kvSet).mockClear();
+        await pass(5000);
+        expect(writes()).toEqual([]);
+      });
+
+      it("leaves a later write that went through as written", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        let refuse = (_: Error) => {};
+        vi.mocked(kvSet).mockImplementationOnce(() => new Promise((_, no) => (refuse = no)));
+        room.setTables(3);
+        room.setTables(4);
+        vi.mocked(kvSet).mockClear();
+        refuse(new Error("full"));
+        await flush();
+        room.pump();
+        await pass(2000);
+        expect(writes()).toEqual([]);
+      });
+
+      it("clears the doc after all when going to one table was refused, and a reload is then fresh", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        const { id } = room.snapshot().session;
+        refuseOnce();
+        room.setTables(1);
+        await pass(1000);
+        expect(await stored()).not.toBeNull();
+        room.pump();
+        expect(await stored()).toBeNull();
+        room.stop();
+        const { room: back } = await reload({}, solver({ quiet: true }));
+        expect(back.snapshot().tables).toHaveLength(1);
+        expect(back.snapshot().session.id).not.toBe(id);
+      });
+
+      it("clears the doc as the Room stops, with nothing else to send it", async () => {
+        const { room } = open({ tables: 2 }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        refuseOnce();
+        room.setTables(1);
+        await flush();
+        room.stop();
+        expect(await stored()).toBeNull();
+      });
+
+      it("clears a doc it couldn't use after all where a New session's clearing was refused", async () => {
+        await put({ ...doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]), v: 2 });
+        const { room } = await reload({}, solver({ quiet: true }));
+        refuseOnce();
+        room.startSession(6, 100, OPTS);
+        await flush();
+        expect(await stored()).not.toBeNull();
+        room.stop();
+        expect(await stored()).toBeNull();
+      });
+    });
+
     it("lives with a browser that won't take the doc", async () => {
       const { room } = open({ tables: 2 }, solver({ quiet: true }));
       room.start();
@@ -1069,6 +1313,8 @@ describe("Room's kept doc", () => {
       expect(room.snapshot().tables).toHaveLength(1);
       expect(room.snapshot().session.id).not.toBe(d.session.id);
       expect(calls.length).toBeGreaterThan(0);
+      await play(room, () => room.snapshot().session.score.n >= 1);
+      room.stop();
       expect(writes()).toEqual([]);
       expect(await stored()).toEqual(d);
     });
@@ -1087,8 +1333,10 @@ describe("Room's kept doc", () => {
       await flush();
       expect(room.snapshot().tables).toHaveLength(1);
       expect(calls.length).toBeGreaterThan(0);
+      await play(room, () => room.snapshot().session.score.n >= 1);
       room.stop();
       expect(writes()).toEqual([]);
+      expect(await stored()).toEqual(d);
     });
 
     it("starts fresh on a read that hangs, at KEPT_WAIT, and leaves the doc alone", async () => {
@@ -1102,10 +1350,57 @@ describe("Room's kept doc", () => {
       expect(calls.length).toBeGreaterThan(0);
       expect(room.snapshot().tables).toHaveLength(1);
       expect(room.snapshot().session.id).not.toBe(d.session.id);
+      await play(room, () => room.snapshot().session.score.n >= 1);
       room.stop();
       await pass(2000);
       expect(writes()).toEqual([]);
       expect(await stored()).toEqual(d);
+    });
+
+    describe.each<[string, () => RoomOptions["readKept"]]>([
+      ["hangs", () => () => new Promise(() => {})],
+      ["fails", () => () => Promise.reject(new Error("no database"))],
+      ["holds another version", () => () => Promise.resolve({ v: 2 })],
+    ])("where the read %s", (_, read) => {
+      it("leaves the doc alone through a hand played out at one table and the start of the next", async () => {
+        const d = doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]);
+        await put(d);
+        const { room } = open({ readKept: read() });
+        room.start();
+        await pass(1000);
+        await play(room, () => room.snapshot().session.hands >= 1, 0);
+        room.nextHand();
+        await pass(2000);
+        room.stop();
+        expect(writes()).toEqual([]);
+        expect(await stored()).toEqual(d);
+      });
+
+      it("leaves the doc alone through a move with no answer to grade it against", async () => {
+        const d = doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]);
+        await put(d);
+        const answers = solver();
+        answers.client.solve = () => Promise.reject(new Error("no answer"));
+        const { room } = open({ readKept: read() }, answers);
+        room.start();
+        await pass(1000);
+        await play(room, () => !!room.snapshot().tables[0]!.failed && !!room.snapshot().tables[0]!.turnKey);
+        room.ungraded({ action: "call" });
+        await pass(2000);
+        room.stop();
+        expect(room.snapshot().tables[0]!.hand.decisions).toHaveLength(1);
+        expect(writes()).toEqual([]);
+        expect(await stored()).toEqual(d);
+      });
+
+      it("gives the doc up all the same with a New session", async () => {
+        await put(doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]));
+        const { room } = open({ readKept: read() }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        room.startSession(6, 100, OPTS);
+        expect(writes()).toEqual([null]);
+      });
     });
 
     it("ignores a read that answers after KEPT_WAIT: the fresh session has begun", async () => {

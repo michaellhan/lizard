@@ -107,7 +107,7 @@ export const POT_DRILLS: Record<PotDrill, { label: string; one: string; tip: str
   "3bet": { label: "3-bet pots", one: "a 3-bet pot", tip: "Heads-up after a 3-bet and a call: the preflop is played for you, you play from the flop" },
   bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "Small blind against big blind, folded to them: the preflop is played for you, you play from the flop" },
 };
-export const isPotDrill = (x: unknown): x is PotDrill => typeof x === "string" && x in POT_DRILLS;
+export const isPotDrill = (x: unknown): x is PotDrill => typeof x === "string" && Object.hasOwn(POT_DRILLS, x);
 /** the deals a drill hand may take to reach its pot */
 export const DRILL_TRIES = 400;
 const BLINDS = ["SB", "BB"];

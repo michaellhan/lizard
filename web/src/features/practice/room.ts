@@ -20,7 +20,8 @@
 // them, or at KEPT_WAIT. Answers aren't kept, so that's where a restored session's requests begin: each table asks what it
 // needs from where its hand stands, as any table does, your spot again, an opponent's move drawn afresh, a next hand after
 // `pause`. The doc is written at once after a decision, a hand's end or a change of tables and otherwise at most twice a
-// second, and `stop` flushes. At one table nothing is kept: a reload starts fresh.
+// second, and `stop` flushes, as a write the browser refused is tried again at the next save. At one table nothing is
+// kept: a reload starts fresh, and only going down to one table or a New session clears the doc.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addHandToPot, emptyTally, type PotTally } from "@/features/history/history";
@@ -250,12 +251,14 @@ export class Room {
   private wrote: PracticeSession | null = null;
   /** the mode last played, to see a flip */
   private played: SolveMode;
-  /** what the doc holds as far as this Room knows: null, nothing; undefined, no read has said */
+  /** what the doc holds as far as this Room knows: null, nothing; undefined, it can't say: no read has said, or a write was refused */
   private saved: KeptTables | null | undefined;
   private savedAt = -Infinity;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** the next save goes at once */
   private saveNow = false;
+  /** the doc's session is over, for a move to one table or a New session, so one table's save clears it */
+  private clearDoc = false;
 
   private solver: RoomSolver | null = null;
   private client: RoomClient | null = null;
@@ -342,10 +345,10 @@ export class Room {
   }
 
   /** Leaving: the flight is stopped, and stays until it settles, so a `start` can't send beside it. A save still waiting
-   * goes now, as nothing would come back for it. */
+   * goes now, or one that was refused, as nothing would come back for it. */
   stop(): void {
     if (!this.live) return;
-    if (this.saveTimer !== undefined) this.save(true);
+    this.save(true);
     this.live = false;
     this.run += 1;
     this.offSettings?.();
@@ -380,7 +383,7 @@ export class Room {
       if (run !== this.run || !this.holding) return;
       this.endHold();
       // (nothing done during the read is a reason to touch a doc nobody had seen)
-      this.saveNow = false;
+      this.clearDoc = false;
       if (doc) this.restore(doc);
       this.pump();
     };
@@ -450,7 +453,7 @@ export class Room {
     this.front = FREE;
     this.resetStacks = false;
     this.endHold();
-    this.saveNow = true;
+    this.saveNow = this.clearDoc = true;
     this.pump();
   }
 
@@ -479,7 +482,7 @@ export class Room {
       else this.session = afterDeal(this.session);
     }
     if (this.front.focus >= to) this.front = FREE;
-    if (to === 1) this.resetStacks = true;
+    if (to === 1) this.resetStacks = this.clearDoc = true;
     this.saveNow = true;
     this.pump();
   }
@@ -1019,12 +1022,13 @@ export class Room {
   /** The doc into this browser where it's changed: at once after a decision, a hand's end, a change of tables or a New
    * session, otherwise at most twice a second, as a drill's deals flash by (multitable.js:63-72, though a save waiting
    * here isn't put off by the next change, so a stream of them can't starve it). At one table nothing is kept, and only
-   * those last two clear what's there: nothing else is a reason to touch a doc this Room couldn't read. Two tabs: the last to
+   * `clearDoc` clears what's there: nothing else is a reason to touch a doc this Room couldn't read. A write the browser
+   * refuses leaves `saved` unsaid, unless a later one has claimed it, so the next save tries again. Two tabs: the last to
    * write wins. */
   private save(force = this.saveNow): void {
     if (!this.persist || !this.live || this.holding) return;
     const doc = this.many ? this.doc() : null;
-    const changed = doc ? !sameKept(doc, this.saved) : force && this.saved !== null;
+    const changed = doc ? !sameKept(doc, this.saved) : this.clearDoc && this.saved !== null;
     const left = this.savedAt + SAVE_EVERY - this.now();
     if (changed && !force && left > 0) {
       this.saveTimer ??= setTimeout(() => this.save(true), Math.ceil(left));
@@ -1036,6 +1040,8 @@ export class Room {
     if (!changed) return;
     this.saved = doc;
     this.savedAt = this.now();
-    void kvSet(KEPT_KEY, doc).catch(() => {});
+    void kvSet(KEPT_KEY, doc).catch(() => {
+      if (this.saved === doc) this.saved = undefined;
+    });
   }
 }

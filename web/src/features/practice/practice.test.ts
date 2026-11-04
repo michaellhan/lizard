@@ -11,6 +11,7 @@ import {
   finish,
   following,
   heroSeat,
+  isPotDrill,
   newHand,
   offDrill,
   phaseOf,
@@ -267,6 +268,13 @@ describe("seats and dealing", () => {
       turn: [],
       river: [],
     });
+  });
+});
+
+describe("a drill's pot", () => {
+  it("is a drill by name, and no name every object has", () => {
+    expect(["srp", "3bet", "bvb"].every(isPotDrill)).toBe(true);
+    expect(["toString", "constructor", "hasOwnProperty", "__proto__", "any", "lib", "", null, undefined, 1].some(isPotDrill)).toBe(false);
   });
 });
 

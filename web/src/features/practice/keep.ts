@@ -2,11 +2,16 @@
 // the session and every table's hand and results, those set aside too. At one table nothing is kept, and a reload starts
 // fresh as it always has. A hand's result and the totals it went into are in the one doc, written together or not at all,
 // so a reload can't count a hand twice. A doc can outlive the code that wrote it, so it's read like anything else from
-// outside: `keptTables` says what can be used, and a hand that won't replay comes back as null, its table's results kept,
+// outside: `keptTables` says what can be used, down to what's in each list, as the views draw what they're given and a
+// throw there blanks the page on every load, and a hand that won't replay comes back as null, its table's results kept,
 // for the Room to deal again. Pure: when the doc is written, and what's done about a lost hand, are the Room's.
 import { emptyTally, type PotTally } from "@/features/history/history";
+import { SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
+import { GRADE_RULES } from "@/grading/grade";
 import { SEATS, seatsOf } from "@/poker/seats";
-import { DECK, NEED, noLines, recordOf, simulate, STREETS, withMove, type Lines, type Move, type Street } from "@/poker/table";
+import { DECK, legal, NEED, noLines, recordOf, simulate, STREETS, withMove, type Lines, type Move, type Street } from "@/poker/table";
+import { sourceLabel } from "@/solver/provenance";
+import type { ResultSource } from "@/solver/types";
 import { isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type PracticeHand } from "./practice";
 import type { PracticeSession } from "./session";
 
@@ -45,16 +50,28 @@ const isCount = (x: unknown): x is number => Number.isInteger(x) && (x as number
 const isStr = (x: unknown): x is string => typeof x === "string";
 const isBool = (x: unknown): x is boolean => typeof x === "boolean";
 const isCountOf = (x: unknown): x is KeptTables["n"] => x === 2 || x === 3 || x === 4;
+/** A list of `is` and nothing else (`every` alone steps over a hole in a list, which a view then reads). */
+const isList = (x: unknown, is: (y: unknown) => boolean): x is unknown[] => Array.isArray(x) && [...x].every(is);
+const isCards = (x: unknown): x is string[] => isList(x, (c) => DECK.includes(c as string));
 /** unset, or as `is` says */
 const opt = (x: unknown, is: (y: unknown) => boolean) => x === undefined || is(x);
 
 const MOVES: readonly string[] = ["fold", "check", "call", "bet", "raise", "all-in"];
 const isMove = (x: unknown): x is Move => isObj(x) && isStr(x.pos) && MOVES.includes(x.action as string) && opt(x.to, isNum);
-const isLines = (x: unknown): x is Lines => isObj(x) && STREETS.every((s) => Array.isArray(x[s]) && x[s].every(isMove));
+const isLines = (x: unknown): x is Lines => isObj(x) && STREETS.every((s) => isList(x[s], isMove));
 
-const isResult = (x: unknown): x is HandResult => isObj(x) && isNum(x.net) && isBool(x.folded) && Array.isArray(x.winners) && isStr(x.says) && isObj(x.pays) && opt(x.rake, isNum);
-const isGrade = (x: unknown) => isObj(x) && isCount(x.a) && isCount(x.best) && isStr(x.verdict) && isBool(x.ok) && isNum(x.loss) && isNum(x.lossPct) && isBool(x.byEv);
-const isProvenance = (x: unknown) => isObj(x) && isStr(x.source) && isBool(x.approximate);
+const isResult = (x: unknown): x is HandResult =>
+  isObj(x) && isNum(x.net) && isBool(x.folded) && isList(x.winners, isStr) && isStr(x.says) && isObj(x.pays) && Object.values(x.pays).every(isNum) && opt(x.rake, isNum);
+const isGrade = (x: unknown) =>
+  isObj(x) && isCount(x.a) && isCount(x.best) && GRADE_RULES.some((r) => r.verdict === x.verdict) && isBool(x.ok) && isNum(x.loss) && isNum(x.lossPct) && isBool(x.byEv);
+/** A source there are words for: a number shown with one the page can't name has no source. */
+const isSource = (x: unknown) => isStr(sourceLabel(x as ResultSource));
+/** Who answered, and its figures, which the badge prints with `toFixed`. */
+const isProvenance = (x: unknown) => isObj(x) && isSource(x.source) && isBool(x.approximate) && [x.exploitabilityPct, x.targetPct, x.iterations, x.seconds, x.mbbPerHand].every((n) => opt(n, isNum));
+/** An action of the answer's, as the decision's table draws it. */
+const isMix = (x: unknown) => isObj(x) && isStr(x.action) && isNum(x.freq) && (x.ev === null || isNum(x.ev)) && opt(x.amount, isNum);
+/** Your own sizes, a list of % of the pot for each street that has them. */
+const isSizes = (x: unknown) => isObj(x) && Object.entries(x).every(([k, v]) => SIZE_STREETS.includes(k as SizeStreet) && isList(v, isNum));
 
 /** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. */
 const isDecision = (x: unknown): x is Decision =>
@@ -62,7 +79,7 @@ const isDecision = (x: unknown): x is Decision =>
   STREETS.includes(x.street as Street) &&
   isStr(x.chose) &&
   isMove(x.move) &&
-  Array.isArray(x.mix) &&
+  isList(x.mix, isMix) &&
   isNum(x.pot) &&
   isStr(x.study) &&
   (x.grade === null ? x.provenance === null : isGrade(x.grade) && isProvenance(x.provenance));
@@ -76,30 +93,30 @@ const isHand = (x: unknown): x is PracticeHand =>
   x.stack > 0 &&
   [0, 3, 4, 5].includes(x.shown as number) &&
   isLines(x.lines) &&
-  Array.isArray(x.decisions) &&
-  x.decisions.every(isDecision) &&
+  isList(x.decisions, isDecision) &&
   (x.result === null || isResult(x.result)) &&
   opt(x.ante, isNum) &&
   opt(x.pot, isPotDrill) &&
   opt(x.tries, isCount) &&
   opt(x.stacks, (s) => isObj(s) && Object.values(s).every(isNum)) &&
-  opt(x.rebuys, (r) => Array.isArray(r) && r.every(isStr)) &&
-  opt(x.sizes, isObj) &&
-  opt(x.rake, (r) => isObj(r) && isNum(r.pct)) &&
+  opt(x.rebuys, (r) => isList(r, isStr)) &&
+  opt(x.sizes, isSizes) &&
+  opt(x.rake, (r) => isObj(r) && isNum(r.pct) && opt(r.cap, isNum)) &&
   opt(x.run, (r) => r === "played" || r === "shown");
 
 /** You at the table, every seat with two cards and five on the board, all from one deck. */
 function cardsFit(h: PracticeHand): boolean {
   const seats = seatsOf(h.players);
   if (!seats.includes(h.hero) || Object.keys(h.hands).length !== seats.length || h.board.length !== 5) return false;
-  if (!seats.every((p) => Array.isArray(h.hands[p]) && h.hands[p].length === 2)) return false;
+  if (!seats.every((p) => isCards(h.hands[p]) && h.hands[p].length === 2)) return false;
   const cards = [...seats.flatMap((p) => h.hands[p]!), ...h.board];
-  return new Set(cards).size === cards.length && cards.every((c) => DECK.includes(c));
+  return new Set(cards).size === cards.length && isCards(cards);
 }
 
 /** The lines played again from the first move, each by the seat to act on a street that's open, and taken by the table as
- * the move it is (a size as far as the table rounds it: a minimum raise on carried chips isn't on the half bb), and a table
- * that can go on: an unfinished hand with nothing left to happen would wait for ever. */
+ * the move it is (a size as far as the table rounds it, short of all-in: a minimum raise on carried chips isn't on the half
+ * bb and could round up to the all-in it stopped short of, so it's asked for no more than the last half under that, for the
+ * clamp to lift it back), and a table that can go on: an unfinished hand with nothing left to happen would wait for ever. */
 function replays(h: PracticeHand): boolean {
   const t = setupOf(h);
   let lines = noLines();
@@ -107,8 +124,10 @@ function replays(h: PracticeHand): boolean {
     for (const m of h.lines[street]) {
       if (NEED[street] > h.shown) return false;
       const sim = simulate(t, lines, NEED[street]);
-      const r = recordOf(t, sim, { action: m.action, to: m.to, clamp: true });
-      if (sim.current !== street || typeof r === "string" || r.pos !== m.pos || r.action !== m.action || Math.abs((r.to ?? 0) - (m.to ?? 0)) > 0.25) return false;
+      const size = m.to ?? 0;
+      const allInTo = legal(t, sim)?.allInTo ?? 0;
+      const r = recordOf(t, sim, { action: m.action, to: Math.min(size, Math.ceil(allInTo * 2) / 2 - 0.5), clamp: true });
+      if (sim.current !== street || typeof r === "string" || r.pos !== m.pos || r.action !== m.action || Math.abs((r.to ?? 0) - size) > 0.25 || size >= allInTo) return false;
       lines = withMove(lines, street, m);
     }
   }
@@ -135,11 +154,12 @@ const isOpts = (x: unknown) =>
   isNum(x.ante) &&
   isBool(x.straddle) &&
   isBool(x.carry) &&
-  (x.sizes === null || isObj(x.sizes)) &&
+  (x.sizes === null || isSizes(x.sizes)) &&
   isNum(x.rake) &&
   isNum(x.rakeCap);
+/** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
-  isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && Array.isArray(x.hole) && Array.isArray(x.board) && isStr(x.line) && isDecision(x.d);
+  isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null;
 
 const isSession = (x: unknown): x is PracticeSession =>
   isObj(x) &&
@@ -156,8 +176,8 @@ const isSession = (x: unknown): x is PracticeSession =>
   isObj(x.byPot) &&
   Object.values(x.byPot).every(isTally) &&
   isObj(x.sources) &&
-  Array.isArray(x.review) &&
-  x.review.every(isReviewed);
+  Object.entries(x.sources).every(([k, n]) => isSource(k) && isCount(n)) &&
+  isList(x.review, isReviewed);
 
 /** A place in the doc: a hand of another game is as lost as one that won't replay, since the table deals on from it. */
 function keptTable(x: unknown, s: PracticeSession): KeptTable | null {
