@@ -5,6 +5,7 @@ import { putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { SolverClient } from "@/solver/client";
 import type { AdvisorResponse, AdvisorState, PlayMove, WorkerInbound, WorkerOutbound } from "@/solver/protocol";
+import { useRuntime } from "@/solver/runtime";
 import { SolverError, type PlayRequest, type Provenance, type SolveMode, type SolveRequest, type SolveResult } from "@/solver/types";
 import { WorkerTransport } from "@/solver/worker-transport";
 import { useSettings } from "@/state/settings";
@@ -80,6 +81,56 @@ function fakeClient({ deaf = false } = {}) {
     prefetch: (state) => prefetched.push(state),
   };
   return { client, asked, prefetched };
+}
+
+/** Stands in for the Pyodide worker, under the real client and transport: takes what it's sent, and says only what it's
+ * told to, so unprompted it gives no answer and no pong. */
+class FakeWorker {
+  posted: WorkerInbound[] = [];
+  terminated = false;
+  onmessage: ((e: MessageEvent<WorkerOutbound>) => void) | null = null;
+  onerror: ((e: ErrorEvent) => void) | null = null;
+  postMessage(m: WorkerInbound) {
+    this.posted.push(m);
+  }
+  terminate() {
+    this.terminated = true;
+  }
+  reply(m: WorkerOutbound) {
+    this.onmessage?.({ data: m } as MessageEvent<WorkerOutbound>);
+  }
+  get asks() {
+    return this.posted.filter((m): m is Extract<WorkerInbound, { state: unknown }> => "state" in m);
+  }
+  /** the flops it has been told */
+  get told() {
+    return this.posted.filter((m) => "prefetch" in m);
+  }
+  /** Up and answering the last request. */
+  answer(result: unknown) {
+    this.reply({ status: "Solving…" });
+    this.reply({ id: this.asks.at(-1)!.id, result: result as AdvisorResponse });
+  }
+}
+
+/** The real client and transport on fake workers, on a page that can share a stop flag. */
+function realClient() {
+  const workers: FakeWorker[] = [];
+  const client = new SolverClient(
+    new WorkerTransport({
+      assetBase: "/s/",
+      version: "v",
+      libraryBase: "/l/",
+      crossOriginIsolated: true,
+      createWorker: () => {
+        const w = new FakeWorker();
+        workers.push(w);
+        return w as unknown as Worker;
+      },
+    }),
+    "test",
+  );
+  return { client, workers };
 }
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
@@ -344,6 +395,66 @@ describe("Room failures", () => {
     expect(asked).toHaveLength(2);
   });
 
+  it("asks a spot again in a new session, though the same cards come up: a failure stays with its session", async () => {
+    const { room, asked } = setup({ players: 2, seedOf: () => 7 });
+    await flush();
+    asked[0]!.reject(new SolverError("unreachable", "could not reach the solver"));
+    await flush();
+    expect(table(room).failed).toBe("could not reach the solver");
+
+    room.startSession(2, 100, OPTS);
+    await flush();
+    expect(asked).toHaveLength(2);
+    expect(asked[1]!.state).toEqual(asked[0]!.state);
+    expect(table(room).failed).toBeNull();
+  });
+
+  it("stores no failure from a request it had stopped: a rejection, and the spot wanted again is asked again", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    useSettings.setState({ mode: "accurate" });
+    useSettings.setState({ mode: "fast" });
+    await flush();
+    expect(asked[0]!.signal!.aborted).toBe(true);
+    expect(asked).toHaveLength(1);
+
+    // (an HTTP solve goes on past a stop, and can end in a 500 rather than a cancel)
+    asked[0]!.reject(new SolverError("solver-error", "HTTP 500"));
+    await flush();
+    expect(table(room).failed).toBeNull();
+    expect(asked).toHaveLength(2);
+    expect(asked[1]).toMatchObject({ mode: "quick", state: asked[0]!.state });
+    asked[1]!.answer(CHART);
+    await flush();
+    expect(table(room).answer).not.toBeNull();
+  });
+
+  it("stores no failure from a request it had stopped: an {error}, and the spot wanted again is asked again", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    useSettings.setState({ mode: "accurate" });
+    useSettings.setState({ mode: "fast" });
+    await flush();
+    asked[0]!.answer({ error: "no such node" });
+    await flush();
+    expect(table(room).failed).toBeNull();
+    expect(asked).toHaveLength(2);
+  });
+
+  it("keeps the failure of the request asked again: only a stopped one is passed over", async () => {
+    const { room, asked } = setup({ deaf: true, players: 2 });
+    await flush();
+    useSettings.setState({ mode: "accurate" });
+    useSettings.setState({ mode: "fast" });
+    await flush();
+    asked[0]!.reject(new SolverError("solver-error", "HTTP 500"));
+    await flush();
+    asked[1]!.reject(new SolverError("solver-error", "HTTP 500"));
+    await flush();
+    expect(table(room).failed).toBe("HTTP 500");
+    expect(asked).toHaveLength(2);
+  });
+
   it("clears the failure on Retry, and asks again", async () => {
     const { room, asked } = setup({ players: 2 });
     await flush();
@@ -512,43 +623,15 @@ describe("Room restarts", () => {
   });
 
   it("restarts for real, through the client and the transport: the spot goes to a new worker", async () => {
-    /** Starts up, takes requests, and never says another word: no answer, no pong. */
-    class SilentWorker {
-      posted: WorkerInbound[] = [];
-      terminated = false;
-      onmessage: ((e: MessageEvent<WorkerOutbound>) => void) | null = null;
-      onerror: ((e: ErrorEvent) => void) | null = null;
-      postMessage(m: WorkerInbound) {
-        this.posted.push(m);
-      }
-      terminate() {
-        this.terminated = true;
-      }
-    }
-    const workers: SilentWorker[] = [];
-    const client = new SolverClient(
-      new WorkerTransport({
-        assetBase: "/s/",
-        version: "v",
-        libraryBase: "/l/",
-        crossOriginIsolated: true,
-        createWorker: () => {
-          const w = new SilentWorker();
-          workers.push(w);
-          return w as unknown as Worker;
-        },
-      }),
-      "test",
-    );
-    const asks = (w: SilentWorker) => w.posted.filter((m): m is Extract<WorkerInbound, { state: unknown }> => "state" in m);
+    const { client, workers } = realClient();
 
     const { room } = setup({ players: 2, start: false });
     room.setSolver(async () => client);
     room.start();
     await flush();
     const w = workers[0]!;
-    w.onmessage?.({ data: { status: "Solving…" } } as MessageEvent<WorkerOutbound>);
-    expect(asks(w)).toHaveLength(1);
+    w.reply({ status: "Solving…" });
+    expect(w.asks).toHaveLength(1);
 
     useSettings.setState({ mode: "accurate" });
     useSettings.setState({ mode: "fast" });
@@ -561,12 +644,46 @@ describe("Room restarts", () => {
     expect(table(room).failed).toBeNull();
 
     expect(workers).toHaveLength(2);
-    expect(asks(workers[1]!)).toHaveLength(1);
-    expect(asks(workers[1]!)[0]!.state).toEqual(asks(w)[0]!.state);
-    workers[1]!.onmessage?.({ data: { status: "Solving…" } } as MessageEvent<WorkerOutbound>);
-    workers[1]!.onmessage?.({ data: { id: asks(workers[1]!)[0]!.id, result: CHART } } as MessageEvent<WorkerOutbound>);
+    expect(workers[1]!.asks).toHaveLength(1);
+    expect(workers[1]!.asks[0]!.state).toEqual(w.asks[0]!.state);
+    workers[1]!.answer(CHART);
     await flush();
     expect(optionsOf(table(room).answer?.data).map((a) => a.action)).toEqual(["fold", "call", "raise 2.5"]);
+  });
+
+  it("gets the flop to a new worker, once: what the last one fetched ahead went with it", async () => {
+    const { client, workers } = realClient();
+    const { room } = setup({ players: 2, start: false, pace: 0 });
+    room.setSolver(async () => client);
+    room.start();
+    await flush();
+    const w = workers[0]!;
+    w.answer(CHART);
+    await flush();
+    room.choose(2);
+    await flush();
+    w.answer(move("call"));
+    await pass(1000);
+    expect(table(room).hand.shown).toBe(3);
+    expect(w.told).toHaveLength(1);
+
+    // the big blind's flop move stopped and wanted again, and the worker silent
+    useSettings.setState({ mode: "accurate" });
+    useSettings.setState({ mode: "fast" });
+    await pass(15_000);
+    expect(room.snapshot().restarts).toBe(1);
+    const next = workers[1]!;
+    expect(next.told).toEqual(w.told);
+
+    // (the turn is the same flop: not told again)
+    next.answer(move("check"));
+    await flush();
+    next.answer(FLOP);
+    await flush();
+    room.choose(0);
+    await flush();
+    expect(table(room).hand.shown).toBe(4);
+    expect(next.told).toHaveLength(1);
   });
 });
 
@@ -1069,6 +1186,71 @@ describe("Room hands", () => {
     await flush();
     expect(table(room).hand.shown).toBe(4);
     expect(prefetched).toHaveLength(1);
+  });
+
+  it("tells a new client the flop on the table", async () => {
+    const { room, asked, prefetched } = setup({ players: 2, pace: 0 });
+    await toFlop(room, asked);
+    const next = fakeClient();
+    room.setSolver(async () => next.client);
+    await flush();
+    expect(next.asked).toHaveLength(1);
+    expect(next.prefetched).toEqual(prefetched);
+  });
+});
+
+describe("Room on the app's runtime", () => {
+  afterEach(() => {
+    useRuntime.getState().client?.dispose();
+    useRuntime.setState({ client: null, key: "" });
+    vi.unstubAllGlobals();
+  });
+
+  /** As a page's first launch runs, with the default settings still in hand, an "auto" library's HEAD held open. */
+  function firstLoad() {
+    const workers: FakeWorker[] = [];
+    const heads: ((r: Response) => void)[] = [];
+    vi.stubGlobal(
+      "Worker",
+      class extends FakeWorker {
+        constructor() {
+          super();
+          workers.push(this);
+        }
+      },
+    );
+    vi.stubGlobal("fetch", (_url: string, init?: RequestInit) =>
+      init?.method === "HEAD" ? new Promise<Response>((res) => heads.push(res)) : Promise.resolve(new Response("{}", { status: 404 })),
+    );
+    const solverAt = (librarySource: string) => () => useRuntime.getState().ensure({ transport: "worker", localSolverUrl: "http://x", librarySource });
+    return { workers, heads, solverAt };
+  }
+
+  it("boots one worker where a saved library comes in while the first launch waits on the default's", async () => {
+    const { workers, heads, solverAt } = firstLoad();
+    const { room } = setup({ players: 2, start: false });
+    room.setSolver(solverAt("auto"));
+    room.start();
+    await flush();
+    room.setSolver(solverAt("lizard-library"));
+    await flush();
+    expect(workers).toHaveLength(1);
+
+    // the older ensure's HEAD comes back last
+    heads[0]!(new Response("", { status: 200 }));
+    await flush();
+    expect(useRuntime.getState().key).toBe("worker|http://x|lizard-library");
+
+    // the next launch finds the client it was using, on the same worker
+    const w = workers[0]!;
+    w.answer(CHART);
+    await flush();
+    expect(table(room).answer).not.toBeNull();
+    room.choose(2);
+    await flush();
+    expect(workers).toHaveLength(1);
+    expect(w.terminated).toBe(false);
+    expect(w.asks).toHaveLength(2);
   });
 });
 

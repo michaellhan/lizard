@@ -43,6 +43,9 @@ export class WorkerTransport implements SolverTransport {
   private nextId = 1;
   private current: InFlight | null = null;
   private pings = 0;
+  /** the flop last told, for each worker to come: what one has fetched ahead goes with it (the classic startWorker
+   * forgets what it told the last, and the page tells again) */
+  private flop: AdvisorState | null = null;
   /** runs out if the stopped request's worker stays silent; only ever set with that request still current */
   private stuckTimer: ReturnType<typeof setTimeout> | undefined;
   private listeners = new Set<(s: RuntimeStatus) => void>();
@@ -107,6 +110,8 @@ export class WorkerTransport implements SolverTransport {
       this.stop = new Int32Array(sab);
       this.post({ stop: sab });
     }
+    // (ahead of any request, as classic posts it after startWorker: the worker waits for its runtime first)
+    if (this.flop) this.post({ prefetch: this.flop });
     return w;
   }
 
@@ -221,8 +226,9 @@ export class WorkerTransport implements SolverTransport {
     this.failCurrent(err);
   }
 
+  /** With no worker running it waits for the next (a stop has ended the last, say). */
   prefetch(state: AdvisorState): void {
-    if (!this.worker) return;
+    this.flop = state;
     this.post({ prefetch: state });
   }
 

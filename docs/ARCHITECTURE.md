@@ -124,6 +124,9 @@ legacy guard, `index.html:1173-1189`).
 
 A boot failure marks the status `failed` and rejects the request. The next request retries with a fresh worker.
 
+What a worker has fetched ahead for a flop goes with it, so the transport keeps the flop last told and tells each new
+worker, ahead of its first request.
+
 **`HttpTransport`** posts the same `AdvisorState` to the user's own `gto.server` (`POST /advise`; `POST /cancel` to
 stop; `GET /health` to probe). Long Python solves never run on a hosted service: there is no Lizard server, and
 Cloudflare Workers are not used for solving.
@@ -133,6 +136,10 @@ Cloudflare Workers are not used for solving.
 `RuntimeStatus` (`idle | booting | ready | busy | failed`, plus the message, boot timings, thread counts and
 isolation) is published by the transport through the Zustand `useRuntime` store. `EngineStatusPill` (header) and the
 Engine page (`/engine`) show it.
+
+The store's `ensure` holds the one client for the settings. Settings can change while a call waits on the library's
+HEAD, so only the last call begun may set the client: an older one builds nothing and answers with the last one's
+client. A client is disposed only as another replaces it.
 
 ### 3.5 Errors
 

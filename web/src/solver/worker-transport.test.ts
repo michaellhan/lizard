@@ -125,6 +125,65 @@ describe("WorkerTransport", () => {
   });
 });
 
+describe("WorkerTransport: the flop told", () => {
+  const flop = { players: 2, board: "Ks7d2c" };
+  const told = (w: FakeWorker) => w.posted.filter((m) => "prefetch" in m);
+  /** A request stopped where the only stop ends the worker. */
+  async function killed(t: WorkerTransport) {
+    const ac = new AbortController();
+    const p = t.request({ players: 2 }, { progressive: false, signal: ac.signal });
+    t.prefetch(flop);
+    ac.abort();
+    await expect(p).rejects.toMatchObject({ kind: "cancelled" });
+  }
+
+  it("tells the worker at once", () => {
+    const { t, workers } = setup(false);
+    void t.request({ players: 2 }, { progressive: false }).catch(() => {});
+    t.prefetch(flop);
+    expect(told(workers[0]!)).toEqual([{ prefetch: flop }]);
+  });
+
+  it("tells each new worker too, ahead of its first request: what the last fetched ahead went with it", async () => {
+    const { t, workers } = setup(false);
+    await killed(t);
+    expect(told(workers[0]!)).toHaveLength(1);
+
+    void t.request({ players: 3 }, { progressive: false }).catch(() => {});
+    const next = workers[1]!;
+    expect(told(next)).toEqual([{ prefetch: flop }]);
+    expect(next.posted.findIndex((m) => "prefetch" in m)).toBeLessThan(next.posted.findIndex((m) => "state" in m));
+  });
+
+  it("holds a flop told with no worker for the next one", async () => {
+    const { t, workers } = setup(false);
+    await killed(t);
+    const later = { players: 2, board: "As8h3d" };
+    t.prefetch(later);
+    expect(told(workers[0]!)).toEqual([{ prefetch: flop }]);
+
+    t.boot();
+    expect(told(workers[1]!)).toEqual([{ prefetch: later }]);
+  });
+
+  it("tells the worker that replaces a failed boot", async () => {
+    const { t, workers } = setup(false);
+    const p = t.request({ players: 2 }, { progressive: false });
+    t.prefetch(flop);
+    workers[0]!.onerror?.({ message: "no wasm" } as ErrorEvent);
+    await expect(p).rejects.toMatchObject({ kind: "boot-failed" });
+
+    void t.request({ players: 2 }, { progressive: false }).catch(() => {});
+    expect(told(workers[1]!)).toEqual([{ prefetch: flop }]);
+  });
+
+  it("tells a first worker nothing where no flop has come up", () => {
+    const { t, workers } = setup(false);
+    t.boot();
+    expect(told(workers[0]!)).toEqual([]);
+  });
+});
+
 describe("WorkerTransport: a stop nobody answers", () => {
   const STUCK_MS = 15_000;
   const pings = (w: FakeWorker) => w.posted.filter((m) => "ping" in m);

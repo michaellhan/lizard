@@ -6,7 +6,7 @@
 // launch twice, and held until the request settles, a stopped one too (about 0.1 s on an isolated worker), as the
 // next would queue behind it anyway. A stop the worker never answers ends the worker (worker-transport.ts): `restarts`
 // counts those, and a job still wanted is simply asked again. A failure is held by key as well, so it only ever shows
-// on the spot it was for.
+// on the spot it was for, in the session it came from.
 //
 // `start`, `stop`, `start` works, as StrictMode runs it. `start` reads the kept doc first, raced against KEPT_WAIT
 // because `kvGet` waits for ever while an older tab blocks an upgrade, and sends nothing until that settles; a New
@@ -245,6 +245,8 @@ export class Room {
     const t = this.front;
     this.session = afterDeal(s);
     this.put(t, newHand(players, stack, s.dealt, this.seed(), opts));
+    // (a key has no seed, so the same cards can come up: what failed last session says nothing of this one)
+    this.failed.clear();
     t.error = null;
     t.spent = false;
     t.last = null;
@@ -463,7 +465,8 @@ export class Room {
   }
 
   /** Once a hand's flop is out the client is told, once a flop: the worker fetches the library's files its answers read
-   * ahead, so an answer the library holds needs no request of its own (index.html:1136-1145). */
+   * ahead, so an answer the library holds needs no request of its own (index.html:1136-1145). A client sees that it
+   * reaches each worker it starts (worker-transport.ts), so a new client is the only one to tell again. */
   private prefetch(h: PracticeHand): void {
     if (h.shown < 3) return;
     const flop: AdvisorState = { ...stateFor(h), board: h.board.slice(0, 3).join(""), flop: [], turn: [], river: [] };
@@ -507,10 +510,11 @@ export class Room {
     this.moves.clear();
     this.failed.clear();
     this.prefetched = "";
+    for (const t of this.tables) this.prefetch(t.hand);
   }
 
   /** An answer into the caches the tables read: a stop that came too late leaves a whole answer, which is kept too.
-   * An `{error}` is a failure, never cached. */
+   * An `{error}` is a failure, never cached, and from a request we'd stopped not even that (see `lost`). */
   private took(fl: Flight, r: SolveResult | SolveResult<PlayMove>): void {
     if (r.data.cancelled) return this.lost(fl, new SolverError("cancelled", "cancelled"));
     if (this.flight !== fl) return;
@@ -518,7 +522,7 @@ export class Room {
     this.unasked = "";
     const { need } = fl.job;
     if (r.data.error) {
-      this.fail(need.key, r.data.error);
+      if (!fl.stopping) this.fail(need.key, r.data.error);
     } else if (need.kind === "opp") {
       this.moves.set(need.key, r as SolveResult<PlayMove>);
       trim(this.moves);
@@ -530,19 +534,23 @@ export class Room {
   }
 
   /** A request rejected: a failure, by key, so it marks only a table still at that spot. A cancel stores nothing, nor
-   * does a worker ended for not answering a stop, which is counted: what's still needed is asked again of a new one. */
+   * does a worker ended for not answering a stop, which is counted: what's still needed is asked again of a new one.
+   * Nor does anything else from a request we'd stopped, as an HTTP solve runs on past its stop and can end in a 500:
+   * nobody was waiting on that one, and a spot wanted again is asked again. */
   private lost(fl: Flight, e: unknown): void {
     if (this.flight !== fl) return;
     this.flight = null;
     const { key } = fl.job.need;
     const kind = e instanceof SolverError ? e.kind : null;
     if (kind === "stuck") this.restarts += 1;
-    if (kind !== "cancelled" && kind !== "stuck") {
-      this.fail(key, message(e));
-    } else if (!fl.stopping) {
-      // (no stop of ours, a client gone, say: asked again, but a spot that's cancelled twice says so, or it goes round for ever)
-      if (this.unasked === key) this.fail(key, "Stopped.");
-      this.unasked = key;
+    if (!fl.stopping) {
+      if (kind !== "cancelled" && kind !== "stuck") {
+        this.fail(key, message(e));
+      } else {
+        // (no stop of ours, a client gone, say: asked again, but a spot that's cancelled twice says so, or it goes round for ever)
+        if (this.unasked === key) this.fail(key, "Stopped.");
+        this.unasked = key;
+      }
     }
     this.pump();
   }
