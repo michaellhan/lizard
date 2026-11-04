@@ -14,9 +14,14 @@
 // in, and a dock's button carries its spot's key. Fewer tables set the others aside with their hands and results.
 //
 // `start`, `stop`, `start` works, as StrictMode runs it. `start` reads the kept doc first, raced against KEPT_WAIT
-// because `kvGet` waits for ever while an older tab blocks an upgrade, and sends nothing until that settles; a New
-// session meanwhile wins. The page draws the hand all the while. Nothing is restored from the doc yet.
-import { kvGet, putSession } from "@/data/db";
+// because `kvGet` waits for ever while an older tab blocks an upgrade, and sends nothing until that settles: a New
+// session meanwhile wins, and a read that times out starts fresh and leaves the doc alone. The page draws the hand all the
+// while. Two tables or more in the doc come back (keep.ts) once Settings have loaded, as the mode and each deal read
+// them, or at KEPT_WAIT. Answers aren't kept, so that's where a restored session's requests begin: each table asks what it
+// needs from where its hand stands, as any table does, your spot again, an opponent's move drawn afresh, a next hand after
+// `pause`. The doc is written at once after a decision, a hand's end or a change of tables and otherwise at most twice a
+// second, and `stop` flushes. At one table nothing is kept: a reload starts fresh.
+import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addHandToPot, emptyTally, type PotTally } from "@/features/history/history";
 import type { Street } from "@/poker/table";
@@ -26,6 +31,7 @@ import { SolverError, type SolveMode, type SolverTransport, type SolveResult } f
 import { useSettings } from "@/state/settings";
 import { moveOf, needOf, type Need } from "./flow";
 import { practiceRecord } from "./history";
+import { KEPT_KEY, keptTables, MAX_TABLES, sameKept, type KeptTable, type KeptTables, type LastHand } from "./keep";
 import {
   checkOrCall,
   dealNext,
@@ -76,12 +82,12 @@ export interface RoomOptions {
   seedOf?: (n: number) => number;
   /** the mode to play at (unset: Settings') */
   mode?: SolveMode;
-  /** how many tables it starts with (unset: one) */
+  /** how many tables it starts with, whatever is kept (unset: one, or those the kept doc brings back) */
   tables?: number;
   /** what's dealt above one table (unset: any hand, at a random seat) */
   spot?: Spot;
   seat?: SeatChoice;
-  /** the tables' first hands, a test's spots, in place of `tables` (unset: dealt) */
+  /** the tables' first hands, a test's spots, in place of `tables`, whatever is kept (unset: dealt) */
   hands?: readonly PracticeHand[];
   /** reads the kept doc (a test's waits, or doesn't) */
   readKept?: () => Promise<unknown>;
@@ -94,7 +100,7 @@ export interface RoomTable {
   answer: SolveResult | null;
   /** why this step has no answer, your spot's or the move asked for (phaseOf says which); the table waits on you */
   failed: string | null;
-  /** a move the table refused, or a drill's deals used up: said until the next move */
+  /** a move the table refused, a drill's deals used up, or a hand the doc couldn't bring back: said until the next move */
   error: string | null;
   last: Decision | null;
   /** your range at that decision (the answer's grid) */
@@ -103,6 +109,8 @@ export interface RoomTable {
   turnKey: string | null;
   /** the hands finished at this table */
   stats: PotTally;
+  /** the last of them, once the next is dealt too */
+  lastHand: LastHand | null;
 }
 
 export interface RoomSnapshot {
@@ -155,6 +163,7 @@ interface Table {
   last: Decision | null;
   lastRange: RangeAt | null;
   stats: PotTally;
+  lastHand: LastHand | null;
   /** your spot's key, and since when it's been your turn there */
   turnKey: string | null;
   turnAt: number;
@@ -181,13 +190,15 @@ interface Flight {
 
 /** The answers held for each cache (multitable.js:24). */
 const CACHE_KEEP = 400;
-const MAX_TABLES = 4;
 /** the waits and solves held, and the first-wanted times */
 const METRICS_KEEP = 2000;
 const SEEN_KEEP = 1000;
-const KEPT_KEY = "practice.tables.v1";
-/** ms the kept doc's read may hold the first request (a hung read starts fresh and leaves the doc alone) */
+/** ms the kept doc's read may hold the first request (a hung read starts fresh and leaves the doc alone), and a session
+ * read back may wait for Settings */
 const KEPT_WAIT = 1000;
+/** ms between saves of the doc, but for those that go at once */
+const SAVE_EVERY = 500;
+const LOST_HAND = "This table's hand couldn't be brought back, so it was dealt again. Its results are kept.";
 
 const FREE: Front = { focus: 0, focusAt: -Infinity, pin: false, next: false };
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
@@ -208,6 +219,8 @@ export class Room {
   private readonly seedOf: (n: number) => number;
   private readonly fixedMode: SolveMode | undefined;
   private readonly readKept: () => Promise<unknown>;
+  /** the options say what's on the tables, so the doc brings nothing back */
+  private readonly fixed: boolean;
 
   private spot: Spot;
   private seat: SeatChoice;
@@ -227,6 +240,8 @@ export class Room {
   /** the kept doc's read hasn't settled: nothing is asked */
   private holding: boolean;
   private holdTimer: ReturnType<typeof setTimeout> | undefined;
+  /** what's left of the hold once Settings have loaded, where a session has been read back */
+  private onLoaded: (() => void) | null = null;
   /** a `start`'s number, so a read from before a `stop` is ignored */
   private run = 0;
   private offSettings: (() => void) | null = null;
@@ -235,6 +250,12 @@ export class Room {
   private wrote: PracticeSession | null = null;
   /** the mode last played, to see a flip */
   private played: SolveMode;
+  /** what the doc holds as far as this Room knows: null, nothing; undefined, no read has said */
+  private saved: KeptTables | null | undefined;
+  private savedAt = -Infinity;
+  private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  /** the next save goes at once */
+  private saveNow = false;
 
   private solver: RoomSolver | null = null;
   private client: RoomClient | null = null;
@@ -264,6 +285,7 @@ export class Room {
     this.seedOf = o.seedOf ?? randomSeed;
     this.fixedMode = o.mode;
     this.readKept = o.readKept ?? (() => kvGet<unknown>(KEPT_KEY));
+    this.fixed = o.tables !== undefined || o.hands !== undefined;
     this.spot = o.spot ?? "any";
     this.seat = o.seat ?? "random";
     this.holding = this.persist;
@@ -285,6 +307,7 @@ export class Room {
       last: null,
       lastRange: null,
       stats: emptyTally(),
+      lastHand: null,
       turnKey: null,
       turnAt: 0,
       waiting: null,
@@ -310,14 +333,19 @@ export class Room {
   start(): void {
     if (this.live) return;
     this.live = true;
-    this.offSettings = useSettings.subscribe(() => this.pump());
+    this.offSettings = useSettings.subscribe((s) => {
+      if (s.loaded) this.onLoaded?.();
+      this.pump();
+    });
     if (this.holding) this.hold();
     else this.pump();
   }
 
-  /** Leaving: the flight is stopped, and stays until it settles, so a `start` can't send beside it. */
+  /** Leaving: the flight is stopped, and stays until it settles, so a `start` can't send beside it. A save still waiting
+   * goes now, as nothing would come back for it. */
   stop(): void {
     if (!this.live) return;
+    if (this.saveTimer !== undefined) this.save(true);
     this.live = false;
     this.run += 1;
     this.offSettings?.();
@@ -343,20 +371,61 @@ export class Room {
     this.active = active;
   }
 
+  /** Nothing is asked until the doc has been read and what it holds brought back, all within KEPT_WAIT: a read that
+   * hasn't answered by then is ignored when it does, and a session read back goes on without Settings. */
   private hold(): void {
     const run = (this.run += 1);
-    const done = () => {
+    let doc: KeptTables | null = null;
+    const go = () => {
       if (run !== this.run || !this.holding) return;
       this.endHold();
+      // (nothing done during the read is a reason to touch a doc nobody had seen)
+      this.saveNow = false;
+      if (doc) this.restore(doc);
       this.pump();
     };
-    this.holdTimer = setTimeout(done, KEPT_WAIT);
-    void this.readKept().then(done, done);
+    const read = (x: unknown) => {
+      if (run !== this.run || !this.holding) return;
+      if (x === undefined || x === null) this.saved = null;
+      doc = this.fixed ? null : keptTables(x);
+      if (!doc || useSettings.getState().loaded) go();
+      else this.onLoaded = go;
+    };
+    this.holdTimer = setTimeout(go, KEPT_WAIT);
+    void this.readKept().then(read, go);
   }
 
   private endHold(): void {
     this.holding = false;
     clearTimeout(this.holdTimer);
+  }
+
+  /** The kept session in place of what was dealt, each table as it stood and those set aside at their places. History's
+   * record already says all this: its row isn't touched until you move, so `endedAt` stays at your last. */
+  private restore(k: KeptTables): void {
+    this.session = this.wrote = k.session;
+    // (what's in the browser is this: a reload that changes nothing writes nothing, so another tab's is left alone)
+    this.saved = k;
+    const back = k.tables.map((kept, i) => (kept || i < k.n ? this.brought(kept, k.n) : undefined));
+    this.tables.splice(0, this.tables.length, ...(back.slice(0, k.n) as Table[]));
+    this.spare = back.map((t, i) => (i < k.n ? undefined : t));
+    this.front = { ...FREE, focus: k.focus };
+  }
+
+  /** A table from the doc. A hand that's lost is dealt again as any new hand, its results kept, and the table says so. */
+  private brought(kept: KeptTable | null, n: number): Table {
+    const s = this.session;
+    const t = this.table(kept?.hand ?? newHand(s.players, s.stack, s.dealt, this.seed(), this.optsAt(n)));
+    if (!kept?.hand) {
+      this.session = afterDeal(s);
+      t.error = LOST_HAND;
+    }
+    if (kept) {
+      t.stats = kept.stats;
+      t.last = kept.last;
+      t.lastHand = kept.lastHand;
+    }
+    return t;
   }
 
   // ---- actions
@@ -373,6 +442,7 @@ export class Room {
       t.last = null;
       t.lastRange = null;
       t.stats = emptyTally();
+      t.lastHand = null;
     }
     // (a key has no seed, so the same cards can come up: what failed last session says nothing of this one)
     this.failed.clear();
@@ -380,6 +450,7 @@ export class Room {
     this.front = FREE;
     this.resetStacks = false;
     this.endHold();
+    this.saveNow = true;
     this.pump();
   }
 
@@ -409,6 +480,7 @@ export class Room {
     }
     if (this.front.focus >= to) this.front = FREE;
     if (to === 1) this.resetStacks = true;
+    this.saveNow = true;
     this.pump();
   }
 
@@ -460,6 +532,7 @@ export class Room {
       t.last = r.decision;
       t.lastRange = rangeAt(h, answer.data, answer.provenance, sim);
       this.session = afterDecision(this.session, h, r.decision, this.many ? table + 1 : undefined);
+      this.saveNow = true;
       this.commit(t, r.hand);
       this.acted();
     }
@@ -483,6 +556,7 @@ export class Room {
       t.error = null;
       t.last = r.decisions.at(-1) ?? null;
       t.lastRange = null;
+      this.saveNow = true;
       this.commit(t, r);
       this.acted();
     }
@@ -714,6 +788,8 @@ export class Room {
     this.put(t, { ...h, result });
     this.session = afterHand(this.session, h, result);
     t.stats = addHandToPot(t.stats, h.decisions.map((d) => d.grade), this.session.opts.preflopOnly ? null : result.net);
+    t.lastHand = { n: h.n, seat: h.hero, result };
+    this.saveNow = true;
     if (useSettings.getState().keepHands) void this.keepHand(t.hand);
   }
 
@@ -899,6 +975,7 @@ export class Room {
         lastRange: t.lastRange,
         turnKey: asked?.kind === "you" ? asked.key : null,
         stats: t.stats,
+        lastHand: t.lastHand,
       };
     });
     return { session: this.session, tables, kept: this.kept, restarts: this.restarts, focus: this.front.focus, queue: queue(this.waiters), guarded: this.guardLeft() > 0 };
@@ -912,6 +989,7 @@ export class Room {
 
   private emit(): void {
     this.record();
+    this.save();
     this.snap = this.build();
     for (const fn of this.listeners) fn();
   }
@@ -924,5 +1002,40 @@ export class Room {
     if (!this.persist || (w && w.id === s.id && w.hands === s.hands && w.score === s.score)) return;
     this.wrote = s;
     if (s.hands || s.score.n) void putSession(toRecord(s, s.tables)).catch(() => {});
+  }
+
+  /** The doc as things stand: above one table only. */
+  private doc(): KeptTables {
+    const place = (t: Table | undefined): KeptTable | null => (t ? { hand: t.hand, stats: t.stats, last: t.last, lastHand: t.lastHand } : null);
+    return {
+      v: 1,
+      n: this.tables.length as KeptTables["n"],
+      focus: this.front.focus,
+      session: this.session,
+      tables: Array.from({ length: MAX_TABLES }, (_, i) => place(this.tables[i] ?? this.spare[i])),
+    };
+  }
+
+  /** The doc into this browser where it's changed: at once after a decision, a hand's end, a change of tables or a New
+   * session, otherwise at most twice a second, as a drill's deals flash by (multitable.js:63-72, though a save waiting
+   * here isn't put off by the next change, so a stream of them can't starve it). At one table nothing is kept, and only
+   * those last two clear what's there: nothing else is a reason to touch a doc this Room couldn't read. Two tabs: the last to
+   * write wins. */
+  private save(force = this.saveNow): void {
+    if (!this.persist || !this.live || this.holding) return;
+    const doc = this.many ? this.doc() : null;
+    const changed = doc ? !sameKept(doc, this.saved) : force && this.saved !== null;
+    const left = this.savedAt + SAVE_EVERY - this.now();
+    if (changed && !force && left > 0) {
+      this.saveTimer ??= setTimeout(() => this.save(true), Math.ceil(left));
+      return;
+    }
+    clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+    this.saveNow = false;
+    if (!changed) return;
+    this.saved = doc;
+    this.savedAt = this.now();
+    void kvSet(KEPT_KEY, doc).catch(() => {});
   }
 }
