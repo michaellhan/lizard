@@ -137,8 +137,9 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
   const more = queue.filter((i) => i !== focus).length;
   const busy = tables.filter((x) => !x.hand.result && !x.failed && !x.spent).length;
   return (
-    <section aria-label="Your move" aria-live="polite" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm sm:static">
-      <h2 ref={head} tabIndex={-1} className="font-medium">
+    <section aria-label="Your move" aria-live="polite" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+      {/* (focus only rests here, nothing happens on it: a ring would read as a field to type in) */}
+      <h2 ref={head} tabIndex={-1} className="font-medium outline-none!">
         Table {focus + 1} · {ready ? `your turn · ${seat} · ${sim.current} · pot ${fmt(sim.pot)}bb` : state.text}
       </h2>
       {ready && (
@@ -255,9 +256,13 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
     toDock();
   };
   // (a field too, where Enter started the session: your next key is an option, not a digit for it. From nowhere, as a
-  // reload brings the tables back, it stays nowhere.)
+  // reload brings the tables back, it stays nowhere. A press up there also brings the tables up, or they'd open out of
+  // sight below the setup.)
+  const top = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (document.activeElement !== document.body) head.current?.focus({ preventScroll: true });
+    if (document.activeElement === document.body) return;
+    head.current?.focus({ preventScroll: true });
+    top.current?.scrollIntoView?.({ block: "start" });
   }, [session.id, tables.length]);
 
   // F, C and X go by what the option is, so they stay put when the order flips; 1–9 by its place; S the next waiting
@@ -283,7 +288,7 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
   });
 
   return (
-    <div className="space-y-4">
+    <div ref={top} className="scroll-mt-14 space-y-4">
       <div role="tablist" aria-label="Tables" className="sticky top-12 z-30 -mx-4 flex gap-1 border-b border-border bg-bg/95 px-4 py-1 text-sm backdrop-blur sm:hidden">
         {tables.map((_, i) => {
           const s = states[i]!;
