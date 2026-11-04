@@ -337,7 +337,11 @@ export function dealNext(h: PracticeHand, street: Street): PracticeHand {
 export function villainMove(h: PracticeHand, mv: Pick<PlayMove, "action" | "to">, sim: Sim = simOf(h)): Move {
   const t = setupOf(h);
   const m = recordOf(t, sim, { action: mv.action, to: mv.to, clamp: true });
-  if (typeof m !== "string") return m;
+  return typeof m === "string" ? checkOrCall(h, sim) : m;
+}
+
+/** The seat to act's check, or its call where there's a bet. */
+export function checkOrCall(h: PracticeHand, sim: Sim = simOf(h)): Move {
   const p = sim.toAct!;
   const facing = (sim.cur?.curBet ?? 0) - (sim.cur?.bets[p] ?? 0) > 1e-9;
   return { pos: p, action: facing ? "call" : "check" };

@@ -3,61 +3,29 @@
 // hand (Advisor.play); your options are the solver's actions at your spot, and each decision is graded against its
 // answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
 // preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
-// As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor). What the hand
-// needs next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and SetupForm.tsx.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+// A Room runs the hand (room.ts: the requests, the pace, the session) and FullHands draws its snapshot. What a hand needs
+// next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and SetupForm.tsx.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
-import { putSession, recentSessions, type SessionRecord } from "@/data/db";
-import { addHands } from "@/data/hands";
+import { recentSessions, type SessionRecord } from "@/data/db";
 import { GRADE_RULES, summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
-import { SolverError, type SolveResult } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { CLASSIC_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { describeSetup } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
-import { moveOf, needOf } from "./flow";
-import { practiceRecord } from "./history";
 import { Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed } from "./PracticeParts";
-import { afterDeal, afterDecision, afterHand, freshSession, keyOf, toRecord, type Kept, type PracticeSession } from "./session";
+import { boardShown, optionsOf, phaseOf, POT_DRILLS, runKind, seeking, simOf } from "./practice";
+import { Room } from "./room";
+import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
-import {
-  boardShown,
-  dealNext,
-  decide,
-  decideUngraded,
-  DRILL_TRIES,
-  finish,
-  following,
-  newHand,
-  offDrill,
-  optionsOf,
-  phaseOf,
-  POT_DRILLS,
-  rangeAt,
-  redeal,
-  runKind,
-  seeking,
-  simOf,
-  withVillain,
-  type Decision,
-  type HandOptions,
-  type PracticeHand,
-  type RangeAt,
-} from "./practice";
 
 export { optionLabel };
-
-const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-type Advice = { key: string } & ({ st: "loading" } | { st: "done"; result: SolveResult } | { st: "error"; message: string });
 
 type Tab = "hands" | "drills";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -112,122 +80,29 @@ export function PracticePage({ pace = 450 }: { pace?: number } = {}) {
 
 /** `active`: its tab is the one shown (its keys work only then). */
 function FullHands({ pace, active }: { pace: number; active: boolean }) {
-  const picked = useSettings((s) => s.mode);
-  const mode = picked === "accurate" ? "accurate" : "quick";
   const getSolver = useSolver();
-  const [session, setSession] = useState<PracticeSession>(() => afterDeal(freshSession(6, 100)));
-  const [hand, setHand] = useState<PracticeHand>(() => newHand(6, 100, 0, randomSeed()));
-  const [advice, setAdvice] = useState<Advice>({ key: "", st: "loading" });
-  const [error, setError] = useState<string | null>(null);
-  const [last, setLast] = useState<Decision | null>(null);
-  // your range at that decision (the answer's grid), and whether it's shown
-  const [lastRange, setLastRange] = useState<RangeAt | null>(null);
+  const [room] = useState(() => new Room({ pace }));
+  // (as the page commits, before the Room starts: settings load after the first render, and each launch reads the latest)
+  useLayoutEffect(() => {
+    room.setSolver(getSolver);
+    room.setActive(active);
+  }, [room, getSolver, active]);
+  useEffect(() => {
+    room.start();
+    return () => room.stop();
+  }, [room]);
+  const { session, tables, kept } = useSyncExternalStore(room.subscribe, room.snapshot);
+  const { hand, answer, failed, error, last, lastRange } = tables[0]!;
   const [rangeOpen, setRangeOpen] = useState(false);
-  const [retry, setRetry] = useState(0);
   const [past, setPast] = useState<SessionRecord[]>([]);
   const keepAll = useSettings((s) => s.keepHands);
   const setSettings = useSettings((s) => s.set);
-  const [kept, setKept] = useState<Kept | null>(null);
-  // (read when a hand ends: commit is the same callback all session)
-  const keeping = useRef({ all: keepAll, session });
-  useEffect(() => {
-    keeping.current = { all: keepAll, session };
-  }, [keepAll, session]);
 
   const sim = useMemo(() => simOf(hand), [hand]);
   const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
-  const spotKey = `${hand.seed}|${hand.shown}|${JSON.stringify(hand.lines)}|${hand.run ?? ""}|${mode}|${retry}`;
-
-  // a finished hand into Analyze's hands, as a hand history (history.ts)
-  const keep = useCallback(async (h: PracticeHand, s: PracticeSession) => {
-    const key = keyOf(s, h);
-    setKept({ key, st: "saving" });
-    try {
-      const rec = practiceRecord(h, s, new Date());
-      const res = await addHands([rec]);
-      setKept(res ? { key, st: "kept", id: rec.id, had: res.existing > 0 } : { key, st: "error", message: "this browser keeps nothing here (a private window?)" });
-    } catch (e) {
-      setKept({ key, st: "error", message: message(e) });
-    }
-  }, []);
-
-  // the hand after a move or a card: settled, and counted, where that ended it (and kept, where you keep them all)
-  const commit = useCallback(
-    (h: PracticeHand) => {
-      // a drill's preflop gone another way: dealt again, not counted (up to DRILL_TRIES deals)
-      if (offDrill(h)) {
-        const opts = keeping.current.session.opts;
-        if ((h.tries ?? 0) + 1 < DRILL_TRIES) setHand(redeal(h, randomSeed(), opts));
-        else setError(`No ${POT_DRILLS[h.pot!].one.replace(/^an? /, "")} in ${DRILL_TRIES} deals.`);
-        return;
-      }
-      if (h.result || phaseOf(h).kind !== "over") {
-        setHand(h);
-        return;
-      }
-      const result = finish(h);
-      setHand({ ...h, result });
-      setSession((s) => afterHand(s, h, result));
-      if (keeping.current.all) void keep({ ...h, result }, keeping.current.session);
-    },
-    [keep],
-  );
-
-  // the hand moves on: cards dealt, an opponent's move asked for, or your spot solved
-  useEffect(() => {
-    const need = needOf(hand, mode);
-    if (need.kind === "over") return;
-    if (need.kind === "deal") {
-      const t = setTimeout(() => commit(dealNext(hand, need.street)), pace);
-      return () => clearTimeout(t);
-    }
-    const ac = new AbortController();
-    let alive = true;
-    if (need.kind === "opp") {
-      const play = need.play!;
-      void (async () => {
-        try {
-          const client = await getSolver();
-          if (!alive) return;
-          const [mv] = await Promise.all([
-            client.play(need.state, play, { mode, signal: ac.signal }),
-            // (a drill's preflop, dealt again until it's the pot, goes by at once)
-            wait(seeking(hand) ? 0 : pace),
-          ]);
-          if (alive) commit(withVillain(hand, moveOf(hand, mv.data).move));
-        } catch (e) {
-          if (!alive) return;
-          setError(`${seatLabel(play.seat, hand.players)}'s move failed: ${message(e)}`);
-        }
-      })();
-    } else {
-      // (until its answer, an answer for another spot reads as loading: see `shown`)
-      void (async () => {
-        try {
-          const client = await getSolver();
-          if (!alive) return;
-          const result = await client.solve({ state: need.state, mode, signal: ac.signal });
-          if (alive) setAdvice({ key: spotKey, st: "done", result });
-        } catch (e) {
-          if (!alive) return;
-          const stopped = e instanceof SolverError && e.kind === "cancelled";
-          setAdvice({ key: spotKey, st: "error", message: stopped ? "Stopped." : message(e) });
-        }
-      })();
-    }
-    return () => {
-      alive = false;
-      ac.abort();
-    };
-    // (spotKey covers the hand's action, its cards out, a run-out after your fold, the mode and a retry)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spotKey, getSolver, pace, commit]);
-
-  // (a deal moves `dealt` alone, which no record holds: nothing to write, and `endedAt` stays at your last move)
-  useEffect(() => {
-    if (session.hands || session.score.n) void putSession(toRecord(session)).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id, session.hands, session.score]);
+  // an opponent's move under way, or your preflop played for you in a drill; what stopped it, said by seat
+  const moving = phase.kind === "villain" || phase.kind === "auto" ? phase : null;
+  const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
 
   useEffect(() => {
     let alive = true;
@@ -239,38 +114,6 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
     };
   }, []);
 
-  const startSession = useCallback((players: number, stack: number, opts: Required<HandOptions>) => {
-    const s = freshSession(players, stack, opts);
-    setSession(afterDeal(s));
-    setHand(newHand(players, stack, s.dealt, randomSeed(), opts));
-    setLast(null);
-    setLastRange(null);
-    setError(null);
-  }, []);
-
-  // (with chips carried, from where this hand left them; `reset`, every seat back at the starting stack)
-  const nextHand = (reset = false) => {
-    setHand(following(hand, randomSeed(), session.opts, reset, session.dealt));
-    setSession(afterDeal);
-    setError(null);
-  };
-
-  const shown = advice.key === spotKey ? advice : ({ key: spotKey, st: "loading" } as Advice);
-
-  const choose = (i: number) => {
-    if (shown.st !== "done") return;
-    const r = decide(hand, shown.result.data, i, shown.result.provenance, sim);
-    if ("error" in r) {
-      setError(r.error);
-      return;
-    }
-    setError(null);
-    setLast(r.decision);
-    setLastRange(rangeAt(hand, shown.result.data, shown.result.provenance, sim));
-    setSession((s) => afterDecision(s, hand, r.decision));
-    commit(r.hand);
-  };
-
   // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze (the latest handlers, read
   // through a ref: the listener stays while the tab is shown; set as the page commits, so a key pressed once the new
   // options show never reaches the last spot's handler)
@@ -280,15 +123,15 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
       const tag = (e.target as HTMLElement | null)?.tagName ?? "";
       // (a held key doesn't repeat into the next spot)
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
-      if (phase.kind === "hero" && shown.st === "done" && /^[1-9]$/.test(e.key)) {
+      if (phase.kind === "hero" && answer && /^[1-9]$/.test(e.key)) {
         const i = Number(e.key) - 1;
-        if (i < optionsOf(shown.result.data).length) choose(i);
+        if (i < optionsOf(answer.data).length) room.choose(i);
       } else if (phase.kind === "over" && hand.result) {
         // (Enter or Space on a focused button or link is that control's own)
         if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
           e.preventDefault();
-          nextHand();
-        } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) void keep(hand, session);
+          room.nextHand();
+        } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) room.keep();
       }
     };
   });
@@ -303,18 +146,6 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
   useEffect(() => {
     if (hand.result && active) nextRef.current?.focus({ preventScroll: true });
   }, [hand.result, active]);
-
-  const ungraded = (a: { action: string; to?: number }) => {
-    const h = decideUngraded(hand, a, sim);
-    if (typeof h === "string") {
-      setError(h);
-      return;
-    }
-    setError(null);
-    setLast(h.decisions.at(-1) ?? null);
-    setLastRange(null);
-    commit(h);
-  };
 
   const sum = summary(session.score);
   const others = past.filter((p) => p.id !== session.id);
@@ -340,7 +171,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             players={session.players}
             stack={session.stack}
             opts={session.opts}
-            onStart={startSession}
+            onStart={(p, n, o) => room.startSession(p, n, o)}
           />
         </div>
       </div>
@@ -376,56 +207,54 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             <SeatView key={p} hand={hand} sim={sim} p={p} />
           ))}
         </ul>
-        {hand.stacks && <Carried hand={hand} sim={sim} onReset={() => nextHand(true)} />}
+        {hand.stacks && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
       </section>
 
       <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">
-        {error && (
+        {alert && (
           <div role="alert" className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger">
-            {error}{" "}
-            {(phase.kind === "villain" || phase.kind === "auto") && (
-              <button
-                type="button"
-                className="underline"
-                onClick={() => {
-                  setError(null);
-                  if (offDrill(hand)) setHand(redeal({ ...hand, tries: 0 }, randomSeed(), session.opts));
-                  else setRetry((n) => n + 1);
-                }}
-              >
+            {alert}{" "}
+            {moving && (
+              <button type="button" className="underline" onClick={() => room.retry()}>
                 Try again
+              </button>
+            )}
+            {moving && failed && (
+              // (their move, not yours: it goes in the hand's line and never in your decisions)
+              <button type="button" className="ml-3 underline" onClick={() => room.playOn()}>
+                Play on: {seatLabel(moving.seat, hand.players)} checks or calls (not a solve)
               </button>
             )}
           </div>
         )}
-        {seeking(hand) && !error && (
+        {seeking(hand) && !alert && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             Dealing {POT_DRILLS[hand.pot!].one}: the preflop is played for you
             {hand.tries ? ` (deal ${hand.tries + 1})` : ""}…
           </p>
         )}
-        {phase.kind === "villain" && !error && !seeking(hand) && (
+        {phase.kind === "villain" && !alert && !seeking(hand) && (
           <p role="status" className="flex items-center gap-2 text-sm text-muted">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             {seatLabel(phase.seat, hand.players)} is thinking…
           </p>
         )}
         {phase.kind === "deal" && <p className="text-sm text-muted">Dealing the {phase.street}…</p>}
-        {phase.kind === "hero" && shown.st === "loading" && (
+        {phase.kind === "hero" && !answer && !failed && (
           <p role="status" className="flex items-center gap-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             Solving your spot so your move can be graded…
             <span className="text-muted">(the first answer starts the engine)</span>
           </p>
         )}
-        {phase.kind === "hero" && shown.st === "done" && (
+        {phase.kind === "hero" && answer && (
           <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
-            {optionsOf(shown.result.data).map((a, i) => (
+            {optionsOf(answer.data).map((a, i) => (
               <button
                 key={a.action}
                 type="button"
-                onClick={() => choose(i)}
+                onClick={() => room.choose(i)}
                 className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:bg-surface-3"
               >
                 {i < 9 && (
@@ -438,15 +267,15 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             ))}
           </div>
         )}
-        {phase.kind === "hero" && shown.st === "error" && (
+        {phase.kind === "hero" && failed && (
           <div className="space-y-2 text-sm">
             <p role="alert" className="text-danger">
-              No answer to grade this spot against: {shown.message}{" "}
-              <button type="button" className="underline" onClick={() => setRetry((n) => n + 1)}>
+              No answer to grade this spot against: {failed}{" "}
+              <button type="button" className="underline" onClick={() => room.retry()}>
                 Ask again
               </button>
             </p>
-            <FallbackMoves hand={hand} onMove={ungraded} />
+            <FallbackMoves hand={hand} onMove={(a) => room.ungraded(a)} />
           </div>
         )}
         {hand.result && (phase.kind === "over" || hand.run) && (
@@ -473,7 +302,7 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
             {runKind(hand, sim) && (
               <button
                 type="button"
-                onClick={() => setHand({ ...hand, run: runKind(hand, sim)! })}
+                onClick={() => room.runOut()}
                 title={
                   runKind(hand, sim) === "played"
                     ? "The others play the hand on by their strategies to its end; your result stays as at your fold"
@@ -484,16 +313,16 @@ function FullHands({ pace, active }: { pace: number; active: boolean }) {
                 {runKind(hand, sim) === "played" ? "Run it out" : "Show hands"}
               </button>
             )}
-            <button ref={nextRef} type="button" onClick={() => nextHand()} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
+            <button ref={nextRef} type="button" onClick={() => room.nextHand()} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
             </button>
             <KeepHand
               kept={kept?.key === keyOf(session, hand) ? kept : null}
               all={keepAll}
-              onKeep={() => void keep(hand, session)}
+              onKeep={() => room.keep()}
               onAll={(all) => {
                 setSettings({ keepHands: all });
-                if (all && kept?.key !== keyOf(session, hand)) void keep(hand, session);
+                if (all && kept?.key !== keyOf(session, hand)) room.keep();
               }}
             />
           </div>
