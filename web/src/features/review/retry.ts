@@ -1,5 +1,6 @@
 // A kept mistake asked again: a full hand's spot of the solver, by the request Practice sent, and a drill's of the
-// library, read in the page as the drill was. What comes back is the current answer, with its own provenance.
+// library, read in the page as the drill was. What comes back is the current answer, with its own provenance. A decision
+// from Analyze has its answer in the record: nothing is asked.
 import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
 import { spotStamp } from "@/library/version";
@@ -91,6 +92,12 @@ export async function askLibrary(ask: Extract<MistakeAsk, { via: "library" }>, m
   return { ...a, ...(version !== undefined ? { version } : {}) };
 }
 
+/** The answer kept in the record, with the grade's own provenance. */
+export function keptAnswer(m: Pick<MistakeRecord, "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance">>): RetryAnswer {
+  if (!m.provenance || !m.mix?.length) throw new Error("what answered it wasn't kept");
+  return { mix: m.mix, pot: m.pot, provenance: m.provenance };
+}
+
 /** The current answer at a kept mistake's spot. */
-export const askAgain = (m: Pick<MistakeRecord, "ask" | "pot">, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
-  m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, retryMode(), signal) : askLibrary(m.ask, retryMode());
+export const askAgain = async (m: Pick<MistakeRecord, "ask" | "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance">>, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
+  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, retryMode(), signal) : askLibrary(m.ask, retryMode());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addScore, emptyScore, grade, summary, whoOf, whyText } from "./grade";
+import { addScore, capGrade, emptyScore, grade, summary, whoOf, whyText } from "./grade";
 
 // cases ported from solver/tests/js/drills.test.js ("grading: ...", "score bookkeeping: ...")
 describe("grade", () => {
@@ -94,5 +94,17 @@ describe("scores", () => {
     expect(summary(s).loss).toBeNull();
     s = addScore(s, { ok: false, loss: 1, lossPct: 4, byEv: true });
     expect(summary(s)).toEqual({ acc: 0, loss: 1, lossPct: 4 });
+  });
+
+  it("stops a rough or cut-short answer's grade at an Inaccuracy, its EV as measured, and names a read at once as what it is", () => {
+    const g = grade({ freqs: [0.95, 0.05], evs: [9, 1], pot: 10 }, 1);
+    expect(g.verdict).toBe("Blunder");
+    expect(capGrade(g, "rough")).toEqual({ ...g, verdict: "Inaccuracy", capped: true });
+    expect(capGrade(g, "approximate")).toMatchObject({ verdict: "Inaccuracy", capped: true, loss: 8 });
+    expect(capGrade(g, "converged")).toBe(g);
+    expect(capGrade(g, undefined)).toBe(g);
+    const small = grade({ freqs: [0.95, 0.05], evs: [3, 2.99], pot: 10 }, 1);
+    expect(capGrade(small, "rough")).toBe(small);
+    expect(whoOf("instant")).toBe("The read at once");
   });
 });

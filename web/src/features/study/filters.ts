@@ -1,9 +1,36 @@
 // The hand-category filter: the actor's hands of one made-hand or draw category, with the grid, the range's totals
 // and the combos over those hands alone. Ported from upstream study.js (catsOf, filterRes). A combo row is
 // [cards, reach, mix, EVs, equity, made, draw]; the last two index into the answer's `categories` (breakdown.py
-// MADE / DRAWS). A filter's key is "m:<id>" or "d:<id>".
+// MADE / DRAWS). A filter's key is "m:<id>" or "d:<id>", or "q:<lowest %>" for an equity bucket over the same rows.
 import { classCombos } from "@/engine/nlhe/cards";
 import type { AdvisorActionStat, AdvisorResponse, ComboRow, GridCell } from "@/solver/protocol";
+
+/** The equity buckets' bounds, as shares: a hand's equity against the opponent's whole range at the node. */
+export const EQUITY_BUCKETS = [0, 0.25, 0.5, 0.75, 1] as const;
+
+export interface EquityBucket {
+  key: string;
+  label: string;
+  lo: number;
+  hi: number;
+  /** combos of the range in it (reach-weighted) */
+  combos: number;
+}
+
+const inBucket = (e: number | null | undefined, lo: number, hi: number) => e != null && e >= lo && (hi >= 1 ? e <= 1 : e < hi);
+
+/** The buckets the actor's range has hands in (at least a twentieth of a combo); none where the answer holds no
+ * equities. A hand with none of its own is in no bucket. */
+export function equityBuckets(res: AdvisorResponse | undefined): EquityBucket[] {
+  const rows = Object.values(res?.combos ?? {}).flat();
+  const out: EquityBucket[] = [];
+  for (let i = 0; i + 1 < EQUITY_BUCKETS.length; i++) {
+    const [lo, hi] = [EQUITY_BUCKETS[i]!, EQUITY_BUCKETS[i + 1]!];
+    const combos = rows.reduce((t, x) => t + (inBucket(x[4], lo, hi) ? x[1] : 0), 0);
+    if (combos >= 0.05) out.push({ key: `q:${lo * 100}`, label: `${lo * 100}\u2013${hi * 100}% equity`, lo, hi, combos });
+  }
+  return out;
+}
 
 export interface HandCategory {
   key: string;
@@ -69,8 +96,9 @@ export type FilteredResponse = AdvisorResponse & { filter?: FilterInfo };
  * river, or no key). An answer at once has no combo EVs: then no EVs are made up for the filtered view either. */
 export function filterRes(res: AdvisorResponse, key: string | null | undefined): FilteredResponse {
   const cat = key ? catsOf(res).find((c) => c.key === key) : undefined;
-  if (!cat || !res.grid) return res;
-  const col = cat.part === "m" ? 5 : 6;
+  const bucket = key ? equityBuckets(res).find((b) => b.key === key) : undefined;
+  if ((!cat && !bucket) || !res.grid) return res;
+  const keep = cat ? (x: ComboRow) => x[cat.part === "m" ? 5 : 6] === cat.i : (x: ComboRow) => inBucket(x[4], bucket!.lo, bucket!.hi);
   const A = res.grid.actions.length;
   const zero = () => new Array<number>(A).fill(0);
   const all = Object.values(res.combos ?? {});
@@ -84,7 +112,7 @@ export function filterRes(res: AdvisorResponse, key: string | null | undefined):
   let EQ = 0;
   let EQW = 0;
   for (const [cls, rowsAll] of Object.entries(res.combos ?? {})) {
-    const rows = rowsAll.filter((x) => x[col] === cat.i);
+    const rows = rowsAll.filter(keep);
     if (!rows.length) continue;
     combos[cls] = rows;
     const f = zero();
@@ -139,6 +167,6 @@ export function filterRes(res: AdvisorResponse, key: string | null | undefined):
     range_combos: W,
     range_ev_bb: W && !noEv ? EV / W : null,
     range_eq: EQW ? EQ / EQW : null,
-    filter: { key: cat.key, label: cat.label, of: res.range_combos },
+    filter: { key: (cat ?? bucket)!.key, label: (cat ?? bucket)!.label, of: res.range_combos },
   };
 }

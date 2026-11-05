@@ -293,7 +293,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             A stack left blank is the table's. A range is the one the seat takes to the flop (PIO style: 22+, A2s+, KTo+, QJs:0.5, AhKh); blank, the preflop charts' range for the
             line played. Preflop is still answered by the charts.
           </p>
-          <div className="overflow-x-auto">
+          <div className="scroll-x">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">

@@ -30,6 +30,8 @@ export interface Grade {
   lossPct: number;
   /** graded by EV (true) or by frequency only (false) */
   byEv: boolean;
+  /** a rough or cut-short solve graded it, so the verdict stopped at an Inaccuracy (capGrade) */
+  capped?: boolean;
 }
 
 /** An action played at least this often is a real part of the hand's mix: Correct whatever its EV gap. */
@@ -69,6 +71,16 @@ export function grade(spot: DecisionSpot, a: number): Grade {
   };
 }
 
+/** A rough or cut-short solve can't condemn a line (the classic gradeClass): under such a band the verdict stops at an
+ * Inaccuracy, and the EV it measured stays as measured. */
+export function capGrade(g: Grade, band: string | undefined): Grade {
+  const unsure = band === "rough" || band === "approximate";
+  return unsure && (g.verdict === "Mistake" || g.verdict === "Blunder") ? { ...g, verdict: "Inaccuracy", capped: true } : g;
+}
+
+/** Why a verdict stopped there, wherever a capped grade is shown. */
+export const CAPPED_WORDS = "A rough or cut-short solve can't condemn a line, so this grade stops at Inaccuracy.";
+
 /** The thresholds in words, for the page that shows grades. */
 export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
   { verdict: "Best", rule: `the highest-EV action (within ${TOL}bb); without EVs, the hand's most frequent action` },
@@ -81,7 +93,7 @@ export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
 /** Whose numbers a grade is against, by the answer's source (provenance.ts): the solver, or what answered in its place
  * (the charts aren't a solve). */
 export function whoOf(source: string | undefined): string {
-  return source === "charts" ? "The chart" : source === "preflop-solve" ? "The preflop solve" : source === "push-fold" ? "The push/fold model" : source === "best-response" ? "The best response to the assumed profile" : source === "rules" ? "The rule-based model" : source === "equity" ? "The equity fallback" : "The solver";
+  return source === "charts" ? "The chart" : source === "preflop-solve" ? "The preflop solve" : source === "push-fold" ? "The push/fold model" : source === "best-response" ? "The best response to the assumed profile" : source === "rules" ? "The rule-based model" : source === "equity" ? "The equity fallback" : source === "instant" ? "The read at once" : "The solver";
 }
 
 /** The rule-based "why" (the classic trainer's why, practice.js:431-444): how often the answer plays your action and

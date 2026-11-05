@@ -309,6 +309,19 @@ describe("turns and rivers", () => {
     );
   });
 
+  it("keeps the mix and the pot on a turn and a river at Quick and at Fast, so a drill can deal them, and which EVs are rough", async () => {
+    const r = SRP();
+    for (const street of ["turn", "river"] as const)
+      for (const [mode, data] of [["triage", { ...LIVE, street, ...tri("quick", "medium") }], ["all", { ...LIVE, street }]] as const) {
+        const d = await gradeDecision(hand, r, street, 1, once(data), 0, mode);
+        expect(d.mix).toEqual([["check", 0.7, 3], ["bet 33%", 0.1, 2.9], ["bet 75%", 0.2, 2.5]]);
+        expect(d.pot).toBe(9.1);
+      }
+    const rough = await gradeDecision(hand, r, "turn", 1, once({ ...LIVE, actions: [{ ...LIVE.actions![0]!, rough_ev: true }, ...LIVE.actions!.slice(1)] }), 0, "all");
+    expect(rough.roughEvs).toEqual(["check"]);
+    expect((await gradeDecision(hand, r, "turn", 1, once(LIVE), 0, "all")).roughEvs).toBeUndefined();
+  });
+
   it("what's asked again, and a check at Fast", async () => {
     const graded = { id: "a", verdict: "Best", source: "charts" } as DecisionRecord;
     const rules = { id: "b", verdict: "Not graded", source: "rules" } as DecisionRecord;

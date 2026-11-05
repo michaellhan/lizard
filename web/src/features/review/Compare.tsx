@@ -5,13 +5,13 @@ import { describe as describeProvenance, evUnit } from "@/solver/provenance";
 import { costWords, type Retried } from "./mistakes";
 
 /** The first grade beside this one, like with like; or why they aren't set side by side. */
-export function Compare({ m, r }: { m: Pick<MistakeRecord, "provenance" | "mix" | "chose"> & { grade: Pick<MistakeRecord["grade"], "verdict" | "byEv" | "loss" | "lossPct" | "a"> }; r: Retried }) {
+export function Compare({ m, r }: { m: Pick<MistakeRecord, "provenance" | "mix" | "chose"> & Partial<Pick<MistakeRecord, "ask">> & { grade: Pick<MistakeRecord["grade"], "verdict" | "byEv" | "loss" | "lossPct" | "a"> }; r: Retried }) {
   const firstSource = m.provenance?.source;
   const nowSource = r.decision.provenance?.source;
   if (!r.change.length)
     return (
       <p>
-        First: <VerdictTag v={m.grade.verdict} /> {costWords(m.grade, m.mix, firstSource, evUnit(m.provenance))}. This time: <VerdictTag v={r.grade.verdict} /> {costWords(r.grade, r.decision.mix, nowSource, evUnit(r.decision.provenance))}. Same kind of answer both times.
+        First: <VerdictTag v={m.grade.verdict} /> {costWords(m.grade, m.mix, firstSource, evUnit(m.provenance))}. This time: <VerdictTag v={r.grade.verdict} /> {costWords(r.grade, r.decision.mix, nowSource, evUnit(r.decision.provenance))}. {m.ask?.via === "kept" ? "The same answer both times." : "Same kind of answer both times."}
       </p>
     );
   return (

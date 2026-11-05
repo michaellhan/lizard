@@ -179,10 +179,13 @@ export interface DecisionRecord {
   /** that answer is labelled approximate, and how settled a live solve was (provenance.ts) */
   approximate?: boolean;
   band?: ConvergenceBand;
-  /** your move is one the range almost never takes, so its EV and the EV lost are rough */
   /** a rough or cut-short solve graded this: the verdict stops at an Inaccuracy, whatever the EV it measured */
   capped?: boolean;
+  /** your move is one the range almost never takes, so its EV and the EV lost are rough */
   roughEv?: boolean;
+  /** the mix's actions whose EV the answer marks rough, so a drill's other picks can say so. A field of the record, with no
+   * index, so no migration: an older grade has none, and only `roughEv` says it of the move you made */
+  roughEvs?: string[];
   /** the ranges behind the answer aren't all the solve's: how */
   off?: string;
   /** on the turn: you bet or raised the flop */
@@ -199,11 +202,13 @@ export interface DecisionRecord {
   gradedAt: number;
 }
 
-/** How a kept mistake's spot is asked again: what Practice asked the engine, or the library entry a drill read
- * (`version`: the entry's, as the library's index gave it). */
+/** How a kept mistake's spot is asked again: what Practice asked the engine, the library entry a drill read (`version`:
+ * the entry's, as the library's index gave it), or, for a decision graded in Analyze, nothing: the record's own mix is
+ * the answer (`hand`, `decision`: where it came from, which can be gone since; the record needs neither to be retried). */
 export type MistakeAsk =
   | { via: "solver"; state: AdvisorState }
-  | { via: "library"; spot: string; flop: string; path: string[]; combo: [number, number]; version?: string; turn?: { card: string; at: string[] } };
+  | { via: "library"; spot: string; flop: string; path: string[]; combo: [number, number]; version?: string; turn?: { card: string; at: string[] } }
+  | { via: "kept"; hand: string; decision: string };
 
 /** One retry of a kept mistake, as graded then. */
 export interface MistakeTry {
@@ -230,8 +235,9 @@ export interface MistakeTry {
 export interface MistakeRecord {
   /** the spot: the same spot missed again is this record */
   id: string;
-  /** Practice's full hands, or its drills */
-  from: "hand" | "drill";
+  /** Practice's full hands or its drills; a graded decision added from Analyze, or a pick missed in a leak drill. A field
+   * of the record, with no index, so no migration; an older page reads these as damaged and leaves them alone. */
+  from: "hand" | "drill" | "analyze" | "leak";
   /** from a tournament session: what its EVs are in. Review keeps these apart. */
   tournament?: "icm" | "chips";
   /** from an exploit session: the profile its answers best-respond to. Review keeps these apart. */
@@ -256,7 +262,7 @@ export interface MistakeRecord {
   study: string | null;
   ask: MistakeAsk;
   chose: string;
-  mix: { action: string; freq: number; ev: number | null; amount?: number }[];
+  mix: { action: string; freq: number; ev: number | null; amount?: number; rough?: true }[];
   pot: number;
   grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean };
   /** what graded it; null where none was kept */

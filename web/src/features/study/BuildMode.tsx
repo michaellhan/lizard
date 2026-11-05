@@ -539,11 +539,11 @@ export function BuildMode({
               </div>
             </details>
             <div>
-              <p aria-label="Your range">
+              <p role="note" aria-label="Your range">
                 Your range: {names.map((n, a) => `${n} ${pct(now.mine[a])}`).join(" · ")}
                 {locked.size > 0 && <span className="text-muted"> · {locked.size} locked</span>}
               </p>
-              <div className="mt-1 flex h-2 overflow-hidden rounded-sm bg-surface-2" aria-hidden>
+              <div className="mt-1 flex h-2 gap-px overflow-hidden rounded-sm bg-surface-2" aria-hidden>
                 {segs(now.mine, colors)}
               </div>
             </div>

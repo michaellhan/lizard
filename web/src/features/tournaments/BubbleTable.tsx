@@ -40,7 +40,7 @@ export function BubbleTable({ table, actor }: { table: Table; actor?: string }) 
           </button>
         ))}
       </div>
-      <div className="overflow-x-auto">
+      <div className="scroll-x">
         <table aria-label="Bubble factors, every pair" className="border-collapse font-mono">
           <thead>
             <tr>

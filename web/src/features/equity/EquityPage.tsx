@@ -153,7 +153,7 @@ function EquityTable({ done, result }: { done: Done; result: EquityResult }) {
   return (
     <section aria-label="Equity" className="space-y-2">
       <p className="text-sm">{describeEquity(result)}</p>
-      <div className="overflow-x-auto">
+      <div className="scroll-x">
         <table className="w-full text-sm">
           <thead className="text-left text-muted">
             <tr>

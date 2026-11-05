@@ -257,7 +257,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
         </div>
       )}
       {m && <MenuSummary m={m} actor={A.actor ?? "the player to act"} pot={A.pot_bb} />}
-      <section aria-label="Actions" className="overflow-x-auto">
+      <section aria-label="Actions" className="scroll-x">
         <table className="w-full text-left text-sm">
           <thead className="text-xs text-muted">
             <tr>

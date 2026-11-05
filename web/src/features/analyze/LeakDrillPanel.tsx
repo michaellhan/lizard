@@ -1,25 +1,37 @@
-// "Drill this leak": the leak's decisions dealt again one by one (leakDrill.ts), your pick graded against the mix kept
-// with the decision, the progress kept as a session so leaving and coming back resumes it.
+// "Drill this leak": the leak's decisions dealt again one by one (leakDrill.ts), on any street whose decision kept its
+// mix, your pick graded against that mix and carrying that grade's provenance and confidence, the progress kept as a
+// session so leaving and coming back resumes it, and a pick below Correct kept for Review (schedule.ts QUEUE_RULE).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
 import { PlayingCard } from "@/components/PlayingCard";
+import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { getSession, putSession, type DecisionRecord, type HandRecord } from "@/data/db";
+import { keepMistake } from "@/data/mistakes";
 import { addScore, emptyScore, summary, type Grade, type Verdict } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
+import { decisionProvenance, leakMistake } from "@/features/review/fromAnalyze";
+import { missedAgain } from "@/features/review/mistakes";
+import { dueWords } from "@/features/review/schedule";
 import { SaveDrill } from "@/features/saved/SaveDrill";
 import { studyLinkAt } from "./analyze";
 import {
+  carriedWords,
+  decisionIndex,
   drillItems,
+  drillSessionId,
   fromSession,
   gradePick,
   leakDrillAbout,
   leakDrillLink,
   leakParam,
   lineBefore,
+  notDealt,
+  notDealtWords,
+  roughActions,
   toSession,
   withParams,
   type DrillProgress,
@@ -30,6 +42,24 @@ import { isGraded, spotOf } from "./report";
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const fresh = (): DrillProgress => ({ startedAt: Date.now(), done: [], score: emptyScore() });
+const readHand = (text: string) => {
+  try {
+    return importHand(text);
+  } catch {
+    return null;
+  }
+};
+
+/** What became of a miss: kept for Review (with when it's due), or not. */
+type Queued = { id: string; due: string | null };
+
+/** A miss kept for Review; when it's due in words, or null where it wasn't kept. */
+async function queueMiss(d: DecisionRecord, hand: HandRecord, g: Grade, sessionId: string): Promise<string | null> {
+  const now = Date.now();
+  const m = leakMistake(d, hand, readHand(hand.text), g, sessionId, now);
+  if (!m || !(await keepMistake(m, missedAgain))) return null;
+  return dueWords(m, now).toLowerCase();
+}
 
 /** `hands`: those the filters show, what's dealt. `kept`: every hand, what the leak is. */
 export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: LeakRef; decisions: DecisionRecord[]; hands: HandRecord[]; kept: HandRecord[]; onClose: () => void }) {
@@ -40,6 +70,8 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
   const [held, setAnswer] = useState<{ id: string; a: number; g: Grade } | null>(null);
   // (a filter can take the decision just answered out of view: the next one in view is dealt)
   const answer = held && items.some((x) => x.d.id === held.id) ? held : null;
+  const left_out = useMemo(() => notDealtWords(notDealt(decisions, leak, byId)), [decisions, leak, byId]);
+  const [queued, setQueued] = useState<Queued | null>(null);
   const box = useRef<HTMLElement>(null);
   const [params] = useSearchParams();
   const key = `${leak.kind}:${leak.key}`;
@@ -71,6 +103,9 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
     if (!g) return;
     setAnswer({ id: cur.d.id, a, g });
     save({ ...prog, done: [...prog.done, cur.d.id], score: addScore(prog.score, g) });
+    if (g.ok) return;
+    const told = (due: string | null) => setQueued({ id: cur.d.id, due });
+    queueMiss(cur.d, cur.hand, g, drillSessionId(leak)).then(told, () => told(null));
   };
 
   return (
@@ -79,8 +114,12 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
         <div>
           <h2 className="text-lg font-semibold">Drill: {leak.key}</h2>
           <p className="text-muted">
-            Your decisions behind this leak, dealt again, your misses first. Each is graded against the answer kept with its grade, which it names: the
-            preflop charts by frequency (not a solve), or what answered it after the flop, by EV where that has EVs. Nothing is solved.
+            Your decisions behind this leak, dealt again, your misses first, on every street. Each is graded against the answer kept with its grade, which it names: the
+            preflop charts by frequency (not a solve), or what answered it after the flop (the library, a stored turn, a read at once, a Quick or Fast solve), by EV where that has EVs. Nothing is solved. A pick below Correct goes to your{" "}
+            <Link to="/review" className="underline">
+              Review
+            </Link>{" "}
+            queue.
           </p>
         </div>
         <span className="flex-1" />
@@ -92,9 +131,13 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
       {!prog ? (
         <p className="text-muted">Reading your progress on this leak…</p>
       ) : !items.length ? (
-        <p>{whole.length ? "None of this leak's graded decisions is in these hands." : "None of this leak's decisions is graded with its mix in this browser."}</p>
+        <>
+          <p>{whole.length ? "None of this leak's graded decisions is in these hands." : "None of this leak's decisions is graded with its mix in this browser."}</p>
+          {left_out && <p className="text-muted">{left_out}</p>}
+        </>
       ) : (
         <>
+          {left_out && <p className="text-muted">{left_out}</p>}
           <DrillScore
             prog={prog}
             done={items.length - left}
@@ -110,6 +153,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
               d={cur.d}
               hand={cur.hand}
               answer={answer}
+              queued={queued?.id === cur.d.id ? queued : null}
               onPick={pick}
               n={items.length - left + (answer ? 0 : 1)}
               total={items.length}
@@ -155,6 +199,7 @@ function Problem({
   d,
   hand,
   answer,
+  queued,
   onPick,
   n,
   total,
@@ -163,24 +208,21 @@ function Problem({
   d: DecisionRecord;
   hand: HandRecord;
   answer: { a: number; g: Grade } | null;
+  queued: Queued | null;
   onPick: (a: number) => void;
   n: number;
   total: number;
   handLink: string;
 }) {
-  const r = useMemo(() => {
-    try {
-      return importHand(hand.text);
-    } catch {
-      return null;
-    }
-  }, [hand.text]);
+  const r = useMemo(() => readHand(hand.text), [hand.text]);
   const street = d.street as Street;
-  const i = d.i ?? 0;
+  const i = decisionIndex(d);
   const line = r ? lineBefore(r, street, i) : null;
   const study = r ? studyLinkAt(r, street, i) : null;
   const mix = d.mix ?? [];
   const byEv = mix.every((x) => x[2] !== null);
+  const rough = roughActions(d);
+  const roughly = (name: string) => (rough.has(name) ? "≈" : "");
   return (
     <div role="group" aria-label="Decision" className="space-y-2">
       <p className="text-xs text-muted">
@@ -206,6 +248,7 @@ function Problem({
           </>
         )}
       </div>
+      {!line && street !== "preflop" && <p className="text-warn">This hand&rsquo;s history can&rsquo;t be read again, so its board and the action before aren&rsquo;t shown.</p>}
       {line && (
         <ul aria-label="The action before" className="space-y-0.5">
           {line.streets
@@ -238,7 +281,7 @@ function Problem({
             <span>
               {answer.g.byEv
                 ? answer.g.loss > 0
-                  ? `${fmt(answer.g.loss)}bb lost (${Math.round(answer.g.lossPct * 10) / 10}% of the pot)`
+                  ? `${roughly(mix[answer.a]?.[0] ?? "") || roughly(mix[answer.g.best]?.[0] ?? "")}${fmt(answer.g.loss)}bb lost (${Math.round(answer.g.lossPct * 10) / 10}% of the pot)`
                   : "no EV lost"
                 : `your hand takes it ${pct(mix[answer.a]?.[1] ?? 0)} of the time`}
             </span>
@@ -256,7 +299,7 @@ function Problem({
                 <tr key={name} className="border-t border-border">
                   <td className="pr-4">{name}</td>
                   <td className="pr-4 text-right">{pct(f)}</td>
-                  {byEv && <td className="pr-4 text-right">{ev == null ? "—" : `${fmt(ev)}bb`}</td>}
+                  {byEv && <td className="pr-4 text-right">{ev == null ? "—" : `${roughly(name)}${fmt(ev)}bb`}</td>}
                 </tr>
               ))}
             </tbody>
@@ -274,6 +317,24 @@ function Problem({
             ) : null}
             . {d.source === "charts" ? "From the preflop charts, by frequency (not a solve)." : `From ${d.label}.`}
           </p>
+          <p role="group" aria-label="What graded it" className="text-xs text-muted">
+            Graded against <ProvenanceBadge p={decisionProvenance(d)} quiet />, kept with the grade: nothing is solved here. {carriedWords(d, answer.g).join(" ")}
+          </p>
+          {!answer.g.ok && queued && (
+            <p role="status" className="text-xs">
+              {queued.due === null ? (
+                "This miss wasn't kept for Review: this browser isn't keeping anything here (a private window?)."
+              ) : (
+                <>
+                  Kept for{" "}
+                  <Link to="/review" className="underline">
+                    Review
+                  </Link>
+                  , {queued.due}.
+                </>
+              )}
+            </p>
+          )}
           <p className="flex gap-3 text-xs">
             {study && (
               <Link to={study} className="underline">

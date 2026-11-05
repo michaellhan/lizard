@@ -21,6 +21,14 @@ describe("ProvenanceBadge", () => {
     expect(screen.queryByText("1.50 s")).toBeNull();
   });
 
+  it("names a decision's kept answer in the line written then, and doesn't name a backend it can't tell", () => {
+    const p = { source: "live", approximate: false, mode: "quick", transport: "kept", solverVersion: "", partial: false, receivedAt: 0, keptLabel: "Live solve (Quick) · medium confidence" } as const;
+    render(<ProvenanceBadge p={p} />);
+    expect(screen.getAllByText(/Live solve \(Quick\) · medium confidence/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.getByText(/kept with the grade in Analyze/)).toBeInTheDocument();
+  });
+
   it("makes no tab stop when quiet, and the panel's one disclosure holds each different answer once", () => {
     render(
       <>

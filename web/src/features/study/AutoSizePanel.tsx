@@ -110,7 +110,7 @@ function AutoSizeAnswer({ result, hole, actor, hand, bets }: { result: SolveResu
             Kept: <span className="font-medium">{u.kept.join(", ")}</span>
             {u.custom.length > 0 && <span className="text-muted"> (your {R.street} sizes {u.custom.join(", ")} were in the menu)</span>}
           </p>
-          <div className="overflow-x-auto">
+          <div className="scroll-x">
             <table className="w-full text-left text-xs" aria-label="The wide menu">
               <thead className="text-muted">
                 <tr>
@@ -145,7 +145,7 @@ function AutoSizeAnswer({ result, hole, actor, hand, bets }: { result: SolveResu
       ) : (
         <p className="text-xs">The engine kept this spot's menu: {(R.notes ?? []).find((n) => n.includes("optimized only")) ?? "it chose no sizes here"}.</p>
       )}
-      <div className="overflow-x-auto">
+      <div className="scroll-x">
         <table className="w-full text-left text-xs" aria-label="At the kept sizes">
           <thead className="text-muted">
             <tr>

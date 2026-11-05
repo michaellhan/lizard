@@ -2,12 +2,13 @@
 // with the spot, the answer's provenance and the grade, and how it's graded when it's asked again. A retry is graded
 // exactly as the decision was (practice.ts gradeMix: by EV where the answer has EVs for every action, else by
 // frequency), against the answer there is now. If that isn't the kind of answer the first grade stood on, `answerChange`
-// says how, and the two grades aren't set side by side.
+// says how, and the two grades aren't set side by side. A decision from Analyze (fromAnalyze.ts) is retried against the
+// mix kept with it, capped as its grade was, so its answer can't change.
 import { bb, pct } from "@/components/actions";
 import type { MistakeRecord, MistakeTry } from "@/data/db";
 import { describeSetup } from "@/features/solve/setup";
 import { describeLine, fromSearch } from "@/features/study/studyState";
-import { whoOf, type Grade } from "@/grading/grade";
+import { capGrade, whoOf, type Grade } from "@/grading/grade";
 import { storedMoved, versionOf } from "@/grading/version";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
@@ -21,8 +22,8 @@ import { afterRetry, dueAfter } from "./schedule";
 /** the retries kept with a mistake */
 export const TRIES_KEPT = 20;
 
-const game = (players: number, stack: number) => `${players === 2 ? "HU" : `${players}-max`} ${stack}bb`;
-const gradeOf = (g: Grade): MistakeRecord["grade"] => ({ a: g.a, best: g.best, verdict: g.verdict, ok: false, mixed: g.mixed, loss: g.loss, lossPct: g.lossPct, byEv: g.byEv });
+export const gameWords = (players: number, stack: number) => `${players === 2 ? "HU" : `${players}-max`} ${stack}bb`;
+export const gradeOf = (g: Grade): MistakeRecord["grade"] => ({ a: g.a, best: g.best, verdict: g.verdict, ok: false, mixed: g.mixed, loss: g.loss, lossPct: g.lossPct, byEv: g.byEv });
 
 /** Your decision `d` at the hand `h` (as it stood when you decided) as a kept mistake; null where it's Best, Correct or
  * not graded. The spot is the Study line and your cards: the same one missed again is one record. */
@@ -46,7 +47,7 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
     times: 1,
     seat: r.seat,
     players: r.players,
-    game: [game(h.players, h.stack), ...describeSetup(setup)].join(" · "),
+    game: [gameWords(h.players, h.stack), ...describeSetup(setup)].join(" · "),
     hole: r.hole,
     board: r.board,
     line: r.line,
@@ -173,7 +174,8 @@ const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
 export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number): Retried {
   const answer = answerIn(m, asked);
   const { mix, pot, provenance } = answer;
-  const g = gradeMix(mix, pot, i);
+  const grading = (k: number) => (m.ask.via === "kept" ? capGrade(gradeMix(mix, pot, k), provenance.band) : gradeMix(mix, pot, k));
+  const g = grading(i);
   const was = mix.findIndex((a) => a.action === m.chose);
   const change = answerChange(m, answer);
   const version = versionOf(provenance);
@@ -181,7 +183,7 @@ export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number
     decision: { street: m.street as Decision["street"], chose: mix[i]!.action, grade: g, mix, pot, provenance, study: m.study ?? "" },
     grade: g,
     change,
-    first: was >= 0 ? gradeMix(mix, pot, was) : null,
+    first: was >= 0 ? grading(was) : null,
     tried: { at: now, chose: mix[i]!.action, verdict: g.verdict, ok: g.ok, byEv: g.byEv, loss: g.loss, lossPct: g.lossPct, source: provenance.source, label: describeProvenance(provenance), ...(version ? { version } : {}), like: change.length === 0 },
   };
 }
@@ -191,6 +193,12 @@ export function withTry(m: MistakeRecord, t: Omit<MistakeTry, "moved">): Mistake
   const { step, due, moved } = afterRetry(m, t.ok, t.at);
   return { ...m, step, due, updatedAt: t.at, tries: [...m.tries, { ...t, moved }].slice(-TRIES_KEPT) };
 }
+
+/** Said at a retry from the answer kept with a decision. */
+export const KEPT_RETRY_WORDS = "Graded against the answer kept with this decision in Analyze, nothing solved: the same answer as your first grade, named below.";
+
+/** Where a kept mistake came from, in words; nothing for Practice's own. */
+export const ORIGIN_WORDS: Partial<Record<MistakeRecord["from"], string>> = { analyze: "Added from Analyze", leak: "From a leak drill" };
 
 /** What a grade cost, in words: EV by the answer, or, graded by frequency, how often it's played and never an EV. */
 export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a">, mix: MistakeRecord["mix"], source: string | undefined, unit = "bb"): string {

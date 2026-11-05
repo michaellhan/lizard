@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { addScore, emptyScore } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
-import { drillItems, drillSessionId, fromSession, gradePick, leakDrillAbout, leakDrillLink, leakParam, lineBefore, parseLeakParam, toSession } from "./leakDrill";
+import { canDrill, carriedWords, decisionIndex, drillItems, drillSessionId, fromSession, gradePick, leakDrillAbout, leakDrillLink, leakParam, lineBefore, notDealt, notDealtWords, parseLeakParam, roughActions, toSession } from "./leakDrill";
 
 const hand = (id: string, playedAt: number) => ({ id, playedAt }) as HandRecord;
 const hands = new Map([["h1", hand("h1", 1)], ["h2", hand("h2", 2)]]);
@@ -84,6 +84,59 @@ describe("leakDrill", () => {
     }
     // (by frequency a mix needs no pot)
     expect(gradePick(d({ mix: [["fold", 0.2, null], ["raise", 0.8, null]] }), 1)).toMatchObject({ byEv: false, ok: true });
+  });
+
+  describe("after the flop", () => {
+    const LIVE = { pot: 9.1, situation: "SRP · IP · checked to", mix: [["check", 0.9, 3], ["bet 33%", 0.05, 2.9], ["bet 75%", 0.05, 2.5]] as NonNullable<DecisionRecord["mix"]>, source: "live", label: "Live solve · 0.80%", band: "converged" as const };
+    const turn = (o: Partial<DecisionRecord> = {}) => d({ street: "turn", verdict: "Mistake", ...LIVE, ...o });
+
+    it("deals a turn and a river wherever the mix was kept, from a solve by EV or a stored turn by frequency", () => {
+      const ds = [
+        turn({ id: "t" }),
+        turn({ id: "r", street: "river" }),
+        turn({ id: "quick", confidence: "medium", triageSource: "quick" }),
+        turn({ id: "stored", mix: [["check", 0.6, null], ["bet 33%", 0.4, null]], source: "library", label: "A stored turn" }),
+      ];
+      expect(drillItems(ds, { kind: "spot", key: "Turn · SRP · IP · checked to" }, hands).map((x) => x.d.id).sort()).toEqual(["quick", "stored", "t"]);
+      expect(drillItems(ds, { kind: "spot", key: "River · SRP · IP · checked to" }, hands).map((x) => x.d.id)).toEqual(["r"]);
+      expect(gradePick(ds[1]!, 2)).toMatchObject({ byEv: true, verdict: "Mistake" });
+      expect(gradePick(ds[3]!, 1)).toMatchObject({ byEv: false, verdict: "Correct" });
+    });
+
+    it("says how many it can't deal and why, instead of leaving them out unsaid", () => {
+      const ds = [turn({ id: "ok" }), turn({ id: "old", mix: undefined }), turn({ id: "older", mix: undefined }), turn({ id: "nopot", pot: 0 }), turn({ id: "good", verdict: "Not graded", mix: undefined })];
+      const left = notDealt(ds, { kind: "spot", key: "Turn · SRP · IP · checked to" }, hands);
+      expect(left).toEqual({ noMix: 2, noPot: 1 });
+      expect(notDealtWords(left)).toBe("3 of this leak's graded decisions aren't dealt here, as there's nothing to grade a pick against: 2 kept no mix with the grade, 1 kept EVs with no pot to measure a pick against. Forget the grades and grade again to keep them.");
+      expect(notDealtWords({ noMix: 0, noPot: 0 })).toBeNull();
+      expect(canDrill(ds[1]!)).toBe(false);
+    });
+
+    it("grades by the same cap as the grade: a rough solve's pick stops at an Inaccuracy, kept grades and old alike", () => {
+      const big = { mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] as NonNullable<DecisionRecord["mix"]> };
+      expect(gradePick(turn({ ...big }), 1)).toMatchObject({ verdict: "Blunder" });
+      expect(gradePick(turn({ ...big, band: "rough" }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
+      expect(gradePick(turn({ ...big, band: "approximate" }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
+      expect(gradePick(turn({ ...big, band: undefined, capped: true }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    });
+
+    it("says what it carries from the grade: how it was checked, its confidence, the cap and the version", () => {
+      const quick = turn({ confidence: "low", triageSource: "quick", version: "build:abc/123", band: "rough", mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] });
+      const words = carriedWords(quick, gradePick(quick, 1)!).join(" ");
+      expect(words).toMatch(/A Quick triage read at low confidence/);
+      expect(words).toMatch(/stops at Inaccuracy/);
+      expect(words).toMatch(/Version: /);
+      const rough = turn({ roughEv: true, matched: "check" });
+      expect(roughActions(rough)).toEqual(new Set(["check"]));
+      expect(roughActions(turn({ roughEvs: ["bet 75%"], roughEv: true, matched: "check" }))).toEqual(new Set(["bet 75%"]));
+      expect(carriedWords(rough, gradePick(rough, 0)!).join(" ")).toMatch(/its EV is rough/);
+      expect(carriedWords(turn({ version: "build:abc/123" }), gradePick(turn(), 0)!).join(" ")).not.toMatch(/Quick|rough|Inaccuracy/);
+    });
+
+    it("finds the decision's place in an old grade that kept no index, from its id", () => {
+      expect(decisionIndex(turn({ i: 2 }))).toBe(2);
+      expect(decisionIndex(turn({ i: undefined, id: "h1|turn|3" }))).toBe(3);
+    });
   });
 
   it("keeps the progress as an analysis session and reads it back", () => {

@@ -52,7 +52,7 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
       )}
       {st && (
         <>
-          <div className="relative overflow-x-auto rounded-lg border border-border">
+          <div className="relative scroll-x rounded-lg border border-border">
             <table aria-label="Frequencies as played" className="w-full text-left">
               <thead className="bg-surface-2 text-xs text-muted">
                 <tr>
@@ -158,7 +158,7 @@ function BetSizes({ sizes }: { sizes: Stats["sizes"] }) {
     <div className="space-y-1">
       <h3 className="font-medium">Your bets after the flop, by size</h3>
       <p className="text-xs text-muted">Bets only (not raises), in % of the pot before the bet; an all-in counts at its size.</p>
-      <div className="relative overflow-x-auto">
+      <div className="relative scroll-x">
         <table aria-label="Bet sizes" className="text-left">
           <thead className="text-xs text-muted">
             <tr>
@@ -201,7 +201,7 @@ function RaiseSizes({ raises }: { raises: Stats["raises"] }) {
     <div className="space-y-1">
       <h3 className="font-medium">Your raises, by size</h3>
       <p className="text-xs text-muted">In multiples of the bet raised, the big blind&rsquo;s for an open; an all-in counts at its size.</p>
-      <div className="relative overflow-x-auto">
+      <div className="relative scroll-x">
         <table aria-label="Raise sizes" className="text-left">
           <thead className="text-xs text-muted">
             <tr>

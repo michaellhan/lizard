@@ -65,7 +65,7 @@ import { SaveSpot } from "./SaveSpot";
 import { bubbleTableOf } from "@/features/tournaments/icm";
 import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
 import { ModePicker } from "./ModePicker";
-import { catsOf, filterRes } from "./filters";
+import { catsOf, equityBuckets, filterRes } from "./filters";
 import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
 
 type Phase =
@@ -255,6 +255,7 @@ export function StudyPage() {
   const said = problems.length ? "" : phase.kind === "error" ? phaseWords : shown ? answerWords(shown.data, shown.provenance) : "Finding the answer.";
   const raw: AdvisorResponse | undefined = shown?.data;
   const cats = useMemo(() => catsOf(raw), [raw]);
+  const buckets = useMemo(() => equityBuckets(raw), [raw]);
   const res = useMemo(() => (raw ? filterRes(raw, filterKey) : undefined), [raw, filterKey]);
   const names = useMemo(() => res?.grid?.actions ?? [], [res]);
   const colors = useMemo(() => actionFills(names), [names]);
@@ -522,7 +523,7 @@ export function StudyPage() {
                     }`}
               </span>
               <span className="flex-1" />
-              {!opp && cats.length > 0 && (
+              {!opp && cats.length + buckets.length > 0 && (
                 <select
                   aria-label="Show only the hands of one category"
                   title="Show only the hands of one category: the grid, the range's frequencies and the combos over them"
@@ -543,6 +544,15 @@ export function StudyPage() {
                       </optgroup>
                     ) : null;
                   })}
+                  {buckets.length > 0 && (
+                    <optgroup label="Equity against their whole range">
+                      {buckets.map((b) => (
+                        <option key={b.key} value={b.key}>
+                          {b.label} · {pct(b.combos / (raw?.range_combos || 1))}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               )}
               {!opp &&

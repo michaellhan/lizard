@@ -153,3 +153,34 @@ textarea {
     animation: none !important;
   }
 }
+
+/* A table wider than its box: the right edge fades while there's more to scroll to, and only then, as a box with nothing
+   to scroll has an inactive timeline. It moves with the reader's own scrolling, so it stays on for reduced motion. A
+   browser without scroll timelines scrolls as before. */
+.scroll-x {
+  overflow-x: auto;
+}
+
+@property --scroll-more {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-more {
+  from,
+  90% {
+    --scroll-more: 28px;
+  }
+  to {
+    --scroll-more: 0px;
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  .scroll-x {
+    animation: scroll-more linear both !important;
+    animation-timeline: scroll(self inline) !important;
+    mask-image: linear-gradient(to right, #000 calc(100% - var(--scroll-more)), transparent);
+  }
+}

@@ -4142,3 +4142,17 @@ An independent review of `930c999` and `9596e2a` found six defects and one minor
 One change of behaviour: Analyze's leaks are now read from the same hands as the Plan's, so tournament grades stay in the report's tables and out of its leaks, and the page says how many. Someone who imports only tournaments gets no leaks from Analyze. Before, those leaks mixed chips with big blinds and had no ICM.
 
 Tests: 2567 unit tests in 144 files, typecheck and lint clean, 106 browser tests passed and 44 skipped (the QA list at the other two widths).
+
+Live check of `491a1fc` (run 42059979619, 2026-11-05): `index-BUV4tVJ6.js` at 297,656 bytes, title "Plan · Lizard", cross-origin isolated, Plan in the nav, and `/`, `/gto-solver/`, `/gto-solver-classic/`, `/lizard/plan/` and the manifest answered 200. The first attempt's deploy step got a 500 from GitHub when creating the Pages deployment, though the deployment had landed. Rerunning that job alone passed, with the same artifact.
+
+### Misses from Analyze in Review, equity-bucket filters, and the system-mode checks (Phases 3, 5, 6)
+
+A pick below Correct in a leak drill now goes to the review queue by itself, and a graded decision goes there when you press Add to review on it in the hand. An import can grade hundreds below Correct, so nothing else is automatic. Tournament and exploit hands stay out. A retry is dealt from the record and graded against the same kept answer, with nothing solved, and an entry can be deleted. No store change was needed. Browser test 10d goes from a graded decision to a retry to a delete, with the miss written into IndexedDB, as the fixtures grade clean.
+
+A leak drill turned out to deal turns and rivers already: the matrix line saying it stopped at the flop was out of date. What was wrong: a rough solve could say Blunder in a drill (it now stops at Inaccuracy, as elsewhere), a drill answer didn't show the kept confidence or version, and decisions with no mix were skipped without a word.
+
+Study filters by equity bucket: 0 to 25, 25 to 50, 50 to 75 and 75 to 100%, against the opponent's whole range, recounting the grid and totals.
+
+Plan now puts its steps above the rule, since the rule took a whole phone screen. A wide table's right edge now fades while there's more to scroll to. In a real Chromium: forced colours keep the fills and draw cell edges and the selected cell, reduced motion stops transitions and keeps that cue, one Tab crosses the grid, and Copy for AI reaches the real clipboard (`web/e2e/modes.e2e.ts`). The report chart draws 1,694 flops on the live library. Firefox has no scroll timelines, so it gets no cue.
+
+Tests: 2628 unit tests in 147 files, typecheck and lint clean, 111 browser tests passed and 54 skipped (the QA list and system-mode checks at the other two widths).

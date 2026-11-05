@@ -329,6 +329,21 @@ describe("backup and restore", () => {
     expect(r.savedScenarios).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
   });
 
+  it("carries an entry from Analyze with what it was graded on, and skips one a hostile file made up", async () => {
+    const ask = { via: "kept", hand: "h1", decision: "h1|turn|1" } as const;
+    const a = mistake({ id: "a", from: "leak", ask, provenance: { ...mistake().provenance!, transport: "kept", keptLabel: "Live solve (Quick)" } });
+    await keepMistake(a, (_, f) => f);
+    const b = await makeBackup();
+    await (await db())!.clear("mistakes");
+    const bad = (id: string, x: object) => ({ id, v: 1, created: 1, updated: 1, dev: "d", data: { ...a, id, ...x } });
+    const r = await restoreBackup({
+      ...b,
+      stores: { mistakes: [...b.stores.mistakes, bad("x", { ask: { ...ask, hand: { a: 1 } } }), bad("y", { provenance: null }), bad("z", { from: "__proto__" }), bad("w", { mix: [{ action: "check", freq: 1, ev: 1, rough: 7 }] })] },
+    } as Backup);
+    expect(r.mistakes).toEqual({ added: 1, updated: 0, kept: 0, skipped: 4 });
+    expect((await listMistakes()).list).toEqual([a]);
+  });
+
   it("restores a backup from before mistakes were kept", async () => {
     await putSpot(spot("a", 5));
     const b = JSON.parse(JSON.stringify(await makeBackup()));

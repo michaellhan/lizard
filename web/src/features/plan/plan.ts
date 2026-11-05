@@ -40,7 +40,7 @@ export const PLAN_RULE: readonly string[] = [
   "Reviews due today, from the review queue: the longest overdue first, then the worst grades.",
   "The leaks that pass the read rule, the most EV given up first. A leak graded by frequency has no EV to weigh, so those come after, by the report's score: how far off, by the square root of the decisions.",
   "The rows too few to read, the most decisions first, as the nearest to being read: places to collect more hands, not leaks.",
-  `One Practice drill, on the street with the most decisions missed and from the seat with the most missed on it. Misses are counted, not weighed: a miss by frequency counts as one by EV, and it's a count, so what you play most can top it. A missed decision is one graded below Correct in hands you imported, or a cash mistake kept from Practice, as many times as it was missed.`,
+  `One Practice drill, on the street with the most decisions missed and from the seat with the most missed on it. Misses are counted, not weighed: a miss by frequency counts as one by EV, and it's a count, so what you play most can top it. A missed decision is one graded below Correct in hands you imported, or a cash mistake kept in the review queue, as many times as it was missed. An entry added from Analyze or a leak drill isn't counted again where its own decision already is.`,
 ];
 
 export const PLAN_SCOPE = `This is a rule, not a coach: it counts what's kept in this browser, the same way every time, and can't say why you miss a spot. Tournament hands and exploit sessions stay out of the leaks and the count of misses: a tournament's EVs aren't bb won, and an exploit session answers an assumed profile, never an equilibrium. EV given up is solver EV over graded decisions, not what you won or lost at the table.`;
@@ -322,7 +322,7 @@ const KNOWN_SEAT = new Set(Object.values(SEATS).flat());
 
 interface Miss {
   n: number;
-  /** from graded hands, and kept from Practice */
+  /** from graded hands, and kept in the queue */
   graded: number;
   kept: number;
   byEv: number;
@@ -331,7 +331,8 @@ interface Miss {
 const noMiss = (): Miss => ({ n: 0, graded: 0, kept: 0, byEv: 0, bases: new Map() });
 
 /** Misses by street, then seat. Practice's own hands are counted by the queue, which keeps them whether or not they're
- * graded here; a hand of theirs that's graded isn't counted again. */
+ * graded here; a hand of theirs that's graded isn't counted again. The other way round for what the queue took from
+ * Analyze: its decision is counted here, so the entry isn't, unless that grade is gone or wasn't a miss. */
 function countMisses(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, PlanHand>, mistakes: readonly MistakeRecord[]): Map<string, Map<string, Miss>> {
   const out = new Map<string, Map<string, Miss>>();
   const at = (street: string, seat: string): Miss | null => {
@@ -342,17 +343,19 @@ function countMisses(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, P
     row.set(seat, m);
     return m;
   };
+  const counted = new Set<string>();
   for (const d of ds) {
     if (!isGraded(d) || isOk(d) || hands.get(d.handId)?.site === PRACTICE_SITE) continue;
     const m = at(d.street, d.pos);
     if (!m) continue;
+    counted.add(d.id);
     m.n++;
     m.graded++;
     if (d.evLossBb != null) m.byEv++;
     add(m.bases, basisOf(d));
   }
   for (const k of mistakes) {
-    if (k.tournament || k.exploit) continue;
+    if (k.tournament || k.exploit || (k.ask.via === "kept" && counted.has(k.ask.decision))) continue;
     const m = at(k.street, k.seat);
     if (!m) continue;
     m.n += k.times;
@@ -405,7 +408,7 @@ function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRe
     progress: `${Math.min(count, DRILL_TARGET).toLocaleString()} of ${DRILL_TARGET} decisions in this drill in sessions started today.`,
     says: [
       `The most misses are on ${STREET_WORD[street]}: ${f.streetMisses.toLocaleString()} of the ${many(f.total, "miss", "misses")} counted, ${m.n.toLocaleString()} of them from ${name}.`,
-      `Those ${m.n.toLocaleString()}: ${m.graded.toLocaleString()} in hands graded in Analyze, ${m.kept.toLocaleString()} kept from Practice; ${m.byEv.toLocaleString()} by EV, ${(m.n - m.byEv).toLocaleString()} by frequency. ${basisWords(m.bases)}`,
+      `Those ${m.n.toLocaleString()}: ${m.graded.toLocaleString()} in hands graded in Analyze, ${m.kept.toLocaleString()} kept in the review queue; ${m.byEv.toLocaleString()} by EV, ${(m.n - m.byEv).toLocaleString()} by frequency. ${basisWords(m.bases)}`,
       `Settings: ${target.about}. ${answeredBy(target, street)}`,
     ],
     street,

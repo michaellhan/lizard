@@ -99,6 +99,7 @@ export function validDecision(d: Record<string, unknown>): boolean {
     // (a grade from before versions were kept has none)
     [d.situation, d.potType, d.role, d.matched, d.best, d.note, d.why, d.version, d.band, d.off, d.confidence, d.triageSource, d.notChecked].every(isOptStr) &&
     isMix(d.mix) &&
+    (d.roughEvs === undefined || isStrs(d.roughEvs)) &&
     isRead(d.read)
   );
 }

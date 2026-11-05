@@ -218,7 +218,7 @@ function LockAnswer({ gto, br, hole, actor, preflop }: { gto: SolveResult; br: S
   return (
     <section aria-label="Best response to the read" className="space-y-3">
       <ProvenanceBadge p={br.provenance} />
-      <div className="overflow-x-auto">
+      <div className="scroll-x">
         <table className="w-full text-left text-xs">
           <thead className="text-muted">
             <tr>

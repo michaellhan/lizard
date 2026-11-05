@@ -94,7 +94,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
         </p>
       )}
       {(full || sum.rows.length > 0) && (
-        <div className="overflow-x-auto">
+        <div className="scroll-x">
           <table className="w-full max-w-md text-left text-xs">
             <thead className="text-muted">
               <tr>

@@ -59,18 +59,6 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
         </p>
       </div>
 
-      <section aria-label="How this plan is made" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
-        <h2 className="font-medium">How this plan is made</h2>
-        <ol className="list-decimal space-y-1 pl-5 text-muted">
-          {PLAN_RULE.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ol>
-        <p className="text-muted">{PLAN_SCOPE}</p>
-        <p className="text-muted">{LEAK_RULE}</p>
-        <p className="text-muted">{PLAN_DONE}</p>
-      </section>
-
       {failed ? (
         <p role="alert" className="text-danger">
           This browser&rsquo;s store couldn&rsquo;t be read, so there&rsquo;s no plan to show. Nothing has been changed.
@@ -82,6 +70,18 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
       ) : (
         <Steps plan={plan} more={more} onMore={() => setMore(true)} />
       )}
+
+      <section aria-label="How this plan is made" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+        <h2 className="font-medium">How this plan is made</h2>
+        <ol className="list-decimal space-y-1 pl-5 text-muted">
+          {PLAN_RULE.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ol>
+        <p className="text-muted">{PLAN_SCOPE}</p>
+        <p className="text-muted">{LEAK_RULE}</p>
+        <p className="text-muted">{PLAN_DONE}</p>
+      </section>
     </div>
   );
 }

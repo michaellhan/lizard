@@ -3,6 +3,7 @@
 // (data/backup.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { DeleteButton } from "@/components/DeleteButton";
 import { useFocusHold } from "@/components/useFocusHold";
 import type { SavedDrill, SavedRange, SavedReport, SavedScenario, SavedSpot } from "@/data/db";
 import { restoreBackup, restoreSummary } from "@/data/backup";
@@ -193,32 +194,6 @@ export function SavedPage() {
 
       <BackupPanel onRestored={reload} />
     </div>
-  );
-}
-
-/** A delete that asks once more before it acts. */
-function DeleteButton({ what, onDelete }: { what: string; onDelete: (from: HTMLElement) => void }) {
-  const [sure, setSure] = useState(false);
-  // (the question takes the keyboard, to Keep, so a second Enter deletes nothing; Keep gives it back to Delete. The keys
-  // keep React from reusing the Delete button, focus and all, as the button that really deletes.)
-  const hold = useFocusHold<HTMLSpanElement>();
-  return (
-    <span {...hold} className="inline-flex items-center gap-1">
-      {sure ? (
-        <>
-          <button key="delete" type="button" onClick={(e) => onDelete(e.currentTarget)} className="rounded border border-danger/60 px-2 py-0.5 text-danger hover:bg-danger/10">
-            Delete {what}
-          </button>
-          <button type="button" data-focus-first onClick={() => setSure(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-            Keep
-          </button>
-        </>
-      ) : (
-        <button key="ask" type="button" data-focus-first onClick={() => setSure(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-          Delete
-        </button>
-      )}
-    </span>
   );
 }
 

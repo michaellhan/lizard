@@ -1,8 +1,8 @@
 // The kept mistakes in IndexedDB: added, merged, changed, and a damaged record left out, never a crash.
 import { describe, expect, it } from "vitest";
-import { chartMistake, DAY_ONE, mistake, STORED } from "@/test/mistake";
+import { chartMistake, DAY_ONE, LIVE, mistake, STORED } from "@/test/mistake";
 import { db } from "./db";
-import { changeMistake, keepMistake, listMistakes, readMistake } from "./mistakes";
+import { addMistake, changeMistake, deleteMistake, keepMistake, listMistakes, readMistake } from "./mistakes";
 
 const wipe = async () => (await db())!.clear("mistakes");
 
@@ -77,5 +77,56 @@ describe("the mistakes store", () => {
     expect((await changeMistake("a", (m) => ({ ...m, step: m.step + 1 })))?.step).toBe(2);
     expect((await listMistakes()).list[0]?.step).toBe(2);
     expect(await changeMistake("none", (m) => m)).toBeUndefined();
+  });
+});
+
+describe("an entry from Analyze", () => {
+  const ask = { via: "kept", hand: "h1", decision: "h1|turn|1" } as const;
+  const kept = (x = {}) => mistake({ from: "analyze", ask, provenance: { ...LIVE, transport: "kept", keptLabel: "Live solve (Quick)" }, ...x });
+
+  it("reads back whole, from Analyze or a leak drill, a rough action marked", () => {
+    expect(readMistake(kept())).toEqual(kept());
+    expect(readMistake(kept({ from: "leak" }))).toEqual(kept({ from: "leak" }));
+    const rough = kept({ mix: [{ action: "check", freq: 0.1, ev: 4, rough: true }, { action: "bet 33%", freq: 0.9, ev: 4.4, amount: 2 }] });
+    expect(readMistake(rough)).toEqual(rough);
+  });
+
+  it.each([
+    ["a from it doesn't know", { from: "mail" }],
+    ["a hand that isn't a string", { ask: { ...ask, hand: 7 } }],
+    ["no hand", { ask: { ...ask, hand: "" } }],
+    ["a hand that isn't well formed", { ask: { ...ask, hand: "h\ud800" } }],
+    ["no decision", { ask: { via: "kept", hand: "h1" } }],
+    ["a way it doesn't know", { ask: { ...ask, via: "post" } }],
+    ["no provenance: nothing to grade by", { provenance: null }],
+    ["a line that isn't a string", { provenance: { ...LIVE, keptLabel: 7 } }],
+    ["a mark that isn't one", { mix: [{ action: "check", freq: 1, ev: 1, rough: "yes" }] }],
+  ])("refuses %s", (_, x) => {
+    expect(readMistake(kept(x))).toBeNull();
+  });
+});
+
+describe("adding and deleting one", () => {
+  it("adds a spot once, and tells which", async () => {
+    await wipe();
+    expect(await addMistake(mistake({ id: "a" }))).toBe("added");
+    expect(await addMistake(mistake({ id: "a", times: 5 }))).toBe("there");
+    expect((await listMistakes()).list).toMatchObject([{ id: "a", times: 1 }]);
+  });
+
+  it("replaces a damaged record with what's added", async () => {
+    await wipe();
+    await (await db())!.put("mistakes", { id: "a", due: "soon" } as never);
+    expect(await addMistake(mistake({ id: "a" }))).toBe("added");
+    expect((await listMistakes()).damaged).toBe(0);
+  });
+
+  it("deletes one, the rest stay, and a delete of what's gone is no harm", async () => {
+    await wipe();
+    await keepMistake(mistake({ id: "a" }), (_, f) => f);
+    await keepMistake(mistake({ id: "b" }), (_, f) => f);
+    expect(await deleteMistake("a")).toBe(true);
+    expect(await deleteMistake("a")).toBe(true);
+    expect((await listMistakes()).list.map((m) => m.id)).toEqual(["b"]);
   });
 });

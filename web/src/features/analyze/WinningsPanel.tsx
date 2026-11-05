@@ -308,7 +308,7 @@ function Swatch({ color, dash }: { color: string; dash: boolean }) {
 function ByPos({ g }: { g: WinGroup }) {
   const [params] = useSearchParams();
   return (
-    <div className="relative overflow-x-auto">
+    <div className="relative scroll-x">
       <table aria-label="Results by your seat" className="text-left">
         <thead className="text-xs text-muted">
           <tr>

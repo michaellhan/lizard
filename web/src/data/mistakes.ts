@@ -17,6 +17,8 @@ const isOptNum = (x: unknown) => x === undefined || isNum(x);
 const isOptStr = (x: unknown) => x === undefined || isStr(x);
 
 const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, rules: true, equity: true, unknown: true };
+/** One of the sources a provenance can name. */
+export const isSource = (x: string): x is ResultSource => Object.hasOwn(SOURCES, x);
 const VERDICTS: readonly string[] = ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"] satisfies Verdict[];
 /** the grades kept: the ones that aren't Best or Correct */
 export const MISSES: readonly Verdict[] = ["Inaccuracy", "Mistake", "Blunder"];
@@ -33,16 +35,18 @@ const isProvenance = (p: unknown): p is Provenance =>
   isStr(p.solverVersion) &&
   isNum(p.receivedAt) &&
   [p.exploitabilityPct, p.targetPct, p.iterations, p.seconds, p.mbbPerHand].every(isOptNum) &&
-  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.confidence, p.evIn].every(isOptStr);
+  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;
   if (x.via === "solver") return isObj(x.state) && isCount(x.state.players);
+  // (`hand` goes in a link)
+  if (x.via === "kept") return isWellFormed(x.hand) && !!x.hand && isStr(x.decision) && !!x.decision;
   return x.via === "library" && isStr(x.spot) && isStr(x.flop) && isStrs(x.path) && Array.isArray(x.combo) && x.combo.length === 2 && x.combo.every(isCount) && isOptStr(x.version) && (x.turn === undefined || (isObj(x.turn) && isStr(x.turn.card) && isStrs(x.turn.at)));
 };
 
 const isMix = (x: unknown): x is MistakeRecord["mix"] =>
-  Array.isArray(x) && x.length > 0 && x.every((m) => isObj(m) && isStr(m.action) && isNum(m.freq) && (m.ev === null || isNum(m.ev)) && isOptNum(m.amount));
+  Array.isArray(x) && x.length > 0 && x.every((m) => isObj(m) && isStr(m.action) && isNum(m.freq) && (m.ev === null || isNum(m.ev)) && isOptNum(m.amount) && (m.rough === undefined || m.rough === true));
 
 const isGrade = (g: unknown, mix: readonly unknown[]): g is MistakeRecord["grade"] =>
   isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv);
@@ -55,21 +59,43 @@ export function readMistake(x: unknown): MistakeRecord | null {
   if (!isObj(x)) return null;
   const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
   const fits =
-    isStr(id) && !!id && (from === "hand" || from === "drill") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) &&
+    isStr(id) && !!id && (from === "hand" || from === "drill" || from === "analyze" || from === "leak") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) &&
     isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && hole.every(isCard) && isStrs(board) && board.every(isCard) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
-    isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && (provenance === null || isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
+    isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && (provenance === null ? (ask as MistakeAsk).via !== "kept" : isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
     Array.isArray(tries) && tries.every(isTry);
   return fits ? (x as unknown as MistakeRecord) : null;
 }
 
-/** A spot's record added, or, the same spot missed again, `merge` of the two. A damaged record there is replaced. */
-export async function keepMistake(fresh: MistakeRecord, merge: (was: MistakeRecord, fresh: MistakeRecord) => MistakeRecord): Promise<void> {
+/** A spot's record added, or, the same spot missed again, `merge` of the two. A damaged record there is replaced. Whether
+ * it was kept: a browser with no database keeps nothing. */
+export async function keepMistake(fresh: MistakeRecord, merge: (was: MistakeRecord, fresh: MistakeRecord) => MistakeRecord): Promise<boolean> {
   const d = await db();
-  if (!d) return;
+  if (!d) return false;
   const tx = d.transaction("mistakes", "readwrite");
   const was = readMistake(await tx.store.get(fresh.id));
   await tx.store.put(was ? merge(was, fresh) : fresh);
   await tx.done;
+  return true;
+}
+
+/** A spot added by hand: one already kept stays as it is, its date with it (adding isn't missing it again). What became of
+ * it: "added", "there" where it's kept already, or null where this browser keeps nothing. */
+export async function addMistake(fresh: MistakeRecord): Promise<"added" | "there" | null> {
+  const d = await db();
+  if (!d) return null;
+  const tx = d.transaction("mistakes", "readwrite");
+  const there = readMistake(await tx.store.get(fresh.id)) !== null;
+  if (!there) await tx.store.put(fresh);
+  await tx.done;
+  return there ? "there" : "added";
+}
+
+/** A record taken out of the queue, its retries with it. Whether this browser could: a damaged one goes the same way. */
+export async function deleteMistake(id: string): Promise<boolean> {
+  const d = await db();
+  if (!d) return false;
+  await d.delete("mistakes", id);
+  return true;
 }
 
 /** Every record, and how many couldn't be read, the latest missed first. */

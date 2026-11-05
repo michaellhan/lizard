@@ -152,7 +152,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
   return (
     <section aria-label="Lifetime totals" className="space-y-1">
       <h2 className="text-lg font-semibold">Lifetime</h2>
-      <div className="overflow-x-auto">
+      <div className="scroll-x">
         <table className="text-left text-sm" aria-label="Totals by kind">
           <thead className="text-xs text-muted">
             <tr>
@@ -207,7 +207,7 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
     <section aria-label="Decisions by street" className="space-y-1">
       <h2 className="text-lg font-semibold">Decisions by street</h2>
       {t.rows.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="scroll-x">
           <table className="text-left text-sm" aria-label="Totals by street">
             <thead className="text-xs text-muted">
               <tr>
@@ -304,7 +304,7 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
     <section aria-label="Full hands by pot type" className="space-y-1">
       <h2 className="text-lg font-semibold">Full hands by pot type</h2>
       {pots.rows.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="scroll-x">
           <table className="text-left text-sm" aria-label="Totals by pot type">
             <thead className="text-xs text-muted">
               <tr>

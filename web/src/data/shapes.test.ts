@@ -117,7 +117,7 @@ describe("records that blanked a page", () => {
     ["savedDrills", { ...DRILL }, []],
     ["sessions", { ...SESSION }, ["endedAt"]],
     ["hands", { ...HAND }, ["playedFor", "revealed", "tournament", "tags", "note", "updatedAt"]],
-    ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "off", "flopAggr", "confidence", "triageSource", "read", "notChecked"]],
+    ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "roughEvs", "off", "flopAggr", "confidence", "triageSource", "read", "notChecked"]],
   ];
 
   it.each(STORES)("takes a whole %s, and refuses any one field gone wrong", async (store, whole, optional) => {

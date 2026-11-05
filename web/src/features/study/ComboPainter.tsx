@@ -83,7 +83,7 @@ export function ComboPainter({
           Close combos
         </button>
       </div>
-      <p aria-label={`${cls} as painted`}>
+      <p role="note" aria-label={`${cls} as painted`}>
         Over its {live} live combo{live === 1 ? "" : "s"}, by reach: {names.map((n, a) => `${n} ${pct(mean[a], 1)}`).join(" · ")}
       </p>
       {locked ? <p className="text-warn">Locked: unlock the hand to paint its combos.</p> : <p className="text-muted">A combo's share of each action, in %: the rest of its mix keeps its proportions. Each change is one undo step.</p>}

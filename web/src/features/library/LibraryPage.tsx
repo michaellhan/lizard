@@ -81,7 +81,7 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
       )}
       {groups.length > 0 && <p className="text-xs text-muted sm:hidden">Scroll a table sideways for all its columns, Study last.</p>}
       {groups.map(([game, spots]) => (
-        <div key={game} className="overflow-x-auto rounded-lg border border-border">
+        <div key={game} className="scroll-x rounded-lg border border-border">
           <table className="w-full min-w-[560px] text-sm">
             <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">{game}</caption>
             <thead className="text-xs text-muted">

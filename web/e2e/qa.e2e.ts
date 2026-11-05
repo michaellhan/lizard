@@ -478,6 +478,55 @@ test("10c. The plan starts empty, reads what's graded, and its practice step ope
   await clean(page, problems);
 });
 
+test("10d. A decision missed in Analyze goes to Review by a press, comes back graded with nothing solved, and can be deleted", async ({ page, problems }) => {
+  await page.goto("/lizard/analyze/");
+  await page.getByLabel("Paste hand histories").fill(hh("stars_6max_srp.txt"));
+  await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("button", { name: /^Grade \d/ }).click();
+  await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
+  // Marked as missed in the browser's own store, as the fixtures grade clean
+  await page.evaluate(
+    () =>
+      new Promise<void>((done, fail) => {
+        const open = indexedDB.open("lizard");
+        open.onerror = () => fail(open.error);
+        open.onsuccess = () => {
+          const store = open.result.transaction("decisions", "readwrite").objectStore("decisions");
+          const all = store.getAll();
+          all.onsuccess = () => {
+            for (const d of all.result) store.put({ ...d, verdict: "Mistake" });
+            store.transaction.oncomplete = () => (open.result.close(), done());
+          };
+        };
+      }),
+  );
+  await page.reload();
+  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
+  const hand = page.getByRole("region", { name: "Hand", exact: true });
+  await expect(hand.getByText(/Add to review keeps the one you choose/)).toBeVisible();
+  const add = hand.getByRole("button", { name: /^Add to review: / }).first();
+  await add.click();
+  await expect(hand.getByRole("status").filter({ hasText: /^Added, due tomorrow/ })).toBeVisible();
+  await hand.getByRole("link", { name: "Review" }).first().click();
+
+  await expect(page).toHaveURL(/\/review/);
+  const entry = page.getByText("Added from Analyze").first();
+  await expect(entry).toBeVisible();
+  await page.screenshot({ path: "e2e-results/shots/desktop/review-from-analyze.png", fullPage: true });
+  await page.getByRole("button", { name: /^Retry early: / }).first().click();
+  const retry = page.getByRole("region", { name: "Retry" });
+  await expect(retry.getByText(/nothing solved: the same answer as your first grade/)).toBeVisible();
+  await retry.getByRole("group", { name: "Your options" }).getByRole("button").first().click();
+  await expect(retry.getByText(/The same answer both times/)).toBeVisible();
+  await page.getByRole("button", { name: /^Delete: / }).first().click();
+  await page.getByRole("button", { name: "Delete this entry" }).click();
+  await expect(page.getByText("Added from Analyze")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Review" })).toBeVisible();
+  await expect(page.getByText("Added from Analyze")).toHaveCount(0);
+  await clean(page, problems);
+});
+
 test("14d. A single combo painted apart from its class, graded by combo, on a real river answer, with EQR by combo", async ({ page, problems }) => {
   await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
   await expect(actions(page)).toBeVisible({ timeout: 120_000 });

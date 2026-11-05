@@ -116,6 +116,24 @@ describe("reviews", () => {
   });
 });
 
+describe("reviews, with entries from Analyze", () => {
+  it("orders and counts them as any entry: the longest overdue first, finished ones and those not due out", () => {
+    const ask = { via: "kept", hand: "h1", decision: "d" } as const;
+    const plan = buildPlan(
+      input({
+        mistakes: [
+          dueToday({ id: "new", from: "leak", ask, due: NOW - 1000 }),
+          dueToday({ id: "old", from: "analyze", ask, due: NOW - 3 * DAY }),
+          dueToday({ id: "practice", due: NOW - 2 * DAY }),
+          dueToday({ id: "later", from: "analyze", ask, due: NOW + DAY }),
+          dueToday({ id: "done", from: "leak", ask, due: null }),
+        ],
+      }),
+    );
+    expect(plan.reviews?.due).toBe(3);
+  });
+});
+
 describe("leaks", () => {
   it("opens the leak's drill over the hands it was read from", () => {
     const leak = buildPlan(input({ decisions: times(40, () => flop("SRP · IP · checked to", 1)) })).leaks.find((l) => l.leak.kind === "spot")!;
@@ -248,7 +266,30 @@ describe("the drill", () => {
     const hand: PlanHand = { ...HAND, id: "p", site: PRACTICE_SITE, importId: sessionImport("s1") };
     const plan = buildPlan(input({ hands: [HAND, hand], decisions: [...misses("flop", "BB", 3), ...misses("turn", "BTN", 9, { handId: "p" })], mistakes: [mistake({ street: "turn", seat: "BTN", times: 4, due: NOW + DAY })] }));
     expect(plan.drill).toMatchObject({ street: "turn", seat: "BTN", misses: 4 });
-    expect(plan.drill!.says[1]).toMatch(/0 in hands graded in Analyze, 4 kept from Practice/);
+    expect(plan.drill!.says[1]).toMatch(/0 in hands graded in Analyze, 4 kept in the review queue/);
+  });
+
+  describe("with entries from Analyze", () => {
+    const kept = (decision: string, x: Partial<MistakeRecord> = {}) => mistake({ id: decision, from: "analyze", street: "flop", seat: "BTN", ask: { via: "kept", hand: "h1", decision }, due: NOW + DAY, ...x });
+
+    it("doesn't count an entry again where its own graded miss is counted, and counts what else the queue holds", () => {
+      const ds = misses("flop", "BTN", 3);
+      const plan = buildPlan(input({ decisions: ds, mistakes: [kept(ds[0]!.id, { times: 2 }), kept(ds[1]!.id, { from: "leak" })] }));
+      expect(plan.drill).toMatchObject({ street: "flop", seat: "BTN", misses: 3 });
+      expect(plan.drill!.says[1]).toMatch(/3 in hands graded in Analyze, 0 kept in the review queue/);
+    });
+
+    it("counts one whose grade is gone or wasn't a miss, as it's the only count of it", () => {
+      const gone = buildPlan(input({ mistakes: [kept("h9|flop|0", { times: 2 })] }));
+      expect(gone.drill).toMatchObject({ street: "flop", seat: "BTN", misses: 2 });
+      const ok = d({ id: "ok", street: "flop", verdict: "Best" });
+      const picked = buildPlan(input({ decisions: [ok], mistakes: [kept("ok", { from: "leak" })] }));
+      expect(picked.drill).toMatchObject({ misses: 1 });
+    });
+
+    it("says that it doesn't count one twice", () => {
+      expect(PLAN_RULE.join(" ")).toMatch(/isn't counted again where its own decision already is/);
+    });
   });
 
   it("doesn't count what was played in the mix, or what nothing graded", () => {

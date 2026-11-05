@@ -53,7 +53,7 @@ export function ComboPanel({
           {names.map((nm, a) =>
             (cell.f[a] ?? 0) >= 0.005 ? (
               <span key={nm} className="inline-flex items-center gap-1 rounded bg-surface-2 px-2 py-0.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[a] }} />
+                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: colors[a] }} />
                 {nm} <b>{pct(cell.f[a])}</b>
                 {cell.ev ? <span className="text-muted"> {ev(cell.ev[a])}</span> : null}
               </span>
@@ -80,7 +80,7 @@ export function ComboPanel({
                   {row[1] < 0.999 && <span className="text-faint"> ({pct(row[1], 0)})</span>}
                 </td>
                 <td className="py-1">
-                  <span className="flex h-2.5 w-28 overflow-hidden rounded-sm bg-surface-3" role="img" aria-label={names.map((nm, a) => `${nm} ${pct(row[2][a])}`).join(", ")}>
+                  <span className="flex h-2.5 w-28 gap-px overflow-hidden rounded-sm bg-surface-3" role="img" aria-label={names.map((nm, a) => `${nm} ${pct(row[2][a])}`).join(", ")}>
                     {row[2].map((f, a) => (f > 0.0005 ? <span key={a} style={{ width: `${f * 100}%`, background: colors[a] }} /> : null))}
                   </span>
                 </td>

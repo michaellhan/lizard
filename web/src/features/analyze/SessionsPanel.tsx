@@ -297,7 +297,7 @@ function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMi
   const called = shifts.filter((r) => r.change);
   const rest = shifts.filter((r) => !r.change);
   const table = (rows: Shift[], label: string) => (
-    <div className="overflow-x-auto">
+    <div className="scroll-x">
       <table aria-label={label} className="text-left">
         <thead className="text-xs text-muted">
           <tr>
@@ -445,7 +445,7 @@ export function TrendChart({ basis, points, about }: { basis: string; points: Bl
       </div>
       <details className="text-xs">
         <summary className="cursor-pointer text-muted">The line&rsquo;s numbers</summary>
-        <div className="overflow-x-auto">
+        <div className="scroll-x">
           <table aria-label="The line by blocks" className="text-left">
             <thead className="text-muted">
               <tr>

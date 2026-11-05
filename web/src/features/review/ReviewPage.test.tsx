@@ -182,6 +182,79 @@ describe("ReviewPage", () => {
     expect(await within(screen.getByRole("region", { name: "Retry" })).findByText(/^preflop · missed/)).toBeInTheDocument();
   });
 
+  it("says what comes to the queue, and what a delete does", async () => {
+    page();
+    expect(await screen.findByText(/What comes here: every Inaccuracy, Mistake and Blunder from Practice/)).toBeInTheDocument();
+    expect(screen.getByText(/only when you press Add to review/)).toBeInTheDocument();
+    expect(screen.getByText(/tournament hands and hands from exploit sessions stay out/)).toBeInTheDocument();
+    expect(screen.getByText(/Delete takes an entry out of the queue/)).toBeInTheDocument();
+  });
+
+  describe("an entry from Analyze", () => {
+    const keptAsk = { via: "kept", hand: "h1", decision: "h1|turn|1" } as const;
+    const provenance = { ...LIVE, transport: "kept", keptLabel: "Live solve (Quick) · medium confidence" } as const;
+    const kept = (x: Partial<MistakeRecord> = {}) => mistake({ id: "k", from: "analyze", ask: keptAsk, provenance, due: PAST, ...x });
+
+    it("says where it came from, keeps its provenance and links to its hand", async () => {
+      await seed(kept(), kept({ id: "l", from: "leak", hole: ["Qh", "Qd"], times: 3 }));
+      page();
+      expect(await screen.findByText(/Added from Analyze/)).toBeInTheDocument();
+      expect(screen.getByText(/From a leak drill/)).toBeInTheDocument();
+      expect(screen.getByText(/missed 3 times/)).toBeInTheDocument();
+      expect(screen.getAllByText(/Live solve \(Quick\) · medium confidence/).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("link", { name: "Open the hand →" })[0]).toHaveAttribute("href", "/analyze?hand=h1");
+      expect(screen.getByText(/A decision from Analyze is graded against the answer kept with it, with no solve/)).toBeInTheDocument();
+    });
+
+    it("retries against the answer kept, says so, and says it's the same answer", async () => {
+      ask.next.mockImplementation(async () => answer({ provenance }));
+      await seed(kept());
+      page();
+      fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
+      expect(await screen.findByText(/Graded against the answer kept with this decision in Analyze, nothing solved/)).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("button", { name: /bet 33%/ }));
+      expect(await screen.findByText(/The same answer both times/)).toBeInTheDocument();
+      await waitFor(async () => expect((await listMistakes()).list[0]).toMatchObject({ step: 1 }));
+    });
+  });
+
+  describe("deleting an entry", () => {
+    const two = () => seed(mistake({ id: "a", due: PAST, hole: ["Ah", "Kd"] }), mistake({ id: "b", due: PAST + 1, hole: ["Qh", "Qd"] }));
+
+    it("asks once more, then it's gone, says so, and the keyboard goes to the row in its place", async () => {
+      await two();
+      page();
+      fireEvent.click(await screen.findByRole("button", { name: "Delete: Ah Kd, flop" }));
+      expect((await listMistakes()).list).toHaveLength(2);
+      fireEvent.click(screen.getByRole("button", { name: "Delete this entry" }));
+      await waitFor(async () => expect((await listMistakes()).list.map((m) => m.id)).toEqual(["b"]));
+      expect(await screen.findByText("Entry deleted.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Delete: Ah Kd, flop" })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Delete: Qh Qd, flop" }).closest("li")));
+    });
+
+    it("keeps it on Keep", async () => {
+      await two();
+      page();
+      fireEvent.click(await screen.findByRole("button", { name: "Delete: Ah Kd, flop" }));
+      fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+      expect(screen.queryByRole("button", { name: "Delete this entry" })).toBeNull();
+      expect((await listMistakes()).list).toHaveLength(2);
+    });
+
+    it("closes a retry open on it", async () => {
+      ask.next.mockReturnValue(new Promise(() => undefined));
+      await seed(mistake({ id: "a", due: PAST }));
+      page();
+      fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
+      expect(await screen.findByRole("heading", { name: /Retry/ })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Delete: Ah Kd, flop" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete this entry" }));
+      await waitFor(() => expect(screen.queryByRole("heading", { name: /Retry/ })).toBeNull());
+      expect(await screen.findByText(/No mistake kept yet/)).toBeInTheDocument();
+    });
+  });
+
   it("counts a damaged record and shows the rest", async () => {
     await seed(mistake({ id: "good" }));
     await (await db())!.put("mistakes", { id: "bad", street: "flop", due: 1, lastAt: 2 } as never);

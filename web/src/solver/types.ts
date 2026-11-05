@@ -74,9 +74,13 @@ export interface Provenance {
   mbbPerHand?: number;
   /** a Quick triage read: how far it can be trusted */
   confidence?: Confidence;
+  /** a grade kept in Analyze: its provenance line as it was written then, which holds what the record doesn't (the
+   * iterations, the distance, the spot), so it's said as it stands */
+  keptLabel?: string;
   mode: SolveMode;
-  /** the solver backend that answered, or "file": a library entry decoded in the page with no solver (drills) */
-  transport: TransportKind | "file";
+  /** the solver backend that answered, or "file": a library entry decoded in the page with no solver (drills), or
+   * "kept": read from a grade kept in Analyze, which doesn't say which backend answered (features/review/fromAnalyze.ts) */
+  transport: TransportKind | "file" | "kept";
   /** solver build: upstream gto-solver commit and Lizard bundle version */
   solverVersion: string;
   /** a partial (in-progress) answer, superseded by a later one */

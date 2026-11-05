@@ -244,6 +244,7 @@ export const sourceLabel = (s: ResultSource): string => LABELS[s];
 export const ICM_TABLE_LABEL = "ICM (Malmuth-Harville), worked out in this page from the setup with the engine's prize model";
 
 export function describe(p: Provenance): string {
+  if (p.keptLabel) return p.keptLabel;
   const parts = [p.source === "live" && p.mode === "quick" ? `${LABELS.live} (Quick)` : LABELS[p.source]];
   if (p.exploit) parts.push(p.exploit);
   if (p.lock) parts.push(p.lock);

@@ -92,7 +92,7 @@ export function ChipCompare({
   };
   return (
     <section aria-label="Chip EV comparison" className="space-y-2 rounded-md border border-border bg-surface px-3 py-2 text-xs">
-      <div className="overflow-x-auto">
+      <div className="scroll-x">
         <table className="w-full text-left">
           <thead className="text-muted">
             <tr>

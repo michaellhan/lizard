@@ -1,9 +1,13 @@
 // A leak drilled: the decisions behind it dealt again one by one, each as it stood in your hand (your cards, the
 // board, the actions before it), answered from the mix kept with its grade, so nothing is asked of the solver (the
 // classic analyzer's drillSet: "the spot as it stood, the answer's mix and EVs, misses first"). A pick is graded on
-// the one scale (grading/grade.ts) as the decision was: by EV where the mix has EVs, else by frequency.
+// the one scale (grading/grade.ts) as the decision was: by EV where the mix has EVs, else by frequency, and capped where
+// the decision was. Every street keeps what graded it (grading.ts gradeDecision: a read, a stored turn or a solve at Quick
+// or Fast keeps your hand's mix, its EVs where it has them, and the pot), so a turn or river decision is dealt like a flop
+// one. One kept without its mix isn't dealt, and the drill says how many (notDealt).
 import type { DecisionRecord, HandRecord, SessionRecord } from "@/data/db";
-import { grade, type Grade, type Score } from "@/grading/grade";
+import { capGrade, CAPPED_WORDS, grade, type Grade, type Score } from "@/grading/grade";
+import { versionWords } from "@/grading/version";
 import type { ReplayedHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
@@ -11,7 +15,7 @@ import { GAME_WORDS, HAND_FILTERS, STREETS } from "./analyze";
 import { isGraded, isOk, leakTest, type Leak } from "./report";
 import { sessWords } from "./sessions";
 
-const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+export const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 
 export type LeakRef = Pick<Leak, "kind" | "key">;
@@ -86,6 +90,31 @@ export function drillItems(ds: readonly DecisionRecord[], leak: LeakRef, hands: 
   );
 }
 
+/** A leak's graded decisions in these hands that aren't dealt, and why: no mix kept with the grade, or EVs with no pot. */
+export function notDealt(ds: readonly DecisionRecord[], leak: LeakRef, hands: ReadonlyMap<string, HandRecord>): { noMix: number; noPot: number } {
+  const test = leakTest(leak);
+  const out = { noMix: 0, noPot: 0 };
+  for (const d of ds) {
+    if (!isGraded(d) || canDrill(d) || !hands.has(d.handId) || !test(d)) continue;
+    out[d.mix?.length ? "noPot" : "noMix"]++;
+  }
+  return out;
+}
+
+/** Those decisions in words; null with none. */
+export function notDealtWords({ noMix, noPot }: { noMix: number; noPot: number }): string | null {
+  const n = noMix + noPot;
+  if (!n) return null;
+  const why = [noMix ? `${noMix.toLocaleString()} kept no mix with the grade` : "", noPot ? `${noPot.toLocaleString()} kept EVs with no pot to measure a pick against` : ""].filter(Boolean).join(", ");
+  return `${n.toLocaleString()} of this leak's graded decisions ${n === 1 ? "isn't" : "aren't"} dealt here, as there's nothing to grade a pick against: ${why}. Forget the grades and grade again to keep them.`;
+}
+
+/** Where a decision stands on its street. A grade kept before `i` was says it in its id (grading.ts decisionId). */
+export function decisionIndex(d: Pick<DecisionRecord, "i" | "id">): number {
+  const i = d.i ?? Number(d.id.split("|").at(-1));
+  return Number.isInteger(i) && i >= 0 ? i : 0;
+}
+
 /** The actions before a decision, street by street, as the hand view says them ("UTG folds", "You raise to 2.5"),
  * with the board up to its street. */
 export function lineBefore(r: ReplayedHand, street: Street, i: number): { board: string[]; streets: { street: Street; says: string[] }[] } {
@@ -114,10 +143,36 @@ export function lineBefore(r: ReplayedHand, street: Street, i: number): { board:
 }
 
 /** A pick among the kept mix's actions, graded as the decision was: by EV where the mix has EVs for every action, else
- * by frequency (the charts, a read at once). Null where its EVs have no pot to be measured against. */
+ * by frequency (the charts, a stored turn, a read at once), and stopping at an Inaccuracy where a rough or cut-short solve
+ * answered it. Null where its EVs have no pot to be measured against. */
 export function gradePick(d: DecisionRecord, a: number): Grade | null {
   if (!canGradePick(d)) return null;
-  return grade({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0 }, a);
+  return capGrade(grade({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0 }, a), d.capped ? "rough" : d.band);
+}
+
+/** The actions whose EV is rough. A grade kept before `roughEvs` was can say it only of the move made. */
+export const roughActions = (d: Pick<DecisionRecord, "roughEvs" | "roughEv" | "matched">): ReadonlySet<string> => new Set(d.roughEvs ?? (d.roughEv && d.matched ? [d.matched] : []));
+
+const CONFIDENCE_MEANS: Record<string, string> = {
+  high: "Fast answers the same",
+  medium: "a Quick solve that settled, a stored turn or a borrowed spot",
+  low: "worth checking at Fast before you trust it",
+};
+
+/** What a drill's answer stands on beyond its label: the grade's confidence and version, and what kept it from being read
+ * at face value. All of it is the original grade's, as nothing is solved here. */
+export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | "best">): string[] {
+  const name = (k: number) => d.mix?.[k]?.[0] ?? "";
+  const rough = roughActions(d);
+  return [
+    d.read ? `Checked at Fast: the read before it said ${d.read.verdict}${d.read.confidence ? `, at ${d.read.confidence} confidence` : ""}.` : "",
+    !d.read && d.confidence ? `A Quick triage read at ${d.confidence} confidence: ${CONFIDENCE_MEANS[d.confidence]}.` : "",
+    d.notChecked !== undefined ? `Fast couldn't grade it (${d.notChecked}), so the read stands.` : "",
+    g.capped ? CAPPED_WORDS : "",
+    rough.has(name(g.a)) || rough.has(name(g.best)) ? "The range almost never takes that move, so its EV is rough." : "",
+    d.off ?? "",
+    `Version: ${versionWords(d.version)}.`,
+  ].filter(Boolean);
 }
 
 /** The drill's progress, kept as an "analysis" session so it resumes: the decisions answered and the score. */

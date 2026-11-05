@@ -7,7 +7,7 @@
 // graded against, at any scope. The grade is Lizard's one scale (grading/grade.ts): by EV where the answer has EVs for
 // every action, by frequency where it hasn't (the charts; a read at once).
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { grade, type Grade, type Verdict } from "@/grading/grade";
+import { capGrade, grade, type Grade, type Verdict } from "@/grading/grade";
 import { versionOf } from "@/grading/version";
 import { importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Lines, type Move, type Street } from "@/poker/table";
@@ -52,6 +52,9 @@ function linesBefore(r: ReplayedHand, street: Street, i: number): Lines {
   const at = (s: Street) => (STREETS.indexOf(s) < k ? r.lines[s] : s === street ? r.lines[s].slice(0, i) : []);
   return { preflop: at("preflop"), flop: at("flop"), turn: at("turn"), river: at("river") };
 }
+
+/** The pot at one of your decisions, bb, from the hand alone: what's said where the answer gave none. */
+export const potBefore = (r: ReplayedHand, street: Street, i: number) => r2(simulate(r.setup, linesBefore(r, street, i), NEED[street]).pot);
 
 /** The Advisor's request at one of your decisions, as the classic page sends it (payload()): your seat, cards and
  * stack, every seat's own stack where they differ, the ante and the straddle, the actions before it; what the scope
@@ -184,7 +187,7 @@ export const jamOffTree = (res: AdvisorResponse, m: Move) =>
 /** The grade of your move against an answer, with the mix it is graded against; null where the move isn't in it, or
  * where an answer with EVs gives no pot: EV lost is graded as a share of the pot, and against none every loss would
  * read as an Inaccuracy, however large. */
-export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean } | null {
+export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean; roughEvs?: string[] } | null {
   const hit = matchMove(res, m);
   if (!hit) return null;
   const freqs = hit.actions.map((a) => a.freq ?? 0);
@@ -193,6 +196,7 @@ export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : 0;
   if (evs && !(pot > 0)) return null;
   const g = grade({ freqs, evs, pot }, hit.index);
+  const rough = hit.actions.filter((a) => a.rough_ev).map((a) => a.action);
   return {
     grade: g,
     mix: hit.actions.map((a, k) => [a.action, freqs[k]!, evList[k]!]),
@@ -200,6 +204,7 @@ export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix
     ...(hit.note ? { note: hit.note } : {}),
     pot,
     ...(g.byEv && hit.actions[hit.index]!.rough_ev ? { roughEv: true } : {}),
+    ...(g.byEv && rough.length ? { roughEvs: rough } : {}),
   };
 }
 
@@ -232,7 +237,7 @@ export async function gradeDecision(
     ...(street === "preflop" ? {} : { ip: sit.ip, multi: sit.multi, role: roleOf(r) }),
     ...(street === "flop" && r.lines.flop.slice(0, i).some((a) => a.pos === played.pos && AGGRESSIVE.has(a.action)) ? { ownBet: true } : {}),
     ...(street === "turn" ? { flopAggr: r.lines.flop.some((a) => a.pos === played.pos && AGGRESSIVE.has(a.action)) } : {}),
-    pot: r2(simulate(r.setup, linesBefore(r, street, i), NEED[street]).pot),
+    pot: potBefore(r, street, i),
     gradedAt: now,
   };
   // (a triage answer without a mark, an error's, reads as low, as the classic analyzer takes it)
@@ -270,12 +275,11 @@ export async function gradeDecision(
   const best = g.mix.reduce((b, x) => (x[1] > b[1] ? x : b));
   const off = offText(ans.data);
   // (a rough or cut-short solve can't condemn a line, as the classic gradeClass has it: its EV is kept, as measured)
-  const unsure = ans.provenance.band === "rough" || ans.provenance.band === "approximate";
-  const capped = unsure && (g.grade.verdict === "Mistake" || g.grade.verdict === "Blunder");
+  const { verdict, capped } = capGrade(g.grade, ans.provenance.band);
   const version = versionOf(ans.provenance);
   return {
     ...base,
-    verdict: capped ? "Inaccuracy" : g.grade.verdict,
+    verdict,
     ...(capped ? { capped: true } : {}),
     evLossBb: g.grade.byEv ? r2(g.grade.loss) : null,
     lossPct: g.grade.byEv ? Math.round(g.grade.lossPct * 10) / 10 : null,
@@ -288,6 +292,7 @@ export async function gradeDecision(
     mix: g.mix,
     ...(g.note ? { note: g.note } : {}),
     ...(g.roughEv ? { roughEv: true } : {}),
+    ...(g.roughEvs ? { roughEvs: g.roughEvs } : {}),
     ...(off ? { off } : {}),
     source,
     label,

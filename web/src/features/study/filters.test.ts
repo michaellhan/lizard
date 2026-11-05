@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdvisorResponse, ComboRow } from "@/solver/protocol";
-import { catsOf, classesIn, filterRes } from "./filters";
+import { catsOf, classesIn, equityBuckets, filterRes } from "./filters";
 
 // the fixture of solver/tests/js/study.test.js ("the filter: ..."), on its NODE
 const NODE: AdvisorResponse = {
@@ -114,5 +114,35 @@ describe("hand-category filter", () => {
     expect(op.grid!.cells.AA!.ev).toBeNull();
     expect(op.range_ev_bb).toBeNull();
     expect(op.actions!.every((a) => a.ev_bb === null)).toBe(true);
+  });
+});
+
+describe("the equity buckets", () => {
+  const row = (cards: string, reach: number, eq: number | null): ComboRow => [cards, reach, [1, 0, 0], [1, 2, 3], eq, 0, 0];
+  const at: AdvisorResponse = {
+    ...NODE,
+    combos: { AA: [row("AsAh", 1, 0.9), row("AsAd", 1, 1)], KQo: [row("KsQh", 0.5, 0.5), row("KsQd", 0.5, 0.25)], "72s": [row("7s2s", 1, 0), row("7h2h", 1, null)] },
+  };
+  it("puts each bound in the bucket above it, 100% in the top one, and a hand with no equity in none", () => {
+    expect(equityBuckets(at).map((b) => [b.key, b.label, b.combos])).toEqual([
+      ["q:0", "0\u201325% equity", 1],
+      ["q:25", "25\u201350% equity", 0.5],
+      ["q:50", "50\u201375% equity", 0.5],
+      ["q:75", "75\u2013100% equity", 2],
+    ]);
+  });
+  it("recounts the grid, totals and combos over the bucket's hands, and says what it stands on", () => {
+    const f = filterRes(at, "q:75");
+    expect(Object.keys(f.grid!.cells)).toEqual(["AA"]);
+    expect(f.range_combos).toBe(2);
+    expect(f.range_eq).toBeCloseTo(0.95);
+    expect(f.filter).toEqual({ key: "q:75", label: "75\u2013100% equity", of: 400 });
+    const low = filterRes(at, "q:0");
+    expect(low.combos!["72s"]!.map((x) => x[0])).toEqual(["7s2s"]);
+  });
+  it("offers none where the answer holds no equities, and an unknown key leaves the answer as it is", () => {
+    expect(equityBuckets({ ...at, combos: { AA: [row("AsAh", 1, null)] } })).toEqual([]);
+    expect(equityBuckets({ ...at, combos: undefined })).toEqual([]);
+    expect(filterRes(at, "q:33")).toBe(at);
   });
 });

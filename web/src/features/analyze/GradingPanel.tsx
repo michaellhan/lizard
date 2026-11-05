@@ -387,7 +387,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
       {rp.freqs.length > 0 && (
         <div className="space-y-1">
           <h3 className="font-semibold">Your frequencies against the answer's</h3>
-          <div className="relative overflow-x-auto">
+          <div className="relative scroll-x">
             <table aria-label="Frequencies" className="min-w-full text-left">
               <thead className="text-xs text-muted">
                 <tr>

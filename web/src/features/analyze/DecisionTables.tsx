@@ -64,7 +64,7 @@ export function GroupTable({
   return (
     <div className="space-y-1">
       <h3 className="font-semibold">{title}</h3>
-      <div className="relative overflow-x-auto">
+      <div className="relative scroll-x">
         <table aria-label={title} className="min-w-full text-left">
           <thead className="text-xs text-muted">
             <tr>

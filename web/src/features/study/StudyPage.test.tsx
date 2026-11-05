@@ -124,7 +124,7 @@ describe("StudyPage", () => {
     stub.answer = THREE_WAY;
     renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");
     const select = await screen.findByRole("combobox", { name: "Show only the hands of one category" });
-    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["All hands", "Set · 8.3%", "Overpair · 8.3%"]);
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["All hands", "Set · 8.3%", "Overpair · 8.3%", "50\u201375% equity · 8.3%", "75\u2013100% equity · 8.3%"]);
     fireEvent.change(select, { target: { value: "m:set" } });
     expect(screen.getByRole("grid", { name: "BB range (Set)" })).toBeInTheDocument();
     expect(screen.getByText(/Set: 1\.0 of 12\.0 combos/)).toBeInTheDocument();

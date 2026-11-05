@@ -27,7 +27,7 @@ import { GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
-import { isGraded, lostByKind } from "./report";
+import { isGraded, isOk, lostByKind } from "./report";
 import { importTooBig } from "@/data/limits";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
 import { exploitImports, exploitsApartNote, isEquilibriumHand } from "./sessions";
@@ -35,6 +35,9 @@ import { SessionsPanel } from "./SessionsPanel";
 import { StatsPanel } from "./StatsPanel";
 import { WinningsPanel } from "./WinningsPanel";
 import { LIMITS } from "@/features/solve/setup";
+import { handOut } from "@/features/review/fromAnalyze";
+import { ADD_RULE } from "@/features/review/schedule";
+import { AddToReview } from "./AddToReview";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
@@ -145,6 +148,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <HandDetail
           hand={open}
           decisions={openDecisions}
+          exploits={exploits}
           onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
           onClose={() => {
             // (back to the Open that opened it, or, not listed now, the page's main)
@@ -481,7 +485,7 @@ function HandsTable({
       </div>
       {/* (relative: the sr-only header's absolute box stays inside the scrolling box, not widening the page) */}
       <PhoneColumns hidden={["Site", "Big blind"]}>
-      <div className="relative overflow-x-auto rounded-lg border border-border">
+      <div className="relative scroll-x rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-surface-2 text-left text-xs text-muted">
             <tr>
@@ -564,7 +568,7 @@ function HandsTable({
   );
 }
 
-function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onSaved: (h: HandRecord) => void; onClose: () => void }) {
+function HandDetail({ hand, decisions, exploits, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; exploits: ReadonlySet<string>; onSaved: (h: HandRecord) => void; onClose: () => void }) {
   const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
   // (opened from the table below it: brought into view, with the keyboard where its Open had it, and not on a link's first load)
@@ -587,6 +591,8 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
     );
   const h = r.hand;
   const sim = finalSim(r);
+  const out = handOut(hand, exploits);
+  const misses = decisions.some((d) => isGraded(d) && !isOk(d));
   const stacks = Object.entries(r.setup.stacks);
   const even = stacks.every(([, v]) => v === stacks[0]![1]);
   return (
@@ -622,7 +628,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
       </div>
       <ol className="space-y-2">
         {STREETS.map((st) => (
-          <StreetRow key={st} r={r} street={st} graded={(i) => graded.get(decisionId(hand.id, st, i))} />
+          <StreetRow key={st} r={r} street={st} graded={(i) => graded.get(decisionId(hand.id, st, i))} hand={out ? null : hand} />
         ))}
       </ol>
       <p className="text-muted">
@@ -641,6 +647,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
         {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
         {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page, to add the prizes left and any bounties."}
       </p>
+      {misses && <p className="text-xs text-muted">{out ?? ADD_RULE}</p>}
       {r.warnings.length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted" aria-label="Warnings">
           {r.warnings.map((w, i) => (
@@ -707,7 +714,8 @@ function HandNotes({ hand, onSaved }: { hand: HandRecord; onSaved: (h: HandRecor
 
 const NEW_CARDS: Record<Street, [number, number]> = { preflop: [0, 0], flop: [0, 3], turn: [3, 4], river: [4, 5] };
 
-function StreetRow({ r, street, graded }: { r: ReplayedHand; street: Street; graded: (i: number) => DecisionRecord | undefined }) {
+/** `hand`: the kept hand, where its decisions can go to Review. */
+function StreetRow({ r, street, graded, hand }: { r: ReplayedHand; street: Street; graded: (i: number) => DecisionRecord | undefined; hand: HandRecord | null }) {
   const h = r.hand;
   const moves = r.lines[street];
   const cards = h.board.slice(...NEW_CARDS[street]);
@@ -737,6 +745,7 @@ function StreetRow({ r, street, graded }: { r: ReplayedHand; street: Street; gra
                   <span role="group" className="ml-1 inline-flex items-center gap-1 font-normal" aria-label={`Grade of ${street} decision ${i + 1}`} title={decisionNote(d)}>
                     {isGraded(d) ? <VerdictTag v={d.verdict as Verdict} /> : <span className="text-xs text-muted">not graded</span>}
                     {d.evLossBb != null && d.evLossBb > 0 && <span className="text-xs text-muted">−{d.roughEv ? "≈" : ""}{fmt(d.evLossBb)}bb</span>}
+                    {hand && isGraded(d) && !isOk(d) && <AddToReview d={d} hand={hand} r={r} name={`${street} decision ${i + 1}`} />}
                   </span>
                 )}
                 {link && (
