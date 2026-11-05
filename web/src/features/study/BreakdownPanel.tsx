@@ -8,7 +8,7 @@ import { actionColors, evIn, evUnitLabel, pct, type EvUnit } from "@/components/
 import type { Breakdown, BreakdownRow, BreakdownSide } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import { SolverError, type Provenance, type SolveMode } from "@/solver/types";
-import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf } from "./breakdown";
+import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf, takingAction } from "./breakdown";
 import { studyRequest, type StudyHand } from "./studyState";
 
 type Run = { kind: "asking" } | { kind: "none"; message: string } | { kind: "done"; bd: Breakdown; provenance: Provenance };
@@ -92,16 +92,24 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
   const [who, setWho] = useState(0);
   const [part, setPart] = useState<"made" | "draws">("made");
   const [sel, setSel] = useState<string | null>(null);
+  // one action picked: what it's made of, by category
+  const [act, setAct] = useState<number | null>(null);
   const side = sides[Math.min(who, sides.length - 1)]!;
   const hero = side === bd.hero;
   const shownPart = part === "draws" && bd.hero.draws.length ? "draws" : "made";
-  const rows = side[shownPart];
+  const whole = side[shownPart];
+  const taking = hero ? act : null;
+  const rows = taking === null ? whole : takingAction(whole, taking);
   const tot = rows.reduce((t, r) => t + r.c, 0) || 1;
   const max = Math.max(...rows.map((r) => r.c), 1e-9);
   const colors = useMemo(() => actionColors(bd.actions), [bd.actions]);
   const hasEq = rows.some((r) => r.eq != null);
   const hasEv = hero && rows.some((r) => r.ev != null);
   const picked = rows.find((r) => r.id === sel);
+  const pick = (next: number | null) => {
+    setAct(next);
+    setSel(null);
+  };
   const unit = evUnitLabel(evUnit, bd.pot);
   return (
     <section aria-label="Hand categories" className="min-w-0 space-y-2">
@@ -126,14 +134,21 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
         <ProvenanceBadge p={provenance} />
       </div>
       {hero ? (
-        <ul aria-label="Actions" className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <div role="group" aria-label="What an action is made of" className="flex flex-wrap gap-1 text-xs">
           {bd.actions.map((n, i) => (
-            <li key={n} className="flex items-center gap-1.5">
+            <button
+              key={n}
+              type="button"
+              aria-pressed={taking === i}
+              title={`The hands that ${n}, by category`}
+              onClick={() => pick(taking === i ? null : i)}
+              className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${taking === i ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}
+            >
               <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[i] }} />
               {n}
-            </li>
+            </button>
           ))}
-        </ul>
+        </div>
       ) : (
         <p className="text-xs text-muted">
           {side.who} isn't the one to act, so this is the range's make-up{hasEq ? " and equity" : ""}.
@@ -143,7 +158,7 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
         <thead className="text-muted">
           <tr>
             <th scope="col" className="w-[36%] py-0.5 text-left font-normal">Category</th>
-            <th scope="col" className="py-0.5 text-left font-normal">Share of range</th>
+            <th scope="col" className="py-0.5 text-left font-normal">{taking === null ? "Share of range" : `Share of ${bd.actions[taking]}`}</th>
             <th scope="col" className="w-11 py-0.5 text-right font-normal">%</th>
             {hasEq && <th scope="col" className="w-10 py-0.5 text-right font-normal">Eq</th>}
             {hasEv && <th scope="col" className="w-12 py-0.5 text-right font-normal">EV</th>}
@@ -158,7 +173,7 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
                 </button>
               </th>
               <td className="px-1 py-0.5">
-                <Bar r={r} hero={hero} width={r.c / max} colors={colors} />
+                <Bar r={r} hero={hero} width={r.c / max} colors={colors} only={taking === null ? undefined : colors[taking]} />
               </td>
               <td className="py-0.5 text-right">{pct(r.c / tot)}</td>
               {hasEq && <td className="py-0.5 text-right">{pct(r.eq, 0)}</td>}
@@ -187,15 +202,18 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
           ? "Made hands by what the hole cards add: a pair on the board is everyone's. Top pair's kicker is top, good (the next two) or weak."
           : "Draws by what the hole cards add. Each hand counts once, in its best draw."}
         {hasEv ? ` EV in ${unit}.` : ""}
+        {taking !== null ? " Equity and EV aren't shown for one action: the table has them for a whole category, and the hands taking one action needn't share them." : ""}
       </p>
     </section>
   );
 }
 
-function Bar({ r, hero, width, colors }: { r: BreakdownRow; hero: boolean; width: number; colors: readonly string[] }) {
+function Bar({ r, hero, width, colors, only }: { r: BreakdownRow; hero: boolean; width: number; colors: readonly string[]; only?: string | undefined }) {
   return (
     <div aria-hidden className="flex h-3 min-w-0.5 overflow-hidden rounded-sm" style={{ width: `${(width * 100).toFixed(1)}%` }}>
-      {hero && r.f ? (
+      {only ? (
+        <i className="block h-full w-full" style={{ background: only }} />
+      ) : hero && r.f ? (
         r.f.map((f, i) => f > 0 && <i key={i} className="block h-full" style={{ width: `${(f * 100).toFixed(1)}%`, background: colors[i] }} />)
       ) : (
         <i className="block h-full w-full bg-muted" />

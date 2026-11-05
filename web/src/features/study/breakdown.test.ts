@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Breakdown, BreakdownSide } from "@/solver/protocol";
-import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf } from "./breakdown";
+import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf, takingAction } from "./breakdown";
 
 const side = (who: string, more: Partial<BreakdownSide> = {}): BreakdownSide => ({ who, combos: 100, made: [], draws: [], ...more });
 const bd = (more: Partial<Breakdown> = {}): Breakdown => ({
@@ -65,5 +65,29 @@ describe("the curves", () => {
     expect(curveAt(s, 0.5)).toBe(0.5);
     expect(curveAt(s, 2)).toBe(0);
     expect(curveAt(side("BB"), 0.5)).toBeUndefined();
+  });
+});
+
+describe("takingAction", () => {
+  const rows = [
+    { id: "set", label: "Set", c: 10, eq: 0.95, f: [0.25, 0.75], ev: 8 },
+    { id: "nothing", label: "No made hand", c: 30, eq: 0.2, f: [1, 0], ev: 0.5 },
+  ];
+
+  it("counts the combos of each category that take the action, leaving out those with none", () => {
+    expect(takingAction(rows, 1)).toEqual([{ id: "set", label: "Set", c: 7.5 }]);
+    expect(takingAction(rows, 0).map((r) => r.c)).toEqual([2.5, 30]);
+  });
+
+  it("adds up to the action's share of the rows", () => {
+    const total = rows.reduce((t, r) => t + r.c, 0);
+    const shares = [0, 1].map((a) => takingAction(rows, a).reduce((t, r) => t + r.c, 0) / total);
+    expect(shares[0]! + shares[1]!).toBeCloseTo(1);
+  });
+
+  it("drops the whole category's equity and EV, and a row with no mix has nothing to count", () => {
+    expect(takingAction(rows, 1)[0]).not.toHaveProperty("eq");
+    expect(takingAction(rows, 1)[0]).not.toHaveProperty("ev");
+    expect(takingAction([{ id: "x", label: "X", c: 5 }], 0)).toEqual([]);
   });
 });

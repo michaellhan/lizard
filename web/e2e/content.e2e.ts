@@ -84,6 +84,10 @@ test("Study: a river's breakdown, with its categories, its equity chart and a ca
   await cats.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-breakdown-cats.png`, fullPage: false });
 
+  await cats.getByRole("group", { name: "What an action is made of" }).getByRole("button").nth(1).click();
+  await expect(cats.getByRole("columnheader", { name: /^Share of bet/ })).toBeVisible();
+  await cats.getByRole("group", { name: "What an action is made of" }).getByRole("button").nth(1).click();
+
   await cats.getByRole("row").nth(1).getByRole("button").click();
   await cats.getByRole("button", { name: "Show these hands in the grid" }).click();
   await expect(page.getByRole("combobox", { name: /one category/ })).not.toHaveValue("");

@@ -1,7 +1,7 @@
 // What the Breakdown panel says about the engine's breakdown (gto/breakdown.py, classic breakdown.js): who the sides
 // are, what the equities are over, and who holds the range and the nut advantage. Pure; BreakdownPanel draws it.
 import { pct } from "@/components/actions";
-import type { Breakdown, BreakdownSide } from "@/solver/protocol";
+import type { Breakdown, BreakdownRow, BreakdownSide } from "@/solver/protocol";
 
 /** A point of nut share or less is no advantage (classic's reading). */
 const NUT_LEAD = 0.01;
@@ -46,4 +46,16 @@ export function nutAdvantage(ss: readonly BreakdownSide[], nutEq: number): strin
 export function curveAt(s: BreakdownSide, f: number): number | undefined {
   const c = s.curve ?? [];
   return c[Math.round(Math.min(1, Math.max(0, f)) * (c.length - 1))];
+}
+
+/** Below this many combos a category is left out of a view (breakdown.py _groups' own cut). */
+const MIN_COMBOS = 0.005;
+
+/** What action `a` is made of: each category's combos that take it. Only the combos: the rows' equity and EV are the
+ * whole category's, which the hands taking one action needn't share, so they're dropped rather than shown as theirs. */
+export function takingAction(rows: readonly BreakdownRow[], a: number): BreakdownRow[] {
+  return rows.flatMap((r) => {
+    const c = r.c * (r.f?.[a] ?? 0);
+    return c >= MIN_COMBOS ? [{ id: r.id, label: r.label, c }] : [];
+  });
 }

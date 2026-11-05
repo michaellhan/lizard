@@ -83,6 +83,21 @@ describe("BreakdownPanel", () => {
     expect(onFilter).toHaveBeenCalledWith("d:fd");
   });
 
+  it("shows what one action is made of, without the whole category's equity and EV", async () => {
+    const { getSolver } = solver(() => ({ data: { breakdown: BD }, provenance: PROV }));
+    await opened(getSolver);
+    const cats = screen.getByRole("region", { name: "Hand categories" });
+    const check = within(within(cats).getByRole("group", { name: "What an action is made of" })).getByRole("button", { name: "check" });
+    fireEvent.click(check);
+    const rows = within(cats).getAllByRole("row");
+    expect(rows[1]!.textContent).toContain("7.7%"); // Set: 2.5 of the 32.5 combos that check
+    expect(rows[2]!.textContent).toContain("92.3%");
+    expect(within(cats).queryByRole("columnheader", { name: "Eq" })).toBeNull();
+    expect(within(cats).queryByRole("columnheader", { name: "EV" })).toBeNull();
+    fireEvent.click(check);
+    expect(within(cats).getByRole("columnheader", { name: "Eq" })).toBeTruthy();
+  });
+
   it("says so where the rules answered", async () => {
     const { getSolver } = solver(() => ({ data: { breakdown: null }, provenance: PROV }));
     await opened(getSolver);
