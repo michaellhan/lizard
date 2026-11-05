@@ -4096,3 +4096,5 @@ A tournament session is one table frozen in time: nobody is knocked out, blinds 
 Four first-run failures were all the tests' own: a class not in that range, a click on a button that doesn't exist because a restore starts on choosing the file, and the like. None was a product defect.
 
 Tests: 2336 unit tests in 127 files, typecheck and lint clean, 99 browser tests passed and 32 skipped (the QA list at the other two widths), with 14b and 14c run on their own against the same build. Not checked: a real screen reader, a real phone, and how a 3-way flop answers in an ICM session at Fast or Accurate.
+
+The deploy of `6525525` was stopped by the job's own 20-minute limit: the QA list added about 10 minutes on GitHub's runner, where the tests in the run had all passed so far. Nothing reached production from it. The limit is now 35 minutes, and a deploy takes about 25.
