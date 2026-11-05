@@ -40,7 +40,7 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: AdvisorResponse; 
       ? `${cls}: not in the range`
       : g.d === null
         ? `${cls}: no EV`
-        : `${cls}: ${x} − ${y} = ${u(g.d)} (${x} ${plain(g.ex)}, ${y} ${plain(g.ey)}; takes them ${pct(g.fx, 0)} and ${pct(g.fy, 0)})`;
+        : `${cls}: ${x} − ${y} = ${u(g.d)}${noise !== null && Math.abs(g.d) < noise ? ", noise" : ""} (${x} ${plain(g.ex)}, ${y} ${plain(g.ey)}; takes them ${pct(g.fx, 0)} and ${pct(g.fy, 0)})`;
   const cellOf = (cls: string): DeltaCell => {
     const g = by.get(cls);
     return { d: g?.d ?? null, label: label(cls, g), present: Boolean(g) };
@@ -105,11 +105,11 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: AdvisorResponse; 
           </p>
         </div>
         <div className="space-y-3 text-sm">
-          <div aria-label={`Where ${x} is worth most more`}>
+          <div role="group" aria-label={`Where ${x} is worth most more`}>
             <h3 className="font-medium">Where {x} is worth most more</h3>
             {list(1)}
           </div>
-          <div aria-label={`Where ${y} is worth most more`}>
+          <div role="group" aria-label={`Where ${y} is worth most more`}>
             <h3 className="font-medium">Where {y} is worth most more</h3>
             {list(-1)}
           </div>

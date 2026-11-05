@@ -3,6 +3,7 @@
 // itself: it runs only on the Solve button, with Stop), the progress line while it runs, and what a node from the solve
 // is: the solve's own equilibrium of its class-level model, not the charts the advice plays.
 import { useState } from "react";
+import { rowKeys } from "@/components/rowKeys";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { PF_STALL_BACK, pfFraction, pfMinutes, pfStalled, pfStatusOf, type PfRun } from "./pfSolve";
 import { describePfSizes, PF_SIZE, PF_SIZE_KEYS, pfSizeProblems, type PfSizeKey, type PfSizes } from "./pfSizes";
@@ -15,13 +16,14 @@ export function PreflopSource({ value, onChange }: { value: PfSource; onChange: 
     ["solver", "Solver", "A solve of this game's preflop (a class-level model): every hand's mix and EVs, run only when you ask"],
   ];
   return (
-    <div role="radiogroup" aria-label="Preflop source" className="inline-flex rounded-md border border-border bg-surface-2 p-0.5 text-sm">
+    <div role="radiogroup" aria-label="Preflop source" onKeyDown={rowKeys("radio", (i) => onChange(opts[i]![0]))} className="inline-flex rounded-md border border-border bg-surface-2 p-0.5 text-sm">
       {opts.map(([id, label, hint]) => (
         <button
           key={id}
           type="button"
           role="radio"
           aria-checked={value === id}
+          tabIndex={value === id ? 0 : -1}
           title={hint}
           onClick={() => onChange(id)}
           className={`rounded px-2.5 py-1 ${value === id ? "bg-surface-3 text-text" : "text-muted hover:text-text"}`}
@@ -173,7 +175,7 @@ export function PfNote({ res, running, onContinue }: { res: AdvisorResponse; run
   const p = pfStatusOf(res);
   if (!p) return null;
   return (
-    <div aria-label="About the preflop solve" className="space-y-1 text-xs text-muted">
+    <div role="group" aria-label="About the preflop solve" className="space-y-1 text-xs text-muted">
       <p>
         Preflop solve of this game ({p.label}): {p.cached ? "solved earlier in this browser, " : p.stored ? "precomputed, " : ""}
         {p.iterations} iterations{p.mbb != null ? `, ${num(p.mbb)} mbb/hand from equilibrium (a seat's average)` : ""}

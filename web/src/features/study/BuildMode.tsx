@@ -2,8 +2,9 @@
 // the answer's own (features/ranges/build.ts). Painting: pick a brush (an action, at a share of the hand) and click
 // or drag over hands; keys 1-9 pick a brush, Ctrl/Cmd+Z undoes, Shift+Ctrl/Cmd+Z or Ctrl+Y redoes. The lock tool
 // keeps hands from being painted. A group of hands (a shape, or a made-hand or draw category where the answer has its
-// combos) takes the brush or the lock at once, and so do hands typed as range text. Each scored range is kept in
-// IndexedDB (sessions, kind "build").
+// combos) takes the brush or the lock at once, and so do hands typed as range text. Where the answer has combos, a
+// hand opens to paint each of them (ComboPainter.tsx), and a paint with combos of its own is graded combo by combo.
+// Each scored range is kept in IndexedDB (sessions, kind "build").
 import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -15,43 +16,49 @@ import type { AdvisorResponse, GridCell, RangeGridData } from "@/solver/protocol
 import type { Provenance } from "@/solver/types";
 import { studyKeyFrom } from "./studyState";
 import {
-  actionShares,
+  actionHands,
   AMOUNTS,
   amend,
   biggestMisses,
   blankPaint,
+  classMixes,
+  clearCombo,
+  comboSlots,
   grade,
   historyOf,
-  paintClasses,
-  paintWeights,
+  paintParsed,
+  paintRange,
+  paintRangeWeights,
   passiveOf,
+  rangePaint,
   record,
   redo,
   scoreBuild,
   scoreByCombo,
+  scoreRange,
+  setCombo,
   SHAPES,
   undo,
   type BuildScore,
-  type ComboScore,
+  type CellScore,
+  type ComboPaint,
+  type ComboSlot,
   type History,
-  type Paint,
+  type RangePaint,
+  type RangeScores,
 } from "@/features/ranges/build";
 import { formatRange, parseRange } from "@/features/ranges/rangeText";
+import { ComboPainter } from "./ComboPainter";
 import { catsOf, classesIn } from "./filters";
 
 /** What a node's builder keeps while Study moves on and back (by the node's request). */
 export interface BuildSaved {
-  h: History<Paint>;
+  h: History<RangePaint>;
   locked: string[];
   scored: boolean;
 }
 
-interface Scores {
-  cls: BuildScore;
-  combo: ComboScore | null;
-}
-
-type Tool = number | "lock";
+type Tool = number | "lock" | "combos";
 
 /** a press-and-drag over hands: the hands it has touched, whether it has its undo step, what the lock tool sets */
 interface Stroke {
@@ -64,10 +71,10 @@ const segs = (f: readonly number[], colors: readonly string[]) =>
   f.map((x, a) => (x > 0.0005 ? <div key={a} style={{ width: `${x * 100}%`, background: colors[a] }} /> : null));
 
 /** A hand in the builder in words: your paint, and once scored the solver's and how far off. */
-const buildLabel = (cls: string, on: boolean, cell: GridCell | undefined, mine: number[] | undefined, names: readonly string[], locked: boolean, score?: BuildScore["cells"][string]) =>
+const buildLabel = (cls: string, on: boolean, cell: GridCell | undefined, mine: number[] | undefined, names: readonly string[], locked: boolean, score?: CellScore, own = 0) =>
   !on
     ? `${cls}: not in range`
-    : `${cls}: yours ${mixText(mine!, names)}${score ? `; solver ${mixText(cell!.f, names)}; ${pct(score.off, 0)} different` : ""}${locked ? "; locked" : ""}`;
+    : `${cls}: yours ${mixText(mine!, names)}${own ? `; ${own} combo${own === 1 ? "" : "s"} painted apart` : ""}${score ? `; solver ${mixText(cell!.f, names)}; ${pct(score.off, 0)} different` : ""}${locked ? "; locked" : ""}`;
 
 const mixText = (f: readonly number[], names: readonly string[]) =>
   names
@@ -98,7 +105,7 @@ export function BuildMode({
   const g = res.grid;
   const names = g.actions;
   const d = passiveOf(names);
-  const [h, setH] = useState<History<Paint>>(() => stored?.h ?? historyOf(blankPaint(g)));
+  const [h, setH] = useState<History<RangePaint>>(() => stored?.h ?? historyOf(rangePaint(blankPaint(g))));
   const hRef = useRef(h);
   const [locked, setLocked] = useState<ReadonlySet<string>>(() => new Set(stored?.locked ?? []));
   const lockedRef = useRef(locked);
@@ -119,11 +126,12 @@ export function BuildMode({
     return classes.filter((cls) => (g.cells[cls]?.w ?? 0) > 0);
   }, [g, res, group]);
 
-  const scores = useMemo<Scores | null>(
-    () => (scored ? { cls: scoreBuild(res, h.now), combo: scoreByCombo(res, h.now) } : null),
-    [scored, res, h.now],
-  );
-  const now = useMemo(() => (scores ? scores.cls : scoreBuild(res, h.now)), [scores, res, h.now]);
+  // (combos can be painted only where they can be graded: every class in the range has its rows)
+  const hasCombos = useMemo(() => scoreByCombo(res, {}) != null, [res]);
+  // what the grid draws: a class's mix, over its live combos where some are painted apart
+  const shown = useMemo(() => classMixes(h.now, res), [h.now, res]);
+  const scores = useMemo<RangeScores | null>(() => (scored ? scoreRange(res, h.now) : null), [scored, res, h.now]);
+  const now = useMemo(() => (scores ? scores.cls : scoreBuild(res, shown)), [scores, res, shown]);
 
   // keep what's painted for when Study comes back to this node
   const store = useEffectEvent((v: BuildSaved) => onStore(v));
@@ -140,7 +148,7 @@ export function BuildMode({
   }, [lineKey, saved]);
 
   // the paint and the locks are read from refs in handlers: a drag paints faster than React renders
-  const commit = useCallback((next: History<Paint>) => {
+  const commit = useCallback((next: History<RangePaint>) => {
     if (next === hRef.current) return;
     hRef.current = next;
     setH(next);
@@ -160,6 +168,11 @@ export function BuildMode({
         if (s.done.has(cls)) return;
         s.done.add(cls);
       }
+      if (tool === "combos") {
+        // (the hand pressed opens; a drag from it opens no other)
+        if (!s || s.done.size === 1) setSelected(cls);
+        return;
+      }
       if (tool === "lock") {
         const cur = lockedRef.current;
         const to = s ? (s.lockTo ??= !cur.has(cls)) : !cur.has(cls);
@@ -171,7 +184,7 @@ export function BuildMode({
         return;
       }
       const cur = hRef.current;
-      const next = paintClasses(cur.now, [cls], tool, amt, d, lockedRef.current);
+      const next = paintRange(cur.now, [cls], tool, amt, d, lockedRef.current);
       if (s?.recorded) commit(amend(cur, next));
       else {
         const r = record(cur, next);
@@ -203,18 +216,19 @@ export function BuildMode({
   );
 
   const fillAll = () => {
-    if (tool === "lock") return;
-    commit(record(hRef.current, paintClasses(hRef.current.now, Object.keys(hRef.current.now), tool, amt, d, lockedRef.current)));
+    if (typeof tool !== "number") return;
+    commit(record(hRef.current, paintRange(hRef.current.now, Object.keys(hRef.current.now.classes), tool, amt, d, lockedRef.current)));
   };
   // the group: painted (but its locked hands) as one undo step, or with the lock tool all locked (all unlocked when
   // they all are)
   const groupLocked = inGroup.length > 0 && inGroup.every((cls) => locked.has(cls));
   const groupFree = inGroup.filter((cls) => !locked.has(cls));
   const paintGroup = () => {
-    if (tool !== "lock") {
-      commit(record(hRef.current, paintClasses(hRef.current.now, inGroup, tool, amt, d, lockedRef.current)));
+    if (typeof tool === "number") {
+      commit(record(hRef.current, paintRange(hRef.current.now, inGroup, tool, amt, d, lockedRef.current)));
       return;
     }
+    if (tool !== "lock") return;
     const next = new Set(lockedRef.current);
     for (const cls of inGroup) {
       if (groupLocked) next.delete(cls);
@@ -222,22 +236,42 @@ export function BuildMode({
     }
     setLocks(next);
   };
-  const groupN = tool === "lock" ? inGroup.length : groupFree.length;
+  const groupN = tool === "lock" ? inGroup.length : tool === "combos" ? 0 : groupFree.length;
 
   // hands typed as range text: the brush's action at each one's weight (none: all of it), as one undo step
   const [text, setText] = useState("");
   const [textMsg, setTextMsg] = useState<string | null>(null);
   const paintText = () => {
-    if (tool === "lock") return;
+    if (typeof tool !== "number") return;
     const r = parseRange(text);
+    const cur = hRef.current.now;
+    const lock = lockedRef.current;
+    const many = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+    if (hasCombos) {
+      const p = paintParsed(cur, r, tool, d, lock, res);
+      commit(record(hRef.current, p.paint));
+      setTextMsg(
+        [
+          `Painted ${[p.hands || !p.combos ? many(p.hands, "hand") : "", p.combos ? many(p.combos, "combo") : ""].filter(Boolean).join(" and ")} ${names[tool]}`,
+          p.out ? `${p.out} not in this range` : "",
+          p.blocked ? `${p.blocked} blocked by the board` : "",
+          p.held ? `${p.held} locked, left as ${p.held === 1 ? "it was" : "they were"}` : "",
+          r.unknown.length ? `not understood: ${r.unknown.join(", ")}` : "",
+        ]
+          .filter(Boolean)
+          .join("; ") + ".",
+      );
+      return;
+    }
+    // (no combos in the answer: a combo in the text goes in as its share of the class)
     const listed = Object.keys(r.weights).filter((cls) => (r.weights[cls] ?? 0) > 0);
-    const out = listed.filter((cls) => !hRef.current.now[cls]);
-    const held = listed.filter((cls) => hRef.current.now[cls] && lockedRef.current.has(cls));
+    const out = listed.filter((cls) => !cur.classes[cls]);
+    const held = listed.filter((cls) => cur.classes[cls] && lock.has(cls));
     const n = listed.length - out.length - held.length;
-    commit(record(hRef.current, paintWeights(hRef.current.now, r.weights, tool, d, lockedRef.current)));
+    commit(record(hRef.current, paintRangeWeights(cur, r.weights, tool, d, lock)));
     setTextMsg(
       [
-        `Painted ${n} hand${n === 1 ? "" : "s"} ${names[tool]}`,
+        `Painted ${many(n, "hand")} ${names[tool]}`,
         out.length ? `${out.length} not in this range` : "",
         held.length ? `${held.length} locked, left as ${held.length === 1 ? "it was" : "they were"}` : "",
         r.combos.length ? "single combos as their share of the class" : "",
@@ -248,13 +282,12 @@ export function BuildMode({
     );
   };
   const reset = () => {
-    commit(record(hRef.current, blankPaint(g)));
+    commit(record(hRef.current, rangePaint(blankPaint(g))));
     setLocks(new Set());
   };
 
   const check = () => {
-    const cls = scoreBuild(res, hRef.current.now);
-    const combo = scoreByCombo(res, hRef.current.now);
+    const { combo, head, byCombo } = scoreRange(res, hRef.current.now);
     setScored(true);
     setSelected(null);
     const t = Date.now();
@@ -264,16 +297,17 @@ export function BuildMode({
       startedAt: t,
       endedAt: t,
       decisions: 1,
-      evLossBb: cls.ev_loss_bb ?? 0,
+      evLossBb: head.ev_loss_bb ?? 0,
       meta: {
         line: lineKey,
         label: lineLabel,
         actor: res.actor,
         street: res.street,
-        acc: cls.acc,
-        evLossBb: cls.ev_loss_bb,
-        evLossPct: cls.ev_loss_pct,
+        acc: head.acc,
+        evLossBb: head.ev_loss_bb,
+        evLossPct: head.ev_loss_pct,
         comboAcc: combo?.acc ?? null,
+        graded: byCombo ? "combo" : "class",
         source: provenance.source,
         approximate: provenance.approximate,
       },
@@ -301,9 +335,11 @@ export function BuildMode({
   }, []);
 
   const graded = provenance.source === "charts" ? "Graded against the preflop charts: an approximation, not a solve." : provenance.approximate ? "Graded against an approximate answer, not a converged solve." : null;
-  const misses = scores ? biggestMisses(scores.cls) : [];
+  const misses = scores ? biggestMisses(scores.head) : [];
   const sel = selected && g.cells[selected]?.w ? selected : null;
   const spoken = scores ? sel : pressed;
+  const slots = sel && hasCombos ? comboSlots(res, sel) : null;
+  const ownOf = (cls: string) => h.now.combos[cls];
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -316,10 +352,11 @@ export function BuildMode({
         </div>
         <BuildMatrix
           grid={g}
-          paint={h.now}
+          paint={shown}
+          own={h.now.combos}
           colors={colors}
           locked={locked}
-          cells={scores?.cls.cells}
+          cells={scores?.head.cells}
           selected={sel}
           onTouch={touch}
           onPress={onPress}
@@ -330,11 +367,27 @@ export function BuildMode({
         />
         {/* (what the panel now shows of the hand picked, or the hand as painted) */}
         <p role="status" className="sr-only">
-          {spoken ? buildLabel(spoken, Boolean(h.now[spoken]), g.cells[spoken], h.now[spoken], names, locked.has(spoken), scores?.cls.cells[spoken]) : ""}
+          {spoken ? buildLabel(spoken, Boolean(shown[spoken]), g.cells[spoken], shown[spoken], names, locked.has(spoken), scores?.head.cells[spoken], Object.keys(ownOf(spoken) ?? {}).length) : ""}
         </p>
       </section>
 
       <aside className="space-y-3 text-sm">
+        {!scores && sel && slots && (
+          <ComboPainter
+            cls={sel}
+            slots={slots}
+            mixOf={(combo) => ownOf(sel)?.[combo] ?? h.now.classes[sel]!}
+            own={(combo) => Boolean(ownOf(sel)?.[combo])}
+            mean={shown[sel]!}
+            names={names}
+            colors={colors}
+            provenance={provenance}
+            locked={locked.has(sel)}
+            onSet={(combo, a, t) => commit(record(hRef.current, setCombo(hRef.current.now, sel, combo, a, t, d, lockedRef.current)))}
+            onClear={(combo) => commit(record(hRef.current, clearCombo(hRef.current.now, sel, combo)))}
+            onClose={() => setSelected(null)}
+          />
+        )}
         {!scores ? (
           <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
             <p>
@@ -371,7 +424,7 @@ export function BuildMode({
                     key={t}
                     type="button"
                     aria-pressed={amt === t}
-                    disabled={tool === "lock"}
+                    disabled={typeof tool !== "number"}
                     onClick={() => setAmt(t)}
                     className={`px-2 py-0.5 disabled:opacity-40 ${amt === t ? "bg-surface-3" : "hover:bg-surface-2"}`}
                   >
@@ -379,7 +432,7 @@ export function BuildMode({
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={fillAll} disabled={tool === "lock"} title="Paint every hand (but the locked ones) with this brush" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
+              <button type="button" onClick={fillAll} disabled={typeof tool !== "number"} title="Paint every hand (but the locked ones) with this brush" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
                 Fill all
               </button>
               <button type="button" onClick={reset} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
@@ -392,6 +445,22 @@ export function BuildMode({
                 Redo
               </button>
             </div>
+            {hasCombos ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  aria-pressed={tool === "combos"}
+                  title="Click a hand to set each of its combos' mix (a brush again to paint whole hands)"
+                  onClick={() => setTool("combos")}
+                  className={`rounded-md border px-2.5 py-1 ${tool === "combos" ? "border-accent ring-1 ring-accent" : "border-border hover:bg-surface-2"}`}
+                >
+                  Open combos
+                </button>
+                {tool === "combos" && !sel && <span className="text-xs text-muted">Click a hand to open it.</span>}
+              </div>
+            ) : (
+              <p className="text-xs text-muted">This answer gives hand classes, not combos, so single combos can't be painted or graded here.</p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <select
                 aria-label="Hands to paint at once"
@@ -434,31 +503,32 @@ export function BuildMode({
               <summary className="cursor-pointer text-xs text-muted">As range text</summary>
               <div className="mt-2 space-y-2">
                 <label htmlFor="build-text" className="block text-xs">
-                  Hands that play {tool === "lock" ? "a brush (pick one)" : names[tool]}, each at its weight (none: all of it)
+                  Hands that play {typeof tool !== "number" ? "a brush (pick one)" : names[tool]}, each at its weight (none: all of it)
                 </label>
                 <textarea
                   id="build-text"
                   rows={2}
                   value={text}
-                  placeholder="QQ+, AKs, A5s:0.5"
+                  placeholder={hasCombos ? "QQ+, AKs, A5s:0.5, AhQh:0.25" : "QQ+, AKs, A5s:0.5"}
                   onChange={(e) => setText(e.target.value)}
                   className="w-full rounded border border-border bg-surface-2 p-1.5 font-mono text-xs"
                 />
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={paintText} disabled={tool === "lock" || !text.trim()} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
+                  <button type="button" onClick={paintText} disabled={typeof tool !== "number" || !text.trim()} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
                     Paint these
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      if (tool === "lock") return;
-                      setText(formatRange(actionShares(hRef.current.now, tool)));
+                      if (typeof tool !== "number") return;
+                      const out = actionHands(hRef.current.now, tool, res);
+                      setText(formatRange(out.weights, out.combos));
                       setTextMsg(null);
                     }}
-                    disabled={tool === "lock"}
+                    disabled={typeof tool !== "number"}
                     className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
                   >
-                    Your {tool === "lock" ? "brush's" : names[tool]} hands
+                    Your {typeof tool !== "number" ? "brush's" : names[tool]} hands
                   </button>
                 </div>
                 {textMsg && (
@@ -490,12 +560,12 @@ export function BuildMode({
           <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
             <section aria-label="Your score" className="space-y-1">
               <p className="text-base">
-                <b>{pct(scores.cls.acc)}</b> accurate · {grade(scores.cls.acc)}
+                <b>{pct(scores.head.acc)}</b> accurate · {grade(scores.head.acc)}
               </p>
-              {scores.cls.ev_loss_bb != null && (
+              {scores.head.ev_loss_bb != null && (
                 <p className="text-muted">
-                  EV given up: <b className="text-text">{scores.cls.ev_loss_bb.toFixed(3)}</b>bb a combo
-                  {scores.cls.ev_loss_pct != null && ` (${scores.cls.ev_loss_pct.toFixed(2)}% of the pot)`}
+                  EV given up: <b className="text-text">{scores.head.ev_loss_bb.toFixed(3)}</b>bb a combo
+                  {scores.head.ev_loss_pct != null && ` (${scores.head.ev_loss_pct.toFixed(2)}% of the pot)`}
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-2">
@@ -503,7 +573,13 @@ export function BuildMode({
                 <ProvenanceBadge p={provenance} />
               </div>
               {graded && <p className="text-xs text-warn">{graded}</p>}
-              {scores.combo && (
+              {scores.combo && scores.byCombo && (
+                <p className="text-xs text-muted">
+                  Graded combo by combo over {scores.combo.combos.toFixed(1)} live combos, as you painted combos: each against its own mix. By class, your mixes averaged, it's {pct(scores.cls.acc)}. The solver's class mixes, painted exactly, score {pct(scores.combo.ceiling.acc)}
+                  {scores.combo.ceiling.ev_loss_bb != null && ` and give up ${scores.combo.ceiling.ev_loss_bb.toFixed(3)}bb`} combo by combo.
+                </p>
+              )}
+              {scores.combo && !scores.byCombo && (
                 <p className="text-xs text-muted">
                   Combo by combo: {pct(scores.combo.acc)} accurate
                   {scores.combo.ev_loss_bb != null && `, ${scores.combo.ev_loss_bb.toFixed(3)}bb a combo given up`}. A
@@ -512,6 +588,7 @@ export function BuildMode({
                   {scores.combo.ceiling.ev_loss_bb != null && ` and give up ${scores.combo.ceiling.ev_loss_bb.toFixed(3)}bb`} this way.
                 </p>
               )}
+              {!scores.combo && <p className="text-xs text-muted">Combos can't be graded: this answer gives hand classes only, so this score is by class.</p>}
             </section>
             <table className="w-full text-left">
               <caption className="sr-only">Each action's share of the range, yours and the solver's</caption>
@@ -529,8 +606,8 @@ export function BuildMode({
                       <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[a] }} />
                       {n}
                     </td>
-                    <td className="text-right">{pct(scores.cls.mine[a])}</td>
-                    <td className="text-right">{pct(scores.cls.gto[a])}</td>
+                    <td className="text-right">{pct(scores.head.mine[a])}</td>
+                    <td className="text-right">{pct(scores.head.gto[a])}</td>
                   </tr>
                 ))}
               </tbody>
@@ -555,12 +632,19 @@ export function BuildMode({
               </div>
             )}
             {sel ? (
-              <HandDetail cls={sel} cell={g.cells[sel]!} mine={h.now[sel]!} score={scores.cls} names={names} />
+              <HandDetail cls={sel} cell={g.cells[sel]!} mine={shown[sel]!} score={scores.head} names={names} slots={slots} mixOf={(combo) => ownOf(sel)?.[combo] ?? h.now.classes[sel]!} />
             ) : (
               <p className="text-xs text-muted">Click a hand to compare it.</p>
             )}
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setScored(false)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg">
+              <button
+                type="button"
+                onClick={() => {
+                  setScored(false);
+                  setSelected(null);
+                }}
+                className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg"
+              >
                 Try again
               </button>
               <button type="button" onClick={onExit} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
@@ -577,6 +661,7 @@ export function BuildMode({
                 <li key={s.id}>
                   {new Date(s.startedAt).toLocaleString()} · {pct(s.meta.acc as number)} accurate
                   {typeof s.meta.evLossBb === "number" ? ` · ${s.meta.evLossBb.toFixed(3)}bb a combo` : ""}
+                  {s.meta.graded === "combo" ? " · by combo" : ""}
                 </li>
               ))}
             </ul>
@@ -587,8 +672,27 @@ export function BuildMode({
   );
 }
 
-function HandDetail({ cls, cell, mine, score, names }: { cls: string; cell: GridCell; mine: number[]; score: BuildScore; names: readonly string[] }) {
+function HandDetail({
+  cls,
+  cell,
+  mine,
+  score,
+  names,
+  slots,
+  mixOf,
+}: {
+  cls: string;
+  cell: GridCell;
+  mine: number[];
+  score: Pick<BuildScore, "cells">;
+  names: readonly string[];
+  /** the hand's combos, where the answer has them */
+  slots: readonly ComboSlot[] | null;
+  mixOf: (combo: string) => readonly number[];
+}) {
   const x = score.cells[cls];
+  const live = slots?.filter((s) => s.row) ?? [];
+  const blocked = slots?.filter((s) => s.state === "blocked").length ?? 0;
   return (
     <section aria-label={`${cls} compared`} className="space-y-1 rounded border border-border p-2 text-xs">
       <p>
@@ -609,6 +713,28 @@ function HandDetail({ cls, cell, mine, score, names }: { cls: string; cell: Grid
           {pct(x.off, 0)} of it played differently{x.loss != null ? `, ${x.loss.toFixed(3)}bb a combo given up` : ""}
         </p>
       )}
+      {live.length > 0 && (
+        <table className="w-full text-left">
+          <caption className="sr-only">{cls}'s combos, yours and the solver's</caption>
+          <thead className="text-muted">
+            <tr>
+              <th scope="col" className="font-normal">Combo</th>
+              <th scope="col" className="font-normal">Yours</th>
+              <th scope="col" className="font-normal">Solver</th>
+            </tr>
+          </thead>
+          <tbody>
+            {live.map(({ combo, row }) => (
+              <tr key={combo} className="border-t border-border/60">
+                <td className="font-mono">{combo}</td>
+                <td>{mixText(mixOf(combo), names)}</td>
+                <td>{mixText(row![2], names)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {blocked > 0 && <p className="text-muted">{blocked} blocked by the board, not counted.</p>}
     </section>
   );
 }
@@ -616,6 +742,7 @@ function HandDetail({ cls, cell, mine, score, names }: { cls: string; cell: Grid
 function BuildMatrix({
   grid,
   paint,
+  own,
   colors,
   locked,
   cells,
@@ -628,7 +755,8 @@ function BuildMatrix({
   caption,
 }: {
   grid: RangeGridData;
-  paint: Paint;
+  paint: Record<string, number[]>;
+  own: ComboPaint;
   colors: readonly string[];
   locked: ReadonlySet<string>;
   cells?: BuildScore["cells"];
@@ -661,6 +789,8 @@ function BuildMatrix({
         const cls = (e.target as HTMLElement).closest<HTMLElement>("[data-cls]")?.dataset.cls;
         if (!cls) return;
         e.preventDefault();
+        // (a share typed in a combo's box goes in first, as this press can't be counted on to take the focus)
+        if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
         last.current = { x: e.clientX, y: e.clientY };
         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         onStrokeStart(cls);
@@ -694,6 +824,7 @@ function BuildMatrix({
                 cls={cls}
                 cell={grid.cells[cls]}
                 mine={paint[cls]}
+                own={Object.keys(own[cls] ?? {}).length}
                 names={grid.actions}
                 colors={colors}
                 locked={locked.has(cls)}
@@ -716,6 +847,7 @@ const BuildCell = memo(function BuildCell({
   cls,
   cell,
   mine,
+  own,
   names,
   colors,
   locked,
@@ -729,10 +861,12 @@ const BuildCell = memo(function BuildCell({
   cls: string;
   cell: GridCell | undefined;
   mine: number[] | undefined;
+  /** how many of its combos are painted apart */
+  own: number;
   names: readonly string[];
   colors: readonly string[];
   locked: boolean;
-  score?: BuildScore["cells"][string];
+  score?: CellScore;
   scored: boolean;
   active: boolean;
   tabbable: boolean;
@@ -742,7 +876,7 @@ const BuildCell = memo(function BuildCell({
   const on = Boolean(cell && cell.w > 0 && mine);
   const w = on ? Math.min(1, cell!.w) : 0;
   const ring = score ? (score.off >= 0.5 ? "ring-2 ring-danger" : score.off >= 0.2 ? "ring-2 ring-warn" : "") : "";
-  const label = buildLabel(cls, on, cell, mine, names, locked, score);
+  const label = buildLabel(cls, on, cell, mine, names, locked, score, own);
   return (
     <button
       type="button"
@@ -781,6 +915,11 @@ const BuildCell = memo(function BuildCell({
       {locked && (
         <span aria-hidden className="pointer-events-none absolute bottom-0 right-0.5 z-10 text-[clamp(6px,1.1vw,10px)] text-text">
           L
+        </span>
+      )}
+      {own > 0 && (
+        <span aria-hidden className="pointer-events-none absolute right-0.5 top-0 z-10 text-[clamp(6px,1.1vw,10px)] text-text">
+          ◆
         </span>
       )}
     </button>

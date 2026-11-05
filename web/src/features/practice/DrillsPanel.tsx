@@ -494,7 +494,7 @@ function SpotDrill({
       <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
         {item("Decisions", String(s.n))}
         {item("Best or correct", s.n ? pct(sum.acc, 0) : "–")}
-        {item("EV lost a decision", sum.loss == null || !s.n ? "–" : `${bb(sum.loss)}bb · ${sum.lossPct!.toFixed(1)}% pot`)}
+        {item("EV lost per decision", sum.loss == null || !s.n ? "–" : `${bb(sum.loss)}bb · ${sum.lossPct!.toFixed(1)}% pot`)}
         {item("Streak", `${s.streak} (best ${s.best})`)}
         {!!session.revealed && (
           <p className="basis-full text-xs text-muted">
@@ -681,7 +681,7 @@ function SpotDrill({
                 <li key={p.id} className="text-muted">
                   {new Date(p.startedAt).toLocaleString()} · {p.decisions} decisions
                   {p.decisions ? ` · ${pct((Number(p.meta.ok) || 0) / p.decisions, 0)} correct` : ""}
-                  {p.decisions && Number(p.meta.graded) ? ` · ${bb(p.evLossBb / p.decisions)}bb lost a decision` : ""}
+                  {p.decisions && Number(p.meta.graded) ? ` · ${bb(p.evLossBb / p.decisions)}bb lost per decision` : ""}
                 </li>
               ))}
           </ul>

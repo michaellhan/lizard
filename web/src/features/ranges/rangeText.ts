@@ -1,8 +1,9 @@
 // Range text in the common solver format (PioSOLVER / GTO+ style): classes or combos separated by commas or spaces,
 // each with an optional ":weight" (0..1), plus "+" and "-" shorthands ("22+", "A2s+", "KTo-K7o", "T9s-65s") and
 // "random" (or "any", "100%") for every hand, in any case, as the solver reads them (solver/gto/ranges.py). This is
-// the UI's model, by hand class: a single combo ("AhKh") is read as its share of the class (a quarter of AKs).
-import { ALL_CLASSES, classCombos, classOf, RANKS } from "@/engine/nlhe/cards";
+// the UI's model, by hand class: a single combo ("AhKh") is read as its share of the class (a quarter of AKs). The
+// range builder, which can paint a combo, reads `classWeights` and `comboWeights` instead.
+import { ALL_CLASSES, classCombos, classOf, parseCards, RANKS, SUITS } from "@/engine/nlhe/cards";
 
 export type ClassWeights = Record<string, number>;
 
@@ -52,21 +53,37 @@ function expandToken(tok: string): string[] {
   return [];
 }
 
-/** a single combo ("AhKh", "kdks"): its two cards in a fixed order and its class; null for anything else */
+/** A combo's name as `expandClass` writes it, whichever way round its cards came: the higher rank first, a pair's
+ * suits in SUITS order. The answer's rows, the paint and range text all meet on this. */
+export function comboName(hand: string): string {
+  const cs = parseCards(hand);
+  if (!cs || cs.length !== 2) throw new Error(`bad combo ${hand}`);
+  const order = (c: string) => R(c[0]!) * 4 + SUITS.indexOf(c[1]! as (typeof SUITS)[number]);
+  return [...cs].sort((a, b) => order(a) - order(b)).join("");
+}
+
+/** a single combo ("AhKh", "kdks"): its name and its class; null for anything else */
 function comboOf(tok: string): { key: string; cls: string } | null {
   const m = new RegExp(`^${RK}([SHDC])${RK}([SHDC])$`).exec(tok.trim().toUpperCase());
   if (!m) return null;
   const [x, y] = [m[1]! + m[2]!.toLowerCase(), m[3]! + m[4]!.toLowerCase()];
   if (x === y) return null;
-  return { key: [x, y].sort().join(""), cls: classOf(x + y) };
+  return { key: comboName(x + y), cls: classOf(x + y) };
 }
 
 /**
  * Parse range text into class weights. A hand named twice keeps its larger weight, as the solver's parser does. Single
  * combos come back in `combos` too: each is its class's share (one of AKs's four combos: AKs at 0.25, beside the
- * class's own weight where the text names it), since a class weight can't say which combos.
+ * class's own weight where the text names it), since a class weight can't say which combos. For what can:
+ * `classWeights` is the classes the text names, at their weights, and `comboWeights` the combos it names, by name.
  */
-export function parseRange(text: string): { weights: ClassWeights; unknown: string[]; combos: string[] } {
+export function parseRange(text: string): {
+  weights: ClassWeights;
+  unknown: string[];
+  combos: string[];
+  classWeights: ClassWeights;
+  comboWeights: Record<string, number>;
+} {
   const weights: ClassWeights = {};
   const unknown: string[] = [];
   const combos: string[] = [];
@@ -89,20 +106,33 @@ export function parseRange(text: string): { weights: ClassWeights; unknown: stri
     }
     for (const c of cls) weights[c] = Math.max(weights[c] ?? 0, weight);
   }
+  const classWeights = { ...weights };
+  const comboWeights: Record<string, number> = {};
   for (const [c, m] of byCombo) {
+    for (const [key, w] of m) comboWeights[key] = w;
     const base = weights[c] ?? 0;
     let sum = base * (classCombos(c) - m.size);
     for (const w of m.values()) sum += Math.max(base, w);
     weights[c] = sum / classCombos(c);
   }
-  return { weights, unknown, combos };
+  return { weights, unknown, combos, classWeights, comboWeights };
 }
 
-/** Class weights -> range text, one class per entry (weight omitted when 1). */
-export function formatRange(weights: ClassWeights): string {
-  return ALL_CLASSES.filter((c) => (weights[c] ?? 0) > 0)
-    .map((c) => (weights[c]! >= 0.999 ? c : `${c}:${Number(weights[c]!.toFixed(3))}`))
-    .join(",");
+const entry = (hand: string, w: number) => (w >= 0.999 ? hand : `${hand}:${Number(w.toFixed(3))}`);
+
+/**
+ * Class weights -> range text, one class per entry (weight omitted when 1), each followed by any single combos of it.
+ * A combo named beside its class takes the larger of the two weights (`parseRange`, and solver/gto/ranges.py's
+ * parse_range), so a class given here must be at or below all its combos' weights.
+ */
+export function formatRange(weights: ClassWeights, combos: Record<string, number> = {}): string {
+  const of = new Map<string, string[]>();
+  for (const [c, w] of Object.entries(combos).sort(([a], [b]) => (a < b ? -1 : 1))) {
+    if (!(w > 0)) continue;
+    const cls = classOf(c);
+    of.set(cls, [...(of.get(cls) ?? []), entry(c, w)]);
+  }
+  return ALL_CLASSES.flatMap((c) => [...((weights[c] ?? 0) > 0 ? [entry(c, weights[c]!)] : []), ...(of.get(c) ?? [])]).join(",");
 }
 
 export function rangeCombos(weights: ClassWeights): number {

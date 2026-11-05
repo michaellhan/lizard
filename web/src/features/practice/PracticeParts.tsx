@@ -7,7 +7,7 @@ import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
-import { actionColors, bb, pct } from "@/components/actions";
+import { actionFills, bb, pct } from "@/components/actions";
 import { RangeMatrix } from "@/components/RangeMatrix";
 import { sourcesText } from "@/features/history/history";
 import { whoOf, whyText } from "@/grading/grade";
@@ -113,7 +113,7 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       {item("Hands", String(session.hands))}
       {item("Decisions graded", String(s.n))}
       {item("Best or correct", s.n ? pct(acc, 0) : "–")}
-      {item("EV lost a decision", loss == null ? "–" : `${bb(loss)}${sessionUnit(session.opts)} · ${lossPct!.toFixed(1)}% pot`)}
+      {item("EV lost per decision", loss == null ? "–" : `${bb(loss)}${sessionUnit(session.opts)} · ${lossPct!.toFixed(1)}% pot`)}
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && !session.opts.tournament && !session.opts.exploit && item("Net", `${signed(session.net)}bb`)}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
@@ -467,7 +467,7 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
  * picked; a hand picked says its mix in words. Shown once asked for (kept from decision to decision). */
 export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; onToggle: (open: boolean) => void }) {
   const [sel, setSel] = useState<string>(r.cls);
-  const colors = actionColors(r.grid.actions);
+  const colors = actionFills(r.grid.actions);
   const cell = r.grid.cells[sel];
   const mix = cell ? r.grid.actions.map((a, i) => ({ a, f: cell.f[i] ?? 0 })).filter((x) => x.f >= 0.0005) : [];
   return (
@@ -476,7 +476,7 @@ export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; on
       <div className="flex flex-wrap gap-2 text-xs">
         {r.grid.actions.map((a, i) => (
           <span key={a} className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[i] }} />
+            <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
             {a}
           </span>
         ))}

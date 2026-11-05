@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { libFile, libJson } from "@/test/library";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
-import { stepArea } from "./ReportChart";
+import { stepClip } from "./ReportChart";
 import { ReportsPage } from "./ReportsPage";
 import { rows, sortRows } from "./reports";
 
@@ -161,8 +161,8 @@ describe("ReportsPage", () => {
 
   it("draws each action's band across the flops as one stepped shape", () => {
     const rs = [{ freqs: [0.5, 0.5] }, { freqs: [1, 0] }];
-    expect(stepArea(rs, 0)).toBe("M0 50H1V0H2V100H1V100H0Z");
-    expect(stepArea(rs, 1)).toBe("M0 0H1V0H2V0H1V50H0Z");
+    expect(stepClip(rs, 0)).toBe("polygon(0% 50%,50% 50%,50% 0%,100% 0%,100% 100%,50% 100%,50% 100%,0% 100%)");
+    expect(stepClip(rs, 1)).toBe("polygon(0% 0%,50% 0%,50% 0%,100% 0%,100% 0%,50% 0%,50% 50%,0% 50%)");
   });
 
   it("draws a column a texture group when grouped, a click showing only that group's flops", async () => {

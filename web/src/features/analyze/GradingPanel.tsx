@@ -275,7 +275,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
           Export JSON
         </button>
       </div>
-      <div aria-label="Summary" className="space-y-1">
+      <div role="group" aria-label="Summary" className="space-y-1">
         {of !== undefined && hands.length < of && (
           <p className="text-muted">
             Over the {nHands(hands.length)} the filters show, of {of.toLocaleString()} kept.
@@ -293,7 +293,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
         </p>
         {a.ev > 0 && (
           <p>
-            Graded by EV: {nDecisions(a.ev)}, {bbs(a.lost)} lost in all, {a.avgPct}% of the pot a decision on average. This is solver EV lost, measured over graded decisions: it isn't what you won, and no win rate is worked out from it.
+            Graded by EV: {nDecisions(a.ev)}, {bbs(a.lost)} lost in all, {a.avgPct}% of the pot per decision on average. This is solver EV lost, measured over graded decisions: it isn't what you won, and no win rate is worked out from it.
           </p>
         )}
         {rp.low.n > 0 && (
@@ -302,7 +302,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
           </p>
         )}
         {rp.agree.n > 0 && (
-          <p aria-label="Checked at Fast">
+          <p role="group" aria-label="Checked at Fast">
             {rp.agree.n.toLocaleString()} {rp.agree.n === 1 ? "read" : "reads"} checked at Fast: {rp.agree.same} graded alike, {rp.agree.worse} worse at Fast, {rp.agree.better} better.
           </p>
         )}
@@ -325,7 +325,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
 
       {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ds={ds} keyOf={basisKey} byId={byId} ev noUngraded />}
       {rp.versions && (
-        <p aria-label="Versions graded on" className="text-xs text-muted">
+        <p role="group" aria-label="Versions graded on" className="text-xs text-muted">
           {rp.versions} The preflop charts come with the solver build. A library version is its spot&rsquo;s ranges and bet tree. {rp.versions.includes("unknown") ? VERSION_UNKNOWN : ""}
         </p>
       )}
@@ -351,7 +351,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
           </ul>
         </div>
       )}
-      <p aria-label="What makes a leak" className="text-xs text-muted">
+      <p role="group" aria-label="What makes a leak" className="text-xs text-muted">
         {rp.leaks.length === 0 ? "No clear leak yet. " : ""}
         {LEAK_RULE}
       </p>
@@ -430,12 +430,12 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
 }
 
 /** What a leak is, said beside them. */
-export const LEAK_RULE = `A leak is a frequency ${Math.round(LEAK.freq[0] * 100)} points off the answer's, a preflop situation under ${pct(LEAK.pf[0])} in the mix, or a spot after the flop losing ${LEAK.spot[0]}bb a decision. Each needs at least ${MIN_READ} decisions and a 95% interval clear of that line; anything short of that is too few to read, and isn't marked.`;
+export const LEAK_RULE = `A leak is a frequency ${Math.round(LEAK.freq[0] * 100)} points off the answer's, a preflop situation under ${pct(LEAK.pf[0])} in the mix, or a spot after the flop losing ${LEAK.spot[0]}bb per decision. Each needs at least ${MIN_READ} decisions and a 95% interval clear of that line; anything short of that is too few to read, and isn't marked.`;
 
 function leakText(l: Leak): string {
   const low = l.low ? `, ${l.low} on a low-confidence read` : "";
   const n = `${l.n.toLocaleString()} decisions`;
   if (l.kind === "freq") return `${l.key}: you ${pct(l.you)} (95% range ${pair(l.range)}), the answer ${pct(l.gto)} (${n}${low})`;
   if (l.kind === "pf") return `${l.key}: ${pct(l.inMix)} in the mix against the charts (95% range ${pair(l.range)}, ${n})`;
-  return `${l.key}: ${bbs(l.avg)} lost a decision (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}, ${n}${low})`;
+  return `${l.key}: ${bbs(l.avg)} lost per decision (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}, ${n}${low})`;
 }

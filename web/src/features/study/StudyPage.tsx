@@ -5,10 +5,10 @@
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { cellLabel, cellValue, RangeMatrix } from "@/components/RangeMatrix";
-import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
 import { ResizableWorkspace } from "@/components/ResizableWorkspace";
 import { useFocusHold } from "@/components/useFocusHold";
-import { actionColors, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
+import { actionFills, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
 import { useSolver } from "@/solver/useSolver";
 import { describe } from "@/solver/provenance";
 import { SolverError, type Provenance, type SolveResult } from "@/solver/types";
@@ -252,12 +252,12 @@ export function StudyPage() {
   const shown: SolveResult | undefined = phase.kind === "done" ? phase.result : phase.partial;
   // said once, in the one region that's always there
   const phaseWords = phase.kind === "error" ? `${phase.message}${phase.partial ? " What it had reached stays below, labelled partial." : ""}` : "";
-  const said = problems.length ? "" : phase.kind === "error" ? phaseWords : shown ? answerWords(shown.data, shown.provenance) : "Answering.";
+  const said = problems.length ? "" : phase.kind === "error" ? phaseWords : shown ? answerWords(shown.data, shown.provenance) : "Finding the answer.";
   const raw: AdvisorResponse | undefined = shown?.data;
   const cats = useMemo(() => catsOf(raw), [raw]);
   const res = useMemo(() => (raw ? filterRes(raw, filterKey) : undefined), [raw, filterKey]);
   const names = useMemo(() => res?.grid?.actions ?? [], [res]);
-  const colors = useMemo(() => actionColors(names), [names]);
+  const colors = useMemo(() => actionFills(names), [names]);
   const opps = useMemo(() => oppsOf(raw), [raw]);
   const opp = who > 0 ? (opps[who - 1] ?? null) : null;
   const grid = opp ? opp.grid : res?.grid;
@@ -402,7 +402,7 @@ export function StudyPage() {
         </button>
         <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" ? phase.result.provenance : undefined} />
       </nav>
-      <p aria-label="Setup" className="-mt-2 text-xs text-muted">
+      <p role="group" aria-label="Setup" className="-mt-2 text-xs text-muted">
         {hand.setup ? (
           <>
             Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
@@ -433,7 +433,7 @@ export function StudyPage() {
         {phase.kind === "loading" && (
           <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            <span>{phase.partial ? "Refining…" : "Answering…"}</span>
+            <span>{phase.partial ? "Refining…" : "Finding the answer…"}</span>
             <span className="text-muted">The first answer starts the engine (Python in your browser, cached after the first visit).</span>
             <span className="flex-1" />
             <button type="button" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2" onClick={() => abortRef.current?.abort()}>
@@ -478,7 +478,7 @@ export function StudyPage() {
           key={requestKey}
           res={buildRes}
           provenance={shown!.provenance}
-          colors={actionColors(buildRes.grid.actions)}
+          colors={actionFills(buildRes.grid.actions)}
           lineKey={toSearch(hand)}
           lineLabel={describeLine(hand).join(" ")}
           stored={paints.get(requestKey)}
@@ -574,7 +574,7 @@ export function StudyPage() {
                       focusIdx === i ? "border-accent" : focusIdx === null ? "border-border" : "border-border opacity-50"
                     }`}
                   >
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[i] }} />
+                    <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
                     {nm}
                   </button>
                 ))}
@@ -658,7 +658,7 @@ function NodeView({
   const [err, setErr] = useState<string | null>(null);
   const errId = useId();
   const names = res.grid?.actions ?? [];
-  const colors = actionColors(names);
+  const colors = actionFills(names);
   // (every pair's bubble factor: the table's model from the setup, which the line doesn't change)
   const tour = res.tournament && typeof res.tournament === "object";
   const pairs = useMemo(() => (tour ? bubbleTableOf(hand.players, hand.stack, hand.setup) : null), [tour, hand.players, hand.stack, hand.setup]);
@@ -744,7 +744,8 @@ function NodeView({
           </span>
         </h2>
         <span className="flex-1" />
-        <ProvenanceBadge p={shown.provenance} />
+        {/* (quiet, as a Tab from the heading above is the first action; its detail is below the actions) */}
+        <ProvenanceBadge p={shown.provenance} quiet />
       </div>
       <div className="flex flex-wrap gap-2">
         {(res.actions ?? []).map((a, i) => (
@@ -756,7 +757,7 @@ function NodeView({
             className="group min-w-28 rounded-md border border-border bg-surface-2 px-3 py-2 text-left hover:border-accent"
           >
             <div className="flex items-center gap-2">
-              <span className="inline-block h-3 w-3 rounded-sm" style={{ background: colors[names.indexOf(a.action)] ?? colors[i] }} />
+              <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[names.indexOf(a.action)] ?? colors[i] }} />
               <span className="font-medium">{a.action}</span>
               {keys && !building && i < 9 && (
                 <kbd aria-hidden className="ml-auto hidden font-mono text-[10px] text-muted md:inline">
@@ -789,6 +790,7 @@ function NodeView({
           ))}
         </ul>
       )}
+      <ProvenanceDetail ps={[shown.provenance]} />
     </section>
   );
 }

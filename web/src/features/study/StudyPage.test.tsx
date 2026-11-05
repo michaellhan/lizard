@@ -169,7 +169,7 @@ describe("StudyPage", () => {
     expect(screen.getByRole("gridcell", { name: "AA: yours check 100%" })).toBeInTheDocument();
     // the actions are there to play, without the range's frequencies and EVs
     const actions = screen.getByRole("region", { name: "Actions" });
-    expect(within(actions).getAllByRole("button").map((x) => x.textContent)).toEqual(["check", "bet 33%"]);
+    expect(within(actions).getAllByRole("button").map((x) => x.textContent)).toEqual(["check", "bet 33%", "How this was produced"]);
     fireEvent.click(screen.getByRole("button", { name: "Check my range" }));
     expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("50.0% accurate · Off");
     fireEvent.click(screen.getByRole("button", { name: "Show the solution" }));

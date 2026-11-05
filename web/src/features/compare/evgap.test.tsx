@@ -69,6 +69,7 @@ describe("Study's two actions' EV", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Swap" }));
     expect(within(panel).getByRole("gridcell", { name: "AA: bet 75% − check = +1.50bb (bet 75% 9.50bb, check 8.00bb; takes them 100% and 0%)" })).toBeInTheDocument();
     expect(within(panel).getByRole("gridcell", { name: "65s: not in the range" })).toBeInTheDocument();
+    expect(within(panel).getByRole("gridcell", { name: /^KQs: bet 75% − check = \+0\.02bb, noise \(/ })).toBeInTheDocument();
     expect(within(within(panel).getByLabelText("Where bet 75% is worth most more")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "AA +1.50bb (takes it 100%)",
       "KQs +0.02bb (takes it 50%)",

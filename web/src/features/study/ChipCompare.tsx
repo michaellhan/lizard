@@ -67,7 +67,7 @@ export function ChipCompare({
   if (state.kind === "loading")
     return (
       <p role="status" className="text-xs text-muted">
-        Answering in chip EV…{" "}
+        Finding the answer in chip EV…{" "}
         <button type="button" onClick={() => abort.current?.abort()} className="underline hover:text-text">
           Stop
         </button>

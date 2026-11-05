@@ -251,13 +251,14 @@ describe("BreakdownPanel", () => {
   it("reads the lines from the keyboard, without moving along the hand", async () => {
     const { getSolver } = solver(() => ({ data: { breakdown: BD }, provenance: PROV }));
     await opened(getSolver);
-    const chart = screen.getByRole("img", { name: /Equity distribution/ });
+    const chart = screen.getByRole("slider", { name: /Equity distribution/ });
     const seen = vi.fn();
     window.addEventListener("keydown", seen);
     act(() => chart.focus());
     fireEvent.keyDown(chart, { key: "ArrowRight" });
     window.removeEventListener("keydown", seen);
     expect(screen.getByText(/Top 52% of each range/)).toBeTruthy();
+    expect(chart.getAttribute("aria-valuetext")).toMatch(/^Top 52% of each range/);
     expect((seen.mock.calls[0]?.[0] as KeyboardEvent).defaultPrevented).toBe(true);
   });
 });

@@ -5,8 +5,9 @@
 // equities; sorted, grouped and filtered; a card's row deals it. Labelled with its own provenance.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PlayingCard } from "@/components/PlayingCard";
+import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { actionColors, bb, pct } from "@/components/actions";
+import { actionFills, bb, pct } from "@/components/actions";
 import { solverThreads } from "@/solver/client";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError, type Provenance } from "@/solver/types";
@@ -197,7 +198,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
   const w: RunoutWho = who === "after" && ro.after_check ? "after" : "first";
   const part = partOf(ro, w);
   const acts = part.actions;
-  const colors = actionColors(acts);
+  const colors = actionFills(acts);
   const all = rows(ro, w, hand.board);
   const rs = sortRows(filterRows(all, filter), sort, desc);
   const sum = average(rs);
@@ -229,8 +230,8 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
         <>
           <td className="px-2 py-1 text-right">{bb(a.ev?.[0])}</td>
           <td className="px-2 py-1 text-right">{bb(a.ev?.[1])}</td>
-          <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq?.[0])}</td>
-          <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq?.[1])}</td>
+          <td className="phone-col px-2 py-1 text-right">{pct(a.eq?.[0])}</td>
+          <td className="phone-col px-2 py-1 text-right">{pct(a.eq?.[1])}</td>
         </>
       )}
     </>
@@ -239,7 +240,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
     !f ? (
       <span className="text-xs text-faint">–</span>
     ) : (
-      <span className="flex h-3 w-full min-w-20 overflow-hidden rounded-sm bg-surface-3" role="img" aria-label={acts.map((n, i) => `${n} ${pct(f[i])}`).join(", ")}>
+      <span className="flex h-3 w-full min-w-20 gap-px overflow-hidden rounded-sm bg-surface-3" role="img" aria-label={acts.map((n, i) => `${n} ${pct(f[i])}`).join(", ")}>
         {f.map((x, i) =>
           x > 0.001 ? (
             <i key={i} className="block h-full" title={`${label(acts[i]!)} ${pct(x)}${fe?.[i] != null ? `, EV ${bb(fe[i])}bb` : ""}`} style={{ width: `${(x * 100).toFixed(2)}%`, background: colors[i] }} />
@@ -296,6 +297,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
         )}
         {lines}
       </div>
+      <PhoneColumns hidden={ro.multiway ? [] : [`${o} eq`, `${ip} eq`]}>
       <div className="max-h-[56vh] overflow-auto rounded-lg border border-border">
         <table className="w-full border-collapse text-xs tabular-nums">
           <thead className="sticky top-0 z-10 bg-surface text-left text-muted">
@@ -310,8 +312,8 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
                 <>
                   {head("ev0", `${o} EV`, "text-right")}
                   {head("ev1", `${ip} EV`, "text-right")}
-                  {head("eq0", `${o} eq`, "hidden text-right sm:table-cell")}
-                  {head("eq1", `${ip} eq`, "hidden text-right sm:table-cell")}
+                  {head("eq0", `${o} eq`, "phone-col text-right")}
+                  {head("eq1", `${ip} eq`, "phone-col text-right")}
                 </>
               )}
             </tr>
@@ -360,6 +362,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
           </tbody>
         </table>
       </div>
+      </PhoneColumns>
       <p className="text-xs text-muted">
         {noteText(ro)} Click a card to deal it.
         {ro.tournament ? " A tournament: the solve pays prize equity (ICM), so EVs are chips worth as much prize equity." : ""}

@@ -4,6 +4,7 @@
 // that all-in needs with nothing else in the pot: icm.py's call_need there is BF / (1 + BF), its risk premium that less
 // the chips' 50%.
 import { useState } from "react";
+import { rowKeys } from "@/components/rowKeys";
 import { ICM_TABLE_LABEL } from "@/solver/provenance";
 import type { BubbleTable as Table } from "./icm";
 
@@ -24,13 +25,14 @@ export function BubbleTable({ table, actor }: { table: Table; actor?: string }) 
   ];
   return (
     <div className="space-y-1.5 text-xs">
-      <div role="radiogroup" aria-label="Show" className="inline-flex rounded-md border border-border bg-surface-2 p-0.5">
+      <div role="radiogroup" aria-label="Show" onKeyDown={rowKeys("radio", (i) => setShow(opts[i]![0]))} className="inline-flex rounded-md border border-border bg-surface-2 p-0.5">
         {opts.map(([id, label]) => (
           <button
             key={id}
             type="button"
             role="radio"
             aria-checked={show === id}
+            tabIndex={show === id ? 0 : -1}
             onClick={() => setShow(id)}
             className={`rounded px-2 py-0.5 ${show === id ? "bg-surface-3 text-text" : "text-muted hover:text-text"}`}
           >

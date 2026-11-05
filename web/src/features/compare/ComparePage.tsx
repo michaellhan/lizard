@@ -139,8 +139,8 @@ export function ComparePage() {
           ? `B: ${sb.message}`
           : sb.kind === "done"
             ? `A: ${answerWords(sa.result.data, sa.result.provenance)} B: ${answerWords(sb.result.data, sb.result.provenance)}`
-            : "A answered. Answering B."
-        : "Answering A.";
+            : "A answered. Finding B's answer."
+        : "Finding A's answer.";
   const differs = whatDiffers(a, b);
   // the charts against the preflop solve: the sources are what's compared
   const bySource = pfSourceOf(a) !== null && pfSourceOf(b) !== null && pfSourceOf(a) !== pfSourceOf(b);
@@ -188,7 +188,7 @@ export function ComparePage() {
                     <ProvenanceBadge p={s.result.provenance} />
                   )
                 ) : s.kind === "loading" ? (
-                  <span className="text-muted">Answering…</span>
+                  <span className="text-muted">Finding the answer…</span>
                 ) : s.kind === "error" ? (
                   <span className={s.message === "Stopped." ? "text-muted" : "text-danger"}>{s.message}</span>
                 ) : (
@@ -199,7 +199,7 @@ export function ComparePage() {
           </div>
         ))}
       </dl>
-      <p aria-label="What differs" className="text-sm">
+      <p role="group" aria-label="What differs" className="text-sm">
         <span className="font-medium">What differs:</span> {differs.length ? differs.join("; ") : "nothing (the same spot twice)"}.
       </p>
       {problems.length > 0 && (
@@ -250,7 +250,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
   return (
     <div className="space-y-4">
       {warn.length > 0 && (
-        <div aria-label="Warning" className="space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
+        <div role="group" aria-label="Warning" className="space-y-1 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm">
           {warn.map((w) => (
             <p key={w}>{w}</p>
           ))}
@@ -275,7 +275,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
                 <td className="py-1 pr-3">{stat(d.b)}</td>
                 <td className="py-1">
                   {points(d.dFreq)} points
-                  {d.dEv !== null && <span className={quiet(d.dEv) ? "text-muted" : ""}> · EV {bbDelta(d.dEv)}</span>}
+                  {d.dEv !== null && <span className={quiet(d.dEv) ? "text-muted" : ""}> · EV {bbDelta(d.dEv)}{quiet(d.dEv) && " (noise)"}</span>}
                 </td>
               </tr>
             ))}
@@ -292,7 +292,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
         </table>
         <p className="mt-1 text-xs text-muted">
           {noise !== null
-            ? `EV changes under ${noise.toFixed(2)}bb (the two answers' distance from equilibrium combined) are greyed: noise.`
+            ? `EV changes under ${noise.toFixed(2)}bb (the two answers' distance from equilibrium combined) are marked (noise).`
             : "No distance from equilibrium is measured on both sides, so no EV change can be called noise or not."}
         </p>
       </section>
@@ -320,7 +320,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
                 {top.map((d) => (
                   <li key={d.cls}>
                     {d.cls}: {pct(d.fa)} → {pct(d.fb)} ({points(d.dFreq!)} points)
-                    {d.dEv !== null && <span className={quiet(d.dEv) ? "text-muted" : ""}>, EV {bbDelta(d.dEv)}</span>}
+                    {d.dEv !== null && <span className={quiet(d.dEv) ? "text-muted" : ""}>, EV {bbDelta(d.dEv)}{quiet(d.dEv) && " (noise)"}</span>}
                   </li>
                 ))}
               </ol>

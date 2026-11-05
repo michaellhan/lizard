@@ -6,6 +6,8 @@
 // your sittings and how the grades moved across them (SessionsPanel.tsx).
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router";
+import { bringIntoView } from "@/components/scroll";
+import { PhoneColumns } from "@/components/PhoneColumns";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
@@ -144,7 +146,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       )}
       {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
       {hands === null || shown === null ? (
-        <p className="text-sm text-muted">…</p>
+        <p className="text-sm text-muted">Reading the hands kept here…</p>
       ) : (
         <>
           <HandsTable hands={hands} shown={shown} set={set} rowLimit={rowLimit} />
@@ -297,11 +299,11 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
         </p>
       )}
       <p className="text-xs text-muted">
-        Used the classic app in this browser?{" "}
+        Used the older gto-solver site in this browser?{" "}
         <button type="button" disabled={!!busy} onClick={() => void fromClassic()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
           Import its My hands
         </button>{" "}
-        Read only: the classic app&rsquo;s data is left as it is. Your tags and notes come along; its grades don&rsquo;t (graded again here).
+        Read only: that site&rsquo;s data is left as it is. Your tags and notes come along; its grades don&rsquo;t (graded again here).
       </p>
       {error && (
         <p role="alert" className="text-sm text-danger">
@@ -315,12 +317,12 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
 }
 
 function ClassicResultLine({ r }: { r: ClassicResult }) {
-  if (r.none) return <p role="status" className="text-sm">The classic app keeps no hands in this browser.</p>;
+  if (r.none) return <p role="status" className="text-sm">The older gto-solver site keeps no hands in this browser.</p>;
   const left = Object.entries(r.imported.skipped);
   const n = (x: number, one: string, many = `${one}s`) => `${x.toLocaleString()} ${x === 1 ? one : many}`;
   return (
     <p role="status" className="text-sm">
-      From the classic app ({r.from}): {n(r.read, "hand")} read; {n(r.kept?.added ?? 0, "hand")} imported
+      From the older gto-solver site ({r.from}): {n(r.read, "hand")} read; {n(r.kept?.added ?? 0, "hand")} imported
       {r.kept?.existing ? `, ${n(r.kept.existing, "hand")} already here` : ""}
       {left.length ? `; left out: ${left.map(([why, k]) => `${why} (${k})`).join(", ")}` : ""}.
     </p>
@@ -467,6 +469,7 @@ function HandsTable({
         </span>
       </div>
       {/* (relative: the sr-only header's absolute box stays inside the scrolling box, not widening the page) */}
+      <PhoneColumns hidden={["Site", "Big blind"]}>
       <div className="relative overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-surface-2 text-left text-xs text-muted">
@@ -478,8 +481,8 @@ function HandsTable({
               <th className="px-2 py-1">Pot type</th>
               <th className="px-2 py-1 text-right">Pot (bb)</th>
               <th className="px-2 py-1">End</th>
-              <th className="hidden px-2 py-1 sm:table-cell">Site</th>
-              <th className="hidden px-2 py-1 sm:table-cell">Big blind</th>
+              <th className="phone-col px-2 py-1">Site</th>
+              <th className="phone-col px-2 py-1">Big blind</th>
               <th className="px-2 py-1">
                 <span className="sr-only">Open</span>
               </th>
@@ -521,8 +524,8 @@ function HandsTable({
                     </span>
                   )}
                 </td>
-                <td className="hidden px-2 py-1 sm:table-cell">{h.site}</td>
-                <td className="hidden whitespace-nowrap px-2 py-1 sm:table-cell">
+                <td className="phone-col px-2 py-1">{h.site}</td>
+                <td className="phone-col whitespace-nowrap px-2 py-1">
                   {h.bb}
                   {h.tournament ? <span className="text-xs text-muted"> MTT</span> : null}
                 </td>
@@ -536,6 +539,7 @@ function HandsTable({
           </tbody>
         </table>
       </div>
+      </PhoneColumns>
       {!shown.length && <p className="text-sm text-muted">No hand kept matches these filters.</p>}
       {rest > 0 && (
         <p className="text-sm text-muted">
@@ -552,10 +556,9 @@ function HandsTable({
 function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onSaved: (h: HandRecord) => void; onClose: () => void }) {
   const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
-  // (opened from the table below it: brought into view, with the keyboard where its Open had it, and not on a link's first
-  // load; nothing returned, as Chrome's scrollIntoView returns a promise that React would take for the effect's cleanup)
+  // (opened from the table below it: brought into view, with the keyboard where its Open had it, and not on a link's first load)
   useEffect(() => {
-    box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    bringIntoView(box.current);
     if (document.activeElement?.closest("[data-open-hand]")) box.current?.focus({ preventScroll: true });
   }, [hand.id]);
   const r = useMemo((): ReplayedHand | string => {
@@ -615,7 +618,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
         Pot {fmt(sim.pot)}bb ({hand.end}). {hand.site === PRACTICE_SITE
           ? `A hand you played in Practice${hand.playedFor ? ", preflop played for you from the charts" : ""}`
           : hand.site === CLASSIC_SITE
-            ? "A hand from the classic app's My hands"
+            ? "A hand from My hands on the older gto-solver site"
             : "From your hand history"}
         , replayed on Lizard's table.
         {decisions.length
@@ -720,7 +723,7 @@ function StreetRow({ r, street, graded }: { r: ReplayedHand; street: Street; gra
               <li key={i} className={you ? "font-semibold" : "text-muted"}>
                 {say(m)}
                 {d && (
-                  <span className="ml-1 inline-flex items-center gap-1 font-normal" aria-label={`Grade of ${street} decision ${i + 1}`} title={decisionNote(d)}>
+                  <span role="group" className="ml-1 inline-flex items-center gap-1 font-normal" aria-label={`Grade of ${street} decision ${i + 1}`} title={decisionNote(d)}>
                     {isGraded(d) ? <VerdictTag v={d.verdict as Verdict} /> : <span className="text-xs text-muted">not graded</span>}
                     {d.evLossBb != null && d.evLossBb > 0 && <span className="text-xs text-muted">−{d.roughEv ? "≈" : ""}{fmt(d.evLossBb)}bb</span>}
                   </span>

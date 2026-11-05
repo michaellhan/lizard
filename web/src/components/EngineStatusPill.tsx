@@ -27,7 +27,7 @@ export function EngineStatusPill() {
       title={status.message ?? status.error ?? ""}
     >
       {LABEL[status.phase]}
-      {status.phase !== "idle" && threads ? ` · ${threads}t` : ""}
+      {status.phase !== "idle" && threads ? ` · ${threads} thread${threads === 1 ? "" : "s"}` : ""}
     </Link>
   );
 }

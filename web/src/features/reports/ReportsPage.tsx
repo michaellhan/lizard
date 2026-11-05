@@ -7,8 +7,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
+import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { actionColors, bb, pct } from "@/components/actions";
+import { actionFills, bb, pct } from "@/components/actions";
 import { LIBRARY_SOURCES } from "@/config";
 import { TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "@/features/practice/drills";
 import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
@@ -337,9 +338,9 @@ function Partial({ a }: { a: Pick<Average, "w" | "wf" | "freqs"> }) {
 
 function Bar({ freqs, cols }: { freqs: number[] | null; cols: string[] }) {
   if (!freqs) return <span className="text-xs text-faint">not stored</span>;
-  const colors = actionColors(cols);
+  const colors = actionFills(cols);
   return (
-    <span className="flex h-3 w-full min-w-24 overflow-hidden rounded-sm bg-surface-3" aria-label={cols.map((c, i) => `${c} ${pct(freqs[i])}`).join(", ")} role="img">
+    <span className="flex h-3 w-full min-w-24 gap-px overflow-hidden rounded-sm bg-surface-3" aria-label={cols.map((c, i) => `${c} ${pct(freqs[i])}`).join(", ")} role="img">
       {freqs.map((x, i) => (x > 0.001 ? <i key={i} className="block h-full" style={{ width: `${(x * 100).toFixed(2)}%`, background: colors[i] }} /> : null))}
     </span>
   );
@@ -394,16 +395,17 @@ function ReportTable({
         <>
           <td className="px-2 py-1 text-right">{bb(a.ev[0])}</td>
           <td className="px-2 py-1 text-right">{bb(a.ev[1])}</td>
-          <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[0])}</td>
-          <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[1])}</td>
-          <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[0], a.eq[0], rep.pot))}</td>
-          <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[1], a.eq[1], rep.pot))}</td>
+          <td className="phone-col px-2 py-1 text-right">{pct(a.eq[0])}</td>
+          <td className="phone-col px-2 py-1 text-right">{pct(a.eq[1])}</td>
+          <td className="phone-col px-2 py-1 text-right">{ratio(eqr(a.ev[0], a.eq[0], rep.pot))}</td>
+          <td className="phone-col px-2 py-1 text-right">{ratio(eqr(a.ev[1], a.eq[1], rep.pot))}</td>
           <td className="whitespace-nowrap px-2 py-1 text-right">{rangeLeadText(a.eq, rep.seats)}</td>
         </>
       )}
     </>
   );
   return (
+    <PhoneColumns hidden={ev ? [`${o} eq`, `${p} eq`, `${o} EQR`, `${p} EQR`] : []}>
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-border">
       <table className="w-full border-collapse text-xs tabular-nums">
         <thead className="sticky top-0 z-10 bg-surface text-left text-muted">
@@ -417,10 +419,10 @@ function ReportTable({
               <>
                 {head("ev0", `${o} EV`, "text-right")}
                 {head("ev1", `${p} EV`, "text-right")}
-                {head("eq0", `${o} eq`, "hidden text-right sm:table-cell")}
-                {head("eq1", `${p} eq`, "hidden text-right sm:table-cell")}
-                {head("eqr0", `${o} EQR`, "hidden text-right sm:table-cell")}
-                {head("eqr1", `${p} EQR`, "hidden text-right sm:table-cell")}
+                {head("eq0", `${o} eq`, "phone-col text-right")}
+                {head("eq1", `${p} eq`, "phone-col text-right")}
+                {head("eqr0", `${o} EQR`, "phone-col text-right")}
+                {head("eqr1", `${p} EQR`, "phone-col text-right")}
                 {head("adv", "Range adv", "text-right")}
               </>
             )}
@@ -510,6 +512,7 @@ function ReportTable({
         </tbody>
       </table>
     </div>
+    </PhoneColumns>
   );
 }
 

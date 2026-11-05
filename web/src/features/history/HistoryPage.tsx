@@ -127,7 +127,7 @@ function SessionItem({ r }: { r: SessionRow }) {
           r.hands != null ? many(r.hands, "hand") : null,
           many(r.n, "decision"),
           r.n ? `${okText(r.ok, r.n)} Best or Correct` : null,
-          r.lossPer == null ? null : `${lossText(r.lossPer, r.lossPctPer, kindUnit(r.kind))} lost a decision`,
+          r.lossPer == null ? null : `${lossText(r.lossPer, r.lossPctPer, kindUnit(r.kind))} lost per decision`,
           r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : null,
         ];
   return (
@@ -160,7 +160,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
               <th className="py-0.5 pr-4 font-normal">Sessions</th>
               <th className="py-0.5 pr-4 font-normal">Decisions</th>
               <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
-              <th className="py-0.5 pr-4 font-normal">EV lost a decision</th>
+              <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>
               <th className="py-0.5 pr-4 font-normal">Hands · net</th>
             </tr>
           </thead>
@@ -215,7 +215,7 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
                 <th className="py-0.5 pr-4 font-normal">Decisions</th>
                 <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
                 <th className="py-0.5 pr-4 font-normal">Graded by EV</th>
-                <th className="py-0.5 pr-4 font-normal">EV lost a decision</th>
+                <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>
                 <th className="py-0.5 pr-4 font-normal">Graded against</th>
               </tr>
             </thead>
@@ -275,14 +275,14 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           {end(t) && <p>{end(t)}</p>}
           {t.basis === "ev" && t.line && (
             <p className="text-xs text-muted">
-              EV lost a decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot, against the answers named. It isn&rsquo;t a result or a win rate.
+              EV lost per decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot, against the answers named. It isn&rsquo;t a result or a win rate.
             </p>
           )}
           <p className="text-xs text-muted">
             {many(t.n, "decision")} in {many(t.sessions, "session")}. Graded against: {sourcesText(t.sources)}.
           </p>
           {versionNote(t.versions) && (
-            <p aria-label="Versions compared" className="text-xs text-muted">
+            <p role="group" aria-label="Versions compared" className="text-xs text-muted">
               {versionNote(t.versions)}
               {t.versions.changed.length > 0 ? " Part of a change here can be the answer's." : ""}
               {t.versions.unknown[0] + t.versions.unknown[1] > 0 ? ` ${VERSION_UNKNOWN}` : ""}
@@ -312,7 +312,7 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
                 <th className="py-0.5 pr-4 font-normal">Hands</th>
                 <th className="py-0.5 pr-4 font-normal">Decisions</th>
                 <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
-                <th className="py-0.5 pr-4 font-normal">EV lost a decision</th>
+                <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>
                 <th className="py-0.5 pr-4 font-normal">Net</th>
               </tr>
             </thead>

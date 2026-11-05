@@ -158,11 +158,15 @@ describe("Your sessions", () => {
     expect(fig).toHaveTextContent(BASES[0]!);
     expect(fig).toHaveTextContent("not a solve");
     expect(within(fig).getByRole("table", { name: "The line by blocks", hidden: true })).toBeInTheDocument();
-    const line = within(fig).getByRole("img");
+    const line = within(fig).getByRole("slider");
     fireEvent.focus(line);
     expect(within(fig).getByRole("tooltip")).toHaveTextContent(/\d+% in the mix/);
+    const lastBlock = line.getAttribute("aria-valuemax");
+    expect(line).toHaveAttribute("aria-valuenow", lastBlock);
     fireEvent.keyDown(line, { key: "ArrowLeft" });
     expect(within(fig).getByRole("tooltip")).toHaveTextContent(/2026|2027/);
+    expect(line).toHaveAttribute("aria-valuenow", String(Number(lastBlock) - 1));
+    expect(line.getAttribute("aria-valuetext")).toMatch(/^Block \d+ of \d+: \d+% in the mix/);
     expect(screen.getByLabelText("Latest sessions against before")).toHaveTextContent(/not a solve.*in the mix over your latest 110 decisions.*Better\./);
     expect(p).toHaveTextContent("on Preflop charts (by frequency, not a solve), clear folds left out");
     expect(within(p).getByRole("table", { name: "Changes against before" })).toHaveTextContent("RFI");
@@ -368,7 +372,7 @@ describe("Your sessions", () => {
     await seed(hs, hs.map((h) => dec(h)));
     open();
     const fig = await within(await panel()).findByRole("figure");
-    const line = within(fig).getByRole("img");
+    const line = within(fig).getByRole("slider");
     vi.spyOn(line, "getBoundingClientRect").mockReturnValue({ left: 0, width: 400, top: 0, height: 100, right: 400, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
     fireEvent.click(line, { clientX: 10 });
     expect(within(fig).getByRole("tooltip")).toHaveTextContent("2026-01-01");

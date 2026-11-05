@@ -2,6 +2,7 @@
 // with the decision, the progress kept as a session so leaving and coming back resumes it.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { bringIntoView } from "@/components/scroll";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { getSession, putSession, type DecisionRecord, type HandRecord } from "@/data/db";
@@ -48,7 +49,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
     void getSession(toSession(leak, fresh(), 0).id)
       .then((s) => alive && setProg(fromSession(s) ?? fresh()))
       .catch(() => alive && setProg(fresh()));
-    box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    bringIntoView(box.current);
     return () => {
       alive = false;
     };
@@ -89,7 +90,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
         </button>
       </div>
       {!prog ? (
-        <p className="text-muted">…</p>
+        <p className="text-muted">Reading your progress on this leak…</p>
       ) : !items.length ? (
         <p>{whole.length ? "None of this leak's graded decisions is in these hands." : "None of this leak's decisions is graded with its mix in this browser."}</p>
       ) : (
@@ -134,7 +135,7 @@ function DrillScore({ prog, done, total, onRestart }: { prog: DrillProgress; don
   // (the score is the whole leak's, a filter or none: over other hands it says so)
   const beyond = prog.done.length !== done;
   return (
-    <p aria-label="Drill score" className="flex flex-wrap items-center gap-2 text-muted">
+    <p role="group" aria-label="Drill score" className="flex flex-wrap items-center gap-2 text-muted">
       <span>
         {done} of {total} drilled
         {beyond ? ` here; ${prog.done.length} of this leak in all` : ""}
@@ -181,7 +182,7 @@ function Problem({
   const mix = d.mix ?? [];
   const byEv = mix.every((x) => x[2] !== null);
   return (
-    <div aria-label="Decision" className="space-y-2">
+    <div role="group" aria-label="Decision" className="space-y-2">
       <p className="text-xs text-muted">
         Decision {n} of {total} · {spotOf(d) ?? d.situation} · {hand.site} hand {hand.number ? `#${hand.number}` : ""}, {hand.played}
       </p>
@@ -231,7 +232,7 @@ function Problem({
         ))}
       </div>
       {answer && (
-        <div aria-label="Answer" className="space-y-1">
+        <div role="group" aria-label="Answer" className="space-y-1">
           <p className="flex flex-wrap items-center gap-2">
             <VerdictTag v={answer.g.verdict} />
             <span>

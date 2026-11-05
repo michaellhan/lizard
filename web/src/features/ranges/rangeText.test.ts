@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ALL_CLASSES } from "@/engine/nlhe/cards";
-import { formatRange, parseRange, rangeCombos } from "./rangeText";
+import { ALL_CLASSES, expandClass } from "@/engine/nlhe/cards";
+import { comboName, formatRange, parseRange, rangeCombos } from "./rangeText";
 
 describe("range text", () => {
   it("expands plus and dash shorthands", () => {
@@ -43,6 +43,22 @@ describe("range text", () => {
     expect(r.weights.QJo).toBeCloseTo(1 / 12);
     expect(rangeCombos(parseRange("AhKh,AsKs,AdKd,AcKc").weights)).toBe(4);
     expect(formatRange(parseRange("AhKh").weights)).toBe("AKs:0.25");
+  });
+
+  it("names combos one way, whichever way round they're typed, and gives them apart from the classes", () => {
+    expect(["KhAh", "AhAs", "2c7d", "acad"].map(comboName)).toEqual(["AhKh", "AsAh", "7d2c", "AdAc"]);
+    for (const cls of ALL_CLASSES) for (const c of expandClass(cls)) expect(comboName(c)).toBe(c);
+    const r = parseRange("KhAh:0.25, AKs:0.5, QQ, ahkh:0.75");
+    expect(r.classWeights).toEqual({ AKs: 0.5, QQ: 1 });
+    expect(r.comboWeights).toEqual({ AhKh: 0.75 });
+  });
+
+  it("writes single combos after their class, and the larger weight wins on reading, as in the solver's parser", () => {
+    expect(formatRange({ AKs: 0.25, QQ: 1 }, { AhKh: 0.5, AdKd: 1, AcKc: 0, "7d2c": 0.125 })).toBe("AKs:0.25,AdKd,AhKh:0.5,QQ,7d2c:0.125");
+    expect(formatRange({ AA: 1 })).toBe("AA");
+    const r = parseRange("AKs:0.25,AdKd,AhKh:0.5");
+    expect(r.classWeights).toEqual({ AKs: 0.25 });
+    expect(r.comboWeights).toEqual({ AdKd: 1, AhKh: 0.5 });
   });
 
   it("formats in grid order and round-trips", () => {

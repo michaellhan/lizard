@@ -5,6 +5,7 @@ import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "
 import { chartMistake, mistake } from "@/test/mistake";
 import { exploitOf } from "@/features/practice/exploit";
 import { keepMistake, listMistakes } from "./mistakes";
+import { listReports, putReport } from "./reports";
 import { listScenarios, putScenario } from "./scenarios";
 import { deleteDrill, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, spotAt, spotMatches } from "./saved";
 
@@ -129,7 +130,7 @@ describe("backup and restore", () => {
     const b = await makeBackup(() => Date.UTC(2026, 10, 3));
     expect(b.format).toBe(BACKUP_FORMAT);
     expect(b.exported).toBe("2026-11-03T00:00:00.000Z");
-    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, savedDrills: 1, savedScenarios: 0, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
+    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, savedDrills: 1, savedScenarios: 0, savedReports: 0, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
     expect(b.stores.savedDrills[0]).toEqual({ id: "k", v: 1, created: 1, updated: 8, dev: b.device, data: drill("k", 8, { note: "every texture" }) });
     expect(b.stores.sessions.find((r) => r.id === "d")).toMatchObject({ id: "d", v: 1, created: 10, updated: 20, dev: b.device });
     expect(b.stores.sessions.find((r) => r.id === "e")).toMatchObject({ created: 30, updated: 30 });
@@ -301,6 +302,20 @@ describe("backup and restore", () => {
     await clearAll();
     b.stores.sessions[0].data.meta.exploit = { profile: 7 };
     expect((await restoreBackup(b)).sessions.skipped).toBe(1);
+  });
+
+  it("carries the saved reports, a damaged one skipped", async () => {
+    const r = { id: "r1", name: "Stars BTN", filters: { site: "PokerStars", pos: "BTN" }, note: "", createdAt: 1, updatedAt: 2 };
+    await putReport(r);
+    const b = JSON.parse(JSON.stringify(await makeBackup()));
+    expect(b.counts.savedReports).toBe(1);
+    await clearAll();
+    expect((await restoreBackup(b)).savedReports).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    expect((await listReports()).list).toEqual([r]);
+    await clearAll();
+    b.stores.savedReports[0].data.filters = { from: "not a date" };
+    expect((await restoreBackup(b)).savedReports.skipped).toBe(1);
+    expect((await listReports()).list).toEqual([]);
   });
 
   it("restores a backup from before scenarios were kept", async () => {

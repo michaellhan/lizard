@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { RangeMatrix } from "@/components/RangeMatrix";
-import { actionColors, pct } from "@/components/actions";
+import { actionFills, pct } from "@/components/actions";
 import { studyRequest, type StudyHand } from "@/features/study/studyState";
 import { oneSizeProvenance } from "@/solver/provenance";
 import type { AdvisorResponse } from "@/solver/protocol";
@@ -21,7 +21,7 @@ const mixText = (r: OneSizeRow) =>
     .join(" · ");
 // a row's swatch: the colour of its bet (or raise) among the row's own actions
 const swatch = (r: OneSizeRow) => {
-  const colors = actionColors(r.actions);
+  const colors = actionFills(r.actions);
   const i = r.actions.findIndex((n) => !["check", "call", "fold"].includes(n));
   return i < 0 ? undefined : colors[i];
 };
@@ -150,7 +150,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
                   <tr key={c} className="border-t border-border text-faint">
                     <td className="py-1 pr-2 font-sans">{sizeName(c)}</td>
                     <td colSpan={3} className="py-1 text-right">
-                      {run.cur === c ? "solving…" : "…"}
+                      {run.cur === c ? "solving…" : "waiting"}
                     </td>
                   </tr>
                 ))}
@@ -164,7 +164,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
             <b>{sizeName(r.size)}</b>: {mixText(r)}
           </p>
           <div className="max-w-md">
-            <RangeMatrix cells={r.grid.cells} actions={r.grid.actions} colors={actionColors(r.grid.actions)} view="mix" caption={`${m.actor ?? ""} range, ${sizeName(r.size).toLowerCase()}`} />
+            <RangeMatrix cells={r.grid.cells} actions={r.grid.actions} colors={actionFills(r.grid.actions)} view="mix" caption={`${m.actor ?? ""} range, ${sizeName(r.size).toLowerCase()}`} />
           </div>
         </div>
       )}

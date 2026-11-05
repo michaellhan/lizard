@@ -7,6 +7,7 @@
 // here, and a finished table deals again by itself. How many tables there are is simply how many the Room has (the kept doc
 // brings them back), so no setting can say otherwise.
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
+import { rowKeys } from "@/components/rowKeys";
 import { bb, kindOf, pct } from "@/components/actions";
 import { sourcesText } from "@/features/history/history";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -91,13 +92,25 @@ export function TablesBar({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-1.5">
           <span className="text-muted">Tables</span>
-          <div role="radiogroup" aria-label="Tables" className="inline-flex rounded-md border border-border bg-surface-2 p-0.5">
+          <div
+            role="radiogroup"
+            aria-label="Tables"
+            onKeyDown={(e) =>
+              rowKeys("radio", (i) => {
+                // (not as a press: the arrows stay here to go on through the row)
+                pressRef.current = false;
+                room.setTables(i + 1);
+              })(e)
+            }
+            className="inline-flex rounded-md border border-border bg-surface-2 p-0.5"
+          >
             {Array.from({ length: MAX_TABLES }, (_, i) => i + 1).map((n) => (
               <button
                 key={n}
                 type="button"
                 role="radio"
                 aria-checked={n === count}
+                tabIndex={n === count ? 0 : -1}
                 title={n === 1 ? "One table: Table 1's hand goes on here" : `${n} tables at once, one score across them`}
                 onClick={() => {
                   pressRef.current = n > 1 && n !== count;
@@ -282,7 +295,7 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
           {s.hands} hand{s.hands === 1 ? "" : "s"}
         </span>
         {s.n > 0 && <span className="font-mono">{pct(s.ok / s.n, 0)} best or correct</span>}
-        {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}{unit} lost a decision</span>}
+        {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}{unit} lost per decision</span>}
         {s.played > 0 && !t.hand.tournament && !t.hand.exploit && <span className="font-mono">net {signed(s.net)}bb</span>}
       </p>
       {last && (
@@ -363,7 +376,7 @@ export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap
 
   return (
     <div ref={top} className="scroll-mt-14 space-y-4">
-      <div role="tablist" aria-label="Tables" className="sticky top-12 z-30 -mx-4 flex gap-1 border-b border-border bg-bg/95 px-4 py-1 text-sm backdrop-blur sm:hidden">
+      <div role="tablist" aria-label="Tables" onKeyDown={(e) => rowKeys("tab", pick)(e)} className="sticky top-12 z-30 -mx-4 flex gap-1 border-b border-border bg-bg/95 px-4 py-1 text-sm backdrop-blur sm:hidden">
         {tables.map((_, i) => {
           const s = states[i]!;
           return (
@@ -372,6 +385,7 @@ export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap
               type="button"
               role="tab"
               aria-selected={i === focus}
+              tabIndex={i === focus ? 0 : -1}
               aria-controls={`practice-table-${i}`}
               aria-label={`Table ${i + 1}: ${s.text}`}
               title={`Table ${i + 1}: ${s.text}`}

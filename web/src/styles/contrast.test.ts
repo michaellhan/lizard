@@ -4,6 +4,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { actionColors, actionFills, actionTokens } from "@/components/actions";
 
 const here = __dirname;
 const css = readFileSync(join(here, "index.css"), "utf8");
@@ -67,6 +68,71 @@ describe("contrast", () => {
   });
 });
 
+describe("an action mix", () => {
+  const ACTIONS = ["fold", "check", "bet1", "bet2", "bet3", "bet4", "allin"];
+  const fill = (a: string) => {
+    const m = css.match(new RegExp(`--fill-act-${a}: ([^;]+);`));
+    if (!m) throw new Error(`no fill for ${a}`);
+    return m[1]!;
+  };
+  /** what a fill lays over its colour, read the same whichever colour that is */
+  const pattern = (a: string) => fill(a).replace(`var(--color-act-${a})`, "").replace(/,\s*$/, "").trim();
+  const ink = (a: string) => pattern(a).match(/var\(--color-(\w+)\)/)?.[1];
+  const color = (a: string) => rgb(token(`act-${a}`));
+  const pairs = ACTIONS.flatMap((a, i) => ACTIONS.slice(i + 1).map((b) => [a, b] as const));
+  const tooClose = pairs.filter(([a, b]) => ratio(color(a), color(b)) < 3);
+
+  it("can't rest on colour: seven can't stand 3:1 apart on the surface, so most pairs don't", () => {
+    expect(pairs).toHaveLength(21);
+    expect(tooClose).toHaveLength(18);
+    // the most colours 3:1 from each other and from the surface: each step takes 3:1 of what's left up to white
+    const steps = Math.floor(Math.log(ratio([255, 255, 255], rgb(token("surface-2")))) / Math.log(3));
+    expect(steps).toBeLessThan(ACTIONS.length);
+    expect(steps).toBe(2);
+  });
+
+  it("gives every pair under 3:1 different patterns", () => {
+    for (const [a, b] of tooClose) expect(pattern(a), `${a} and ${b}`).not.toBe(pattern(b));
+  });
+
+  it("leaves one action plain, and inks every other pattern 3:1 from its own colour", () => {
+    expect(ACTIONS.filter((a) => !pattern(a))).toEqual(["check"]);
+    for (const a of ACTIONS.filter((x) => pattern(x))) expect(ratio(rgb(token(ink(a)!)), color(a)), a).toBeGreaterThanOrEqual(3);
+  });
+
+  it("keeps a pattern readable in a 14px swatch: at least two repeats, in lines of a pixel or more, at 45 or 135 degrees", () => {
+    for (const a of ACTIONS.filter((x) => pattern(x))) {
+      const lines = [...pattern(a).matchAll(/repeating-linear-gradient\((\d+)deg, var\(--color-\w+\) 0 ([\d.]+)px, transparent [\d.]+px ([\d.]+)px\)/g)];
+      const dots = pattern(a).match(/\/ ([\d.]+)px/);
+      expect(lines.length || dots, a).toBeTruthy();
+      for (const [, angle, width, period] of lines) {
+        expect(["45", "135"], a).toContain(angle);
+        expect(Number(width), a).toBeGreaterThanOrEqual(1);
+        expect(Number(period), a).toBeLessThanOrEqual(7);
+      }
+      if (dots) expect(Number(dots[1]), a).toBeLessThanOrEqual(7);
+    }
+  });
+
+  it("gives a grid cell's label 4.5:1 on its plate over any colour or ink of a mix", () => {
+    const m = /bg-bg\/(\d+)/.exec(readFileSync(join(here, "../components/RangeMatrix.tsx"), "utf8").match(/cell-label[^"]*/)![0]);
+    const alpha = Number(m![1]) / 100;
+    for (const under of [...ACTIONS.map(color), rgb(token("text")), rgb(token("surface-2"))]) {
+      expect(ratio(rgb(token("text")), over(rgb(token("bg")), alpha, under))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("fills an action with the fill named for it, colour and fill alike, in a node of any shape", () => {
+    const names = ["fold", "call", "raise 2.5", "raise 7", "all-in"];
+    expect(actionTokens(names)).toEqual(["fold", "check", "bet1", "bet4", "allin"]);
+    expect(actionColors(names)[2]).toBe("var(--color-act-bet1)");
+    expect(actionFills(names)[2]).toBe("var(--fill-act-bet1)");
+    for (const n of [["check", "bet 33%"], ["check", "bet 33%", "bet 50%", "bet 75%", "bet 100%", "bet 150%"], names]) {
+      for (const t of actionTokens(n)) expect(css).toContain(`--fill-act-${t}:`);
+    }
+  });
+});
+
 describe("the stylesheet", () => {
   it("doesn't claim a light theme it hasn't got", () => {
     expect(css).not.toMatch(/light theme/i);
@@ -87,6 +153,23 @@ describe("the stylesheet", () => {
     const clipping = sources(join(here, "..")).flatMap((f) => readFileSync(f, "utf8").match(/"[^"\n]*inline-flex overflow-hidden[^"\n]*"/g) ?? []);
     expect(clipping.length).toBeGreaterThan(0);
     for (const c of clipping) expect(c).toContain("segmented");
+  });
+
+  it("keeps data's colours, a cell's edge and the selected state under forced colors", () => {
+    const block = css.slice(css.indexOf("@media (forced-colors: active)"));
+    expect(block).toMatch(/\[style\*="--fill-act"\],\s*\.keep-colour \{\s*forced-color-adjust: none/);
+    expect(block).toMatch(/\[role="gridcell"\] \{\s*outline: 1px solid ButtonBorder/);
+    expect(block).toMatch(/\[role="gridcell"\]\[aria-selected="true"\]:not\(:focus-visible\),\s*\[role="tab"\]\[aria-selected="true"\]:not\(:focus-visible\) \{\s*outline: 3px solid Highlight/);
+  });
+
+  it("drops a phone's columns only where a table says so, and at the width of `sm`", () => {
+    expect(css).toMatch(/@media \(max-width: 39\.99rem\) \{\s*\.phone-cols:not\(\[data-all\]\) \.phone-col \{\s*display: none/);
+    const hiding = sources(join(here, "..")).flatMap((f) => readFileSync(f, "utf8").match(/"[^"\n]*hidden[^"\n]*sm:table-cell[^"\n]*"/g) ?? []);
+    expect(hiding).toEqual([]);
+    for (const f of sources(join(here, ".."))) {
+      const s = readFileSync(f, "utf8");
+      if (s.includes("phone-col ")) expect(s, f).toContain("<PhoneColumns");
+    }
   });
 
   it("uses only tokens that exist for surfaces", () => {

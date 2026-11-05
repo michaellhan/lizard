@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
+import { rowKeys } from "@/components/rowKeys";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
@@ -58,7 +59,7 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">Practice</h1>
-        <div role="tablist" aria-label="Practice" className="flex gap-1 rounded-md border border-border p-0.5 text-sm">
+        <div role="tablist" aria-label="Practice" onKeyDown={rowKeys("tab", (i) => open(TABS[i]!.id))} className="flex gap-1 rounded-md border border-border p-0.5 text-sm">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -66,6 +67,7 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
               role="tab"
               id={`practice-tab-${t.id}`}
               aria-selected={tab === t.id}
+              tabIndex={tab === t.id ? 0 : -1}
               aria-controls={`practice-panel-${t.id}`}
               onClick={() => open(t.id)}
               className={`rounded px-2.5 py-1 ${tab === t.id ? "bg-surface-3 font-medium" : "text-muted hover:bg-surface-2"}`}
@@ -290,7 +292,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
               <li key={s.id} className="text-muted">
                 {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
                 {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} best or correct` : ""}
-                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
+                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost per decision` : ""}
                 {s.meta.pushFold ? " · push/fold" : ""}
                 {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
                 {s.decisions ? ` · Graded against: ${rowOf(s).graded}` : ""}

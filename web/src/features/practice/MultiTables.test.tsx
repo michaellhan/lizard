@@ -429,12 +429,12 @@ describe("the view (multitable.test.js:366)", () => {
     const row = tablesRow(1);
     expect(row).toHaveTextContent("3 hands");
     expect(row).toHaveTextContent("75% best or correct");
-    expect(row).toHaveTextContent("0.25bb lost a decision");
+    expect(row).toHaveTextContent("0.25bb lost per decision");
     expect(row).toHaveTextContent("net +2.5bb");
     expect(row).toHaveTextContent("Graded against: Live solve 4");
     expect(row).toHaveAttribute("aria-current", "true");
     expect(tablesRow(2)).not.toHaveTextContent("Graded against");
-    expect(tablesRow(2)).not.toHaveTextContent(/best or correct|lost a decision|net|NaN/);
+    expect(tablesRow(2)).not.toHaveTextContent(/best or correct|lost per decision|net|NaN/);
     expect(screen.getByText(/Each decision is graded here once you act/)).toBeInTheDocument();
   });
 

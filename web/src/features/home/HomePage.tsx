@@ -4,7 +4,7 @@ import { ROUTES, type RouteStatus } from "@/app/routes";
 const BADGE: Record<RouteStatus, { text: string; cls: string }> = {
   working: { text: "Working", cls: "bg-accent/15 text-accent" },
   partial: { text: "Partial", cls: "bg-act-bet1/15 text-act-bet1" },
-  classic: { text: "Engine ready · UI in classic", cls: "bg-surface-3 text-muted" },
+  classic: { text: "Engine ready · page on the older gto-solver site", cls: "bg-surface-3 text-muted" },
   planned: { text: "Planned", cls: "bg-surface-3 text-faint" },
 };
 

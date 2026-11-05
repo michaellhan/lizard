@@ -13,7 +13,7 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedDrills", "savedRanges", "savedScenarios", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("savedScenarios").store.indexNames]).toEqual(["byUpdated"]);
@@ -123,8 +123,20 @@ describe("IndexedDB migrations", () => {
     v7.close();
   });
 
-  it("opens at version 7", () => {
-    expect(DB_VERSION).toBe(7);
+  it("upgrades a version-7 database in place, keeping its scenarios and giving the reports an empty store", async () => {
+    const name = fresh();
+    const v7 = await openLizardDB(7, name);
+    expect([...v7.objectStoreNames]).not.toContain("savedReports");
+    await v7.put("savedDrills", { id: "d1", name: "Flops", kind: "library", to: "/practice?tab=drills", about: "", note: "", createdAt: 1, updatedAt: 2 });
+    v7.close();
+    const v8 = await openLizardDB(DB_VERSION, name);
+    expect((await v8.get("savedDrills", "d1"))?.name).toBe("Flops");
+    expect(await v8.count("savedReports")).toBe(0);
+    v8.close();
+  });
+
+  it("opens at version 8", () => {
+    expect(DB_VERSION).toBe(8);
   });
 });
 

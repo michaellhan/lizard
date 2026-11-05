@@ -153,7 +153,7 @@ export interface SessionRow {
   n: number;
   /** of them Best or Correct (null for range builds, scored by accuracy) */
   ok: number | null;
-  /** EV lost a decision graded by EV, bb and % of the pot (null where none was) */
+  /** EV lost per decision graded by EV, bb and % of the pot (null where none was) */
   lossPer: number | null;
   lossPctPer: number | null;
   /** full hands: hands played, and net over them (null preflop only) */

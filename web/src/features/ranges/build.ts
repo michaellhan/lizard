@@ -1,10 +1,22 @@
 // The range builder: the actor's strategy painted hand class by hand class, then scored against the answer's.
-// Ported from upstream study.js (passiveOf, blankPaint, brush, scoreBuild, grade); the undo history, the locks and
-// the combo-by-combo score are Lizard's. A paint maps each class in the range to a mix (one share per action).
-import { classCombos, RANKS } from "@/engine/nlhe/cards";
+// Ported from upstream study.js (passiveOf, blankPaint, brush, scoreBuild, grade); the undo history, the locks, single
+// combos and the combo-by-combo score are Lizard's. A paint maps each class in the range to a mix (one share per
+// action); a RangePaint adds the combos painted apart from their class.
+import { classCombos, classOf, expandClass, parseCards, RANKS } from "@/engine/nlhe/cards";
 import type { ComboRow, RangeGridData } from "@/solver/protocol";
+import { comboName } from "./rangeText";
 
 export type Paint = Record<string, number[]>;
+
+/** The combos with a mix of their own: by class, then by combo's name (`comboName`). The rest play their class's. */
+export type ComboPaint = Record<string, Record<string, number[]>>;
+
+export interface RangePaint {
+  classes: Paint;
+  combos: ComboPaint;
+}
+
+export const rangePaint = (classes: Paint): RangePaint => ({ classes, combos: {} });
 
 /** the brush's share of a hand: all of it, three quarters, half, a quarter */
 export const AMOUNTS = [1, 0.75, 0.5, 0.25] as const;
@@ -102,6 +114,183 @@ export function actionShares(paint: Paint, a: number): Record<string, number> {
   return out;
 }
 
+const NOTHING: ReadonlySet<string> = new Set();
+const sameMix = (x: readonly number[], y: readonly number[]) => x.every((v, a) => Math.abs(v - (y[a] ?? 0)) < 1e-9);
+
+/** `own` with one combo's mix: gone when it's only its class's, as a class left with no combos of its own is. */
+function withCombo(own: ComboPaint, cls: string, combo: string, mix: readonly number[] | null, base: readonly number[]): ComboPaint {
+  const mine = { ...own[cls] };
+  if (mix && !sameMix(mix, base)) mine[combo] = [...mix];
+  else delete mine[combo];
+  const out = { ...own };
+  if (Object.keys(mine).length) out[cls] = mine;
+  else delete out[cls];
+  return out;
+}
+
+/** A class-wide brush's reach into a paint: each class's combos of their own take it too, keeping their differences
+ * in the rest of the mix (`classes`: the classes after the brush; `weights`: its share of each class it touched). */
+function carry(p: RangePaint, classes: Paint, weights: Readonly<Record<string, number>>, a: number, d: number, locked: ReadonlySet<string>): RangePaint {
+  if (classes === p.classes) return p;
+  let combos = p.combos;
+  for (const [cls, own] of Object.entries(p.combos)) {
+    const t = weights[cls];
+    if (!(t! > 0) || locked.has(cls) || !classes[cls]) continue;
+    for (const [combo, mix] of Object.entries(own)) combos = withCombo(combos, cls, combo, brush(mix, a, Math.min(1, t!), d), classes[cls]);
+  }
+  return { classes, combos };
+}
+
+/** `paintClasses` over a RangePaint. */
+export function paintRange(p: RangePaint, classes: Iterable<string>, a: number, t: number, d: number, locked: ReadonlySet<string> = NOTHING): RangePaint {
+  const list = [...classes];
+  return carry(p, paintClasses(p.classes, list, a, t, d, locked), Object.fromEntries(list.map((c) => [c, t])), a, d, locked);
+}
+
+/** `paintWeights` over a RangePaint. */
+export function paintRangeWeights(p: RangePaint, weights: Readonly<Record<string, number>>, a: number, d: number, locked: ReadonlySet<string> = NOTHING): RangePaint {
+  return carry(p, paintWeights(p.classes, weights, a, d, locked), weights, a, d, locked);
+}
+
+/** One combo's action `a` set to share `t`, the rest of its mix keeping its proportions (`brush`). The same paint
+ * when nothing changes, so no undo step. */
+export function setCombo(p: RangePaint, cls: string, combo: string, a: number, t: number, d: number, locked: ReadonlySet<string> = NOTHING): RangePaint {
+  const base = p.classes[cls];
+  if (!base || locked.has(cls)) return p;
+  const mix = p.combos[cls]?.[combo] ?? base;
+  const next = brush(mix, a, t, d);
+  return sameMix(next, mix) ? p : { ...p, combos: withCombo(p.combos, cls, combo, next, base) };
+}
+
+/** One combo back on its class's mix. */
+export function clearCombo(p: RangePaint, cls: string, combo: string): RangePaint {
+  const base = p.classes[cls];
+  return base && p.combos[cls]?.[combo] ? { ...p, combos: withCombo(p.combos, cls, combo, null, base) } : p;
+}
+
+const hasCombos = (p: RangePaint) => Object.keys(p.combos).length > 0;
+
+/** What the answer tells of combos: their rows, and the board (read off the wire: AdvisorResponse leaves it open). */
+export interface ComboAnswer {
+  grid: RangeGridData;
+  combos?: Record<string, ComboRow[]>;
+  board?: unknown;
+  pot_bb?: number;
+}
+
+const deadCards = (res: ComboAnswer): readonly string[] => (typeof res.board === "string" ? (parseCards(res.board) ?? []) : []);
+const onBoard = (combo: string, dead: readonly string[]) => dead.includes(combo.slice(0, 2)) || dead.includes(combo.slice(2, 4));
+
+/** A class's combos in the range: reach above nothing, and clear of the board. All the combo sums run over these. */
+function liveRows(res: ComboAnswer, cls: string, dead: readonly string[]): ComboRow[] {
+  return (res.combos?.[cls] ?? []).filter((r) => r[1] > 0 && !onBoard(r[0], dead));
+}
+
+export interface ComboSlot {
+  combo: string;
+  /** in the range, on the board (or sharing a card with it), or legal and not in the range */
+  state: "live" | "blocked" | "out";
+  /** the row of a live combo */
+  row?: ComboRow;
+}
+
+/** Every combo of a class, what it is at this node. Without a board in the answer, a blocked combo reads as out:
+ * neither can be painted or counts. */
+export function comboSlots(res: ComboAnswer, cls: string): ComboSlot[] {
+  const dead = deadCards(res);
+  const live = new Map(liveRows(res, cls, dead).map((r) => [comboName(r[0]), r]));
+  return expandClass(cls).map((combo) => {
+    const row = live.get(combo);
+    return row ? { combo, state: "live", row } : { combo, state: onBoard(combo, dead) ? "blocked" : "out" };
+  });
+}
+
+/**
+ * The paint as class mixes: a class with combos of its own at its live combos' reach-weighted mix, blocked combos and
+ * combos out of the range not counted. What the grid and the class-level score read; a mean, so it can't stand in
+ * for the combos (`scoreByCombo` does).
+ */
+export function classMixes(p: RangePaint, res: ComboAnswer): Paint {
+  const dead = deadCards(res);
+  let out: Paint | null = null;
+  for (const [cls, own] of Object.entries(p.combos)) {
+    const base = p.classes[cls];
+    if (!base) continue;
+    const sum = base.map(() => 0);
+    let W = 0;
+    for (const [cards, reach] of liveRows(res, cls, dead)) {
+      const m = own[comboName(cards)] ?? base;
+      W += reach;
+      sum.forEach((_, a) => {
+        sum[a]! += reach * (m[a] ?? 0);
+      });
+    }
+    if (!W) continue;
+    out ??= { ...p.classes };
+    out[cls] = sum.map((x) => x / W);
+  }
+  return out ?? p.classes;
+}
+
+/** Each hand's share on action `a` as range text's weights. A class whose live combos differ is given at the least of
+ * them, with the combos above it on their own: a combo beside its class takes the larger weight, so a class weight
+ * above a combo's would raise it. */
+export function actionHands(p: RangePaint, a: number, res: ComboAnswer): { weights: Record<string, number>; combos: Record<string, number> } {
+  const weights = actionShares(p.classes, a);
+  const combos: Record<string, number> = {};
+  const dead = deadCards(res);
+  for (const [cls, own] of Object.entries(p.combos)) {
+    const base = p.classes[cls];
+    if (!base) continue;
+    const shares = liveRows(res, cls, dead).map((r): [string, number] => {
+      const c = comboName(r[0]);
+      return [c, (own[c] ?? base)[a] ?? 0];
+    });
+    if (!shares.length) continue;
+    const floor = Math.min(...shares.map(([, s]) => s));
+    delete weights[cls];
+    if (floor >= 0.0005) weights[cls] = floor;
+    for (const [c, s] of shares) if (s >= 0.0005 && s - floor >= 0.0005) combos[c] = s;
+  }
+  return { weights, combos };
+}
+
+export interface TextPainted {
+  paint: RangePaint;
+  /** classes and combos painted */
+  hands: number;
+  combos: number;
+  /** named but out of the range, blocked by the board, or held by a lock */
+  out: number;
+  blocked: number;
+  held: number;
+}
+
+/** Range text's hands at their weights, where the answer has combos: a class's whole and a single combo's alone (at
+ * the larger of its weight and its class's, as the parsers read it). */
+export function paintParsed(p: RangePaint, parsed: { classWeights: Record<string, number>; comboWeights: Record<string, number> }, a: number, d: number, locked: ReadonlySet<string>, res: ComboAnswer): TextPainted {
+  const r: TextPainted = { paint: paintRangeWeights(p, parsed.classWeights, a, d, locked), hands: 0, combos: 0, out: 0, blocked: 0, held: 0 };
+  for (const [cls, t] of Object.entries(parsed.classWeights)) {
+    if (!(t > 0)) continue;
+    if (!p.classes[cls]) r.out++;
+    else if (locked.has(cls)) r.held++;
+    else r.hands++;
+  }
+  for (const [combo, w] of Object.entries(parsed.comboWeights)) {
+    if (!(w > 0)) continue;
+    const cls = classOf(combo);
+    const state = comboSlots(res, cls).find((s) => s.combo === combo)?.state;
+    if (state === "blocked") r.blocked++;
+    else if (state !== "live" || !p.classes[cls]) r.out++;
+    else if (locked.has(cls)) r.held++;
+    else {
+      r.paint = setCombo(r.paint, cls, combo, a, Math.max(w, parsed.classWeights[cls] ?? 0), d, locked);
+      r.combos++;
+    }
+  }
+  return r;
+}
+
 export interface CellScore {
   /** share of the class played differently, 0..1 (half the L1 distance of the mixes) */
   off: number;
@@ -176,32 +365,37 @@ export function grade(acc: number): "Excellent" | "Good" | "Fair" | "Off" {
 }
 
 /** The classes that differ by at least 5%, most combos played differently first (as upstream: six). */
-export function biggestMisses(sc: BuildScore, n = 6): [string, CellScore][] {
+export function biggestMisses(sc: Pick<BuildScore, "cells">, n = 6): [string, CellScore][] {
   return Object.entries(sc.cells)
     .filter(([, x]) => x.off >= 0.05)
     .sort((a, b) => b[1].off * b[1].combos - a[1].off * a[1].combos)
     .slice(0, n);
 }
 
-export interface ComboScore {
-  acc: number;
-  ev_loss_bb: number | null;
+/** Combo by combo: over the live combos' reach, `cells` each class's own. */
+export interface ComboScore extends BuildScore {
   /** the same for the solver's class mixes painted exactly: how far a class-level paint falls short by itself
    * (not the best a class paint can score: another mix can lose less on some classes) */
   ceiling: { acc: number; ev_loss_bb: number | null };
 }
 
 /**
- * The paint graded combo by combo against each combo's own mix (and EVs), where the answer has its combos. A class
- * paint can't tell a flush draw from the same class without one, so even the solver's class mixes painted exactly
- * score under 100% here: that score is given with it, as the reference. Null unless every class in the range has
- * its combo rows.
+ * The paint graded combo by combo against each combo's own mix (and EVs), where the answer has its combos: `own`'s
+ * mix where a combo has one, else its class's. A class paint can't tell a flush draw from the same class without one,
+ * so even the solver's class mixes painted exactly score under 100% here: that score is given with it, as the
+ * reference. The denominator is the reach of the live combos: a combo blocked by the board or out of the range isn't
+ * in it. Null unless every class in the range has its combo rows.
  */
-export function scoreByCombo(res: { grid: RangeGridData; combos?: Record<string, ComboRow[]> }, paint: Paint): ComboScore | null {
+export function scoreByCombo(res: ComboAnswer, paint: Paint, own: ComboPaint = {}): ComboScore | null {
   const rows = res.combos;
   if (!rows || !Object.keys(rows).length) return null;
   const g = res.grid;
+  const n = g.actions.length;
   const d = passiveOf(g.actions);
+  const dead = deadCards(res);
+  const mine = new Array<number>(n).fill(0);
+  const gto = new Array<number>(n).fill(0);
+  const cells: Record<string, CellScore> = {};
   let W = 0;
   const off = [0, 0];
   const loss = [0, 0];
@@ -209,27 +403,63 @@ export function scoreByCombo(res: { grid: RangeGridData; combos?: Record<string,
   for (const [cls, c] of Object.entries(g.cells)) {
     if (!(c.w > 0)) continue;
     // (a class without its combos: no score, rather than one over part of the range)
-    const mine = rows[cls];
-    if (!mine?.length) return null;
-    const both = [paint[cls] ?? g.actions.map((_, a) => (a === d ? 1 : 0)), c.f];
-    for (const [, reach, f, ev] of mine) {
-      if (!(reach > 0)) continue;
+    if (!rows[cls]?.length) return null;
+    const base = paint[cls] ?? g.actions.map((_, a) => (a === d ? 1 : 0));
+    const mixes = own[cls];
+    let cw = 0;
+    let coff = 0;
+    let closs = 0;
+    let cev = true;
+    for (const [cards, reach, f, ev] of liveRows(res, cls, dead)) {
+      const m = mixes?.[comboName(cards)] ?? base;
+      const of = ev ? (q: readonly number[]) => q.reduce((s, x, a) => s + x * ev[a]!, 0) : null;
+      const diff = (q: readonly number[]) => 0.5 * q.reduce((s, x, a) => s + Math.abs(x - f[a]!), 0);
+      const gone = (q: readonly number[]) => (of ? Math.max(0, of(f) - of(q)) : 0);
       W += reach;
-      both.forEach((m, k) => {
-        off[k]! += reach * 0.5 * m.reduce((s, x, a) => s + Math.abs(x - f[a]!), 0);
-        if (ev) {
-          const of = (q: readonly number[]) => q.reduce((s, x, a) => s + x * ev[a]!, 0);
-          loss[k]! += reach * Math.max(0, of(f) - of(m));
-        } else evs = false;
+      cw += reach;
+      coff += reach * diff(m);
+      closs += reach * gone(m);
+      off[0]! += reach * diff(m);
+      off[1]! += reach * diff(c.f);
+      loss[0]! += reach * gone(m);
+      loss[1]! += reach * gone(c.f);
+      if (!of) cev = evs = false;
+      m.forEach((x, a) => {
+        mine[a]! += reach * x;
+        gto[a]! += reach * f[a]!;
       });
     }
+    if (cw) cells[cls] = { off: coff / cw, loss: cev ? closs / cw : null, combos: cw };
   }
   if (!W) return null;
+  const given = evs ? loss[0]! / W : null;
   return {
     acc: 1 - off[0]! / W,
-    ev_loss_bb: evs ? loss[0]! / W : null,
+    ev_loss_bb: given,
+    ev_loss_pct: given != null && res.pot_bb ? (100 * given) / res.pot_bb : null,
+    mine: mine.map((x) => x / W),
+    gto: gto.map((x) => x / W),
+    combos: W,
+    cells,
     ceiling: { acc: 1 - off[1]! / W, ev_loss_bb: evs ? loss[1]! / W : null },
   };
+}
+
+export interface RangeScores {
+  cls: BuildScore;
+  combo: ComboScore | null;
+  /** the score to lead with: combo by combo once any combo is painted on its own (a class mean can hide combos played
+   * the wrong way round), else the class score */
+  head: BuildScore;
+  byCombo: boolean;
+}
+
+/** A range paint's scores. */
+export function scoreRange(res: ComboAnswer, p: RangePaint): RangeScores {
+  const cls = scoreBuild(res, classMixes(p, res));
+  const combo = scoreByCombo(res, p.classes, p.combos);
+  const byCombo = combo != null && hasCombos(p);
+  return { cls, combo, head: byCombo ? combo : cls, byCombo };
 }
 
 /** An undo history: each stroke records the paint before it. */

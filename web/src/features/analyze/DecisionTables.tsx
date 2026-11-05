@@ -74,7 +74,7 @@ export function GroupTable({
               <th scope="col" className="whitespace-nowrap pr-3 font-normal">95% range</th>
               <th scope="col" className="pr-3 text-right font-normal">Mistakes</th>
               {ev && <th scope="col" className="pr-3 text-right font-normal">By EV</th>}
-              {ev && <th scope="col" className="pr-3 text-right font-normal">EV lost a decision</th>}
+              {ev && <th scope="col" className="pr-3 text-right font-normal">EV lost per decision</th>}
               {!noUngraded && <th scope="col" className="pr-3 text-right font-normal">Not graded</th>}
               {stands && <th scope="col" className="pr-3 font-normal">Stands on</th>}
               <th scope="col" className="font-normal">

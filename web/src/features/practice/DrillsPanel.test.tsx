@@ -177,7 +177,7 @@ describe("DrillsPanel", () => {
     // no EV column: a format-1 file holds none
     expect(within(answer).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Action", "Played"]);
     expect(within(answer).getByRole("link", { name: "Open in Study →" }).getAttribute("href")).toMatch(/&b=([2-9TJQKA][shdc]){4}/);
-    expect(within(screen.getByRole("region", { name: "Score" })).getByText("EV lost a decision").nextSibling).toHaveTextContent("–");
+    expect(within(screen.getByRole("region", { name: "Score" })).getByText("EV lost per decision").nextSibling).toHaveTextContent("–");
   });
 
   it("a 3-bet pot's turn file shows the range's EV by action, marked as not your hand's, and in position after a check", async () => {

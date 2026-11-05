@@ -14,8 +14,11 @@ const KIND: Record<SpotCoverage["kind"], string> = {
   other: "Other",
 };
 
+/** `unreadable`: the index didn't come back at all, which doesn't say whether it's published. */
+type ShownCatalog = LibraryCatalog & { unreadable?: boolean };
+
 export function LibraryPage() {
-  const [cats, setCats] = useState<Partial<Record<LibrarySourceId, LibraryCatalog>>>({});
+  const [cats, setCats] = useState<Partial<Record<LibrarySourceId, ShownCatalog>>>({});
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -23,13 +26,14 @@ export function LibraryPage() {
     for (const s of LIBRARY_SOURCES) {
       void loadCatalog(s.id)
         .catch(
-          (e: unknown): LibraryCatalog => ({
+          (e: unknown): ShownCatalog => ({
             source: s.id,
             base: s.base,
             available: false,
             spots: [],
             fetchedAt: Date.now(),
             error: String(e),
+            unreadable: true,
           }),
         )
         .then((c) => alive && setCats((m) => ({ ...m, [s.id]: c })));
@@ -60,7 +64,7 @@ export function LibraryPage() {
   );
 }
 
-function SourceSection({ label, base, cat }: { label: string; base: string; cat: LibraryCatalog | undefined }) {
+function SourceSection({ label, base, cat }: { label: string; base: string; cat: ShownCatalog | undefined }) {
   const groups = useMemo(() => {
     const m = new Map<string, SpotCoverage[]>();
     for (const s of cat?.spots ?? []) m.set(s.game, [...(m.get(s.game) ?? []), s]);
@@ -72,7 +76,10 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
         {label} <span className="font-mono text-xs font-normal text-faint">{base}</span>
       </h2>
       {!cat && <p className="text-sm text-muted">Loading…</p>}
-      {cat && !cat.available && <p className="text-sm text-muted">Not published yet ({cat.error}).</p>}
+      {cat && !cat.available && (
+        <p className="text-sm text-muted">{cat.unreadable ? "Couldn't read this library's index. Check your connection, then Refresh." : "Not published yet."}</p>
+      )}
+      {groups.length > 0 && <p className="text-xs text-muted sm:hidden">Scroll a table sideways for all its columns, Study last.</p>}
       {groups.map(([game, spots]) => (
         <div key={game} className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full min-w-[560px] text-sm">
@@ -83,7 +90,9 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
                 <th className="px-3 py-1.5 text-left font-normal">Type</th>
                 <th className="px-3 py-1.5 text-left font-normal">Flops</th>
                 <th className="px-3 py-1.5 text-left font-normal">Stored turns</th>
-                <th className="px-3 py-1.5" />
+                <th className="px-3 py-1.5 font-normal">
+                  <span className="sr-only">Open in Study</span>
+                </th>
               </tr>
             </thead>
             <tbody>

@@ -5,7 +5,7 @@
 // data }, so a later account sync (ROADMAP Phase 11) can take the same records. Restore merges as classic does: a
 // record missing here is added, of two with one id the later `updated` stays, and nothing here is deleted.
 // Settings are not in the backup (they're a handful of choices, and restoring them would change this browser's).
-import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type MistakeRecord, type SavedDrill, type SavedRange, type SavedScenario, type SavedSpot, type SessionRecord } from "./db";
+import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type MistakeRecord, type SavedDrill, type SavedRange, type SavedReport, type SavedScenario, type SavedSpot, type SessionRecord } from "./db";
 import { readMistake } from "./mistakes";
 import { isDrillLink, newId } from "./saved";
 import { isTime, isWellFormed, validDecision, validHand, validRange, validSession, validSpot } from "./shapes";
@@ -32,12 +32,13 @@ interface StoreData {
   decisions: DecisionRecord;
   savedDrills: SavedDrill;
   savedScenarios: SavedScenario;
+  savedReports: SavedReport;
   mistakes: MistakeRecord;
 }
 export type BackupStore = keyof StoreData;
-// (a backup made before hands, drills, scenarios or mistakes were in it has no "hands", "decisions", "savedDrills",
-// "savedScenarios" or "mistakes": those restore nothing)
-export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "savedDrills", "savedScenarios", "sessions", "hands", "decisions", "mistakes"];
+// (a backup made before hands, drills, scenarios, reports or mistakes were in it has no "hands", "decisions", "savedDrills",
+// "savedScenarios", "savedReports" or "mistakes": those restore nothing)
+export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "savedDrills", "savedScenarios", "savedReports", "sessions", "hands", "decisions", "mistakes"];
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
@@ -55,6 +56,7 @@ const obj = (x: unknown): x is Record<string, unknown> => typeof x === "object" 
 /** This file is in the first script, as the error page's backup needs it, and a scenario's reader brings Practice's rules
  * with it: so a restore loads it, before its transactions, which an import would end. */
 let readScenario: ((x: unknown) => unknown) | undefined;
+let readReport: ((x: unknown) => unknown) | undefined;
 
 /** Each store's times, and what a record must hold to be restored (a damaged or foreign one is skipped). */
 const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; updated: (d: StoreData[S]) => number; valid: (d: Record<string, unknown>) => boolean } } = {
@@ -79,6 +81,11 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; upda
     created: (d) => d.createdAt,
     updated: (d) => d.updatedAt,
     valid: (d) => !!readScenario?.(d),
+  },
+  savedReports: {
+    created: (d) => d.createdAt,
+    updated: (d) => d.updatedAt,
+    valid: (d) => !!readReport?.(d),
   },
   sessions: {
     created: (d) => d.startedAt,
@@ -152,6 +159,7 @@ export async function restoreBackup(file: unknown): Promise<Record<BackupStore, 
   const d = await db();
   if (!d) throw new Error("This browser keeps no data here (IndexedDB is unavailable, as in some private modes).");
   readScenario = (await import("./scenarios")).readScenario;
+  readReport = (await import("./reports")).readReport;
   const out = {} as Record<BackupStore, RestoreCount>;
   for (const s of BACKUP_STORES) {
     const c: RestoreCount = { added: 0, updated: 0, kept: 0, skipped: 0 };

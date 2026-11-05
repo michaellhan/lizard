@@ -272,6 +272,181 @@ describe("BuildMode", () => {
     expect([...screen.getByRole("combobox", { name: "Hands to paint at once" }).querySelectorAll("optgroup")].map((o) => o.label)).toEqual(["Hand shapes"]);
   });
 
+  // AKs on As7d2c: AsKs blocked, three live combos at their reach, with their own mixes and EVs
+  const COMBOS: BuildRes = {
+    study: "node",
+    street: "flop",
+    actor: "BTN",
+    pot_bb: 10,
+    board: "As7d2c",
+    grid: { actions: ["check", "bet"], cells: { AKs: { w: 0.5, f: [0.375, 0.625], ev: [0.5, 1.25], evm: 1, eq: 0.65 }, QQ: { w: 1 / 6, f: [1, 0], ev: [1, 1], evm: 1, eq: 0.5 } } },
+    combos: {
+      AKs: [
+        ["AhKh", 1, [0, 1], [0, 2], 0.7, 0, 0],
+        ["AdKd", 0.5, [1, 0], [1, 0], 0.6, 0, 0],
+        ["AcKc", 0.5, [0.5, 0.5], [1, 1], 0.6, 0, 0],
+      ],
+      QQ: [["QsQh", 1, [1, 0], [1, 1], 0.5, 0, 0]],
+    },
+  };
+  const combos = () => screen.getByRole("region", { name: "AKs combos" });
+  const share = (name: string, value: string) => {
+    const box = screen.getByRole("spinbutton", { name });
+    fireEvent.change(box, { target: { value } });
+    fireEvent.blur(box);
+  };
+
+  it("opens a hand to paint each legal combo, a blocked one out of it, one undo step a change", () => {
+    renderBuild({ res: COMBOS, lineKey: "combos" });
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    expect(screen.getByRole("button", { name: "Open combos" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(cell("AKs")); // (a keyboard's click; nothing painted)
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(combos()).toHaveTextContent("3 of 3 legal combos in the range · 1 blocked by the board");
+    expect(within(combos()).getByText(describeProvenance(LIVE))).toBeInTheDocument();
+    expect(within(combos()).getByText(/^AsKs$/).parentElement).toHaveTextContent("AsKs blocked by the board: not painted, not counted");
+    expect(screen.queryByRole("spinbutton", { name: "AsKs bet %" })).toBeNull();
+    expect(within(combos()).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["AhKh", "AdKd", "AcKc"]);
+
+    // half the class by reach, of its live combos: 50%, not 25% of 4
+    share("AhKh bet %", "100");
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+    expect(screen.getByLabelText("AKs as painted")).toHaveTextContent("Over its 3 live combos, by reach: check 50.0% · bet 50.0%");
+    expect(screen.getByRole("spinbutton", { name: "AhKh check %" })).toHaveValue(0);
+    // a fractional mix, the rest of it following
+    share("AdKd check %", "75");
+    expect(screen.getByRole("spinbutton", { name: "AdKd bet %" })).toHaveValue(25);
+
+    // each change one step: back to AhKh alone, then to nothing
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByRole("spinbutton", { name: "AdKd bet %" })).toHaveValue(0);
+    expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toHaveValue(100);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toHaveValue(100);
+
+    // leaving a box unchanged, or with nothing sensible in it, is no step; Enter is one
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    share("AhKh bet %", "0");
+    share("AhKh bet %", "");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    const box = screen.getByRole("spinbutton", { name: "AhKh bet %" });
+    fireEvent.change(box, { target: { value: "250" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(box).toHaveValue(100);
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole("button", { name: "AhKh back to the class" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close combos" }));
+    expect(screen.queryByRole("region", { name: "AKs combos" })).toBeNull();
+  });
+
+  it("opens one hand on a drag, keeps a typed share ahead of the press, and a brush still paints the class", () => {
+    renderBuild({ res: COMBOS, lineKey: "open-drag" });
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    const grid = screen.getByRole("grid", { name: "BTN range, being painted" });
+    const qq = cell("QQ");
+    document.elementFromPoint = () => qq;
+    fireEvent.pointerDown(cell("AKs"), { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(grid, { clientX: 6, clientY: 0, pointerId: 1 });
+    fireEvent.pointerUp(grid, { pointerId: 1 });
+    expect(combos()).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "QQ combos" })).toBeNull();
+
+    // typed and not left, then a press on another hand: it goes in, as one step
+    const box = screen.getByRole("spinbutton", { name: "AhKh bet %" });
+    box.focus();
+    fireEvent.change(box, { target: { value: "100" } });
+    fireEvent.pointerDown(qq, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerUp(grid, { pointerId: 1 });
+    expect(screen.getByRole("region", { name: "QQ combos" })).toHaveTextContent("1 of 6 legal combos in the range");
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+
+    // the brush on a hand with a combo of its own: the combo goes with it
+    fireEvent.keyDown(window, { key: "2" });
+    fireEvent.click(cell("AKs"));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours bet 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+  });
+
+  it("holds a locked hand's combos", () => {
+    renderBuild({ res: COMBOS, lineKey: "combo-lock" });
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    fireEvent.click(cell("AKs"));
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    expect(combos()).toHaveTextContent("Locked: unlock the hand to paint its combos.");
+    expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toBeDisabled();
+  });
+
+  it("grades combo by combo once a combo is painted, by reach over the live combos, and keeps it saved so", async () => {
+    renderBuild({ res: COMBOS, lineKey: "combo-score" });
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    // AhKh 75% bet: off .25 of a reach of 1; AdKd right; AcKc .5 of .5; QQ right: of a reach of 3
+    share("AhKh bet %", "75");
+    fireEvent.click(screen.getByRole("button", { name: "Check my range" }));
+    const score = screen.getByRole("region", { name: "Your score" });
+    expect(score).toHaveTextContent("83.3% accurate · Good");
+    // EV: AhKh .25 x 2 = .5, AcKc 0, over 3
+    expect(score).toHaveTextContent("EV given up: 0.167bb a combo (1.67% of the pot)");
+    expect(score).toHaveTextContent("Graded combo by combo over 3.0 live combos");
+    expect(score).not.toHaveTextContent("Combo by combo:");
+    // the table too: 1 x .75 + .5 x 0 + .5 x 0 of 3 bets, against the combos' own 1 + 0 + .25
+    expect(within(screen.getByRole("table")).getAllByRole("row")[2]).toHaveTextContent("bet25.0%41.7%");
+
+    fireEvent.click(cell("AKs"));
+    const aks = screen.getByRole("region", { name: "AKs compared" });
+    expect(aks).toHaveTextContent("1 blocked by the board, not counted.");
+    const rows = within(within(aks).getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows.map((r) => r.textContent)).toEqual(["AhKhcheck 25%, bet 75%bet 100%", "AdKdcheck 100%check 100%", "AcKccheck 100%check 50%, bet 50%"]);
+    expect(cell("AKs")).toHaveAccessibleName(/; 1 combo painted apart; solver check 38%, bet 63%; 25% different$/);
+
+    expect(await screen.findByRole("region", { name: "Past ranges here" })).toHaveTextContent(/83\.3% accurate · 0\.167bb a combo · by combo/);
+    const saved = (await recentSessions("build", 50)).filter((s) => s.meta.line === "combo-score");
+    expect(saved[0]!.meta).toMatchObject({ graded: "combo", acc: expect.closeTo(5 / 6, 9), comboAcc: expect.closeTo(5 / 6, 9) });
+  });
+
+  it("says combos can't be painted or graded on an answer without them, and text goes by class share", async () => {
+    const pre: BuildRes = { study: "node", street: "preflop", actor: "BTN", pot_bb: 1.5, grid: { actions: ["fold", "raise"], cells: { AKs: { w: 1, f: [0, 1] }, "72o": { w: 1, f: [1, 0] } } } };
+    const charts: Provenance = { ...LIVE, source: "charts", approximate: true, exploitabilityPct: undefined, band: undefined, iterations: undefined };
+    renderBuild({ res: pre, provenance: charts, lineKey: "pre-combos" });
+    expect(screen.queryByRole("button", { name: "Open combos" })).toBeNull();
+    expect(screen.getByText("This answer gives hand classes, not combos, so single combos can't be painted or graded here.")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "2" });
+    fireEvent.change(screen.getByLabelText(/^Hands that play raise/), { target: { value: "AhKh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours fold 75%, raise 25%");
+    expect(screen.getByText("Painted 1 hand raise; single combos as their share of the class.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check my range" }));
+    expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("Combos can't be graded: this answer gives hand classes only, so this score is by class.");
+    await act(async () => {});
+  });
+
+  it("paints a combo typed as text alone, and gives single combos back at their weights", () => {
+    renderBuild({ res: COMBOS, lineKey: "combo-text" });
+    fireEvent.keyDown(window, { key: "2" });
+    fireEvent.change(screen.getByLabelText(/^Hands that play bet/), { target: { value: "AKs:0.25, KhAh:0.5, AsKs, QdQc" } });
+    fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
+    expect(screen.getByText("Painted 1 hand and 1 combo bet; 1 not in this range; 1 blocked by the board.")).toBeInTheDocument();
+    // by reach: AhKh's 1 at .5, the rest's 1 at .25
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 63%, bet 38%; 1 combo painted apart");
+    // one undo step
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Your bet hands" }));
+    expect(screen.getByLabelText(/^Hands that play bet/)).toHaveValue("AKs:0.25,AhKh:0.5");
+  });
+
   it("paints hands typed as range text with the brush, each at its weight, and gives an action's hands as text", () => {
     renderBuild({ lineKey: "text" });
     fireEvent.keyDown(window, { key: "2" });
@@ -287,7 +462,7 @@ describe("BuildMode", () => {
     expect(cell("KQo")).toHaveAccessibleName("KQo: yours check 100%");
     fireEvent.click(screen.getByRole("button", { name: "Redo" }));
 
-    // locked hands stay; a single combo is its share of the class
+    // locked hands stay; a single combo goes in on its own
     fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
     expect(screen.getByRole("button", { name: "Paint these" })).toBeDisabled();
     fireEvent.click(cell("AA"));
@@ -295,8 +470,9 @@ describe("BuildMode", () => {
     fireEvent.change(screen.getByLabelText(/^Hands that play bet 75%/), { target: { value: "AA, 7s2s" } });
     fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
     expect(cell("AA")).toHaveAccessibleName("AA: yours bet 33% 100%; locked");
-    expect(cell("72s")).toHaveAccessibleName("72s: yours check 75%, bet 75% 25%");
-    expect(screen.getByText("Painted 1 hand bet 75%; 1 locked, left as it was; single combos as their share of the class.")).toBeInTheDocument();
+    // (72s's only live combo at this node, so the class's mix is that combo's)
+    expect(cell("72s")).toHaveAccessibleName("72s: yours bet 75% 100%; 1 combo painted apart");
+    expect(screen.getByText("Painted 1 combo bet 75%; 1 locked, left as it was.")).toBeInTheDocument();
 
     // the hands that play bet 33%, as text
     fireEvent.keyDown(window, { key: "2" });

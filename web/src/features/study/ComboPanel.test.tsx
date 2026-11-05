@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { AdvisorResponse } from "@/solver/protocol";
-import { ComboPanel, eqr } from "./ComboPanel";
+import { ComboPanel } from "./ComboPanel";
+import { eqr } from "./views";
 
 const COLORS = ["#111", "#222"];
 
@@ -63,10 +64,60 @@ describe("ComboPanel", () => {
       combos: { AKs: [["AsKs", 1, [1, 0], null, null, 0, 0]] },
     };
     const { container, unmount } = render(<ComboPanel cls="AKs" res={none} colors={COLORS} opponent={false} />);
-    expect(container.textContent).not.toMatch(/EV|Equity|EQR|bb/);
+    // (no numbers: EQR's column is a dash, with the reason)
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1]!;
+    expect(row.textContent).toBe("AsKs–");
+    expect(screen.getByText("No EQR (–): this answer has no EV or equity by combo.")).toBeInTheDocument();
+    expect(container.textContent?.replace("No EQR (–): this answer has no EV or equity by combo.", "")).not.toMatch(/EV|Equity|bb/);
     unmount();
     const opp = render(<ComboPanel cls="AKs" res={none} colors={COLORS} opponent />);
     expect(opp.container.textContent).not.toMatch(/Equity/);
+  });
+
+  it("gives each combo its own EQR, on the class's definition, its suit differences kept", () => {
+    render(<ComboPanel cls="AKs" res={RES} colors={COLORS} opponent={false} />);
+    const rows = within(screen.getByRole("table")).getAllByRole("row");
+    expect(within(rows[0]!).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Combo", "Mix", "EV", "Eq", "EQR"]);
+    const last = (r: HTMLElement) => within(r).getAllByRole("cell").at(-1)?.textContent;
+    // EV of the mix / (equity x the 10bb pot): AhKh 6 / 6.5, AsKs 3 / 5.5, AdKd 3 / 6
+    expect(rows.slice(1).map(last)).toEqual(["0.92", "0.55", "0.50"]);
+    expect(screen.queryByText(/No EQR/)).not.toBeInTheDocument();
+  });
+
+  it("is the same EQR in % of the pot, as it's a ratio of bb", () => {
+    render(<ComboPanel cls="AKs" res={RES} colors={COLORS} opponent={false} evUnit="pot" />);
+    const rows = within(screen.getByRole("table")).getAllByRole("row");
+    expect(rows[1]?.textContent).toContain("0.92");
+  });
+
+  it("dashes a combo without an equity and says why, and keeps the others' EQR", () => {
+    const part: AdvisorResponse = {
+      ...RES,
+      combos: {
+        AKs: [
+          ["AsKs", 1, [1, 0], [3, 5], 0.55, 0, 0],
+          ["AhKh", 1, [0, 1], [3, 6], null, 0, 0],
+          ["AdKd", 1, [1, 0], [2, 4], 0, 0, 0],
+        ],
+      },
+    };
+    render(<ComboPanel cls="AKs" res={part} colors={COLORS} opponent={false} />);
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const last = (name: string) => within(rows.find((r) => r.textContent?.startsWith(name))!).getAllByRole("cell").at(-1)!;
+    expect(last("AsKs")).toHaveTextContent("0.55");
+    expect(last("AhKh")).toHaveTextContent("–");
+    expect(last("AhKh")).toHaveAttribute("title", "this answer has no equity by combo");
+    expect(last("AdKd")).toHaveTextContent("–");
+    expect(screen.getByText("No EQR (–): this answer has no equity by combo; 0% equity: no share of the pot to realize.")).toBeInTheDocument();
+  });
+
+  it("says so where the answer has no combos at all (a preflop chart), and not for an opponent's range", () => {
+    const chart: AdvisorResponse = { pot_bb: 1.5, grid: { actions: ["fold", "raise"], cells: { AKs: { w: 1, f: [0, 1] } } }, opponent_grid: { actions: ["in range"], cells: { AKs: { w: 1, f: [1] } } } };
+    const { unmount } = render(<ComboPanel cls="AKs" res={chart} colors={COLORS} opponent={false} />);
+    expect(screen.getByText("No EQR by combo (–): this answer has no combos for this hand.")).toBeInTheDocument();
+    unmount();
+    render(<ComboPanel cls="AKs" res={chart} colors={COLORS} opponent />);
+    expect(screen.queryByText(/EQR/)).not.toBeInTheDocument();
   });
 
   it("names a combo's mix as an image, so the label is read", () => {

@@ -1,5 +1,6 @@
 // The 13x13 hand-class matrix. Each cell shows its class's action mix as stacked bars, filled to the class's
-// weight in the range (a class half in the range is half full), as the upstream Study panel draws it.
+// weight in the range (a class half in the range is half full), as the upstream Study panel draws it. `colors` are the
+// actions' fills (actionFills), whose patterns and the gap between shares keep a mix readable without its colours.
 // Rendered as a DOM grid (169 cells) — cheap enough, and accessible: every cell is a labelled button, one tab stop in all.
 import { memo } from "react";
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
@@ -92,7 +93,7 @@ const Cell = memo(function Cell({
   if (cell && w > 0) {
     if (view === "mix") {
       fill = (
-        <div className="absolute inset-x-0 bottom-0 flex" style={{ height: `${w * 100}%` }}>
+        <div className="absolute inset-x-0 bottom-0 flex gap-px" style={{ height: `${w * 100}%` }}>
           {cell.f.map((f, i) =>
             f > 0 ? (
               <div
@@ -105,16 +106,16 @@ const Cell = memo(function Cell({
         </div>
       );
     } else if (view === "weight") {
-      fill = <div className="absolute inset-x-0 bottom-0 bg-accent/70" style={{ height: `${w * 100}%` }} />;
+      fill = <div className="keep-colour absolute inset-x-0 bottom-0 bg-accent/70" style={{ height: `${w * 100}%` }} />;
     } else {
       const v = cellValue(cell, view, evAction, potBb);
       const [lo, hi] = view === "eq" ? [0, 1] : (evRange ?? [0, 1]);
       // (no value: the class's weight in a neutral fill, not the colour of the scale's bottom)
       fill =
         v == null ? (
-          <div className="absolute inset-x-0 bottom-0 bg-surface-3" style={{ height: `${w * 100}%` }} />
+          <div className="keep-colour absolute inset-x-0 bottom-0 bg-surface-3" style={{ height: `${w * 100}%` }} />
         ) : (
-          <div className="absolute inset-x-0 bottom-0" style={{ height: `${w * 100}%`, background: heat((v - lo) / (hi - lo || 1)) }} />
+          <div className="keep-colour absolute inset-x-0 bottom-0" style={{ height: `${w * 100}%`, background: heat((v - lo) / (hi - lo || 1)) }} />
         );
     }
   }
@@ -132,7 +133,8 @@ const Cell = memo(function Cell({
       }`}
     >
       {fill}
-      <span className="pointer-events-none absolute left-0.5 top-0 z-10 font-mono text-[clamp(7px,1.4vw,12px)] font-medium leading-tight text-text drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]">
+      {/* (on a plate: the mix's colours and patterns run under it, and the lightest would take the label with them) */}
+      <span className="cell-label pointer-events-none absolute left-0 top-0 z-10 rounded-br-[3px] bg-bg/70 px-px font-mono text-[clamp(7px,1.4vw,12px)] font-medium leading-tight text-text">
         {cls}
       </span>
     </button>

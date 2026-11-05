@@ -202,7 +202,7 @@ describe("Study's live region", () => {
     stub.hold = true;
     renderAt();
     const region = told();
-    expect(region).toHaveTextContent("Answering.");
+    expect(region).toHaveTextContent("Finding the answer.");
     await waitFor(() => expect(stub.asked).toHaveLength(1));
     await act(async () => stub.release());
     await firstAction();

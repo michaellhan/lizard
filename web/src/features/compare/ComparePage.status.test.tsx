@@ -68,8 +68,8 @@ describe("Compare's region, Stop and Try again", () => {
     stub.holdFrom = 2;
     show();
     const region = told();
-    expect(region).toHaveTextContent("Answering A.");
-    await waitFor(() => expect(region).toHaveTextContent("A answered. Answering B."));
+    expect(region).toHaveTextContent("Finding A's answer.");
+    await waitFor(() => expect(region).toHaveTextContent("A answered. Finding B's answer."));
     await act(async () => stub.release());
     await screen.findByRole("region", { name: "Actions" });
     expect(told()).toBe(region);
@@ -101,7 +101,7 @@ describe("Compare's region, Stop and Try again", () => {
     stub.fail = "The engine gave up.";
     show();
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
-    expect(told()).toHaveTextContent(/Answering A\.|A: The engine gave up\./);
+    expect(told()).toHaveTextContent(/Finding A's answer\.|A: The engine gave up\./);
     await waitFor(() => expect(stub.asked.length).toBeGreaterThan(2));
     await waitFor(() => expect(told()).toHaveTextContent("A: The engine gave up."));
     stub.fail = null;

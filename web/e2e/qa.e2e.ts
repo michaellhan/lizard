@@ -411,5 +411,44 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   await expect(filters.getByRole("status", { name: "Sample after filtering" })).toContainText(/1 hand of 3/);
   await page.reload();
   await expect(page.getByRole("region", { name: "Filters" }).getByLabel("Pot", { exact: true })).toHaveValue(pots[0]);
+
+  // The filters saved as a report, and opened again from Saved
+  await page.getByRole("button", { name: "Save this report" }).click();
+  const save = page.getByRole("form", { name: "Save this report" });
+  await save.getByRole("textbox", { name: "Name" }).fill("QA report");
+  await save.getByRole("button", { name: "Save" }).click();
+  await expect(save.getByRole("status")).toContainText("Saved in this browser.");
+  await page.goto("/lizard/saved/");
+  await page.getByRole("link", { name: "Open QA report" }).click();
+  await expect(page).toHaveURL(/\/analyze\?pot=/);
+  await expect(page.getByRole("region", { name: "Filters" }).getByRole("status", { name: "Sample after filtering" })).toContainText(/1 hand of 3/);
+  await clean(page, problems);
+});
+
+test("14d. A single combo painted apart from its class, graded by combo, on a real river answer, with EQR by combo", async ({ page, problems }) => {
+  await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
+  await expect(actions(page)).toBeVisible({ timeout: 120_000 });
+  const nine = /^(?:[AKQJT]9|9[2-8])s: [\d.]+% in range/;
+  await page.getByRole("gridcell", { name: nine }).first().click();
+  await expect(page.getByRole("columnheader", { name: "EQR" })).toBeVisible();
+  await page.screenshot({ path: "e2e-results/shots/desktop/study-combo-eqr.png", fullPage: true });
+
+  await page.getByRole("button", { name: /Build/ }).first().click();
+  await page.getByRole("button", { name: "Open combos" }).click();
+  await page.getByRole("gridcell", { name: /^(?:[AKQJT]9|9[2-8])s: yours / }).first().click();
+  const panel = page.getByRole("region", { name: /^[2-9TJQKA]{2}s combos$/ });
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(/1 blocked by the board/);
+  await expect(panel.getByRole("group").getByRole("spinbutton")).not.toHaveCount(0);
+  const share = panel.getByRole("spinbutton").first();
+  await share.fill("40");
+  await share.press("Enter");
+  await expect(panel.getByRole("button", { name: /back to the class$/ })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: /combos? painted apart/ })).toHaveCount(1);
+  await page.screenshot({ path: "e2e-results/shots/desktop/study-combo-paint.png", fullPage: true });
+
+  await page.getByRole("button", { name: "Check my range" }).click();
+  await expect(page.getByText(/Graded combo by combo over [\d.]+ live combos/)).toBeVisible();
+  await page.screenshot({ path: "e2e-results/shots/desktop/study-combo-graded.png", fullPage: true });
   await clean(page, problems);
 });

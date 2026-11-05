@@ -5,7 +5,7 @@
 // shows what it blocks in the opponent's range (BlockersPanel).
 import { useEffect, useMemo, useState } from "react";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { actionColors, evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
+import { actionFills, evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
 import type { AdvisorResponse, Breakdown, BreakdownRow, BreakdownSide } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import { SolverError, type Provenance, type SolveMode } from "@/solver/types";
@@ -122,7 +122,7 @@ function Categories({ bd, res, provenance, evUnit, onFilter }: { bd: Breakdown; 
   const rows = taking === null ? whole : takingAction(whole, taking);
   const tot = rows.reduce((t, r) => t + r.c, 0) || 1;
   const max = Math.max(...rows.map((r) => r.c), 1e-9);
-  const colors = useMemo(() => actionColors(bd.actions), [bd.actions]);
+  const colors = useMemo(() => actionFills(bd.actions), [bd.actions]);
   const hasEq = rows.some((r) => r.eq != null);
   const hasEv = hero && rows.some((r) => r.ev != null);
   const picked = rows.find((r) => r.id === sel);
@@ -167,7 +167,7 @@ function Categories({ bd, res, provenance, evUnit, onFilter }: { bd: Breakdown; 
               onClick={() => pick(taking === i ? null : i)}
               className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 ${taking === i ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}
             >
-              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[i] }} />
+              <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
               {n}
             </button>
           ))}
@@ -264,7 +264,7 @@ function ValueBluffView({ s, color, text }: { s: ValueBluff; color: string; text
 
 function Bar({ r, hero, width, colors, only }: { r: BreakdownRow; hero: boolean; width: number; colors: readonly string[]; only?: string | undefined }) {
   return (
-    <div aria-hidden className="flex h-3 min-w-0.5 overflow-hidden rounded-sm" style={{ width: `${(width * 100).toFixed(1)}%` }}>
+    <div aria-hidden className="flex h-3 min-w-0.5 gap-px overflow-hidden rounded-sm" style={{ width: `${(width * 100).toFixed(1)}%` }}>
       {only ? (
         <i className="block h-full w-full" style={{ background: only }} />
       ) : hero && r.f ? (
@@ -288,6 +288,7 @@ function Equity({ bd, sides }: { bd: Breakdown; sides: readonly BreakdownSide[] 
   };
   const f = at === null ? null : at / STEPS;
   const nuts = (1 - bd.nut_eq) * 100;
+  const linesAt = (share: number) => `Top ${pct(share, 0)} of each range: ${sides.map((s) => `${s.who} ${pct(curveAt(s, share), 0)}`).join(", ")}`;
   const notes = [rangeAdvantage(sides), nutAdvantage(sides, bd.nut_eq)].filter(Boolean).join(" ");
   return (
     <section aria-label="Equity distribution" className="min-w-0 space-y-2">
@@ -314,9 +315,13 @@ function Equity({ bd, sides }: { bd: Breakdown; sides: readonly BreakdownSide[] 
           ))}
         </div>
         <div
-          role="img"
+          role="slider"
           tabIndex={0}
           aria-label={`Equity distribution: ${sides.map((s) => `${s.who} ${pct(s.eq)} on average`).join(", ")}. The arrow keys read the lines.`}
+          aria-valuemin={0}
+          aria-valuemax={STEPS}
+          aria-valuenow={at ?? STEPS / 2}
+          aria-valuetext={linesAt(at === null ? 0.5 : at / STEPS)}
           className="relative flex-1 touch-pan-y outline-offset-2"
           onPointerMove={(e) => setAt(place(e))}
           onPointerLeave={() => setAt(null)}
@@ -354,13 +359,8 @@ function Equity({ bd, sides }: { bd: Breakdown; sides: readonly BreakdownSide[] 
         <span>Share of the range</span>
         <span>Weakest</span>
       </div>
-      <p className="min-h-4 text-xs tabular-nums" aria-live="polite">
-        {f !== null && (
-          <>
-            Top {pct(f, 0)} of each range: {sides.map((s) => `${s.who} ${pct(curveAt(s, f), 0)}`).join(", ")}
-          </>
-        )}
-      </p>
+      {/* (the slider says this to a screen reader as it moves) */}
+      <p className="min-h-4 text-xs tabular-nums">{f !== null && linesAt(f)}</p>
       {notes && <p className="text-xs">{notes}</p>}
       <p className="text-xs text-muted">
         Each line is a range's hands sorted from most to least equity against the other {sides.length > 2 ? "ranges" : "range"} ({runoutText(bd)}); the dashed line marks {pct(bd.nut_eq, 0)}. Equity isn't what a hand wins: EV also counts how it plays.

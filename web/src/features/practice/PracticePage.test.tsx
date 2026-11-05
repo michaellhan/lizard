@@ -522,6 +522,25 @@ describe("PracticePage", () => {
     }
   });
 
+  it("moves between its tabs with the arrow keys, one tab stop between them", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    const hands = screen.getByRole("tab", { name: "Full hands" });
+    const drills = screen.getByRole("tab", { name: "Drills" });
+    expect([hands.tabIndex, drills.tabIndex]).toEqual([0, -1]);
+    hands.focus();
+    fireEvent.keyDown(hands, { key: "ArrowRight" });
+    expect(drills).toHaveFocus();
+    await waitFor(() => expect(drills).toHaveAttribute("aria-selected", "true"));
+    expect([hands.tabIndex, drills.tabIndex]).toEqual([-1, 0]);
+    fireEvent.keyDown(drills, { key: "ArrowRight" });
+    expect(hands).toHaveFocus();
+    await waitFor(() => expect(hands).toHaveAttribute("aria-selected", "true"));
+  });
+
   it("drills in their own tab, the hand under way kept", async () => {
     render(
       <MemoryRouter>

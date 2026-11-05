@@ -50,7 +50,7 @@ export function WinningsPanel({ hands, of, losses = [] }: { hands: HandRecord[];
           What you won or lost in {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as the
           histories say: what each pot paid you (after the rake) less what you put in, blinds and antes as posted, in big blinds. Nothing here is
           graded or solved. The all-in EV counts each all-in heads-up with cards to come and both hands shown at your equity&rsquo;s
-          share of the pot (exact from the flop on; preflop from 20,000 sampled boards), every other hand as it went. Cash games, tournaments (their chips being no money) and the hands you played in Practice (or the classic app) against its
+          share of the pot (exact from the flop on; preflop from 20,000 sampled boards), every other hand as it went. Cash games, tournaments (their chips being no money) and the hands you played in Practice (or on the older gto-solver site) against its
           opponents are kept apart.
           {w?.left.map((x) => ` ${x.n.toLocaleString()} ${x.n === 1 ? "hand is" : "hands are"} left out: ${RESULT_WHY[x.why]}.`).join("")}
         </p>
@@ -196,7 +196,7 @@ function RunChart({ g, byId }: { g: WinGroup; byId: Map<string, HandRecord> }) {
   return (
     <figure className="space-y-1">
       <figcaption className="text-xs text-muted">
-        The running total, hand by hand in the order played (by the history&rsquo;s clock), in big blinds. Hover a hand for its numbers, click it to
+        The running total, hand by hand in the order played (by the history&rsquo;s clock), in big blinds. Point at a hand for its numbers, or click or tap it to
         open it.
       </figcaption>
       <ul aria-label="Lines" className="flex flex-wrap gap-x-4 gap-y-1 text-xs">

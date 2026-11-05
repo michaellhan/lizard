@@ -95,7 +95,8 @@ describe("the Compare page", () => {
     expect(rows[3]).toHaveTextContent("The range400.0 combos · EV 3.30bb");
     expect(rows[3]).toHaveTextContent("EV +0.10bb");
     // EV changes within the two answers' distance from equilibrium (0.6% of 10bb) are noise
-    expect(screen.getByText(/EV changes under 0\.06bb/)).toBeInTheDocument();
+    expect(screen.getByText(/EV changes under 0\.06bb .* are marked \(noise\)/)).toBeInTheDocument();
+    expect(rows[1]).toHaveTextContent("EV +0.00bb (noise)");
     const grid = screen.getByRole("grid", { name: "Change in check" });
     expect(within(grid).getByRole("gridcell", { name: "AA: check 20.0% → 10.0% (−10.0 points), EV +0.10bb" })).toBeInTheDocument();
     expect(within(grid).getByRole("gridcell", { name: "72o: in neither range" })).toBeInTheDocument();

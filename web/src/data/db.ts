@@ -48,6 +48,17 @@ export interface SavedScenario {
   updatedAt: number;
 }
 
+/** Analyze's filters kept under a name: no numbers, as opening one counts what's kept by then (data/reports.ts). */
+export interface SavedReport {
+  id: string;
+  name: string;
+  /** the filters set, by their URL names */
+  filters: Record<string, string>;
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** A drill kept under a name: where it opens (a drill is its page's URL), and what it drills. */
 export interface SavedDrill {
   id: string;
@@ -264,6 +275,7 @@ export interface LizardDB extends DBSchema {
   decisions: { key: string; value: DecisionRecord; indexes: { byHand: string; byVerdict: string; byStreet: string; byPos: string } };
   savedDrills: { key: string; value: SavedDrill; indexes: { byUpdated: number } };
   savedScenarios: { key: string; value: SavedScenario; indexes: { byUpdated: number } };
+  savedReports: { key: string; value: SavedReport; indexes: { byUpdated: number } };
   mistakes: { key: string; value: MistakeRecord; indexes: { byDue: number; byLast: number; byStreet: string } };
 }
 
@@ -310,6 +322,9 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
   },
   7: (db) => {
     db.createObjectStore("savedScenarios", { keyPath: "id" }).createIndex("byUpdated", "updatedAt");
+  },
+  8: (db) => {
+    db.createObjectStore("savedReports", { keyPath: "id" }).createIndex("byUpdated", "updatedAt");
   },
 };
 

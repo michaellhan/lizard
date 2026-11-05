@@ -2,10 +2,10 @@
 // flop shown is one column of its action mix, in the table's order (sorted by an action, it reads as how that action
 // spreads over the flops); grouped, each texture group is one column of its weighted average. Hover a column for its
 // numbers; click a flop to open it in Study, a group to show only its flops. The table view holds every number.
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
-import { actionColors, bb, pct } from "@/components/actions";
+import { actionFills, bb, pct } from "@/components/actions";
 import type { TextureKey } from "@/features/practice/drills";
 import { flopCards } from "@/library/entry";
 import type { LibraryReport } from "@/library/files";
@@ -31,7 +31,7 @@ export function ReportChart({
   order: string;
   set: (kv: Record<string, string | null>) => void;
 }) {
-  const colors = actionColors(cols);
+  const colors = actionFills(cols);
   const stored = shown.filter((r) => r.freqs);
   const gs = group ? groups(shown, group).filter((g) => g.freqs) : [];
   const tot = shown.reduce((a, r) => a + r.w, 0);
@@ -40,7 +40,7 @@ export function ReportChart({
       <ul aria-label="Actions" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         {cols.map((c, i) => (
           <li key={c} className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[i] }} />
+            <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
             {label(c)}
           </li>
         ))}
@@ -76,7 +76,7 @@ function Mix({ freqs, ev, cols, colors, seats }: { freqs: readonly number[]; ev:
       <ul className="mt-1 space-y-0.5">
         {cols.map((c, i) => (
           <li key={c} className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-sm" style={{ background: colors[i] }} />
+            <span className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: colors[i] }} />
             {label(c)} <span className="ml-auto pl-3 tabular-nums">{pct(freqs[i])}</span>
           </li>
         ))}
@@ -192,17 +192,16 @@ function GroupColumns({
   );
 }
 
-/** action `i`'s band across the flops, a step a flop (the first action along the bottom): one shape, so there are no
- * seams between columns thinner than a pixel */
-export function stepArea(rows: readonly Pick<ReportRow, "freqs">[], i: number): string {
+/** action `i`'s band across the flops as a `clip-path`, a step a flop (the first action along the bottom): one shape, so
+ * there are no seams between columns thinner than a pixel */
+export function stepClip(rows: readonly Pick<ReportRow, "freqs">[], i: number): string {
   const lo = rows.map((r) => r.freqs!.slice(0, i).reduce((a, b) => a + b, 0));
   const hi = rows.map((r, k) => lo[k]! + (r.freqs![i] ?? 0));
-  const y = (v: number) => +(100 - v * 100).toFixed(3);
-  let d = `M0 ${y(hi[0]!)}`;
-  for (let k = 0; k < rows.length; k++) d += `H${k + 1}${k + 1 < rows.length ? `V${y(hi[k + 1]!)}` : ""}`;
-  d += `V${y(lo[rows.length - 1]!)}`;
-  for (let k = rows.length - 1; k >= 0; k--) d += `H${k}${k > 0 ? `V${y(lo[k - 1]!)}` : ""}`;
-  return `${d}Z`;
+  const n = rows.length;
+  const at = (k: number, v: number) => `${+((k / n) * 100).toFixed(3)}% ${+(100 - v * 100).toFixed(3)}%`;
+  const top = rows.flatMap((_, k) => [at(k, hi[k]!), at(k + 1, hi[k]!)]);
+  const under = rows.flatMap((_, k) => [at(n - k, lo[n - 1 - k]!), at(n - 1 - k, lo[n - 1 - k]!)]);
+  return `polygon(${[...top, ...under].join(",")})`;
 }
 
 function FlopStrip({
@@ -223,6 +222,7 @@ function FlopStrip({
   const navigate = useNavigate();
   const [hover, setHover] = useState<number | null>(null);
   const n = rows.length;
+  const clips = useMemo(() => cols.map((_, i) => stepClip(rows, i)), [rows, cols]);
   // (the column under the pointer; a click reads its own, as a tap on a touch screen comes with no move before it)
   const at = (e: { currentTarget: HTMLDivElement; clientX: number }) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -237,7 +237,7 @@ function FlopStrip({
   return (
     <figure className="space-y-1">
       <figcaption className="text-xs text-muted">
-        Every flop shown, one column each, {order}. Columns aren&rsquo;t weighted: the averages are. Hover a flop for its numbers, click it to open it in
+        Every flop shown, one column each, {order}. Columns aren&rsquo;t weighted: the averages are. Point at a flop for its numbers (on a touch screen the Table view has them), click or tap it to open it in
         Study.
       </figcaption>
       <div className="flex h-40">
@@ -254,11 +254,10 @@ function FlopStrip({
           }}
         >
           <Grid />
-          <svg viewBox={`0 0 ${n} 100`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
-            {cols.map((c, i) => (
-              <path key={c} d={stepArea(rows, i)} fill={colors[i]} />
-            ))}
-          </svg>
+          {/* (clipped boxes and not an SVG: the plot stretches, and a stretched pattern's lines and spacing would go with it) */}
+          {cols.map((c, i) => (
+            <div key={c} aria-hidden className="absolute inset-0" style={{ background: colors[i], clipPath: clips[i] }} />
+          ))}
           {h && hover != null && (
             <>
               <div aria-hidden className="pointer-events-none absolute inset-y-0 z-10 outline-2 outline-text" style={{ left: `${(hover / n) * 100}%`, width: `max(2px, ${100 / n}%)` }} />

@@ -185,7 +185,7 @@ describe("AnalyzePage", () => {
     // (the report follows a moment after the grades: it's counted after what you're doing)
     const rep = await screen.findByRole("region", { name: "Report" });
     await waitFor(() => expect(within(rep).getByLabelText("Summary")).toHaveTextContent("5 of your decisions graded in 4 hands: 60% in the mix (Best or Correct)."));
-    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb lost in all, 2.2% of the pot a decision on average.");
+    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb lost in all, 2.2% of the pot per decision on average.");
     expect(within(rep).getByText("4 not graded")).toBeInTheDocument();
     // the mtt hand's call is one CO's chart leaves out: off the chart
     const off = within(rep).getByRole("list", { name: /^Off the chart/ });
@@ -451,7 +451,7 @@ describe("AnalyzePage", () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(2));
     fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
-    expect(await screen.findByText("The classic app keeps no hands in this browser.")).toBeInTheDocument();
+    expect(await screen.findByText("The older gto-solver site keeps no hands in this browser.")).toBeInTheDocument();
     expect((await indexedDB.databases()).map((d) => d.name)).not.toContain("gto-store");
 
     // a hand played on the classic table (BTN opens, the big blind calls and folds to a flop bet), and one without cards
@@ -471,7 +471,7 @@ describe("AnalyzePage", () => {
     const rec = (id: string, data: object) => ({ id, v: 1, created: at, updated: at, dev: "classic-device", data });
     await classicDb("gto-store", [rec("c1", { state, source: "table", tags: ["classic"], note: "bet small" }), rec("c2", { state: { ...state, cards: [null, null, null, null, null, null, null] } })]);
     fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
-    expect(await screen.findByText("From the classic app (IndexedDB): 2 hands read; 1 hand imported; left out: no hole cards (1).")).toBeInTheDocument();
+    expect(await screen.findByText("From the older gto-solver site (IndexedDB): 2 hands read; 1 hand imported; left out: no hole cards (1).")).toBeInTheDocument();
     await waitFor(() => expect(handRows()).toHaveLength(3));
     expect(within(screen.getByRole("region", { name: "Imports" })).getByText("Classic app, My hands")).toBeInTheDocument();
     const row = handRows().find((r) => r.textContent?.includes("classic"))!;
@@ -480,12 +480,12 @@ describe("AnalyzePage", () => {
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("2025-06-01 09:30 · 6-handed");
     expect(within(hand).getByRole("listitem", { name: "flop" })).toHaveTextContent("You bet 1.8");
-    expect(hand).toHaveTextContent("A hand from the classic app's My hands, replayed on Lizard's table.");
+    expect(hand).toHaveTextContent("A hand from My hands on the older gto-solver site, replayed on Lizard's table.");
     expect(within(hand).getByRole("group", { name: "Your tags and note" })).toHaveTextContent("classicbet small");
 
     // again: nothing new; the classic database as it was
     fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
-    expect(await screen.findByText("From the classic app (IndexedDB): 2 hands read; 0 hands imported, 1 hand already here; left out: no hole cards (1).")).toBeInTheDocument();
+    expect(await screen.findByText("From the older gto-solver site (IndexedDB): 2 hands read; 0 hands imported, 1 hand already here; left out: no hole cards (1).")).toBeInTheDocument();
     const d = await new Promise<IDBDatabase>((resolve) => {
       const q = indexedDB.open("gto-store");
       q.onsuccess = () => resolve(q.result);

@@ -12,14 +12,14 @@ describe("SettingsPage", () => {
     const accuracy = screen.getByRole("radiogroup", { name: "Solve accuracy" });
     expect(screen.getByRole("radio", { name: "Fast" })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByRole("button", { name: "Use its speed" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("The classic app has no speed saved in this browser.");
+    expect(await screen.findByRole("status")).toHaveTextContent("The older gto-solver site has no speed saved in this browser.");
     expect(useSettings.getState().mode).toBe("fast");
     expect((await indexedDB.databases()).map((d) => d.name)).not.toContain("gto-store");
 
     // the classic store's kv: "gto-speed" saved as "accurate"
     await classicDb("gto-store", []);
     fireEvent.click(screen.getByRole("button", { name: "Use its speed" }));
-    expect(await screen.findByText("Set to Accurate, the classic app's speed.")).toBeInTheDocument();
+    expect(await screen.findByText("Set to Accurate, the speed saved on the older gto-solver site.")).toBeInTheDocument();
     expect(useSettings.getState().mode).toBe("accurate");
     expect(accuracy.querySelector('[aria-checked="true"]')).toHaveTextContent("Accurate");
   });

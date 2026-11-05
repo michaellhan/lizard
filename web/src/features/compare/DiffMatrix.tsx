@@ -66,7 +66,7 @@ export function DeltaMatrix({
                 aria-selected={selected === cls}
                 tabIndex={stop === cls ? 0 : -1}
                 onClick={() => onSelect?.(cls)}
-                className={`relative aspect-square min-w-0 overflow-hidden rounded-[3px] text-left ${c.one ? "bg-surface-3" : "bg-surface-2"} ${
+                className={`keep-colour relative aspect-square min-w-0 overflow-hidden rounded-[3px] text-left ${c.one ? "bg-surface-3" : "bg-surface-2"} ${
                   selected === cls ? "ring-2 ring-accent ring-offset-1 ring-offset-bg" : ""
                 }`}
                 style={{ background: fill(c.d, full, min) }}

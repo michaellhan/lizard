@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /* Lizard design tokens. The app has one theme, this dark one. Action colors are Lizard's own palette (passive = teal,
-   aggressive = warm ramp by size, all-in = crimson, fold = slate). styles/contrast.test.ts holds the contrast floors. */
+   aggressive = warm ramp by size, all-in = crimson, fold = slate), each with a fill below that adds a pattern.
+   styles/contrast.test.ts holds the contrast floors, the fills' included. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -39,6 +40,18 @@
 
 :root {
   color-scheme: dark;
+
+  /* An action's fill: its colour under its pattern, as a `background`. Seven colours can't all stand 3:1 apart (the
+     surface leaves room for two), so the pattern tells them apart where the colour can't: wherever a mix is drawn,
+     from a phone's 24px cell up. A fill follows the action as its colour does (actions.ts). Lines run at 45 or 135 degrees
+     only, so none reads as a gridline, and check and call stay plain. Dark ink, but on the all-in, which is too dark for it. */
+  --fill-act-fold: radial-gradient(circle, var(--color-bg) 0.8px, transparent 1.1px) 0 0 / 5px 5px, var(--color-act-fold);
+  --fill-act-check: var(--color-act-check);
+  --fill-act-bet1: repeating-linear-gradient(45deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), var(--color-act-bet1);
+  --fill-act-bet2: repeating-linear-gradient(135deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), var(--color-act-bet2);
+  --fill-act-bet3: repeating-linear-gradient(45deg, var(--color-bg) 0 1.25px, transparent 1.25px 3.5px), var(--color-act-bet3);
+  --fill-act-bet4: repeating-linear-gradient(45deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), repeating-linear-gradient(135deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), var(--color-act-bet4);
+  --fill-act-allin: repeating-linear-gradient(135deg, var(--color-text) 0 2.5px, transparent 2.5px 6px), var(--color-act-allin);
 }
 
 html,
@@ -87,6 +100,51 @@ textarea {
 [role="radio"][aria-checked="true"] {
   text-decoration: underline 2px var(--color-accent);
   text-underline-offset: 3px;
+}
+
+/* A column dropped below `sm`, unless the reader asked for them all (components/PhoneColumns.tsx). */
+@media (max-width: 39.99rem) {
+  .phone-cols:not([data-all]) .phone-col {
+    display: none;
+  }
+}
+
+/* The mark on a provenance badge that opens: no name of its own, as the button's is the source's. */
+.provenance-toggle::after {
+  content: "\25BE";
+  content: "\25BE" / "";
+  opacity: 0.7;
+}
+
+.provenance-toggle[aria-expanded="true"]::after {
+  content: "\25B4";
+  content: "\25B4" / "";
+}
+
+/* Forced colors drop backgrounds and box-shadows. What a colour there says is data, so it keeps it; a cell's edge and the
+   selected state, which were a fill and a ring, come back as outlines. */
+@media (forced-colors: active) {
+  [style*="--fill-act"],
+  .keep-colour {
+    forced-color-adjust: none;
+  }
+
+  [role="gridcell"] {
+    outline: 1px solid ButtonBorder;
+    outline-offset: -1px;
+  }
+
+  [role="gridcell"][aria-selected="true"]:not(:focus-visible),
+  [role="tab"][aria-selected="true"]:not(:focus-visible) {
+    outline: 3px solid Highlight;
+    outline-offset: -3px;
+  }
+
+  .cell-label {
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

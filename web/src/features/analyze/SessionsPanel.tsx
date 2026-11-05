@@ -3,6 +3,7 @@
 // first. A session picked is a filter like the hands table's (`sess`): the report, the drill, the results and the
 // stats follow it, and grading takes its hands alone. Everything is read from the hands and grades kept.
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { bringIntoView } from "@/components/scroll";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
 import { filterHands, filterKey } from "./analyze";
@@ -216,10 +217,9 @@ function SessionRow({
   const dur = s.first ? durOf(s.last - s.first) : "";
   const n = tally?.n ?? 0;
   const box = useRef<HTMLLIElement>(null);
-  // (the list folds to the session picked: brought into view; nothing returned, as Chrome's scrollIntoView returns a
-  // promise that React would take for the effect's cleanup)
+  // (the list folds to the session picked: brought into view)
   useEffect(() => {
-    if (on) box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    if (on) bringIntoView(box.current);
   }, [on]);
   return (
     <li ref={box} aria-current={on || undefined} className={`flex scroll-mt-16 flex-wrap items-center gap-x-3 gap-y-0.5 rounded border px-2 py-1 ${on ? "border-accent bg-surface-2" : "border-border bg-surface"}`}>
@@ -233,7 +233,7 @@ function SessionRow({
       </span>
       <span className="tabular-nums">{hands.length < s.hands.length ? `${hands.length.toLocaleString()} of ${plural(s.hands.length, "hand")}` : plural(hands.length, "hand")}</span>
       <span className="tabular-nums">
-        won {s.kind === "tour" ? "—" : !results ? "…" : left === hands.length ? "—" : `${signed(net)}bb`}
+        won {s.kind === "tour" ? "—" : !results ? "(adding up…)" : left === hands.length ? "—" : `${signed(net)}bb`}
         {left > 0 && left < hands.length && <span className="text-muted"> ({left.toLocaleString()} left out)</span>}
       </span>
       <span className="tabular-nums text-muted">
@@ -268,7 +268,7 @@ function TrendView({ trend, basis, sits }: { trend: Trend; basis: string; sits: 
 
 function Verdict({ latest: l, basis, since }: { latest: LatestThird; basis: string; since: number }) {
   return (
-    <p aria-label="Latest sessions against before">
+    <p role="group" aria-label="Latest sessions against before">
       {basis}: {pct(l.ok2 / l.n2)} in the mix over your latest {plural(l.n2, "decision")} (since {dayOf(since)}), {pct(l.ok1 / l.n1)} over the {l.n1.toLocaleString()} before.{" "}
       {l.enough ? (
         <strong className="font-medium">{l.change ?? "No clear change"}.</strong>
@@ -277,7 +277,7 @@ function Verdict({ latest: l, basis, since }: { latest: LatestThird; basis: stri
           Under {MIN_SIDE} on a side is too few to call the share as a whole; a row below needs {MIN_ROW}.
         </span>
       )}{" "}
-      {versionNote(l.versions) && <span aria-label="Versions compared">{versionNote(l.versions)} </span>}
+      {versionNote(l.versions) && <span role="group" aria-label="Versions compared">{versionNote(l.versions)} </span>}
       <span className="text-muted">The share moves with the spots dealt as well as with how they were played; the rows below compare a spot with itself, though another table size or depth still moves its answer.</span>
     </p>
   );
@@ -287,7 +287,7 @@ const side = (r: Shift, k: 0 | 1) => {
   const n = r.n[k].toLocaleString();
   if (r.kind === "freq") return `you ${pct(r.you[k])}, the answer ${pct(r.gto[k])} (${n})`;
   const avg = r.kind === "spot" ? r.avg[k] : null;
-  return `${pct(r.share[k])} in the mix (${n})${avg != null ? `, ${avg.toFixed(2)}bb lost a decision` : ""}`;
+  return `${pct(r.share[k])} in the mix (${n})${avg != null ? `, ${avg.toFixed(2)}bb lost per decision` : ""}`;
 };
 
 function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMix: number }) {
@@ -382,9 +382,13 @@ export function TrendChart({ basis, points, about }: { basis: string; points: Bl
           ))}
         </div>
         <div
-          role="img"
+          role="slider"
           tabIndex={0}
-          aria-label={`${basis}: in the mix by blocks, from ${pct(points[0]!.share)} to ${pct(last.share)} over ${n} blocks. The line's numbers follow.`}
+          aria-label={`${basis}: in the mix by blocks, from ${pct(points[0]!.share)} to ${pct(last.share)} over ${n} blocks. The arrow keys read the line, and its numbers follow.`}
+          aria-valuemin={1}
+          aria-valuemax={n}
+          aria-valuenow={(hover ?? n - 1) + 1}
+          aria-valuetext={`Block ${(hover ?? n - 1) + 1} of ${n}: ${pct((p ?? last).share)} in the mix (${pct((p ?? last).range[0])} to ${pct((p ?? last).range[1])}), ${plural((p ?? last).n, "decision")}, ${span((p ?? last).from, (p ?? last).to)}`}
           className="relative flex-1 outline-offset-2"
           onPointerMove={(e) => setHover(at(e))}
           onPointerLeave={() => setHover(null)}

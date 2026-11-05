@@ -177,7 +177,7 @@ export const LEAK = { freq: [0.1, MIN_READ], pf: [0.8, MIN_READ], spot: [0.5, MI
 
 /** (`low`: how many of its decisions stand on a low-confidence read, which the leak may not survive a check of;
  * `versions`: where its decisions don't stand on one known version, in words; `range`: your rate's 95% interval, a
- * spot's EV lost a decision) */
+ * spot's EV lost per decision) */
 export type Leak = { low: number; versions: string | null; range: [number, number] } & (
   | { kind: "freq"; key: string; n: number; you: number; gto: number; score: number }
   | { kind: "pf"; key: string; n: number; inMix: number; score: number }
@@ -199,7 +199,7 @@ export function meanRange(xs: readonly number[]): [number, number] | null {
 }
 
 /** Whether a row past a leak's line can be read: over MIN_READ decisions, and its interval clear of the line: the
- * answer's frequency outside yours, the share in the mix under 80%, the EV lost a decision over nothing. */
+ * answer's frequency outside yours, the share in the mix under 80%, the EV lost per decision over nothing. */
 export const leakIsRead = (l: Leak): boolean =>
   l.n >= MIN_READ && (l.kind === "freq" ? l.gto < l.range[0] || l.gto > l.range[1] : l.kind === "pf" ? l.range[1] < LEAK.pf[0] : l.range[0] > 0);
 

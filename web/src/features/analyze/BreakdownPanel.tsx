@@ -55,7 +55,7 @@ export function Breakdowns({ ds, hands, byId }: { ds: readonly DecisionRecord[];
       {b && b.rows.length > 0 && <GroupTable key={by} title={how.label} first={how.first} rows={b.rows} ds={ds} keyOf={keyOf} byId={byId} ev noUngraded />}
       {b && !b.rows.length && <p className="text-muted">None of these {nDecisions(b.graded)} can be broken down this way.</p>}
       {b && b.left.length > 0 && (
-        <p aria-label="Left out of this breakdown" className="text-xs text-muted">
+        <p role="group" aria-label="Left out of this breakdown" className="text-xs text-muted">
           Left out, of {nDecisions(b.graded)} graded: {b.left.map((l) => `${l.n.toLocaleString()} because ${l.why}`).join("; ")}.
         </p>
       )}

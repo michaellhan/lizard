@@ -4110,3 +4110,15 @@ Two browser tests, 7d and 10b, cover these on the real worker. The agents that w
 The practice page's EV for a move the range almost never takes is now marked ≈ (`rough_ev`), and `postbuild.mjs` fails a build whose first script passes 350 KB.
 
 Tests: 2438 unit tests in 133 files, typecheck and lint clean, 101 browser tests passed and 40 skipped (the QA list at the other two widths).
+
+Live check of `930c999` (run 42049933786, 2026-11-05): `index-CrWjNgbS.js` at 296,480 bytes, the size a local build gave, with `document.title` "Analyze · Lizard" and cross-origin isolated. `/`, `/gto-solver/`, `/gto-solver-classic/`, `/lizard/analyze/` and `/lizard/saved/` answered 200.
+
+### Single combos, EQR by combo, saved reports and the rest of the accessibility audit (Phases 3, 5, 6)
+
+The range builder paints single combos with mixed weights and grades them exactly, and the class panel has EQR by combo. Analyze's filters can be saved as a report and opened from the Saved page: it keeps the filters and no numbers (database version 8). The accessibility audit's remaining items are in, with the exceptions in the matrix's row.
+
+Three things a reader should know. Action fills now carry patterns, as seven colours can't stand 3:1 apart on this surface; I looked at them at desktop and phone width and kept them on by default, against the data-visualisation guidance that texture is opt-in, because the brief says colour mustn't be the only cue. A saved range score's `acc` can now be by combo or by class, marked `graded`. "Engine ready · 8 threads" and "per decision" replace the old wording.
+
+Browser test 14d paints a combo on a real river solve and checks it's graded by combo; 10b now saves a report and opens it from Saved. Neither ran on a phone or a tablet.
+
+Tests: 2496 unit tests in 140 files, typecheck and lint clean, 102 browser tests passed and 42 skipped (the QA list at the other two widths).

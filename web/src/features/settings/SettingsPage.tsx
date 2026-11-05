@@ -19,7 +19,7 @@ function ClassicSpeed() {
     try {
       const m = await readClassicSpeed();
       if (m) set({ mode: m });
-      setSaid(m ? `Set to ${SPEED_LABEL[m]}, the classic app's speed.` : "The classic app has no speed saved in this browser.");
+      setSaid(m ? `Set to ${SPEED_LABEL[m]}, the speed saved on the older gto-solver site.` : "The older gto-solver site has no speed saved in this browser.");
     } catch (e) {
       setSaid(e instanceof Error ? e.message : String(e));
     } finally {
@@ -28,7 +28,7 @@ function ClassicSpeed() {
   };
   return (
     <p className="text-xs text-muted">
-      Used the classic app in this browser?{" "}
+      Used the older gto-solver site in this browser?{" "}
       <button type="button" disabled={busy} onClick={() => void use()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
         Use its speed
       </button>{" "}

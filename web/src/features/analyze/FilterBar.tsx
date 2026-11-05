@@ -2,6 +2,7 @@
 // EV lost and a search, together. It says how much of what's kept they leave, and when they leave nothing.
 import { useMemo, useRef } from "react";
 import type { HandRecord } from "@/data/db";
+import { SaveReport } from "@/features/saved/SaveReport";
 import { HAND_FILTERS, LOST_STEPS, POT_TYPES } from "./analyze";
 
 const count = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
@@ -116,6 +117,7 @@ export function FilterBar({
             Clear filters
           </button>
         )}
+        <SaveReport params={params} />
       </div>
       <p role="status" aria-label="Sample after filtering">
         {shown.length === hands.length
@@ -123,7 +125,7 @@ export function FilterBar({
           : `Every report covers ${count(shown.length, "hand")} of ${hands.length.toLocaleString()} and ${gradedShown.toLocaleString()} of ${count(graded, "graded decision")}.`}
       </p>
       {shown.length === 0 && (
-        <p aria-label="Nothing left" className="text-danger">
+        <p role="group" aria-label="Nothing left" className="text-danger">
           {from && to && from > to ? "From is later than To, so no day can match." : "None of your hands matches all of these filters together."} Every report is empty until you change them.
         </p>
       )}

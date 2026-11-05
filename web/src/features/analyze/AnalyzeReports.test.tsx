@@ -117,7 +117,7 @@ describe("the breakdowns", () => {
     open();
     const group = await screen.findByRole("group", { name: "Breakdowns" });
     const table = await within(group).findByRole("table", { name: "Your seat" });
-    expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Your seat", "Graded", "In the mix", "95% range", "Mistakes", "By EV", "EV lost a decision", "Stands on", "Decisions"]);
+    expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Your seat", "Graded", "In the mix", "95% range", "Mistakes", "By EV", "EV lost per decision", "Stands on", "Decisions"]);
     const co = within(table).getByRole("row", { name: "CO" });
     expect(co).toHaveTextContent("CO250%");
     expect(co).toHaveTextContent("few");

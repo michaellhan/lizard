@@ -31,7 +31,7 @@ export function TournamentPanel({ t, actor, out = [], pairs }: { t: TournamentIn
   const winnerTakesAll = (t.note ?? "").includes("winner-take-all");
   const assumed = (t.note ?? "").startsWith("tournament: no payouts");
   return (
-    <div aria-label="Tournament" className="space-y-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs">
+    <div role="group" aria-label="Tournament" className="space-y-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs">
       {typeof t.equity_share === "number" && (
         <p>
           <span className="font-medium">Prize equity:</span> {who} {pct(t.equity_share)} of what's left to pay

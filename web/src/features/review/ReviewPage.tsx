@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
-import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { MistakeRecord } from "@/data/db";
 import { changeMistake, listMistakes } from "@/data/mistakes";
@@ -153,6 +153,7 @@ export function ReviewPage() {
                       <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
                     ))}
                   </ul>
+                  <ProvenanceDetail ps={listed.slice(0, shown).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
                   {listed.length > shown && (
                     <button type="button" onClick={() => setShown((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
                       Show {Math.min(LIST_PAGE, listed.length - shown)} more of {listed.length - shown}
@@ -175,6 +176,7 @@ export function ReviewPage() {
                         <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
                       ))}
                   </ul>
+                  <ProvenanceDetail ps={onStreet(exploited).slice(0, shownX).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
                   {onStreet(exploited).length > shownX && (
                     <button type="button" onClick={() => setShownX((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
                       Show {Math.min(LIST_PAGE, onStreet(exploited).length - shownX)} more of {onStreet(exploited).length - shownX}
@@ -197,6 +199,7 @@ export function ReviewPage() {
                         <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
                       ))}
                   </ul>
+                  <ProvenanceDetail ps={onStreet(tourney).slice(0, shownT).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
                   {onStreet(tourney).length > shownT && (
                     <button type="button" onClick={() => setShownT((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
                       Show {Math.min(LIST_PAGE, onStreet(tourney).length - shownT)} more of {onStreet(tourney).length - shownT}
@@ -293,7 +296,7 @@ function MistakeRow({ m, now, active, onRetry }: { m: MistakeRecord; now: number
         {m.times > 1 ? ` · missed ${m.times} times in play` : ""}
       </p>
       <p className="text-xs text-muted">
-        Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} /> : "an answer not kept"}
+        Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} quiet /> : "an answer not kept"}
         {` · version ${versionWords(versionOf(m.provenance))}`}
         {last ? ` · last retry ${day(last.at)}: ${last.verdict}, against ${last.label}, version ${versionWords(last.version)}` : ""}
       </p>

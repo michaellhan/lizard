@@ -215,7 +215,7 @@ describe("sessions history", () => {
     const items = within(today).getAllByRole("listitem");
     expect(items).toHaveLength(4);
     expect(items[0]).toHaveTextContent("Full hands2 players · 100bb");
-    expect(items[0]).toHaveTextContent("2 hands · 3 decisions · 67% Best or Correct · 0.15bb · 3.0% pot lost a decision · net +4.5bb");
+    expect(items[0]).toHaveTextContent("2 hands · 3 decisions · 67% Best or Correct · 0.15bb · 3.0% pot lost per decision · net +4.5bb");
     expect(items[0]).toHaveTextContent("Graded against: Live solve 2, Preflop charts (approximate) 1");
     expect(items[1]).toHaveTextContent("82.0% accurate · 0.040bb a combo");
     expect(within(items[1]!).getByRole("link", { name: "Open the node in Study" })).toHaveAttribute("href", `/study?${BUILD.meta.line as string}`);
