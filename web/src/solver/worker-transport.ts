@@ -9,12 +9,39 @@
 //    worker is pinged after a stop, and one that hasn't answered in STUCK_MS is ended, its request rejected as "stuck"
 //    (index.html:1173-1189);
 //  - otherwise: the worker is terminated and rebooted on the next request (runtime from cache, ~1.5 s).
+//
+// A boot can stall too: one reload in about 30 under Playwright stayed on "Engine starting" with its downloads done and
+// nothing more said, and nothing else would ever end it. So a booting worker that goes quiet is ended and started again
+// once, the waiting request sent again, and a second stall is a failed boot, which the next request retries.
 import type { AdvisorResponse, AdvisorState, WorkerInbound, WorkerOutbound } from "./protocol";
 import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport, type StopCost } from "./types";
 
 /** ms a stopped request's worker has to answer a ping (a stop takes ~0.1 s, the longest stretch that doesn't read it a
  * few seconds; the classic STUCK_S) */
 export const STUCK_MS = 15_000;
+
+/** ms a booting worker may say nothing: its first step is 25 MB of downloads with no word of progress, on a slow link */
+export const BOOT_STALL_MS = 120_000;
+/** the same where this browser has booted this version before, so nothing has to come down (a boot takes ~1.5-5 s) */
+export const BOOT_STALL_KNOWN_MS = 30_000;
+
+const BOOTED_KEY = "lizard.solver.booted";
+
+function bootedBefore(version: string): boolean {
+  try {
+    return localStorage.getItem(BOOTED_KEY) === version;
+  } catch {
+    return false; // (no storage: the longer wait)
+  }
+}
+
+function noteBooted(version: string): void {
+  try {
+    localStorage.setItem(BOOTED_KEY, version);
+  } catch {
+    // (a convenience: the next boot waits longer before giving up)
+  }
+}
 
 export interface WorkerTransportOptions {
   /** URL of the folder holding worker.js, solver.zip and pf/ (must end with "/") */
@@ -34,6 +61,10 @@ interface InFlight {
   reject: (e: SolverError) => void;
   onPartial?: (r: AdvisorResponse) => void;
   cleanup: () => void;
+  /** what was posted, for a boot started again */
+  message: WorkerInbound;
+  /** stopped while the worker was still loading: not to be sent to the next one */
+  stopped?: boolean;
 }
 
 /** Whether the page can share a stop flag with the worker: with one a stop costs nothing, without it a stop ends the
@@ -53,6 +84,10 @@ export class WorkerTransport implements SolverTransport {
   private flop: AdvisorState | null = null;
   /** runs out if the stopped request's worker stays silent; only ever set with that request still current */
   private stuckTimer: ReturnType<typeof setTimeout> | undefined;
+  /** runs out if a booting worker stays silent; re-armed by each thing it says, and gone once it isn't booting */
+  private bootTimer: ReturnType<typeof setTimeout> | undefined;
+  /** this boot has already been started again once */
+  private restarted = false;
   private listeners = new Set<(s: RuntimeStatus) => void>();
   private st: RuntimeStatus;
   private readonly opts: WorkerTransportOptions;
@@ -89,6 +124,7 @@ export class WorkerTransport implements SolverTransport {
 
   private setStatus(patch: Partial<RuntimeStatus>) {
     this.st = { ...this.st, ...patch };
+    if (this.st.phase !== "booting") clearTimeout(this.bootTimer);
     for (const l of this.listeners) l(this.st);
   }
 
@@ -103,6 +139,7 @@ export class WorkerTransport implements SolverTransport {
     const w = make(this.workerUrl());
     this.worker = w;
     this.setStatus({ phase: "booting", message: "Starting the solver…", error: undefined });
+    this.armBoot();
     w.onmessage = (e: MessageEvent<WorkerOutbound>) => this.onMessage(e.data);
     w.onerror = (e: ErrorEvent) => {
       const msg = e.message || "the solver worker failed to load";
@@ -123,6 +160,30 @@ export class WorkerTransport implements SolverTransport {
     this.worker?.postMessage(m);
   }
 
+  private armBoot() {
+    clearTimeout(this.bootTimer);
+    const limit = !this.restarted && bootedBefore(this.opts.version) ? BOOT_STALL_KNOWN_MS : BOOT_STALL_MS;
+    this.bootTimer = setTimeout(() => this.bootStalled(), limit);
+  }
+
+  private bootStalled() {
+    const cur = this.current;
+    this.worker?.terminate();
+    this.worker = null;
+    this.stop = null;
+    if (this.restarted) {
+      const why = "The solver didn't start. Try again, or reload the page.";
+      this.setStatus({ phase: "failed", error: why });
+      this.failCurrent(new SolverError("boot-failed", why));
+      return;
+    }
+    this.restarted = true;
+    this.ensureWorker();
+    this.setStatus({ message: "The solver stalled while starting, so it's starting again…" });
+    if (cur?.stopped) this.failCurrent(new SolverError("cancelled", "cancelled"));
+    else if (cur) this.post(cur.message);
+  }
+
   private onMessage(m: WorkerOutbound) {
     if ("status" in m) {
       const ready = m.status.startsWith("Solving");
@@ -131,6 +192,12 @@ export class WorkerTransport implements SolverTransport {
         message: m.status,
         ...(m.setup ? { setup: m.setup } : {}),
       });
+      if (ready) {
+        this.restarted = false;
+        noteBooted(this.opts.version);
+      } else {
+        this.armBoot();
+      }
       return;
     }
     if ("pong" in m) {
@@ -179,6 +246,8 @@ export class WorkerTransport implements SolverTransport {
     }
     this.ensureWorker();
     const id = this.nextId++;
+    // (a move is never posted early: worker.js answers it in one go)
+    const message: WorkerInbound = opts.play ? { id, state, play: opts.play } : { id, state, early: opts.progressive };
     return new Promise<AdvisorResponse>((resolve, reject) => {
       const onAbort = () => this.cancel(id);
       opts.signal?.addEventListener("abort", onAbort, { once: true });
@@ -187,6 +256,7 @@ export class WorkerTransport implements SolverTransport {
         resolve,
         reject,
         onPartial: opts.onPartial,
+        message,
         cleanup: () => {
           opts.signal?.removeEventListener("abort", onAbort);
           // (settled: this stop is over, and the next request's long solve is no sign of anything)
@@ -194,13 +264,13 @@ export class WorkerTransport implements SolverTransport {
         },
       };
       if (this.st.phase === "ready") this.setStatus({ phase: "busy" });
-      // (a move is never posted early: worker.js answers it in one go)
-      this.post(opts.play ? { id, state, play: opts.play } : { id, state, early: opts.progressive });
+      this.post(message);
     });
   }
 
   private cancel(id: number) {
     if (!this.current || this.current.id !== id) return;
+    this.current.stopped = true;
     if (this.stop) {
       // the running solve reads this between chunks of iterations and answers {cancelled: true}
       Atomics.store(this.stop, 1, id);
@@ -241,6 +311,7 @@ export class WorkerTransport implements SolverTransport {
     this.worker?.terminate();
     this.worker = null;
     this.stop = null;
+    this.restarted = false;
     this.setStatus({ phase: "idle" });
   }
 }

@@ -3785,3 +3785,23 @@ the tables interleave.
 - Lizard has none of the classic app's new review work: record a hand and review it once it's finished, your equity on
   a reviewed hand, Explain with AI on a reviewed decision. The engine half of the equity is now here.
 - Upstream's commits after `1a14605e` aren't taken.
+
+## A boot that goes quiet (2026-11-05)
+
+The new browser tests met what Phase 1 never could, a truly stuck worker, once in about 30 first-load-then-reload runs:
+Study stayed on "Engine starting" for its full 45 s, with its downloads finished 2 s after the reload and nothing more
+said. 14 more of the same run on purpose didn't show it, so the cause isn't known. What was missing either way is that
+nothing would ever have ended it: the transport only watched a worker after a stop.
+
+- `worker-transport.ts` now watches a boot. A worker that says nothing for `BOOT_STALL_MS`, 2 minutes, is ended and
+  started again once, the waiting request sent to the new one. A second stall is a failed boot, with a message saying
+  so, and the next request tries a fresh worker. Each thing the worker says re-arms the wait, so a slow boot that's
+  moving is left alone.
+- 2 minutes is for the first step, 25 MB of downloads with no progress reported, on a slow link. A version this browser
+  has booted before has nothing to download, so that wait is `BOOT_STALL_KNOWN_MS`, 30 s, read from `localStorage`.
+- A request stopped during the stall isn't sent on.
+- Tested: 6 new unit tests with a fake worker, and one in Chromium where the first worker is a stub that never speaks:
+  it was started again and the page answered, 44 s all told.
+- Not tested: a phone on a slow link, so whether 2 minutes is enough for a first visit there isn't known. A wrong guess
+  costs one restart, with a further 2 minutes.
+

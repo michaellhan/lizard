@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SolverClient } from "./client";
 import type { WorkerInbound, WorkerOutbound } from "./protocol";
-import { WorkerTransport } from "./worker-transport";
+import { BOOT_STALL_KNOWN_MS, BOOT_STALL_MS, WorkerTransport } from "./worker-transport";
 
 /** Stands in for the Pyodide worker: records what the page posts, and lets the test send replies. */
 class FakeWorker {
@@ -20,6 +20,8 @@ class FakeWorker {
     this.onmessage?.({ data: m } as MessageEvent<WorkerOutbound>);
   }
 }
+
+beforeEach(() => localStorage.clear()); // (a boot remembered from another test would shorten this one's wait)
 
 function setup(isolated: boolean) {
   const workers: FakeWorker[] = [];
@@ -290,7 +292,7 @@ describe("WorkerTransport: a stop nobody answers", () => {
     w.reply({ status: "Loading numpy…" });
     ac.abort();
     expect(pings(w)).toEqual([]);
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1); // (the boot's own watch, no stop's)
     await vi.advanceTimersByTimeAsync(STUCK_MS * 4);
     expect(w.terminated).toBe(false);
     // (once up, the worker sees the stop before it starts)
@@ -364,5 +366,94 @@ describe("WorkerTransport: a stop nobody answers", () => {
     ac.abort();
     expect(pings(w)).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("WorkerTransport: a boot that goes quiet", () => {
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+
+  it("starts the worker again once and sends the waiting request to the new one", async () => {
+    const { t, workers } = setup(true);
+    const p = t.request({ players: 2 }, { progressive: true });
+    const first = lastRequest(workers[0]!);
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_MS - 1);
+    expect(workers).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(workers[0]!.terminated).toBe(true);
+    expect(workers).toHaveLength(2);
+    expect(t.status()).toMatchObject({ phase: "booting", message: expect.stringContaining("starting again") });
+    const w = workers[1]!;
+    expect(w.posted.some((m) => "stop" in m)).toBe(true); // (its own stop flag: the last one's went with it)
+    expect(lastRequest(w)).toEqual(first);
+    w.reply({ status: "Solving…", setup: { total: 1, core: true, threads: 4 } });
+    w.reply({ id: first.id, result: { street: "flop" } });
+    await expect(p).resolves.toEqual({ street: "flop" });
+  });
+
+  it("gives up on a second stall, says so, and the next request tries a fresh worker", async () => {
+    const { t, workers } = setup(true);
+    const p = t.request({ players: 2 }, { progressive: true });
+    const failed = expect(p).rejects.toMatchObject({ kind: "boot-failed" });
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_MS * 2);
+    await failed;
+    expect(workers).toHaveLength(2);
+    expect(workers[1]!.terminated).toBe(true);
+    expect(t.status()).toMatchObject({ phase: "failed", error: expect.stringContaining("didn't start") });
+    const again = t.request({ players: 2 }, { progressive: true });
+    expect(workers).toHaveLength(3);
+    const w = workers[2]!;
+    w.reply({ status: "Solving…" });
+    w.reply({ id: lastRequest(w).id, result: { street: "flop" } });
+    await expect(again).resolves.toEqual({ street: "flop" });
+  });
+
+  it("leaves a slow boot alone while it keeps saying something", async () => {
+    const { t, workers } = setup(true);
+    void t.request({ players: 2 }, { progressive: true }).catch(() => {});
+    for (const status of ["Loading the runtime", "Loading numpy", "Starting the solver"]) {
+      await vi.advanceTimersByTimeAsync(BOOT_STALL_MS - 1);
+      workers[0]!.reply({ status });
+    }
+    expect(workers).toHaveLength(1);
+    workers[0]!.reply({ status: "Solving…" });
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_MS * 3); // (a long solve says nothing, and isn't a boot)
+    expect(workers).toHaveLength(1);
+    t.dispose();
+  });
+
+  it("waits less for a version this browser has booted before, and the long wait on the second try", async () => {
+    const one = setup(true);
+    one.t.boot();
+    one.workers[0]!.reply({ status: "Solving…" });
+    one.t.dispose();
+    const { t, workers } = setup(true);
+    t.boot();
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_KNOWN_MS);
+    expect(workers).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_MS - 1);
+    expect(workers[1]!.terminated).toBe(false);
+    t.dispose();
+  });
+
+  it("doesn't send on a request that was stopped while the worker was loading", async () => {
+    const { t, workers } = setup(true);
+    const ctl = new AbortController();
+    const p = t.request({ players: 2 }, { progressive: true, signal: ctl.signal });
+    const stopped = expect(p).rejects.toMatchObject({ kind: "cancelled" });
+    ctl.abort();
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_MS);
+    await stopped;
+    expect(workers[1]!.posted.filter((m) => "state" in m)).toEqual([]);
+    t.dispose();
+  });
+
+  it("stops watching a boot that failed by itself", async () => {
+    const { t, workers } = setup(true);
+    t.boot();
+    workers[0]!.onerror?.({ message: "no network" } as ErrorEvent);
+    await vi.advanceTimersByTimeAsync(BOOT_STALL_MS * 2);
+    expect(workers).toHaveLength(1);
+    expect(t.status()).toMatchObject({ phase: "failed", error: "no network" });
   });
 });
