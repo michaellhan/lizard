@@ -1193,6 +1193,20 @@ describe("Room's kept doc", () => {
       expect(room.snapshot().session.hands).toBe(1);
     });
 
+    it("can still keep a hand that had ended as the page went, the last of them dealt", async () => {
+      const over = { net: 2, folded: false, winners: ["UTG"], says: "", pays: { UTG: 3.5 } };
+      const line = { preflop: [{ pos: "UTG", action: "raise" as const, to: 2.5 }, ...["HJ", "CO", "BTN", "SB", "BB"].map((pos) => ({ pos, action: "fold" as const }))], flop: [], turn: [], river: [] };
+      await put(doc([kept(hand(4, "UTG", { lines: line, result: over })), kept(hand(1, "UTG", { lines: line, result: over })), kept(hand(2, "UTG"))], { session: session(5, { hands: 2 }) }));
+      const { room } = await reload({}, solver({ quiet: true }));
+      expect(room.snapshot().ended).toMatchObject({ table: 0, hand: { n: 4 } });
+    });
+
+    it("has no ended hand to keep where none had ended", async () => {
+      await put(doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]));
+      const { room } = await reload({}, solver({ quiet: true }));
+      expect(room.snapshot().ended).toBeNull();
+    });
+
     it("only ever writes a doc that reads back whole: no hand of its own is lost, whatever stage it was saved at", async () => {
       const { room } = open({ tables: 3 });
       room.start();
@@ -1442,17 +1456,97 @@ describe("Room's kept doc", () => {
       });
     });
 
-    it("ignores a read that answers after KEPT_WAIT: the fresh session has begun", async () => {
-      const d = doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]);
-      let answer = (_: unknown) => {};
-      const { room } = open({ readKept: () => new Promise((r) => (answer = r)) });
-      room.start();
-      await pass(1000);
-      const { id } = room.snapshot().session;
-      answer(d);
-      await flush();
-      expect(room.snapshot().tables).toHaveLength(1);
-      expect(room.snapshot().session.id).toBe(id);
+    describe("where the read answers after KEPT_WAIT", () => {
+      /** A doc in the browser and a read of it that answers when told, past KEPT_WAIT. */
+      async function late(answers = solver()) {
+        const d = doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]);
+        await put(d);
+        let answer = (_: unknown) => {};
+        const r = open({ readKept: () => new Promise((go) => (answer = go)) }, answers);
+        r.room.start();
+        await pass(1000);
+        return { ...r, d, answer: (x: unknown) => answer(x) };
+      }
+
+      it("writes no tables over a doc it hasn't seen, says so, and brings the session back where you haven't moved", async () => {
+        const { room, d, answer } = await late(solver({ quiet: true }));
+        expect(room.snapshot().keptRead).toBe("waiting");
+        room.setTables(4);
+        await pass(2000);
+        expect(writes()).toEqual([]);
+        expect(await stored()).toEqual(d);
+
+        answer(d);
+        await flush();
+        expect(room.snapshot().keptRead).toBeNull();
+        expect(room.snapshot().session.id).toBe(d.session.id);
+        expect(room.snapshot().tables).toHaveLength(2);
+      });
+
+      it("leaves what you've begun, says so, and only then writes over the doc", async () => {
+        const { room, d, answer } = await late();
+        const { id } = room.snapshot().session;
+        await play(room, () => room.snapshot().session.score.n >= 1);
+        room.setTables(2);
+        await pass(2000);
+        expect(writes()).toEqual([]);
+
+        answer(d);
+        await flush();
+        expect(room.snapshot().keptRead).toBe("passed");
+        expect(room.snapshot().session.id).toBe(id);
+        await pass(1000);
+        expect(writes().at(-1)!.session.id).toBe(id);
+      });
+
+      it("goes back to one table without giving up a doc it hasn't seen", async () => {
+        const { room, d } = await late(solver({ quiet: true }));
+        room.setTables(2);
+        room.setTables(1);
+        await pass(2000);
+        room.stop();
+        expect(writes()).toEqual([]);
+        expect(await stored()).toEqual(d);
+      });
+
+      it.each([
+        ["nothing's there", (a: (x: unknown) => void) => a(null)],
+        ["what's there can't be read", (a: (x: unknown) => void) => a({ v: 2 })],
+      ])("keeps the tables as ever once it says %s", async (_, say) => {
+        const { room, answer } = await late(solver({ quiet: true }));
+        room.setTables(2);
+        say(answer);
+        await flush();
+        expect(room.snapshot().keptRead).toBeNull();
+        await pass(1000);
+        expect(writes().at(-1)!.n).toBe(2);
+      });
+
+      it("takes the read failing as an answer", async () => {
+        const d = doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]);
+        await put(d);
+        let fail = (_: Error) => {};
+        const { room } = open({ readKept: () => new Promise((_, no) => (fail = no)) }, solver({ quiet: true }));
+        room.start();
+        await pass(1000);
+        room.setTables(2);
+        fail(new Error("no database"));
+        await flush();
+        expect(room.snapshot().keptRead).toBeNull();
+        await pass(1000);
+        expect(writes().at(-1)!.n).toBe(2);
+      });
+
+      it("has nothing to say once a New session has given the doc up", async () => {
+        const { room, d, answer } = await late(solver({ quiet: true }));
+        room.startSession(6, 100, OPTS);
+        const { id } = room.snapshot().session;
+        expect(room.snapshot().keptRead).toBeNull();
+        answer(d);
+        await flush();
+        expect(room.snapshot().keptRead).toBeNull();
+        expect(room.snapshot().session.id).toBe(id);
+      });
     });
 
     it("leaves the doc alone after a hung read even with a change of tables undone during it", async () => {

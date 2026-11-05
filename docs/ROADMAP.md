@@ -142,8 +142,9 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
     `nextTable`); your own bet sizes from the flop on; a rake; "Run it out" or "Show hands" after your fold
     (`practice.ts` `runKind`, `runEnd`); Review mistakes and Recent decisions (`review.ts`); and your range at your
     last decision (`practice.ts` `rangeAt`) (2026-11-03).
-  - **Still open in Phase 1:** multitabling, the 20-hand engine check, and the classic trainer's asking ahead for
-    your likely lines.
+  - **Done on 2026-11-04 (`docs/PROGRESS.md`):** multitabling (`room.ts`, `MultiTables.tsx`, `TableTile.tsx`), the
+    20-hand engine check (`handsCheck.ts`, the Engine page) and asking ahead for your likely lines (`ahead.ts`, on until
+    you say, measured at Quick on one Mac under load; Accurate and phones are unmeasured, and that's the row's PARTIAL).
 - **Table engine, `web/src/poker/`.** Pure TypeScript:
   - dealing, blinds and antes, betting rounds, side pots and rake settlement, and the ring game with a moving button;
   - ported from `practice.js:74-131`, `:149-214` and `:326`, and the table logic in `index.html`;
@@ -155,7 +156,7 @@ Moves matrix rows: Filters, Equity & EQR, Range comparison, Postflop (3-way), Co
   - A verdict card per decision, with the grade, EV lost in bb and % of pot, the solver's mix for the hand, and the provenance label.
   - "Open in Study" for the decision's node.
 - **Drills.** Single-decision drills on library flops, decoded in the client with no solver (`drills.js:23-92`, `:98-169`). They use the texture filters, show the spot's coverage from the catalog, and say when a spot has no stored nodes.
-- **Multitabling.** 2–4 tables, ported from `multitable.js:1-40` with the same queue priority (instant answers first, a long solve gives way). Phones get one table plus tabs.
+- **Multitabling (done 2026-11-04).** 2–4 tables, ported from `multitable.js:1-40` with the same queue priority (instant answers first, a long solve gives way). Phones get one table plus tabs.
 - **Session records.** Each practice session is saved to the existing `sessions` store (`web/src/data/db.ts:45`, `SessionRecord`): hands, decisions, grades and EV lost, with start and end time. The history page lists sessions by date with totals by pot type.
 - **Grading.** Uses the Phase 0 module only. Preflop decisions say "graded against charts by frequency; no EV" until Phase 9.
 - **Rule-based "why" text.** Ported from `practice.js:431-444` and `:529`. There is no AI call in this phase.
@@ -167,10 +168,10 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 **Acceptance tests.**
 - `poker/*.test.ts`: port the side-pot, rake and showdown cases from `solver/tests/js/practice.test.js` (28 tests; `:55`, `:72`, `:311`) and `table.test.js`. Chips are conserved in every random hand of a seeded fuzz of 10,000 hands.
 - Drill decode: decoding the fixture entries gives the same strategies as `drills.test.js:104`.
-- Multitable scheduler: port `multitable.test.js:170` (instant first, long solves yield).
+- Multitable scheduler (done 2026-11-04, `scheduler.test.ts`, `room.test.ts`): port `multitable.test.js:170` (instant first, long solves yield).
 - Session persistence: a stubbed session is written to `sessions` and read back after a reload (fake-indexeddb). It survives a database migration.
 - Grades: on a stubbed answer, an action the hand plays under 10% of the time that loses 0.5% of the pot is an Inaccuracy, not a Mistake. The same loss on an action played 10% or more is Correct. A chart preflop decision is graded by frequency and marked so.
-- Engine check (opt-in): play 20 seeded hands at Quick through the worker. No request errors, and every verdict has a provenance label.
+- Engine check (opt-in; done 2026-11-04, four runs in `docs/PROGRESS.md`): play 20 seeded hands at Quick through the worker. No request errors, and every verdict has a provenance label.
 
 **Risks.**
 - **Scope.** The classic table logic is spread through `index.html`. Extract it carefully and test it before building UI.

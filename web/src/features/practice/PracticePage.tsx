@@ -1,13 +1,15 @@
 // Practice, in two tabs: full hands (here) and drills (DrillsPanel.tsx, one flop decision from the library).
-// Full hands are against GTO opponents. Every opponent's move is drawn from the solver's mix for its actual
-// hand (Advisor.play); your options are the solver's actions at your spot, and each decision is graded against its
-// answer once you've acted (src/grading/grade.ts: by EV given up where the answer has EVs, by frequency on the
-// preflop charts), with the answer's provenance beside it. The session's score is kept in IndexedDB (sessions).
+// In full hands each opponent plays its actual hand: from the charts preflop, then from the solver's mix (Advisor.play), or
+// by betting rules on a flop or turn with five or more still in. Your options are the solver's actions at your spot, and
+// each decision is graded against its answer once you've acted (src/grading/grade.ts: by EV given up where the answer has
+// EVs, by frequency on the preflop charts), with the answer's provenance beside it. The session's score is kept in
+// IndexedDB (sessions).
 // A Room runs the hands (room.ts: the requests, the pace, the session) and FullHands draws its snapshot: one table here
 // (OneTable), two to four in MultiTables.tsx, whichever the Room has, as a session above one table comes back on a reload.
 // What a hand needs next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and
 // SetupForm.tsx.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -24,9 +26,10 @@ import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
 import { boardShown, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
-import { PACE, Room, type RoomSnapshot } from "./room";
+import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
+import { answering } from "./TableTile";
 
 export { optionLabel };
 
@@ -110,6 +113,16 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     };
   }, []);
 
+  // a press of New session or Tables that brings tables up, for MultiTables to take you to them
+  const pressRef = useRef(false);
+  // The setup is one form in either of its places, moved as the tables go above one, so what you've typed in it goes with it.
+  const [home] = useState(() => {
+    const d = document.createElement("div");
+    d.className = "contents";
+    return d;
+  });
+  const place = useCallback((at: HTMLElement | null) => void at?.append(home), [home]);
+
   const sum = summary(session.score);
   const others = past.filter((p) => p.id !== session.id);
   const setup = (
@@ -118,7 +131,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       players={session.players}
       stack={session.stack}
       opts={session.opts}
-      onStart={(p, n, o) => room.startSession(p, n, o)}
+      onStart={(p, n, o) => {
+        pressRef.current = many;
+        room.startSession(p, n, o);
+      }}
     />
   );
 
@@ -128,13 +144,14 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <div>
           {many ? (
             <p className="text-sm text-muted">
-              Several tables against GTO opponents, one score across them all. The table that needs you comes to the front and the solver answers one table at a time. Your options are the
-              solver&rsquo;s actions at your spot; the grade and what answered show on the table and beside it once you&rsquo;ve acted. Keys: 1&ndash;9 your options, F, C or X fold, check or
+              Several tables, one score across them all. Opponents play the charts preflop, then the solver, or betting rules on a flop or turn with five or more still in. The table that needs
+              you comes to the front and the solver answers one table at a time. Your options are the solver&rsquo;s actions at your spot; the grade and what answered show on the table and beside it once you&rsquo;ve acted. Keys: 1&ndash;9 your options, F, C or X fold, check or
               call, S the next waiting table, Enter or Space deal finished tables now (each deals by itself otherwise), K keeps the last finished hand in Analyze.
             </p>
           ) : (
             <p className="text-sm text-muted">
-              Hands against GTO opponents: each opponent plays its actual cards from the solver&rsquo;s mix. Your options are the solver&rsquo;s actions at your spot;
+              Each opponent plays its actual cards: from the charts preflop, then the solver&rsquo;s mix, or betting rules on a flop or turn with five or more still in. Your options are the
+              solver&rsquo;s actions at your spot;
               the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
               preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
               it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
@@ -146,8 +163,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ModePicker modes={["quick", "accurate"]} />
-          <AskAhead stopCost={snap.stopCost} />
-          {!many && setup}
+          <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
+          {!many && <div ref={place} className="contents" />}
         </div>
       </div>
 
@@ -158,17 +175,23 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             <p className="text-xs text-muted">
               Above one table Spots and Seat decide what&rsquo;s dealt, so Your seat, Play&rsquo;s kinds of pot and Carry chips here wait until you&rsquo;re back at one table. Preflop only still counts.
             </p>
-            {setup}
+            <div ref={place} />
           </div>
         </details>
       )}
+      {createPortal(setup, home)}
 
-      <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} />
+      <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
 
       <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} reserve={many} />
       <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
+      {snap.keptRead && (
+        <p role="status" className="text-sm text-warn">
+          {keptNote(snap.keptRead)}
+        </p>
+      )}
 
-      {many ? <MultiTables room={room} snap={snap} active={active} /> : <OneTable room={room} snap={snap} active={active} />}
+      {many ? <MultiTables room={room} snap={snap} active={active} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active} />}
 
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
@@ -196,7 +219,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {others.map((s) => (
               <li key={s.id} className="text-muted">
                 {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
-                {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} correct` : ""}
+                {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} best or correct` : ""}
                 {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
                 {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
                 {s.decisions ? ` · Graded against: ${rowOf(s).graded}` : ""}
@@ -230,7 +253,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
       if (i < optionsOf(answer.data).length) room.choose(i);
     } else if (phase.kind === "over" && hand.result) {
       // (Enter or Space on a focused button or link is that control's own)
-      if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
+      if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A|SUMMARY)$/.test(tag)) {
         e.preventDefault();
         room.nextHand();
       } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) room.keep();
@@ -310,7 +333,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
         {phase.kind === "hero" && !answer && !failed && (
           <p role="status" className="flex items-center gap-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            Solving your spot so your move can be graded…
+            {answering(sim)} so your move can be graded…
             <span className="text-muted">(the first answer starts the engine)</span>
           </p>
         )}

@@ -6,7 +6,7 @@
 // they sit directly in the wrapper that holds both, with the dock stuck to the bottom. There's no pace and no Run it out
 // here, and a finished table deals again by itself. How many tables there are is simply how many the Room has (the kept doc
 // brings them back), so no setting can say otherwise.
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
 import { bb, kindOf, pct } from "@/components/actions";
 import { sourcesText } from "@/features/history/history";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -30,13 +30,46 @@ const spotNote = (spot: Spot, preflopOnly: boolean) =>
         ? "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others."
         : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}; later streets are read from the library or solved while you play the other tables.`;
 
+/** ms from a key to the change it makes */
+const STEP_MS = 100;
+
 /** A select gives focus back once it's set: on one, the page's keys don't work and the next is type-ahead, so C would pick
- * CO, S the SB or Single-raised pots and 3 3-bet pots. */
-const leave = (select: HTMLSelectElement) => select.blur();
+ * CO, S the SB or Single-raised pots and 3 3-bet pots. Only once it's set, though: an arrow steps a closed select, a change
+ * at each press, so a change right after a key stays, and Enter or Escape, on the way up, says you've done. */
+function useLeave() {
+  const keyAt = useRef(-Infinity);
+  const leave = (select: HTMLSelectElement) => {
+    if (performance.now() - keyAt.current > STEP_MS) select.blur();
+  };
+  const keys = {
+    onKeyDown: () => {
+      keyAt.current = performance.now();
+    },
+    onKeyUp: (e: KeyboardEvent<HTMLSelectElement>) => {
+      if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+    },
+  };
+  return { leave, keys };
+}
 
 /** The row above the score: Tables, always, and Spots and Seat from two up, with what they mean and why any is held. */
-export function TablesBar({ room, session, count, stopCost, flops }: { room: Room; session: PracticeSession; count: number; stopCost: RoomSnapshot["stopCost"]; flops: RoomSnapshot["flops"] }) {
+export function TablesBar({
+  room,
+  session,
+  count,
+  stopCost,
+  flops,
+  pressRef,
+}: {
+  room: Room;
+  session: PracticeSession;
+  count: number;
+  stopCost: RoomSnapshot["stopCost"];
+  flops: RoomSnapshot["flops"];
+  pressRef: RefObject<boolean>;
+}) {
   const set = useSettings((s) => s.set);
+  const { leave, keys } = useLeave();
   const preflopOnly = session.opts.preflopOnly;
   const spot = spotOf(useSettings((s) => s.practiceSpot), preflopOnly, flops.off === null);
   const seat = seatOf(useSettings((s) => s.practiceSeat), session.players, spot);
@@ -54,7 +87,10 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
                 role="radio"
                 aria-checked={n === count}
                 title={n === 1 ? "One table: Table 1's hand goes on here" : `${n} tables at once, one score across them`}
-                onClick={() => room.setTables(n)}
+                onClick={() => {
+                  pressRef.current = n > 1 && n !== count;
+                  room.setTables(n);
+                }}
                 className={`rounded px-2.5 py-1 ${n === count ? "bg-surface-3 text-text" : "text-muted hover:text-text"}`}
               >
                 {n}
@@ -69,6 +105,7 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
               <select
                 aria-label="Spots"
                 value={spot}
+                {...keys}
                 onChange={(e) => {
                   set({ practiceSpot: e.target.value as Spot });
                   leave(e.currentTarget);
@@ -92,6 +129,7 @@ export function TablesBar({ room, session, count, stopCost, flops }: { room: Roo
               <select
                 aria-label="Seat"
                 value={seat}
+                {...keys}
                 onChange={(e) => {
                   set({ practiceSeat: e.target.value });
                   leave(e.currentTarget);
@@ -137,64 +175,74 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
   const more = queue.filter((i) => i !== focus).length;
   const busy = tables.filter((x) => !x.hand.result && !x.failed && !x.spent).length;
   return (
-    <section aria-label="Your move" aria-live="polite" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
-      {/* (focus only rests here, nothing happens on it: a ring would read as a field to type in) */}
-      <h2 ref={head} tabIndex={-1} className="font-medium outline-none!">
-        Table {focus + 1} · {ready ? `your turn · ${seat} · ${sim.current} · pot ${fmt(sim.pot)}bb` : state.text}
-      </h2>
-      {ready && (
-        <>
-          <div role="group" aria-label="Your options" aria-disabled={guarded || undefined} className={`flex flex-wrap gap-2 ${guarded ? "opacity-50" : ""}`}>
-            {options.map((a, i) => (
-              <button
-                key={`${focus}|${key}|${a.action}`}
-                type="button"
-                aria-disabled={guarded || undefined}
-                onClick={() => room.choose(focus, key, i)}
-                className="rounded-md border border-border bg-surface-2 px-3 py-1.5 hover:bg-surface-3"
-              >
-                {i < 9 && (
-                  <span aria-hidden className="mr-1.5 text-xs text-faint">
-                    {i + 1}
-                  </span>
-                )}
-                {optionLabel(a.action, a.amount_bb)}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted">
-            {more > 0 ? `${more} more waiting · S next table · ` : ""}F fold · C or X check or call · 1&ndash;{Math.min(options.length, 9)} your options
-          </p>
-        </>
-      )}
-      {(t.failed || t.spent) && (
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2" onClick={() => room.retry(focus)}>
-            {t.spent ? "Try again" : "Ask again"}
-          </button>
-          {t.failed && ph.kind === "hero" && <FallbackMoves hand={h} onMove={(a) => room.ungraded(a, focus)} />}
-          {t.failed && moving && (
-            <button type="button" className="underline" onClick={() => room.playOn(focus)}>
-              Play on: {seatLabel(moving.seat, h.players)} checks or calls (not a solve)
+    <>
+      {/* (only what you'd act on, as the whole dock read out at each change would run over the next one) */}
+      <p role="status" aria-atomic="true" className="sr-only">
+        {ready ? `Table ${focus + 1}: your turn` : state.tone === "fail" ? `Table ${focus + 1}: ${state.text}` : ""}
+      </p>
+      <section aria-label="Your move" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+        {/* (focus only rests here, nothing happens on it: a ring would read as a field to type in) */}
+        <h2 ref={head} tabIndex={-1} className="font-medium outline-none!">
+          Table {focus + 1} · {ready ? `your turn · ${seat} · ${sim.current} · pot ${fmt(sim.pot)}bb` : state.text}
+        </h2>
+        {ready && (
+          <>
+            <div role="group" aria-label="Your options" aria-disabled={guarded || undefined} className={`flex flex-wrap gap-2 ${guarded ? "opacity-50" : ""}`}>
+              {options.map((a, i) => (
+                <button
+                  key={`${focus}|${key}|${a.action}`}
+                  type="button"
+                  aria-disabled={guarded || undefined}
+                  onClick={() => room.choose(focus, key, i)}
+                  className="rounded-md border border-border bg-surface-2 px-3 py-1.5 hover:bg-surface-3"
+                >
+                  {i < 9 && (
+                    <span aria-hidden className="mr-1.5 text-xs text-faint">
+                      {i + 1}
+                    </span>
+                  )}
+                  {optionLabel(a.action, a.amount_bb)}
+                </button>
+              ))}
+            </div>
+            {/* (one line, what waits and no keys below `sm`: as it wrapped it moved the options under your thumb) */}
+            <p className="min-h-4 text-xs text-muted">
+              {more > 0 && `${more} more waiting`}
+              <span className="hidden sm:inline">
+                {more > 0 ? " · S next table · " : ""}F fold · C or X check or call · 1&ndash;{Math.min(options.length, 9)} your options
+              </span>
+            </p>
+          </>
+        )}
+        {(t.failed || t.spent) && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2" onClick={() => room.retry(focus)}>
+              {t.spent ? "Try again" : "Ask again"}
             </button>
-          )}
-        </div>
-      )}
-      {!ready && next !== undefined && (
-        <p>
-          Table {next + 1} is waiting for you ·{" "}
-          <button type="button" className="underline" onClick={() => room.skip()}>
-            Go (S)
-          </button>
-        </p>
-      )}
-      {!ready && next === undefined && state.tone !== "fail" && (
-        <p className="flex items-center gap-2 text-muted">
-          <Spinner />
-          {busy ? `No table needs you yet: working on ${busy} table${busy === 1 ? "" : "s"}.` : "Dealing the next hands…"}
-        </p>
-      )}
-    </section>
+            {t.failed && ph.kind === "hero" && <FallbackMoves hand={h} onMove={(a) => room.ungraded(a, focus)} />}
+            {t.failed && moving && (
+              <button type="button" className="underline" onClick={() => room.playOn(focus)}>
+                Play on: {seatLabel(moving.seat, h.players)} checks or calls (not a solve)
+              </button>
+            )}
+          </div>
+        )}
+        {!ready && next !== undefined && (
+          <p>
+            Table {next + 1} is waiting for you ·{" "}
+            <button type="button" className="underline" onClick={() => room.skip()}>
+              Go (S)
+            </button>
+          </p>
+        )}
+        {!ready && next === undefined && state.tone !== "fail" && (
+          <p className="flex items-center gap-2 text-muted">
+            <Spinner />
+            {busy ? `No table needs you yet: working on ${busy} table${busy === 1 ? "" : "s"}.` : "Dealing the next hands…"}
+          </p>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -218,14 +266,15 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
           Last hand: #{last.n + 1} · {seatLabel(last.seat, t.hand.players)} · {resultLine(last.result)}
         </p>
       )}
-      {s.n > 0 && <p className="text-xs text-muted">Graded against: {sourcesText(t.sources)}</p>}
+      {/* (none, beside a count: the doc's were unreadable, not that nothing was graded) */}
+      {s.n > 0 && <p className="text-xs text-muted">Graded against: {sourcesText(Object.keys(t.sources).length ? t.sources : null)}</p>}
     </li>
   );
 }
 
 /** The tables, the dock and the rail (`snap`: the Room's, which the page holds). `active`: its tab is the one shown (its
- * keys work only then). */
-export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnapshot; active: boolean }) {
+ * keys work only then). `pressRef`: set by a press above that brings tables up, as what had focus may have gone with it. */
+export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap: RoomSnapshot; active: boolean; pressRef: RefObject<boolean> }) {
   const { session, tables, kept, focus, queue, ended } = snap;
   const keepAll = useSettings((s) => s.keepHands);
   const setSettings = useSettings((s) => s.set);
@@ -255,15 +304,16 @@ export function MultiTables({ room, snap, active }: { room: Room; snap: RoomSnap
     room.pick(i);
     toDock();
   };
-  // (a field too, where Enter started the session: your next key is an option, not a digit for it. From nowhere, as a
-  // reload brings the tables back, it stays nowhere. A press up there also brings the tables up, or they'd open out of
-  // sight below the setup.)
+  // (a field too, where Enter started the session: your next key is an option, not a digit for it. Only after a press up
+  // there, which also brings the tables up, or they'd open out of sight below the setup: tables coming back by themselves,
+  // from a reload or from another page, leave focus and the page where they were.)
   const top = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (document.activeElement === document.body) return;
+    if (!pressRef.current) return;
+    pressRef.current = false;
     head.current?.focus({ preventScroll: true });
     top.current?.scrollIntoView?.({ block: "start" });
-  }, [session.id, tables.length]);
+  }, [session.id, tables.length, pressRef]);
 
   // F, C and X go by what the option is, so they stay put when the order flips; 1–9 by its place; S the next waiting
   // table; Enter or Space deal finished tables now (on a focused control, it's that control's own, and with nothing

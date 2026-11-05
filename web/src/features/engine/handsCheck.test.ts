@@ -836,7 +836,7 @@ describe("asking ahead in the check", () => {
     expect(r.requests.reached).toBe(r.requests.answered + r.requests.stopped);
     expect(r.ahead!.asked).toBeGreaterThan(0);
     expect(r.ahead!.spentS).toBeGreaterThan(0);
-    expect(aheadLine(r)).toMatch(/^\d+ of \d+ used · about \d+ s of waiting saved for \d+ s of solver time$/);
+    expect(aheadLine(r)).toMatch(/^\d+ of \d+ postflop look-aheads used · about \d+ s saved with no other table waiting, for \d+ s of solver time$/);
   });
 
   it("still fails on a look-ahead that failed by itself, as nothing stopped it", async () => {

@@ -128,7 +128,7 @@ export interface HandsCheckReport {
   /** verdicts by what answered them, in `sourceLabel`'s words */
   bySource: Record<string, number>;
   failures: CheckFailure[];
-  /** seconds from a postflop spot reaching you to its answer being in hand */
+  /** seconds from a postflop spot reaching you to its answer being in hand: the pace and an opponent's own move aren't in it */
   waits: { n: number; medianS: number | null; p90S: number | null };
   /** those that reached the solver, and what became of them; the seconds are whole answers', a stopped one's says nothing.
    * Preflop's charts answer at once and can make up most of a run, so `postflopMedianS` is the one that can show a solver

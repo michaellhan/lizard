@@ -47,6 +47,10 @@ const stub = vi.hoisted(() => {
   return s;
 });
 vi.mock("@/solver/useSolver", () => ({ useSolver: () => stub.getSolver }));
+vi.mock("@/data/db", async (orig) => {
+  const db = await orig<typeof import("@/data/db")>();
+  return { ...db, kvGet: vi.fn(db.kvGet) };
+});
 
 afterEach(() => {
   stub.calls = [];
@@ -123,6 +127,43 @@ describe("FullHands on a Room", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ask again" }));
     await screen.findByRole("group", { name: "Your options" });
     expect(screen.queryByRole("group", { name: "Moves without a grade" })).toBeNull();
+  });
+
+  it("leaves Enter on a summary to open it at a hand's end, and deals on it nowhere else", async () => {
+    stub.advice = () => CHART;
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    heads();
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: /fold/i }));
+    await screen.findByRole("button", { name: "Next hand" });
+    fireEvent.keyDown(screen.getByText("How decisions are graded"), { key: "Enter" });
+    expect(screen.getByRole("button", { name: "Next hand" })).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Enter" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Next hand" })).toBeNull());
+  });
+
+  it("says a kept session couldn't be read in time and that nothing's kept yet, until it has been", async () => {
+    const real = vi.mocked(kvGet).getMockImplementation()!;
+    let answer = () => {};
+    vi.mocked(kvGet).mockImplementation(((k: string) => (k === KEPT_KEY ? new Promise<void>((r) => (answer = r)) : real(k))) as typeof kvGet);
+    stub.advice = () => CHART;
+    stub.move = () => ({ action: "fold" });
+    try {
+      render(
+        <MemoryRouter>
+          <PracticePage pace={0} />
+        </MemoryRouter>,
+      );
+      const note = await screen.findByText(/Any session kept in this browser couldn.t be read in time, so this is a new one. Nothing here is kept until it has been read./, undefined, { timeout: 3000 });
+      expect(note).toHaveAttribute("role", "status");
+      await act(async () => answer());
+      await waitFor(() => expect(note).not.toBeInTheDocument());
+    } finally {
+      vi.mocked(kvGet).mockImplementation(real);
+    }
   });
 
   it("asks again when the mode changes", async () => {

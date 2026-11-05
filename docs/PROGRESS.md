@@ -3532,6 +3532,88 @@ gtosolver checkout, and its worker changed PID while it ran; neither is from thi
 
 ### Next
 
-- Phase 1, still open: multitabling, the 20-hand engine check, asking ahead.
+- Phase 1: multitabling, the 20-hand engine check and asking ahead are done, in the section after this one.
 - Phase 2: what stays PARTIAL is in `FEATURE_MATRIX.md`: fixed thresholds, charts preflop, and grades not tied to the
   chart or library version they stood on.
+
+## Phase 1, multitabling, asking ahead and the engine check (2026-11-04)
+
+Up to four tables on one `Room`, asking ahead for your likely lines, and Play 20 hands on the Engine page. What each
+does and its grade are in `FEATURE_MATRIX.md`; this section keeps what was measured and what the last review changed.
+
+### Measured: the four runs that set the default
+
+Play 20 hands on the Engine page, on the real worker, build `9b907bd6/3a94eea354`: 6-max 100bb, Any hand, Quick, 3 s to
+think a decision, each run from a reload. An Apple M4 Mac with 10 cores, cross-origin isolated (a stop is cheap), under
+load from the precompute builds. All four passed: 20 hands, no request errors, no worker ended.
+
+The wait is from a postflop spot reaching you to its answer being in hand, so the pace and an opponent's own move aren't
+in it. "Under 0.01" is a median the report rounds to 0.00 s.
+
+| Tables | Asking ahead | Deals | Verdicts | Run (s) | Spots | Wait, median (s) | Wait, p90 (s) | Requests | Request, median (s) | Postflop request, median (s) | Meter |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | off | `1xjfbiv` | 42 | 202.61 | 20 | 0.02 | 0.46 | 179 | 0.01 | 0.02 | none |
+| 1 | on | `1xjfbiv` | 49 | 228.10 | 27 | under 0.01 | 0.02 | 205 | 0.01 | 0.02 | 56 of 65 used, 5.06 s saved, 8.33 s spent |
+| 4 | off | `ebh3r9` | 58 | 176.15 | 33 | 0.03 | 1.14 | 202 | 0.01 | 0.03 | none |
+| 4 | on | `ebh3r9` | 42 | 158.91 | 19 | 0.01 | 0.48 | 183 | 0.01 | 0.02 | 22 of 29 used, 0.00 s saved, 1.61 s spent |
+
+**The default.** `ASK_AHEAD` is true, in Practice until you say and in the Engine page's box: at one table and at four the
+median wait fell, and a request took no longer, on or off.
+
+What these runs can't say:
+
+- **Quick only, one Mac, under load.** Accurate and phones are unmeasured, so nothing here says what asking ahead costs a
+  phone or what it does at Accurate, where a short request is rare.
+- **The p90s aren't a like-for-like fall.** Each run plays its own lines on the same deals, with 19 to 33 spots in each,
+  so the 90th percentile moved on one or two spots and can't be pinned on asking ahead alone.
+- **The meter in these runs isn't today's.** It counted preflop look-aheads, which are chart reads, so asked and used here
+  can be largely those; the report didn't split them by street. It now counts postflop only, so a later run's figures
+  won't compare with these.
+- **Saved reads about 0 s at four tables by what it counts.** Saved time counts only where you had no other table to play,
+  and the line now says so.
+- **A stuck worker wasn't met.** No run ended a worker, so the back-off below has only run on a stubbed solver.
+
+A fifth run, on a page with no isolation (four tables, no time to think, asking ahead ticked, a stop ends the worker),
+passed in 40.21 s with nothing asked ahead, as it should: median wait 0.10 s, p90 1.90 s over 30 spots.
+
+### What the review changed
+
+- **Asking ahead backs off.** After a stop that ended a worker nothing is asked ahead for the rest of the page's life,
+  whatever the box says, the page saying so, and each table's solved streets count as gone with that worker.
+- **A slow kept read loses nothing.** Past a second the page starts fresh and says so, and no tables are written until the
+  read has answered: the session comes back if you haven't moved, and if you have it's known, and can be replaced.
+- **A hung flop index no longer stops the tables.** Its read is bounded at 30 s, past which they play Any hand and say why.
+- **The local server's stop is sent again** every 250 ms until the request settles, as a stop that arrives before its
+  /advise is cleared by it. One sent just as a request ends can stop the next, which is then asked again.
+- **A hand that ended just before a reload** can still be kept with K.
+- **Words.** The wait is called what it is. The page no longer says "GTO opponents", or "Solving your spot" where a chart
+  or the betting rules will answer. A past session says "best or correct". The tooltip says a rare look-ahead can run on,
+  and a table whose sources couldn't be read says "Not kept", not "No decision graded".
+- **Reading and keys.** The dock tells a screen reader only your turn and a failure; the check's status line is one element,
+  told each hand and at the end; Copied is said each time; a phone's dock hint stays on one line; a failure takes the
+  place of a tile's foot, so the tile can't grow; Spots and Seat keep focus on an arrow's step; Play and Stop ignore a
+  double-click's second press; Enter on a summary opens it at one table.
+- **Focus and setup.** Only a press on this page takes you to the dock, a changed setup's New session included, and the
+  setup keeps what you've typed as tables go above one, in the one form.
+
+### Left as documented limits
+
+A look-ahead past 4 s with nothing real waiting runs on until you move (`scheduler.ts` `plan`). The meter reads about a
+quarter low at the page's 450 ms pace. A new worker is told only the last flop. One table at Accurate fetches the flop
+index, about 730 KB. A Stopped report is drawn in the failed colours. Not looked at further: hands from before b6503da not
+marked with what they were played for, the chart draw refused on Retry, and tests sensitive to timing.
+
+### Tests actually run
+
+Unit tests on a stubbed solver through `slot.sh`, with `tsc` and eslint on what changed, each fix's own test seen failing
+with the fix taken out by hand. No browser, dev server or real solve for this review's fixes, so what they change on a
+real worker is unchecked.
+
+### Precompute builds
+
+Untouched. The suites went through `slot.sh`, and nothing here ran `quiet.sh`.
+
+### Next
+
+- Phase 1: measure Accurate and a phone on Play 20 hands, and meet a real stuck worker.
+- Phase 2: what stays PARTIAL is in `FEATURE_MATRIX.md`.

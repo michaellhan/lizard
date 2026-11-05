@@ -43,7 +43,7 @@ export interface TableState {
 }
 
 /** What your spot is waiting on, by what will answer it (provenance.ts's `sourceOf`): only the rest is a solve. */
-const answering = (sim: Sim) => (sim.current === "preflop" ? "Reading the chart…" : sim.current !== "river" && sim.active.size >= 5 ? "Reading the betting rules…" : "Solving your spot…");
+export const answering = (sim: Sim) => (sim.current === "preflop" ? "Reading the chart" : sim.current !== "river" && sim.active.size >= 5 ? "Reading the betting rules" : "Solving your spot");
 
 export function stateOf(t: RoomTable, i: number, queue: readonly number[]): TableState {
   const { hand: h, failed } = t;
@@ -58,7 +58,7 @@ export function stateOf(t: RoomTable, i: number, queue: readonly number[]): Tabl
   if (seeking(h)) return state("seek", `Dealing ${potLabel(h.pot!)}…`, true);
   const q = queue.indexOf(i);
   if (q >= 0) return state("wait", "Your turn", false, queue.length > 1 ? q + 1 : 0);
-  if (ph.kind === "hero") return state("think", answering(sim), true);
+  if (ph.kind === "hero") return state("think", `${answering(sim)}…`, true);
   return state("think", moving ? `${seatLabel(moving.seat, h.players)} is thinking…` : "Dealing…", true);
 }
 
@@ -102,6 +102,7 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
   const decided = h.decisions.at(-1);
   const verdict = decided && verdictLine(decided);
   const charted = !!h.pot && h.shown >= 3;
+  const trouble = state.tone === "fail" ? state.text : t.error;
   return (
     <section
       id={`practice-table-${i}`}
@@ -148,32 +149,35 @@ export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; 
           <SeatChip key={p} hand={h} sim={sim} p={p} />
         ))}
       </ul>
-      {/* (four lines held from `sm`: your made hand, a verdict's two, the charted one) */}
-      <div className="space-y-0.5 text-xs sm:min-h-16">
-        {state.tone === "fail" && (
-          <p role="alert" className="text-danger">
-            {state.text}{" "}
-            <button
-              type="button"
-              className="underline"
-              onClick={(e) => {
-                // (not a pick: you may be asking again in passing)
-                e.stopPropagation();
-                onRetry();
-              }}
-            >
-              Retry
-            </button>
-          </p>
+      {/* (four lines held from `sm`, with their gaps: your made hand, a verdict's two, the charted one; or in their place what
+          went wrong, three lines at most from `sm` and its Retry, as a tile growing would move the dock. The dock has it whole) */}
+      <div className="space-y-0.5 text-xs sm:min-h-17">
+        {trouble ? (
+          <div role="alert" className="text-danger">
+            <p title={trouble} className="sm:line-clamp-3">
+              {trouble}
+            </p>
+            {state.tone === "fail" && (
+              <button
+                type="button"
+                className="underline"
+                onClick={(e) => {
+                  // (not a pick: you may be asking again in passing)
+                  e.stopPropagation();
+                  onRetry();
+                }}
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            {made && <p className="text-muted">{made}</p>}
+            {verdict && <p title={verdict.title}>{verdict.text}</p>}
+            {charted && <p className="text-muted">≈ Preflop from the charts, not solved</p>}
+          </>
         )}
-        {t.error && !t.spent && (
-          <p role="alert" className="text-danger">
-            {t.error}
-          </p>
-        )}
-        {made && <p className="text-muted">{made}</p>}
-        {verdict && <p title={verdict.title}>{verdict.text}</p>}
-        {charted && <p className="text-muted">≈ Preflop from the charts, not solved</p>}
       </div>
     </section>
   );

@@ -15,15 +15,17 @@
 //
 // Instant flops is what's dealt above one table unless you choose otherwise: each hand is played for you from the flop
 // library's index (flops.ts) until it reaches a heads-up flop the library holds, so a table deals nothing until the index
-// has settled, and where it can't be read, or holds no spot of this game, the tables play Any hand and say why. Hands
-// being dealt to a pot, a drill's too, draw their seats' moves from one chart a node (`charts`) in the game the charts are:
+// has settled, which INDEX_WAIT bounds, and where it can't be read, or holds no spot of this game, the tables play Any hand
+// and say why. Hands being dealt to a pot, a drill's too, draw their seats' moves from one chart a node (`charts`) in the
+// game the charts are:
 // a chart that can't be drawn from is held as null and its seats are asked one by one, and a chart nobody got an answer to
 // holds nothing, so it's asked again. At one table nothing is drawn, as there every move is asked in order.
 //
 // `start`, `stop`, `start` works, as StrictMode runs it. `start` reads the kept doc first, raced against KEPT_WAIT
 // because `kvGet` waits for ever while an older tab blocks an upgrade, and sends nothing until that settles: a New
-// session meanwhile wins, and a read that times out starts fresh and leaves the doc alone. The page draws the hand all the
-// while. Two tables or more in the doc come back (keep.ts) once Settings have loaded, as the mode and each deal read
+// session meanwhile wins. A read that times out starts fresh and the page says so (`keptRead`), and no tables are written
+// until it has answered, as they'd go over a doc nobody has seen: if you haven't moved by then the session comes back all
+// the same, and if you have, the doc is known and can be replaced. The page draws the hand all the while. Two tables or more in the doc come back (keep.ts) once Settings have loaded, as the mode and each deal read
 // them, or at KEPT_WAIT. Answers aren't kept, so that's where a restored session's requests begin: each table asks what it
 // needs from where its hand stands, as any table does, your spot again, an opponent's move drawn afresh, a next hand after
 // `pause`. The doc is written at once after a decision, a hand's end or a change of tables and otherwise at most twice a
@@ -38,7 +40,8 @@
 // took isn't stopped and the solver isn't left idle. What a look-ahead failed on goes in `aheadBad`, which only a walk
 // reads, so no table shows it. A real job always goes by its group, ahead of a look-ahead's unless it's a long solve at
 // the table in front, where a look-ahead gives way only once it has run past SHORT, and what's looked ahead for and gone
-// dead is stopped like any flight.
+// dead is stopped like any flight. A stop that ends a worker has cost the wait and every solve it held, so after one nothing
+// is asked ahead for the Room's life, whatever the box says, and the page says why.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
@@ -122,6 +125,16 @@ export interface RoomFlops {
   /** this session's game, in words */
   game: string;
 }
+
+/** A kept session's read past KEPT_WAIT: `waiting`, it hasn't answered, so you're on a fresh session and no tables are
+ * written; `passed`, it came with a session you'd already moved on from. */
+export type KeptRead = "waiting" | "passed";
+
+/** What that means for you, in words. */
+export const keptNote = (k: KeptRead) =>
+  k === "waiting"
+    ? "Any session kept in this browser couldn't be read in time, so this is a new one. Nothing here is kept until it has been read."
+    : "The session kept in this browser was read too late to bring back, as you'd already begun this one. Playing above one table replaces it, though History keeps its record.";
 
 /** Why Instant flops isn't on offer, in words, as a phone has no tooltip. `spot`: what's being played. */
 export function flopsNote(f: RoomFlops, spot: Spot): string | null {
@@ -215,6 +228,8 @@ export interface RoomSnapshot {
   stopCost: StopCost | null;
   flops: RoomFlops;
   ahead: { on: boolean; meter: AheadMeter };
+  /** the kept session's read, where it hasn't gone as it should */
+  keptRead: KeptRead | null;
 }
 
 /** A wait: the seconds from your turn to its buttons. `table`: from 1. */
@@ -298,6 +313,8 @@ const SEEN_KEEP = 1000;
 /** ms the kept doc's read may hold the first request (a hung read starts fresh and leaves the doc alone), and a session
  * read back may wait for Settings */
 const KEPT_WAIT = 1000;
+/** ms the flop index's read may hold a table: past it the read counts as failed, and the tables play Any hand and say why */
+const INDEX_WAIT = 30_000;
 /** ms between saves of the doc, but for those that go at once */
 const SAVE_EVERY = 500;
 const LOST_HAND = "This table's hand couldn't be brought back, so it was dealt again. Its results are kept.";
@@ -349,6 +366,7 @@ export class Room {
   private holdTimer: ReturnType<typeof setTimeout> | undefined;
   /** what's left of the hold once Settings have loaded, where a session has been read back */
   private onLoaded: (() => void) | null = null;
+  private keptRead: KeptRead | null = null;
   /** a `start`'s number, so a read from before a `stop` is ignored */
   private run = 0;
   private offSettings: (() => void) | null = null;
@@ -519,27 +537,51 @@ export class Room {
   }
 
   /** Nothing is asked until the doc has been read and what it holds brought back, all within KEPT_WAIT: a read that
-   * hasn't answered by then is ignored when it does, and a session read back goes on without Settings. */
+   * hasn't answered by then goes on to `readLate`, and a session read back goes on without Settings. */
   private hold(): void {
     const run = (this.run += 1);
     let doc: KeptTables | null = null;
+    let answered = false;
     const go = () => {
       if (run !== this.run || !this.holding) return;
       this.endHold();
       // (nothing done during the read is a reason to touch a doc nobody had seen)
       this.clearDoc = false;
+      if (!answered) this.keptRead = "waiting";
       if (doc) this.restore(doc);
       this.pump();
     };
     const read = (x: unknown) => {
-      if (run !== this.run || !this.holding) return;
+      answered = true;
+      const late = this.keptRead === "waiting";
+      if (!late && (run !== this.run || !this.holding)) return;
       if (x === undefined || x === null) this.saved = null;
       doc = this.fixed ? null : keptTables(x);
-      if (!doc || useSettings.getState().loaded) go();
+      if (late) this.readLate(doc);
+      else if (!doc || useSettings.getState().loaded) go();
       else this.onLoaded = go;
     };
+    const failed = () => {
+      answered = true;
+      if (this.keptRead === "waiting") this.readLate(null);
+      else go();
+    };
     this.holdTimer = setTimeout(go, KEPT_WAIT);
-    void this.readKept().then(read, go);
+    void this.readKept().then(read, failed);
+  }
+
+  /** The read that timed out has answered, no tables having been written since. If you haven't moved, the session comes
+   * back in place of what was dealt, as it would have in time. If you have, what you've begun stays, the page says so,
+   * and the doc has at least been seen, so this session can go over it. */
+  private readLate(doc: KeptTables | null): void {
+    this.keptRead = doc && this.begun ? "passed" : null;
+    if (doc && this.begun) {
+      this.saved = doc;
+    } else if (doc) {
+      for (const t of [...this.tables, ...this.spare]) if (t) this.clearTimer(t);
+      this.restore(doc);
+    }
+    this.pump();
   }
 
   private endHold(): void {
@@ -557,6 +599,8 @@ export class Room {
     this.tables.splice(0, this.tables.length, ...(back.slice(0, k.n) as Table[]));
     this.spare = back.map((t, i) => (i < k.n ? undefined : t));
     this.front = { ...FREE, focus: k.focus };
+    // (a hand that had ended as the page went can still be kept, K going to the last of them dealt: its end isn't in the doc)
+    this.endedAt = this.tables.reduce<Table | null>((last, t) => (t.finished && (!last || t.hand.n > last.hand.n) ? t : last), null);
   }
 
   /** A table from the doc. A hand that's lost is dealt again as any new hand, its results kept, and the table says so. */
@@ -572,6 +616,7 @@ export class Room {
       t.sources = kept.sources ?? t.sources;
       t.last = kept.last;
       t.lastHand = kept.lastHand;
+      if (kept.hand?.result) t.finished = kept.hand;
     }
     return t;
   }
@@ -603,6 +648,8 @@ export class Room {
     this.resetStacks = false;
     this.endedAt = null;
     this.endHold();
+    // (a session given up unread goes as one read would)
+    this.keptRead = null;
     this.saveNow = this.clearDoc = true;
     this.pump();
   }
@@ -632,7 +679,11 @@ export class Room {
       else this.session = afterDeal(this.session);
     }
     if (this.front.focus >= to) this.front = FREE;
-    if (to === 1) this.resetStacks = this.clearDoc = true;
+    if (to === 1) {
+      this.resetStacks = true;
+      // (not a doc nobody has read: only a New session gives that up)
+      this.clearDoc = this.keptRead !== "waiting";
+    }
     this.saveNow = true;
     this.pump();
   }
@@ -933,7 +984,7 @@ export class Room {
    * left in that, so it's the table's own request, though it hasn't got there. Only where asking ahead runs: elsewhere a
    * table asks on arriving, as it always has. */
   private nextUp(t: Table, mode: SolveMode): Asked | null {
-    if (!this.askAhead || this.stopCost !== "cheap") return null;
+    if (!this.looksAhead) return null;
     return onward(t.hand, mode, { adv: this.adv, moves: this.moves, bad: this.failed });
   }
 
@@ -948,11 +999,10 @@ export class Room {
     return since;
   }
 
-  /** What's asked ahead for the tables waiting for you: nothing unless it's on, the page is on screen with this tab shown
-   * (it's CPU for a move nobody is about to make), and a wrong guess can be stopped, as it would otherwise block your real
-   * request. `real`: what the tables want, which it never doubles. */
+  /** What's asked ahead for the tables waiting for you: nothing unless it runs here, and the page is on screen with this tab
+   * shown (it's CPU for a move nobody is about to make). `real`: what the tables want, which it never doubles. */
   private aheads(real: readonly Job[], mode: SolveMode): Job[] {
-    if (!this.askAhead || !this.active || document.visibilityState !== "visible" || this.stopCost !== "cheap") return [];
+    if (!this.looksAhead || !this.active || document.visibilityState !== "visible") return [];
     const waiting = this.tables.flatMap((t, table): Waiting[] => {
       const answer = this.adv.get(t.turnKey ?? "");
       return answer ? [{ table, hand: t.hand, answer }] : [];
@@ -990,11 +1040,12 @@ export class Room {
   }
 
   /** A look-ahead's time onto the meter, once: as it settles, or as a table takes it up, when the rest of it is a wait like
-   * any other. One that never reached the client cost nothing. */
+   * any other. One that never reached the client cost nothing, and a preflop one is a chart read, which isn't on the meter
+   * at all: a chain of them would read as solves hit. */
   private spend(fl: Flight): void {
     if (!fl.ahead) return;
     fl.ahead = false;
-    if (fl.sent) this.meter = { ...this.meter, spentS: this.meter.spentS + (this.now() - fl.at) / 1000 };
+    if (fl.sent && fl.job.need.street !== "preflop") this.meter = { ...this.meter, spentS: this.meter.spentS + (this.now() - fl.at) / 1000 };
   }
 
   /** You've moved at the table: the first in the queue comes forward, and a pin is over (`refocus`). */
@@ -1071,12 +1122,15 @@ export class Room {
     return needOf(h, mode, sim, this.many ? this.charts : undefined);
   }
 
-  /** The index, into `lib`. Its size only says whether Instant flops can be dealt: a read that fails holds nothing. */
+  /** The index, into `lib`. Its size only says whether Instant flops can be dealt: a read that fails holds nothing, and
+   * nor does one still out at INDEX_WAIT, whose late answer is then ignored like any other. */
   private readLib(): void {
     const run = (this.libRun += 1);
     this.libState = "loading";
     const settle = (index: unknown) => {
       if (run !== this.libRun) return;
+      this.libRun += 1;
+      clearTimeout(wait);
       // (past `.then`'s rejection handler: a throw here would leave the tables on "loading" for good)
       try {
         this.lib = instantSpots(index);
@@ -1086,6 +1140,7 @@ export class Room {
       this.libState = this.lib.length ? "ok" : "failed";
       this.pump();
     };
+    const wait = setTimeout(() => settle(null), INDEX_WAIT);
     void this.readIndex().then(settle, () => settle(null));
   }
 
@@ -1134,7 +1189,7 @@ export class Room {
       // (walked from the last client's answers, which have just gone, and this one may not take back a wrong guess)
       if (fl.ahead && fresh) throw new SolverError("cancelled", "cancelled");
       fl.sent = true;
-      if (fl.ahead) {
+      if (fl.ahead && need.street !== "preflop") {
         this.meter = { ...this.meter, asked: this.meter.asked + 1 };
         this.emit();
       }
@@ -1191,7 +1246,7 @@ export class Room {
         this.adv.set(need.key, r);
         trim(this.adv);
       }
-      if (ahead || fl.promoted) {
+      if ((ahead || fl.promoted) && need.street !== "preflop") {
         this.aheadHeld.set(need.key, s);
         trim(this.aheadHeld);
       } else this.aheadHeld.delete(need.key);
@@ -1214,7 +1269,11 @@ export class Room {
     this.seen.delete(key);
     const kind = e instanceof SolverError ? e.kind : null;
     const give = (why: string) => this.miss(fl.job, why);
-    if (kind === "stuck") this.restarts += 1;
+    if (kind === "stuck") {
+      this.restarts += 1;
+      // (the new worker holds none of those solves, and `useClient` won't say so: it's the same client)
+      for (const t of [...this.tables, ...this.spare]) t?.solved.clear();
+    }
     if (!fl.stopping) {
       if (kind !== "cancelled" && kind !== "stuck") {
         give(message(e));
@@ -1273,6 +1332,17 @@ export class Room {
 
   private get askAhead(): boolean {
     return this.fixedAhead ?? useSettings.getState().askAhead ?? ASK_AHEAD;
+  }
+
+  /** Asking ahead runs here: it's on, a wrong guess can be stopped, as it would otherwise block your real request, and no
+   * stop has ended a worker. */
+  private get looksAhead(): boolean {
+    return this.askAhead && this.stopCost === "cheap" && this.restarts === 0;
+  }
+
+  /** You've moved, so a session read back now would take that from you. */
+  private get begun(): boolean {
+    return this.session.hands > 0 || this.session.score.n > 0 || [...this.tables, ...this.spare].some((t) => t?.hand.decisions.length);
   }
 
   private get ended(): RoomSnapshot["ended"] {
@@ -1360,6 +1430,7 @@ export class Room {
       stopCost: this.client ? this.stopCost : null,
       flops: this.flops,
       ahead: { on: this.askAhead, meter: this.meter },
+      keptRead: this.keptRead,
     };
   }
 
@@ -1409,12 +1480,13 @@ export class Room {
   /** The doc into this browser where it's changed: at once after a decision, a hand's end, a change of tables or a New
    * session, otherwise at most twice a second, as a drill's deals flash by (multitable.js:63-72, though a save waiting
    * here isn't put off by the next change, so a stream of them can't starve it). At one table nothing is kept, and only
-   * `clearDoc` clears what's there: nothing else is a reason to touch a doc this Room couldn't read. A write the browser
-   * refuses leaves `saved` unsaid, unless a later one has claimed it, so the next save tries again. Two tabs: the last to
-   * write wins. */
+   * `clearDoc` clears what's there: nothing else is a reason to touch a doc this Room couldn't read. No tables are written
+   * while the read hasn't answered: they'd go over a session nobody has seen. A write the browser refuses leaves `saved`
+   * unsaid, unless a later one has claimed it, so the next save tries again. Two tabs: the last to write wins. */
   private save(force = this.saveNow): void {
     if (!this.persist || !this.live || this.holding) return;
     const doc = this.many ? this.doc() : null;
+    if (doc && this.keptRead === "waiting") return;
     const changed = doc ? !sameKept(doc, this.saved) : this.clearDoc && this.saved !== null;
     const left = this.savedAt + SAVE_EVERY - this.now();
     if (changed && !force && left > 0) {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpTransport } from "./http-transport";
 
 // a fetch that records each call and answers with `body`
@@ -12,6 +12,37 @@ function fake(body: unknown, status = 200) {
 }
 
 describe("HttpTransport", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("says stop again until the request settles, as the server clears a stop as an /advise comes in, and not after", async () => {
+    vi.useFakeTimers();
+    const urls: string[] = [];
+    let settle = (_: Response) => {};
+    const fetchImpl = ((url: string) => {
+      urls.push(url);
+      return url.endsWith("/cancel") ? Promise.resolve(new Response("{}")) : new Promise<Response>((r) => (settle = r));
+    }) as unknown as typeof fetch;
+    const ac = new AbortController();
+    const out = new HttpTransport({ url: "http://127.0.0.1:8765", fetchImpl }).request({ players: 2 }, { progressive: false, signal: ac.signal });
+    const stops = () => urls.filter((u) => u.endsWith("/cancel")).length;
+    expect(stops()).toBe(0);
+
+    ac.abort();
+    expect(stops()).toBe(1);
+    await vi.advanceTimersByTimeAsync(249);
+    expect(stops()).toBe(1);
+    await vi.advanceTimersByTimeAsync(251);
+    expect(stops()).toBe(3);
+
+    settle(new Response(JSON.stringify({ cancelled: true })));
+    await expect(out).rejects.toMatchObject({ kind: "cancelled" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(stops()).toBe(3);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("POSTs a state to /advise", async () => {
     const f = fake({ street: "flop", actions: [] });
     const t = new HttpTransport({ url: "http://127.0.0.1:8765/", fetchImpl: f.fetchImpl });

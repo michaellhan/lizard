@@ -108,9 +108,9 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
 }
 
 /** Asking ahead, by the mode picker: a wrong guess has to be taken back, so a browser where a stop would end the solver
- * can't have it, and says so in words, as a phone has no tooltip. The box gives focus back once set: on it the page's keys
- * don't work. */
-export function AskAhead({ stopCost }: { stopCost: StopCost | null }) {
+ * can't have it, and says so in words, as a phone has no tooltip. Nor can a page where a stop has ended one (`restarts`).
+ * The box gives focus back once set: on it the page's keys don't work. */
+export function AskAhead({ stopCost, restarts }: { stopCost: StopCost | null; restarts: number }) {
   const saved = useSettings((s) => s.askAhead);
   const set = useSettings((s) => s.set);
   const kills = stopCost === "kills";
@@ -118,7 +118,7 @@ export function AskAhead({ stopCost }: { stopCost: StopCost | null }) {
     <div className="flex flex-wrap items-center gap-x-2 text-sm">
       <label
         className="flex items-center gap-1.5"
-        title="While you decide, the solver works on your likeliest next spots, so an answer can be there when you reach one. It's the same answer, and it uses the solver while you think. Nothing long is asked ahead."
+        title="While you decide, the solver works on your likeliest next spots, so an answer can be there when you reach one. It's the same answer, and it uses the solver while you think. Only what should be quick is asked ahead, though a rare one can run on until you move."
       >
         <input
           type="checkbox"
@@ -133,15 +133,17 @@ export function AskAhead({ stopCost }: { stopCost: StopCost | null }) {
         <span className="text-muted">Ask ahead</span>
       </label>
       {kills && <span className="text-xs text-muted">Off: this browser can&rsquo;t stop a solve, so a wrong guess would hold up your next answer.</span>}
+      {!kills && restarts > 0 && <span className="text-xs text-muted">Off on this page: the solver didn&rsquo;t answer a stop and had to restart.</span>}
     </div>
   );
 }
 
-/** How asking ahead has gone, under the score, once it has run. While it's on its room is kept, or the page would move
- * as the first look-ahead goes out, just as the options you're about to press have come up. */
+/** How asking ahead has gone, under the score, once it has run: since the Room began, which is this page opening, as it
+ * isn't kept with the session and New session leaves it. While it's on its room is kept, a phone's being three lines, or the
+ * page would move as the first look-ahead goes out, just as the options you're about to press have come up. */
 export function AheadLine({ on, meter }: { on: boolean; meter: AheadMeter }) {
   if (!on && !meter.asked) return null;
-  return <p className="min-h-8 text-xs text-muted">{meter.asked > 0 && `Asking ahead, measured in this browser: ${meterLine(meter)}`}</p>;
+  return <p className="min-h-12 text-xs text-muted sm:min-h-8">{meter.asked > 0 && `Asking ahead, measured in this browser since this page opened: ${meterLine(meter)}`}</p>;
 }
 
 /** Your decisions this session (review.ts): the last few, newest first, or your biggest mistakes once asked for,

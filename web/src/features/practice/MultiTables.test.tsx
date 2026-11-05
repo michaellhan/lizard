@@ -16,7 +16,7 @@ import { HttpTransport } from "@/solver/http-transport";
 import { describe as describeProvenance } from "@/solver/provenance";
 import { useRuntime } from "@/solver/runtime";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
-import type { PlayRequest, Provenance, SolveResult, StopCost } from "@/solver/types";
+import { SolverError, type PlayRequest, type Provenance, type SolveResult, type StopCost } from "@/solver/types";
 import { DEFAULT_SETTINGS, useSettings } from "@/state/settings";
 import index from "@/library/fixtures/srp_btn_bb.flops.json";
 import { KEPT_KEY } from "./keep";
@@ -259,6 +259,83 @@ describe("Tables (multitable.test.js:68)", () => {
     await waitFor(() => expect(document.activeElement).toBe(head()));
   });
 
+  it("takes you to the dock and the tables from New session with a changed setup, which remakes the form you pressed in", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    await atTables(2);
+    scroll.mockClear();
+    const form = screen.getByRole("form", { name: "New session" });
+    fireEvent.change(within(form).getByRole("spinbutton", { name: "Stack in big blinds" }), { target: { value: "150" } });
+    const fresh = within(form).getByRole("button", { name: "New session" });
+    fresh.focus();
+    fireEvent.click(fresh);
+    await waitFor(() => expect(document.activeElement).toBe(within(dock()).getByRole("heading")));
+    expect(fresh.isConnected).toBe(false);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("leaves focus and the page alone as tables come back by themselves, whatever had focus", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    hold();
+    await kvSet(KEPT_KEY, doc([youFirst(1), youFirst(2)]));
+    render(
+      <MemoryRouter>
+        <a href="#out">Practice</a>
+        <PracticePage pace={0} pause={1e7} guard={0} />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole("link", { name: "Practice" });
+    link.focus();
+    await screen.findByRole("region", { name: "Table 2" });
+    await act(async () => {});
+    expect(document.activeElement).toBe(link);
+    expect(scroll).not.toHaveBeenCalled();
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("keeps what you've typed in the setup as the tables go above one and back, in the one form", async () => {
+    page();
+    await ready();
+    const form = () => screen.getByRole("form", { name: "New session" });
+    const stack = () => screen.getByRole("spinbutton", { name: "Stack in big blinds" });
+    fireEvent.change(stack(), { target: { value: "150" } });
+    const field = stack();
+    expect(form().closest("details")).toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "2" }));
+    await screen.findByRole("region", { name: "Table 2" });
+    expect(stack()).toBe(field);
+    expect(stack()).toHaveValue(150);
+    expect(form().closest("details")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "1" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Table 2" })).toBeNull());
+    expect(stack()).toHaveValue(150);
+    expect(form().closest("details")).toBeNull();
+  });
+
+  it("says what it is opponents play by, above one table and at one", async () => {
+    page();
+    await ready();
+    expect(screen.queryByText(/GTO opponents/)).toBeNull();
+    expect(screen.getByText(/from the charts preflop, then the solver.s mix, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "2" }));
+    await screen.findByRole("region", { name: "Table 2" });
+    expect(screen.queryByText(/GTO opponents/)).toBeNull();
+    expect(screen.getByText(/Opponents play the charts preflop, then the solver, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
+  });
+
+  it("says at one table what will answer your spot, not that a chart is being solved", async () => {
+    hold();
+    page();
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(await screen.findByText(/^Reading the chart so your move can be graded…/)).toBeInTheDocument();
+    expect(screen.queryByText(/Solving your spot/)).toBeNull();
+  });
+
   it("takes focus from nowhere on a reload, and off a field Enter started a session from", async () => {
     hold();
     await open(doc([youFirst(1), youFirst(2)]));
@@ -426,7 +503,7 @@ describe("the view (multitable.test.js:366)", () => {
     for (const i of [1, 2]) {
       const t = tile(i);
       const foot = t.lastElementChild!;
-      expect(foot.className).toMatch(/sm:min-h-16/);
+      expect(foot.className).toMatch(/sm:min-h-17/);
       expect(within(t).getByRole("list", { name: "Seats" }).className).toMatch(/sm:grid-cols-2/);
       for (const chip of within(t).getAllByRole("listitem")) {
         expect(chip.className).toMatch(/sm:h-6/);
@@ -501,6 +578,37 @@ describe("the view (multitable.test.js:366)", () => {
 });
 
 describe("the dock", () => {
+  it("tells a screen reader only your turn and a failure, with the table's number, not the whole dock at each change", async () => {
+    const go = hold();
+    await open(doc([betInto(1), theirMove(2)]));
+    expect(dock()).not.toHaveAttribute("aria-live");
+    const said = document.querySelector('p.sr-only[role="status"]')!;
+    expect(said).toHaveAttribute("aria-atomic", "true");
+    expect(said).toBeEmptyDOMElement();
+    stub.advice = byHand([betInto(1), facing("fold", "call")]);
+    go();
+    await ready();
+    expect(said).toHaveTextContent(/^Table 1: your turn$/);
+  });
+
+  it("tells it what failed, at which table", async () => {
+    stub.advice = () => ({ error: "no such node" });
+    await open(doc([betInto(1), betInto(2)]));
+    await within(tile(1)).findByRole("alert");
+    expect(document.querySelector('p.sr-only[role="status"]')).toHaveTextContent(/^Table 1: No answer to grade this spot against: no such node$/);
+  });
+
+  it("holds its hint to a line below `sm`: what's waiting, and the keys only where there are keys", async () => {
+    stub.advice = byHand([betInto(1), facing("fold", "call")], [betInto(2), facing("fold", "call")]);
+    await open(doc([betInto(1), betInto(2)]));
+    await ready();
+    const keys = within(dock()).getByText(/F fold/);
+    expect(keys.tagName).toBe("SPAN");
+    expect(keys.className).toBe("hidden sm:inline");
+    expect(keys.parentElement!.className).toMatch(/min-h-4/);
+    await waitFor(() => expect(keys.parentElement).toHaveTextContent(/^1 more waiting · S next table · F fold/));
+  });
+
   it("answers for the table it names", async () => {
     const hand = checkedTo(1);
     stub.advice = byHand([hand, CHECKED]);
@@ -710,6 +818,14 @@ describe("the keys", () => {
 });
 
 describe("what graded the figures", () => {
+  it("says what graded a table's figures weren't kept, where the doc's couldn't be read, not that nothing was graded", async () => {
+    hold();
+    await open(doc([youFirst(1), youFirst(2)], { places: [{ stats: { ...emptyTally(), hands: 3, n: 4, ok: 3, played: 3 }, sources: "x" }, { stats: { ...emptyTally(), hands: 3 } }] }));
+    expect(tablesRow(1)).toHaveTextContent("Graded against: Not kept: played before Lizard kept what graded each decision");
+    expect(tablesRow(1)).not.toHaveTextContent("No decision graded");
+    expect(tablesRow(2)).not.toHaveTextContent("Graded against");
+  });
+
   it("says it under the score once a decision is graded, the line held before that above one table, and a table's row at its first finished hand", async () => {
     const hand = betInto(1);
     stub.advice = byHand([hand, facing("fold", "call")]);
@@ -747,6 +863,7 @@ describe("what graded the figures", () => {
     page();
     const rows = within(await screen.findByRole("region", { name: "Past sessions" })).getAllByRole("listitem");
     expect(rows[0]).toHaveTextContent("Graded against: Live solve 3, Preflop charts (approximate) 1");
+    expect(rows[0]).toHaveTextContent("75% best or correct");
     expect(rows[1]).toHaveTextContent("Graded against: Not kept: played before Lizard kept what graded each decision");
     expect(rows[2]).not.toHaveTextContent("Graded against");
   });
@@ -834,6 +951,21 @@ describe("your verdict", () => {
 });
 
 describe("a failed table", () => {
+  it("puts what went wrong in place of the foot's lines, three at most from `sm`, all of it in the tooltip", async () => {
+    const hand = betInto(1);
+    stub.advice = () => ({ error: "no such node" });
+    await open(doc([hand, betInto(2)]));
+    const says = await within(tile(1)).findByRole("alert");
+    const words = within(says).getByText(/No answer to grade this spot against/);
+    expect(words).toHaveAttribute("title", "No answer to grade this spot against: no such node");
+    expect(words.className).toMatch(/sm:line-clamp-3/);
+    expect(within(says).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(within(tile(1)).queryByText(madeOn(hand))).toBeNull();
+    expect(says.parentElement!.className).toMatch(/sm:min-h-17/);
+    // (its neighbour, where nothing's wrong, as it was)
+    expect(within(tile(2)).queryByRole("alert")).not.toBeNull();
+  });
+
   it("stays back with the error and Retry; picked, the dock offers Ask again and moves without a grade", async () => {
     const hand = betInto(1);
     stub.advice = byHand([hand, { error: "no such node" }]);
@@ -987,6 +1119,22 @@ describe("Spots and Seat", () => {
     expect(useSettings.getState()).toMatchObject({ practiceSpot: "srp", practiceSeat: "UTG" });
   });
 
+  it("stay put on an arrow's step, which changes them at each press, and give focus back on Enter or Escape", async () => {
+    await atTables(2);
+    for (const [name, value, end] of [["Spots", "srp", "Enter"], ["Seat", "UTG", "Escape"]] as const) {
+      const box = screen.getByRole("combobox", { name });
+      box.focus();
+      fireEvent.keyDown(box, { key: "ArrowDown" });
+      fireEvent.change(box, { target: { value } });
+      fireEvent.keyUp(box, { key: "ArrowDown" });
+      expect(document.activeElement).toBe(box);
+      fireEvent.keyDown(box, { key: end });
+      fireEvent.keyUp(box, { key: end });
+      expect(document.activeElement).not.toBe(box);
+    }
+    expect(useSettings.getState()).toMatchObject({ practiceSpot: "srp", practiceSeat: "UTG" });
+  });
+
   it("say what a table's later streets are, the betting rules among them, at Any hand", async () => {
     hold();
     await open(doc([youFirst(1), youFirst(2)]));
@@ -1058,6 +1206,29 @@ describe("Asking ahead", () => {
     expect(useSettings.getState().askAhead).toBe(askAhead);
   });
 
+  it("says a rare one can run on, not that nothing long is asked", async () => {
+    page();
+    await ready();
+    const title = box().closest("label")!.title;
+    expect(title).toMatch(/Only what should be quick is asked ahead, though a rare one can run on until you move/);
+    expect(title).not.toMatch(/Nothing long/);
+  });
+
+  it("says it's off on this page once a stop has ended the worker, as the box still reads as you left it", async () => {
+    let n = 0;
+    stub.advice = () => {
+      n += 1;
+      if (n === 1) throw new SolverError("stuck", "The solver stopped answering; it restarts on the next request.");
+      return CHECKED;
+    };
+    useSettings.setState({ askAhead: true });
+    await open(doc([checkedTo(1), checkedTo(2)]));
+    expect(await screen.findByText(/Off on this page: the solver didn.t answer a stop and had to restart/)).toBeInTheDocument();
+    expect(box()).toBeChecked();
+    await ready();
+    expect(stub.calls).not.toContain("play BB");
+  });
+
   it("is a box by the mode picker at one table and several, on until you say, which gives focus back", async () => {
     page();
     await ready();
@@ -1094,7 +1265,7 @@ describe("Asking ahead", () => {
     expect(useSettings.getState().askAhead).toBe(true);
     expect(screen.queryByText(METER)).toBeNull();
     // (no room kept for a meter that can't start)
-    expect(document.querySelector("p.min-h-8:not(.basis-full):empty")).toBeNull();
+    expect(document.querySelector("p.min-h-12:empty")).toBeNull();
   });
 
   it("shows no meter while it's off", async () => {
@@ -1113,7 +1284,7 @@ describe("Asking ahead", () => {
     await open(doc([checkedTo(1), checkedTo(2)]));
     expect(screen.queryByText(METER)).toBeNull();
     // (its room is kept, so the page stays put as it starts)
-    expect(document.querySelector("p.min-h-8:not(.basis-full):empty")).not.toBeNull();
+    expect(document.querySelector("p.min-h-12:empty")).not.toBeNull();
     go();
     expect(await screen.findByText(METER)).toBeInTheDocument();
   });
@@ -1123,13 +1294,13 @@ describe("Asking ahead", () => {
     useSettings.setState({ askAhead: true });
     await open(doc([checkedTo(1), checkedTo(2)]));
     const line = await screen.findByText(METER);
-    expect(line.textContent).toMatch(/^Asking ahead, measured in this browser: 0 of \d used · about 0 s of waiting saved for \d+ s of solver time$/);
+    expect(line.textContent).toMatch(/^Asking ahead, measured in this browser since this page opened: 0 of \d postflop look-aheads used · about 0 s saved with no other table waiting, for \d+ s of solver time$/);
     expect(line.compareDocumentPosition(screen.getByRole("region", { name: "Your move" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // (your bet, its reply in hand)
     await waitFor(() => expect(stub.calls.filter((c) => c === "play BB").length).toBeGreaterThan(1));
     key("1");
-    await waitFor(() => expect(screen.getByText(METER).textContent).toMatch(/: 1 of \d used/));
+    await waitFor(() => expect(screen.getByText(METER).textContent).toMatch(/: 1 of \d postflop/));
 
     act(() => useSettings.setState({ askAhead: false }));
     expect(screen.getByText(METER)).toBeInTheDocument();

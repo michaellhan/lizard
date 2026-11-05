@@ -332,6 +332,6 @@ describe("what failed, and the meter", () => {
   });
 
   it("says what was used, what it saved and what it cost, in round seconds", () => {
-    expect(meterLine({ asked: 52, used: 31, savedS: 43.6, spentS: 95.5 })).toBe("31 of 52 used · about 44 s of waiting saved for 96 s of solver time");
+    expect(meterLine({ asked: 52, used: 31, savedS: 43.6, spentS: 95.5 })).toBe("31 of 52 postflop look-aheads used · about 44 s saved with no other table waiting, for 96 s of solver time");
   });
 });

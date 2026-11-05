@@ -6,6 +6,9 @@
 import type { AdvisorResponse, AdvisorState } from "./protocol";
 import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport, type StopCost } from "./types";
 
+/** ms between a stop's tries, while its request hasn't settled */
+const CANCEL_EVERY = 250;
+
 export interface HttpTransportOptions {
   /** e.g. "http://127.0.0.1:8765" (no trailing slash needed) */
   url: string;
@@ -62,9 +65,13 @@ export class HttpTransport implements SolverTransport {
     opts: { progressive: boolean; signal?: AbortSignal; onPartial?: (r: AdvisorResponse) => void; play?: PlayRequest },
   ): Promise<AdvisorResponse> {
     if (opts.signal?.aborted) throw new SolverError("cancelled", "cancelled");
+    let again: ReturnType<typeof setInterval> | undefined;
+    const cancel = () => void this.fetchImpl(`${this.url}/cancel`, { method: "POST" }).catch(() => {});
     const onAbort = () => {
-      // ask the server to stop the running solve; its /advise then answers {"cancelled": true}
-      void this.fetchImpl(`${this.url}/cancel`, { method: "POST" }).catch(() => {});
+      // ask the server to stop the running solve; its /advise then answers {"cancelled": true}. Again until it does: the server
+      // clears a stop as an /advise comes in, so one that got there first is lost, and nothing else would end that solve
+      cancel();
+      again = setInterval(cancel, CANCEL_EVERY);
     };
     opts.signal?.addEventListener("abort", onAbort, { once: true });
     this.setStatus({ phase: "busy" });
@@ -90,6 +97,7 @@ export class HttpTransport implements SolverTransport {
       return body;
     } finally {
       opts.signal?.removeEventListener("abort", onAbort);
+      clearInterval(again);
     }
   }
 

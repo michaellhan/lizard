@@ -3066,7 +3066,81 @@ describe("Asking ahead", () => {
     });
   });
 
+  describe("after a stop that ended the worker", () => {
+    const stuck = () => new SolverError("stuck", "The solver stopped answering; it restarts on the next request.");
+    /** Your flop bet with a look-ahead on your check in the air, which doesn't hear the stop. */
+    async function ended(o: Parameters<typeof setup>[0] = {}) {
+      useSettings.setState({ askAhead: null });
+      const r = several([bbFlop(1)], { deaf: true, ...o });
+      await flush();
+      r.asked[0]!.answer(MIX);
+      await flush();
+      const look = r.asked[1]!;
+      expect(look.play?.seat).toBe("BTN");
+      press(r.room, 0, BETS);
+      await flush();
+      expect(look.signal!.aborted).toBe(true);
+      expect(r.asked).toHaveLength(2);
+      look.reject(stuck());
+      await flush();
+      expect(r.room.snapshot().restarts).toBe(1);
+      return r;
+    }
+
+    it("takes the street's solve as gone with it: the new worker doesn't hold it", async () => {
+      const { room, asked } = await ended();
+      expect(asked).toHaveLength(3);
+      asked[2]!.answer(move("call"));
+      await flush();
+      expect(room.metrics().solves.at(-1)).toMatchObject({ kind: "opp", street: "flop", est: 2 });
+    });
+
+    it("asks nothing ahead again, with the box at its default, for the page's life", async () => {
+      const { room, asked } = await ended();
+      asked[2]!.answer(move("call"));
+      await flush();
+      expect(asked).toHaveLength(4);
+      expect(table(room).hand.shown).toBe(4);
+      asked[3]!.answer(MIX);
+      await flush();
+      expect(table(room).answer).not.toBeNull();
+      expect(asked).toHaveLength(4);
+      expect(meter(room).asked).toBe(1);
+      // (nor a New session's hands: it's the page's solver that didn't answer)
+      room.startSession(6, 100, OPTS);
+      await flush();
+      await pass(1000);
+      expect(meter(room).asked).toBe(1);
+    });
+
+    it("doesn't ask what comes after a pace either", async () => {
+      useSettings.setState({ askAhead: null });
+      const { room, asked } = await ended({ hands: [bbFlop(1)], pace: 450 });
+      asked[2]!.answer(move("call"));
+      await flush();
+      await pass(449);
+      expect(table(room).hand.shown).toBe(3);
+      expect(asked).toHaveLength(3);
+    });
+  });
+
   describe("the meter", () => {
+    it("leaves out a preflop look-ahead, as it's a chart read: a run of them would read as solves hit", async () => {
+      const { room, asked } = ahead([spot(1, "UTG")]);
+      await flush();
+      asked[0]!.answer(CHART);
+      await flush();
+      const look = asked[1]!;
+      expect(look.play?.seat).toBe("HJ");
+      expect(look.state.board).toBeFalsy();
+      await pass(1000);
+      look.answer(move("fold"));
+      await flush();
+      press(room, 0, 2);
+      await flush();
+      expect(meter(room)).toEqual({ asked: 0, used: 0, savedS: 0, spentS: 0 });
+    });
+
     it("starts at nothing, and stays there where nothing has been asked", async () => {
       const { room, asked } = several([flopYou(1)]);
       await flush();
@@ -3986,6 +4060,29 @@ describe("Instant flops", () => {
     expect(h.pot).toBe("lib");
     expect(h.cands).toEqual(candsFor(six, h.hero, h.board));
     expect(readIt).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays Any hand with its reason where the index's read hangs, and ignores it when it answers late", async () => {
+    let read: (x: unknown) => void = () => {};
+    const { room, asked } = setup({ players: 6, opts: OPTS, pace: 0, pause: 0, guard: 0, readIndex: () => new Promise<unknown>((r) => (read = r)) });
+    await flush();
+    room.setTables(2);
+    await pass(29_999);
+    expect(asked.every((a) => tableOf(room, a) === 0)).toBe(true);
+    expect(room.snapshot().flops.off).toBeNull();
+
+    await pass(1);
+    expect(room.snapshot().flops.off).toBe("failed");
+    expect(flopsNote(room.snapshot().flops, "any")).toBe("The flop library didn't load, so this is Any hand.");
+    expect(at(room, 1).hand.pot).toBeUndefined();
+    const before = asked.length;
+    asked.at(-1)!.answer(move("fold"));
+    await flush();
+    expect(asked.length).toBeGreaterThan(before);
+
+    read(index);
+    await flush();
+    expect(room.snapshot().flops.off).toBe("failed");
   });
 
   it("plays Any hand with its reason where the index fails, or holds nothing", async () => {

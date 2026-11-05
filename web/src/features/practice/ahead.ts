@@ -14,8 +14,9 @@ import { dealNext, decide, facingBet, optionsOf, simOf, withVillain, type Practi
 import { SHORT, type Asked, type Job } from "./scheduler";
 
 /** Whether Practice asks ahead until you say (Settings' `askAhead` null). On, from the engine check's four runs at Quick
- * (docs/PROGRESS.md): at one table the median wait fell from 0.02 s to under 0.01 s and 90% of waits from 0.46 s to 0.02 s,
- * at four it didn't rise, and a request took no longer. One Mac, under load: a phone hasn't been measured. */
+ * (docs/PROGRESS.md): at one table the median from a postflop spot reaching you to its answer fell from 0.02 s to under
+ * 0.01 s and the 90th percentile from 0.46 s to 0.02 s, at four the median didn't rise, and a request took no longer. That
+ * leaves out the pace and an opponent's own move. One Mac, under load: Accurate and phones haven't been measured. */
 export const ASK_AHEAD: boolean = true;
 
 /** The lines played on from a spot, how likely each must be, the decisions of a kind before they count, and the steps a
@@ -181,8 +182,9 @@ export function aheadJobs(waiting: readonly Waiting[], c: AheadContext): Job[] {
   return out;
 }
 
-/** How asking ahead has gone in this browser, measured: the look-aheads that went out, those a table used, the waiting
- * that saved you (s) and the solver's time they took (s), stopped ones included. */
+/** How asking ahead has gone in this browser, measured, postflop only, as a preflop look-ahead is a chart read: the
+ * look-aheads that went out, those a table used, the waiting that saved you where no other table was waiting for you (s),
+ * and the solver's time they took (s), stopped ones included. */
 export interface AheadMeter {
   asked: number;
   used: number;
@@ -192,5 +194,5 @@ export interface AheadMeter {
 
 export const NO_METER: AheadMeter = { asked: 0, used: 0, savedS: 0, spentS: 0 };
 
-/** "31 of 52 used · about 44 s of waiting saved for 96 s of solver time" */
-export const meterLine = (m: AheadMeter) => `${m.used} of ${m.asked} used · about ${Math.round(m.savedS)} s of waiting saved for ${Math.round(m.spentS)} s of solver time`;
+/** "31 of 52 postflop look-aheads used · about 44 s saved with no other table waiting, for 96 s of solver time" */
+export const meterLine = (m: AheadMeter) => `${m.used} of ${m.asked} postflop look-aheads used · about ${Math.round(m.savedS)} s saved with no other table waiting, for ${Math.round(m.spentS)} s of solver time`;

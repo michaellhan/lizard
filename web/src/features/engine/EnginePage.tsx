@@ -10,12 +10,14 @@ import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { useSettings } from "@/state/settings";
 import type { SolveResult } from "@/solver/types";
 import { sharesStop, WorkerTransport } from "@/solver/worker-transport";
-import { aheadLine, lastReport, progressLine, reportLine, runHandsCheck, setupLine, warmLine, whenLine, type HandsCheckReport } from "./handsCheck";
+import { aheadLine, lastReport, progressLine, reportLine, runHandsCheck, setupLine, warmLine, whenLine, type HandsCheckProgress, type HandsCheckReport } from "./handsCheck";
 
 const CHECK_HANDS = 20;
 /** always these deals, so runs at the same number of tables play the same hands (a seat is drawn only above one table) */
 const CHECK_SEED = 20_260_001;
 const THINK_MS = 3000;
+/** ms a press is ignored as Play and Stop change places: they're one button to React, so a double-click would press both */
+const SWAP_MS = 350;
 
 const secs = (x: number | null) => (x === null ? "none" : `${x.toFixed(2)} s`);
 
@@ -29,6 +31,8 @@ function CheckReport({ r }: { r: HandsCheckReport }) {
     });
   }, []);
   const copy = async () => {
+    // (emptied first, so a second Copied is said too)
+    setCopied(null);
     try {
       await navigator.clipboard.writeText(JSON.stringify(r, null, 2));
       setCopied(true);
@@ -44,11 +48,9 @@ function CheckReport({ r }: { r: HandsCheckReport }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className={`font-medium ${r.passed ? "" : "text-danger"}`}>{r.stopped ? "Stopped" : r.passed ? "Passed" : "Failed"}</h2>
         <div className="flex items-center gap-2">
-          {copied !== null && (
-            <span role="status" className="text-xs text-muted">
-              {copied ? "Copied" : "Couldn't copy"}
-            </span>
-          )}
+          <span role="status" className="text-xs text-muted">
+            {copied === null ? "" : copied ? "Copied" : "Couldn't copy"}
+          </span>
           <button type="button" onClick={() => void copy()} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-surface-2">
             Copy report
           </button>
@@ -69,7 +71,7 @@ function CheckReport({ r }: { r: HandsCheckReport }) {
         </dd>
         <dt className="text-muted">Deals</dt>
         <dd className="font-mono">{r.fingerprint}</dd>
-        <dt className="text-muted">Wait for your options, postflop</dt>
+        <dt className="text-muted">Answer after your turn arrives, postflop</dt>
         <dd>
           median {secs(r.waits.medianS)} · p90 {secs(r.waits.p90S)} · {r.waits.n} spots
         </dd>
@@ -131,7 +133,7 @@ function CheckReport({ r }: { r: HandsCheckReport }) {
         </div>
       )}
       <p className="text-xs text-muted">
-        Times are measured in this browser, on this run. A pass says the hands held together and each verdict said what answered it. It can&rsquo;t prove any grade right, or say anything about Accurate,
+        Times are measured in this browser, on this run. The answer&rsquo;s time starts as your spot reaches you, so it leaves out the pace and an opponent&rsquo;s own move. A pass says the hands held together and each verdict said what answered it. It can&rsquo;t prove any grade right, or say anything about Accurate,
         phones or other machines. Runs at the same number of tables deal these same hands, but what&rsquo;s played on them differs, so between runs only the deals compare hand for hand.
       </p>
     </section>
@@ -145,9 +147,11 @@ function HandsCheck() {
   const [thinkMs, setThinkMs] = useState(0);
   // (null: nothing chosen here, so as Settings read)
   const [ahead, setAhead] = useState<boolean | null>(null);
-  const [line, setLine] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [line, setLine] = useState("");
   const [report, setReport] = useState<HandsCheckReport | null>(null);
   const stopper = useRef<AbortController | null>(null);
+  const swapped = useRef(-Infinity);
   // (as in Practice: where a stop would end the solver nothing's asked ahead, so the box can't say it will be. It's
   // worked out here as this page asks for no solver until you press something)
   const kills = useSettings((s) => s.transport) !== "http" && !sharesStop();
@@ -169,24 +173,35 @@ function HandsCheck() {
   const play = async () => {
     const ac = new AbortController();
     stopper.current = ac;
+    swapped.current = performance.now();
     setReport(null);
+    setRunning(true);
     setLine(progressLine({ hands: 0, of: CHECK_HANDS, verdicts: 0, errors: 0 }));
-    const r = await runHandsCheck(getSolver, { seed: CHECK_SEED, hands: CHECK_HANDS, tables, askAhead, thinkMs, signal: ac.signal, onProgress: (p) => setLine(progressLine(p)) });
+    // (a line a hand: each verdict would be read out)
+    let hand = 0;
+    const onProgress = (p: HandsCheckProgress) => {
+      if (p.hands === hand) return;
+      hand = p.hands;
+      setLine(progressLine(p));
+    };
+    const r = await runHandsCheck(getSolver, { seed: CHECK_SEED, hands: CHECK_HANDS, tables, askAhead, thinkMs, signal: ac.signal, onProgress });
     stopper.current = null;
-    setLine(null);
+    swapped.current = performance.now();
+    setRunning(false);
+    setLine(`${r.stopped ? "Stopped" : r.passed ? "Passed" : "Failed"}: ${reportLine(r)}`);
     setReport(r);
   };
+  const settled = () => performance.now() - swapped.current >= SWAP_MS;
 
-  const running = line !== null;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         {running ? (
-          <button type="button" onClick={() => stopper.current?.abort()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+          <button type="button" onClick={() => settled() && stopper.current?.abort()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
             Stop
           </button>
         ) : (
-          <button type="button" onClick={() => void play()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+          <button type="button" onClick={() => settled() && void play()} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
             Play {CHECK_HANDS} hands
           </button>
         )}
@@ -212,11 +227,10 @@ function HandsCheck() {
       </div>
       <p className="text-sm text-muted">A few minutes of CPU. Nothing is saved to History or Analyze.</p>
       <p className="text-sm text-muted">Reload this page before a timed run: a solver keeps its answers, so a second run is quicker on the same deals for that alone.</p>
-      {running && (
-        <p role="status" className="text-sm">
-          {line}
-        </p>
-      )}
+      {/* (always here, so a reader is told each hand and the end, which the report then shows) */}
+      <p role="status" className={running ? "text-sm" : "sr-only"}>
+        {line}
+      </p>
       {report && <CheckReport r={report} />}
     </div>
   );

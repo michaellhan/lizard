@@ -77,6 +77,8 @@ const show = () =>
 
 const play = () => fireEvent.click(screen.getByRole("button", { name: "Play 20 hands" }));
 const report = () => screen.findByRole("region", { name: "Last report" });
+/** Past the moment a press is ignored, as Play and Stop change places. */
+const swapped = () => act(() => new Promise<void>((r) => setTimeout(r, 400)));
 
 beforeEach(() => {
   build.manifest.mockResolvedValue(null);
@@ -124,6 +126,7 @@ describe("the controls", () => {
     fireEvent.change(screen.getByLabelText("Time to think"), { target: { value: "3000" } });
     fireEvent.click(screen.getByLabelText("Ask ahead"));
     const before = { ...useSettings.getState() };
+    await swapped();
     play();
     await end(REPORT);
     expect(seen[0]).toMatchObject({ hands: 20, tables: 4, thinkMs: 0, askAhead: true });
@@ -161,24 +164,48 @@ describe("a run", () => {
   it("says how it's going, holds its settings and offers Stop", async () => {
     const { seen, end } = held();
     show();
+    const line = screen.getByRole("status");
+    expect(line).toBeEmptyDOMElement();
     play();
-    expect(screen.getByRole("status")).toHaveTextContent("Hand 1 of 20 · 0 verdicts · 0 errors");
+    expect(line).toHaveTextContent("Hand 1 of 20 · 0 verdicts · 0 errors");
     await act(async () => seen[0]!.onProgress!({ hands: 6, of: 20, verdicts: 18, errors: 0 }));
-    expect(screen.getByRole("status")).toHaveTextContent("Hand 7 of 20 · 18 verdicts · 0 errors");
+    expect(line).toHaveTextContent("Hand 7 of 20 · 18 verdicts · 0 errors");
+    // (a verdict within a hand says nothing, or each would be read out)
+    await act(async () => seen[0]!.onProgress!({ hands: 6, of: 20, verdicts: 19, errors: 0 }));
+    expect(line).toHaveTextContent("Hand 7 of 20 · 18 verdicts · 0 errors");
     expect(screen.queryByRole("button", { name: "Play 20 hands" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tables")).toBeDisabled();
     expect(screen.getByLabelText("Time to think")).toBeDisabled();
     expect(screen.getByLabelText("Ask ahead")).toBeDisabled();
     await end(REPORT);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // (the same element, so the end is read out too)
+    expect(line).toBeInTheDocument();
+    expect(line).toHaveTextContent("Passed: 20 hands · 63 verdicts · 0 request errors · 0 without a label · 1 m 48 s");
+    expect(line.className).toBe("sr-only");
     expect(screen.getByRole("button", { name: "Play 20 hands" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tables")).toBeEnabled();
+  });
+
+  it("takes a double-click as one press, though Stop comes up under the second, and Play under one at the end", async () => {
+    const { seen, end } = held();
+    show();
+    play();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(seen[0]!.signal!.aborted).toBe(false);
+    await end(REPORT);
+    play();
+    expect(seen).toHaveLength(1);
+    await swapped();
+    play();
+    expect(seen).toHaveLength(2);
+    await end(REPORT);
   });
 
   it("stops at Stop, with a report that says so and doesn't say it passed", async () => {
     const { seen } = held();
     show();
     play();
+    await swapped();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(seen[0]!.signal!.aborted).toBe(true);
     const r = await report();
@@ -202,6 +229,7 @@ describe("a run", () => {
     play();
     await end(REPORT);
     expect(screen.getByRole("region", { name: "Last report" })).toBeInTheDocument();
+    await swapped();
     play();
     expect(screen.queryByRole("region", { name: "Last report" })).not.toBeInTheDocument();
     await end(REPORT);
@@ -217,6 +245,7 @@ describe("a run", () => {
     play();
     const first = await screen.findByRole("region", { name: "Last report" }, { timeout: 30_000 });
     expect(first).not.toHaveTextContent("Not a cold run");
+    await swapped();
     play();
     const second = await screen.findByRole("region", { name: "Last report" }, { timeout: 30_000 });
     expect(second).toHaveTextContent("Not a cold run: this solver had played a run already");
@@ -258,9 +287,16 @@ describe("the report", () => {
     expect(r).toHaveTextContent("median 1.25 s · p90 4.50 s · 42 spots");
     expect(r).toHaveTextContent("median 0.31 s · postflop 2.40 s");
     expect(r).toHaveTextContent("131, 12 of them stopped");
-    expect(r).toHaveTextContent("31 of 52 used · about 44 s of waiting saved for 96 s of solver time");
+    expect(r).toHaveTextContent("31 of 52 postflop look-aheads used · about 44 s saved with no other table waiting, for 96 s of solver time");
     expect(r).toHaveTextContent("flop: estimated 2.00 s, took 2.50 s (30)");
     expect(r).toHaveTextContent("measured in this browser");
+  });
+
+  it("says what its wait is: from your turn arriving, without the pace or an opponent's own move", async () => {
+    const r = await shown(REPORT);
+    expect(r).toHaveTextContent("Answer after your turn arrives, postflop");
+    expect(r).not.toHaveTextContent("Wait for your options");
+    expect(r).toHaveTextContent("it leaves out the pace and an opponent’s own move");
   });
 
   it("names what answered each verdict, the rules and the unlabelled in their own words, and never as solved", async () => {
@@ -306,26 +342,33 @@ describe("the report", () => {
     const writeText = vi.fn(() => new Promise<void>((resolve) => (done = resolve)));
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     const r = await shown(REPORT);
-    expect(within(r).queryByRole("status")).not.toBeInTheDocument();
+    const said = within(r).getByRole("status");
+    expect(said).toBeEmptyDOMElement();
     fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
     expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0])).toEqual(REPORT);
-    expect(within(r).queryByRole("status")).not.toBeInTheDocument();
+    expect(said).toBeEmptyDOMElement();
     await act(async () => done());
-    expect(within(r).getByRole("status")).toHaveTextContent("Copied");
+    expect(said).toHaveTextContent("Copied");
+
+    // (again, the same element: it empties, so a reader is told each time)
+    fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
+    expect(said).toBeEmptyDOMElement();
+    await act(async () => done());
+    expect(said).toHaveTextContent("Copied");
   });
 
   it("says it couldn't copy, where the browser refused", async () => {
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: () => Promise.reject(new Error("denied")) } });
     const r = await shown(REPORT);
     fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
-    expect(await within(r).findByRole("status")).toHaveTextContent("Couldn't copy");
+    await waitFor(() => expect(within(r).getByRole("status")).toHaveTextContent("Couldn't copy"));
   });
 
   it("says it couldn't copy, where the page has no clipboard", async () => {
     vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
     const r = await shown(REPORT);
     fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
-    expect(await within(r).findByRole("status")).toHaveTextContent("Couldn't copy");
+    await waitFor(() => expect(within(r).getByRole("status")).toHaveTextContent("Couldn't copy"));
   });
 
   it("says when it ran and on what build, kept or not", async () => {
