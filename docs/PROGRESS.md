@@ -3827,3 +3827,4 @@ now those checks had only been made by hand. This is the earliest unmet criterio
   `Precomputed solution · srp_sb_bb · another table's spot read as this one`, 0.12%. The manifest says `e13c4733fd` on
   `1a14605e`, and `/`, `/gto-solver/` and `/gto-solver-classic/` answer 200.
 
+The first run with this gate failed before any test ran: GitHub's `ubuntu-latest` is now 26.04 and Playwright 1.56.1 stopped at `Playwright does not support chromium on ubuntu26.04-x64`. Nothing reached the site from that run. The build job is pinned to `ubuntu-24.04`; moving Playwright itself would have meant a new browser build under tests that had just been baselined. 26.04 comes back when Playwright is next raised.

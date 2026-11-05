@@ -23,7 +23,7 @@ which the classic site already serves.
 ### How a deploy works
 
 1. Push to `main` (or run the workflow by hand: `gh workflow run deploy -R michaellhan/lizard`).
-2. `check-and-build` (ubuntu, Node 24, Python 3.12 with `numpy==2.0.2 treys==0.1.8`):
+2. `check-and-build` (Ubuntu 24.04, pinned because Playwright 1.56.1 has no Chromium for 26.04; Node 24, Python 3.12 with `numpy==2.0.2 treys==0.1.8`):
    - typecheck, lint, Vitest;
    - the library assembler's tests;
    - the solver's quick tests (`tests.test_bundle`, `tests.test_routes`, `routes.test.js`, `solver_state.test.js`);

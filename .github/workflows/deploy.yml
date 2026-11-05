@@ -18,7 +18,8 @@ concurrency:
 
 jobs:
   check-and-build:
-    runs-on: ubuntu-latest
+    # (not ubuntu-latest: that moved to 26.04, which Playwright 1.56.1 has no Chromium for, and the browser tests gate the deploy)
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
