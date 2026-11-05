@@ -11,6 +11,7 @@ const TONE: Record<Provenance["source"], string> = {
   "preflop-solve": "border-act-bet1/50 text-act-bet1",
   "push-fold": "border-act-bet1/50 text-act-bet1",
   "best-response": "border-warn/60 text-warn",
+  "plo-river": "border-act-check/50 text-act-check",
   rules: "border-warn/60 text-warn",
   equity: "border-warn/60 text-warn",
   unknown: "border-border text-muted",
@@ -22,7 +23,9 @@ function detailLines(p: Provenance): string[] {
     p.seconds !== undefined ? `${p.seconds.toFixed(2)} s` : "",
     p.fallbackReason ? `fallback: ${p.fallbackReason}` : "",
     p.libraryVersion ? `library version ${p.libraryVersion}` : "",
-    p.transport === "file"
+    p.source === "plo-river"
+      ? p.solverVersion
+      : p.transport === "file"
       ? `read in the page from the library file, no solver · ${p.solverVersion}`
       : p.transport === "kept"
         ? "kept with the grade in Analyze, which doesn't say which backend or build answered"

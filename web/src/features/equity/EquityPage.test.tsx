@@ -1,8 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as renderPage, screen, waitFor } from "@testing-library/react";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import { EquityPage } from "./EquityPage";
+
+const render = (ui: ReactElement) => renderPage(<MemoryRouter>{ui}</MemoryRouter>);
 
 // jsdom has no Worker, so the page runs its slices on the page: the same job (engine/plo/equityRun.test.ts has the worker)
 
@@ -13,7 +17,7 @@ describe("EquityPage", () => {
   it("says it's a calculator, not a solver", () => {
     render(<EquityPage />);
     expect(screen.getByRole("heading", { name: "PLO4 equity" })).toBeTruthy();
-    expect(screen.getByText(/doesn't solve PLO/)).toBeTruthy();
+    expect(screen.getByText(/only a calculator/).textContent).toMatch(/isn't a strategy.*one heads-up river/);
   });
 
   it("gives an exact count, labelled as one, with no ± to it", async () => {
@@ -89,10 +93,12 @@ describe("the initial bundle", () => {
   const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)]));
 
   it("holds no PLO code: nothing imports it but the route's dynamic import", () => {
-    const others = files(src).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !f.includes("/engine/plo/") && !f.includes("/features/equity/"));
+    const others = files(src).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !f.includes("/engine/plo/") && !f.includes("/features/equity/") && !f.includes("/features/plo/"));
     expect(others.length).toBeGreaterThan(100);
-    const statics = others.filter((f) => /(from|import)\s+"[^"]*(engine\/plo|features\/equity)/.test(readFileSync(f, "utf8")));
+    const statics = others.filter((f) => /(from|import)\s+"[^"]*(engine\/plo|features\/equity|features\/plo)/.test(readFileSync(f, "utf8")));
     expect(statics).toEqual([]);
-    expect(readFileSync(join(src, "app", "App.tsx"), "utf8")).toMatch(/import\("@\/features\/equity\/EquityPage"\)/);
+    const app = readFileSync(join(src, "app", "App.tsx"), "utf8");
+    expect(app).toMatch(/import\("@\/features\/equity\/EquityPage"\)/);
+    expect(app).toMatch(/import\("@\/features\/plo\/PloRiverPage"\)/);
   });
 });

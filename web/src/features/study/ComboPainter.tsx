@@ -26,6 +26,7 @@ function ShareInput({ label, value, disabled, onCommit }: { label: string; value
       max={100}
       step={1}
       aria-label={label}
+      data-untyped={draft === null ? "" : undefined}
       value={draft ?? shown}
       disabled={disabled}
       onChange={(e) => setDraft(e.target.value)}

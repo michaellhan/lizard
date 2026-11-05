@@ -572,7 +572,7 @@ Moves matrix rows: Solution comparisons, Range comparison.
   - Add a condensed range view for PLO, since there is no 13x13 grid.
   - Make Study, Practice and Analyze game-aware through the registry. Today the hand-history parser rejects Omaha (`hh.js:118-119`).
 - **Labels.** Start with postflop heads-up from given ranges, plainly labelled, before any preflop.
-- **Done (2026-11-05):** the evaluator, combos and isomorphism, pot-limit betting and equity, with their reference checks, and a labelled equity calculator at `/equity`. There's no solver, and the rest of this phase stands.
+- **Done (2026-11-05):** the evaluator, combos and isomorphism, pot-limit betting and equity, with their reference checks, and a labelled equity calculator at `/equity`. An exact heads-up river solve at `/plo`, from typed ranges at listed sizes, in the browser, with an independent reference on 6 small spots. No earlier street is solved, and the rest of this phase stands: the turn and flop, the registry, a condensed range view, and Study, Practice and Analyze.
 
 **Dependencies.**
 - Phases 0–5, so the app is game-agnostic in its views.

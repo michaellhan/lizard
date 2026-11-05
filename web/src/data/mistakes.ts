@@ -16,7 +16,7 @@ const isStrs = (x: unknown): x is string[] => Array.isArray(x) && x.every(isStr)
 const isOptNum = (x: unknown) => x === undefined || isNum(x);
 const isOptStr = (x: unknown) => x === undefined || isStr(x);
 
-const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, rules: true, equity: true, unknown: true };
+const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, "plo-river": true, rules: true, equity: true, unknown: true };
 /** One of the sources a provenance can name. */
 export const isSource = (x: string): x is ResultSource => Object.hasOwn(SOURCES, x);
 const VERDICTS: readonly string[] = ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"] satisfies Verdict[];

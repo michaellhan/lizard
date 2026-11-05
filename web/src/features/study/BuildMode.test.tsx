@@ -343,6 +343,22 @@ describe("BuildMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
 
+    // the undo keys from inside a box: with nothing typed they take back the step, with a draft they're the box's
+    fireEvent.keyDown(box, { key: "z", ctrlKey: true });
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    fireEvent.keyDown(box, { key: "z", metaKey: true, shiftKey: true });
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+    fireEvent.keyDown(box, { key: "y", ctrlKey: true }); // (the step after that one: back to the class)
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    fireEvent.keyDown(box, { key: "z", ctrlKey: true });
+    expect(box).toHaveValue(100);
+    fireEvent.change(box, { target: { value: "40" } });
+    fireEvent.keyDown(box, { key: "z", ctrlKey: true });
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+    expect(box).toHaveValue(40);
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(box).toHaveValue(100);
+
     fireEvent.click(screen.getByRole("button", { name: "Close combos" }));
     expect(screen.queryByRole("region", { name: "AKs combos" })).toBeNull();
   });

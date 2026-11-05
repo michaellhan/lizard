@@ -1,7 +1,8 @@
 // PLO4 equity: a calculator on the PLO engine layer (engine/plo/), and no more than that. It says how often hands win if
-// every card is dealt with no more betting, and what produced each number. Nothing here is a strategy: PLO4 isn't solved
-// in Lizard. Loaded with its route, so no PLO code is in the first download; the work is done in a worker.
+// every card is dealt with no more betting, and what produced each number. Nothing here is a strategy: the one PLO4 solve
+// in Lizard is of a single heads-up river, at /plo. Loaded with its route, so no PLO code is in the first download; the work is done in a worker.
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { describeEquity, DEFAULT_RUNS, MAX_PLAYERS, MIN_PLAYERS, type EquityMode, type EquityResult } from "@/engine/plo/equity";
 import { EquityClient } from "@/engine/plo/equityClient";
 
@@ -63,8 +64,12 @@ export function EquityPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">PLO4 equity</h1>
         <p className="text-sm text-muted">
-          Each hand&apos;s share of the pot if every card is dealt with no more betting, two cards from the hand and three from the board. This is only a calculator: Lizard doesn&apos;t solve PLO, and equity
-          isn&apos;t a strategy.
+          Each hand&apos;s share of the pot if every card is dealt with no more betting, two cards from the hand and three from the board. This is only a calculator, and equity isn&apos;t a strategy. Lizard doesn&apos;t solve PLO
+          hands from the start: the only solve is of{" "}
+          <Link to="/plo" className="underline">
+            one heads-up river
+          </Link>
+          .
         </p>
       </header>
 

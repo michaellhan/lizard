@@ -315,11 +315,11 @@ export function BuildMode({
   };
 
   // keys: 1-9 a brush (with Study's keys on, from the page or the grid, not from another control), Ctrl/Cmd+Z undo,
-  // Shift+Ctrl/Cmd+Z or Ctrl+Y redo (not while typing)
+  // Shift+Ctrl/Cmd+Z or Ctrl+Y redo (not while typing: a combo's box with nothing typed in it counts as not typing)
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     const el = e.target as HTMLElement | null;
-    if (el && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName)) return;
     const mod = e.ctrlKey || e.metaKey;
+    if (el && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) && !(mod && el.dataset.untyped !== undefined)) return;
     if (mod && (e.key === "z" || e.key === "Z")) {
       e.preventDefault();
       if (!scored) commit(e.shiftKey ? redo(hRef.current) : undo(hRef.current));

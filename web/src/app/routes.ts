@@ -23,6 +23,7 @@ export const ROUTES: RouteDef[] = [
   { path: "tournaments", label: "Tournaments", nav: true, status: "partial", summary: "A tournament spot: the prizes left, each seat's stack, other tables and bounties, answered in prize equity in Study." },
   { path: "compare", label: "Compare", nav: false, status: "partial", summary: "Two spots side by side (a tournament in chip EV, with and without rake, two stacks): the actions, the range and each hand class's change, each side with its own source." },
   { path: "equity", label: "PLO equity", nav: false, status: "partial", summary: "PLO4 hand and range equity, exact or Monte Carlo, each number labelled as such: a calculator, not a solver." },
+  { path: "plo", label: "PLO river", nav: false, status: "partial", summary: "One heads-up PLO4 river solved exactly at the sizes you list, from ranges you type. No earlier street is solved, and there's no rake." },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
   { path: "history", label: "History", nav: true, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions." },
   { path: "plan", label: "Plan", nav: true, status: "partial", summary: "What to do next, in order, from what you've kept: reviews due, leaks that can be read, spots with too few hands to read, and a Practice drill, by a plain rule stated on the page." },

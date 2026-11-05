@@ -712,3 +712,13 @@ spot is the worst case on purpose and not a typical cost. Three-way is not measu
 River-flush's OOP checks every hand in all equilibria (the LP's bounds show it), so that spot tests only IP's bets and the
 responses. In `flop-tiny`, OOP checks the flop too, on both sides (over 99.99%). Passing here says the engine's exact mode is right on
 these trees, and nothing about how close an abstracted answer is to the full game.
+
+## 15. PLO4 river solve
+
+`web/src/engine/plo/river/` solves one heads-up PLO4 river by discounted CFR, with every combo of both ranges and exact blockers, on a listed tree. It's a TypeScript solver written apart from the Python engine, and it shares nothing with it.
+
+**Measured [M].** Six small spots (2x1 up to 40x40 combos) against `scripts/engine/plo_river_reference.py`, a NumPy CFR+ with its own evaluator and tree: identical trees and matchups, value within 0.00002bb, both solves under 0.001% of the pot from equilibrium, and the two hand-solvable toys at 2.5 and -10/9. Each side's strategy measured by the other's best response gave the same value to 4 or more decimal places (TS measuring Python's is a test; Python measuring TS's was run once and isn't kept as a test).
+
+**What the figure means.** Exploitability on the page is from exact best responses on the listed tree: the average of each seat's gain, in % of the river's pot. It's exact for that tree, and silent on what a size outside the tree would win.
+
+**Not checked.** Large spots aren't cross-checked, the reference being a dense matrix. The ranges are typed, so nothing says they are the ranges a solved hand would reach the river with. Earlier streets, rake and node locks aren't there. Speed on a phone isn't measured.

@@ -26,6 +26,7 @@ const AnalyzePage = page(() => import("@/features/analyze/AnalyzePage"), "Analyz
 const ReportsPage = page(() => import("@/features/reports/ReportsPage"), "ReportsPage");
 const ComparePage = page(() => import("@/features/compare/ComparePage"), "ComparePage");
 const EquityPage = page(() => import("@/features/equity/EquityPage"), "EquityPage");
+const PloRiverPage = page(() => import("@/features/plo/PloRiverPage"), "PloRiverPage");
 const SolvePageWith = lazy(() =>
   freshChunk(() => import("@/features/solve/SolvePage")).then((m) => ({
     default: m.SolvePage,
@@ -70,6 +71,7 @@ export function App() {
             <Route path="tournaments" element={<TournamentsPage />} />
             <Route path="compare" element={<ComparePage />} />
             <Route path="equity" element={<EquityPage />} />
+            <Route path="plo" element={<PloRiverPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

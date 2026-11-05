@@ -231,6 +231,7 @@ const LABELS: Record<ResultSource, string> = {
   "preflop-solve": "Preflop solve (class-level model)",
   "push-fold": "Push/fold model (not a solve)",
   "best-response": "Exploiting an assumed profile (best response, not a solve)",
+  "plo-river": "Heads-up PLO4 river solve of every combo, this river only: earlier streets aren't solved",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
   unknown: "Unlabelled",
@@ -268,6 +269,39 @@ export function describe(p: Provenance): string {
   else if (p.approximate) parts.push("approximate");
   if (p.confidence) parts.push(`${p.confidence} confidence`);
   return parts.join(" · ");
+}
+
+/** A PLO4 river's provenance (engine/plo/river/): exact on the tree it's given, so it says that tree, how far the solve got
+ * and that nothing before the river is solved; the ranges are the reader's own, no solve's. A solve stopped short of its
+ * target is approximate, however close it got. The figure is measured by an exact best response on that tree. */
+export function ploRiverProvenance(r: {
+  stop: "target" | "time" | "iterations" | "cancelled";
+  iterations: number;
+  seconds: number;
+  exploitabilityPct: number;
+  targetPct: number;
+  sizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean };
+  now?: number;
+}): Provenance {
+  const short = r.stop !== "target";
+  const list = (xs: readonly number[]) => xs.map((x) => `${x}%`).join(", ") || "none";
+  const label = { time: "the time budget ran out", iterations: "the iteration limit came first", cancelled: "cancelled", target: "" }[r.stop];
+  return {
+    source: "plo-river",
+    approximate: short,
+    exploitabilityPct: r.exploitabilityPct,
+    targetPct: r.targetPct,
+    band: bandOf(r.exploitabilityPct, short),
+    iterations: r.iterations,
+    seconds: r.seconds,
+    view: `from the ranges typed, at bets ${list(r.sizes.bets)} of the pot, raises ${list(r.sizes.raises)}, up to ${r.sizes.raiseCap} raise${r.sizes.raiseCap === 1 ? "" : "s"}${r.sizes.allIn ? ", all-in where the limit allows" : ""}, no rake`,
+    ...(short ? { approximateLabel: `short of its target: ${label}` } : {}),
+    mode: "accurate",
+    transport: "worker",
+    solverVersion: "Lizard PLO river, discounted CFR in TypeScript",
+    partial: false,
+    receivedAt: r.now ?? Date.now(),
+  };
 }
 
 /** The one-size view's badge (ROADMAP Phase 8): every row is a live solve of the street from the decision at Fast, so

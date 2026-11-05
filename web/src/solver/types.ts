@@ -17,6 +17,7 @@ export type ResultSource =
   | "preflop-solve" // the preflop game's equilibrium solve (pf_study)
   | "best-response" // exploit practice: a solve with a lock on the opponent, each hand's best response to an assumed profile (features/practice/exploit.ts). Never an equilibrium, and never called solved
   | "push-fold" // the engine's push/fold model at 12bb or less: an all-in range from a jam-or-fold equilibrium by hand class, or a call priced against one (advisor.py _push, _vs_jam); no EVs, and no solve of the full game
+  | "plo-river" // an exact heads-up PLO4 river at listed sizes, from two typed ranges (engine/plo/river/). Earlier streets aren't solved
   | "rules" // heuristic betting rules (multiway 5+ / fallback)
   | "equity" // equity-based fallback
   | "unknown";

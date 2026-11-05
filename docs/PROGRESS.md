@@ -4171,3 +4171,16 @@ One 3-way river (low stack-to-pot ratio) doesn't settle: both sides are hard to 
 
 Separately, the favicon was a 404 on every page but home, because its path was relative. It now uses the base path, as does a new web manifest. Adding Lizard to a real phone's home screen hasn't been tried.
 
+Live check of `7b93623` (run 42068251122, 2026-11-05): `/lizard/lizard.svg` and `/lizard/manifest.webmanifest` return 200, Study on the live site links both from `/lizard/`, cross-origin isolated, Engine ready · 8 threads, 169 cells, with `/`, `/gto-solver/`, `/gto-solver-classic/` and the manifest at 200. The index stayed `index-DGSeHMgE.js` at 298,193 bytes, as this commit changed no app code.
+
+### An exact heads-up PLO4 river solve, and undo keys in a combo box (Phases 3, 7)
+
+`/plo` solves one heads-up PLO4 river from two typed ranges at listed sizes, by discounted CFR in TypeScript on the whole game: every combo, exact blockers, pot-limit maximums from the table engine, and exploitability from exact best responses. It runs in its own worker and route chunk, so none of it is in the first download. Nothing is sampled or bucketed. A spot over 25 million combos times terminal nodes, or about 512 MB, is refused in words. Nothing before the river is solved, the ranges are the reader's own, there's no rake, and sizes outside the list aren't in the tree: the page and the badge say so. PLO stays out of Study, Practice and Analyze.
+
+Against a separate NumPy solve on 6 small spots, the trees and matchups are the same and values agree within 0.00002bb (`docs/ACCURACY.md` §15). Large spots aren't cross-checked and phone speed isn't measured.
+
+I renamed the badge from "Exact heads-up PLO4 river solve" to "Heads-up PLO4 river solve of every combo": a solve stopped short isn't exact, even with "approximate" further along the same badge.
+
+In the range builder, Ctrl+Z and redo now work from inside a combo's box when nothing is typed in it. With a draft they stay the box's own.
+
+Tests: 2718 unit tests in 153 files (2 skipped), typecheck and lint clean, 28 Python reference tests, 118 browser tests passed and 62 skipped. In the full run 10d timed out at its 3-minute grading wait with the machine at a load of about 24; it passed alone in 7.6 s on the same build, so that's what this count uses.

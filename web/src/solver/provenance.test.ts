@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandOf, describe as describeProvenance, evUnit, PRIZE_UNIT, provenanceOf, sourceOf, tournamentModelOf } from "./provenance";
+import { bandOf, describe as describeProvenance, evUnit, ploRiverProvenance, PRIZE_UNIT, provenanceOf, sourceOf, tournamentModelOf } from "./provenance";
 import type { AdvisorResponse } from "./protocol";
 
 const ctx = { mode: "fast" as const, transport: "worker" as const, solverVersion: "9b907bd6/abc", partial: false, now: 1 };
@@ -181,6 +181,32 @@ describe("provenance", () => {
     // and no triage, nothing said
     expect(provenanceOf({ solver: { iterations: 300 } }, ctx).confidence).toBeUndefined();
     expect(describeProvenance({ ...quick, mode: "fast", confidence: undefined })).toMatch(/^Live solve · /);
+  });
+});
+
+describe("a PLO4 river", () => {
+  const river = { iterations: 140, seconds: 2.5, exploitabilityPct: 0.08, targetPct: 0.1, sizes: { bets: [50, 100], raises: [100], raiseCap: 2, allIn: true }, now: 1 };
+
+  it("says an exact solve of this river alone, at which sizes, how far it got, and that nothing earlier is solved", () => {
+    const p = ploRiverProvenance({ ...river, stop: "target" });
+    expect(p).toMatchObject({ source: "plo-river", approximate: false, band: "converged", iterations: 140, targetPct: 0.1 });
+    const words = describeProvenance(p);
+    expect(words).toContain("Heads-up PLO4 river solve of every combo");
+    expect(words).toContain("earlier streets aren't solved");
+    expect(words).toContain("bets 50%, 100% of the pot, raises 100%, up to 2 raises, all-in where the limit allows, no rake");
+    expect(words).toContain("0.08% pot from equilibrium in the solved game");
+    expect(words).toContain("140 iterations");
+  });
+
+  it("is approximate if it stopped short, whatever the figure", () => {
+    const p = ploRiverProvenance({ ...river, stop: "time" });
+    expect(p).toMatchObject({ approximate: true, band: "approximate" });
+    expect(describeProvenance(p)).toContain("short of its target: the time budget ran out");
+    expect(describeProvenance(ploRiverProvenance({ ...river, stop: "cancelled" }))).toContain("short of its target: cancelled");
+  });
+
+  it("says no raises rather than an empty list", () => {
+    expect(describeProvenance(ploRiverProvenance({ ...river, stop: "target", sizes: { bets: [100], raises: [], raiseCap: 0, allIn: false } }))).toContain("bets 100% of the pot, raises none, up to 0 raises, no rake");
   });
 });
 
