@@ -106,8 +106,7 @@ export interface AdvisorResponse {
   triage?: { source?: "chart" | "library" | "approx" | "quick" | "rules" | string; confidence?: Confidence; label?: string };
   off_solution?: OffSolution[];
   street?: "preflop" | "flop" | "turn" | "river";
-  /** Study: "node" | "deal" | "over" | "runouts" | "pf_unsolved" | "pf_none" | "pf_progress" | "pf_export"; a node lock:
-   * "nodelock", and "nodelock_progress" on its way */
+  /** Study: "node" | "deal" | "over" | "runouts" | "pf_unsolved" | "pf_none" | "pf_progress" | "pf_export" */
   study?: string;
   actor?: string;
   opponent?: string;
@@ -136,96 +135,12 @@ export interface AdvisorResponse {
   /** solve diagnostics */
   solver?: SolverDiagnostics;
   multiway?: boolean;
-  /** a node lock's answer (engine/study_lock.py) */
-  node_lock?: NodeLockBlock;
-  /** a node lock's request that wasn't run: "invalid", it makes no sense; "refused", this spot can't honour it */
-  lock_error?: "invalid" | "refused";
   /** what answered when the solve failed: "rules" | "chart" | "equity" */
   fallback?: string;
   fallback_reason?: string;
   notes?: string[];
   seconds?: number;
   [key: string]: unknown;
-}
-
-/** What a node lock holds, sent as `state.nodelock` on the Study state of the node on screen (engine/study_lock.py):
- * the state says which node, so there's no line to send. `mix`: a frequency per action, 0..1, summing to 1, played by
- * every hand in `hands`. `expect`: what the page showed, so a tree that disagrees is refused rather than locked. */
-export interface NodeLockRequest {
-  mix: Record<string, number>;
-  hands: "all" | { classes?: string[]; combos?: string[] };
-  expect?: { actor?: string; actions?: string[] };
-}
-
-/** One solve's numbers, bb per dealt pair of hands from the solve's root, indexed [OOP, IP]. `value`: what each player
- * nets, half the pot at the root counting as theirs already. */
-export interface NodeLockSide {
-  iterations: number;
-  root_pot: number;
-  value: [number, number];
-  exploitability_pct: number;
-}
-
-/** A decision in both solves. `at`: on the line before the locked node, the locked node, or straight after it.
- * `unlocked`, `locked`: its mix over the range that gets there, per action; null where nothing gets there. `reach`: the
- * share of the two ranges that gets there together. */
-export interface NodeLockChange {
-  at: "before" | "locked" | "after";
-  line: string[];
-  seat: string;
-  player: 0 | 1;
-  actions: string[];
-  unlocked: number[] | null;
-  locked: number[] | null;
-  reach: { unlocked: number; locked: number };
-}
-
-export interface NodeLockBlock {
-  /** the action names from the solve's root to the node: this street's, never a card */
-  line: string[];
-  seat: string;
-  player: 0 | 1;
-  /** the seats at [OOP, IP] */
-  seats: [string, string];
-  actions: string[];
-  /** the mix held, per action */
-  mix: number[];
-  hands: NodeLockRequest["hands"];
-  cells: number;
-  ignored: number;
-  ignored_hands: string[];
-  /** the lock in words */
-  words: string;
-  /** the share of the player's range at the node that the lock holds */
-  share_held: number;
-  /** the lock leaves an action unplayed, so the opponent's answers to it aren't trained */
-  untrained: boolean;
-  root_pot: number;
-  locked: NodeLockSide & {
-    best_response_held: [number, number];
-    gain_held: [number, number];
-    best_response_free: [number, number];
-    /** what dropping the lock wins that player against this opponent: engine/nodelock.py's measure */
-    lock_cost: [number, number];
-    seconds: number;
-  };
-  unlocked: NodeLockSide & { best_response: [number, number]; gain: [number, number] };
-  changes: NodeLockChange[];
-  /** what the tree abstracts, in words */
-  abstraction: string;
-  /** what the restricted game covers, in words */
-  scope: string;
-}
-
-export type NodeLockAnswer = AdvisorResponse & { study: "nodelock"; node_lock: NodeLockBlock };
-
-/** How a node lock is going, at each of its solve's checks. */
-export interface NodeLockProgress {
-  study: "nodelock_progress";
-  iterations: number;
-  of: number;
-  exploitability_pct: number | null;
-  seconds: number;
 }
 
 /** A practice opponent's move (Advisor.play): drawn from the seat's mix for its hand. `to` is a bet's or raise's

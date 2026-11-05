@@ -61,7 +61,6 @@ so rake and prize equity run, but only a zero-sum game has one value to validate
 """
 from __future__ import annotations
 
-import hashlib
 import math
 import time
 from dataclasses import dataclass, field
@@ -214,60 +213,6 @@ def _skip(node):
     while isinstance(node, BucketEntry):
         node = node.child
     return node
-
-
-def _played(solver, r0, r1) -> tuple:
-    """(each player's value, each player's best response, the function that scores a utility row): a solve's average
-    strategies as they stand, bb per dealt pair of hands, locks ignored by the best responses."""
-    a, b = r0[None, :].astype(np.float32), r1[None, :].astype(np.float32)
-    raw = (r0, r1)
-    pairs = max(float((solver.compat_sum(r1[None, :])[0] * r0).sum()), 1e-12)
-
-    def score(u, p) -> float:
-        return float((u[0] * raw[p]).sum()) / pairs
-
-    got = core.evaluate(solver, [(solver.root, p, a, b, core.AVG) for p in (0, 1)] +
-                        [(solver.root, p, a, b, core.BR) for p in (0, 1)])
-    solver.sampling = False
-    held = getattr(solver, "_held", None)
-    try:
-        if got is None:
-            if held is not None:
-                solver._held = False
-            got = [solver._cfr(solver.root, p, a, b, update=False, use_avg=True) for p in (0, 1)] + \
-                  [solver._best_response(solver.root, p, a, b) for p in (0, 1)]
-    finally:
-        solver.sampling = True
-        if held is not None:
-            solver._held = held
-    return [score(got[p], p) for p in (0, 1)], [score(got[2 + p], p) for p in (0, 1)], score
-
-
-def measure_plain(solution: Solution) -> dict:
-    """An unlocked solve on LockedSolver.measure's definitions and scale, to set beside a locked one."""
-    value, free, _ = _played(solution.solver, solution.r0, solution.r1)
-    gain = [free[p] - value[p] for p in (0, 1)]
-    pot = float(solution.solver.root.pot_now)
-    return {"iterations": int(solution.solver.iters), "root_pot": pot, "value": value, "best_response": free,
-            "gain": gain, "exploitability_pct": (gain[0] + gain[1]) / 2 / pot * 100}
-
-
-def tree_shape(root) -> str:
-    """A digest of a tree: its decisions' players, actions and boards and its chance nodes' boards. Two trees with the
-    same shape have the same nodes, so a line means the same decision in both."""
-    h = hashlib.sha1()
-    stack = [root]
-    while stack:
-        n = stack.pop()
-        if isinstance(n, BucketEntry):
-            stack.append(n.child)
-        elif isinstance(n, Chance):
-            h.update(repr(("C", n.K, n.boards)).encode())
-            stack.append(n.child)
-        elif isinstance(n, Decision):
-            h.update(repr(("D", n.player, n.names, n.bucketed, n.boards)).encode())
-            stack.extend(n.children)
-    return h.hexdigest()
 
 
 class LockedSolver(Solver):
@@ -464,14 +409,28 @@ class LockedSolver(Solver):
 
     def measure(self, r0, r1) -> dict:
         """Values and each player's best responses, bb per dealt pair of hands (the module's docstring)."""
-        value, free, score = _played(self, r0, r1)
-        self._held = True
+        a, b = r0[None, :].astype(np.float32), r1[None, :].astype(np.float32)
+        raw = (r0, r1)
+        pairs = max(float((self.compat_sum(r1[None, :])[0] * r0).sum()), 1e-12)
+
+        def score(u, p) -> float:
+            return float((u[0] * raw[p]).sum()) / pairs
+
+        got = core.evaluate(self, [(self.root, p, a, b, core.AVG) for p in (0, 1)] +
+                            [(self.root, p, a, b, core.BR) for p in (0, 1)])
         self.sampling = False
         try:
-            a, b = r0[None, :].astype(np.float32), r1[None, :].astype(np.float32)
+            if got is None:
+                self._held = False
+                got = [self._cfr(self.root, p, a, b, update=False, use_avg=True) for p in (0, 1)] + \
+                      [self._best_response(self.root, p, a, b) for p in (0, 1)]
+            value = [score(got[p], p) for p in (0, 1)]
+            free = [score(got[2 + p], p) for p in (0, 1)]
+            self._held = True
             locked = self._locked_players()
             held = [score(self._best_response(self.root, p, a, b), p) if p in locked else free[p] for p in (0, 1)]
         finally:
+            self._held = True
             self.sampling = True
         gain = [held[p] - value[p] for p in (0, 1)]
         pot = float(self.root.pot_now)
@@ -527,19 +486,16 @@ def solve_locked(board: Sequence[int], r_oop: np.ndarray, r_ip: np.ndarray, pot:
                  cfg: Optional[Config] = None, time_budget: float = 3.0, max_iters: int = 1000,
                  dead: Sequence[int] = (), should_stop=None, warm: Optional[Solution] = None,
                  reserve: Optional[float] = None, horizon: Optional[int] = None, max_cells: Optional[int] = None,
-                 max_per: Optional[float] = None, seed=None, same_tree: Optional[str] = None) -> LockedSolution:
+                 max_per: Optional[float] = None, seed=None) -> LockedSolution:
     """gto.solver.solve with `locks` held. Every argument is solve()'s. `warm`: an earlier solve of the spot, unlocked or
     locked: its pins don't come along (LockedSolver.scrub), and this solve's are written over what it copies. The
-    iteration count starts over, as in solve(). `same_tree`: another solve's tree_shape, which this tree must have.
-    LockError or LockRefused before any iteration runs."""
+    iteration count starts over, as in solve(). LockError or LockRefused before any iteration runs."""
     t_start = time.time()
     cfg = cfg or Config()
     board = tuple(board)
     ctx, active, r0f, r1f, dead_set = _spot(board, r_oop, r_ip, cfg, dead)
     tb = TreeBuilder(ctx, dead=list(dead_set), max_cells=max_cells)
     root = tb.build(board, pot, stack, bets, to_act, n_raises)
-    if same_tree is not None and tree_shape(root) != same_tree:
-        raise LockError("the locked solve's tree isn't the tree of the answer on screen")
     r0, r1 = r0f[active], r1f[active]
     ctx.root_reach = (r0, r1)
     s = LockedSolver(ctx, root, dead_set, locks, r0, r1)
