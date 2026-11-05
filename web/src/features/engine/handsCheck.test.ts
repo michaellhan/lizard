@@ -597,20 +597,26 @@ describe("what it fails on", () => {
   describe("a worker ended", () => {
     const stuck = { stop: "cheap" as const, stopped: new SolverError("stuck", "the solver stopped answering"), takes: (q: AdvisorState) => (q.board ? 20 : 0) };
 
-    it("fails on an isolated page, and its stops are no request errors", async () => {
+    /** A run on a clock, so the hero moves 5 ms into each 20 ms look-ahead however busy the machine is. The first that goes
+     * dead ends the worker, and nothing is asked ahead after it, so there's one stop and one restart, and the run plays on. */
+    async function ended() {
       show("visible");
+      vi.useFakeTimers();
+      const run = check(stuck, { askAhead: true, thinkMs: 5, now: () => Date.now() });
+      await vi.advanceTimersByTimeAsync(60_000);
+      return run;
+    }
+
+    it("fails on an isolated page, and its stops are no request errors", async () => {
       vi.stubGlobal("crossOriginIsolated", true);
-      const r = await check(stuck, { askAhead: true, thinkMs: 5 });
-      failsOn(r, "restart", /was ended \d+ time/);
-      expect(r.restarts).toBeGreaterThan(0);
-      expect(r).toMatchObject({ isolated: true, requestErrors: 0 });
+      const r = await ended();
+      failsOn(r, "restart", /was ended 1 time,/);
+      expect(r).toMatchObject({ isolated: true, restarts: 1, requestErrors: 0, hands: 8, requests: { stopped: 1 } });
     });
 
     it("doesn't on a page where that's what a stop is", async () => {
-      show("visible");
-      const r = await check(stuck, { askAhead: true, thinkMs: 5 });
-      expect(r.restarts).toBeGreaterThan(0);
-      expect(r).toMatchObject({ passed: true, isolated: false });
+      const r = await ended();
+      expect(r).toMatchObject({ passed: true, isolated: false, restarts: 1, requestErrors: 0, hands: 8, requests: { stopped: 1 } });
     });
 
     it("gives a stop as the run ends the time a worker has to answer one, and leaves that out of the run's seconds", async () => {

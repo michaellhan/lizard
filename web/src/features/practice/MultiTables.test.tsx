@@ -4,7 +4,7 @@
 // nobody plays above one table. What the Room decides is room.test.ts's. Layout isn't here, as jsdom draws no Tailwind, past the classes that hold it still.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { classOf } from "@/engine/nlhe/cards";
@@ -621,6 +621,10 @@ describe("the dock", () => {
   it("guards a table that came forward by itself", async () => {
     const hand = checkedTo(1);
     stub.advice = byHand([hand, CHECKED]);
+    // (on a clock held still, as a real 200 ms can be over before a busy machine gets to look: the guard ends when this says)
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    onTestFinished(() => clock.mockRestore());
     await open(doc([hand, theirMove(2)]), { guard: 200 });
     const options = await ready();
     expect(options).toHaveAttribute("aria-disabled", "true");
@@ -628,7 +632,13 @@ describe("the dock", () => {
     fireEvent.click(within(options).getAllByRole("button")[0]!);
     key("1");
     expect(within(tile(1)).queryByText(/Best · flop/)).toBeNull();
-    await waitFor(() => expect(screen.getByRole("group", { name: "Your options" })).not.toHaveAttribute("aria-disabled"));
+    now += 199;
+    key("1");
+    expect(within(tile(1)).queryByText(/Best · flop/)).toBeNull();
+    expect(options).toHaveAttribute("aria-disabled", "true");
+    now += 1;
+    // (nothing is pressed: the Room's own timer tells the page)
+    await waitFor(() => expect(screen.getByRole("group", { name: "Your options" })).not.toHaveAttribute("aria-disabled"), { timeout: 4000 });
     expect(screen.getByRole("group", { name: "Your options" }).className).not.toMatch(/opacity-50/);
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]!);
     await waitFor(() => expect(tile(1)).toHaveTextContent("Best · flop"));
