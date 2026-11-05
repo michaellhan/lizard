@@ -35,7 +35,7 @@ export function MixTable({ mix, hasEv, labelOf, chose, unit = "bb" }: { mix: Mix
               {a.action === chose && " ← you"}
             </td>
             <td className="py-0.5 text-right">{pct(a.freq)}</td>
-            {hasEv && <td className="py-0.5 text-right">{bb(a.ev)}</td>}
+            {hasEv && <td className="py-0.5 text-right">{a.rough && a.ev !== null ? "≈" : ""}{bb(a.ev)}</td>}
           </tr>
         ))}
       </tbody>

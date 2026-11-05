@@ -7,7 +7,7 @@ import { chartKey, chartMove, chartState } from "@/library/flops";
 import { recordOf, seeded, type Move, type Sim, type Street } from "@/poker/table";
 import type { AdvisorState, PlayMove } from "@/solver/protocol";
 import type { PlayRequest, SolveMode, SolveResult } from "@/solver/types";
-import { charting, needsIndex, phaseOf, setupOf, simOf, stateFor, villainMove, type PracticeHand } from "./practice";
+import { adviceState, charting, needsIndex, phaseOf, setupOf, simOf, stateFor, villainMove, type PracticeHand } from "./practice";
 
 export type Need =
   | { kind: "deal"; street: Street }
@@ -29,7 +29,7 @@ export function needOf(h: PracticeHand, mode: SolveMode, sim: Sim = simOf(h), ch
   const ph = phaseOf(h, sim);
   if (ph.kind === "deal" || ph.kind === "over") return ph;
   if (ph.kind === "hero") {
-    const state = stateFor(h);
+    const state = adviceState(h, sim);
     return { kind: "you", key: adviceKey(mode, state), state, street: ph.street };
   }
   // (a run-out after your fold: from the seat's own view, as the classic page asks it)

@@ -12,7 +12,8 @@ import { storedMoved, versionOf } from "@/grading/version";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 import { situation, type DrillProblem } from "@/features/practice/drills";
-import { CHIP_MODEL, gradable, gradeMix, stateFor, type Decision, type PracticeHand } from "@/features/practice/practice";
+import { bestResponse } from "@/features/practice/exploit";
+import { adviceState, CHIP_MODEL, gradable, gradeMix, type Decision, type PracticeHand } from "@/features/practice/practice";
 import { reviewed } from "@/features/practice/review";
 import type { LibraryReport } from "@/library/files";
 import { afterRetry, dueAfter } from "./schedule";
@@ -31,10 +32,12 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
   const r = reviewed(h, d, h.n + 1);
   const setup = fromSearch(d.study)?.setup;
   return {
-    // (a chip EV tournament's line reads as a cash game's with those stacks: its spot is its own, as its record stays apart)
-    id: `hand|${h.tournament?.model === "chips" ? "chips|" : ""}${d.study}|${h.hero}|${[...r.hole].sort().join("")}`,
+    // (a chip EV tournament's line reads as a cash game's with those stacks: its spot is its own, as its record stays apart,
+    // and so is one graded against a read, each read's its own)
+    id: `hand|${h.tournament?.model === "chips" ? "chips|" : ""}${h.exploit ? `exploit:${h.exploit.profile}|` : ""}${d.study}|${h.hero}|${[...r.hole].sort().join("")}`,
     from: "hand",
     ...(h.tournament ? { tournament: h.tournament.model } : {}),
+    ...(h.exploit ? { exploit: h.exploit.profile } : {}),
     sessionId,
     street: d.street,
     at: now,
@@ -48,7 +51,7 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
     board: r.board,
     line: r.line,
     study: d.study,
-    ask: { via: "solver", state: stateFor(h) },
+    ask: { via: "solver", state: adviceState(h) },
     chose: d.chose,
     mix: d.mix,
     pot: d.pot,
@@ -137,7 +140,7 @@ export function answerChange(m: Pick<MistakeRecord, "provenance" | "mix" | "ask"
   }
   if (a.solverVersion && b.solverVersion && a.solverVersion !== b.solverVersion)
     out.push(`${a.source === "charts" ? "The charts' build" : "The build behind it"} has changed (${a.solverVersion} then, ${b.solverVersion} now).`);
-  if (a.source === "live" && a.mode !== b.mode) out.push(`It was solved at ${a.mode}; this time at ${b.mode}.`);
+  if ((a.source === "live" || a.source === "best-response") && a.mode !== b.mode) out.push(`It was solved at ${a.mode}; this time at ${b.mode}.`);
   if (a.approximate !== b.approximate) out.push(a.approximate ? "That answer was labelled approximate; this one isn't." : "This answer is labelled approximate; that one wasn't.");
   if ((a.approximateLabel ?? "") !== (b.approximateLabel ?? "")) out.push("It was read from something else this time.");
   if ((a.view ?? "") !== (b.view ?? "")) out.push(`It came differently then (${a.view ?? "not said"}) and now (${b.view ?? "not said"}).`);
@@ -159,9 +162,10 @@ export interface Retried {
 export type RetrySpot = Pick<MistakeRecord, "ask" | "provenance" | "mix" | "street" | "study" | "chose">;
 
 /** The answer as the spot's game has it: a chip EV tournament's says so, and a fallback's chips aren't graded beside prize
- * equity, as at the table (practice.ts `modelled`, `gradable`). */
+ * equity, as at the table (practice.ts `modelled`, `gradable`), and a locked answer asked again is the best response it was. */
 const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
-  const provenance = m.provenance?.tournament === CHIP_MODEL ? { ...answer.provenance, tournament: CHIP_MODEL } : answer.provenance;
+  const read = m.provenance?.source === "best-response" && answer.provenance.lock ? bestResponse(answer.provenance, m.provenance.exploit) : null;
+  const provenance = read ?? (m.provenance?.tournament === CHIP_MODEL ? { ...answer.provenance, tournament: CHIP_MODEL } : answer.provenance);
   return { ...answer, provenance, mix: gradable(answer.mix, provenance) };
 };
 

@@ -35,6 +35,7 @@ import {
 } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
+import { assumedWords, bestResponse, type Exploit } from "./exploit";
 import { flopsLike, type TextureFilter } from "./texture";
 
 export interface Decision {
@@ -42,12 +43,14 @@ export interface Decision {
   /** the solver's action you took (its name, e.g. "bet 33%"), or the move's kind where ungraded */
   chose: string;
   move: Move;
-  /** null where the spot had no answer to grade against, or you'd seen it first (`revealed`) */
+  /** null where the spot had no answer to grade against (`offProfile`, in exploit practice), or you'd seen it first (`revealed`) */
   grade: Grade | null;
   /** made after Reveal: the answer is kept with it, and it never had a grade, so nothing can count it as one */
   revealed?: true;
+  /** in exploit practice, the engine gave no best response here (exploit.ts): never graded against anything else */
+  offProfile?: true;
   /** the answer's actions at your spot: what the grade is against */
-  mix: { action: string; freq: number; ev: number | null; amount?: number }[];
+  mix: { action: string; freq: number; ev: number | null; amount?: number; rough?: true }[];
   pot: number;
   provenance: Provenance | null;
   /** the Study line at the decision: the action before it, the board out (Study shows your whole range there) */
@@ -104,6 +107,8 @@ export interface PracticeHand {
   pushFold?: true;
   /** a tournament session's game: what its answers are in, and its prizes; each seat's chips are in `stacks` */
   tournament?: HandTournament;
+  /** an exploit session's read: your answers are the best response to it (exploit.ts) */
+  exploit?: Exploit;
   /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
    * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
   run?: "played" | "shown";
@@ -117,6 +122,10 @@ export type Sizes = Partial<Record<SizeStreet, number[]>>;
 /** The stack the engine's push/fold band ends at (advisor.py PUSH_FOLD_STACK): at this or less a raise is an all-in,
  * and at 12.5bb it's the chart's raise again. */
 export const PUSH_FOLD_MAX = 12;
+
+/** a Practice table's stack, bb */
+export const MIN_STACK = 10;
+export const MAX_STACK = 250;
 
 /** A tournament session's game. "icm": every answer is asked in prize equity, with `payouts` and `field`. "chips": chip
  * EV, which is no prizes at all, so the engine's answer is the one it gives these stacks in a cash game. */
@@ -187,6 +196,8 @@ export interface GameOptions {
   pushFold?: boolean;
   /** a tournament: each seat's chips and what the answers are in */
   tournament?: TournamentOptions;
+  /** exploit practice, in a pot drill: your decisions are graded against the best response to this read (exploit.ts) */
+  exploit?: Exploit;
 }
 
 /** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop). */
@@ -262,6 +273,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(carries(opts) ? { stacks: table?.stacks ?? Object.fromEntries(seatsOf(players).map((p) => [p, stack])), ...(table?.rebuys.length ? { rebuys: table.rebuys } : {}) } : {}),
     ...(opts.pushFold ? { pushFold: true as const } : {}),
     ...(opts.tournament ? tournamentHand(opts.tournament) : {}),
+    ...(opts.exploit ? { exploit: opts.exploit } : {}),
   };
 }
 
@@ -418,6 +430,16 @@ export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
   };
 }
 
+/** Your advice's request. In exploit practice, heads up after the flop, it carries the read on your opponent. Only your
+ * advice does: `stateFor` stays the opponents' request, as `Advisor.play` has no locks and a lock left in its state
+ * only reshapes the ranges its mix is drawn from (exploit.ts). */
+export function adviceState(h: PracticeHand, sim: Sim = simOf(h)): AdvisorState {
+  const state = stateFor(h);
+  if (!h.exploit || h.shown < 3) return state;
+  const others = [...sim.active].filter((p) => p !== h.hero);
+  return others.length === 1 ? { ...state, locks: { [others[0]!]: { ...h.exploit.lock } } } : state;
+}
+
 export type Phase =
   | { kind: "deal"; street: Street }
   | { kind: "hero"; street: Street }
@@ -477,7 +499,8 @@ export function rangeAt(h: PracticeHand, res: AdvisorResponse, provenance: Prove
   if (!res.grid || res.error || src === "rules" || src === "equity" || !sim.current) return null;
   const vs = [...sim.active].filter((p) => p !== h.hero).map((p) => seatLabel(p, h.players));
   const against = vs.length ? ` vs ${vs.length <= 2 ? vs.join(", ") : `${vs.length} players`}` : "";
-  return { grid: res.grid, cls: classOf(h.hands[h.hero]!.join("")), label: `Your range · ${sim.current} · ${seatLabel(h.hero, h.players)}${against}` };
+  const read = h.exploit && provenance?.lock ? " · its best response to the assumed profile" : "";
+  return { grid: res.grid, cls: classOf(h.hands[h.hero]!.join("")), label: `Your range · ${sim.current} · ${seatLabel(h.hero, h.players)}${against}${read}` };
 }
 
 /** Your options: the answer's actions at your spot. */
@@ -498,6 +521,8 @@ export function mixOf(res: AdvisorResponse): Decision["mix"] {
     freq: a.freq ?? 0,
     ev: typeof a.ev_bb === "number" ? a.ev_bb : null,
     ...(typeof a.amount_bb === "number" ? { amount: a.amount_bb } : {}),
+    // (advisor.py: a move the range almost never takes has a rough EV)
+    ...(a.rough_ev ? { rough: true as const } : {}),
   }));
 }
 
@@ -506,7 +531,14 @@ export function mixOf(res: AdvisorResponse): Decision["mix"] {
 export const gradable = (mix: Decision["mix"], p: Pick<Provenance, "evIn"> | null | undefined): Decision["mix"] => (p?.evIn === "chips" ? mix.map((a) => ({ ...a, ev: null })) : mix);
 
 /** The answer's provenance as the hand's game has it: a chip EV session's says so, as the engine's can't. */
-export const modelled = (h: Pick<PracticeHand, "tournament">, p: Provenance | null): Provenance | null => (p && h.tournament?.model === "chips" ? { ...p, tournament: CHIP_MODEL } : p);
+export function modelled(h: Pick<PracticeHand, "tournament" | "exploit">, p: Provenance | null): Provenance | null {
+  if (p && h.exploit) return p.lock ? bestResponse(p, assumedWords(h.exploit)) : p;
+  return p && h.tournament?.model === "chips" ? { ...p, tournament: CHIP_MODEL } : p;
+}
+
+/** Whether an exploit session can grade against this answer: the engine says it's locked, with an EV for every action.
+ * Anything else (it can drop a lock and say so) isn't what the session is graded against, so it goes ungraded. */
+export const isBestResponse = (mix: Decision["mix"], p: Pick<Provenance, "lock"> | null | undefined): boolean => !!p?.lock && mix.length > 0 && mix.every((a) => a.ev !== null);
 
 /** The mix's i-th action graded: by EV where it has EVs for every action, else by frequency (the preflop charts). */
 export function gradeMix(mix: Decision["mix"], pot: number, i: number): Grade {
@@ -529,16 +561,18 @@ export function decide(
   if (typeof m === "string") return { error: m };
   const mix = gradable(mixOf(res), provenance);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;
+  const offProfile = !!h.exploit && !isBestResponse(mix, provenance);
   const decision: Decision = {
     street: sim.current!,
     chose: a.action,
     move: m,
-    grade: h.revealed ? null : gradeMix(mix, pot, i),
+    grade: h.revealed || offProfile ? null : gradeMix(mix, pot, i),
     mix,
     pot,
     provenance: modelled(h, provenance),
     study: studyOf(h),
     ...(h.revealed ? { revealed: true as const } : {}),
+    ...(offProfile ? { offProfile: true as const } : {}),
   };
   return { hand: withDecision(h, sim, m, decision), decision };
 }

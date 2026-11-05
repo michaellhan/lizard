@@ -5,7 +5,7 @@
 import type { Verdict } from "@/grading/grade";
 import type { Provenance, ResultSource } from "@/solver/types";
 import { db, type MistakeAsk, type MistakeRecord, type MistakeTry } from "./db";
-import { isCard } from "./shapes";
+import { isCard, isWellFormed } from "./shapes";
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const isStr = (x: unknown): x is string => typeof x === "string";
@@ -16,7 +16,7 @@ const isStrs = (x: unknown): x is string[] => Array.isArray(x) && x.every(isStr)
 const isOptNum = (x: unknown) => x === undefined || isNum(x);
 const isOptStr = (x: unknown) => x === undefined || isStr(x);
 
-const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, rules: true, equity: true, unknown: true };
+const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, rules: true, equity: true, unknown: true };
 const VERDICTS: readonly string[] = ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"] satisfies Verdict[];
 /** the grades kept: the ones that aren't Best or Correct */
 export const MISSES: readonly Verdict[] = ["Inaccuracy", "Mistake", "Blunder"];
@@ -33,7 +33,7 @@ const isProvenance = (p: unknown): p is Provenance =>
   isStr(p.solverVersion) &&
   isNum(p.receivedAt) &&
   [p.exploitabilityPct, p.targetPct, p.iterations, p.seconds, p.mbbPerHand].every(isOptNum) &&
-  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.sizing, p.confidence, p.evIn].every(isOptStr);
+  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.confidence, p.evIn].every(isOptStr);
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;
@@ -53,9 +53,9 @@ const isTry = (t: unknown): t is MistakeTry =>
 /** A stored or restored record, whole and of the types it says, else null. Nothing here throws. */
 export function readMistake(x: unknown): MistakeRecord | null {
   if (!isObj(x)) return null;
-  const { id, from, tournament, sessionId, street, at, lastAt, updatedAt, times, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
+  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
   const fits =
-    isStr(id) && !!id && (from === "hand" || from === "drill") && (tournament === undefined || tournament === "icm" || tournament === "chips") && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) &&
+    isStr(id) && !!id && (from === "hand" || from === "drill") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) &&
     isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && hole.every(isCard) && isStrs(board) && board.every(isCard) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
     isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && (provenance === null || isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
     Array.isArray(tries) && tries.every(isTry);

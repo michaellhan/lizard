@@ -2,6 +2,7 @@
 // the user's browser (no accounts). Each migration runs once, in order, inside the upgrade transaction; a test
 // (db.test.ts) opens every historical version and checks the upgrade path.
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
+import type { SessionOptions } from "@/features/practice/practice";
 import type { Verdict } from "@/grading/grade";
 import type { AdvisorState } from "@/solver/protocol";
 import type { Confidence, ConvergenceBand, Provenance } from "@/solver/types";
@@ -34,6 +35,19 @@ export interface SavedRange {
   updatedAt: number;
 }
 
+/** A Practice setup kept under a name, to start again from the Saved page. Read through `readScenario` (scenarios.ts). */
+export interface SavedScenario {
+  id: string;
+  name: string;
+  players: number;
+  stack: number;
+  /** the New session form's setup: seat, what's played, ante, rake, straddle, sizes, board filter and the game's options */
+  opts: SessionOptions;
+  note: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** A drill kept under a name: where it opens (a drill is its page's URL), and what it drills. */
 export interface SavedDrill {
   id: string;
@@ -52,8 +66,9 @@ export interface SavedDrill {
 
 export interface SessionRecord {
   id: string;
-  /** "tournament": prize equity, "tournament-chips": chip EV. Kinds of their own: their EVs go in no total of another's. */
-  kind: "practice" | "drill" | "analysis" | "build" | "tournament" | "tournament-chips";
+  /** "tournament": prize equity, "tournament-chips": chip EV, "exploit": best responses to an assumed profile. Kinds of
+   * their own: their EVs go in no total of another's. */
+  kind: "practice" | "drill" | "analysis" | "build" | "tournament" | "tournament-chips" | "exploit";
   startedAt: number;
   endedAt?: number;
   decisions: number;
@@ -206,6 +221,8 @@ export interface MistakeRecord {
   from: "hand" | "drill";
   /** from a tournament session: what its EVs are in. Review keeps these apart. */
   tournament?: "icm" | "chips";
+  /** from an exploit session: the profile its answers best-respond to. Review keeps these apart. */
+  exploit?: string;
   sessionId: string;
   street: string;
   /** when it was first missed, when it last was, and when this record last changed */
@@ -246,6 +263,7 @@ export interface LizardDB extends DBSchema {
   hands: { key: string; value: HandRecord; indexes: { byPlayed: number; bySite: string; byImport: string; byHero: string; byPotType: string } };
   decisions: { key: string; value: DecisionRecord; indexes: { byHand: string; byVerdict: string; byStreet: string; byPos: string } };
   savedDrills: { key: string; value: SavedDrill; indexes: { byUpdated: number } };
+  savedScenarios: { key: string; value: SavedScenario; indexes: { byUpdated: number } };
   mistakes: { key: string; value: MistakeRecord; indexes: { byDue: number; byLast: number; byStreet: string } };
 }
 
@@ -289,6 +307,9 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
     m.createIndex("byDue", "due");
     m.createIndex("byLast", "lastAt");
     m.createIndex("byStreet", "street");
+  },
+  7: (db) => {
+    db.createObjectStore("savedScenarios", { keyPath: "id" }).createIndex("byUpdated", "updatedAt");
   },
 };
 

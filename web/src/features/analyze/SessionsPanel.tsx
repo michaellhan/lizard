@@ -5,7 +5,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
-import { filterHands } from "./analyze";
+import { filterHands, filterKey } from "./analyze";
 import { BASES } from "./report";
 import { clockOf, handKind, inSess, parseSess, sessionsOf, sessWords, type HandKind, type Sitting } from "./sessions";
 import { answersOf, counted, MIN_BLOCKS, MIN_SHARE, MIN_SIDE, MIN_ROW, moreForLine, BLOCK, tallies, trendOf, type Block, type LatestThird, type Shift, type Tally, type Trend } from "./trend";
@@ -53,11 +53,8 @@ export function SessionsPanel({
   const sits = useMemo(() => sessionsOf(hands), [hands]);
   const byLost = params.get("lost") ? lost : undefined;
   // (what the rows count: the filters but the session itself)
-  const rest = useMemo(() => {
-    const q = new URLSearchParams(params);
-    q.delete("sess");
-    return filterHands(hands, q, byLost);
-  }, [hands, params, byLost]);
+  const restKey = filterKey(params, "sess");
+  const rest = useMemo(() => filterHands(hands, new URLSearchParams(restKey), byLost), [hands, restKey, byLost]);
   const kept = useMemo(() => new Set(rest.map((h) => h.id)), [rest]);
   const picked = useMemo(() => (sess ? sits.find((s) => s.key === sess) : undefined), [sits, sess]);
 

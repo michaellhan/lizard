@@ -27,6 +27,15 @@ if (unpublishable.length) {
   process.exit(1);
 }
 
+// the first script holds the shell and the home page; a static import of a page's code would bring it all back
+const FIRST_SCRIPT_MAX = 350 * 1024;
+const first = readFileSync(index, "utf8").match(/assets\/index-[\w-]+\.js/)?.[0];
+const firstBytes = first ? readFileSync(join(dist, first)).length : 0;
+if (!firstBytes || firstBytes > FIRST_SCRIPT_MAX) {
+  console.error(`postbuild: the first script is ${firstBytes} bytes (limit ${FIRST_SCRIPT_MAX}): a page has come back into it through a static import`);
+  process.exit(1);
+}
+
 // the route table is the source of truth; read its paths without compiling TypeScript
 const routesTs = readFileSync(join(root, "web", "src", "app", "routes.ts"), "utf8");
 const paths = [...routesTs.matchAll(/\{\s*path:\s*"([^"]*)"/g)].map((m) => m[1]).filter(Boolean);

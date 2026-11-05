@@ -34,6 +34,21 @@ describe("DecisionView", () => {
     expect(screen.queryByRole("columnheader", { name: "EV bb" })).toBeNull();
     expect(screen.getByText(/Your hand.s frequencies at this heads-up spot/)).toBeTruthy();
   });
+  it("marks an EV the answer calls rough, in the table and in what was given up", () => {
+    const d = decision("live");
+    d.mix = [
+      { action: "check", freq: 1, ev: 4 },
+      { action: "bet", freq: 0, ev: 1, amount: 7.13, rough: true },
+    ];
+    d.grade = { a: 1, best: 0, byEv: true, loss: 3, lossPct: 31.6, verdict: "blunder", mixed: false } as never;
+    render(
+      <MemoryRouter>
+        <DecisionView d={d} players={2} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("cell", { name: "≈1.00" })).toBeTruthy();
+    expect(screen.getByText(/EV given up: ≈3\.00bb/)).toBeTruthy();
+  });
   it("still says so for the preflop charts", () => {
     show("charts");
     expect(screen.getByText(/the preflop charts have no EVs/)).toBeTruthy();

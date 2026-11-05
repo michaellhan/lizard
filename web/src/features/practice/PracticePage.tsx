@@ -15,6 +15,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
 import { recentSessions, type SessionRecord } from "@/data/db";
+import { getScenario } from "@/data/scenarios";
 import { GRADE_RULES, summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
@@ -31,6 +32,7 @@ import { boardShown, gameLabel, mixOf, modelled, optionsOf, phaseOf, potLabel, r
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
+import { ASSUMED, assumedWords, EXPLOIT_SCOPE } from "./exploit";
 import { answering } from "./TableTile";
 
 export { optionLabel };
@@ -91,6 +93,9 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
 function FullHands({ pace, pause, guard, active }: { pace: number; pause?: number; guard?: number; active: boolean }) {
   const getSolver = useSolver();
   const [room] = useState(() => new Room({ pace, pause, guard }));
+  const [params, setParams] = useSearchParams();
+  const scenario = params.get("scenario");
+  const [opened, setOpened] = useState<{ ok: boolean; text: string } | null>(null);
   // (as the page commits, before the Room starts: settings load after the first render, and each launch reads the latest)
   useLayoutEffect(() => {
     room.setSolver(getSolver);
@@ -114,6 +119,34 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       alive = false;
     };
   }, []);
+
+  // A saved scenario's link: its setup starts at one table, as above one Spots and Seat deal in its place, and the link goes
+  // from the address, so a reload doesn't start it again.
+  useEffect(() => {
+    if (!scenario) return;
+    let alive = true;
+    const opening = async () => {
+      const s = await getScenario(scenario).catch(() => undefined);
+      if (!alive) return;
+      if (s) {
+        room.setTables(1);
+        room.startSession(s.players, s.stack, s.opts);
+      }
+      setOpened(s ? { ok: true, text: `Started ${s.name}.` } : { ok: false, text: "That saved scenario is gone or can't be read, so nothing was started." });
+      setParams(
+        (p) => {
+          const q = new URLSearchParams(p);
+          q.delete("scenario");
+          return q;
+        },
+        { replace: true },
+      );
+    };
+    void opening();
+    return () => {
+      alive = false;
+    };
+  }, [scenario, room, setParams]);
 
   // a press of New session or Tables that brings tables up, for MultiTables to take you to them
   const pressRef = useRef(false);
@@ -145,6 +178,11 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
 
   return (
     <div className="flex flex-col gap-4">
+      {opened && (
+        <p role={opened.ok ? "status" : "alert"} className={`text-sm ${opened.ok ? "text-muted" : "text-danger"}`}>
+          {opened.text}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <ModePicker modes={["quick", "accurate"]} />
         <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
@@ -166,7 +204,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
               the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
               preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
               it reaches the flop heads-up as that pot, and you play from the flop. Push/fold deals 10 to 12bb, where you jam or fold, or call or fold a jam, against the push/fold model, and an all-in runs out.
-              Tournament sets the prizes and each seat&rsquo;s stack, every hand starts from them, and the answers are in chip EV or prize equity, kept apart in History and Review. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
+              Tournament sets the prizes and each seat&rsquo;s stack, every hand starts from them, and the answers are in chip EV or prize equity, kept apart in History and Review. In one kind of pot, Exploit grades you against the best response to an assumed profile, kept apart too. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
               for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
               chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Up to
               four tables at once: pick how many under Tables. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze. Hint says what the spot is and what a call
@@ -182,6 +220,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             Game · {session.players}-max · {session.stack}bb
             {session.opts.pushFold ? " · push/fold" : ""}
             {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
+            {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
         </details>
@@ -192,7 +231,9 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
             <p className="text-xs text-muted">
-              Above one table Spots and Seat decide what&rsquo;s dealt, so Your seat, Play&rsquo;s kinds of pot and Carry chips here wait until you&rsquo;re back at one table. Preflop only still counts.
+              {session.opts.exploit
+                ? "Above one table Seat decides where you sit, and the board filter here waits until you're back at one table. An exploit session keeps its pot and its profile at every table."
+                : "Above one table Spots and Seat decide what's dealt, so Your seat, Play's kinds of pot and Carry chips here wait until you're back at one table. Preflop only still counts."}
             </p>
             <div ref={place} />
           </div>
@@ -229,6 +270,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <p className="mt-2 text-muted">
           At 12bb or less the answer is the push/fold model: first in, an equilibrium of a game with only all-in or fold, worked out by hand class; facing a jam, a call priced by equity against that range. It has no EVs and isn&rsquo;t a
           solve, so it&rsquo;s graded by frequency too. In a tournament the badge says what each answer is in: a prize-equity EV is chips worth as much prize equity, and a fallback&rsquo;s chips are graded by frequency there.
+        </p>
+        <p className="mt-2 text-muted">
+          With an exploit profile the answer is the best response to it, by EV, on a live solve with the profile&rsquo;s numbers locked on your opponent. It&rsquo;s a best response to an assumption, never an equilibrium: a hand&rsquo;s EV holds only if the
+          opponent plays those numbers. The badge says so. {ASSUMED} {EXPLOIT_SCOPE} An answer that comes back without the profile isn&rsquo;t graded.
         </p>
       </details>
 
@@ -320,6 +365,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             {hand.straddle ? " · straddle" : ""}
             {hand.pushFold ? " · push/fold" : ""}
             {hand.tournament ? ` · ${gameLabel(hand.tournament)}` : ""}
+            {hand.exploit ? ` · exploiting ${assumedWords(hand.exploit)}` : ""}
             {hand.rake ? ` · rake ${hand.rake.pct}%${hand.rake.cap ? ` (cap ${hand.rake.cap}bb)` : ""}` : ""}
             {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
           </span>

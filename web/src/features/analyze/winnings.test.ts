@@ -8,7 +8,7 @@ import { importHand } from "@/hh/replay";
 import { PRACTICE_SITE } from "@/data/hands";
 import { recordOf } from "./analyze";
 import { CLASSIC_SITE } from "./classic";
-import { handWin, signed, tallyWinnings, unitOf, winningsOf } from "./winnings";
+import { extent, handWin, signed, tallyWinnings, unitOf, winningsOf } from "./winnings";
 
 const HH_DIR = join(process.cwd(), "..", "solver", "tests", "data", "hh");
 const HH = (f: string) => readFileSync(join(HH_DIR, f), "utf8");
@@ -18,6 +18,14 @@ const RECS = readdirSync(HH_DIR)
   .map((f) => recordOf(HH(f), importHand(HH(f)), IMP));
 
 describe("results tally", () => {
+  it("finds a chart's bounds over more points than a call can spread", () => {
+    expect(extent([])).toEqual([0, 0]);
+    expect(extent([[3, 1], [-2]])).toEqual([-2, 3]);
+    // (Math.min(...xs) throws a RangeError from about 120,000: four lines over 50,000 hands are 200,000)
+    const big = Array.from({ length: 4 }, (_, l) => Float64Array.from({ length: 50_000 }, (_, i) => (i - 25_000) * (l + 1)));
+    expect(extent(big.map((x) => [...x]))).toEqual([-100_000, 99_996]);
+  });
+
   it("signs an amount as it's shown: nothing for what rounds to nothing, a loss's own for what rounds to a tenth", () => {
     expect([signed(0), signed(0.04), signed(-0.04), signed(0.05), signed(-0.05), signed(-1.25, 2), signed(0.004, 2)]).toEqual(["0.0", "0.0", "0.0", "+0.1", "−0.1", "−1.25", "0.00"]);
   });

@@ -22,6 +22,7 @@ const cardsOf = (s: string) => s.match(/../g) ?? [];
 const NOT_SOLVED: Partial<Record<ResultSource, string>> = {
   charts: "The preflop charts are approximate tables. They are not a solved answer, and they have no EVs.",
   "push-fold": "The push/fold model is an equilibrium of a game with only all-in or fold, worked out by hand class, or a call priced against its range. It is not a solve of the full game, and it has no EVs.",
+  "best-response": "This is the best response to an assumed opponent profile. It is not an equilibrium or a solved answer, and its EVs hold only if the opponent plays those assumed numbers, which are not population data.",
   rules: "These betting rules are a fallback. They are not a solved answer.",
   equity: "This equity estimate is a fallback. It is not a solved answer.",
 };

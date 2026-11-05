@@ -1,11 +1,11 @@
-// Backup and restore: everything kept in this browser (saved spots, saved ranges, saved drills, session history, the
+// Backup and restore: everything kept in this browser (saved spots, saved ranges, saved drills, saved scenarios, session history, the
 // mistakes kept for review with their schedule, the hands imported into Analyze with your tags and notes, and their
 // grades) in one JSON file.
 // Each record is written in the classic app's shape (solver/gto/static/store.js): { id, v, created, updated, dev,
 // data }, so a later account sync (ROADMAP Phase 11) can take the same records. Restore merges as classic does: a
 // record missing here is added, of two with one id the later `updated` stays, and nothing here is deleted.
 // Settings are not in the backup (they're a handful of choices, and restoring them would change this browser's).
-import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type MistakeRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
+import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type MistakeRecord, type SavedDrill, type SavedRange, type SavedScenario, type SavedSpot, type SessionRecord } from "./db";
 import { readMistake } from "./mistakes";
 import { isDrillLink, newId } from "./saved";
 import { isTime, isWellFormed, validDecision, validHand, validRange, validSession, validSpot } from "./shapes";
@@ -31,12 +31,13 @@ interface StoreData {
   hands: HandRecord;
   decisions: DecisionRecord;
   savedDrills: SavedDrill;
+  savedScenarios: SavedScenario;
   mistakes: MistakeRecord;
 }
 export type BackupStore = keyof StoreData;
-// (a backup made before hands, drills or mistakes were in it has no "hands", "decisions", "savedDrills" or "mistakes":
-// those restore nothing)
-export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "savedDrills", "sessions", "hands", "decisions", "mistakes"];
+// (a backup made before hands, drills, scenarios or mistakes were in it has no "hands", "decisions", "savedDrills",
+// "savedScenarios" or "mistakes": those restore nothing)
+export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedRanges", "savedDrills", "savedScenarios", "sessions", "hands", "decisions", "mistakes"];
 
 export interface Backup {
   format: typeof BACKUP_FORMAT;
@@ -50,6 +51,10 @@ export interface Backup {
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const isStr = (x: unknown): x is string => typeof x === "string";
 const obj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+
+/** This file is in the first script, as the error page's backup needs it, and a scenario's reader brings Practice's rules
+ * with it: so a restore loads it, before its transactions, which an import would end. */
+let readScenario: ((x: unknown) => unknown) | undefined;
 
 /** Each store's times, and what a record must hold to be restored (a damaged or foreign one is skipped). */
 const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; updated: (d: StoreData[S]) => number; valid: (d: Record<string, unknown>) => boolean } } = {
@@ -69,6 +74,11 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; upda
     valid: (d) =>
       isStr(d.name) && (d.kind === "library" || d.kind === "leak") && isStr(d.to) && isDrillLink(d.kind, d.to) && isStr(d.about) && isStr(d.note) &&
       isTime(d.createdAt) && isTime(d.updatedAt),
+  },
+  savedScenarios: {
+    created: (d) => d.createdAt,
+    updated: (d) => d.updatedAt,
+    valid: (d) => !!readScenario?.(d),
   },
   sessions: {
     created: (d) => d.startedAt,
@@ -141,6 +151,7 @@ export async function restoreBackup(file: unknown): Promise<Record<BackupStore, 
     throw new Error(`That backup was written by a newer Lizard (record version ${String(file.schema)}); update the page and try again.`);
   const d = await db();
   if (!d) throw new Error("This browser keeps no data here (IndexedDB is unavailable, as in some private modes).");
+  readScenario = (await import("./scenarios")).readScenario;
   const out = {} as Record<BackupStore, RestoreCount>;
   for (const s of BACKUP_STORES) {
     const c: RestoreCount = { added: 0, updated: 0, kept: 0, skipped: 0 };

@@ -1,9 +1,10 @@
 // Analyze: your hand histories imported into this browser (pasted, or files and folders picked or dropped), read
-// by the classic importer's port (hh/), kept in IndexedDB once each (data/hands.ts), listed with filters, and each
-// hand replayed street by street with every decision of yours opening in Study; your decisions graded against the
+// by the classic importer's port (hh/), kept in IndexedDB once each (data/hands.ts), under one row of filters in the
+// URL that every report follows (FilterBar.tsx), and each hand replayed street by street with every decision of yours
+// opening in Study; your decisions graded against the
 // charts and the flop library, or by triage or a solve (GradingPanel.tsx), each grade shown with what it stands on;
 // your sittings and how the grades moved across them (SessionsPanel.tsx).
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -16,13 +17,15 @@ import { HH_SITES } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
-import { filesName, filterHands, HAND_FILTERS, hhFiles, LOST_STEPS, lostByHand, POT_TYPES, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
+import { filesName, filterHands, filterKey, hhFiles, lostByHand, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
 import { CLASSIC_SITE, classicRecords, readClassicHands, type ClassicImport } from "./classic";
-import { decisionNote, GradePanel, GradeReport } from "./GradingPanel";
+import { decisionNote } from "./DecisionTables";
+import { FilterBar } from "./FilterBar";
+import { GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
-import { isGraded } from "./report";
+import { isGraded, lostByKind } from "./report";
 import { importTooBig } from "@/data/limits";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
 import { SessionsPanel } from "./SessionsPanel";
@@ -32,6 +35,9 @@ import { LIMITS } from "@/features/solve/setup";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
+/** the most listed at a press: tens of thousands of rows of cards would hold the page */
+const ROW_STEP = 1000;
+const NO_LOST: ReadonlyMap<string, number> = new Map();
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const cardsOf = (s: string) => s.match(/../g) ?? [];
 // each move said of another seat, and of you
@@ -81,9 +87,18 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const drillParam = params.get("drill");
   const drill = useMemo(() => parseLeakParam(drillParam), [drillParam]);
   const open = id ? hands?.find((h) => h.id === id) : undefined;
-  // (the hands table's filters apply to the report, the drill and the stats too)
-  const lost = useMemo(() => lostByHand(decisions), [decisions]);
-  const shown = useMemo(() => (hands ? filterHands(hands, params, lost) : null), [hands, params, lost]);
+  // (the filters apply to every report. Grading adds decisions hand by hand: what counts them follows at its own pace)
+  const later = useDeferredValue(decisions);
+  const lost = useMemo(() => lostByHand(later), [later]);
+  const key = filterKey(params);
+  const filters = useMemo(() => new URLSearchParams(key), [key]);
+  // (the same hands, the same array, while the filters stand: opening a hand, or a grade, recounts nothing)
+  const lostFor = filters.get("lost") ? lost : NO_LOST;
+  const shown = useMemo(() => (hands ? filterHands(hands, filters, lostFor) : null), [hands, filters, lostFor]);
+  const shownById = useMemo(() => new Map(shown?.map((h) => [h.id, h])), [shown]);
+  const losses = useMemo(() => lostByKind(later, shownById), [later, shownById]);
+  const graded = useMemo(() => later.reduce((n, d) => n + Number(isGraded(d)), 0), [later]);
+  const openDecisions = useMemo(() => (open ? decisions.filter((d) => d.handId === open.id) : []), [open, decisions]);
   const set = (o: Record<string, string | null>) =>
     setParams(
       (p) => {
@@ -107,14 +122,17 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       </div>
       <ImportPanel onImported={reload} />
       {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
+      {hands && shown && hands.length > 0 && (
+        <FilterBar hands={hands} shown={shown} graded={graded} gradedShown={losses.reduce((n, k) => n + k.graded, 0)} params={params} set={set} />
+      )}
       {hands && shown && hands.length > 0 && <GradePanel hands={params.get("sess") ? shown : hands} decisions={decisions} onGraded={onGraded} />}
       {hands && hands.length > 0 && <SessionsPanel hands={hands} decisions={decisions} params={params} lost={lost} set={set} />}
       {hands && shown && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={shown} kept={hands} onClose={() => set({ drill: null })} />}
-      {hands && shown && <GradeReport decisions={decisions} hands={shown} of={hands.length} />}
+      {hands && shown && <GradeReport decisions={later} hands={shown} of={hands.length} />}
       {open && (
         <HandDetail
           hand={open}
-          decisions={decisions.filter((d) => d.handId === open.id)}
+          decisions={openDecisions}
           onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
           onClose={() => {
             // (back to the Open that opened it, or, not listed now, the page's main)
@@ -129,8 +147,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <p className="text-sm text-muted">…</p>
       ) : (
         <>
-          <HandsTable hands={hands} shown={shown} params={params} set={set} rowLimit={rowLimit} />
-          {shown.length > 0 && <WinningsPanel hands={shown} of={hands.length} />}
+          <HandsTable hands={hands} shown={shown} set={set} rowLimit={rowLimit} />
+          {shown.length > 0 && <WinningsPanel hands={shown} of={hands.length} losses={losses} />}
           {shown.length > 0 && <StatsPanel hands={shown} of={hands.length} />}
         </>
       )}
@@ -422,94 +440,31 @@ function ImportRow({ imp, onChange }: { imp: ImportSummary; onChange: () => void
 function HandsTable({
   hands,
   shown,
-  params,
   set,
   rowLimit,
 }: {
   hands: HandRecord[];
   /** the hands the filters show */
   shown: HandRecord[];
-  params: URLSearchParams;
   set: (o: Record<string, string | null>) => void;
   rowLimit: number;
 }) {
-  const [all, setAll] = useState(false);
-  const opts = (k: keyof HandRecord) => [...new Set(hands.map((h) => String(h[k])))].sort();
+  const [limit, setLimit] = useState(rowLimit);
   if (!hands.length)
     return (
       <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
         No hands kept yet. Paste a hand history above, or pick your client's hand-history files or folder.
       </p>
     );
-  const listed = all ? shown : shown.slice(0, rowLimit);
-  const select = (label: string, k: string, v: string | null, values: string[]) => (
-    <label className="flex items-center gap-1">
-      <span className="text-muted">{label}</span>
-      <select aria-label={label} value={v ?? ""} onChange={(e) => set({ [k]: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-        <option value="">Any</option>
-        {values.map((x) => (
-          <option key={x} value={x}>
-            {x}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-  const tags = [...new Set(hands.flatMap((h) => h.tags ?? []))].sort();
-  // (the days played, by the site's clock, as the history writes them)
-  const days = hands.map((h) => h.played.slice(0, 10)).filter(Boolean).sort();
-  const date = (label: string, k: string) => (
-    <label className="flex items-center gap-1">
-      <span className="text-muted">{label}</span>
-      <input
-        type="date"
-        aria-label={label}
-        value={params.get(k) ?? ""}
-        min={days[0]}
-        max={days.at(-1)}
-        onChange={(e) => set({ [k]: e.target.value || null })}
-        className="rounded border border-border bg-surface-2 px-1 py-0.5"
-      />
-    </label>
-  );
+  const listed = shown.slice(0, limit);
+  const rest = shown.length - listed.length;
   return (
     <section aria-label="Hands" className="space-y-2">
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <h2 className="text-lg font-semibold">Hands</h2>
-        {select("Your seat", "pos", params.get("pos"), opts("hero"))}
-        {select("Pot", "pot", params.get("pot"), POT_TYPES.filter((p) => hands.some((h) => h.potType === p)))}
-        {select("Site", "site", params.get("site"), opts("site"))}
-        {select("Stakes", "bb", params.get("bb"), opts("bb"))}
-        {date("From", "from")}
-        {date("To", "to")}
-        {tags.length > 0 && select("Tag", "tag", params.get("tag"), tags)}
-        <label className="flex items-center gap-1" title="The EV your graded decisions gave up in the hand, from the answers they were graded against (the preflop charts' grades have no EVs)">
-          <span className="text-muted">EV lost</span>
-          <select aria-label="EV lost" value={params.get("lost") ?? ""} onChange={(e) => set({ lost: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-            <option value="">Any</option>
-            {LOST_STEPS.map((x) => (
-              <option key={x} value={x}>
-                {x}bb or more
-              </option>
-            ))}
-          </select>
-        </label>
-        <input
-          type="search"
-          aria-label="Search hands"
-          value={params.get("q") ?? ""}
-          onChange={(e) => set({ q: e.target.value || null })}
-          placeholder="Search cards, number, tags, notes"
-          className="w-56 max-w-full rounded border border-border bg-surface-2 px-2 py-0.5"
-        />
         <span className="text-muted">
           {shown.length.toLocaleString()} of {hands.length.toLocaleString()}
         </span>
-        {HAND_FILTERS.some((k) => params.get(k)) && (
-          <button type="button" onClick={() => set(Object.fromEntries(HAND_FILTERS.map((k) => [k, null])))} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
-            Clear filters
-          </button>
-        )}
       </div>
       {/* (relative: the sr-only header's absolute box stays inside the scrolling box, not widening the page) */}
       <div className="relative overflow-x-auto rounded-lg border border-border">
@@ -582,11 +537,11 @@ function HandsTable({
         </table>
       </div>
       {!shown.length && <p className="text-sm text-muted">No hand kept matches these filters.</p>}
-      {!all && shown.length > listed.length && (
+      {rest > 0 && (
         <p className="text-sm text-muted">
-          {listed.length} of {shown.length.toLocaleString()} hands listed, the latest played first.{" "}
-          <button type="button" onClick={() => setAll(true)} className="underline">
-            Show all {shown.length.toLocaleString()} hands
+          {listed.length.toLocaleString()} of {shown.length.toLocaleString()} hands listed, the latest played first.{" "}
+          <button type="button" onClick={() => setLimit(limit + ROW_STEP)} className="underline">
+            {rest <= ROW_STEP ? `Show all ${shown.length.toLocaleString()} hands` : `Show ${ROW_STEP.toLocaleString()} more`}
           </button>
         </p>
       )}

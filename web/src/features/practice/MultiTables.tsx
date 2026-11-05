@@ -14,7 +14,7 @@ import { useSettings } from "@/state/settings";
 import { MAX_TABLES } from "./keep";
 import { DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, RangeView, ReviewMistakes, signed, useHandKeys } from "./PracticeParts";
 import { PRIZE_UNIT } from "@/solver/provenance";
-import { anyHandOnly, INSTANT_FLOPS, optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
+import { anyHandOnly, INSTANT_FLOPS, isPotDrill, optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
 import { flopsNote, seatOf, seatsFor, spotOf, type Room, type RoomSnapshot, type RoomTable, type Spot } from "./room";
 import { keyOf, type PracticeSession } from "./session";
 import { resultLine, Spinner, stateOf, TableTile, verdictLine, type TableState } from "./TableTile";
@@ -80,8 +80,10 @@ export function TablesBar({
   const set = useSettings((s) => s.set);
   const { leave, keys } = useLeave();
   const preflopOnly = session.opts.preflopOnly;
-  const spot = spotOf(useSettings((s) => s.practiceSpot), anyHandOnly(session.opts), flops.off === null);
-  const fixedGame = !!session.opts.pushFold || !!session.opts.tournament;
+  const saved = spotOf(useSettings((s) => s.practiceSpot), anyHandOnly(session.opts), flops.off === null);
+  const { exploit, pot } = session.opts;
+  const spot = exploit ? (pot ?? "any") : saved;
+  const fixedGame = !!session.opts.pushFold || !!session.opts.tournament || !!exploit;
   const seat = seatOf(useSettings((s) => s.practiceSeat), session.players, spot);
   const seats = seatsFor(session.players, spot);
   return (
@@ -161,7 +163,11 @@ export function TablesBar({
       </div>
       {count > 1 && (
         <p className="text-xs text-muted">
-          {fixedGame ? "Each table deals any hand of this game. Seat applies from each table\u2019s next hand." : `${spotNote(spot, preflopOnly)} Spots and Seat apply from each table\u2019s next hand.`}
+          {exploit && isPotDrill(pot)
+            ? `Each table deals ${POT_DRILLS[pot].one}, as an exploit session stays in its pot. Seat applies from each table\u2019s next hand.`
+            : fixedGame
+              ? "Each table deals any hand of this game. Seat applies from each table\u2019s next hand."
+              : `${spotNote(spot, preflopOnly)} Spots and Seat apply from each table\u2019s next hand.`}
           {flops.off && !fixedGame && ` ${flopsNote(flops, spot)}`}
           {stopCost === "kills" && " This browser can't stop a solve: tables wait for it to finish."}
         </p>
@@ -277,7 +283,7 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
         </span>
         {s.n > 0 && <span className="font-mono">{pct(s.ok / s.n, 0)} best or correct</span>}
         {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}{unit} lost a decision</span>}
-        {s.played > 0 && !t.hand.tournament && <span className="font-mono">net {signed(s.net)}bb</span>}
+        {s.played > 0 && !t.hand.tournament && !t.hand.exploit && <span className="font-mono">net {signed(s.net)}bb</span>}
       </p>
       {last && (
         <p className="text-xs" title={last.result.says || undefined}>

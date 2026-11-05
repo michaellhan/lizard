@@ -1,17 +1,27 @@
 // The New session form: the table's size and stack, your seat, what's played (full hands, preflop only, one kind of pot,
-// push/fold or a tournament), the ante, rake and straddle, chips carried and your own bet sizes. It holds what's typed
-// until it's submitted.
+// push/fold or a tournament), in one kind of pot an assumed profile to exploit, the ante, rake and straddle, chips carried
+// and your own bet sizes. It holds what's typed until it's submitted, and keeps a setup that can start as a saved scenario.
 import { useState } from "react";
+import { SaveScenario } from "@/features/saved/SaveScenario";
 import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
-import { carries, isPotDrill, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
+import {
+  ASSUMED,
+  EXPLOIT_PROFILES,
+  EXPLOIT_SCOPE,
+  EXPLOIT_TABLE,
+  exploitNumbers,
+  exploitOf,
+  isProfile,
+  profileName,
+  type ExploitProfile,
+} from "./exploit";
+import { carries, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
 import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
 import { draftOf, readDraft, TournamentFields } from "./TournamentFields";
 
-export const MIN_STACK = 10;
-export const MAX_STACK = 250;
-
-const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter => Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
+const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter =>
+  Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 
@@ -32,7 +42,10 @@ export function SetupForm({
   const [p, setP] = useState(players);
   const [s, setS] = useState(String(stack));
   const [seat, setSeat] = useState(opts.seat);
-  const [play, setPlay] = useState<string>(opts.pushFold ? "pushfold" : opts.tournament ? "tournament" : (opts.pot ?? (opts.preflopOnly ? "preflop" : "full")));
+  const [play, setPlay] = useState<string>(
+    opts.pushFold ? "pushfold" : opts.tournament ? "tournament" : (opts.pot ?? (opts.preflopOnly ? "preflop" : "full")),
+  );
+  const [profile, setProfile] = useState<ExploitProfile | "">(opts.exploit?.profile ?? "");
   const [draft, setDraft] = useState(() => draftOf(opts.tournament, stack));
   const [stop, setStop] = useState(!!opts.tournament && opts.preflopOnly);
   const [board, setBoard] = useState<TextureFilter>(opts.board ?? {});
@@ -41,7 +54,9 @@ export function SetupForm({
   const [carry, setCarry] = useState(opts.carry);
   const [rake, setRake] = useState(opts.rake ? String(opts.rake) : "");
   const [cap, setCap] = useState(opts.rakeCap ? String(opts.rakeCap) : "");
-  const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(() => Object.fromEntries(SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>);
+  const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(
+    () => Object.fromEntries(SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>,
+  );
   // (blank: the engine's own; preflop only has no use for them)
   const parsed = SIZE_STREETS.flatMap((k) => (numsOf(sizeText[k]).length ? [[k, numsOf(sizeText[k])] as const] : []));
   const isPF = play === "pushfold";
@@ -51,7 +66,14 @@ export function SetupForm({
   const sizeProblems = sizes ? setupProblems(p, { sizes }) : [];
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
-  const canCarry = carries({ carry: true, seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, pushFold: isPF }) && !isT;
+  const canCarry =
+    carries({
+      carry: true,
+      seat: seatOk ? seat : "moves",
+      preflopOnly: play === "preflop",
+      pot: isPotDrill(play) ? play : null,
+      pushFold: isPF,
+    }) && !isT;
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
@@ -63,7 +85,35 @@ export function SetupForm({
   const fits = boardOn ? flopsLike(board).length : null;
   const pfOk = !isPF || n <= PUSH_FOLD_MAX;
   const tournament = isT ? readDraft(draft, p, n, MAX_STACK) : null;
-  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && (isT || rakeOk) && !sizeProblems.length && fits !== 0 && pfOk && !tournament?.problems.length;
+  const ok =
+    Number.isFinite(n) &&
+    n >= MIN_STACK &&
+    n <= MAX_STACK &&
+    anteOk &&
+    (isT || rakeOk) &&
+    !sizeProblems.length &&
+    fits !== 0 &&
+    pfOk &&
+    !tournament?.problems.length;
+  // (only a kind of pot can be exploited: exploit.ts)
+  const exploit = isPotDrill(play) && profile ? exploitOf(profile) : null;
+  const setup: SessionOptions | null = ok
+    ? {
+        seat: seatOk ? seat : "moves",
+        preflopOnly: play === "preflop" || (isT && stop),
+        pot: isPotDrill(play) ? play : null,
+        ante: a,
+        straddle: straddle && p >= 3 && !isT,
+        carry: carry && canCarry,
+        sizes,
+        rake: isT ? 0 : rk,
+        rakeCap: rk && !isT ? rc : 0,
+        board: boardOn ? board : null,
+        ...(isPF ? { pushFold: true } : {}),
+        ...(tournament?.value ? { tournament: tournament.value } : {}),
+        ...(exploit ? { exploit } : {}),
+      }
+    : null;
   return (
     <form
       aria-label="New session"
@@ -72,26 +122,17 @@ export function SetupForm({
       onChange={onEdit}
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok)
-          onStart(p, n, {
-            seat: seatOk ? seat : "moves",
-            preflopOnly: play === "preflop" || (isT && stop),
-            pot: isPotDrill(play) ? play : null,
-            ante: a,
-            straddle: straddle && p >= 3 && !isT,
-            carry: carry && canCarry,
-            sizes,
-            rake: isT ? 0 : rk,
-            rakeCap: rk && !isT ? rc : 0,
-            board: boardOn ? board : null,
-            ...(isPF ? { pushFold: true } : {}),
-            ...(tournament?.value ? { tournament: tournament.value } : {}),
-          });
+        if (setup) onStart(p, n, setup);
       }}
     >
       <label className="flex items-center gap-1">
         <span className="text-muted">Players</span>
-        <select aria-label="Players" value={p} onChange={(e) => setP(Number(e.target.value))} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+        <select
+          aria-label="Players"
+          value={p}
+          onChange={(e) => setP(Number(e.target.value))}
+          className="rounded border border-border bg-surface-2 px-1.5 py-1"
+        >
           {Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => i + MIN_PLAYERS).map((x) => (
             <option key={x} value={x}>
               {x === 2 ? "Heads-up" : `${x}-max`}
@@ -115,7 +156,12 @@ export function SetupForm({
       </label>
       <label className="flex items-center gap-1">
         <span className="text-muted">Your seat</span>
-        <select aria-label="Your seat" value={seatOk ? seat : "moves"} onChange={(e) => setSeat(e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+        <select
+          aria-label="Your seat"
+          value={seatOk ? seat : "moves"}
+          onChange={(e) => setSeat(e.target.value)}
+          className="rounded border border-border bg-surface-2 px-1.5 py-1"
+        >
           <option value="moves">Moves each hand</option>
           <option value="random">Random</option>
           {seatsOf(p).map((x) => (
@@ -153,14 +199,50 @@ export function SetupForm({
           </option>
         </select>
       </label>
+      <label className="flex items-center gap-1">
+        <span className="text-muted">Exploit</span>
+        <select
+          aria-label="Exploit"
+          aria-describedby="exploit-note"
+          value={isPotDrill(play) ? profile : ""}
+          disabled={!isPotDrill(play)}
+          onChange={(e) => setProfile(isProfile(e.target.value) ? e.target.value : "")}
+          className="rounded border border-border bg-surface-2 px-1.5 py-1"
+        >
+          <option value="">No profile: equilibrium</option>
+          {EXPLOIT_PROFILES.map((k) => (
+            <option key={k} value={k}>
+              {profileName(k)} (assumed)
+            </option>
+          ))}
+        </select>
+      </label>
+      <p id="exploit-note" className={`text-xs text-muted ${isPotDrill(play) ? "basis-full" : ""}`}>
+        {exploit
+          ? `${profileName(exploit.profile)}: ${exploitNumbers(exploit)}. ${ASSUMED} You're graded against the best response to these numbers, never against equilibrium, and the answers are solved live, so each takes a few seconds. ${EXPLOIT_SCOPE} ${EXPLOIT_TABLE}`
+          : isPotDrill(play)
+            ? "Pick a profile to be graded against the best response to it, in place of equilibrium."
+            : "Needs a pot drill under Play."}
+      </p>
       {isPF && (
         <p role={pfOk ? undefined : "alert"} className={`basis-full text-xs ${pfOk ? "text-muted" : "text-danger"}`}>
           {pfOk ? "" : `Push/fold is ${MIN_STACK} to ${PUSH_FOLD_MAX}bb: bring the stack down. `}
-          The engine jams or folds first in at {PUSH_FOLD_MAX}bb or less, and Practice&rsquo;s tables start at {MIN_STACK}bb. Facing a jam you call or fold. The answers are the push/fold model, an
-          equilibrium by hand class with no EVs, so a decision is graded by how often it plays your hand. An all-in runs out. A stack under {MIN_STACK}bb is a seat&rsquo;s own, under Tournament.
+          The engine jams or folds first in at {PUSH_FOLD_MAX}bb or less, and Practice&rsquo;s tables start at {MIN_STACK}bb. Facing a jam
+          you call or fold. The answers are the push/fold model, an equilibrium by hand class with no EVs, so a decision is graded by how
+          often it plays your hand. An all-in runs out. A stack under {MIN_STACK}bb is a seat&rsquo;s own, under Tournament.
         </p>
       )}
-      {isT && <TournamentFields draft={draft} onDraft={setDraft} stop={stop} onStop={setStop} players={p} stack={s} problems={tournament?.problems ?? []} />}
+      {isT && (
+        <TournamentFields
+          draft={draft}
+          onDraft={setDraft}
+          stop={stop}
+          onStop={setStop}
+          players={p}
+          stack={s}
+          problems={tournament?.problems ?? []}
+        />
+      )}
       {isPotDrill(play) && (
         <fieldset className="flex basis-full flex-wrap items-center gap-2">
           <legend className="sr-only">Flop in {POT_DRILLS[play].label.toLowerCase()}</legend>
@@ -206,7 +288,14 @@ export function SetupForm({
         />
         <span className="text-muted">bb</span>
       </label>
-      <label className="flex items-center gap-1" title={isT ? "A tournament has no rake" : `Taken from pots that see a flop, 0–${LIMITS.rakePct}% of the pot, capped in bb (blank: no cap)`}>
+      <label
+        className="flex items-center gap-1"
+        title={
+          isT
+            ? "A tournament has no rake"
+            : `Taken from pots that see a flop, 0–${LIMITS.rakePct}% of the pot, capped in bb (blank: no cap)`
+        }
+      >
         <span className="text-muted">Rake</span>
         <input
           aria-label="Rake"
@@ -238,8 +327,23 @@ export function SetupForm({
         />
         <span className="text-muted">bb</span>
       </label>
-      <label className="flex items-center gap-1.5" title={isT ? "A tournament has no straddle" : p < 3 ? "A straddle needs 3 or more players" : "A 2bb straddle from the first seat, acting last preflop"}>
-        <input type="checkbox" aria-label="Straddle" checked={straddle && p >= 3 && !isT} disabled={p < 3 || isT} onChange={(e) => setStraddle(e.target.checked)} />
+      <label
+        className="flex items-center gap-1.5"
+        title={
+          isT
+            ? "A tournament has no straddle"
+            : p < 3
+              ? "A straddle needs 3 or more players"
+              : "A 2bb straddle from the first seat, acting last preflop"
+        }
+      >
+        <input
+          type="checkbox"
+          aria-label="Straddle"
+          checked={straddle && p >= 3 && !isT}
+          disabled={p < 3 || isT}
+          onChange={(e) => setStraddle(e.target.checked)}
+        />
         <span className="text-muted">Straddle</span>
       </label>
       <label
@@ -250,17 +354,25 @@ export function SetupForm({
             : "Chips carry in full hands with your seat moving each hand"
         }
       >
-        <input type="checkbox" aria-label="Carry chips" checked={carry && canCarry} disabled={!canCarry} onChange={(e) => setCarry(e.target.checked)} />
+        <input
+          type="checkbox"
+          aria-label="Carry chips"
+          checked={carry && canCarry}
+          disabled={!canCarry}
+          onChange={(e) => setCarry(e.target.checked)}
+        />
         <span className="text-muted">Carry chips</span>
       </label>
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
         New session
       </button>
+      <SaveScenario setup={setup && { players: p, stack: n, opts: setup }} />
       <details className="basis-full" open={!!opts.sizes}>
         <summary className="cursor-pointer text-muted">Your own bet sizes{sizes ? `: ${describeSetup({ sizes }).join(", ")}` : ""}</summary>
         <p className="mt-1 text-xs text-muted">
-          Postflop, in % of the pot, up to {LIMITS.sizes} a street, as on the Solve page: the solver&rsquo;s tree, your options and the opponents&rsquo; bets use
-          them from the flop on. The flop library answers only where its tree has the same sizes; otherwise the flop is solved live. Blank: the engine&rsquo;s own.
+          Postflop, in % of the pot, up to {LIMITS.sizes} a street, as on the Solve page: the solver&rsquo;s tree, your options and the
+          opponents&rsquo; bets use them from the flop on. The flop library answers only where its tree has the same sizes; otherwise the
+          flop is solved live. Blank: the engine&rsquo;s own.
         </p>
         <div className="mt-1 grid gap-2 sm:grid-cols-2">
           {SIZE_STREETS.map((k) => (

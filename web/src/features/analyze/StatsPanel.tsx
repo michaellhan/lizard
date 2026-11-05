@@ -1,16 +1,16 @@
 // Your stats as played (stats.ts) over the hands the filters show: each frequency over its own chances with a 95%
-// interval, the hands behind it, and your bet sizes after the flop. Counted from the histories; nothing is graded.
+// interval, the hands behind it, and your bet and raise sizes. Counted from the histories; nothing is graded.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { HandRecord } from "@/data/db";
 import { seatLabel } from "@/poker/seats";
+import { STREETS } from "./analyze";
 import { withParams } from "./leakDrill";
-import { SIZES, STATS, statsOf, wilson, type Count, type Stats } from "./stats";
+import { MIN_READ } from "./report";
+import { RAISE_SIZES, SIZES, STATS, statsOf, wilson, type Count, type Stats } from "./stats";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
-/** fewer chances than this: the interval is wide, said beside it */
-const FEW = 30;
 /** hands listed under a stat, each way */
 const LIST = 40;
 
@@ -41,7 +41,7 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
         <p className="text-muted">
           Counted from {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as you played
           them: nothing here is graded or solved. Each rate is over its own chances, the hands where you could take it; the range is a 95% interval,
-          wide when there are few.
+          wide when there are few (&ldquo;few&rdquo; marks under {MIN_READ} chances).
           {st && st.left > 0 && ` ${st.left.toLocaleString()} ${st.left === 1 ? "hand is" : "hands are"} left out: the replay stopped short of the history.`}
         </p>
       </div>
@@ -84,7 +84,7 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
                       </td>
                       <td className="whitespace-nowrap px-2 py-1 tabular-nums">
                         {r.c.n ? `${pct(lo)}–${pct(hi)}` : "–"}
-                        {r.c.n > 0 && r.c.n < FEW && <span className="ml-1 text-xs text-muted">few</span>}
+                        {r.c.n > 0 && r.c.n < MIN_READ && <span className="ml-1 text-xs text-muted">few</span>}
                       </td>
                       <td className="px-2 py-1 text-right">
                         {r.c.n > 0 && (
@@ -105,7 +105,11 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
             </table>
           </div>
           {sel && <StatHands label={sel.label} took={sel.took} c={sel.c} byId={byId} />}
+          <p className="text-xs text-muted">
+            The history can&rsquo;t say whether a hand was only beating bluffs, so bluff-catching is read as every call of a river bet, and River call won as how those hands came out.
+          </p>
           <BetSizes sizes={st.sizes} />
+          <RaiseSizes raises={st.raises} />
         </>
       )}
     </section>
@@ -190,3 +194,45 @@ function BetSizes({ sizes }: { sizes: Stats["sizes"] }) {
   );
 }
 
+function RaiseSizes({ raises }: { raises: Stats["raises"] }) {
+  const tot = Object.fromEntries(STREETS.map((s) => [s, raises[s].reduce((a, b) => a + b, 0)]));
+  if (!STREETS.some((s) => tot[s])) return null;
+  return (
+    <div className="space-y-1">
+      <h3 className="font-medium">Your raises, by size</h3>
+      <p className="text-xs text-muted">In multiples of the bet raised, the big blind&rsquo;s for an open; an all-in counts at its size.</p>
+      <div className="relative overflow-x-auto">
+        <table aria-label="Raise sizes" className="text-left">
+          <thead className="text-xs text-muted">
+            <tr>
+              <th scope="col" className="pr-4 font-normal">Size</th>
+              {STREETS.map((s) => (
+                <th key={s} scope="col" className="pr-4 text-right font-normal capitalize">
+                  {s} ({tot[s]!.toLocaleString()})
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {RAISE_SIZES.map((b, k) => (
+              <tr key={b.label} aria-label={b.label} className="border-t border-border">
+                <th scope="row" className="pr-4 font-normal">{b.label}</th>
+                {STREETS.map((s) => (
+                  <td key={s} className="pr-4 text-right tabular-nums">
+                    {tot[s] ? (
+                      <>
+                        {raises[s][k]!.toLocaleString()} <span className="text-xs text-muted">{pct(raises[s][k]! / tot[s]!)}</span>
+                      </>
+                    ) : (
+                      "–"
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

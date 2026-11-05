@@ -128,8 +128,13 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})
   const locked = r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];
   // (preflop, on the charts' strategy: in the preflop words)
-  if (locked.length)
+  if (locked.length) {
     p.lock = `best response to ${locked.map(([seat, l]) => `${seat} ${describeLock(l, r.street === "preflop")}`).join("; ")}, not an equilibrium re-solve`;
+    // (advisor.py `villain_range_combos`, `widened`: a line the read rarely reaches can leave few combos, or the rules' value hands)
+    const combos = typeof r.villain_range_combos === "number" ? `against ${r.villain_range_combos.toFixed(1)} combos as the read leaves them` : "";
+    const added = Array.isArray(r.widened) && r.widened.length ? "their range is the solve's with the rules' value hands added" : "";
+    if (combos || added) p.lockRange = [combos, added].filter(Boolean).join(", ");
+  }
   // optimize_sizes (advisor.py _optimize_sizes): the sizes this answer bets were picked by a first, shorter solve of the
   // street over a wide menu, whose distance from equilibrium isn't reported; the figures below are the second solve's
   if (Array.isArray(r.sizes_kept) && r.sizes_kept.length)
@@ -225,6 +230,7 @@ const LABELS: Record<ResultSource, string> = {
   charts: "Preflop charts",
   "preflop-solve": "Preflop solve (class-level model)",
   "push-fold": "Push/fold model (not a solve)",
+  "best-response": "Exploiting an assumed profile (best response, not a solve)",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
   unknown: "Unlabelled",
@@ -239,7 +245,9 @@ export const ICM_TABLE_LABEL = "ICM (Malmuth-Harville), worked out in this page 
 
 export function describe(p: Provenance): string {
   const parts = [p.source === "live" && p.mode === "quick" ? `${LABELS.live} (Quick)` : LABELS[p.source]];
+  if (p.exploit) parts.push(p.exploit);
   if (p.lock) parts.push(p.lock);
+  if (p.lockRange) parts.push(p.lockRange);
   if (p.sizing) parts.push(p.sizing);
   if (p.librarySpot) parts.push(p.librarySpot);
   if (p.view) parts.push(p.view);
@@ -250,7 +258,8 @@ export function describe(p: Provenance): string {
   if (p.exploitabilityPct !== undefined) {
     const what = p.multiway ? "mean best-response gain" : "from equilibrium";
     const band = p.band ? ` (${p.band}${p.band === "approximate" && p.targetPct !== undefined ? `, target ${p.targetPct}%` : ""})` : "";
-    parts.push(`${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
+    // (a best response to an assumed profile is never "solved": this figure is the equilibrium solve under it, on ranges the profile reshaped)
+    parts.push(p.source === "best-response" ? `${p.exploitabilityPct.toFixed(2)}% pot from equilibrium in the solve it's laid on${band}` : `${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
   }
   if (p.mbbPerHand !== undefined) parts.push(`${p.mbbPerHand.toFixed(2)} mbb/hand from equilibrium (a seat's average)`);
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);

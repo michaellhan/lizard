@@ -1,17 +1,19 @@
 // Your stats as played, counted from the hand histories kept (no solver, nothing graded): the usual frequencies
-// (VPIP, PFR, RFI, 3-bet, fold to 3-bet, c-bet, fold to c-bet, check-raise, barrels, went to showdown), each over its
-// own opportunities, the hands where you had the chance, with a 95% interval so a small sample reads as one, and
-// your bet sizes. Each move is read on the table engine (poker/table.ts) as it stood, so an all-in counts as a raise
-// only where it raises.
+// (VPIP, PFR, RFI, 3-bet, fold to 3-bet, c-bet, fold to c-bet, check-raise, barrels, river calls, went to showdown), each
+// over its own opportunities, the hands where you had the chance, with a 95% interval so a small sample reads as one,
+// and your bet and raise sizes. Each move is read on the table engine (poker/table.ts) as it stood, so an all-in counts
+// as a raise only where it raises. The same pass keeps what a decision record doesn't: the size each move faced or chose
+// and the effective stack (MoveFact, breakdown.ts), so nothing here is read twice.
 import type { HandRecord } from "@/data/db";
 import { importHand, finalSim, type ReplayedHand } from "@/hh/replay";
+import { resultOf } from "@/hh/results";
 import { simulate, type Lines, type Move, type Street } from "@/poker/table";
 import { SEATS } from "@/poker/seats";
 import { STREETS } from "./analyze";
 
 const EPS = 1e-9;
 
-export type StatKey = "vpip" | "pfr" | "rfi" | "threebet" | "squeeze" | "fold3bet" | "fourbet" | "cbet" | "foldcbet" | "xr" | "turnbarrel" | "riverbarrel" | "wtsd";
+export type StatKey = "vpip" | "pfr" | "rfi" | "threebet" | "squeeze" | "fold3bet" | "fourbet" | "cbet" | "foldcbet" | "xr" | "turnbarrel" | "riverbarrel" | "rivercall" | "rivercallwon" | "wtsd";
 
 /** Each stat: its name, its opportunity (the denominator) and what counts as taking it. */
 export const STATS: readonly { key: StatKey; label: string; chance: string; took: string }[] = [
@@ -27,6 +29,8 @@ export const STATS: readonly { key: StatKey; label: string; chance: string; took
   { key: "xr", label: "Flop check-raise", chance: "when you checked the flop and then faced a bet", took: "you raised" },
   { key: "turnbarrel", label: "Turn barrel", chance: "when you c-bet the flop and the turn was checked to you", took: "you bet" },
   { key: "riverbarrel", label: "River barrel", chance: "when you bet flop and turn and the river was checked to you", took: "you bet" },
+  { key: "rivercall", label: "River call (bluff-catching)", chance: "when you faced the first bet on the river", took: "you called" },
+  { key: "rivercallwon", label: "River call won", chance: "when you called that bet and the history says what you won", took: "you came out ahead in the hand" },
   { key: "wtsd", label: "Went to showdown", chance: "when you saw the flop", took: "you didn't fold" },
 ];
 
@@ -41,6 +45,30 @@ export const SIZES: readonly { label: string; max: number }[] = [
 ];
 export const sizeBucket = (pct: number) => SIZES.findIndex((s) => pct < s.max);
 
+/** Raises, in multiples of the bet raised (the big blind's for an open). */
+export const RAISE_SIZES: readonly { label: string; max: number }[] = [
+  { label: "under 2.5×", max: 2.5 },
+  { label: "2.5–3×", max: 3 },
+  { label: "3–4×", max: 4 },
+  { label: "4–6×", max: 6 },
+  { label: "over 6×", max: Infinity },
+];
+export const raiseBucket = (x: number) => RAISE_SIZES.findIndex((s) => x < s.max);
+
+/** One of your moves, with what the history says of its size. (`i` is its index on the street, as a decision's id has
+ * it.) */
+export interface MoveFact {
+  street: Street;
+  i: number;
+  /** what it faced: preflop the raise to, in bb; after the flop the bet's share of the pot it went into, in %. None
+   * with no bet or raise to answer (the blinds aren't one) */
+  faced?: number;
+  /** your bet after the flop, in % of the pot before it */
+  betPct?: number;
+  /** your raise on any street, in multiples of the bet it raised */
+  raiseX?: number;
+}
+
 export interface HandStats {
   /** for each stat you had the chance at in the hand: whether you took it */
   at: Partial<Record<StatKey, boolean>>;
@@ -48,6 +76,12 @@ export interface HandStats {
   rfiPos?: string;
   /** your bets after the flop (not raises): street and % of the pot */
   bets: { street: Street; pct: number }[];
+  /** your raises: street and multiple of the bet raised */
+  raises: { street: Street; x: number }[];
+  /** each of your moves */
+  moves: MoveFact[];
+  /** the effective stack at the start of the hand, bb: yours against the deepest opponent who stayed in */
+  eff: number;
 }
 
 interface Step {
@@ -65,6 +99,10 @@ interface Step {
   /** the pot before it, and the move's total bet on the street (bets and raises) */
   pot: number;
   to: number;
+  /** its index on the street, the bet standing, and the street's last bet or raise as it was made */
+  i: number;
+  curBet: number;
+  last: { to: number; own: number; pot: number } | null;
 }
 
 const upTo = (lines: Lines, street: Street, j: number): Lines => {
@@ -82,6 +120,7 @@ function steps(r: ReplayedHand): Step[] {
     const aggBefore: string[] = [];
     let limps = 0;
     let callers = 0;
+    let last: Step["last"] = null;
     r.lines[street].forEach((m, j) => {
       const sim = simulate(r.setup, upTo(r.lines, street, j), n);
       const info = sim.cur;
@@ -90,10 +129,11 @@ function steps(r: ReplayedHand): Step[] {
       const cap = (r.setup.stacks[m.pos] ?? 0) - (sim.invested[m.pos] ?? 0);
       const to = m.action === "all-in" ? cap : (m.to ?? 0);
       const agg = m.action === "bet" || m.action === "raise" || (m.action === "all-in" && cap > curBet + EPS);
-      out.push({ street, m, facing, agg, aggBefore: [...aggBefore], limps, callers, pot: sim.pot, to });
+      out.push({ street, m, facing, agg, aggBefore: [...aggBefore], limps, callers, pot: sim.pot, to, i: j, curBet, last });
       if (agg) {
         aggBefore.push(m.pos);
         callers = 0;
+        last = { to, own: info?.bets[m.pos] ?? 0, pot: sim.pot };
       } else if (m.action === "call" || m.action === "all-in") {
         if (aggBefore.length) callers++;
         else limps++;
@@ -103,16 +143,29 @@ function steps(r: ReplayedHand): Step[] {
   return out;
 }
 
+/** A move of yours, sized. */
+function factOf(x: Step): MoveFact {
+  const pre = x.street === "preflop";
+  const faced = !x.facing || !x.last ? undefined : pre ? x.curBet : ((x.last.to - x.last.own) / x.last.pot) * 100;
+  return {
+    street: x.street,
+    i: x.i,
+    ...(faced !== undefined ? { faced } : {}),
+    ...(x.agg && !pre && !x.facing && x.pot > EPS ? { betPct: (x.to / x.pot) * 100 } : {}),
+    ...(x.agg && x.curBet > EPS ? { raiseX: x.to / x.curBet } : {}),
+  };
+}
+
 /** One hand's stats (null where the replay stopped short of the history: it's left out). `playedFor`: the record's, where
  * Practice played your preflop, so none of it counts; from the flop it's yours, on the line as it stood (c-betting a raise
- * drawn for you is a c-bet). */
-export function handStats(r: ReplayedHand, playedFor?: HandRecord["playedFor"]): HandStats | null {
+ * drawn for you is a c-bet). `text`: the history, for what it says you won (without it, no "River call won"). */
+export function handStats(r: ReplayedHand, playedFor?: HandRecord["playedFor"], text?: string): HandStats | null {
   if (r.stopped) return null;
   const hero = r.hand.hero;
   const all = steps(r);
   const mine = (s: Street) => all.filter((x) => x.street === s && x.m.pos === hero);
   const at: HandStats["at"] = {};
-  const out: HandStats = { at, bets: [] };
+  const out: HandStats = { at, bets: [], raises: [], moves: all.filter((x) => x.m.pos === hero).map(factOf), eff: r.hand.effective };
   const once = (k: StatKey, took: boolean) => {
     if (!(k in at)) at[k] = took;
   };
@@ -169,12 +222,24 @@ export function handStats(r: ReplayedHand, playedFor?: HandRecord["playedFor"]):
     const later = flopMine.slice(1).find((x) => x.facing);
     if (later) at.xr = later.agg;
   }
+  // the river's first bet, by another, answered: the history can't say whether your hand only beat bluffs, so every call
+  // counts, and the money says how they went
+  const facedRiver = mine("river").find((x) => x.facing && x.aggBefore.length === 1 && x.aggBefore[0] !== hero);
+  if (facedRiver) {
+    at.rivercall = !facedRiver.agg && facedRiver.m.action !== "fold";
+    const net = at.rivercall && text !== undefined ? resultOf(r.hand, text).net : null;
+    if (net != null) at.rivercallwon = net > EPS;
+  }
   if (!foldedPre && r.hand.board.length >= 3) {
     const folded = all.some((x) => x.m.pos === hero && x.m.action === "fold");
     at.wtsd = !folded && finalSim(r).active.size >= 2;
   }
-  for (const x of all)
-    if (x.street !== "preflop" && x.m.pos === hero && x.agg && !x.facing && x.pot > EPS) out.bets.push({ street: x.street, pct: (x.to / x.pot) * 100 });
+  const counted = playedFor === "preflop" ? (x: Step) => x.street !== "preflop" : () => true;
+  for (const x of all) {
+    if (x.m.pos !== hero || !x.agg || !counted(x)) continue;
+    if (x.street !== "preflop" && !x.facing && x.pot > EPS) out.bets.push({ street: x.street, pct: (x.to / x.pot) * 100 });
+    else if (x.curBet > EPS) out.raises.push({ street: x.street, x: x.to / x.curBet });
+  }
   return out;
 }
 
@@ -215,6 +280,8 @@ export interface Stats {
   rfi: { pos: string; c: Count }[];
   /** your bets after the flop by size, per street */
   sizes: Record<"flop" | "turn" | "river", number[]>;
+  /** your raises by size, per street */
+  raises: Record<Street, number[]>;
 }
 
 // (the nine-handed table names every seat, in preflop order)
@@ -227,6 +294,7 @@ export function tallyStats(list: readonly { id: string; s: HandStats | null }[])
   const by = Object.fromEntries(STATS.map((x) => [x.key, count()])) as Record<StatKey, Count>;
   const rfi = new Map<string, Count>();
   const sizes = { flop: SIZES.map(() => 0), turn: SIZES.map(() => 0), river: SIZES.map(() => 0) };
+  const raises = Object.fromEntries(STREETS.map((s) => [s, RAISE_SIZES.map(() => 0)])) as Stats["raises"];
   let left = 0;
   for (const { id, s } of list) {
     if (!s) {
@@ -239,6 +307,7 @@ export function tallyStats(list: readonly { id: string; s: HandStats | null }[])
       add(rfi.get(s.rfiPos)!, id, s.at.rfi);
     }
     for (const b of s.bets) if (b.street !== "preflop") sizes[b.street][sizeBucket(b.pct)]! += 1;
+    for (const b of s.raises) raises[b.street][raiseBucket(b.x)]! += 1;
   }
   return {
     hands: list.length - left,
@@ -246,14 +315,16 @@ export function tallyStats(list: readonly { id: string; s: HandStats | null }[])
     by,
     rfi: [...rfi.entries()].sort((a, b) => seatRank(a[0]) - seatRank(b[0]) || a[0].localeCompare(b[0])).map(([pos, c]) => ({ pos, c })),
     sizes,
+    raises,
   };
 }
 
 // (a hand's text never changes under its id: its stats are counted once a page)
 const cache = new Map<string, HandStats | null>();
 
-/** The kept hands' stats, a chunk at a time so a large database doesn't hold the page; stops on the signal. */
-export async function statsOf(hands: readonly HandRecord[], opts: { signal?: AbortSignal; onProgress?: (done: number) => void; chunk?: number } = {}): Promise<Stats | null> {
+/** The kept hands' stats, hand by hand, a chunk at a time so a large database doesn't hold the page; each is worked out
+ * once. Null on the signal. */
+export async function readStats(hands: readonly HandRecord[], opts: { signal?: AbortSignal; onProgress?: (done: number) => void; chunk?: number } = {}): Promise<{ id: string; s: HandStats | null }[] | null> {
   const chunk = opts.chunk ?? 200;
   const list: { id: string; s: HandStats | null }[] = [];
   for (let i = 0; i < hands.length; i++) {
@@ -261,7 +332,7 @@ export async function statsOf(hands: readonly HandRecord[], opts: { signal?: Abo
     if (!cache.has(h.id)) {
       let s: HandStats | null;
       try {
-        s = handStats(importHand(h.text), h.playedFor);
+        s = handStats(importHand(h.text), h.playedFor, h.text);
       } catch {
         s = null;
       }
@@ -274,5 +345,11 @@ export async function statsOf(hands: readonly HandRecord[], opts: { signal?: Abo
     }
     list.push({ id: h.id, s: cache.get(h.id)! });
   }
-  return tallyStats(list);
+  return list;
+}
+
+/** The kept hands' stats told up. */
+export async function statsOf(hands: readonly HandRecord[], opts: Parameters<typeof readStats>[1] = {}): Promise<Stats | null> {
+  const list = await readStats(hands, opts);
+  return list && tallyStats(list);
 }

@@ -1,14 +1,15 @@
-// Saved: the spots saved from Study, the drills saved from Practice and Analyze, and the ranges saved from the Ranges
-// editor, kept in this browser (IndexedDB), with search, rename, delete, and a backup to one JSON file and back
+// Saved: the spots saved from Study, the drills saved from Practice and Analyze, the Practice scenarios to start again, and
+// the ranges saved from the Ranges editor, kept in this browser (IndexedDB), with search, rename, delete, and a backup to one JSON file and back
 // (data/backup.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useFocusHold } from "@/components/useFocusHold";
-import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
+import type { SavedDrill, SavedRange, SavedScenario, SavedSpot } from "@/data/db";
 import { restoreBackup, restoreSummary } from "@/data/backup";
 import { importTooBig } from "@/data/limits";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
 import { NOT_SAVED, deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches, stored } from "@/data/saved";
+import { deleteScenario, listScenarios, putScenario, scenarioWords } from "@/data/scenarios";
 import { describeSetup } from "@/features/solve/setup";
 import { describeLine, fromSearch } from "@/features/study/studyState";
 import { downloadBackup } from "./backupFile";
@@ -23,6 +24,7 @@ export function SavedPage() {
   const [spots, setSpots] = useState<SavedSpot[] | null>(null);
   const [ranges, setRanges] = useState<SavedRange[] | null>(null);
   const [drills, setDrills] = useState<SavedDrill[] | null>(null);
+  const [scenarios, setScenarios] = useState<{ list: SavedScenario[]; damaged: number } | null>(null);
   const [query, setQuery] = useState("");
   const [n, setN] = useState(0);
   const reload = () => setN((x) => x + 1);
@@ -48,11 +50,12 @@ export function SavedPage() {
 
   useEffect(() => {
     let alive = true;
-    void Promise.all([listSpots(), listRanges(), listDrills()]).then(([s, r, d]) => {
+    void Promise.all([listSpots(), listRanges(), listDrills(), listScenarios()]).then(([s, r, d, c]) => {
       if (!alive) return;
       setSpots(s);
       setRanges(r);
       setDrills(d);
+      setScenarios(c);
     });
     return () => {
       alive = false;
@@ -115,6 +118,28 @@ export function SavedPage() {
         <ul className="space-y-2">
           {(drills ?? []).map((d) => (
             <DrillRow key={d.id} drill={d} onChange={reload} onGone={onGone} />
+          ))}
+        </ul>
+      </section>
+
+      <section aria-label="Saved scenarios" tabIndex={-1} className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h2 className="text-lg font-semibold">Scenarios</h2>
+          <span className="text-sm text-muted">{scenarios ? `${scenarios.list.length} saved` : "…"}</span>
+        </div>
+        {scenarios && scenarios.list.length === 0 && (
+          <p className="text-sm text-muted">
+            No saved scenarios yet. Save scenario, beside the setup in <Link to="/practice" className="underline">Practice</Link>, keeps a table as it&rsquo;s set to start again from here.
+          </p>
+        )}
+        {!!scenarios?.damaged && (
+          <p role="status" className="text-sm text-warn">
+            {scenarios.damaged} saved scenario{scenarios.damaged === 1 ? " is" : "s are"} damaged and can&rsquo;t be read, so {scenarios.damaged === 1 ? "it's" : "they're"} left out here.
+          </p>
+        )}
+        <ul className="space-y-2">
+          {(scenarios?.list ?? []).map((s) => (
+            <ScenarioRow key={s.id} scenario={s} onChange={reload} onGone={onGone} />
           ))}
         </ul>
       </section>
@@ -322,6 +347,79 @@ function DrillRow({ drill, onChange, onGone }: { drill: SavedDrill; onChange: ()
   );
 }
 
+function ScenarioRow({ scenario, onChange, onGone }: { scenario: SavedScenario; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
+  const hold = useFocusHold<HTMLLIElement>();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(scenario.name);
+  const [note, setNote] = useState(scenario.note);
+  const [failed, setFailed] = useState(false);
+  const save = async () => {
+    const kept = await stored(() => putScenario({ ...scenario, name: name.trim() || scenario.name, note: note.trim(), updatedAt: Date.now() }));
+    setFailed(!kept);
+    if (!kept) return;
+    setEditing(false);
+    onChange();
+  };
+  const about = scenarioWords(scenario);
+  return (
+    <li {...hold} aria-label={scenario.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+      {editing ? (
+        <form
+          aria-label={`Edit ${scenario.name}`}
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <input data-focus-first aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <div className="flex gap-2">
+            <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
+              Save
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+              Cancel
+            </button>
+            {failed && (
+              <span role="alert" className="text-xs text-danger">
+                {NOT_SAVED}
+              </span>
+            )}
+          </div>
+        </form>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong>{scenario.name}</strong>
+            <span className="flex-1" />
+            <Link to={`/practice?scenario=${encodeURIComponent(scenario.id)}`} aria-label={`Start ${scenario.name}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+              Start in Practice
+            </Link>
+            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+              Edit
+            </button>
+            <DeleteButton
+              what="scenario"
+              onDelete={(from) => {
+                onGone(from, `Scenario ${scenario.name}`);
+                void deleteScenario(scenario.id).then(onChange);
+              }}
+            />
+          </div>
+          {about !== scenario.name && <p className="text-xs">{about}</p>}
+          {scenario.note && <p className="whitespace-pre-wrap">{scenario.note}</p>}
+          <p className="text-xs text-muted">
+            Saved {day(scenario.createdAt)}
+            {scenario.updatedAt !== scenario.createdAt ? `, changed ${day(scenario.updatedAt)}` : ""}
+            {" · starts a new session at one table in place of the one in Practice"}
+          </p>
+        </>
+      )}
+    </li>
+  );
+}
+
 function RangeRow({ range, onChange, onGone }: { range: SavedRange; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
   return (
     <li aria-label={range.name} tabIndex={-1} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
@@ -370,7 +468,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
       const b = await downloadBackup();
       setMsg({
         ok: true,
-        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
+        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedScenarios} scenarios, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
       });
     } catch (e) {
       console.error("The backup failed:", e);
@@ -404,7 +502,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
       <p className="text-muted">
-        One file with your saved spots, saved drills, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
+        One file with your saved spots, saved drills, saved scenarios, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
         imported into Analyze with your tags, notes and grades, and the mistakes kept for review with their schedule; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
       </p>

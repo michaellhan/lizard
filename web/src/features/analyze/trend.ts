@@ -138,17 +138,19 @@ export function shareZ(ok1: number, n1: number, ok2: number, n2: number): number
   return se > 0 ? (ok2 / n2 - ok1 / n1) / se : null;
 }
 
+type FreqGap = Pick<FreqRow, "n" | "you" | "gto" | "sq">;
+
 /** How much nearer the answer a frequency came, in standard errors (positive: nearer). The gap is your action less each
  * hand's own answer, and the hands dealt move the answer as your play moves your side, so the spread is that of this
  * difference, over the decisions of both sides. (With one answer on every hand that's your own action's alone: a gap of
  * 2% over 100 hands is a 50% action as noisy as any. Pooled, as a side at 0% or 100% has no spread of its own.) None if
  * you never varied: then only the hands dealt moved the gap. */
-export function gapZ(a: FreqRow, b: FreqRow): number | null {
+export function gapZ(a: FreqGap, b: FreqGap): number | null {
   const se = gapSe(a, b);
   return se != null ? (Math.abs(a.you - a.gto) - Math.abs(b.you - b.gto)) / se : null;
 }
 
-function gapSe(a: FreqRow, b: FreqRow): number | null {
+function gapSe(a: FreqGap, b: FreqGap): number | null {
   const n = a.n + b.n;
   const y = (a.you * a.n + b.you * b.n) / n;
   if (y <= 0 || y >= 1) return null;

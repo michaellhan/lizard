@@ -194,6 +194,8 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
         only. A range build is scored by its accuracy over the node&rsquo;s hand classes.
         {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") &&
           " Tournaments each have their own row and go in no other totals here, by pot type, street or over time: a prize-equity EV is chips worth as much prize equity, never bb won, and a tournament's hands count no net."}
+        {totals.some((t) => t.kind === "exploit") &&
+          " Exploit sessions have their own row and go in no other totals here: their EVs are against a best response to an assumed profile, never an equilibrium, and they count no net, as the opponents at the table played the equilibrium."}
       </p>
     </section>
   );

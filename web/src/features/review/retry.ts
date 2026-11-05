@@ -4,7 +4,7 @@ import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
 import { spotStamp } from "@/library/version";
 import { drillProvenance, potAt } from "@/features/practice/drills";
-import { mixOf, optionsOf } from "@/features/practice/practice";
+import { isBestResponse, mixOf, optionsOf } from "@/features/practice/practice";
 import { resolveLibrarySource } from "@/library/catalog";
 import { cardInt, COMBOS, nodeAt, type Entry } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
@@ -24,7 +24,10 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
   const client = await getClient();
   const { data, provenance } = await client.solve({ state: ask.state, mode, signal });
   if (!optionsOf(data).length) throw new Error(data.error ?? "the answer has no actions at this spot");
-  return { mix: mixOf(data), pot: typeof data.pot_bb === "number" ? data.pot_bb : pot, provenance };
+  const mix = mixOf(data);
+  // (exploit practice: an answer without the read is an equilibrium's, which this spot was never graded against)
+  if (ask.state.locks && !isBestResponse(mix, provenance)) throw new Error("the engine gave no best response to the assumed profile here");
+  return { mix, pot: typeof data.pot_bb === "number" ? data.pot_bb : pot, provenance };
 }
 
 /** Your combo's stored answer in an entry; null where the entry holds no node or no hand there. */

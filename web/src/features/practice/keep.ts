@@ -14,6 +14,7 @@ import { sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
 import { isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type HandTournament, type PracticeHand } from "./practice";
 import type { PracticeSession } from "./session";
+import { isExploit } from "./exploit";
 import { isTextureFilter } from "./texture";
 
 export const KEPT_KEY = "practice.tables.v1";
@@ -97,7 +98,8 @@ const isDecision = (x: unknown): x is Decision =>
   isNum(x.pot) &&
   isStr(x.study) &&
   opt(x.revealed, (r) => r === true) &&
-  (x.grade === null ? x.provenance === null || (x.revealed === true && isProvenance(x.provenance)) : x.revealed === undefined && isGrade(x.grade) && isProvenance(x.provenance));
+  opt(x.offProfile, (r) => r === true) &&
+  (x.grade === null ? x.provenance === null || ((x.revealed === true || x.offProfile === true) && isProvenance(x.provenance)) : x.revealed === undefined && isGrade(x.grade) && isProvenance(x.provenance));
 
 const isHand = (x: unknown): x is PracticeHand =>
   isObj(x) &&
@@ -121,6 +123,7 @@ const isHand = (x: unknown): x is PracticeHand =>
   opt(x.run, (r) => r === "played" || r === "shown") &&
   opt(x.pushFold, (p) => p === true) &&
   opt(x.tournament, isGame) &&
+  opt(x.exploit, isExploit) &&
   (x.tournament === undefined || (isObj(x.stacks) && Object.keys(x.stacks).length === x.players)) &&
   opt(x.revealed, (r) => r === true);
 
@@ -179,7 +182,8 @@ const isOpts = (x: unknown) =>
   isNum(x.rakeCap) &&
   opt(x.board, (b) => b === null || isTextureFilter(b)) &&
   opt(x.pushFold, isBool) &&
-  opt(x.tournament, (t) => isGame(t) && isObj(t) && isObj(t.stacks) && Object.values(t.stacks).every(isNum));
+  opt(x.tournament, (t) => isGame(t) && isObj(t) && isObj(t.stacks) && Object.values(t.stacks).every(isNum)) &&
+  opt(x.exploit, isExploit);
 /** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
   isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null && opt(x.state, isObj);

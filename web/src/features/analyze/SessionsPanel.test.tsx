@@ -287,7 +287,7 @@ describe("Your sessions", () => {
     });
     expect(await screen.findByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled here; 3 of this leak in all: 3 in the mix");
     expect(screen.getByRole("button", { name: "Start this leak over" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Every decision of this leak in these hands is drilled");
+    expect(within(screen.getByLabelText("Leak drill")).getByRole("status")).toHaveTextContent("Every decision of this leak in these hands is drilled");
   });
 
   it("deals the next decision in view when a filter takes the one answered away, and keeps History's count within its total", async () => {

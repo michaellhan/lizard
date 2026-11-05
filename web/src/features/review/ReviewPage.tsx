@@ -11,6 +11,7 @@ import { VerdictTag } from "@/components/VerdictTag";
 import type { MistakeRecord } from "@/data/db";
 import { changeMistake, listMistakes } from "@/data/mistakes";
 import { STREET_ORDER, shareText } from "@/features/history/progress";
+import { profileName } from "@/features/practice/exploit";
 import { DecisionView, optionLabel, useHandKeys } from "@/features/practice/PracticeParts";
 import { ModePicker } from "@/features/study/ModePicker";
 import { versionOf, versionWords } from "@/grading/version";
@@ -44,6 +45,7 @@ export function ReviewPage() {
   const [passed, setPassed] = useState<ReadonlySet<string>>(() => new Set());
   const [shown, setShown] = useState(LIST_PAGE);
   const [shownT, setShownT] = useState(LIST_PAGE);
+  const [shownX, setShownX] = useState(LIST_PAGE);
 
   useEffect(() => {
     let alive = true;
@@ -87,8 +89,10 @@ export function ReviewPage() {
     );
 
   // (a tournament's EVs aren't bb won, so its mistakes have a list and a tally of their own; the queue is dates, and takes both)
-  const cash = useMemo(() => list.filter((m) => !m.tournament), [list]);
+  // (and an exploit session's are against a best response to an assumed profile, which is never an equilibrium's EV)
+  const cash = useMemo(() => list.filter((m) => !m.tournament && !m.exploit), [list]);
   const tourney = useMemo(() => list.filter((m) => m.tournament), [list]);
+  const exploited = useMemo(() => list.filter((m) => m.exploit), [list]);
   const onStreet = (ms: MistakeRecord[]) => (street ? ms.filter((m) => m.street === street) : ms);
   const listed = onStreet(cash);
 
@@ -152,6 +156,28 @@ export function ReviewPage() {
                   {listed.length > shown && (
                     <button type="button" onClick={() => setShown((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
                       Show {Math.min(LIST_PAGE, listed.length - shown)} more of {listed.length - shown}
+                    </button>
+                  )}
+                </section>
+              )}
+              {exploited.length > 0 && (
+                <section aria-label="Exploit mistakes" className="space-y-2">
+                  <h2 className="text-lg font-semibold">Exploit mistakes</h2>
+                  <p className="text-xs text-muted">
+                    From exploit sessions, kept apart from the lists here: these are graded against the best response to an assumed profile, never an equilibrium. The badge says which profile, and its numbers are assumptions, not population data.
+                  </p>
+                  <Tally list={onStreet(exploited)} />
+                  {!onStreet(exploited).length && <p className="text-sm text-muted">None on the {street}.</p>}
+                  <ul className="space-y-2">
+                    {onStreet(exploited)
+                      .slice(0, shownX)
+                      .map((m) => (
+                        <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
+                      ))}
+                  </ul>
+                  {onStreet(exploited).length > shownX && (
+                    <button type="button" onClick={() => setShownX((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+                      Show {Math.min(LIST_PAGE, onStreet(exploited).length - shownX)} more of {onStreet(exploited).length - shownX}
                     </button>
                   )}
                 </section>
@@ -262,6 +288,7 @@ function MistakeRow({ m, now, active, onRetry }: { m: MistakeRecord; now: number
       </div>
       <p className="text-xs text-muted">
         {m.tournament ? "Tournament · " : ""}
+        {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
         {m.game} · {m.line}
         {m.times > 1 ? ` · missed ${m.times} times in play` : ""}
       </p>
@@ -352,6 +379,7 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
       <Spot m={m} />
       <p>
         {m.tournament ? "Tournament · " : ""}
+        {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
         {m.game} · pot {m.pot.toFixed(2).replace(/\.?0+$/, "")}bb
       </p>
       <p className="text-muted">{spotWords(m)}</p>

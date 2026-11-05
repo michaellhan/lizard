@@ -15,6 +15,7 @@ export type ResultSource =
   | "live" // solved now (CFR), in the browser or on a local server
   | "charts" // preflop mixed-frequency charts
   | "preflop-solve" // the preflop game's equilibrium solve (pf_study)
+  | "best-response" // exploit practice: a solve with a lock on the opponent, each hand's best response to an assumed profile (features/practice/exploit.ts). Never an equilibrium, and never called solved
   | "push-fold" // the engine's push/fold model at 12bb or less: an all-in range from a jam-or-fold equilibrium by hand class, or a call priced against one (advisor.py _push, _vs_jam); no EVs, and no solve of the full game
   | "rules" // heuristic betting rules (multiway 5+ / fallback)
   | "equity" // equity-based fallback
@@ -63,6 +64,10 @@ export interface Provenance {
   view?: string;
   /** a node lock's answer (features/study/locks.ts): the best response to the read, never an equilibrium; in words */
   lock?: string;
+  /** the range a lock's answer plays against, as the read left it, in words: it can be a handful of combos */
+  lockRange?: string;
+  /** exploit practice (features/practice/exploit.ts): the assumed profile the answer is the best response to */
+  exploit?: string;
   /** automatic sizing's answer (features/study/autoSize.ts): its bet sizes chosen by a first solve; in words */
   sizing?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */

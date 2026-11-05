@@ -28,6 +28,29 @@ beforeEach(async () => {
   await (await db())!.clear("sessions");
 });
 
+describe("an exploit session", () => {
+  const READ = session("read", "exploit", 8, { exploit: { profile: "nit", lock: { fold: 15, bluff: -60 } }, pot: "srp", sources: { "best-response": 3 } });
+
+  it("has a row of its own, in no total with an equilibrium's, and says so", async () => {
+    expect(kindTotals([CASH, READ]).map((x) => [x.kind, x.loss, x.net])).toEqual([
+      ["practice", 1, 9],
+      ["exploit", 8, 0],
+    ]);
+    expect(potTotals([CASH, READ]).rows.find((r) => r.pot === "SRP")).toMatchObject({ loss: 1, hands: 2 });
+    expect(streetTotals([CASH, READ]).rows).toEqual([expect.objectContaining({ n: 2, loss: 1 })]);
+    await putSession(READ);
+    render(
+      <MemoryRouter>
+        <HistoryPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/Exploit sessions have their own row and go in no other totals here/)).toBeInTheDocument();
+    expect(screen.getAllByText("Exploiting an assumed profile").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Nit \(assumed: folds \+15 pts to bets, bluffs -60%\) · 3 players · 20bb · single-raised pots/)).toBeInTheDocument();
+    expect(screen.queryByText(/net \+9/)).toBeNull();
+  });
+});
+
 describe("the totals", () => {
   it("keeps each kind's EV lost apart", () => {
     const t = kindTotals(ALL);

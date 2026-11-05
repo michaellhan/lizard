@@ -13,9 +13,10 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedDrills", "savedRanges", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedDrills", "savedRanges", "savedScenarios", "savedSpots", "sessions"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
+    expect([...db.transaction("savedScenarios").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("hands").store.indexNames].sort()).toEqual(["byHero", "byImport", "byPlayed", "byPotType", "bySite"]);
     expect([...db.transaction("decisions").store.indexNames].sort()).toEqual(["byHand", "byPos", "byStreet", "byVerdict"]);
     expect([...db.transaction("mistakes").store.indexNames].sort()).toEqual(["byDue", "byLast", "byStreet"]);
@@ -103,8 +104,27 @@ describe("IndexedDB migrations", () => {
     db6.close();
   });
 
-  it("opens at version 6", () => {
-    expect(DB_VERSION).toBe(6);
+  it("upgrades a version-6 database in place, keeping its data and giving the scenarios an empty store", async () => {
+    const name = fresh();
+    const v6 = await openLizardDB(6, name);
+    expect([...v6.objectStoreNames]).not.toContain("savedScenarios");
+    await v6.put("mistakes", mistake());
+    await v6.put("sessions", { id: "x", kind: "practice", startedAt: 5, decisions: 3, evLossBb: 0.4, meta: { hands: 2 } });
+    await v6.put("savedDrills", { id: "d1", name: "Flops", kind: "library", to: "/practice?tab=drills", about: "", note: "", createdAt: 1, updatedAt: 2 });
+    v6.close();
+    const v7 = await openLizardDB(DB_VERSION, name);
+    expect(await v7.get("mistakes", mistake().id)).toEqual(mistake());
+    expect((await v7.get("sessions", "x"))?.meta).toEqual({ hands: 2 });
+    expect((await v7.get("savedDrills", "d1"))?.name).toBe("Flops");
+    expect(await v7.count("savedScenarios")).toBe(0);
+    const s = { id: "s1", name: "Nit, 3-bet pots", players: 6, stack: 100, opts: { seat: "moves", preflopOnly: false, pot: "3bet", ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 } as const, note: "", createdAt: 1, updatedAt: 2 };
+    await v7.put("savedScenarios", s);
+    expect(await v7.getAllFromIndex("savedScenarios", "byUpdated")).toEqual([s]);
+    v7.close();
+  });
+
+  it("opens at version 7", () => {
+    expect(DB_VERSION).toBe(7);
   });
 });
 

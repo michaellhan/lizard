@@ -4098,3 +4098,15 @@ Four first-run failures were all the tests' own: a class not in that range, a cl
 Tests: 2336 unit tests in 127 files, typecheck and lint clean, 99 browser tests passed and 32 skipped (the QA list at the other two widths), with 14b and 14c run on their own against the same build. Not checked: a real screen reader, a real phone, and how a 3-way flop answers in an ICM session at Fast or Accurate.
 
 The deploy of `6525525` was stopped by the job's own 20-minute limit: the QA list added about 10 minutes on GitHub's runner, where the tests in the run had all passed so far. Nothing reached production from it. The limit is now 35 minutes, and a deploy takes about 25.
+
+Live check of `450d77c` (run 42045874492, 2026-11-05): `index-Chej54AG.js` at 300,773 bytes, the name a local build of that source gave, with `document.title` "Practice · Lizard", Push/fold and Tournament in Practice's Play list, 30 script chunks loaded, cross-origin isolated and "Engine ready · 8t". `/`, `/gto-solver/`, `/gto-solver-classic/`, `/lizard/analyze/` and `/lizard/solver/manifest.json` all answered 200.
+
+### Exploit practice, scenarios and the analytics section (Phases 5 and 6)
+
+Exploit drills against four hand-set profiles, in the pot drills only, each answer a live best response to a node lock, badged as such, with sessions and mistakes kept apart. The opponents at the table still play the charts and equilibrium, so no net is counted. Saved custom scenarios start again from the Saved page. Analyze gains one Filters section over every report, decisions broken down by seat, street, pot type, bet size faced and chosen, effective stack and four flop textures, ranges on every rate, and a leak rule that needs 30 decisions and an interval clear of its line, so leaks appear later than the classic thresholds did.
+
+Two browser tests, 7d and 10b, cover these on the real worker. The agents that wrote this ran no browser, and the full browser run found one real regression: a row for Save scenario pushed "Your move" off a tablet's first screen. Save scenario now sits beside New session, inside that form (so it's a `role="form"` group and Enter saves rather than starting a session, which 7d checks), and the Exploit note is one short line until a pot drill is chosen.
+
+The practice page's EV for a move the range almost never takes is now marked ≈ (`rough_ev`), and `postbuild.mjs` fails a build whose first script passes 350 KB.
+
+Tests: 2438 unit tests in 133 files, typecheck and lint clean, 101 browser tests passed and 40 skipped (the QA list at the other two widths).

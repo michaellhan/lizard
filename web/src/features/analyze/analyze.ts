@@ -140,6 +140,17 @@ export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lo
   );
 }
 
+/** The filters alone, as a query string, leaving out `without`: while it stands the same hands are kept, whatever else
+ * in the URL moves (a hand opened, a drill), so nothing downstream counts them again. */
+export function filterKey(p: URLSearchParams, without?: (typeof HAND_FILTERS)[number]): string {
+  const q = new URLSearchParams();
+  for (const k of HAND_FILTERS) {
+    const v = p.get(k);
+    if (v && k !== without) q.set(k, v);
+  }
+  return q.toString();
+}
+
 export const POT_TYPES = ["SRP", "3bet pot", "4bet+ pot", "Limped"] as const;
 export const potType = (raises: number) => (raises <= 0 ? "Limped" : raises === 1 ? "SRP" : raises === 2 ? "3bet pot" : "4bet+ pot");
 

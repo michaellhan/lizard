@@ -93,8 +93,9 @@ export const sessionUnit = (o: Pick<GameOptions, "tournament">) => (o.tournament
  * chips carried, so the session's seat, pot and carry aren't what was played and are left out. */
 export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
   id: s.id,
-  // (a tournament's EVs are kept under its own kind, so no total adds them to another's: `kindTotals`, `streetTotals`)
-  kind: s.opts.tournament ? (s.opts.tournament.model === "icm" ? "tournament" : "tournament-chips") : "practice",
+  // (a tournament's EVs are kept under its own kind, so no total adds them to another's: `kindTotals`, `streetTotals`; and
+  // so are a read's, best-response EVs being worth nothing beside an equilibrium's)
+  kind: s.opts.tournament ? (s.opts.tournament.model === "icm" ? "tournament" : "tournament-chips") : s.opts.exploit ? "exploit" : "practice",
   startedAt: s.startedAt,
   endedAt: Date.now(),
   decisions: s.score.n,
@@ -109,10 +110,12 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     stack: s.stack,
     ...(tables > 1 ? { tables } : { seat: s.opts.seat }),
     ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
-    ...(s.opts.pot && tables <= 1 ? { pot: s.opts.pot } : {}),
+    // (an exploit session deals its pot at every table)
+    ...(s.opts.pot && (tables <= 1 || s.opts.exploit) ? { pot: s.opts.pot } : {}),
     ...(s.opts.pot && s.opts.board && tables <= 1 ? { board: s.opts.board } : {}),
     ...(s.opts.pushFold ? { pushFold: true } : {}),
     ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
+    ...(s.opts.exploit ? { exploit: s.opts.exploit } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),

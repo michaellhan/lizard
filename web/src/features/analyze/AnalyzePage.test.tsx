@@ -182,15 +182,16 @@ describe("AnalyzePage", () => {
     expect(flop.getAttribute("title")).toMatch(/0\.12bb lost \(2\.2% of the pot\) · Precomputed solution · srp_btn_bb/);
     expect(within(hand).getByLabelText("Grade of preflop decision 4").getAttribute("title")).toMatch(/preflop charts, by frequency \(not a solve\)/);
 
-    const rep = screen.getByRole("region", { name: "Report" });
-    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("5 of your decisions graded in 4 hands: 60% in the mix (Best or Correct).");
+    // (the report follows a moment after the grades: it's counted after what you're doing)
+    const rep = await screen.findByRole("region", { name: "Report" });
+    await waitFor(() => expect(within(rep).getByLabelText("Summary")).toHaveTextContent("5 of your decisions graded in 4 hands: 60% in the mix (Best or Correct)."));
     expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb lost in all, 2.2% of the pot a decision on average.");
     expect(within(rep).getByText("4 not graded")).toBeInTheDocument();
     // the mtt hand's call is one CO's chart leaves out: off the chart
     const off = within(rep).getByRole("list", { name: /^Off the chart/ });
     expect(off).toHaveTextContent("CO AhTd preflop: call (vs open)");
-    expect(within(rep).getByRole("row", { name: "RFI" })).toHaveTextContent("RFI1100%00");
-    expect(within(rep).getByRole("row", { name: "vs open" })).toHaveTextContent("vs open10%10");
+    expect(within(rep).getByRole("row", { name: "RFI" })).toHaveTextContent("RFI1100%21%–100%few00");
+    expect(within(rep).getByRole("row", { name: "vs open" })).toHaveTextContent("vs open10%0%–79%few10");
     expect(within(rep).getByRole("button", { name: "Export CSV" })).toBeInTheDocument();
 
     // the hands whose graded decisions gave up 0.1bb or more: the one with the flop mistake
@@ -233,9 +234,9 @@ describe("AnalyzePage", () => {
     const river = within(hand).getByLabelText("Grade of river decision 2");
     expect(river.getAttribute("title")).toContain("Live solve (Quick)");
     expect(river.getAttribute("title")).toContain("low confidence · flagged: worth checking at Fast");
-    const rep = screen.getByRole("region", { name: "Report" });
+    const rep = await screen.findByRole("region", { name: "Report" });
+    await waitFor(() => expect(within(within(rep).getByRole("table", { name: "What the grades stand on" })).getByRole("row", { name: "Preflop charts (by frequency, not a solve)" })).toHaveTextContent(/^Preflop charts \(by frequency, not a solve\)4/));
     const basis = within(rep).getByRole("table", { name: "What the grades stand on" });
-    expect(within(basis).getByRole("row", { name: "Preflop charts (by frequency, not a solve)" })).toHaveTextContent(/^Preflop charts \(by frequency, not a solve\)4/);
     expect(within(basis).getByRole("row", { name: "Quick solve, not settled" })).toBeInTheDocument();
     expect(within(rep).getByLabelText("Summary")).toHaveTextContent(/graded on a low-confidence read/);
 
@@ -250,7 +251,7 @@ describe("AnalyzePage", () => {
     expect(stub.asked).toHaveLength(n);
     expect(stub.asked.some((s) => s.triage)).toBe(false);
     await waitFor(() => expect(within(hand).getByLabelText("Grade of river decision 2").getAttribute("title")).toContain("checked at Fast: the read said"));
-    expect(within(rep).getByLabelText("Checked at Fast")).toHaveTextContent(new RegExp(`^${n} reads? checked at Fast: `));
+    await waitFor(() => expect(within(rep).getByLabelText("Checked at Fast")).toHaveTextContent(new RegExp(`^${n} reads? checked at Fast: `)));
     expect(within(panel).queryByRole("button", { name: /^Check \d+ at Fast/ })).toBeNull();
 
     fireEvent.click(within(panel).getByRole("button", { name: "Forget the grades" }));

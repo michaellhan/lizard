@@ -19,6 +19,7 @@ import type { Provenance, StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
 import { reviewedText } from "./copyForAi";
+import { exploitNote, GRADED_BY_READ } from "./exploit";
 import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
@@ -114,9 +115,10 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       {item("Best or correct", s.n ? pct(acc, 0) : "–")}
       {item("EV lost a decision", loss == null ? "–" : `${bb(loss)}${sessionUnit(session.opts)} · ${lossPct!.toFixed(1)}% pot`)}
       {item("Streak", `${s.streak} (best ${s.best})`)}
-      {!session.opts.preflopOnly && !session.opts.tournament && item("Net", `${signed(session.net)}bb`)}
+      {!session.opts.preflopOnly && !session.opts.tournament && !session.opts.exploit && item("Net", `${signed(session.net)}bb`)}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
       {session.opts.tournament && <p className="basis-full text-xs text-muted">{tournamentNote(session.opts.tournament)}</p>}
+      {session.opts.exploit && <p className="basis-full text-xs text-muted">{exploitNote(session.opts.exploit)}</p>}
       {!!session.revealed && (
         <p className="basis-full text-xs text-muted">
           {session.revealed} decision{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. {REVEAL_CHIPS}
@@ -403,7 +405,7 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
     <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-medium">{title}</h2>
-        {g ? <VerdictTag v={g.verdict} /> : <span className="text-xs text-muted">Not graded{d.revealed ? ": you revealed the answer first" : ""}</span>}
+        {g ? <VerdictTag v={g.verdict} /> : <span className="text-xs text-muted">Not graded{d.revealed ? ": you revealed the answer first" : d.offProfile ? ": no best response came back here" : ""}</span>}
         <span>
           {d.street}: you took <span className="font-mono">{d.chose}</span>
           {g && g.a !== g.best && d.mix[g.best] && (
@@ -419,6 +421,12 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
           {REVEAL_NOTE} {REVEAL_CHIPS}
         </p>
       )}
+      {d.offProfile && (
+        <p className="text-muted">
+          The engine answered this spot without the assumed profile, so the numbers below aren&rsquo;t a best response to it. An exploit session is never graded against anything else, so this decision isn&rsquo;t counted.
+        </p>
+      )}
+      {g && d.provenance?.source === "best-response" && <p className="text-muted">{GRADED_BY_READ}</p>}
       {g && d.mix.length > 0 && (
         <p>
           {whyText(
@@ -433,20 +441,23 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
         <p className="text-muted">
           {g.byEv
             ? g.loss > 0
-              ? `EV given up: ${bb(g.loss)}${evUnit(d.provenance)}, ${g.lossPct.toFixed(1)}% of the ${fmt(d.pot)}bb pot.`
+              ? `EV given up: ${d.mix[g.a]?.rough || d.mix[g.best]?.rough ? "≈" : ""}${bb(g.loss)}${evUnit(d.provenance)}, ${g.lossPct.toFixed(1)}% of the ${fmt(d.pot)}bb pot.`
               : "No EV given up."
             : byFrequency(d.provenance)}
           {g.mixed && " This hand mixes actions here."}
         </p>
       )}
       {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} unit={evUnit(d.provenance)} />}
-      <p className="text-xs text-muted">Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
+      <p className="text-xs text-muted">Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.{d.mix.some((a) => a.rough) ? " ≈ marks a move the range almost never takes, whose EV is rough." : ""}</p>
       {children}
       {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}
       {d.study && (
-        <Link to={`/study?${d.study}`} className="inline-block text-accent hover:underline">
-          Open this spot in Study →
-        </Link>
+        <p>
+          <Link to={`/study?${d.study}`} className="text-accent hover:underline">
+            Open this spot in Study →
+          </Link>
+          {d.provenance?.source === "best-response" && <span className="text-xs text-muted"> Study opens it at equilibrium. Its lock panel has the same profiles.</span>}
+        </p>
       )}
     </section>
   );

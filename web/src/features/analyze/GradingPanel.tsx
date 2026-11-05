@@ -1,14 +1,14 @@
 // Analyze's grading: the queue that grades your kept hands' decisions in this browser (grading.ts gradeHands, through
 // the page's solver: the charts and the flop library, or every street by Quick triage or at Fast, the doubtful reads
 // then checked at Fast: triage.ts), and the report over what's graded (report.ts): the grades, what they stand on, the
-// leaks, the frequencies against the answer's, the decisions that lost the most, and CSV and JSON export. Every number
+// leaks and what's too few to call one, the breakdowns (BreakdownPanel.tsx), the frequencies against the answer's, the
+// decisions that lost the most, and CSV and JSON export. Every number
 // says what it stands on: the charts (by frequency, not a solve), the library, a read or a solve.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { clearDecisions, putDecisions } from "@/data/hands";
-import type { Verdict } from "@/grading/grade";
 import { VERSION_UNKNOWN } from "@/grading/version";
 import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
@@ -16,12 +16,15 @@ import { useRuntime } from "@/solver/runtime";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
 import { STREETS } from "./analyze";
+import { Breakdowns } from "./BreakdownPanel";
+import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
-import { isGraded, leakTest, report, toCSV, toJSON, VERDICTS, type Group, type Leak } from "./report";
-import { deepenPlan, flagged, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
+import { basisOf, isGraded, LEAK, leakTest, MIN_READ, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
+const pair = ([a, b]: readonly [number, number]) => `${pct(a)} to ${pct(b)}`;
 const bbs = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100) / 100}bb`);
 
 /** What the grades stand on, said wherever they are shown. */
@@ -234,7 +237,13 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
   const ds = useMemo(() => decisions.filter((d) => byId.has(d.handId)), [decisions, byId]);
   const rp = useMemo(() => report(ds), [ds]);
   const [leak, setLeak] = useState<Leak | null>(null);
+  const [freq, setFreq] = useState<string | null>(null);
   const [params] = useSearchParams();
+  const streetOf = useCallback((d: DecisionRecord) => d.street, []);
+  const pfOf = useCallback((d: DecisionRecord) => (d.street === "preflop" ? d.situation : null), []);
+  const basisKey = useCallback((d: DecisionRecord) => (isGraded(d) ? basisOf(d) : null), []);
+  const freqTest = useMemo(() => (freq ? leakTest({ kind: "freq", key: freq }) : null), [freq]);
+  const freqDs = useMemo(() => (freqTest ? ds.filter(freqTest) : []), [freqTest, ds]);
   if (!ds.length)
     return of !== undefined && hands.length < of && decisions.length > 0 ? (
       <section aria-label="Report" className="space-y-1 text-sm">
@@ -284,7 +293,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
         </p>
         {a.ev > 0 && (
           <p>
-            Graded by EV: {nDecisions(a.ev)}, {bbs(a.lost)} lost in all, {a.avgPct}% of the pot a decision on average.
+            Graded by EV: {nDecisions(a.ev)}, {bbs(a.lost)} lost in all, {a.avgPct}% of the pot a decision on average. This is solver EV lost, measured over graded decisions: it isn't what you won, and no win rate is worked out from it.
           </p>
         )}
         {rp.low.n > 0 && (
@@ -314,7 +323,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
         <p className="text-xs text-muted">{GRADED_ON}</p>
       </div>
 
-      {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ev noUngraded />}
+      {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ds={ds} keyOf={basisKey} byId={byId} ev noUngraded />}
       {rp.versions && (
         <p aria-label="Versions graded on" className="text-xs text-muted">
           {rp.versions} The preflop charts come with the solver build. A library version is its spot&rsquo;s ranges and bet tree. {rp.versions.includes("unknown") ? VERSION_UNKNOWN : ""}
@@ -340,18 +349,35 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
               </li>
             ))}
           </ul>
-          {leak && <DecisionList title={leak.key} ds={ds.filter(leakTest(leak))} byId={byId} />}
         </div>
       )}
-      {rp.leaks.length === 0 && (
-        <p className="text-muted">
-          No clear leak yet: a leak is a frequency 10 points off the answer's over 15 decisions, a preflop situation under 80% in the mix over 15, or a spot after the flop losing 0.5bb a decision over 10.
-        </p>
+      <p aria-label="What makes a leak" className="text-xs text-muted">
+        {rp.leaks.length === 0 ? "No clear leak yet. " : ""}
+        {LEAK_RULE}
+      </p>
+      {rp.thin.length > 0 && (
+        <details className="space-y-1">
+          <summary className="cursor-pointer text-muted">
+            {rp.thin.length.toLocaleString()} {rp.thin.length === 1 ? "row looks" : "rows look"} off but {rp.thin.length === 1 ? "is" : "are"} too few to read
+          </summary>
+          <ul aria-label="Too few to read" className="space-y-1">
+            {rp.thin.map((l) => (
+              <li key={`${l.kind}|${l.key}`} className="flex flex-wrap items-center gap-2 text-muted">
+                <span>{leakText(l)}</span>
+                <button type="button" onClick={() => setLeak(leak?.key === l.key && leak.kind === l.kind ? null : l)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
+                  {leak?.key === l.key && leak.kind === l.kind ? "Hide" : "Show"} its decisions
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
+      {leak && <DecisionList title={leak.key} ds={ds.filter(leakTest(leak))} byId={byId} />}
 
-      <GroupTable title="By street" first="Street" rows={rp.byStreet} />
-      {rp.byPf.length > 0 && <GroupTable title="Preflop, by situation (against the charts, by frequency)" first="Situation" rows={rp.byPf} />}
-      {rp.bySpot.length > 0 && <GroupTable title="After the flop, by spot" first="Spot" rows={rp.bySpot} ev />}
+      <Breakdowns ds={ds} hands={hands} byId={byId} />
+      <GroupTable title="By street" first="Street" rows={rp.byStreet} ds={ds} keyOf={streetOf} byId={byId} />
+      {rp.byPf.length > 0 && <GroupTable title="Preflop, by situation (against the charts, by frequency)" first="Situation" rows={rp.byPf} ds={ds} keyOf={pfOf} byId={byId} />}
+      {rp.bySpot.length > 0 && <GroupTable title="After the flop, by spot" first="Spot" rows={rp.bySpot} ds={ds} keyOf={spotOf} byId={byId} ev />}
       {rp.freqs.length > 0 && (
         <div className="space-y-1">
           <h3 className="font-semibold">Your frequencies against the answer's</h3>
@@ -359,25 +385,41 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
             <table aria-label="Frequencies" className="min-w-full text-left">
               <thead className="text-xs text-muted">
                 <tr>
-                  <th className="pr-3 font-normal">Decision</th>
-                  <th className="pr-3 text-right font-normal">Decisions</th>
-                  <th className="pr-3 text-right font-normal">You</th>
-                  <th className="pr-3 text-right font-normal">The answer</th>
+                  <th scope="col" className="pr-3 font-normal">Decision</th>
+                  <th scope="col" className="pr-3 text-right font-normal">Decisions</th>
+                  <th scope="col" className="pr-3 text-right font-normal">You</th>
+                  <th scope="col" className="whitespace-nowrap pr-3 font-normal">95% range</th>
+                  <th scope="col" className="pr-3 text-right font-normal">The answer</th>
+                  <th scope="col" className="font-normal">
+                    <span className="sr-only">Decisions behind it</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {rp.freqs.map((f) => (
                   <tr key={f.label} aria-label={f.label} className="border-t border-border">
-                    <td className="pr-3">{f.label}</td>
-                    <td className="pr-3 text-right">{f.n}</td>
-                    <td className="pr-3 text-right">{pct(f.you)}</td>
-                    <td className="pr-3 text-right">{pct(f.gto)}</td>
+                    <th scope="row" className="pr-3 font-normal">{f.label}</th>
+                    <td className="pr-3 text-right tabular-nums">{f.n.toLocaleString()}</td>
+                    <td className="pr-3 text-right tabular-nums">{pct(f.you)}</td>
+                    <td className="whitespace-nowrap pr-3 tabular-nums">
+                      <RangeCell k={f.k} n={f.n} />
+                    </td>
+                    <td className="pr-3 text-right tabular-nums">{pct(f.gto)}</td>
+                    <td className="text-right">
+                      <button type="button" aria-expanded={freq === f.label} aria-label={`Decisions: ${f.label}`} onClick={() => setFreq(freq === f.label ? null : f.label)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
+                        Decisions
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted">The answer's: the same hands at the same decisions, from what graded each (the charts preflop; after the flop the library, a read or a solve).</p>
+          <p className="text-xs text-muted">
+            The answer's: the same hands at the same decisions, from what graded each (the charts preflop, which aren't a solve; after the flop the library, a read or a solve). The range is a 95% interval on your rate. The
+            squeeze row leaves out the blinds, whose decisions don't store a caller. VPIP, PFR, check-raise and the river barrel as such are in Your stats, counted from the histories: a decision doesn't store what you did before it.
+          </p>
+          {freq && freqDs.length > 0 && <DecisionList title={freq} ds={freqDs} byId={byId} />}
         </div>
       )}
       {rp.mistakes.length > 0 && <DecisionList title="The most EV lost" ds={rp.mistakes} byId={byId} />}
@@ -387,91 +429,13 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
   );
 }
 
+/** What a leak is, said beside them. */
+export const LEAK_RULE = `A leak is a frequency ${Math.round(LEAK.freq[0] * 100)} points off the answer's, a preflop situation under ${pct(LEAK.pf[0])} in the mix, or a spot after the flop losing ${LEAK.spot[0]}bb a decision. Each needs at least ${MIN_READ} decisions and a 95% interval clear of that line; anything short of that is too few to read, and isn't marked.`;
+
 function leakText(l: Leak): string {
   const low = l.low ? `, ${l.low} on a low-confidence read` : "";
-  if (l.kind === "freq") return `${l.key}: you ${pct(l.you)}, the answer ${pct(l.gto)} (${l.n} decisions${low})`;
-  if (l.kind === "pf") return `${l.key}: ${pct(l.inMix)} in the mix against the charts (${l.n} decisions)`;
-  return `${l.key}: ${bbs(l.avg)} lost a decision (${l.n} decisions${low})`;
-}
-
-function GroupTable({ title, first, rows, ev, noUngraded }: { title: string; first: string; rows: Group[]; ev?: boolean; noUngraded?: boolean }) {
-  return (
-    <div className="space-y-1">
-      <h3 className="font-semibold">{title}</h3>
-      <div className="relative overflow-x-auto">
-        <table aria-label={title} className="min-w-full text-left">
-          <thead className="text-xs text-muted">
-            <tr>
-              <th className="pr-3 font-normal">{first}</th>
-              <th className="pr-3 text-right font-normal">Graded</th>
-              <th className="pr-3 text-right font-normal">In the mix</th>
-              <th className="pr-3 text-right font-normal">Mistakes</th>
-              {ev && <th className="pr-3 text-right font-normal">EV lost a decision</th>}
-              {!noUngraded && <th className="pr-3 text-right font-normal">Not graded</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} aria-label={r.key} className="border-t border-border">
-                <td className="pr-3">{r.key}</td>
-                <td className="pr-3 text-right">{r.graded}</td>
-                <td className="pr-3 text-right">{pct(r.graded ? r.ok / r.graded : null)}</td>
-                <td className="pr-3 text-right">{r.by.Mistake + r.by.Blunder}</td>
-                {ev && <td className="pr-3 text-right">{r.ev ? `${bbs(r.avg)} (${r.avgPct}%)` : "—"}</td>}
-                {!noUngraded && <td className="pr-3 text-right">{r.n - r.graded}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-const LIST_MAX = 50;
-
-function DecisionList({ title, ds, byId }: { title: string; ds: DecisionRecord[]; byId: ReadonlyMap<string, HandRecord> }) {
-  const [params] = useSearchParams();
-  return (
-    <div className="space-y-1">
-      <h3 className="font-semibold">{title}</h3>
-      <ul aria-label={title} className="space-y-1">
-        {ds.slice(0, LIST_MAX).map((d) => {
-          const h = byId.get(d.handId);
-          return (
-            <li key={d.id} className="flex flex-wrap items-center gap-x-2">
-              {isGraded(d) && <VerdictTag v={d.verdict as Verdict} />}
-              <span>
-                {d.pos} {h?.hole ?? ""} {d.street}: {d.action}
-                {d.situation ? ` (${d.situation})` : ""}
-              </span>
-              <span className="text-muted" title={d.label}>
-                {decisionNote(d)}
-              </span>
-              <Link to={withParams(params, { hand: d.handId })} className="text-xs underline">
-                Hand {h?.number || ""}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-      {ds.length > LIST_MAX && <p className="text-xs text-muted">The first {LIST_MAX} of {ds.length}.</p>}
-    </div>
-  );
-}
-
-/** A graded decision in brief: what the answer does with your hand, and what it stands on. */
-export function decisionNote(d: DecisionRecord): string {
-  if (!isGraded(d)) return `not graded: ${d.why ?? ""}`;
-  const parts = [`the answer ${d.matched ?? d.action} ${pct(d.freq)}${d.best && d.best !== d.matched ? `, most often ${d.best} ${pct(d.bestFreq)}` : ""}`];
-  if (d.evLossBb != null) parts.push(d.evLossBb > 0 ? `${d.roughEv ? "≈" : ""}${bbs(d.evLossBb)} lost (${d.lossPct}% of the pot)` : "no EV lost");
-  if (d.roughEv) parts.push("a move the range almost never takes, so its EV is rough");
-  if (d.capped) parts.push("a rough solve can't condemn a line, so this stops at Inaccuracy");
-  if (d.note) parts.push(d.note);
-  if (d.off) parts.push(d.off);
-  parts.push(d.source === "charts" ? "preflop charts, by frequency (not a solve)" : d.label);
-  if (d.read) parts.push(`checked at Fast: the read said ${d.read.verdict}${d.read.label ? `, from ${d.read.label}` : ""}`);
-  if (d.notChecked !== undefined) parts.push(`Fast couldn't grade it (${d.notChecked})`);
-  if (flagged(d)) parts.push("flagged: worth checking at Fast");
-  return parts.join(" · ");
+  const n = `${l.n.toLocaleString()} decisions`;
+  if (l.kind === "freq") return `${l.key}: you ${pct(l.you)} (95% range ${pair(l.range)}), the answer ${pct(l.gto)} (${n}${low})`;
+  if (l.kind === "pf") return `${l.key}: ${pct(l.inMix)} in the mix against the charts (95% range ${pair(l.range)}, ${n})`;
+  return `${l.key}: ${bbs(l.avg)} lost a decision (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}, ${n}${low})`;
 }

@@ -1,14 +1,18 @@
 // Your results as played (winnings.ts) over the hands the filters show: what you won or lost in big blinds, bb/100
 // with its 95% interval, at showdown and without, the running total hand by hand and by your seat. Read from the
 // histories' winnings lines; nothing is graded or solved. Practice's hands (and the classic app's) are a group of their
-// own: played against the page's opponents, they aren't results against people.
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+// own: played against the page's opponents, they aren't results against people. At the top the three measures stand
+// side by side and apart: realized results, all-in adjusted results and solver EV lost, each with its own sample. EV lost
+// is what graded decisions gave up against their answers: no win rate is worked out from it.
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import type { HandRecord } from "@/data/db";
 import { RESULT_WHY } from "@/hh/results";
 import { seatLabel } from "@/poker/seats";
 import { withParams } from "./leakDrill";
-import { signed, signOf, winningsOf, type WinGroup, type Winnings } from "./winnings";
+import type { KindLoss } from "./report";
+import type { HandKind } from "./sessions";
+import { extent, signed, signOf, winningsOf, type WinGroup, type Winnings } from "./winnings";
 
 const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
 const signedBb = (x: number, d = 1) => `${signed(x, d)}bb`;
@@ -25,7 +29,9 @@ const LINES = [
 ] as const;
 const pctOf = (x: number) => `${(x * 100).toFixed(1)}%`;
 
-export function WinningsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
+const KIND_NAME: Record<HandKind, string> = { cash: "Cash games", tour: "Tournaments", practice: "Practice" };
+
+export function WinningsPanel({ hands, of, losses = [] }: { hands: HandRecord[]; of: number; losses?: readonly KindLoss[] }) {
   const [res, setRes] = useState<{ of: HandRecord[]; w: Winnings } | null>(null);
   const [done, setDone] = useState<{ of: HandRecord[]; n: number } | null>(null);
   useEffect(() => {
@@ -35,7 +41,7 @@ export function WinningsPanel({ hands, of }: { hands: HandRecord[]; of: number }
   }, [hands]);
   const w = res?.w;
   const counting = res?.of !== hands;
-  const byId = new Map(hands.map((h) => [h.id, h]));
+  const byId = useMemo(() => new Map(hands.map((h) => [h.id, h])), [hands]);
   return (
     <section aria-label="Your results" className="space-y-3 text-sm">
       <div>
@@ -54,11 +60,54 @@ export function WinningsPanel({ hands, of }: { hands: HandRecord[]; of: number }
           Reading… {done?.of === hands ? `${done.n.toLocaleString()} of ${hands.length.toLocaleString()} hands` : ""}
         </p>
       )}
+      {w && <Measures w={w} losses={losses} />}
       {w && !w.cash && !w.tour && !w.practice && <p className="text-muted">No hand here says what it won.</p>}
       {w?.cash && <Group title="Cash games" g={w.cash} byId={byId} />}
       {w?.tour && <Group title="Tournaments" g={w.tour} byId={byId} />}
       {w?.practice && <Group title="Practice" g={w.practice} byId={byId} />}
     </section>
+  );
+}
+
+/** The three measures, each with its own sample and kept to its own card: none is worked out from another. */
+function Measures({ w, losses }: { w: Winnings; losses: readonly KindLoss[] }) {
+  const groups = (["cash", "tour", "practice"] as const).flatMap((k) => (w[k] ? [{ k, g: w[k] }] : []));
+  const card = (title: string, says: string, lines: string[], none: string) => (
+    <div role="group" aria-label={title} className="space-y-1 rounded-lg border border-border bg-surface px-3 py-2">
+      <h3 className="font-medium">{title}</h3>
+      {lines.length ? (
+        <ul className="tabular-nums">
+          {lines.map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>{none}</p>
+      )}
+      <p className="text-xs text-muted">{says}</p>
+    </div>
+  );
+  return (
+    <div role="group" aria-label="Three measures, kept apart" className="grid gap-2 sm:grid-cols-3">
+      {card(
+        "Realized results",
+        "What the histories say you won, after the rake.",
+        groups.map(({ k, g }) => `${KIND_NAME[k]}: ${signedBb(g.net)} over ${nHands(g.hands)}`),
+        "No hand here says what it won.",
+      )}
+      {card(
+        "All-in adjusted",
+        "The same hands, with each all-in counted at your equity's share of the pot in place of how the cards fell.",
+        groups.map(({ k, g }) => `${KIND_NAME[k]}: ${signedBb(g.ev)} (${g.allIns.toLocaleString()} ${g.allIns === 1 ? "all-in" : "all-ins"} adjusted)`),
+        "No hand here says what it won.",
+      )}
+      {card(
+        "Solver EV lost",
+        "What your graded decisions gave up against the answers that graded them. It covers only decisions graded by EV, as the preflop charts have no EVs. It isn't a win rate, and none is worked out from it.",
+        losses.map((k) => `${KIND_NAME[k.kind]}: ${k.ev ? `${k.lost.toLocaleString()}bb lost over ${k.ev.toLocaleString()} ${k.ev === 1 ? "decision" : "decisions"} graded by EV` : "none graded by EV"}, of ${k.graded.toLocaleString()} graded`),
+        "Nothing here is graded.",
+      )}
+    </div>
   );
 }
 
@@ -124,10 +173,12 @@ function RunChart({ g, byId }: { g: WinGroup; byId: Map<string, HandRecord> }) {
   const navigate = useNavigate();
   const [hover, setHover] = useState<number | null>(null);
   const n = g.hands;
-  const all = [0, ...g.total, ...g.atSd, ...g.noSd, ...g.evRun];
-  const t = ticks(Math.min(...all), Math.max(...all));
-  const lo = Math.min(t[0]!, ...all);
-  const hi = Math.max(t.at(-1)!, ...all);
+  // (once a group: a pointer's every move renders this again)
+  const { t, lo, hi } = useMemo(() => {
+    const [min, max] = extent([g.total, g.atSd, g.noSd, g.evRun]);
+    const t = ticks(min, max);
+    return { t, lo: Math.min(t[0]!, min), hi: Math.max(t.at(-1)!, max) };
+  }, [g]);
   const span = hi - lo || 1;
   const yAt = (v: number) => ((hi - v) / span) * 100;
   // (the hand under the pointer; a click reads its own, as a tap on a touch screen comes with no move before it)
@@ -137,6 +188,7 @@ function RunChart({ g, byId }: { g: WinGroup; byId: Map<string, HandRecord> }) {
     return Math.min(n - 1, Math.max(0, Math.round(((e.clientX - r.left) / r.width) * n) - 1));
   };
   const series = { total: g.total, atSd: g.atSd, noSd: g.noSd, evRun: g.evRun };
+  const paths = useMemo(() => Object.fromEntries(LINES.map((l) => [l.key, linePath(g[l.key], hi)])), [g, hi]);
   const h = hover != null ? byId.get(g.ids[hover]!) : undefined;
   const own = hover != null ? g.total[hover]! - (hover > 0 ? g.total[hover - 1]! : 0) : 0;
   const allIn = hover != null ? g.allIn[g.ids[hover]!] : undefined;
@@ -187,7 +239,7 @@ function RunChart({ g, byId }: { g: WinGroup; byId: Map<string, HandRecord> }) {
             {[...LINES].reverse().map((l) => (
               <path
                 key={l.key}
-                d={linePath(series[l.key], hi)}
+                d={paths[l.key]}
                 fill="none"
                 stroke={l.color}
                 strokeWidth={2}
@@ -254,21 +306,26 @@ function Swatch({ color, dash }: { color: string; dash: boolean }) {
 }
 
 function ByPos({ g }: { g: WinGroup }) {
+  const [params] = useSearchParams();
   return (
     <div className="relative overflow-x-auto">
       <table aria-label="Results by your seat" className="text-left">
         <thead className="text-xs text-muted">
           <tr>
-            <th className="pr-4 font-normal">Your seat</th>
-            <th className="pr-4 text-right font-normal">Hands</th>
-            <th className="pr-4 text-right font-normal">Won</th>
-            <th className="pr-4 text-right font-normal">bb/100</th>
+            <th scope="col" className="pr-4 font-normal">Your seat</th>
+            <th scope="col" className="pr-4 text-right font-normal">Hands</th>
+            <th scope="col" className="pr-4 text-right font-normal">Won</th>
+            <th scope="col" className="pr-4 text-right font-normal">bb/100</th>
           </tr>
         </thead>
         <tbody>
           {g.byPos.map((p) => (
             <tr key={p.pos} aria-label={p.pos} className="border-t border-border">
-              <td className="pr-4">{p.pos}</td>
+              <th scope="row" className="pr-4 font-normal">
+                <Link to={withParams(params, { pos: p.pos })} aria-label={`Filter to your hands in ${p.pos}`} className="underline">
+                  {p.pos}
+                </Link>
+              </th>
               <td className="pr-4 text-right tabular-nums">{p.hands.toLocaleString()}</td>
               <td className="pr-4 text-right tabular-nums">{signedBb(p.net)}</td>
               <td className="pr-4 text-right tabular-nums">{signed((p.net / p.hands) * 100)}</td>

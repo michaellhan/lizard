@@ -46,7 +46,7 @@ export function validSession(d: Record<string, unknown>): boolean {
   const { meta } = d;
   if (!isObj(meta)) return false;
   return (
-    ["practice", "drill", "analysis", "build", "tournament", "tournament-chips"].includes(d.kind as string) &&
+    ["practice", "drill", "analysis", "build", "tournament", "tournament-chips", "exploit"].includes(d.kind as string) &&
     isTime(d.startedAt) &&
     (d.endedAt === undefined || d.endedAt === null || isTime(d.endedAt)) &&
     isNum(d.decisions) &&
@@ -54,6 +54,7 @@ export function validSession(d: Record<string, unknown>): boolean {
     META_NUMBERS.every((k) => isNumOrNull(meta[k])) &&
     META_TEXT.every((k) => meta[k] === undefined || meta[k] === null || isWellFormed(meta[k])) &&
     (meta.done === undefined || isStrs(meta.done)) &&
+    (meta.exploit === undefined || (isObj(meta.exploit) && isStr(meta.exploit.profile) && isObj(meta.exploit.lock) && Object.values(meta.exploit.lock).every(isNum))) &&
     (meta.score === undefined || isScore(meta.score))
   );
 }

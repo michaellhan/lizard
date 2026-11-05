@@ -349,3 +349,67 @@ test("14c. Painting a range by dragging still paints, in Study's build mode", as
   await page.screenshot({ path: "e2e-results/shots/desktop/study-build-drag.png" });
   await clean(page, problems);
 });
+
+test("7d. An exploit drill against an assumed profile, on the real worker, and the scenario saved and started again", async ({ page, problems }) => {
+  await session(page, "srp", async () => {
+    await page.getByLabel("Exploit").selectOption("station");
+    await page.getByRole("button", { name: "Save scenario" }).click();
+    const form = page.getByRole("form", { name: "Save scenario" });
+    await form.getByRole("textbox").first().fill("QA station");
+    // (Enter saves: it's inside the New session form, and must not start a session)
+    await form.getByRole("textbox").first().press("Enter");
+    await expect(page.getByText(/Saved in this browser/)).toBeVisible();
+    await expect(options(page)).toHaveCount(0);
+    await form.getByRole("button", { name: "Close" }).click();
+  });
+  await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
+  await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit.png" });
+  await options(page).first().click();
+  await expect(page.getByText(/^Graded against the best response to the assumed profile/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/^Graded against: Exploiting an assumed profile \(best response, not a solve\)/)).toBeVisible();
+  await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit-graded.png", fullPage: true });
+  // The next decision is its own live solve at Quick.
+  const next = page.getByRole("button", { name: /next/i }).first();
+  if (await next.isVisible().catch(() => false)) await next.click();
+  await expect(options(page).first()).toBeEnabled({ timeout: 120_000 });
+
+  await page.goto("/lizard/saved/");
+  await page.getByRole("link", { name: "Start QA station" }).click();
+  await expect(page).toHaveURL(/\/practice/);
+  await expect(page.getByLabel("Play", { exact: true })).toHaveValue("srp");
+  await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
+  await clean(page, problems);
+});
+
+test("10b. The filters narrow every report, in the URL, and a breakdown's row opens its decisions", async ({ page, problems }) => {
+  await page.goto("/lizard/analyze/");
+  await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
+  await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("button", { name: /^Grade \d/ }).click();
+  const report = page.getByRole("region", { name: "Report" });
+  await expect(report).toBeVisible({ timeout: 180_000 });
+  const filters = page.getByRole("region", { name: "Filters" });
+  await expect(filters).toBeVisible();
+
+  const breaks = page.getByRole("group", { name: "Breakdowns" });
+  await expect(breaks).toBeVisible({ timeout: 120_000 });
+  await page.screenshot({ path: "e2e-results/shots/desktop/analyze-reports.png", fullPage: true });
+  for (const by of ["Street", "Bet size faced", "Effective stack", "Flop: suits"]) {
+    await breaks.getByLabel("Break decisions down by").selectOption({ label: by });
+    await expect(breaks.getByRole("table").or(breaks.getByText(/can be broken down this way/)).first()).toBeVisible({ timeout: 60_000 });
+  }
+  await breaks.getByLabel("Break decisions down by").selectOption({ label: "Street" });
+  const open = breaks.getByRole("button", { name: /^Decisions: / }).first();
+  await open.click();
+  await expect(open).toHaveAttribute("aria-expanded", "true");
+
+  const pot = filters.getByLabel("Pot", { exact: true });
+  const pots = (await pot.locator("option").allTextContents()).filter((t) => t !== "Any");
+  expect(pots.length).toBeGreaterThan(1);
+  await pot.selectOption(pots[0]);
+  await expect(page).toHaveURL(/[?&]pot=/);
+  await expect(filters.getByRole("status", { name: "Sample after filtering" })).toContainText(/1 hand of 3/);
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Filters" }).getByLabel("Pot", { exact: true })).toHaveValue(pots[0]);
+  await clean(page, problems);
+});

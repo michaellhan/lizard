@@ -83,6 +83,13 @@ describe("the record", () => {
     expect(readMistake(mistake({ provenance: { ...LIVE, source: "push-fold", approximate: true } }))).not.toBeNull();
     expect(readMistake({ ...mistake(), tournament: "pko" })).toBeNull();
   });
+
+  it("reads an exploit session's back, and a read that isn't text as damaged", () => {
+    const READ: Provenance = { ...LIVE, source: "best-response", exploit: "Nit (assumed numbers)" };
+    expect(readMistake(mistake({ exploit: "nit", provenance: READ }))).toMatchObject({ exploit: "nit", provenance: { source: "best-response", exploit: "Nit (assumed numbers)" } });
+    expect(readMistake({ ...mistake(), exploit: 7 })).toBeNull();
+    expect(readMistake({ ...mistake(), provenance: { ...READ, exploit: { a: 1 } } })).toBeNull();
+  });
 });
 
 describe("ReviewPage", () => {
@@ -97,6 +104,20 @@ describe("ReviewPage", () => {
       </MemoryRouter>,
     );
   const FAR = Date.now() + 5 * 86_400_000;
+
+  it("lists an exploit session's mistakes on their own, in no other list or tally", async () => {
+    const READ: Provenance = { ...LIVE, source: "best-response", approximate: true, exploit: "Nit (assumed numbers)", lock: "best response to BB folds +15 pts to bets, not an equilibrium re-solve" };
+    await seed(mistake({ due: FAR }), mistake({ id: "hand|x", due: FAR, exploit: "nit", provenance: READ, grade: { a: 0, best: 1, verdict: "Blunder", ok: false, mixed: false, loss: 2, lossPct: 36, byEv: true } }));
+    page();
+    const own = await screen.findByRole("region", { name: "Exploit mistakes" });
+    expect(within(own).getByText("2.00bb lost · 36.0% pot")).toBeInTheDocument();
+    expect(within(own).getByText(/Exploiting Nit \(assumed\) ·/)).toBeInTheDocument();
+    expect(within(own).getByText(/never an equilibrium/)).toBeInTheDocument();
+    expect(within(own).getByText(/Exploiting an assumed profile \(best response, not a solve\)/)).toBeInTheDocument();
+    const past = screen.getByRole("region", { name: "Past mistakes" });
+    expect(within(past).queryByText(/2\.00bb lost/)).toBeNull();
+    expect(within(past).getByText("0.40bb lost · 7.3% pot")).toBeInTheDocument();
+  });
 
   it("lists a tournament's mistakes on their own, saying what they're in", async () => {
     await seed(mistake({ due: FAR }), mistake({ id: "hand|t", due: FAR, tournament: "icm", provenance: PRIZE }));

@@ -1207,7 +1207,8 @@ export class Room {
    * which costs a little time and nothing else. */
   private tell(t: Table): void {
     const h = t.hand;
-    if (h.shown < 3) return;
+    // (a read's answers are solved: the library's files would go unread)
+    if (h.shown < 3 || h.exploit) return;
     const flop: AdvisorState = { ...stateFor(h), board: h.board.slice(0, 3).join(""), flop: [], turn: [], river: [] };
     const k = JSON.stringify(flop);
     if (k === t.told) return;
@@ -1422,7 +1423,7 @@ export class Room {
     return { off: this.flopsOff, holds: gamesHeld(this.lib ?? []), game: own.length ? `${game} with ${own.join(" and ")}` : game };
   }
 
-  /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots and Seat, no chips carried
+  /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots (an exploit session has its pot) and Seat, no chips carried
    * and no board filter (Spots has none).
    * Settings are read here, at the deal, not fed in by the page: a session read back deals a lost hand the moment they load,
    * before anything has rendered with them. */
@@ -1430,7 +1431,8 @@ export class Room {
     const o = this.session.opts;
     if (n === 1) return o;
     const set = useSettings.getState();
-    const spot = spotOf(this.fixedSpot ?? set.practiceSpot, anyHandOnly(o), this.flopsOff === null);
+    // (an exploit session stays in its pot: only there can every decision be best-responded to, exploit.ts)
+    const spot = o.exploit ? (o.pot ?? "any") : spotOf(this.fixedSpot ?? set.practiceSpot, anyHandOnly(o), this.flopsOff === null);
     return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false, board: null };
   }
 

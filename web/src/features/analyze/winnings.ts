@@ -126,6 +126,18 @@ function group(list: { h: HandRecord; w: HandWin }[]): WinGroup | null {
   return g;
 }
 
+/** The least and the most of some long lines. (A loop: a spread of Math.min's arguments overflows the stack at some
+ * 120,000 values, which four lines reach at 30,000 hands.) */
+export function extent(lines: readonly (readonly number[])[]): [number, number] {
+  let [lo, hi] = [0, 0];
+  for (const ys of lines)
+    for (const y of ys) {
+      if (y < lo) lo = y;
+      if (y > hi) hi = y;
+    }
+  return [lo, hi];
+}
+
 export function tallyWinnings(list: readonly { h: HandRecord; w: HandWin }[]): Winnings {
   const known = list.filter((x) => x.w.net != null);
   const left = new Map<ResultWhy, number>();

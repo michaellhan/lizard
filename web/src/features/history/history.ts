@@ -5,7 +5,9 @@
 // sessions have neither, and are counted as such. Records are read defensively: any field may be missing.
 import type { SessionRecord } from "@/data/db";
 import { potType } from "@/features/analyze/analyze";
+import { profileName } from "@/features/practice/exploit";
 import { isPotDrill, POT_DRILLS } from "@/features/practice/practice";
+import { describeLock, type Lock } from "@/features/study/locks";
 import { fromSearch } from "@/features/study/studyState";
 import type { Grade } from "@/grading/grade";
 import { spotVersion } from "@/grading/version";
@@ -20,6 +22,7 @@ export const KINDS: readonly { id: SessionKind; label: string }[] = [
   { id: "practice", label: "Full hands" },
   { id: "tournament", label: "Tournaments in prize equity" },
   { id: "tournament-chips", label: "Tournaments in chip EV" },
+  { id: "exploit", label: "Exploiting an assumed profile" },
   { id: "drill", label: "Drills" },
   { id: "analysis", label: "Leak drills" },
   { id: "build", label: "Range builds" },
@@ -132,6 +135,7 @@ const SOURCE_SET: Record<ResultSource, true> = {
   charts: true,
   "preflop-solve": true,
   "push-fold": true,
+  "best-response": true,
   rules: true,
   equity: true,
   unknown: true,
@@ -185,6 +189,13 @@ export function rowOf(s: SessionRecord): SessionRow {
     const game = t && s.kind === "tournament" ? describeTournament({ payouts: Array.isArray(t.payouts) ? t.payouts.filter((x): x is number => typeof x === "number") : [], ...(obj(t.field) ? { field: t.field as { players: number; avg: number } } : {}) }) : [];
     const stacks = Object.entries(obj(t?.stacks) ?? {}).map(([p, v]) => `${p} ${num(v)}`).join(", ");
     const what = [`${num(m.players) || "?"} players`, ...(stacks ? [`stacks ${stacks}`] : []), ...game, ...(num(m.ante) ? [`ante ${num(m.ante)}`] : []), ...(m.preflopOnly ? ["stops at the flop"] : []), ...(m.seat && m.seat !== "moves" ? [`seat ${str(m.seat)}`] : [])].join(" · ");
+    return { ...base, what, ok: num(m.ok), ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)), hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
+  }
+  if (s.kind === "exploit") {
+    const read = obj(m.exploit);
+    const numbers = read && obj(read.lock) ? describeLock(read.lock as Lock) : "";
+    const what = [`${profileName(read?.profile)} (assumed${numbers ? `: ${numbers}` : ""})`, `${num(m.players) || "?"} players`, `${num(m.stack) || "?"}bb`, ...(isPotDrill(m.pot) ? [POT_DRILLS[m.pot].label.toLowerCase()] : [])].join(" · ");
+    // (no net: the opponents played the equilibrium, not the profile, so the chips say nothing of it)
     return { ...base, what, ok: num(m.ok), ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)), hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
   }
   if (s.kind === "practice") {
@@ -287,7 +298,7 @@ export function kindTotals(sessions: readonly SessionRecord[]): KindTotal[] {
       t.ne += ne;
       t.loss += sc ? num(sc.loss) : num(s.evLossBb);
       t.lossPct += sc ? num(sc.lossPct) : num(m.lossPct);
-      if (isTournamentKind(id)) t.hands += r.hands ?? 0;
+      if (isTournamentKind(id) || id === "exploit") t.hands += r.hands ?? 0;
       if (id === "practice") {
         t.hands += r.hands ?? 0;
         if (r.net != null) {
