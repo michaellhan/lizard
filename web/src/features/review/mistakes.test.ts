@@ -5,7 +5,7 @@ import type { DrillProblem } from "@/features/practice/drills";
 import { newHand, type Decision } from "@/features/practice/practice";
 import type { LibraryReport } from "@/library/files";
 import { CHART, chartMistake, DAY_ONE, LIVE, mistake, STORED } from "@/test/mistake";
-import { answerChange, costWords, drillMistake, drillMix, handMistake, missedAgain, retried, TRIES_KEPT, withTry, type RetryAnswer } from "./mistakes";
+import { answerChange, costWords, drillMistake, drillMix, gradeOf, handMistake, missedAgain, retried, TRIES_KEPT, withTry, type RetryAnswer } from "./mistakes";
 
 const grade = (x: Partial<Grade>): Grade => ({ a: 0, best: 1, verdict: "Mistake", ok: false, mixed: false, loss: 0.5, lossPct: 8, byEv: true, ...x }) as Grade;
 const decision = (g: Grade | null, x: Partial<Decision> = {}): Decision => ({
@@ -183,5 +183,50 @@ describe("what a grade cost, in words", () => {
     const w = costWords(m.grade, m.mix, "charts");
     expect(w).toBe("by frequency, no EV: the chart plays it 3.0%");
     expect(w).not.toMatch(/\blost\b|\bbb\b|solve/);
+  });
+});
+
+describe("what a merge keeps", () => {
+  const ask = { via: "kept", hand: "h1", decision: "d1" } as const;
+  const kept = (x = {}) => mistake({ id: "k", from: "leak", ask, ...x });
+
+  it("keeps the id it's stored under, so an entry's id never changes", () => {
+    expect(missedAgain(mistake({ id: "old" }), mistake({ id: "new" })).id).toBe("old");
+  });
+
+  it("leaves a solver's ask where it is, as it can re-solve, whichever came first", () => {
+    const practice = mistake({ id: "p", times: 3 });
+    expect(missedAgain(practice, kept()).ask).toEqual(practice.ask);
+    expect(missedAgain(kept(), practice).ask).toEqual(practice.ask);
+    expect(missedAgain(kept(), kept({ ask: { ...ask, decision: "d2" } })).ask).toEqual({ ...ask, decision: "d2" });
+  });
+
+  it("holds each record's decisions, an old record's by its ask, however it's asked after", () => {
+    expect(missedAgain(mistake({ times: 3 }), kept()).decisions).toEqual({ d1: 1 });
+    expect(missedAgain(kept({ times: 2 }), mistake()).decisions).toEqual({ d1: 2 });
+    const twice = missedAgain(missedAgain(mistake({ times: 3 }), kept()), kept());
+    expect(twice).toMatchObject({ times: 5, decisions: { d1: 2 } });
+    expect(missedAgain(twice, kept({ ask: { ...ask, decision: "d2" } })).decisions).toEqual({ d1: 2, d2: 1 });
+    expect(missedAgain(mistake(), mistake())).not.toHaveProperty("decisions");
+    // (a name that means something to an object is a name)
+    expect(Object.entries(missedAgain(mistake(), kept({ ask: { ...ask, decision: "__proto__" } })).decisions!)).toEqual([["__proto__", 1]]);
+  });
+});
+
+describe("the words for a kept grade", () => {
+  const roughly = (i: number) => mistake().mix.map((a, k) => (k === i ? { ...a, rough: true as const } : a));
+  const g = { byEv: true, loss: 0.4, lossPct: 7.3, a: 0, best: 1 };
+
+  it("mark an EV that's rough, your pick's or the best's, as the drill and Practice do", () => {
+    expect(costWords(g, mistake().mix, "live")).toBe("0.40bb lost · 7.3% pot");
+    expect(costWords(g, roughly(0), "live")).toBe("≈0.40bb lost · 7.3% pot");
+    expect(costWords(g, roughly(1), "live")).toBe("≈0.40bb lost · 7.3% pot");
+    expect(costWords({ ...g, loss: 0 }, roughly(0), "live")).toBe("no EV lost");
+  });
+
+  it("keep a grade's cap, and no cap on one that wasn't", () => {
+    const plain = { a: 0, best: 1, verdict: "Mistake", ok: false, mixed: false, loss: 2, lossPct: 30, byEv: true } as const;
+    expect(gradeOf(plain)).not.toHaveProperty("capped");
+    expect(gradeOf({ ...plain, verdict: "Inaccuracy", capped: true })).toMatchObject({ capped: true });
   });
 });

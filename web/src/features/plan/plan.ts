@@ -8,6 +8,7 @@
 // runs once as what's kept is read, over everything: see scale.test.ts at 150,000 decisions.
 import type { DecisionRecord, HandRecord, MistakeRecord, SessionRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
+import { heldDecisions } from "@/data/mistakes";
 import { scenarioWords, type ScenarioSetup } from "@/data/scenarios";
 import { GAME_EQUILIBRIUM } from "@/features/analyze/analyze";
 import { canDrill, drillSessionId, fromSession, leakDrillLink, leakParam, type LeakRef } from "@/features/analyze/leakDrill";
@@ -151,6 +152,8 @@ function reviewStep(mistakes: readonly MistakeRecord[], now: number): ReviewStep
   });
   if (!queue.length && !moved.length) return null;
   const byEv = queue.filter((m) => m.grade.byEv).length;
+  const held = queue.filter((m) => m.ask.via === "kept").length;
+  const retry = !held ? "A retry is graded against the answer there is now." : held === queue.length ? "A retry is graded against the answer kept with its decision, nothing solved." : `A retry is graded against the answer there is now, or, for the ${held.toLocaleString()} from Analyze or a leak drill, against the answer kept with its decision.`;
   const bases = new Map<string, number>();
   for (const m of queue) add(bases, mistakeBasis(m));
   const tour = queue.filter((m) => m.tournament).length;
@@ -158,7 +161,7 @@ function reviewStep(mistakes: readonly MistakeRecord[], now: number): ReviewStep
   const says = [
     ...(queue.length
       ? [
-          `${many(queue.length, "mistake")} due from the review queue (${REVIEW_DAYS.join(", ")} days apart): ${byEv.toLocaleString()} first graded by EV, ${(queue.length - byEv).toLocaleString()} by frequency with no EV. A retry is graded against the answer there is now.`,
+          `${many(queue.length, "mistake")} due from the review queue (${REVIEW_DAYS.join(", ")} days apart): ${byEv.toLocaleString()} first graded by EV, ${(queue.length - byEv).toLocaleString()} by frequency with no EV. ${retry}`,
           basisWords(bases),
         ]
       : []),
@@ -190,15 +193,17 @@ interface RowTally {
   bases: Map<string, number>;
   streets: Map<string, number>;
   pots: Map<string, number>;
-  /** its decisions a drill can deal, and of them those not yet answered */
+  /** its decisions a drill can deal, of them those not yet answered, and those the row's read leaves out (a spot's by
+   * frequency, which have no EV to read, are dealt like the rest) */
   dealt: number;
   left: number;
+  unread: number;
 }
 
 function tallyRows(rows: readonly Leak[], ds: readonly DecisionRecord[], sessions: ReadonlyMap<string, SessionRecord>): RowTally[] {
   const tests = rows.map((l) => leakTest(l));
   const answered = rows.map((l) => new Set(fromSession(sessions.get(drillSessionId(l)))?.done));
-  const out = rows.map((): RowTally => ({ n: 0, ev: 0, lost: 0, rough: 0, bases: new Map(), streets: new Map(), pots: new Map(), dealt: 0, left: 0 }));
+  const out = rows.map((): RowTally => ({ n: 0, ev: 0, lost: 0, rough: 0, bases: new Map(), streets: new Map(), pots: new Map(), dealt: 0, left: 0, unread: 0 }));
   for (const d of ds) {
     if (!isGraded(d)) continue;
     const drillable = canDrill(d);
@@ -207,7 +212,13 @@ function tallyRows(rows: readonly Leak[], ds: readonly DecisionRecord[], session
       if (!tests[i]!(d)) continue;
       const t = out[i]!;
       const hasEv = d.evLossBb != null;
-      if (rows[i]!.kind === "spot" && !hasEv) continue;
+      const read = rows[i]!.kind !== "spot" || hasEv;
+      if (drillable) {
+        t.dealt++;
+        if (!answered[i]!.has(d.id)) t.left++;
+        if (!read) t.unread++;
+      }
+      if (!read) continue;
       t.n++;
       if (hasEv) {
         t.ev++;
@@ -217,10 +228,6 @@ function tallyRows(rows: readonly Leak[], ds: readonly DecisionRecord[], session
       add(t.bases, (basis ??= basisOf(d)));
       add(t.streets, d.street);
       if (d.potType) add(t.pots, d.potType);
-      if (drillable) {
-        t.dealt++;
-        if (!answered[i]!.has(d.id)) t.left++;
-      }
     }
   }
   return out;
@@ -257,7 +264,7 @@ function leakStep(l: Leak, t: RowTally): LeakStep {
     title: `Drill this leak: ${l.key}`,
     to: leakDrillLink(leak, new URLSearchParams({ game: GAME_EQUILIBRIUM })),
     done: t.dealt > 0 && t.left === 0,
-    progress: t.dealt ? `${answered.toLocaleString()} of ${many(t.dealt, "decision")} answered in its drill.` : "None of its decisions keeps its mix, so its drill has nothing to deal.",
+    progress: t.dealt ? `${answered.toLocaleString()} of ${many(t.dealt, "decision")} answered in its drill${t.unread ? `, ${t.unread.toLocaleString()} of them graded by frequency and dealt though the read above can't use them` : ""}.` : "None of its decisions keeps its mix, so its drill has nothing to deal.",
     says: [readingOf(l, t), costOf(t), standsOn(l, t)],
     leak,
     lost: t.ev && t.lost > 0 ? Math.round(t.lost * 100) / 100 : null,
@@ -332,7 +339,8 @@ const noMiss = (): Miss => ({ n: 0, graded: 0, kept: 0, byEv: 0, bases: new Map(
 
 /** Misses by street, then seat. Practice's own hands are counted by the queue, which keeps them whether or not they're
  * graded here; a hand of theirs that's graded isn't counted again. The other way round for what the queue took from
- * Analyze: its decision is counted here, so the entry isn't, unless that grade is gone or wasn't a miss. */
+ * Analyze: its decision is counted here, so those misses of the entry aren't, unless that grade is gone or wasn't a miss.
+ * An entry can hold both, as a spot's misses merge: it's read by what it holds, never by how it's asked now. */
 function countMisses(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, PlanHand>, mistakes: readonly MistakeRecord[]): Map<string, Map<string, Miss>> {
   const out = new Map<string, Map<string, Miss>>();
   const at = (street: string, seat: string): Miss | null => {
@@ -355,13 +363,16 @@ function countMisses(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, P
     add(m.bases, basisOf(d));
   }
   for (const k of mistakes) {
-    if (k.tournament || k.exploit || (k.ask.via === "kept" && counted.has(k.ask.decision))) continue;
+    if (k.tournament || k.exploit) continue;
+    let times = k.times;
+    for (const [id, n] of Object.entries(heldDecisions(k))) if (counted.has(id)) times -= n;
+    if (!times) continue;
     const m = at(k.street, k.seat);
     if (!m) continue;
-    m.n += k.times;
-    m.kept += k.times;
-    if (k.grade.byEv) m.byEv += k.times;
-    add(m.bases, mistakeBasis(k), k.times);
+    m.n += times;
+    m.kept += times;
+    if (k.grade.byEv) m.byEv += times;
+    add(m.bases, mistakeBasis(k), times);
   }
   return out;
 }

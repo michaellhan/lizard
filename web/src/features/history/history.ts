@@ -136,6 +136,7 @@ const SOURCE_SET: Record<ResultSource, true> = {
   "preflop-solve": true,
   "push-fold": true,
   "best-response": true,
+  "node-lock": true,
   "plo-river": true,
   rules: true,
   equity: true,

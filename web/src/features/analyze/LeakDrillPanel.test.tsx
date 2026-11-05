@@ -6,12 +6,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db, type DecisionRecord, type HandRecord } from "@/data/db";
-import { listMistakes } from "@/data/mistakes";
+import { db, getSession, type DecisionRecord, type HandRecord } from "@/data/db";
+import { addHands, putDecisions } from "@/data/hands";
+import { keepMistake, listMistakes } from "@/data/mistakes";
+import { leakMistake } from "@/features/review/fromAnalyze";
 import { importHand } from "@/hh/replay";
 import { recordOf } from "./analyze";
+import { AnalyzePage } from "./AnalyzePage";
 import { decisionId } from "./grading";
-import type { LeakRef } from "./leakDrill";
+import { drillSessionId, leakParam, type LeakRef } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
 
 const mocks = vi.hoisted(() => ({ solve: vi.fn() }));
@@ -55,6 +58,23 @@ beforeEach(async () => {
   const d = (await db())!;
   await d.clear("mistakes");
   await d.clear("sessions");
+  await d.clear("hands");
+  await d.clear("decisions");
+});
+
+describe("a leak drill from Analyze", () => {
+  it("totals the hands the leak is read from: a tournament's decision is no part of it", async () => {
+    const cups: HandRecord = { ...hand, id: "t1", number: "t1", tournament: "Sunday" };
+    await addHands([hand, cups]);
+    await putDecisions([turn(), turn({ id: decisionId("t1", "turn", 1), handId: "t1" })]);
+    render(
+      <MemoryRouter initialEntries={[`/analyze?${new URLSearchParams({ drill: leakParam(LEAK) })}`]}>
+        <AnalyzePage />
+      </MemoryRouter>,
+    );
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: /^check/i }));
+    await waitFor(async () => expect((await getSession(drillSessionId(LEAK)))?.meta).toMatchObject({ total: 1, done: [turn().id] }));
+  });
 });
 
 describe("a leak drill on the turn", () => {
@@ -80,6 +100,22 @@ describe("a leak drill on the turn", () => {
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ from: "leak", chose: "check", street: "turn", ask: { via: "kept", hand: "h1" }, provenance: { confidence: "medium", source: "live" } });
     expect(mocks.solve).not.toHaveBeenCalled();
+  });
+
+  it("merges a miss into the spot's record under another id, whose id stays", async () => {
+    const pick = { a: 0, best: 1, verdict: "Mistake", ok: false, mixed: false, loss: 0.5, lossPct: 5, byEv: true } as const;
+    const was = leakMistake(turn(), hand, importHand(text), pick, "s", 1)!;
+    await keepMistake({ ...was, id: "hand|written another way", from: "hand", ask: { via: "solver", state: { players: 6 } as never } }, (w) => w);
+    drill([turn()]);
+    fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
+    await screen.findByText(/due tomorrow/);
+    expect((await listMistakes()).list).toMatchObject([{ id: "hand|written another way", times: 2, ask: { via: "solver" } }]);
+  });
+
+  it("links a Practice hand to Study with the rake and sizes it was played at", async () => {
+    drill([turn()], [{ ...hand, setup: { rake: 5, sizes: { flop: [50] } } }]);
+    fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
+    expect((await screen.findByRole("link", { name: "Open in Study" })).getAttribute("href")).toContain("sz.flop=50&rake=5");
   });
 
   it("keeps nothing for a pick that's right", async () => {

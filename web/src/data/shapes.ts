@@ -59,6 +59,10 @@ export function validSession(d: Record<string, unknown>): boolean {
   );
 }
 
+/** A Practice hand's rake and sizes: they go into its Study links. */
+const isHandSetup = (x: unknown): boolean =>
+  isObj(x) && isOptNum(x.rake) && isOptNum(x.rakeCap) && (x.sizes === undefined || (isObj(x.sizes) && Object.values(x.sizes).every((v) => Array.isArray(v) && v.every(isNum))));
+
 export function validHand(d: Record<string, unknown>): boolean {
   return (
     [d.site, d.number, d.played, d.hero, d.bb, d.potType, d.end, d.text, d.importId, d.importName].every(isStr) &&
@@ -73,6 +77,7 @@ export function validHand(d: Record<string, unknown>): boolean {
     isOptStr(d.tournament) &&
     (d.playedFor === undefined || d.playedFor === "preflop") &&
     (d.revealed === undefined || isStrs(d.revealed)) &&
+    (d.setup === undefined || isHandSetup(d.setup)) &&
     (d.tags === undefined || isStrs(d.tags)) &&
     isOptStr(d.note)
   );

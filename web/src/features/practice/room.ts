@@ -47,7 +47,7 @@ import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { keepMistake } from "@/data/mistakes";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
-import { handMistake, missedAgain } from "@/features/review/mistakes";
+import { handMistake, missedAgain, spotKey } from "@/features/review/mistakes";
 import { candsFor, flopIndex, gamesHeld, gameWords, heldSpots, instantSpots, isChart, libFlop, type FlopSpot } from "@/library/flops";
 import { seatsOf } from "@/poker/seats";
 import type { Sim, Street } from "@/poker/table";
@@ -775,7 +775,7 @@ export class Room {
   /** A graded miss kept for the review queue, across sessions. Nothing's lost at the table if the browser refuses it. */
   private noteMistake(h: PracticeHand, d: Decision): void {
     const m = handMistake(this.session.id, h, d, Date.now());
-    if (m) void keepMistake(m, missedAgain).catch(() => {});
+    if (m) void keepMistake(m, missedAgain, spotKey).catch(() => {});
   }
 
   /** A move of your own where your spot has no answer: not graded. Only there: this records for whoever is to act, so

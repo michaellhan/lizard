@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { chartMistake, DAY_ONE, LIVE, mistake, STORED } from "@/test/mistake";
 import { db } from "./db";
-import { addMistake, changeMistake, deleteMistake, keepMistake, listMistakes, readMistake } from "./mistakes";
+import { addMistake, changeMistake, deleteMistake, heldDecisions, keepMistake, listMistakes, readMistake } from "./mistakes";
 
 const wipe = async () => (await db())!.clear("mistakes");
 
@@ -103,6 +103,73 @@ describe("an entry from Analyze", () => {
     ["a mark that isn't one", { mix: [{ action: "check", freq: 1, ev: 1, rough: "yes" }] }],
   ])("refuses %s", (_, x) => {
     expect(readMistake(kept(x))).toBeNull();
+  });
+});
+
+describe("the decisions a record holds", () => {
+  const ask = { via: "kept", hand: "h1", decision: "d1" } as const;
+
+  it("reads what it says, and an old record by its ask", () => {
+    expect(heldDecisions(mistake({ times: 3 }))).toEqual({});
+    expect(heldDecisions(mistake({ ask, times: 3 }))).toEqual({ d1: 3 });
+    expect(heldDecisions(mistake({ times: 3, decisions: { d1: 1 } }))).toEqual({ d1: 1 });
+    expect(heldDecisions(mistake({ ask, times: 3, decisions: { d1: 1 } }))).toEqual({ d1: 1 });
+  });
+
+  it("reads back whole, with a grade's cap", () => {
+    const m = mistake({ times: 3, decisions: { d1: 1, d2: 2 }, grade: { ...mistake().grade, capped: true } });
+    expect(readMistake(m)).toEqual(m);
+    expect(readMistake(mistake())).not.toHaveProperty("decisions");
+  });
+
+  it.each([
+    ["a list", { decisions: ["d1"] }],
+    ["null", { decisions: null }],
+    ["a count that isn't a number", { decisions: { d1: "1" } }],
+    ["no count", { decisions: { d1: 0 } }],
+    ["a negative count", { decisions: { d1: -1 } }],
+    ["half a miss", { decisions: { d1: 0.5 } }],
+    ["no id", { decisions: { "": 1 } }],
+    ["more than it's missed", { times: 2, decisions: { d1: 2, d2: 1 } }],
+    ["a cap that isn't a flag", { grade: { ...mistake().grade, capped: "yes" } }],
+  ])("refuses %s", (_, x) => {
+    expect(readMistake(mistake(x as never))).toBeNull();
+  });
+});
+
+describe("a spot under another id", () => {
+  const key = (m: { study: string | null }) => m.study;
+  const merge = (was: Parameters<Parameters<typeof keepMistake>[1]>[0]) => ({ ...was, times: was.times + 1 });
+
+  it("merges into the record kept, whose id stays", async () => {
+    await wipe();
+    await keepMistake(mistake({ id: "a", study: "x" }), merge, key);
+    await keepMistake(mistake({ id: "b", study: "x" }), merge, key);
+    await keepMistake(mistake({ id: "c", study: "y" }), merge, key);
+    expect((await listMistakes()).list.map((m) => [m.id, m.times]).sort()).toEqual([["a", 2], ["c", 1]]);
+  });
+
+  it("is there already when it's added, and is left as it is", async () => {
+    await wipe();
+    await keepMistake(mistake({ id: "a", study: "x" }), merge, key);
+    expect(await addMistake(mistake({ id: "b", study: "x", times: 5 }), key)).toBe("there");
+    expect((await listMistakes()).list).toMatchObject([{ id: "a", times: 1 }]);
+  });
+
+  it("goes by the id alone with no key, or a record with none", async () => {
+    await wipe();
+    await keepMistake(mistake({ id: "a", study: null }), merge, key);
+    await keepMistake(mistake({ id: "b", study: null }), merge, key);
+    await keepMistake(mistake({ id: "c", study: "x" }), merge);
+    expect(await addMistake(mistake({ id: "d", study: "x" }))).toBe("added");
+    expect((await listMistakes()).list).toHaveLength(4);
+  });
+
+  it("isn't found in a damaged record, which is left", async () => {
+    await wipe();
+    await (await db())!.put("mistakes", { id: "a", study: "x", due: "soon" } as never);
+    expect(await addMistake(mistake({ id: "b", study: "x" }), key)).toBe("added");
+    expect(await listMistakes()).toMatchObject({ damaged: 1, list: [{ id: "b" }] });
   });
 });
 

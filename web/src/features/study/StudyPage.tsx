@@ -65,7 +65,7 @@ import { SaveSpot } from "./SaveSpot";
 import { bubbleTableOf } from "@/features/tournaments/icm";
 import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
 import { ModePicker } from "./ModePicker";
-import { catsOf, equityBuckets, filterRes } from "./filters";
+import { catsOf, equityBuckets, filterRes, filterWords, type FilteredResponse } from "./filters";
 import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
 
 type Phase =
@@ -606,7 +606,7 @@ export function StudyPage() {
               evAction={view === "ev" ? focusIdx : null}
               potBb={res.pot_bb}
               hidden={view === "mix" ? hidden : undefined}
-              caption={`${opp ? opp.seat : res.actor} range${filtered ? ` (${filtered.label})` : ""}`}
+              caption={`${opp ? opp.seat : res.actor} range${!opp && filtered ? ` (${filtered.label})` : ""}`}
             />
           </section>
           <aside className="space-y-3">
@@ -651,7 +651,7 @@ function NodeView({
   keys,
 }: {
   hand: StudyHand;
-  res: AdvisorResponse;
+  res: FilteredResponse;
   shown: SolveResult;
   setHand: (h: StudyHand) => void;
   evUnit: EvUnit;
@@ -757,6 +757,7 @@ function NodeView({
         {/* (quiet, as a Tab from the heading above is the first action; its detail is below the actions) */}
         <ProvenanceBadge p={shown.provenance} quiet />
       </div>
+      {res.filter && !building && <p className="text-xs text-muted">{filterWords(res.filter)}</p>}
       <div className="flex flex-wrap gap-2">
         {(res.actions ?? []).map((a, i) => (
           <button

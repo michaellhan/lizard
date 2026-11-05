@@ -60,6 +60,19 @@ export function applyMode(state: AdvisorState, mode: SolveMode, transport: Trans
   return s;
 }
 
+/** A node lock that wasn't run, in words the page can show. `lockKind`: "invalid", it makes no sense; "refused", this
+ * spot can't honour it. `actions`: where it's the actions that differ, the node's in the live tree. */
+export class NodeLockError extends SolverError {
+  readonly lockKind: "invalid" | "refused";
+  readonly actions?: string[];
+  constructor(lockKind: "invalid" | "refused", message: string, actions?: string[]) {
+    super("bad-request", message);
+    this.name = "NodeLockError";
+    this.lockKind = lockKind;
+    this.actions = actions;
+  }
+}
+
 export class SolverClient {
   private queue: Queued[] = [];
   private running = false;
@@ -164,6 +177,29 @@ export class SolverClient {
     opts: { mode?: SolveMode; signal?: AbortSignal } = {},
   ): Promise<SolveResult<PlayMove>> {
     return this.solve({ state, play, mode: opts.mode, signal: opts.signal }) as Promise<SolveResult<PlayMove>>;
+  }
+
+  /** A true node lock: `state` is the Study state of the node on screen, so the lock lands on the node of the tree a
+   * Study solve at this mode builds (engine/study_lock.py). Only the worker's Python has it: a local server would
+   * answer its plain advice. Queued, cancelled and failing as any solve; a lock that can't run rejects NodeLockError. */
+  async nodeLock(
+    state: AdvisorState,
+    lock: NodeLockRequest,
+    opts: { mode?: SolveMode; signal?: AbortSignal; onProgress?: (p: NodeLockProgress) => void } = {},
+  ): Promise<SolveResult<NodeLockAnswer>> {
+    if (this.transport.kind !== "worker") {
+      throw new NodeLockError("refused", "Node locking runs in the browser's solver, not on a local server: switch the backend to the browser to use it.");
+    }
+    const r = await this.solve({
+      state: { ...state, study: true, nodelock: lock },
+      mode: opts.mode,
+      signal: opts.signal,
+      untimed: true, // (a lock's solve isn't one of the mode's measured times)
+      onPartial: opts.onProgress ? (p) => opts.onProgress?.(p.data as unknown as NodeLockProgress) : undefined,
+    });
+    if (r.data.error) throw new NodeLockError(r.data.lock_error ?? "invalid", r.data.error, r.data.actions as string[] | undefined);
+    if (!r.data.node_lock) throw new SolverError("solver-error", "The solver answered without the lock.");
+    return r as SolveResult<NodeLockAnswer>;
   }
 
   dispose(): void {

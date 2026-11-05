@@ -56,6 +56,17 @@ describe("two actions' EV per class", () => {
 });
 
 describe("Study's two actions' EV", () => {
+  it("names a filter on, as its numbers are that filter's", () => {
+    const p: Provenance = { source: "live", approximate: false, mode: "fast", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0 };
+    const seen = render(<EvGapPanel res={NODE} provenance={p} evUnit="bb" />);
+    fireEvent.click(screen.getByRole("button", { name: "Compare two actions' EV" }));
+    expect(screen.queryByText(/alone, not the whole range/)).toBeNull();
+    seen.unmount();
+    render(<EvGapPanel res={{ ...NODE, filter: { key: "q:25", label: "25–50% equity", of: 12 } }} provenance={p} evUnit="bb" />);
+    fireEvent.click(screen.getByRole("button", { name: "Compare two actions' EV" }));
+    expect(within(screen.getByRole("region", { name: "Two actions' EV" })).getByText("These numbers are over 25–50% equity alone, not the whole range.")).toBeInTheDocument();
+  });
+
   it("opens on the two actions taken most, swaps, and carries the rough-EV caveat and the equilibrium check", () => {
     const p: Provenance = { source: "live", approximate: false, mode: "fast", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0, exploitabilityPct: 0.5 };
     render(<EvGapPanel res={NODE} provenance={p} evUnit="bb" />);

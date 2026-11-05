@@ -3,6 +3,7 @@
 // (db.test.ts) opens every historical version and checks the upgrade path.
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
 import type { SessionOptions } from "@/features/practice/practice";
+import type { SpotSetup } from "@/features/solve/setup";
 import type { Verdict } from "@/grading/grade";
 import type { AdvisorState } from "@/solver/protocol";
 import type { Confidence, ConvergenceBand, Provenance } from "@/solver/types";
@@ -118,6 +119,9 @@ export interface HandRecord {
   /** your decisions Practice's Reveal showed you the answer to first, each "street|index in that street's line": they're
    * in the history, and in no grade */
   revealed?: string[];
+  /** a Practice hand's rake and own sizes, as its Study line has them: a history doesn't carry them. An imported hand has
+   * none, so its line is never taken for a raked game's. */
+  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap">;
   tournament?: string;
   text: string;
   /** your tags and note on the hand, and when you last changed them (none until you do) */
@@ -250,6 +254,9 @@ export interface MistakeRecord {
   updatedAt: number;
   /** how many times it has been missed in play */
   times: number;
+  /** the graded decisions it holds, each with how many of `times` came from it (the rest are Practice's own), whatever
+   * `ask` is now; none on a record kept before this was, read by `heldDecisions` (data/mistakes.ts) */
+  decisions?: Record<string, number>;
   seat: string;
   players: number;
   /** the game in words ("6-max 100bb · ante 1"; a drill's library spot) */
@@ -264,7 +271,7 @@ export interface MistakeRecord {
   chose: string;
   mix: { action: string; freq: number; ev: number | null; amount?: number; rough?: true }[];
   pot: number;
-  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean };
+  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean; capped?: boolean };
   /** what graded it; null where none was kept */
   provenance: Provenance | null;
   /** how far along the schedule, and the day it's next due (null: finished) */

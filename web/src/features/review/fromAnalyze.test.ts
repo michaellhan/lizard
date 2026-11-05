@@ -12,7 +12,7 @@ import { gradePick } from "@/features/analyze/leakDrill";
 import { importHand } from "@/hh/replay";
 import { CAPPED_WORDS } from "@/grading/grade";
 import { describe as sayProvenance } from "@/solver/provenance";
-import { addedMistake, decisionOut, decisionProvenance, handOut, leakMistake } from "./fromAnalyze";
+import { addedMistake, addOut, decisionOut, decisionProvenance, handOut, leakMistake } from "./fromAnalyze";
 import { KEPT_RETRY_WORDS, answerChange, missedAgain, ORIGIN_WORDS, retried, withTry } from "./mistakes";
 import { askAgain, keptAnswer } from "./retry";
 import { dueAfter, QUEUE_RULE, REVIEW_DAYS, ADD_RULE } from "./schedule";
@@ -143,6 +143,19 @@ describe("an entry from a graded decision", () => {
   });
 });
 
+describe("why a decision isn't an entry", () => {
+  it("names what's missing, and nothing for one that is", () => {
+    expect(addOut(turn(), hand)).toBeNull();
+    expect(addedMistake(turn(), hand, r, NOW)).not.toBeNull();
+    const noPick = turn({ matched: "raise 300%" });
+    expect(addedMistake(noPick, hand, r, NOW)).toBeNull();
+    expect(addOut(noPick, hand)).toMatch(/isn't one of the actions in the answer kept/);
+    expect(addedMistake(turn(), { ...hand, hole: "" }, r, NOW)).toBeNull();
+    expect(addOut(turn(), { hole: "" })).toMatch(/no cards of yours/);
+    expect(addOut(turn({ verdict: "Correct" }), hand)).toMatch(/isn't graded below Correct/);
+  });
+});
+
 describe("the provenance a decision keeps", () => {
   it("is the grade's own: source, line, band, confidence and build, and a transport not guessed", () => {
     expect(decisionProvenance(turn())).toMatchObject({ source: "live", mode: "quick", band: "converged", confidence: "medium", transport: "worker", solverVersion: "abc/123" });
@@ -152,7 +165,13 @@ describe("the provenance a decision keeps", () => {
     expect(decisionProvenance(turn({ source: "made-up" }))).toMatchObject({ source: "unknown" });
     expect(decisionProvenance(turn({ source: "library", version: "library:srp:1", label: "Precomputed solution · srp_btn_bb" }))).toMatchObject({ source: "library", libraryVersion: "library:srp:1" });
     // a confidence the line doesn't say is added to it
-    expect(sayProvenance(decisionProvenance(turn({ label: "A stored turn" })))).toBe("A stored turn · medium confidence");
+    expect(sayProvenance(decisionProvenance(turn({ label: "Live solve (Quick) · 300 iterations" })))).toBe("Live solve (Quick) · 300 iterations · medium confidence");
+  });
+
+  it("says the charts as the charts, whether or not it's kept with a build", () => {
+    expect(sayProvenance(decisionProvenance(chartPre()))).toBe("Preflop charts · approximate");
+    expect(sayProvenance(decisionProvenance(chartPre({ version: "build:abc/123" })))).toBe("Preflop charts · approximate");
+    expect(sayProvenance(decisionProvenance(chartPre({ label: "Solved" })))).toBe("Preflop charts · approximate");
   });
 });
 

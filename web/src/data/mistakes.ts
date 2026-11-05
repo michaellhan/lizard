@@ -16,7 +16,7 @@ const isStrs = (x: unknown): x is string[] => Array.isArray(x) && x.every(isStr)
 const isOptNum = (x: unknown) => x === undefined || isNum(x);
 const isOptStr = (x: unknown) => x === undefined || isStr(x);
 
-const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, "plo-river": true, rules: true, equity: true, unknown: true };
+const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, "node-lock": true, "plo-river": true, rules: true, equity: true, unknown: true };
 /** One of the sources a provenance can name. */
 export const isSource = (x: string): x is ResultSource => Object.hasOwn(SOURCES, x);
 const VERDICTS: readonly string[] = ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"] satisfies Verdict[];
@@ -49,7 +49,14 @@ const isMix = (x: unknown): x is MistakeRecord["mix"] =>
   Array.isArray(x) && x.length > 0 && x.every((m) => isObj(m) && isStr(m.action) && isNum(m.freq) && (m.ev === null || isNum(m.ev)) && isOptNum(m.amount) && (m.rough === undefined || m.rough === true));
 
 const isGrade = (g: unknown, mix: readonly unknown[]): g is MistakeRecord["grade"] =>
-  isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv);
+  isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv) && (g.capped === undefined || isBool(g.capped));
+
+/** The decisions a record says it holds: each named, missed at least once, and no more of them than its misses. */
+const isHeld = (x: unknown, times: number) => {
+  if (!isObj(x)) return false;
+  const counts = Object.entries(x);
+  return counts.every(([id, n]) => !!id && isCount(n) && n > 0) && counts.reduce((t, [, n]) => t + (n as number), 0) <= times;
+};
 
 const isTry = (t: unknown): t is MistakeTry =>
   isObj(t) && isNum(t.at) && isStr(t.chose) && VERDICTS.includes(t.verdict as string) && isBool(t.ok) && isBool(t.byEv) && isNum(t.loss) && isNum(t.lossPct) && isStr(t.source) && isStr(t.label) && isOptStr(t.version) && isBool(t.like) && isBool(t.moved);
@@ -57,22 +64,42 @@ const isTry = (t: unknown): t is MistakeTry =>
 /** A stored or restored record, whole and of the types it says, else null. Nothing here throws. */
 export function readMistake(x: unknown): MistakeRecord | null {
   if (!isObj(x)) return null;
-  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
+  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, decisions, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
   const fits =
-    isStr(id) && !!id && (from === "hand" || from === "drill" || from === "analyze" || from === "leak") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) &&
+    isStr(id) && !!id && (from === "hand" || from === "drill" || from === "analyze" || from === "leak") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) && (decisions === undefined || isHeld(decisions, times as number)) &&
     isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && hole.every(isCard) && isStrs(board) && board.every(isCard) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
     isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && (provenance === null ? (ask as MistakeAsk).via !== "kept" : isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
     Array.isArray(tries) && tries.every(isTry);
   return fits ? (x as unknown as MistakeRecord) : null;
 }
 
-/** A spot's record added, or, the same spot missed again, `merge` of the two. A damaged record there is replaced. Whether
- * it was kept: a browser with no database keeps nothing. */
-export async function keepMistake(fresh: MistakeRecord, merge: (was: MistakeRecord, fresh: MistakeRecord) => MistakeRecord): Promise<boolean> {
+/** The graded decisions a record holds, each with how many of its `times` came from it. A record from before they were
+ * kept holds its `ask`'s, and all its times are that decision's. */
+export const heldDecisions = (m: Pick<MistakeRecord, "decisions" | "ask" | "times">): Record<string, number> => m.decisions ?? (m.ask.via === "kept" ? { [m.ask.decision]: m.times } : {});
+
+/** What makes two records one spot though their ids differ; null where a record is only ever its id. It's passed in, as it
+ * reads a Study line (review/mistakes.ts spotKey) and this file is in the first download. */
+export type SpotKey = (m: MistakeRecord) => string | null;
+const noKey: SpotKey = () => null;
+
+/** The record kept for this spot under another id, gone through once as the queue is small. */
+function sameSpot(all: readonly unknown[], key: string, keyOf: SpotKey): MistakeRecord | null {
+  for (const x of all) {
+    const m = readMistake(x);
+    if (m && keyOf(m) === key) return m;
+  }
+  return null;
+}
+
+/** A spot's record added, or, the same spot missed again, `merge` of the two. A damaged record there is replaced. The
+ * spot's found by id, else by `keyOf`, so a record's id never changes. Whether it was kept: a browser with no database
+ * keeps nothing. */
+export async function keepMistake(fresh: MistakeRecord, merge: (was: MistakeRecord, fresh: MistakeRecord) => MistakeRecord, keyOf: SpotKey = noKey): Promise<boolean> {
   const d = await db();
   if (!d) return false;
   const tx = d.transaction("mistakes", "readwrite");
-  const was = readMistake(await tx.store.get(fresh.id));
+  const key = keyOf(fresh);
+  const was = readMistake(await tx.store.get(fresh.id)) ?? (key === null ? null : sameSpot(await tx.store.getAll(), key, keyOf));
   await tx.store.put(was ? merge(was, fresh) : fresh);
   await tx.done;
   return true;
@@ -80,11 +107,12 @@ export async function keepMistake(fresh: MistakeRecord, merge: (was: MistakeReco
 
 /** A spot added by hand: one already kept stays as it is, its date with it (adding isn't missing it again). What became of
  * it: "added", "there" where it's kept already, or null where this browser keeps nothing. */
-export async function addMistake(fresh: MistakeRecord): Promise<"added" | "there" | null> {
+export async function addMistake(fresh: MistakeRecord, keyOf: SpotKey = noKey): Promise<"added" | "there" | null> {
   const d = await db();
   if (!d) return null;
   const tx = d.transaction("mistakes", "readwrite");
-  const there = readMistake(await tx.store.get(fresh.id)) !== null;
+  const key = keyOf(fresh);
+  const there = readMistake(await tx.store.get(fresh.id)) !== null || (key !== null && sameSpot(await tx.store.getAll(), key, keyOf) !== null);
   if (!there) await tx.store.put(fresh);
   await tx.done;
   return there ? "there" : "added";

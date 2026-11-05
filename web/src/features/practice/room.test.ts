@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { putSession } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
+import { spotKey } from "@/features/review/mistakes";
 import { addHands } from "@/data/hands";
 import { SolverClient } from "@/solver/client";
 import type { AdvisorResponse, AdvisorState, PlayMove, WorkerInbound, WorkerOutbound } from "@/solver/protocol";
@@ -1315,7 +1316,8 @@ describe("Room hands", () => {
     room.choose(0);
     await flush();
     expect(keepMistake).toHaveBeenCalledTimes(1);
-    const [m, merge] = vi.mocked(keepMistake).mock.calls[0]!;
+    const [m, merge, keyOf] = vi.mocked(keepMistake).mock.calls[0]!;
+    expect(keyOf).toBe(spotKey);
     expect(m).toMatchObject({ from: "hand", street: "preflop", chose: "fold", step: 0, grade: { byEv: false, loss: 0 }, ask: { via: "solver" } });
     expect(m.provenance?.source).toBeTruthy();
     expect(merge(m, m)).toMatchObject({ times: 2 });

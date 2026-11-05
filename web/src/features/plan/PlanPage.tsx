@@ -88,6 +88,8 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
 
 function Steps({ plan, more, onMore }: { plan: Plan; more: boolean; onMore: () => void }) {
   const { reviews, leaks, thin, drill, next, first, notes, apart, damaged } = plan;
+  // (with no next step, a leak not done is one with nothing to deal: every other kind would be next)
+  const stuck = leaks.filter((l) => !l.done).length;
   const shown = more ? thin : thin.slice(0, THIN_SHOWN);
   // (one count down the page, as the rule has it)
   const leakFrom = reviews ? 2 : 1;
@@ -116,6 +118,8 @@ function Steps({ plan, more, onMore }: { plan: Plan; more: boolean; onMore: () =
                 {next.title}
               </Link>
             </>
+          ) : stuck ? (
+            `Nothing here can be started: ${stuck === 1 ? "the leak not done has" : `the ${stuck.toLocaleString()} leaks not done have`} no decision that keeps its mix, so its drill has nothing to deal. Forget the grades and grade again to keep them.`
           ) : (
             "Every step here is marked done by what's kept today."
           )}

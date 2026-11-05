@@ -14,7 +14,7 @@ import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
 import { decisionProvenance, leakMistake } from "@/features/review/fromAnalyze";
-import { missedAgain } from "@/features/review/mistakes";
+import { missedAgain, spotKey } from "@/features/review/mistakes";
 import { dueWords } from "@/features/review/schedule";
 import { SaveDrill } from "@/features/saved/SaveDrill";
 import { studyLinkAt } from "./analyze";
@@ -57,7 +57,7 @@ type Queued = { id: string; due: string | null };
 async function queueMiss(d: DecisionRecord, hand: HandRecord, g: Grade, sessionId: string): Promise<string | null> {
   const now = Date.now();
   const m = leakMistake(d, hand, readHand(hand.text), g, sessionId, now);
-  if (!m || !(await keepMistake(m, missedAgain))) return null;
+  if (!m || !(await keepMistake(m, missedAgain, spotKey))) return null;
   return dueWords(m, now).toLowerCase();
 }
 
@@ -218,7 +218,7 @@ function Problem({
   const street = d.street as Street;
   const i = decisionIndex(d);
   const line = r ? lineBefore(r, street, i) : null;
-  const study = r ? studyLinkAt(r, street, i) : null;
+  const study = r ? studyLinkAt(r, street, i, hand.setup) : null;
   const mix = d.mix ?? [];
   const byEv = mix.every((x) => x[2] !== null);
   const rough = roughActions(d);

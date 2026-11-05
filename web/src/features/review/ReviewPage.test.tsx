@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/data/db";
 import { keepMistake, listMistakes } from "@/data/mistakes";
+import { CAPPED_WORDS } from "@/grading/grade";
 import { CHART, chartMistake, LIVE, mistake, STORED } from "@/test/mistake";
 import type { MistakeRecord } from "@/data/db";
 import type { RetryAnswer } from "./mistakes";
@@ -194,6 +195,25 @@ describe("ReviewPage", () => {
     const keptAsk = { via: "kept", hand: "h1", decision: "h1|turn|1" } as const;
     const provenance = { ...LIVE, transport: "kept", keptLabel: "Live solve (Quick) · medium confidence" } as const;
     const kept = (x: Partial<MistakeRecord> = {}) => mistake({ id: "k", from: "analyze", ask: keptAsk, provenance, due: PAST, ...x });
+
+    it("says a grade stopped at Inaccuracy by a rough solve, in its row and beside the retry", async () => {
+      ask.next.mockImplementation(async () => answer({ provenance }));
+      const capped = { ...kept().grade, verdict: "Inaccuracy", loss: 2, lossPct: 30, capped: true } as const;
+      await seed(kept({ grade: capped }));
+      page();
+      const row = await screen.findByText(CAPPED_WORDS);
+      expect(row).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
+      fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: /check/ }));
+      expect(await screen.findByText(`Your first grade: ${CAPPED_WORDS}`)).toBeInTheDocument();
+    });
+
+    it("says nothing of a cap on a grade that wasn't", async () => {
+      await seed(kept());
+      page();
+      await screen.findByText(/Added from Analyze/);
+      expect(screen.queryByText(CAPPED_WORDS)).toBeNull();
+    });
 
     it("says where it came from, keeps its provenance and links to its hand", async () => {
       await seed(kept(), kept({ id: "l", from: "leak", hole: ["Qh", "Qd"], times: 3 }));

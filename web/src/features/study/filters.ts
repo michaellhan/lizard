@@ -92,6 +92,9 @@ export interface FilterInfo {
 
 export type FilteredResponse = AdvisorResponse & { filter?: FilterInfo };
 
+/** Under numbers that a filter has narrowed, which read as the whole node's otherwise. */
+export const filterWords = (f: Pick<FilterInfo, "label">) => `These numbers are over ${f.label} alone, not the whole range.`;
+
 /** The answer over one category's hands; the answer itself when the key is not one of this node's (draws on the
  * river, or no key). An answer at once has no combo EVs: then no EVs are made up for the filtered view either. */
 export function filterRes(res: AdvisorResponse, key: string | null | undefined): FilteredResponse {

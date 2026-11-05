@@ -49,6 +49,7 @@ const isPushFold = (r: AdvisorResponse) =>
   (said(r, OWN_JAM) && !chartWithJam(r)) || (said(r, "facing an all-in, call when equity beats the pot odds") && said(r, "jam range: push/fold equilibrium"));
 
 export function sourceOf(r: AdvisorResponse): ResultSource {
+  if (r.node_lock || r.study === "nodelock_progress") return "node-lock";
   if (r.fallback) return FALLBACK_SOURCES[r.fallback] ?? "rules";
   if (r.precomputed) return "library";
   if (isStoredTurn(r)) return "library-turn";
@@ -125,6 +126,11 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (typeof approx?.label === "string") p.approximateLabel = approx.label;
   else if (borrowed !== null) p.approximateLabel = `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
   if (r.multiway) p.multiway = true;
+  // a true node lock (engine/study_lock.py): the lock in words and what the tree it's solved on abstracts
+  if (r.node_lock) {
+    p.lock = r.node_lock.words;
+    p.view = `${r.node_lock.abstraction} ${r.node_lock.scope}`;
+  }
   // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})
   const locked = r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];
   // (preflop, on the charts' strategy: in the preflop words)
@@ -231,6 +237,7 @@ const LABELS: Record<ResultSource, string> = {
   "preflop-solve": "Preflop solve (class-level model)",
   "push-fold": "Push/fold model (not a solve)",
   "best-response": "Exploiting an assumed profile (best response, not a solve)",
+  "node-lock": "Node-locked equilibrium of the restricted game, not the unlocked equilibrium",
   "plo-river": "Heads-up PLO4 river solve of every combo, this river only: earlier streets aren't solved",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
@@ -244,8 +251,14 @@ export const sourceLabel = (s: ResultSource): string => LABELS[s];
  * engine's prize model, run on the setup (so an answer's own bubble factors are its row). */
 export const ICM_TABLE_LABEL = "ICM (Malmuth-Harville), worked out in this page from the setup with the engine's prize model";
 
+/** A kept line stands as what was said at the time: `describe` wrote it, so it opens with its source's words, and whatever
+ * says otherwise didn't come from a grade. The charts are always said from here, so a restored record can't call them
+ * anything else. (Its `transport` tells nothing: a decision with a build stamp is kept as "worker", for its version.) */
+const keptWords = (p: Provenance) => (p.keptLabel && p.source !== "charts" && p.keptLabel.startsWith(LABELS[p.source]) ? p.keptLabel : null);
+
 export function describe(p: Provenance): string {
-  if (p.keptLabel) return p.keptLabel;
+  const kept = keptWords(p);
+  if (kept) return kept;
   const parts = [p.source === "live" && p.mode === "quick" ? `${LABELS.live} (Quick)` : LABELS[p.source]];
   if (p.exploit) parts.push(p.exploit);
   if (p.lock) parts.push(p.lock);
@@ -261,7 +274,8 @@ export function describe(p: Provenance): string {
     const what = p.multiway ? "mean best-response gain" : "from equilibrium";
     const band = p.band ? ` (${p.band}${p.band === "approximate" && p.targetPct !== undefined ? `, target ${p.targetPct}%` : ""})` : "";
     // (a best response to an assumed profile is never "solved": this figure is the equilibrium solve under it, on ranges the profile reshaped)
-    parts.push(p.source === "best-response" ? `${p.exploitabilityPct.toFixed(2)}% pot from equilibrium in the solve it's laid on${band}` : `${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
+    if (p.source === "node-lock") parts.push(`${p.exploitabilityPct.toFixed(2)}% pot exploitable in the restricted game, each player's best response keeping their own locks${band}`);
+    else parts.push(p.source === "best-response" ? `${p.exploitabilityPct.toFixed(2)}% pot from equilibrium in the solve it's laid on${band}` : `${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
   }
   if (p.mbbPerHand !== undefined) parts.push(`${p.mbbPerHand.toFixed(2)} mbb/hand from equilibrium (a seat's average)`);
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);

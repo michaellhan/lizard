@@ -3,12 +3,12 @@
 // rough-EV caveat. Opened under a solved node's grid; shown only where the answer has every action's EV per class.
 import { useState } from "react";
 import { evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
-import type { AdvisorResponse } from "@/solver/protocol";
+import { filterWords, type FilteredResponse } from "@/features/study/filters";
 import type { Provenance } from "@/solver/types";
 import { DeltaMatrix, type DeltaCell } from "./DiffMatrix";
 import { evGaps, hasActionEvs, mixing, widest, type EvGap } from "./evgap";
 
-export function EvGapPanel({ res, provenance, evUnit }: { res: AdvisorResponse; provenance: Provenance; evUnit: EvUnit }) {
+export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse; provenance: Provenance; evUnit: EvUnit }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<[string | null, string | null]>([null, null]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -87,6 +87,7 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: AdvisorResponse; 
           Close
         </button>
       </div>
+      {res.filter && <p className="text-xs text-muted">{filterWords(res.filter)}</p>}
       {rough.length > 0 && (
         <p className="rounded border border-warn/40 bg-warn/10 px-2 py-1 text-xs">
           ≈ {rough.join(" and ")} {rough.length > 1 ? "are" : "is"} taken by almost none of the range here, so {rough.length > 1 ? "their" : "its"} EVs

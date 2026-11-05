@@ -167,6 +167,19 @@ describe("decisions", () => {
     expect(studyHandAt(r, "turn", 1)!.setup).toBeUndefined();
   });
 
+  it("carries what a Practice hand's record holds beyond its history, and an imported hand's link has none of it", () => {
+    const r = importHand(HH("stars_6max_srp.txt"));
+    const kept = { rake: 5, rakeCap: 3, sizes: { flop: [50] } };
+    expect(studyHandAt(r, "turn", 1)!.setup).toBeUndefined();
+    expect(studyHandAt(r, "turn", 1, kept)!.setup).toEqual(kept);
+    expect(studyLinkAt(r, "turn", 1, kept)).toContain("&sz.flop=50&rake=5&cap=3");
+    // (it goes with the own stacks of the seats still in)
+    expect(studyHandAt(r, "preflop", 3, kept)!.setup).toEqual({ ...kept, stacks: { SB: 62.4 } });
+    // one a setup can't hold is left out of the link, the hand's own game kept
+    const mtt = importHand(HH("stars_9max_mtt_ante.txt"));
+    expect(studyHandAt(mtt, "turn", 1, { rake: 99 })!.setup).toEqual({ stacks: { LJ: 100 }, ante: 0.1 });
+  });
+
   it("opens Study with every seat at the effective stack where one is outside a setup's, and not at all over a 1bb ante", () => {
     // (the villain at 1250bb)
     const deep = importHand(HH("stars_heads_up.txt").replace("($250 in chips)", "($2500 in chips)"));

@@ -278,4 +278,11 @@ describe("a decision after Reveal, in a hand kept", () => {
     expect(revealedMoves(h)).toEqual([]);
     expect(practiceRecord(h, SESSION, AT)).not.toHaveProperty("revealed");
   });
+
+  it("keeps the rake and sizes the history can't say, and nothing on a hand with neither", () => {
+    expect(practiceRecord(played(newHand(2, 100, 0, 7), ...line), SESSION, AT)).not.toHaveProperty("setup");
+    const raked = played(newHand(2, 100, 0, 7, { rake: 5, rakeCap: 3, sizes: { flop: [50] } }), ...line);
+    expect(practiceRecord(raked, SESSION, AT).setup).toEqual({ rake: 5, rakeCap: 3, sizes: { flop: [50] } });
+    expect(practiceRecord(played(newHand(2, 100, 0, 7, { rake: 5 }), ...line), SESSION, AT).setup).toEqual({ rake: 5 });
+  });
 });

@@ -297,8 +297,8 @@ export function filesName(files: readonly { name: string; webkitRelativePath?: s
  * ante, straddle and each seat's own stack as Study's setup (the Solve page's); null where Study can't set the game
  * up (an ante over 1bb a seat). The table's stack is the effective one; the seats still in with another stack are
  * listed (a folded seat's changes nothing), and where one is outside a setup's 1–1000bb every seat plays the
- * effective stack. */
-export function studyHandAt(r: ReplayedHand, street: Street, i: number): StudyHand | null {
+ * effective stack. `kept`: what a Practice hand's record holds beyond its history, its rake and sizes. */
+export function studyHandAt(r: ReplayedHand, street: Street, i: number, kept?: HandRecord["setup"]): StudyHand | null {
   const h = r.hand;
   const game = gameSetup(h.players, h.ante, h.straddle);
   if (game === null) return null;
@@ -308,8 +308,9 @@ export function studyHandAt(r: ReplayedHand, street: Street, i: number): StudyHa
   const folded = new Set(STREETS.flatMap((s) => at(s).filter((m) => m.action === "fold").map((m) => m.pos)));
   const stack = r2(h.effective);
   const own = Object.entries(r.setup.stacks).filter(([p, v]) => !folded.has(p) && Math.abs(v - stack) > 1e-9);
-  const withStacks: SpotSetup | undefined = own.length ? { ...game, stacks: Object.fromEntries(own) } : game;
-  const setup = tidySetup(setupProblems(h.players, withStacks).length ? game : withStacks);
+  const played: SpotSetup | undefined = kept && !setupProblems(h.players, { ...game, ...kept }).length ? { ...game, ...kept } : game;
+  const withStacks: SpotSetup | undefined = own.length ? { ...played, stacks: Object.fromEntries(own) } : played;
+  const setup = tidySetup(setupProblems(h.players, withStacks).length ? played : withStacks);
   return {
     players: h.players,
     stack,
@@ -322,7 +323,7 @@ export function studyHandAt(r: ReplayedHand, street: Street, i: number): StudyHa
   };
 }
 
-export const studyLinkAt = (r: ReplayedHand, street: Street, i: number): string | null => {
-  const s = studyHandAt(r, street, i);
+export const studyLinkAt = (r: ReplayedHand, street: Street, i: number, kept?: HandRecord["setup"]): string | null => {
+  const s = studyHandAt(r, street, i, kept);
   return s ? `/study?${toSearch(s)}` : null;
 };

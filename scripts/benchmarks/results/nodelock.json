@@ -1,0 +1,6630 @@
+{
+ "cases": {
+  "river-whole-root": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.7,
+      "bet 75%": 0.3
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.24610590934753418,
+    "method": "highs-ds",
+    "value_each_side": [
+     -1.038894575230297,
+     1.0388945752302938
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 46
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 112
+     }
+    ],
+    "rows": [
+     752,
+     622
+    ],
+    "cols": [
+     622,
+     752
+    ],
+    "held_infosets": 40,
+    "gains_held": [
+     0.0,
+     0.0
+    ],
+    "peak_rss_mb": 70.15625
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004139900207519531,
+     "iterate_s": 0.0033550262451171875,
+     "measure_s": 0.0006151199340820312,
+     "peak_rss_mb": 44.078125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.038894575230297,
+      1.0388936757309288
+     ],
+     "engine_expl_pct": -3.202901110999079e-08,
+     "engine_gain_held": [
+      -1.2811604443996316e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      7.054759480570048,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.038894588041911,
+      1.0388945880419105
+     ],
+     "gains_by_ref": [
+      1.2811670391243979e-08,
+      2.9531932455029164e-14
+     ],
+     "expl_by_ref_pct": 3.2029249807941085e-08,
+     "value_gap_bb": 1.2811613991914328e-08,
+     "value_gap_pct_pot": 6.405806995957164e-08,
+     "engine_value_gap_pct_pot": 0.0,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.016421079635620117,
+     "iterate_s": 0.01556706428527832,
+     "measure_s": 0.0006160736083984375,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.038894575230297,
+      1.0388936757309288
+     ],
+     "engine_expl_pct": -3.202910769939393e-08,
+     "engine_gain_held": [
+      -1.2811643079757573e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      7.0547594805700875,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.03889458804194,
+      1.03889458804194
+     ],
+     "gains_by_ref": [
+      1.2811643079757573e-08,
+      0.0
+     ],
+     "expl_by_ref_pct": 3.202910769939393e-08,
+     "value_gap_bb": 1.2811643079757573e-08,
+     "value_gap_pct_pot": 6.405821539878787e-08,
+     "engine_value_gap_pct_pot": 0.0,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.13946008682250977,
+     "iterate_s": 0.13862276077270508,
+     "measure_s": 0.0006809234619140625,
+     "peak_rss_mb": 43.53125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.038894575230297,
+      1.0388936757309288
+     ],
+     "engine_expl_pct": -3.202910769939393e-08,
+     "engine_gain_held": [
+      -1.2811643079757573e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      7.0547594805700875,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.03889458804194,
+      1.03889458804194
+     ],
+     "gains_by_ref": [
+      1.2811643079757573e-08,
+      0.0
+     ],
+     "expl_by_ref_pct": 3.202910769939393e-08,
+     "value_gap_bb": 1.2811643079757573e-08,
+     "value_gap_pct_pot": 6.405821539878787e-08,
+     "engine_value_gap_pct_pot": 0.0,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 18.473095481795625,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 3.6946190963591077,
+    "unlocked_gain_engine_bb": 3.6946191091707536,
+    "passed": true
+   }
+  },
+  "river-whole-facing-bet": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.4,
+      "call": 0.5,
+      "raise to 52.5": 0.1
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.16272878646850586,
+    "method": "highs-ds",
+    "value_each_side": [
+     5.302285104575049,
+     -5.302285104575033
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 225
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 188
+     }
+    ],
+    "rows": [
+     712,
+     732
+    ],
+    "cols": [
+     732,
+     712
+    ],
+    "held_infosets": 55,
+    "gains_held": [
+     6.217248937900877e-15,
+     0.0
+    ],
+    "peak_rss_mb": 70.953125
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.00397801399230957,
+     "iterate_s": 0.003172159194946289,
+     "measure_s": 0.0006089210510253906,
+     "peak_rss_mb": 43.53125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 5.960464455334602e-09,
+      "cells": 55
+     },
+     "notes": [],
+     "engine_value": [
+      5.302285451117899,
+      -5.302277860768376
+     ],
+     "engine_expl_pct": 0.000985828938786515,
+     "engine_gain_held": [
+      9.94554439612827e-05,
+      0.00029487613155332326
+     ],
+     "engine_lock_cost": [
+      0.0,
+      5.167872628576338
+     ],
+     "value_by_ref": [
+      5.302285228551664,
+      -5.302285228551664
+     ],
+     "gains_by_ref": [
+      9.953152342490057e-05,
+      0.0002997023845772162
+     ],
+     "expl_by_ref_pct": 0.000998084770005292,
+     "value_gap_bb": 1.2397661475205268e-07,
+     "value_gap_pct_pot": 6.198830737602634e-07,
+     "engine_value_gap_pct_pot": 1.7327142476375459e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.0169527530670166,
+     "iterate_s": 0.01612114906311035,
+     "measure_s": 0.0006198883056640625,
+     "peak_rss_mb": 44.34375,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 5.960464455334602e-09,
+      "cells": 55
+     },
+     "notes": [],
+     "engine_value": [
+      5.302285091903827,
+      -5.302286044602019
+     ],
+     "engine_expl_pct": 4.6824935557854275e-05,
+     "engine_gain_held": [
+      3.9982088022583184e-06,
+      1.4731765420883391e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      5.170286574811733
+     ],
+     "value_by_ref": [
+      5.302285101975556,
+      -5.302285101975556
+     ],
+     "gains_by_ref": [
+      4.092291734814069e-06,
+      1.5176739868394407e-05
+     ],
+     "expl_by_ref_pct": 4.817257900802118e-05,
+     "value_gap_bb": 2.599493065247316e-09,
+     "value_gap_pct_pot": 1.299746532623658e-08,
+     "engine_value_gap_pct_pot": 6.335611146823794e-08,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.1646709442138672,
+     "iterate_s": 0.16361713409423828,
+     "measure_s": 0.0014030933380126953,
+     "peak_rss_mb": 43.6875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 5.960464455334602e-09,
+      "cells": 55
+     },
+     "notes": [],
+     "engine_value": [
+      5.30228565415194,
+      -5.302285076285824
+     ],
+     "engine_expl_pct": 2.2949190969789868e-06,
+     "engine_gain_held": [
+      0.0,
+      9.179676387915947e-07
+     ],
+     "engine_lock_cost": [
+      0.0,
+      5.1700206311283665
+     ],
+     "value_by_ref": [
+      5.302285102294716,
+      -5.302285102294717
+     ],
+     "gains_by_ref": [
+      2.3245167302121672e-07,
+      1.1295861783722216e-06
+     ],
+     "expl_by_ref_pct": 3.405094628483596e-06,
+     "value_gap_bb": 2.2803332555554334e-09,
+     "value_gap_pct_pot": 1.1401666277777167e-08,
+     "engine_value_gap_pct_pot": 2.7478844533135316e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 13.232802917231107,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 2.6465605834462216,
+    "unlocked_gain_engine_bb": 2.6465605811658883,
+    "passed": true
+   }
+  },
+  "river-class-root": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "bet 75%": 1.0
+     },
+     "hands": {
+      "classes": [
+       "KQs"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.18067717552185059,
+    "method": "highs-ds",
+    "value_each_side": [
+     2.655724521128827,
+     -2.6557245211288163
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 316
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 247
+     }
+    ],
+    "rows": [
+     715,
+     622
+    ],
+    "cols": [
+     622,
+     715
+    ],
+    "held_infosets": 3,
+    "gains_held": [
+     4.440892098500626e-16,
+     0.0
+    ],
+    "peak_rss_mb": 71.25
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004097938537597656,
+     "iterate_s": 0.0032372474670410156,
+     "measure_s": 0.0006101131439208984,
+     "peak_rss_mb": 43.453125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.6557230329562356,
+      -2.655722021690533
+     ],
+     "engine_expl_pct": 0.0042155589393932935,
+     "engine_gain_held": [
+      0.0011635553873556859,
+      0.0005226681884016315
+     ],
+     "engine_lock_cost": [
+      -4.538983455759649e-08,
+      0.0
+     ],
+     "value_by_ref": [
+      2.655723811006095,
+      -2.6557238110060957
+     ],
+     "gains_by_ref": [
+      0.001163376371499325,
+      0.0005225507783634953
+     ],
+     "expl_by_ref_pct": 0.004214817874657051,
+     "value_gap_bb": 7.101227321726356e-07,
+     "value_gap_pct_pot": 3.5506136608631778e-06,
+     "engine_value_gap_pct_pot": 7.4408629568978304e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.01646900177001953,
+     "iterate_s": 0.01567220687866211,
+     "measure_s": 0.0006132125854492188,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.6557249695886243,
+      -2.6557260862758483
+     ],
+     "engine_expl_pct": 0.0001557096610171893,
+     "engine_gain_held": [
+      3.76230374574682e-05,
+      2.466082694940752e-05
+     ],
+     "engine_lock_cost": [
+      1.1005811595410364e-07,
+      0.0
+     ],
+     "value_by_ref": [
+      2.6557245239305995,
+      -2.6557245239305995
+     ],
+     "gains_by_ref": [
+      3.7757163405593985e-05,
+      2.3519099391133835e-05
+     ],
+     "expl_by_ref_pct": 0.00015319065699181955,
+     "value_gap_bb": 2.8017725917095504e-09,
+     "value_gap_pct_pot": 1.4008862958547752e-08,
+     "engine_value_gap_pct_pot": 2.2422989864878673e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.14084887504577637,
+     "iterate_s": 0.14002513885498047,
+     "measure_s": 0.0006651878356933594,
+     "peak_rss_mb": 43.421875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.655724485430527,
+      -2.655725270235185
+     ],
+     "engine_expl_pct": 1.4726678815302208e-05,
+     "engine_gain_held": [
+      2.3695439121951267e-07,
+      5.65371713490137e-06
+     ],
+     "engine_lock_cost": [
+      1.2933659032654532e-08,
+      0.0
+     ],
+     "value_by_ref": [
+      2.655724521106481,
+      -2.6557245211064804
+     ],
+     "gains_by_ref": [
+      2.61109900367984e-07,
+      2.658603357907907e-06
+     ],
+     "expl_by_ref_pct": 7.299283145689728e-06,
+     "value_gap_bb": 2.23461249504453e-11,
+     "value_gap_pct_pot": 1.1173062475222649e-10,
+     "engine_value_gap_pct_pot": 1.7849149935855735e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 4.440892098500626e-15,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": -2.6645352591003757e-15,
+    "unlocked_gain_engine_bb": 2.233324636335965e-11,
+    "passed": true
+   }
+  },
+  "river-class-ip-bets": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [
+      "check"
+     ],
+     "player": 1,
+     "mix": {
+      "check": 0.5,
+      "bet 75%": 0.5
+     },
+     "hands": {
+      "classes": [
+       "QQ",
+       "98s"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.17009210586547852,
+    "method": "highs-ds",
+    "value_each_side": [
+     2.6557245211288274,
+     -2.6557245211288145
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 508
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 410
+     }
+    ],
+    "rows": [
+     712,
+     631
+    ],
+    "cols": [
+     631,
+     712
+    ],
+    "held_infosets": 9,
+    "gains_held": [
+     8.881784197001252e-16,
+     0.0
+    ],
+    "peak_rss_mb": 70.546875
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004183053970336914,
+     "iterate_s": 0.0033118724822998047,
+     "measure_s": 0.0006389617919921875,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 9
+     },
+     "notes": [],
+     "engine_value": [
+      2.655722501944129,
+      -2.655724485430527
+     ],
+     "engine_expl_pct": 0.0017322415356235688,
+     "engine_gain_held": [
+      0.00014618450933978622,
+      0.0005467121049096413
+     ],
+     "engine_lock_cost": [
+      0.0,
+      9.761183727974299e-08
+     ],
+     "value_by_ref": [
+      2.655721984050225,
+      -2.655721984050225
+     ],
+     "gains_by_ref": [
+      0.00014608020273909617,
+      0.0005466285259401182
+     ],
+     "expl_by_ref_pct": 0.0017317718216980358,
+     "value_gap_bb": 2.537078602316001e-06,
+     "value_gap_pct_pot": 1.2685393011580004e-05,
+     "engine_value_gap_pct_pot": 1.0095923492769998e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.017357826232910156,
+     "iterate_s": 0.016416072845458984,
+     "measure_s": 0.0006940364837646484,
+     "peak_rss_mb": 43.5,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 9
+     },
+     "notes": [],
+     "engine_value": [
+      2.6557245322845366,
+      -2.6557238529014002
+     ],
+     "engine_expl_pct": 0.0001658046257779766,
+     "engine_gain_held": [
+      5.4975371033272324e-06,
+      6.082431320786341e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.0151702012350938e-07
+     ],
+     "value_by_ref": [
+      2.6557245250474453,
+      -2.6557245250474453
+     ],
+     "gains_by_ref": [
+      5.437713560763058e-06,
+      6.054912975006488e-05
+     ],
+     "expl_by_ref_pct": 0.00016496710827706984,
+     "value_gap_bb": 3.918617874631991e-09,
+     "value_gap_pct_pot": 1.9593089373159955e-08,
+     "engine_value_gap_pct_pot": 5.577854622629275e-08,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.14208269119262695,
+     "iterate_s": 0.14120125770568848,
+     "measure_s": 0.0006473064422607422,
+     "peak_rss_mb": 43.5625,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 9
+     },
+     "notes": [],
+     "engine_value": [
+      2.6557244073405113,
+      -2.655728417262816
+     ],
+     "engine_expl_pct": 2.2821807079687062e-05,
+     "engine_gain_held": [
+      2.2489924513813264e-06,
+      6.879730380493498e-06
+     ],
+     "engine_lock_cost": [
+      0.0,
+      -3.9045007227400674e-09
+     ],
+     "value_by_ref": [
+      2.6557245206455122,
+      -2.6557245206455113
+     ],
+     "gains_by_ref": [
+      2.24291407224797e-06,
+      6.6963862170865696e-06
+     ],
+     "expl_by_ref_pct": 2.234825072333635e-05,
+     "value_gap_bb": 4.833151656669088e-10,
+     "value_gap_pct_pot": 2.416575828334544e-09,
+     "engine_value_gap_pct_pot": 5.689415805143483e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 2.220446049250313e-15,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": -4.440892098500626e-16,
+    "unlocked_gain_engine_bb": -4.833156097561186e-10,
+    "passed": true
+   }
+  },
+  "river-combo-root": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "bet 75%": 1.0
+     },
+     "hands": {
+      "combos": [
+       "QhJh"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.1886451244354248,
+    "method": "highs-ds",
+    "value_each_side": [
+     2.5866354730223753,
+     -2.5866354730223677
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 320
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 363
+     }
+    ],
+    "rows": [
+     713,
+     622
+    ],
+    "cols": [
+     622,
+     713
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     0.0,
+     0.0
+    ],
+    "peak_rss_mb": 70.796875
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0040340423583984375,
+     "iterate_s": 0.0031991004943847656,
+     "measure_s": 0.0006098747253417969,
+     "peak_rss_mb": 43.546875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      2.5866353123800536,
+      -2.5866369756973877
+     ],
+     "engine_expl_pct": 0.000950162706040425,
+     "engine_gain_held": [
+      0.0002098913202615016,
+      0.0001701737621546684
+     ],
+     "engine_lock_cost": [
+      0.07664300670642277,
+      0.0
+     ],
+     "value_by_ref": [
+      2.5866357240494686,
+      -2.586635724049468
+     ],
+     "gains_by_ref": [
+      0.00020960411328330153,
+      0.00016983427625483216
+     ],
+     "expl_by_ref_pct": 0.0009485959738453342,
+     "value_gap_bb": 2.51027093334244e-07,
+     "value_gap_pct_pot": 1.25513546667122e-06,
+     "engine_value_gap_pct_pot": 8.0321160833563e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.016476154327392578,
+     "iterate_s": 0.015661001205444336,
+     "measure_s": 0.0006210803985595703,
+     "peak_rss_mb": 43.546875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      2.5866342191198344,
+      -2.586635503700592
+     ],
+     "engine_expl_pct": 0.0001055996640064727,
+     "engine_gain_held": [
+      2.949167054389079e-05,
+      1.2748195058698286e-05
+     ],
+     "engine_lock_cost": [
+      0.07674856488511894,
+      0.0
+     ],
+     "value_by_ref": [
+      2.5866354694941034,
+      -2.5866354694941034
+     ],
+     "gains_by_ref": [
+      2.9279973190465824e-05,
+      1.2684180943356438e-05
+     ],
+     "expl_by_ref_pct": 0.00010491038533455566,
+     "value_gap_bb": 3.528271896868773e-09,
+     "value_gap_pct_pot": 1.7641359484343866e-08,
+     "engine_value_gap_pct_pot": 6.269512704548674e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.14061737060546875,
+     "iterate_s": 0.13974618911743164,
+     "measure_s": 0.0006546974182128906,
+     "peak_rss_mb": 43.625,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      2.586635031255997,
+      -2.5866336568717214
+     ],
+     "engine_expl_pct": 1.7106594057958446e-05,
+     "engine_gain_held": [
+      2.4227427362077947e-06,
+      4.419894886975584e-06
+     ],
+     "engine_lock_cost": [
+      0.07676409210861035,
+      0.0
+     ],
+     "value_by_ref": [
+      2.586635472924991,
+      -2.5866354729249914
+     ],
+     "gains_by_ref": [
+      2.3514170335303675e-06,
+      4.360044829621046e-06
+     ],
+     "expl_by_ref_pct": 1.6778654657878533e-05,
+     "value_gap_bb": 9.738432282802023e-11,
+     "value_gap_pct_pot": 4.869216141401012e-10,
+     "engine_value_gap_pct_pot": 2.2088318907265148e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.3454452405322628,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.0690890481064459,
+    "unlocked_gain_engine_bb": 0.06908904820382222,
+    "passed": true
+   }
+  },
+  "river-combo-call": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 1.0
+     },
+     "hands": {
+      "combos": [
+       "AhKd"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.16303014755249023,
+    "method": "highs-ds",
+    "value_each_side": [
+     2.727372422868847,
+     -2.727372422868836
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 363
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 368
+     }
+    ],
+    "rows": [
+     712,
+     624
+    ],
+    "cols": [
+     624,
+     712
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     8.881784197001252e-16,
+     0.0
+    ],
+    "peak_rss_mb": 71.578125
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0038650035858154297,
+     "iterate_s": 0.003111124038696289,
+     "measure_s": 0.0005838871002197266,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      2.7273718873944475,
+      -2.7273734726217653
+     ],
+     "engine_expl_pct": 0.0004363809707241817,
+     "engine_gain_held": [
+      0.00012594357727735428,
+      4.86088110123184e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.07163469503761322
+     ],
+     "value_by_ref": [
+      2.7273722881931985,
+      -2.727372288193198
+     ],
+     "gains_by_ref": [
+      0.00012595025361905599,
+      4.872559669877319e-05
+     ],
+     "expl_by_ref_pct": 0.00043668962579457293,
+     "value_gap_bb": 1.346756484110756e-07,
+     "value_gap_pct_pot": 6.73378242055378e-07,
+     "engine_value_gap_pct_pot": 2.6773719974393373e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.016791105270385742,
+     "iterate_s": 0.015816926956176758,
+     "measure_s": 0.000659942626953125,
+     "peak_rss_mb": 43.421875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      2.7273724184065538,
+      -2.7273730509356806
+     ],
+     "engine_expl_pct": 0.00012644591974142472,
+     "engine_gain_held": [
+      1.1744738357410967e-05,
+      3.883362953915892e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.07163668074002327
+     ],
+     "value_by_ref": [
+      2.7273724125771674,
+      -2.7273724125771683
+     ],
+     "gains_by_ref": [
+      1.1700076186560437e-05,
+      3.885655820257128e-05
+     ],
+     "expl_by_ref_pct": 0.0001263915859728293,
+     "value_gap_bb": 1.029167950861165e-08,
+     "value_gap_pct_pot": 5.145839754305826e-08,
+     "engine_value_gap_pct_pot": 2.2311466008062553e-08,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.14117097854614258,
+     "iterate_s": 0.1402440071105957,
+     "measure_s": 0.0006539821624755859,
+     "peak_rss_mb": 43.640625,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      2.727371496944369,
+      -2.72737299627267
+     ],
+     "engine_expl_pct": 1.9409389812041766e-05,
+     "engine_gain_held": [
+      1.499328301068914e-06,
+      6.2644276237477925e-06
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.07164661945539708
+     ],
+     "value_by_ref": [
+      2.7273724226810825,
+      -2.7273724226810825
+     ],
+     "gains_by_ref": [
+      1.6478061000135824e-06,
+      5.0520857426406e-06
+     ],
+     "expl_by_ref_pct": 1.6749729606635455e-05,
+     "value_gap_bb": 1.8776447063828527e-10,
+     "value_gap_pct_pot": 9.388223531914264e-10,
+     "engine_value_gap_pct_pot": 4.629622389895616e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.3582395087000956,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.07164790174001912,
+    "unlocked_gain_engine_bb": 0.07164790155225464,
+    "passed": true
+   }
+  },
+  "river-out-of-range": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 1.0
+     },
+     "hands": {
+      "classes": [
+       "AA",
+       "KQs"
+      ],
+      "combos": [
+       "2h3h"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.1637279987335205,
+    "method": "highs-ds",
+    "value_each_side": [
+     2.4521570694256773,
+     -2.4521570694256742
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 434
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 402
+     }
+    ],
+    "rows": [
+     715,
+     622
+    ],
+    "cols": [
+     622,
+     715
+    ],
+    "held_infosets": 3,
+    "gains_held": [
+     3.1086244689504383e-15,
+     7.549516567451064e-15
+    ],
+    "peak_rss_mb": 71.515625
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004128932952880859,
+     "iterate_s": 0.003314971923828125,
+     "measure_s": 0.0006089210510253906,
+     "peak_rss_mb": 43.515625,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.4524401661805513,
+      -2.452436492045314
+     ],
+     "engine_expl_pct": 0.031638081998662804,
+     "engine_gain_held": [
+      0.006942303910357328,
+      0.005712928889107793
+     ],
+     "engine_lock_cost": [
+      0.23379896899937913,
+      0.0
+     ],
+     "value_by_ref": [
+      2.452439480113934,
+      -2.452439480113933
+     ],
+     "gains_by_ref": [
+      0.006942266565038491,
+      0.005712513848156409
+     ],
+     "expl_by_ref_pct": 0.03163695103298725,
+     "value_gap_bb": 0.00028241068825662907,
+     "value_gap_pct_pot": 0.0014120534412831454,
+     "engine_value_gap_pct_pot": 0.0014154837743696191,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.017563819885253906,
+     "iterate_s": 0.016710996627807617,
+     "measure_s": 0.0006480216979980469,
+     "peak_rss_mb": 43.609375,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.4521564807716145,
+      -2.4521556334949444
+     ],
+     "engine_expl_pct": 0.0004894778974584568,
+     "engine_gain_held": [
+      0.0001340531925921873,
+      6.173796639119544e-05
+     ],
+     "engine_lock_cost": [
+      0.23754128075779768,
+      0.0
+     ],
+     "value_by_ref": [
+      2.4521571144420937,
+      -2.4521571144420946
+     ],
+     "gains_by_ref": [
+      0.00013443619368302961,
+      6.174047214768663e-05
+     ],
+     "expl_by_ref_pct": 0.0004904416645767906,
+     "value_gap_bb": 4.5016416372334334e-08,
+     "value_gap_pct_pot": 2.250820818616717e-07,
+     "engine_value_gap_pct_pot": 2.943270314137436e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.15377473831176758,
+     "iterate_s": 0.1528759002685547,
+     "measure_s": 0.0007343292236328125,
+     "peak_rss_mb": 43.546875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.4521565666706318,
+      -2.4521554695059113
+     ],
+     "engine_expl_pct": 4.906005234617261e-05,
+     "engine_gain_held": [
+      6.72745485008619e-06,
+      1.2896566088382855e-05
+     ],
+     "engine_lock_cost": [
+      0.23833094258147325,
+      0.0
+     ],
+     "value_by_ref": [
+      2.4521570698177233,
+      -2.4521570698177233
+     ],
+     "gains_by_ref": [
+      6.512441911521449e-06,
+      1.2672703724625478e-05
+     ],
+     "expl_by_ref_pct": 4.796286409036731e-05,
+     "value_gap_bb": 3.9204595125852393e-10,
+     "value_gap_pct_pot": 1.9602297562926196e-09,
+     "engine_value_gap_pct_pot": 2.5137752279746906e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 1.0178372585157525,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.2035674517031394,
+    "unlocked_gain_engine_bb": 0.20356745131109033,
+    "passed": true
+   }
+  },
+  "river-both-players": {
+   "spot": "river-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "bet 75%": 0.75,
+      "check": 0.25
+     },
+     "hands": {
+      "classes": [
+       "JTs",
+       "T8s"
+      ]
+     }
+    },
+    {
+     "line": [
+      "bet 75%"
+     ],
+     "player": 1,
+     "mix": {
+      "call": 1.0
+     },
+     "hands": {
+      "classes": [
+       "KQo"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.17004990577697754,
+    "method": "highs-ds",
+    "value_each_side": [
+     2.509869864015206,
+     -2.509869864015201
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 291
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 366
+     }
+    ],
+    "rows": [
+     720,
+     640
+    ],
+    "cols": [
+     640,
+     720
+    ],
+    "held_infosets": 17,
+    "gains_held": [
+     2.6645352591003757e-15,
+     0.0
+    ],
+    "peak_rss_mb": 71.6875
+   },
+   "unlocked_value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0040242671966552734,
+     "iterate_s": 0.003131866455078125,
+     "measure_s": 0.0009438991546630859,
+     "peak_rss_mb": 43.53125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 17
+     },
+     "notes": [],
+     "engine_value": [
+      2.509868641348676,
+      -2.5098690435122566
+     ],
+     "engine_expl_pct": 0.002849292082401922,
+     "engine_gain_held": [
+      0.0003657814424582462,
+      0.0007739353905025226
+     ],
+     "engine_lock_cost": [
+      0.18517865714905257,
+      -8.672172313595183e-09
+     ],
+     "value_by_ref": [
+      2.509869013751608,
+      -2.509869013751607
+     ],
+     "gains_by_ref": [
+      0.0003657795534337538,
+      0.00077399741444939
+     ],
+     "expl_by_ref_pct": 0.0028494424197078594,
+     "value_gap_bb": 8.502635981955109e-07,
+     "value_gap_pct_pot": 4.2513179909775545e-06,
+     "engine_value_gap_pct_pot": 6.113332651214165e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.01669597625732422,
+     "iterate_s": 0.01577591896057129,
+     "measure_s": 0.00096893310546875,
+     "peak_rss_mb": 43.546875,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 17
+     },
+     "notes": [],
+     "engine_value": [
+      2.509869922024933,
+      -2.509867755026998
+     ],
+     "engine_expl_pct": 9.61609755245618e-05,
+     "engine_gain_held": [
+      3.418507911900903e-05,
+      4.279311090815696e-06
+     ],
+     "engine_lock_cost": [
+      0.18420732160088837,
+      -5.0736741918910866e-08
+     ],
+     "value_by_ref": [
+      2.5098698641089743,
+      -2.5098698641089734
+     ],
+     "gains_by_ref": [
+      3.3898596754067256e-05,
+      3.5883808719994192e-06
+     ],
+     "expl_by_ref_pct": 9.371744406516669e-05,
+     "value_gap_bb": 9.376810439221117e-11,
+     "value_gap_pct_pot": 4.688405219610559e-10,
+     "engine_value_gap_pct_pot": 2.900486339996178e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.14229583740234375,
+     "iterate_s": 0.14135503768920898,
+     "measure_s": 0.0009729862213134766,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 1900,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 17
+     },
+     "notes": [],
+     "engine_value": [
+      2.509869734608895,
+      -2.509877641222982
+     ],
+     "engine_expl_pct": 1.3158384686295934e-05,
+     "engine_gain_held": [
+      1.9431182831652904e-06,
+      3.3202355913530823e-06
+     ],
+     "engine_lock_cost": [
+      0.18423565906094064,
+      2.9533213430354976e-07
+     ],
+     "value_by_ref": [
+      2.5098698639677863,
+      -2.509869863967787
+     ],
+     "gains_by_ref": [
+      2.030025662236312e-06,
+      3.7746561831752956e-06
+     ],
+     "expl_by_ref_pct": 1.451170461352902e-05,
+     "value_gap_bb": 4.7419845827789686e-11,
+     "value_gap_pct_pot": 2.3709922913894843e-10,
+     "engine_value_gap_pct_pot": 6.470315550011208e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.7292732855681083,
+   "passed": true
+  },
+  "two-sizes-whole-root": {
+   "spot": "river-two-sizes",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.5,
+      "bet 50%": 0.3,
+      "bet 100%": 0.2
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.1942579746246338,
+    "method": "highs-ds",
+    "value_each_side": [
+     -1.2180143295803474,
+     1.2180143295803438
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 408
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 503
+     }
+    ],
+    "rows": [
+     2227,
+     1847
+    ],
+    "cols": [
+     1847,
+     2227
+    ],
+    "held_infosets": 40,
+    "gains_held": [
+     0.0,
+     0.0
+    ],
+    "peak_rss_mb": 92.171875
+   },
+   "unlocked_value": [
+    3.127827298634501,
+    -3.127827298634503
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.006254911422729492,
+     "iterate_s": 0.0053331851959228516,
+     "measure_s": 0.0013859272003173828,
+     "peak_rss_mb": 43.703125,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.218014329580348,
+      1.2180137849024888
+     ],
+     "engine_expl_pct": -5.871974628757215e-08,
+     "engine_gain_held": [
+      -2.348789851502886e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      9.477993882239177,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.2180143349184518,
+      1.2180143349184518
+     ],
+     "gains_by_ref": [
+      5.338250952391377e-09,
+      8.08242361927114e-14
+     ],
+     "expl_by_ref_pct": 1.3345829441568924e-08,
+     "value_gap_bb": 5.338104402952126e-09,
+     "value_gap_pct_pot": 2.669052201476063e-08,
+     "engine_value_gap_pct_pot": 3.3306690738754696e-15,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.03493499755859375,
+     "iterate_s": 0.03395891189575195,
+     "measure_s": 0.0014281272888183594,
+     "peak_rss_mb": 43.546875,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.218014329580348,
+      1.2180137849024888
+     ],
+     "engine_expl_pct": -5.8720031059777966e-08,
+     "engine_gain_held": [
+      -2.3488012423911186e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      9.477993882239291,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.2180143349185326,
+      1.2180143349185326
+     ],
+     "gains_by_ref": [
+      5.338184561054504e-09,
+      0.0
+     ],
+     "expl_by_ref_pct": 1.334546140263626e-08,
+     "value_gap_bb": 5.338185227188319e-09,
+     "value_gap_pct_pot": 2.6690926135941595e-08,
+     "engine_value_gap_pct_pot": 3.3306690738754696e-15,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.3201627731323242,
+     "iterate_s": 0.3191359043121338,
+     "measure_s": 0.001405954360961914,
+     "peak_rss_mb": 43.765625,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.218014329580348,
+      1.2180137849024888
+     ],
+     "engine_expl_pct": -5.8720031059777966e-08,
+     "engine_gain_held": [
+      -2.3488012423911186e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      9.477993882239291,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.2180143349185326,
+      1.2180143349185326
+     ],
+     "gains_by_ref": [
+      5.338184561054504e-09,
+      0.0
+     ],
+     "expl_by_ref_pct": 1.334546140263626e-08,
+     "value_gap_bb": 5.338185227188319e-09,
+     "value_gap_pct_pot": 2.6690926135941595e-08,
+     "engine_value_gap_pct_pot": 3.3306690738754696e-15,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 21.729208141074242,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 4.345841628214846,
+    "unlocked_gain_engine_bb": 4.345841633553036,
+    "passed": true
+   }
+  },
+  "two-sizes-class": {
+   "spot": "river-two-sizes",
+   "locks": [
+    {
+     "line": [
+      "bet 100%"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.2,
+      "call": 0.8
+     },
+     "hands": {
+      "classes": [
+       "JJ"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.29772400856018066,
+    "method": "highs-ds",
+    "value_each_side": [
+     3.308085977482091,
+     -3.3080859774820848
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 1188
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 2573
+     }
+    ],
+    "rows": [
+     2147,
+     1865
+    ],
+    "cols": [
+     1865,
+     2147
+    ],
+    "held_infosets": 6,
+    "gains_held": [
+     3.1086244689504383e-15,
+     0.0
+    ],
+    "peak_rss_mb": 96.9375
+   },
+   "unlocked_value": [
+    3.127827298634501,
+    -3.127827298634503
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.006682872772216797,
+     "iterate_s": 0.005672931671142578,
+     "measure_s": 0.0014472007751464844,
+     "peak_rss_mb": 43.71875,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 6
+     },
+     "notes": [],
+     "engine_value": [
+      3.3080839783776868,
+      -3.3080843141647542
+     ],
+     "engine_expl_pct": 1.0416518029243704e-05,
+     "engine_gain_held": [
+      1.7492163513210812e-06,
+      2.4173908603764005e-06
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.19652095810566728
+     ],
+     "value_by_ref": [
+      3.3080841326248107,
+      -3.3080841326248107
+     ],
+     "gains_by_ref": [
+      1.8490165927254054e-06,
+      1.7999536168211705e-06
+     ],
+     "expl_by_ref_pct": 9.12242552386644e-06,
+     "value_gap_bb": 1.8448572802753915e-06,
+     "value_gap_pct_pot": 9.224286401376958e-06,
+     "engine_value_gap_pct_pot": 9.995522021188918e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.035337209701538086,
+     "iterate_s": 0.03429102897644043,
+     "measure_s": 0.0014770030975341797,
+     "peak_rss_mb": 43.78125,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 6
+     },
+     "notes": [],
+     "engine_value": [
+      3.3080862429881415,
+      -3.3080860048135934
+     ],
+     "engine_expl_pct": 2.897871831386567e-08,
+     "engine_gain_held": [
+      0.0,
+      1.1591487325546268e-08
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.1965199747983597
+     ],
+     "value_by_ref": [
+      3.308085977482086,
+      -3.3080859774820857
+     ],
+     "gains_by_ref": [
+      1.3322676295501878e-15,
+      1.3322676295501878e-15
+     ],
+     "expl_by_ref_pct": 6.661338147750939e-15,
+     "value_gap_bb": 4.884981308350689e-15,
+     "value_gap_pct_pot": 2.4424906541753447e-14,
+     "engine_value_gap_pct_pot": 1.327530252392961e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.318267822265625,
+     "iterate_s": 0.3172268867492676,
+     "measure_s": 0.0014121532440185547,
+     "peak_rss_mb": 43.703125,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 6
+     },
+     "notes": [],
+     "engine_value": [
+      3.308085508941994,
+      -3.3080859462460817
+     ],
+     "engine_expl_pct": -1.1744006322977896e-07,
+     "engine_gain_held": [
+      0.0,
+      -4.697602529191158e-08
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.19651997479836059
+     ],
+     "value_by_ref": [
+      3.308085977482087,
+      -3.308085977482088
+     ],
+     "gains_by_ref": [
+      0.0,
+      0.0
+     ],
+     "expl_by_ref_pct": 0.0,
+     "value_gap_bb": 3.9968028886505635e-15,
+     "value_gap_pct_pot": 1.9984014443252818e-14,
+     "engine_value_gap_pct_pot": 2.3427004847142996e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.9012933942379499,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.18025867884758995,
+    "unlocked_gain_engine_bb": 0.18025867884758595,
+    "passed": true
+   }
+  },
+  "two-sizes-combo": {
+   "spot": "river-two-sizes",
+   "locks": [
+    {
+     "line": [
+      "check",
+      "bet 50%"
+     ],
+     "player": 0,
+     "mix": {
+      "fold": 0.1,
+      "call": 0.1,
+      "raise to 30": 0.8
+     },
+     "hands": {
+      "combos": [
+       "7h7c"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.40845513343811035,
+    "method": "highs-ds",
+    "value_each_side": [
+     3.1278272986344975,
+     -3.1278272986345033
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 1392
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 4180
+     }
+    ],
+    "rows": [
+     2151,
+     1847
+    ],
+    "cols": [
+     1847,
+     2151
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     2.220446049250313e-15,
+     8.881784197001252e-16
+    ],
+    "peak_rss_mb": 98.453125
+   },
+   "unlocked_value": [
+    3.127827298634501,
+    -3.127827298634503
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.006491899490356445,
+     "iterate_s": 0.005577802658081055,
+     "measure_s": 0.0013840198516845703,
+     "peak_rss_mb": 43.71875,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      3.1280451045431645,
+      -3.1280448546551147
+     ],
+     "engine_expl_pct": 0.014253452838557388,
+     "engine_gain_held": [
+      0.00425053892523275,
+      0.0014508422101902063
+     ],
+     "engine_lock_cost": [
+      4.1189875954472654e-08,
+      0.0
+     ],
+     "value_by_ref": [
+      3.128044391905155,
+      -3.128044391905156
+     ],
+     "gains_by_ref": [
+      0.0042507476368682795,
+      0.0014498793629824647
+     ],
+     "expl_by_ref_pct": 0.01425156749962686,
+     "value_gap_bb": 0.00021709327065755346,
+     "value_gap_pct_pot": 0.0010854663532877673,
+     "engine_value_gap_pct_pot": 0.0010890295433352293,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.03707385063171387,
+     "iterate_s": 0.03604888916015625,
+     "measure_s": 0.0014142990112304688,
+     "peak_rss_mb": 43.84375,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      3.127826733623337,
+      -3.127827311489453
+     ],
+     "engine_expl_pct": 0.0006236256401337403,
+     "engine_gain_held": [
+      0.00018528369017500879,
+      6.416656587848735e-05
+     ],
+     "engine_lock_cost": [
+      8.299013476431583e-09,
+      0.0
+     ],
+     "value_by_ref": [
+      3.127827246098882,
+      -3.127827246098882
+     ],
+     "gains_by_ref": [
+      0.0001855941527462157,
+      6.341813332344515e-05
+     ],
+     "expl_by_ref_pct": 0.0006225307151741521,
+     "value_gap_bb": 5.2535615413518144e-08,
+     "value_gap_pct_pot": 2.626780770675907e-07,
+     "engine_value_gap_pct_pot": 2.8250558026243766e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.33879685401916504,
+     "iterate_s": 0.33780598640441895,
+     "measure_s": 0.0014362335205078125,
+     "peak_rss_mb": 43.859375,
+     "tree_identical": true,
+     "tree_cells": 5890,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      3.127827202163431,
+      -3.127829814274455
+     ],
+     "engine_expl_pct": 5.410153165241738e-05,
+     "engine_gain_held": [
+      1.228152428245366e-05,
+      9.359088378513292e-06
+     ],
+     "engine_lock_cost": [
+      2.5462187469571518e-08,
+      0.0
+     ],
+     "value_by_ref": [
+      3.12782729853985,
+      -3.1278272985398496
+     ],
+     "gains_by_ref": [
+      1.1848649110746123e-05,
+      8.543982489950253e-06
+     ],
+     "expl_by_ref_pct": 5.098157900174093e-05,
+     "value_gap_bb": 9.46474010277143e-11,
+     "value_gap_pct_pot": 4.732370051385715e-10,
+     "engine_value_gap_pct_pot": 4.823553334531994e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 1.7763568394002505e-14,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": -4.440892098500626e-16,
+    "unlocked_gain_engine_bb": 9.465317418744235e-11,
+    "passed": true
+   }
+  },
+  "low-spr-whole": {
+   "spot": "river-low-spr",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.6,
+      "all-in": 0.4
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.15758705139160156,
+    "method": "highs-ds",
+    "value_each_side": [
+     -1.8915046059365397,
+     1.8915046059365335
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 0
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 23
+     }
+    ],
+    "rows": [
+     342,
+     272
+    ],
+    "cols": [
+     272,
+     342
+    ],
+    "held_infosets": 40,
+    "gains_held": [
+     0.0,
+     0.0
+    ],
+    "peak_rss_mb": 63.921875
+   },
+   "unlocked_value": [
+    3.287030267582976,
+    -3.28703026758297
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0031800270080566406,
+     "iterate_s": 0.0024759769439697266,
+     "measure_s": 0.0003268718719482422,
+     "peak_rss_mb": 43.484375,
+     "tree_identical": true,
+     "tree_cells": 760,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.8915046059365404,
+      1.8915035595303304
+     ],
+     "engine_expl_pct": -6.192293289242201e-08,
+     "engine_gain_held": [
+      -4.953834631393761e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      7.639713457931386,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.8915045991036548,
+      1.8915045991036559
+     ],
+     "gains_by_ref": [
+      -6.832877375018143e-09,
+      8.215650382226158e-15
+     ],
+     "expl_by_ref_pct": -8.5410864492097e-09,
+     "value_gap_bb": 6.83288492453471e-09,
+     "value_gap_pct_pot": 1.7082212311336775e-08,
+     "engine_value_gap_pct_pot": 1.6653345369377348e-15,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.010941028594970703,
+     "iterate_s": 0.010208845138549805,
+     "measure_s": 0.00033092498779296875,
+     "peak_rss_mb": 43.5625,
+     "tree_identical": true,
+     "tree_cells": 760,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.8915046059365404,
+      1.8915035595303304
+     ],
+     "engine_expl_pct": -6.192294232931772e-08,
+     "engine_gain_held": [
+      -4.9538353863454176e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      7.639713457931394,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.891504599103664,
+      1.891504599103664
+     ],
+     "gains_by_ref": [
+      -6.832875820705908e-09,
+      0.0
+     ],
+     "expl_by_ref_pct": -8.541094775882385e-09,
+     "value_gap_bb": 6.832875598661303e-09,
+     "value_gap_pct_pot": 1.7082188996653258e-08,
+     "engine_value_gap_pct_pot": 1.6653345369377348e-15,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.08817315101623535,
+     "iterate_s": 0.08741903305053711,
+     "measure_s": 0.0003457069396972656,
+     "peak_rss_mb": 43.515625,
+     "tree_identical": true,
+     "tree_cells": 760,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 40
+     },
+     "notes": [],
+     "engine_value": [
+      -1.8915046059365404,
+      1.8915035595303304
+     ],
+     "engine_expl_pct": -6.192294232931772e-08,
+     "engine_gain_held": [
+      -4.9538353863454176e-08,
+      0.0
+     ],
+     "engine_lock_cost": [
+      7.639713457931394,
+      0.0
+     ],
+     "value_by_ref": [
+      -1.891504599103664,
+      1.891504599103664
+     ],
+     "gains_by_ref": [
+      -6.832875820705908e-09,
+      0.0
+     ],
+     "expl_by_ref_pct": -8.541094775882385e-09,
+     "value_gap_bb": 6.832875598661303e-09,
+     "value_gap_pct_pot": 1.7082188996653258e-08,
+     "engine_value_gap_pct_pot": 1.6653345369377348e-15,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 12.94633718379879,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 5.178534873519504,
+    "unlocked_gain_engine_bb": 5.178534866686634,
+    "passed": true
+   }
+  },
+  "low-spr-class": {
+   "spot": "river-low-spr",
+   "locks": [
+    {
+     "line": [
+      "all-in"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.5,
+      "call": 0.5
+     },
+     "hands": {
+      "classes": [
+       "AKo"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.14944100379943848,
+    "method": "highs-ds",
+    "value_each_side": [
+     3.8508553882146503,
+     -3.850855388214644
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 202
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 85
+     }
+    ],
+    "rows": [
+     302,
+     281
+    ],
+    "cols": [
+     281,
+     302
+    ],
+    "held_infosets": 9,
+    "gains_held": [
+     3.1086244689504383e-15,
+     4.440892098500626e-16
+    ],
+    "peak_rss_mb": 64.390625
+   },
+   "unlocked_value": [
+    3.287030267582976,
+    -3.28703026758297
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0034999847412109375,
+     "iterate_s": 0.0027048587799072266,
+     "measure_s": 0.00040912628173828125,
+     "peak_rss_mb": 43.671875,
+     "tree_identical": true,
+     "tree_cells": 760,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 9
+     },
+     "notes": [],
+     "engine_value": [
+      3.850826829580348,
+      -3.850829406550865
+     ],
+     "engine_expl_pct": 0.007678874206377141,
+     "engine_gain_held": [
+      0.005247024333098871,
+      0.000896075032002841
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.5667935453305746
+     ],
+     "value_by_ref": [
+      3.850826486315823,
+      -3.850826486315824
+     ],
+     "gains_by_ref": [
+      0.005246027189880653,
+      0.0008948523377778628
+     ],
+     "expl_by_ref_pct": 0.007676099409573145,
+     "value_gap_bb": 2.890189882753802e-05,
+     "value_gap_pct_pot": 7.225474706884505e-05,
+     "engine_value_gap_pct_pot": 7.139658575572305e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.011690855026245117,
+     "iterate_s": 0.010881900787353516,
+     "measure_s": 0.0003521442413330078,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 760,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 9
+     },
+     "notes": [],
+     "engine_value": [
+      3.85085444220989,
+      -3.850855957156194
+     ],
+     "engine_expl_pct": 0.000950560477031015,
+     "engine_gain_held": [
+      0.0005371968358174328,
+      0.00022325154580737916
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.5650385970835066
+     ],
+     "value_by_ref": [
+      3.850856437960032,
+      -3.850856437960031
+     ],
+     "gains_by_ref": [
+      0.0005368032151920055,
+      0.00022349205202898403
+     ],
+     "expl_by_ref_pct": 0.0009503690840262369,
+     "value_gap_bb": 1.049745381731526e-06,
+     "value_gap_pct_pot": 2.6243634543288152e-06,
+     "engine_value_gap_pct_pot": 2.365011900762326e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.09041404724121094,
+     "iterate_s": 0.08962011337280273,
+     "measure_s": 0.00035381317138671875,
+     "peak_rss_mb": 43.515625,
+     "tree_identical": true,
+     "tree_cells": 760,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 9
+     },
+     "notes": [],
+     "engine_value": [
+      3.85085444220989,
+      -3.8508560040102036
+     ],
+     "engine_expl_pct": 7.207708446643757e-05,
+     "engine_gain_held": [
+      1.1807210369862986e-05,
+      4.585445720328707e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.5649764686670373
+     ],
+     "value_by_ref": [
+      3.8508553898774434,
+      -3.8508553898774425
+     ],
+     "gains_by_ref": [
+      1.1386110724487253e-05,
+      4.52369340173675e-05
+     ],
+     "expl_by_ref_pct": 7.077880592731844e-05,
+     "value_gap_bb": 1.662793014389763e-09,
+     "value_gap_pct_pot": 4.156982535974407e-09,
+     "engine_value_gap_pct_pot": 2.365011900762326e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 1.4095628015791861,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.5638251206316744,
+    "unlocked_gain_engine_bb": 0.5638251222944675,
+    "passed": true
+   }
+  },
+  "flush-whole": {
+   "spot": "river-flush",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.4,
+      "bet 50%": 0.2,
+      "bet 100%": 0.2,
+      "all-in": 0.2
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.14690494537353516,
+    "method": "highs-ds",
+    "value_each_side": [
+     -2.895470383275262,
+     2.895470383275258
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 204
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 237
+     }
+    ],
+    "rows": [
+     420,
+     478
+    ],
+    "cols": [
+     478,
+     420
+    ],
+    "held_infosets": 18,
+    "gains_held": [
+     0.0,
+     1.3322676295501878e-15
+    ],
+    "peak_rss_mb": 63.953125
+   },
+   "unlocked_value": [
+    -0.731707317073171,
+    0.73170731707317
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004395008087158203,
+     "iterate_s": 0.0037031173706054688,
+     "measure_s": 0.0009338855743408203,
+     "peak_rss_mb": 43.453125,
+     "tree_identical": true,
+     "tree_cells": 1232,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 5.960464455334602e-09,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      -2.8954723637278486,
+      2.8954730150176258
+     ],
+     "engine_expl_pct": 0.016835113517993383,
+     "engine_gain_held": [
+      0.0014412925132378795,
+      0.005292752893959474
+     ],
+     "engine_lock_cost": [
+      2.981715644411394,
+      0.0
+     ],
+     "value_by_ref": [
+      -2.8954724710638438,
+      2.8954724710638438
+     ],
+     "gains_by_ref": [
+      0.0014413829081543206,
+      0.005292914641326973
+     ],
+     "expl_by_ref_pct": 0.016835743873703235,
+     "value_gap_bb": 2.0877885815728803e-06,
+     "value_gap_pct_pot": 1.0438942907864401e-05,
+     "engine_value_gap_pct_pot": 9.902262931849037e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.02034306526184082,
+     "iterate_s": 0.01960015296936035,
+     "measure_s": 0.0009429454803466797,
+     "peak_rss_mb": 43.609375,
+     "tree_identical": true,
+     "tree_cells": 1232,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 5.960464455334602e-09,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      -2.8954714216837067,
+      2.895469572485947
+     ],
+     "engine_expl_pct": 0.002107273978223523,
+     "engine_gain_held": [
+      0.0005975594281317775,
+      0.0002453501631576316
+     ],
+     "engine_lock_cost": [
+      2.962923572226933,
+      0.0
+     ],
+     "value_by_ref": [
+      -2.8954704589939144,
+      2.895470458993915
+     ],
+     "gains_by_ref": [
+      0.0005970310021110592,
+      0.0002451583097609067
+     ],
+     "expl_by_ref_pct": 0.0021054732796799147,
+     "value_gap_bb": 7.571865223710006e-08,
+     "value_gap_pct_pot": 3.785932611855003e-07,
+     "engine_value_gap_pct_pot": 5.192042222823545e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.17914700508117676,
+     "iterate_s": 0.1783921718597412,
+     "measure_s": 0.0009617805480957031,
+     "peak_rss_mb": 43.5,
+     "tree_identical": true,
+     "tree_cells": 1232,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 5.960464455334602e-09,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      -2.8954707820241046,
+      2.8954704563792157
+     ],
+     "engine_expl_pct": 8.792964993009633e-05,
+     "engine_gain_held": [
+      1.3818859423864183e-05,
+      2.135300054817435e-05
+     ],
+     "engine_lock_cost": [
+      2.9495123748058716,
+      0.0
+     ],
+     "value_by_ref": [
+      -2.895470379956253,
+      2.895470379956253
+     ],
+     "gains_by_ref": [
+      1.3663032949029486e-05,
+      2.100125817072751e-05
+     ],
+     "expl_by_ref_pct": 8.666072779939249e-05,
+     "value_gap_bb": 3.3190090675816464e-09,
+     "value_gap_pct_pot": 1.6595045337908232e-08,
+     "engine_value_gap_pct_pot": 1.9937442119477566e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 10.818815331010455,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 2.163763066202088,
+    "unlocked_gain_engine_bb": 2.163763062883083,
+    "passed": true
+   }
+  },
+  "flush-combo": {
+   "spot": "river-flush",
+   "locks": [
+    {
+     "line": [
+      "check"
+     ],
+     "player": 1,
+     "mix": {
+      "all-in": 1.0
+     },
+     "hands": {
+      "combos": [
+       "Qh8h"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.15666723251342773,
+    "method": "highs-ds",
+    "value_each_side": [
+     -0.7317073170731718,
+     0.7317073170731713
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 375
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 411
+     }
+    ],
+    "rows": [
+     366,
+     481
+    ],
+    "cols": [
+     481,
+     366
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     1.3655743202889425e-14,
+     6.661338147750939e-16
+    ],
+    "peak_rss_mb": 63.78125
+   },
+   "unlocked_value": [
+    -0.731707317073171,
+    0.73170731707317
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004513978958129883,
+     "iterate_s": 0.0037469863891601562,
+     "measure_s": 0.0009670257568359375,
+     "peak_rss_mb": 43.40625,
+     "tree_identical": true,
+     "tree_cells": 1232,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      -0.7314954181996788,
+      0.7314950896472465
+     ],
+     "engine_expl_pct": 0.10419773116222912,
+     "engine_gain_held": [
+      0.02035843744510557,
+      0.021320655019786083
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.3642680651848593e-08
+     ],
+     "value_by_ref": [
+      -0.7314955806260949,
+      0.7314955806260942
+     ],
+     "gains_by_ref": [
+      0.020358090732231826,
+      0.02132047846682461
+     ],
+     "expl_by_ref_pct": 0.1041964229976411,
+     "value_gap_bb": 0.00021173644707694894,
+     "value_gap_pct_pot": 0.0010586822353847447,
+     "engine_value_gap_pct_pot": 0.001059494367465219,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": false
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.019230127334594727,
+     "iterate_s": 0.01847696304321289,
+     "measure_s": 0.0009570121765136719,
+     "peak_rss_mb": 43.59375,
+     "tree_identical": true,
+     "tree_cells": 1232,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      -0.7317085513254491,
+      0.7317081777060904
+     ],
+     "engine_expl_pct": 0.005984368993690592,
+     "engine_gain_held": [
+      0.002054274082183838,
+      0.0003394735152923989
+     ],
+     "engine_lock_cost": [
+      0.0,
+      -2.911035402730633e-07
+     ],
+     "value_by_ref": [
+      -0.7317081895130962,
+      0.7317081895130967
+     ],
+     "gains_by_ref": [
+      0.002054678805839205,
+      0.0003399394169416592
+     ],
+     "expl_by_ref_pct": 0.005986545556952161,
+     "value_gap_bb": 8.724399244153247e-07,
+     "value_gap_pct_pot": 4.3621996220766235e-06,
+     "engine_value_gap_pct_pot": 6.171261386356264e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.16599082946777344,
+     "iterate_s": 0.1652061939239502,
+     "measure_s": 0.000978231430053711,
+     "peak_rss_mb": 43.515625,
+     "tree_identical": true,
+     "tree_cells": 1232,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      -0.7317062470971084,
+      0.7317092244218035
+     ],
+     "engine_expl_pct": 7.644093834524579e-05,
+     "engine_gain_held": [
+      2.19461394519449e-05,
+      8.630235886153415e-06
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.9706662790497376e-07
+     ],
+     "value_by_ref": [
+      -0.7317073185151757,
+      0.7317073185151758
+     ],
+     "gains_by_ref": [
+      2.183746997785896e-05,
+      8.856534165935237e-06
+     ],
+     "expl_by_ref_pct": 7.673501035948549e-05,
+     "value_gap_bb": 1.4420038496609777e-09,
+     "value_gap_pct_pot": 7.2100192483048894e-09,
+     "engine_value_gap_pct_pot": 5.349880317084832e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 3.885780586188048e-15,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": -7.771561172376096e-16,
+    "unlocked_gain_engine_bb": -1.442004626817095e-09,
+    "passed": true
+   }
+  },
+  "weighted-class": {
+   "spot": "river-weighted",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.3,
+      "bet 75%": 0.5,
+      "all-in": 0.2
+     },
+     "hands": {
+      "classes": [
+       "QQ",
+       "T9s"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.16686391830444336,
+    "method": "highs-ds",
+    "value_each_side": [
+     5.399192751341126,
+     -5.399192751341128
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 485
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 699
+     }
+    ],
+    "rows": [
+     606,
+     538
+    ],
+    "cols": [
+     538,
+     606
+    ],
+    "held_infosets": 10,
+    "gains_held": [
+     0.0,
+     0.0
+    ],
+    "peak_rss_mb": 68.65625
+   },
+   "unlocked_value": [
+    5.740324358627496,
+    -5.7403243586274995
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.004024982452392578,
+     "iterate_s": 0.003244161605834961,
+     "measure_s": 0.0005750656127929688,
+     "peak_rss_mb": 43.484375,
+     "tree_identical": true,
+     "tree_cells": 1480,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 10
+     },
+     "notes": [],
+     "engine_value": [
+      5.39897939485775,
+      -5.398979339389636
+     ],
+     "engine_expl_pct": 0.024338598117794596,
+     "engine_gain_held": [
+      0.006562285750385755,
+      0.003173153496732084
+     ],
+     "engine_lock_cost": [
+      0.3706515152520238,
+      0.0
+     ],
+     "value_by_ref": [
+      5.3989803485386085,
+      -5.3989803485386085
+     ],
+     "gains_by_ref": [
+      0.006561996918148516,
+      0.0031729524690735644
+     ],
+     "expl_by_ref_pct": 0.0243373734680552,
+     "value_gap_bb": 0.0002124028025178859,
+     "value_gap_pct_pot": 0.0010620140125894295,
+     "engine_value_gap_pct_pot": 0.001066782416883072,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.017518997192382812,
+     "iterate_s": 0.016605138778686523,
+     "measure_s": 0.0006251335144042969,
+     "peak_rss_mb": 43.546875,
+     "tree_identical": true,
+     "tree_cells": 1480,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 10
+     },
+     "notes": [],
+     "engine_value": [
+      5.399192003851177,
+      -5.399192778421225
+     ],
+     "engine_expl_pct": 0.0005140833136652034,
+     "engine_gain_held": [
+      0.00014544581832431902,
+      6.018750714176235e-05
+     ],
+     "engine_lock_cost": [
+      0.3699667772926549,
+      0.0
+     ],
+     "value_by_ref": [
+      5.399192863154462,
+      -5.399192863154462
+     ],
+     "gains_by_ref": [
+      0.00014520321276290105,
+      6.051817000241044e-05
+     ],
+     "expl_by_ref_pct": 0.0005143034569132787,
+     "value_gap_bb": 1.1181333547938266e-07,
+     "value_gap_pct_pot": 5.590666773969133e-07,
+     "engine_value_gap_pct_pot": 3.7374497452447035e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.14762592315673828,
+     "iterate_s": 0.14672517776489258,
+     "measure_s": 0.0006136894226074219,
+     "peak_rss_mb": 43.703125,
+     "tree_identical": true,
+     "tree_cells": 1480,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 10
+     },
+     "notes": [],
+     "engine_value": [
+      5.399194639472048,
+      -5.399192971674114
+     ],
+     "engine_expl_pct": 6.903490653575872e-05,
+     "engine_gain_held": [
+      1.3170717743982152e-05,
+      1.4443244870321337e-05
+     ],
+     "engine_lock_cost": [
+      0.36997350000087614,
+      0.0
+     ],
+     "value_by_ref": [
+      5.3991927505357635,
+      -5.399192750535764
+     ],
+     "gains_by_ref": [
+      1.4025652274263223e-05,
+      1.3825777751996782e-05
+     ],
+     "expl_by_ref_pct": 6.962857506565001e-05,
+     "value_gap_bb": 8.053628874904462e-10,
+     "value_gap_pct_pot": 4.026814437452231e-09,
+     "engine_value_gap_pct_pot": 9.440654609171872e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 1.7056580364318472,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.34113160728637126,
+    "unlocked_gain_engine_bb": 0.34113160809173504,
+    "passed": true
+   }
+  },
+  "weighted-combo": {
+   "spot": "river-weighted",
+   "locks": [
+    {
+     "line": [
+      "bet 75%"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.9,
+      "call": 0.1
+     },
+     "hands": {
+      "combos": [
+       "AsQd"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.1814560890197754,
+    "method": "highs-ds",
+    "value_each_side": [
+     5.741243594046472,
+     -5.7412435940464785
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 505
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 1151
+     }
+    ],
+    "rows": [
+     586,
+     540
+    ],
+    "cols": [
+     540,
+     586
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     8.881784197001252e-16,
+     0.0
+    ],
+    "peak_rss_mb": 68.921875
+   },
+   "unlocked_value": [
+    5.740324358627496,
+    -5.7403243586274995
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0041501522064208984,
+     "iterate_s": 0.0033206939697265625,
+     "measure_s": 0.000598907470703125,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 1480,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      5.741036282481365,
+      -5.74103560850483
+     ],
+     "engine_expl_pct": 0.020486274488638045,
+     "engine_gain_held": [
+      0.005563540275653089,
+      0.002630969519802129
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.0008916670917145098
+     ],
+     "value_by_ref": [
+      5.7410351044009404,
+      -5.7410351044009404
+     ],
+     "gains_by_ref": [
+      0.005563387126264807,
+      0.0026316684474814167
+     ],
+     "expl_by_ref_pct": 0.02048763893436556,
+     "value_gap_bb": 0.0002084896455318841,
+     "value_gap_pct_pot": 0.0010424482276594205,
+     "engine_value_gap_pct_pot": 0.0010365578255377983,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.016952991485595703,
+     "iterate_s": 0.01604008674621582,
+     "measure_s": 0.0007150173187255859,
+     "peak_rss_mb": 43.5625,
+     "tree_identical": true,
+     "tree_cells": 1480,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      5.74124418589446,
+      -5.741242655456258
+     ],
+     "engine_expl_pct": 0.001829448493040342,
+     "engine_gain_held": [
+      0.00054653092938306,
+      0.0001852484678330768
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.0009196924929986139
+     ],
+     "value_by_ref": [
+      5.741244020550845,
+      -5.741244020550844
+     ],
+     "gains_by_ref": [
+      0.0005459184093350444,
+      0.00018585931339742956
+     ],
+     "expl_by_ref_pct": 0.0018294443068311848,
+     "value_gap_bb": 4.2650437226399163e-07,
+     "value_gap_pct_pot": 2.132521861319958e-06,
+     "engine_value_gap_pct_pot": 2.9592399375388823e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.1446526050567627,
+     "iterate_s": 0.1437520980834961,
+     "measure_s": 0.0006232261657714844,
+     "peak_rss_mb": 43.609375,
+     "tree_identical": true,
+     "tree_cells": 1480,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      5.741243971247739,
+      -5.741244903367062
+     ],
+     "engine_expl_pct": 0.00016634469871101842,
+     "engine_gain_held": [
+      2.542465609689515e-05,
+      4.111322338751222e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.0009191946684472541
+     ],
+     "value_by_ref": [
+      5.741243602255596,
+      -5.741243602255595
+     ],
+     "gains_by_ref": [
+      2.5518643149702314e-05,
+      4.153363916703512e-05
+     ],
+     "expl_by_ref_pct": 0.00016763070579184358,
+     "value_gap_bb": 8.209124047198202e-09,
+     "value_gap_pct_pot": 4.104562023599101e-08,
+     "engine_value_gap_pct_pot": 1.8860063333292487e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.004596177094882137,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.0009192354189764274,
+    "unlocked_gain_engine_bb": 0.0009192436281004746,
+    "passed": true
+   }
+  },
+  "ties-whole-facing-bet": {
+   "spot": "river-board-plays",
+   "locks": [
+    {
+     "line": [
+      "bet 75%"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.6,
+      "call": 0.3,
+      "all-in": 0.1
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.1473827362060547,
+    "method": "highs-ds",
+    "value_each_side": [
+     4.473502304147465,
+     -4.473502304147465
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 19
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 0
+     }
+    ],
+    "rows": [
+     264,
+     398
+    ],
+    "cols": [
+     398,
+     264
+    ],
+    "held_infosets": 19,
+    "gains_held": [
+     0.0,
+     0.0
+    ],
+    "peak_rss_mb": 62.921875
+   },
+   "unlocked_value": [
+    -1.1772246381514881,
+    1.1772246381514906
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.0033960342407226562,
+     "iterate_s": 0.002671957015991211,
+     "measure_s": 0.00043010711669921875,
+     "peak_rss_mb": 43.671875,
+     "tree_identical": true,
+     "tree_cells": 868,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 19
+     },
+     "notes": [],
+     "engine_value": [
+      4.473503244637344,
+      -4.473502694919545
+     ],
+     "engine_expl_pct": 1.059979377604492e-06,
+     "engine_gain_held": [
+      2.0509125064904765e-08,
+      4.03482625976892e-07
+     ],
+     "engine_lock_cost": [
+      0.0,
+      9.927199343673262
+     ],
+     "value_by_ref": [
+      4.473502328705101,
+      -4.473502328705102
+     ],
+     "gains_by_ref": [
+      9.50350909079134e-14,
+      2.4557740729846955e-08
+     ],
+     "expl_by_ref_pct": 6.139458941234466e-08,
+     "value_gap_bb": 2.455763592479343e-08,
+     "value_gap_pct_pot": 1.2278817962396715e-07,
+     "engine_value_gap_pct_pot": 4.7024493943226275e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.011863946914672852,
+     "iterate_s": 0.011138200759887695,
+     "measure_s": 0.0004470348358154297,
+     "peak_rss_mb": 43.578125,
+     "tree_identical": true,
+     "tree_cells": 868,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 19
+     },
+     "notes": [],
+     "engine_value": [
+      4.473503218268469,
+      -4.473503321912798
+     ],
+     "engine_expl_pct": 8.783272953394316e-07,
+     "engine_gain_held": [
+      4.687800014835375e-08,
+      3.044529179874189e-07
+     ],
+     "engine_lock_cost": [
+      0.0,
+      9.964223611077871
+     ],
+     "value_by_ref": [
+      4.473502328705196,
+      -4.473502328705196
+     ],
+     "gains_by_ref": [
+      0.0,
+      2.455773095988434e-08
+     ],
+     "expl_by_ref_pct": 6.139432739971085e-08,
+     "value_gap_bb": 2.455773095988434e-08,
+     "value_gap_pct_pot": 1.227886547994217e-07,
+     "engine_value_gap_pct_pot": 4.570605018905383e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 30000,
+     "wall_s": 0.09408092498779297,
+     "iterate_s": 0.09336304664611816,
+     "measure_s": 0.00043392181396484375,
+     "peak_rss_mb": 43.609375,
+     "tree_identical": true,
+     "tree_cells": 868,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 19
+     },
+     "notes": [],
+     "engine_value": [
+      4.473503212408719,
+      -4.473501985523558
+     ],
+     "engine_expl_pct": 3.134108106372935e-07,
+     "engine_gain_held": [
+      5.273775016689797e-08,
+      7.262657408801942e-08
+     ],
+     "engine_lock_cost": [
+      0.0,
+      9.951497613996853
+     ],
+     "value_by_ref": [
+      4.473502328705196,
+      -4.473502328705197
+     ],
+     "gains_by_ref": [
+      0.0,
+      2.4557731848062758e-08
+     ],
+     "expl_by_ref_pct": 6.13943296201569e-08,
+     "value_gap_bb": 2.455773095988434e-08,
+     "value_gap_pct_pot": 1.227886547994217e-07,
+     "engine_value_gap_pct_pot": 4.5413062688126615e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 28.25363471149477,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 5.650726942298953,
+    "unlocked_gain_engine_bb": 5.650726966856684,
+    "passed": true
+   }
+  },
+  "turn-whole-root": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.6,
+      "bet 75%": 0.4
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 5.827997207641602,
+    "method": "highs-ipm",
+    "value_each_side": [
+     7.975093128004785,
+     -7.975093128004782
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 34
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 32
+     }
+    ],
+    "rows": [
+     19810,
+     19048
+    ],
+    "cols": [
+     19048,
+     19810
+    ],
+    "held_infosets": 18,
+    "gains_held": [
+     0.0,
+     8.881784197001252e-16
+    ],
+    "peak_rss_mb": 179.125
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.058259010314941406,
+     "iterate_s": 0.05698370933532715,
+     "measure_s": 0.002295970916748047,
+     "peak_rss_mb": 49.46875,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      7.975085699780387,
+      -7.975085661278008
+     ],
+     "engine_expl_pct": 0.01503067672788294,
+     "engine_gain_held": [
+      0.00277169128744692,
+      0.0032405794037062563
+     ],
+     "engine_lock_cost": [
+      1.7264193631811224,
+      0.0
+     ],
+     "value_by_ref": [
+      7.975085652314501,
+      -7.975085652314501
+     ],
+     "gains_by_ref": [
+      0.0027711923339373,
+      0.0032403477031710537
+     ],
+     "expl_by_ref_pct": 0.015028850092770885,
+     "value_gap_bb": 7.4756902836981e-06,
+     "value_gap_pct_pot": 3.73784514184905e-05,
+     "engine_value_gap_pct_pot": 3.714112198682784e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.41253089904785156,
+     "iterate_s": 0.4112260341644287,
+     "measure_s": 0.0022640228271484375,
+     "peak_rss_mb": 49.25,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      7.9750932077443375,
+      -7.9750932847490965
+     ],
+     "engine_expl_pct": 0.0012409937800628157,
+     "engine_gain_held": [
+      0.0002255125420651538,
+      0.00027088496995997247
+     ],
+     "engine_lock_cost": [
+      1.7266536724888546,
+      0.0
+     ],
+     "value_by_ref": [
+      7.975093151953354,
+      -7.975093151953352
+     ],
+     "gains_by_ref": [
+      0.0002255391722432165,
+      0.0002713349933998188
+     ],
+     "expl_by_ref_pct": 0.0012421854141075883,
+     "value_gap_bb": 2.394856934984091e-08,
+     "value_gap_pct_pot": 1.1974284674920455e-07,
+     "engine_value_gap_pct_pot": 3.986977636927236e-07,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 6.928189601034012,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 1.3856379202068245,
+    "unlocked_gain_engine_bb": 1.3856378962582543,
+    "passed": true
+   }
+  },
+  "turn-class-facing-bet": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.3,
+      "call": 0.7
+     },
+     "hands": {
+      "classes": [
+       "QQ"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 12.584676742553711,
+    "method": "highs-ipm",
+    "value_each_side": [
+     10.023250752870327,
+     -10.023250752870323
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 36
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 35
+     }
+    ],
+    "rows": [
+     19792,
+     19060
+    ],
+    "cols": [
+     19060,
+     19792
+    ],
+    "held_infosets": 6,
+    "gains_held": [
+     1.7763568394002505e-15,
+     1.7763568394002505e-15
+    ],
+    "peak_rss_mb": 160.21875
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06012320518493652,
+     "iterate_s": 0.058692216873168945,
+     "measure_s": 0.0021758079528808594,
+     "peak_rss_mb": 49.40625,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 6
+     },
+     "notes": [],
+     "engine_value": [
+      10.023247089815436,
+      -10.023246457117684
+     ],
+     "engine_expl_pct": 0.009110994560290742,
+     "engine_gain_held": [
+      0.002128134232869172,
+      0.0015162635912471245
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.032943496138742
+     ],
+     "value_by_ref": [
+      10.02324684661182,
+      -10.023246846611821
+     ],
+     "gains_by_ref": [
+      0.0021286262187043548,
+      0.0015171402485112395
+     ],
+     "expl_by_ref_pct": 0.009114416168038986,
+     "value_gap_bb": 3.906258507768712e-06,
+     "value_gap_pct_pot": 1.953129253884356e-05,
+     "engine_value_gap_pct_pot": 1.831527445261827e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.3955211639404297,
+     "iterate_s": 0.3942677974700928,
+     "measure_s": 0.0021958351135253906,
+     "peak_rss_mb": 49.296875,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 6
+     },
+     "notes": [],
+     "engine_value": [
+      10.023250177039863,
+      -10.023250520599555
+     ],
+     "engine_expl_pct": 0.0004692920846061099,
+     "engine_gain_held": [
+      6.975446428647558e-05,
+      0.0001179623695559684
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.033913271803005
+     ],
+     "value_by_ref": [
+      10.02325068098026,
+      -10.02325068098026
+     ],
+     "gains_by_ref": [
+      6.953618525606942e-05,
+      0.00011771057966569742
+     ],
+     "expl_by_ref_pct": 0.0004681169123044171,
+     "value_gap_bb": 7.189006723251623e-08,
+     "value_gap_pct_pot": 3.5945033616258115e-07,
+     "engine_value_gap_pct_pot": 2.8791523210003334e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 3.3125985232936994,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.6625197046587399,
+    "unlocked_gain_engine_bb": 0.6625196327686727,
+    "passed": true
+   }
+  },
+  "turn-combo-root": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "bet 75%": 1.0
+     },
+     "hands": {
+      "combos": [
+       "QdJd"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 13.438886165618896,
+    "method": "highs-ipm",
+    "value_each_side": [
+     9.35865276024272,
+     -9.358652760242741
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 41
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 43
+     }
+    ],
+    "rows": [
+     19793,
+     19048
+    ],
+    "cols": [
+     19048,
+     19793
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     3.552713678800501e-15,
+     7.105427357601002e-15
+    ],
+    "peak_rss_mb": 185.234375
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06086611747741699,
+     "iterate_s": 0.059639930725097656,
+     "measure_s": 0.0021948814392089844,
+     "peak_rss_mb": 49.21875,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      9.35864019690093,
+      -9.358640350910447
+     ],
+     "engine_expl_pct": 0.0300581473045991,
+     "engine_gain_held": [
+      0.008994436680477946,
+      0.003028822241361695
+     ],
+     "engine_lock_cost": [
+      0.06796108612923213,
+      0.0
+     ],
+     "value_by_ref": [
+      9.358640172090412,
+      -9.35864017209041
+     ],
+     "gains_by_ref": [
+      0.008994535688746197,
+      0.003028472130168325
+     ],
+     "expl_by_ref_pct": 0.0300575195472863,
+     "value_gap_bb": 1.258815230720245e-05,
+     "value_gap_pct_pot": 6.294076153601225e-05,
+     "engine_value_gap_pct_pot": 6.281670894559e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.4618568420410156,
+     "iterate_s": 0.4605445861816406,
+     "measure_s": 0.002301931381225586,
+     "peak_rss_mb": 49.375,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      9.358654217690415,
+      -9.358653453566273
+     ],
+     "engine_expl_pct": 0.0013556707014616975,
+     "engine_gain_held": [
+      0.0003539501820313262,
+      0.0001883180985533528
+     ],
+     "engine_lock_cost": [
+      0.06724994297952946,
+      0.0
+     ],
+     "value_by_ref": [
+      9.358653881255565,
+      -9.358653881255567
+     ],
+     "gains_by_ref": [
+      0.00035437458299547586,
+      0.00018877739644018732
+     ],
+     "expl_by_ref_pct": 0.001357879948589158,
+     "value_gap_bb": 1.121012845217706e-06,
+     "value_gap_pct_pot": 5.60506422608853e-06,
+     "engine_value_gap_pct_pot": 7.2872384748734476e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.010391439844337214,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.0020782879688656664,
+    "unlocked_gain_engine_bb": 0.0020771669560399886,
+    "passed": true
+   }
+  },
+  "turn-merged": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%",
+      "call",
+      "As"
+     ],
+     "player": 0,
+     "mix": {
+      "check": 0.5,
+      "all-in": 0.5
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 13.888605117797852,
+    "method": "highs-ipm",
+    "value_each_side": [
+     9.342942259644621,
+     -9.342942259644621
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 44
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 43
+     }
+    ],
+    "rows": [
+     19810,
+     19048
+    ],
+    "cols": [
+     19048,
+     19810
+    ],
+    "held_infosets": 18,
+    "gains_held": [
+     3.552713678800501e-15,
+     1.2434497875801753e-14
+    ],
+    "peak_rss_mb": 182.734375
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06382083892822266,
+     "iterate_s": 0.06251406669616699,
+     "measure_s": 0.0021851062774658203,
+     "peak_rss_mb": 49.265625,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      9.342903267522777,
+      -9.342903445226066
+     ],
+     "engine_expl_pct": 0.023418338426997032,
+     "engine_gain_held": [
+      0.006713277518569427,
+      0.0026540578522293856
+     ],
+     "engine_lock_cost": [
+      0.0364654348405562,
+      0.0
+     ],
+     "value_by_ref": [
+      9.342902810753197,
+      -9.342902810753195
+     ],
+     "gains_by_ref": [
+      0.006713450443324831,
+      0.002653413037418062
+     ],
+     "expl_by_ref_pct": 0.023417158701857232,
+     "value_gap_bb": 3.944889142459829e-05,
+     "value_gap_pct_pot": 0.00019724445712299143,
+     "engine_value_gap_pct_pot": 0.00019496060922108427,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.46402406692504883,
+     "iterate_s": 0.4626617431640625,
+     "measure_s": 0.0025250911712646484,
+     "peak_rss_mb": 49.390625,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 18
+     },
+     "notes": [],
+     "engine_value": [
+      9.3429411894046,
+      -9.34294208976793
+     ],
+     "engine_expl_pct": 0.001106279284925904,
+     "engine_gain_held": [
+      0.0002551650600608468,
+      0.00018734665390951477
+     ],
+     "engine_lock_cost": [
+      0.041555243822411825,
+      0.0
+     ],
+     "value_by_ref": [
+      9.342941512116791,
+      -9.342941512116791
+     ],
+     "gains_by_ref": [
+      0.0002553085854000159,
+      0.00018699750804529458
+     ],
+     "expl_by_ref_pct": 0.0011057652336132762,
+     "value_gap_bb": 7.475278298585408e-07,
+     "value_gap_pct_pot": 3.7376391492927046e-06,
+     "engine_value_gap_pct_pot": 5.351200105252474e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.08894394283482931,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.017788788566985403,
+    "unlocked_gain_engine_bb": 0.01778953609481526,
+    "passed": true
+   }
+  },
+  "turn-merged-both-lines": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%",
+      "call",
+      "As"
+     ],
+     "player": 0,
+     "mix": {
+      "check": 0.5,
+      "all-in": 0.5
+     },
+     "hands": "all"
+    },
+    {
+     "line": [
+      "check",
+      "bet 75%",
+      "call",
+      "As"
+     ],
+     "player": 0,
+     "mix": {
+      "all-in": 1.0
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 13.597366094589233,
+    "method": "highs-ipm",
+    "value_each_side": [
+     9.341642930097027,
+     -9.341642930097018
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 43
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 40
+     }
+    ],
+    "rows": [
+     19828,
+     19048
+    ],
+    "cols": [
+     19048,
+     19828
+    ],
+    "held_infosets": 36,
+    "gains_held": [
+     3.552713678800501e-15,
+     8.881784197001252e-15
+    ],
+    "peak_rss_mb": 186.140625
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06328392028808594,
+     "iterate_s": 0.06188607215881348,
+     "measure_s": 0.0026960372924804688,
+     "peak_rss_mb": 49.25,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 36
+     },
+     "notes": [],
+     "engine_value": [
+      9.341559167234054,
+      -9.341559036918309
+     ],
+     "engine_expl_pct": 0.027848634911378237,
+     "engine_gain_held": [
+      0.006890781573973825,
+      0.004248672390577468
+     ],
+     "engine_lock_cost": [
+      0.04068513943136942,
+      0.0
+     ],
+     "value_by_ref": [
+      9.341558477854276,
+      -9.341558477854276
+     ],
+     "gains_by_ref": [
+      0.006891053865080821,
+      0.004248452308146966
+     ],
+     "expl_by_ref_pct": 0.027848765433069467,
+     "value_gap_bb": 8.445224275099861e-05,
+     "value_gap_pct_pot": 0.00042226121375499304,
+     "engine_value_gap_pct_pot": 0.0004188143148642353,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.46183109283447266,
+     "iterate_s": 0.4604320526123047,
+     "measure_s": 0.002563953399658203,
+     "peak_rss_mb": 49.453125,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 36
+     },
+     "notes": [],
+     "engine_value": [
+      9.341640531646538,
+      -9.341641657100702
+     ],
+     "engine_expl_pct": 0.0013015582750375287,
+     "engine_gain_held": [
+      0.0002821218027104777,
+      0.0002385015073045338
+     ],
+     "engine_lock_cost": [
+      0.04380659725132929,
+      0.0
+     ],
+     "value_by_ref": [
+      9.341640857557692,
+      -9.341640857557694
+     ],
+     "gains_by_ref": [
+      0.0002817682074471861,
+      0.00023856417542233999
+     ],
+     "expl_by_ref_pct": 0.0013008309571738152,
+     "value_gap_bb": 2.072539334818657e-06,
+     "value_gap_pct_pot": 1.0362696674093286e-05,
+     "engine_value_gap_pct_pot": 1.199225244441493e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.09544059057279952,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.019088118114588326,
+    "unlocked_gain_engine_bb": 0.019090190653912487,
+    "passed": true
+   }
+  },
+  "turn-merged-every-river": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%",
+      "call",
+      "*"
+     ],
+     "player": 0,
+     "mix": {
+      "check": 0.2,
+      "all-in": 0.8
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 11.369287014007568,
+    "method": "highs-ipm",
+    "value_each_side": [
+     8.220432282497377,
+     -8.220432282497372
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 40
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 48
+     }
+    ],
+    "rows": [
+     20620,
+     19048
+    ],
+    "cols": [
+     19048,
+     20620
+    ],
+    "held_infosets": 828,
+    "gains_held": [
+     5.329070518200751e-15,
+     0.0
+    ],
+    "peak_rss_mb": 187.90625
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.05980181694030762,
+     "iterate_s": 0.05843687057495117,
+     "measure_s": 0.002473115921020508,
+     "peak_rss_mb": 49.65625,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 864
+     },
+     "notes": [],
+     "engine_value": [
+      8.220380166302556,
+      -8.220380368440047
+     ],
+     "engine_expl_pct": 0.013004377521665944,
+     "engine_gain_held": [
+      0.0031675696152149158,
+      0.002034181393451462
+     ],
+     "engine_lock_cost": [
+      2.2966074421759917,
+      0.0
+     ],
+     "value_by_ref": [
+      8.220380644281496,
+      -8.220380644281498
+     ],
+     "gains_by_ref": [
+      0.003167459130514416,
+      0.0020342439273974833
+     ],
+     "expl_by_ref_pct": 0.013004257644779749,
+     "value_gap_bb": 5.163821588105577e-05,
+     "value_gap_pct_pot": 0.00025819107940527886,
+     "engine_value_gap_pct_pot": 0.00026058097410519565,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.43336987495422363,
+     "iterate_s": 0.4320497512817383,
+     "measure_s": 0.0023641586303710938,
+     "peak_rss_mb": 49.578125,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 864
+     },
+     "notes": [],
+     "engine_value": [
+      8.220431923125842,
+      -8.220431546987214
+     ],
+     "engine_expl_pct": 0.0006969175777005177,
+     "engine_gain_held": [
+      0.00015086805070829712,
+      0.00012789898037190994
+     ],
+     "engine_lock_cost": [
+      2.3007841101026862,
+      0.0
+     ],
+     "value_by_ref": [
+      8.220432315229363,
+      -8.220432315229363
+     ],
+     "gains_by_ref": [
+      0.0001505405426662776,
+      0.00012803650317039228
+     ],
+     "expl_by_ref_pct": 0.0006964426145916747,
+     "value_gap_bb": 3.273198601050353e-08,
+     "value_gap_pct_pot": 1.6365993005251767e-07,
+     "engine_value_gap_pct_pot": 1.7968576759841424e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 5.701493828571049,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 1.1402987657142347,
+    "unlocked_gain_engine_bb": 1.1402987329822434,
+    "passed": true
+   }
+  },
+  "turn-merged-ip-folds": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%",
+      "call",
+      "*",
+      "all-in"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 1.0
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 11.620224952697754,
+    "method": "highs-ipm",
+    "value_each_side": [
+     9.629406550841537,
+     -9.629406550841543
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 43
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 44
+     }
+    ],
+    "rows": [
+     19792,
+     19968
+    ],
+    "cols": [
+     19968,
+     19792
+    ],
+    "held_infosets": 920,
+    "gains_held": [
+     7.105427357601002e-15,
+     0.0
+    ],
+    "peak_rss_mb": 188.640625
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06597208976745605,
+     "iterate_s": 0.06435775756835938,
+     "measure_s": 0.0032188892364501953,
+     "peak_rss_mb": 49.3125,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 960
+     },
+     "notes": [],
+     "engine_value": [
+      9.629405927954252,
+      -9.629406093810656
+     ],
+     "engine_expl_pct": 0.03153142659274355,
+     "engine_gain_held": [
+      0.009288325813246345,
+      0.0033242448238510747
+     ],
+     "engine_lock_cost": [
+      0.0,
+      5.641182722021739
+     ],
+     "value_by_ref": [
+      9.62940534713456,
+      -9.629405347134563
+     ],
+     "gains_by_ref": [
+      0.009288297857663608,
+      0.003323173056758222
+     ],
+     "expl_by_ref_pct": 0.031528677286054574,
+     "value_gap_bb": 1.2037069776482667e-06,
+     "value_gap_pct_pot": 6.018534888241334e-06,
+     "engine_value_gap_pct_pot": 3.114436424311861e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.4881751537322998,
+     "iterate_s": 0.48662829399108887,
+     "measure_s": 0.002544879913330078,
+     "peak_rss_mb": 49.453125,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 960
+     },
+     "notes": [],
+     "engine_value": [
+      9.629406164891972,
+      -9.62940561993522
+     ],
+     "engine_expl_pct": 0.0017312270096070395,
+     "engine_gain_held": [
+      0.0005818598018674237,
+      0.000110631001975392
+     ],
+     "engine_lock_cost": [
+      0.0,
+      5.6626166301799685
+     ],
+     "value_by_ref": [
+      9.629405773737563,
+      -9.629405773737563
+     ],
+     "gains_by_ref": [
+      0.0005822781646411812,
+      0.00011066723155295222
+     ],
+     "expl_by_ref_pct": 0.0017323634904853336,
+     "value_gap_bb": 7.771039740589458e-07,
+     "value_gap_pct_pot": 3.885519870294729e-06,
+     "engine_value_gap_pct_pot": 1.9297478281998792e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 1.3433775131497505,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.2686755026299501,
+    "unlocked_gain_engine_bb": 0.26867472552597604,
+    "passed": true
+   }
+  },
+  "turn-river-all-runouts": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "bet 75%",
+      "call",
+      "*"
+     ],
+     "player": 0,
+     "mix": {
+      "check": 0.8,
+      "all-in": 0.2
+     },
+     "hands": {
+      "classes": [
+       "76s"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 15.675387144088745,
+    "method": "highs-ipm",
+    "value_each_side": [
+     9.297751448975275,
+     -9.297751448975301
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 44
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 43
+     }
+    ],
+    "rows": [
+     19930,
+     19048
+    ],
+    "cols": [
+     19048,
+     19930
+    ],
+    "held_infosets": 138,
+    "gains_held": [
+     5.329070518200751e-15,
+     1.7763568394002505e-15
+    ],
+    "peak_rss_mb": 174.109375
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06533622741699219,
+     "iterate_s": 0.06399679183959961,
+     "measure_s": 0.0024161338806152344,
+     "peak_rss_mb": 49.546875,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 144
+     },
+     "notes": [],
+     "engine_value": [
+      9.297781701413742,
+      -9.297781263078962
+     ],
+     "engine_expl_pct": 0.03412879292131521,
+     "engine_gain_held": [
+      0.007232684827929603,
+      0.006418832340596481
+     ],
+     "engine_lock_cost": [
+      0.2244649544952395,
+      0.0
+     ],
+     "value_by_ref": [
+      9.297781370074928,
+      -9.297781370074928
+     ],
+     "gains_by_ref": [
+      0.007232824318650799,
+      0.006418252197665453
+     ],
+     "expl_by_ref_pct": 0.03412769129079063,
+     "value_gap_bb": 2.9921099653051897e-05,
+     "value_gap_pct_pot": 0.00014960549826525948,
+     "engine_value_gap_pct_pot": 0.00015126219233607685,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.4760723114013672,
+     "iterate_s": 0.4748110771179199,
+     "measure_s": 0.0021848678588867188,
+     "peak_rss_mb": 49.390625,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 144
+     },
+     "notes": [],
+     "engine_value": [
+      9.297750846199367,
+      -9.297751361538905
+     ],
+     "engine_expl_pct": 0.0023226132565401514,
+     "engine_gain_held": [
+      0.0005091442781353095,
+      0.00041990102448075106
+     ],
+     "engine_lock_cost": [
+      0.22471576529695447,
+      0.0
+     ],
+     "value_by_ref": [
+      9.297751175438284,
+      -9.297751175438286
+     ],
+     "gains_by_ref": [
+      0.0005086779251008977,
+      0.0004195718235902035
+     ],
+     "expl_by_ref_pct": 0.002320624371727753,
+     "value_gap_bb": 2.7353699039167623e-07,
+     "value_gap_pct_pot": 1.3676849519583811e-06,
+     "engine_value_gap_pct_pot": 3.0138795370504567e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.31489799618156233,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.06297959923630536,
+    "unlocked_gain_engine_bb": 0.06297987277332062,
+    "passed": true
+   }
+  },
+  "turn-river-combo-runout": {
+   "spot": "turn-one-size",
+   "locks": [
+    {
+     "line": [
+      "check",
+      "check",
+      "9h",
+      "check"
+     ],
+     "player": 1,
+     "mix": {
+      "bet 75%": 1.0
+     },
+     "hands": {
+      "combos": [
+       "JcTc"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 13.028910160064697,
+    "method": "highs-ipm",
+    "value_each_side": [
+     9.362285984047688,
+     -9.362285984047707
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 36
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 35
+     }
+    ],
+    "rows": [
+     19792,
+     19049
+    ],
+    "cols": [
+     19049,
+     19792
+    ],
+    "held_infosets": 1,
+    "gains_held": [
+     8.881784197001252e-15,
+     1.7763568394002505e-15
+    ],
+    "peak_rss_mb": 182.234375
+   },
+   "unlocked_value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.06064486503601074,
+     "iterate_s": 0.059359073638916016,
+     "measure_s": 0.0021820068359375,
+     "peak_rss_mb": 49.375,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      9.362328458276595,
+      -9.362328215415433
+     ],
+     "engine_expl_pct": 0.021814564607103293,
+     "engine_gain_held": [
+      0.00554002441974788,
+      0.0031858014230934373
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.002330843167294816
+     ],
+     "value_by_ref": [
+      9.362328049914433,
+      -9.362328049914433
+     ],
+     "gains_by_ref": [
+      0.0055407003769385454,
+      0.003185264211289507
+     ],
+     "expl_by_ref_pct": 0.02181491147057013,
+     "value_gap_bb": 4.2065866745488734e-05,
+     "value_gap_pct_pot": 0.00021032933372744367,
+     "engine_value_gap_pct_pot": 0.00021237114453676043,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.46271395683288574,
+     "iterate_s": 0.4614448547363281,
+     "measure_s": 0.0022640228271484375,
+     "peak_rss_mb": 49.34375,
+     "tree_identical": true,
+     "tree_cells": 55252,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 1
+     },
+     "notes": [],
+     "engine_value": [
+      9.362286342597155,
+      -9.362285614013672
+     ],
+     "engine_expl_pct": 0.0009160166894917054,
+     "engine_gain_held": [
+      0.00024709049959348306,
+      0.00011931617620319912
+     ],
+     "engine_lock_cost": [
+      0.0,
+      0.0023324442520884503
+     ],
+     "value_by_ref": [
+      9.362286002521648,
+      -9.362286002521644
+     ],
+     "gains_by_ref": [
+      0.00024755310089119575,
+      0.00011960158874302351
+     ],
+     "expl_by_ref_pct": 0.0009178867240855482,
+     "value_gap_bb": 1.8473960139431256e-08,
+     "value_gap_pct_pot": 9.236980069715628e-08,
+     "engine_value_gap_pct_pot": 1.792747337248102e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.007774679180503342,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 0.0015549358361006682,
+    "unlocked_gain_engine_bb": 0.0015549543100608076,
+    "passed": true
+   }
+  },
+  "low-turn-whole": {
+   "spot": "turn-low-spr",
+   "locks": [
+    {
+     "line": [],
+     "player": 0,
+     "mix": {
+      "check": 0.7,
+      "all-in": 0.3
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 0.6672132015228271,
+    "method": "highs-ipm",
+    "value_each_side": [
+     1.171624477862173,
+     -1.1716244778621712
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 26
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 26
+     }
+    ],
+    "rows": [
+     5098,
+     5360
+    ],
+    "cols": [
+     5360,
+     5098
+    ],
+    "held_infosets": 20,
+    "gains_held": [
+     2.220446049250313e-16,
+     4.440892098500626e-16
+    ],
+    "peak_rss_mb": 98.65625
+   },
+   "unlocked_value": [
+    1.5343919355243407,
+    -1.5343919355243432
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.02840280532836914,
+     "iterate_s": 0.027513742446899414,
+     "measure_s": 0.0008141994476318359,
+     "peak_rss_mb": 47.734375,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 20
+     },
+     "notes": [],
+     "engine_value": [
+      1.1716021583193825,
+      -1.1716024731832837
+     ],
+     "engine_expl_pct": 0.008252120218293912,
+     "engine_gain_held": [
+      0.001976353220541016,
+      0.0029749189104353313
+     ],
+     "engine_lock_cost": [
+      1.0228351401837867,
+      0.0
+     ],
+     "value_by_ref": [
+      1.1716022996755704,
+      -1.17160229967557
+     ],
+     "gains_by_ref": [
+      0.0019761416263535114,
+      0.0029751845910970243
+     ],
+     "expl_by_ref_pct": 0.00825221036241756,
+     "value_gap_bb": 2.2178186602550554e-05,
+     "value_gap_pct_pot": 7.392728867516851e-05,
+     "engine_value_gap_pct_pot": 7.439847596805531e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.1377089023590088,
+     "iterate_s": 0.1368098258972168,
+     "measure_s": 0.0009191036224365234,
+     "peak_rss_mb": 47.984375,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928966180355e-08,
+      "cells": 20
+     },
+     "notes": [],
+     "engine_value": [
+      1.1716238657633464,
+      -1.1716250707232763
+     ],
+     "engine_expl_pct": 0.00040994381485970344,
+     "engine_gain_held": [
+      0.00010420487243512078,
+      0.00014176141648070129
+     ],
+     "engine_lock_cost": [
+      1.022427110764578,
+      0.0
+     ],
+     "value_by_ref": [
+      1.1716244145014245,
+      -1.1716244145014234
+     ],
+     "gains_by_ref": [
+      0.00010378867224036803,
+      0.00014211385342521865
+     ],
+     "expl_by_ref_pct": 0.0004098375427759778,
+     "value_gap_bb": 6.336074842572259e-08,
+     "value_gap_pct_pot": 2.1120249475240865e-07,
+     "engine_value_gap_pct_pot": 2.0403294217115806e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 1.2092248588738925,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.362767457662172,
+    "unlocked_gain_engine_bb": 0.36276752102291976,
+    "passed": true
+   }
+  },
+  "low-turn-class": {
+   "spot": "turn-low-spr",
+   "locks": [
+    {
+     "line": [
+      "all-in"
+     ],
+     "player": 1,
+     "mix": {
+      "fold": 0.5,
+      "call": 0.5
+     },
+     "hands": {
+      "classes": [
+       "KQs"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 1.2115399837493896,
+    "method": "highs-ipm",
+    "value_each_side": [
+     2.9490282947140667,
+     -2.949028294714065
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 32
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 32
+     }
+    ],
+    "rows": [
+     5078,
+     5363
+    ],
+    "cols": [
+     5363,
+     5078
+    ],
+    "held_infosets": 3,
+    "gains_held": [
+     1.7763568394002505e-15,
+     1.7763568394002505e-15
+    ],
+    "peak_rss_mb": 96.28125
+   },
+   "unlocked_value": [
+    1.5343919355243407,
+    -1.5343919355243432
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.027441024780273438,
+     "iterate_s": 0.02663397789001465,
+     "measure_s": 0.0007767677307128906,
+     "peak_rss_mb": 48.171875,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.9490418570382255,
+      -2.9490416874961247
+     ],
+     "engine_expl_pct": 0.004862225992245209,
+     "engine_gain_held": [
+      0.0016505650111606762,
+      0.0012667705841864496
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.5273824172607107
+     ],
+     "value_by_ref": [
+      2.949041845099644,
+      -2.949041845099644
+     ],
+     "gains_by_ref": [
+      0.0016507402391887638,
+      0.0012672178695503078
+     ],
+     "expl_by_ref_pct": 0.004863263514565119,
+     "value_gap_bb": 1.35503855771546e-05,
+     "value_gap_pct_pot": 4.516795192384867e-05,
+     "engine_value_gap_pct_pot": 4.520774719611135e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.1454153060913086,
+     "iterate_s": 0.14455604553222656,
+     "measure_s": 0.0008108615875244141,
+     "peak_rss_mb": 48.0,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 0.0,
+      "cells": 3
+     },
+     "notes": [],
+     "engine_value": [
+      2.949041069878472,
+      -2.9490410577683224
+     ],
+     "engine_expl_pct": 0.0003544697542490205,
+     "engine_gain_held": [
+      0.00013093494233640257,
+      8.174691021300973e-05
+     ],
+     "engine_lock_cost": [
+      0.0,
+      1.5265277283618297
+     ],
+     "value_by_ref": [
+      2.949041421571398,
+      -2.949041421571397
+     ],
+     "gains_by_ref": [
+      0.00013033713486265697,
+      8.09638176777483e-05
+     ],
+     "expl_by_ref_pct": 0.00035216825423400877,
+     "value_gap_bb": 1.3126857331346997e-05,
+     "value_gap_pct_pot": 4.375619110448999e-05,
+     "engine_value_gap_pct_pot": 4.258388135151373e-05,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 4.71545453063242,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 1.414636359189726,
+    "unlocked_gain_engine_bb": 1.4146494860470573,
+    "passed": true
+   }
+  },
+  "low-turn-river-runout": {
+   "spot": "turn-low-spr",
+   "locks": [
+    {
+     "line": [
+      "check",
+      "check",
+      "2d"
+     ],
+     "player": 0,
+     "mix": {
+      "check": 0.2,
+      "all-in": 0.8
+     },
+     "hands": "all"
+    }
+   ],
+   "reference": {
+    "lp_seconds": 1.255141019821167,
+    "method": "highs-ipm",
+    "value_each_side": [
+     1.5255009506011454,
+     -1.525500950601144
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 34
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 34
+     }
+    ],
+    "rows": [
+     5098,
+     5360
+    ],
+    "cols": [
+     5360,
+     5098
+    ],
+    "held_infosets": 20,
+    "gains_held": [
+     1.3100631690576847e-14,
+     1.5543122344752192e-15
+    ],
+    "peak_rss_mb": 96.640625
+   },
+   "unlocked_value": [
+    1.5343919355243407,
+    -1.5343919355243432
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.027321815490722656,
+     "iterate_s": 0.026461362838745117,
+     "measure_s": 0.0007770061492919922,
+     "peak_rss_mb": 48.1875,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 20
+     },
+     "notes": [],
+     "engine_value": [
+      1.5255028982011098,
+      -1.5255031525142608
+     ],
+     "engine_expl_pct": 0.006946656724592752,
+     "engine_gain_held": [
+      0.002199973550194745,
+      0.001968020484560906
+     ],
+     "engine_lock_cost": [
+      0.038461635433405306,
+      0.0
+     ],
+     "value_by_ref": [
+      1.5255030529920417,
+      -1.525503052992042
+     ],
+     "gains_by_ref": [
+      0.0021998787087826877,
+      0.0019678126200424195
+     ],
+     "expl_by_ref_pct": 0.006946152214708512,
+     "value_gap_bb": 2.1023908962636284e-06,
+     "value_gap_pct_pot": 7.007969654212095e-06,
+     "engine_value_gap_pct_pot": 6.491999881378755e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.13475489616394043,
+     "iterate_s": 0.1338510513305664,
+     "measure_s": 0.0008230209350585938,
+     "peak_rss_mb": 48.234375,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 1.1920928910669204e-08,
+      "cells": 20
+     },
+     "notes": [],
+     "engine_value": [
+      1.5255005609421504,
+      -1.5255012633308531
+     ],
+     "engine_expl_pct": 0.000419682203069982,
+     "engine_gain_held": [
+      0.0001759513419312686,
+      7.585797991072063e-05
+     ],
+     "engine_lock_cost": [
+      0.03849279923935578,
+      0.0
+     ],
+     "value_by_ref": [
+      1.5255009403045643,
+      -1.5255009403045632
+     ],
+     "gains_by_ref": [
+      0.00017526311437743303,
+      7.594257825416229e-05
+     ],
+     "expl_by_ref_pct": 0.00041867615438599215,
+     "value_gap_bb": 1.0296581143265371e-08,
+     "value_gap_pct_pot": 3.4321937144217905e-08,
+     "engine_value_gap_pct_pot": 1.2988633169008779e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 0.029636616410650962,
+   "passed": true,
+   "sign": {
+    "locked_player": 0,
+    "unlocked_gain_lp_bb": 0.008890984923199063,
+    "unlocked_gain_engine_bb": 0.008890995219779985,
+    "passed": true
+   }
+  },
+  "low-turn-river-all": {
+   "spot": "turn-low-spr",
+   "locks": [
+    {
+     "line": [
+      "check",
+      "check",
+      "*",
+      "check"
+     ],
+     "player": 1,
+     "mix": {
+      "check": 0.9,
+      "all-in": 0.1
+     },
+     "hands": {
+      "combos": [
+       "AsQs"
+      ]
+     }
+    }
+   ],
+   "reference": {
+    "lp_seconds": 1.3246848583221436,
+    "method": "highs-ipm",
+    "value_each_side": [
+     1.534391935524343,
+     -1.5343919355243405
+    ],
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 35
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 33
+     }
+    ],
+    "rows": [
+     5078,
+     5406
+    ],
+    "cols": [
+     5406,
+     5078
+    ],
+    "held_infosets": 46,
+    "gains_held": [
+     2.2581936320875684e-13,
+     1.7763568394002505e-15
+    ],
+    "peak_rss_mb": 98.265625
+   },
+   "unlocked_value": [
+    1.5343919355243407,
+    -1.5343919355243432
+   ],
+   "runs": [
+    {
+     "iterations": 300,
+     "wall_s": 0.027397871017456055,
+     "iterate_s": 0.02657485008239746,
+     "measure_s": 0.0007548332214355469,
+     "peak_rss_mb": 47.96875,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 48
+     },
+     "notes": [],
+     "engine_value": [
+      1.534392335679796,
+      -1.5343916635664683
+     ],
+     "engine_expl_pct": 0.007502660637609774,
+     "engine_gain_held": [
+      0.0025684962196956818,
+      0.0019331001628701827
+     ],
+     "engine_lock_cost": [
+      0.0,
+      6.730984813962948e-08
+     ],
+     "value_by_ref": [
+      1.5343915049302543,
+      -1.5343915049302523
+     ],
+     "gains_by_ref": [
+      0.002568815435515459,
+      0.0019331295857081265
+     ],
+     "expl_by_ref_pct": 0.007503241702039309,
+     "value_gap_bb": 4.3059408860735005e-07,
+     "value_gap_pct_pot": 1.4353136286911667e-06,
+     "engine_value_gap_pct_pot": 1.3338515099844035e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    },
+    {
+     "iterations": 3000,
+     "wall_s": 0.1285400390625,
+     "iterate_s": 0.12768793106079102,
+     "measure_s": 0.0007927417755126953,
+     "peak_rss_mb": 48.09375,
+     "tree_identical": true,
+     "tree_cells": 14504,
+     "mix_check": {
+      "max_error_float32": 0.0,
+      "max_error_vs_asked": 2.384185793236071e-08,
+      "cells": 48
+     },
+     "notes": [],
+     "engine_value": [
+      1.534391584850493,
+      -1.5343920753115698
+     ],
+     "engine_expl_pct": 0.0005207332411079809,
+     "engine_gain_held": [
+      0.00018387446327805534,
+      0.00012856548138673318
+     ],
+     "engine_lock_cost": [
+      0.0,
+      2.865151409459088e-07
+     ],
+     "value_by_ref": [
+      1.534391935123513,
+      -1.5343919351235118
+     ],
+     "gains_by_ref": [
+      0.00018405044869984621,
+      0.00012879487112038568
+     ],
+     "expl_by_ref_pct": 0.0005214088663670532,
+     "value_gap_bb": 4.0083003582935817e-10,
+     "value_gap_pct_pot": 1.3361001194311939e-09,
+     "engine_value_gap_pct_pot": 1.1689128331937582e-06,
+     "cells_agree": true,
+     "ignored_agree": true,
+     "passed": true
+    }
+   ],
+   "lock_moved_value_pct_pot": 7.401486830834376e-15,
+   "passed": true,
+   "sign": {
+    "locked_player": 1,
+    "unlocked_gain_lp_bb": 2.220446049250313e-15,
+    "unlocked_gain_engine_bb": -4.008278153833089e-10,
+    "passed": true
+   }
+  }
+ },
+ "unlocked": {
+  "river-one-size": {
+   "value": [
+    2.655724521128828,
+    -2.6557245211288136
+   ],
+   "lp_seconds": 0.1679239273071289,
+   "rows": [
+    712,
+    622
+   ],
+   "peak_rss_mb": 71.921875
+  },
+  "river-two-sizes": {
+   "value": [
+    3.127827298634501,
+    -3.127827298634503
+   ],
+   "lp_seconds": 0.3461308479309082,
+   "rows": [
+    2147,
+    1847
+   ],
+   "peak_rss_mb": 97.3125
+  },
+  "river-low-spr": {
+   "value": [
+    3.287030267582976,
+    -3.28703026758297
+   ],
+   "lp_seconds": 0.14569401741027832,
+   "rows": [
+    302,
+    272
+   ],
+   "peak_rss_mb": 64.5625
+  },
+  "river-flush": {
+   "value": [
+    -0.731707317073171,
+    0.73170731707317
+   ],
+   "lp_seconds": 0.15198612213134766,
+   "rows": [
+    366,
+    478
+   ],
+   "peak_rss_mb": 63.734375
+  },
+  "river-weighted": {
+   "value": [
+    5.740324358627496,
+    -5.7403243586274995
+   ],
+   "lp_seconds": 0.17934703826904297,
+   "rows": [
+    586,
+    538
+   ],
+   "peak_rss_mb": 68.765625
+  },
+  "river-board-plays": {
+   "value": [
+    -1.1772246381514881,
+    1.1772246381514906
+   ],
+   "lp_seconds": 0.14104795455932617,
+   "rows": [
+    264,
+    360
+   ],
+   "peak_rss_mb": 63.171875
+  },
+  "turn-one-size": {
+   "value": [
+    9.360731048211587,
+    -9.360731048211607
+   ],
+   "lp_seconds": 12.757718801498413,
+   "rows": [
+    19792,
+    19048
+   ],
+   "peak_rss_mb": 184.265625
+  },
+  "turn-low-spr": {
+   "value": [
+    1.5343919355243407,
+    -1.5343919355243432
+   ],
+   "lp_seconds": 1.205272912979126,
+   "rows": [
+    5078,
+    5360
+   ],
+   "peak_rss_mb": 96.25
+  }
+ },
+ "machine": {
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "cpu": "Apple M4",
+  "python": "3.9.6",
+  "numpy": "2.0.2",
+  "scipy": "1.13.1",
+  "git_commit": "4e095873e43ebb227ca3aa88280662a794937572",
+  "threads": 1,
+  "load_note": "run niced through slot.sh beside other builds: times are a loaded machine's"
+ },
+ "tolerances": {
+  "value_pct_pot": 0.05,
+  "exploitability_pct_pot": 0.05,
+  "mix_vs_asked": 2e-07,
+  "reference": "HiGHS feasibility 1e-9"
+ },
+ "equilibrium": {
+  "river-one-size (root)": {
+   "locks": 40,
+   "lp_value": 2.655724521128828,
+   "lp_shift_bb": 8.881784197001252e-16,
+   "lp_shift_pct_pot": 4.440892098500626e-15,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.018867969512939453,
+    "iterate_s": 0.016496896743774414,
+    "measure_s": 0.0005941390991210938,
+    "peak_rss_mb": 43.671875,
+    "tree_identical": true,
+    "tree_cells": 1900,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 1.7029898047304926e-08,
+     "cells": 40
+    },
+    "notes": [],
+    "engine_value": [
+     2.6557262658828846,
+     -2.655724055935441
+    ],
+    "engine_expl_pct": 1.179855927402329e-06,
+    "engine_gain_held": [
+     1.9020280017656432e-08,
+     4.529220909432752e-07
+    ],
+    "engine_lock_cost": [
+     14.309508102591238,
+     0.0
+    ],
+    "value_by_ref": [
+     2.655724520968675,
+     -2.655724520968674
+    ],
+    "gains_by_ref": [
+     1.6014567449929018e-10,
+     3.4099079115890163e-10
+    ],
+    "expl_by_ref_pct": 1.2528411641454795e-09,
+    "value_gap_bb": 1.6015277992664778e-10,
+    "value_gap_pct_pot": 8.007638996332388e-10,
+    "engine_value_gap_pct_pot": 8.723770283936005e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "river-one-size /bet 75%": {
+   "locks": 55,
+   "lp_value": 2.655724521128828,
+   "lp_shift_bb": 1.9095836023552692e-14,
+   "lp_shift_pct_pot": 9.547918011776346e-14,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.01913595199584961,
+    "iterate_s": 0.01605510711669922,
+    "measure_s": 0.0006241798400878906,
+    "peak_rss_mb": 43.484375,
+    "tree_identical": true,
+    "tree_cells": 1900,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 1.702990282126393e-08,
+     "cells": 55
+    },
+    "notes": [],
+    "engine_value": [
+     2.6557226581241604,
+     -2.6557270233560364
+    ],
+    "engine_expl_pct": 2.252621975618041e-06,
+    "engine_gain_held": [
+     3.4359606893019645e-07,
+     5.5745272131702e-07
+    ],
+    "engine_lock_cost": [
+     0.0,
+     3.8513938303615376
+    ],
+    "value_by_ref": [
+     2.655724521389321,
+     -2.655724521389322
+    ],
+    "gains_by_ref": [
+     9.610090501155355e-13,
+     2.605013982304172e-10
+    ],
+    "expl_by_ref_pct": 6.536560182013318e-10,
+    "value_gap_bb": 2.6049296053543003e-10,
+    "value_gap_pct_pot": 1.3024648026771501e-09,
+    "engine_value_gap_pct_pot": 9.315023337119754e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "river-one-size /check": {
+   "locks": 55,
+   "lp_value": 2.655724521128828,
+   "lp_shift_bb": 1.1102230246251565e-14,
+   "lp_shift_pct_pot": 5.551115123125783e-14,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.02132391929626465,
+    "iterate_s": 0.01814579963684082,
+    "measure_s": 0.000659942626953125,
+    "peak_rss_mb": 43.65625,
+    "tree_identical": true,
+    "tree_cells": 1900,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 1.7029910259758196e-08,
+     "cells": 55
+    },
+    "notes": [],
+    "engine_value": [
+     2.6557255943087497,
+     -2.6557237709068837
+    ],
+    "engine_expl_pct": 0.00014204241103876747,
+    "engine_gain_held": [
+     3.1142298250408373e-05,
+     2.5674666165098614e-05
+    ],
+    "engine_lock_cost": [
+     0.0,
+     0.9875341563420432
+    ],
+    "value_by_ref": [
+     2.6557245125140394,
+     -2.655724512514039
+    ],
+    "gains_by_ref": [
+     3.127218264209475e-05,
+     2.5660312733322144e-05
+    ],
+    "expl_by_ref_pct": 0.00014233123843854223,
+    "value_gap_bb": 8.614788438165988e-09,
+    "value_gap_pct_pot": 4.307394219082994e-08,
+    "engine_value_gap_pct_pot": 5.365899609088842e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "river-two-sizes (root)": {
+   "locks": 40,
+   "lp_value": 3.127827298634501,
+   "lp_shift_bb": 8.881784197001252e-15,
+   "lp_shift_pct_pot": 4.440892098500626e-14,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.03866004943847656,
+    "iterate_s": 0.036010026931762695,
+    "measure_s": 0.001367807388305664,
+    "peak_rss_mb": 43.78125,
+    "tree_identical": true,
+    "tree_cells": 5890,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 1.793926496240772e-08,
+     "cells": 40
+    },
+    "notes": [],
+    "engine_value": [
+     3.127826678960326,
+     -3.127825929296175
+    ],
+    "engine_expl_pct": 4.7437441347275566e-05,
+    "engine_gain_held": [
+     1.4156822571997907e-05,
+     4.81815396691232e-06
+    ],
+    "engine_lock_cost": [
+     18.50035320203816,
+     0.0
+    ],
+    "value_by_ref": [
+     3.127827302978575,
+     -3.1278273029785746
+    ],
+    "gains_by_ref": [
+     1.4344404601907002e-05,
+     3.735062573451131e-06
+    ],
+    "expl_by_ref_pct": 4.519866793839533e-05,
+    "value_gap_bb": 4.344073989415165e-09,
+    "value_gap_pct_pot": 2.1720369947075824e-08,
+    "engine_value_gap_pct_pot": 3.0983708754206414e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "river-two-sizes /bet 100%": {
+   "locks": 55,
+   "lp_value": 3.127827298634501,
+   "lp_shift_bb": 2.3092638912203256e-14,
+   "lp_shift_pct_pot": 1.1546319456101628e-13,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.039044857025146484,
+    "iterate_s": 0.035695791244506836,
+    "measure_s": 0.001402139663696289,
+    "peak_rss_mb": 43.65625,
+    "tree_identical": true,
+    "tree_cells": 5890,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 2.6619539572614315e-08,
+     "cells": 55
+    },
+    "notes": [],
+    "engine_value": [
+     3.127827881546567,
+     -3.1278299860724896
+    ],
+    "engine_expl_pct": 0.0006135723326206044,
+    "engine_gain_held": [
+     0.00016195088350423603,
+     8.347804954400573e-05
+    ],
+    "engine_lock_cost": [
+     0.0,
+     12.193907625654745
+    ],
+    "value_by_ref": [
+     3.127827281730568,
+     -3.1278272817305695
+    ],
+    "gains_by_ref": [
+     0.00016288600804026387,
+     8.353431622110108e-05
+    ],
+    "expl_by_ref_pct": 0.0006160508106534124,
+    "value_gap_bb": 1.6903932920087072e-08,
+    "value_gap_pct_pot": 8.451966460043536e-08,
+    "engine_value_gap_pct_pot": 2.914560330857796e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "river-flush (root)": {
+   "locks": 18,
+   "lp_value": -0.731707317073171,
+   "lp_shift_bb": 3.3306690738754696e-16,
+   "lp_shift_pct_pot": 1.6653345369377348e-15,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.02052617073059082,
+    "iterate_s": 0.019158124923706055,
+    "measure_s": 0.0009517669677734375,
+    "peak_rss_mb": 43.65625,
+    "tree_identical": true,
+    "tree_cells": 1232,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 0.0,
+     "cells": 18
+    },
+    "notes": [],
+    "engine_value": [
+     -0.7317081777060904,
+     0.7317089918183117
+    ],
+    "engine_expl_pct": 0.003253374157882183,
+    "engine_gain_held": [
+     0.0005204532204604595,
+     0.0007808964426924137
+    ],
+    "engine_lock_cost": [
+     12.072651139119777,
+     0.0
+    ],
+    "value_by_ref": [
+     -0.7317068790214069,
+     0.7317068790214075
+    ],
+    "gains_by_ref": [
+     0.000520657490363341,
+     0.0007806710804540984
+    ],
+    "expl_by_ref_pct": 0.0032533214270435984,
+    "value_gap_bb": 4.3805176419553504e-07,
+    "value_gap_pct_pot": 2.1902588209776752e-06,
+    "engine_value_gap_pct_pot": 4.303164596874964e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "turn-one-size (root)": {
+   "locks": 18,
+   "lp_value": 9.360731048211587,
+   "lp_shift_bb": 1.7763568394002505e-15,
+   "lp_shift_pct_pot": 8.881784197001252e-15,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.4395279884338379,
+    "iterate_s": 0.43771791458129883,
+    "measure_s": 0.002212047576904297,
+    "peak_rss_mb": 49.484375,
+    "tree_identical": true,
+    "tree_cells": 55252,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 2.3248391434194104e-08,
+     "cells": 18
+    },
+    "notes": [],
+    "engine_value": [
+     9.360731166342031,
+     -9.360730876093326
+    ],
+    "engine_expl_pct": 0.0005834167103646593,
+    "engine_gain_held": [
+     0.00014060556740602692,
+     9.276111673983678e-05
+    ],
+    "engine_lock_cost": [
+     0.08497668120949697,
+     0.0
+    ],
+    "value_by_ref": [
+     9.360731048352305,
+     -9.360731048352305
+    ],
+    "gains_by_ref": [
+     0.00014070872400040457,
+     9.232911287604395e-05
+    ],
+    "expl_by_ref_pct": 0.0005825945921911213,
+    "value_gap_bb": 1.4071765974676964e-10,
+    "value_gap_pct_pot": 7.035882987338482e-10,
+    "engine_value_gap_pct_pot": 5.906522204668363e-07,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "turn-one-size /bet 75%": {
+   "locks": 20,
+   "lp_value": 9.360731048211587,
+   "lp_shift_bb": 1.7763568394002505e-15,
+   "lp_shift_pct_pot": 8.881784197001252e-15,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.4600100517272949,
+    "iterate_s": 0.4579629898071289,
+    "measure_s": 0.0021970272064208984,
+    "peak_rss_mb": 49.21875,
+    "tree_identical": true,
+    "tree_cells": 55252,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 2.419615774407191e-08,
+     "cells": 20
+    },
+    "notes": [],
+    "engine_value": [
+     9.360731462514178,
+     -9.360731041949728
+    ],
+    "engine_expl_pct": 0.0017837225431227564,
+    "engine_gain_held": [
+     0.0004720806335072325,
+     0.00024140838374187013
+    ],
+    "engine_lock_cost": [
+     0.0,
+     9.113722127470053
+    ],
+    "value_by_ref": [
+     9.360731080839306,
+     -9.360731080839306
+    ],
+    "gains_by_ref": [
+     0.0004728376812206392,
+     0.00024140383369619656
+    ],
+    "expl_by_ref_pct": 0.0017856037872920894,
+    "value_gap_bb": 3.2627719193101257e-08,
+    "value_gap_pct_pot": 1.6313859596550628e-07,
+    "engine_value_gap_pct_pot": 2.071512952284138e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "turn-low-spr (root)": {
+   "locks": 20,
+   "lp_value": 1.5343919355243407,
+   "lp_shift_bb": 2.220446049250313e-15,
+   "lp_shift_pct_pot": 7.401486830834376e-15,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.12818408012390137,
+    "iterate_s": 0.12680602073669434,
+    "measure_s": 0.000762939453125,
+    "peak_rss_mb": 48.046875,
+    "tree_identical": true,
+    "tree_cells": 14504,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 2.947978661183015e-08,
+     "cells": 20
+    },
+    "notes": [],
+    "engine_value": [
+     1.5343920389811199,
+     -1.5343910580589657
+    ],
+    "engine_expl_pct": 0.00020887839402535432,
+    "engine_gain_held": [
+     6.262067945850269e-05,
+     6.27063569567099e-05
+    ],
+    "engine_lock_cost": [
+     0.6010773682954609,
+     0.0
+    ],
+    "value_by_ref": [
+     1.5343919048568935,
+     -1.5343919048568924
+    ],
+    "gains_by_ref": [
+     6.267358330558359e-05,
+     6.252113005822402e-05
+    ],
+    "expl_by_ref_pct": 0.00020865785560634603,
+    "value_gap_bb": 3.06674472483337e-08,
+    "value_gap_pct_pot": 1.0222482416111234e-07,
+    "engine_value_gap_pct_pot": 3.4485593047861585e-07,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  },
+  "turn-low-spr /all-in": {
+   "locks": 17,
+   "lp_value": 1.5343919355243407,
+   "lp_shift_bb": 8.881784197001252e-16,
+   "lp_shift_pct_pot": 2.960594732333751e-15,
+   "engine": {
+    "iterations": 3000,
+    "wall_s": 0.12945270538330078,
+    "iterate_s": 0.1280839443206787,
+    "measure_s": 0.0007960796356201172,
+    "peak_rss_mb": 47.921875,
+    "tree_identical": true,
+    "tree_cells": 14504,
+    "mix_check": {
+     "max_error_float32": 0.0,
+     "max_error_vs_asked": 2.9521416866629124e-08,
+     "cells": 17
+    },
+    "notes": [],
+    "engine_value": [
+     1.5343912215459914,
+     -1.5343918088882689
+    ],
+    "engine_expl_pct": 0.0008864439390032787,
+    "engine_gain_held": [
+     0.0005061618865482842,
+     2.5704476853682934e-05
+    ],
+    "engine_lock_cost": [
+     0.0,
+     0.586040865502375
+    ],
+    "value_by_ref": [
+     1.5343919460311388,
+     -1.5343919460311377
+    ],
+    "gains_by_ref": [
+     0.0005049421091303241,
+     2.6245317657380696e-05
+    ],
+    "expl_by_ref_pct": 0.000885312377979508,
+    "value_gap_bb": 1.050679809821986e-08,
+    "value_gap_pct_pot": 3.5022660327399535e-08,
+    "engine_value_gap_pct_pot": 2.3799278311050407e-06,
+    "cells_agree": true,
+    "ignored_agree": true,
+    "passed": true
+   },
+   "passed": true
+  }
+ },
+ "everywhere": {
+  "river-one-size player 0 per combo": {
+   "locks": 160,
+   "free_player_best_response": 15.045167602821893,
+   "engine_value": 15.04516696832319,
+   "value_gap_bb": 6.344987024675675e-07,
+   "value_gap_pct_pot": 3.1724935123378373e-06,
+   "lp_gap_bb": 1.0658141036401503e-14,
+   "engine_expl_pct": 1.1605737348929779e-06,
+   "expl_by_ref_pct": 1.672388716400519e-07,
+   "wall_s": 0.02409195899963379,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 4.432563432965608e-08,
+    "cells": 160
+   },
+   "passed": true
+  },
+  "river-two-sizes player 1 per combo": {
+   "locks": 605,
+   "free_player_best_response": 15.049225148400811,
+   "engine_value": 15.04922347913135,
+   "value_gap_bb": 1.6692694622122417e-06,
+   "value_gap_pct_pot": 8.346347311061209e-06,
+   "lp_gap_bb": 3.730349362740526e-14,
+   "engine_expl_pct": 3.097219369863069e-08,
+   "expl_by_ref_pct": -6.328888968454294e-08,
+   "wall_s": 0.06839990615844727,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 4.955222626668032e-08,
+    "cells": 605
+   },
+   "passed": true
+  },
+  "river-flush player 0 whole range": {
+   "locks": 8,
+   "free_player_best_response": 12.064501032826753,
+   "engine_value": 12.064502076404851,
+   "value_gap_bb": 1.043578098602893e-06,
+   "value_gap_pct_pot": 5.217890493014465e-06,
+   "lp_gap_bb": 1.7763568394002505e-15,
+   "engine_expl_pct": 2.3703035090250069e-07,
+   "expl_by_ref_pct": -9.214065066487365e-09,
+   "wall_s": 0.02057170867919922,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 2.722679115496618e-08,
+    "cells": 144
+   },
+   "passed": true
+  },
+  "turn-low-spr player 1 whole range": {
+   "locks": 4,
+   "free_player_best_response": 14.38608330092655,
+   "engine_value": 14.386083693731399,
+   "value_gap_bb": 3.9280484820380934e-07,
+   "value_gap_pct_pot": 1.3093494940126977e-06,
+   "lp_gap_bb": 1.2434497875801753e-14,
+   "engine_expl_pct": 5.167556634451861e-07,
+   "expl_by_ref_pct": 9.707749567174535e-08,
+   "wall_s": 0.130615234375,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 2.372021612462305e-08,
+    "cells": 1666
+   },
+   "passed": true
+  },
+  "turn-one-size player 0 whole range": {
+   "locks": 10,
+   "free_player_best_response": -4.25092971844223,
+   "engine_value": -4.2509258815220425,
+   "value_gap_bb": 3.836920187794135e-06,
+   "value_gap_pct_pot": 1.9184600938970675e-05,
+   "lp_gap_bb": null,
+   "engine_expl_pct": 2.433533039525315e-06,
+   "expl_by_ref_pct": 8.888506819459963e-08,
+   "wall_s": 0.39296412467956543,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 2.7750323261521714e-08,
+    "cells": 6102
+   },
+   "passed": true
+  }
+ },
+ "spoiled": {
+  "mix off by 0.05": {
+   "case": "river-whole-root",
+   "value_gap_pct_pot": 0.2686796555469084,
+   "expl_by_ref_pct": 0.1343398277734542,
+   "caught": true
+  },
+  "mix off by 0.05 on a turn": {
+   "case": "turn-whole-root",
+   "value_gap_pct_pot": 0.5651611893834296,
+   "expl_by_ref_pct": -0.2813201029972334,
+   "caught": true
+  },
+  "the pin leaks to the merged sibling line": {
+   "case": "turn-merged",
+   "value_gap_pct_pot": 0.0032505165533525116,
+   "expl_by_ref_pct": 0.006289214398735865,
+   "caught": false
+  },
+  "every river's pin leaks to the merged sibling line": {
+   "case": "turn-merged-ip-folds",
+   "value_gap_pct_pot": 0.2738648219197515,
+   "expl_by_ref_pct": 0.6301659811094806,
+   "caught": true
+  },
+  "the lock does nothing": {
+   "case": "turn-merged",
+   "value_gap_pct_pot": 0.08894387545119287,
+   "expl_by_ref_pct": 0.0008915136092912945,
+   "caught": true
+  },
+  "the combo lock covers its class": {
+   "case": "river-combo-root",
+   "value_gap_pct_pot": 0.6799241718484361,
+   "expl_by_ref_pct": 0.3851733193799678,
+   "caught": true
+  },
+  "all runouts in place of one": {
+   "case": "low-turn-river-runout",
+   "value_gap_pct_pot": 1.9421460258133418,
+   "expl_by_ref_pct": 3.8027016325960235,
+   "caught": true
+  }
+ },
+ "parity": {
+  "turn-merged-both-lines": {
+   "iterations": 1000,
+   "core": {
+    "wall_s": 0.1574263572692871,
+    "value_gap_pct_pot": 6.660994815277377e-05,
+    "expl_by_ref_pct": 0.005117079836853833
+   },
+   "numpy": {
+    "wall_s": 1.9228909015655518,
+    "value_gap_pct_pot": 6.501531077951483e-05,
+    "expl_by_ref_pct": 0.00397482477942912
+   },
+   "largest_difference_any_cell": 1.0,
+   "largest_difference_reached": 0.4487436772437341,
+   "largest_difference_reached_unlocked": 0.08854904082597431,
+   "cross_play_largest_gain_pct_pot": [
+    0.004861787454082389,
+    0.006343038680727275
+   ],
+   "passed": true
+  },
+  "turn-river-all-runouts": {
+   "iterations": 1000,
+   "core": {
+    "wall_s": 0.15960121154785156,
+    "value_gap_pct_pot": 2.115587864892632e-06,
+    "expl_by_ref_pct": 0.0069122684729538975
+   },
+   "numpy": {
+    "wall_s": 1.9346649646759033,
+    "value_gap_pct_pot": 1.3144376627138852e-05,
+    "expl_by_ref_pct": 0.007077325037574411
+   },
+   "largest_difference_any_cell": 1.0,
+   "largest_difference_reached": 0.460510185205639,
+   "largest_difference_reached_unlocked": 0.08854904082597431,
+   "cross_play_largest_gain_pct_pot": [
+    0.008641752333806707,
+    0.008417012611152686
+   ],
+   "passed": true
+  },
+  "river-both-players": {
+   "iterations": 3000,
+   "core": {
+    "wall_s": 0.016571044921875,
+    "value_gap_pct_pot": 4.688405219610559e-10,
+    "expl_by_ref_pct": 9.371744406516669e-05
+   },
+   "numpy": {
+    "wall_s": 1.8751661777496338,
+    "value_gap_pct_pot": 1.3504863893842867e-09,
+    "expl_by_ref_pct": 0.00012440449308259716
+   },
+   "largest_difference_any_cell": 0.18598651885986328,
+   "largest_difference_reached": 0.00018541424594880718,
+   "largest_difference_reached_unlocked": 0.0012555591198388782,
+   "cross_play_largest_gain_pct_pot": [
+    0.0002087662173178018,
+    0.00016949455647230494
+   ],
+   "passed": true
+  }
+ },
+ "warm": {
+  "warm": {
+   "30": {
+    "cold": 0.5907408665607883,
+    "warm_from_unlocked": 0.8200244728818463,
+    "warm_from_another_lock": 0.4879788368464477
+   },
+   "100": {
+    "cold": 0.06063475327090951,
+    "warm_from_unlocked": 0.06504950997517689,
+    "warm_from_another_lock": 0.054369444345798705
+   },
+   "300": {
+    "cold": 0.01503067672788294,
+    "warm_from_unlocked": 0.017689726546026296,
+    "warm_from_another_lock": 0.013006130849342325
+   },
+   "1000": {
+    "cold": 0.0038700166030714023,
+    "warm_from_unlocked": 0.004180696896920466,
+    "warm_from_another_lock": 0.00275496969843525
+   }
+  },
+  "overhead": {
+   "spot": "turn-one-size",
+   "iterations": 3000,
+   "unlocked_s": 0.4240751266479492,
+   "locked_s": 0.4102790355682373,
+   "unlocked_exploitability_measure_s": 0.000701904296875,
+   "locked_measure_s": 0.0014421939849853516,
+   "locked_exploitability_pct": 0.0012409937800628157,
+   "peak_rss_mb": 51.1875
+  }
+ },
+ "abstraction": {
+  "flop, unlocked": {
+   "iterations": 300,
+   "wall_s": 0.4809579849243164,
+   "exploitability_pct": 0.04808385225888786,
+   "tree_cells": 421466
+  },
+  "flop, whole range at the root (per combo there)": {
+   "iterations": 300,
+   "wall_s": 0.4765961170196533,
+   "iterate_s": 0.4655129909515381,
+   "measure_s": 0.011484861373901367,
+   "measure": {
+    "iterations": 300,
+    "root_pot": 6.0,
+    "value": [
+     -2.149327966443601,
+     2.149327696247141
+    ],
+    "best_response_held": [
+     -2.145246533066697,
+     2.153525498707508
+    ],
+    "gain_held": [
+     0.00408143337690392,
+     0.0041978024603670505
+    ],
+    "exploitability_pct": 0.06899363197725808,
+    "best_response_free": [
+     5.715774186821364,
+     2.153525498707508
+    ],
+    "lock_cost": [
+     7.861020719888062,
+     0.0
+    ]
+   },
+   "tree_cells": 421466,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 1.1920928966180355e-08,
+    "cells": 241
+   },
+   "notes": [],
+   "peak_rss_mb_so_far": 84.390625
+  },
+  "flop, one class at the root": {
+   "iterations": 300,
+   "wall_s": 0.4543750286102295,
+   "iterate_s": 0.4447460174560547,
+   "measure_s": 0.010496139526367188,
+   "measure": {
+    "iterations": 300,
+    "root_pot": 6.0,
+    "value": [
+     -1.767465859692439,
+     1.767465789193611
+    ],
+    "best_response_held": [
+     -1.762619204979807,
+     1.7698280813707734
+    ],
+    "gain_held": [
+     0.004846654712632015,
+     0.0023622921771624394
+    ],
+    "exploitability_pct": 0.06007455741495379,
+    "best_response_free": [
+     -1.7626192221380386,
+     1.7698280813707734
+    ],
+    "lock_cost": [
+     -1.715823150227891e-08,
+     0.0
+    ]
+   },
+   "tree_cells": 421466,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 0.0,
+    "cells": 4
+   },
+   "notes": [],
+   "peak_rss_mb_so_far": 84.71875
+  },
+  "flop, whole range on the turn, every card (buckets)": {
+   "iterations": 300,
+   "wall_s": 0.4624001979827881,
+   "iterate_s": 0.4529240131378174,
+   "measure_s": 0.011207818984985352,
+   "measure": {
+    "iterations": 300,
+    "root_pot": 6.0,
+    "value": [
+     -1.767476684859458,
+     1.7674769500693357
+    ],
+    "best_response_held": [
+     -1.7632724314111738,
+     1.7698662953107767
+    ],
+    "gain_held": [
+     0.004204253448284234,
+     0.0023893452414409655
+    ],
+    "exploitability_pct": 0.054946655747709995,
+    "best_response_free": [
+     -1.6444313277423932,
+     1.7698662953107767
+    ],
+    "lock_cost": [
+     0.11884110366878065,
+     0.0
+    ]
+   },
+   "tree_cells": 421466,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 0.0,
+    "cells": 416
+   },
+   "notes": [
+    "played by hand buckets: every bucket holds the mix, so every hand does"
+   ],
+   "peak_rss_mb_so_far": 84.828125
+  },
+  "flop, a combo on the turn (buckets)": {
+   "refused": "LockRefused",
+   "message": "line ('bet 75%', 'raise to 12', 'call', '*'): this node is played by hand buckets, a combo has no strategy of its own there: lock the whole range, or solve the spot without buckets"
+  },
+  "turn, unlocked": {
+   "iterations": 300,
+   "wall_s": 1.2105960845947266,
+   "exploitability_pct": 0.10513845903078038,
+   "tree_cells": 2023784
+  },
+  "turn, whole range at the root": {
+   "iterations": 300,
+   "wall_s": 1.2017838954925537,
+   "iterate_s": 1.1927430629730225,
+   "measure_s": 0.027828216552734375,
+   "measure": {
+    "iterations": 300,
+    "root_pot": 20.0,
+    "value": [
+     -5.561481105778567,
+     5.5614809943107275
+    ],
+    "best_response_held": [
+     -5.548157053366846,
+     5.579512870864213
+    ],
+    "gain_held": [
+     0.013324052411721077,
+     0.018031876553485482
+    ],
+    "exploitability_pct": 0.0783898224130164,
+    "best_response_free": [
+     7.4836523525516165,
+     5.579512870864213
+    ],
+    "lock_cost": [
+     13.031809405918462,
+     0.0
+    ]
+   },
+   "tree_cells": 2023784,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 1.1920928966180355e-08,
+    "cells": 416
+   },
+   "notes": [],
+   "peak_rss_mb_so_far": 163.96875
+  },
+  "turn, one class at the root, river classes below": {
+   "iterations": 300,
+   "wall_s": 1.2381808757781982,
+   "iterate_s": 1.2293620109558105,
+   "measure_s": 0.02885293960571289,
+   "measure": {
+    "iterations": 300,
+    "root_pot": 20.0,
+    "value": [
+     -4.621564942651215,
+     4.621565191644311
+    ],
+    "best_response_held": [
+     -4.604706802527945,
+     4.642322831800555
+    ],
+    "gain_held": [
+     0.01685814012327036,
+     0.02075764015624415
+    ],
+    "exploitability_pct": 0.09403945069878628,
+    "best_response_free": [
+     -4.604707129703607,
+     4.642322831800555
+    ],
+    "lock_cost": [
+     -3.271756625622402e-07,
+     0.0
+    ]
+   },
+   "tree_cells": 2023784,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 0.0,
+    "cells": 3
+   },
+   "notes": [
+    "the river classes below assume ranges symmetric in the swapped suits, which a hand-scoped lock can break: the class subtrees then average the images' reaches"
+   ],
+   "peak_rss_mb_so_far": 166.671875
+  },
+  "turn, whole range on the river, every class": {
+   "iterations": 300,
+   "wall_s": 1.2237088680267334,
+   "iterate_s": 1.2153198719024658,
+   "measure_s": 0.029739856719970703,
+   "measure": {
+    "iterations": 300,
+    "root_pot": 20.0,
+    "value": [
+     -4.621364181472954,
+     4.621364287512165
+    ],
+    "best_response_held": [
+     -4.60332466209896,
+     4.646898172571347
+    ],
+    "gain_held": [
+     0.018039519373993507,
+     0.02553388505918175
+    ],
+    "exploitability_pct": 0.10893351108293814,
+    "best_response_free": [
+     -4.603176315812118,
+     4.646898172571347
+    ],
+    "lock_cost": [
+     0.00014834628684212703,
+     0.0
+    ]
+   },
+   "tree_cells": 2023784,
+   "mix_check": {
+    "max_error_float32": 0.0,
+    "max_error_vs_asked": 0.0,
+    "cells": 5408
+   },
+   "notes": [],
+   "peak_rss_mb_so_far": 166.671875
+  },
+  "turn, a combo on the river (classes)": {
+   "refused": "LockRefused",
+   "message": "line ('bet 125%', 'raise to 77.5', 'call', '*'): a river class's combo stands for its images on the class's other cards, so it can't name one hand: lock the whole range, or solve with river_classes off"
+  }
+ },
+ "last_run_s": 294.6710698604584
+}

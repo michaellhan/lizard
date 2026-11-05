@@ -95,6 +95,14 @@ describe("PlanPage", () => {
     expect(within(drill).getByRole("button", { name: /Save scenario/ })).toBeInTheDocument();
   });
 
+  it("doesn't call a leak with nothing to deal done", async () => {
+    await seed([hand("h1")], Array.from({ length: 40 }, () => decision({ mix: undefined, verdict: "Correct" })));
+    page();
+    const said = await screen.findByRole("status", { name: "Next step" });
+    expect(said).toHaveTextContent(/Nothing here can be started: the leak not done has no decision that keeps its mix/);
+    expect(said).not.toHaveTextContent(/marked done/);
+  });
+
   it("marks a step done by what's kept, and a press changes nothing", async () => {
     await seed([hand("h1")], [decision()], [mistake({ due: NOW - 1000 })]);
     page();

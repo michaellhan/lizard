@@ -50,12 +50,12 @@ describe("handMistake", () => {
 
 describe("the words", () => {
   it("say the unit", () => {
-    const g = { byEv: true, loss: 0.4, lossPct: 7.3, a: 0 };
+    const g = { byEv: true, loss: 0.4, lossPct: 7.3, a: 0, best: 0 };
     expect(costWords(g, mix, "live", evUnit(PRIZE))).toBe("0.40bb of prize equity lost · 7.3% pot");
     expect(costWords(g, mix, "live")).toBe("0.40bb lost · 7.3% pot");
   });
   it("say the model where it's graded by frequency, with no EV", () => {
-    expect(costWords({ byEv: false, loss: 0, lossPct: 0, a: 0 }, [{ action: "fold", freq: 0.2, ev: null }], "push-fold")).toMatch(/push\/fold model/);
+    expect(costWords({ best: 0, byEv: false, loss: 0, lossPct: 0, a: 0 }, [{ action: "fold", freq: 0.2, ev: null }], "push-fold")).toMatch(/push\/fold model/);
   });
 });
 

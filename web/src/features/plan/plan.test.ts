@@ -1,11 +1,12 @@
 // The plan's rule: the order, what's kept out, the empty states and what alone marks a step done.
 import { describe, expect, it } from "vitest";
 import { PRACTICE_SITE } from "@/data/hands";
-import type { DecisionRecord, MistakeRecord, SessionRecord } from "@/data/db";
-import { drillSessionId } from "@/features/analyze/leakDrill";
+import type { DecisionRecord, HandRecord, MistakeRecord, SessionRecord } from "@/data/db";
+import { drillItems, drillSessionId } from "@/features/analyze/leakDrill";
 import { MIN_READ } from "@/features/analyze/report";
 import { sessionImport } from "@/features/analyze/sessions";
 import { readSetupLink } from "@/features/practice/setupLink";
+import { missedAgain } from "@/features/review/mistakes";
 import { midnight } from "@/features/review/schedule";
 import type { LibrarySpotIndex } from "@/library/catalog";
 import { SEATS } from "@/poker/seats";
@@ -117,6 +118,14 @@ describe("reviews", () => {
 });
 
 describe("reviews, with entries from Analyze", () => {
+  it("says which answer a retry is graded against", () => {
+    const kept = (id: string) => dueToday({ id, from: "analyze", ask: { via: "kept", hand: "h1", decision: `h1|${id}` } });
+    const words = (mistakes: MistakeRecord[]) => buildPlan(input({ mistakes })).reviews!.says[0];
+    expect(words([dueToday()])).toMatch(/A retry is graded against the answer there is now\.$/);
+    expect(words([kept("a")])).toMatch(/A retry is graded against the answer kept with its decision, nothing solved\.$/);
+    expect(words([kept("a"), dueToday()])).toMatch(/the answer there is now, or, for the 1 from Analyze or a leak drill, against the answer kept with its decision\.$/);
+  });
+
   it("orders and counts them as any entry: the longest overdue first, finished ones and those not due out", () => {
     const ask = { via: "kept", hand: "h1", decision: "d" } as const;
     const plan = buildPlan(
@@ -170,6 +179,23 @@ describe("leaks", () => {
     expect(all.done).toBe(true);
     const more = [...ds, flop("SRP · IP · checked to", 1)];
     expect(buildPlan(input({ decisions: more, sessions: [answered(ds.map((x) => x.id))] })).leaks.find((l) => l.id === key.id)!.done).toBe(false);
+  });
+
+  it("counts what its drill deals, a spot's decisions by frequency too, so it isn't done with those left", () => {
+    const byEv = times(40, () => flop("SRP · IP · checked to", 1));
+    const noEv = times(20, () => flop("SRP · IP · checked to", 0, { evLossBb: null, lossPct: null, mix: [["check", 0.6, null], ["bet 33%", 0.4, null]], verdict: "Inaccuracy" }));
+    const decisions = [...byEv, ...noEv];
+    const leak = buildPlan(input({ decisions })).leaks.find((l) => l.leak.kind === "spot")!;
+    expect(leak.dealt).toBe(drillItems(decisions, leak.leak, new Map([["h1", { id: "h1" } as HandRecord]])).length);
+    expect(leak.dealt).toBe(60);
+    // the read stays over the 40 with an EV, and the row says why its drill has more
+    expect(leak.says.join(" ")).toMatch(/over 40 decisions graded by EV/);
+    expect(leak.progress).toBe("0 of 60 decisions answered in its drill, 20 of them graded by frequency and dealt though the read above can't use them.");
+    const answered = (ids: readonly string[]) => session({ id: drillSessionId(leak.leak), kind: "analysis", meta: { drill: "leak", done: ids, score: {} } });
+    const most = buildPlan(input({ decisions, sessions: [answered(byEv.map((x) => x.id))] })).leaks.find((l) => l.id === leak.id)!;
+    expect(most.done).toBe(false);
+    expect(most.progress).toMatch(/^40 of 60 decisions/);
+    expect(buildPlan(input({ decisions, sessions: [answered(decisions.map((x) => x.id))] })).leaks.find((l) => l.id === leak.id)!.done).toBe(true);
   });
 
   it("isn't done with nothing to deal, says it can't be, and isn't the next step", () => {
@@ -285,6 +311,33 @@ describe("the drill", () => {
       const ok = d({ id: "ok", street: "flop", verdict: "Best" });
       const picked = buildPlan(input({ decisions: [ok], mistakes: [kept("ok", { from: "leak" })] }));
       expect(picked.drill).toMatchObject({ misses: 1 });
+    });
+
+    it("counts a Practice entry's misses though a leak drill's merged in, and that one's decision once", () => {
+      const ds = misses("flop", "BTN", 1);
+      const practice = mistake({ id: "p", street: "flop", seat: "BTN", times: 3, due: NOW + DAY });
+      const merged = missedAgain(practice, kept(ds[0]!.id, { id: "fresh", from: "leak" }));
+      expect(merged).toMatchObject({ id: "p", times: 4, ask: { via: "solver" } });
+      const plan = buildPlan(input({ decisions: ds, mistakes: [merged] }));
+      expect(plan.drill).toMatchObject({ misses: 4 });
+      expect(plan.drill!.says[1]).toMatch(/1 in hands graded in Analyze, 3 kept in the review queue/);
+    });
+
+    it("counts a Practice miss merged into a kept entry once, and the kept decision by its grade alone", () => {
+      const ds = misses("flop", "BTN", 1);
+      const merged = missedAgain(kept(ds[0]!.id), mistake({ id: "p", street: "flop", seat: "BTN", due: NOW + DAY }));
+      expect(merged).toMatchObject({ id: ds[0]!.id, times: 2, ask: { via: "solver" } });
+      const plan = buildPlan(input({ decisions: ds, mistakes: [merged] }));
+      expect(plan.drill).toMatchObject({ misses: 2 });
+      expect(plan.drill!.says[1]).toMatch(/1 in hands graded in Analyze, 1 kept in the review queue/);
+      // (and once that grade's gone, the entry is the only count of it)
+      expect(buildPlan(input({ mistakes: [merged] })).drill).toMatchObject({ misses: 2 });
+    });
+
+    it("goes by each decision an entry holds, as one can be counted and another not", () => {
+      const ds = misses("flop", "BTN", 1);
+      const held = kept(ds[0]!.id, { times: 3, decisions: { [ds[0]!.id]: 2, "h1|flop|9": 1 } });
+      expect(buildPlan(input({ decisions: ds, mistakes: [held] })).drill).toMatchObject({ misses: 2 });
     });
 
     it("says that it doesn't count one twice", () => {

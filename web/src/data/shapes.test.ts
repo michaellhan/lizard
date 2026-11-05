@@ -36,6 +36,7 @@ const HAND: HandRecord = {
   decisions: 2,
   playedFor: "preflop",
   revealed: ["flop|1"],
+  setup: { rake: 5, rakeCap: 3, sizes: { flop: [50] } },
   tournament: "Sunday",
   text: "PokerStars Hand #1",
   tags: ["x"],
@@ -116,9 +117,13 @@ describe("records that blanked a page", () => {
     ["savedRanges", { ...RANGE }, []],
     ["savedDrills", { ...DRILL }, []],
     ["sessions", { ...SESSION }, ["endedAt"]],
-    ["hands", { ...HAND }, ["playedFor", "revealed", "tournament", "tags", "note", "updatedAt"]],
+    ["hands", { ...HAND }, ["playedFor", "revealed", "setup", "tournament", "tags", "note", "updatedAt"]],
     ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "roughEvs", "off", "flopAggr", "confidence", "triageSource", "read", "notChecked"]],
   ];
+
+  it.each([[{ rake: "5" }], [{ rakeCap: Infinity }], [{ sizes: "33" }], [{ sizes: { flop: 33 } }], [{ sizes: { flop: ["33"] } }]])("refuses a hand's setup of %j", async (setup) => {
+    expect((await restored("hands", { ...HAND, setup })).skipped).toBe(1);
+  });
 
   it.each(STORES)("takes a whole %s, and refuses any one field gone wrong", async (store, whole, optional) => {
     expect((await restored(store, whole)).added).toBe(1);
@@ -126,7 +131,7 @@ describe("records that blanked a page", () => {
     await d.clear(store);
     for (const k of Object.keys(whole)) {
       if (k === "id") continue;
-      const objectIsFine = k === "state" || k === "meta" || k === "read";
+      const objectIsFine = k === "state" || k === "meta" || k === "read" || k === "setup";
       const wrong: unknown[] = [...(objectIsFine ? [] : [{ a: 1 }]), [{ a: 1 }], typeof whole[k] === "number" ? "7" : 7];
       if (!optional.includes(k)) wrong.push(undefined);
       for (const w of wrong) {

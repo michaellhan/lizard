@@ -4184,3 +4184,20 @@ I renamed the badge from "Exact heads-up PLO4 river solve" to "Heads-up PLO4 riv
 In the range builder, Ctrl+Z and redo now work from inside a combo's box when nothing is typed in it. With a draft they stay the box's own.
 
 Tests: 2718 unit tests in 153 files (2 skipped), typecheck and lint clean, 28 Python reference tests, 118 browser tests passed and 62 skipped. In the full run 10d timed out at its 3-minute grading wait with the machine at a load of about 24; it passed alone in 7.6 s on the same build, so that's what this count uses.
+
+Live check of `4e09587` (run 42076407621, 2026-11-05): `index-CO35XZDj.js` at 299,665 bytes, the name and size a local build gave, title "PLO river · Lizard", cross-origin isolated, and the default river solved on the live site in 2.1 s, 172 iterations at 0.074% of the pot, the same numbers as the local build. `/`, `/gto-solver/`, `/gto-solver-classic/` and the solver manifest return 200.
+
+### The review queue's counting and a true node lock's engine (Phases 4, 5, 6)
+
+An independent review of the Plan and the review queue found nine defects and a hostile-input hole, all now fixed, each with a test that fails without it (56 mutations, all caught).
+
+- **Counting.** A leak's drill read as done with decisions still to deal. Once a Practice miss and an Analyze miss merged, the Plan lost the Practice misses or counted one twice. Entries now say which decisions they hold, and that's what's counted.
+- **One spot, one entry.** Practice and Analyze wrote the same spot two ways: a carried stack, rake, custom sizes and a `to` past the cents. A spot is now found by what it is, so a press on a spot already kept says so and a re-miss merges. Ids don't change, so there's no migration. An imported history doesn't carry rake, so it stays apart from a raked Practice miss on the same line.
+- **Words.** Rough EVs keep their ≈ in Review, a capped grade says so on its row, Study names an equity or category filter over the actions and leaves it off the opponent's grid, a leak drill's total no longer counts tournament hands it won't deal, Add to review says why it can't rather than blaming a private window, and two sentences that weren't true are rewritten.
+- **Provenance.** A label kept with a grade is used only if it opens with its source's own words, and never for charts, so a crafted backup can't call a chart solved.
+
+Left as it was: duplicate pairs already in a queue stay two records, Practice hands kept before this have no setup so their raked spots key apart, and Analyze still grades a raked Practice hand unraked (its link now carries the rake).
+
+`engine/nodelock.py` is a true node lock, built outside `solver/`: it holds a player's mix at chosen decisions, for the whole range, classes or single combos, and re-solves everything else, the answer an equilibrium of the restricted game. On 31 cases over 6 rivers and 2 turns it matches a restricted LP (`scripts/benchmarks/refsolver/locks.py`, `nodelock_bench.py`) to 4.4e-5% of the pot at the top iteration count, with exploitability under 0.003%, and the mix reads back exactly. 5 of the cases have no power on value, as the lock didn't move it, and 1 of 7 deliberately wrong solves isn't caught by value (a leak on a single runout of 48; a unit test catches it directly). It isn't reachable from the app yet.
+
+Tests: 2792 unit tests in 155 files (2 skipped), typecheck and lint clean, 118 browser tests passed and 62 skipped, on a snapshot of this commit's files with no other work in it. `scripts/engine` and `scripts/benchmarks` pass.

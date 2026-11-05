@@ -360,6 +360,7 @@ function MistakeRow({ m, now, active, onRetry, onDelete }: { m: MistakeRecord; n
         {m.game} · {m.line}
         {m.times > 1 ? ` · missed ${m.times} times` : ""}
       </p>
+      {m.grade.capped && <p className="text-xs text-muted">{CAPPED_WORDS}</p>}
       <p className="text-xs text-muted">
         Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} quiet /> : "an answer not kept"}
         {` · version ${versionWords(versionOf(m.provenance))}`}

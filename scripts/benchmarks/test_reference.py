@@ -24,9 +24,9 @@ from refsolver.rules import Act, HUSpec, Menu, MWSpec, hu_tree, mw_tree  # noqa:
 
 try:
     import scipy  # noqa: F401
-    from refsolver import lp
+    from refsolver import locks, lp
 except ImportError:
-    lp = None
+    locks = lp = None
 
 
 def strip(cards):
@@ -202,6 +202,80 @@ def polar(rate=0.0, cap=None):
     board = strip("Ks7d2c3h9s")
     tree = hu_tree(HUSpec(5, 20.0, 20.0, menu([1.0])))
     return HUGame(Holdem(board, [{"7h7c": 1.0, "6h5h": 1.0}, {"KdQd": 1.0}]), tree, Chips(rate, cap))
+
+
+@unittest.skipIf(lp is None, "needs scipy")
+class LockedLP(unittest.TestCase):
+    """The restricted game's LP (locks.py), against the same game by a route that shares no code with it: every pure
+    plan of the free information sets, the minimax of that matrix."""
+
+    def plans(self, game, p, held):
+        """Each pure strategy of p, {path: (B, A, n)}, with `held` {(path, hand): mix} played as given."""
+        slots = [(n, i) for n in game.acts if n.player == p for i in range(game.n[p]) if (n.path, i) not in held]
+        for choice in itertools.product(*[range(len(n.names)) for n, _ in slots]):
+            s = {n.path: np.zeros(n.regret.shape) for n in game.acts if n.player == p}
+            for (n, i), a in zip(slots, choice):
+                s[n.path][0, a, i] = 1.0
+            for (path, i), mix in held.items():
+                s[path][0, :, i] = mix
+            yield s
+
+    def minimax(self, game, held):
+        """Player 0's value with its `held` infosets fixed, from the 2^k x 2^6 matrix."""
+        from scipy.optimize import linprog
+        mine = list(self.plans(game, 0, held))
+        yours = list(self.plans(game, 1, {}))
+        M = np.array([[game.value({**x, **y}, 0) for y in yours] for x in mine])
+        m, k = M.shape
+        res = linprog([0.0] * m + [-1.0], A_ub=np.hstack([-M.T, np.ones((k, 1))]), b_ub=np.zeros(k),
+                      A_eq=[[1.0] * m + [0.0]], b_eq=[1.0], bounds=[(0, None)] * m + [(None, None)], method="highs-ds")
+        return -res.fun
+
+    def test_a_held_jack_bluff_by_matrix(self):
+        game = kuhn()
+        for mix in ((0.2, 0.8), (0.9, 0.1), (1.0, 0.0), (0.0, 1.0)):
+            res = locks.solve(game, [locks.Hold("", [0], [0], mix)])
+            self.assertAlmostEqual(res["value_each_side"][0], self.minimax(game, {("", 0): mix}), places=8)
+            self.assertAlmostEqual(res["value_each_side"][0], -res["value_each_side"][1], places=8)
+            self.assertTrue(np.array_equal(res["strategy"][""][0, :, 0], mix))
+
+    def test_a_hold_can_only_cost_its_player(self):
+        game = kuhn()
+        free = lp.solve(game)["value_each_side"][0]
+        for hand, mix in ((2, (1.0, 0.0)), (0, (0.0, 1.0)), (1, (0.0, 1.0))):
+            held = locks.solve(game, [locks.Hold("", [0], [hand], mix)])["value_each_side"][0]
+            self.assertLessEqual(held, free + 1e-9)
+
+    def test_holding_the_equilibrium_changes_nothing(self):
+        game = kuhn()
+        res = lp.solve(game)
+        node = next(n for n in game.acts if n.path == "")
+        holds = [locks.Hold("", [0], [i], res["strategy"][""][0, :, i].tolist()) for i in range(game.n[0])]
+        again = locks.solve(game, holds)
+        self.assertEqual(len(node.names), 2)
+        self.assertAlmostEqual(again["value_each_side"][0], res["value_each_side"][0], places=8)
+
+    def test_holding_every_node_leaves_the_best_response(self):
+        game = kuhn()
+        rng = np.random.default_rng(5)
+        holds = []
+        for n in game.acts:
+            if n.player == 0:
+                for i in range(game.n[0]):
+                    x = float(rng.random())
+                    holds.append(locks.Hold(n.path, [0], [i], [x, 1 - x]))
+        res = locks.solve(game, holds)
+        fixed = locks.apply_holds(game, game.uniform(), holds)
+        self.assertAlmostEqual(res["value_each_side"][1], game.value(fixed, 1, True), places=8)
+
+    def test_held_values_is_the_restricted_best_response(self):
+        game = kuhn()
+        holds = [locks.Hold("", [0], [0], (0.5, 0.5))]
+        res = locks.solve(game, holds)
+        s = res["strategy"]
+        self.assertAlmostEqual(locks.held_values(game, s, 0, holds), res["value_each_side"][0], places=8)
+        self.assertAlmostEqual(locks.held_values(game, s, 1, holds), res["value_each_side"][1], places=8)
+        self.assertGreaterEqual(game.value(s, 0, True), res["value_each_side"][0] - 1e-9)
 
 
 class PolarRiver(unittest.TestCase):

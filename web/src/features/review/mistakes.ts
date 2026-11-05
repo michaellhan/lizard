@@ -6,8 +6,9 @@
 // mix kept with it, capped as its grade was, so its answer can't change.
 import { bb, pct } from "@/components/actions";
 import type { MistakeRecord, MistakeTry } from "@/data/db";
-import { describeSetup } from "@/features/solve/setup";
-import { describeLine, fromSearch } from "@/features/study/studyState";
+import { heldDecisions } from "@/data/mistakes";
+import { describeSetup, setupToParams, tidySetup } from "@/features/solve/setup";
+import { describeLine, fromSearch, STREETS } from "@/features/study/studyState";
 import { capGrade, whoOf, type Grade } from "@/grading/grade";
 import { storedMoved, versionOf } from "@/grading/version";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
@@ -17,13 +18,37 @@ import { bestResponse } from "@/features/practice/exploit";
 import { adviceState, CHIP_MODEL, gradable, gradeMix, type Decision, type PracticeHand } from "@/features/practice/practice";
 import { reviewed } from "@/features/practice/review";
 import type { LibraryReport } from "@/library/files";
+import { seatsOf } from "@/poker/seats";
 import { afterRetry, dueAfter } from "./schedule";
 
 /** the retries kept with a mistake */
 export const TRIES_KEPT = 20;
 
 export const gameWords = (players: number, stack: number) => `${players === 2 ? "HU" : `${players}-max`} ${stack}bb`;
-export const gradeOf = (g: Grade): MistakeRecord["grade"] => ({ a: g.a, best: g.best, verdict: g.verdict, ok: false, mixed: g.mixed, loss: g.loss, lossPct: g.lossPct, byEv: g.byEv });
+export const gradeOf = (g: Grade): MistakeRecord["grade"] => ({ a: g.a, best: g.best, verdict: g.verdict, ok: false, mixed: g.mixed, loss: g.loss, lossPct: g.lossPct, byEv: g.byEv, ...(g.capped ? { capped: true } : {}) });
+
+const cents = (x: number) => Math.round(x * 100) / 100;
+
+/** One spot of a cash hand however its Study line was written, or null for a record that's only ever its id: a tournament's
+ * or an exploit session's stay apart, as a drill's do, and a line that can't be read says nothing.
+ *
+ * Practice writes `s` as the table's stack and Analyze as the effective one, which turns on who plays on later, so it's each
+ * seat still in at the decision and its chips that count (a folded seat's change nothing); a history writes chips and sizes
+ * in cents, so they're compared in cents. The rest of the setup counts as it's written: a history doesn't carry rake or
+ * sizes, so an imported hand's key isn't a raked Practice miss's on the same line and cards. */
+export function spotKey(m: Pick<MistakeRecord, "from" | "tournament" | "exploit" | "study" | "seat" | "hole">): string | null {
+  if (m.from === "drill" || m.tournament || m.exploit || !m.study) return null;
+  const h = fromSearch(m.study);
+  if (!h || h.setup?.tournament) return null;
+  const lines = STREETS.map((s) => h[s]);
+  const folded = new Set(lines.flat().filter((a) => a.action === "fold").map((a) => a.pos));
+  const chips = seatsOf(h.players).filter((p) => !folded.has(p)).map((p) => `${p}:${cents(h.setup?.stacks?.[p] ?? h.stack)}`);
+  const moves = lines.map((line) => line.map((a) => `${a.pos}:${a.action}${a.action === "bet" || a.action === "raise" ? cents(a.to ?? 0) : ""}`).join(","));
+  const game = new URLSearchParams();
+  const setup = tidySetup(h.setup);
+  setupToParams(setup && { ...setup, stacks: {}, ...(setup.ante ? { ante: cents(setup.ante) } : {}) }, game);
+  return [h.players, chips.join(","), game.toString(), ...moves, h.pf ?? "", h.board, m.seat, [...m.hole].sort().join("")].join("|");
+}
 
 /** Your decision `d` at the hand `h` (as it stood when you decided) as a kept mistake; null where it's Best, Correct or
  * not graded. The spot is the Study line and your cards: the same one missed again is one record. */
@@ -111,8 +136,21 @@ export function drillMix(pr: Pick<DrillProblem, "names" | "freqs" | "evs" | "pot
   });
 }
 
-/** The same spot missed again in play: the newest grade and answer, from the start of the schedule. */
-export const missedAgain = (was: MistakeRecord, fresh: MistakeRecord): MistakeRecord => ({ ...fresh, at: was.at, times: was.times + 1, tries: was.tries });
+/** The same spot missed again in play: the newest grade and answer, from the start of the schedule, under the id it's kept
+ * by. It holds both records' decisions, and a kept answer never takes the place of a solver's, which can still re-solve. */
+export function missedAgain(was: MistakeRecord, fresh: MistakeRecord): MistakeRecord {
+  const held = new Map(Object.entries(heldDecisions(was)));
+  for (const [id, n] of Object.entries(heldDecisions(fresh))) held.set(id, (held.get(id) ?? 0) + n);
+  return {
+    ...fresh,
+    id: was.id,
+    at: was.at,
+    times: was.times + 1,
+    tries: was.tries,
+    ...(was.ask.via === "solver" && fresh.ask.via === "kept" ? { ask: was.ask } : {}),
+    ...(held.size ? { decisions: Object.fromEntries(held) } : {}),
+  };
+}
 
 export interface RetryAnswer {
   mix: MistakeRecord["mix"];
@@ -201,8 +239,9 @@ export const KEPT_RETRY_WORDS = "Graded against the answer kept with this decisi
 export const ORIGIN_WORDS: Partial<Record<MistakeRecord["from"], string>> = { analyze: "Added from Analyze", leak: "From a leak drill" };
 
 /** What a grade cost, in words: EV by the answer, or, graded by frequency, how often it's played and never an EV. */
-export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a">, mix: MistakeRecord["mix"], source: string | undefined, unit = "bb"): string {
-  if (g.byEv) return g.loss > 0 ? `${bb(g.loss)}${unit} lost · ${g.lossPct.toFixed(1)}% pot` : "no EV lost";
+export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a" | "best">, mix: MistakeRecord["mix"], source: string | undefined, unit = "bb"): string {
+  const rough = mix[g.a]?.rough || mix[g.best]?.rough ? "≈" : "";
+  if (g.byEv) return g.loss > 0 ? `${rough}${bb(g.loss)}${unit} lost · ${g.lossPct.toFixed(1)}% pot` : "no EV lost";
   return `by frequency, no EV: ${whoOf(source).replace(/^The /, "the ")} plays it ${pct(mix[g.a]?.freq ?? 0)}`;
 }
 

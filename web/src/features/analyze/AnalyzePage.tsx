@@ -109,6 +109,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const lossesShown = useMemo(() => lostByKind(later, shownById), [later, shownById]);
   // (an exploit session's hands stay listed and count nowhere: sessions.ts exploitsApartNote)
   const played = useMemo(() => (hands && exploits.size ? hands.filter((h) => !exploits.has(h.importId)) : hands), [hands, exploits]);
+  // (what a leak is made of, as its drill deals: a tournament hand's decisions are in no leak)
+  const leakHands = useMemo(() => played?.filter((h) => isEquilibriumHand(h, exploits)), [played, exploits]);
   const counted = useMemo(() => (shown && exploits.size ? shown.filter((h) => !exploits.has(h.importId)) : shown), [shown, exploits]);
   const countedById = useMemo(() => new Map(counted?.map((h) => [h.id, h])), [counted]);
   const losses = useMemo(() => lostByKind(later, countedById), [later, countedById]);
@@ -142,7 +144,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       )}
       {played && counted && played.length > 0 && <GradePanel hands={params.get("sess") ? counted : played} decisions={decisions} onGraded={onGraded} />}
       {played && played.length > 0 && <SessionsPanel hands={played} decisions={decisions} params={params} lost={lost} exploits={exploits} set={set} />}
-      {played && counted && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={counted.filter((h) => isEquilibriumHand(h, exploits))} kept={played} onClose={() => set({ drill: null })} />}
+      {leakHands && counted && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={counted.filter((h) => isEquilibriumHand(h, exploits))} kept={leakHands} onClose={() => set({ drill: null })} />}
       {played && counted && <GradeReport decisions={later} hands={counted} of={played.length} exploits={exploits} />}
       {open && (
         <HandDetail
@@ -736,7 +738,7 @@ function StreetRow({ r, street, graded, hand }: { r: ReplayedHand; street: Stree
         <ul className="flex flex-wrap gap-x-3 gap-y-1 pl-16">
           {moves.map((m, i) => {
             const you = m.pos === h.hero;
-            const link = you ? studyLinkAt(r, street, i) : null;
+            const link = you ? studyLinkAt(r, street, i, hand?.setup) : null;
             const d = you ? graded(i) : undefined;
             return (
               <li key={i} className={you ? "font-semibold" : "text-muted"}>

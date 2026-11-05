@@ -132,6 +132,22 @@ describe("StudyPage", () => {
     expect(screen.getByRole("gridcell", { name: "KK: not in range" })).toBeInTheDocument();
   });
 
+  it("names the filter over the actions, and off an opponent's grid, which it doesn't touch", async () => {
+    stub.answer = THREE_WAY;
+    renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");
+    const select = await screen.findByRole("combobox", { name: "Show only the hands of one category" });
+    const actions = screen.getByRole("region", { name: "Actions" });
+    expect(within(actions).queryByText(/alone, not the whole range/)).toBeNull();
+    fireEvent.change(select, { target: { value: "m:set" } });
+    expect(within(actions).getByText("These numbers are over Set alone, not the whole range.")).toBeInTheDocument();
+    // (the control goes with this view, and the filter stays on for coming back)
+    fireEvent.click(within(screen.getByRole("group", { name: "Whose range" })).getByRole("button", { name: "CO" }));
+    expect(screen.getByRole("grid", { name: "CO range" })).toBeInTheDocument();
+    expect(screen.queryByRole("grid", { name: "CO range (Set)" })).toBeNull();
+    fireEvent.click(within(screen.getByRole("group", { name: "Whose range" })).getByRole("button", { name: "BB" }));
+    expect(screen.getByRole("grid", { name: "BB range (Set)" })).toBeInTheDocument();
+  });
+
   it("shows every EV in % of the pot when Settings say so", async () => {
     stub.answer = { ...THREE_WAY, opponents: undefined };
     useSettings.setState({ evUnit: "pot" });

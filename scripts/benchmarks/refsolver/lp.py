@@ -137,12 +137,14 @@ def _read_strategy(layout: Layout, p: int, x: np.ndarray) -> Dict[str, np.ndarra
     return out
 
 
-def solve(game: HUGame, method: str = "highs-ds", tol: float = 1e-9, time_limit: Optional[float] = None) -> dict:
-    """Both players' exact strategies and the value to player 0 from each side's LP."""
+def solve(game: HUGame, method: str = "highs-ds", tol: float = 1e-9, time_limit: Optional[float] = None,
+          layout: Optional[Layout] = None) -> dict:
+    """Both players' exact strategies and the value to player 0 from each side's LP. `layout`: in place of the game's
+    own (locks.LockedLayout: a game with some of its strategies fixed)."""
     from scipy.optimize import linprog
     if not game.zero_sum():
         raise ValueError("the payoffs are not zero-sum: the LP does not apply")
-    layout = Layout(game)
+    layout = layout or Layout(game)
     strategy: Dict[str, np.ndarray] = {}
     values = [None, None]
     status = []

@@ -60,7 +60,7 @@ const entry = (d: DecisionRecord, hand: HandRecord, r: ReplayedHand | null, a: n
   const mix = d.mix ?? [];
   const chose = mix[a]?.[0];
   if (hole.length !== 2 || chose === undefined) return null;
-  const link = r ? studyLinkAt(r, street, i) : null;
+  const link = r ? studyLinkAt(r, street, i, hand.setup) : null;
   const study = link ? link.replace(/^\/study\?/, "") : null;
   const before = r ? r.lines[street].slice(0, i).filter((m) => m.action !== "fold") : [];
   const pot = (d.pot ?? 0) > 0 || !r ? (d.pot ?? 0) : potBefore(r, street, i);
@@ -96,6 +96,14 @@ const entry = (d: DecisionRecord, hand: HandRecord, r: ReplayedHand | null, a: n
     tries: [],
   };
 };
+
+/** Why a graded decision that can be dealt again still isn't an entry, in words; null where it is one. */
+export function addOut(d: DecisionRecord, hand: Pick<HandRecord, "hole">): string | null {
+  if ((hand.hole.match(/../g) ?? []).length !== 2) return "this hand kept no cards of yours to deal it with";
+  if (!isGraded(d) || !MISSES.includes(d.verdict as Verdict)) return "it isn't graded below Correct";
+  if (!(d.mix ?? []).some(([name]) => name === (d.matched ?? d.action))) return `what you played, ${d.action}, isn't one of the actions in the answer kept with its grade`;
+  return null;
+}
 
 /** A decision graded below Correct as an entry, with its grade as kept; null where it isn't one or can't be dealt again. */
 export function addedMistake(d: DecisionRecord, hand: HandRecord, r: ReplayedHand | null, now: number): MistakeRecord | null {

@@ -4,6 +4,21 @@ import type { AdvisorResponse } from "./protocol";
 
 const ctx = { mode: "fast" as const, transport: "worker" as const, solverVersion: "9b907bd6/abc", partial: false, now: 1 };
 
+describe("a line kept with a grade", () => {
+  const base = { approximate: false, mode: "quick", solverVersion: "", partial: false, receivedAt: 0 } as const;
+  it("stands as written, a build-stamped decision's too, which is kept as the worker's", () => {
+    const keptLabel = "Live solve (Quick) · 0.80% pot from equilibrium in the solved game (converged) · 300 iterations";
+    expect(describeProvenance({ ...base, source: "live", transport: "kept", keptLabel })).toBe(keptLabel);
+    expect(describeProvenance({ ...base, source: "live", transport: "worker", keptLabel })).toBe(keptLabel);
+  });
+  it("can't call the charts or a rule fallback anything else", () => {
+    expect(describeProvenance({ ...base, source: "charts", approximate: true, transport: "kept", keptLabel: "Solved" })).toBe("Preflop charts · approximate");
+    expect(describeProvenance({ ...base, source: "charts", approximate: true, transport: "worker", keptLabel: "Preflop charts, solved exactly" })).toBe("Preflop charts · approximate");
+    expect(describeProvenance({ ...base, source: "rules", approximate: true, transport: "kept", keptLabel: "Solved" })).toMatch(/^Heuristic rules \(not a solve\)/);
+    expect(describeProvenance({ ...base, source: "best-response", transport: "kept", keptLabel: "Solved" })).toMatch(/not a solve/);
+  });
+});
+
 describe("provenance", () => {
   it("names what answered", () => {
     expect(sourceOf({ precomputed: { spot: "srp_btn_bb" }, street: "flop" })).toBe("library");

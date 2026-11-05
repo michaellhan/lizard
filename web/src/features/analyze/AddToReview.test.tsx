@@ -7,7 +7,8 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db, putSession, type DecisionRecord, type HandRecord } from "@/data/db";
 import { addHands, putDecisions } from "@/data/hands";
-import { listMistakes } from "@/data/mistakes";
+import { keepMistake, listMistakes } from "@/data/mistakes";
+import { addedMistake } from "@/features/review/fromAnalyze";
 import { importHand } from "@/hh/replay";
 import { recordOf } from "./analyze";
 import { AnalyzePage } from "./AnalyzePage";
@@ -75,6 +76,44 @@ describe("Add to review", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add to review: flop decision 2" }));
     expect(await screen.findByText(/Already kept/)).toBeInTheDocument();
     expect((await listMistakes()).list).toHaveLength(1);
+  });
+
+  it("says a spot's kept already under Practice's id, and adds nothing", async () => {
+    const hand = rec("A", "imp");
+    await addHands([hand]);
+    await putDecisions([miss("h|A")]);
+    const entry = addedMistake(miss("h|A"), hand, importHand(text), 1)!;
+    await keepMistake({ ...entry, id: "hand|written another way", from: "hand", ask: { via: "solver", state: { players: 6 } as never } }, (w) => w);
+    open("h|A");
+    fireEvent.click(await screen.findByRole("button", { name: "Add to review: flop decision 2" }));
+    expect(await screen.findByText(/Already kept/)).toBeInTheDocument();
+    expect((await listMistakes()).list.map((m) => m.id)).toEqual(["hand|written another way"]);
+  });
+
+  it("links a Practice hand to Study with the rake and sizes it was played at", async () => {
+    await addHands([rec("A", "imp", { setup: { rake: 5, sizes: { flop: [50] } } })]);
+    await putDecisions([miss("h|A")]);
+    open("h|A");
+    expect((await screen.findByRole("link", { name: "Study flop decision 2" })).getAttribute("href")).toContain("sz.flop=50&rake=5");
+  });
+
+  it("says why a miss can't be added, and not that this browser keeps nothing", async () => {
+    await addHands([rec("A", "imp")]);
+    await putDecisions([miss("h|A", { matched: "bet 300%" })]);
+    open("h|A");
+    fireEvent.click(await screen.findByRole("button", { name: "Add to review: flop decision 2" }));
+    expect(await screen.findByText(/Not for Review: what you played, bet 1\.8, isn't one of the actions in the answer kept/)).toBeInTheDocument();
+    expect(screen.queryByText(/private window/)).toBeNull();
+    expect((await listMistakes()).list).toEqual([]);
+  });
+
+  it("says a hand with no cards of yours can't be added", async () => {
+    await addHands([rec("A", "imp", { hole: "" })]);
+    await putDecisions([miss("h|A")]);
+    open("h|A");
+    fireEvent.click(await screen.findByRole("button", { name: "Add to review: flop decision 2" }));
+    expect(await screen.findByText(/Not for Review: this hand kept no cards of yours/)).toBeInTheDocument();
+    expect(screen.queryByText(/private window/)).toBeNull();
   });
 
   it("isn't offered on what wasn't missed, and says why where a miss can't be dealt", async () => {

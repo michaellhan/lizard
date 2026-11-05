@@ -13,7 +13,7 @@ import { sessionImport } from "@/features/analyze/sessions";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
 import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
-import { runEnd, setupOf, shownCards, type PracticeHand } from "./practice";
+import { rakeSetup, runEnd, setupOf, shownCards, type PracticeHand } from "./practice";
 
 export { PRACTICE_SITE };
 /** your name in the history */
@@ -129,6 +129,8 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
     // (Analyze's money totals leave a tournament's out: these chips were no cash game's)
     ...(h.tournament ? { tournament: "Practice" } : {}),
     ...(revealed.length ? { revealed } : {}),
+    // (what the history can't say, for its Study links)
+    ...(h.sizes || h.rake ? { setup: { ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h) } } : {}),
     ...(h.pot ? { playedFor: "preflop" as const, decisions: heroDecisions(replayed).filter((d) => d.street !== "preflop").length } : {}),
   };
 }

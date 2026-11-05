@@ -507,6 +507,11 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   const add = hand.getByRole("button", { name: /^Add to review: / }).first();
   await add.click();
   await expect(hand.getByRole("status").filter({ hasText: /^Added, due tomorrow/ })).toBeVisible();
+  // the same spot pressed again isn't a second entry
+  await page.reload();
+  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
+  await hand.getByRole("button", { name: /^Add to review: / }).first().click();
+  await expect(hand.getByRole("status").filter({ hasText: /^Already kept/ })).toBeVisible();
   await hand.getByRole("link", { name: "Review" }).first().click();
 
   await expect(page).toHaveURL(/\/review/);
