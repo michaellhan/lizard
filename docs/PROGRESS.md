@@ -3828,3 +3828,15 @@ now those checks had only been made by hand. This is the earliest unmet criterio
   `1a14605e`, and `/`, `/gto-solver/` and `/gto-solver-classic/` answer 200.
 
 The first run with this gate failed before any test ran: GitHub's `ubuntu-latest` is now 26.04 and Playwright 1.56.1 stopped at `Playwright does not support chromium on ubuntu26.04-x64`. Nothing reached the site from that run. The build job is pinned to `ubuntu-24.04`; moving Playwright itself would have meant a new browser build under tests that had just been baselined. 26.04 comes back when Playwright is next raised.
+
+## Walking a line in Study (2026-11-05)
+
+Study's line is now a breadcrumb: each action, each street's cards and each run of preflop folds is a button to that node, with the start of the hand as the first. Forward sits beside Back. What lies ahead after stepping back stays on the line, dashed, until a different action makes a new one. Left or Backspace, right, 1-9 for an action and b for the builder work on the page, except while typing, and 1-9 are the builder's brushes while it's on (Backspace and b are classic's keys). A node facing a bet says the price and the pot odds.
+
+- What's ahead lives in the page, not the URL, so a shared link and a reload start with nothing ahead.
+- Reset keeps what's ahead, the same as clicking the first step. Clearing it from the button would race the URL's update, and dashed steps do no harm.
+- The answer's pot was checked against the engine before using it: it holds the bet faced, 4.0 with 1.5 to call for BB against a 2.5 open, 3.5 with 1.5 to call on a river facing a 1.5 bet, so odds are to_call / (pot + to_call).
+- With per-seat stacks that isn't always so. A 30bb BB facing a 100bb open read pot 101.5bb and 29 to call, which would say 22% for a price of about 48%, while a heads-up river capped the bet and read 31. The page can't tell these apart from the answer, so pot odds stay off wherever someone left in has more chips than the player to act, and only the price shows.
+
+1522 unit tests pass in 80 files. The new browser test passed at desktop and phone.
+

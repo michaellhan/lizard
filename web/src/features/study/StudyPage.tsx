@@ -2,7 +2,7 @@
 // answers for every hand of the player to act (Advisor.study): the 13x13 mix, EVs, equity, the range's totals.
 // Preflop the charts answer at once; library flops answer at once; other flops (heads-up / 3-way), turns and
 // rivers are solved live in the browser (or the local Python server), with progress and cancel.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -17,13 +17,19 @@ import {
   cardsNeeded,
   deal,
   describeLine,
+  forward,
   freshHand,
   fromSearch,
+  lineOf,
+  lineSteps,
+  onLine,
   play,
+  potOdds,
   randomCards,
   readCards,
   STREETS,
   streetOf,
+  studyKey,
   studyRequest,
   toSearch,
   samePf,
@@ -77,6 +83,10 @@ export function StudyPage() {
   const [params, setParams] = useSearchParams();
   const hand = useMemo<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100), [params]);
   const setHand = useCallback((h: StudyHand) => setParams(toSearch(h)), [setParams]);
+  // the furthest node of the line being walked: Back keeps it, for Forward and the breadcrumb; off it, a new line
+  const [trail, setTrail] = useState(hand);
+  const tip = useMemo(() => (onLine(hand, trail) ? trail : hand), [hand, trail]);
+  if (tip !== trail) setTrail(tip);
   // classic Study offers Fast and Accurate only (study.js); the Quick setting (for Practice) runs Study at Fast
   const picked = useSettings((s) => s.mode);
   const mode = picked === "quick" ? "fast" : picked;
@@ -225,15 +235,16 @@ export function StudyPage() {
   // the builder paints the whole range (no filter) of a complete answer: a partial one would show its mix early
   const buildable = raw?.study === "node" && (raw.grid?.actions.length ?? 0) > 1;
   const buildRes = phase.kind === "done" && buildable ? (raw as AdvisorResponse & { grid: NonNullable<AdvisorResponse["grid"]> }) : null;
+  const toggleBuild = () => {
+    setBuilding((b) => !b);
+    setWho(0);
+    setSelected(null);
+  };
   const buildButton = buildable && (
     <button
       type="button"
       aria-pressed={building}
-      onClick={() => {
-        setBuilding((b) => !b);
-        setWho(0);
-        setSelected(null);
-      }}
+      onClick={toggleBuild}
       title="Paint the strategy yourself, then score it against this answer"
       className={`rounded border px-2 py-0.5 ${building ? "border-accent bg-surface-3" : "border-border text-muted hover:bg-surface-2"}`}
     >
@@ -241,10 +252,32 @@ export function StudyPage() {
     </button>
   );
 
-  const onBack = () => {
-    const b = back(hand);
-    if (b) setHand(b);
-  };
+  const prevNode = back(hand);
+  const nextNode = forward(hand, tip);
+  const steps = lineSteps(hand, tip);
+
+  // keys: left and right walk the line, 1-9 play that action (while building, 1-9 pick its brushes); not while typing
+  const onKey = useEffectEvent((e: KeyboardEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (e.defaultPrevented || (el && (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) || el.isContentEditable))) return;
+    const k = studyKey(e);
+    if (!k) return;
+    if (k.kind === "build") {
+      if (buildable) toggleBuild();
+      return;
+    }
+    const to = k.kind === "back" ? prevNode : k.kind === "forward" ? nextNode : null;
+    const act = k.kind === "play" && !building && res?.study === "node" ? res.actions?.[k.index] : undefined;
+    if (act && res) setHand(play(hand, res, act));
+    else if (to) setHand(to);
+    else return;
+    e.preventDefault();
+  });
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => onKey(e);
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -264,17 +297,47 @@ export function StudyPage() {
       </div>
 
       <nav aria-label="Line" className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-surface p-2 text-sm">
-        <span className="rounded bg-surface-3 px-2 py-0.5 text-muted">
+        <button
+          type="button"
+          aria-current={prevNode ? undefined : "step"}
+          title="The start of the hand"
+          onClick={() => setHand(lineOf(tip)[0] ?? hand)}
+          className={`rounded bg-surface-3 px-2 py-0.5 hover:text-text ${prevNode ? "text-muted" : "ring-1 ring-accent"}`}
+        >
           {hand.players === 2 ? "HU" : `${hand.players}-max`} {hand.stack}bb
-        </span>
-        {describeLine(hand).map((t, i) => (
-          <span key={i} className="rounded bg-surface-2 px-2 py-0.5 font-mono">
-            {t}
-          </span>
+        </button>
+        {steps.map((s, i) => (
+          <button
+            key={i}
+            type="button"
+            aria-current={s.at === "here" ? "step" : undefined}
+            title={s.detail}
+            onClick={() => setHand(s.hand)}
+            className={`rounded px-2 py-0.5 font-mono ${
+              s.at === "ahead" ? "border border-dashed border-border text-muted hover:text-text" : `bg-surface-2 hover:bg-surface-3 ${s.at === "here" ? "ring-1 ring-accent" : ""}`
+            }`}
+          >
+            {s.label}
+          </button>
         ))}
         <span className="flex-1" />
-        <button type="button" onClick={onBack} disabled={!back(hand)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40">
+        <button
+          type="button"
+          aria-keyshortcuts="ArrowLeft"
+          onClick={() => prevNode && setHand(prevNode)}
+          disabled={!prevNode}
+          className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
+        >
           ← Back
+        </button>
+        <button
+          type="button"
+          aria-keyshortcuts="ArrowRight"
+          onClick={() => nextNode && setHand(nextNode)}
+          disabled={!nextNode}
+          className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
+        >
+          Forward →
         </button>
         <button type="button" onClick={() => setHand(samePf(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
           Reset
@@ -562,6 +625,7 @@ function NodeView({
       </div>
     );
   }
+  const odds = potOdds(hand, res);
   return (
     <section aria-label="Actions" className="space-y-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -570,6 +634,10 @@ function NodeView({
           to act on the {res.street}
           {res.position ? ` (${res.position})` : ""}
           {res.pot_bb !== undefined ? ` · pot ${res.pot_bb}bb` : ""}
+          {res.to_call_bb ? ` · to call ${res.to_call_bb}bb` : ""}
+          {odds !== null && (
+            <span title="What a call costs as a share of the pot it makes. Plain arithmetic in chips, before rake, not a solve."> · pot odds {pctOdds(odds)}</span>
+          )}
         </span>
         <span className="flex-1" />
         <ProvenanceBadge p={shown.provenance} />
@@ -579,12 +647,18 @@ function NodeView({
           <button
             key={a.action}
             type="button"
+            aria-keyshortcuts={i < 9 ? String(i + 1) : undefined}
             onClick={() => setHand(play(hand, res, a))}
             className="group min-w-28 rounded-md border border-border bg-surface-2 px-3 py-2 text-left hover:border-accent"
           >
             <div className="flex items-center gap-2">
               <span className="inline-block h-3 w-3 rounded-sm" style={{ background: colors[names.indexOf(a.action)] ?? colors[i] }} />
               <span className="font-medium">{a.action}</span>
+              {!building && i < 9 && (
+                <kbd aria-hidden className="ml-auto hidden font-mono text-[10px] text-muted md:inline">
+                  {i + 1}
+                </kbd>
+              )}
             </div>
             {!building && (
               <div className="mt-1 font-mono text-xs text-muted">
@@ -613,6 +687,8 @@ function NodeView({
   );
 }
 
+
+const pctOdds = (x: number) => `${(100 * x).toFixed(1)}%`;
 
 function NewHandForm({ players, stack, onStart }: { players: number; stack: number; onStart: (players: number, stack: number) => void }) {
   const [p, setP] = useState(players);

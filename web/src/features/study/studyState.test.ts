@@ -5,15 +5,22 @@ import {
   deal,
   describeLine,
   encodeLine,
+  forward,
   freshHand,
   fromSearch,
+  lineOf,
+  lineSteps,
+  onLine,
   parseLine,
   play,
+  potOdds,
   randomCards,
   readCards,
   streetOf,
+  studyKey,
   studyRequest,
   toSearch,
+  type StudyHand,
 } from "./studyState";
 
 const LINE = "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c";
@@ -85,5 +92,100 @@ describe("study navigation", () => {
     const h = { ...freshHand(6, 100), preflop: parseLine(LINE), board: "Ks7d2c" };
     expect(studyRequest(h)).toMatchObject({ players: 6, study: true, board: "Ks7d2c" });
     expect(describeLine(h)).toEqual(["BTN raise 2.5", "BB call", "Ks7d2c"]);
+  });
+});
+
+describe("moving along a line", () => {
+  const f = (pos: string) => ({ pos, action: "fold" });
+  const line: StudyHand = {
+    ...freshHand(6, 100),
+    board: "Ks7d2c",
+    preflop: [f("UTG"), f("HJ"), f("CO"), { pos: "BTN", action: "raise", to: 2.5 }, f("SB"), { pos: "BB", action: "call" }],
+    flop: [{ pos: "BB", action: "check" }],
+  };
+
+  it("lists every node from the start, each one step on", () => {
+    const nodes = lineOf(line);
+    expect(nodes).toHaveLength(9);
+    expect(nodes[0]).toEqual(freshHand(6, 100));
+    expect(nodes.at(-1)).toEqual(line);
+    expect(nodes[7]).toMatchObject({ board: "Ks7d2c", flop: [] });
+    expect(nodes[6]).toMatchObject({ board: "" });
+  });
+
+  it("walks forward along the line, undoing each Back, and stops at its end", () => {
+    let at: StudyHand = line;
+    for (let i = 0; i < 8; i++) at = back(at)!;
+    for (let i = 0; i < 8; i++) at = forward(at, line)!;
+    expect(at).toEqual(line);
+    expect(forward(line, line)).toBeNull();
+  });
+
+  it("has nothing ahead of a node off the line", () => {
+    const other = { ...freshHand(6, 100), preflop: [{ pos: "UTG", action: "raise", to: 2.5 }] };
+    expect(onLine(other, line)).toBe(false);
+    expect(forward(other, line)).toBeNull();
+    expect(onLine({ ...freshHand(6, 100) }, line)).toBe(true);
+    expect(onLine(freshHand(6, 50), line)).toBe(false); // another game's start
+  });
+
+  it("names the steps, with a run of folds as one, and says where the node shown is", () => {
+    const at = back(line)!; // (BB's check undone: the flop's cards are the node shown)
+    const s = lineSteps(at, line);
+    expect(s.map((x) => x.label)).toEqual(["3 folds", "BTN raise 2.5", "SB fold", "BB call", "Ks7d2c", "BB check"]);
+    expect(s[0]?.detail).toBe("UTG, HJ, CO fold");
+    expect(s.map((x) => x.at)).toEqual(["past", "past", "past", "past", "here", "ahead"]);
+    expect(s[1]?.hand.preflop).toHaveLength(4);
+    expect(s[4]?.hand).toEqual(at);
+  });
+
+  it("splits a run of folds where the node shown stands in it", () => {
+    const at = lineOf(line)[1]!; // after UTG's fold
+    const s = lineSteps(at, line);
+    expect(s.slice(0, 2).map((x) => [x.label, x.at])).toEqual([["UTG fold", "here"], ["2 folds", "ahead"]]);
+  });
+});
+
+describe("studyKey", () => {
+  const key = (k: string, mods = {}) => studyKey({ key: k, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...mods });
+
+  it("reads the arrows and 1-9", () => {
+    expect(key("ArrowLeft")).toEqual({ kind: "back" });
+    expect(key("Backspace")).toEqual({ kind: "back" });
+    expect(key("ArrowRight")).toEqual({ kind: "forward" });
+    expect(key("b")).toEqual({ kind: "build" });
+    expect(key("B")).toEqual({ kind: "build" });
+    expect(key("1")).toEqual({ kind: "play", index: 0 });
+    expect(key("9")).toEqual({ kind: "play", index: 8 });
+  });
+
+  it("leaves everything else alone, the browser's alt+left among it", () => {
+    for (const k of ["0", "a", "Enter", "ArrowUp"]) expect(key(k)).toBeNull();
+    expect(key("ArrowLeft", { altKey: true })).toBeNull();
+    expect(key("ArrowLeft", { metaKey: true })).toBeNull();
+    expect(key("1", { ctrlKey: true })).toBeNull();
+  });
+});
+
+describe("potOdds", () => {
+  const h = freshHand(6, 100);
+
+  it("is the call's share of the pot it makes (the engine's pot holds the bet faced)", () => {
+    expect(potOdds(h, { actor: "BB", pot_bb: 4, to_call_bb: 1.5 })).toBeCloseTo(1.5 / 5.5);
+    expect(potOdds(h, { actor: "SB", pot_bb: 3.5, to_call_bb: 1.5 })).toBeCloseTo(0.3);
+  });
+
+  it("has none with nothing to call", () => {
+    expect(potOdds(h, { actor: "BB", pot_bb: 4, to_call_bb: 0 })).toBeNull();
+    expect(potOdds(h, { actor: "BB", pot_bb: 4 })).toBeNull();
+    expect(potOdds(h, { actor: "BB", to_call_bb: 1 })).toBeNull();
+  });
+
+  it("has none for a stack someone left in covers, whose pot holds chips it can't win", () => {
+    const short: StudyHand = { ...h, setup: { stacks: { BTN: 200, BB: 30 } } };
+    expect(potOdds(short, { actor: "BB", pot_bb: 101.5, to_call_bb: 29 })).toBeNull();
+    expect(potOdds(short, { actor: "BTN", pot_bb: 40, to_call_bb: 10 })).toBeCloseTo(0.2);
+    const gone: StudyHand = { ...short, preflop: [{ pos: "BTN", action: "fold" }] }; // (the big stack has folded)
+    expect(potOdds({ ...gone, stack: 30 }, { actor: "BB", pot_bb: 4, to_call_bb: 1 })).toBeCloseTo(0.2);
   });
 });

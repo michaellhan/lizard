@@ -186,14 +186,106 @@ export function fromSearch(search: string): StudyHand | null {
   };
 }
 
+const say = (a: AdvisorAction) => `${a.pos} ${a.action}${a.to !== undefined && a.action !== "call" ? ` ${a.to}` : ""}`;
+
 /** Human-readable line, e.g. "BTN raise 2.5 · BB call · Ks7d2c · BB check". */
 export function describeLine(h: StudyHand): string[] {
   const out: string[] = [];
-  const say = (a: AdvisorAction) => `${a.pos} ${a.action}${a.to !== undefined && a.action !== "call" ? ` ${a.to}` : ""}`;
   out.push(...h.preflop.filter((a) => a.action !== "fold").map(say));
   const b = h.board;
   if (b.length >= 6) out.push(b.slice(0, 6), ...h.flop.map(say));
   if (b.length >= 8) out.push(b.slice(6, 8), ...h.turn.map(say));
   if (b.length >= 10) out.push(b.slice(8, 10), ...h.river.map(say));
   return out;
+}
+
+// ---- moving along a line. `tip` is the furthest node of the line being walked: stepping back keeps it, so Forward and
+// the breadcrumb can go on to what came next; a different action makes a new line. The URL holds the node shown only,
+// so a shared link and a reload start with nothing ahead.
+
+/** Every node from the start of the hand to h, h last (each one the back() of the next). */
+export function lineOf(h: StudyHand): StudyHand[] {
+  const out = [h];
+  for (let b = back(h); b; b = back(b)) out.unshift(b);
+  return out;
+}
+
+const sameNode = (a: StudyHand, b: StudyHand) => toSearch(a) === toSearch(b);
+
+export const onLine = (at: StudyHand, tip: StudyHand): boolean => lineOf(tip).some((n) => sameNode(n, at));
+
+/** The next node from `at` along the line to `tip`. */
+export function forward(at: StudyHand, tip: StudyHand): StudyHand | null {
+  const nodes = lineOf(tip);
+  const i = nodes.findIndex((n) => sameNode(n, at));
+  return i < 0 ? null : (nodes[i + 1] ?? null);
+}
+
+export interface LineStep {
+  label: string;
+  /** the seats in a run of folds */
+  detail?: string;
+  /** the node right after this step */
+  hand: StudyHand;
+  at: "past" | "here" | "ahead";
+}
+
+/** The steps of the line to `tip`, for the breadcrumb: an action or the cards of a street each, and a run of preflop
+ * folds as one (split where `at` stands in it, so every step of the line stays reachable from Back or Forward). */
+export function lineSteps(at: StudyHand, tip: StudyHand): LineStep[] {
+  const nodes = lineOf(tip);
+  const here = nodes.findIndex((n) => sameNode(n, at));
+  const out: (LineStep & { folds?: string[] })[] = [];
+  nodes.forEach((node, i) => {
+    const prev = nodes[i - 1];
+    if (!prev) return;
+    const pos: LineStep["at"] = i < here ? "past" : i === here ? "here" : "ahead";
+    const cards = node.board.slice(prev.board.length);
+    if (cards) {
+      out.push({ label: cards, hand: node, at: pos });
+      return;
+    }
+    const street = streetOf(node);
+    const act = node[street].at(-1);
+    if (!act) return;
+    if (street !== "preflop" || kindOf(act.action) !== "fold") {
+      out.push({ label: say(act), hand: node, at: pos });
+      return;
+    }
+    const last = out.at(-1);
+    const folds = last?.folds && i - 1 !== here ? [...last.folds, act.pos] : [act.pos];
+    const step = { label: folds.length > 1 ? `${folds.length} folds` : say(act), hand: node, at: pos, folds, ...(folds.length > 1 ? { detail: `${folds.join(", ")} fold` } : {}) };
+    if (folds.length > 1) out[out.length - 1] = step;
+    else out.push(step);
+  });
+  return out.map(({ label, detail, hand, at: where }) => ({ label, hand, at: where, ...(detail ? { detail } : {}) }));
+}
+
+export type StudyKey = { kind: "back" | "forward" | "build" } | { kind: "play"; index: number };
+
+/** The key's meaning on the page: left (or Backspace, as classic Study) and right walk the line, 1-9 play that action,
+ * b the range builder (as classic). */
+export function studyKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">): StudyKey | null {
+  if (e.ctrlKey || e.metaKey || e.altKey || (e.shiftKey && e.key !== "B")) return null; // (alt+left is the browser's own back)
+  if (e.key === "ArrowLeft" || e.key === "Backspace") return { kind: "back" };
+  if (e.key === "b" || e.key === "B") return { kind: "build" };
+  if (e.key === "ArrowRight") return { kind: "forward" };
+  return /^[1-9]$/.test(e.key) ? { kind: "play", index: Number(e.key) - 1 } : null;
+}
+
+/** What a call costs as a share of the pot it makes: to call / (pot + to call), the answer's pot already holding the
+ * bet faced. None with nothing to call, or with per-seat stacks where someone left in has more than the player: the
+ * engine's pot then holds chips a short call can't win (101.5bb for a 30bb stack facing a 100bb open, so 22% where
+ * the price is about 48%), and this can't tell how much. Plain arithmetic in chips, before rake. */
+export function potOdds(h: StudyHand, res: Pick<AdvisorResponse, "actor" | "pot_bb" | "to_call_bb">): number | null {
+  const call = res.to_call_bb, pot = res.pot_bb;
+  if (!call || call <= 0 || pot === undefined) return null;
+  const stacks = h.setup?.stacks;
+  if (stacks) {
+    const out = new Set(STREETS.flatMap((st) => h[st]).filter((a) => kindOf(a.action) === "fold").map((a) => a.pos));
+    const mine = stacks[String(res.actor)] ?? h.stack;
+    const live = Object.entries(stacks).filter(([pos]) => !out.has(pos)).map(([, v]) => v);
+    if (Math.max(h.stack, ...live) > mine) return null;
+  }
+  return call / (pot + call);
 }

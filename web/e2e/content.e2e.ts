@@ -28,6 +28,44 @@ test("Study: a preflop spot, an action played, back, and the link reloaded", asy
   await expect(page).not.toHaveURL(link);
 });
 
+test("Study: the line walked by its breadcrumb, Forward and the keys, and a call's pot odds", async ({ page, problems }, info) => {
+  await page.goto("/lizard/study/?p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f");
+  const actions = page.getByRole("region", { name: "Actions" });
+  await expect(actions.getByText("to call 1.5bb · pot odds 27.3%")).toBeVisible({ timeout: 45_000 });
+  const line = page.getByRole("navigation", { name: "Line" });
+  await expect(line.getByRole("button", { name: "3 folds" })).toBeVisible();
+  const here = line.locator('[aria-current="step"]');
+  await expect(here).toHaveText("SB fold");
+  const forward = line.getByRole("button", { name: /Forward/ });
+  await expect(forward).toBeDisabled();
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(here).toHaveText("BTN raise 2.5");
+  await line.getByRole("button", { name: "3 folds" }).click();
+  await expect(here).toHaveText("3 folds");
+  await expect(page).toHaveURL(/pre=UTG%3Af%2CHJ%3Af%2CCO%3Af(&|$)/);
+  await forward.click();
+  await expect(here).toHaveText("BTN raise 2.5");
+  await page.keyboard.press("ArrowRight");
+  await expect(here).toHaveText("SB fold");
+  await expect(forward).toBeDisabled();
+
+  // a number plays that action; what was ahead on another line is gone
+  await page.keyboard.press("ArrowLeft");
+  await expect(actions.getByText(/to act on the preflop/)).toBeVisible({ timeout: 45_000 });
+  await page.keyboard.press("1");
+  await expect(here).not.toHaveText("BTN raise 2.5");
+  await expect(here).not.toHaveText("SB fold");
+  await expect(forward).toBeDisabled();
+
+  // not while typing
+  const url = page.url();
+  await page.getByLabel("Stack in big blinds").focus();
+  await page.keyboard.press("ArrowLeft");
+  expect(page.url()).toBe(url);
+  await done(page, problems, info, "study-line");
+});
+
 test("Practice: a decision made and graded", async ({ page, problems }, info) => {
   await page.goto("/lizard/practice/");
   const options = page.getByRole("group", { name: "Your options" }).getByRole("button");

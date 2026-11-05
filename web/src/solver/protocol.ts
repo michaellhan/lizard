@@ -110,6 +110,8 @@ export interface AdvisorResponse {
   opponent?: string;
   position?: "IP" | "OOP" | string;
   pot_bb?: number;
+  /** what a call costs the player to act, in bb (the pot above already holds the bet faced) */
+  to_call_bb?: number;
   actions?: AdvisorActionStat[];
   grid?: RangeGridData;
   opponent_grid?: RangeGridData;
