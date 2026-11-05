@@ -281,6 +281,13 @@ function SpotRow({ spot, answer, current, onChange, onGone }: { spot: SavedSpot;
   const [tags, setTags] = useState(spot.tags.join(", "));
   const [note, setNote] = useState(spot.note);
   const [failed, setFailed] = useState(false);
+  const edit = () => {
+    setTitle(spot.title);
+    setTags(spot.tags.join(", "));
+    setNote(spot.note);
+    setFailed(false);
+    setEditing(true);
+  };
   const seen = seenWords(spot.seen, spot.line);
   const save = async () => {
     const kept = await stored(() => putSpot({ ...spot, title: title.trim() || spot.title, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
@@ -326,7 +333,7 @@ function SpotRow({ spot, answer, current, onChange, onGone }: { spot: SavedSpot;
             <Link to={`/study?${spot.line}${answer ? `&saved=${encodeURIComponent(spot.id)}` : ""}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
               Open in Study
             </Link>
-            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <ExportButton name={spot.title} item={["savedSpots", spot]} />
@@ -364,6 +371,13 @@ function DrillRow({ drill, onChange, onGone }: { drill: SavedDrill; onChange: ()
   const [tags, setTags] = useState((drill.tags ?? []).join(", "));
   const [note, setNote] = useState(drill.note);
   const [failed, setFailed] = useState(false);
+  const edit = () => {
+    setName(drill.name);
+    setTags((drill.tags ?? []).join(", "));
+    setNote(drill.note);
+    setFailed(false);
+    setEditing(true);
+  };
   const save = async () => {
     const kept = await stored(() => putDrill({ ...drill, name: name.trim() || drill.name, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
     setFailed(!kept);
@@ -411,7 +425,7 @@ function DrillRow({ drill, onChange, onGone }: { drill: SavedDrill; onChange: ()
                 {drill.kind === "library" ? "Open in Practice" : "Open in Analyze"}
               </Link>
             )}
-            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <ExportButton name={drill.name} item={["savedDrills", drill]} />
@@ -443,6 +457,13 @@ function ScenarioRow({ scenario, onChange, onGone }: { scenario: SavedScenario; 
   const [tags, setTags] = useState((scenario.tags ?? []).join(", "));
   const [note, setNote] = useState(scenario.note);
   const [failed, setFailed] = useState(false);
+  const edit = () => {
+    setName(scenario.name);
+    setTags((scenario.tags ?? []).join(", "));
+    setNote(scenario.note);
+    setFailed(false);
+    setEditing(true);
+  };
   const save = async () => {
     const kept = await stored(() => putScenario({ ...scenario, name: name.trim() || scenario.name, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
     setFailed(!kept);
@@ -488,7 +509,7 @@ function ScenarioRow({ scenario, onChange, onGone }: { scenario: SavedScenario; 
             <Link to={`/practice?scenario=${encodeURIComponent(scenario.id)}`} aria-label={`Start ${scenario.name}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
               Start in Practice
             </Link>
-            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <ExportButton name={scenario.name} item={["savedScenarios", scenario]} />
@@ -520,6 +541,13 @@ function ReportRow({ report, onChange, onGone }: { report: SavedReport; onChange
   const [tags, setTags] = useState((report.tags ?? []).join(", "));
   const [note, setNote] = useState(report.note);
   const [failed, setFailed] = useState(false);
+  const edit = () => {
+    setName(report.name);
+    setTags((report.tags ?? []).join(", "));
+    setNote(report.note);
+    setFailed(false);
+    setEditing(true);
+  };
   const save = async () => {
     const kept = await stored(() => putReport({ ...report, name: name.trim() || report.name, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
     setFailed(!kept);
@@ -565,7 +593,7 @@ function ReportRow({ report, onChange, onGone }: { report: SavedReport; onChange
             <Link to={reportLink(report.filters)} aria-label={`Open ${report.name}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
               Open in Analyze
             </Link>
-            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <ExportButton name={report.name} item={["savedReports", report]} />
@@ -597,6 +625,13 @@ function RangeRow({ range, onChange, onGone }: { range: SavedRange; onChange: ()
   const [tags, setTags] = useState((range.tags ?? []).join(", "));
   const [note, setNote] = useState(range.note);
   const [failed, setFailed] = useState(false);
+  const edit = () => {
+    setName(range.name);
+    setTags((range.tags ?? []).join(", "));
+    setNote(range.note);
+    setFailed(false);
+    setEditing(true);
+  };
   const save = async () => {
     const kept = await stored(() => putRange({ ...range, name: name.trim() || range.name, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
     setFailed(!kept);
@@ -644,7 +679,7 @@ function RangeRow({ range, onChange, onGone }: { range: SavedRange; onChange: ()
             <Link to={`/ranges?range=${encodeURIComponent(range.id)}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
               Open in Ranges
             </Link>
-            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <ExportButton name={range.name} item={["savedRanges", range]} />
@@ -687,7 +722,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
       const b = await downloadBackup();
       setMsg({
         ok: true,
-        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedAnswers} saved answers, ${b.counts.savedDrills} drills, ${b.counts.savedScenarios} scenarios, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
+        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedAnswers} saved answers, ${b.counts.savedDrills} drills, ${b.counts.savedScenarios} scenarios, ${b.counts.savedRanges} ranges, ${b.counts.savedReports} saved reports, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
       });
     } catch (e) {
       console.error("The backup failed:", e);
@@ -700,11 +735,12 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     setMsg(null);
     try {
       setMsg({ ok: true, text: await restoreFile(file) });
-      onRestored();
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
+      // (a restore stopped partway still brought some in)
+      onRestored();
     }
   };
 
@@ -712,7 +748,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
       <p className="text-muted">
-        One file with your saved spots and the answers kept with them, saved drills, saved scenarios, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
+        One file with your saved spots and the answers kept with them, saved drills, saved scenarios, saved ranges, saved reports, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
         imported into Analyze with your tags, notes and grades, and the mistakes kept for review with their schedule; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
       </p>

@@ -425,7 +425,12 @@ interface DrillFacts {
 }
 
 /** Why the table and depth are what they are, after the settings' words. */
-const gameWords = (t: DrillTarget, g: PlanGame) => (t.kind !== "setup" ? "" : g.yours ? " The table and stack are your last Practice session's." : " No Practice session is kept, so that's 6-max at 100bb.");
+const gameWords = (t: DrillTarget, g: PlanGame) => {
+  if (t.kind !== "setup") return "";
+  const moved = t.setup.players !== g.players;
+  if (g.yours) return moved ? ` The stack is your last Practice session's, at ${t.setup.players} players, the smallest table with this seat.` : " The table and stack are your last Practice session's.";
+  return moved ? ` No Practice session is kept, so that's 100bb, at ${t.setup.players} players, the smallest table with this seat.` : " No Practice session is kept, so that's 6-max at 100bb.";
+};
 
 function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRecord[], game: PlanGame): DrillStep {
   const { street, seat, seatMiss: m } = f;

@@ -5,7 +5,7 @@
 // flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
 // the URL. A 3-way spot's report is built in the page from its stored flops' entries (strategies only). Below it, a turn report
 // over a sample of the spot's flops of the texture chosen (TurnReportPanel.tsx).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PhoneColumns } from "@/components/PhoneColumns";
@@ -152,6 +152,7 @@ function SpotReport({
   turnSample?: number;
 }) {
   const mode = useSettings((s) => s.mode);
+  const sampleAgainRef = useRef(false);
   const [data, setData] = useState<Rep>({ st: "loading" });
   useEffect(() => {
     let alive = true;
@@ -320,7 +321,7 @@ function SpotReport({
               ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
           </p>
           {/* (a sample belongs to its texture and seed: a new one starts from the top, what's read kept in keptTurns) */}
-          <TurnReportPanel key={`${filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={steadyFilter} params={params} set={set} kept={keptTurns} sample={turnSample} />
+          <TurnReportPanel key={`${filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={steadyFilter} params={params} set={set} kept={keptTurns} sample={turnSample} againRef={sampleAgainRef} />
         </>
       )}
     </div>

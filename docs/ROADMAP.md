@@ -5,7 +5,7 @@ Status as of 2026-11-05. This plans the path from today's state to broad parity 
 ## Where we start
 
 - **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`, with a frozen full copy at `/gto-solver-classic/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
-- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 63 matrix rows, Lizard is WORKING on 8, PARTIAL on 46, APPROXIMATE on 5 and NOT IMPLEMENTED on 4 (2026-11-05). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
+- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 63 matrix rows, Lizard is WORKING on 8, PARTIAL on 47, APPROXIMATE on 5 and NOT IMPLEMENTED on 3 (2026-11-05). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
 - **Much of the plumbing is ready but unused.** That includes:
   - the `SolverClient` queue with worker and HTTP backends;
   - provenance on every answer;

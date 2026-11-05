@@ -27,7 +27,11 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
   const [found, setFound] = useState<Salvage | undefined>(storing ? undefined : { backup: null, read: 0, unread: [] });
   const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
   const [trying, setTrying] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const keep = useRef<HTMLButtonElement>(null);
+  const begin = useRef<HTMLButtonElement>(null);
+  const started = useRef<HTMLHeadingElement>(null);
+  const was = useRef(stage);
 
   useEffect(() => {
     if (!storing) return;
@@ -37,8 +41,12 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
       alive = false;
     };
   }, [storing]);
+  // (each of these takes away the button the keyboard was on)
   useEffect(() => {
     if (stage === "confirm") keep.current?.focus();
+    if (stage === "fresh") started.current?.focus();
+    if (stage === "failed" && was.current !== "failed") begin.current?.focus();
+    was.current = stage;
   }, [stage]);
 
   const again = async () => {
@@ -53,8 +61,13 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
 
   const download = () => {
     if (!found?.backup) return;
-    saveBackup(found.backup, backupFileName(new Date(), "recovered"));
-    setSaid({ ok: true, text: `Downloaded ${found.read} record${found.read === 1 ? "" : "s"}. Restore this file from the Saved page to bring them back.` });
+    try {
+      saveBackup(found.backup, backupFileName(new Date(), "recovered"));
+      setSaid({ ok: true, text: `Downloaded ${found.read} record${found.read === 1 ? "" : "s"}. Restore this file from the Saved page to bring them back.` });
+    } catch (e) {
+      console.error("The download failed:", e);
+      setSaid({ ok: false, text: `Nothing was downloaded: ${e instanceof Error ? e.message : String(e)}` });
+    }
   };
 
   const startFresh = async () => {
@@ -76,10 +89,13 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
 
   const restore = async (file: File) => {
     setSaid(null);
+    setRestoring(true);
     try {
       setSaid({ ok: true, text: await restoreFile(file) });
     } catch (e) {
       setSaid({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -91,16 +107,19 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
       <div className="space-y-2 rounded-lg border border-warn/50 bg-surface p-3">
         {stage === "fresh" ? (
           <>
-            <h2 className="text-lg font-semibold">Started fresh</h2>
+            <h2 ref={started} tabIndex={-1} className="text-lg font-semibold outline-none">
+              Started fresh
+            </h2>
             <p>The old data is gone and this browser is keeping data again. If you have a backup, restore it here.</p>
             <div className="flex flex-wrap items-center gap-2">
               <label className={`${BUTTON} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent`}>
-                Restore from a file
+                {restoring ? "Restoring…" : "Restore from a file"}
                 <input
                   type="file"
                   accept="application/json,.json"
                   aria-label="Backup file to restore"
                   className="sr-only"
+                  disabled={restoring}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     e.target.value = "";
@@ -108,7 +127,7 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
                   }}
                 />
               </label>
-              <button type="button" onClick={reload} className={BUTTON}>
+              <button type="button" disabled={restoring} onClick={reload} className={BUTTON}>
                 Reload the page
               </button>
             </div>
@@ -151,7 +170,7 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
                 </button>
               )}
               {storing && (
-                <button type="button" disabled={stage !== "failed"} onClick={() => setStage("confirm")} className={BUTTON}>
+                <button ref={begin} type="button" disabled={stage !== "failed" || !found} onClick={() => setStage("confirm")} className={BUTTON}>
                   Start fresh…
                 </button>
               )}

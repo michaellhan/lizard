@@ -626,6 +626,7 @@ describe("PracticePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry this decision" }));
     const retry = await screen.findByRole("region", { name: "Retry this decision" });
+    expect(retry).toHaveFocus();
     expect(within(retry).getByText(/A retry is graded and shown here\. It doesn.t change your score/)).toBeInTheDocument();
     const options = await within(retry).findByRole("group", { name: "Retry options" });
     // held by the Room, so asked of nobody
@@ -635,10 +636,14 @@ describe("PracticePage", () => {
     fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
     expect(within(retry).getByText(/^This retry$/)).toBeInTheDocument();
     expect(within(retry).getByText(/This time:/)).toHaveTextContent("Same kind of answer both times.");
+    // the grade is said as it comes, and the keyboard goes on to the way out
+    expect(within(within(retry).getByRole("status")).getByText(/This time:/)).toBeInTheDocument();
+    expect(within(retry).getByRole("button", { name: "Close" })).toHaveFocus();
     expect(score()).toBe(was);
 
     fireEvent.click(within(retry).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("region", { name: "Retry this decision" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry this decision" })).toHaveFocus();
   });
 
   it("keeps the table's keys off while a retry is open, as they'd play a real move under it", async () => {

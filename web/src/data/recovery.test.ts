@@ -99,6 +99,24 @@ describe("salvage", () => {
     expect(s.backup!.counts.savedSpots).toBe(1);
   });
 
+  it("keeps what it read of a store that stops answering, and says the rest wasn't read", async () => {
+    await wipe();
+    const d = await openLizardDB(DB_VERSION);
+    await d.put("savedSpots", SPOT);
+    await d.put("savedRanges", { id: "r", name: "n", text: "", combos: 0, note: "", createdAt: 1, updatedAt: 1 });
+    d.close();
+    const real = IDBObjectStore.prototype.openCursor;
+    // (a cursor that's never answered, in a store that has records)
+    vi.spyOn(IDBObjectStore.prototype, "openCursor").mockImplementation(function (this: IDBObjectStore, ...a) {
+      return this.name === "savedRanges" ? ({} as IDBRequest<IDBCursorWithValue | null>) : real.apply(this, a);
+    });
+    const s = await salvage(200);
+    expect(s.read).toBe(1);
+    expect(s.backup!.counts.savedSpots).toBe(1);
+    expect(s.unread).toContain("savedRanges");
+    expect(s.unread).not.toContain("savedSpots");
+  });
+
   it("drops what can't be a record, keeping the rest", async () => {
     await wipe();
     const d = await openLizardDB(DB_VERSION);

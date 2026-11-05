@@ -294,6 +294,7 @@ function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecor
       {!queue.length && <p className="text-muted">Nothing is due today.{soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}</p>}
       <p className="text-xs text-muted">
         The longest overdue come first, then the worst grades. {list.some((m) => m.ask.via === "solver") ? "A full hand\u2019s spot is asked of the solver at the mode above; a drill\u2019s is read from the library." : "A drill\u2019s spot is read from the library, with no solve."}
+        {list.some((m) => m.ask.via === "solver" && m.ask.live) ? " A live drill\u2019s spot is solved at Fast or above whichever mode is picked, and can be refused as the drill refuses it." : ""}
         {list.some((m) => m.ask.via === "kept") ? " A decision from Analyze is graded against the answer kept with it, with no solve." : ""}
       </p>
     </section>

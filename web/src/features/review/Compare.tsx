@@ -16,11 +16,13 @@ export function Compare({ m, r }: { m: Pick<MistakeRecord, "provenance" | "mix" 
           First: <VerdictTag v={m.grade.verdict} /> {costWords(m.grade, m.mix, firstSource, evUnit(m.provenance))}. This time: <VerdictTag v={r.grade.verdict} /> {costWords(r.grade, r.decision.mix, nowSource, evUnit(r.decision.provenance))}. {m.ask?.via === "kept" ? "The same answer both times." : "Same kind of answer both times."}
         </p>
         {m.grade.capped && <p className="text-muted">Your first grade: {CAPPED_WORDS}</p>}
+        {r.off && <p className="text-muted">{r.off}</p>}
       </>
     );
   return (
     <div className="space-y-1 rounded border border-warn/60 p-2">
       <p className="font-medium text-warn">The answer has changed, so these two grades aren&rsquo;t compared</p>
+      {r.off && <p className="text-muted">{r.off}</p>}
       <ul className="list-disc pl-4">
         {r.change.map((c) => (
           <li key={c}>{c}</li>

@@ -105,6 +105,12 @@ describe("the moves of a stored line", () => {
     expect(treeBet(0.33, 5.5)).toBe(2);
     expect(treeBet(0.75, 5.5)).toBe(4);
     expect(treeBet(0.1, 2)).toBe(1);
+    // (solver.py's round goes half to the even: 75% of 35bb is 26bb in the tree, 75% of 33bb is 25bb, 75% of 37bb 28bb)
+    expect(treeBet(0.75, 35)).toBe(26);
+    expect(treeBet(0.75, 33)).toBe(25);
+    expect(treeBet(0.75, 37)).toBe(28);
+    expect(treeBet(0.75, 7)).toBe(5);
+    expect(treeBet(0.75, 9)).toBe(7);
     for (const [sid, f] of [[SID, FLOP], ["3bp_bb_btn", "2h2d2c"]] as const) {
       const r = report(sid);
       for (const line of (await loadTurns(sid, f)).lines) {
@@ -382,6 +388,7 @@ describe("what grades a live drill", () => {
     ["an action with no EV", { actions: [{ action: "check", freq: 1, ev_bb: 1 }, { action: "bet 75%", freq: 0 }] }, /no EV for every action/],
     ["no measured distance", { solver: { iterations: 40 } }, /measured no distance/],
     ["a rough solve", { solver: { iterations: 40, exploitability_pct: 12.5 } }, /^The solve stopped 12\.5% of the pot from equilibrium, too far to grade on\.$/],
+    ["a rough solve that also reads as approximate, as these do past ten times their target", { solver: { iterations: 40, exploitability_pct: 25, approximate: true, target_pct: 0.3 } }, /^The solve stopped 25\.0% of the pot from equilibrium, too/],
     ["an earlier street from the rules", { off_solution: [{ street: "turn", pos: "BTN", why: "rules" }] }, /^This spot leans on the betting rules, so it isn't graded here: the turn is narrowed by the betting rules, not solved\.$/],
     ["an unresolved rare line", { off_solution: [{ street: "flop", pos: "BTN", why: "rare", action: "check", share: 0 }] }, /BTN's check on the flop is never in the solve/],
     ["a widened range", { widened: ["BTN"] }, /an opponent's range comes from them/],

@@ -54,6 +54,7 @@ export function TurnReportPanel({
   set,
   kept,
   sample = TURN_SAMPLE,
+  againRef,
 }: {
   files: LibraryFiles;
   spot: LibrarySpotIndex;
@@ -63,6 +64,8 @@ export function TurnReportPanel({
   set: (kv: Record<string, string | null>) => void;
   kept: KeptTurns;
   sample?: number;
+  /** set by Another sample, whose press replaces this whole panel: the new one's first control takes the keyboard */
+  againRef?: { current: boolean };
 }) {
   const mode = useSettings((s) => s.mode);
   const seedAsked = Number(params.get("tseed"));
@@ -86,10 +89,15 @@ export function TurnReportPanel({
   const controls = useRef<HTMLDivElement>(null);
   const placeFocus = useRef(false);
   useEffect(() => {
-    if (running || !placeFocus.current) return;
+    if (!placeFocus.current) return;
     placeFocus.current = false;
     (controls.current?.querySelector("button") ?? panel.current?.querySelector<HTMLElement>("[tabindex='0']"))?.focus();
   }, [running]);
+  useEffect(() => {
+    if (!againRef?.current) return;
+    againRef.current = false;
+    controls.current?.querySelector("button")?.focus();
+  }, [againRef]);
 
   const key = (f: string) => `${files.base}${spot.id}/${f}?${spot.flops[f] ?? ""}`;
   const read = useMemo(() => order.slice(0, asked).flatMap((x) => kept.get(key(x.f)) ?? []), [order, asked, tick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -97,6 +105,8 @@ export function TurnReportPanel({
   const go = async (n: number) => {
     const ac = new AbortController();
     stop.current = ac;
+    // (the button pressed goes as reading starts, for Stop)
+    placeFocus.current = !!controls.current?.contains(document.activeElement);
     const target = Math.min(n, order.length);
     const todo = order.slice(0, target).filter((x) => !kept.has(key(x.f)));
     setAsked(target);
@@ -185,7 +195,10 @@ export function TurnReportPanel({
             </>
           )}
           {!running && asked > 0 && eligible.length > read.length && (
-            <button type="button" onClick={() => set({ tseed: String(seed + 1) })} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+            <button type="button" onClick={() => {
+              if (againRef) againRef.current = true;
+              set({ tseed: String(seed + 1) });
+            }} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
               Another sample
             </button>
           )}

@@ -5,6 +5,7 @@ import { LibraryFiles } from "@/library/files";
 import { libFile } from "@/test/library";
 import { LIVE, mistake } from "@/test/mistake";
 import type { MistakeAsk } from "@/data/db";
+import { retried } from "./mistakes";
 import { askLibrary, askSolver, storedTurnAnswer } from "./retry";
 
 const fakeFetch = (async (url: string) => {
@@ -28,6 +29,38 @@ describe("the solver's answer", () => {
     expect(a.provenance).toMatchObject({ source: "live", seconds: 2 });
     expect(a.pot).toBe(6);
     expect(a.mix).toEqual([{ action: "check", freq: 0.2, ev: 1 }, { action: "bet 33%", freq: 0.8, ev: 1.2, amount: 2 }]);
+  });
+
+  describe("a live drill's", () => {
+    const measured = { ...LIVE, source: "live", exploitabilityPct: 0.1, band: "converged" as const };
+    const data = { street: "river", actions: [{ action: "check", freq: 0.2, ev_bb: 1 }, { action: "bet 33%", freq: 0.8, ev_bb: 1.2, amount_bb: 2 }], pot_bb: 6, solver: { exploitability_pct: 0.1, iterations: 300 } };
+    const ask = { ...(mistake().ask as Extract<MistakeAsk, { via: "solver" }>), live: true as const };
+
+    it("is asked at Fast at least, whatever the page's mode, as Quick leans on the betting rules", async () => {
+      const solve = vi.fn(async () => ({ data, provenance: measured }));
+      const a = await askSolver(ask, 5.5, async () => ({ solve }) as never, "quick");
+      expect((solve.mock.calls[0] as unknown[])[0]).toMatchObject({ mode: "fast" });
+      expect(a).toMatchObject({ pot: 6, capped: false });
+      await askSolver(ask, 5.5, async () => ({ solve }) as never, "accurate");
+      expect((solve.mock.calls[1] as unknown[])[0]).toMatchObject({ mode: "accurate" });
+    });
+
+    it("is refused in the drill's words, with nothing to grade", async () => {
+      const off = { ...data, off_solution: [{ street: "turn", pos: "BTN", why: "rules" }] };
+      const solve = vi.fn(async () => ({ data: off, provenance: measured }));
+      await expect(askSolver(ask, 5.5, async () => ({ solve }) as never, "quick")).rejects.toThrow(/^This spot leans on the betting rules/);
+      const far = vi.fn(async () => ({ data, provenance: { ...measured, exploitabilityPct: 25, band: "approximate" as const } }));
+      await expect(askSolver(ask, 5.5, async () => ({ solve: far }) as never, "quick")).rejects.toThrow(/too far to grade on$/);
+    });
+
+    it("is capped where the solve was short of its target, as the drill's was", async () => {
+      const costly = { ...data, actions: [{ action: "check", freq: 0, ev_bb: -3 }, { action: "bet 33%", freq: 1, ev_bb: 3, amount_bb: 2 }] };
+      const solve = vi.fn(async () => ({ data: costly, provenance: { ...measured, exploitabilityPct: 5, band: "approximate" as const } }));
+      const a = await askSolver(ask, 5.5, async () => ({ solve }) as never, "quick");
+      expect(a.capped).toBe(true);
+      const r = retried({ ...mistake(), ask }, a, 0, 1);
+      expect(r.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    });
   });
 
   it("says so where the answer has no actions", async () => {

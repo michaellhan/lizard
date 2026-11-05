@@ -121,6 +121,14 @@ describe("what a crafted record can't do", () => {
     expect(readAnswer(record(pf, CHART_LINE))).toBeNull();
   });
 
+  it("a tournament block the page would trip on is refused, and a real one's nulls are not", () => {
+    const back = (tournament: unknown) => "answer" in answerToKeep("s", TURN_LINE, result({ ...LIVE_ANSWER, tournament } as unknown as AdvisorResponse));
+    expect(back({ equity_share: 0.4, bubble_factors: { BB: 1.2, UTG: null }, note: "x" })).toBe(true);
+    expect(back({ bubble_factors: { BB: "x" } })).toBe(false);
+    expect(back({ bounties: { you_bust: { BB: null } } })).toBe(false);
+    expect(back({ note: 5 })).toBe(false);
+  });
+
   it("an answer claiming another street than its line's is refused", () => {
     expect(readAnswer(record({ ...LIVE_ANSWER }, CHART_LINE))).toBeNull();
     expect(readAnswer(record({ ...CHART_ANSWER, street: "flop" }, CHART_LINE))).toBeNull();

@@ -1,10 +1,12 @@
 // A kept mistake asked again: a full hand's spot of the solver, by the request Practice sent, and a drill's of the
-// library, read in the page as the drill was. What comes back is the current answer, with its own provenance. A decision
+// library, read in the page as the drill was. A live drill's goes to the solver on the drill's terms: at Fast at least,
+// and refused or capped as the drill would (liveDeal.ts). What comes back is the current answer, with its own provenance. A decision
 // from Analyze has its answer in the record: nothing is asked.
 import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
 import { spotStamp } from "@/library/version";
 import { drillProvenance, potAt } from "@/features/practice/drills";
+import { liveMode, readLive } from "@/features/practice/liveDeal";
 import { pfAgain } from "@/features/practice/pfGrade";
 import { isBestResponse, mixOf, optionsOf } from "@/features/practice/practice";
 import { resolveLibrarySource } from "@/library/catalog";
@@ -25,6 +27,12 @@ export type GetClient = () => Promise<Pick<SolverClient, "solve">>;
  * `kept`: the options you had, which a decision graded by the preflop solve is read against again (pfGrade.ts). */
 export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot: number, getClient: GetClient, mode: SolveMode, signal?: AbortSignal, kept?: MistakeRecord["mix"]): Promise<RetryAnswer> {
   const client = await getClient();
+  if (ask.live) {
+    const read = readLive(await client.solve({ state: ask.state, mode: liveMode(mode), signal }), { pot, bet: 0 });
+    if (read.st === "refused") throw new Error(read.words.replace(/\.$/, ""));
+    const { mix, pot: at, provenance, capped, off } = read.answer;
+    return { mix, pot: at, provenance, capped, ...(off ? { off } : {}) };
+  }
   if (ask.state.preflop_solve) {
     const asked = await client.solve({ state: ask.state, mode, signal, untimed: true });
     const read = pfAgain(asked, ask.state, kept, pot);

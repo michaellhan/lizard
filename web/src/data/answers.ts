@@ -39,6 +39,17 @@ const isAction = (a: unknown) => isObj(a) && isStr(a.action) && isOptNum(a.freq)
 const isComboRow = (r: unknown) => Array.isArray(r) && r.length >= 5 && isHole(r[0]) && isNum(r[1]) && isNumsOrNull(r[2]) && r[2] !== null && isNumsOrNull(r[3]) && isNumOrNull(r[4]);
 const isCategory = (c: unknown) => Array.isArray(c) && c.length === 2 && isStrs(c);
 
+/** The parts of a tournament block that are read without a check (TournamentPanel): the rest it reads by their type. */
+const isTournament = (t: unknown) => {
+  if (t === undefined || t === null) return true;
+  if (!isObj(t) || !(t.note === undefined || t.note === null || isStr(t.note))) return false;
+  const bf = t.bubble_factors;
+  if (bf !== undefined && bf !== null && !(isObj(bf) && Object.values(bf).every((v) => v === null || isNum(v)))) return false;
+  const b = t.bounties;
+  if (b === undefined || b === null) return true;
+  return isObj(b) && (b.you_bust === undefined || b.you_bust === null || (isObj(b.you_bust) && Object.values(b.you_bust).every(isObj))) && isOptObj(b.bust_you);
+};
+
 /** The fields of a node's answer the page reads, of the types it reads them as: it draws what it's given. */
 function isNode(d: Record<string, unknown>): d is AdvisorResponse {
   return (
@@ -49,7 +60,8 @@ function isNode(d: Record<string, unknown>): d is AdvisorResponse {
     [d.opponent, d.position, d.board, d.fallback, d.fallback_reason].every(isOptStr) &&
     [d.pot_bb, d.to_call_bb, d.range_combos, d.opponent_combos, d.seconds].every(isOptNum) &&
     [d.range_ev_bb, d.range_eq, d.opponent_eq].every(isNumOrNull) &&
-    [d.solver, d.precomputed, d.tournament].every(isOptObj) &&
+    [d.solver, d.precomputed].every(isOptObj) &&
+    isTournament(d.tournament) &&
     Array.isArray(d.actions) &&
     d.actions.every(isAction) &&
     (d.notes === undefined || isStrs(d.notes)) &&

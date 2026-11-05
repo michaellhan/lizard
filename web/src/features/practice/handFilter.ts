@@ -2,7 +2,8 @@
 // hand class. A key is "m:<id>", "d:<id>" or "c:<id>". Whether a hand fits is read on the canonical cards: a suit
 // relabelling changes neither. Practice's pot drills deal to one too (`drawFit`).
 import { DRAWS, drawCategory, MADE, madeCategory } from "@/features/study/categories";
-import { cardInt, flopCards } from "@/library/entry";
+import { cardInt, cardStr, flopCards } from "@/library/entry";
+import { cmp, rank7 } from "@/poker/evaluate";
 import { DECK, seeded } from "@/poker/table";
 import { flopsLike, type TextureFilter } from "./texture";
 
@@ -32,6 +33,11 @@ export const handLabel = (key: string): string => LABELS.get(key) ?? key;
 const NEVER = () => false;
 const mostOfASuit = (board: readonly number[]) => Math.max(...[0, 1, 2, 3].map((s) => board.filter((c) => (c & 3) === s).length));
 const paired = (board: readonly number[]) => new Set(board.map((c) => c >> 2)).size < board.length;
+/** the categories five cards can be on their own, and so a river's board can */
+const BOARD_CAN_MAKE = new Set(["straight", "flush", "full_house", "quads"]);
+
+/** Whether two cards do better than a river's five on their own: a higher straight or a bigger flush does, playing the board doesn't. */
+const beatsBoard = (a: number, b: number, board: readonly string[]) => cmp(rank7([cardStr(a), cardStr(b), ...board]), rank7(board)) > 0;
 
 /** Whether a combo (a < b, as COMBOS) is in the filter, on this board of 3 to 5 cards (no card to come, no draw). What the board rules out is
  * ruled out before any hand is looked at: Flush on a spot's rainbow flops is otherwise most of a filter's work. */
@@ -44,7 +50,12 @@ export function handTest(key: string, board: readonly number[]): (a: number, b: 
   }
   if (part === "m") {
     if (id === "flush" && mostOfASuit(board) < 3) return NEVER;
-    if ((id === "quads" || id === "full_house" || id === "trips") && !paired(board)) return NEVER;
+    // (a straight flush is "quads or better": three of a suit can make one with no pair)
+    if ((id === "full_house" || id === "trips" || (id === "quads" && mostOfASuit(board) < 3)) && !paired(board)) return NEVER;
+    if (board.length === 5 && BOARD_CAN_MAKE.has(id)) {
+      const five = board.map(cardStr);
+      return (a, b) => madeCategory([a, b], board) === id && beatsBoard(a, b, five);
+    }
     return (a, b) => madeCategory([a, b], board) === id;
   }
   if ((id === "fd" || id === "combo") && mostOfASuit(board) < 2) return NEVER;

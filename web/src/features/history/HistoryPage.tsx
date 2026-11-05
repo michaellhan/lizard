@@ -428,7 +428,7 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
         </div>
       )}
       <p className="text-xs text-muted">
-        Finished hands only, each under its pot as the preflop went while you were in it (&ldquo;Unopened&rdquo;: nobody raised or called).
+        Finished hands only, each under its pot as the preflop went while you were in it (&ldquo;Unopened&rdquo;: nobody raised or called). Best or Correct here counts a grade of either kind, by EV or by frequency; the tables by seat and pot type keep the two apart.
         {pots.without > 0 &&
           ` ${pots.without} earlier session${pots.without === 1 ? "" : "s"} (${pots.withoutHands} hand${pots.withoutHands === 1 ? "" : "s"}) ${pots.without === 1 ? "was" : "were"} played before pot types were kept, and ${pots.without === 1 ? "isn't" : "aren't"} split.`}
       </p>

@@ -490,6 +490,9 @@ describe("a generated session is set to the game you play", () => {
     const plan = buildPlan(input({ decisions: missed }));
     expect(plan.drill!.says.join(" ")).toContain("No Practice session is kept, so that's 6-max at 100bb.");
     const seated = buildPlan(input({ decisions: missed, sessions: [played({}, { players: 2 })] }));
+    // (it says the table moved, not that it's yours)
+    expect(seated.drill!.says.join(" ")).not.toContain("The table and stack are your last Practice session's.");
+    expect(seated.drill!.says.join(" ")).toMatch(/The stack is your last Practice session's, at \d players, the smallest table with this seat\./);
     const t = seated.drill!.target;
     expect(t.kind === "setup" && t.setup.stack).toBe(40);
     expect(t.kind === "setup" && SEATS[t.setup.players]!.includes(t.setup.opts.seat)).toBe(true);

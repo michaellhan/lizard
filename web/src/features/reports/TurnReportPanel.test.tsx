@@ -218,6 +218,32 @@ describe("the turn report", () => {
     expect(p.queryByRole("table")).toBeNull();
   });
 
+  it("keeps the keyboard in the controls as a read starts, and through Another sample", async () => {
+    const hold: (() => void)[] = [];
+    const { fn } = stubFetch(async (p) => {
+      if (/\.(turn\.)?bin$/.test(p)) await new Promise<void>((r) => hold.push(r));
+      return null;
+    });
+    open("spot=srp_btn_bb", fn, 3);
+    await screen.findByRole("button", { name: "Read 3 flops" });
+    const read = screen.getByRole("button", { name: "Read 3 flops" });
+    read.focus();
+    fireEvent.click(read);
+    await waitFor(async () => expect((await panel()).getByRole("button", { name: "Stop" })).toHaveFocus());
+    for (let i = 0; i < 12; i++) {
+      await act(async () => {
+        hold.splice(0).forEach((r) => r());
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
+    const p = await panel();
+    await waitFor(() => expect(p.getByRole("button", { name: "Read 3 more" })).toHaveFocus());
+    p.getByRole("button", { name: "Another sample" }).focus();
+    fireEvent.click(p.getByRole("button", { name: "Another sample" }));
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toContain("tseed=2"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Read 3 flops" })).toHaveFocus());
+  });
+
   it("leaves the keyboard with what comes next when a read ends under it, and alone otherwise", async () => {
     const hold: (() => void)[] = [];
     const held = () => stubFetch(async (p) => {

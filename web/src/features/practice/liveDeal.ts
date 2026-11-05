@@ -12,7 +12,7 @@
 // exploitability, so these run at Fast at least (`liveMode`), and `liveRefusal` turns away whatever isn't a measured live
 // solve of this spot with an EV for every action. A refused spot is said in words and dealt again, with no grade and no
 // score. A live drill's session is kept as a Practice session, as History reads every "drill" session as the stored
-// library's; its mistakes retry through the solver, as a hand's do.
+// library's; its mistakes retry through the solver, as a hand's do, under these same terms (review/retry.ts).
 import type { MistakeRecord, SessionRecord } from "@/data/db";
 import { offText } from "@/features/analyze/grading";
 import { addCell, addSource, linePot, type GradeCell } from "@/features/history/history";
@@ -26,7 +26,7 @@ import { cardInt, cardStr, COMBOS, flopCards, type Entry, type LibraryRanges } f
 import type { LibraryReport } from "@/library/files";
 import type { TurnFile, TurnLine, TurnNode } from "@/library/turns";
 import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
-import { sourceLabel } from "@/solver/provenance";
+import { bandOf, sourceLabel } from "@/solver/provenance";
 import type { Provenance, ResultSource, SolveMode, SolveResult } from "@/solver/types";
 import { flopWords, lineReach, pick, relabel, shuffle } from "./drills";
 import { handTest } from "./handFilter";
@@ -52,9 +52,15 @@ const heroOf = (view: LiveView): 0 | 1 => (view === "ip" || view === "ipfaces" ?
 /** The engine's RARE_LINE: an opponent's line under this share has its range taken from the betting rules. */
 export const RARE_LINE = 0.1;
 
+/** Python's round: half to the even number. */
+const roundEven = (x: number) => {
+  const low = Math.floor(x);
+  return x - low === 0.5 ? (low % 2 === 0 ? low : low + 1) : Math.round(x);
+};
+
 /** A tree bet's chips: the fraction of the pot, to the half big blind (solver.py), never under 1bb. "bet 33%" of 5.5bb
- * is 2bb on the table, which the stored line's pot is built from. */
-export const treeBet = (frac: number, pot: number) => Math.max(Math.round(frac * pot * 2) / 2, 1);
+ * is 2bb on the table, which the stored line's pot is built from; 75% of 35bb is 26bb there, its round going to the even. */
+export const treeBet = (frac: number, pot: number) => Math.max(roundEven(frac * pot * 2) / 2, 1);
 const betOf = (name: string, pot: number) => treeBet(parseFloat(name.slice(4)) / 100, pot);
 
 /** A stored flop line as the moves it was: null where it holds one the table can't write. */
@@ -283,7 +289,8 @@ export function liveRefusal(res: SolveResult): string | null {
   if (p.partial) return "The solve was cut short, so this spot isn't graded.";
   if (mixOf(r).some((a) => a.ev === null) || p.evIn === "chips") return "The solve gave no EV for every action here, so this spot isn't graded.";
   if (typeof p.exploitabilityPct !== "number") return "The solve measured no distance from equilibrium here, so this spot isn't graded.";
-  if (p.band === "rough") return `The solve stopped ${p.exploitabilityPct.toFixed(1)}% of the pot from equilibrium, too far to grade on.`;
+  // (by the number: past a tenth of its target an answer's band is "approximate" however far off it is)
+  if (bandOf(p.exploitabilityPct) === "rough") return `The solve stopped ${p.exploitabilityPct.toFixed(1)}% of the pot from equilibrium, too far to grade on.`;
   if ([r.hero_range_combos, r.villain_range_combos].some((n) => typeof n === "number" && n < 0.1)) return "Almost no hands of one range reach this spot in the solve, so it isn't graded.";
   return null;
 }
@@ -400,7 +407,7 @@ export function liveMistake(sessionId: string, rep: LibraryReport, pr: LiveProbl
     board: pr.board,
     line: pr.words,
     study: liveStudyLink(rep, pr)?.replace(/^\/study\?/, "") ?? null,
-    ask: { via: "solver", state: pr.state },
+    ask: { via: "solver", state: pr.state, live: true },
     chose: a.mix[g.a]!.action,
     mix: a.mix,
     pot: a.pot,

@@ -158,6 +158,10 @@ export interface RetryAnswer {
   provenance: Provenance;
   /** a library entry's version, by the library's index */
   version?: string;
+  /** a live drill's answer that leaned on something other than its own solve: it can't condemn a line (capGrade) */
+  capped?: boolean;
+  /** and what it leaned on, in words */
+  off?: string;
 }
 
 const namesOf = (mix: MistakeRecord["mix"]) => mix.map((a) => a.action).sort().join("|");
@@ -195,6 +199,8 @@ export interface Retried {
   /** your first pick under this answer, where it's still an option */
   first: Grade | null;
   tried: Omit<MistakeTry, "moved">;
+  /** what the answer leaned on, in words */
+  off?: string;
 }
 
 /** What a retry reads of the spot: a kept mistake's, or one of this session's decisions (the Practice page's). */
@@ -212,7 +218,7 @@ const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
 export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number): Retried {
   const answer = answerIn(m, asked);
   const { mix, pot, provenance } = answer;
-  const grading = (k: number) => (m.ask.via === "kept" ? capGrade(gradeMix(mix, pot, k), provenance.band) : gradeMix(mix, pot, k));
+  const grading = (k: number) => (m.ask.via === "kept" ? capGrade(gradeMix(mix, pot, k), provenance.band) : answer.capped ? capGrade(gradeMix(mix, pot, k), "approximate") : gradeMix(mix, pot, k));
   const g = grading(i);
   const was = mix.findIndex((a) => a.action === m.chose);
   const change = answerChange(m, answer);
@@ -223,6 +229,7 @@ export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number
     change,
     first: was >= 0 ? grading(was) : null,
     tried: { at: now, chose: mix[i]!.action, verdict: g.verdict, ok: g.ok, byEv: g.byEv, loss: g.loss, lossPct: g.lossPct, source: provenance.source, label: describeProvenance(provenance), ...(version ? { version } : {}), like: change.length === 0 },
+    ...(answer.off ? { off: answer.off } : {}),
   };
 }
 

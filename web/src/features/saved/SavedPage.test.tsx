@@ -54,6 +54,8 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+const SPOT_FOR_EDIT: SavedSpot = { id: "edit", title: "Edit me", line: "p=6&s=100", state: {}, tags: [], note: "as kept", createdAt: 1, updatedAt: 1 };
+
 describe("SavedPage", () => {
   it("lists, searches, edits and deletes saved spots, and opens one in Study at its line", async () => {
     await putSpot(spot("a", "Ace-high c-bet", { tags: ["srp", "dry"], note: "bet small", seen: { source: "library", label: "Precomputed solution · srp_btn_bb" }, updatedAt: 5 }));
@@ -114,7 +116,7 @@ describe("SavedPage", () => {
     renderAt("/saved");
     await screen.findByRole("listitem", { name: "Kept" });
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(await screen.findByText("Backup made: 1 spots, 0 saved answers, 0 drills, 0 scenarios, 0 ranges, 0 sessions, 0 hands, 0 graded decisions, 0 kept mistakes.")).toBeInTheDocument();
+    expect(await screen.findByText("Backup made: 1 spots, 0 saved answers, 0 drills, 0 scenarios, 0 ranges, 0 saved reports, 0 sessions, 0 hands, 0 graded decisions, 0 kept mistakes.")).toBeInTheDocument();
     expect(click).toHaveBeenCalledOnce();
     expect(JSON.parse(await created[0]!.text()).stores.savedSpots[0].data.title).toBe("Kept");
     expect(await screen.findByLabelText("Last backup")).toHaveTextContent(/^Last backup made here .+; 0 saves since\.$/);
@@ -136,9 +138,9 @@ describe("SavedPage", () => {
   it("refuses a file too big to read, before reading it", async () => {
     renderAt("/saved");
     const text = vi.fn();
-    const file = { name: "huge.json", size: 300 * 1024 * 1024, text } as unknown as File;
+    const file = { name: "huge.json", size: 1100 * 1024 * 1024, text } as unknown as File;
     fireEvent.change(await screen.findByLabelText("Backup file to restore"), { target: { files: [file] } });
-    expect(await screen.findByText(/^That's 300 MB, over the 256 MB one import can read\./)).toBeInTheDocument();
+    expect(await screen.findByText(/^That's 1,100 MB, over the 1,024 MB one import can read\./)).toBeInTheDocument();
     expect(text).not.toHaveBeenCalled();
   });
 
@@ -172,6 +174,28 @@ describe("SavedPage", () => {
 
     fireEvent.click(within(within(section).getByRole("listitem", { name: "Monotone defence" })).getByRole("link", { name: "Open in Practice" }));
     expect(screen.getByTestId("where")).toHaveTextContent("/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono");
+  });
+
+  it("Edit always opens on the record as it stands: not on text cancelled, nor on what a restore replaced", async () => {
+    await putSpot(SPOT_FOR_EDIT);
+    renderAt("/saved");
+    const row = async () => within(await screen.findByRole("listitem", { name: /^Edit me|^Restored$/ }));
+    fireEvent.click((await row()).getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Note" }), { target: { value: "cancelled text" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click((await row()).getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveValue("as kept");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    const b = await makeBackup();
+    b.stores.savedSpots[0]!.data = { ...b.stores.savedSpots[0]!.data, title: "Restored", note: "from the file", updatedAt: 99 };
+    b.stores.savedSpots[0]!.updated = 99;
+    const file = new File([JSON.stringify(b)], "b.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [file] } });
+    await screen.findByRole("listitem", { name: "Restored" });
+    fireEvent.click((await row()).getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Restored");
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveValue("from the file");
   });
 
   it("keeps focus through Edit, Cancel and Delete, and a delete lands on the next row and is said", async () => {

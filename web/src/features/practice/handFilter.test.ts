@@ -9,6 +9,22 @@ import { drawFit, flopHandTest, HAND_DRAWS, HAND_GROUPS, handFits, handLabel, ha
 const c = (s: string) => cardInt(s);
 const on = (key: string, board: string, a: string, b: string) => handTest(key, board.match(/../g)!.map(cardInt))(Math.min(c(a), c(b)), Math.max(c(a), c(b)));
 
+describe("what the board itself makes", () => {
+  it("finds a straight flush under quads or better on an unpaired board", () => {
+    expect(on("m:quads", "9h8h7h", "Jh", "Th")).toBe(true);
+    expect(on("m:quads", "9h8d7c", "Jh", "Th")).toBe(false);
+  });
+
+  it("doesn't count a river hand that only plays the board, and does count one that beats it", () => {
+    expect(on("m:straight", "5c6d7h8s9c", "Ad", "Ah")).toBe(false);
+    expect(on("m:straight", "5c6d7h8s9c", "Td", "Jh")).toBe(true);
+    expect(on("m:flush", "2h5h9hJhKh", "Ad", "Ac")).toBe(false);
+    expect(on("m:flush", "2h5h9hJhKh", "Ah", "Ac")).toBe(true);
+    expect(on("m:full_house", "AdAcAsKhKd", "Qc", "Qd")).toBe(false);
+    expect(on("m:straight", "5c6d7h8sKc", "4d", "9h")).toBe(true);
+  });
+});
+
 describe("the hand filter", () => {
   it("lists Study's categories by key, and no key twice; the river's Plays the board and No draw aren't offered", () => {
     const keys = HAND_GROUPS.flatMap((g) => g.options.map((o) => o.key));

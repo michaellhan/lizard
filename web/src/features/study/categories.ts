@@ -1,8 +1,8 @@
 // The made-hand and draw categories of a hand on a flop or turn, in the page: solver/gto/breakdown.py's MADE, DRAWS,
 // made_category and draw_category, so a drill filtered by a category means what Study's filter (filters.ts) and the
 // engine's answers mean by it. Ids and labels are the engine's and a key is filters.ts's, "m:<id>" or "d:<id>". Cards
-// are src/library/entry.ts's numbers: rank * 4 + suit. The river's "Plays the board" needs a hand evaluator and no drill
-// reaches a river, so it's only in the list.
+// are src/library/entry.ts's numbers: rank * 4 + suit. The river's "Plays the board" needs a hand evaluator, so it's only
+// in the list here: a live drill on a river tells it apart in practice/handFilter.ts.
 export const MADE: readonly (readonly [string, string])[] = [
   ["quads", "Quads or better"],
   ["full_house", "Full house"],

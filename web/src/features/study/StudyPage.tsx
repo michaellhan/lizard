@@ -413,7 +413,14 @@ export function StudyPage() {
         <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
         <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
       </nav>
-      <SavedAnswerNote hold={kept} onResolve={() => setHand(hand)} />
+      <SavedAnswerNote
+        hold={kept}
+        onResolve={() => {
+          // (the note and its button go: the keyboard stays on the page)
+          document.getElementById("main")?.focus({ preventScroll: true });
+          setHand(hand);
+        }}
+      />
       <p role="group" aria-label="Setup" className="-mt-2 text-xs text-muted">
         {hand.setup ? (
           <>

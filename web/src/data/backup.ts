@@ -170,7 +170,19 @@ export interface RestoreCount {
   skipped: number;
 }
 
-/** A backup's records merged in. Throws where the file isn't a Lizard backup this version can read. */
+/** A restore that the browser stopped partway: `done` is what's in. Each store is a transaction, so the one that failed
+ * took nothing, and running the file again takes what's left. */
+export class RestoreStopped extends Error {
+  constructor(
+    readonly done: Record<BackupStore, RestoreCount>,
+    override readonly cause: unknown,
+  ) {
+    super("The restore stopped partway.");
+  }
+}
+
+/** A backup's records merged in. Throws where the file isn't a Lizard backup this version can read, and RestoreStopped
+ * where the browser stops it partway. */
 export async function restoreBackup(file: unknown): Promise<Record<BackupStore, RestoreCount>> {
   if (!obj(file) || file.format !== BACKUP_FORMAT || !obj(file.stores)) throw new Error("That isn't a Lizard backup file.");
   if (!isNum(file.schema) || file.schema > BACKUP_SCHEMA)
@@ -180,10 +192,9 @@ export async function restoreBackup(file: unknown): Promise<Record<BackupStore, 
   readScenario = (await import("./scenarios")).readScenario;
   readReport = (await import("./reports")).readReport;
   readAnswer = (await import("./answers")).readAnswer;
-  const out = {} as Record<BackupStore, RestoreCount>;
+  const out = Object.fromEntries(BACKUP_STORES.map((s) => [s, { added: 0, updated: 0, kept: 0, skipped: 0 }])) as Record<BackupStore, RestoreCount>;
   for (const s of BACKUP_STORES) {
     const c: RestoreCount = { added: 0, updated: 0, kept: 0, skipped: 0 };
-    out[s] = c;
     const recs = (file.stores as Record<string, unknown>)[s];
     if (!Array.isArray(recs)) continue;
     const shape = SHAPES[s] as unknown as { updated: (d: unknown) => number; valid: (d: Record<string, unknown>) => boolean; arrives?: (d: unknown) => unknown };
@@ -192,22 +203,33 @@ export async function restoreBackup(file: unknown): Promise<Record<BackupStore, 
       get: (id: string) => Promise<unknown>;
       put: (v: unknown) => Promise<unknown>;
     };
-    for (const r of recs) {
-      if (!obj(r) || !isWellFormed(r.id) || !r.id || r.deleted || !obj(r.data) || r.data.id !== r.id || !shape.valid(r.data)) {
-        c.skipped++;
-        continue;
+    try {
+      for (const r of recs) {
+        if (!obj(r) || !isWellFormed(r.id) || !r.id || r.deleted || !obj(r.data) || r.data.id !== r.id || !shape.valid(r.data)) {
+          c.skipped++;
+          continue;
+        }
+        const here = await store.get(r.id);
+        const data = shape.arrives ? shape.arrives(r.data) : r.data;
+        if (here === undefined) {
+          await store.put(data);
+          c.added++;
+        } else if (shape.updated(r.data) > shape.updated(here)) {
+          await store.put(data);
+          c.updated++;
+        } else c.kept++;
       }
-      const here = await store.get(r.id);
-      const data = shape.arrives ? shape.arrives(r.data) : r.data;
-      if (here === undefined) {
-        await store.put(data);
-        c.added++;
-      } else if (shape.updated(r.data) > shape.updated(here)) {
-        await store.put(data);
-        c.updated++;
-      } else c.kept++;
+      await tx.done;
+    } catch (e) {
+      tx.done.catch(() => undefined);
+      try {
+        tx.abort();
+      } catch {
+        // (it's already over)
+      }
+      throw new RestoreStopped(out, e);
     }
-    await tx.done;
+    out[s] = c;
   }
   return out;
 }

@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { BACKUP_FORMAT, BACKUP_SCHEMA, BACKUP_STORES, backupFileName, itemBackup, makeBackup, restoreBackup, restoreSummary, type Backup } from "./backup";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BACKUP_FORMAT, BACKUP_SCHEMA, BACKUP_STORES, backupFileName, itemBackup, makeBackup, restoreBackup, RestoreStopped, restoreSummary, type Backup } from "./backup";
 import { MAX_ANSWER_BYTES, answerToKeep, openAnswer, readAnswer } from "./answers";
 import { db, putSession, type DecisionRecord, type HandRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
 import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
@@ -105,6 +105,24 @@ describe("saved drills", () => {
 });
 
 describe("backup and restore", () => {
+  it("says what came in where the browser stops a restore partway, with the store it stopped on rolled back", async () => {
+    await putSpot(spot("a", 1));
+    await putSpot(spot("b", 1));
+    const b = await makeBackup();
+    const d = await db();
+    await d!.clear("savedSpots");
+    const real = IDBObjectStore.prototype.put;
+    const put = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, ...a) {
+      if ((a[0] as { id?: string }).id === "b") throw new DOMException("full", "QuotaExceededError");
+      return real.apply(this, a);
+    });
+    const stopped = await restoreBackup(b).catch((e: unknown) => e);
+    put.mockRestore();
+    expect(stopped).toBeInstanceOf(RestoreStopped);
+    expect((stopped as RestoreStopped).done.savedSpots.added).toBe(0);
+    expect((await restoreBackup(b)).savedSpots.added).toBe(2);
+  });
+
   it("keeps a grade's version, restores a grade from before versions as it is, and skips a damaged one", async () => {
     const base: DecisionRecord = { id: "d|flop|1", handId: "h", street: "flop", pos: "BTN", action: "check", verdict: "Best", evLossBb: 0, source: "library", label: "Precomputed solution", gradedAt: 1 };
     const stamped: DecisionRecord = { ...base, id: "d|flop|2", version: "library:srp_btn_bb:11112222:Ac4d3h:abc", read: { verdict: "Mistake", source: "instant", label: "a read", version: "build:aaa/111", evLossBb: null } };

@@ -143,6 +143,8 @@ describe("the recovery panel", () => {
     await act(() => new Promise((r) => setTimeout(r, 20)));
     expect(del).not.toHaveBeenCalled();
     expect(button(panel, "Start fresh…")).toBeEnabled();
+    // (the keyboard comes back to where it was, not to the top of the page)
+    expect(button(panel, "Start fresh…")).toHaveFocus();
     vi.mocked(indexedDB.open).mockRestore();
     expect((await saved.listSpots()).map((s) => s.id)).toEqual(["s"]);
   });

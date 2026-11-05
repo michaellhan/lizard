@@ -169,6 +169,18 @@ export function AheadLine({ on, meter }: { on: boolean; meter: AheadMeter }) {
   return <p className="min-h-12 text-xs text-muted sm:min-h-8">{meter.asked > 0 && `Asking ahead, measured in this browser since this page opened: ${meterLine(meter)}`}</p>;
 }
 
+function RetryOpener({ back, onClick }: { back: boolean; onClick: () => void }) {
+  const b = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (back) b.current?.focus();
+  }, [back]);
+  return (
+    <button ref={b} type="button" onClick={onClick} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
+      Retry this decision
+    </button>
+  );
+}
+
 /** Your decisions this session (review.ts): the last few, newest first, or your biggest mistakes once asked for,
  * each opening its spot and verdict. `retry`, at one table: Previous and Later step through all of them, and any can be
  * retried; `onOpen` says when a retry is open, as the table's keys would play a real move under it. */
@@ -177,6 +189,8 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
   // (the one open, by itself: the list moves on past REVIEW_KEEP)
   const [pick, setPick] = useState<Reviewed | null>(null);
   const [retrying, setRetrying] = useState<Reviewed | null>(null);
+  // the one a retry was just closed on: its button takes the keyboard back
+  const [closed, setClosed] = useState<Reviewed | null>(null);
   const onOpen = retry?.onOpen;
   useEffect(() => {
     onOpen?.(retrying !== null);
@@ -206,11 +220,12 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
       <DecisionView d={e.d} players={e.players} title={e.table ? `Table ${e.table}, hand ${e.n}, ${e.d.street}` : `Hand ${e.n}, ${e.d.street}`} spot={e} />
       {retry &&
         (retrying === e ? (
-          <SessionRetry key={`${e.n}|${e.d.study}`} e={e} getClient={retry.getClient} onClose={() => setRetrying(null)} />
+          <SessionRetry key={`${e.n}|${e.d.study}`} e={e} getClient={retry.getClient} onClose={() => {
+            setRetrying(null);
+            setClosed(e);
+          }} />
         ) : retrySpot(e) ? (
-          <button type="button" onClick={() => setRetrying(e)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
-            Retry this decision
-          </button>
+          <RetryOpener back={closed === e} onClick={() => setRetrying(e)} />
         ) : (
           <p className="text-xs text-muted">This one can&rsquo;t be retried: its spot wasn&rsquo;t kept.</p>
         ))}

@@ -232,7 +232,8 @@ export interface DecisionRecord {
  * the entry's, as the library's index gave it), or, for a decision graded in Analyze, nothing: the record's own mix is
  * the answer (`hand`, `decision`: where it came from, which can be gone since; the record needs neither to be retried). */
 export type MistakeAsk =
-  | { via: "solver"; state: AdvisorState }
+  /** live: a live drill's, asked again on the drill's terms (review/retry.ts) */
+  | { via: "solver"; state: AdvisorState; live?: true }
   | { via: "library"; spot: string; flop: string; path: string[]; combo: [number, number]; version?: string; turn?: { card: string; at: string[] } }
   | { via: "kept"; hand: string; decision: string };
 
