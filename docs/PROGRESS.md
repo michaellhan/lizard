@@ -3909,3 +3909,26 @@ What that means for later work:
   look at that hour's log.
 
 Not measured: Accurate, phones, and two tables, which the check doesn't offer.
+
+## Study: the split, Fold to, value and bluff, blockers (2026-11-05)
+
+Built by two subagents at a time on separate files, reviewed here, then checked on the real worker. `FEATURE_MATRIX.md` has
+what each does: the Solution browser, Node navigation and Equity & EQR rows.
+
+- **`ResizableWorkspace`:** the plan's component, on Study's two columns. The Actions row and the breakdown aren't in it, so
+  the plan's fuller layout isn't delivered.
+- **Fold to:** one request, for the seat chosen.
+- **Value and bluff:** by a fair share of the pot against the whole range, as the answer holds no continuing range.
+- **Blockers:** from the next node's answer, once a hand is picked.
+
+The real worker found what the mocks couldn't. The subagent's facing-an-all-in path compared this node's count of the
+opponent with the combos that took the action, and on a 3bb river jam those were 89.6 and 11.7. I ran the engine directly
+and got 90.5 and 10.5 at Quick, so it isn't a slip of the page: `_walk` widens the range behind a line the solve rarely
+plays, by design, so that an answer isn't given against a sliver of a range. The check refused, which was right, but its
+message read as a fault, so it now gives the reason. No number was ever shown from the wrong range.
+
+A screenshot showed "0.0 of 0.0, 34%" in the blocked table, so a category under 0.05 combos taken out is now left out.
+
+
+Tests: 1647 unit tests in 87 files, typecheck and lint clean, 70 browser tests passed and 2 skipped at three widths, including
+two new ones on the real worker.

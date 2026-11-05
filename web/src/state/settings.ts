@@ -26,6 +26,9 @@ export interface Settings {
   studyView: GridView;
   breakdownOpen: boolean;
   breakdownPart: "made" | "draws";
+  /** Study: the matrix column's share of the width beside its panel (null: not moved, read as the layout's default, which a
+   * saved number would hide when it changes). Any saved value is clamped where it's read, by ResizableWorkspace */
+  studySplit: number | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +44,7 @@ export const DEFAULT_SETTINGS: Settings = {
   studyView: "mix",
   breakdownOpen: false,
   breakdownPart: "made",
+  studySplit: null,
 };
 
 const KEY = "settings.v1";
@@ -54,8 +58,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

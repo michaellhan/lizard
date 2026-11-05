@@ -95,6 +95,51 @@ test("Study: a river's breakdown, with its categories, its equity chart and a ca
   expect(problems.errors).toEqual([]);
 });
 
+test("Study: a bet split into value and bluff, and what a hand blocks, on the real engine", async ({ page, problems }, info) => {
+  await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
+  const panel = page.locator("details", { hasText: "Breakdown and equity" });
+  await expect(panel).toBeVisible({ timeout: 90_000 });
+  await panel.locator("summary").click();
+  const cats = panel.getByRole("region", { name: "Hand categories" });
+  await expect(cats.getByRole("row").nth(1)).toBeVisible({ timeout: 45_000 });
+  await cats.getByRole("group", { name: "What an action is made of" }).getByRole("button", { name: /^bet/ }).first().click();
+  await expect(cats.getByRole("group", { name: "Value and bluff" }).getByText(/value \(/)).toBeVisible();
+  await expect(cats.getByRole("columnheader", { name: "Value" })).toBeVisible();
+
+  const blockers = panel.getByRole("region", { name: "Blockers" });
+  await blockers.getByRole("combobox", { name: "Hand" }).selectOption({ index: 1 });
+  await expect(blockers.getByText(/continues .* of the time/)).toBeVisible({ timeout: 45_000 });
+  await blockers.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-blockers.png`, fullPage: false });
+  expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+  expect(problems.errors).toEqual([]);
+});
+
+test("Study: the folds to a seat in one step, and the split beside the grid that lasts", async ({ page, problems }, info) => {
+  await page.goto("/lizard/study/?p=6&s=100");
+  const seats = page.getByRole("group", { name: "Fold to a seat" });
+  await expect(seats).toBeVisible({ timeout: 90_000 });
+  await seats.getByRole("button", { name: /CO to act/ }).click();
+  await expect.poll(() => new URL(page.url()).search).toContain("UTG");
+  await expect(page.getByText(/Preflop charts/).first()).toBeVisible({ timeout: 45_000 });
+
+  const split = page.getByRole("separator", { name: "Resize the range and the panel beside it" });
+  if (info.project.name === "phone") {
+    await expect(split).toHaveCount(0);
+  } else {
+    await split.focus();
+    await page.keyboard.press("Home");
+    const at = await split.getAttribute("aria-valuenow");
+    await page.waitForTimeout(500); // (the Setting is written as it moves)
+    await page.reload();
+    await expect(split).toBeVisible({ timeout: 90_000 });
+    await expect(split).toHaveAttribute("aria-valuenow", at ?? "");
+    await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-split.png`, fullPage: false });
+  }
+  expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+  expect(problems.errors).toEqual([]);
+});
+
 test("Practice: a decision made and graded", async ({ page, problems }, info) => {
   await page.goto("/lizard/practice/");
   const options = page.getByRole("group", { name: "Your options" }).getByRole("button");

@@ -1,18 +1,21 @@
 // Study's breakdown of a postflop node (classic breakdown.js, gto/breakdown.py): each range by made hands and draws,
 // with the share, mix, equity and EV of every category, and each range's equity distribution, averages and share at
 // the nut threshold. Asked only when opened, on the node's own state, with its own provenance. A category picked can
-// show just those hands in the grid.
+// show just those hands in the grid. One action picked splits into value and bluff (valueBluff.ts), and a hand picked
+// shows what it blocks in the opponent's range (BlockersPanel).
 import { useEffect, useMemo, useState } from "react";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { actionColors, evIn, evUnitLabel, pct, type EvUnit } from "@/components/actions";
-import type { Breakdown, BreakdownRow, BreakdownSide } from "@/solver/protocol";
+import type { AdvisorResponse, Breakdown, BreakdownRow, BreakdownSide } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import { SolverError, type Provenance, type SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
+import { BlockersPanel } from "./BlockersPanel";
 import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf, takingAction } from "./breakdown";
 import { studyRequest, type StudyHand } from "./studyState";
+import { isAggressive, valueBluff, valueBluffText, valueShare, type ValueBluff } from "./valueBluff";
 
-type Run = { kind: "asking" } | { kind: "none"; message: string } | { kind: "done"; bd: Breakdown; provenance: Provenance };
+type Run = { kind: "asking" } | { kind: "none"; message: string } | { kind: "done"; bd: Breakdown; res: AdvisorResponse; provenance: Provenance };
 
 // the sides' lines, in this order (checked with the dataviz validator against the surface, in a fixed order by seat
 // listed: the player to act first)
@@ -47,7 +50,7 @@ export function BreakdownPanel({
         const r = await client.solve({ state: { ...studyRequest(hand), breakdown: true }, mode, signal: ac.signal });
         const bd = r.data.breakdown;
         if (ac.signal.aborted) return;
-        setRun(bd ? { kind: "done", bd, provenance: r.provenance } : { kind: "none", message: "No breakdown here: this spot was answered by the betting rules, with no solve to break down." });
+        setRun(bd ? { kind: "done", bd, res: r.data, provenance: r.provenance } : { kind: "none", message: "No breakdown here: this spot was answered by the betting rules, with no solve to break down." });
       } catch (e) {
         if (ac.signal.aborted) return;
         setRun({ kind: "none", message: e instanceof SolverError && e.kind === "cancelled" ? "Stopped." : e instanceof Error ? e.message : String(e) });
@@ -67,28 +70,43 @@ export function BreakdownPanel({
             </p>
           )}
           {run.kind === "none" && <p className="text-muted">{run.message}</p>}
-          {run.kind === "done" && <Shown bd={run.bd} provenance={run.provenance} evUnit={evUnit} onFilter={onFilter} />}
+          {run.kind === "done" && <Shown bd={run.bd} res={run.res} provenance={run.provenance} evUnit={evUnit} onFilter={onFilter} blockers={{ hand, mode, getSolver }} />}
         </div>
       )}
     </details>
   );
 }
 
-function Shown({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; provenance: Provenance; evUnit: EvUnit; onFilter: (key: string) => void }) {
+function Shown({
+  bd,
+  res,
+  provenance,
+  evUnit,
+  onFilter,
+  blockers,
+}: {
+  bd: Breakdown;
+  res: AdvisorResponse;
+  provenance: Provenance;
+  evUnit: EvUnit;
+  onFilter: (key: string) => void;
+  blockers: { hand: StudyHand; mode: SolveMode; getSolver: () => Promise<SolverClient> };
+}) {
   const curves = curvesOf(bd);
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-      <Categories bd={bd} provenance={provenance} evUnit={evUnit} onFilter={onFilter} />
+      <Categories bd={bd} res={res} provenance={provenance} evUnit={evUnit} onFilter={onFilter} />
       {curves.length > 1 ? (
         <Equity bd={bd} sides={curves} />
       ) : (
         <p className="text-xs text-muted">No equity distribution here: this answer has no equities for the ranges.</p>
       )}
+      <BlockersPanel res={res} bd={bd} provenance={provenance} {...blockers} />
     </div>
   );
 }
 
-function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; provenance: Provenance; evUnit: EvUnit; onFilter: (key: string) => void }) {
+function Categories({ bd, res, provenance, evUnit, onFilter }: { bd: Breakdown; res: AdvisorResponse; provenance: Provenance; evUnit: EvUnit; onFilter: (key: string) => void }) {
   const sides = sidesOf(bd);
   const [who, setWho] = useState(0);
   const part = useSettings((s) => s.breakdownPart);
@@ -108,6 +126,9 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
   const hasEq = rows.some((r) => r.eq != null);
   const hasEv = hero && rows.some((r) => r.ev != null);
   const picked = rows.find((r) => r.id === sel);
+  // the action picked, split into value and bluff by the answer's own combos (under this section's provenance)
+  const split = taking === null ? null : valueBluff(res, bd, taking, provenance.source);
+  const vb = split?.kind === "split" ? split : null;
   const pick = (next: number | null) => {
     setAct(next);
     setSel(null);
@@ -164,6 +185,7 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
             <th scope="col" className="w-11 py-0.5 text-right font-normal">%</th>
             {hasEq && <th scope="col" className="w-10 py-0.5 text-right font-normal">Eq</th>}
             {hasEv && <th scope="col" className="w-12 py-0.5 text-right font-normal">EV</th>}
+            {vb && <th scope="col" title="How much of this category's combos in the action is value" className="w-12 py-0.5 text-right font-normal">Value</th>}
           </tr>
         </thead>
         <tbody>
@@ -180,6 +202,7 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
               <td className="py-0.5 text-right">{pct(r.c / tot)}</td>
               {hasEq && <td className="py-0.5 text-right">{pct(r.eq, 0)}</td>}
               {hasEv && <td className="py-0.5 text-right">{evIn(r.ev, evUnit, bd.pot)}</td>}
+              {vb && <td className="py-0.5 text-right">{vb[shownPart][r.id] ? pct(valueShare(vb[shownPart][r.id]!), 0) : "–"}</td>}
             </tr>
           ))}
         </tbody>
@@ -199,14 +222,43 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
           )}
         </div>
       )}
+      {vb && taking !== null && <ValueBluffView s={vb} color={colors[taking]!} text={valueBluffText(vb, bd, res)} />}
+      {split?.kind === "none" && <p className="text-xs text-muted">{split.why}</p>}
       <p className="text-xs text-muted">
         {shownPart === "made"
           ? "Made hands by what the hole cards add: a pair on the board is everyone's. Top pair's kicker is top, good (the next two) or weak."
           : "Draws by what the hole cards add. Each hand counts once, in its best draw."}
         {hasEv ? ` EV in ${unit}.` : ""}
         {taking !== null ? " Equity and EV aren't shown for one action: the table has them for a whole category, and the hands taking one action needn't share them." : ""}
+        {hero && taking === null && bd.actions.some(isAggressive) ? " Pick a bet or raise above to see how much of it is value and how much bluff." : ""}
       </p>
     </section>
+  );
+}
+
+/** One action's combos, value and bluff: a thin bar in the action's own colour against the neutral, labelled in words
+ * (each action's colour with the neutral passes the dataviz validator's colour-blind and normal-vision floors; the
+ * all-in's is under 3:1 on the surface, which the labels here relieve). */
+function ValueBluffView({ s, color, text }: { s: ValueBluff; color: string; text: string }) {
+  const known = s.value + s.bluff;
+  const v = valueShare(s) ?? 0;
+  const says = `${s.name}: ${pct(v)} value (${s.value.toFixed(1)} combos), ${pct(1 - v)} bluff (${s.bluff.toFixed(1)} combos)`;
+  return (
+    <div role="group" aria-label="Value and bluff" className="space-y-1 text-xs">
+      <p className="tabular-nums">
+        <strong>{s.name}</strong>: <strong>{pct(v)}</strong> value ({s.value.toFixed(1)} combos), <strong>{pct(1 - v)}</strong> bluff ({s.bluff.toFixed(1)} combos)
+      </p>
+      <div role="img" aria-label={says} title={says} className="flex h-2 w-full gap-0.5">
+        {s.value > 0 && <i className="block h-full rounded-full" style={{ width: `${(v * 100).toFixed(1)}%`, background: color }} />}
+        {s.bluff > 0 && <i className="block h-full flex-1 rounded-full bg-muted" />}
+      </div>
+      {s.unknown >= 0.05 && (
+        <p className="text-muted tabular-nums">
+          {s.unknown.toFixed(1)} of the {(known + s.unknown).toFixed(1)} combos have no equity in the answer and are in neither count.
+        </p>
+      )}
+      <p className="text-muted">{text}</p>
+    </div>
   );
 }
 

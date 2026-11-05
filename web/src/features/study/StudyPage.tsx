@@ -6,6 +6,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { Link, useSearchParams } from "react-router";
 import { cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { ResizableWorkspace } from "@/components/ResizableWorkspace";
 import { actionColors, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError, type SolveResult } from "@/solver/types";
@@ -40,6 +41,7 @@ import {
 import { encodePfSizes } from "./pfSizes";
 import { BreakdownPanel } from "./BreakdownPanel";
 import { BuildMode, type BuildSaved } from "./BuildMode";
+import { FoldTo } from "./FoldTo";
 import { askNode, newRun, pfGame, runPf, type PfRun } from "./pfSolve";
 import { PfNote, PfPanel, PfProgress, PfSizesForm, PreflopSource } from "./PreflopSolve";
 import { EvGapPanel } from "@/features/compare/EvGapPanel";
@@ -71,6 +73,12 @@ export const PLAYERS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const MIN_STACK = 10;
 export const MAX_STACK = 250;
 
+/** The grid's share of the width beside its panel, 1.4 to 1 as before it could be moved; and in px, the narrowest each can
+ * go: 420 leaves the 13 columns about 30px each for their labels, 320 the combo table its four columns. */
+const STUDY_SPLIT = 1.4 / 2.4;
+const STUDY_MIN_MATRIX = 420;
+const STUDY_MIN_PANEL = 320;
+
 /** The opponents' ranges: heads-up the one (opponent_grid), 3-way each of the two (opponents), as study.js oppsOf. */
 export function oppsOf(res: AdvisorResponse | undefined): OpponentRange[] {
   if (!res) return [];
@@ -95,9 +103,10 @@ export function StudyPage() {
   // the answer is tagged with the request it answers; a new request shows "loading" until its own answer arrives
   const [answer, setAnswer] = useState<{ key: string; phase: Phase }>({ key: "", phase: { kind: "loading" } });
   const [selected, setSelected] = useState<string | null>(null);
-  // (what the grid shows and the breakdown's state are Settings, so they last from visit to visit)
+  // (what the grid shows, the breakdown's state and the split beside the grid are Settings, so they last from visit to visit)
   const chosenView = useSettings((s) => s.studyView);
   const breakdownOpen = useSettings((s) => s.breakdownOpen);
+  const studySplit = useSettings((s) => s.studySplit);
   const saveSettings = useSettings((s) => s.set);
   // whose range the grid shows: 0 the player to act, i the i-th opponent
   const [who, setWho] = useState(0);
@@ -369,6 +378,7 @@ export function StudyPage() {
           </>
         )}
       </p>
+      {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
 
       {phase.kind === "loading" && (
         <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm" role="status">
@@ -420,7 +430,14 @@ export function StudyPage() {
         />
       )}
       {!(building && buildable) && res?.study === "node" && grid && (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <ResizableWorkspace
+          label="Resize the range and the panel beside it"
+          size={studySplit}
+          onResize={(s) => saveSettings({ studySplit: s })}
+          defaultSize={STUDY_SPLIT}
+          minStart={STUDY_MIN_MATRIX}
+          minEnd={STUDY_MIN_PANEL}
+        >
           <section aria-label="Range" className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               {opps.length > 0 ? (
@@ -534,7 +551,7 @@ export function StudyPage() {
               </p>
             )}
           </aside>
-        </div>
+        </ResizableWorkspace>
       )}
       {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && res.street !== "preflop" && (
         <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={(o) => saveSettings({ breakdownOpen: o })} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />

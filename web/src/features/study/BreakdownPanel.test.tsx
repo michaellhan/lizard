@@ -110,6 +110,130 @@ describe("BreakdownPanel", () => {
     expect(within(cats).getByRole("columnheader", { name: "Eq" })).toBeTruthy();
   });
 
+  describe("value and bluff", () => {
+    const RES = {
+      breakdown: BD,
+      categories: { made: [["set", "Set"], ["nothing", "No made hand"]], draws: [["fd", "Flush draw"], ["none", "No draw"]] },
+      // bet 50%: AhAd 1 x 0.75 at 90% is value; 7h2d 1 x 0.25 at 20% is bluff: three quarters value
+      combos: { AA: [["AhAd", 1, [0.25, 0.75], [0, 1], 0.9, 0, 1]], "72o": [["7h2d", 1, [0.75, 0.25], [0, 1], 0.2, 1, 1]] },
+    };
+    const pick = async (name: string, data: unknown = RES, provenance: Provenance = PROV) => {
+      const { getSolver } = solver(() => ({ data, provenance }));
+      await opened(getSolver);
+      const cats = screen.getByRole("region", { name: "Hand categories" });
+      fireEvent.click(within(within(cats).getByRole("group", { name: "What an action is made of" })).getByRole("button", { name }));
+      return cats;
+    };
+
+    it("splits a bet by the answer's combos, says what the words mean, and keeps it under the provenance", async () => {
+      const cats = await pick("bet 50%");
+      const vb = within(cats).getByRole("group", { name: "Value and bluff" });
+      expect(vb.textContent).toContain("75.0% value (0.8 combos)");
+      expect(vb.textContent).toContain("25.0% bluff (0.3 combos)");
+      expect(vb.textContent).toContain("over 50% equity against BTN's whole range");
+      expect(within(cats).getByText(/Live solve/i)).toBeTruthy();
+      expect(within(vb).getByRole("img", { name: /75\.0% value/ })).toBeTruthy();
+    });
+
+    it("adds how much of each category in the action is value", async () => {
+      const cats = await pick("bet 50%");
+      expect(within(cats).getByRole("columnheader", { name: "Value" })).toBeTruthy();
+      expect(within(cats).getByRole("row", { name: /Set/ }).textContent).toContain("100%");
+    });
+
+    it("isn't there for a check, and says why", async () => {
+      const cats = await pick("check");
+      expect(within(cats).queryByRole("group", { name: "Value and bluff" })).toBeNull();
+      expect(within(cats).getByText(/Value and bluff describe a bet or raise/)).toBeTruthy();
+    });
+
+    it("shows nothing on a rule fallback, and never a solved number", async () => {
+      const cats = await pick("bet 50%", RES, { ...PROV, source: "rules" } as Provenance);
+      expect(within(cats).queryByRole("group", { name: "Value and bluff" })).toBeNull();
+      expect(within(cats).getByText(/the betting rules, not a solve/)).toBeTruthy();
+    });
+
+    it("shows nothing with no equities in the answer", async () => {
+      const cats = await pick("bet 50%", { breakdown: BD });
+      expect(within(cats).queryByRole("group", { name: "Value and bluff" })).toBeNull();
+      expect(within(cats).getByText(/holds no equities/)).toBeTruthy();
+    });
+  });
+
+  describe("blockers", () => {
+    const NODE = {
+      breakdown: BD,
+      street: "river",
+      actor: "BB",
+      opponent: "BTN",
+      opponent_combos: 2,
+      categories: { made: [["set", "Set"]], draws: [] },
+      actions: [{ action: "check" }, { action: "bet 50%", amount_bb: 3 }],
+      combos: { AKo: [["AhKd", 1, [1, 0], [0, 0], 0.5, 0, 0], ["AsKc", 0.5, [1, 0], [0, 0], 0.5, 0, 0]] },
+    };
+    const NEXT = {
+      study: "node",
+      actor: "BTN",
+      categories: { made: [["overpair", "Overpair"], ["nothing", "No made hand"]], draws: [] },
+      grid: { actions: ["fold", "call"], cells: {} },
+      combos: {
+        // 2 combos, half folding; AhKd takes out AhAd, which calls: 1 of 2 combos, leaving only the fold
+        AA: [["AhAd", 1, [0, 1], null, 0.9, 0, 0]],
+        "65o": [["6s5h", 1, [1, 0], null, 0.1, 1, 0]],
+      },
+    };
+    const twoAsks = (node: unknown = NODE, next: unknown = NEXT, provenance: Provenance = PROV) => {
+      const solve = vi.fn((req: { state: { river: unknown[] } }) => Promise.resolve(req.state.river.length ? { data: next, provenance: { ...provenance, source: "library" } } : { data: node, provenance }));
+      return { solve, getSolver: () => Promise.resolve({ solve } as unknown as SolverClient) };
+    };
+
+    it("asks for nothing more until a hand is picked, then the next node once, whatever the combo", async () => {
+      const { solve, getSolver } = twoAsks();
+      await opened(getSolver);
+      const box = screen.getByRole("region", { name: "Blockers" });
+      expect(box.textContent).toContain("Pick a hand");
+      expect(solve).toHaveBeenCalledOnce();
+      fireEvent.change(within(box).getByRole("combobox", { name: "Hand" }), { target: { value: "AKo" } });
+      await act(async () => {});
+      expect(solve).toHaveBeenCalledTimes(2);
+      expect(solve.mock.calls[1]).toMatchObject([{ state: { breakdown: true, river: [{ pos: "BB", action: "bet", to: 3 }] }, mode: "fast" }]);
+      fireEvent.change(within(box).getByRole("combobox", { name: "Combo" }), { target: { value: "AhKd" } });
+      await act(async () => {});
+      expect(solve).toHaveBeenCalledTimes(2);
+    });
+
+    it("shows what a combo takes out and how it moves the reply, under the next answer's provenance", async () => {
+      const { getSolver } = twoAsks();
+      await opened(getSolver);
+      const box = screen.getByRole("region", { name: "Blockers" });
+      fireEvent.change(within(box).getByRole("combobox", { name: "Hand" }), { target: { value: "AKo" } });
+      await act(async () => {});
+      fireEvent.change(within(box).getByRole("combobox", { name: "Combo" }), { target: { value: "AhKd" } });
+      expect(box.textContent).toContain("takes out 1.0 of BTN's 2.0 combos (50.0%)");
+      expect(box.textContent).toContain("continues 50.0% of the time, 0.0% with AhKd out (−50.0 points)");
+      expect(box.textContent).toContain("Value it blocks: 1.0 of the 1.0 combos");
+      expect(within(box).getByRole("table", { name: "Made hands it blocks" }).textContent).toContain("Overpair");
+      expect(within(box).getByText(/Precomputed solution/)).toBeTruthy();
+    });
+
+    it("refuses a next answer whose range isn't this node's", async () => {
+      const { getSolver } = twoAsks({ ...NODE, opponent_combos: 40 });
+      await opened(getSolver);
+      const box = screen.getByRole("region", { name: "Blockers" });
+      fireEvent.change(within(box).getByRole("combobox", { name: "Hand" }), { target: { value: "AKo" } });
+      await act(async () => {});
+      expect(box.textContent).toContain("isn't the same range");
+      expect(box.textContent).not.toContain("takes out");
+    });
+
+    it("says why not on a 3-way answer, without asking", async () => {
+      const { solve, getSolver } = twoAsks({ ...NODE, breakdown: { ...BD, villains: [...BD.villains, { ...BD.villains[0]!, who: "SB" }] } });
+      await opened(getSolver);
+      expect(screen.getByRole("region", { name: "Blockers" }).textContent).toContain("3-way");
+      expect(solve).toHaveBeenCalledOnce();
+    });
+  });
+
   it("says so where the rules answered", async () => {
     const { getSolver } = solver(() => ({ data: { breakdown: null }, provenance: PROV }));
     await opened(getSolver);
