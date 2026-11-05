@@ -95,7 +95,7 @@ describe("the controls", () => {
     show();
     expect(screen.getByLabelText("Tables")).toHaveValue("4");
     expect(screen.getByLabelText("Time to think")).toHaveValue("0");
-    expect(screen.getByLabelText("Ask ahead")).not.toBeChecked();
+    expect(screen.getByLabelText("Ask ahead")).toBeChecked();
     expect(screen.getByText("A few minutes of CPU. Nothing is saved to History or Analyze.")).toBeInTheDocument();
     const self = screen.getByRole("button", { name: "Run self-test" });
     expect(self.compareDocumentPosition(screen.getByRole("button", { name: "Play 20 hands" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -109,9 +109,9 @@ describe("the controls", () => {
   });
 
   it("take asking ahead from Settings where it's set", () => {
-    useSettings.setState({ askAhead: true });
+    useSettings.setState({ askAhead: false });
     show();
-    expect(screen.getByLabelText("Ask ahead")).toBeChecked();
+    expect(screen.getByLabelText("Ask ahead")).not.toBeChecked();
   });
 
   it("run with what they say, the same deals each time, and write none of it to Settings", async () => {
@@ -125,8 +125,8 @@ describe("the controls", () => {
     const before = { ...useSettings.getState() };
     play();
     await end(REPORT);
-    expect(seen[0]).toMatchObject({ hands: 20, tables: 4, thinkMs: 0, askAhead: false });
-    expect(seen[1]).toMatchObject({ hands: 20, tables: 1, thinkMs: 3000, askAhead: true });
+    expect(seen[0]).toMatchObject({ hands: 20, tables: 4, thinkMs: 0, askAhead: true });
+    expect(seen[1]).toMatchObject({ hands: 20, tables: 1, thinkMs: 3000, askAhead: false });
     expect(seen[1]!.seed).toBe(seen[0]!.seed);
     expect(useSettings.getState().askAhead).toBeNull();
     expect(useSettings.getState()).toEqual(before);

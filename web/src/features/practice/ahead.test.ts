@@ -39,8 +39,8 @@ afterEach(() => {
 });
 
 describe("the default", () => {
-  it("is off, until the engine check has measured it", () => {
-    expect(ASK_AHEAD).toBe(false);
+  it("is on, as the engine check's four runs came out", () => {
+    expect(ASK_AHEAD).toBe(true);
   });
 });
 

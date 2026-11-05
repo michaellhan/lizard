@@ -13,9 +13,10 @@ import { moveOf, needOf } from "./flow";
 import { dealNext, decide, facingBet, optionsOf, simOf, withVillain, type PracticeHand } from "./practice";
 import { SHORT, type Asked, type Job } from "./scheduler";
 
-/** Whether Practice asks ahead until you say (Settings' `askAhead` null). Off until the engine check's four runs have
- * measured what it saves: there's no hit rate yet. */
-export const ASK_AHEAD: boolean = false;
+/** Whether Practice asks ahead until you say (Settings' `askAhead` null). On, from the engine check's four runs at Quick
+ * (docs/PROGRESS.md): at one table the median wait fell from 0.02 s to under 0.01 s and 90% of waits from 0.46 s to 0.02 s,
+ * at four it didn't rise, and a request took no longer. One Mac, under load: a phone hasn't been measured. */
+export const ASK_AHEAD: boolean = true;
 
 /** The lines played on from a spot, how likely each must be, the decisions of a kind before they count, and the steps a
  * line may take to its next request. */

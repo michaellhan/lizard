@@ -185,7 +185,8 @@ afterEach(() => {
   for (const r of rooms) r.stop();
   rooms = [];
   vi.useRealTimers();
-  useSettings.setState({ mode: "fast", keepHands: false, practiceSpot: null, practiceSeat: "random", askAhead: null });
+  // (asking ahead is off here but where a test turns it on: most of these count what the solver is asked)
+  useSettings.setState({ mode: "fast", keepHands: false, practiceSpot: null, practiceSeat: "random", askAhead: false });
 });
 
 describe("Room at one table", () => {
@@ -2847,6 +2848,7 @@ describe("Asking ahead", () => {
         expect(room.snapshot().ahead.on).toBe(asked.length > 1);
         return asked.length > 1;
       };
+      useSettings.setState({ askAhead: null });
       expect(await runs({})).toBe(ASK_AHEAD);
       expect(await runs({ askAhead: true })).toBe(true);
       useSettings.setState({ askAhead: true });

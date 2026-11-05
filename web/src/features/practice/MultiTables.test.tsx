@@ -1058,23 +1058,23 @@ describe("Asking ahead", () => {
     expect(useSettings.getState().askAhead).toBe(askAhead);
   });
 
-  it("is a box by the mode picker at one table and several, off until you say, which gives focus back", async () => {
+  it("is a box by the mode picker at one table and several, on until you say, which gives focus back", async () => {
     page();
     await ready();
     expect(box()).toBeEnabled();
-    expect(box()).not.toBeChecked();
+    expect(box()).toBeChecked();
     box().focus();
     fireEvent.click(box());
-    expect(useSettings.getState().askAhead).toBe(true);
-    expect(box()).toBeChecked();
+    expect(useSettings.getState().askAhead).toBe(false);
+    expect(box()).not.toBeChecked();
     expect(box()).not.toHaveFocus();
 
     fireEvent.click(screen.getByRole("radio", { name: "2" }));
     await screen.findByRole("region", { name: "Table 2" });
-    expect(box()).toBeChecked();
-    fireEvent.click(box());
-    expect(useSettings.getState().askAhead).toBe(false);
     expect(box()).not.toBeChecked();
+    fireEvent.click(box());
+    expect(useSettings.getState().askAhead).toBe(true);
+    expect(box()).toBeChecked();
     expect(screen.queryByText(WHY)).toBeNull();
   });
 
@@ -1099,6 +1099,7 @@ describe("Asking ahead", () => {
 
   it("shows no meter while it's off", async () => {
     stub.advice = () => CHECKED;
+    useSettings.setState({ askAhead: false });
     await open(doc([checkedTo(1), checkedTo(2)]));
     await ready();
     expect(stub.calls).not.toContain("play BB");
@@ -1155,6 +1156,8 @@ describe("going from one table to several (multitable.test.js:534, changed)", ()
       });
     }) as typeof fetch;
     stub.client = new SolverClient(new HttpTransport({ url: "http://127.0.0.1:1", fetchImpl }), "test") as RoomClient;
+    // (what's stopped here is real: a look-ahead gives way to a real request at any number of tables)
+    useSettings.setState({ askAhead: false });
 
     page();
     fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "UTG" } });
