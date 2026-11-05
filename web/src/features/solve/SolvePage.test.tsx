@@ -26,6 +26,13 @@ const num = (name: string, value: string) => fireEvent.change(screen.getByRole("
 const problems = () => screen.queryByRole("alert", { name: "Setup problems" });
 
 describe("SolvePage", () => {
+  it("says node locks and automatic sizing are in Study, by the names they have there, and sends no one to the classic app for them", () => {
+    open("p=2&s=100");
+    expect(screen.getByText(/Node locks and automatic sizing are in Study, a hand at a time: .Against a read \(node lock\). and .Choose bet sizes \(automatic sizing\)./)).toBeInTheDocument();
+    expect(screen.queryByText(/Not here yet: node locks/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /classic/i })).toBeNull();
+  });
+
   it("sets up a spot from a Study line, refuses what's out of range, and opens it in Study with every setting", async () => {
     open("p=2&s=100&pre=SB:r2.5,BB:c&b=Ks7d2c&rake=5");
     expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("2");

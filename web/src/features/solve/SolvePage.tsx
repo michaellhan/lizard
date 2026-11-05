@@ -1,12 +1,11 @@
 // Solve (ROADMAP Phase 6): set up a spot of your own and open it in Study, which answers it node by node: each seat's
 // stack, the postflop bet and raise sizes, rake and its cap, an ante or a straddle, and the ranges entering the flop
 // (setup.ts maps each to the engine's key and checks it first). Study's "Edit setup" opens this page on its spot: the
-// line is kept while the table's size stays. Node locks and automatic sizing aren't here yet (the classic app has them).
+// line is kept while the table's size stays. Node locks and automatic sizing aren't set up here: Study asks them a hand at a time.
 // Tournaments (ROADMAP Phase 7) is this page for a tournament: the prizes left, the other tables and the bounties
 // (features/tournaments/tournament.ts) in place of the rake, answered in prize equity.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { CLASSIC_URL } from "@/config";
 import type { SavedRange } from "@/data/db";
 import { listRanges } from "@/data/saved";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -420,11 +419,11 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </p>
       )}
       <p className="text-sm text-muted">
-        Not here yet: node locks (a best response to a locked tendency) and automatic sizing. The classic app has both:{" "}
-        <a href={CLASSIC_URL} className="underline hover:text-text">
-          open the classic GTO Solver ↗
-        </a>
-        . Saved ranges come from <Link to="/ranges" className="underline hover:text-text">Ranges</Link>.
+        Node locks and automatic sizing are in Study, a hand at a time: &ldquo;Against a read (node lock)&rdquo; and &ldquo;Choose bet sizes (automatic sizing)&rdquo;, and after the flop only heads-up. Saved ranges come from{" "}
+        <Link to="/ranges" className="underline hover:text-text">
+          Ranges
+        </Link>
+        .
       </p>
     </div>
   );

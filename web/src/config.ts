@@ -28,6 +28,3 @@ export type LibraryChoice = LibrarySourceId | "auto";
 
 /** Default local Python solver (solver/gto/server.py). */
 export const DEFAULT_LOCAL_SOLVER_URL = "http://127.0.0.1:8765";
-
-/** The upstream app, for features not yet ported to Lizard's UI. */
-export const CLASSIC_URL = "/gto-solver/";
