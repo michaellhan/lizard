@@ -38,6 +38,24 @@ class FakeTransport implements SolverTransport {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe("SolverClient", () => {
+  it("measures a live answer unless it's told that one isn't the player's", async () => {
+    const t = new FakeTransport();
+    const c = new SolverClient(t, "test");
+    localStorage.removeItem("lizard.solveTimes.v1");
+    const live = { street: "flop" as const, seconds: 1.25, solver: { iterations: 10 } };
+    const a = c.solve({ state: { players: 2, board: "Ks7d2c" }, mode: "fast", untimed: true });
+    await tick();
+    t.calls[0]!.resolve(live);
+    await a;
+    expect(localStorage.getItem("lizard.solveTimes.v1")).toBeNull();
+    const b = c.solve({ state: { players: 2, board: "Ks7d2c" }, mode: "fast" });
+    await tick();
+    t.calls[1]!.resolve(live);
+    await b;
+    expect(localStorage.getItem("lizard.solveTimes.v1")).not.toBeNull();
+    localStorage.removeItem("lizard.solveTimes.v1");
+  });
+
   it("maps modes onto the Advisor's keys, with the classic app's budgets for the backend", () => {
     expect(applyMode({ players: 2, board: "Ks7d2c" }, "quick")).toEqual({
       players: 2, board: "Ks7d2c", quick: true, speed: "fast", budget: 1.5, prior_budget: 0.3,

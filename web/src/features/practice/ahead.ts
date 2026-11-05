@@ -100,7 +100,8 @@ export function likely(res: AdvisorResponse, facing: boolean, habits: Habits): L
     .slice(0, AHEAD_LINES);
 }
 
-/** What a walk sees of the Room's caches, and only sees: `bad`, the look-aheads that failed, which nothing else reads. */
+/** What a walk sees of the Room's caches, and only sees: `bad`, the requests it's to pass over, for a look-ahead those that
+ * failed as look-aheads, which nothing else reads. */
 export interface Peek {
   adv: { has(key: string): boolean };
   moves: { get(key: string): Pick<SolveResult<PlayMove>, "data"> | undefined };
@@ -113,13 +114,11 @@ export function noteBad(bad: Set<string>, key: string): void {
   if (bad.size > BAD_KEEP) bad.clear();
 }
 
-/** Option `i` taken at your spot and the hand played on, the way a table plays it, up to the next request nobody has
- * answered: an opponent's move, or your next spot. Null where the line needs nothing more: its hand ends, your next spot is
- * in hand, that request has failed as a look-ahead, or a move on it couldn't be taken, which stops a table too. */
-export function walk(h: PracticeHand, answer: Pick<SolveResult, "data" | "provenance">, i: number, mode: SolveMode, peek: Peek): Asked | null {
-  const first = decide(h, answer.data, i, answer.provenance);
-  if ("error" in first) return null;
-  let at = first.hand;
+/** The hand played on, the way a table plays it, up to the next request nobody has answered: an opponent's move, or your
+ * next spot. Null where it needs nothing more: it ends, your next spot is in hand, `peek.bad` has that request, or a move
+ * on the way couldn't be taken, which stops a table too. */
+export function onward(h: PracticeHand, mode: SolveMode, peek: Peek): Asked | null {
+  let at = h;
   for (let n = 0; n < WALK_STEPS; n += 1) {
     const sim = simOf(at);
     const need = needOf(at, mode, sim);
@@ -136,6 +135,12 @@ export function walk(h: PracticeHand, answer: Pick<SolveResult, "data" | "proven
     } else return null;
   }
   return null;
+}
+
+/** Option `i` taken at your spot and the hand played `onward` from there. */
+export function walk(h: PracticeHand, answer: Pick<SolveResult, "data" | "provenance">, i: number, mode: SolveMode, peek: Peek): Asked | null {
+  const first = decide(h, answer.data, i, answer.provenance);
+  return "error" in first ? null : onward(first.hand, mode, peek);
 }
 
 /** A table waiting for you: your turn, with the answer in hand. */
@@ -176,7 +181,7 @@ export function aheadJobs(waiting: readonly Waiting[], c: AheadContext): Job[] {
 }
 
 /** How asking ahead has gone in this browser, measured: the look-aheads that went out, those a table used, the waiting
- * that saved (s) and the solver's time they took (s), stopped ones included. */
+ * that saved you (s) and the solver's time they took (s), stopped ones included. */
 export interface AheadMeter {
   asked: number;
   used: number;

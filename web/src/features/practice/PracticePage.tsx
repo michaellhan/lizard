@@ -24,7 +24,7 @@ import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
 import { boardShown, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
-import { Room, type RoomSnapshot } from "./room";
+import { PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
 
@@ -38,7 +38,7 @@ const TABS: readonly { id: Tab; label: string }[] = [
 
 /** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). `pause`, `guard`:
  * the Room's, above one table (unset: its own). */
-export function PracticePage({ pace = 450, pause, guard }: { pace?: number; pause?: number; guard?: number } = {}) {
+export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pause?: number; guard?: number } = {}) {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "drills" ? "drills" : "hands";
   // a hand under way is kept while you drill (its table is mounted once opened, and hidden)

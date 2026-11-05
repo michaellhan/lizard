@@ -3,7 +3,7 @@
 // goes out once it's gone (multitable.js:263-276, :316-322, :381-391): what's instant first, then short solves, then a
 // look-ahead at the table in front, then long solves, then the other tables' look-aheads. Everything waits on an
 // estimate, which only ever orders the queue. Pure: the flight, its promise and the clock stay with the Room.
-import type { AdvisorState } from "@/solver/protocol";
+import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
 import type { SolveMode, StopCost, TransportKind } from "@/solver/types";
 import type { Need } from "./flow";
 
@@ -34,7 +34,8 @@ export interface InFlight {
 }
 
 export interface Plan {
-  /** nobody needs the flight now, or something instant or short waits behind a long one */
+  /** nobody needs the flight now, something instant or short waits behind a long one, or a real request behind a
+   * look-ahead that's turned out long */
   stop: boolean;
   /** the job the flight is now, where it's still wanted (a look-ahead your move made real keeps its place as the real one) */
   same: Job | null;
@@ -52,12 +53,22 @@ export const streetKey = (q: AdvisorState, mode: SolveMode) => {
 /** Practice's quick answers, s. */
 const QUICK = { flop: 2, turn: 2, river: 1.4 };
 
+/** The pot was three-way or more as this street began and is down to two on it. The street's solve has nothing to say
+ * then, your spot and a reply alike: each is a solve of its own, at the whole budget (advisor.py:5037-5044). */
+function wentHeadsUp(q: AdvisorState): boolean {
+  const lines = [q.preflop, q.flop, q.turn, q.river];
+  const on = (q.board?.length ?? 0) / 2 - 2;
+  const folds = (m: AdvisorAction[] = []) => m.filter((a) => a.action === "fold").length;
+  const atStart = lines.slice(0, on).reduce((left, m) => left - folds(m), q.players);
+  return atStart > 2 && atStart - folds(lines[on]) === 2;
+}
+
 /** How long a request takes, roughly (s). `solved`: the street keys its table's hand has had answered. `libFlop`: the
  * library holds this flop on this preflop line (flops.ts), which only ever orders the queue. */
 export function estimate(q: AdvisorState, mode: SolveMode, solved: ReadonlySet<string>, transport: TransportKind, libFlop = false): number {
   const cards = (q.board?.length ?? 0) / 2;
   if (cards < 3) return 0.05; // a preflop chart
-  if (solved.has(streetKey(q, mode))) return 0.2; // the street's solve is in hand (a reply heads-up reads it)
+  if (solved.has(streetKey(q, mode)) && !wentHeadsUp(q)) return 0.2; // the street's solve is in hand (a reply reads it)
   if (cards === 3 && libFlop) return 0.3; // the library's
   const street = cards === 3 ? "flop" : cards === 4 ? "turn" : "river";
   if (mode !== "accurate") return QUICK[street];
@@ -110,8 +121,9 @@ export function refocus(f: Front, tables: readonly Waiter[], now: number): Front
 
 /** What happens to the flight, from what's wanted. A stop that costs a worker (`kills`) is paid only to get out of a
  * long solve nobody needs: a needed flight runs on, whatever waits behind it, and a short dead one runs out, as a
- * reboot would cost more. */
-export function plan(flight: InFlight | null, jobs: readonly Job[], cost: StopCost): Plan {
+ * reboot would cost more. `late`: it went out as short and has run past SHORT, as a rare line the estimate can't see
+ * coming does, so as a look-ahead it gives way to any real request, not just a short one. */
+export function plan(flight: InFlight | null, jobs: readonly Job[], cost: StopCost, late = false): Plan {
   const all = [...jobs].sort(byPriority);
   if (!flight) return { stop: false, same: null, launch: all[0] ?? null };
   if (flight.stopping) return { stop: false, same: null, launch: null };
@@ -119,6 +131,6 @@ export function plan(flight: InFlight | null, jobs: readonly Job[], cost: StopCo
   const same = all.find((j) => j.need.key === key) ?? null;
   if (!same) return { stop: cost === "cheap" || flight.job.est >= SHORT, same, launch: null };
   const best = all.find((j) => j.need.key !== key);
-  const yields = !!best && group(best) <= 2 && group(same) >= 3;
+  const yields = (!!best && group(best) <= 2 && group(same) >= 3) || (late && !!same.ahead && all.some((j) => !j.ahead));
   return { stop: yields && cost === "cheap", same, launch: null };
 }

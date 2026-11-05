@@ -1,19 +1,23 @@
 // The engine check: a run of hands through a real Room on the page's own solver, with a scripted hero in your seat, to
 // show on a real worker that a session holds together. It always plays 6-max 100bb, Any hand, at Quick, whatever Settings
-// say, and with `persist: false`, so nothing of the player's is read or written; only its own last report is kept. The
-// hero draws from each answer's mix and doesn't fold where it can do anything else, to reach more postflop spots.
+// say, with `persist: false` and each solve marked `untimed`, so nothing of the player's is read or written; only its own
+// last report is kept. The hero draws from each answer's mix and doesn't fold where it can do anything else, to reach more
+// postflop spots.
 //
 // It fails on what it can see: a request that failed, other than those the Room stopped itself; a verdict that doesn't say
 // what answered it, or says more than that answer is; a move the table couldn't take; chips gone astray; a hand that
 // doesn't end; a hand history that doesn't read back; a worker ended on a page where a stop should have been enough.
 // Charts and betting rules pass when they say what they are. What it can't see is whether any grade is right, so a pass
 // says nothing of that, nor of Accurate, phones or other machines. A seed fixes the deals and no more: budgets are
-// wall-clock, so the mixes and the lines differ from run to run, and only `fingerprint` compares across runs.
+// wall-clock, so the mixes and the lines differ from run to run, and only `fingerprint` compares across runs, at the same
+// number of tables (a seat is drawn only above one).
 //
 // A failed request is told apart here, at the client the Room is given, as the client is what sees every request go out
 // and how it ended, a look-ahead's too. A table it left failed is played on, unless nothing can move it, as one bad answer
 // shouldn't hide what the other nineteen hands would show. The waits and solve times are the Room's own, in seconds,
-// measured in this browser on this run, for the four timed runs that decide asking ahead.
+// measured in this browser on this run, for the four timed runs that decide asking ahead. So one table runs at the page's
+// pace, as those waits are a player's, and a run says what build it was and whether the solver had played one already: a
+// solver keeps its answers, and a second run deals it the same hands, so it's quicker for that and nothing else.
 import { kindOf } from "@/components/actions";
 import { kvGet, kvSet } from "@/data/db";
 import { hash } from "@/features/analyze/analyze";
@@ -41,6 +45,9 @@ const SETTLE_MS = 1000;
 /** bb a hand's chips may be out by: every figure is in cents */
 const CHIPS_EPS = 0.011;
 
+/** The runs begun on each client, which is to say on each solver's answers. */
+const runsOn = new WeakMap<RoomClient, number>();
+
 export interface HandsCheckOptions {
   /** the first deal's; each deal's is this plus its number */
   seed: number;
@@ -51,9 +58,10 @@ export interface HandsCheckOptions {
   thinkMs: number;
   signal?: AbortSignal;
   onProgress?: (p: HandsCheckProgress) => void;
-  /** a test's clock, and its patience (ms) */
+  /** a test's clock, its patience (ms), and its pace (ms; unset: the page's own) */
   now?: () => number;
   stallMs?: number;
+  pace?: number;
 }
 
 export interface HandsCheckProgress {
@@ -104,6 +112,10 @@ export interface HandsCheckReport {
   transport: TransportKind | null;
   isolated: boolean;
   stopCost: StopCost | null;
+  /** the client's build, as its answers' provenance says it; null where it had none, or the report's older than this */
+  solver: string | null;
+  /** the runs this client had begun before this one: above 0, its times aren't a cold solver's */
+  earlier: number;
   /** hands finished */
   hands: number;
   verdicts: number;
@@ -204,6 +216,8 @@ class HandsRun {
   private readonly ids = new Set<string>();
   private readonly bySource: Record<string, number> = {};
   private transport: TransportKind | null = null;
+  private build: string | null = null;
+  private earlier = 0;
   private unlabelled = 0;
   private reached = 0;
   private errors = 0;
@@ -230,7 +244,7 @@ class HandsRun {
       this.done = resolve;
     });
     this.room = new Room({
-      pace: 0,
+      pace: o.pace,
       pause: 0,
       guard: 0,
       now: this.now,
@@ -270,8 +284,14 @@ class HandsRun {
     try {
       const c = await this.getSolver();
       this.transport = c.transport?.kind ?? null;
+      this.build = c.solverVersion ?? null;
       let mine = this.clients.get(c);
-      if (!mine) this.clients.set(c, (mine = this.watched(c)));
+      if (!mine) {
+        this.clients.set(c, (mine = this.watched(c)));
+        const before = runsOn.get(c) ?? 0;
+        runsOn.set(c, before + 1);
+        this.earlier = Math.max(this.earlier, before);
+      }
       return mine;
     } catch (e) {
       this.errors += 1;
@@ -284,7 +304,7 @@ class HandsRun {
     return {
       ...(c.prefetch ? { prefetch: (s: AdvisorState) => c.prefetch!(s) } : {}),
       ...(c.stopCost ? { stopCost: () => c.stopCost!() } : {}),
-      solve: (req) => this.asked(req.state, req.signal, () => c.solve(req)),
+      solve: (req) => this.asked(req.state, req.signal, () => c.solve({ ...req, untimed: true })),
       play: (state, play, opts) => this.asked(state, opts?.signal, () => c.play(state, play, opts)),
     };
   }
@@ -473,6 +493,8 @@ class HandsRun {
       transport: this.transport,
       isolated,
       stopCost: s.stopCost,
+      solver: this.build,
+      earlier: this.earlier,
       hands: s.session.hands,
       verdicts: s.session.score.n,
       requestErrors: this.errors,
@@ -505,8 +527,9 @@ export function runHandsCheck(getSolver: RoomSolver, o: HandsCheckOptions): Prom
 
 /** The last report kept in this browser, if there is one this build can read. */
 export async function lastReport(): Promise<HandsCheckReport | null> {
-  const r = await kvGet<HandsCheckReport>(CHECK_KEY).catch(() => undefined);
-  return r?.v === 1 ? r : null;
+  // (one from before a run said its build or what came before it reads as neither)
+  const r = await kvGet<Omit<HandsCheckReport, "solver" | "earlier"> & Partial<HandsCheckReport>>(CHECK_KEY).catch(() => undefined);
+  return r?.v === 1 ? { ...r, solver: r.solver ?? null, earlier: r.earlier ?? 0 } : null;
 }
 
 /** "1 m 48 s" */
@@ -522,6 +545,16 @@ export const reportLine = (r: HandsCheckReport) =>
 /** How it was run: "4 tables · no time to think · asking ahead off · Quick". */
 export const setupLine = (r: HandsCheckReport) =>
   [`${r.tables} ${r.tables === 1 ? "table" : "tables"}`, r.thinkMs ? `${r.thinkMs / 1000} s to think a decision` : "no time to think", `asking ahead ${r.askAhead ? "on" : "off"}`, "Quick"].join(" · ");
+
+/** When it ran and on what. `current`: the build on this page, where that's known. */
+export function whenLine(r: HandsCheckReport, current: string | null): string {
+  const date = new Date(r.at).toLocaleString();
+  if (r.solver === null) return `Run ${date}, build not recorded`;
+  return `Run ${date} on ${current !== null && r.solver !== current ? "an earlier build, " : "build "}${r.solver}`;
+}
+
+/** Why its times aren't a cold solver's, if they aren't. */
+export const warmLine = (r: HandsCheckReport) => (r.earlier > 0 ? `Not a cold run: this solver had played ${r.earlier === 1 ? "a run" : `${r.earlier} runs`} already and keeps its answers, so reload before timing one.` : null);
 
 /** The meter's figures in words, or why there are none. */
 export function aheadLine(r: HandsCheckReport): string | null {

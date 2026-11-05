@@ -4,37 +4,63 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ASK_AHEAD } from "@/features/practice/ahead";
-import { useRuntime } from "@/solver/runtime";
+import { loadManifest, solverVersionOf, useRuntime } from "@/solver/runtime";
 import { useSolver } from "@/solver/useSolver";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { useSettings } from "@/state/settings";
 import type { SolveResult } from "@/solver/types";
 import { WorkerTransport } from "@/solver/worker-transport";
-import { aheadLine, lastReport, progressLine, reportLine, runHandsCheck, setupLine, type HandsCheckReport } from "./handsCheck";
+import { aheadLine, lastReport, progressLine, reportLine, runHandsCheck, setupLine, warmLine, whenLine, type HandsCheckReport } from "./handsCheck";
 
 const CHECK_HANDS = 20;
-/** always these deals, so runs under different settings play the same hands */
+/** always these deals, so runs at the same number of tables play the same hands (a seat is drawn only above one table) */
 const CHECK_SEED = 20_260_001;
 const THINK_MS = 3000;
 
 const secs = (x: number | null) => (x === null ? "none" : `${x.toFixed(2)} s`);
 
 function CheckReport({ r }: { r: HandsCheckReport }) {
+  // (read here: a kept report is on the page before any solver has been asked for)
+  const [build, setBuild] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean | null>(null);
+  useEffect(() => {
+    void loadManifest().then((m) => {
+      if (m) setBuild(solverVersionOf(m));
+    });
+  }, []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(r, null, 2));
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
   const ahead = aheadLine(r);
+  const warm = warmLine(r);
   const sources = Object.entries(r.bySource).sort((a, b) => b[1] - a[1]);
   return (
     <section aria-label="Last report" className={`space-y-3 rounded-lg border p-3 text-sm ${r.passed ? "border-accent/40" : "border-danger/40"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className={`font-medium ${r.passed ? "" : "text-danger"}`}>{r.stopped ? "Stopped" : r.passed ? "Passed" : "Failed"}</h2>
-        <button type="button" onClick={() => void navigator.clipboard?.writeText(JSON.stringify(r, null, 2))} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-surface-2">
-          Copy report
-        </button>
+        <div className="flex items-center gap-2">
+          {copied !== null && (
+            <span role="status" className="text-xs text-muted">
+              {copied ? "Copied" : "Couldn't copy"}
+            </span>
+          )}
+          <button type="button" onClick={() => void copy()} className="rounded-md border border-border px-2 py-1 text-xs hover:bg-surface-2">
+            Copy report
+          </button>
+        </div>
       </div>
       <p>
         {reportLine(r)}
         {r.stopped ? ` · stopped at ${r.hands} of ${r.of}` : ""}
       </p>
       <p className="text-muted">{setupLine(r)}</p>
+      <p className="text-muted">{whenLine(r, build)}</p>
+      {warm && <p className="text-warn">{warm}</p>}
       <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
         <dt className="text-muted">Transport</dt>
         <dd>
@@ -106,7 +132,7 @@ function CheckReport({ r }: { r: HandsCheckReport }) {
       )}
       <p className="text-xs text-muted">
         Times are measured in this browser, on this run. A pass says the hands held together and each verdict said what answered it. It can&rsquo;t prove any grade right, or say anything about Accurate,
-        phones or other machines. Every run deals these same hands, but what&rsquo;s played on them differs, so between runs only the deals compare hand for hand.
+        phones or other machines. Runs at the same number of tables deal these same hands, but what&rsquo;s played on them differs, so between runs only the deals compare hand for hand.
       </p>
     </section>
   );
@@ -127,7 +153,8 @@ function HandsCheck() {
   useEffect(() => {
     let live = true;
     void lastReport().then((r) => {
-      if (live && r) setReport((now) => now ?? r);
+      // (nor over a run that's begun: it cleared the page for its own)
+      if (live && r && !stopper.current) setReport((now) => now ?? r);
     });
     return () => {
       live = false;
@@ -180,6 +207,7 @@ function HandsCheck() {
         </label>
       </div>
       <p className="text-sm text-muted">A few minutes of CPU. Nothing is saved to History or Analyze.</p>
+      <p className="text-sm text-muted">Reload this page before a timed run: a solver keeps its answers, so a second run is quicker on the same deals for that alone.</p>
       {running && (
         <p role="status" className="text-sm">
           {line}

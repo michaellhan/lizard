@@ -2,7 +2,7 @@
 // handsCheck.test.ts's; here it's a stand-in that goes when it's told, but for one run that's real.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { kvGet, kvSet } from "@/data/db";
 import { SolverError } from "@/solver/types";
 import { useSettings } from "@/state/settings";
@@ -14,11 +14,17 @@ vi.mock("./handsCheck", { spy: true });
 const solver = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/solver/useSolver", () => ({ useSolver: () => solver.get }));
 
-const realRun = (await vi.importActual<typeof import("./handsCheck")>("./handsCheck")).runHandsCheck;
+const build = vi.hoisted(() => ({ manifest: vi.fn() }));
+vi.mock("@/solver/runtime", async (orig) => ({ ...(await orig<typeof import("@/solver/runtime")>()), loadManifest: build.manifest }));
 
+const actual = (await vi.importActual<typeof import("./handsCheck")>("./handsCheck")).runHandsCheck;
+/** The real run, with nothing to wait for between moves (the page's own pace is handsCheck.test.ts's). */
+const realRun: typeof runHandsCheck = (g, o) => actual(g, { ...o, pace: 0 });
+
+const AT = Date.UTC(2026, 10, 4, 12);
 const REPORT: HandsCheckReport = {
   v: 1,
-  at: 1,
+  at: AT,
   passed: true,
   stopped: false,
   seed: 5,
@@ -31,6 +37,8 @@ const REPORT: HandsCheckReport = {
   transport: "worker",
   isolated: true,
   stopCost: "cheap",
+  solver: "9b907bd6/abc",
+  earlier: 0,
   hands: 20,
   verdicts: 63,
   requestErrors: 0,
@@ -44,6 +52,7 @@ const REPORT: HandsCheckReport = {
   gap: [{ street: "flop", n: 30, estS: 2, s: 2.5 }],
   ahead: { asked: 52, used: 31, savedS: 44, spentS: 96 },
 };
+const MANIFEST = { version: "abc", upstream: { repo: "r", commit: "9b907bd6ffff", date: "" }, builtAt: "", files: [] };
 
 /** A run that waits to be told how it went: `go` ends it, and a stop ends it as stopped. */
 function held() {
@@ -68,6 +77,10 @@ const show = () =>
 
 const play = () => fireEvent.click(screen.getByRole("button", { name: "Play 20 hands" }));
 const report = () => screen.findByRole("region", { name: "Last report" });
+
+beforeEach(() => {
+  build.manifest.mockResolvedValue(null);
+});
 
 afterEach(async () => {
   cleanup();
@@ -179,6 +192,21 @@ describe("a run", () => {
     await end(REPORT);
   });
 
+  it("marks a second run on the same solver, which has its answers, and says to reload before a timed one", async () => {
+    vi.mocked(runHandsCheck).mockImplementation(realRun);
+    const fail = () => Promise.reject(new SolverError("unreachable", "no server"));
+    solver.get.mockResolvedValue({ solve: fail, play: fail, transport: { kind: "http" } });
+    show();
+    expect(screen.getByText(/Reload this page before a timed run/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Tables"), { target: { value: "1" } });
+    play();
+    const first = await screen.findByRole("region", { name: "Last report" }, { timeout: 30_000 });
+    expect(first).not.toHaveTextContent("Not a cold run");
+    play();
+    const second = await screen.findByRole("region", { name: "Last report" }, { timeout: 30_000 });
+    expect(second).toHaveTextContent("Not a cold run: this solver had played a run already");
+  }, 70_000);
+
   it("gets to a report on the real thing, a solver that fails included", async () => {
     vi.mocked(runHandsCheck).mockImplementation(realRun);
     const fail = () => Promise.reject(new SolverError("unreachable", "no server"));
@@ -257,12 +285,72 @@ describe("the report", () => {
     expect(links[0]).toHaveAttribute("href", "/study?p=6&s=100&b=AsKd2c");
   });
 
-  it("copies the whole report as JSON", async () => {
-    const writeText = vi.fn(() => Promise.resolve());
+  it("copies the whole report as JSON, and says it has only once it has", async () => {
+    let done: () => void = () => {};
+    const writeText = vi.fn(() => new Promise<void>((resolve) => (done = resolve)));
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     const r = await shown(REPORT);
+    expect(within(r).queryByRole("status")).not.toBeInTheDocument();
     fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
     expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0])).toEqual(REPORT);
+    expect(within(r).queryByRole("status")).not.toBeInTheDocument();
+    await act(async () => done());
+    expect(within(r).getByRole("status")).toHaveTextContent("Copied");
+  });
+
+  it("says it couldn't copy, where the browser refused", async () => {
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText: () => Promise.reject(new Error("denied")) } });
+    const r = await shown(REPORT);
+    fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
+    expect(await within(r).findByRole("status")).toHaveTextContent("Couldn't copy");
+  });
+
+  it("says it couldn't copy, where the page has no clipboard", async () => {
+    vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+    const r = await shown(REPORT);
+    fireEvent.click(within(r).getByRole("button", { name: "Copy report" }));
+    expect(await within(r).findByRole("status")).toHaveTextContent("Couldn't copy");
+  });
+
+  it("says when it ran and on what build, kept or not", async () => {
+    build.manifest.mockResolvedValue(MANIFEST);
+    await kvSet(CHECK_KEY, REPORT);
+    show();
+    const r = await report();
+    await act(async () => {});
+    expect(r).toHaveTextContent(new Date(AT).toLocaleString());
+    expect(r).toHaveTextContent("on build 9b907bd6/abc");
+    expect(r).not.toHaveTextContent("earlier build");
+  });
+
+  it("says a kept one ran on an earlier build where this page's is another, before any solver's been asked for", async () => {
+    build.manifest.mockResolvedValue({ ...MANIFEST, version: "abd" });
+    await kvSet(CHECK_KEY, REPORT);
+    show();
+    expect(await within(await report()).findByText(/on an earlier build, 9b907bd6\/abc/)).toBeInTheDocument();
+    expect(solver.get).not.toHaveBeenCalled();
+  });
+
+  it("claims nothing of a build where this page can't read its own", async () => {
+    await kvSet(CHECK_KEY, REPORT);
+    show();
+    const r = await report();
+    await act(async () => {});
+    expect(build.manifest).toHaveBeenCalled();
+    expect(r).toHaveTextContent("on build 9b907bd6/abc");
+  });
+
+  it("marks a run that wasn't cold, and not one that was", async () => {
+    const r = await shown({ ...REPORT, earlier: 2 });
+    expect(r).toHaveTextContent("Not a cold run: this solver had played 2 runs already");
+    cleanup();
+    expect(await shown(REPORT)).not.toHaveTextContent("Not a cold run");
+  });
+
+  it("says the deals match only at the same number of tables", async () => {
+    const r = await shown(REPORT);
+    expect(r).toHaveTextContent("Runs at the same number of tables deal these same hands");
+    expect(r).not.toHaveTextContent("Every run deals");
   });
 
   it("doesn't claim more than it can see", async () => {
@@ -277,11 +365,14 @@ describe("the report", () => {
     expect(await report()).toHaveTextContent("20 hands · 63 verdicts");
   });
 
-  it("isn't replaced by an old one read late", async () => {
+  it("isn't replaced by an old one read late, nor shows one over a run", async () => {
     await kvSet(CHECK_KEY, { ...REPORT, verdicts: 1 });
     const { end } = held();
     show();
     play();
+    await new Promise((f) => setTimeout(f, 30));
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Last report" })).not.toBeInTheDocument();
     await end({ ...REPORT, verdicts: 99 });
     await new Promise((f) => setTimeout(f, 30));
     expect(await report()).toHaveTextContent("99 verdicts");

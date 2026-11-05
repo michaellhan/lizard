@@ -128,7 +128,7 @@ export class SolverClient {
       });
       const provenance = provenanceOf(data, { ...ctx, partial: false });
       // (the mode's measured times: a live advice or Study answer, not an opponent's move; a triage solve is Quick's)
-      if (!req.play) recordTiming(JSON.stringify(sent), this.transport.kind, provenance.mode, data, provenance);
+      if (!req.play && !req.untimed) recordTiming(JSON.stringify(sent), this.transport.kind, provenance.mode, data, provenance);
       item.resolve({ data, provenance });
     } catch (e) {
       item.reject(e instanceof SolverError ? e : new SolverError("solver-error", String(e)));

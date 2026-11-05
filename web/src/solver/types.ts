@@ -90,6 +90,8 @@ export interface SolveRequest {
   progressive?: boolean;
   signal?: AbortSignal;
   onPartial?: (r: SolveResult) => void;
+  /** not one of this browser's measured solve times (timings.ts): the engine check's aren't the player's */
+  untimed?: boolean;
 }
 
 export interface SolveResult<T = AdvisorResponse> {

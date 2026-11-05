@@ -60,6 +60,49 @@ describe("estimate", () => {
     expect(estimate(q, "accurate", solved, "worker")).toBe(0.2);
     expect(estimate(q, "quick", solved, "worker")).toBe(2);
   });
+
+  describe("a street that's been solved, where the pot's gone heads-up", () => {
+    const call = (pos: string) => ({ pos, action: "call" as const });
+    const fold = (pos: string) => ({ pos, action: "fold" as const });
+    const check = (pos: string) => ({ pos, action: "check" as const });
+    const raise = { pos: "BTN", action: "raise" as const, to: 2.5 };
+    const FOLDS = [fold("UTG"), fold("HJ"), fold("CO")];
+    /** a pot of BTN, SB and BB, that of BTN and BB, and the small blind out of a three-way flop */
+    const threeWay = [...FOLDS, raise, call("SB"), call("BB")];
+    const headsUp = [...FOLDS, raise, fold("SB"), call("BB")];
+    const seconds = (q: AdvisorState) => estimate(q, "accurate", new Set([streetKey(q, "accurate")]), "worker");
+
+    it("isn't instant: the street's solve says nothing of it, at any mode", () => {
+      const q = state({ board: FLOP, preflop: threeWay, flop: [check("SB"), fold("BB")] });
+      expect(seconds(q)).toBe(60);
+      expect(estimate(q, "quick", new Set([streetKey(q, "quick")]), "worker")).toBe(2);
+      const on = state({ board: TURN, preflop: threeWay, flop: [check("SB"), check("BB"), check("BTN")], turn: [check("SB"), fold("BB")] });
+      expect(seconds(on)).toBe(60);
+      const river = state({ board: RIVER, preflop: threeWay, flop: [check("SB"), check("BB"), check("BTN")], turn: [check("SB"), check("BB"), check("BTN")], river: [fold("SB")] });
+      expect(seconds(river)).toBe(24);
+    });
+
+    it("is, where it was heads-up from the street's start, on a fold before it or from the deal", () => {
+      expect(seconds(state({ board: FLOP, preflop: headsUp, flop: [check("BB")] }))).toBe(0.2);
+      expect(seconds(state({ board: TURN, preflop: threeWay, flop: [check("SB"), fold("BB"), check("BTN")], turn: [check("SB")] }))).toBe(0.2);
+    });
+
+    it("is, where three are still in", () => {
+      expect(seconds(state({ board: FLOP, preflop: threeWay, flop: [check("SB")] }))).toBe(0.2);
+      expect(seconds(state({ board: FLOP, players: 3, preflop: [call("BTN"), call("SB"), check("BB")], flop: [check("SB")] }))).toBe(0.2);
+    });
+
+    it("is, where it's four-way down to three, and isn't down to two from four in one street", () => {
+      const four = [...FOLDS.slice(0, 2), call("CO"), raise, call("SB"), call("BB")];
+      expect(seconds(state({ board: FLOP, preflop: four, flop: [fold("SB")] }))).toBe(0.2);
+      expect(seconds(state({ board: FLOP, preflop: four, flop: [fold("SB"), fold("BB")] }))).toBe(60);
+    });
+
+    it("counts the folds of the streets before this one, all of them", () => {
+      const four = [...FOLDS.slice(0, 2), call("CO"), raise, call("SB"), call("BB")];
+      expect(seconds(state({ board: TURN, preflop: four, flop: [fold("SB"), check("BB"), check("CO"), check("BTN")], turn: [fold("BB")] }))).toBe(60);
+    });
+  });
 });
 
 describe("streetKey", () => {
@@ -224,6 +267,30 @@ describe("plan", () => {
     const p = plan(flying({ ahead: { g: 3, rank: 0 } }), [real, job("b")], "cheap");
     expect(p.same).toBe(real);
     expect(p.stop).toBe(false);
+  });
+
+  describe("a look-ahead that's run past SHORT", () => {
+    const LOOK = { ahead: { g: 3 as const, rank: 0 } };
+
+    it("gives way to any real request, a long one included", () => {
+      const look = job("a", { est: 0.2, ...LOOK });
+      const real = job("b", { est: 60 });
+      expect(plan(flying(LOOK), [look, real], "cheap", true)).toEqual({ stop: true, same: look, launch: null });
+      expect(plan(flying(LOOK), [look, real], "cheap", false).stop).toBe(false);
+    });
+
+    it("runs on with only look-aheads behind it, or nothing", () => {
+      const look = job("a", { est: 0.2, ...LOOK });
+      expect(plan(flying(LOOK), [look, job("b", { est: 0.2, ahead: { g: 5, rank: 0 } })], "cheap", true).stop).toBe(false);
+      expect(plan(flying(LOOK), [look], "cheap", true).stop).toBe(false);
+    });
+
+    it("runs on where it's real by now, and where a stop costs a worker", () => {
+      const look = job("a", { est: 0.2, ...LOOK });
+      const real = job("b", { est: 60 });
+      expect(plan(flying(LOOK), [job("a", { est: 0.2 }), real], "cheap", true).stop).toBe(false);
+      expect(plan(flying(LOOK), [look, real], "kills", true).stop).toBe(false);
+    });
   });
 
   it("stops a flight nobody needs, once, and waits for it to settle", () => {

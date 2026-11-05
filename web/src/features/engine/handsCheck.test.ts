@@ -13,11 +13,12 @@ import { Room, type RoomClient } from "@/features/practice/room";
 import { seatsOf } from "@/poker/seats";
 import { noLines, seeded, simulate, STREETS, type Lines } from "@/poker/table";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
+import { SolverClient } from "@/solver/client";
 import { describe as describeProv } from "@/solver/provenance";
-import { SolverError, type PlayRequest, type Provenance, type SolveMode, type SolveRequest, type SolveResult, type StopCost } from "@/solver/types";
+import { SolverError, type PlayRequest, type Provenance, type SolverTransport, type SolveMode, type SolveRequest, type SolveResult, type StopCost } from "@/solver/types";
 import { STUCK_MS } from "@/solver/worker-transport";
 import { useSettings } from "@/state/settings";
-import { aheadLine, CHECK_KEY, chipsFault, heroPick, labelFault, lastReport, progressLine, quantile, reportLine, runHandsCheck, setupLine, timeText, type CheckRule, type HandsCheckOptions, type HandsCheckReport } from "./handsCheck";
+import { aheadLine, CHECK_KEY, chipsFault, heroPick, labelFault, lastReport, progressLine, quantile, reportLine, runHandsCheck, setupLine, timeText, warmLine, whenLine, type CheckRule, type HandsCheckOptions, type HandsCheckReport } from "./handsCheck";
 
 // the faults no client can produce, and a database that doesn't answer: the real thing unless a test says otherwise
 vi.mock("@/features/practice/practice", { spy: true });
@@ -113,7 +114,7 @@ function stub({ solve = good, play, takes, stop, stopped = new SolverError("canc
   return { client, asked };
 }
 
-const OPTS: HandsCheckOptions = { seed: 7, hands: 8, tables: 4, askAhead: false, thinkMs: 0 };
+const OPTS: HandsCheckOptions = { seed: 7, hands: 8, tables: 4, askAhead: false, thinkMs: 0, pace: 0 };
 const check = (s: Stub = {}, o: Partial<HandsCheckOptions> = {}) => {
   const st = stub(s);
   return runHandsCheck(async () => st.client, { ...OPTS, ...o });
@@ -705,7 +706,82 @@ describe("Stop", () => {
   });
 });
 
+describe("a timed run", () => {
+  it("plays one table at the page's pace, as its waits are a player's", async () => {
+    const r = await check({}, { hands: 1, tables: 1, pace: undefined });
+    expect(r.passed).toBe(true);
+    expect(r.seconds).toBeGreaterThanOrEqual(0.45);
+  });
+
+  it("deals the same at the same number of tables, whatever else differs, and not across them", async () => {
+    const at = (tables: number, askAhead = false) => check({ stop: "cheap" }, { hands: 4, tables, askAhead });
+    show("visible");
+    expect((await at(1)).fingerprint).toBe((await at(1, true)).fingerprint);
+    expect((await at(4)).fingerprint).toBe((await at(4, true)).fingerprint);
+    expect((await at(1)).fingerprint).not.toBe((await at(4)).fingerprint);
+  });
+
+  it("says this solver had played a run already, and a new one hadn't", async () => {
+    const st = stub();
+    const run = (c: RoomClient) => runHandsCheck(async () => c, { ...OPTS, hands: 1, tables: 1 });
+    const seen = [await run(st.client), await run(st.client), await run(st.client), await run(stub().client)];
+    expect(seen.map((r) => r.earlier)).toEqual([0, 1, 2, 0]);
+  });
+
+  it("stays warm where a run on a warm solver gets a new client on the way", async () => {
+    const warm = stub();
+    await runHandsCheck(async () => warm.client, { ...OPTS, hands: 1, tables: 1 });
+    const fresh = stub();
+    let calls = 0;
+    const r = await runHandsCheck(async () => ((calls += 1) === 1 ? warm.client : fresh.client), { ...OPTS, hands: 1, tables: 1 });
+    expect(calls).toBeGreaterThan(1);
+    expect(r.earlier).toBe(1);
+  });
+
+  it("names the build it ran on, or nothing where a client doesn't say", async () => {
+    const st = stub();
+    const r = await runHandsCheck(async () => ({ ...st.client, solverVersion: "9b907bd6/abc" }), { ...OPTS, hands: 1, tables: 1 });
+    expect(r.solver).toBe("9b907bd6/abc");
+    expect((await check({}, { hands: 1, tables: 1 })).solver).toBeNull();
+  });
+
+  it("says when and on what, in a line, and whether that's this page's build", () => {
+    const r = { at: Date.UTC(2026, 10, 4, 12), solver: "9b907bd6/abc" } as HandsCheckReport;
+    const date = new Date(r.at).toLocaleString();
+    expect(whenLine(r, "9b907bd6/abc")).toBe(`Run ${date} on build 9b907bd6/abc`);
+    expect(whenLine(r, "1111aaaa/abd")).toBe(`Run ${date} on an earlier build, 9b907bd6/abc`);
+    expect(whenLine(r, null)).toBe(`Run ${date} on build 9b907bd6/abc`);
+    expect(whenLine({ ...r, solver: null }, "1111aaaa/abd")).toBe(`Run ${date}, build not recorded`);
+  });
+
+  it("says a run wasn't cold, in a line, only where it wasn't", () => {
+    const r = { earlier: 0 } as HandsCheckReport;
+    expect(warmLine(r)).toBeNull();
+    expect(warmLine({ ...r, earlier: 1 })).toBe("Not a cold run: this solver had played a run already and keeps its answers, so reload before timing one.");
+    expect(warmLine({ ...r, earlier: 3 })).toBe("Not a cold run: this solver had played 3 runs already and keeps its answers, so reload before timing one.");
+  });
+});
+
 describe("what it leaves alone", () => {
+  it("nothing reaches this browser's measured solve times, through a real client", async () => {
+    const st = stub();
+    const flops: AdvisorState[] = [];
+    const request = async (q: AdvisorState, o: { play?: PlayRequest }) => {
+      if (o.play) return (await st.client.play(q, o.play)).data;
+      if (q.board) flops.push(q);
+      return { ...advice(q), ...(q.board ? { seconds: 1.25, solver: { iterations: 10 } } : {}) };
+    };
+    const client = new SolverClient({ kind: "worker", request, stopCost: () => "kills" } as unknown as SolverTransport, "test");
+    const r = await runHandsCheck(async () => client, { ...OPTS, hands: 2, tables: 1 });
+    expect(r.passed).toBe(true);
+    expect(r.bySource).toHaveProperty("Live solve");
+    expect(localStorage.getItem("lizard.solveTimes.v1")).toBeNull();
+    // (the same answer, asked by anything else, is measured)
+    await client.solve({ state: flops[0]!, mode: "quick" });
+    expect(localStorage.getItem("lizard.solveTimes.v1")).not.toBeNull();
+    localStorage.removeItem("lizard.solveTimes.v1");
+  });
+
   it("nothing reaches sessions, hands, the kept doc or habits, whatever the Settings", async () => {
     useSettings.setState({ keepHands: true });
     show("visible");
@@ -881,6 +957,12 @@ describe("the last report", () => {
     expect(await lastReport()).toBeNull();
     await kvSet(CHECK_KEY, undefined);
     expect(await lastReport()).toBeNull();
+  });
+
+  it("reads one from before a run said its build and what came before it", async () => {
+    await kvSet(CHECK_KEY, { v: 1, passed: true });
+    expect(await lastReport()).toEqual({ v: 1, passed: true, solver: null, earlier: 0 });
+    await kvSet(CHECK_KEY, undefined);
   });
 });
 

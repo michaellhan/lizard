@@ -33,9 +33,12 @@
 // Asking ahead, where it's on, you can see the page and a wrong guess can be stopped: while a table waits for you, what
 // your likeliest moves will need is asked (ahead.ts). Each is the request the table would send, into the same caches, so
 // there's nothing to hand over: a table finds the answer, or finds the flight as a job of its own and it stays in the air
-// (`plan`), and only `Flight.ahead` remembers what it went out as, for the meter. What a look-ahead failed on goes in
-// `aheadBad`, which only a walk reads, so no table shows it. A real job always goes by its group, ahead of a look-ahead's
-// unless it's a long solve at the table in front, and what's looked ahead for and gone dead is stopped like any flight.
+// (`plan`), and only the Flight remembers what it went out as, for the meter. Your move can leave a table held by the pace
+// over a card or a move already in hand: it still wants what comes after that (`onward`), so the flight for the line you
+// took isn't stopped and the solver isn't left idle. What a look-ahead failed on goes in `aheadBad`, which only a walk
+// reads, so no table shows it. A real job always goes by its group, ahead of a look-ahead's unless it's a long solve at
+// the table in front, where a look-ahead gives way only once it has run past SHORT, and what's looked ahead for and gone
+// dead is stopped like any flight.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
@@ -47,7 +50,7 @@ import type { AdvisorState, PlayMove } from "@/solver/protocol";
 import { useRuntime } from "@/solver/runtime";
 import { SolverError, type SolveMode, type SolverTransport, type SolveResult, type StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
-import { aheadJobs, ASK_AHEAD, habit, NO_METER, noteBad, readHabits, saveHabits, type AheadMeter, type Habits, type Waiting } from "./ahead";
+import { aheadJobs, ASK_AHEAD, habit, NO_METER, noteBad, onward, readHabits, saveHabits, type AheadMeter, type Habits, type Waiting } from "./ahead";
 import { chartDraw, moveOf, needOf, type Need } from "./flow";
 import { practiceRecord } from "./history";
 import { KEPT_KEY, keptTables, MAX_TABLES, sameKept, type KeptTable, type KeptTables, type LastHand } from "./keep";
@@ -80,11 +83,14 @@ import {
   type RangeAt,
   type SeatChoice,
 } from "./practice";
-import { estimate, plan, queue, refocus, streetKey, type Asked, type Front, type Job, type Waiter } from "./scheduler";
+import { estimate, plan, queue, refocus, SHORT, streetKey, type Asked, type Front, type Job, type Waiter } from "./scheduler";
 import { afterDeal, afterDecision, afterHand, atTables, freshSession, keyOf, toRecord, type Kept, type PracticeSession } from "./session";
 
+/** ms an opponent's move and a new card take at least at one table, so the hand can be followed. */
+export const PACE = 450;
+
 /** What the Room asks of a client (a test's is a fake). */
-export type RoomClient = Pick<SolverClient, "solve" | "play"> & Partial<Pick<SolverClient, "prefetch" | "stopCost">> & { transport?: Pick<SolverTransport, "kind"> };
+export type RoomClient = Pick<SolverClient, "solve" | "play"> & Partial<Pick<SolverClient, "prefetch" | "stopCost" | "solverVersion">> & { transport?: Pick<SolverTransport, "kind"> };
 export type RoomSolver = () => Promise<RoomClient>;
 
 /** What the tables deal above one table: any hand, or one kind of pot. */
@@ -126,7 +132,7 @@ export function flopsNote(f: RoomFlops, spot: Spot): string | null {
 }
 
 export interface RoomOptions {
-  /** ms an opponent's move and a new card take at least at one table, so the hand can be followed (0 in tests) */
+  /** ms an opponent's move and a new card take at least at one table (unset: PACE; 0 in tests) */
   pace?: number;
   /** ms a finished hand stays on its table above one table, before that table deals again */
   pause?: number;
@@ -280,6 +286,8 @@ interface Flight {
   sent: boolean;
   /** it went out as a look-ahead and its time isn't on the meter yet: true until it settles, or a table takes it up */
   ahead: boolean;
+  /** it went out as a look-ahead, reached the client, and a table took it up: used, if it comes to an answer */
+  promoted: boolean;
 }
 
 /** The answers held for each cache (multitable.js:24). */
@@ -387,12 +395,14 @@ export class Room {
   private readonly waits: Wait[] = [];
   private readonly solves: Solved[] = [];
   private guardTimer: ReturnType<typeof setTimeout> | undefined;
+  /** comes back as a look-ahead in the air runs past SHORT */
+  private lateTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Its tab is the one shown. The hand goes on hidden, as it always has: only asking ahead reads it. */
   active = true;
 
   constructor(o: RoomOptions = {}) {
-    this.pace = o.pace ?? 450;
+    this.pace = o.pace ?? PACE;
     this.pause = o.pause ?? 1600;
     this.guard = o.guard ?? 350;
     this.now = o.now ?? (() => performance.now());
@@ -481,6 +491,7 @@ export class Room {
     document.removeEventListener("visibilitychange", this.pump);
     clearTimeout(this.holdTimer);
     clearTimeout(this.guardTimer);
+    clearTimeout(this.lateTimer);
     for (const t of this.tables) this.clearTimer(t);
     this.stopFlight();
   }
@@ -801,19 +812,29 @@ export class Room {
     if (this.libState === "idle" && this.solver && (this.many || mode === "accurate" || this.tables.some((t) => needsIndex(t.hand)))) this.readLib();
     for (const t of this.tables) this.step(t, mode);
     const needs = this.tables.map((t) => this.needAt(t.hand, mode));
-    this.tables.forEach((t, i) => this.turn(t, i, needs[i]!));
+    const ready = this.tables.filter((t, i) => this.turn(t, i, needs[i]!));
     this.front = refocus(this.front, this.waiters, this.now());
+    for (const t of ready) this.usedAhead(t, t.turnKey!);
     this.watchGuard();
     const f = this.flight;
     const real = this.tables.flatMap((t, i) => this.wants(t, i, needs[i]!, mode));
-    const next = plan(f, [...real, ...this.aheads(real, mode)], f && !f.sent ? "cheap" : this.stopCost);
+    const late = !!f && this.now() - f.at >= SHORT * 1000;
+    const next = plan(f, [...real, ...this.aheads(real, mode)], f && !f.sent ? "cheap" : this.stopCost, late);
     if (f && next.same) {
-      // (a look-ahead your move made real goes on as the real one: what it's done already is waiting you didn't do)
-      if (!next.same.ahead) this.spend(f, true);
+      // (a look-ahead your move made real goes on as the real one, and the rest of it is a wait like any other)
+      if (!next.same.ahead && f.ahead) {
+        f.promoted = f.sent;
+        this.spend(f);
+      }
       f.job = next.same;
     }
-    if (next.stop) this.stopFlight();
+    if (next.stop) {
+      // (not asked ahead again, or it would go straight back in front of what it gave way to)
+      if (late && next.same) noteBad(this.aheadBad, next.same.need.key);
+      this.stopFlight();
+    }
     if (next.launch && this.solver) this.launch(next.launch, mode);
+    this.watchLate();
     if (this.seen.size > SEEN_KEEP) this.seen.clear();
   }
 
@@ -855,7 +876,7 @@ export class Room {
           this.watch?.refused(h, fallback, this.tables.indexOf(t));
           return;
         }
-        this.usedAhead(need.key);
+        this.usedAhead(t, need.key);
         if (!asked) this.charted += 1;
         this.commit(t, withVillain(h, move, sim));
       } else return;
@@ -878,8 +899,9 @@ export class Room {
     t.timer = null;
   }
 
-  /** Whether the table is waiting for you, your turn with its answer in hand, and since when (multitable.js:229-236). */
-  private turn(t: Table, i: number, need: Need): void {
+  /** Whether the table is waiting for you, your turn with its answer in hand, and since when (multitable.js:229-236).
+   * True as it starts to. */
+  private turn(t: Table, i: number, need: Need): boolean {
     const key = need.kind === "you" ? need.key : null;
     if (t.turnKey !== key) {
       t.turnKey = key;
@@ -888,20 +910,31 @@ export class Room {
     }
     if (need.kind !== "you" || !this.adv.has(need.key)) {
       t.waiting = null;
-    } else if (t.waiting === null) {
-      t.waiting = t.readyAt = this.now();
-      this.waits.push({ s: (t.waiting - t.turnAt) / 1000, street: need.street, table: i + 1 });
-      if (this.waits.length > METRICS_KEEP) this.waits.shift();
-      this.usedAhead(need.key);
+      return false;
     }
+    if (t.waiting !== null) return false;
+    t.waiting = t.readyAt = this.now();
+    this.waits.push({ s: (t.waiting - t.turnAt) / 1000, street: need.street, table: i + 1 });
+    if (this.waits.length > METRICS_KEEP) this.waits.shift();
+    return true;
   }
 
   private wants(t: Table, i: number, need: Need, mode: SolveMode): Job[] {
     if (t.spent || (this.many && t.hand.result)) return [];
-    if (need.kind !== "you" && need.kind !== "opp" && need.kind !== "chart") return [];
-    const inHand = need.kind === "you" ? this.adv.has(need.key) : this.moves.has(need.key);
-    if (inHand || this.failed.has(need.key)) return [];
-    return [{ need, table: i, est: this.estimate(t, need, mode), seeking: seeking(t.hand), since: this.firstWanted(need.key) }];
+    const heldUp = need.kind === "deal" || (need.kind === "opp" && this.moves.has(need.key));
+    const next = heldUp ? this.nextUp(t, mode) : need;
+    if (next?.kind !== "you" && next?.kind !== "opp" && next?.kind !== "chart") return [];
+    const inHand = next.kind === "you" ? this.adv.has(next.key) : this.moves.has(next.key);
+    if (inHand || this.failed.has(next.key)) return [];
+    return [{ need: next, table: i, est: this.estimate(t, next, mode), seeking: seeking(t.hand), since: this.firstWanted(next.key) }];
+  }
+
+  /** What a table held up only by the pace goes on to, with the card or the move it's about to show in hand. No guess is
+   * left in that, so it's the table's own request, though it hasn't got there. Only where asking ahead runs: elsewhere a
+   * table asks on arriving, as it always has. */
+  private nextUp(t: Table, mode: SolveMode): Asked | null {
+    if (!this.askAhead || this.stopCost !== "cheap") return null;
+    return onward(t.hand, mode, { adv: this.adv, moves: this.moves, bad: this.failed });
   }
 
   private estimate(t: Table, need: Asked, mode: SolveMode): number {
@@ -944,23 +977,24 @@ export class Room {
     saveHabits(this.habits);
   }
 
-  /** A table has just taken what a look-ahead asked for: the wait it would have had. */
-  private usedAhead(key: string): void {
+  /** A table has just taken what a look-ahead asked for. What that saved is the wait you'd have had: the seconds it took,
+   * less those gone since the hand got here, as the table would have asked then, and those a pace covers anyway. And it's
+   * a wait only if you were waiting: this table in front, and no other for you to get on with. */
+  private usedAhead(t: Table, key: string): void {
     const s = this.aheadHeld.get(key);
     if (s === undefined) return;
     this.aheadHeld.delete(key);
-    this.meter = { ...this.meter, used: this.meter.used + 1, savedS: this.meter.savedS + s };
+    const yours = this.tables[this.front.focus] === t && this.tables.every((x) => x === t || x.waiting === null);
+    const saved = yours ? Math.max(0, s - (this.now() - t.since) / 1000) : 0;
+    this.meter = { ...this.meter, used: this.meter.used + 1, savedS: this.meter.savedS + saved };
   }
 
-  /** A look-ahead's time onto the meter, once: as it settles, or as a table takes it up (`used`), when the rest of it is a
-   * wait like any other. One that never reached the client cost nothing. */
-  private spend(fl: Flight, used = false): void {
+  /** A look-ahead's time onto the meter, once: as it settles, or as a table takes it up, when the rest of it is a wait like
+   * any other. One that never reached the client cost nothing. */
+  private spend(fl: Flight): void {
     if (!fl.ahead) return;
     fl.ahead = false;
-    if (!fl.sent) return;
-    const s = (this.now() - fl.at) / 1000;
-    const m = this.meter;
-    this.meter = { ...m, spentS: m.spentS + s, used: m.used + (used ? 1 : 0), savedS: m.savedS + (used ? s : 0) };
+    if (fl.sent) this.meter = { ...this.meter, spentS: this.meter.spentS + (this.now() - fl.at) / 1000 };
   }
 
   /** You've moved at the table: the first in the queue comes forward, and a pin is over (`refocus`). */
@@ -981,6 +1015,14 @@ export class Room {
     clearTimeout(this.guardTimer);
     const left = this.guardLeft();
     if (left > 0) this.guardTimer = setTimeout(() => this.pump(), Math.ceil(left));
+  }
+
+  /** A look-ahead in the air is looked at again as it runs past SHORT, as nothing else need come along by then. */
+  private watchLate(): void {
+    clearTimeout(this.lateTimer);
+    const f = this.flight;
+    const left = f?.job.ahead ? f.at + SHORT * 1000 - this.now() : 0;
+    if (left > 0) this.lateTimer = setTimeout(() => this.pump(), Math.ceil(left));
   }
 
   /** The hand after a move or a card: settled, and counted, where that ended it (and kept, where you keep them all). */
@@ -1072,7 +1114,7 @@ export class Room {
   // ---- the one flight
 
   private launch(job: Job, mode: SolveMode): void {
-    const fl: Flight = { job, mode, at: this.now(), ac: new AbortController(), stopping: false, sent: false, ahead: !!job.ahead };
+    const fl: Flight = { job, mode, at: this.now(), ac: new AbortController(), stopping: false, sent: false, ahead: !!job.ahead, promoted: false };
     this.flight = fl;
     void this.ask(fl);
   }
@@ -1132,7 +1174,7 @@ export class Room {
     this.unasked.clear();
     const { need, table } = fl.job;
     const s = (this.now() - fl.at) / 1000;
-    const asked = fl.ahead;
+    const ahead = fl.ahead;
     this.spend(fl);
     this.seen.delete(need.key);
     if (need.kind === "chart") {
@@ -1149,12 +1191,12 @@ export class Room {
         this.adv.set(need.key, r);
         trim(this.adv);
       }
-      if (asked) {
+      if (ahead || fl.promoted) {
         this.aheadHeld.set(need.key, s);
         trim(this.aheadHeld);
       } else this.aheadHeld.delete(need.key);
       this.tables[table]?.solved.add(streetKey(need.state, fl.mode));
-      this.solves.push({ s, est: fl.job.est, kind: need.kind, street: need.street, ...(asked ? { ahead: true as const } : {}) });
+      this.solves.push({ s, est: fl.job.est, kind: need.kind, street: need.street, ...(ahead ? { ahead: true as const } : {}) });
       if (this.solves.length > METRICS_KEEP) this.solves.shift();
     }
     this.pump();

@@ -24,6 +24,9 @@ export function loadManifest(): Promise<SolverManifest | null> {
   return manifestP;
 }
 
+/** The build a client says it's running, as its answers' provenance carries it. */
+export const solverVersionOf = (m: SolverManifest | null) => (m ? `${m.upstream.commit.slice(0, 8)}/${m.version}` : "dev");
+
 interface RuntimeState {
   client: SolverClient | null;
   status: RuntimeStatus;
@@ -64,7 +67,7 @@ export const useRuntime = create<RuntimeState>((set, get) => {
       transport === "http"
         ? new HttpTransport({ url: localSolverUrl })
         : new WorkerTransport({ assetBase: SOLVER_ASSET_BASE, version, libraryBase: lib.base });
-    const client = new SolverClient(t, manifest ? `${manifest.upstream.commit.slice(0, 8)}/${version}` : "dev");
+    const client = new SolverClient(t, solverVersionOf(manifest));
     get().client?.dispose();
     client.onStatus((status) => set({ status }));
     set({ client, manifest, key, librarySource: lib.id });

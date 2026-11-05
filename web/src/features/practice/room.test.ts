@@ -2598,6 +2598,8 @@ describe("Asking ahead", () => {
   const bbFlop = (seed: number) => spot(seed, "BB", { preflop: SRP }, 3);
   /** Your turn spot, first to act. */
   const bbTurn = (seed: number) => spot(seed, "BB", { preflop: SRP, flop: [CHECK, mv("BTN", "check")] }, 4);
+  /** One line to look ahead on. */
+  const ONLY_CHECK: AdvisorResponse = { street: "flop", pot_bb: 5.5, actions: [{ action: "check", freq: 1, ev_bb: 1 }] };
   const ahead = (hands: PracticeHand[], o: Parameters<typeof setup>[0] = {}) => several(hands, { askAhead: true, ...o });
   /** A table at your flop spot, BB having checked, with what's asked ahead in the air: BB's reply to your bet. */
   async function inTheAir(o: Parameters<typeof setup>[0] = {}) {
@@ -2921,6 +2923,145 @@ describe("Asking ahead", () => {
       expect(table(room).answer).toMatchObject({ provenance: { source: "live" } });
       expect(asked).toHaveLength(5);
     });
+
+    it("isn't stopped over the pace at one table: a table held up by it still wants what comes after, and it's asked once", async () => {
+      const { room, asked } = ahead([bbFlop(1)], { pace: 450 });
+      await answer(asked, 0, MIX, move("check") as AdvisorResponse, move("call") as AdvisorResponse);
+      const look = asked[3]!;
+      expect(look.state.board).toHaveLength(8);
+      await pass(1000);
+      press(room, 0, CHECKS);
+      await flush();
+      expect(look.signal!.aborted).toBe(false);
+      // (the reply, then the card)
+      await pass(900);
+      expect(table(room).hand.shown).toBe(4);
+      expect(look.signal!.aborted).toBe(false);
+      expect(room.metrics().stops).toBe(0);
+      expect(asked).toHaveLength(4);
+      look.answer(MIX);
+      await flush();
+      expect(table(room).answer).toMatchObject({ provenance: { source: "live" } });
+      expect(asked.filter((a) => a.state.board!.length === 8 && !a.play)).toHaveLength(1);
+      // (the check's reply and the spot, of the three asked; the bet's reply is the one not used)
+      expect(meter(room)).toMatchObject({ used: 2 });
+    });
+
+    it("asks the line's next request over the pace, as what it is: no guess is left in it", async () => {
+      const { room, asked } = ahead([bbFlop(1)], { pace: 450 });
+      await answer(asked, 0, MIX, move("check") as AdvisorResponse, move("call") as AdvisorResponse);
+      const dead = asked[3]!;
+      press(room, 0, BETS);
+      await flush();
+      expect(dead.signal!.aborted).toBe(true);
+      await pass(100);
+      expect(table(room).hand.shown).toBe(3);
+      const next = asked[4]!;
+      expect(next.play).toBeUndefined();
+      expect(next.state.board).toHaveLength(8);
+      expect(next.state.flop!.map((m) => m.action)).toEqual(["bet", "call"]);
+      expect(meter(room).asked).toBe(3);
+    });
+
+    it("asks over the pace what a look-ahead failed on, which only a look-ahead passes over", async () => {
+      const { room, asked } = ahead([bbFlop(1)], { pace: 450 });
+      await answer(asked, 0, MIX, move("check") as AdvisorResponse, move("call") as AdvisorResponse, { error: "no such node" });
+      const bad = asked[3]!;
+      press(room, 0, CHECKS);
+      await flush();
+      await pass(200);
+      expect(table(room).hand.shown).toBe(3);
+      expect(table(room).failed).toBeNull();
+      sameAsk(asked.at(-1)!, bad);
+      expect(asked.at(-1)).not.toBe(bad);
+    });
+
+    it.each([
+      [false, "cheap"],
+      [true, "kills"],
+    ] as const)("leaves a table to ask on arriving where nothing runs ahead (asking ahead %s, a stop that %s)", async (askAhead, stop) => {
+      const { room, asked } = setup({ hands: [bbFlop(1)], pace: 450, pause: 0, guard: 0, askAhead, stop });
+      await answer(asked, 0, MIX);
+      press(room, 0, CHECKS);
+      await flush();
+      await answer(asked, 1, move("check") as AdvisorResponse);
+      await pass(899);
+      expect(table(room).hand.shown).toBe(3);
+      expect(asked).toHaveLength(2);
+      await pass(1);
+      expect(table(room).hand.shown).toBe(4);
+      expect(asked).toHaveLength(3);
+    });
+  });
+
+  describe("one that turns out long", () => {
+    const THREE = [mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold"), mv("BTN", "raise", 2.5), mv("SB", "call"), mv("BB", "call")];
+
+    it("isn't asked where the pot went heads-up on this street, as nothing in hand answers that (advisor.py:5037)", async () => {
+      const { asked } = ahead([bbFlop(1), spot(2, "SB", { preflop: THREE }, 3)], { mode: "accurate" });
+      await flush();
+      const threeWay = (a: Asked) => a.state.preflop!.some((m) => m.pos === "SB" && m.action === "call");
+      for (let i = 0; i < 20 && asked[i]; i += 1) {
+        const a = asked[i]!;
+        a.answer(!a.play ? MIX : (move(threeWay(a) ? "fold" : "check") as AdvisorResponse));
+        await flush();
+      }
+      // (your check at the three-way table, and the big blind's fold to it: BTN is next, heads-up on a street begun three-way)
+      expect(asked.some((a) => threeWay(a) && a.play?.seat === "BB")).toBe(true);
+      expect(asked.filter((a) => threeWay(a) && a.state.flop!.some((m) => m.action === "fold"))).toEqual([]);
+    });
+
+    it("gives way to any real request once past SHORT, and isn't asked ahead again, or it'd go straight back in front", async () => {
+      const { room, asked } = ahead([bbFlop(1), bbFlop(2)], { mode: "accurate" });
+      await answer(asked, 0, ONLY_CHECK);
+      const look = asked[1]!;
+      expect(look.play?.seat).toBe("BTN");
+      expect(asked).toHaveLength(2);
+      await pass(3999);
+      expect(look.signal!.aborted).toBe(false);
+      await pass(1);
+      expect(look.signal!.aborted).toBe(true);
+      await pass(100);
+      expect(asked).toHaveLength(3);
+      expect(asked[2]!.play).toBeUndefined();
+      expect(tableOf(room, asked[2]!)).toBe(1);
+      expect(meter(room)).toEqual({ asked: 1, used: 0, savedS: 0, spentS: 4.1 });
+      expect(table(room).failed).toBeNull();
+    });
+
+    it("is still asked for real where your move takes the table there", async () => {
+      const { room, asked } = ahead([bbFlop(1), bbFlop(2)], { mode: "accurate" });
+      await answer(asked, 0, ONLY_CHECK);
+      await pass(4100);
+      press(room, 0, CHECKS);
+      await flush();
+      asked[2]!.answer(MIX);
+      await flush();
+      expect(asked.filter((a) => a.play?.seat === "BTN")).toHaveLength(2);
+    });
+
+    it("runs on where nothing real waits", async () => {
+      const { look } = await inTheAir({ mode: "accurate" });
+      await pass(60_000);
+      expect(look.signal!.aborted).toBe(false);
+    });
+
+    it("keeps one timer for it, and leaves none behind as the Room stops", async () => {
+      const { room } = await inTheAir();
+      room.pump();
+      room.pump();
+      expect(vi.getTimerCount()).toBe(1);
+      room.stop();
+      await pass(100);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("keeps none for a real request", async () => {
+      const { room } = several([flopYou(1)]);
+      await flush();
+      room.pump();
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   describe("the meter", () => {
@@ -2957,14 +3098,18 @@ describe("Asking ahead", () => {
       expect(meter(room)).toMatchObject({ used: 1, savedS: 3 });
     });
 
-    it("counts each answer taken as used once, a held one and one in the air alike", async () => {
-      const { room, look } = await inTheAir();
+    it("counts each answer taken as used once, a held one as it's taken and one in the air as it answers", async () => {
+      const { room, asked, look } = await inTheAir();
       await pass(3000);
       look.answer(move("call"));
       await flush();
       await pass(5000);
       // (the line you take has its next in the air)
       press(room, 0, BETS);
+      await flush();
+      expect(meter(room)).toEqual({ asked: 2, used: 1, savedS: 3, spentS: 8 });
+      await pass(2000);
+      asked.at(-1)!.answer(move("check"));
       await flush();
       expect(meter(room)).toEqual({ asked: 2, used: 2, savedS: 8, spentS: 8 });
     });
@@ -2990,13 +3135,135 @@ describe("Asking ahead", () => {
       await pass(2000);
       press(room, 0, BETS);
       await flush();
-      expect(meter(room)).toEqual({ asked: 1, used: 1, savedS: 2, spentS: 2 });
+      expect(meter(room)).toEqual({ asked: 1, used: 0, savedS: 0, spentS: 2 });
       await pass(3000);
       look.answer(move("call"));
       await flush();
       expect(meter(room)).toEqual({ asked: 1, used: 1, savedS: 2, spentS: 2 });
       expect(room.metrics().solves.at(-1)).toMatchObject({ s: 5 });
       expect(room.metrics().solves.at(-1)).not.toHaveProperty("ahead");
+    });
+
+    it("counts a look-ahead made real that then fails as nothing used", async () => {
+      const { room, look } = await inTheAir();
+      await pass(1000);
+      press(room, 0, BETS);
+      await flush();
+      look.answer({ error: "no such node" });
+      await flush();
+      expect(table(room).failed).toBe("no such node");
+      expect(meter(room)).toEqual({ asked: 1, used: 0, savedS: 0, spentS: 1 });
+    });
+
+    it("counts a look-ahead made real that a new session stops as nothing used", async () => {
+      const { room, look } = await inTheAir();
+      await pass(1000);
+      press(room, 0, BETS);
+      await flush();
+      room.startSession(6, 100, OPTS);
+      await flush();
+      expect(look.signal!.aborted).toBe(true);
+      await pass(100);
+      look.answer(move("call"));
+      await flush();
+      expect(meter(room)).toEqual({ asked: 1, used: 0, savedS: 0, spentS: 1 });
+    });
+
+    it("counts one made real before it reached the solver as a real request", async () => {
+      const { room, asked, getSolver, client } = ahead([flopYou(1)]);
+      await flush();
+      getSolver.mockImplementation(() => new Promise((r) => setTimeout(() => r(client), 1000)));
+      asked[0]!.answer(FLOP);
+      await flush();
+      press(room, 0, BETS);
+      await flush();
+      await pass(1000);
+      asked[1]!.answer(move("call"));
+      await flush();
+      expect(table(room).hand.lines.flop.at(-1)).toMatchObject({ pos: "BB", action: "call" });
+      expect(meter(room)).toMatchObject({ used: 0, savedS: 0 });
+    });
+
+    it("saves nothing on a reply the pace would have covered anyway", async () => {
+      const { room, look } = await inTheAir({ pace: 450 });
+      await pass(300);
+      look.answer(move("call"));
+      await flush();
+      press(room, 0, BETS);
+      await flush();
+      await pass(450);
+      expect(table(room).hand.lines.flop.at(-1)).toMatchObject({ pos: "BB", action: "call" });
+      expect(meter(room)).toMatchObject({ used: 1, savedS: 0 });
+    });
+
+    it("saves what a reply took past the pace, and all of a spot held as you arrive", async () => {
+      const { room, asked } = ahead([bbFlop(1)], { pace: 450 });
+      await answer(asked, 0, MIX);
+      await pass(2000);
+      asked[1]!.answer(move("check") as AdvisorResponse);
+      await flush();
+      asked[2]!.answer(move("call") as AdvisorResponse);
+      await flush();
+      await pass(3000);
+      asked[3]!.answer(MIX);
+      await flush();
+      await pass(100);
+      press(room, 0, CHECKS);
+      await flush();
+      await pass(450);
+      expect(meter(room).savedS).toBeCloseTo(1.55);
+      await pass(450);
+      expect(table(room).answer).not.toBeNull();
+      expect(meter(room).savedS).toBeCloseTo(4.55);
+    });
+
+    it("saves nothing at a table that isn't in front, nothing else waiting or not", async () => {
+      const { room, asked } = ahead([flopYou(1), flopYou(2)]);
+      await answer(asked, 0, FLOP, FLOP);
+      const look = asked[2]!;
+      await pass(2000);
+      press(room, 0, BETS);
+      await flush();
+      press(room, 1, BETS);
+      await flush();
+      expect(room.snapshot().focus).toBe(1);
+      await pass(1000);
+      look.answer(move("call"));
+      await flush();
+      expect(meter(room)).toMatchObject({ used: 1, savedS: 0 });
+    });
+
+    it("saves the wait at a table that comes forward as its answer does", async () => {
+      const { room, asked } = ahead([bbFlop(1), flopYou(2)]);
+      await answer(asked, 0, MIX, FLOP, move("check") as AdvisorResponse, move("call") as AdvisorResponse);
+      const look = asked[4]!;
+      expect(look.state.board).toHaveLength(8);
+      await pass(2000);
+      press(room, 0, CHECKS);
+      await flush();
+      press(room, 1, BETS);
+      await flush();
+      expect(room.snapshot().focus).toBe(1);
+      await pass(1000);
+      look.answer(MIX);
+      await flush();
+      expect(room.snapshot().focus).toBe(0);
+      expect(meter(room).savedS).toBe(2);
+    });
+
+    it("saves nothing where another table's waiting for you, whichever you're looking at", async () => {
+      const { room, asked } = ahead([flopYou(1), flopYou(2)]);
+      await answer(asked, 0, FLOP, FLOP);
+      const look = asked[2]!;
+      await pass(2000);
+      press(room, 0, BETS);
+      await flush();
+      room.pick(0);
+      expect(room.snapshot().focus).toBe(0);
+      await pass(1000);
+      look.answer(move("call"));
+      await flush();
+      expect(meter(room)).toMatchObject({ used: 1, savedS: 0 });
     });
 
     it("counts nothing for a move the table refused, asked again for real", async () => {
@@ -3072,9 +3339,10 @@ describe("Asking ahead", () => {
       const { room, asked } = several([flopYou(1)]);
       await flush();
       await pass(1000);
+      room.pump();
       asked[0]!.answer(FLOP);
       await flush();
-      expect(meter(room).spentS).toBe(0);
+      expect(meter(room)).toEqual({ asked: 0, used: 0, savedS: 0, spentS: 0 });
       expect(room.metrics().solves.at(-1)).not.toHaveProperty("ahead");
     });
 

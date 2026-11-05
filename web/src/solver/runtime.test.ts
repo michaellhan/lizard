@@ -2,7 +2,7 @@
 // older call can be made to finish after a newer one, as it does on a load where the saved settings come in meanwhile.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SolverClient } from "./client";
-import { useRuntime } from "./runtime";
+import { solverVersionOf, useRuntime } from "./runtime";
 
 const ensure = (librarySource: string) => useRuntime.getState().ensure({ transport: "worker", localSolverUrl: "http://x", librarySource });
 const SAVED = "lizard-library";
@@ -84,5 +84,12 @@ describe("ensure", () => {
     expect(await away).toBe(client);
     expect(useRuntime.getState()).toMatchObject({ client, key: `worker|http://x|${SAVED}` });
     expect(disposed()).toEqual([]);
+  });
+});
+
+describe("solverVersionOf", () => {
+  it("is the build a client says it's running: the manifest's, or dev with none", () => {
+    expect(solverVersionOf({ version: "abc", upstream: { repo: "r", commit: "9b907bd6ffff", date: "" }, builtAt: "", files: [] })).toBe("9b907bd6/abc");
+    expect(solverVersionOf(null)).toBe("dev");
   });
 });
