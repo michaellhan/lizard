@@ -542,9 +542,12 @@ export function timeText(seconds: number): string {
 export const reportLine = (r: HandsCheckReport) =>
   `${r.hands} hands · ${r.verdicts} verdicts · ${r.requestErrors} request errors · ${r.unlabelled} without a label · ${timeText(r.seconds)}`;
 
-/** How it was run: "4 tables · no time to think · asking ahead off · Quick". */
-export const setupLine = (r: HandsCheckReport) =>
-  [`${r.tables} ${r.tables === 1 ? "table" : "tables"}`, r.thinkMs ? `${r.thinkMs / 1000} s to think a decision` : "no time to think", `asking ahead ${r.askAhead && r.stopCost !== "kills" ? "on" : "off"}`, "Quick"].join(" · ");
+/** How it was run: "4 tables · no time to think · asking ahead off · Quick". Nothing is asked ahead after a restart, so a run
+ * that had one wasn't asking ahead for all of it, and its times aren't to be read as if it had. */
+export function setupLine(r: HandsCheckReport): string {
+  const ahead = !r.askAhead || r.stopCost === "kills" ? "off" : r.restarts > 0 ? "on until a restart" : "on";
+  return [`${r.tables} ${r.tables === 1 ? "table" : "tables"}`, r.thinkMs ? `${r.thinkMs / 1000} s to think a decision` : "no time to think", `asking ahead ${ahead}`, "Quick"].join(" · ");
+}
 
 /** When it ran and on what. `current`: the build on this page, where that's known. */
 export function whenLine(r: HandsCheckReport, current: string | null): string {
@@ -560,5 +563,5 @@ export const warmLine = (r: HandsCheckReport) => (r.earlier > 0 ? `Not a cold ru
 export function aheadLine(r: HandsCheckReport): string | null {
   if (!r.ahead) return null;
   if (r.ahead.asked) return meterLine(r.ahead);
-  return r.stopCost === "kills" ? "Nothing asked: this browser can't stop a solve, so a wrong guess would hold up the next answer." : "Nothing asked.";
+  return r.stopCost === "kills" ? "Nothing asked: this browser can't stop a solve, so a wrong guess would hold up the next answer." : "No postflop look-aheads asked.";
 }

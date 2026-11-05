@@ -170,9 +170,12 @@ describe("a run", () => {
     expect(line).toHaveTextContent("Hand 1 of 20 · 0 verdicts · 0 errors");
     await act(async () => seen[0]!.onProgress!({ hands: 6, of: 20, verdicts: 18, errors: 0 }));
     expect(line).toHaveTextContent("Hand 7 of 20 · 18 verdicts · 0 errors");
-    // (a verdict within a hand says nothing, or each would be read out)
+    // (a verdict within a hand moves the page, and isn't read out, or each would be)
     await act(async () => seen[0]!.onProgress!({ hands: 6, of: 20, verdicts: 19, errors: 0 }));
     expect(line).toHaveTextContent("Hand 7 of 20 · 18 verdicts · 0 errors");
+    const shown = screen.getByText("Hand 7 of 20 · 19 verdicts · 0 errors");
+    expect(shown).toHaveAttribute("aria-hidden", "true");
+    expect(shown.className).not.toMatch(/sr-only/);
     expect(screen.queryByRole("button", { name: "Play 20 hands" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tables")).toBeDisabled();
     expect(screen.getByLabelText("Time to think")).toBeDisabled();
@@ -182,6 +185,7 @@ describe("a run", () => {
     expect(line).toBeInTheDocument();
     expect(line).toHaveTextContent("Passed: 20 hands · 63 verdicts · 0 request errors · 0 without a label · 1 m 48 s");
     expect(line.className).toBe("sr-only");
+    expect(shown).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play 20 hands" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tables")).toBeEnabled();
   });

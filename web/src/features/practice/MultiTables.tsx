@@ -30,16 +30,24 @@ const spotNote = (spot: Spot, preflopOnly: boolean) =>
         ? "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others."
         : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}; later streets are read from the library or solved while you play the other tables.`;
 
-/** ms from a key to the change it makes */
+/** ms from a key to the change it makes, and from that change to giving focus back if nothing else has changed: longer
+ * than a browser's type-ahead holds a word, so B, T, N gets to BTN */
 const STEP_MS = 100;
+const IDLE_MS = 1500;
 
 /** A select gives focus back once it's set: on one, the page's keys don't work and the next is type-ahead, so C would pick
  * CO, S the SB or Single-raised pots and 3 3-bet pots. Only once it's set, though: an arrow steps a closed select, a change
- * at each press, so a change right after a key stays, and Enter or Escape, on the way up, says you've done. */
+ * at each press, so a change right after a key stays, and Enter or Escape, on the way up, says you've done. A letter makes
+ * a change right after a key too, and nothing says you've done after one, so a change that stays stays for IDLE_MS, and only
+ * another change puts that off: a key that changes nothing hasn't done anything to wait for. */
 function useLeave() {
   const keyAt = useRef(-Infinity);
+  const idle = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(idle.current), []);
   const leave = (select: HTMLSelectElement) => {
+    clearTimeout(idle.current);
     if (performance.now() - keyAt.current > STEP_MS) select.blur();
+    else idle.current = setTimeout(() => select.blur(), IDLE_MS);
   };
   const keys = {
     onKeyDown: () => {
@@ -174,11 +182,16 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
   const next = queue[0];
   const more = queue.filter((i) => i !== focus).length;
   const busy = tables.filter((x) => !x.hand.result && !x.failed && !x.spent).length;
+  // (where the spot is, as a next one at the same table can be ready at once, and a line that hasn't changed isn't read out;
+  // and a table behind yours, as one you've picked stays in front while it thinks)
+  const said = ready
+    ? `Table ${focus + 1}: your turn, ${sim.current}, pot ${fmt(sim.pot)}bb`
+    : [state.tone === "fail" ? `Table ${focus + 1}: ${state.text.replace(/\.$/, "")}` : "", next === undefined ? "" : `Table ${next + 1}: your turn`].filter(Boolean).join(". ");
   return (
     <>
       {/* (only what you'd act on, as the whole dock read out at each change would run over the next one) */}
       <p role="status" aria-atomic="true" className="sr-only">
-        {ready ? `Table ${focus + 1}: your turn` : state.tone === "fail" ? `Table ${focus + 1}: ${state.text}` : ""}
+        {said}
       </p>
       <section aria-label="Your move" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
         {/* (focus only rests here, nothing happens on it: a ring would read as a field to type in) */}

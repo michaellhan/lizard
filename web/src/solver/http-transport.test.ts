@@ -43,6 +43,58 @@ describe("HttpTransport", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("leaves one stop out at a time, as a server gone quiet would otherwise have them pile up, and gives up at about 5 s", async () => {
+    vi.useFakeTimers();
+    const urls: string[] = [];
+    const fetchImpl = ((url: string) => {
+      urls.push(url);
+      return new Promise<Response>(() => {});
+    }) as unknown as typeof fetch;
+    const ac = new AbortController();
+    void new HttpTransport({ url: "http://127.0.0.1:8765", fetchImpl }).request({ players: 2 }, { progressive: false, signal: ac.signal });
+    ac.abort();
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(urls.filter((u) => u.endsWith("/cancel"))).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("gives up at about 5 s on a request that never settles, though each stop is answered", async () => {
+    vi.useFakeTimers();
+    const urls: string[] = [];
+    const fetchImpl = ((url: string) => {
+      urls.push(url);
+      return url.endsWith("/cancel") ? Promise.resolve(new Response("{}")) : new Promise<Response>(() => {});
+    }) as unknown as typeof fetch;
+    const ac = new AbortController();
+    void new HttpTransport({ url: "http://127.0.0.1:8765", fetchImpl }).request({ players: 2 }, { progressive: false, signal: ac.signal });
+    const stops = () => urls.filter((u) => u.endsWith("/cancel")).length;
+    ac.abort();
+    await vi.advanceTimersByTimeAsync(4749);
+    expect(stops()).toBe(19);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stops()).toBe(20);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(stops()).toBe(20);
+  });
+
+  it("tries a stop again after one that failed", async () => {
+    vi.useFakeTimers();
+    const urls: string[] = [];
+    const fetchImpl = ((url: string) => {
+      urls.push(url);
+      return url.endsWith("/cancel") ? Promise.reject(new Error("no route")) : new Promise<Response>(() => {});
+    }) as unknown as typeof fetch;
+    const ac = new AbortController();
+    void new HttpTransport({ url: "http://127.0.0.1:8765", fetchImpl }).request({ players: 2 }, { progressive: false, signal: ac.signal });
+    ac.abort();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(urls.filter((u) => u.endsWith("/cancel"))).toHaveLength(3);
+  });
+
   it("POSTs a state to /advise", async () => {
     const f = fake({ street: "flop", actions: [] });
     const t = new HttpTransport({ url: "http://127.0.0.1:8765/", fetchImpl: f.fetchImpl });

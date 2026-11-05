@@ -588,7 +588,48 @@ describe("the dock", () => {
     stub.advice = byHand([betInto(1), facing("fold", "call")]);
     go();
     await ready();
-    expect(said).toHaveTextContent(/^Table 1: your turn$/);
+    expect(said).toHaveTextContent(/^Table 1: your turn, flop, pot 8\.5bb$/);
+  });
+
+  it("says where your turn is, as the next at the same table can be ready at once, and a line that's the same isn't read out", async () => {
+    const first = betInto(1);
+    const second = checkedTo(2);
+    stub.advice = byHand([first, facing("fold", "call")], [second, CHECKED]);
+    stub.move = () => ({ action: "check" });
+    await open(doc([first, second]));
+    fireEvent.click(within(await ready()).getByRole("button", { name: /fold/i }));
+    const said = document.querySelector('p.sr-only[role="status"]')!;
+    await waitFor(() => expect(said).toHaveTextContent(/^Table 2: your turn, flop, pot 5\.5bb$/));
+    fireEvent.click(within(await ready()).getByRole("button", { name: /check/i }));
+    await waitFor(() => expect(said).toHaveTextContent(/^Table 2: your turn, turn, pot 5\.5bb$/));
+  });
+
+  it("says when a table behind yours comes up, as one you've picked stays in front while it thinks", async () => {
+    let free = () => {};
+    stub.gate = new Promise((r) => {
+      free = r;
+    });
+    await open(doc([betInto(1), betInto(2)]));
+    fireEvent.click(tile(2));
+    const said = document.querySelector('p.sr-only[role="status"]')!;
+    expect(said).toBeEmptyDOMElement();
+    stub.advice = byHand([betInto(1), facing("fold", "call")]);
+    // (the request out is Table 1's, and Table 2's goes on being held)
+    stub.gate = new Promise(() => {});
+    free();
+    await waitFor(() => expect(said).toHaveTextContent(/^Table 1: your turn$/));
+    expect(within(dock()).getByRole("heading")).toHaveTextContent(/^Table 2 ·/);
+  });
+
+  it("says that after a failure in front of it", async () => {
+    const other = betInto(1);
+    const bad = betInto(2);
+    const go = hold();
+    await open(doc([other, bad]));
+    fireEvent.click(tile(2));
+    stub.advice = (q) => (q.hole === holeOf(bad) ? { error: "no such node" } : facing("fold", "call"));
+    go();
+    await waitFor(() => expect(document.querySelector('p.sr-only[role="status"]')).toHaveTextContent(/^Table 2: No answer to grade this spot against: no such node\. Table 1: your turn$/));
   });
 
   it("tells it what failed, at which table", async () => {
@@ -1143,6 +1184,35 @@ describe("Spots and Seat", () => {
       expect(document.activeElement).not.toBe(box);
     }
     expect(useSettings.getState()).toMatchObject({ practiceSpot: "srp", practiceSeat: "UTG" });
+  });
+
+  it("give focus back a while after a letter's change, as nothing says you've done, and only another change puts that off", async () => {
+    await atTables(2);
+    const box = screen.getByRole("combobox", { name: "Seat" });
+    box.focus();
+    // (the page is up, so nothing's waiting on Testing Library's timers)
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      const letter = (k: string, value?: string) => {
+        fireEvent.keyDown(box, { key: k });
+        if (value) fireEvent.change(box, { target: { value } });
+        fireEvent.keyUp(box, { key: k });
+      };
+      const pass = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+      letter("c", "CO");
+      pass(1499);
+      expect(document.activeElement).toBe(box);
+      letter("s", "SB");
+      pass(1499);
+      expect(document.activeElement).toBe(box);
+      // (a key that changes nothing)
+      letter("f");
+      pass(1);
+      expect(document.activeElement).not.toBe(box);
+      expect(useSettings.getState().practiceSeat).toBe("SB");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("say what a table's later streets are, the betting rules among them, at Any hand", async () => {

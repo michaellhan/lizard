@@ -14,11 +14,14 @@ export function SetupForm({
   players,
   stack,
   opts,
+  onEdit,
   onStart,
 }: {
   players: number;
   stack: number;
   opts: Required<HandOptions>;
+  /** you've gone to the form: what's typed here goes if it's drawn again for another session */
+  onEdit: () => void;
   onStart: (players: number, stack: number, opts: Required<HandOptions>) => void;
 }) {
   const [p, setP] = useState(players);
@@ -49,6 +52,8 @@ export function SetupForm({
     <form
       aria-label="New session"
       className="flex flex-wrap items-center gap-2 text-sm"
+      onFocus={onEdit}
+      onChange={onEdit}
       onSubmit={(e) => {
         e.preventDefault();
         if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes, rake: rk, rakeCap: rk ? rc : 0 });

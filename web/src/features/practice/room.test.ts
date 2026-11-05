@@ -3095,6 +3095,71 @@ describe("Asking ahead", () => {
       expect(room.metrics().solves.at(-1)).toMatchObject({ kind: "opp", street: "flop", est: 2 });
     });
 
+    it("takes it as gone where every stop ends the worker too, though nothing's wrong, so that's no restart", async () => {
+      useSettings.setState({ mode: "accurate" });
+      const { room, asked } = several([bbFlop(1), turnYou(2)], { stop: "kills", deaf: true });
+      await flush();
+      asked[0]!.answer(MIX);
+      await flush();
+      // (Table 2's long solve, dead once it's set aside: the worker ended, its request goes as cancelled)
+      const long = asked[1]!;
+      room.setTables(1);
+      await flush();
+      expect(long.signal!.aborted).toBe(true);
+      long.reject(new SolverError("cancelled", "cancelled"));
+      await flush();
+      expect(room.snapshot().restarts).toBe(0);
+
+      press(room, 0, CHECKS);
+      await flush();
+      const reply = asked.at(-1)!;
+      expect(reply.play?.seat).toBe("BTN");
+      // (a whole solve on the new worker, so it's worth the stop that a New session makes of it)
+      room.startSession(6, 100, OPTS);
+      await flush();
+      expect(reply.signal!.aborted).toBe(true);
+    });
+
+    it("keeps it where a stop leaves the worker up", async () => {
+      useSettings.setState({ mode: "accurate" });
+      const { room, asked } = several([bbFlop(1), turnYou(2)], { deaf: true, askAhead: false });
+      await flush();
+      asked[0]!.answer(MIX);
+      await flush();
+      const long = asked[1]!;
+      room.setTables(1);
+      await flush();
+      expect(long.signal!.aborted).toBe(true);
+      long.reject(new SolverError("cancelled", "cancelled"));
+      await flush();
+      press(room, 0, CHECKS);
+      await flush();
+      asked.at(-1)!.answer(move("check"));
+      await flush();
+      expect(room.metrics().solves.at(-1)).toMatchObject({ kind: "opp", street: "flop", est: 0.2 });
+    });
+
+    it("keeps it where the stop came before the worker was reached, as that ended nothing", async () => {
+      useSettings.setState({ mode: "accurate" });
+      const { room, asked, getSolver, client } = several([bbFlop(1), turnYou(2)], { stop: "kills", deaf: true });
+      await flush();
+      // (Table 2's solve, stopped on its way to the client)
+      let reach = (_: RoomClient) => {};
+      getSolver.mockImplementationOnce(() => new Promise<RoomClient>((go) => (reach = go)));
+      asked[0]!.answer(MIX);
+      await flush();
+      room.setTables(1);
+      await flush();
+      reach(client);
+      await flush();
+      expect(asked).toHaveLength(1);
+      press(room, 0, CHECKS);
+      await flush();
+      asked.at(-1)!.answer(move("check"));
+      await flush();
+      expect(room.metrics().solves.at(-1)).toMatchObject({ kind: "opp", street: "flop", est: 0.2 });
+    });
+
     it("asks nothing ahead again, with the box at its default, for the page's life", async () => {
       const { room, asked } = await ended();
       asked[2]!.answer(move("call"));
@@ -4062,7 +4127,7 @@ describe("Instant flops", () => {
     expect(readIt).toHaveBeenCalledTimes(1);
   });
 
-  it("plays Any hand with its reason where the index's read hangs, and ignores it when it answers late", async () => {
+  it("plays Any hand with its reason where the index's read hangs, and deals Instant flops again once it answers late", async () => {
     let read: (x: unknown) => void = () => {};
     const { room, asked } = setup({ players: 6, opts: OPTS, pace: 0, pause: 0, guard: 0, readIndex: () => new Promise<unknown>((r) => (read = r)) });
     await flush();
@@ -4081,6 +4146,33 @@ describe("Instant flops", () => {
     expect(asked.length).toBeGreaterThan(before);
 
     read(index);
+    await flush();
+    expect(room.snapshot().flops.off).toBeNull();
+    room.startSession(6, 100, OPTS);
+    await flush();
+    expect(at(room, 1).hand.pot).toBe("lib");
+  });
+
+  it("stays on Any hand where the read that hung fails in the end, and lets go of a read from before a new solver", async () => {
+    const reads: { answer: (x: unknown) => void; fail: (e: Error) => void }[] = [];
+    const readIndex = () => new Promise<unknown>((answer, fail) => reads.push({ answer, fail }));
+    const { room } = setup({ players: 6, opts: OPTS, pace: 0, pause: 0, guard: 0, readIndex });
+    await flush();
+    room.setTables(2);
+    await pass(30_000);
+    expect(room.snapshot().flops.off).toBe("failed");
+    reads[0]!.fail(new Error("404"));
+    await flush();
+    expect(room.snapshot().flops.off).toBe("failed");
+
+    room.setSolver(async () => fakeClient().client);
+    await flush();
+    expect(reads).toHaveLength(2);
+    reads[0]!.answer(index);
+    await flush();
+    expect(room.snapshot().flops.holds).toEqual([]);
+    expect(room.snapshot().flops.off).toBeNull();
+    reads[1]!.answer(null);
     await flush();
     expect(room.snapshot().flops.off).toBe("failed");
   });

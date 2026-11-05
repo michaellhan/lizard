@@ -149,6 +149,7 @@ function HandsCheck() {
   const [ahead, setAhead] = useState<boolean | null>(null);
   const [running, setRunning] = useState(false);
   const [line, setLine] = useState("");
+  const [said, setSaid] = useState("");
   const [report, setReport] = useState<HandsCheckReport | null>(null);
   const stopper = useRef<AbortController | null>(null);
   const swapped = useRef(-Infinity);
@@ -176,19 +177,22 @@ function HandsCheck() {
     swapped.current = performance.now();
     setReport(null);
     setRunning(true);
-    setLine(progressLine({ hands: 0, of: CHECK_HANDS, verdicts: 0, errors: 0 }));
-    // (a line a hand: each verdict would be read out)
+    const first = progressLine({ hands: 0, of: CHECK_HANDS, verdicts: 0, errors: 0 });
+    setLine(first);
+    setSaid(first);
+    // (the page moves with each verdict, and what's read out with each hand, or every verdict would be)
     let hand = 0;
     const onProgress = (p: HandsCheckProgress) => {
+      setLine(progressLine(p));
       if (p.hands === hand) return;
       hand = p.hands;
-      setLine(progressLine(p));
+      setSaid(progressLine(p));
     };
     const r = await runHandsCheck(getSolver, { seed: CHECK_SEED, hands: CHECK_HANDS, tables, askAhead, thinkMs, signal: ac.signal, onProgress });
     stopper.current = null;
     swapped.current = performance.now();
     setRunning(false);
-    setLine(`${r.stopped ? "Stopped" : r.passed ? "Passed" : "Failed"}: ${reportLine(r)}`);
+    setSaid(`${r.stopped ? "Stopped" : r.passed ? "Passed" : "Failed"}: ${reportLine(r)}`);
     setReport(r);
   };
   const settled = () => performance.now() - swapped.current >= SWAP_MS;
@@ -227,9 +231,14 @@ function HandsCheck() {
       </div>
       <p className="text-sm text-muted">A few minutes of CPU. Nothing is saved to History or Analyze.</p>
       <p className="text-sm text-muted">Reload this page before a timed run: a solver keeps its answers, so a second run is quicker on the same deals for that alone.</p>
+      {running && (
+        <p aria-hidden className="text-sm">
+          {line}
+        </p>
+      )}
       {/* (always here, so a reader is told each hand and the end, which the report then shows) */}
-      <p role="status" className={running ? "text-sm" : "sr-only"}>
-        {line}
+      <p role="status" className="sr-only">
+        {said}
       </p>
       {report && <CheckReport r={report} />}
     </div>

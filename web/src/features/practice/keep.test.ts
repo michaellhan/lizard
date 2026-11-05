@@ -24,7 +24,7 @@ import {
   type HandOptions,
   type PracticeHand,
 } from "./practice";
-import { Room, type RoomClient, type RoomOptions } from "./room";
+import { keptNote, Room, type RoomClient, type RoomOptions } from "./room";
 import { freshSession, type PracticeSession } from "./session";
 
 vi.mock("@/data/db", async (orig) => {
@@ -1149,7 +1149,7 @@ describe("Room's kept doc", () => {
       room.start();
       await pass(1000);
       const refused = Promise.reject(new Error("full"));
-      const handled = vi.spyOn(refused, "catch");
+      const handled = vi.spyOn(refused, "then");
       vi.mocked(kvSet).mockImplementationOnce(() => refused);
       room.setTables(3);
       await flush();
@@ -1458,11 +1458,11 @@ describe("Room's kept doc", () => {
 
     describe("where the read answers after KEPT_WAIT", () => {
       /** A doc in the browser and a read of it that answers when told, past KEPT_WAIT. */
-      async function late(answers = solver()) {
+      async function late(answers = solver(), o: RoomOptions = {}) {
         const d = doc([kept(hand(0, "UTG")), kept(hand(1, "UTG"))]);
         await put(d);
         let answer = (_: unknown) => {};
-        const r = open({ readKept: () => new Promise((go) => (answer = go)) }, answers);
+        const r = open({ ...o, readKept: () => new Promise((go) => (answer = go)) }, answers);
         r.room.start();
         await pass(1000);
         return { ...r, d, answer: (x: unknown) => answer(x) };
@@ -1483,7 +1483,33 @@ describe("Room's kept doc", () => {
         expect(room.snapshot().tables).toHaveLength(2);
       });
 
-      it("leaves what you've begun, says so, and only then writes over the doc", async () => {
+      it("brings the session back where only walks have gone by, as you haven't moved", async () => {
+        const answers = solver();
+        const folds: RoomClient = { ...answers.client, play: (_, p) => Promise.resolve({ data: { pos: p.seat, action: "fold", name: "fold", freq: 1 }, provenance: prov("live") }) };
+        const { room, d, answer } = await late({ ...answers, client: folds }, { seat: "BB" });
+        room.setTables(3);
+        await pass(2000);
+        expect(room.snapshot().session.hands).toBeGreaterThan(0);
+
+        answer(d);
+        await flush();
+        expect(room.snapshot().keptRead).toBeNull();
+        expect(room.snapshot().session.id).toBe(d.session.id);
+      });
+
+      it("counts a move where your spot had no answer as a move", async () => {
+        const answers = solver();
+        const fails: RoomClient = { ...answers.client, solve: () => Promise.reject(new Error("no answer")) };
+        const { room, d, answer } = await late({ ...answers, client: fails });
+        await pass(1000);
+        expect(room.snapshot().tables[0]!.failed).toBe("no answer");
+        room.ungraded({ action: "fold" });
+        answer(d);
+        await flush();
+        expect(room.snapshot().keptRead).toBe("passed");
+      });
+
+      it("leaves what you've begun, says so, and only then writes over the doc, which it says too once that's landed", async () => {
         const { room, d, answer } = await late();
         const { id } = room.snapshot().session;
         await play(room, () => room.snapshot().session.score.n >= 1);
@@ -1491,12 +1517,49 @@ describe("Room's kept doc", () => {
         await pass(2000);
         expect(writes()).toEqual([]);
 
+        // (the write held, so there's a moment to look at)
+        let land = () => {};
+        vi.mocked(kvSet).mockImplementationOnce(() => new Promise<void>((go) => (land = go)));
         answer(d);
         await flush();
-        expect(room.snapshot().keptRead).toBe("passed");
-        expect(room.snapshot().session.id).toBe(id);
         await pass(1000);
+        expect(room.snapshot().session.id).toBe(id);
         expect(writes().at(-1)!.session.id).toBe(id);
+        expect(room.snapshot().keptRead).toBe("passed");
+        land();
+        await flush();
+        expect(room.snapshot().keptRead).toBe("replaced");
+      });
+
+      it("hasn't replaced anything until a write has landed, at one table or where the browser won't take it", async () => {
+        const { room, d, answer } = await late();
+        await play(room, () => room.snapshot().session.score.n >= 1);
+        answer(d);
+        await flush();
+        await pass(1000);
+        expect(room.snapshot().keptRead).toBe("passed");
+        expect(writes()).toEqual([]);
+        expect(await stored()).toEqual(d);
+
+        vi.mocked(kvSet).mockImplementationOnce(() => Promise.reject(new Error("full")));
+        room.setTables(2);
+        await flush();
+        expect(writes()).toHaveLength(1);
+        expect(room.snapshot().keptRead).toBe("passed");
+        expect(await stored()).toEqual(d);
+
+        // (the next save tries again)
+        await pass(1000);
+        room.setTables(3);
+        await stored();
+        await flush();
+        expect(room.snapshot().keptRead).toBe("replaced");
+        expect(((await stored()) as KeptTables).session.id).not.toBe(d.session.id);
+      });
+
+      it("says so in words: what's still to come, then what's happened", () => {
+        expect(keptNote("passed")).toBe("The session kept in this browser was read too late to bring back, as you'd already moved on from it. Playing above one table replaces it, though History keeps its record.");
+        expect(keptNote("replaced")).toBe("The session kept in this browser was read too late to bring back, as you'd already moved on from it. It's no longer kept, though History keeps its record.");
       });
 
       it("goes back to one table without giving up a doc it hasn't seen", async () => {

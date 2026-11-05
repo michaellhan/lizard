@@ -166,6 +166,36 @@ describe("FullHands on a Room", () => {
     }
   });
 
+  it("says too late to bring back in words and on the page, and stays out of the setup you've gone to", async () => {
+    const OPTS: Required<HandOptions> = { seat: "UTG", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
+    const place = (n: number) => ({ hand: newHand(6, 40, n, n + 1, OPTS), stats: emptyTally(), last: null, lastHand: null });
+    const kept = { v: 1, n: 2, focus: 0, session: { ...freshSession(6, 40, OPTS), dealt: 2, tables: 2 }, tables: [place(0), place(1), null, null] };
+    const real = vi.mocked(kvGet).getMockImplementation()!;
+    stub.advice = () => CHART;
+    stub.move = () => ({ action: "fold" });
+    try {
+      for (const go of [(box: HTMLElement) => box.focus(), (box: HTMLElement) => fireEvent.change(box, { target: { value: "150" } })]) {
+        let answer = (_: unknown) => {};
+        vi.mocked(kvGet).mockImplementation(((k: string) => (k === KEPT_KEY ? new Promise<unknown>((r) => (answer = r)) : real(k))) as typeof kvGet);
+        const { unmount } = render(
+          <MemoryRouter>
+            <PracticePage pace={0} />
+          </MemoryRouter>,
+        );
+        await screen.findByText(/couldn.t be read in time/, undefined, { timeout: 3000 });
+        const box = screen.getByRole("spinbutton", { name: "Stack in big blinds" });
+        go(box);
+        await act(async () => answer(kept));
+        await screen.findByText(/read too late to bring back/);
+        expect(screen.getByRole("spinbutton", { name: "Stack in big blinds" })).toBe(box);
+        expect(screen.queryByRole("region", { name: "Table 2" })).toBeNull();
+        unmount();
+      }
+    } finally {
+      vi.mocked(kvGet).mockImplementation(real);
+    }
+  });
+
   it("asks again when the mode changes", async () => {
     stub.advice = () => CHART;
     render(

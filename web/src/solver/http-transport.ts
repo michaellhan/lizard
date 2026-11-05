@@ -6,8 +6,10 @@
 import type { AdvisorResponse, AdvisorState } from "./protocol";
 import { SolverError, type PlayRequest, type RuntimeStatus, type SolverTransport, type StopCost } from "./types";
 
-/** ms between a stop's tries, while its request hasn't settled */
+/** ms between a stop's tries, while its request hasn't settled, and how many it gets: about 5 s, as a server that goes
+ * quiet can leave a request out for as long as the browser lets it, and each try would have gone out for all of that */
 const CANCEL_EVERY = 250;
+const CANCEL_TRIES = 20;
 
 export interface HttpTransportOptions {
   /** e.g. "http://127.0.0.1:8765" (no trailing slash needed) */
@@ -66,7 +68,20 @@ export class HttpTransport implements SolverTransport {
   ): Promise<AdvisorResponse> {
     if (opts.signal?.aborted) throw new SolverError("cancelled", "cancelled");
     let again: ReturnType<typeof setInterval> | undefined;
-    const cancel = () => void this.fetchImpl(`${this.url}/cancel`, { method: "POST" }).catch(() => {});
+    let tries = 0;
+    let sending = false;
+    const cancel = () => {
+      tries += 1;
+      if (tries >= CANCEL_TRIES) clearInterval(again);
+      // (one unanswered is still on its way, and the next would only pile up behind it)
+      if (sending) return;
+      sending = true;
+      void this.fetchImpl(`${this.url}/cancel`, { method: "POST" })
+        .catch(() => {})
+        .finally(() => {
+          sending = false;
+        });
+    };
     const onAbort = () => {
       // ask the server to stop the running solve; its /advise then answers {"cancelled": true}. Again until it does: the server
       // clears a stop as an /advise comes in, so one that got there first is lost, and nothing else would end that solve

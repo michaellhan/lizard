@@ -932,11 +932,16 @@ describe("the figures", () => {
     expect(setupLine(r)).toBe("4 tables · 3 s to think a decision · asking ahead on · Quick");
     expect(setupLine({ ...r, tables: 1, thinkMs: 0, askAhead: false })).toBe("1 table · no time to think · asking ahead off · Quick");
     expect(setupLine({ ...r, stopCost: "kills" })).toBe("4 tables · 3 s to think a decision · asking ahead off · Quick");
+    // (nothing's asked ahead after a restart, so it wasn't on for the whole run)
+    expect(setupLine({ ...r, restarts: 1 })).toBe("4 tables · 3 s to think a decision · asking ahead on until a restart · Quick");
+    expect(setupLine({ ...r, restarts: 1, askAhead: false })).toBe("4 tables · 3 s to think a decision · asking ahead off · Quick");
     expect(timeText(59.4)).toBe("59 s");
     expect(timeText(60)).toBe("1 m 0 s");
     expect(progressLine({ hands: 6, of: 20, verdicts: 18, errors: 0 })).toBe("Hand 7 of 20 · 18 verdicts · 0 errors");
     expect(progressLine({ hands: 20, of: 20, verdicts: 63, errors: 2 })).toBe("Hand 20 of 20 · 63 verdicts · 2 errors");
     expect(aheadLine({ ...r, ahead: null })).toBeNull();
+    // (the meter counts postflop look-aheads only, so a preflop one can have gone out)
+    expect(aheadLine({ ...r, ahead: { asked: 0, used: 0, savedS: 0, spentS: 0 } })).toBe("No postflop look-aheads asked.");
   });
 });
 
