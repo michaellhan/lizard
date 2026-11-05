@@ -3829,6 +3829,8 @@ now those checks had only been made by hand. This is the earliest unmet criterio
 
 The first run with this gate failed before any test ran: GitHub's `ubuntu-latest` is now 26.04 and Playwright 1.56.1 stopped at `Playwright does not support chromium on ubuntu26.04-x64`. Nothing reached the site from that run. The build job is pinned to `ubuntu-24.04`; moving Playwright itself would have meant a new browser build under tests that had just been baselined. 26.04 comes back when Playwright is next raised.
 
+Live check of e469990, the first build deployed behind the browser gate, on https://www.michael-han.com/lizard/: build `1a14605e/e13c4733fd`, seed 20260001, 4 tables, 3 s to think, ask ahead on, Quick. Play 20 hands passed at 52 verdicts in 163.09 s with 0 errors, 0 unlabelled, 0 restarts, in the worker, cross-origin isolated. Waits were median under 0.01 s and p90 0.49 s (n 28). Of the verdicts, 24 came from the preflop charts, 26 from live solves and 2 from the library. Asking ahead was used 41 of 50 times and spent 7.55 s to save 0.04 s, so the question of whether it stays on at four tables still stands.
+
 ## Walking a line in Study (2026-11-05)
 
 Study's line is now a breadcrumb: each action, each street's cards and each run of preflop folds is a button to that node, with the start of the hand as the first. Forward sits beside Back. What lies ahead after stepping back stays on the line, dashed, until a different action makes a new one. Left or Backspace, right, 1-9 for an action and b for the builder work on the page, except while typing, and 1-9 are the builder's brushes while it's on (Backspace and b are classic's keys). A node facing a bet says the price and the pot odds.
