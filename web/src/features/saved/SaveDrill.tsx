@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { SavedDrill } from "@/data/db";
-import { drillAt, newId, putDrill } from "@/data/saved";
+import { NOT_SAVED, drillAt, newId, putDrill, stored } from "@/data/saved";
 
 export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: string; about: string }) {
   // undefined while looking, null where the drill isn't saved
@@ -13,6 +13,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -26,6 +27,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
     setName(saved?.name ?? about);
     setNote(saved?.note ?? "");
     setDone(false);
+    setFailed(false);
     setOpen((o) => !o);
   };
 
@@ -43,9 +45,10 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
       createdAt: here?.createdAt ?? t,
       updatedAt: t,
     };
-    await putDrill(s);
-    setSaved(s);
-    setDone(true);
+    const kept = await stored(() => putDrill(s));
+    setFailed(!kept);
+    setDone(kept);
+    if (kept) setSaved(s);
   };
 
   return (
@@ -91,6 +94,11 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
                 <Link to="/saved" className="underline">
                   See saved drills
                 </Link>
+              </span>
+            )}
+            {failed && (
+              <span role="alert" className="text-xs text-danger">
+                {NOT_SAVED}
               </span>
             )}
           </div>

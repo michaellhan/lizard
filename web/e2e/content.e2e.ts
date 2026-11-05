@@ -140,6 +140,51 @@ test("Study: the folds to a seat in one step, and the split beside the grid that
   expect(problems.errors).toEqual([]);
 });
 
+test("The engine runs on files from this site alone: the page and its workers ask no other host", async ({ page, problems }, info) => {
+  const elsewhere: string[] = [];
+  page.on("request", (r) => {
+    const u = new URL(r.url());
+    if (u.protocol.startsWith("http") && u.hostname !== "localhost") elsewhere.push(r.url());
+  });
+  await page.goto("/lizard/study/?p=6&s=100");
+  await expect(page.getByRole("region", { name: "Actions" }).getByRole("button").first()).toBeVisible({ timeout: 45_000 });
+  expect(elsewhere).toEqual([]);
+  await done(page, problems, info, "own-host");
+});
+
+test("A page that can't draw what's stored keeps the way out: the backup, whichever page threw", async ({ page, problems }) => {
+  await page.goto("/lizard/saved/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // (what an old restore could have left: a tag a page can't draw)
+  await page.evaluate(
+    () =>
+      new Promise<void>((ok, no) => {
+        const open = indexedDB.open("lizard");
+        open.onerror = () => no(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction("savedSpots", "readwrite");
+          tx.objectStore("savedSpots").put({ id: "bad", title: "Bad", line: "p=6&s=100", state: {}, tags: [{ a: 1 }], note: "", createdAt: 1, updatedAt: 1 });
+          tx.oncomplete = () => {
+            db.close();
+            ok();
+          };
+        };
+      }),
+  );
+  await page.reload();
+  const trouble = page.getByRole("alert", { name: "This page stopped" });
+  await expect(trouble).toBeVisible();
+  const file = page.waitForEvent("download");
+  await trouble.getByRole("button", { name: "Download backup" }).click();
+  expect((await file).suggestedFilename()).toMatch(/\.json$/);
+  await expect(trouble.getByText(/^Backup made/)).toBeVisible();
+  await page.getByRole("link", { name: "Go to the home page" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // (the page said what threw, on purpose here)
+  problems.errors.length = 0;
+});
+
 test("Practice: a decision made and graded", async ({ page, problems }, info) => {
   await page.goto("/lizard/practice/");
   const options = page.getByRole("group", { name: "Your options" }).getByRole("button");

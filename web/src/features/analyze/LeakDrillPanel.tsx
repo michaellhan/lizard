@@ -67,6 +67,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
   const pick = (a: number) => {
     if (!prog || !cur || answer) return;
     const g = gradePick(cur.d, a);
+    if (!g) return;
     setAnswer({ id: cur.d.id, a, g });
     save({ ...prog, done: [...prog.done, cur.d.id], score: addScore(prog.score, g) });
   };

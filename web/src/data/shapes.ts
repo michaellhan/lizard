@@ -1,0 +1,103 @@
+// What a record must hold to come in from a backup, store by store: every field a page reads, of the type it reads it
+// as, as `readMistake` (mistakes.ts) does for a kept mistake. The pages draw what's stored, so one object where a string
+// should be blanks a page on every load (React can't draw it), and a card that isn't one, a time no Date can hold or a
+// lone surrogate in a link throws the same way. Nothing here throws, and a real record of any version passes: a field
+// added later is optional here too, and the fields every version wrote are required.
+const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+const isStr = (x: unknown): x is string => typeof x === "string";
+const isBool = (x: unknown): x is boolean => typeof x === "boolean";
+const isCount = (x: unknown): x is number => isNum(x) && Number.isInteger(x) && x >= 0;
+const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const isStrs = (x: unknown): x is string[] => Array.isArray(x) && x.every(isStr);
+const isOptNum = (x: unknown) => x === undefined || isNum(x);
+const isOptStr = (x: unknown) => x === undefined || isStr(x);
+const isOptBool = (x: unknown) => x === undefined || isBool(x);
+/** kept as null where it's unknown (JSON writes NaN as null) */
+const isNumOrNull = (x: unknown) => x === undefined || x === null || isNum(x);
+/** a time a Date can hold: `toISOString` throws past these */
+export const isTime = (x: unknown): x is number => isNum(x) && Math.abs(x) <= 8.64e15;
+/** `encodeURIComponent` throws on a lone surrogate, and JSON can write one */
+export const isWellFormed = (x: unknown): x is string => isStr(x) && !/\p{Cs}/u.test(x);
+
+const CARD = "[2-9TJQKA][shdc]";
+const CARD_RE = new RegExp(`^${CARD}$`);
+const HOLE_RE = new RegExp(`^(?:${CARD}){2}$`);
+const BOARD_RE = new RegExp(`^(?:${CARD})*$`);
+/** one card as `PlayingCard` draws it (it throws on any other suit) */
+export const isCard = (x: unknown): x is string => isStr(x) && CARD_RE.test(x);
+
+export function validSpot(d: Record<string, unknown>): boolean {
+  const seen = d.seen === undefined || (isObj(d.seen) && isStr(d.seen.source) && isStr(d.seen.label));
+  return isStr(d.title) && isStr(d.line) && isObj(d.state) && isStrs(d.tags) && isStr(d.note) && seen && isTime(d.createdAt) && isTime(d.updatedAt);
+}
+
+export const validRange = (d: Record<string, unknown>): boolean =>
+  isStr(d.name) && isStr(d.text) && isNum(d.combos) && isStr(d.note) && isTime(d.createdAt) && isTime(d.updatedAt);
+
+// A session's `meta` is open: what's read of it, by key. A field read through a guard (byPot, sources, cells, versions)
+// isn't here.
+const META_NUMBERS = ["hands", "net", "ok", "graded", "lossPct", "players", "stack", "ante", "rake", "rakeCap", "best", "acc", "evLossBb", "evLossPct", "comboAcc", "total", "tables"];
+const META_TEXT = ["spot", "view", "label", "leak", "line", "source", "actor", "street", "drill", "seat"];
+
+const isScore = (x: unknown): boolean =>
+  isObj(x) && [x.n, x.ok, x.loss, x.lossPct, x.ne, x.streak, x.best].every(isNum) && Array.isArray(x.recent) && x.recent.every(isNum);
+
+export function validSession(d: Record<string, unknown>): boolean {
+  const { meta } = d;
+  if (!isObj(meta)) return false;
+  return (
+    ["practice", "drill", "analysis", "build"].includes(d.kind as string) &&
+    isTime(d.startedAt) &&
+    (d.endedAt === undefined || d.endedAt === null || isTime(d.endedAt)) &&
+    isNum(d.decisions) &&
+    isNum(d.evLossBb) &&
+    META_NUMBERS.every((k) => isNumOrNull(meta[k])) &&
+    META_TEXT.every((k) => meta[k] === undefined || meta[k] === null || isWellFormed(meta[k])) &&
+    (meta.done === undefined || isStrs(meta.done)) &&
+    (meta.score === undefined || isScore(meta.score))
+  );
+}
+
+export function validHand(d: Record<string, unknown>): boolean {
+  return (
+    [d.site, d.number, d.played, d.hero, d.bb, d.potType, d.end, d.text, d.importId, d.importName].every(isStr) &&
+    isStr(d.hole) && HOLE_RE.test(d.hole) &&
+    isStr(d.board) && BOARD_RE.test(d.board) &&
+    isCount(d.players) && d.players >= 2 && d.players <= 9 &&
+    isNum(d.pot) &&
+    isCount(d.decisions) &&
+    isTime(d.playedAt) &&
+    isTime(d.importedAt) &&
+    (d.updatedAt === undefined || isTime(d.updatedAt)) &&
+    isOptStr(d.tournament) &&
+    (d.playedFor === undefined || d.playedFor === "preflop") &&
+    (d.revealed === undefined || isStrs(d.revealed)) &&
+    (d.tags === undefined || isStrs(d.tags)) &&
+    isOptStr(d.note)
+  );
+}
+
+const isMix = (x: unknown): boolean =>
+  x === undefined || (Array.isArray(x) && x.every((m) => Array.isArray(m) && m.length === 3 && isStr(m[0]) && isNum(m[1]) && (m[2] === null || isNum(m[2]))));
+
+const isRead = (r: unknown): boolean =>
+  r === undefined ||
+  (isObj(r) && isStr(r.verdict) && isStr(r.source) && isStr(r.label) && isOptStr(r.version) && isOptStr(r.confidence) && isOptStr(r.triageSource) && isNumOrNull(r.evLossBb) && isOptNum(r.freq) && isMix(r.mix));
+
+export function validDecision(d: Record<string, unknown>): boolean {
+  return (
+    [d.handId, d.pos, d.action, d.verdict, d.source, d.label].every(isStr) &&
+    ["preflop", "flop", "turn", "river"].includes(d.street as string) &&
+    isTime(d.gradedAt) &&
+    (d.i === undefined || isCount(d.i)) &&
+    isNumOrNull(d.evLossBb) &&
+    isNumOrNull(d.lossPct) &&
+    isNumOrNull(d.pot) &&
+    [d.freq, d.bestFreq].every(isOptNum) &&
+    [d.byEv, d.facing, d.ip, d.multi, d.flopAggr, d.approximate, d.capped, d.roughEv].every(isOptBool) &&
+    // (a grade from before versions were kept has none)
+    [d.situation, d.potType, d.role, d.matched, d.best, d.note, d.why, d.version, d.band, d.off, d.confidence, d.triageSource, d.notChecked].every(isOptStr) &&
+    isMix(d.mix) &&
+    isRead(d.read)
+  );
+}

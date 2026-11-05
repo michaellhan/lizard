@@ -39,10 +39,10 @@ const GRADED_SOURCES: Record<GradeScope, readonly ResultSource[]> = { preflop: N
 
 export type DecisionVerdict = Verdict | "Not graded";
 
-/** The decisions of yours in a hand a scope grades: the street and the action's index there. `playedFor`: the record's,
- * as a move Practice played for you is no decision of yours to grade. */
-export const decisionsIn = (r: Pick<ReplayedHand, "lines" | "hand">, scope: GradeScope, playedFor?: HandRecord["playedFor"]) =>
-  heroDecisions(r).filter((d) => SCOPE_STREETS[scope].includes(d.street) && d.street !== playedFor);
+/** The decisions of yours in a hand a scope grades: the street and the action's index there. `playedFor`, `revealed`: the
+ * record's, as a move Practice played for you is no decision of yours to grade, nor is one you made having seen the answer. */
+export const decisionsIn = (r: Pick<ReplayedHand, "lines" | "hand">, scope: GradeScope, playedFor?: HandRecord["playedFor"], revealed?: HandRecord["revealed"]) =>
+  heroDecisions(r).filter((d) => SCOPE_STREETS[scope].includes(d.street) && d.street !== playedFor && !revealed?.includes(`${d.street}|${d.i}`));
 
 export const decisionId = (handId: string, street: Street, i: number) => `${handId}|${street}|${i}`;
 
@@ -181,7 +181,9 @@ export function matchMove(res: AdvisorResponse, m: Move): { actions: AdvisorActi
 export const jamOffTree = (res: AdvisorResponse, m: Move) =>
   m.action === "all-in" && res.street !== "preflop" && Array.isArray(res.actions) && !res.actions.some((a) => a.action === "all-in");
 
-/** The grade of your move against an answer, with the mix it is graded against; null where the move isn't in it. */
+/** The grade of your move against an answer, with the mix it is graded against; null where the move isn't in it, or
+ * where an answer with EVs gives no pot: EV lost is graded as a share of the pot, and against none every loss would
+ * read as an Inaccuracy, however large. */
 export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean } | null {
   const hit = matchMove(res, m);
   if (!hit) return null;
@@ -189,6 +191,7 @@ export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix
   const evList = hit.actions.map((a) => (typeof a.ev_bb === "number" ? a.ev_bb : null));
   const evs = evList.every((x) => x !== null) ? (evList as number[]) : null;
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : 0;
+  if (evs && !(pot > 0)) return null;
   const g = grade({ freqs, evs, pot }, hit.index);
   return {
     grade: g,
@@ -261,7 +264,7 @@ export async function gradeDecision(
   if (!GRADED_SOURCES[scope].includes(source))
     return ungraded(`answered by ${label}, ${GRADED_SOURCES[scope] === SOLVING ? "which isn't graded against" : "not the charts or the library"}`, source, label, tri);
   const g = gradeAgainst(ans.data, m);
-  if (!g) return ungraded(`your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);
+  if (!g) return ungraded(matchMove(ans.data, m) ? "the answer gave no pot to measure the EV lost against" : `your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);
   // (the answer's most frequent action, as the classic analyzer reports it; the grade's best is by EV)
   const best = g.mix.reduce((b, x) => (x[1] > b[1] ? x : b));
   const off = offText(ans.data);
@@ -342,7 +345,7 @@ export async function gradeHands(
       continue; // (kept hands were read once: one that no longer reads is passed over)
     }
     const ds: DecisionRecord[] = [];
-    for (const { street, i } of decisionsIn(r, scope, h.playedFor)) {
+    for (const { street, i } of decisionsIn(r, scope, h.playedFor, h.revealed)) {
       const id = decisionId(h.id, street, i);
       const prev = opts.deepen?.get(id);
       if (opts.deepen ? !prev : done.has(id)) continue;

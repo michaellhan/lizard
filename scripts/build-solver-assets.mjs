@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 // Stage the upstream in-browser solver into web/public/solver/ (generated, gitignored):
-//   worker.js   solver/gto/static/worker.js with its cache renamed (below); its protocol is web/src/solver/protocol.ts
+//   worker.js   solver/gto/static/worker.js with Lizard's declared edits (pyodide/worker-edits.mjs); its protocol is
+//               web/src/solver/protocol.ts
 //   solver.zip  every solver/gto/*.py + the wasm cores + treys, from solver/scripts/build_bundle.py (deterministic)
 //   pf/*.bin    stored preflop solves the worker reads synchronously (siteFetch "pf/<key>.bin")
-//   manifest.json  { version, upstream, builtAt, files }: version = sha1(worker.js + solver.zip)[:10], which the worker
-//               needs (10 hex digits) to keep its bundle in the Cache API, and which busts caches on every change.
+//   pyodide/*   the Python runtime and numpy, each checked against its pinned SHA-256 (pyodide/stage.mjs); kept across
+//               runs, so only the first needs the network
+//   manifest.json  { version, upstream, pyodide, builtAt, files }: version = sha1(worker.js + solver.zip + the pins)[:10],
+//               which the worker needs (10 hex digits) to keep its bundle in the Cache API, and which busts caches on
+//               every change (its cached bytecode is for one Python).
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FILES_JSON, readPins, stagePyodide } from "./pyodide/stage.mjs";
+import { editWorker } from "./pyodide/worker-edits.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOLVER = join(ROOT, "solver");
@@ -29,17 +35,14 @@ function upstream() {
   return { repo: u.repo, commit: u.commit, date: u.date };
 }
 
-rmSync(OUT, { recursive: true, force: true });
+// (everything but pyodide/, which stagePyodide keeps to exactly the pinned files)
+mkdirSync(OUT, { recursive: true });
+for (const f of readdirSync(OUT)) if (f !== "pyodide") rmSync(join(OUT, f), { recursive: true, force: true });
 mkdirSync(join(OUT, "pf"), { recursive: true });
 
-// One build-time edit: the worker's Cache API name. The classic app on the same origin uses "gto-solver", and the
-// worker evicts any other cached solver.zip when it stores its own, so the two apps would keep evicting each other.
-const WORKER_SRC = readFileSync(join(SOLVER, "gto", "static", "worker.js"), "utf8");
-const CACHE_OPEN = 'caches.open("gto-solver")';
-if (WORKER_SRC.split(CACHE_OPEN).length !== 2) {
-  throw new Error(`worker.js: expected exactly one ${CACHE_OPEN}; the upstream worker changed, update this edit`);
-}
-writeFileSync(join(OUT, "worker.js"), WORKER_SRC.replace(CACHE_OPEN, 'caches.open("lizard:solver")'));
+writeFileSync(join(OUT, "worker.js"), editWorker(readFileSync(join(SOLVER, "gto", "static", "worker.js"), "utf8")));
+const pins = readPins();
+const staged = await stagePyodide({ pins });
 const bundleSha = execFileSync(python(), [join(SOLVER, "scripts", "build_bundle.py"), join(OUT, "solver.zip")], {
   cwd: SOLVER,
   env: { ...process.env, PYTHONPATH: SOLVER },
@@ -53,14 +56,17 @@ for (const f of pf) cpSync(join(pfDir, f), join(OUT, "pf", f));
 const h = createHash("sha1");
 h.update(readFileSync(join(OUT, "worker.js")));
 h.update(readFileSync(join(OUT, "solver.zip")));
+h.update(readFileSync(FILES_JSON));
 const version = h.digest("hex").slice(0, 10);
 
 const manifest = {
   version,
   upstream: upstream(),
   bundleSha1: bundleSha,
+  // served from this origin, from these bytes; the source is only where the build got them
+  pyodide: { version: pins.pyodide, path: "pyodide/", downloadedFrom: pins.source, pinned: "scripts/pyodide/files.json" },
   builtAt: new Date().toISOString(),
-  files: ["worker.js", "solver.zip", ...pf.map((f) => `pf/${f}`)],
+  files: ["worker.js", "solver.zip", ...pf.map((f) => `pf/${f}`), ...pins.files.map((f) => `pyodide/${f.name}`)],
 };
 writeFileSync(join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-console.log(`solver assets: version ${version}, upstream ${manifest.upstream.commit.slice(0, 8)}, ${pf.length} preflop files -> web/public/solver/`);
+console.log(`solver assets: version ${version}, upstream ${manifest.upstream.commit.slice(0, 8)}, ${pf.length} preflop files, Pyodide ${pins.pyodide} (${staged.kept.length} verified, ${staged.downloaded.length} downloaded) -> web/public/solver/`);

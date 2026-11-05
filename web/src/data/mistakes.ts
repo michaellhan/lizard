@@ -5,6 +5,7 @@
 import type { Verdict } from "@/grading/grade";
 import type { Provenance, ResultSource } from "@/solver/types";
 import { db, type MistakeAsk, type MistakeRecord, type MistakeTry } from "./db";
+import { isCard } from "./shapes";
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const isStr = (x: unknown): x is string => typeof x === "string";
@@ -55,7 +56,7 @@ export function readMistake(x: unknown): MistakeRecord | null {
   const { id, from, sessionId, street, at, lastAt, updatedAt, times, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
   const fits =
     isStr(id) && !!id && (from === "hand" || from === "drill") && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) &&
-    isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && isStrs(board) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
+    isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && hole.every(isCard) && isStrs(board) && board.every(isCard) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
     isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && (provenance === null || isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
     Array.isArray(tries) && tries.every(isTry);
   return fits ? (x as unknown as MistakeRecord) : null;

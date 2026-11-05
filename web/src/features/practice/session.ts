@@ -31,6 +31,8 @@ export interface PracticeSession {
   cells?: Record<string, GradeCell>;
   /** your last graded decisions, with their spots (Review mistakes, review.ts) */
   review: Reviewed[];
+  /** the decisions made after Reveal: none of them is in any total here */
+  revealed?: number;
 }
 
 const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
@@ -60,9 +62,9 @@ export const afterDeal = (s: PracticeSession): PracticeSession => ({ ...s, dealt
 export const atTables = (s: PracticeSession, n: number): PracticeSession => (n > s.tables ? { ...s, tables: n } : s);
 
 /** The session after your decision `d` at the hand `h` as it stood when you decided; `table`, above one table (from 1).
- * One not graded isn't counted. */
+ * One not graded isn't counted, and one made after Reveal is only noted as that. */
 export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, table?: number): PracticeSession {
-  if (!d.grade) return s;
+  if (!d.grade) return d.revealed ? { ...s, revealed: (s.revealed ?? 0) + 1 } : s;
   return {
     ...s,
     score: addScore(s.score, d.grade),
@@ -109,6 +111,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),
     ...(s.opts.sizes ? { sizes: s.opts.sizes } : {}),
     ...(s.opts.rake ? { rake: s.opts.rake, ...(s.opts.rakeCap ? { rakeCap: s.opts.rakeCap } : {}) } : {}),
+    ...(s.revealed ? { revealed: s.revealed } : {}),
     byPot: s.byPot,
     sources: s.sources,
     cells: s.cells ?? {},

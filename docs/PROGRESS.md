@@ -4000,3 +4000,57 @@ A package audit found nothing in production dependencies, and a moderate `minima
 
 Tests: 2061 unit tests in 110 files, typecheck and lint clean, 76 browser tests passed and 2 skipped at three widths, 20 engine
 reference tests.
+
+The live check of `6db34ef`: run 42023429109 succeeded, the routes, the manifest, the homepage, `/gto-solver/` and
+`/gto-solver-classic/` answered 200, and live `/equity` gave 61.481% to 38.519% on its own worker, with the worker's name absent
+from the first bundle. `d472cb7`'s run was superseded by that push, so `d472cb7` was checked live inside it.
+
+## Hint, Reveal, Retry and Copy for AI (2026-11-05)
+
+Built by a subagent, reviewed here and played through on the real app. `FEATURE_MATRIX.md` has what each does: the Coaching /
+feedback row. The rule worth stating is Reveal's: a decision made after seeing the answer has no grade at all, kept with a
+flag, so it can't turn up as a graded decision in the score, History, Review or Analyze.
+
+## The independent audit (2026-11-05)
+
+A read-only reviewer looked at security, privacy, poker rules and numerics with no steer from the authors. No high-severity
+defects. The rules held: `table.ts` matched an independent reference on 120,000 fuzzed hands, and `categories.ts` matched the
+engine on 300,000. The real defects were in how bad imported data is handled; those fixes are in the next section.
+
+- **Source maps:** published builds had maps with the whole app's source, though the repo is private by the owner's decision.
+  They're off now. Maps of earlier builds stay out once a new deploy replaces them.
+- **The deploy workflow:** a manual run on another branch could publish; only `main` does now. Actions are pinned by commit, and
+  `npm ci` skips install scripts (only `fsevents`, Mac only, had any).
+- **Pyodide from a CDN:** the worker loaded it from jsDelivr, pinned by version but with no hash check, in the origin that holds
+  the hands. It's now served from `/lizard/solver/pyodide/`: six files, each checked against a pinned SHA-256 at build, and the
+  build fails if the published worker names another host. `solver/` is unchanged; the edits are declared in `UPSTREAM.json`.
+  In the preview the worker read `pyodide/`, Study answered on it, and the wasm came as `application/wasm`. A first visit now
+  takes about 25.7 MB from this site, which jsDelivr used to carry. A worker has no CSP of its own yet, so a compromised
+  same-origin file still isn't held back from the network.
+
+## The audit's fixes (2026-11-05)
+
+Built by a subagent, each with a regression test, reviewed here.
+
+- **A backup can't blank a page:** `data/shapes.ts` checks every field a page reads, in every store, and a bad record is skipped and
+  counted. A page that throws now shows `ErrorBoundary.tsx`: a reload, a home link, and a backup that reads the database directly, so
+  it works when `/saved` is the page that threw. Records an old bad restore already stored aren't filtered on read: the way out
+  is that backup, clearing site data and restoring.
+- **Hand histories can't freeze the tab:** lines and headers are capped before matching, and the walks are linear. Inputs that took
+  10 to 30 s now take under 10 ms. Old and new parsers matched on all 23 real files and 200,000 damaged ones; the longest real line
+  was 169 characters against a cap of 512.
+- **A lost save says so:** a database that won't open is a "failed" state, and saves return whether they stored anything. `BuildMode`,
+  `LeakDrillPanel` and Practice's writers rely on the page-wide notice.
+- **Player names:** `constructor` and the like no longer corrupt a hand.
+- **A missing pot:** ungraded, where it read as an Inaccuracy.
+- **A big blind all-in for under half a big blind:** the small blind isn't asked to call what it covers. A differential on 80,000
+  hands changed only stacks under half a big blind, and every finished hand settled the same. A big blind of exactly 0.5 and a short
+  straddle still ask, as the fix was held to the smallest change.
+
+The audit had two details wrong, both caught in the fixing: the stakes regex needs a whole hand to reach it, and `hands.ts:85` is a
+delete, with the silent write a few lines below. Nothing here was seen failing in a real browser's private window.
+
+Tests: 2208 unit tests in 118 files, typecheck and lint clean, 82 browser tests passed and 2 skipped at three widths, including
+two new ones: a page and its workers ask no host but this one, and a poisoned record on `/saved` still leaves a working backup. A
+browser run caught Copy for AI sitting ahead of Study's actions, so it's now below them, and off in a tournament, whose EVs aren't
+in bb.

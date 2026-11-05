@@ -4,7 +4,7 @@
 // history's money, not the replay's: the page plays a half-big-blind small blind and averages an uneven ante. Null,
 // with the reason, where the history doesn't say: no winnings line read here (a site format not read, a hand not
 // played out) where you didn't fold, or GG's EV Cashout (paid on equity, not on the board).
-import { norm, type ParsedHand } from "./parse";
+import { norm, xmlTags, type ParsedHand } from "./parse";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // an amount as written: "$20.90", "397.50€", "5,086", "[ $20.90 ]", "$100.25 USD"
@@ -26,7 +26,7 @@ const WON = [
 export function collected(text: string, name: string): number | null {
   // iPoker's XML: each player's win="€397.50"
   if (/<game\b/i.test(text)) {
-    const p = [...text.matchAll(/<player\b[^>]*>/g)].map((m) => m[0]);
+    const p = xmlTags(text, ["player"]).map((t) => t.attrs);
     if (!p.length) return null;
     const me = p.find((x) => x.match(/\bname="([^"]*)"/)?.[1] === name);
     const win = me?.match(/\bwin="([^"]*)"/)?.[1];

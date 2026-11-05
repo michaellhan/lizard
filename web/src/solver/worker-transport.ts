@@ -1,4 +1,4 @@
-// In-browser transport: the upstream Pyodide worker (solver/gto/static/worker.js, copied unchanged into
+// In-browser transport: the upstream Pyodide worker (solver/gto/static/worker.js, copied with its declared edits into
 // public/solver/ by scripts/build-solver-assets.mjs). One request runs at a time (the worker is single-threaded);
 // SolverClient queues the rest.
 //

@@ -298,7 +298,7 @@ expected failures), node 411 OK" (06 §1.1). This audit did not re-run either su
 | The solver (`solver/`) | All of it | **None declared** | No LICENSE, COPYING or NOTICE file anywhere [V]. The notices draft says "All rights reserved". Without a license a public repo is visible but not reusable. The owner must decide. |
 | treys 0.1.8 | Bundled into `solver.zip` | MIT | `scripts/build_bundle.py:33-37` ships its LICENSE [V] |
 | numpy | Runtime | BSD-3-Clause | Native 2.0.2; Pyodide's 1.26.4 [V] |
-| Pyodide 0.26.4 | Loaded unmodified from jsDelivr | MPL-2.0 (CPython: PSF) | Notice plus source link; the same applies if self-hosted unmodified [V/I] |
+| Pyodide 0.26.4 | Loaded unmodified from jsDelivr by the classic site; Lizard serves the same files itself, hash-pinned (2026-11-05), with the notice on the Engine page | MPL-2.0 (CPython: PSF) | Notice plus source link; the same applies if self-hosted unmodified [V/I] |
 | b-inary `postflop-solver` | **Not vendored** | AGPL-3.0 | `scripts/pfbench/` is excluded. `scripts/bench_postflop_solver.py:48` calls the binary and exits if it is missing. Never ship or vendor it. [V] |
 | Third-party preflop data | Hand-tuned ranges matched to published aggregates | n/a | Keep the citations, do not reproduce third-party chart grids, and keep competitor names out of the UI [I, not legal advice] |
 

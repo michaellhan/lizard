@@ -93,12 +93,14 @@ export async function deleteImport(importId: string): Promise<number> {
   return ids.length;
 }
 
-export async function putDecisions(ds: readonly DecisionRecord[]): Promise<void> {
+/** Whether they were stored. */
+export async function putDecisions(ds: readonly DecisionRecord[]): Promise<boolean> {
   const d = await db();
-  if (!d) return;
+  if (!d) return false;
   const tx = d.transaction("decisions", "readwrite");
   for (const x of ds) await tx.store.put(x);
   await tx.done;
+  return true;
 }
 
 export async function decisionsOf(handId: string): Promise<DecisionRecord[]> {

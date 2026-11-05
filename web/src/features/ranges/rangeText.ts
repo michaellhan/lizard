@@ -71,7 +71,8 @@ export function parseRange(text: string): { weights: ClassWeights; unknown: stri
   const unknown: string[] = [];
   const combos: string[] = [];
   const byCombo = new Map<string, Map<string, number>>();
-  for (const part of text.replace(/\s*:\s*/g, ":").split(/[,\s]+/)) {
+  // (no spaces around a colon; split there, as a regex over a long run of spaces takes the square of its length)
+  for (const part of text.split(":").map((x) => x.trim()).join(":").split(/[,\s]+/)) {
     if (!part) continue;
     const [tok = "", w, ...more] = part.split(":");
     const weight = w === undefined ? 1 : Number(w);

@@ -67,12 +67,23 @@ describe("leakDrill", () => {
 
   it("grades a pick by EV where the mix has every EV, else by frequency", () => {
     const lib = d({ street: "flop", pot: 5.5, mix: [["check", 0.48, 3.1], ["bet 33%", 0.09, 3.0], ["bet 75%", 0.43, 3.12]] });
-    const g = gradePick(lib, 1);
+    const g = gradePick(lib, 1)!;
     expect([g.byEv, g.verdict, Math.round(g.loss * 100) / 100]).toEqual([true, "Mistake", 0.12]);
     expect(gradePick(lib, 2)).toMatchObject({ byEv: true, verdict: "Best", ok: true });
     const chart = d({ mix: [["fold", 0.2, null], ["raise", 0.8, null], ["call", 0, null]] });
     expect(gradePick(chart, 1)).toMatchObject({ byEv: false, ok: true });
     expect(gradePick(chart, 2)).toMatchObject({ byEv: false, ok: false });
+  });
+
+  it("doesn't grade a pick by EV with no pot to measure it against, and leaves it out of the drill", () => {
+    const mix: DecisionRecord["mix"] = [["check", 0.5, 3.1], ["bet 33%", 0.5, 1]];
+    for (const pot of [undefined, 0]) {
+      const noPot = d({ street: "flop", ...(pot === undefined ? {} : { pot }), mix });
+      expect(gradePick(noPot, 1)).toBeNull();
+      expect(drillItems([{ ...noPot, street: "preflop" }], { kind: "pf", key: "RFI" }, hands)).toEqual([]);
+    }
+    // (by frequency a mix needs no pot)
+    expect(gradePick(d({ mix: [["fold", 0.2, null], ["raise", 0.8, null]] }), 1)).toMatchObject({ byEv: false, ok: true });
   });
 
   it("keeps the progress as an analysis session and reads it back", () => {

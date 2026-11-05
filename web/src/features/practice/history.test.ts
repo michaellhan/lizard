@@ -6,7 +6,7 @@ import { finalSim, importHand } from "@/hh/replay";
 import { resultOf } from "@/hh/results";
 import { simulate, STREETS, type Lines, type Move, type Street, type TableSetup } from "@/poker/table";
 import { dealNext, finish, newHand, phaseOf, runEnd, setupOf, simOf, withVillain, type PracticeHand } from "./practice";
-import { practiceHistory, practiceRecord, PRACTICE_SITE } from "./history";
+import { practiceHistory, practiceRecord, PRACTICE_SITE, revealedMoves } from "./history";
 
 const AT = new Date(2026, 10, 3, 10, 0, 0);
 const SESSION = { id: "s1", startedAt: 1000 };
@@ -258,5 +258,24 @@ describe("Practice hands as hand histories", () => {
     const { text, rec } = roundTrip(h);
     expect(text).toContain("UTG: calls 1\nYou: raises 3 to 4\nUTG2: folds");
     expect(rec).toMatchObject({ hero: "UTG1", players: 9, potType: "SRP", end: "showdown" });
+  });
+});
+
+describe("a decision after Reveal, in a hand kept", () => {
+  // (heads-up: the small blind's raise, the big blind's call, the big blind's check, your bet, its fold)
+  const line = [mv("SB", "raise", 2.5), mv("BB", "call"), mv("BB", "check"), mv("SB", "bet", 2), mv("BB", "fold")];
+  const dec = (street: Street, revealed: boolean) => ({ street, chose: "x", grade: null, provenance: null, mix: [], pot: 1, ...(revealed ? { revealed: true as const } : {}) });
+
+  it("marks that decision by street and move: the second of yours is the fourth on the flop's line", () => {
+    const base = played(newHand(2, 100, 0, 7), ...line);
+    const h = { ...base, hero: "SB", decisions: [dec("preflop", false), dec("flop", true)] } as unknown as PracticeHand;
+    expect(revealedMoves(h)).toEqual(["flop|1"]);
+    expect(practiceRecord(h, SESSION, AT).revealed).toEqual(["flop|1"]);
+  });
+
+  it("says nothing on a hand with none", () => {
+    const h = played(newHand(2, 100, 0, 7), ...line);
+    expect(revealedMoves(h)).toEqual([]);
+    expect(practiceRecord(h, SESSION, AT)).not.toHaveProperty("revealed");
   });
 });

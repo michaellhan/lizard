@@ -1,14 +1,26 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { BASE_URL } from "@/config";
 import { ROUTES } from "./routes";
 import { EngineStatusPill } from "@/components/EngineStatusPill";
 import { BackupNudge } from "./BackupNudge";
 import { DbNotice } from "./DbNotice";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors ${
     isActive ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"
   }`;
+
+/** The page, with what's left of the app round it if it throws: going to another page tries again. (Here, not in Shell,
+ * so a change of the URL's search renders only this.) */
+function Page() {
+  const { pathname, search } = useLocation();
+  return (
+    <ErrorBoundary resetKey={pathname + search}>
+      <Outlet />
+    </ErrorBoundary>
+  );
+}
 
 export function Shell() {
   return (
@@ -43,7 +55,7 @@ export function Shell() {
       <DbNotice />
       <BackupNudge />
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
-        <Outlet />
+        <Page />
       </main>
       <footer className="border-t border-border px-4 py-4 text-center text-xs text-faint">
         Lizard · solver engine from gto-solver · every number is labelled with what produced it

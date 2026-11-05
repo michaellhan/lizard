@@ -1,7 +1,8 @@
 // Lizard's service worker: makes its pages cross-origin isolated, which the solver's threads need
 // (SharedArrayBuffer: the worker's core-mt.wasm and its helpers) and which takes two response headers GitHub Pages
 // can't send. It adds them to this app's own navigations and worker scripts as they come from the network; every
-// other request goes to the network untouched (Pyodide from jsdelivr and the same-origin library are COEP-safe).
+// other request goes to the network untouched (Pyodide under solver/pyodide/ and the library are same-origin, which
+// COEP asks nothing of).
 // Adapted from gto-solver's gto/static/sw.js. Its scope is the folder it is served from (/lizard/).
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));

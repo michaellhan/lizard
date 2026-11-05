@@ -538,6 +538,141 @@ describe("PracticePage", () => {
     expect(screen.queryByRole("tabpanel", { name: "Drills" })).toBeNull();
   });
 
+  const headsUp = async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    return screen.findByRole("group", { name: "Your options" });
+  };
+  const askedSoFar = () => stub.calls.slice(stub.calls.lastIndexOf("advise SB preflop"));
+
+  it("Hint says the spot and the price, from the table, and gives no mix away", async () => {
+    await headsUp();
+    const before = askedSoFar().length;
+    fireEvent.click(screen.getByRole("button", { name: "Hint" }));
+    const said = screen.getByText(/A call is 0\.5bb to win 1\.5bb: pot odds of 25\.0%/);
+    expect(said).toHaveTextContent("Preflop in BTN/SB, no one has come in yet.");
+    expect(said).toHaveTextContent("Worked out from the chips on the table. The answer isn't read for a hint");
+    expect(said.textContent).not.toMatch(/70\.0%|raise 2\.5/);
+    expect(askedSoFar()).toHaveLength(before);
+    // (it doesn't cost the grade)
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    expect(within(await screen.findByRole("region", { name: "Last decision" })).getByText("Best")).toBeInTheDocument();
+  });
+
+  it("Reveal shows the mix for your hand from the answer in hand; the decision after it isn't graded, and the page says so", async () => {
+    await headsUp();
+    const before = askedSoFar().length;
+    expect(within(screen.getByRole("button", { name: "Reveal" }).parentElement!).getByText(/Reveal shows the answer for your hand, and what you do after it isn.t graded\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+    const shown = screen.getByRole("group", { name: "Revealed answer" });
+    expect(within(shown).getByRole("row", { name: /raise 2\.5 70\.0%/ })).toBeInTheDocument();
+    // the charts by name, never a solve
+    expect(within(shown).getByText(/^The chart.s mix for your hand$/)).toBeInTheDocument();
+    expect(within(shown).getByText("This answer has no EVs for your hand.")).toBeInTheDocument();
+    expect(within(shown).getByRole("status")).toHaveTextContent(/this decision isn.t graded\. It doesn.t count toward your score, your streak, History or Review\. The hand still counts in Hands and Net\./);
+    expect(askedSoFar()).toHaveLength(before);
+
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    const last = await screen.findByRole("region", { name: "Last decision" });
+    expect(within(last).getByText("Not graded: you revealed the answer first")).toBeInTheDocument();
+    expect(within(last).queryByRole("button", { name: "Copy for AI" })).toBeNull();
+    const score = within(screen.getByRole("region", { name: "Score" }));
+    expect(score.getByText("1 decision made after Reveal, not in these numbers. The hand still counts in Hands and Net.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Recent decisions" })).toBeNull();
+    // the flop's decision is yours to grade again
+    const flop = await screen.findByRole("group", { name: "Your options" });
+    expect(screen.queryByRole("group", { name: "Revealed answer" })).toBeNull();
+    expect(within(flop).getByRole("button", { name: "check" })).toBeInTheDocument();
+    fireEvent.click(within(flop).getByRole("button", { name: "check" }));
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Last decision" })).queryByText(/^Not graded/)).toBeNull());
+  });
+
+  it("steps back through this session's decisions, and a retry is graded and shown with the score as it was", async () => {
+    await headsUp();
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "fold" }));
+    await screen.findByRole("region", { name: "Last decision" });
+    const score = () => screen.getByRole("region", { name: "Score" }).textContent;
+    await waitFor(() => expect(screen.getByRole("button", { name: "Previous" })).toBeInTheDocument());
+    const was = score();
+    const calls = stub.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+    expect(screen.getByText(/Decision 1 of the 1 kept\./)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Later" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry this decision" }));
+    const retry = await screen.findByRole("region", { name: "Retry this decision" });
+    expect(within(retry).getByText(/A retry is graded and shown here\. It doesn.t change your score/)).toBeInTheDocument();
+    const options = await within(retry).findByRole("group", { name: "Retry options" });
+    // held by the Room, so asked of nobody
+    expect(stub.calls).toHaveLength(calls);
+    // a number key doesn't reach the table under it
+    fireEvent.keyDown(window, { key: "3" });
+    fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
+    expect(within(retry).getByText(/^This retry$/)).toBeInTheDocument();
+    expect(within(retry).getByText(/This time:/)).toHaveTextContent("Same kind of answer both times.");
+    expect(score()).toBe(was);
+
+    fireEvent.click(within(retry).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "Retry this decision" })).toBeNull();
+  });
+
+  it("keeps the table's keys off while a retry is open, as they'd play a real move under it", async () => {
+    await headsUp();
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    const flop = await screen.findByRole("group", { name: "Your options" });
+    await waitFor(() => expect(within(flop).getByRole("button", { name: "check" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry this decision" }));
+    await screen.findByRole("group", { name: "Retry options" });
+    fireEvent.keyDown(window, { key: "1" });
+    expect(screen.getByRole("group", { name: "Your options" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Last decision" })).getByText("raise 2.5", { selector: "span.font-mono" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Retry this decision" })).toBeNull());
+    fireEvent.keyDown(window, { key: "1" });
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Last decision" })).getByText("check", { selector: "span.font-mono" })).toBeInTheDocument());
+  });
+
+  it("copies a graded decision for AI, and says why where the clipboard fails, with the text to copy by hand", async () => {
+    const writeText = vi.fn(async (_: string) => {});
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    await headsUp();
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    const last = await screen.findByRole("region", { name: "Last decision" });
+    fireEvent.click(within(last).getByRole("button", { name: "Copy for AI" }));
+    expect(await within(last).findByText(/^Copied\. Lizard sent nothing/)).toBeInTheDocument();
+    const text = writeText.mock.calls[0]![0];
+    expect(text).toContain("Seats, first to act preflop first: BTN/SB, BB");
+    expect(text).toContain("The preflop charts are approximate tables. They are not a solved answer");
+    expect(text).toContain("- raise 2.5: 70.0%");
+
+    writeText.mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
+    fireEvent.click(within(last).getByRole("button", { name: "Copy for AI" }));
+    expect(await within(last).findByRole("alert")).toHaveTextContent(/Not copied: the browser refused it/);
+    expect((within(last).getByRole("textbox", { name: "Text for AI" }) as HTMLTextAreaElement).value).toBe(text);
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("says Hint, Reveal and Previous are at one table only, and offers none above it", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "2" }));
+    await screen.findByRole("tablist", { name: "Tables" });
+    expect(screen.queryByRole("button", { name: "Reveal" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hint" })).toBeNull();
+    expect(screen.getByText(/Hint, Reveal, Previous and retrying a decision are at one table only/)).toBeInTheDocument();
+  });
+
   it("labels a size the solver's name doesn't say", () => {
     expect(optionLabel("bet 33%", 1.8)).toBe("bet 33% (1.8bb)");
     expect(optionLabel("raise 2.5", 2.5)).toBe("raise 2.5");

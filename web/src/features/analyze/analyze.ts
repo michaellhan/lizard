@@ -13,13 +13,16 @@ export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
 const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
+/** how much of a history's start is read for its number and date (its first lines are short; any text can reach here) */
+const HEAD_CHARS = 2000;
+
 /** The site's hand number ("PokerStars Hand #2498…", "Poker Hand #HD20…", "HandId: #1887…", "#Game No : 1234",
  * iPoker's gamecode), or "" where the history has none. */
 export function handNumber(text: string): string {
   const x = String(text).match(/gamecode="([^"]+)"/);
   if (x) return x[1]!;
-  const head = String(text).split("\n").slice(0, 3).join(" ");
-  return head.match(/(?:Hand|Game)\s*(?:No|Id)?\s*[:#]*\s*#?\s*([A-Z]*\d[\w-]*)/i)?.[1] ?? "";
+  const head = String(text).slice(0, HEAD_CHARS).split("\n").slice(0, 3).join(" ");
+  return head.match(/(?:Hand|Game)\s{0,8}(?:No|Id)?\s{0,8}[:#]{0,8}\s{0,8}#?\s{0,8}([A-Z]{0,16}\d[\w-]*)/i)?.[1] ?? "";
 }
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -29,7 +32,7 @@ export function playedOf(text: string): { played: string; at: number } | null {
   // (iPoker's own <game> has its time: splitHands keeps the file's <general> before it, with the file's start)
   const game = text.search(/<game\b/i);
   const start = /<startdate>([^<]*)</;
-  const head = game >= 0 ? (text.slice(game).match(start)?.[1] ?? text.match(start)?.[1] ?? "") : String(text).split("\n").slice(0, 4).join(" ");
+  const head = game >= 0 ? (text.slice(game).match(start)?.[1] ?? text.match(start)?.[1] ?? "") : String(text).slice(0, HEAD_CHARS).split("\n").slice(0, 4).join(" ");
   let y: number, mo: number, d: number, h: number, mi: number, s: number;
   let m = head.match(/(\d{4})[/-](\d\d?)[/-](\d\d?)[ T]+(\d\d?):(\d\d)(?::(\d\d))?/);
   if (m) [y, mo, d, h, mi, s] = [+m[1]!, +m[2]!, +m[3]!, +m[4]!, +m[5]!, +(m[6] ?? 0)];

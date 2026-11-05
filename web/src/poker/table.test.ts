@@ -237,3 +237,59 @@ describe("chip conservation", () => {
     expect(deal(9, seeded(3))).toEqual(a);
   });
 });
+
+describe("a big blind all-in for under half a big blind", () => {
+  const t = table(2, { SB: 100, BB: 0.3 });
+
+  it("leaves the small blind nothing to call: the bet it covered closes, and the excess goes back", () => {
+    const s = simulate(t, noLines(), 0);
+    expect(s.toAct).toBeNull();
+    expect(legal(t, s)).toBeNull();
+    expect(s.streets.preflop).toMatchObject({ closed: true, returned: { SB: expect.closeTo(0.2) } });
+    expect(s.invested).toEqual({ SB: 0.3, BB: 0.3 });
+    expect(s.pot).toBeCloseTo(0.6);
+    expect(s.runout).toBe(true);
+    expect(s.waiting).toBe("flop");
+  });
+
+  it("gives the hand to the board, with no chips lost to a fold", () => {
+    const s = simulate(t, noLines(), 5);
+    expect(s.handOver).toBe(true);
+    const hole: Record<string, string[]> = { SB: ["Ah", "Ad"], BB: ["Kh", "Kd"] };
+    const r = settle(t, s.invested, [...s.active], s.allin, ["2c", "3d", "4h", "5s", "9c"], (p) => hole[p]!);
+    expect(r.pays).toEqual({ SB: 0.6 });
+  });
+
+  it("holds behind a seat that folds to it, and with the small blind's own chips short", () => {
+    const three = table(3, { BTN: 100, SB: 100, BB: 0.25 });
+    expect(simulate(three, noLines(), 0).toAct).toBe("BTN"); // (anyone else still calls the full blind)
+    const s = simulate(three, lines({ preflop: "BTN f" }), 0);
+    expect(s.toAct).toBeNull();
+    expect(s.invested.SB).toBeCloseTo(0.25);
+    const short = table(2, { SB: 0.4, BB: 0.3 });
+    expect(simulate(short, noLines(), 5).invested).toEqual({ SB: 0.3, BB: 0.3 });
+  });
+
+  it("counts the chips left after an ante", () => {
+    const a = { ...table(2, { SB: 100, BB: 0.8 }), ante: 0.5 };
+    expect(simulate(a, noLines(), 0).toAct).toBeNull();
+  });
+
+  it("still replays a fold or a call a stored hand has there", () => {
+    const fold = simulate(t, lines({ preflop: "SB f" }), 0);
+    expect([fold.handOver, [...fold.active]]).toEqual([true, ["BB"]]);
+    expect(fold.invested.SB).toBeCloseTo(0.3);
+    const call = simulate(t, lines({ preflop: "SB c" }), 0);
+    expect(call.invested).toEqual({ SB: 0.3, BB: 0.3 });
+  });
+
+  it("leaves every stack from half a big blind up as it was: the small blind is asked", () => {
+    for (const BB of [0.5, 0.75, 1]) {
+      const s = simulate(table(2, { SB: 100, BB }), noLines(), 0);
+      expect(s.toAct).toBe("SB");
+      expect(legal(table(2, { SB: 100, BB }), s)?.toCall).toBeCloseTo(0.5);
+    }
+    // (a raise is a bet to face, however short the blind)
+    expect(simulate(table(3, { BTN: 100, SB: 100, BB: 0.3 }), lines({ preflop: "BTN r2.5" }), 0).toAct).toBe("SB");
+  });
+});

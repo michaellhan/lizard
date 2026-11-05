@@ -79,7 +79,8 @@ const isMix = (x: unknown) => isObj(x) && isStr(x.action) && isNum(x.freq) && (x
 /** Your own sizes, a list of % of the pot for each street that has them. */
 const isSizes = (x: unknown) => isObj(x) && Object.entries(x).every(([k, v]) => SIZE_STREETS.includes(k as SizeStreet) && isList(v, isNum));
 
-/** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. */
+/** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. One made
+ * after Reveal has no grade, and keeps the answer that was seen with that answer's source. */
 const isDecision = (x: unknown): x is Decision =>
   isObj(x) &&
   STREETS.includes(x.street as Street) &&
@@ -88,7 +89,8 @@ const isDecision = (x: unknown): x is Decision =>
   isList(x.mix, isMix) &&
   isNum(x.pot) &&
   isStr(x.study) &&
-  (x.grade === null ? x.provenance === null : isGrade(x.grade) && isProvenance(x.provenance));
+  opt(x.revealed, (r) => r === true) &&
+  (x.grade === null ? x.provenance === null || (x.revealed === true && isProvenance(x.provenance)) : x.revealed === undefined && isGrade(x.grade) && isProvenance(x.provenance));
 
 const isHand = (x: unknown): x is PracticeHand =>
   isObj(x) &&
@@ -109,7 +111,8 @@ const isHand = (x: unknown): x is PracticeHand =>
   opt(x.rebuys, (r) => isList(r, isStr)) &&
   opt(x.sizes, isSizes) &&
   opt(x.rake, (r) => isObj(r) && isNum(r.pct) && opt(r.cap, isNum)) &&
-  opt(x.run, (r) => r === "played" || r === "shown");
+  opt(x.run, (r) => r === "played" || r === "shown") &&
+  opt(x.revealed, (r) => r === true);
 
 /** You at the table, every seat with two cards and five on the board, all from one deck. */
 function cardsFit(h: PracticeHand): boolean {
@@ -167,7 +170,7 @@ const isOpts = (x: unknown) =>
   opt(x.board, (b) => b === null || isTextureFilter(b));
 /** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
-  isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null;
+  isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null && opt(x.state, isObj);
 
 const isCell = (x: unknown) => isObj(x) && isStr(x.street) && isStr(x.source) && isBool(x.byEv) && [x.n, x.ok].every(isCount) && [x.loss, x.lossPct].every(isNum) && opt(x.versions, (v) => isObj(v) && Object.values(v).every(isCount));
 const isCells = (x: unknown) => isObj(x) && Object.values(x).every(isCell);
@@ -188,7 +191,8 @@ const isSession = (x: unknown): x is PracticeSession =>
   Object.values(x.byPot).every(isTally) &&
   isSources(x.sources) &&
   opt(x.cells, isCells) &&
-  isList(x.review, isReviewed);
+  isList(x.review, isReviewed) &&
+  opt(x.revealed, isCount);
 
 /** A place in the doc: a hand of another game is as lost as one that won't replay, since the table deals on from it. */
 function keptTable(x: unknown, s: PracticeSession): KeptTable | null {

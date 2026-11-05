@@ -92,6 +92,17 @@ function blindsShort(t: TableSetup, POS: readonly string[]): number {
  * call. `pot`: every chip in, as counted for the limit. To the cent, down (chips are whole cents, see `settle`). */
 const potLimitTo = (pot: number, curBet: number, bet: number) => Math.floor((curBet + pot + (curBet - bet)) * 100 + 1e-6) / 100;
 
+/** Before any raise, the one seat with chips left has in at least all that anyone still in has, and they all have under
+ * half a big blind in: a big blind all-in for less than the small blind's post. It has nothing left to call whatever the
+ * bet stands at (the excess goes back as a bet nobody matched), so it isn't asked: folding would give away chips already
+ * covered. Held under half a big blind: every other short stack plays as it did. */
+function blindCovered(actors: readonly string[], active: ReadonlySet<string>, bets: Readonly<Record<string, number>>): boolean {
+  const alone = actors.length === 1 ? actors[0]! : null;
+  if (alone === null) return false;
+  const top = Math.max(0, ...[...active].filter((p) => p !== alone).map((p) => bets[p]!));
+  return top < 0.5 - EPS && bets[alone]! >= top - EPS;
+}
+
 /** The hand's state after the actions recorded, with `boardCount` cards out. */
 export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
   const POS = seatsOf(t.players);
@@ -176,7 +187,8 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
     const closed =
       active.size <= 1 ||
       actors.every((p) => acted.has(p)) ||
-      (actors.length <= 1 && actors.every((p) => bets[p]! >= curBet - EPS));
+      (actors.length <= 1 && actors.every((p) => bets[p]! >= curBet - EPS)) ||
+      (pre && nRaises === 0 && blindCovered(actors, active, bets));
     if (closed) {
       // the bet nobody matched goes back (also when everyone else folded: it isn't part of the pot won)
       const top = POS.reduce((m, p) => (bets[p]! > bets[m]! ? p : m), POS[0]!);

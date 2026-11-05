@@ -54,6 +54,8 @@ import { betMenuOf, CompareLinks } from "./CompareLinks";
 import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
 import { ComboPanel } from "./ComboPanel";
+import { studyText } from "@/features/practice/copyForAi";
+import { CopyForAi } from "@/features/practice/HintReveal";
 import { offersReport } from "./runouts";
 import { RunoutPanel } from "./RunoutPanel";
 import { SaveSpot } from "./SaveSpot";
@@ -401,7 +403,7 @@ export function StudyPage() {
       {res && (res.study === "pf_unsolved" || res.study === "pf_none") ? (
         <PfPanel res={res} running={pfRunning} onSolve={startPf} onCharts={() => setHand(withPf(hand, "charts"))} />
       ) : (
-        res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} />
+        res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={selected} />
       )}
       {res?.study === "node" && res.street === "preflop" && <PfNote res={res} running={pfRunning} onContinue={startPf} />}
       {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
@@ -575,6 +577,8 @@ function NodeView({
   setHand,
   evUnit,
   building = false,
+  whole,
+  cls = null,
 }: {
   hand: StudyHand;
   res: AdvisorResponse;
@@ -583,6 +587,10 @@ function NodeView({
   evUnit: EvUnit;
   /** the range builder is open: the actions without their frequencies and EVs (they'd give the answer away) */
   building?: boolean;
+  /** the complete answer, unfiltered, for Copy for AI: none while it's still coming in */
+  whole?: AdvisorResponse;
+  /** the hand class picked in the grid */
+  cls?: string | null;
 }) {
   const [typed, setTyped] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -692,6 +700,8 @@ function NodeView({
           </button>
         ))}
       </div>
+      {/* (under the actions, so the first button here is an action; not in a tournament, whose EVs aren't in bb) */}
+      {whole && !building && !whole.tournament && !!whole.actions?.length && <CopyForAi key={`${shown.provenance.source}|${cls}`} text={() => studyText(hand, whole, shown.provenance, cls)} />}
       {res.tournament && typeof res.tournament === "object" ? (
         <TournamentPanel
           t={res.tournament as TournamentInfo}

@@ -8,6 +8,7 @@
 import { db, kvGet, kvSet, type DecisionRecord, type HandRecord, type MistakeRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
 import { readMistake } from "./mistakes";
 import { isDrillLink, newId } from "./saved";
+import { isTime, isWellFormed, validDecision, validHand, validRange, validSession, validSpot } from "./shapes";
 
 export const BACKUP_FORMAT = "lizard-backup";
 /** the record shape's version (`v`); a backup of a later schema is refused rather than half read */
@@ -55,38 +56,34 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; upda
   savedSpots: {
     created: (d) => d.createdAt,
     updated: (d) => d.updatedAt,
-    valid: (d) => isStr(d.title) && isStr(d.line) && obj(d.state) && Array.isArray(d.tags) && isStr(d.note) && isNum(d.createdAt) && isNum(d.updatedAt),
+    valid: validSpot,
   },
   savedRanges: {
     created: (d) => d.createdAt,
     updated: (d) => d.updatedAt,
-    valid: (d) => isStr(d.name) && isStr(d.text) && isNum(d.combos) && isStr(d.note) && isNum(d.createdAt) && isNum(d.updatedAt),
+    valid: validRange,
   },
   savedDrills: {
     created: (d) => d.createdAt,
     updated: (d) => d.updatedAt,
     valid: (d) =>
       isStr(d.name) && (d.kind === "library" || d.kind === "leak") && isStr(d.to) && isDrillLink(d.kind, d.to) && isStr(d.about) && isStr(d.note) &&
-      isNum(d.createdAt) && isNum(d.updatedAt),
+      isTime(d.createdAt) && isTime(d.updatedAt),
   },
   sessions: {
     created: (d) => d.startedAt,
     updated: (d) => d.endedAt ?? d.startedAt,
-    valid: (d) =>
-      ["practice", "drill", "analysis", "build"].includes(d.kind as string) && isNum(d.startedAt) && isNum(d.decisions) && isNum(d.evLossBb) && obj(d.meta),
+    valid: validSession,
   },
   hands: {
     created: (d) => d.importedAt,
     updated: (d) => d.updatedAt ?? d.importedAt,
-    valid: (d) =>
-      isStr(d.site) && isStr(d.hero) && isStr(d.hole) && isStr(d.board) && isStr(d.text) && isStr(d.importId) && isNum(d.importedAt) && isNum(d.playedAt) && isStr(d.played) &&
-      (d.tags === undefined || (Array.isArray(d.tags) && d.tags.every(isStr))) && (d.note === undefined || isStr(d.note)),
+    valid: validHand,
   },
   decisions: {
     created: (d) => d.gradedAt,
     updated: (d) => d.gradedAt,
-    // (a grade from before versions were kept has none)
-    valid: (d) => isStr(d.handId) && isStr(d.street) && isStr(d.verdict) && isStr(d.source) && isStr(d.label) && isNum(d.gradedAt) && (d.version === undefined || isStr(d.version)),
+    valid: validDecision,
   },
   mistakes: {
     created: (d) => d.at,
@@ -107,11 +104,13 @@ export async function deviceId(): Promise<string> {
 /** Everything kept here, as a backup. */
 export async function makeBackup(now: () => number = Date.now): Promise<Backup> {
   const d = await db();
+  // (with no database a backup would be an empty file that reads as a good one)
+  if (!d) throw new Error("This browser's saved data can't be read here.");
   const dev = await deviceId();
   const stores = {} as Backup["stores"];
   const counts = {} as Backup["counts"];
   for (const s of BACKUP_STORES) {
-    const all = (d ? await d.getAll(s) : []) as StoreData[typeof s][];
+    const all = (await d.getAll(s)) as StoreData[typeof s][];
     const shape = SHAPES[s] as (typeof SHAPES)[BackupStore];
     (stores as Record<string, BackupRecord<unknown>[]>)[s] = all.map((x) => ({
       id: x.id,
@@ -155,7 +154,7 @@ export async function restoreBackup(file: unknown): Promise<Record<BackupStore, 
       put: (v: unknown) => Promise<unknown>;
     };
     for (const r of recs) {
-      if (!obj(r) || !isStr(r.id) || !r.id || r.deleted || !obj(r.data) || r.data.id !== r.id || !shape.valid(r.data)) {
+      if (!obj(r) || !isWellFormed(r.id) || !r.id || r.deleted || !obj(r.data) || r.data.id !== r.id || !shape.valid(r.data)) {
         c.skipped++;
         continue;
       }

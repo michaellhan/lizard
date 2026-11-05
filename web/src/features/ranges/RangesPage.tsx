@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { RangeMatrix } from "@/components/RangeMatrix";
 import type { SavedRange } from "@/data/db";
-import { getRange, listRanges, newId, putRange } from "@/data/saved";
+import { NOT_SAVED, getRange, listRanges, newId, putRange, stored } from "@/data/saved";
 import { formatRange, parseRange, rangeCombos, type ClassWeights } from "./rangeText";
 
 export function RangesPage() {
@@ -54,7 +54,10 @@ export function RangesPage() {
     // (looked up in the store, not the list shown: that may not have caught up with a save just made)
     const same = (await listRanges()).find((r) => r.name === nm);
     const r: SavedRange = { id: same?.id ?? newId(), name: nm, text: formatRange(weights), combos: rangeCombos(weights), note: same?.note ?? "", createdAt: same?.createdAt ?? t, updatedAt: t };
-    await putRange(r);
+    if (!(await stored(() => putRange(r)))) {
+      setMsg(NOT_SAVED);
+      return;
+    }
     setMsg(same ? `Updated “${nm}”.` : `Saved “${nm}” in this browser.`);
     setN((x) => x + 1);
   };

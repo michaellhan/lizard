@@ -12,6 +12,7 @@
     "scripts/deploy.sh, scripts/deploy_library.sh: a guard that refuses to publish the legacy site from this snapshot unless BUILD_ONLY (deploy.sh: or DRY_RUN=1, which publishes nothing) or LIZARD_ALLOW_UPSTREAM_DEPLOY=1"
   ],
   "build_time_edits": [
-    "gto/static/worker.js as served by Lizard (scripts/build-solver-assets.mjs): Cache API name 'gto-solver' -> 'lizard:solver', so Lizard and the classic app on the same origin do not evict each other's cached bundle. The file in solver/ is unchanged."
+    "gto/static/worker.js as served by Lizard (scripts/build-solver-assets.mjs): Cache API name 'gto-solver' -> 'lizard:solver', so Lizard and the classic app on the same origin do not evict each other's cached bundle. The file in solver/ is unchanged.",
+    "gto/static/worker.js as served by Lizard (scripts/pyodide/worker-edits.mjs): PYODIDE 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/' -> 'pyodide/', and a comment on the numpy prefetch that named jsDelivr, so the runtime comes from Lizard's own origin from files pinned by SHA-256 (scripts/pyodide/files.json). The file in solver/ is unchanged."
   ]
 }

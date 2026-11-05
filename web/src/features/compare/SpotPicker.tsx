@@ -19,7 +19,7 @@ export const spotTitle = (search: string): string => {
 
 /** A saved spot: its title, and the table (with the line where the title isn't already the line). */
 const savedTitle = (s: SavedSpot, h: StudyHand) =>
-  `${s.title} (${s.title.replace(/\s*·\s*/g, " ").trim() === lineOf(h) ? tableOf(h) : spotTitle(s.line)})`;
+  `${s.title} (${s.title.split("·").map((x) => x.trim()).join(" ").trim() === lineOf(h) ? tableOf(h) : spotTitle(s.line)})`;
 
 export function SpotPicker({ a, b, onPick }: { a: string | null; b: string | null; onPick: (a: string, b: string) => void }) {
   const [draft, setDraft] = useState<Record<Side, string>>({ a: a ?? "", b: b ?? "" });

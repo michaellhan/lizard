@@ -457,6 +457,25 @@ describe("the hand's flow", () => {
     expect(next.decisions[0]).toMatchObject({ grade: null, chose: "call" });
   });
 
+  it("a decision after Reveal has no grade and says why: its mix and provenance kept, and the flag gone as you move", () => {
+    const h = play(fixed(6, "BTN", { BTN: "AhKd" }, "Ks7d2c9h3s"), ...["UTG", "HJ", "CO"].map((pos) => ({ pos, action: "fold" }) as Move));
+    const r = decide({ ...h, revealed: true }, CHART, 2, null);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.decision).toMatchObject({ grade: null, revealed: true, chose: "raise 2.5" });
+    expect(r.decision.mix.map((a) => a.action)).toEqual(["fold", "call", "raise 2.5"]);
+    expect(r.hand.decisions[0]).toMatchObject({ grade: null, revealed: true });
+    expect(r.hand).not.toHaveProperty("revealed");
+    // (a plain decision doesn't say it at all)
+    const plain = decide(h, CHART, 2, null);
+    if ("error" in plain) throw new Error(plain.error);
+    expect(plain.decision).not.toHaveProperty("revealed");
+    // an ungraded move carries it too: a failed answer after Reveal stays what it was
+    const moved = decideUngraded({ ...h, revealed: true }, { action: "call" });
+    if (typeof moved === "string") throw new Error(moved);
+    expect(moved.decisions[0]).toMatchObject({ grade: null, revealed: true });
+    expect(moved).not.toHaveProperty("revealed");
+  });
+
   it("takes an opponent's move as the table allows it", () => {
     const h = fixed(2, "BB", { SB: "QcQd" }, "Ks7d2c9h3s");
     expect(villainMove(h, { action: "raise", to: 1.6 })).toEqual({ pos: "SB", action: "raise", to: 2 }); // lifted to the minimum

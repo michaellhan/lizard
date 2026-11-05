@@ -4,7 +4,9 @@
 // stores, the first two), a texture and a kind of hand. A flop pick is graded against the stored mix and EVs for your
 // hand with the stored solve's provenance; a turn pick against the stored mix alone, as no file holds a hand's EV there,
 // with the stored turn's (src/grading/grade.ts, drills.ts). The drill's settings are in the URL, only the ones set; its
-// score is kept in IndexedDB (sessions). Nothing is solved: a river isn't stored, so none is dealt.
+// score is kept in IndexedDB (sessions). Nothing is solved: a river isn't stored, so none is dealt. Reveal shows the same
+// stored mix before you pick, and a pick after it has no grade: it adds nothing to the score and keeps no mistake, and
+// the session only counts how many there were.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -15,7 +17,7 @@ import { LIBRARY_SOURCES } from "@/config";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { addVersion } from "@/features/history/history";
-import { drillMistake, missedAgain } from "@/features/review/mistakes";
+import { drillMistake, drillMix, missedAgain } from "@/features/review/mistakes";
 import { addScore, emptyScore, GRADE_RULES, summary, whyText, type Grade, type Score } from "@/grading/grade";
 import { gameLabel, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
@@ -51,7 +53,10 @@ import {
   type DrillView,
   type TextureFilter,
 } from "./drills";
+import { drillText } from "./copyForAi";
 import { HAND_GROUPS, handLabel, isHandKey } from "./handFilter";
+import { drillHint, DRILL_HINT_SOURCE } from "./hint";
+import { CopyForAi, HintReveal, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const isView = (v: string | null): v is DrillView => DRILL_VIEWS.includes(v as DrillView);
@@ -236,6 +241,8 @@ interface DrillSession {
   score: Score;
   /** how many stand on each version of the spot (a decision's grade has its own) */
   versions: Record<string, number>;
+  /** picks made after Reveal: none of them is in the score */
+  revealed?: number;
 }
 
 const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, view: DrillView): SessionRecord => ({
@@ -245,7 +252,7 @@ const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, 
   endedAt: Date.now(),
   decisions: s.score.n,
   evLossBb: s.score.loss,
-  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions },
+  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions, ...(s.revealed ? { revealed: s.revealed } : {}) },
 });
 
 type SpotData = { st: "loading" } | { st: "ready"; report: LibraryReport; ranges: LibraryRanges } | { st: "error"; message: string };
@@ -288,7 +295,10 @@ function SpotDrill({
   }));
   const [n, setN] = useState(0);
   const [deal, setDeal] = useState<Deal>({ key: "", st: "dealing" });
-  const [answer, setAnswer] = useState<{ key: string; a: number; g: Grade } | null>(null);
+  /** your pick: `g`, null where you'd seen the answer first */
+  const [answer, setAnswer] = useState<{ key: string; a: number; g: Grade | null } | null>(null);
+  /** the deal whose answer you've seen */
+  const [peeked, setPeeked] = useState<string | null>(null);
   const [counted, setCounted] = useState<Counted | null>(null);
   const [screened, setScreened] = useState<Screened | null>(null);
   const [past, setPast] = useState<SessionRecord[]>([]);
@@ -403,6 +413,11 @@ function SpotDrill({
   const choose = useCallback(
     (a: number) => {
       if (!pr || graded) return;
+      if (peeked === dealKey) {
+        setAnswer({ key: dealKey, a, g: null });
+        setSession((s) => ({ ...s, revealed: (s.revealed ?? 0) + 1 }));
+        return;
+      }
       const g = gradeDrill(pr, a);
       setAnswer({ key: dealKey, a, g });
       const version = spotStamp(spot, tree, pr.flop);
@@ -412,7 +427,7 @@ function SpotDrill({
         if (m) void keepMistake(m, missedAgain).catch(() => {});
       }
     },
-    [pr, graded, dealKey, deal, data, mode, session.id, spot, tree],
+    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree],
   );
   const next = useCallback(() => setN((x) => x + 1), []);
 
@@ -481,6 +496,11 @@ function SpotDrill({
         {item("Best or correct", s.n ? pct(sum.acc, 0) : "–")}
         {item("EV lost a decision", sum.loss == null || !s.n ? "–" : `${bb(sum.loss)}bb · ${sum.lossPct!.toFixed(1)}% pot`)}
         {item("Streak", `${s.streak} (best ${s.best})`)}
+        {!!session.revealed && (
+          <p className="basis-full text-xs text-muted">
+            {session.revealed} pick{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers.
+          </p>
+        )}
       </section>
 
       <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
@@ -536,6 +556,19 @@ function SpotDrill({
                 </button>
               ))}
             </div>
+            {!graded && (
+              <HintReveal
+                key={dealKey}
+                hint={() => drillHint(shown.pr)}
+                source={DRILL_HINT_SOURCE}
+                onReveal={() => setPeeked(dealKey)}
+                revealed={
+                  peeked === dealKey ? (
+                    <RevealedMix mix={drillMix(shown.pr)} provenance={drillProvenance(shown.entry, mode, shown.pr, spotStamp(spot, tree, shown.pr.flop))} labelOf={(a) => drillActionLabel(shown.pr, a.action)} note={REVEAL_NOTE} />
+                  ) : null
+                }
+              />
+            )}
           </>
         )}
       </section>
@@ -543,10 +576,10 @@ function SpotDrill({
       {pr && graded && shown.st === "ready" && (
         <section aria-label="Answer" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <VerdictTag v={graded.g.verdict} />
+            {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: you revealed the answer first</span>}
             <span>
               you took <span className="font-mono">{drillActionLabel(pr, pr.names[graded.a]!)}</span>
-              {graded.g.a !== graded.g.best && (
+              {graded.g && graded.g.a !== graded.g.best && (
                 <>
                   ; the best was <span className="font-mono">{drillActionLabel(pr, pr.names[graded.g.best]!)}</span>
                 </>
@@ -554,21 +587,29 @@ function SpotDrill({
             </span>
             <ProvenanceBadge p={drillProvenance(shown.entry, mode, pr, spotStamp(spot, tree, pr.flop))} />
           </div>
-          <p>
-            {whyText(
-              graded.g,
-              pr.names.map((n) => drillActionLabel(pr, n)),
-              pr.freqs,
-            )}
-          </p>
-          <p className="text-muted">
-            {!graded.g.byEv
-              ? "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost."
-              : graded.g.loss > 0
-                ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.`
-                : "No EV given up."}
-            {graded.g.mixed && " This hand mixes actions here."}
-          </p>
+          {graded.g ? (
+            <>
+              <p>
+                {whyText(
+                  graded.g,
+                  pr.names.map((n) => drillActionLabel(pr, n)),
+                  pr.freqs,
+                )}
+              </p>
+              <p className="text-muted">
+                {!graded.g.byEv
+                  ? "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost."
+                  : graded.g.loss > 0
+                    ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.`
+                    : "No EV given up."}
+                {graded.g.mixed && " This hand mixes actions here."}
+              </p>
+            </>
+          ) : (
+            <p role="status" className="text-muted">
+              {REVEAL_NOTE}
+            </p>
+          )}
           <table className="w-full max-w-md text-left font-mono text-xs">
             <thead className="text-muted">
               <tr>
@@ -595,6 +636,7 @@ function SpotDrill({
               ? `Your hand's frequencies at this node, as stored for the flop ${pr.flop} and the turn ${pr.turn.card} (shown in other suits).${pr.turn.rangeEvs ? " The range's EV is what the hands of your range that take the action make on average, against folding now: not your hand's, and not what's graded." : ""}`
               : `Your hand's frequencies and EVs at this node, as stored for the flop ${pr.flop} (shown in other suits).`}
           </p>
+          {graded.g && <CopyForAi key={dealKey} text={() => drillText(rep, pr, graded.g!, drillProvenance(shown.entry, mode, pr, spotStamp(spot, tree, pr.flop)))} />}
           <div className="flex flex-wrap items-center gap-3">
             <button ref={nextRef} type="button" onClick={next} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand

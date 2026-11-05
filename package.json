@@ -16,8 +16,9 @@
     "test:solver": "cd solver && PYTHONPATH=. ../.venv/bin/python -m unittest",
     "test:solver-js": "cd solver && node --test 'tests/js/*.test.js'",
     "test:engine": ".venv/bin/python -m unittest discover -s scripts/engine",
+    "test:scripts": "node --test 'scripts/pyodide/*.test.mjs'",
     "solver:assets": "node scripts/build-solver-assets.mjs",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run test:scripts && npm run build"
   },
   "engines": {
     "node": ">=20"

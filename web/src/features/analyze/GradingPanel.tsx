@@ -80,6 +80,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
     let graded = 0;
     let unanswered = 0;
     let unchecked = 0;
+    let unkept = 0;
     const timing: Timing = {};
     const togo = left ?? (await toAsk(list, sc, done, { signal: ctl.signal }));
     try {
@@ -108,7 +109,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
             if (!isGraded(d)) unanswered++;
           }
           if (ds.length) {
-            await putDecisions(ds);
+            if (!(await putDecisions(ds))) unkept += ds.length;
             onGraded(ds);
           }
           setProg({ k, n, graded, eta: togo ? secs(togo, sc, timing) : null, checking });
@@ -117,7 +118,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
       const said = deepen
         ? `${(graded - unchecked).toLocaleString()} checked at Fast${unchecked ? `; ${unchecked.toLocaleString()} it couldn't grade, whose reads stand` : ""}`
         : `${nDecisions(graded - unanswered)} graded in this run${unanswered ? `, ${unanswered.toLocaleString()} without a grade` : ""}`;
-      setMsg(`${r.stopped ? "Stopped" : "Done"}: ${said}${r.stopped ? "; the rest are graded when you ask again" : ""}.`);
+      setMsg(`${r.stopped ? "Stopped" : "Done"}: ${said}${r.stopped ? "; the rest are graded when you ask again" : ""}.${unkept ? " These grades aren't saved: this browser isn't keeping Lizard's data right now." : ""}`);
     } catch (e) {
       setError(`Grading stopped: ${e instanceof Error ? e.message : String(e)}. What was graded is kept.`);
     } finally {

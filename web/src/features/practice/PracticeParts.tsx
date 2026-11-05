@@ -1,26 +1,32 @@
 // The parts of Practice's full hands: the score, a seat, chips carried, your moves where a spot has no answer, your
-// last decision and your range at it, the hand's log, keeping a hand, and Review mistakes. Each draws what it's given:
-// the hand and the session stay with the page. And the keys' rules, which each view of the hand keeps.
+// last decision and your range at it, the hand's log, keeping a hand, and Review mistakes with stepping back through
+// your decisions. Each draws what it's given: the hand and the session stay with the page. And the keys' rules, which
+// each view of the hand keeps.
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
-import { actionColors, bb, kindOf, pct } from "@/components/actions";
+import { actionColors, bb, pct } from "@/components/actions";
 import { RangeMatrix } from "@/components/RangeMatrix";
 import { sourcesText } from "@/features/history/history";
 import { whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
+import type { GetClient } from "@/features/review/retry";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import type { StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
-import { chipsAfter, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type PracticeHand, type RangeAt } from "./practice";
+import { reviewedText } from "./copyForAi";
+import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
+import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
 import type { Kept, PracticeSession } from "./session";
+import { retrySpot, SessionRetry } from "./SessionRetry";
 
 export const fmt = (x: number) => String(Math.round(x * 100) / 100);
+export { optionLabel };
 export const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${fmt(Math.abs(x))}`;
 
 /** Keys for a view of the hand while its tab is shown, `tag` being what's focused (the latest handler, read through a ref:
@@ -78,13 +84,6 @@ export function KeepHand({ kept, all, onKeep, onAll }: { kept: Kept | null; all:
   );
 }
 
-/** "bet 33%" (to 1.8bb), "raise 2.5": the solver's name, with the size it plays where the name doesn't say it. */
-export function optionLabel(name: string, amount: number | undefined): string {
-  const k = kindOf(name);
-  if ((k === "bet" || k === "raise") && typeof amount === "number" && !name.includes(fmt(amount))) return `${name} (${fmt(amount)}bb)`;
-  return name;
-}
-
 /** `reserve`: hold the line under it before there's anything to say, as above one table the dock sits below it. */
 export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; reserve?: boolean }) {
   const s = session.score;
@@ -103,6 +102,11 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && item("Net", `${signed(session.net)}bb`)}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
+      {!!session.revealed && (
+        <p className="basis-full text-xs text-muted">
+          {session.revealed} decision{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. {REVEAL_CHIPS}
+        </p>
+      )}
     </section>
   );
 }
@@ -147,13 +151,52 @@ export function AheadLine({ on, meter }: { on: boolean; meter: AheadMeter }) {
 }
 
 /** Your decisions this session (review.ts): the last few, newest first, or your biggest mistakes once asked for,
- * each opening its spot and verdict. */
-export function ReviewMistakes({ review }: { review: Reviewed[] }) {
+ * each opening its spot and verdict. `retry`, at one table: Previous and Later step through all of them, and any can be
+ * retried; `onOpen` says when a retry is open, as the table's keys would play a real move under it. */
+export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: { getClient: GetClient; onOpen: (open: boolean) => void } }) {
   const [open, setOpen] = useState(false);
   // (the one open, by itself: the list moves on past REVIEW_KEEP)
   const [pick, setPick] = useState<Reviewed | null>(null);
+  const [retrying, setRetrying] = useState<Reviewed | null>(null);
+  const onOpen = retry?.onOpen;
+  useEffect(() => {
+    onOpen?.(retrying !== null);
+    return () => onOpen?.(false);
+  }, [retrying, onOpen]);
   const bad = mistakes(review);
   const xs = open ? bad : recent(review);
+  const at = pick ? review.indexOf(pick) : -1;
+  const show = (e: Reviewed | null) => {
+    setPick(e);
+    setRetrying(null);
+  };
+  const detail = (e: Reviewed) => (
+    <div className="space-y-2 pl-2">
+      <p className="flex flex-wrap items-center gap-1 text-muted">
+        {seatLabel(e.seat, e.players)}
+        {e.board.length > 0 && (
+          <>
+            {" · "}
+            {e.board.map((c) => (
+              <PlayingCard key={c} card={c} size="sm" />
+            ))}
+          </>
+        )}
+        {` · ${e.line}`}
+      </p>
+      <DecisionView d={e.d} players={e.players} title={e.table ? `Table ${e.table}, hand ${e.n}, ${e.d.street}` : `Hand ${e.n}, ${e.d.street}`} spot={e} />
+      {retry &&
+        (retrying === e ? (
+          <SessionRetry key={`${e.n}|${e.d.study}`} e={e} getClient={retry.getClient} onClose={() => setRetrying(null)} />
+        ) : retrySpot(e) ? (
+          <button type="button" onClick={() => setRetrying(e)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
+            Retry this decision
+          </button>
+        ) : (
+          <p className="text-xs text-muted">This one can&rsquo;t be retried: its spot wasn&rsquo;t kept.</p>
+        ))}
+    </div>
+  );
   return (
     <section aria-label="Your decisions" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -180,6 +223,18 @@ export function ReviewMistakes({ review }: { review: Reviewed[] }) {
       <Link to="/review" className="text-xs underline">
         Every mistake kept, and what&rsquo;s due for review
       </Link>
+      {retry && (
+        <div role="group" aria-label="Step through your decisions" className="flex flex-wrap items-center gap-2">
+          <button type="button" disabled={at === 0} onClick={() => show(review[at < 0 ? review.length - 1 : at - 1] ?? null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
+            Previous
+          </button>
+          <button type="button" disabled={at < 0 || at === review.length - 1} onClick={() => show(review[at + 1] ?? null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
+            Later
+          </button>
+          <span className="text-xs text-muted">{at >= 0 ? `Decision ${at + 1} of the ${review.length} kept` : `Your last ${review.length} graded decision${review.length === 1 ? "" : "s"}`}. Looking back or retrying changes nothing at the table.</span>
+        </div>
+      )}
+      {pick && !xs.some((x) => x.e === pick) && detail(pick)}
       {xs.length === 0 ? (
         <p className="text-muted">No mistakes in your last {review.length} decisions so far.</p>
       ) : (
@@ -192,7 +247,7 @@ export function ReviewMistakes({ review }: { review: Reviewed[] }) {
                 <button
                   type="button"
                   aria-expanded={pick === e}
-                  onClick={() => setPick(pick === e ? null : e)}
+                  onClick={() => show(pick === e ? null : e)}
                   className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
                 >
                   <span className="font-mono text-xs text-muted">
@@ -213,23 +268,7 @@ export function ReviewMistakes({ review }: { review: Reviewed[] }) {
                     </span>
                   )}
                 </button>
-                {pick === e && (
-                  <div className="space-y-2 pl-2">
-                    <p className="flex flex-wrap items-center gap-1 text-muted">
-                      {seatLabel(e.seat, e.players)}
-                      {e.board.length > 0 && (
-                        <>
-                          {" · "}
-                          {e.board.map((c) => (
-                            <PlayingCard key={c} card={c} size="sm" />
-                          ))}
-                        </>
-                      )}
-                      {` · ${e.line}`}
-                    </p>
-                    <DecisionView d={e.d} players={e.players} title={e.table ? `Table ${e.table}, hand ${e.n}, ${e.d.street}` : `Hand ${e.n}, ${e.d.street}`} />
-                  </div>
-                )}
+                {pick === e && detail(e)}
               </li>
             );
           })}
@@ -340,7 +379,8 @@ export function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a
   );
 }
 
-export function DecisionView({ d, players, title = "Your last decision", children }: { d: Omit<Decision, "move">; players: number; title?: string; children?: ReactNode }) {
+/** `spot`: where it was taken, for Copy for AI, on a graded decision. */
+export function DecisionView({ d, players, title = "Your last decision", spot, children }: { d: Omit<Decision, "move">; players: number; title?: string; spot?: Reviewed; children?: ReactNode }) {
   const g = d.grade;
   // (a stored turn keeps no hand's EV, so there's no column of dashes to read as if one had been left out)
   const hasEv = d.provenance?.source !== "library-turn";
@@ -348,7 +388,7 @@ export function DecisionView({ d, players, title = "Your last decision", childre
     <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-medium">{title}</h2>
-        {g ? <VerdictTag v={g.verdict} /> : <span className="text-xs text-muted">Not graded</span>}
+        {g ? <VerdictTag v={g.verdict} /> : <span className="text-xs text-muted">Not graded{d.revealed ? ": you revealed the answer first" : ""}</span>}
         <span>
           {d.street}: you took <span className="font-mono">{d.chose}</span>
           {g && g.a !== g.best && d.mix[g.best] && (
@@ -359,6 +399,11 @@ export function DecisionView({ d, players, title = "Your last decision", childre
         </span>
         {d.provenance && <ProvenanceBadge p={d.provenance} />}
       </div>
+      {d.revealed && (
+        <p role="status" className="text-muted">
+          {REVEAL_NOTE} {REVEAL_CHIPS}
+        </p>
+      )}
       {g && d.mix.length > 0 && (
         <p>
           {whyText(
@@ -381,31 +426,10 @@ export function DecisionView({ d, players, title = "Your last decision", childre
           {g.mixed && " This hand mixes actions here."}
         </p>
       )}
-      {d.mix.length > 0 && (
-        <table className="w-full max-w-md text-left font-mono text-xs">
-          <thead className="text-muted">
-            <tr>
-              <th className="py-0.5 font-normal">Action</th>
-              <th className="py-0.5 text-right font-normal">Played</th>
-              {hasEv && <th className="py-0.5 text-right font-normal">EV bb</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {d.mix.map((a) => (
-              <tr key={a.action} className={a.action === d.chose ? "text-accent" : ""}>
-                <td className="py-0.5">
-                  {optionLabel(a.action, a.amount)}
-                  {a.action === d.chose && " ← you"}
-                </td>
-                <td className="py-0.5 text-right">{pct(a.freq)}</td>
-                {hasEv && <td className="py-0.5 text-right">{bb(a.ev)}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} />}
       <p className="text-xs text-muted">Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
       {children}
+      {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}
       {d.study && (
         <Link to={`/study?${d.study}`} className="inline-block text-accent hover:underline">
           Open this spot in Study →

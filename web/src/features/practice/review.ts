@@ -2,7 +2,8 @@
 // last REVIEW_KEEP graded decisions, each with its spot (the hand's number, your seat and cards, the board, the
 // street's action before you); of them, the REVIEW_SHOW that gave up the most EV (then the rarest in the answer's mix:
 // the preflop charts have no EVs; then the newest), or the last RECENT, each opening its verdict.
-import { sayMove, type Decision, type PracticeHand } from "./practice";
+import type { AdvisorState } from "@/solver/protocol";
+import { sayMove, stateFor, type Decision, type PracticeHand } from "./practice";
 
 /** how many of your last decisions are kept, and how many of them shown as mistakes (the classic's) */
 export const REVIEW_KEEP = 60;
@@ -20,6 +21,8 @@ export interface Reviewed {
   /** the street's action before you: "UTG raises to 2.5, CO calls"; "folded to you"; "first to act" */
   line: string;
   d: Decision;
+  /** the request your spot was answered by, to ask it again (a doc written before it was kept has none) */
+  state?: AdvisorState;
 }
 
 /** Your decision `d` at the hand `h` (as it stood when you decided), the session's `n`th hand; `table`, above one table. */
@@ -34,6 +37,7 @@ export function reviewed(h: PracticeHand, d: Decision, n: number, table?: number
     board: h.board.slice(0, h.shown),
     line: before.length ? before.map((m) => sayMove(m, h.hero, h.players)).join(", ") : d.street === "preflop" ? "folded to you" : "first to act",
     d,
+    state: stateFor(h),
   };
 }
 

@@ -9,8 +9,9 @@ import tailwindcss from "@tailwindcss/vite";
 const BASE = process.env.LIZARD_BASE ?? "/lizard/";
 
 // Content-Security-Policy for the built pages (not dev: Vite's dev client injects inline scripts). Everything is
-// same-origin except the optional local Python solver; the solver worker loads Pyodide from jsDelivr itself, under
-// its own policy. frame-ancestors can't be set by <meta>; public/sw.js sends it as a header.
+// same-origin except the optional local Python solver, and the solver worker's Pyodide is same-origin too
+// (solver/pyodide/, scripts/pyodide/stage.mjs). This policy doesn't reach that worker, whose script has its own (none):
+// a <meta> tag binds only its page. frame-ancestors can't be set by <meta>; public/sw.js sends it as a header.
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
@@ -41,7 +42,8 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    // (none: a map would publish the app's source, and the repo is private)
+    sourcemap: false,
     target: "es2022",
   },
   server: {

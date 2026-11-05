@@ -237,7 +237,7 @@ CI runs the first two suites, the browser suite, and the solver tests that need 
 
 | Decision | Why |
 |---|---|
-| Reuse the upstream worker unchanged (one build-time cache rename) | It is the tested host of the Advisor. Re-hosting Pyodide would duplicate the protocol and its speed profiles |
+| Reuse the upstream worker with declared build-time edits (`scripts/pyodide/worker-edits.mjs`: the cache name and where Pyodide is read from) | It is the tested host of the Advisor. Pyodide itself is served from `/lizard/solver/pyodide/`, each of its six files checked against a pinned SHA-256 at build (`scripts/pyodide/files.json`), so the browser makes no third-party request in the origin that holds the hands |
 | One merged library repo, not a composite client | The worker takes one base. Merging offline keeps the worker unchanged and lets each publish be validated as a whole |
 | Private `lizard` repo, public Pages site | The solver has no license, and the snapshot includes C sources, calibration scripts and draft legal documents. The owner confirmed it on 2026-11-05. The site itself only exposes what the classic site already does, which includes the engine's readable Python in `solver.zip`, as the in-browser solver needs it; the owner accepted that the same day |
 | Static hosting only | Solving runs on the device. A server would add cost, secrets and accounts without making solves more accurate |

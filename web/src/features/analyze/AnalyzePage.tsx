@@ -662,6 +662,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
             ? " Grades: each move from the flop against what answered it, which its grade names."
             : " Grades: your preflop moves against the preflop charts (by frequency, not a solve); after the flop, each move against what answered it, which its grade names."
           : " None of your decisions here is graded yet."}
+        {hand.revealed?.length ? ` ${hand.revealed.length === 1 ? "One decision here was" : `${hand.revealed.length} decisions here were`} made after Reveal in Practice, so ${hand.revealed.length === 1 ? "it isn't" : "they aren't"} graded.` : ""}
         {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
         {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page, to add the prizes left and any bounties."}
       </p>

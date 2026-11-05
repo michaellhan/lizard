@@ -278,6 +278,21 @@ export function EnginePage() {
       <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 rounded-lg border border-border bg-surface p-4 text-sm">
         <dt className="text-muted">Backend</dt>
         <dd>{status.transport === "worker" ? "In-browser (Python via Pyodide in a Web Worker)" : "Local Python server"}</dd>
+        {status.transport === "worker" && (
+          <>
+            <dt className="text-muted">Runtime</dt>
+            <dd>
+              <a href="https://github.com/pyodide/pyodide" className="underline" target="_blank" rel="noreferrer">
+                Pyodide 0.26.4
+              </a>{" "}
+              (MPL-2.0, CPython under the PSF licence) with{" "}
+              <a href="https://github.com/numpy/numpy" className="underline" target="_blank" rel="noreferrer">
+                NumPy 1.26.4
+              </a>{" "}
+              (BSD), served unchanged from this site, each file checked by hash when the site is built.
+            </dd>
+          </>
+        )}
         <dt className="text-muted">State</dt>
         <dd>
           {status.phase}

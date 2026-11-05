@@ -57,7 +57,7 @@ import { useRuntime } from "@/solver/runtime";
 import { SolverError, type SolveMode, type SolverTransport, type SolveResult, type StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { aheadJobs, ASK_AHEAD, habit, NO_METER, noteBad, onward, readHabits, saveHabits, type AheadMeter, type Habits, type Waiting } from "./ahead";
-import { chartDraw, moveOf, needOf, type Need } from "./flow";
+import { adviceKey, chartDraw, moveOf, needOf, type Need } from "./flow";
 import { practiceRecord } from "./history";
 import { KEPT_KEY, keptTables, MAX_TABLES, sameKept, type KeptTable, type KeptTables, type LastHand } from "./keep";
 import {
@@ -744,6 +744,32 @@ export class Room {
     }
     this.pump();
   }
+
+  /** Reveal, at one table: the answer already in hand is shown to you, so nothing is asked and no job changes. The hand
+   * remembers, so your move at this spot goes ungraded through `decide`, whatever happens to the mode or the view first.
+   * Above one table there's no Reveal: the page has one panel and four spots. */
+  reveal(): void {
+    const t = this.tables[0]!;
+    if (this.many || t.hand.revealed) return;
+    const need = this.needAt(t.hand, this.mode);
+    if (need.kind !== "you" || !this.adv.has(need.key)) return;
+    t.hand = { ...t.hand, revealed: true };
+    this.begun = true;
+    this.emit();
+  }
+
+  /** What a retry of an earlier decision asks (features/review/retry.ts): where the answer it was graded on is still held
+   * that answer, with nothing asked; otherwise the client, whose queue it waits in behind what the table has in flight. */
+  readonly retryClient = async (): Promise<Pick<SolverClient, "solve">> => {
+    if (!this.solver) throw new Error("the solver hasn't started");
+    const client = await this.solver();
+    return {
+      solve: (req) => {
+        const held = req.mode ? this.adv.get(adviceKey(req.mode, req.state)) : undefined;
+        return held ? Promise.resolve(held) : client.solve(req);
+      },
+    };
+  };
 
   /** A graded miss kept for the review queue, across sessions. Nothing's lost at the table if the browser refuses it. */
   private noteMistake(h: PracticeHand, d: Decision): void {

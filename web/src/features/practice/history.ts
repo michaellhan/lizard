@@ -99,10 +99,21 @@ export function handHistory(h: PracticeHand, head: { site: string; number: strin
   return out.join("\n") + "\n";
 }
 
+/** Your decisions made after Reveal, by where Analyze finds them: the street and the move's index on that street's line
+ * (your moves on a street are your decisions there, in order: only a preflop played for you has others, and it has no
+ * decisions). */
+export function revealedMoves(h: Pick<PracticeHand, "hero" | "lines" | "decisions">): string[] {
+  return STREETS.flatMap((s) => {
+    const mine = h.lines[s].flatMap((m, i) => (m.pos === h.hero ? [i] : []));
+    return h.decisions.filter((d) => d.street === s).flatMap((d, k) => (d.revealed && mine[k] !== undefined ? [`${s}|${mine[k]}`] : []));
+  });
+}
+
 /** The finished hand as Analyze keeps it: under Practice's site, kept with the session's other hands. */
 export function practiceRecord(h: PracticeHand, session: { id: string; startedAt: number }, at: Date): HandRecord {
   const text = practiceHistory(h, session.startedAt, at);
   const replayed = importHand(text);
+  const revealed = revealedMoves(h);
   const r = recordOf(text, replayed, {
     id: `practice:${session.id}`,
     name: `Practice, ${new Date(session.startedAt).toLocaleString()}`,
@@ -114,6 +125,7 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
     site: PRACTICE_SITE,
     bb: "1bb",
     ...(h.result?.cut ? { end: "preflop only" } : {}),
+    ...(revealed.length ? { revealed } : {}),
     ...(h.pot ? { playedFor: "preflop" as const, decisions: heroDecisions(replayed).filter((d) => d.street !== "preflop").length } : {}),
   };
 }

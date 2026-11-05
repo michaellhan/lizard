@@ -2,7 +2,7 @@
 // pick graded against the stored answer with its provenance, the keys, the texture filter, the score kept.
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { libFile } from "@/test/library";
 import { recentSessions } from "@/data/db";
 import { deleteDrill, listDrills, putDrill } from "@/data/saved";
@@ -61,6 +61,54 @@ describe("DrillsPanel", () => {
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled());
     fireEvent.keyDown(window, { key: "2" });
     expect(within(await screen.findByRole("region", { name: "Answer" })).getByRole("row", { name: /^bet 33% \(1\.82bb\) ← you/ })).toBeInTheDocument();
+  });
+
+  it("Hint gives the spot, and a pick after Reveal isn't scored, kept or graded, and says so", async () => {
+    open("spot=srp_btn_bb&view=oop");
+    const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
+    fireEvent.click(screen.getByRole("button", { name: "Hint" }));
+    expect(screen.getByText(/^Flop, heads-up, BB out of position\. Nothing to call: the pot is 5\.5bb\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+    const shown = screen.getByRole("group", { name: "Revealed answer" });
+    expect(within(shown).getByRole("row", { name: /^check / })).toBeInTheDocument();
+    expect(within(shown).getByText(/^Precomputed solution · srp_btn_bb/)).toBeInTheDocument();
+    expect(within(shown).getByRole("status")).toHaveTextContent(/isn.t graded/);
+    const sessions = (await recentSessions("drill")).length;
+
+    fireEvent.click(within(options).getByRole("button", { name: "check" }));
+    const answer = screen.getByRole("region", { name: "Answer" });
+    expect(within(answer).getByText("Not graded: you revealed the answer first")).toBeInTheDocument();
+    expect(within(answer).queryByRole("button", { name: "Copy for AI" })).toBeNull();
+    expect(within(answer).queryByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/)).toBeNull();
+    const score = within(screen.getByRole("region", { name: "Score" }));
+    expect(score.getByText("Decisions").nextSibling).toHaveTextContent(/^0$/);
+    expect(score.getByText("1 pick made after Reveal, not in these numbers.")).toBeInTheDocument();
+    // nothing to record yet
+    expect((await recentSessions("drill")).length).toBe(sessions);
+
+    // the next deal is graded again
+    fireEvent.keyDown(window, { key: "Enter" });
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Answer" })).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled());
+    expect(screen.queryByRole("group", { name: "Revealed answer" })).toBeNull();
+    fireEvent.keyDown(window, { key: "1" });
+    expect(within(await screen.findByRole("region", { name: "Answer" })).getByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/)).toBeInTheDocument();
+    expect(score.getByText("Decisions").nextSibling).toHaveTextContent(/^1$/);
+  });
+
+  it("copies a graded drill for AI, the stored answer named", async () => {
+    const writeText = vi.fn(async (_: string) => {});
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    open("spot=srp_btn_bb&view=oop");
+    const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
+    fireEvent.click(within(options).getByRole("button", { name: "check" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Answer" })).getByRole("button", { name: "Copy for AI" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const text = writeText.mock.calls[0]![0];
+    expect(text).toMatch(/^You: BB, holding .. ..$/m);
+    expect(text).toMatch(/^Source of these numbers: Precomputed solution · srp_btn_bb/m);
+    expect(text).toMatch(/^You took: check\. Lizard's grade: /m);
+    Reflect.deleteProperty(navigator, "clipboard");
   });
 
   it("in position facing out of position's first bet (the 3-bet pot's c-bet): the bet said, Study at it", async () => {

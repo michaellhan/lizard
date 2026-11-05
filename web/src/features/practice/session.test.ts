@@ -86,6 +86,17 @@ describe("the session's totals", () => {
     expect(afterDecision(s, newHand(6, 100, 0, 1), dec(null))).toBe(s);
   });
 
+  it("counts a decision after Reveal apart: no score, streak, source, review or lifetime tally, only how many", () => {
+    const s = freshSession(6, 100, OPTS);
+    const after = afterDecision(s, newHand(6, 100, 0, 1), { ...dec(null), revealed: true });
+    expect(after).toEqual({ ...s, revealed: 1 });
+    expect(after.review).toEqual([]);
+    expect(after.score).toBe(s.score);
+    expect(after.sources).toBe(s.sources);
+    expect(toRecord(after, 1).meta).toMatchObject({ revealed: 1 });
+    expect(toRecord(s, 1).meta).not.toHaveProperty("revealed");
+  });
+
   it("numbers a reviewed decision by its own hand, and marks its table only where there are several", () => {
     const h = newHand(6, 100, 6, 1);
     const s = freshSession(6, 100, OPTS);

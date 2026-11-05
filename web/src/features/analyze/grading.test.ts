@@ -59,6 +59,8 @@ describe("the request at each of your decisions", () => {
   it("is the classic page's: your seat and stack, every seat's stack where they differ, the actions before it", () => {
     const r = SRP();
     expect(decisionsIn(r, "preflop")).toEqual([{ street: "preflop", i: 3 }]);
+    // a decision made after Reveal in Practice isn't one to grade: the answer was seen
+    expect(decisionsIn(r, "library", undefined, ["flop|1"])).toEqual([{ street: "preflop", i: 3 }]);
     expect(decisionsIn(r, "library")).toEqual([{ street: "preflop", i: 3 }, { street: "flop", i: 1 }]);
     const pre = adviceStateAt(r, "preflop", 3);
     expect(pre).toEqual({
@@ -209,6 +211,19 @@ describe("gradeDecision", () => {
   it("keeps the pot of a decision it couldn't grade", async () => {
     const d = await gradeDecision({ id: "h" }, SRP(), "flop", 1, asking([{ error: "boom" }]).ask);
     expect([d.verdict, d.pot]).toEqual(["Not graded", 5.5]);
+  });
+
+  it("doesn't grade by EV an answer that gives no pot: every loss would read as an Inaccuracy", async () => {
+    const r = SRP();
+    const answer = (pot: Partial<AdvisorResponse>): AdvisorResponse => ({ street: "flop", solver: { iterations: 300, exploitability_pct: 2 }, ...pot, actions: [{ action: "check", freq: 0.98, ev_bb: 30 }, { action: "bet 33%", freq: 0.02, ev_bb: 2, amount_bb: 1.8 }] });
+    for (const a of [answer({}), answer({ pot_bb: 0 })]) {
+      expect(gradeAgainst(a, { pos: "BTN", action: "bet", to: 1.8 })).toBeNull();
+      const d = await gradeDecision({ id: "h" }, r, "flop", 1, asking([a]).ask, 7, "all");
+      expect([d.verdict, d.evLossBb, d.lossPct, d.why]).toEqual(["Not graded", null, null, "the answer gave no pot to measure the EV lost against"]);
+    }
+    // (by frequency an answer needs no pot; with one it grades by EV as ever)
+    expect(gradeAgainst({ ...answer({}), actions: [{ action: "check", freq: 1 }, { action: "bet 33%", freq: 0, amount_bb: 1.8 }] }, { pos: "BTN", action: "bet", to: 1.8 })?.grade.byEv).toBe(false);
+    expect(gradeAgainst(answer({ pot_bb: 5.5 }), { pos: "BTN", action: "bet", to: 1.8 })?.grade.verdict).toBe("Blunder");
   });
 
   it("says what stands behind the ranges, a rare line solved again from there included", () => {

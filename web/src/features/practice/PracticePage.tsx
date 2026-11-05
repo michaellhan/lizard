@@ -24,8 +24,10 @@ import { describeSetup } from "@/features/solve/setup";
 import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
+import { handHint, HINT_SOURCE } from "./hint";
+import { HintReveal, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
-import { boardShown, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
+import { boardShown, mixOf, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
@@ -154,7 +156,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             <p className="text-sm text-muted">
               Several tables, one score across them all. Opponents play the charts preflop, then the solver, or betting rules on a flop or turn with five or more still in. The table that needs
               you comes to the front and the solver answers one table at a time. Your options are the solver&rsquo;s actions at your spot; the grade and what answered show on the table and beside it once you&rsquo;ve acted. Keys: 1&ndash;9 your options, F, C or X fold, check or
-              call, S the next waiting table, Enter or Space deal finished tables now (each deals by itself otherwise), K keeps the last finished hand in Analyze.
+              call, S the next waiting table, Enter or Space deal finished tables now (each deals by itself otherwise), K keeps the last finished hand in Analyze. Hint, Reveal, Previous and
+              retrying a decision are at one table only, as each belongs to one spot and this page shows several.
             </p>
           ) : (
             <p className="text-sm text-muted">
@@ -165,7 +168,9 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
               it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
               for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
               chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Up to
-              four tables at once: pick how many under Tables. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze.
+              four tables at once: pick how many under Tables. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze. Hint says what the spot is and what a call
+              costs. Reveal shows the answer for your hand, and what you do after it isn&rsquo;t graded. Under Recent decisions, Previous steps back through this session&rsquo;s graded
+              decisions, and a retry is graded and shown but changes nothing.
             </p>
           )}
         </div>
@@ -250,6 +255,8 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
   const { session, tables, kept } = snap;
   const { hand, answer, failed, error, last, lastRange } = tables[0]!;
   const [rangeOpen, setRangeOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const retry = useMemo(() => ({ getClient: room.retryClient, onOpen: setRetrying }), [room]);
   const keepAll = useSettings((s) => s.keepHands);
   const setSettings = useSettings((s) => s.set);
 
@@ -258,9 +265,12 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
   // an opponent's move under way, or your preflop played for you in a drill; what stopped it, said by seat
   const moving = phase.kind === "villain" || phase.kind === "auto" ? phase : null;
   const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
+  // (one spot of one hand: a hint or a Reveal's table goes as the hand moves on)
+  const spotKey = `${hand.seed}|${hand.n}|${hand.shown}|${hand.decisions.length}`;
 
-  // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze
-  useHandKeys(active, (e, tag) => {
+  // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze; none under an open retry,
+  // whose options look the same and whose press must not play a move here
+  useHandKeys(active && !retrying, (e, tag) => {
     if (phase.kind === "hero" && answer && /^[1-9]$/.test(e.key)) {
       const i = Number(e.key) - 1;
       if (i < optionsOf(answer.data).length) room.choose(i);
@@ -369,6 +379,19 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             ))}
           </div>
         )}
+        {phase.kind === "hero" && (
+          <HintReveal
+            key={spotKey}
+            hint={() => handHint(hand, sim)}
+            source={HINT_SOURCE}
+            onReveal={answer ? () => room.reveal() : null}
+            revealed={
+              hand.revealed && answer ? (
+                <RevealedMix mix={mixOf(answer.data)} provenance={answer.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
+              ) : null
+            }
+          />
+        )}
         {phase.kind === "hero" && failed && (
           <div className="space-y-2 text-sm">
             <p role="alert" className="text-danger">
@@ -432,14 +455,14 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
       </section>
 
       {last && (
-        <DecisionView d={last} players={hand.players}>
+        <DecisionView d={last} players={hand.players} spot={session.review.find((e) => e.d === last)}>
           {lastRange && <RangeView key={`${last.study}|${lastRange.cls}`} r={lastRange} open={rangeOpen} onToggle={setRangeOpen} />}
         </DecisionView>
       )}
 
       <HandLog hand={hand} />
 
-      {session.review.length > 0 && <ReviewMistakes review={session.review} />}
+      {session.review.length > 0 && <ReviewMistakes review={session.review} retry={retry} />}
     </>
   );
 }

@@ -58,11 +58,11 @@ export interface DrillItem {
   hand: HandRecord;
 }
 
-/** The leak's decisions to drill: graded ones whose mix is kept, in hands still kept; your misses first (the most
- * EV lost, then the rarest in the answer), then the rest in the order played. */
+/** The leak's decisions to drill: graded ones whose mix is kept and can be graded again, in hands still kept; your misses
+ * first (the most EV lost, then the rarest in the answer), then the rest in the order played. */
 export function drillItems(ds: readonly DecisionRecord[], leak: LeakRef, hands: ReadonlyMap<string, HandRecord>): DrillItem[] {
   const test = leakTest(leak);
-  const out = ds.filter((d) => isGraded(d) && d.mix?.length && hands.has(d.handId) && test(d)).map((d) => ({ d, hand: hands.get(d.handId)! }));
+  const out = ds.filter((d) => isGraded(d) && d.mix?.length && canGradePick(d) && hands.has(d.handId) && test(d)).map((d) => ({ d, hand: hands.get(d.handId)! }));
   const miss = (x: DrillItem) => (isOk(x.d) ? 1 : 0);
   return out.sort(
     (a, b) =>
@@ -101,12 +101,19 @@ export function lineBefore(r: ReplayedHand, street: Street, i: number): { board:
   return { board: h.board.slice(0, NEED[street]), streets };
 }
 
-/** A pick among the kept mix's actions, graded as the decision was: by EV where the mix has EVs for every action,
- * else by frequency (the charts, a read at once). */
-export function gradePick(d: DecisionRecord, a: number): Grade {
+const evsOf = (d: DecisionRecord) => {
   const mix = d.mix ?? [];
-  const evs = mix.every((x) => x[2] !== null) ? mix.map((x) => x[2]!) : null;
-  return grade({ freqs: mix.map((x) => x[1]), evs, pot: d.pot ?? 0 }, a);
+  return mix.every((x) => x[2] !== null) ? mix.map((x) => x[2]!) : null;
+};
+
+/** A mix with EVs needs its pot: EV lost is graded as a share of it (a decision kept with none can't be drilled). */
+const canGradePick = (d: DecisionRecord) => !evsOf(d) || (d.pot ?? 0) > 0;
+
+/** A pick among the kept mix's actions, graded as the decision was: by EV where the mix has EVs for every action, else
+ * by frequency (the charts, a read at once). Null where its EVs have no pot to be measured against. */
+export function gradePick(d: DecisionRecord, a: number): Grade | null {
+  if (!canGradePick(d)) return null;
+  return grade({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0 }, a);
 }
 
 /** The drill's progress, kept as an "analysis" session so it resumes: the decisions answered and the score. */

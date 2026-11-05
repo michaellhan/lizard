@@ -3,6 +3,18 @@
 import { noteSaved } from "./backupNudge";
 import { db, type SavedDrill, type SavedRange, type SavedSpot } from "./db";
 
+export const NOT_SAVED = "Not saved: this browser isn't keeping Lizard's data right now.";
+
+/** A save that can't be believed until it says so: false where it stored nothing or threw (the error is logged). */
+export async function stored(put: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await put();
+  } catch (e) {
+    console.error("A save failed:", e);
+    return false;
+  }
+}
+
 /** A new record id (a random UUID where the browser has one). */
 export function newId(): string {
   try {
@@ -15,11 +27,13 @@ export function newId(): string {
 
 const newestFirst = <T extends { updatedAt: number }>(xs: T[]) => xs.sort((a, b) => b.updatedAt - a.updatedAt);
 
-export async function putSpot(s: SavedSpot): Promise<void> {
+/** Whether it was stored: false where the browser's database can't be used (db.ts), which says why on the page. */
+export async function putSpot(s: SavedSpot): Promise<boolean> {
   const d = await db();
-  if (!d) return;
+  if (!d) return false;
   await d.put("savedSpots", s);
   await noteSaved();
+  return true;
 }
 
 /** Every saved spot, the latest changed first. */
@@ -38,11 +52,13 @@ export async function spotAt(line: string): Promise<SavedSpot | undefined> {
   return (await listSpots()).find((s) => s.line === line);
 }
 
-export async function putRange(r: SavedRange): Promise<void> {
+/** Whether it was stored, as putSpot. */
+export async function putRange(r: SavedRange): Promise<boolean> {
   const d = await db();
-  if (!d) return;
+  if (!d) return false;
   await d.put("savedRanges", r);
   await noteSaved();
+  return true;
 }
 
 export async function listRanges(): Promise<SavedRange[]> {
@@ -60,11 +76,13 @@ export async function deleteRange(id: string): Promise<void> {
   if (d) await d.delete("savedRanges", id);
 }
 
-export async function putDrill(s: SavedDrill): Promise<void> {
+/** Whether it was stored, as putSpot. */
+export async function putDrill(s: SavedDrill): Promise<boolean> {
   const d = await db();
-  if (!d) return;
+  if (!d) return false;
   await d.put("savedDrills", s);
   await noteSaved();
+  return true;
 }
 
 /** Every saved drill, the latest changed first. */

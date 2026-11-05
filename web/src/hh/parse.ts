@@ -65,7 +65,23 @@ export class HandHistoryError extends Error {
   override name = "HandHistoryError";
 }
 
-const AMT = String.raw`[^\d\s]*([\d,]*\.?\d+)`; // "$1,234.50", "€0.5", "1500"
+// Everything here reads text that can be anything: a paste, or a kept hand restored from a backup, read again on the
+// page's main thread whenever Analyze opens. So nothing may take more than time in proportion to the text: lines are
+// cut to MAX_LINE and the part before the seats to MAX_HEADER, every repeat a regex could backtrack over is bounded,
+// and the XML is walked with indexOf. Real histories sit far inside all of these (hh/parse.test.ts).
+/** the longest line read: the rest of a longer one is left out */
+export const MAX_LINE = 512;
+/** how much of the lines before the seats is read for the stakes and the tournament */
+const MAX_HEADER = 4096;
+/** the longest <general> repeated before each of a file's iPoker hands (a real one is a few lines) */
+const MAX_GENERAL = 16384;
+/** seats listed before the history is refused (a table has ten at most) */
+const MAX_SEATS = 32;
+/** actions in one hand before it's refused: a replay asks the table once for each, over all the actions before it */
+const MAX_ACTIONS = 500;
+
+const AMT = String.raw`[^\d\s]{0,16}([\d,]{0,24}\.?\d{1,20})`; // "$1,234.50", "€0.5", "1500"
+const cut = (l: string) => l.slice(0, MAX_LINE);
 const num = (s: string | number) => parseFloat(String(s).replace(/,/g, ""));
 const r2 = (x: number) => Math.round(x * 100) / 100;
 /** every amount in "raises [$1.50 USD] to $2" */
@@ -76,7 +92,7 @@ const card = (c: string): string | null => {
 };
 /** "[Ah Qd]", "[ Ah, Qd ]" */
 const cardsIn = (l: string) =>
-  (l.match(/\[[^\]]*\]/g) ?? []).flatMap((b) => b.slice(1, -1).split(/[\s,]+/).filter(Boolean)).map(card);
+  (l.match(/\[[^\]]{0,64}\]/g) ?? []).flatMap((b) => b.slice(1, -1).split(/[\s,]+/).filter(Boolean)).map(card);
 type HeaderStreet = HhStreet | "skip" | "done";
 const STREET = (t: string): HeaderStreet | null =>
   /HOLE|PRE-?FLOP|DOWN CARDS/.test(t) ? "preflop"
@@ -86,9 +102,12 @@ const STREET = (t: string): HeaderStreet | null =>
   : /RIVER/.test(t) ? "river"
   : /SHOW ?DOWN|SUMMARY|RUN IT/.test(t) ? "done"
   : null;
+/** A street's header line: what stands between its opening stars and the next two. */
 const header = (l: string) => {
-  const m = l.match(/^\*{2,}\s*(.*?)\s*\*{2,}/);
-  return m && STREET(m[1]!.toUpperCase());
+  const open = l.search(/[^*]/);
+  if (open < 2) return null;
+  const close = l.indexOf("**", open);
+  return close < 0 ? null : STREET(l.slice(open, close).trim().toUpperCase());
 };
 const START =
   /^(PokerStars\b.*Hand #|Poker Hand #|Winamax Poker\b|(Game )?Hand #\d|(Ignition|Bovada|Bodog)\b.*Hand #|#Game No\b|\*{5}.*Hand History for Game|Game #\d+ starts)/i;
@@ -111,6 +130,38 @@ interface Normed {
   hint: string;
 }
 
+/** Each `<tag …>…</tag>` in `x`, the tags given, in order. A tag with no closing one left isn't looked for again. */
+function xmlBlocks(x: string, tags: readonly string[]): string[] {
+  const out: string[] = [];
+  const open = new RegExp(`<(${tags.join("|")})\\b`, "g");
+  const unclosed = new Set<string>();
+  for (let m = open.exec(x); m; m = open.exec(x)) {
+    if (unclosed.has(m[1]!)) continue;
+    const close = `</${m[1]}>`;
+    const end = x.indexOf(close, m.index);
+    if (end < 0) {
+      unclosed.add(m[1]!);
+      continue;
+    }
+    out.push(x.slice(m.index, end + close.length));
+    open.lastIndex = end + close.length;
+  }
+  return out;
+}
+
+/** Each opening `<tag …>` in `x`, the tags given, in order: its name, its attributes, and where it ends. */
+export function xmlTags(x: string, tags: readonly string[]): { tag: string; attrs: string; end: number }[] {
+  const out: { tag: string; attrs: string; end: number }[] = [];
+  const open = new RegExp(`<(${tags.join("|")})\\b`, "g");
+  for (let m = open.exec(x); m; m = open.exec(x)) {
+    const end = x.indexOf(">", m.index);
+    if (end < 0) break;
+    out.push({ tag: m[1]!, attrs: x.slice(m.index + m[0].length, end), end: end + 1 });
+    open.lastIndex = end + 1;
+  }
+  return out;
+}
+
 // iPoker's XML (Bet365, William Hill, Unibet's old client…): the first <game>, as text. Cards are suit first ("HA",
 // "C10"); action types: 0 fold, 1/2 blinds, 3 call, 4 check, 5 bet, 6 raise by, 7 all-in (chips added), 15 ante, 23 raise to.
 function ipoker(x: string, warnings: string[]): Normed {
@@ -123,7 +174,7 @@ function ipoker(x: string, warnings: string[]): Normed {
     return /,\d\d?$/.test(s) ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
   };
   const cards = (s: string) => s.trim().split(/\s+/).map((c) => c.slice(1) + c[0]);
-  const games = x.match(/<game\b[\s\S]*?<\/game>/g) ?? [];
+  const games = xmlBlocks(x, ["game"]);
   const hint = tag(x, "nickname");
   const bb = tag(x, "bigblind");
   const g = games.find((g) => g.includes(`name="${hint}"`)) ?? games[0] ?? x; // the first hand you were dealt into
@@ -133,7 +184,7 @@ function ipoker(x: string, warnings: string[]): Normed {
   const out = [
     `iPoker Hand #${at(g, "gamecode")}: ${tag(x, "gametype")}${bb ? ` (${money(tag(x, "smallblind"))}/${money(bb)})` : ""}${tc ? ` Tournament #${tc}${tn ? ` "${tn.replace(/"/g, "'")}"` : ""}` : ""}`,
   ];
-  for (const p of g.match(/<player\b[^>]*>/g) ?? []) {
+  for (const { attrs: p } of xmlTags(g, ["player"])) {
     out.push(`Seat ${at(p, "seat")}: ${at(p, "name")} (${money(at(p, "chips"))})`);
     if (at(p, "dealer") === "1") out.push(`Seat #${at(p, "seat")} is the button`);
   }
@@ -143,17 +194,26 @@ function ipoker(x: string, warnings: string[]): Normed {
     0: "folds", 1: "posts small blind ", 2: "posts big blind ", 3: "calls ", 4: "checks", 5: "bets ", 6: "raises ",
     7: "is all-in ", 15: "posts ante ", 23: "raises to ",
   };
-  for (const [, no, body] of g.matchAll(/<round\s+no="(\d+)"[^>]*>([\s\S]*?)<\/round>/g)) {
-    const items = [...body!.matchAll(/<cards\b([^>]*)>([^<]*)<\/cards>|<action\b([^>]*)>/g)];
-    for (const [, a, cs] of items) if (a && !at(a, "player")) board.push(...cards(cs!));
+  for (const round of xmlBlocks(g, ["round"])) {
+    const [open, no] = round.match(/^<round\s+no="(\d+)"[^>]*>/) ?? [];
+    if (!open) continue;
+    const body = round.slice(open.length, -"</round>".length);
+    // a <cards> holds its text up to the next tag, which closes it; one that doesn't is no card
+    const items = xmlTags(body, ["cards", "action"]).flatMap(({ tag, attrs, end }): { a?: string; cs?: string; act?: string }[] => {
+      if (tag === "action") return [{ act: attrs }];
+      const stop = body.indexOf("<", end);
+      return stop >= 0 && body.startsWith("</cards>", stop) ? [{ a: attrs, cs: body.slice(end, stop) }] : [];
+    });
+    // (a board is five cards, or ten when it's run twice)
+    for (const { a, cs } of items) if (a && !at(a, "player") && board.length < 10) board.push(...cards(cs!).slice(0, 10));
     if (HEAD[no!]) out.push(`*** ${HEAD[no!]} *** ${+no! > 1 ? `[${board.join(" ")}]` : ""}`);
-    for (const [, a, cs, act] of items) {
-      const t = act && ACT[at(act, "type")];
+    for (const { a, cs, act } of items) {
+      const t = act !== undefined ? ACT[at(act, "type")] : undefined;
       if (a && at(a, "player")) out.push(`Dealt to ${at(a, "player")}${/^[\sX]*$/i.test(cs!) ? "" : ` [${cards(cs!).join(" ")}]`}`);
       else if (t) out.push(`${at(act!, "player")}: ${t}${/ $/.test(t) ? money(at(act!, "sum")) : ""}`);
     }
   }
-  return { lines: out, site: "iPoker", hint };
+  return { lines: out.map(cut), site: "iPoker", hint };
 }
 
 // A history's lines (trimmed, no blank ones) as one array per hand: a hand starts at a site's first header line
@@ -163,7 +223,7 @@ function handLines(text: string): string[][] {
   const lines = String(text || "")
     .replace(/\r/g, "")
     .split("\n")
-    .map((l) => l.trim())
+    .map((l) => cut(l.trim()))
     .filter(Boolean);
   const starts = lines
     .map((l, i) => (START.test(l) ? i : -1))
@@ -179,8 +239,8 @@ export function splitHands(text: string): string[] {
   if (/<game\b/i.test(text)) {
     const out: string[] = [];
     let gen = "";
-    for (const [m] of text.matchAll(/<general\b[\s\S]*?<\/general>|<game\b[\s\S]*?<\/game>/g))
-      if (m.startsWith("<general")) gen = m;
+    for (const m of xmlBlocks(text, ["general", "game"]))
+      if (m.startsWith("<general")) gen = m.length > MAX_GENERAL ? "" : m;
       else out.push(`<session>${gen}${m}</session>`);
     return out;
   }
@@ -210,9 +270,9 @@ export function norm(text: string, warnings: string[]): Normed {
       /^Seat \d+:/i.test(l)
         ? l.replace(/^Seat \d+/i, () => `Seat ${++k}`)
         : l
-            .replace(/^(.+?)\s+:\s+Card dealt to a spot (\[.*\])/i, "Dealt to $1 $2")
-            .replace(/^(.+?)\s+:\s+(Small Blind|Big Blind|Ante chip)\b/i, (_, n: string, b: string) => `${n}: posts ${/ante/i.test(b) ? "ante" : b.toLowerCase()}`)
-            .replace(/All-in\(raise[^)]*\)\s*(.*)$/i, "raises $1 and is all-in"),
+            .replace(/^(.+?)\s{1,8}:\s{1,8}Card dealt to a spot (\[.*\])/i, "Dealt to $1 $2")
+            .replace(/^(.+?)\s{1,8}:\s{1,8}(Small Blind|Big Blind|Ante chip)\b/i, (_, n: string, b: string) => `${n}: posts ${/ante/i.test(b) ? "ante" : b.toLowerCase()}`)
+            .replace(/All-in\(raise[^)]{0,64}\)\s*(.*)$/i, "raises $1 and is all-in"),
     );
   return { lines, site, hint: "" };
 }
@@ -228,14 +288,18 @@ const roman = (s: string) =>
     },
     { n: 0, top: 0 },
   ).n;
-const beforeSeats = (lines: string[]) => lines.slice(0, Math.max(1, lines.findIndex((l) => /^Seat \d+:/i.test(l))));
+const beforeSeats = (lines: string[], sep: string) =>
+  lines
+    .slice(0, Math.max(1, lines.findIndex((l) => /^Seat \d+:/i.test(l))))
+    .join(sep)
+    .slice(0, MAX_HEADER);
 function tourney(lines: string[]): HhTournament | null {
-  const pre = beforeSeats(lines).join("\n");
+  const pre = beforeSeats(lines, "\n");
   if (!/Tournament|Tourney|\bMTT\b|\bSNG\b|Sit ?(&|n|'n'|and) ?Go|Spin ?(&|and) ?Go/i.test(pre)) return null;
   const name = pre.match(/Tournament\s*(?:#[\w-]+\s*)?"([^"]+)"/i)?.[1];
   const id = (pre.match(/Tournament\s*(?:#|ID\s*:?)\s*([\w-]*\d[\w-]*)/i) ?? pre.match(/^Table:?\s*'[^'(]*\((\d+)\)/im))?.[1] || name || null;
-  const buyin = pre.match(/(?:[$€£]\s?)?\d+(?:\.\d+)?\s?[€£]?(?:\s?\+\s?(?:[$€£]\s?)?\d+(?:\.\d+)?\s?[€£]?){1,2}/)?.[0];
-  const lv = pre.match(/\bLevel\s*:?\s*([IVXLCDM]+|\d+)(?![\w.])/i)?.[1];
+  const buyin = pre.match(/(?:[$€£]\s?)?\d{1,12}(?:\.\d{1,12})?\s?[€£]?(?:\s?\+\s?(?:[$€£]\s?)?\d{1,12}(?:\.\d{1,12})?\s?[€£]?){1,2}/)?.[0];
+  const lv = pre.match(/\bLevel\s{0,8}:?\s{0,8}([IVXLCDM]+|\d+)(?![\w.])/i)?.[1];
   return {
     id,
     ...(name ? { name } : {}),
@@ -272,11 +336,17 @@ export function parseHandHistory(text: string): ParsedHand {
   if (/\bLimit\b/i.test(game) && !/No ?Limit/i.test(game)) warnings.push("Not a no-limit hand: it's solved as no-limit.");
 
   const seats: { seat: number; name: string; chips: number }[] = [];
+  const seated = new Set<number>();
+  // the stack is the last "(…)" opening with an amount, so a name with brackets ("x (2)") keeps them
+  const SEAT = new RegExp(String.raw`^Seat (\d+): (.+) \(\s*${AMT}(?: in chips)?[^)]{0,64}\)`, "i");
   for (const l of lines) {
     if (header(l)) break; // seat lines in the summary say who won, not their stacks
-    // the stack is the last "(…)" opening with an amount, so a name with brackets ("x (2)") keeps them
-    const m = l.match(new RegExp(String.raw`^Seat (\d+): (.+) \(\s*${AMT}(?: in chips)?[^)]*\)`, "i"));
-    if (m && !seats.some((s) => s.seat === +m[1]!)) seats.push({ seat: +m[1]!, name: m[2]!.trim(), chips: num(m[3]!) });
+    const m = l.match(SEAT);
+    if (m && !seated.has(+m[1]!)) {
+      seated.add(+m[1]!);
+      seats.push({ seat: +m[1]!, name: m[2]!.trim(), chips: num(m[3]!) });
+      if (seats.length > MAX_SEATS) throw new HandHistoryError(`${seats.length} players in this hand: the page plays 2 to 9.`);
+    }
   }
   if (seats.length < 2)
     throw new HandHistoryError(
@@ -302,7 +372,7 @@ export function parseHandHistory(text: string): ParsedHand {
       if (k) board = cs.length >= k ? cs : [...board.slice(0, k - cs.length), ...cs];
       continue;
     }
-    if ((m = l.match(/^Dealt to (.+?)(?:\s*(\[[^\]]*\]))?$/i))) {
+    if ((m = l.match(/^Dealt to (.+?)(?:\s{0,8}(\[[^\]]{0,64}\]))?$/i))) {
       const n = m[1]!;
       dealt.add(n);
       const cs = m[2] ? cardsIn(m[2]) : [];
@@ -342,6 +412,7 @@ export function parseHandHistory(text: string): ParsedHand {
     else if (/^(bets|(goes |is )?all[- ]in)\b/i.test(rest)) acts.push({ street, name, act: "bet", amt: a[0]!, allIn });
     else if (/^raises\b/i.test(rest)) acts.push({ street, name, act: "raise", ...(/\bto\b/i.test(rest) ? { to: a.at(-1)! } : { amt: a[0]! }), allIn });
   }
+  if (acts.length > MAX_ACTIONS) throw new HandHistoryError(`${acts.length} actions in this hand: too many to be a hand history.`);
   if (!hole || hero == null)
     throw new HandHistoryError(
       'Your hole cards aren\'t in this history (no "Dealt to you [Ah Kd]" line). Import a hand you played, as your poker client saved it.',
@@ -358,8 +429,7 @@ export function parseHandHistory(text: string): ParsedHand {
   if (n < 2 || n > 9) throw new HandHistoryError(`${n} players in this hand: the page plays 2 to 9.`);
   const bb = (() => {
     // the stakes before the seats ("($0.50/$1)", "$0.50/$1 Blinds", Winamax's "(ante/sb/bb)"), else the big blind posted
-    const pre = beforeSeats(lines)
-      .join(" ")
+    const pre = beforeSeats(lines, " ")
       .replace(/\d{4}[/-]\d\d?[/-]\d\d?|\d\d?\/\d\d?\/\d{2,4}|players\s*:\s*\d+\/\d+/gi, ""); // not dates, party's "players : 6/6"
     const m = pre.match(new RegExp(String.raw`${AMT}[^\d/]{0,6}\/\s*${AMT}(?:[^\d/]{0,6}\/\s*${AMT})?`));
     const p = posts.find((x) => x.kind === "bb");
@@ -397,14 +467,16 @@ export function parseHandHistory(text: string): ParsedHand {
     bi = (bbi - toBB + n) % n;
   }
   const names9 = SEATS[n]!;
-  const pos: Record<string, string> = {};
+  // (keyed by players' names, which can be anything: "constructor", "__proto__")
+  const byName = <T,>(): Record<string, T> => Object.create(null) as Record<string, T>;
+  const pos = byName<string>();
   for (let k = 0; k < n; k++) pos[at((bbi + 1 + k) % n).name] = names9[k]!;
   if (n > 2 && pos[at(bi).name] !== "BTN") warnings.push("The button isn't next to the blinds (a dead button?): positions are counted from the big blind.");
 
   // amounts as each player's total on the street ("to"), in big blinds; all-in also when the chips run out
   const left: Record<string, number> = Object.fromEntries(order.map((s) => [s.name, s.chips]));
-  const anteOf: Record<string, number> = {};
-  let put: Record<string, number> = {};
+  const anteOf = byName<number>();
+  let put = byName<number>();
   let antes = 0;
   let straddle = false;
   for (const p of posts) {
@@ -429,7 +501,7 @@ export function parseHandHistory(text: string): ParsedHand {
     const p = pos[a.name];
     if (!p) continue;
     if (a.street !== cur) {
-      if (cur) put = {};
+      if (cur) put = byName();
       cur = a.street;
     }
     const before = put[a.name] ?? 0;

@@ -303,7 +303,7 @@ export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap
   const range = tables[lastAt - 1]?.lastRange;
   const verdict = last && verdictLine(last.d);
   const view = last && (
-    <DecisionView d={last.d} players={last.players} title={`Table ${lastAt}, hand ${last.n}, ${last.d.street}`}>
+    <DecisionView d={last.d} players={last.players} title={`Table ${lastAt}, hand ${last.n}, ${last.d.street}`} spot={last}>
       {range && <RangeView key={`${last.d.study}|${range.cls}`} r={range} open={rangeOpen} onToggle={setRangeOpen} />}
     </DecisionView>
   );

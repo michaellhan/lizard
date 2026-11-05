@@ -125,6 +125,23 @@ describe("keptHand", () => {
     expect(keptHand(structuredClone(r.hand))).toEqual(r.hand);
   });
 
+  it("takes a hand mid-Reveal and a decision made after it, and no decision that's flagged and graded, or graded by nothing", () => {
+    const h = newHand(2, 100, 0, 7, OPTS);
+    const shown = { ...h, revealed: true as const };
+    expect(keptHand(structuredClone(shown))).toEqual(shown);
+    expect(keptHand({ ...h, revealed: "yes" })).toBeNull();
+    const r = decide(shown, BAD, CALL, prov("live"));
+    if ("error" in r) throw new Error(r.error);
+    expect(r.decision).toMatchObject({ grade: null, revealed: true, provenance: { source: "live" } });
+    expect(keptHand(structuredClone(r.hand))).toEqual(r.hand);
+    const graded = decide(h, BAD, CALL, prov("live"));
+    if ("error" in graded) throw new Error(graded.error);
+    // the flag and a grade can't stand together, so a decision can't be read as both
+    expect(keptHand({ ...graded.hand, decisions: [{ ...graded.decision, revealed: true }] })).toBeNull();
+    // nor an answer kept on a plain ungraded move, which has none
+    expect(keptHand({ ...graded.hand, decisions: [{ ...graded.decision, grade: null }] })).toBeNull();
+  });
+
   // heads-up on the flop: the small blind raised to 2.5, the big blind called, checked, and the small blind bet 3
   const flop = (): PracticeHand => ({
     ...newHand(2, 100, 0, 7, OPTS),

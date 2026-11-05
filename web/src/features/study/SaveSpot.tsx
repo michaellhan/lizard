@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { SavedSpot } from "@/data/db";
-import { newId, putSpot, readTags, spotAt } from "@/data/saved";
+import { NOT_SAVED, newId, putSpot, readTags, spotAt, stored } from "@/data/saved";
 import { describe } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 import { describeLine, studyRequest, toSearch, type StudyHand } from "./studyState";
@@ -17,6 +17,7 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
   const [tags, setTags] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -31,6 +32,7 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
     setTags(saved?.tags.join(", ") ?? "");
     setNote(saved?.note ?? "");
     setDone(false);
+    setFailed(false);
     setOpen((o) => !o);
   };
 
@@ -49,9 +51,10 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
       createdAt: here?.createdAt ?? t,
       updatedAt: t,
     };
-    await putSpot(s);
-    setSaved(s);
-    setDone(true);
+    const kept = await stored(() => putSpot(s));
+    setFailed(!kept);
+    setDone(kept);
+    if (kept) setSaved(s);
   };
 
   return (
@@ -98,6 +101,11 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
             {done && (
               <span role="status" className="text-xs">
                 Saved in this browser. <Link to="/saved" className="underline">See saved spots</Link>
+              </span>
+            )}
+            {failed && (
+              <span role="alert" className="text-xs text-danger">
+                {NOT_SAVED}
               </span>
             )}
           </div>

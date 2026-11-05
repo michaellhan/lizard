@@ -17,7 +17,7 @@ import { betAmount, type RetryAnswer } from "./mistakes";
 /** As Practice's tables play it: a Fast setting plays Quick's budgets (room.ts). */
 export const retryMode = (): SolveMode => (useSettings.getState().mode === "accurate" ? "accurate" : "quick");
 
-type GetClient = () => Promise<Pick<SolverClient, "solve">>;
+export type GetClient = () => Promise<Pick<SolverClient, "solve">>;
 
 /** The spot's answer of the solver, for the request Practice sent. `pot`: the pot kept, where the answer gives none. */
 export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot: number, getClient: GetClient, mode: SolveMode, signal?: AbortSignal): Promise<RetryAnswer> {

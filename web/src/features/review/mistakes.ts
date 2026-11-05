@@ -153,8 +153,11 @@ export interface Retried {
   tried: Omit<MistakeTry, "moved">;
 }
 
+/** What a retry reads of the spot: a kept mistake's, or one of this session's decisions (the Practice page's). */
+export type RetrySpot = Pick<MistakeRecord, "ask" | "provenance" | "mix" | "street" | "study" | "chose">;
+
 /** Your pick (the answer's i-th action) at a retry, graded. */
-export function retried(m: MistakeRecord, answer: RetryAnswer, i: number, now: number): Retried {
+export function retried(m: RetrySpot, answer: RetryAnswer, i: number, now: number): Retried {
   const { mix, pot, provenance } = answer;
   const g = gradeMix(mix, pot, i);
   const was = mix.findIndex((a) => a.action === m.chose);

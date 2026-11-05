@@ -87,6 +87,23 @@ afterEach(() => {
 });
 
 describe("StudyPage", () => {
+  it("copies the node for AI once its answer is whole, and not from the range builder, which hides the numbers", async () => {
+    const writeText = vi.fn(async (_: string) => {});
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    stub.answer = THREE_WAY;
+    renderAt("p=3&s=100");
+    const actions = await screen.findByRole("region", { name: "Actions" });
+    fireEvent.click(await within(actions).findByRole("button", { name: "Copy for AI" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const text = writeText.mock.calls[0]![0];
+    expect(text).toContain("no hand picked, so this is the whole range's mix");
+    expect(text).toContain("- check: 50.0%, EV 2.00bb");
+    expect(text).toContain("A chatbot might reason about them wrongly");
+    fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
+    expect(within(screen.getByRole("region", { name: "Actions" })).queryByRole("button", { name: "Copy for AI" })).toBeNull();
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
   it("shows one toggle per opponent in a 3-way answer, and each one's grid", async () => {
     stub.answer = THREE_WAY;
     renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");

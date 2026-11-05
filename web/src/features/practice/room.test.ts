@@ -321,6 +321,119 @@ describe("Room at one table", () => {
   });
 });
 
+describe("Room's Reveal", () => {
+  it("shows the answer it already holds: no request, and the decision after it counts for nothing but the count", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    room.reveal(); // (no answer in hand: nothing to show)
+    expect(table(room).hand.revealed).toBeUndefined();
+    asked[0]!.answer(CHART);
+    await flush();
+    const before = room.snapshot().session;
+    room.reveal();
+    await flush();
+    await pass(5000);
+    expect(table(room).hand.revealed).toBe(true);
+    expect(asked).toHaveLength(1); // no request beyond the decision's own
+    expect(room.snapshot().session).toBe(before);
+
+    room.choose(2);
+    const { session } = room.snapshot();
+    expect(table(room).last).toMatchObject({ grade: null, revealed: true, chose: "raise 2.5", provenance: { source: "charts" } });
+    expect(table(room).hand.revealed).toBeUndefined();
+    expect(session).toMatchObject({ revealed: 1, review: [], score: { n: 0 }, sources: before.sources });
+  });
+
+  it("grades the next decision of the hand as usual", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked.at(-1)!.answer(CHART);
+    await flush();
+    room.reveal();
+    room.choose(2);
+    await flush();
+    asked.at(-1)!.answer(move("call"));
+    await pass(0);
+    await pass(1000);
+    await flush();
+    asked.at(-1)!.answer(move("check"));
+    await pass(1000);
+    asked.at(-1)!.answer(FLOP);
+    await flush();
+    room.choose(0);
+    expect(table(room).last).toMatchObject({ chose: "check", grade: { verdict: expect.any(String) } });
+    expect(table(room).last).not.toHaveProperty("revealed");
+    expect(room.snapshot().session).toMatchObject({ revealed: 1, score: { n: 1 } });
+  });
+
+  it("stays ungraded over a change of mode: the flag is the hand's, whichever answer you then pick from", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked.at(-1)!.answer(CHART);
+    await flush();
+    room.reveal();
+    useSettings.setState({ mode: "accurate" });
+    await flush();
+    expect(table(room).hand.revealed).toBe(true);
+    if (table(room).answer === null) {
+      asked.at(-1)!.answer(CHART);
+      await flush();
+    }
+    room.choose(2);
+    expect(table(room).last).toMatchObject({ grade: null, revealed: true });
+    expect(room.snapshot().session.score.n).toBe(0);
+  });
+
+  it("is off above one table", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked.at(-1)!.answer(CHART);
+    await flush();
+    room.setTables(2);
+    await flush();
+    room.reveal();
+    expect(room.snapshot().tables.every((t) => !t.hand.revealed)).toBe(true);
+  });
+});
+
+describe("Room's retry", () => {
+  const ask = (state: AdvisorState) => ({ state, mode: "quick" as const });
+
+  it("answers from what's held, without asking; and asks where nothing's held, in turn", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(2);
+    await flush();
+    const e = room.snapshot().session.review[0]!;
+    expect(e.state).toMatchObject({ hero: "SB" });
+    const n = asked.length;
+    const retry = await room.retryClient();
+    await expect(retry.solve(ask(e.state!))).resolves.toMatchObject({ data: CHART, provenance: { source: "charts" } });
+    expect(asked).toHaveLength(n);
+
+    const other = { ...e.state!, hero: "BB" };
+    const answer = retry.solve(ask(other));
+    await flush();
+    expect(asked).toHaveLength(n + 1);
+    asked.at(-1)!.answer(FLOP);
+    await expect(answer).resolves.toMatchObject({ data: FLOP });
+  });
+
+  it("changes no score", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(2);
+    const before = room.snapshot().session;
+    const retry = await room.retryClient();
+    await retry.solve(ask(before.review[0]!.state!));
+    expect(room.snapshot().session).toBe(before);
+  });
+});
+
 describe("Room caches", () => {
   it("holds 400 answers, the oldest going first", async () => {
     // 401 deals with cards of their own (preflop, your cards are the key), then the newest and the oldest again

@@ -88,6 +88,9 @@ export interface HandRecord {
   /** the street Practice played for you (a pot drill, Instant flops): your moves there were drawn from the charts, so
    * they're in the history but not in your stats or grades */
   playedFor?: "preflop";
+  /** your decisions Practice's Reveal showed you the answer to first, each "street|index in that street's line": they're
+   * in the history, and in no grade */
+  revealed?: string[];
   tournament?: string;
   text: string;
   /** your tags and note on the hand, and when you last changed them (none until you do) */
@@ -315,8 +318,10 @@ export function openLizardDB(version: number = DB_VERSION, name: string = DB_NAM
 /** The shared connection's state, for the notice in the page (app/DbNotice.tsx): "waiting", an older Lizard tab
  * keeps the database at its version so this one's upgrade waits (until that tab closes or reloads), or the open has
  * taken longer than DB_WAIT_NOTICE_MS (queued behind another tab's waiting upgrade); "replaced", a
- * newer Lizard in another tab upgraded the database, so this tab stepped aside and keeps nothing until reloaded. */
-export type DbState = "ok" | "waiting" | "replaced";
+ * newer Lizard in another tab upgraded the database, so this tab stepped aside and keeps nothing until reloaded;
+ * "failed", the browser wouldn't open it (no IndexedDB, as in some private modes, or an open that errored), so nothing
+ * is kept until one succeeds. */
+export type DbState = "ok" | "waiting" | "replaced" | "failed";
 let state: DbState = "ok";
 const listeners = new Set<() => void>();
 const setState = (s: DbState) => {
@@ -337,28 +342,34 @@ export const DB_WAIT_NOTICE_MS = 3000;
 /** The app's shared connection (null where IndexedDB is unavailable, e.g. some private modes, or once a newer tab
  * has taken the database over). */
 export async function db(): Promise<IDBPDatabase<LizardDB> | null> {
-  if (typeof indexedDB === "undefined" || state === "replaced") return null;
-  dbP ??= openLizardDB(DB_VERSION, DB_NAME, {
-    blocked: () => setState("waiting"),
-    // (closed at once so the newer tab's upgrade isn't held up, as this version's own would be by an older tab)
-    blocking: () => {
-      const p = dbP;
-      dbP = null;
-      setState("replaced");
-      void p?.then((d) => d.close());
-    },
-    terminated: () => {
-      dbP = null;
-    },
-  });
+  if (state === "replaced") return null;
+  if (typeof indexedDB === "undefined") {
+    setState("failed");
+    return null;
+  }
   // (an open queued behind another tab's pending upgrade hears nothing at all: after a few seconds say so too)
   const slow = setTimeout(() => setState("waiting"), DB_WAIT_NOTICE_MS);
   try {
+    dbP ??= openLizardDB(DB_VERSION, DB_NAME, {
+      blocked: () => setState("waiting"),
+      // (closed at once so the newer tab's upgrade isn't held up, as this version's own would be by an older tab)
+      blocking: () => {
+        const p = dbP;
+        dbP = null;
+        setState("replaced");
+        void p?.then((d) => d.close());
+      },
+      terminated: () => {
+        dbP = null;
+      },
+    });
     const d = await dbP;
-    if (state === "waiting") setState("ok");
+    if (state === "waiting" || state === "failed") setState("ok");
     return d;
-  } catch {
+  } catch (e) {
     dbP = null;
+    console.error("The browser's database wouldn't open:", e);
+    if (dbState() !== "replaced") setState("failed");
     return null;
   } finally {
     clearTimeout(slow);
@@ -375,10 +386,12 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   if (d) await d.put("kv", value, key);
 }
 
-/** Store a session (Practice, drills, analysis), replacing the one with its id. */
-export async function putSession(s: SessionRecord): Promise<void> {
+/** Store a session (Practice, drills, analysis), replacing the one with its id: whether it was stored. */
+export async function putSession(s: SessionRecord): Promise<boolean> {
   const d = await db();
-  if (d) await d.put("sessions", s);
+  if (!d) return false;
+  await d.put("sessions", s);
+  return true;
 }
 
 /** One session by its id. */

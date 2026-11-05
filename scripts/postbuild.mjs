@@ -4,12 +4,26 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkStaged } from "./pyodide/stage.mjs";
+import { hostsNamed } from "./pyodide/worker-edits.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "web", "dist");
 const index = join(dist, "index.html");
 if (!existsSync(index)) {
   console.error("postbuild: web/dist/index.html missing; run the web build first");
+  process.exit(1);
+}
+
+// What's about to be published runs nothing from anywhere else: the worker names no other host, and the Pyodide beside
+// it is the pinned bytes. Checked here on web/dist, after everything that copies or edits these files.
+const solverDist = join(dist, "solver");
+const unpublishable = [
+  ...hostsNamed(readFileSync(join(solverDist, "worker.js"), "utf8")).map((h) => `worker.js names ${h}`),
+  ...checkStaged({ dir: join(solverDist, "pyodide") }),
+];
+if (unpublishable.length) {
+  console.error(`postbuild: not publishing web/dist/solver:\n  ${unpublishable.join("\n  ")}`);
   process.exit(1);
 }
 

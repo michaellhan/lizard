@@ -41,8 +41,10 @@ export interface Decision {
   /** the solver's action you took (its name, e.g. "bet 33%"), or the move's kind where ungraded */
   chose: string;
   move: Move;
-  /** null where the spot had no answer to grade against */
+  /** null where the spot had no answer to grade against, or you'd seen it first (`revealed`) */
   grade: Grade | null;
+  /** made after Reveal: the answer is kept with it, and it never had a grade, so nothing can count it as one */
+  revealed?: true;
   /** the answer's actions at your spot: what the grade is against */
   mix: { action: string; freq: number; ev: number | null; amount?: number }[];
   pot: number;
@@ -100,6 +102,9 @@ export interface PracticeHand {
   /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
    * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
   run?: "played" | "shown";
+  /** Reveal, at the spot you're on: the answer's been seen, so your move here isn't graded. It goes as you move, so it
+   * stays with the spot through a change of mode or of tables, and into the kept doc. */
+  revealed?: true;
 }
 
 export type Sizes = Partial<Record<SizeStreet, number[]>>;
@@ -464,17 +469,33 @@ export function decide(
   if (typeof m === "string") return { error: m };
   const mix = mixOf(res);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;
-  const g = gradeMix(mix, pot, i);
-  const decision: Decision = { street: sim.current!, chose: a.action, move: m, grade: g, mix, pot, provenance, study: studyOf(h) };
-  return { hand: { ...withMoveOf(h, sim, m), decisions: [...h.decisions, decision] }, decision };
+  const decision: Decision = {
+    street: sim.current!,
+    chose: a.action,
+    move: m,
+    grade: h.revealed ? null : gradeMix(mix, pot, i),
+    mix,
+    pot,
+    provenance,
+    study: studyOf(h),
+    ...(h.revealed ? { revealed: true as const } : {}),
+  };
+  return { hand: withDecision(h, sim, m, decision), decision };
 }
 
 /** A move with no answer to grade against (the solve failed): recorded, not graded. */
 export function decideUngraded(h: PracticeHand, a: { action: string; to?: number }, sim: Sim = simOf(h)): PracticeHand | string {
   const m = recordOf(setupOf(h), sim, a);
   if (typeof m === "string") return m;
-  const decision: Decision = { street: sim.current!, chose: m.action, move: m, grade: null, mix: [], pot: sim.pot, provenance: null, study: studyOf(h) };
-  return { ...withMoveOf(h, sim, m), decisions: [...h.decisions, decision] };
+  const decision: Decision = { street: sim.current!, chose: m.action, move: m, grade: null, mix: [], pot: sim.pot, provenance: null, study: studyOf(h), ...(h.revealed ? { revealed: true as const } : {}) };
+  return withDecision(h, sim, m, decision);
+}
+
+/** The hand after your decision: its move on the line, the decision kept, and a Reveal gone with the spot it was for. */
+function withDecision(h: PracticeHand, sim: Sim, m: Move, d: Decision): PracticeHand {
+  const next: PracticeHand = { ...withMoveOf(h, sim, m), decisions: [...h.decisions, d] };
+  delete next.revealed;
+  return next;
 }
 
 function withMoveOf(h: PracticeHand, sim: Sim, m: Move): PracticeHand {
@@ -565,4 +586,11 @@ export function shownCards(h: PracticeHand, p: string, sim: Sim = simOf(h)): [st
   if (h.run === "shown" || (h.run === "played" && sim.handOver)) return h.hands[p]!;
   if (!h.result || h.result.folded || h.result.cut) return null;
   return sim.active.has(p) && sim.active.size > 1 ? h.hands[p]! : null;
+}
+
+/** "bet 33%" (to 1.8bb), "raise 2.5": the solver's name, with the size it plays where the name doesn't say it. */
+export function optionLabel(name: string, amount: number | undefined): string {
+  const k = kindOf(name);
+  const size = typeof amount === "number" ? String(Math.round(amount * 100) / 100) : null;
+  return (k === "bet" || k === "raise") && size !== null && !name.includes(size) ? `${name} (${size}bb)` : name;
 }

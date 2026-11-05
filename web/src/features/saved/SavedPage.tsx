@@ -7,7 +7,7 @@ import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
 import { restoreBackup, restoreSummary } from "@/data/backup";
 import { importTooBig } from "@/data/limits";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
-import { deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches } from "@/data/saved";
+import { NOT_SAVED, deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches, stored } from "@/data/saved";
 import { describeSetup } from "@/features/solve/setup";
 import { describeLine, fromSearch } from "@/features/study/studyState";
 import { downloadBackup } from "./backupFile";
@@ -142,8 +142,11 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
   const [title, setTitle] = useState(spot.title);
   const [tags, setTags] = useState(spot.tags.join(", "));
   const [note, setNote] = useState(spot.note);
+  const [failed, setFailed] = useState(false);
   const save = async () => {
-    await putSpot({ ...spot, title: title.trim() || spot.title, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() });
+    const kept = await stored(() => putSpot({ ...spot, title: title.trim() || spot.title, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
+    setFailed(!kept);
+    if (!kept) return;
     setEditing(false);
     onChange();
   };
@@ -168,6 +171,11 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
             <button type="button" onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
               Cancel
             </button>
+            {failed && (
+              <span role="alert" className="text-xs text-danger">
+                {NOT_SAVED}
+              </span>
+            )}
           </div>
         </form>
       ) : (
@@ -210,8 +218,11 @@ function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(drill.name);
   const [note, setNote] = useState(drill.note);
+  const [failed, setFailed] = useState(false);
   const save = async () => {
-    await putDrill({ ...drill, name: name.trim() || drill.name, note: note.trim(), updatedAt: Date.now() });
+    const kept = await stored(() => putDrill({ ...drill, name: name.trim() || drill.name, note: note.trim(), updatedAt: Date.now() }));
+    setFailed(!kept);
+    if (!kept) return;
     setEditing(false);
     onChange();
   };
@@ -235,6 +246,11 @@ function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void
             <button type="button" onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
               Cancel
             </button>
+            {failed && (
+              <span role="alert" className="text-xs text-danger">
+                {NOT_SAVED}
+              </span>
+            )}
           </div>
         </form>
       ) : (
@@ -314,11 +330,16 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
 
   const download = async () => {
     setMsg(null);
-    const b = await downloadBackup();
-    setMsg({
-      ok: true,
-      text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
-    });
+    try {
+      const b = await downloadBackup();
+      setMsg({
+        ok: true,
+        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
+      });
+    } catch (e) {
+      console.error("The backup failed:", e);
+      setMsg({ ok: false, text: `No backup was made: ${e instanceof Error ? e.message : String(e)}` });
+    }
   };
 
   const restore = async (file: File) => {
