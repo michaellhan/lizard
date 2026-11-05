@@ -1,10 +1,12 @@
-// The New session form: the table's size and stack, your seat, what's played (full hands, preflop only or one kind of
-// pot), the ante, rake and straddle, chips carried and your own bet sizes. It holds what's typed until it's submitted.
+// The New session form: the table's size and stack, your seat, what's played (full hands, preflop only, one kind of pot,
+// push/fold or a tournament), the ante, rake and straddle, chips carried and your own bet sizes. It holds what's typed
+// until it's submitted.
 import { useState } from "react";
 import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
-import { carries, isPotDrill, POT_DRILLS, REBUY, type SessionOptions, type Sizes } from "./practice";
+import { carries, isPotDrill, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
 import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
+import { draftOf, readDraft, TournamentFields } from "./TournamentFields";
 
 export const MIN_STACK = 10;
 export const MAX_STACK = 250;
@@ -30,7 +32,9 @@ export function SetupForm({
   const [p, setP] = useState(players);
   const [s, setS] = useState(String(stack));
   const [seat, setSeat] = useState(opts.seat);
-  const [play, setPlay] = useState<string>(opts.pot ?? (opts.preflopOnly ? "preflop" : "full"));
+  const [play, setPlay] = useState<string>(opts.pushFold ? "pushfold" : opts.tournament ? "tournament" : (opts.pot ?? (opts.preflopOnly ? "preflop" : "full")));
+  const [draft, setDraft] = useState(() => draftOf(opts.tournament, stack));
+  const [stop, setStop] = useState(!!opts.tournament && opts.preflopOnly);
   const [board, setBoard] = useState<TextureFilter>(opts.board ?? {});
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
@@ -40,11 +44,14 @@ export function SetupForm({
   const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(() => Object.fromEntries(SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>);
   // (blank: the engine's own; preflop only has no use for them)
   const parsed = SIZE_STREETS.flatMap((k) => (numsOf(sizeText[k]).length ? [[k, numsOf(sizeText[k])] as const] : []));
-  const sizes: Sizes | null = parsed.length && play !== "preflop" ? Object.fromEntries(parsed) : null;
+  const isPF = play === "pushfold";
+  const isT = play === "tournament";
+  const noFlop = play === "preflop" || isPF || isT;
+  const sizes: Sizes | null = parsed.length && !noFlop ? Object.fromEntries(parsed) : null;
   const sizeProblems = sizes ? setupProblems(p, { sizes }) : [];
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
-  const canCarry = carries({ carry: true, seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null });
+  const canCarry = carries({ carry: true, seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, pushFold: isPF }) && !isT;
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
@@ -54,7 +61,9 @@ export function SetupForm({
   // (a pot-type mode's board filter: the flops of the 22,100 it leaves, none being a filter no flop can meet)
   const boardOn = isPotDrill(play) && Object.values(board).some(Boolean);
   const fits = boardOn ? flopsLike(board).length : null;
-  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && rakeOk && !sizeProblems.length && fits !== 0;
+  const pfOk = !isPF || n <= PUSH_FOLD_MAX;
+  const tournament = isT ? readDraft(draft, p, n, MAX_STACK) : null;
+  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && (isT || rakeOk) && !sizeProblems.length && fits !== 0 && pfOk && !tournament?.problems.length;
   return (
     <form
       aria-label="New session"
@@ -63,7 +72,21 @@ export function SetupForm({
       onChange={onEdit}
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes, rake: rk, rakeCap: rk ? rc : 0, board: boardOn ? board : null });
+        if (ok)
+          onStart(p, n, {
+            seat: seatOk ? seat : "moves",
+            preflopOnly: play === "preflop" || (isT && stop),
+            pot: isPotDrill(play) ? play : null,
+            ante: a,
+            straddle: straddle && p >= 3 && !isT,
+            carry: carry && canCarry,
+            sizes,
+            rake: isT ? 0 : rk,
+            rakeCap: rk && !isT ? rc : 0,
+            board: boardOn ? board : null,
+            ...(isPF ? { pushFold: true } : {}),
+            ...(tournament?.value ? { tournament: tournament.value } : {}),
+          });
       }}
     >
       <label className="flex items-center gap-1">
@@ -107,7 +130,11 @@ export function SetupForm({
         <select
           aria-label="Play"
           value={play}
-          onChange={(e) => setPlay(e.target.value)}
+          onChange={(e) => {
+            setPlay(e.target.value);
+            // (the band is what the mode is, so the stack comes down to it)
+            if (e.target.value === "pushfold" && !(n <= PUSH_FOLD_MAX)) setS(String(PUSH_FOLD_MAX));
+          }}
           title={isPotDrill(play) ? POT_DRILLS[play].tip : undefined}
           className="rounded border border-border bg-surface-2 px-1.5 py-1"
         >
@@ -118,8 +145,22 @@ export function SetupForm({
               {d.label}
             </option>
           ))}
+          <option value="pushfold" title={`All-in or fold at ${PUSH_FOLD_MAX}bb or less`}>
+            Push/fold
+          </option>
+          <option value="tournament" title="A payout and each seat's stack, answered in chip EV or prize equity">
+            Tournament
+          </option>
         </select>
       </label>
+      {isPF && (
+        <p role={pfOk ? undefined : "alert"} className={`basis-full text-xs ${pfOk ? "text-muted" : "text-danger"}`}>
+          {pfOk ? "" : `Push/fold is ${MIN_STACK} to ${PUSH_FOLD_MAX}bb: bring the stack down. `}
+          The engine jams or folds first in at {PUSH_FOLD_MAX}bb or less, and Practice&rsquo;s tables start at {MIN_STACK}bb. Facing a jam you call or fold. The answers are the push/fold model, an
+          equilibrium by hand class with no EVs, so a decision is graded by how often it plays your hand. An all-in runs out. A stack under {MIN_STACK}bb is a seat&rsquo;s own, under Tournament.
+        </p>
+      )}
+      {isT && <TournamentFields draft={draft} onDraft={setDraft} stop={stop} onStop={setStop} players={p} stack={s} problems={tournament?.problems ?? []} />}
       {isPotDrill(play) && (
         <fieldset className="flex basis-full flex-wrap items-center gap-2">
           <legend className="sr-only">Flop in {POT_DRILLS[play].label.toLowerCase()}</legend>
@@ -165,7 +206,7 @@ export function SetupForm({
         />
         <span className="text-muted">bb</span>
       </label>
-      <label className="flex items-center gap-1" title={`Taken from pots that see a flop, 0–${LIMITS.rakePct}% of the pot, capped in bb (blank: no cap)`}>
+      <label className="flex items-center gap-1" title={isT ? "A tournament has no rake" : `Taken from pots that see a flop, 0–${LIMITS.rakePct}% of the pot, capped in bb (blank: no cap)`}>
         <span className="text-muted">Rake</span>
         <input
           aria-label="Rake"
@@ -178,6 +219,7 @@ export function SetupForm({
           value={rake}
           onChange={(e) => setRake(e.target.value)}
           aria-invalid={!rakeOk}
+          disabled={isT}
           className="w-14 rounded border border-border bg-surface-2 px-1.5 py-1"
         />
         <span className="text-muted">% cap</span>
@@ -191,12 +233,13 @@ export function SetupForm({
           value={cap}
           onChange={(e) => setCap(e.target.value)}
           aria-invalid={!rakeOk}
+          disabled={isT}
           className="w-14 rounded border border-border bg-surface-2 px-1.5 py-1"
         />
         <span className="text-muted">bb</span>
       </label>
-      <label className="flex items-center gap-1.5" title={p < 3 ? "A straddle needs 3 or more players" : "A 2bb straddle from the first seat, acting last preflop"}>
-        <input type="checkbox" aria-label="Straddle" checked={straddle && p >= 3} disabled={p < 3} onChange={(e) => setStraddle(e.target.checked)} />
+      <label className="flex items-center gap-1.5" title={isT ? "A tournament has no straddle" : p < 3 ? "A straddle needs 3 or more players" : "A 2bb straddle from the first seat, acting last preflop"}>
+        <input type="checkbox" aria-label="Straddle" checked={straddle && p >= 3 && !isT} disabled={p < 3 || isT} onChange={(e) => setStraddle(e.target.checked)} />
         <span className="text-muted">Straddle</span>
       </label>
       <label
@@ -227,7 +270,7 @@ export function SetupForm({
                 aria-label={SIZE_LABEL[k]}
                 placeholder="e.g. 33, 75"
                 value={sizeText[k]}
-                disabled={play === "preflop"}
+                disabled={noFlop}
                 onChange={(e) => setSizeText({ ...sizeText, [k]: e.target.value })}
                 className="min-w-0 flex-1 rounded border border-border bg-surface-2 px-1.5 py-1"
               />

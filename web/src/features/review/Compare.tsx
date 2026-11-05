@@ -1,7 +1,7 @@
 // A retry's grade beside the first: like with like, or why they aren't set side by side.
 import { VerdictTag } from "@/components/VerdictTag";
 import type { MistakeRecord } from "@/data/db";
-import { describe as describeProvenance } from "@/solver/provenance";
+import { describe as describeProvenance, evUnit } from "@/solver/provenance";
 import { costWords, type Retried } from "./mistakes";
 
 /** The first grade beside this one, like with like; or why they aren't set side by side. */
@@ -11,7 +11,7 @@ export function Compare({ m, r }: { m: Pick<MistakeRecord, "provenance" | "mix" 
   if (!r.change.length)
     return (
       <p>
-        First: <VerdictTag v={m.grade.verdict} /> {costWords(m.grade, m.mix, firstSource)}. This time: <VerdictTag v={r.grade.verdict} /> {costWords(r.grade, r.decision.mix, nowSource)}. Same kind of answer both times.
+        First: <VerdictTag v={m.grade.verdict} /> {costWords(m.grade, m.mix, firstSource, evUnit(m.provenance))}. This time: <VerdictTag v={r.grade.verdict} /> {costWords(r.grade, r.decision.mix, nowSource, evUnit(r.decision.provenance))}. Same kind of answer both times.
       </p>
     );
   return (

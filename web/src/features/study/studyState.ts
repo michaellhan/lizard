@@ -273,6 +273,19 @@ export function studyKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | 
   return /^[1-9]$/.test(e.key) ? { kind: "play", index: Number(e.key) - 1 } : null;
 }
 
+// where a key belongs to what's focused: every key to a field or the grid (which walks itself with the arrows); the
+// single keys also to a link, a button or any other control that a key acts on (WCAG 2.1.4)
+const TAKES_ALL_KEYS = 'input, select, textarea, [contenteditable], [role="grid"]';
+const TAKES_SINGLE_KEYS = 'a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="radio"], [role="checkbox"], [role="switch"], [role="slider"], [role="spinbutton"], [role="combobox"], [role="menuitem"]';
+
+/** Whether a key pressed with focus on `el` is the page's, not the control's: the arrows anywhere but a field or the grid,
+ * 1-9, b and Backspace only away from any control. (Enter and Space aren't the page's: a focused button keeps them.) */
+export function studyKeyFrom(el: Element | null, key: string): boolean {
+  if (!el?.closest) return true; // (the window itself)
+  if (el.closest(TAKES_ALL_KEYS)) return false;
+  return key.startsWith("Arrow") || !el.closest(TAKES_SINGLE_KEYS);
+}
+
 /** What a call costs as a share of the pot it makes: to call / (pot + to call), the answer's pot already holding the
  * bet faced. None with nothing to call, or with per-seat stacks where someone left in has more than the player: the
  * engine's pot then holds chips a short call can't win (101.5bb for a 30bb stack facing a 100bb open, so 22% where

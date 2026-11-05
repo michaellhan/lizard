@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { describeEquity, DEFAULT_RUNS, MAX_PLAYERS, MIN_PLAYERS, type EquityMode, type EquityResult } from "@/engine/plo/equity";
 import { EquityClient } from "@/engine/plo/equityClient";
 
-const inputClass = "rounded border border-border bg-surface-1 px-2 py-1 font-mono text-sm";
+const inputClass = "rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
 const buttonClass = "rounded border border-border px-3 py-1 text-sm hover:bg-surface-2 disabled:opacity-40";
 const pct = (x: number, digits = 2) => `${(x * 100).toFixed(digits)}%`;
 

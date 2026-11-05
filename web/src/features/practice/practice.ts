@@ -9,6 +9,7 @@
 import { kindOf } from "@/components/actions";
 import { classOf } from "@/engine/nlhe/cards";
 import type { SizeStreet } from "@/features/solve/setup";
+import { tournamentRequest, type TournamentSetup } from "@/features/tournaments/tournament";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
 import { lineToken } from "@/library/flops";
@@ -99,6 +100,10 @@ export interface PracticeHand {
   sizes?: Sizes;
   /** the rake: % of pots that see a flop, capped in bb */
   rake?: Rake;
+  /** the push/fold mode (`PUSH_FOLD_MAX`): an all-in runs out, and a hand with betting still to come stops at the flop */
+  pushFold?: true;
+  /** a tournament session's game: what its answers are in, and its prizes; each seat's chips are in `stacks` */
+  tournament?: HandTournament;
   /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
    * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
   run?: "played" | "shown";
@@ -108,6 +113,31 @@ export interface PracticeHand {
 }
 
 export type Sizes = Partial<Record<SizeStreet, number[]>>;
+
+/** The stack the engine's push/fold band ends at (advisor.py PUSH_FOLD_STACK): at this or less a raise is an all-in,
+ * and at 12.5bb it's the chart's raise again. */
+export const PUSH_FOLD_MAX = 12;
+
+/** A tournament session's game. "icm": every answer is asked in prize equity, with `payouts` and `field`. "chips": chip
+ * EV, which is no prizes at all, so the engine's answer is the one it gives these stacks in a cash game. */
+export interface HandTournament {
+  model: "icm" | "chips";
+  /** the prizes still to be paid, first place first (two or more; "icm" only) */
+  payouts?: number[];
+  /** the players at other tables and their average stack, bb */
+  field?: NonNullable<TournamentSetup["field"]>;
+}
+/** A tournament session's setup: its game and each seat's chips, bb, which every hand starts from. The tournament doesn't
+ * move on: nobody's knocked out, and no chips go from hand to hand. */
+export interface TournamentOptions extends HandTournament {
+  stacks: Record<string, number>;
+}
+
+/** The game in words. */
+export const gameLabel = (t: HandTournament) => (t.model === "icm" ? `tournament in prize equity, prizes ${(t.payouts ?? []).join("/")}` : "tournament in chip EV");
+
+/** What marks a chip EV session's answers, as the engine's own carry nothing of a tournament. */
+export const CHIP_MODEL = "chip EV: these stacks with no prizes";
 
 /** The drill modes (the classic trainer's, `practice.js:169-196`): only one kind of pot. The preflop is played for you
  * too (from the charts, as the opponents' is), and the hand dealt again until it reaches the flop heads-up, you in it, as
@@ -151,16 +181,27 @@ export interface HandOptions {
   rakeCap?: number;
 }
 
+/** A session's kind of game, which most sessions don't set. */
+export interface GameOptions {
+  /** the push/fold mode: the setup's stack is PUSH_FOLD_MAX or less */
+  pushFold?: boolean;
+  /** a tournament: each seat's chips and what the answers are in */
+  tournament?: TournamentOptions;
+}
+
 /** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop). */
-export interface DealOptions extends HandOptions {
+export interface DealOptions extends HandOptions, GameOptions {
   board?: TextureFilter | null;
 }
 /** A session's setup, as it's kept. One kept before the board filter has none. */
-export type SessionOptions = Required<HandOptions> & Pick<DealOptions, "board">;
+export type SessionOptions = Required<HandOptions> & GameOptions & Pick<DealOptions, "board">;
+
+/** A session that's only ever any hand above one table: a pot played for you would stop it being what was set up. */
+export const anyHandOnly = (o: Pick<HandOptions, "preflopOnly"> & GameOptions) => !!o.preflopOnly || !!o.pushFold || !!o.tournament;
 
 /** Whether the options carry chips: full hands (not preflop only or a drill's pot), your seat moving one place a hand,
  * so each player keeps a seat and its chips follow it. */
-export const carries = (o: HandOptions) => !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly && !o.pot;
+export const carries = (o: HandOptions & GameOptions) => !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly && !o.pot && !o.pushFold && !o.tournament;
 
 /** A seat under this share of the starting stack rebuys to it before a hand (the classic table's REBUY). */
 export const REBUY = 0.25;
@@ -219,8 +260,12 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.sizes && Object.keys(opts.sizes).length ? { sizes: opts.sizes } : {}),
     ...(opts.rake && opts.rake > 0 ? { rake: { pct: opts.rake, ...(opts.rakeCap && opts.rakeCap > 0 ? { cap: opts.rakeCap } : {}) } } : {}),
     ...(carries(opts) ? { stacks: table?.stacks ?? Object.fromEntries(seatsOf(players).map((p) => [p, stack])), ...(table?.rebuys.length ? { rebuys: table.rebuys } : {}) } : {}),
+    ...(opts.pushFold ? { pushFold: true as const } : {}),
+    ...(opts.tournament ? tournamentHand(opts.tournament) : {}),
   };
 }
+
+const tournamentHand = ({ stacks, ...game }: TournamentOptions) => ({ tournament: game, stacks });
 
 export interface Table {
   stacks: Record<string, number>;
@@ -259,11 +304,11 @@ export function nextTable(h: PracticeHand, chips: Record<string, number> = chips
 
 /** The session's next hand, number `n`: with chips carried, from where this one left them (or, `reset`, every seat
  * back at the starting stack). */
-export const following = (h: PracticeHand, seed: number, opts: HandOptions, reset = false, n = h.n + 1): PracticeHand =>
+export const following = (h: PracticeHand, seed: number, opts: DealOptions, reset = false, n = h.n + 1): PracticeHand =>
   newHand(h.players, h.stack, n, seed, opts, carries(opts) && !reset ? nextTable(h) : undefined);
 
 /** A drill hand that went another way, dealt again (the same hand number: your seat stays where it moves). */
-export const redeal = (h: PracticeHand, seed: number, opts: HandOptions): PracticeHand => ({ ...newHand(h.players, h.stack, h.n, seed, opts), tries: (h.tries ?? 0) + 1 });
+export const redeal = (h: PracticeHand, seed: number, opts: DealOptions): PracticeHand => ({ ...newHand(h.players, h.stack, h.n, seed, opts), tries: (h.tries ?? 0) + 1 });
 
 /** A drill hand whose preflop has gone another way (to be dealt again), else false (still on course, or on the
  * flop): you folded, an all-in, too many raises, someone not in the blinds in a blind-vs-blind pot, or the flop
@@ -297,8 +342,12 @@ export const needsIndex = (h: PracticeHand) => seeking(h) && h.pot === "lib" && 
  * (six players, 100bb each and nothing else: `chartKey` and `chartState` carry no ante, straddle, rake or sizes). */
 export const charting = (h: PracticeHand) => seeking(h) && h.players === 6 && h.stack === 100 && !h.ante && !h.straddle && !h.rake && !h.sizes && !h.stacks;
 
-/** Preflop only, the preflop closed with you and someone else in: the hand stops there. */
-const cutAt = (h: PracticeHand, sim: Sim) => !!h.preflopOnly && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);
+/** Two or more can still bet: the push/fold mode has nothing to say after the flop, where an all-in just runs out. */
+const stillBetting = (sim: Sim) => [...sim.active].filter((p) => !sim.allin.has(p)).length > 1;
+
+/** Preflop only, the preflop closed with you and someone else in: the hand stops there. So does a push/fold hand that isn't
+ * all-in by then, which the engine's opponents don't get to: it takes a move played without a grade. */
+const cutAt = (h: PracticeHand, sim: Sim) => (!!h.preflopOnly || (!!h.pushFold && stillBetting(sim))) && !!sim.streets.preflop?.closed && !sim.handOver && sim.active.has(h.hero);
 
 export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "straddle" | "stacks">): TableSetup => ({
   players: h.players,
@@ -314,7 +363,10 @@ const gameOf = (h: Pick<PracticeHand, "ante" | "straddle">) => ({ ...(h.ante ? {
 const rakeOf = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: Math.round(h.rake.pct * 10) / 1000, ...(h.rake.cap ? { rake_cap: h.rake.cap } : {}) } : {});
 const rakeSetup = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.rake.pct, ...(h.rake.cap ? { rakeCap: h.rake.cap } : {}) } : {});
 
-/** The seats whose chips aren't the starting stack (chips carried), bb; none where every seat has it. */
+/** The hand's prizes, in the engine's keys and in Study's setup. A chip EV session has none to send. */
+const prizesOf = (h: Pick<PracticeHand, "tournament">): TournamentSetup | undefined => (h.tournament?.model === "icm" ? { payouts: h.tournament.payouts, field: h.tournament.field } : undefined);
+
+/** The seats whose chips aren't the starting stack (chips carried, a tournament's), bb; none where every seat has it. */
 const ownStacks = (h: Pick<PracticeHand, "stack" | "stacks">) => {
   const own = Object.entries(h.stacks ?? {}).filter(([, v]) => Math.abs(v - h.stack) > 1e-9);
   return own.length ? { stacks: Object.fromEntries(own) } : {};
@@ -336,7 +388,7 @@ export function studyOf(h: PracticeHand): string {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
-    ...(h.ante || h.straddle || h.sizes || h.rake || ownStacks(h).stacks ? { setup: { ...gameOf(h), ...ownStacks(h), ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h) } } : {}),
+    ...(h.ante || h.straddle || h.sizes || h.rake || ownStacks(h).stacks || prizesOf(h) ? { setup: { ...gameOf(h), ...ownStacks(h), ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h), ...(prizesOf(h) ? { tournament: prizesOf(h) } : {}) } } : {}),
   };
   return toSearch(s);
 }
@@ -359,6 +411,7 @@ export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
     ...gameOf(h),
     ...ownStacks(h),
     ...rakeOf(h),
+    ...tournamentRequest(prizesOf(h), h.players),
     // (your sizes change the postflop solves only: sent from the flop on, as the classic page does, so preflop's
     // answer is the same)
     ...(h.sizes && h.shown >= 3 ? { sizes: h.sizes } : {}),
@@ -448,6 +501,13 @@ export function mixOf(res: AdvisorResponse): Decision["mix"] {
   }));
 }
 
+/** The mix as it's graded: a fallback's EVs in a prize-equity session are chips, which can't go beside the session's prize
+ * equity, so it's by frequency. */
+export const gradable = (mix: Decision["mix"], p: Pick<Provenance, "evIn"> | null | undefined): Decision["mix"] => (p?.evIn === "chips" ? mix.map((a) => ({ ...a, ev: null })) : mix);
+
+/** The answer's provenance as the hand's game has it: a chip EV session's says so, as the engine's can't. */
+export const modelled = (h: Pick<PracticeHand, "tournament">, p: Provenance | null): Provenance | null => (p && h.tournament?.model === "chips" ? { ...p, tournament: CHIP_MODEL } : p);
+
 /** The mix's i-th action graded: by EV where it has EVs for every action, else by frequency (the preflop charts). */
 export function gradeMix(mix: Decision["mix"], pot: number, i: number): Grade {
   const evs = mix.every((x) => x.ev !== null) ? mix.map((x) => x.ev!) : null;
@@ -467,7 +527,7 @@ export function decide(
   if (!a) return { error: "That action isn't in the answer." };
   const m = moveOfOption(h, a, sim);
   if (typeof m === "string") return { error: m };
-  const mix = mixOf(res);
+  const mix = gradable(mixOf(res), provenance);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;
   const decision: Decision = {
     street: sim.current!,
@@ -476,7 +536,7 @@ export function decide(
     grade: h.revealed ? null : gradeMix(mix, pot, i),
     mix,
     pot,
-    provenance,
+    provenance: modelled(h, provenance),
     study: studyOf(h),
     ...(h.revealed ? { revealed: true as const } : {}),
   };

@@ -209,7 +209,7 @@ function SpotReport({
             ))}
           </select>
         </label>
-        <span role="group" aria-label="Decision" className="inline-flex overflow-hidden rounded-md border border-border">
+        <span role="group" aria-label="Decision" className="segmented inline-flex overflow-hidden rounded-md border border-border">
           {decisions.map((v) => (
             <button
               key={v}
@@ -276,7 +276,7 @@ function SpotReport({
               {cover.flops} of {FLOP_CLASSES.toLocaleString()} flops stored, standing for {pct(cover.share)} of all {ALL_FLOPS.toLocaleString()}
             </span>
             <span className="flex-1" />
-            <span role="group" aria-label="Show as" className="inline-flex overflow-hidden rounded-md border border-border">
+            <span role="group" aria-label="Show as" className="segmented inline-flex overflow-hidden rounded-md border border-border">
               {(["Table", "Chart"] as const).map((v) => (
                 <button
                   key={v}

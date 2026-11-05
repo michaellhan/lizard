@@ -9,7 +9,7 @@ import type { Grade } from "@/grading/grade";
 import type { LibraryReport } from "@/library/files";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { AdvisorResponse } from "@/solver/protocol";
-import { describe as describeProvenance } from "@/solver/provenance";
+import { describe as describeProvenance, evUnit } from "@/solver/provenance";
 import type { Provenance, ResultSource } from "@/solver/types";
 import { drillActionLabel, situation, studyHandOf, studyLink, type DrillProblem } from "./drills";
 import { mixOf, optionLabel, type Decision } from "./practice";
@@ -21,6 +21,7 @@ const cardsOf = (s: string) => s.match(/../g) ?? [];
 /** What isn't a solve, said outright: the label alone could be read past. */
 const NOT_SOLVED: Partial<Record<ResultSource, string>> = {
   charts: "The preflop charts are approximate tables. They are not a solved answer, and they have no EVs.",
+  "push-fold": "The push/fold model is an equilibrium of a game with only all-in or fold, worked out by hand class, or a call priced against its range. It is not a solve of the full game, and it has no EVs.",
   rules: "These betting rules are a fallback. They are not a solved answer.",
   equity: "This equity estimate is a fallback. It is not a solved answer.",
 };
@@ -70,7 +71,7 @@ export function aiText(s: AiSpot): string {
     `Decision: ${s.at}`,
     ...(s.took ? [s.took] : []),
     "The answer's mix for this hand:",
-    ...s.mix.map((a) => `- ${s.labelOf(a)}: ${pct(a.freq)}${a.ev !== null ? `, EV ${bb(a.ev)}bb` : ""}`),
+    ...s.mix.map((a) => `- ${s.labelOf(a)}: ${pct(a.freq)}${a.ev !== null ? `, EV ${bb(a.ev)}${evUnit(s.provenance)}` : ""}`),
     ...(hasEv ? [] : ["This answer has no EVs for this hand."]),
     `Source of these numbers: ${s.provenance ? describeProvenance(s.provenance) : "not kept"}.`,
     ...(source && NOT_SOLVED[source] ? [NOT_SOLVED[source]] : []),
@@ -89,7 +90,7 @@ export function reviewedText(e: Reviewed): string {
     ...rows,
     you: `${seatLabel(e.seat, e.players)}, holding ${e.hole.join(" ")}`,
     at: `${e.d.street}, pot ${fmt(e.d.pot)}bb`,
-    ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source)}.` } : {}),
+    ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source, evUnit(e.d.provenance))}.` } : {}),
     mix: e.d.mix,
     labelOf: (a) => optionLabel(a.action, a.amount),
     provenance: e.d.provenance,

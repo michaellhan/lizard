@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandOf, describe as describeProvenance, provenanceOf, sourceOf } from "./provenance";
+import { bandOf, describe as describeProvenance, evUnit, PRIZE_UNIT, provenanceOf, sourceOf, tournamentModelOf } from "./provenance";
 import type { AdvisorResponse } from "./protocol";
 
 const ctx = { mode: "fast" as const, transport: "worker" as const, solverVersion: "9b907bd6/abc", partial: false, now: 1 };
@@ -160,7 +160,7 @@ describe("provenance", () => {
     // a cash answer has none; a chip answer's own all-in from the push/fold equilibrium says so
     expect(provenanceOf({ street: "flop", solver: { iterations: 300 } }, ctx).tournament).toBeUndefined();
     const chipJam = provenanceOf({ street: "preflop", notes: ["a raise here commits too much of a 10bb stack: all-in, range from the push/fold equilibrium against 5 players"] }, ctx);
-    expect(describeProvenance(chipJam)).toBe("Preflop charts · push/fold equilibrium in chips · approximate");
+    expect(describeProvenance(chipJam)).toBe("Push/fold model (not a solve) · jam-or-fold equilibrium in chips, by hand class, one caller assumed · approximate");
     expect(provenanceOf({ street: "preflop", notes: ["BTN's 10bb jam range: push/fold equilibrium against 2"] }, ctx).view).toBeUndefined();
   });
 
@@ -181,5 +181,57 @@ describe("provenance", () => {
     // and no triage, nothing said
     expect(provenanceOf({ solver: { iterations: 300 } }, ctx).confidence).toBeUndefined();
     expect(describeProvenance({ ...quick, mode: "fast", confidence: undefined })).toMatch(/^Live solve · /);
+  });
+});
+
+describe("the push/fold model (advisor.py _push and _vs_jam, as the engine says them)", () => {
+  const OWN = "a raise here commits too much of a 12bb stack: all-in, range from the push/fold equilibrium against 5 players";
+  const JAM = (notes: string[], extra: Partial<AdvisorResponse> = {}): AdvisorResponse => ({
+    street: "preflop",
+    notes,
+    actions: [
+      { action: "fold", freq: 0.4 },
+      { action: "all-in", freq: 0.6, amount_bb: 12 },
+    ],
+    ...extra,
+  });
+
+  it("is its own source for a jam and for a call of one, approximate, and no chart or solve", () => {
+    const first = provenanceOf(JAM(["preflop: chart approximation", OWN]), ctx);
+    expect(first).toMatchObject({ source: "push-fold", approximate: true, view: "jam-or-fold equilibrium in chips, by hand class, one caller assumed" });
+    expect(describeProvenance(first)).not.toMatch(/solve ·|Live|Preflop charts/);
+    const facing = provenanceOf({ street: "preflop", actions: [{ action: "fold", freq: 0 }, { action: "call", freq: 1 }], notes: ["preflop: facing an all-in, call when equity beats the pot odds", "BTN's 12bb jam range: push/fold equilibrium against 2 players left (31% of their hands)", "equity 63.3% vs 44.9% needed"] }, ctx);
+    expect(facing).toMatchObject({ source: "push-fold", approximate: true, view: "a call priced by equity against the jam's push/fold range" });
+  });
+
+  it("leaves a chart with one all-in from the equilibrium as the chart, saying so", () => {
+    const hybrid = JAM([OWN], { actions: [{ action: "fold", freq: 0 }, { action: "call", freq: 0.97 }, { action: "all-in", freq: 0.03 }] });
+    expect(provenanceOf(hybrid, ctx)).toMatchObject({ source: "charts", view: "the chart, its all-in from the push/fold equilibrium in chips" });
+    expect(sourceOf(JAM(["preflop: chart approximation"]))).toBe("charts");
+    // a fallback or a flop that happens to say the words is what it was
+    expect(sourceOf(JAM([OWN], { fallback: "rules", street: "river" }))).toBe("rules");
+  });
+
+  it("says what a tournament's answer is in, and what its EVs are", () => {
+    const ICM = { equity_share: 0.07, bubble_factors: { BB: 1.2 }, note: "tournament: ICM, CO's prize equity 7.0% of what's left to pay; bubble factor up to 1.20" };
+    const jam = provenanceOf(JAM([ICM.note, "a raise here commits too much of a 8bb stack: all-in, range from the push/fold equilibrium against 3 players in prize equity (ICM: both the jams and the calls)"], { tournament: ICM }), ctx);
+    expect(jam.source).toBe("push-fold");
+    expect(jam.tournament).toMatch(/prize equity/);
+    const solve = provenanceOf({ street: "flop", tournament: ICM, notes: [ICM.note], solver: { iterations: 100 } }, ctx);
+    expect(solve).toMatchObject({ source: "live", evIn: "prize" });
+    expect(evUnit(solve)).toBe(PRIZE_UNIT);
+    const rules = provenanceOf({ street: "river", fallback: "rules", tournament: ICM, notes: [] }, ctx);
+    expect(rules).toMatchObject({ source: "rules", evIn: "chips", tournament: "a tournament, but the fallback plays chips" });
+    expect(evUnit(rules)).toBe("bb");
+    // and a cash answer is in bb, as it always was
+    expect(provenanceOf({ street: "flop", solver: { iterations: 100 } }, ctx).evIn).toBeUndefined();
+    expect(evUnit(null)).toBe("bb");
+  });
+
+  it("calls a hybrid in a tournament the chip chart it is, with the one action from the model", () => {
+    const ICM = { equity_share: 0.07, note: "tournament: ICM, CO's prize equity 7.0%" };
+    const r = JAM([ICM.note, "a raise here commits too much of a 30bb stack: all-in, range from the push/fold equilibrium against 1 player in prize equity (ICM: both the jams and the calls)"], { tournament: ICM, actions: [{ action: "fold", freq: 0 }, { action: "call", freq: 0.97 }, { action: "all-in", freq: 0.03 }] });
+    expect(provenanceOf(r, ctx)).toMatchObject({ source: "charts", tournament: "chip chart with a risk premium, its all-in from the push/fold equilibrium in prize equity" });
+    expect(tournamentModelOf).toBeTypeOf("function");
   });
 });

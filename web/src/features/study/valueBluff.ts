@@ -14,6 +14,7 @@ export const isAggressive = (name: string): boolean => ["bet", "raise", "all-in"
 /** What can't carry a hand-by-hand reading, and why in words (the preflop charts and the rules must never read as solved). */
 const NOT_SOLVED: Partial<Record<ResultSource, string>> = {
   charts: "the preflop charts, not a solve",
+  "push-fold": "the push/fold model, not a solve",
   "preflop-solve": "the preflop solve, which works by hand class and holds no equities against a range",
   rules: "the betting rules, not a solve",
   equity: "an equity estimate, not a solve",

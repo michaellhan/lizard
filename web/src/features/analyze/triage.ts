@@ -11,8 +11,8 @@ import { isGraded, isOk } from "./report";
 /** EV lost, as a share of the pot, from which a read is worth checking whatever its grade. */
 export const DEEP_LOSS = 0.02;
 
-/** The charts and the library's own spot: Fast answers the same, so there's nothing to check. */
-const sameAtFast = (d: DecisionRecord) => (d.source === "charts" || d.source === "library") && d.confidence === "high";
+/** The charts, the push/fold model and the library's own spot: Fast answers the same, so there's nothing to check. */
+const sameAtFast = (d: DecisionRecord) => (d.source === "charts" || d.source === "push-fold" || d.source === "library") && d.confidence === "high";
 
 /** A read Fast should check: one it could answer otherwise, of low confidence, off the mix, or losing DEEP_LOSS of the
  * pot; one that couldn't be graded, the betting rules' included (Fast solves what Quick leaves to them, a 4-way flop in

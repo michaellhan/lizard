@@ -93,6 +93,6 @@ describe("the initial bundle", () => {
     expect(others.length).toBeGreaterThan(100);
     const statics = others.filter((f) => /(from|import)\s+"[^"]*(engine\/plo|features\/equity)/.test(readFileSync(f, "utf8")));
     expect(statics).toEqual([]);
-    expect(readFileSync(join(src, "app", "App.tsx"), "utf8")).toMatch(/lazy\(\(\) => import\("@\/features\/equity\/EquityPage"\)/);
+    expect(readFileSync(join(src, "app", "App.tsx"), "utf8")).toMatch(/import\("@\/features\/equity\/EquityPage"\)/);
   });
 });

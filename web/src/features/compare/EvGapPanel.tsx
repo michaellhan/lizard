@@ -100,7 +100,9 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: AdvisorResponse; 
             Blue: {x} is worth more; red: {y} is; the stronger, the bigger (strongest {u(max)}).
             {noise !== null ? ` Gaps under ${plain(noise)} (the answer's distance from equilibrium) aren't coloured: noise.` : ""}
           </p>
-          {selected && <p className="text-sm">{label(selected, by.get(selected))}</p>}
+          <p role="status" className="text-sm">
+            {selected ? label(selected, by.get(selected)) : ""}
+          </p>
         </div>
         <div className="space-y-3 text-sm">
           <div aria-label={`Where ${x} is worth most more`}>

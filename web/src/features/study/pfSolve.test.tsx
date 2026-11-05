@@ -240,7 +240,7 @@ describe("Study's preflop Solver source", () => {
     go();
     await waitFor(() => expect(screen.getByLabelText("About the preflop solve")).toHaveTextContent("Not finished: the numbers can still move."));
     expect(asks("run")).toHaveLength(1);
-    expect(screen.getByText(/the solve isn't finished/)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Actions" })).getByText(/the solve isn't finished/)).toBeInTheDocument();
     pf.hold = null;
     fireEvent.click(screen.getByRole("button", { name: "Continue the solve" }));
     await waitFor(() => expect(screen.getByLabelText("About the preflop solve")).not.toHaveTextContent("Not finished"));

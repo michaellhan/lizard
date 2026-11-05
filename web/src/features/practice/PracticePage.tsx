@@ -27,7 +27,7 @@ import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
-import { boardShown, mixOf, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
+import { boardShown, gameLabel, mixOf, modelled, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { SetupForm } from "./SetupForm";
@@ -165,7 +165,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
               solver&rsquo;s actions at your spot;
               the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
               preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
-              it reaches the flop heads-up as that pot, and you play from the flop. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
+              it reaches the flop heads-up as that pot, and you play from the flop. Push/fold deals 10 to 12bb, where you jam or fold, or call or fold a jam, against the push/fold model, and an all-in runs out.
+              Tournament sets the prizes and each seat&rsquo;s stack, every hand starts from them, and the answers are in chip EV or prize equity, kept apart in History and Review. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
               for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
               chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Up to
               four tables at once: pick how many under Tables. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze. Hint says what the spot is and what a call
@@ -179,6 +180,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <details open={wide} className="rounded-lg border border-border bg-surface p-3 text-sm">
           <summary className="cursor-pointer">
             Game · {session.players}-max · {session.stack}bb
+            {session.opts.pushFold ? " · push/fold" : ""}
+            {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
         </details>
@@ -223,6 +226,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <p className="mt-2 text-muted">
           Preflop the answer is the preflop charts (frequencies, no EVs): a preflop move is graded by how often the chart plays it, and no EV is counted as lost.
         </p>
+        <p className="mt-2 text-muted">
+          At 12bb or less the answer is the push/fold model: first in, an equilibrium of a game with only all-in or fold, worked out by hand class; facing a jam, a call priced by equity against that range. It has no EVs and isn&rsquo;t a
+          solve, so it&rsquo;s graded by frequency too. In a tournament the badge says what each answer is in: a prize-equity EV is chips worth as much prize equity, and a fallback&rsquo;s chips are graded by frequency there.
+        </p>
       </details>
 
       {others.length > 0 && (
@@ -239,6 +246,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
                 {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
                 {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} best or correct` : ""}
                 {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost a decision` : ""}
+                {s.meta.pushFold ? " · push/fold" : ""}
                 {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
                 {s.decisions ? ` · Graded against: ${rowOf(s).graded}` : ""}
               </li>
@@ -310,6 +318,8 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             Hand {hand.n + 1} · {hand.players === 2 ? "heads-up" : `${hand.players}-max`} · {hand.stack}bb
             {hand.ante ? ` · ante ${hand.ante}` : ""}
             {hand.straddle ? " · straddle" : ""}
+            {hand.pushFold ? " · push/fold" : ""}
+            {hand.tournament ? ` · ${gameLabel(hand.tournament)}` : ""}
             {hand.rake ? ` · rake ${hand.rake.pct}%${hand.rake.cap ? ` (cap ${hand.rake.cap}bb)` : ""}` : ""}
             {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
           </span>
@@ -319,7 +329,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             <SeatView key={p} hand={hand} sim={sim} p={p} />
           ))}
         </ul>
-        {hand.stacks && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
+        {hand.stacks && !hand.tournament && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
       </section>
 
       <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">
@@ -356,7 +366,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
         {phase.kind === "hero" && !answer && !failed && (
           <p role="status" className="flex items-center gap-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            {answering(sim)} so your move can be graded…
+            {answering(sim, hand)} so your move can be graded…
             <span className="text-muted">(the first answer starts the engine)</span>
           </p>
         )}
@@ -387,7 +397,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             onReveal={answer ? () => room.reveal() : null}
             revealed={
               hand.revealed && answer ? (
-                <RevealedMix mix={mixOf(answer.data)} provenance={answer.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
+                <RevealedMix mix={mixOf(answer.data)} provenance={modelled(hand, answer.provenance) ?? answer.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
               ) : null
             }
           />
@@ -409,7 +419,9 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
               {hand.result.folded
                 ? "You folded"
                 : hand.result.cut
-                  ? "You see the flop: preflop only, the hand stops here"
+                  ? hand.pushFold
+                    ? "You see the flop: a push/fold hand stops here"
+                    : "You see the flop: preflop only, the hand stops here"
                   : hand.result.net > 0
                     ? "You won"
                     : hand.result.net < 0

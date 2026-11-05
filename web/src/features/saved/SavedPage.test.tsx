@@ -166,6 +166,59 @@ describe("SavedPage", () => {
     expect(screen.getByTestId("where")).toHaveTextContent("/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono");
   });
 
+  it("keeps focus through Edit, Cancel and Delete, and a delete lands on the next row and is said", async () => {
+    await putSpot(spot("a", "First", { updatedAt: 3 }));
+    await putSpot(spot("b", "Second", { updatedAt: 2 }));
+    await putSpot(spot("c", "Third", { updatedAt: 1 }));
+    renderAt("/saved");
+    const list = await screen.findByRole("region", { name: "Saved spots" });
+    const row = (name: string) => within(list).findByRole("listitem", { name });
+    const told = () => screen.getAllByRole("status").map((s) => s.textContent).join(" ");
+
+    // (a click on a button focuses it in a browser; here it has to be told)
+    const press = (b: HTMLElement) => {
+      b.focus();
+      fireEvent.click(b);
+    };
+    const inRow = async (name: string, button: string) => within(await row(name)).getByRole("button", { name: button });
+
+    // Edit lands in the form, Cancel back on Edit
+    press(await inRow("First", "Edit"));
+    const form = screen.getByRole("form", { name: "Edit First" });
+    expect(within(form).getByRole("textbox", { name: "Name" })).toHaveFocus();
+    press(within(form).getByRole("button", { name: "Cancel" }));
+    expect(await inRow("First", "Edit")).toHaveFocus();
+
+    // Delete moves to the choice, Keep back to Delete
+    press(await inRow("First", "Delete"));
+    expect(await inRow("First", "Keep")).toHaveFocus();
+    press(await inRow("First", "Keep"));
+    expect(await inRow("First", "Delete")).toHaveFocus();
+
+    // a middle row: the next one takes focus, and the delete is said
+    press(await inRow("Second", "Delete"));
+    press(await inRow("Second", "Delete spot"));
+    await waitFor(() => expect(within(list).queryByRole("listitem", { name: "Second" })).toBeNull());
+    await waitFor(() => expect(within(list).getByRole("listitem", { name: "Third" })).toHaveFocus());
+    expect(told()).toContain("Second deleted.");
+
+    // the last row: the one before it
+    press(await inRow("Third", "Delete"));
+    press(await inRow("Third", "Delete spot"));
+    await waitFor(() => expect(within(list).getByRole("listitem", { name: "First" })).toHaveFocus());
+
+    // none left: the section
+    press(await inRow("First", "Delete"));
+    press(await inRow("First", "Delete spot"));
+    await waitFor(() => expect(screen.getByRole("region", { name: "Saved spots" })).toHaveFocus());
+  });
+
+  it("shows the focus on the backup's file input through its label", async () => {
+    renderAt("/saved");
+    const input = (await screen.findByLabelText("Backup file to restore")) as HTMLInputElement;
+    expect(input.closest("label")?.className).toMatch(/focus-within:outline/);
+  });
+
   it("says where saved things come from when there are none", async () => {
     renderAt("/saved");
     expect(await screen.findByText(/No saved spots yet/)).toBeInTheDocument();
@@ -205,5 +258,49 @@ describe("saved ranges in the Ranges editor", () => {
     expect(screen.getByText("Not understood: xyz")).toBeInTheDocument();
     expect(screen.getByText(/^Single combos \(AhKh, KdAd\) are kept as their share of the class/)).toBeInTheDocument();
     expect(screen.getByText(/^20\.0$/)).toBeInTheDocument();
+  });
+
+  it("keeps Ranges' cell label plain, the brush spoken and the text's error tied to its field", () => {
+    renderAt("/ranges");
+    expect(screen.getByRole("gridcell", { name: "AA: 100% in range" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "72o: not in range" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByRole("gridcell", { name: "AA: not in range" })).toHaveAttribute("tabindex", "0");
+    const brush = screen.getByRole("slider", { name: "Brush weight" });
+    fireEvent.change(brush, { target: { value: "0.5" } });
+    expect(brush).toHaveAttribute("aria-valuetext", "50%");
+    fireEvent.click(screen.getByRole("gridcell", { name: "AA: not in range" }));
+    expect(screen.getByRole("gridcell", { name: "AA: 50% in range" })).toBeInTheDocument();
+    expect(screen.getByText(/^AA at 50%\. 3\.0 combos in the range\.$/)).toBeInTheDocument();
+
+    const field = screen.getByLabelText("Range text");
+    expect(field).toHaveAttribute("aria-invalid", "false");
+    fireEvent.change(field, { target: { value: "xyz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply text" }));
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/^Not understood: xyz/);
+  });
+
+  it("says when Ranges copied the text, and what to do when it couldn't", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    try {
+      renderAt("/ranges");
+      fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+      expect(await screen.findByText("Copied the range text.")).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining("AKs"));
+
+      writeText.mockRejectedValueOnce(new Error("denied"));
+      fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+      expect(await screen.findByText(/Couldn't copy here\. Select the range text/)).toBeInTheDocument();
+
+      // (no clipboard at all: an insecure page)
+      Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+      fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+      expect(await screen.findByText(/Couldn't copy here/)).toBeInTheDocument();
+    } finally {
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    }
   });
 });

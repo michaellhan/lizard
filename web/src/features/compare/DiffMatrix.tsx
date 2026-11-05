@@ -1,8 +1,9 @@
 // The 13x13 classes coloured by a change: blue up, red down, the stronger the bigger; darker grey where the class is in
-// one range only. Every cell is a labelled button, as in RangeMatrix. DiffMatrix: one action's frequency from A to B;
+// one range only. Every cell is a labelled button, one tab stop in all, as in RangeMatrix. DiffMatrix: one action's frequency from A to B;
 // EvGapPanel: one action's EV minus another's.
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
 import { pct } from "@/components/actions";
+import { useRovingGrid } from "@/components/rovingGrid";
 import type { ClassDiff } from "./compare";
 
 /** a change in frequency, in percentage points; in EV, in bb */
@@ -48,8 +49,9 @@ export function DeltaMatrix({
   selected?: string | null;
   onSelect?: (cls: string) => void;
 }) {
+  const { stop, gridProps } = useRovingGrid(selected);
   return (
-    <div role="grid" aria-label={name} className="grid w-full gap-[2px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
+    <div role="grid" aria-label={name} className="grid w-full gap-[2px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }} {...gridProps}>
       {RANKS.map((_, i) => (
         <div role="row" key={i} className="contents">
           {RANKS.map((__, j) => {
@@ -62,6 +64,7 @@ export function DeltaMatrix({
                 role="gridcell"
                 aria-label={c.label}
                 aria-selected={selected === cls}
+                tabIndex={stop === cls ? 0 : -1}
                 onClick={() => onSelect?.(cls)}
                 className={`relative aspect-square min-w-0 overflow-hidden rounded-[3px] text-left ${c.one ? "bg-surface-3" : "bg-surface-2"} ${
                   selected === cls ? "ring-2 ring-accent ring-offset-1 ring-offset-bg" : ""

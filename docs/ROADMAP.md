@@ -36,7 +36,7 @@ Effort sizes are rough: **S** is a few days, **M** is one to three weeks, **L** 
   - A small opt-in engine check against the real solver, run only when the machine is free.
 - **Upstream churn.** The solver is a snapshot (`solver/`, upstream 1a14605e, the last full commit: the ones after it rewrite `scripts/deploy.sh` and change the tests CI gates run, so they aren't taken yet), and upstream moves fast. Lizard changes to solver code are kept as small, declared patches, each listed with its reason, so a later snapshot can be taken.
 - **Phones.** Every new page is checked at 375px width with no horizontal page scroll.
-- **Bundle size.** First load is about 25 MB of solver assets. New features must not add to the critical path; port JS logic as lazy-loaded route chunks.
+- **Bundle size.** First load is about 25 MB of solver assets. New features must not add to the critical path. Every page but Home and Not Found is its own chunk (`web/src/app/App.tsx`); keep it that way.
 
 ## Phase overview
 

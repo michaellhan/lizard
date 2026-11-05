@@ -1,6 +1,6 @@
 // The Compare page's picker (ROADMAP Phase 8: any two nodes): each side from your saved spots, the spot pinned in
 // Study, or any Study link pasted; Swap; Compare opens the two. Study's "Compare this spot" links stay the quick way.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { SavedSpot } from "@/data/db";
 import { listSpots } from "@/data/saved";
 import { describeLine, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
@@ -27,6 +27,7 @@ export function SpotPicker({ a, b, onPick }: { a: string | null; b: string | nul
   const [err, setErr] = useState<Partial<Record<Side, string>>>({});
   const [spots, setSpots] = useState<SavedSpot[]>([]);
   const pin = usePin((s) => s.pin);
+  const errId = useId();
   useEffect(() => {
     let alive = true;
     void listSpots()
@@ -96,11 +97,16 @@ export function SpotPicker({ a, b, onPick }: { a: string | null; b: string | nul
                 placeholder="or paste a Study link"
                 className="min-w-0 flex-1 rounded border border-border bg-surface-2 px-2 py-1 font-mono text-xs"
                 aria-invalid={Boolean(err[side])}
+                aria-describedby={err[side] ? `${errId}-${side}` : undefined}
               />
               <button type="submit" disabled={!typed[side].trim()} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
                 Use
               </button>
-              {err[side] && <span className="w-full text-xs text-danger">{err[side]}</span>}
+              {err[side] && (
+                <span id={`${errId}-${side}`} role="alert" className="w-full text-xs text-danger">
+                  {err[side]}
+                </span>
+              )}
             </form>
           </div>
         );

@@ -256,7 +256,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span role="group" aria-label="Whose decision" className="inline-flex overflow-hidden rounded-md border border-border">
+        <span role="group" aria-label="Whose decision" className="segmented inline-flex overflow-hidden rounded-md border border-border">
           {(
             [
               ["first", ro.first.actor],

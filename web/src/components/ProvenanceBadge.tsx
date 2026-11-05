@@ -8,6 +8,7 @@ const TONE: Record<Provenance["source"], string> = {
   live: "border-act-check/50 text-act-check",
   charts: "border-act-bet1/50 text-act-bet1",
   "preflop-solve": "border-act-bet1/50 text-act-bet1",
+  "push-fold": "border-act-bet1/50 text-act-bet1",
   rules: "border-warn/60 text-warn",
   equity: "border-warn/60 text-warn",
   unknown: "border-border text-muted",

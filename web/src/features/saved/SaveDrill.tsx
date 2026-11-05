@@ -1,7 +1,7 @@
 // "Save drill": a drill kept under a name in this browser (data/saved.ts), listed on the Saved page to open again as
 // it was set. A drill is its page's URL (Practice's drills: spot, decision and texture; Analyze's leak drill: the
 // leak and the hands' filters), saved once: saving it again updates it.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { SavedDrill } from "@/data/db";
 import { NOT_SAVED, drillAt, newId, putDrill, stored } from "@/data/saved";
@@ -10,6 +10,11 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
   // undefined while looking, null where the drill isn't saved
   const [saved, setSaved] = useState<SavedDrill | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    setOpen(false);
+    toggle.current?.focus();
+  };
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
@@ -52,8 +57,14 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
   };
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) close();
+      }}
+    >
       <button
+        ref={toggle}
         type="button"
         onClick={start}
         aria-expanded={open}
@@ -66,7 +77,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
       {open && (
         <form
           aria-label="Save drill"
-          className="absolute right-0 top-full z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg"
+          className="z-20 mt-1 space-y-2 max-sm:fixed max-sm:inset-x-4 sm:absolute sm:right-0 sm:top-full sm:w-72 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
@@ -85,7 +96,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
             <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
               Save
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+            <button type="button" onClick={close} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
               Close
             </button>
             {done && (

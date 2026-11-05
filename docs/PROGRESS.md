@@ -4061,3 +4061,38 @@ to the build and names no jsDelivr; all six Pyodide files fetched from Pages has
 and on the live site `crossOriginIsolated` is true and the pill reads "Engine ready · 8t", so the engine started from those files. The live
 page also loads Cloudflare's analytics beacon, which the edge injects and the preview doesn't have, so "no third-party request" holds for the
 app and its workers, not for the domain. DEPLOYMENT now says so.
+
+## Practice's short-stack and tournament sessions, the accessibility audit's fixes, pages split, and the QA list as tests
+
+**Practice** gains two kinds of session, both on the one Room:
+- **Push/fold** at 10-12bb. The engine's first-in answer there is a jam-or-fold equilibrium by hand class with one caller assumed, and a call of a jam is priced against that range, with no EVs in either. So it has its own source, "Push/fold model (not a solve)", always approximate and graded by frequency. The band ends at 12bb because the engine's does; 12.5bb is the chart again.
+- **Tournament**, in prize equity (ICM) or chip EV, with prizes, each seat's stack and other tables. Preflop is the engine's push/fold in prize equity at 12bb or less and a labelled chip chart with a risk premium deeper. A heads-up flop is a real prize-equity solve, whose EVs read "bb of prize equity", as they're on a different base from chips won (2.5 against 7.07 on one spot). A rules answer's chip EVs are dropped from an ICM session so its totals stay in one unit. These sessions stay apart in History and Review.
+
+A tournament session is one table frozen in time: nobody is knocked out, blinds don't rise, chips don't move on, and there are no bounties.
+
+**Accessibility:** the audit's High and Medium findings and most of its Low ones are fixed. What it found is in `docs/FEATURE_MATRIX.md` under Accessibility. Its contrast figure for `danger` was too kind: that text also fails at 4.33:1 on surface-3, so it went up with the rest. Fixing Saved's delete also found that React reused the Delete button as "Delete spot" with focus on it, so a second Enter would have deleted the row. Fields get a new `control` edge colour rather than a heavier border token, which would have made every panel divider heavy. A chart's answer in Practice no longer shows an EV column of dashes.
+
+**Pages split:** every page but Home and Not Found is its own chunk. The first script goes from 944 KB to 301 KB (about 97 KB gzipped) and Study is 158 KB after it. A tab left open across a deploy asks for chunks that are gone, so it reloads once (`app/freshChunk.ts`); a second failure goes to the error page.
+
+**The QA list** in the plan is now `web/e2e/qa.e2e.ts`, one test a scenario at desktop width, on the real worker:
+
+| Scenario | Test | Notes |
+|---|---|---|
+| 1 Routes and deep links | `routes.e2e.ts` | Every route, three widths |
+| 2 6-max to the river | 2 | From the New hand form, one street at a time |
+| 3 Class and combos | 3 | The board's card takes a combo out |
+| 4 Heads-up and 3-way solve | 4 | From the Solve page, and a 3-way link |
+| 5 Rake, straddle, ante, stacks, side pots | 5 | Side pots aren't in this one: they're in `table.test.ts` and `results`, as no fixture has one |
+| 6 Final-table ICM | 6 | Payouts and stacks reach Study's answer |
+| 7 A bad decision's cost | 7, 7b, 7c | Plus push/fold and tournament sessions |
+| 8 Range saved and loaded | 8 | A drill's save is in unit tests only |
+| 9 Stars and GG, malformed | 9 | |
+| 10 Biggest mistake into Study | 10 | A 72o open, off the chart |
+| 11 Texture-filtered report | 11 | Reads the live library, so not in CI |
+| 12 Save, back up, restore | 12 | |
+| 13 PLO4 | 13 | Equity only, as that's what exists |
+| 14 Keyboard, stops, errors, widths | 14, 14b, 14c, `content.e2e.ts` | Large files are in unit tests |
+
+Four first-run failures were all the tests' own: a class not in that range, a click on a button that doesn't exist because a restore starts on choosing the file, and the like. None was a product defect.
+
+Tests: 2336 unit tests in 127 files, typecheck and lint clean, 99 browser tests passed and 32 skipped (the QA list at the other two widths), with 14b and 14c run on their own against the same build. Not checked: a real screen reader, a real phone, and how a 3-way flop answers in an ICM session at Fast or Accurate.

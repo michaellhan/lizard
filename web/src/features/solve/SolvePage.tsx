@@ -133,6 +133,11 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setLeft("");
   };
   const seatBounties = tour && (bFormat === "ko" || bFormat === "pko");
+  // a field and the line in the list below that's about it
+  const flag = (...about: string[]) => {
+    const i = problems.findIndex((p) => about.some((a) => p.includes(a)));
+    return i < 0 ? {} : { "aria-invalid": true, "aria-describedby": `setup-problem-${i}` };
+  };
   const field = "rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-sm";
 
   return (
@@ -178,13 +183,15 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             </label>
             <label className="flex items-center gap-1.5">
               Stack
-              <input aria-label="Table stack" type="number" inputMode="decimal" step="any" min={MIN_STACK} max={MAX_STACK} value={stack} onChange={(e) => setStack(e.target.value)} aria-invalid={!stackOk} className={`${field} w-20`} />
-              <span className="text-muted">bb</span>
+              <input aria-label="Table stack" type="number" inputMode="decimal" step="any" min={MIN_STACK} max={MAX_STACK} value={stack} onChange={(e) => setStack(e.target.value)} {...flag("the table's stack")} className={`${field} w-20`} />
+              <span className={stackOk ? "text-muted" : "text-danger"}>
+                bb ({MIN_STACK} to {MAX_STACK})
+              </span>
             </label>
             <label className="flex items-center gap-1.5">
               Ante
-              <input aria-label="Ante" type="number" inputMode="decimal" step="any" min={0} max={LIMITS.ante} placeholder="0" value={ante} onChange={(e) => setAnte(e.target.value)} className={`${field} w-20`} />
-              <span className="text-muted">bb a seat</span>
+              <input aria-label="Ante" type="number" inputMode="decimal" step="any" min={0} max={LIMITS.ante} placeholder="0" value={ante} onChange={(e) => setAnte(e.target.value)} {...flag("the ante")} className={`${field} w-20`} />
+              <span className="text-muted">bb a seat (0 to {LIMITS.ante})</span>
             </label>
             <label className="flex items-center gap-1.5" title={players < 3 ? "A straddle needs 3 or more players" : "A 2bb straddle from the first seat"}>
               <input type="checkbox" checked={straddle && players >= 3} disabled={players < 3} onChange={(e) => setStraddle(e.target.checked)} />
@@ -199,7 +206,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             <div className="space-y-1.5 text-sm">
               <label className="flex flex-wrap items-center gap-2">
                 Payouts
-                <input aria-label="Payouts" placeholder="e.g. 50 30 20" value={payouts} onChange={(e) => setPayouts(e.target.value)} className={`${field} min-w-0 flex-1 basis-48`} />
+                <input aria-label="Payouts" placeholder="e.g. 50 30 20" value={payouts} onChange={(e) => setPayouts(e.target.value)} {...flag("the payouts must", "places paid")} className={`${field} min-w-0 flex-1 basis-48`} />
               </label>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="text-muted">Shapes:</span>
@@ -233,9 +240,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span>Other tables</span>
-              <input aria-label="Players at other tables" type="number" inputMode="numeric" step={1} min={0} placeholder="0" value={fieldN} onChange={(e) => setFieldN(e.target.value)} className={`${field} w-20`} />
+              <input aria-label="Players at other tables" type="number" inputMode="numeric" step={1} min={0} placeholder="0" value={fieldN} onChange={(e) => setFieldN(e.target.value)} {...flag("players at other tables")} className={`${field} w-20`} />
               <span className="text-muted">players, average</span>
-              <input aria-label="Their average stack" type="number" inputMode="decimal" step="any" min={1} value={fieldAvg} onChange={(e) => setFieldAvg(e.target.value)} className={`${field} w-20`} />
+              <input aria-label="Their average stack" type="number" inputMode="decimal" step="any" min={1} value={fieldAvg} onChange={(e) => setFieldAvg(e.target.value)} {...flag("average stack")} className={`${field} w-20`} />
               <span className="text-muted">bb</span>
             </div>
             <div className="space-y-1.5 text-sm">
@@ -253,18 +260,18 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                 </label>
                 {seatBounties && (
                   <>
-                    <input aria-label="Each seat's bounty" type="number" inputMode="decimal" step="any" min={0} value={bEach} onChange={(e) => setBEach(e.target.value)} className={`${field} w-20`} />
+                    <input aria-label="Each seat's bounty" type="number" inputMode="decimal" step="any" min={0} value={bEach} onChange={(e) => setBEach(e.target.value)} {...flag("the bounties must")} className={`${field} w-20`} />
                     <span className="text-muted">each; other tables' average</span>
-                    <input aria-label="Other tables' bounty" type="number" inputMode="decimal" step="any" min={0} placeholder="the table's" value={bField} onChange={(e) => setBField(e.target.value)} className={`${field} w-24`} />
+                    <input aria-label="Other tables' bounty" type="number" inputMode="decimal" step="any" min={0} placeholder="the table's" value={bField} onChange={(e) => setBField(e.target.value)} {...flag("the bounties must")} className={`${field} w-24`} />
                   </>
                 )}
                 {bFormat === "mystery" && (
                   <>
-                    <input aria-label="Average envelope" type="number" inputMode="decimal" step="any" min={0} value={envelope} onChange={(e) => setEnvelope(e.target.value)} className={`${field} w-20`} />
+                    <input aria-label="Average envelope" type="number" inputMode="decimal" step="any" min={0} value={envelope} onChange={(e) => setEnvelope(e.target.value)} {...flag("mystery bounties")} className={`${field} w-20`} />
                     <span className="text-muted">average envelope, or the pool</span>
-                    <input aria-label="Envelope pool" type="number" inputMode="decimal" step="any" min={0} value={pool} onChange={(e) => setPool(e.target.value)} className={`${field} w-20`} />
+                    <input aria-label="Envelope pool" type="number" inputMode="decimal" step="any" min={0} value={pool} onChange={(e) => setPool(e.target.value)} {...flag("mystery bounties")} className={`${field} w-20`} />
                     <span className="text-muted">and</span>
-                    <input aria-label="Envelopes left" type="number" inputMode="numeric" step={1} min={0} value={left} onChange={(e) => setLeft(e.target.value)} className={`${field} w-16`} />
+                    <input aria-label="Envelopes left" type="number" inputMode="numeric" step={1} min={0} value={left} onChange={(e) => setLeft(e.target.value)} {...flag("envelopes left")} className={`${field} w-16`} />
                     <span className="text-muted">left</span>
                   </>
                 )}
@@ -291,7 +298,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               <thead>
                 <tr className="text-left text-xs text-muted">
                   <th className="py-1 pr-2 font-normal">Seat</th>
-                  <th className="py-1 pr-2 font-normal">Stack (bb)</th>
+                  <th className="py-1 pr-2 font-normal">
+                    Stack (bb, {MIN_STACK} to {MAX_STACK})
+                  </th>
                   {seatBounties && <th className="py-1 pr-2 font-normal">Bounty</th>}
                   <th className="py-1 font-normal">Range entering the flop</th>
                 </tr>
@@ -301,16 +310,16 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   <tr key={p} className="align-top">
                     <td className="py-1 pr-2 font-medium">{seatLabel(p, players)}</td>
                     <td className="py-1 pr-2">
-                      <input aria-label={`${p} stack`} type="number" inputMode="decimal" step="any" placeholder={stackOk ? String(n) : ""} value={stacks[p] ?? ""} onChange={(e) => setStacks({ ...stacks, [p]: e.target.value })} className={`${field} w-16`} />
+                      <input aria-label={`${p} stack`} type="number" inputMode="decimal" step="any" placeholder={stackOk ? String(n) : ""} value={stacks[p] ?? ""} onChange={(e) => setStacks({ ...stacks, [p]: e.target.value })} {...flag(`${p}'s stack`)} className={`${field} w-16`} />
                     </td>
                     {seatBounties && (
                       <td className="py-1 pr-2">
-                        <input aria-label={`${p} bounty`} type="number" inputMode="decimal" step="any" min={0} placeholder={bEach.trim() || "0"} value={bSeats[p] ?? ""} onChange={(e) => setBSeats({ ...bSeats, [p]: e.target.value })} className={`${field} w-16`} />
+                        <input aria-label={`${p} bounty`} type="number" inputMode="decimal" step="any" min={0} placeholder={bEach.trim() || "0"} value={bSeats[p] ?? ""} onChange={(e) => setBSeats({ ...bSeats, [p]: e.target.value })} {...flag(`${p}'s bounty`)} className={`${field} w-16`} />
                       </td>
                     )}
                     <td className="py-1">
                       <div className="flex flex-wrap items-start gap-1.5">
-                        <input aria-label={`${p} range`} placeholder="the charts'" value={ranges[p] ?? ""} onChange={(e) => setRanges({ ...ranges, [p]: e.target.value })} className={`${field} min-w-0 flex-1 basis-32`} />
+                        <input aria-label={`${p} range`} placeholder="the charts'" value={ranges[p] ?? ""} onChange={(e) => setRanges({ ...ranges, [p]: e.target.value })} {...flag(`${p}'s range`)} className={`${field} min-w-0 flex-1 basis-32`} />
                         {saved.length > 0 && (
                           <select
                             aria-label={`${p} saved range`}
@@ -355,7 +364,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             {SIZE_STREETS.map((k) => (
               <label key={k} className="flex items-center gap-2 text-sm">
                 <span className="w-20 shrink-0">{SIZE_LABEL[k]}</span>
-                <input aria-label={SIZE_LABEL[k]} placeholder="e.g. 33, 75" value={sizes[k]} onChange={(e) => setSizes({ ...sizes, [k]: e.target.value })} className={`${field} min-w-0 flex-1`} />
+                <input aria-label={SIZE_LABEL[k]} placeholder="e.g. 33, 75" value={sizes[k]} onChange={(e) => setSizes({ ...sizes, [k]: e.target.value })} {...flag(k === "raise" ? "raise sizes" : `${k} bet sizes`)} className={`${field} min-w-0 flex-1`} />
                 <span className="text-muted">%</span>
               </label>
             ))}
@@ -367,12 +376,12 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             <legend className="px-1 font-medium">Rake</legend>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <label className="flex items-center gap-1.5">
-                <input aria-label="Rake" type="number" inputMode="decimal" step="any" min={0} max={LIMITS.rakePct} placeholder="0" value={rake} onChange={(e) => setRake(e.target.value)} className={`${field} w-20`} />
-                <span className="text-muted">% of the pot</span>
+                <input aria-label="Rake" type="number" inputMode="decimal" step="any" min={0} max={LIMITS.rakePct} placeholder="0" value={rake} onChange={(e) => setRake(e.target.value)} {...flag("the rake must")} className={`${field} w-20`} />
+                <span className="text-muted">% of the pot (0 to {LIMITS.rakePct})</span>
               </label>
               <label className="flex items-center gap-1.5">
                 capped at
-                <input aria-label="Rake cap" type="number" inputMode="decimal" step="any" min={0} placeholder="no cap" value={cap} onChange={(e) => setCap(e.target.value)} className={`${field} w-24`} />
+                <input aria-label="Rake cap" type="number" inputMode="decimal" step="any" min={0} placeholder="no cap" value={cap} onChange={(e) => setCap(e.target.value)} {...flag("the rake's cap")} className={`${field} w-24`} />
                 <span className="text-muted">bb</span>
               </label>
             </div>
@@ -384,8 +393,10 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
 
         {problems.length > 0 && (
           <ul role="alert" aria-label="Setup problems" className="list-disc space-y-0.5 rounded-lg border border-danger/40 bg-danger/10 py-2 pl-7 pr-3 text-sm text-danger">
-            {problems.map((p) => (
-              <li key={p}>{p}</li>
+            {problems.map((p, i) => (
+              <li key={p} id={`setup-problem-${i}`}>
+                {p}
+              </li>
             ))}
           </ul>
         )}

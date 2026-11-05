@@ -6,7 +6,8 @@ import { versionOf } from "@/grading/version";
 import { addCell, addHandToPot, addSource, handPot, type GradeCell, type PotTally } from "@/features/history/history";
 import { addScore, emptyScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
-import { carries, simOf, type Decision, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
+import { PRIZE_UNIT } from "@/solver/provenance";
+import { carries, simOf, type Decision, type GameOptions, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
 import { reviewed, withReviewed, type Reviewed } from "./review";
 
 export interface PracticeSession {
@@ -85,11 +86,15 @@ export function afterHand(s: PracticeSession, h: PracticeHand, result: HandResul
   };
 }
 
+/** What the session's EVs are in. A prize-equity session's graded EVs all are (`gradable`), and they're never bb won. */
+export const sessionUnit = (o: Pick<GameOptions, "tournament">) => (o.tournament?.model === "icm" ? PRIZE_UNIT : "bb");
+
 /** The session as History keeps it. `tables`, above one, is said; each table then deals its own seat and spot with no
  * chips carried, so the session's seat, pot and carry aren't what was played and are left out. */
 export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
   id: s.id,
-  kind: "practice",
+  // (a tournament's EVs are kept under its own kind, so no total adds them to another's: `kindTotals`, `streetTotals`)
+  kind: s.opts.tournament ? (s.opts.tournament.model === "icm" ? "tournament" : "tournament-chips") : "practice",
   startedAt: s.startedAt,
   endedAt: Date.now(),
   decisions: s.score.n,
@@ -106,6 +111,8 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
     ...(s.opts.pot && tables <= 1 ? { pot: s.opts.pot } : {}),
     ...(s.opts.pot && s.opts.board && tables <= 1 ? { board: s.opts.board } : {}),
+    ...(s.opts.pushFold ? { pushFold: true } : {}),
+    ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),

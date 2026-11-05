@@ -13,7 +13,8 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSettings } from "@/state/settings";
 import { MAX_TABLES } from "./keep";
 import { DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, RangeView, ReviewMistakes, signed, useHandKeys } from "./PracticeParts";
-import { INSTANT_FLOPS, optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
+import { PRIZE_UNIT } from "@/solver/provenance";
+import { anyHandOnly, INSTANT_FLOPS, optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
 import { flopsNote, seatOf, seatsFor, spotOf, type Room, type RoomSnapshot, type RoomTable, type Spot } from "./room";
 import { keyOf, type PracticeSession } from "./session";
 import { resultLine, Spinner, stateOf, TableTile, verdictLine, type TableState } from "./TableTile";
@@ -79,7 +80,8 @@ export function TablesBar({
   const set = useSettings((s) => s.set);
   const { leave, keys } = useLeave();
   const preflopOnly = session.opts.preflopOnly;
-  const spot = spotOf(useSettings((s) => s.practiceSpot), preflopOnly, flops.off === null);
+  const spot = spotOf(useSettings((s) => s.practiceSpot), anyHandOnly(session.opts), flops.off === null);
+  const fixedGame = !!session.opts.pushFold || !!session.opts.tournament;
   const seat = seatOf(useSettings((s) => s.practiceSeat), session.players, spot);
   const seats = seatsFor(session.players, spot);
   return (
@@ -108,30 +110,32 @@ export function TablesBar({
         </div>
         {count > 1 && (
           <>
-            <label className="flex items-center gap-1">
-              <span className="text-muted">Spots</span>
-              <select
-                aria-label="Spots"
-                value={spot}
-                {...keys}
-                onChange={(e) => {
-                  set({ practiceSpot: e.target.value as Spot });
-                  leave(e.currentTarget);
-                }}
-                title={spot === "any" ? undefined : spot === "lib" ? INSTANT_FLOPS.tip : POT_DRILLS[spot].tip}
-                className={CONTROL}
-              >
-                <option value="lib" title={INSTANT_FLOPS.tip} disabled={flops.off !== null}>
-                  {INSTANT_FLOPS.label}
-                </option>
-                <option value="any">Any hand</option>
-                {Object.entries(POT_DRILLS).map(([k, d]) => (
-                  <option key={k} value={k} title={d.tip} disabled={preflopOnly}>
-                    {d.label}
+            {!fixedGame && (
+              <label className="flex items-center gap-1">
+                <span className="text-muted">Spots</span>
+                <select
+                  aria-label="Spots"
+                  value={spot}
+                  {...keys}
+                  onChange={(e) => {
+                    set({ practiceSpot: e.target.value as Spot });
+                    leave(e.currentTarget);
+                  }}
+                  title={spot === "any" ? undefined : spot === "lib" ? INSTANT_FLOPS.tip : POT_DRILLS[spot].tip}
+                  className={CONTROL}
+                >
+                  <option value="lib" title={INSTANT_FLOPS.tip} disabled={flops.off !== null}>
+                    {INSTANT_FLOPS.label}
                   </option>
-                ))}
-              </select>
-            </label>
+                  <option value="any">Any hand</option>
+                  {Object.entries(POT_DRILLS).map(([k, d]) => (
+                    <option key={k} value={k} title={d.tip} disabled={preflopOnly}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="flex items-center gap-1">
               <span className="text-muted">Seat</span>
               <select
@@ -157,8 +161,8 @@ export function TablesBar({
       </div>
       {count > 1 && (
         <p className="text-xs text-muted">
-          {spotNote(spot, preflopOnly)} Spots and Seat apply from each table&rsquo;s next hand.
-          {flops.off && ` ${flopsNote(flops, spot)}`}
+          {fixedGame ? "Each table deals any hand of this game. Seat applies from each table\u2019s next hand." : `${spotNote(spot, preflopOnly)} Spots and Seat apply from each table\u2019s next hand.`}
+          {flops.off && !fixedGame && ` ${flopsNote(flops, spot)}`}
           {stopCost === "kills" && " This browser can't stop a solve: tables wait for it to finish."}
         </p>
       )}
@@ -263,6 +267,7 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
 function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) {
   const s = t.stats;
   const last = t.lastHand;
+  const unit = t.hand.tournament?.model === "icm" ? PRIZE_UNIT : "bb";
   return (
     <li aria-label={`Table ${i + 1}`} aria-current={front ? "true" : undefined} className="space-y-0.5 border-t border-border pt-1.5 first:border-t-0 first:pt-0">
       <p className="flex flex-wrap gap-x-2">
@@ -271,8 +276,8 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
           {s.hands} hand{s.hands === 1 ? "" : "s"}
         </span>
         {s.n > 0 && <span className="font-mono">{pct(s.ok / s.n, 0)} best or correct</span>}
-        {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}bb lost a decision</span>}
-        {s.played > 0 && <span className="font-mono">net {signed(s.net)}bb</span>}
+        {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}{unit} lost a decision</span>}
+        {s.played > 0 && !t.hand.tournament && <span className="font-mono">net {signed(s.net)}bb</span>}
       </p>
       {last && (
         <p className="text-xs" title={last.result.says || undefined}>

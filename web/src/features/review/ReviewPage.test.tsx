@@ -174,4 +174,18 @@ describe("ReviewPage", () => {
     fireEvent.change(within(list).getByRole("combobox", { name: "Street" }), { target: { value: "preflop" } });
     expect(within(list).getAllByRole("listitem")).toHaveLength(1);
   });
+
+  it("takes focus to the retry, and hands it back to what opened it", async () => {
+    await seed(mistake({ due: PAST }));
+    ask.next.mockReturnValue(new Promise(() => {}));
+    page();
+    const row = await screen.findByRole("button", { name: /^Retry: / });
+    row.focus();
+    fireEvent.click(row);
+    const panel = await screen.findByRole("region", { name: "Retry" });
+    expect(panel).toHaveFocus();
+    fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "Retry" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Retry: / })).toHaveFocus();
+  });
 });

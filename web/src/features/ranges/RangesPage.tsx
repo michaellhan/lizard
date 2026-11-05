@@ -20,6 +20,8 @@ export function RangesPage() {
   const [name, setName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [n, setN] = useState(0);
+  // the class last painted, said with what it did to the range
+  const [painted, setPainted] = useState<string | null>(null);
   const openId = params.get("range");
 
   useEffect(() => {
@@ -46,6 +48,15 @@ export function RangesPage() {
       alive = false;
     };
   }, [openId]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(formatRange(weights));
+      setMsg("Copied the range text.");
+    } catch {
+      setMsg("Couldn't copy here. Select the range text and copy it by hand.");
+    }
+  };
 
   const save = async () => {
     const nm = name.trim();
@@ -82,7 +93,7 @@ export function RangesPage() {
             </span>
             <label className="flex items-center gap-2">
               Brush
-              <input type="range" min={0.05} max={1} step={0.05} value={brush} onChange={(e) => setBrush(Number(e.target.value))} aria-label="Brush weight" />
+              <input type="range" min={0.05} max={1} step={0.05} value={brush} onChange={(e) => setBrush(Number(e.target.value))} aria-label="Brush weight" aria-valuetext={`${Math.round(brush * 100)}%`} />
               <span className="w-10 font-mono">{Math.round(brush * 100)}%</span>
             </label>
             <button type="button" className="rounded border border-border px-2 py-0.5" onClick={() => setWeights({})}>
@@ -91,19 +102,23 @@ export function RangesPage() {
           </div>
           <RangeMatrix
             cells={cells}
-            actions={["in range"]}
-            colors={["var(--color-accent)"]}
+            actions={[]}
+            colors={[]}
             view="weight"
-            onSelect={(cls) =>
+            onSelect={(cls) => {
+              setPainted(cls);
               setWeights((w) => {
                 const next = { ...w };
                 if (Math.abs((next[cls] ?? 0) - brush) < 1e-6) delete next[cls];
                 else next[cls] = brush;
                 return next;
-              })
-            }
+              });
+            }}
             caption="Range being edited"
           />
+          <p aria-live="polite" className="sr-only">
+            {painted ? `${painted} ${weights[painted] ? `at ${Math.round(weights[painted] * 100)}%` : "out of the range"}. ${combos.toFixed(1)} combos in the range.` : ""}
+          </p>
         </div>
         <div className="space-y-2">
           <label className="block text-sm font-medium" htmlFor="range-text">
@@ -114,6 +129,8 @@ export function RangesPage() {
             className="h-40 w-full rounded border border-border bg-surface-2 p-2 font-mono text-xs"
             value={text || formatRange(weights)}
             onChange={(e) => setText(e.target.value)}
+            aria-invalid={unknown.length > 0}
+            aria-describedby={unknown.length > 0 ? "range-text-error" : undefined}
           />
           <div className="flex gap-2">
             <button
@@ -129,11 +146,15 @@ export function RangesPage() {
             >
               Apply text
             </button>
-            <button type="button" className="rounded border border-border px-3 py-1 text-sm" onClick={() => void navigator.clipboard?.writeText(formatRange(weights))}>
+            <button type="button" className="rounded border border-border px-3 py-1 text-sm" onClick={() => void copy()}>
               Copy
             </button>
           </div>
-          {unknown.length > 0 && <p className="text-xs text-warn">Not understood: {unknown.join(", ")}</p>}
+          {unknown.length > 0 && (
+            <p id="range-text-error" role="alert" className="text-xs text-warn">
+              Not understood: {unknown.join(", ")}
+            </p>
+          )}
           {combosRead.length > 0 && (
             <p className="text-xs text-muted">
               Single combos ({combosRead.slice(0, 4).join(", ")}
@@ -180,11 +201,9 @@ export function RangesPage() {
                 ))}
               </select>
             )}
-            {msg && (
-              <p role="status" className="text-xs">
-                {msg}
-              </p>
-            )}
+            <p role="status" className="text-xs">
+              {msg}
+            </p>
           </form>
         </div>
       </div>

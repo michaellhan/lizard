@@ -122,3 +122,17 @@ describe("sessions", () => {
     expect(await recentSessions("practice", 1)).toHaveLength(1);
   });
 });
+
+describe("a tournament session", () => {
+  it("needs no version change: its kinds are values of the indexed kind, and its fields are the meta's", async () => {
+    const d = await openLizardDB(DB_VERSION, fresh());
+    const base = { startedAt: 1, decisions: 1, evLossBb: 0.5 };
+    await d.put("sessions", { ...base, id: "a", kind: "tournament", meta: { tournament: { model: "icm", payouts: [50, 30, 20], stacks: { BTN: 8 } } } });
+    await d.put("sessions", { ...base, id: "b", kind: "tournament-chips", meta: { tournament: { model: "chips", stacks: { BTN: 8 } } } });
+    await d.put("sessions", { ...base, id: "c", kind: "practice", meta: { pushFold: true } });
+    expect((await d.getAllFromIndex("sessions", "byKind", "tournament")).map((s) => s.id)).toEqual(["a"]);
+    expect((await d.getAllFromIndex("sessions", "byKind", "tournament-chips")).map((s) => s.id)).toEqual(["b"]);
+    expect((await d.get("sessions", "a"))?.meta).toEqual({ tournament: { model: "icm", payouts: [50, 30, 20], stacks: { BTN: 8 } } });
+    d.close();
+  });
+});

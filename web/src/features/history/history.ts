@@ -10,18 +10,26 @@ import { fromSearch } from "@/features/study/studyState";
 import type { Grade } from "@/grading/grade";
 import { spotVersion } from "@/grading/version";
 import type { Move, Sim } from "@/poker/table";
-import { sourceLabel } from "@/solver/provenance";
+import { describeTournament } from "@/features/tournaments/tournament";
+import { PRIZE_UNIT, sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
 
 export type SessionKind = SessionRecord["kind"];
 
 export const KINDS: readonly { id: SessionKind; label: string }[] = [
   { id: "practice", label: "Full hands" },
+  { id: "tournament", label: "Tournaments in prize equity" },
+  { id: "tournament-chips", label: "Tournaments in chip EV" },
   { id: "drill", label: "Drills" },
   { id: "analysis", label: "Leak drills" },
   { id: "build", label: "Range builds" },
 ];
 export const kindLabel = (k: SessionKind) => KINDS.find((x) => x.id === k)?.label ?? k;
+
+/** A Practice session of full hands: a cash game's, or a tournament's, whose EVs and chips go in no other kind's totals. */
+const isTournamentKind = (k: SessionKind) => k === "tournament" || k === "tournament-chips";
+/** What a kind's EVs are in. */
+export const kindUnit = (k: SessionKind) => (k === "tournament" ? PRIZE_UNIT : "bb");
 
 /** One pot type's finished hands in Practice: their decisions graded, of them Best or Correct, the EV lost over those
  * graded by EV (bb and % of the pot), and the net over the hands played out (`played`; none preflop only). */
@@ -123,6 +131,7 @@ const SOURCE_SET: Record<ResultSource, true> = {
   live: true,
   charts: true,
   "preflop-solve": true,
+  "push-fold": true,
   rules: true,
   equity: true,
   unknown: true,
@@ -171,8 +180,15 @@ export function rowOf(s: SessionRecord): SessionRow {
   const m = s.meta ?? {};
   const base = { id: s.id, kind: s.kind, at: num(s.startedAt), n: num(s.decisions) };
   const per = (ne: number, loss: number, lossPct: number) => ({ lossPer: ne ? loss / ne : null, lossPctPer: ne ? lossPct / ne : null });
+  if (isTournamentKind(s.kind)) {
+    const t = obj(m.tournament);
+    const game = t && s.kind === "tournament" ? describeTournament({ payouts: Array.isArray(t.payouts) ? t.payouts.filter((x): x is number => typeof x === "number") : [], ...(obj(t.field) ? { field: t.field as { players: number; avg: number } } : {}) }) : [];
+    const stacks = Object.entries(obj(t?.stacks) ?? {}).map(([p, v]) => `${p} ${num(v)}`).join(", ");
+    const what = [`${num(m.players) || "?"} players`, ...(stacks ? [`stacks ${stacks}`] : []), ...game, ...(num(m.ante) ? [`ante ${num(m.ante)}`] : []), ...(m.preflopOnly ? ["stops at the flop"] : []), ...(m.seat && m.seat !== "moves" ? [`seat ${str(m.seat)}`] : [])].join(" · ");
+    return { ...base, what, ok: num(m.ok), ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)), hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
+  }
   if (s.kind === "practice") {
-    const kind = isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.preflopOnly ? " · preflop only" : "";
+    const kind = isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : "";
     const game = `${num(m.ante) ? ` · ante ${num(m.ante)}` : ""}${m.straddle ? " · straddle" : ""}${m.carry ? " · chips carried" : ""}${m.sizes ? " · your own sizes" : ""}${num(m.rake) ? ` · rake ${num(m.rake)}%` : ""}`;
     const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${game}${kind}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
     return {
@@ -271,6 +287,7 @@ export function kindTotals(sessions: readonly SessionRecord[]): KindTotal[] {
       t.ne += ne;
       t.loss += sc ? num(sc.loss) : num(s.evLossBb);
       t.lossPct += sc ? num(sc.lossPct) : num(m.lossPct);
+      if (isTournamentKind(id)) t.hands += r.hands ?? 0;
       if (id === "practice") {
         t.hands += r.hands ?? 0;
         if (r.net != null) {

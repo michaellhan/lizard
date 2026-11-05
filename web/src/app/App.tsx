@@ -1,26 +1,45 @@
-import { lazy, Suspense, useEffect } from "react";
-import { BrowserRouter, Route, Routes } from "react-router";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
+import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { BASE_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { Shell } from "./Shell";
 import { HomePage } from "@/features/home/HomePage";
-import { StudyPage } from "@/features/study/StudyPage";
-import { PracticePage } from "@/features/practice/PracticePage";
-import { LibraryPage } from "@/features/library/LibraryPage";
-import { EnginePage } from "@/features/engine/EnginePage";
-import { SettingsPage } from "@/features/settings/SettingsPage";
-import { RangesPage } from "@/features/ranges/RangesPage";
-import { SavedPage } from "@/features/saved/SavedPage";
-import { HistoryPage } from "@/features/history/HistoryPage";
-import { ReviewPage } from "@/features/review/ReviewPage";
-import { AnalyzePage } from "@/features/analyze/AnalyzePage";
-import { ReportsPage } from "@/features/reports/ReportsPage";
-import { SolvePage } from "@/features/solve/SolvePage";
-import { ComparePage } from "@/features/compare/ComparePage";
 import { NotFoundPage } from "@/features/home/NotFoundPage";
+import { freshChunk } from "./freshChunk";
 
-// PLO stays out of the first download: its code comes with this route (IMPLEMENTATION_PLAN.md: "do not preload PLO")
-const EquityPage = lazy(() => import("@/features/equity/EquityPage").then((m) => ({ default: m.EquityPage })));
+// Each page comes with its route, so the first download holds the shell and the home page alone
+// (IMPLEMENTATION_PLAN.md: bundle size, code splitting, "do not preload PLO").
+const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
+  lazy(() => freshChunk(load).then((m) => ({ default: m[name] })));
+
+const StudyPage = page(() => import("@/features/study/StudyPage"), "StudyPage");
+const PracticePage = page(() => import("@/features/practice/PracticePage"), "PracticePage");
+const LibraryPage = page(() => import("@/features/library/LibraryPage"), "LibraryPage");
+const EnginePage = page(() => import("@/features/engine/EnginePage"), "EnginePage");
+const SettingsPage = page(() => import("@/features/settings/SettingsPage"), "SettingsPage");
+const RangesPage = page(() => import("@/features/ranges/RangesPage"), "RangesPage");
+const SavedPage = page(() => import("@/features/saved/SavedPage"), "SavedPage");
+const HistoryPage = page(() => import("@/features/history/HistoryPage"), "HistoryPage");
+const ReviewPage = page(() => import("@/features/review/ReviewPage"), "ReviewPage");
+const AnalyzePage = page(() => import("@/features/analyze/AnalyzePage"), "AnalyzePage");
+const ReportsPage = page(() => import("@/features/reports/ReportsPage"), "ReportsPage");
+const ComparePage = page(() => import("@/features/compare/ComparePage"), "ComparePage");
+const EquityPage = page(() => import("@/features/equity/EquityPage"), "EquityPage");
+const SolvePageWith = lazy(() =>
+  freshChunk(() => import("@/features/solve/SolvePage")).then((m) => ({
+    default: m.SolvePage,
+  })),
+);
+const SolvePage = () => <SolvePageWith />;
+const TournamentsPage = () => <SolvePageWith kind="tournament" />;
+
+function Pages() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+      <Outlet />
+    </Suspense>
+  );
+}
 
 export function App() {
   const load = useSettings((s) => s.load);
@@ -32,30 +51,25 @@ export function App() {
     <BrowserRouter basename={BASE_URL.replace(/\/$/, "")}>
       <Routes>
         <Route element={<Shell />}>
-          <Route index element={<HomePage />} />
-          <Route path="study" element={<StudyPage />} />
-          <Route path="ranges" element={<RangesPage />} />
-          <Route path="library" element={<LibraryPage />} />
-          <Route path="history" element={<HistoryPage />} />
-          <Route path="review" element={<ReviewPage />} />
-          <Route path="saved" element={<SavedPage />} />
-          <Route path="engine" element={<EnginePage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="practice" element={<PracticePage />} />
-          <Route path="analyze" element={<AnalyzePage />} />
-          <Route path="solve" element={<SolvePage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="tournaments" element={<SolvePage kind="tournament" />} />
-          <Route path="compare" element={<ComparePage />} />
-          <Route
-            path="equity"
-            element={
-              <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
-                <EquityPage />
-              </Suspense>
-            }
-          />
-          <Route path="*" element={<NotFoundPage />} />
+          <Route element={<Pages />}>
+            <Route index element={<HomePage />} />
+            <Route path="study" element={<StudyPage />} />
+            <Route path="ranges" element={<RangesPage />} />
+            <Route path="library" element={<LibraryPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="review" element={<ReviewPage />} />
+            <Route path="saved" element={<SavedPage />} />
+            <Route path="engine" element={<EnginePage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="practice" element={<PracticePage />} />
+            <Route path="analyze" element={<AnalyzePage />} />
+            <Route path="solve" element={<SolvePage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="tournaments" element={<TournamentsPage />} />
+            <Route path="compare" element={<ComparePage />} />
+            <Route path="equity" element={<EquityPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>

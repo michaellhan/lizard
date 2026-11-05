@@ -37,6 +37,8 @@ describe("DecisionView", () => {
   it("still says so for the preflop charts", () => {
     show("charts");
     expect(screen.getByText(/the preflop charts have no EVs/)).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "EV bb" })).toBeTruthy();
+    // (a column of dashes would say there's something to read)
+    expect(screen.queryByRole("columnheader", { name: "EV bb" })).toBeNull();
+    expect(screen.getByText(/Your hand.s frequencies at this heads-up spot/)).toBeTruthy();
   });
 });

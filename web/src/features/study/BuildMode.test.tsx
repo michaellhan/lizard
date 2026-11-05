@@ -6,6 +6,7 @@ import type { AdvisorResponse, RangeGridData } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 
+import { useSettings } from "@/state/settings";
 import { BuildMode, type BuildSaved } from "./BuildMode";
 
 const LIVE: Provenance = {
@@ -64,17 +65,49 @@ const cell = (cls: string) => screen.getByRole("gridcell", { name: new RegExp(`^
 const brushes = () => screen.getByRole("group", { name: "Brush" });
 
 afterEach(() => {
+  useSettings.setState({ studyKeys: true });
   delete (document as { elementFromPoint?: unknown }).elementFromPoint;
 });
 
 describe("BuildMode", () => {
+  it("is one tab stop that walks through hands out of the range, and a key on a hand paints it and says so", () => {
+    renderBuild({ lineKey: "keys" });
+    const cells = screen.getAllByRole("gridcell");
+    expect(cells.filter((c) => c.tabIndex === 0)).toEqual([cell("AA")]);
+    cell("AA").focus();
+    fireEvent.keyDown(cell("AA"), { key: "Home", ctrlKey: true });
+    // (a hand out of the range takes focus as any other, and a key on it paints nothing)
+    const off = screen.getByRole("gridcell", { name: "QJs: not in range" });
+    off.focus();
+    expect(off).toHaveFocus();
+    fireEvent.click(off);
+    expect(screen.getByLabelText("Your range")).toHaveTextContent("check 100.0%");
+    fireEvent.keyDown(off, { key: "ArrowRight" });
+    expect(off).not.toHaveFocus();
+
+    cell("AA").focus();
+    fireEvent.keyDown(cell("AA"), { key: "2" }); // (the brushes' keys work from the grid)
+    expect(within(brushes()).getByRole("button", { name: "bet 33%" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(cell("AA"));
+    expect(screen.getByText("AA: yours bet 33% 100%", { selector: "[role=status]" })).toBeInTheDocument();
+  });
+
+  it("leaves the brush keys to other controls, and off in Settings", () => {
+    renderBuild({ lineKey: "off" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reset" }), { key: "2" });
+    expect(within(brushes()).getByRole("button", { name: "check" })).toHaveAttribute("aria-pressed", "true");
+    act(() => useSettings.setState({ studyKeys: false }));
+    fireEvent.keyDown(document.body, { key: "2" });
+    expect(within(brushes()).getByRole("button", { name: "check" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("paints with brushes and keys, undoes and redoes each stroke, and skips locked hands", () => {
     renderBuild({ lineKey: "paint" });
     expect(screen.getByText(/Unpainted hands check\./)).toBeInTheDocument();
     expect(within(brushes()).getAllByRole("button").map((b) => b.textContent)).toEqual(["check", "bet 33%", "bet 75%", "Lock"]);
     expect(within(brushes()).getByRole("button", { name: "check" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Your range")).toHaveTextContent("Your range: check 100.0% · bet 33% 0.0% · bet 75% 0.0%");
-    expect(screen.getByRole("gridcell", { name: "QJs: not in range" })).toBeDisabled();
+    expect(screen.getByRole("gridcell", { name: "QJs: not in range" })).toHaveAttribute("aria-disabled", "true");
 
     // key 2: bet 33%, at half of AA (the keyboard's click paints one hand)
     fireEvent.keyDown(window, { key: "2" });
@@ -247,7 +280,7 @@ describe("BuildMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
     expect(cell("AA")).toHaveAccessibleName("AA: yours bet 33% 100%");
     expect(cell("KQo")).toHaveAccessibleName("KQo: yours check 50%, bet 33% 50%");
-    expect(screen.getByRole("status")).toHaveTextContent("Painted 2 hands bet 33%; 2 not in this range; not understood: xyz.");
+    expect(screen.getByText("Painted 2 hands bet 33%; 2 not in this range; not understood: xyz.")).toBeInTheDocument();
     // one undo step
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(cell("AA")).toHaveAccessibleName("AA: yours check 100%");
@@ -263,7 +296,7 @@ describe("BuildMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
     expect(cell("AA")).toHaveAccessibleName("AA: yours bet 33% 100%; locked");
     expect(cell("72s")).toHaveAccessibleName("72s: yours check 75%, bet 75% 25%");
-    expect(screen.getByRole("status")).toHaveTextContent("Painted 1 hand bet 75%; 1 locked, left as it was; single combos as their share of the class.");
+    expect(screen.getByText("Painted 1 hand bet 75%; 1 locked, left as it was; single combos as their share of the class.")).toBeInTheDocument();
 
     // the hands that play bet 33%, as text
     fireEvent.keyDown(window, { key: "2" });

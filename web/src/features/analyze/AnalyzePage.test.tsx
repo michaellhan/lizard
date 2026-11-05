@@ -517,6 +517,26 @@ describe("AnalyzePage", () => {
     }
   });
 
+  it("moves the keyboard into a hand on Open, and back to that row's Open on Close", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(3));
+    const opener = within(handRows()[1]!).getByRole("button", { name: "Open" });
+    opener.focus();
+    fireEvent.click(opener);
+    const hand = await screen.findByRole("region", { name: "Hand" });
+    await waitFor(() => expect(hand).toHaveFocus());
+    fireEvent.click(within(hand).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Hand" })).toBeNull());
+    expect(within(handRows()[1]!).getByRole("button", { name: "Open" })).toHaveFocus();
+  });
+
+  it("shows the focus on the file pickers through their labels", () => {
+    open();
+    const labels = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].map((i) => i.closest("label")!.className);
+    expect(labels).toHaveLength(2);
+    for (const c of labels) expect(c).toMatch(/focus-within:outline/);
+  });
+
   it("reads a dropped folder through, subfolders and all", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(3));

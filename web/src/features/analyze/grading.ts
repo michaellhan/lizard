@@ -33,7 +33,7 @@ export const SCOPES: Record<GradeScope, string> = {
 const SCOPE_STREETS: Record<GradeScope, readonly Street[]> = { preflop: ["preflop"], library: ["preflop", "flop"], triage: STREETS, all: STREETS };
 /** The answers a grade may stand on: without a solve the charts and the library, with one a stored turn, a read at
  * once or the solve too. Never the betting rules or an equity guess. */
-const NOTHING_SOLVED: readonly ResultSource[] = ["charts", "library"];
+const NOTHING_SOLVED: readonly ResultSource[] = ["charts", "push-fold", "library"];
 const SOLVING: readonly ResultSource[] = [...NOTHING_SOLVED, "library-turn", "instant", "live"];
 const GRADED_SOURCES: Record<GradeScope, readonly ResultSource[]> = { preflop: NOTHING_SOLVED, library: NOTHING_SOLVED, triage: SOLVING, all: SOLVING };
 

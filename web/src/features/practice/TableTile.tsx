@@ -10,7 +10,7 @@ import { bb } from "@/components/actions";
 import { handName, rank7 } from "@/poker/evaluate";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { behind, type Sim } from "@/poker/table";
-import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
+import { describe as describeProvenance, evUnit, sourceLabel } from "@/solver/provenance";
 import { fmt, signed } from "./PracticeParts";
 import { boardShown, needsIndex, phaseOf, potLabel, runEnd, seeking, setupOf, shownCards, simOf, type Decision, type HandResult, type PracticeHand } from "./practice";
 import type { RoomTable } from "./room";
@@ -30,7 +30,7 @@ export function verdictLine(d: Decision): { text: string; title?: string } {
   if (!g) return { text: `Not graded · ${d.street} · ${d.chose}` };
   const p = d.provenance;
   const source = p ? `${p.approximate ? "≈ " : ""}${describeProvenance(p).split(" · ")[0]}` : sourceLabel("unknown");
-  const gave = !g.byEv ? "by frequency" : g.loss > 0.005 ? `−${bb(g.loss)}bb` : "no EV lost";
+  const gave = !g.byEv ? "by frequency" : g.loss > 0.005 ? `−${bb(g.loss)}${evUnit(p)}` : "no EV lost";
   return { text: `${g.verdict} · ${d.street} · ${d.chose} · ${gave} · ${source}`, ...(p ? { title: describeProvenance(p) } : {}) };
 }
 
@@ -43,7 +43,8 @@ export interface TableState {
 }
 
 /** What your spot is waiting on, by what will answer it (provenance.ts's `sourceOf`): only the rest is a solve. */
-export const answering = (sim: Sim) => (sim.current === "preflop" ? "Reading the chart" : sim.current !== "river" && sim.active.size >= 5 ? "Reading the betting rules" : "Solving your spot");
+export const answering = (sim: Sim, h: Pick<PracticeHand, "pushFold" | "tournament">) =>
+  sim.current === "preflop" ? (h.pushFold ? "Reading the push/fold model" : h.tournament ? "Asking the engine" : "Reading the chart") : sim.current !== "river" && sim.active.size >= 5 ? "Reading the betting rules" : "Solving your spot";
 
 export function stateOf(t: RoomTable, i: number, queue: readonly number[]): TableState {
   const { hand: h, failed } = t;
@@ -58,7 +59,7 @@ export function stateOf(t: RoomTable, i: number, queue: readonly number[]): Tabl
   if (seeking(h)) return state("seek", `Dealing ${potLabel(h.pot!)}…`, true);
   const q = queue.indexOf(i);
   if (q >= 0) return state("wait", "Your turn", false, queue.length > 1 ? q + 1 : 0);
-  if (ph.kind === "hero") return state("think", `${answering(sim)}…`, true);
+  if (ph.kind === "hero") return state("think", `${answering(sim, h)}…`, true);
   return state("think", moving ? `${seatLabel(moving.seat, h.players)} is thinking…` : "Dealing…", true);
 }
 

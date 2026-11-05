@@ -9,12 +9,12 @@ import { listMistakes } from "@/data/mistakes";
 import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
-import { byDay, KINDS, kindLabel, kindTotals, potTotals, rowOf, sourcesText, type SessionKind, type SessionRow } from "./history";
+import { byDay, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, type SessionKind, type SessionRow } from "./history";
 import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, streetTotals, trends, type BasisTrend } from "./progress";
 
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x * 100) / 100)}`;
-const lossText = (bbPer: number | null, pctPer: number | null) => (bbPer == null ? "–" : `${bb(bbPer)}bb${pctPer == null ? "" : ` · ${pctPer.toFixed(1)}% pot`}`);
+const lossText = (bbPer: number | null, pctPer: number | null, unit = "bb") => (bbPer == null ? "–" : `${bb(bbPer)}${unit}${pctPer == null ? "" : ` · ${pctPer.toFixed(1)}% pot`}`);
 const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
 const okText = (ok: number | null, n: number) => (ok == null || !n ? "–" : pct(ok / n, 0));
 
@@ -127,7 +127,7 @@ function SessionItem({ r }: { r: SessionRow }) {
           r.hands != null ? many(r.hands, "hand") : null,
           many(r.n, "decision"),
           r.n ? `${okText(r.ok, r.n)} Best or Correct` : null,
-          r.lossPer == null ? null : `${lossText(r.lossPer, r.lossPctPer)} lost a decision`,
+          r.lossPer == null ? null : `${lossText(r.lossPer, r.lossPctPer, kindUnit(r.kind))} lost a decision`,
           r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : null,
         ];
   return (
@@ -181,8 +181,8 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
                   <td className="py-0.5 pr-4">{t.sessions}</td>
                   <td className="py-0.5 pr-4">{t.n}</td>
                   <td className="py-0.5 pr-4">{okText(t.ok, t.n)}</td>
-                  <td className="py-0.5 pr-4">{lossText(t.ne ? t.loss / t.ne : null, t.ne ? t.lossPct / t.ne : null)}</td>
-                  <td className="py-0.5 pr-4">{t.kind === "practice" ? `${t.hands}${t.played ? ` · ${signed(t.net)}bb over ${t.played}` : ""}` : "–"}</td>
+                  <td className="py-0.5 pr-4">{lossText(t.ne ? t.loss / t.ne : null, t.ne ? t.lossPct / t.ne : null, kindUnit(t.kind))}</td>
+                  <td className="py-0.5 pr-4">{t.kind === "practice" ? `${t.hands}${t.played ? ` · ${signed(t.net)}bb over ${t.played}` : ""}` : t.hands ? String(t.hands) : "–"}</td>
                 </tr>
               ),
             )}
@@ -192,6 +192,8 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
       <p className="text-xs text-muted">
         EV lost is averaged over the decisions graded by EV (the preflop charts grade by frequency only). Net counts the hands played out, not those played preflop
         only. A range build is scored by its accuracy over the node&rsquo;s hand classes.
+        {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") &&
+          " Tournaments each have their own row and go in no other totals here, by pot type, street or over time: a prize-equity EV is chips worth as much prize equity, never bb won, and a tournament's hands count no net."}
       </p>
     </section>
   );

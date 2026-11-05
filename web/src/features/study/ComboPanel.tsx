@@ -74,10 +74,10 @@ export function ComboPanel({
         <table className="w-full text-left font-mono text-xs">
           <thead className="text-muted">
             <tr>
-              <th className="py-1 font-normal">Combo</th>
-              <th className="py-1 font-normal">Mix</th>
-              {hasEv && <th className="py-1 text-right font-normal">{unit === "bb" ? "EV" : "EV % pot"}</th>}
-              {hasEv && <th className="py-1 text-right font-normal">Eq</th>}
+              <th scope="col" className="py-1 font-normal">Combo</th>
+              <th scope="col" className="py-1 font-normal">Mix</th>
+              {hasEv && <th scope="col" className="py-1 text-right font-normal">{unit === "bb" ? "EV" : "EV % pot"}</th>}
+              {hasEv && <th scope="col" className="py-1 text-right font-normal">Eq</th>}
             </tr>
           </thead>
           <tbody>
@@ -88,7 +88,7 @@ export function ComboPanel({
                   {row[1] < 0.999 && <span className="text-faint"> ({pct(row[1], 0)})</span>}
                 </td>
                 <td className="py-1">
-                  <span className="flex h-2.5 w-28 overflow-hidden rounded-sm bg-surface-3" aria-label={names.map((nm, a) => `${nm} ${pct(row[2][a])}`).join(", ")}>
+                  <span className="flex h-2.5 w-28 overflow-hidden rounded-sm bg-surface-3" role="img" aria-label={names.map((nm, a) => `${nm} ${pct(row[2][a])}`).join(", ")}>
                     {row[2].map((f, a) => (f > 0.0005 ? <span key={a} style={{ width: `${f * 100}%`, background: colors[a] }} /> : null))}
                   </span>
                 </td>

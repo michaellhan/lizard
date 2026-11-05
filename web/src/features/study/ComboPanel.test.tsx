@@ -68,4 +68,9 @@ describe("ComboPanel", () => {
     const opp = render(<ComboPanel cls="AKs" res={none} colors={COLORS} opponent />);
     expect(opp.container.textContent).not.toMatch(/Equity/);
   });
+
+  it("names a combo's mix as an image, so the label is read", () => {
+    render(<ComboPanel cls="AKs" res={RES} colors={COLORS} opponent={false} />);
+    expect(screen.getByRole("img", { name: "check 100.0%, bet 33% 0.0%" })).toBeInTheDocument();
+  });
 });

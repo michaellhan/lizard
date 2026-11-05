@@ -1,6 +1,6 @@
 // Study's "Save spot": the line kept in this browser (data/saved.ts) with a name, tags, a note and the provenance of
 // the answer seen, listed on the Saved page. A line is saved once: saving it again updates that spot.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { SavedSpot } from "@/data/db";
 import { NOT_SAVED, newId, putSpot, readTags, spotAt, stored } from "@/data/saved";
@@ -13,6 +13,11 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
   // undefined while looking, null where the line isn't saved
   const [saved, setSaved] = useState<SavedSpot | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    setOpen(false);
+    toggle.current?.focus();
+  };
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");
   const [note, setNote] = useState("");
@@ -58,8 +63,14 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
   };
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) close();
+      }}
+    >
       <button
+        ref={toggle}
         type="button"
         onClick={start}
         aria-expanded={open}
@@ -72,7 +83,7 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
       {open && (
         <form
           aria-label="Save spot"
-          className="absolute right-0 top-full z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg"
+          className="z-20 mt-1 space-y-2 max-sm:fixed max-sm:inset-x-4 sm:absolute sm:right-0 sm:top-full sm:w-72 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
@@ -95,7 +106,7 @@ export function SaveSpot({ hand, provenance }: { hand: StudyHand; provenance?: P
             <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
               Save
             </button>
-            <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+            <button type="button" onClick={close} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
               Close
             </button>
             {done && (

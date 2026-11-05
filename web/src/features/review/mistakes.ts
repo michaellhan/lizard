@@ -12,7 +12,7 @@ import { storedMoved, versionOf } from "@/grading/version";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 import { situation, type DrillProblem } from "@/features/practice/drills";
-import { gradeMix, stateFor, type Decision, type PracticeHand } from "@/features/practice/practice";
+import { CHIP_MODEL, gradable, gradeMix, stateFor, type Decision, type PracticeHand } from "@/features/practice/practice";
 import { reviewed } from "@/features/practice/review";
 import type { LibraryReport } from "@/library/files";
 import { afterRetry, dueAfter } from "./schedule";
@@ -31,8 +31,10 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
   const r = reviewed(h, d, h.n + 1);
   const setup = fromSearch(d.study)?.setup;
   return {
-    id: `hand|${d.study}|${h.hero}|${[...r.hole].sort().join("")}`,
+    // (a chip EV tournament's line reads as a cash game's with those stacks: its spot is its own, as its record stays apart)
+    id: `hand|${h.tournament?.model === "chips" ? "chips|" : ""}${d.study}|${h.hero}|${[...r.hole].sort().join("")}`,
     from: "hand",
+    ...(h.tournament ? { tournament: h.tournament.model } : {}),
     sessionId,
     street: d.street,
     at: now,
@@ -156,8 +158,16 @@ export interface Retried {
 /** What a retry reads of the spot: a kept mistake's, or one of this session's decisions (the Practice page's). */
 export type RetrySpot = Pick<MistakeRecord, "ask" | "provenance" | "mix" | "street" | "study" | "chose">;
 
+/** The answer as the spot's game has it: a chip EV tournament's says so, and a fallback's chips aren't graded beside prize
+ * equity, as at the table (practice.ts `modelled`, `gradable`). */
+const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
+  const provenance = m.provenance?.tournament === CHIP_MODEL ? { ...answer.provenance, tournament: CHIP_MODEL } : answer.provenance;
+  return { ...answer, provenance, mix: gradable(answer.mix, provenance) };
+};
+
 /** Your pick (the answer's i-th action) at a retry, graded. */
-export function retried(m: RetrySpot, answer: RetryAnswer, i: number, now: number): Retried {
+export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number): Retried {
+  const answer = answerIn(m, asked);
   const { mix, pot, provenance } = answer;
   const g = gradeMix(mix, pot, i);
   const was = mix.findIndex((a) => a.action === m.chose);
@@ -179,8 +189,8 @@ export function withTry(m: MistakeRecord, t: Omit<MistakeTry, "moved">): Mistake
 }
 
 /** What a grade cost, in words: EV by the answer, or, graded by frequency, how often it's played and never an EV. */
-export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a">, mix: MistakeRecord["mix"], source: string | undefined): string {
-  if (g.byEv) return g.loss > 0 ? `${bb(g.loss)}bb lost · ${g.lossPct.toFixed(1)}% pot` : "no EV lost";
+export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a">, mix: MistakeRecord["mix"], source: string | undefined, unit = "bb"): string {
+  if (g.byEv) return g.loss > 0 ? `${bb(g.loss)}${unit} lost · ${g.lossPct.toFixed(1)}% pot` : "no EV lost";
   return `by frequency, no EV: ${whoOf(source).replace(/^The /, "the ")} plays it ${pct(mix[g.a]?.freq ?? 0)}`;
 }
 

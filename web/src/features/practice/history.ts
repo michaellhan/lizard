@@ -125,6 +125,8 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
     site: PRACTICE_SITE,
     bb: "1bb",
     ...(h.result?.cut ? { end: "preflop only" } : {}),
+    // (Analyze's money totals leave a tournament's out: these chips were no cash game's)
+    ...(h.tournament ? { tournament: "Practice" } : {}),
     ...(revealed.length ? { revealed } : {}),
     ...(h.pot ? { playedFor: "preflop" as const, decisions: heroDecisions(replayed).filter((d) => d.street !== "preflop").length } : {}),
   };

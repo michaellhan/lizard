@@ -168,8 +168,8 @@ export function heroPick(res: AdvisorResponse, tried: ReadonlySet<number>, rand:
 }
 
 /** What's wrong with a graded decision's label, if anything. The rule is that it says what answered and claims no more
- * than that is: the charts have no EVs and are approximate, as are betting rules and equity estimates, and nothing else
- * answers before the flop. */
+ * than that is: the charts and the push/fold model have no EVs and are approximate, as are betting rules and equity
+ * estimates, and nothing else answers before the flop. */
 export function labelFault(d: Decision): Pick<CheckFailure, "rule" | "text"> | null {
   if (!d.grade) return null;
   const p = d.provenance;
@@ -177,8 +177,12 @@ export function labelFault(d: Decision): Pick<CheckFailure, "rule" | "text"> | n
   const fallback = p.source === "rules" || p.source === "equity";
   if (fallback && !p.approximate) return { rule: "honesty", text: `${sourceLabel(p.source)} isn't marked approximate` };
   if (d.street !== "preflop") return null;
-  if (p.source === "charts" && (d.grade.byEv || !p.approximate)) return { rule: "honesty", text: d.grade.byEv ? "the preflop charts have no EVs to grade by" : "the preflop charts aren't marked approximate" };
-  return p.source === "charts" || fallback ? null : { rule: "honesty", text: `answered preflop by ${sourceLabel(p.source)}, which isn't the charts` };
+  const noEvs = p.source === "charts" || p.source === "push-fold";
+  if (noEvs && (d.grade.byEv || !p.approximate)) {
+    const who = p.source === "charts" ? "the preflop charts" : "the push/fold model";
+    return { rule: "honesty", text: d.grade.byEv ? `${who} ${p.source === "charts" ? "have" : "has"} no EVs to grade by` : `${who} ${p.source === "charts" ? "aren't" : "isn't"} marked approximate` };
+  }
+  return noEvs || fallback ? null : { rule: "honesty", text: `answered preflop by ${sourceLabel(p.source)}, which isn't the charts` };
 }
 
 /** What's wrong with a finished hand's chips, if anything: every seat's have to come to what the table started with, none

@@ -12,7 +12,7 @@ import { SEATS, seatsOf } from "@/poker/seats";
 import { DECK, legal, NEED, noLines, recordOf, simulate, STREETS, withMove, type Lines, type Move, type Street } from "@/poker/table";
 import { sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
-import { isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type PracticeHand } from "./practice";
+import { isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type HandTournament, type PracticeHand } from "./practice";
 import type { PracticeSession } from "./session";
 import { isTextureFilter } from "./texture";
 
@@ -79,6 +79,13 @@ const isMix = (x: unknown) => isObj(x) && isStr(x.action) && isNum(x.freq) && (x
 /** Your own sizes, a list of % of the pot for each street that has them. */
 const isSizes = (x: unknown) => isObj(x) && Object.entries(x).every(([k, v]) => SIZE_STREETS.includes(k as SizeStreet) && isList(v, isNum));
 
+/** A tournament's game, as a hand and a session hold it: prizes for prize equity, whose request is built from them. */
+const isGame = (x: unknown): x is HandTournament =>
+  isObj(x) &&
+  (x.model === "chips" || (x.model === "icm" && isList(x.payouts, isNum) && (x.payouts as number[]).length > 1)) &&
+  opt(x.payouts, (p) => isList(p, isNum)) &&
+  opt(x.field, (f) => isObj(f) && isCount(f.players) && isNum(f.avg));
+
 /** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. One made
  * after Reveal has no grade, and keeps the answer that was seen with that answer's source. */
 const isDecision = (x: unknown): x is Decision =>
@@ -112,6 +119,9 @@ const isHand = (x: unknown): x is PracticeHand =>
   opt(x.sizes, isSizes) &&
   opt(x.rake, (r) => isObj(r) && isNum(r.pct) && opt(r.cap, isNum)) &&
   opt(x.run, (r) => r === "played" || r === "shown") &&
+  opt(x.pushFold, (p) => p === true) &&
+  opt(x.tournament, isGame) &&
+  (x.tournament === undefined || (isObj(x.stacks) && Object.keys(x.stacks).length === x.players)) &&
   opt(x.revealed, (r) => r === true);
 
 /** You at the table, every seat with two cards and five on the board, all from one deck. */
@@ -167,7 +177,9 @@ const isOpts = (x: unknown) =>
   (x.sizes === null || isSizes(x.sizes)) &&
   isNum(x.rake) &&
   isNum(x.rakeCap) &&
-  opt(x.board, (b) => b === null || isTextureFilter(b));
+  opt(x.board, (b) => b === null || isTextureFilter(b)) &&
+  opt(x.pushFold, isBool) &&
+  opt(x.tournament, (t) => isGame(t) && isObj(t) && isObj(t.stacks) && Object.values(t.stacks).every(isNum));
 /** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
   isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null && opt(x.state, isObj);

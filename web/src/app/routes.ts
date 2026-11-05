@@ -32,3 +32,10 @@ export const ROUTES: RouteDef[] = [
 ];
 
 export const ROUTE_PATHS = ROUTES.map((r) => r.path).filter(Boolean);
+
+/** The tab's title at a pathname (basename already off): the route's label and the app's name, the app's alone at home. */
+export function routeTitle(pathname: string): string {
+  const path = pathname.split("/").filter(Boolean)[0] ?? "";
+  if (!path) return "Lizard";
+  return `${ROUTES.find((r) => r.path === path)?.label ?? "Not found"} · Lizard`;
+}

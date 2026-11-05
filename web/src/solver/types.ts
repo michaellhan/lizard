@@ -15,6 +15,7 @@ export type ResultSource =
   | "live" // solved now (CFR), in the browser or on a local server
   | "charts" // preflop mixed-frequency charts
   | "preflop-solve" // the preflop game's equilibrium solve (pf_study)
+  | "push-fold" // the engine's push/fold model at 12bb or less: an all-in range from a jam-or-fold equilibrium by hand class, or a call priced against one (advisor.py _push, _vs_jam); no EVs, and no solve of the full game
   | "rules" // heuristic betting rules (multiway 5+ / fallback)
   | "equity" // equity-based fallback
   | "unknown";
@@ -53,9 +54,12 @@ export interface Provenance {
   multiway?: boolean;
   /** a tournament answer: the model its numbers are in (provenance.ts tournamentModelOf) */
   tournament?: string;
+  /** what a tournament answer's EVs are in: "prize", chips worth as much prize equity, so never bb won; "chips", a
+   * fallback's own chips, which don't go beside those. Unset: bb, as everywhere else. */
+  evIn?: "prize" | "chips";
   /** a view built from several solves (the one-size view): what they were (provenance.ts oneSizeProvenance); the
-   * preflop solve's own state (precomputed, solved earlier in this browser); a chip answer's all-in from the push/fold
-   * equilibrium */
+   * preflop solve's own state (precomputed, solved earlier in this browser); which part of the push/fold model a chip
+   * answer came from */
   view?: string;
   /** a node lock's answer (features/study/locks.ts): the best response to the read, never an equilibrium; in words */
   lock?: string;
@@ -72,6 +76,8 @@ export interface Provenance {
   solverVersion: string;
   /** a partial (in-progress) answer, superseded by a later one */
   partial: boolean;
+  /** a partial answer that's all there will be: stopped, or its solve failed */
+  stopped?: boolean;
   receivedAt: number;
 }
 

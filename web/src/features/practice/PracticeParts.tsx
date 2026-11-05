@@ -14,15 +14,15 @@ import { whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
 import type { GetClient } from "@/features/review/retry";
-import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
-import type { StopCost } from "@/solver/types";
+import { describe as describeProvenance, evUnit, sourceLabel } from "@/solver/provenance";
+import type { Provenance, StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
 import { reviewedText } from "./copyForAi";
 import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
-import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type PracticeHand, type RangeAt } from "./practice";
+import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
-import type { Kept, PracticeSession } from "./session";
+import { sessionUnit, type Kept, type PracticeSession } from "./session";
 import { retrySpot, SessionRetry } from "./SessionRetry";
 
 export const fmt = (x: number) => String(Math.round(x * 100) / 100);
@@ -84,6 +84,20 @@ export function KeepHand({ kept, all, onKeep, onAll }: { kept: Kept | null; all:
   );
 }
 
+/** What a tournament session's numbers are, under its score. */
+export const tournamentNote = (t: Pick<HandTournament, "model">) =>
+  t.model === "icm"
+    ? "A tournament in prize equity: EVs here are chips worth as much prize equity, never bb won, and no chips are counted as a result. It stays apart from your other numbers in History and Review."
+    : "A tournament in chip EV, with no prizes: EVs here are bb of chips, and it stays apart from your other numbers in History and Review.";
+
+/** A grade with no EV, in words: what it went by, and why there's none. */
+export function byFrequency(p: Provenance | null | undefined): string {
+  if (p?.source === "library-turn") return "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost.";
+  if (p?.source === "push-fold") return "Graded by how often the push/fold model plays your hand: it gives frequencies and no EVs, so none is counted as lost.";
+  if (p?.evIn === "chips") return "Graded by how often the betting rules play it: their EVs are in chips and this session counts prize equity, so none is counted as lost.";
+  return "Graded by how often the chart plays it: the preflop charts have no EVs.";
+}
+
 /** `reserve`: hold the line under it before there's anything to say, as above one table the dock sits below it. */
 export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; reserve?: boolean }) {
   const s = session.score;
@@ -98,10 +112,11 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       {item("Hands", String(session.hands))}
       {item("Decisions graded", String(s.n))}
       {item("Best or correct", s.n ? pct(acc, 0) : "–")}
-      {item("EV lost a decision", loss == null ? "–" : `${bb(loss)}bb · ${lossPct!.toFixed(1)}% pot`)}
+      {item("EV lost a decision", loss == null ? "–" : `${bb(loss)}${sessionUnit(session.opts)} · ${lossPct!.toFixed(1)}% pot`)}
       {item("Streak", `${s.streak} (best ${s.best})`)}
-      {!session.opts.preflopOnly && item("Net", `${signed(session.net)}bb`)}
+      {!session.opts.preflopOnly && !session.opts.tournament && item("Net", `${signed(session.net)}bb`)}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
+      {session.opts.tournament && <p className="basis-full text-xs text-muted">{tournamentNote(session.opts.tournament)}</p>}
       {!!session.revealed && (
         <p className="basis-full text-xs text-muted">
           {session.revealed} decision{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. {REVEAL_CHIPS}
@@ -260,7 +275,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
                   </span>
                   <span className="font-mono">{e.d.chose}</span>
                   <VerdictTag v={g.verdict} />
-                  <span className="font-mono text-xs">{g.byEv ? (g.loss > 0.005 ? `${bb(g.loss)}bb lost` : "no EV lost") : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
+                  <span className="font-mono text-xs">{g.byEv ? (g.loss > 0.005 ? `${bb(g.loss)}${evUnit(p)} lost` : "no EV lost") : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
                   {p && (
                     <span className="text-xs text-muted" title={describeProvenance(p)}>
                       {p.approximate && "≈ "}
@@ -383,7 +398,7 @@ export function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a
 export function DecisionView({ d, players, title = "Your last decision", spot, children }: { d: Omit<Decision, "move">; players: number; title?: string; spot?: Reviewed; children?: ReactNode }) {
   const g = d.grade;
   // (a stored turn keeps no hand's EV, so there's no column of dashes to read as if one had been left out)
-  const hasEv = d.provenance?.source !== "library-turn";
+  const hasEv = d.provenance?.source !== "library-turn" && d.provenance?.source !== "push-fold" && d.provenance?.evIn !== "chips" && d.mix.some((a) => a.ev != null);
   return (
     <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -418,15 +433,13 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
         <p className="text-muted">
           {g.byEv
             ? g.loss > 0
-              ? `EV given up: ${bb(g.loss)}bb, ${g.lossPct.toFixed(1)}% of the ${fmt(d.pot)}bb pot.`
+              ? `EV given up: ${bb(g.loss)}${evUnit(d.provenance)}, ${g.lossPct.toFixed(1)}% of the ${fmt(d.pot)}bb pot.`
               : "No EV given up."
-            : d.provenance?.source === "library-turn"
-              ? "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost."
-              : "Graded by how often the chart plays it: the preflop charts have no EVs."}
+            : byFrequency(d.provenance)}
           {g.mixed && " This hand mixes actions here."}
         </p>
       )}
-      {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} />}
+      {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} unit={evUnit(d.provenance)} />}
       <p className="text-xs text-muted">Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
       {children}
       {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}

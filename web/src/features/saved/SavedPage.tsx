@@ -1,8 +1,9 @@
 // Saved: the spots saved from Study, the drills saved from Practice and Analyze, and the ranges saved from the Ranges
 // editor, kept in this browser (IndexedDB), with search, rename, delete, and a backup to one JSON file and back
 // (data/backup.ts).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useFocusHold } from "@/components/useFocusHold";
 import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
 import { restoreBackup, restoreSummary } from "@/data/backup";
 import { importTooBig } from "@/data/limits";
@@ -25,6 +26,25 @@ export function SavedPage() {
   const [query, setQuery] = useState("");
   const [n, setN] = useState(0);
   const reload = () => setN((x) => x + 1);
+  // a row being deleted: said at once, and the keyboard goes to the row that takes its place once it's gone
+  const leaving = useRef<HTMLElement | null>(null);
+  const place = useRef<{ list: Element; at: number } | null>(null);
+  const [said, setSaid] = useState("");
+  const onGone = (from: HTMLElement, what: string) => {
+    const row = from.closest("li");
+    if (row?.parentElement) {
+      leaving.current = row;
+      place.current = { list: row.parentElement, at: [...row.parentElement.children].indexOf(row) };
+    }
+    setSaid(`${what} deleted.`);
+  };
+  useEffect(() => {
+    if (!place.current || leaving.current?.isConnected) return;
+    const { list, at } = place.current;
+    place.current = null;
+    const row = list.children[at] ?? list.lastElementChild ?? list.closest("section");
+    (row as HTMLElement | null)?.focus();
+  });
 
   useEffect(() => {
     let alive = true;
@@ -50,8 +70,11 @@ export function SavedPage() {
           up to a file to keep them safe or to move them to another browser.
         </p>
       </div>
+      <p role="status" className="sr-only">
+        {said}
+      </p>
 
-      <section aria-label="Saved spots" className="space-y-2">
+      <section aria-label="Saved spots" tabIndex={-1} className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">Spots</h2>
           <span className="text-sm text-muted">{spots ? `${spots.length} saved` : "…"}</span>
@@ -73,12 +96,12 @@ export function SavedPage() {
         {spots && spots.length > 0 && shown.length === 0 && <p className="text-sm text-muted">No saved spot matches “{query}”.</p>}
         <ul className="space-y-2">
           {shown.map((s) => (
-            <SpotRow key={s.id} spot={s} onChange={reload} />
+            <SpotRow key={s.id} spot={s} onChange={reload} onGone={onGone} />
           ))}
         </ul>
       </section>
 
-      <section aria-label="Saved drills" className="space-y-2">
+      <section aria-label="Saved drills" tabIndex={-1} className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">Drills</h2>
           <span className="text-sm text-muted">{drills ? `${drills.length} saved` : "…"}</span>
@@ -91,12 +114,12 @@ export function SavedPage() {
         )}
         <ul className="space-y-2">
           {(drills ?? []).map((d) => (
-            <DrillRow key={d.id} drill={d} onChange={reload} />
+            <DrillRow key={d.id} drill={d} onChange={reload} onGone={onGone} />
           ))}
         </ul>
       </section>
 
-      <section aria-label="Saved ranges" className="space-y-2">
+      <section aria-label="Saved ranges" tabIndex={-1} className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">Ranges</h2>
           <span className="text-sm text-muted">{ranges ? `${ranges.length} saved` : "…"}</span>
@@ -108,7 +131,7 @@ export function SavedPage() {
         )}
         <ul className="space-y-2">
           {(ranges ?? []).map((r) => (
-            <RangeRow key={r.id} range={r} onChange={reload} />
+            <RangeRow key={r.id} range={r} onChange={reload} onGone={onGone} />
           ))}
         </ul>
       </section>
@@ -119,25 +142,34 @@ export function SavedPage() {
 }
 
 /** A delete that asks once more before it acts. */
-function DeleteButton({ what, onDelete }: { what: string; onDelete: () => void }) {
+function DeleteButton({ what, onDelete }: { what: string; onDelete: (from: HTMLElement) => void }) {
   const [sure, setSure] = useState(false);
-  return sure ? (
-    <span className="inline-flex items-center gap-1">
-      <button type="button" onClick={onDelete} className="rounded border border-danger/60 px-2 py-0.5 text-danger hover:bg-danger/10">
-        Delete {what}
-      </button>
-      <button type="button" onClick={() => setSure(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-        Keep
-      </button>
+  // (the question takes the keyboard, to Keep, so a second Enter deletes nothing; Keep gives it back to Delete. The keys
+  // keep React from reusing the Delete button, focus and all, as the button that really deletes.)
+  const hold = useFocusHold<HTMLSpanElement>();
+  return (
+    <span {...hold} className="inline-flex items-center gap-1">
+      {sure ? (
+        <>
+          <button key="delete" type="button" onClick={(e) => onDelete(e.currentTarget)} className="rounded border border-danger/60 px-2 py-0.5 text-danger hover:bg-danger/10">
+            Delete {what}
+          </button>
+          <button type="button" data-focus-first onClick={() => setSure(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            Keep
+          </button>
+        </>
+      ) : (
+        <button key="ask" type="button" data-focus-first onClick={() => setSure(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+          Delete
+        </button>
+      )}
     </span>
-  ) : (
-    <button type="button" onClick={() => setSure(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-      Delete
-    </button>
   );
 }
 
-function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) {
+function SpotRow({ spot, onChange, onGone }: { spot: SavedSpot; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
+  // (Edit takes the keyboard to the form's first field, and Cancel or Save brings it back to Edit)
+  const hold = useFocusHold<HTMLLIElement>();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(spot.title);
   const [tags, setTags] = useState(spot.tags.join(", "));
@@ -151,7 +183,7 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
     onChange();
   };
   return (
-    <li aria-label={spot.title} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={spot.title} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${spot.title}`}
@@ -161,7 +193,7 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
             void save();
           }}
         >
-          <input aria-label="Name" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <input data-focus-first aria-label="Name" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
           <input aria-label="Tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags, separated by commas" className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
           <textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
           <div className="flex gap-2">
@@ -191,12 +223,13 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
             <Link to={`/study?${spot.line}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
               Open in Study
             </Link>
-            <button type="button" onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <DeleteButton
               what="spot"
-              onDelete={() => {
+              onDelete={(from) => {
+                onGone(from, `Spot ${spot.title}`);
                 void deleteSpot(spot.id).then(onChange);
               }}
             />
@@ -214,7 +247,8 @@ function SpotRow({ spot, onChange }: { spot: SavedSpot; onChange: () => void }) 
   );
 }
 
-function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void }) {
+function DrillRow({ drill, onChange, onGone }: { drill: SavedDrill; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
+  const hold = useFocusHold<HTMLLIElement>();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(drill.name);
   const [note, setNote] = useState(drill.note);
@@ -227,7 +261,7 @@ function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void
     onChange();
   };
   return (
-    <li aria-label={drill.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={drill.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${drill.name}`}
@@ -237,7 +271,7 @@ function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void
             void save();
           }}
         >
-          <input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <input data-focus-first aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
           <textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
           <div className="flex gap-2">
             <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
@@ -264,12 +298,13 @@ function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void
                 {drill.kind === "library" ? "Open in Practice" : "Open in Analyze"}
               </Link>
             )}
-            <button type="button" onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            <button type="button" data-focus-first onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
               Edit
             </button>
             <DeleteButton
               what="drill"
-              onDelete={() => {
+              onDelete={(from) => {
+                onGone(from, `Drill ${drill.name}`);
                 void deleteDrill(drill.id).then(onChange);
               }}
             />
@@ -287,9 +322,9 @@ function DrillRow({ drill, onChange }: { drill: SavedDrill; onChange: () => void
   );
 }
 
-function RangeRow({ range, onChange }: { range: SavedRange; onChange: () => void }) {
+function RangeRow({ range, onChange, onGone }: { range: SavedRange; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
   return (
-    <li aria-label={range.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li aria-label={range.name} tabIndex={-1} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <strong>{range.name}</strong>
         <span className="text-muted">
@@ -301,7 +336,8 @@ function RangeRow({ range, onChange }: { range: SavedRange; onChange: () => void
         </Link>
         <DeleteButton
           what="range"
-          onDelete={() => {
+          onDelete={(from) => {
+            onGone(from, `Range ${range.name}`);
             void deleteRange(range.id).then(onChange);
           }}
         />
@@ -382,7 +418,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
         <button type="button" onClick={() => void download()} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
           Download backup
         </button>
-        <label className="cursor-pointer rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
+        <label className="cursor-pointer rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
           {busy ? "Restoring…" : "Restore from a file"}
           <input
             type="file"

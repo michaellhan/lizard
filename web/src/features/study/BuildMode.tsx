@@ -8,9 +8,12 @@ import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { pct } from "@/components/actions";
+import { useRovingGrid } from "@/components/rovingGrid";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
+import { useSettings } from "@/state/settings";
 import type { AdvisorResponse, GridCell, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
+import { studyKeyFrom } from "./studyState";
 import {
   actionShares,
   AMOUNTS,
@@ -60,6 +63,12 @@ interface Stroke {
 const segs = (f: readonly number[], colors: readonly string[]) =>
   f.map((x, a) => (x > 0.0005 ? <div key={a} style={{ width: `${x * 100}%`, background: colors[a] }} /> : null));
 
+/** A hand in the builder in words: your paint, and once scored the solver's and how far off. */
+const buildLabel = (cls: string, on: boolean, cell: GridCell | undefined, mine: number[] | undefined, names: readonly string[], locked: boolean, score?: BuildScore["cells"][string]) =>
+  !on
+    ? `${cls}: not in range`
+    : `${cls}: yours ${mixText(mine!, names)}${score ? `; solver ${mixText(cell!.f, names)}; ${pct(score.off, 0)} different` : ""}${locked ? "; locked" : ""}`;
+
 const mixText = (f: readonly number[], names: readonly string[]) =>
   names
     .map((n, a) => ((f[a] ?? 0) >= 0.005 ? `${n} ${pct(f[a], 0)}` : null))
@@ -99,6 +108,7 @@ export function BuildMode({
   const [selected, setSelected] = useState<string | null>(null);
   const [past, setPast] = useState<SessionRecord[]>([]);
   const [saved, setSaved] = useState(0);
+  const keys = useSettings((st) => st.studyKeys);
   const stroke = useRef<Stroke | null>(null);
   // a group of hands painted at once: "s:<shape>", or a category's "m:<id>" / "d:<id>"
   const cats = useMemo(() => catsOf(res), [res]);
@@ -182,6 +192,15 @@ export function BuildMode({
     stroke.current = null;
   }, []);
   const onSelect = useCallback((cls: string) => setSelected((s) => (s === cls ? null : cls)), []);
+  // the hand painted from the keyboard, said once painted
+  const [pressed, setPressed] = useState<string | null>(null);
+  const onPress = useCallback(
+    (cls: string) => {
+      touch(cls);
+      setPressed(cls);
+    },
+    [touch],
+  );
 
   const fillAll = () => {
     if (tool === "lock") return;
@@ -261,7 +280,8 @@ export function BuildMode({
     }).then(() => setSaved((n) => n + 1));
   };
 
-  // keys: 1-9 a brush, Ctrl/Cmd+Z undo, Shift+Ctrl/Cmd+Z or Ctrl+Y redo (not while typing)
+  // keys: 1-9 a brush (with Study's keys on, from the page or the grid, not from another control), Ctrl/Cmd+Z undo,
+  // Shift+Ctrl/Cmd+Z or Ctrl+Y redo (not while typing)
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     const el = e.target as HTMLElement | null;
     if (el && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName)) return;
@@ -272,7 +292,7 @@ export function BuildMode({
     } else if (mod && (e.key === "y" || e.key === "Y")) {
       e.preventDefault();
       if (!scored) commit(redo(hRef.current));
-    } else if (!mod && !e.altKey && /^[1-9]$/.test(e.key) && +e.key <= names.length && !scored) setTool(+e.key - 1);
+    } else if (!mod && !e.altKey && /^[1-9]$/.test(e.key) && +e.key <= names.length && !scored && keys && (el?.closest?.('[role="gridcell"]') || studyKeyFrom(el, e.key))) setTool(+e.key - 1);
   });
   useEffect(() => {
     const on = (e: KeyboardEvent) => onKey(e);
@@ -283,6 +303,7 @@ export function BuildMode({
   const graded = provenance.source === "charts" ? "Graded against the preflop charts: an approximation, not a solve." : provenance.approximate ? "Graded against an approximate answer, not a converged solve." : null;
   const misses = scores ? biggestMisses(scores.cls) : [];
   const sel = selected && g.cells[selected]?.w ? selected : null;
+  const spoken = scores ? sel : pressed;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -301,11 +322,16 @@ export function BuildMode({
           cells={scores?.cls.cells}
           selected={sel}
           onTouch={touch}
+          onPress={onPress}
           onStrokeStart={strokeStart}
           onStrokeEnd={strokeEnd}
           onSelect={onSelect}
           caption={`${res.actor} range, ${scored ? "scored" : "being painted"}`}
         />
+        {/* (what the panel now shows of the hand picked, or the hand as painted) */}
+        <p role="status" className="sr-only">
+          {spoken ? buildLabel(spoken, Boolean(h.now[spoken]), g.cells[spoken], h.now[spoken], names, locked.has(spoken), scores?.cls.cells[spoken]) : ""}
+        </p>
       </section>
 
       <aside className="space-y-3 text-sm">
@@ -339,7 +365,7 @@ export function BuildMode({
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <div role="group" aria-label="Brush amount" className="inline-flex overflow-hidden rounded-md border border-border">
+              <div role="group" aria-label="Brush amount" className="segmented inline-flex overflow-hidden rounded-md border border-border">
                 {AMOUNTS.map((t) => (
                   <button
                     key={t}
@@ -595,6 +621,7 @@ function BuildMatrix({
   cells,
   selected,
   onTouch,
+  onPress,
   onStrokeStart,
   onStrokeEnd,
   onSelect,
@@ -607,6 +634,8 @@ function BuildMatrix({
   cells?: BuildScore["cells"];
   selected: string | null;
   onTouch: (cls: string) => void;
+  /** Enter or Space on a hand */
+  onPress: (cls: string) => void;
   onSelect: (cls: string) => void;
   /** a press: a stroke starts on the hand; then each hand the pointer moves over (onTouch); the release ends it */
   onStrokeStart: (cls: string) => void;
@@ -619,12 +648,14 @@ function BuildMatrix({
   const last = useRef<{ x: number; y: number } | null>(null);
   const at = (x: number, y: number) =>
     (typeof document.elementFromPoint === "function" ? document.elementFromPoint(x, y) : null)?.closest<HTMLElement>("[data-cls]")?.dataset.cls;
+  const { stop, gridProps } = useRovingGrid(selected);
   return (
     <div
       role="grid"
       aria-label={caption}
       className={`grid w-full gap-[2px] select-none ${scored ? "" : "touch-none"}`}
       style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}
+      {...gridProps}
       onPointerDown={(e) => {
         if (scored || e.button !== 0) return;
         const cls = (e.target as HTMLElement).closest<HTMLElement>("[data-cls]")?.dataset.cls;
@@ -669,7 +700,8 @@ function BuildMatrix({
                 score={cells?.[cls]}
                 scored={scored}
                 active={selected === cls}
-                onTouch={onTouch}
+                tabbable={stop === cls}
+                onPress={onPress}
                 onSelect={onSelect}
               />
             );
@@ -690,7 +722,8 @@ const BuildCell = memo(function BuildCell({
   score,
   scored,
   active,
-  onTouch,
+  tabbable,
+  onPress,
   onSelect,
 }: {
   cls: string;
@@ -702,15 +735,14 @@ const BuildCell = memo(function BuildCell({
   score?: BuildScore["cells"][string];
   scored: boolean;
   active: boolean;
-  onTouch: (cls: string) => void;
+  tabbable: boolean;
+  onPress: (cls: string) => void;
   onSelect: (cls: string) => void;
 }) {
   const on = Boolean(cell && cell.w > 0 && mine);
   const w = on ? Math.min(1, cell!.w) : 0;
   const ring = score ? (score.off >= 0.5 ? "ring-2 ring-danger" : score.off >= 0.2 ? "ring-2 ring-warn" : "") : "";
-  const label = !on
-    ? `${cls}: not in range`
-    : `${cls}: yours ${mixText(mine!, names)}${score ? `; solver ${mixText(cell!.f, names)}; ${pct(score.off, 0)} different` : ""}${locked ? "; locked" : ""}`;
+  const label = buildLabel(cls, on, cell, mine, names, locked, score);
   return (
     <button
       type="button"
@@ -718,14 +750,17 @@ const BuildCell = memo(function BuildCell({
       data-cls={on ? cls : undefined}
       aria-label={label}
       aria-selected={active}
-      disabled={!on}
+      // (not `disabled`: the arrow keys go through a hand out of the range as through any other)
+      aria-disabled={!on || undefined}
+      tabIndex={tabbable ? 0 : -1}
       // a pointer paints on press (the grid's handler); a click with no pointer (keyboard: Enter or Space) paints
       // here, and once scored a click compares the hand
       onClick={(e) => {
+        if (!on) return;
         if (scored) onSelect(cls);
-        else if (e.detail === 0) onTouch(cls);
+        else if (e.detail === 0) onPress(cls);
       }}
-      className={`relative aspect-square min-w-0 overflow-hidden rounded-[3px] bg-surface-2 text-left disabled:opacity-40 ${
+      className={`relative aspect-square min-w-0 overflow-hidden rounded-[3px] bg-surface-2 text-left aria-disabled:cursor-default aria-disabled:opacity-40 ${
         scored ? "cursor-pointer" : "cursor-crosshair"
       } ${ring} ${active ? "outline outline-2 outline-offset-1 outline-accent" : ""} ${locked ? "border border-dashed border-text/70" : ""}`}
     >

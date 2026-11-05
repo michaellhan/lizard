@@ -184,6 +184,12 @@ describe("older backups still restore", () => {
     expect((await listDecisions()).map((d) => d.id)).toEqual(["x"]);
   });
 
+  it("restores a tournament's sessions, and refuses a kind nothing writes", async () => {
+    const at = (id: string, kind: string) => ({ id, kind, startedAt: AT, decisions: 1, evLossBb: 0.1, meta: {} });
+    const r = await restoreBackup(file({ sessions: [at("t", "tournament"), at("c", "tournament-chips"), at("z", "lottery")] }));
+    expect(r.sessions).toMatchObject({ added: 2, skipped: 1 });
+  });
+
   it("takes a backup of this version, of records as the app writes them, back whole", async () => {
     const text = "PokerStars Hand #123: Hold'em No Limit ($0.50/$1.00) - 2024/05/01 20:00:00\nTable 'x' 6-max Seat #1 is the button\nSeat 1: me ($100)\nSeat 2: b ($100)\nb: posts big blind $1\n*** HOLE CARDS ***\nDealt to me [Ah Kd]\nme: folds\n";
     const { hands } = await prepare([{ name: "x", text }], { id: "i", name: "x", at: AT });

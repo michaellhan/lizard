@@ -2,14 +2,16 @@
 // answers for every hand of the player to act (Advisor.study): the 13x13 mix, EVs, equity, the range's totals.
 // Preflop the charts answer at once; library flops answer at once; other flops (heads-up / 3-way), turns and
 // rivers are solved live in the browser (or the local Python server), with progress and cancel.
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { cellValue, RangeMatrix } from "@/components/RangeMatrix";
+import { cellLabel, cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { ResizableWorkspace } from "@/components/ResizableWorkspace";
+import { useFocusHold } from "@/components/useFocusHold";
 import { actionColors, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
 import { useSolver } from "@/solver/useSolver";
-import { SolverError, type SolveResult } from "@/solver/types";
+import { describe } from "@/solver/provenance";
+import { SolverError, type Provenance, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse, OpponentRange } from "@/solver/protocol";
 import { useSettings } from "@/state/settings";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
@@ -31,6 +33,7 @@ import {
   STREETS,
   streetOf,
   studyKey,
+  studyKeyFrom,
   studyRequest,
   toSearch,
   samePf,
@@ -68,7 +71,8 @@ import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
 type Phase =
   | { kind: "loading"; partial?: SolveResult }
   | { kind: "done"; result: SolveResult }
-  | { kind: "error"; message: string };
+  // (what a partial answer had shown when it was stopped or failed stays on screen, under its own partial label)
+  | { kind: "error"; message: string; partial?: SolveResult; stopped?: boolean };
 
 /** Study's table sizes and stack depths (the Advisor's preflop model covers 2-9 players, 10-250bb). */
 export const PLAYERS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -80,6 +84,16 @@ export const MAX_STACK = 250;
 const STUDY_SPLIT = 1.4 / 2.4;
 const STUDY_MIN_MATRIX = 420;
 const STUDY_MIN_PANEL = 320;
+
+/** An answer in a sentence for a reader, told once as it arrives: who acts, where, the pot, and what produced it. */
+export function answerWords(r: AdvisorResponse, p: Provenance): string {
+  if (typeof r.error === "string") return r.error;
+  if (r.study === "deal") return `The ${r.street} is next, to be dealt.`;
+  if (r.study === "over") return "End of the hand.";
+  if (r.study !== "node") return "No answer to show for this node.";
+  const where = `${r.actor} to act on the ${r.street}${r.pot_bb !== undefined ? `, pot ${r.pot_bb}bb` : ""}.`;
+  return `${where} ${p.partial ? "Partial answer, still refining." : `${describe(p)}.`}`;
+}
 
 /** The opponents' ranges: heads-up the one (opponent_grid), 3-way each of the two (opponents), as study.js oppsOf. */
 export function oppsOf(res: AdvisorResponse | undefined): OpponentRange[] {
@@ -104,6 +118,8 @@ export function StudyPage() {
   const getSolver = useSolver();
   // the answer is tagged with the request it answers; a new request shows "loading" until its own answer arrives
   const [answer, setAnswer] = useState<{ key: string; phase: Phase }>({ key: "", phase: { kind: "loading" } });
+  // Try again: the same request, asked afresh
+  const [attempt, setAttempt] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   // (what the grid shows, the breakdown's state and the split beside the grid are Settings, so they last from visit to visit)
   const chosenView = useSettings((s) => s.studyView);
@@ -120,6 +136,10 @@ export function StudyPage() {
   const [building, setBuilding] = useState(false);
   const [paints] = useState(() => new Map<string, BuildSaved>());
   const evUnit = useSettings((s) => s.evUnit);
+  const keys = useSettings((s) => s.studyKeys);
+  // the keyboard stays with the answer as one node's buttons go and the next one's arrive
+  const answerBox = useFocusHold<HTMLDivElement>();
+  const newHandBox = useFocusHold<HTMLDivElement>();
   const abortRef = useRef<AbortController | null>(null);
   // the preflop solve run from the page (pfSolve.ts): only on its Solve button, going on while the page shows a
   // preflop node of the same game under the Solver source, stopped (after its chunk) once it doesn't or on leaving
@@ -130,8 +150,9 @@ export function StudyPage() {
   const onPf = hand.pf === "solver" && streetOf(hand) === "preflop";
 
   const requestKey = `${toSearch(hand)}|${mode}`;
+  const askKey = `${requestKey}|${attempt}`;
   useEffect(() => {
-    latest.current = { hand, key: requestKey, mode };
+    latest.current = { hand, key: askKey, mode };
   });
   useEffect(() => {
     const r = runRef.current;
@@ -183,7 +204,7 @@ export function StudyPage() {
   const problems = useMemo(() => setupProblems(hand.players, hand.setup), [hand]);
   const phase: Phase = problems.length
     ? { kind: "error", message: `This setup can't be solved: ${problems.join("; ")}.` }
-    : answer.key === requestKey
+    : answer.key === askKey
       ? answer.phase
       : { kind: "loading" };
   useEffect(() => {
@@ -191,7 +212,8 @@ export function StudyPage() {
     const ac = new AbortController();
     abortRef.current = ac;
     let alive = true;
-    const setPhase = (p: Phase) => setAnswer({ key: requestKey, phase: p });
+    const setPhase = (p: Phase) => setAnswer({ key: askKey, phase: p });
+    let partial: SolveResult | undefined;
     void (async () => {
       try {
         const client = await getSolver();
@@ -203,7 +225,10 @@ export function StudyPage() {
               mode,
               progressive: true,
               signal: ac.signal,
-              onPartial: (p) => alive && setPhase({ kind: "loading", partial: p }),
+              onPartial: (p) => {
+                partial = p;
+                if (alive) setPhase({ kind: "loading", partial: p });
+              },
             }),
           studyRequest(hand),
           client.solverVersion,
@@ -211,8 +236,9 @@ export function StudyPage() {
         if (alive) setPhase({ kind: "done", result });
       } catch (e) {
         if (!alive) return;
-        if (e instanceof SolverError && e.kind === "cancelled") setPhase({ kind: "error", message: "Stopped." });
-        else setPhase({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+        const stopped = e instanceof SolverError && e.kind === "cancelled";
+        const message = stopped ? "Stopped." : e instanceof Error ? e.message : String(e);
+        setPhase({ kind: "error", message, stopped, partial: partial && { ...partial, provenance: { ...partial.provenance, stopped: true } } });
       }
     })();
     return () => {
@@ -221,9 +247,12 @@ export function StudyPage() {
     };
     // the request key covers hand and mode
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, getSolver]);
+  }, [askKey, getSolver]);
 
-  const shown: SolveResult | undefined = phase.kind === "done" ? phase.result : phase.kind === "loading" ? phase.partial : undefined;
+  const shown: SolveResult | undefined = phase.kind === "done" ? phase.result : phase.partial;
+  // said once, in the one region that's always there
+  const phaseWords = phase.kind === "error" ? `${phase.message}${phase.partial ? " What it had reached stays below, labelled partial." : ""}` : "";
+  const said = problems.length ? "" : phase.kind === "error" ? phaseWords : shown ? answerWords(shown.data, shown.provenance) : "Answering.";
   const raw: AdvisorResponse | undefined = shown?.data;
   const cats = useMemo(() => catsOf(raw), [raw]);
   const res = useMemo(() => (raw ? filterRes(raw, filterKey) : undefined), [raw, filterKey]);
@@ -270,13 +299,23 @@ export function StudyPage() {
   const prevNode = back(hand);
   const nextNode = forward(hand, tip);
   const steps = lineSteps(hand, tip);
+  // (a button that disables holds the keyboard where no key works, so the end of the line hands it to the other one)
+  const backButton = useRef<HTMLButtonElement>(null);
+  const forwardButton = useRef<HTMLButtonElement>(null);
+  const canBack = Boolean(prevNode);
+  const canForward = Boolean(nextNode);
+  useEffect(() => {
+    const at = document.activeElement;
+    if (!canBack && at === backButton.current) forwardButton.current?.focus();
+    else if (!canForward && at === forwardButton.current) backButton.current?.focus();
+  }, [canBack, canForward]);
 
-  // keys: left and right walk the line, 1-9 play that action (while building, 1-9 pick its brushes); not while typing
+  // keys: left and right walk the line, 1-9 play that action (while building, 1-9 pick its brushes); not while typing, and
+  // none of them with the keys turned off in Settings
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    const el = e.target as HTMLElement | null;
-    if (e.defaultPrevented || (el && (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) || el.isContentEditable))) return;
+    if (!keys || e.defaultPrevented) return;
     const k = studyKey(e);
-    if (!k) return;
+    if (!k || !studyKeyFrom(e.target as Element | null, e.key)) return;
     if (k.kind === "build") {
       if (buildable) toggleBuild();
       return;
@@ -307,7 +346,9 @@ export function StudyPage() {
             <PfSizesForm key={encodePfSizes(hand.pfSizes ?? {})} value={hand.pfSizes} onApply={(s) => setHand(withPfSizes(hand, s))} />
           )}
           <ModePicker modes={["fast", "accurate"]} />
-          <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(samePf(hand, freshHand(p, st)))} />
+          <div {...newHandBox}>
+            <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(samePf(hand, freshHand(p, st)))} />
+          </div>
         </div>
       </div>
 
@@ -337,8 +378,9 @@ export function StudyPage() {
         ))}
         <span className="flex-1" />
         <button
+          ref={backButton}
           type="button"
-          aria-keyshortcuts="ArrowLeft"
+          aria-keyshortcuts={keys ? "ArrowLeft" : undefined}
           onClick={() => prevNode && setHand(prevNode)}
           disabled={!prevNode}
           className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
@@ -346,8 +388,9 @@ export function StudyPage() {
           ← Back
         </button>
         <button
+          ref={forwardButton}
           type="button"
-          aria-keyshortcuts="ArrowRight"
+          aria-keyshortcuts={keys ? "ArrowRight" : undefined}
           onClick={() => nextNode && setHand(nextNode)}
           disabled={!nextNode}
           className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
@@ -380,31 +423,43 @@ export function StudyPage() {
           </>
         )}
       </p>
-      {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
+      {/* (always here, so a reader is told each answer as it lands, and that it stopped or failed; a setup that can't be asked is an alert) */}
+      <p role="status" className="sr-only">
+        {said}
+      </p>
 
-      {phase.kind === "loading" && (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm" role="status">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          <span>{phase.partial ? "Refining…" : "Answering…"}</span>
-          <span className="text-muted">The first answer starts the engine (Python in your browser, cached after the first visit).</span>
-          <span className="flex-1" />
-          <button type="button" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2" onClick={() => abortRef.current?.abort()}>
-            Stop
-          </button>
-        </div>
-      )}
-      {phase.kind === "error" && (
-        <div role="alert" className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {phase.message}
-        </div>
-      )}
+      <div {...answerBox} role="group" aria-label="Answer" className="space-y-4">
+        {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
+        {phase.kind === "loading" && (
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+            <span>{phase.partial ? "Refining…" : "Answering…"}</span>
+            <span className="text-muted">The first answer starts the engine (Python in your browser, cached after the first visit).</span>
+            <span className="flex-1" />
+            <button type="button" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2" onClick={() => abortRef.current?.abort()}>
+              Stop
+            </button>
+          </div>
+        )}
+        {phase.kind === "error" && (
+          <div role={problems.length ? "alert" : undefined} className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm ${phase.stopped ? "border-border bg-surface" : "border-danger/40 bg-danger/10 text-danger"}`}>
+            <span>{phaseWords}</span>
+            <span className="flex-1" />
+            {!problems.length && (
+              <button type="button" data-focus-first className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2" onClick={() => setAttempt((n) => n + 1)}>
+                Try again
+              </button>
+            )}
+          </div>
+        )}
 
-      {shownRun && (shownRun.running || shownRun.err) && <PfProgress run={shownRun} onStop={stopPf} />}
-      {res && (res.study === "pf_unsolved" || res.study === "pf_none") ? (
-        <PfPanel res={res} running={pfRunning} onSolve={startPf} onCharts={() => setHand(withPf(hand, "charts"))} />
-      ) : (
-        res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={selected} />
-      )}
+        {shownRun && (shownRun.running || shownRun.err) && <PfProgress run={shownRun} onStop={stopPf} />}
+        {res && (res.study === "pf_unsolved" || res.study === "pf_none") ? (
+          <PfPanel res={res} running={pfRunning} onSolve={startPf} onCharts={() => setHand(withPf(hand, "charts"))} />
+        ) : (
+          res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={selected} keys={keys} />
+        )}
+      </div>
       {res?.study === "node" && res.street === "preflop" && <PfNote res={res} running={pfRunning} onContinue={startPf} />}
       {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
         <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
@@ -545,6 +600,10 @@ export function StudyPage() {
             />
           </section>
           <aside className="space-y-3">
+            {/* (what the panel now shows; not while a partial answer's numbers are still moving) */}
+            <p role="status" className="sr-only">
+              {selected && grid.cells[selected] && phase.kind !== "loading" ? `${cellLabel(selected, grid.cells[selected], opp ? [] : names)}. ${describe(shown!.provenance)}.` : ""}
+            </p>
             {selected && grid.cells[selected] ? (
               <ComboPanel cls={selected} res={res} colors={colors} opponent={opp ?? false} evUnit={evUnit} />
             ) : (
@@ -579,6 +638,7 @@ function NodeView({
   building = false,
   whole,
   cls = null,
+  keys,
 }: {
   hand: StudyHand;
   res: AdvisorResponse;
@@ -591,9 +651,12 @@ function NodeView({
   whole?: AdvisorResponse;
   /** the hand class picked in the grid */
   cls?: string | null;
+  /** the page's keys are on (Settings) */
+  keys: boolean;
 }) {
   const [typed, setTyped] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const errId = useId();
   const names = res.grid?.actions ?? [];
   const colors = actionColors(names);
   // (every pair's bubble factor: the table's model from the setup, which the line doesn't change)
@@ -625,6 +688,8 @@ function NodeView({
             placeholder={n === 1 ? "5s" : "Kd7c2h"}
             className="ml-1 w-28 rounded border border-border bg-surface-2 px-2 py-1 font-mono"
             aria-invalid={Boolean(err)}
+            aria-describedby={err ? errId : undefined}
+            data-focus-first
           />
         </label>
         <button type="submit" className="rounded bg-accent px-3 py-1 text-sm font-medium text-bg">
@@ -633,7 +698,11 @@ function NodeView({
         <button type="button" className="rounded border border-border px-3 py-1 text-sm" onClick={() => submit(randomCards(hand, n))}>
           Random
         </button>
-        {err && <span className="text-sm text-danger">{err}</span>}
+        {err && (
+          <span id={errId} role="alert" className="text-sm text-danger">
+            {err}
+          </span>
+        )}
       </form>
     );
     // (the turn or river report: once the flop's or turn's betting closed with chips still to bet, heads-up or 3-way)
@@ -653,7 +722,7 @@ function NodeView({
   if (res.study !== "node") {
     return (
       <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">
-        {typeof res.error === "string" ? res.error : `No study answer for this node (${String(res.study ?? res.skipped ?? "unknown")}).`}
+        {typeof res.error === "string" ? res.error : "There's no study answer for this node. Step back to study another branch."}
       </div>
     );
   }
@@ -661,16 +730,19 @@ function NodeView({
   return (
     <section aria-label="Actions" className="space-y-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <strong className="text-base">{res.actor}</strong>
-        <span className="text-muted">
-          to act on the {res.street}
-          {res.position ? ` (${res.position})` : ""}
-          {res.pot_bb !== undefined ? ` · pot ${res.pot_bb}bb` : ""}
-          {res.to_call_bb ? ` · to call ${res.to_call_bb}bb` : ""}
-          {odds !== null && (
-            <span title="What a call costs as a share of the pot it makes. Plain arithmetic in chips, before rake, not a solve."> · pot odds {pctOdds(odds)}</span>
-          )}
-        </span>
+        {/* (where the keyboard lands on a new node: the first Tab from here is the first action, and a stray Enter plays nothing) */}
+        <h2 tabIndex={-1} data-focus-first className="flex flex-wrap items-center gap-2">
+          <strong className="text-base">{res.actor}</strong>
+          <span className="text-muted">
+            to act on the {res.street}
+            {res.position ? ` (${res.position})` : ""}
+            {res.pot_bb !== undefined ? ` · pot ${res.pot_bb}bb` : ""}
+            {res.to_call_bb ? ` · to call ${res.to_call_bb}bb` : ""}
+            {odds !== null && (
+              <span title="What a call costs as a share of the pot it makes. Plain arithmetic in chips, before rake, not a solve."> · pot odds {pctOdds(odds)}</span>
+            )}
+          </span>
+        </h2>
         <span className="flex-1" />
         <ProvenanceBadge p={shown.provenance} />
       </div>
@@ -679,14 +751,14 @@ function NodeView({
           <button
             key={a.action}
             type="button"
-            aria-keyshortcuts={i < 9 ? String(i + 1) : undefined}
+            aria-keyshortcuts={keys && i < 9 ? String(i + 1) : undefined}
             onClick={() => setHand(play(hand, res, a))}
             className="group min-w-28 rounded-md border border-border bg-surface-2 px-3 py-2 text-left hover:border-accent"
           >
             <div className="flex items-center gap-2">
               <span className="inline-block h-3 w-3 rounded-sm" style={{ background: colors[names.indexOf(a.action)] ?? colors[i] }} />
               <span className="font-medium">{a.action}</span>
-              {!building && i < 9 && (
+              {keys && !building && i < 9 && (
                 <kbd aria-hidden className="ml-auto hidden font-mono text-[10px] text-muted md:inline">
                   {i + 1}
                 </kbd>
@@ -729,6 +801,7 @@ function NewHandForm({ players, stack, onStart }: { players: number; stack: numb
   const [st, setSt] = useState(String(stack));
   const n = Number(st);
   const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK;
+  const limit = useId();
   return (
     <form
       aria-label="New hand"
@@ -756,12 +829,15 @@ function NewHandForm({ players, stack, onStart }: { players: number; stack: numb
           value={st}
           onChange={(e) => setSt(e.target.value)}
           aria-invalid={!ok}
+          aria-describedby={limit}
           title={`Effective stack, ${MIN_STACK}–${MAX_STACK}bb`}
           className="w-16 rounded-md border border-border bg-surface-2 px-2 py-1.5 font-mono"
         />
-        <span className="text-muted">bb</span>
+        <span id={limit} className={ok ? "text-muted" : "text-danger"}>
+          bb ({MIN_STACK} to {MAX_STACK})
+        </span>
       </label>
-      <button type="submit" disabled={!ok} className="rounded-md border border-border px-2 py-1.5 hover:bg-surface-2 disabled:opacity-40">
+      <button type="submit" data-focus-first disabled={!ok} className="rounded-md border border-border px-2 py-1.5 hover:bg-surface-2 disabled:opacity-40">
         New hand
       </button>
     </form>

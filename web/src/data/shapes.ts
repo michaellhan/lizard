@@ -46,7 +46,7 @@ export function validSession(d: Record<string, unknown>): boolean {
   const { meta } = d;
   if (!isObj(meta)) return false;
   return (
-    ["practice", "drill", "analysis", "build"].includes(d.kind as string) &&
+    ["practice", "drill", "analysis", "build", "tournament", "tournament-chips"].includes(d.kind as string) &&
     isTime(d.startedAt) &&
     (d.endedAt === undefined || d.endedAt === null || isTime(d.endedAt)) &&
     isNum(d.decisions) &&

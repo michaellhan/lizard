@@ -52,7 +52,8 @@ export interface SavedDrill {
 
 export interface SessionRecord {
   id: string;
-  kind: "practice" | "drill" | "analysis" | "build";
+  /** "tournament": prize equity, "tournament-chips": chip EV. Kinds of their own: their EVs go in no total of another's. */
+  kind: "practice" | "drill" | "analysis" | "build" | "tournament" | "tournament-chips";
   startedAt: number;
   endedAt?: number;
   decisions: number;
@@ -203,6 +204,8 @@ export interface MistakeRecord {
   id: string;
   /** Practice's full hands, or its drills */
   from: "hand" | "drill";
+  /** from a tournament session: what its EVs are in. Review keeps these apart. */
+  tournament?: "icm" | "chips";
   sessionId: string;
   street: string;
   /** when it was first missed, when it last was, and when this record last changed */

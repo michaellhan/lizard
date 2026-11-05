@@ -10,9 +10,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { useFocusHold } from "@/components/useFocusHold";
 import { pct } from "@/components/actions";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
-import { MAX_STACK, MIN_STACK } from "@/features/study/StudyPage";
+import { answerWords, MAX_STACK, MIN_STACK } from "@/features/study/StudyPage";
 import { askNode, pfMinutes } from "@/features/study/pfSolve";
 import { describePfSizes } from "@/features/study/pfSizes";
 import { describeLine, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
@@ -66,6 +67,11 @@ export function ComparePage() {
   // each side's answer, tagged with the request it answers; B is asked once A is answered
   const [answers, setAnswers] = useState<{ key: string; a?: Answer; b?: Answer }>({ key: "" });
   const abortRef = useRef<AbortController | null>(null);
+  // Try again: asked afresh, past a side already answered (kept here for it)
+  const [attempt, setAttempt] = useState(0);
+  const kept = useRef<{ key: string; a: Answer } | null>(null);
+  // the keyboard stays here as Stop and Try again come and go
+  const box = useFocusHold<HTMLDivElement>();
 
   useEffect(() => {
     if (!a || !b || problems.length) return;
@@ -76,6 +82,7 @@ export function ComparePage() {
     void (async () => {
       // one after the other (the backends run one solve at a time), A first
       for (const [which, h] of [["a", a], ["b", b]] as const) {
+        if (which === "a" && kept.current?.key === key) continue;
         try {
           const client = await getSolver();
           const result = await askNode((state) => client.solve({ state, mode, signal: ac.signal }), studyRequest(h), client.solverVersion);
@@ -95,7 +102,7 @@ export function ComparePage() {
     };
     // the key covers both spots and the mode
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, getSolver]);
+  }, [key, attempt, getSolver]);
 
   if (!a || !b)
     return (
@@ -115,6 +122,25 @@ export function ComparePage() {
   const mine = answers.key === key ? answers : { key };
   const sa: Side = problems.length ? { kind: "waiting" } : (mine.a ?? { kind: "loading" });
   const sb: Side = problems.length || !mine.a ? { kind: "waiting" } : (mine.b ?? { kind: "loading" });
+  const retry = () => {
+    const done = mine.a?.kind === "done" ? mine.a : undefined;
+    kept.current = done ? { key, a: done } : null;
+    setAnswers(done ? { key, a: done } : { key });
+    setAttempt((n) => n + 1);
+  };
+  const failed = sa.kind === "error" || sb.kind === "error";
+  // said once, in the one region that's always here
+  const said = problems.length
+    ? ""
+    : sa.kind === "error"
+      ? `A: ${sa.message}`
+      : sa.kind === "done"
+        ? sb.kind === "error"
+          ? `B: ${sb.message}`
+          : sb.kind === "done"
+            ? `A: ${answerWords(sa.result.data, sa.result.provenance)} B: ${answerWords(sb.result.data, sb.result.provenance)}`
+            : "A answered. Answering B."
+        : "Answering A.";
   const differs = whatDiffers(a, b);
   // the charts against the preflop solve: the sources are what's compared
   const bySource = pfSourceOf(a) !== null && pfSourceOf(b) !== null && pfSourceOf(a) !== pfSourceOf(b);
@@ -129,6 +155,9 @@ export function ComparePage() {
         <h1 className="text-2xl font-semibold">Compare</h1>
         <p className="text-sm text-muted">Two spots answered one after the other and shown side by side, B against A. Each answer keeps its own source.</p>
       </div>
+      <p role="status" className="sr-only">
+        {said}
+      </p>
       <details className="text-sm">
         <summary className="cursor-pointer text-muted hover:text-text">Change the spots</summary>
         <div className="mt-2">
@@ -159,13 +188,9 @@ export function ComparePage() {
                     <ProvenanceBadge p={s.result.provenance} />
                   )
                 ) : s.kind === "loading" ? (
-                  <span role="status" className="text-muted">
-                    Answering…
-                  </span>
+                  <span className="text-muted">Answering…</span>
                 ) : s.kind === "error" ? (
-                  <span role="alert" className="text-danger">
-                    {s.message}
-                  </span>
+                  <span className={s.message === "Stopped." ? "text-muted" : "text-danger"}>{s.message}</span>
                 ) : (
                   <span className="text-muted">{problems.length ? "Not asked." : "Asked once A is answered."}</span>
                 )}
@@ -182,13 +207,20 @@ export function ComparePage() {
           These setups can't be solved: {problems.join("; ")}.
         </div>
       )}
-      {(sa.kind === "loading" || sb.kind === "loading") && (
-        <button type="button" onClick={() => abortRef.current?.abort()} className="rounded border border-border px-2 py-0.5 text-sm hover:bg-surface-2">
-          Stop
-        </button>
-      )}
-      {why.length > 0 && <p className="text-sm text-muted">Nothing compared: {why.length > 1 ? "neither side is" : `${why[0]!.slice(0, 1)} isn't`} a decision with an answer (above).</p>}
-      {sa.kind === "done" && sb.kind === "done" && !why.length && <Diff ra={sa.result} rb={sb.result} bySource={bySource} menus={sizesOnly(a, b)} />}
+      <div {...box} role="group" aria-label="Comparison" className="space-y-4">
+        {(sa.kind === "loading" || sb.kind === "loading") && (
+          <button type="button" onClick={() => abortRef.current?.abort()} className="rounded border border-border px-2 py-0.5 text-sm hover:bg-surface-2">
+            Stop
+          </button>
+        )}
+        {failed && (
+          <button type="button" data-focus-first onClick={retry} className="rounded border border-border px-2 py-0.5 text-sm hover:bg-surface-2">
+            Try again
+          </button>
+        )}
+        {why.length > 0 && <p className="text-sm text-muted">Nothing compared: {why.length > 1 ? "neither side is" : `${why[0]!.slice(0, 1)} isn't`} a decision with an answer (above).</p>}
+        {sa.kind === "done" && sb.kind === "done" && !why.length && <Diff ra={sa.result} rb={sb.result} bySource={bySource} menus={sizesOnly(a, b)} />}
+      </div>
     </div>
   );
 }
@@ -277,7 +309,9 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
             </label>
             <DiffMatrix diffs={classes} action={action} selected={selected} onSelect={setSelected} />
             <p className="text-xs text-muted">Blue: B takes it more often; red: less often; the stronger, the bigger. Darker grey: a class in one range only.</p>
-            {sel && <p className="text-sm">{diffLabel(sel, sel.cls, action)}</p>}
+            <p role="status" className="text-sm">
+              {sel ? diffLabel(sel, sel.cls, action) : ""}
+            </p>
           </section>
           <section aria-label="Biggest differences" className="space-y-1 text-sm">
             <h2 className="font-medium">Biggest differences in {action}</h2>

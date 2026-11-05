@@ -32,12 +32,28 @@ function isStoredTurn(r: AdvisorResponse): boolean {
   return approximateOf(r)?.source === "store" || r.source === "store";
 }
 
+const said = (r: AdvisorResponse, s: string) => (r.notes ?? []).some((n) => n.includes(s));
+/** a seat's own all-in from the push/fold equilibrium (advisor.py _push) */
+const OWN_JAM = "all-in, range from the push/fold equilibrium";
+
+/** The answer's action names: a node of Study's has them as words. */
+const actionNames = (r: AdvisorResponse) => (Array.isArray(r.actions) ? (r.actions as unknown[]) : []).map((a) => (typeof a === "string" ? a : (a as { action?: string }).action));
+
+/** The chart with a raise the push/fold equilibrium has made an all-in: it still calls by the chart, so it's the chart's
+ * answer with one action from the model. */
+const chartWithJam = (r: AdvisorResponse) => said(r, OWN_JAM) && actionNames(r).includes("call");
+
+/** At 12bb or less a first-in hand jams or folds from the push/fold equilibrium (_push), and a call of a jam from such a
+ * range is priced by equity against it (_vs_jam). Neither is a chart, a solve of the game, or an EV. */
+const isPushFold = (r: AdvisorResponse) =>
+  (said(r, OWN_JAM) && !chartWithJam(r)) || (said(r, "facing an all-in, call when equity beats the pot odds") && said(r, "jam range: push/fold equilibrium"));
+
 export function sourceOf(r: AdvisorResponse): ResultSource {
   if (r.fallback) return FALLBACK_SOURCES[r.fallback] ?? "rules";
   if (r.precomputed) return "library";
   if (isStoredTurn(r)) return "library-turn";
   if (typeof r.pf_solve === "object" || r.study === "pf_progress") return "preflop-solve";
-  if (r.street === "preflop") return "charts";
+  if (r.street === "preflop") return isPushFold(r) ? "push-fold" : "charts";
   // approximate {source}: "solve" with no solver.by is this street's own solve stopped at a look (advisor.py
   // _study_look) or one cut to fit Quick; "solve" with solver.by is a read of an earlier decision's solve on this
   // street (_study_mw_prev), and "near", "prev", "unraked", "offtree" are reads of other solutions: answers at once, as
@@ -81,6 +97,7 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
       Boolean(approx) ||
       borrowed !== null ||
       source === "charts" ||
+      source === "push-fold" ||
       source === "rules" ||
       source === "equity" ||
       source === "library-turn" ||
@@ -119,10 +136,15 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
     p.sizing = `${r.street ?? "street"} bet sizes ${(r.sizes_kept as string[]).join(", ")} chosen by a first solve over a wide menu (one street deep, one raise)`;
   if (source === "preflop-solve") preflopSolveOf(r, p);
   const tm = tournamentModelOf(r, source);
-  if (tm) p.tournament = tm;
-  // a chip answer whose own all-in is the push/fold equilibrium (a stack a raise commits; advisor.py _push): said, so
-  // it isn't read as a chart's mix, nor taken for another model beside a tournament's push/fold
-  else if (source === "charts" && (r.notes ?? []).some((n) => n.includes("all-in, range from the push/fold equilibrium"))) p.view = "push/fold equilibrium in chips";
+  if (tm) {
+    p.tournament = tm;
+    const evIn = evInOf(r, source);
+    if (evIn) p.evIn = evIn;
+  }
+  // a chip answer from the push/fold model: which part of it, so it isn't read as a chart's mix, nor taken for another
+  // model beside a tournament's push/fold (chips: pf_classes._fictitious_play, callers alike and one of them calling)
+  else if (source === "push-fold") p.view = said(r, OWN_JAM) ? "jam-or-fold equilibrium in chips, by hand class, one caller assumed" : "a call priced by equity against the jam's push/fold range";
+  else if (source === "charts" && said(r, OWN_JAM)) p.view = "the chart, its all-in from the push/fold equilibrium in chips";
   return p;
 }
 
@@ -162,12 +184,14 @@ export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): str
   const what =
     source === "rules" || source === "equity"
       ? "a tournament, but the fallback plays chips"
-      : source === "charts"
-        ? has("all-in, range from the push/fold equilibrium")
-          ? "push/fold equilibrium in prize equity"
-          : has("calling needs")
-            ? "a call priced in prize equity"
-            : "chip chart with a risk premium"
+      : source === "charts" || source === "push-fold"
+        ? chartWithJam(r)
+          ? "chip chart with a risk premium, its all-in from the push/fold equilibrium in prize equity"
+          : has(OWN_JAM)
+            ? "push/fold equilibrium in prize equity"
+            : has("calling needs")
+              ? "a call priced in prize equity"
+              : "chip chart with a risk premium"
         : solve;
   const format = bounties && typeof bounties === "object" ? bounties.format : undefined;
   // a field over icm.MAX_PLAYERS is modelled by stand-ins (icm.field_stacks, compress_payouts): the note says so
@@ -181,6 +205,18 @@ export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): str
     .join(", ");
 }
 
+/** What a tournament answer's EVs are in. A solve's are chips worth as much prize equity (icm.Model.value), on another
+ * base from chips won; a fallback's are its own chips. Bounties with no payouts are priced in chips, as a cash answer's. */
+function evInOf(r: AdvisorResponse, source: ResultSource): Provenance["evIn"] {
+  const note = (r.tournament as { note?: unknown } | undefined)?.note;
+  if (typeof note === "string" && note.startsWith("tournament: no payouts")) return undefined;
+  return source === "rules" || source === "equity" || source === "unknown" ? "chips" : "prize";
+}
+
+/** What an EV shown under this provenance is in, as it follows a number: "0.40bb", "0.40bb of prize equity". */
+export const PRIZE_UNIT = "bb of prize equity";
+export const evUnit = (p: Pick<Provenance, "evIn"> | null | undefined) => (p?.evIn === "prize" ? PRIZE_UNIT : "bb");
+
 const LABELS: Record<ResultSource, string> = {
   library: "Precomputed solution",
   "library-turn": "Stored turn from the flop library",
@@ -188,6 +224,7 @@ const LABELS: Record<ResultSource, string> = {
   live: "Live solve",
   charts: "Preflop charts",
   "preflop-solve": "Preflop solve (class-level model)",
+  "push-fold": "Push/fold model (not a solve)",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
   unknown: "Unlabelled",
@@ -217,7 +254,7 @@ export function describe(p: Provenance): string {
   }
   if (p.mbbPerHand !== undefined) parts.push(`${p.mbbPerHand.toFixed(2)} mbb/hand from equilibrium (a seat's average)`);
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);
-  if (p.partial) parts.push("in progress");
+  if (p.partial) parts.push(p.stopped ? "partial, stopped before it finished" : "in progress");
   else if (p.approximate) parts.push("approximate");
   if (p.confidence) parts.push(`${p.confidence} confidence`);
   return parts.join(" · ");

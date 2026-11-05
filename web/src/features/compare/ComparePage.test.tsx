@@ -239,6 +239,10 @@ describe("picking any two spots", () => {
     fireEvent.change(within(picker).getByLabelText("Spot B as a Study link"), { target: { value: "nonsense" } });
     fireEvent.click(within(picker).getAllByRole("button", { name: "Use" })[1]!);
     expect(within(picker).getByText(/Not a Study link/)).toBeInTheDocument();
+    expect(within(picker).getByLabelText("Spot B as a Study link")).toHaveAttribute("aria-invalid", "true");
+    expect(within(picker).getByLabelText("Spot B as a Study link")).toHaveAccessibleDescription(/Not a Study link/);
+    expect(within(picker).getByLabelText("Spot A as a Study link")).toHaveAttribute("aria-invalid", "false");
+    expect(within(picker).getByLabelText("Spot A as a Study link")).not.toHaveAttribute("aria-describedby");
     fireEvent.change(within(picker).getByLabelText("Spot B as a Study link"), { target: { value: `https://example.org/lizard/study?${toSearch(C)}` } });
     fireEvent.click(within(picker).getAllByRole("button", { name: "Use" })[1]!);
     expect(within(picker).getByLabelText("Spot B")).toHaveValue(toSearch(C));

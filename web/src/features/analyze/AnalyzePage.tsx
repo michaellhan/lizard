@@ -116,7 +116,12 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
           hand={open}
           decisions={decisions.filter((d) => d.handId === open.id)}
           onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
-          onClose={() => set({ hand: null })}
+          onClose={() => {
+            // (back to the Open that opened it, or, not listed now, the page's main)
+            const opener = [...document.querySelectorAll<HTMLElement>("[data-open-hand]")].find((b) => b.dataset.openHand === open.id);
+            (opener ?? document.getElementById("main"))?.focus();
+            set({ hand: null });
+          }}
         />
       )}
       {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
@@ -242,7 +247,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
           >
             Import pasted hands
           </button>
-          <label className="cursor-pointer rounded border border-border px-3 py-1 hover:bg-surface-2">
+          <label className="cursor-pointer rounded border border-border px-3 py-1 hover:bg-surface-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
             Choose files…
             <input
               type="file"
@@ -254,7 +259,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
               onChange={(e) => void readFiles(e.target.files).then(() => (e.target.value = ""))}
             />
           </label>
-          <label className="cursor-pointer rounded border border-border px-3 py-1 hover:bg-surface-2">
+          <label className="cursor-pointer rounded border border-border px-3 py-1 hover:bg-surface-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
             Choose a folder…
             <input
               ref={folder}
@@ -567,7 +572,7 @@ function HandsTable({
                   {h.tournament ? <span className="text-xs text-muted"> MTT</span> : null}
                 </td>
                 <td className="px-2 py-1">
-                  <button type="button" onClick={() => set({ hand: h.id })} className="underline">
+                  <button type="button" data-open-hand={h.id} onClick={() => set({ hand: h.id })} className="underline">
                     Open
                   </button>
                 </td>
@@ -592,10 +597,11 @@ function HandsTable({
 function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; onSaved: (h: HandRecord) => void; onClose: () => void }) {
   const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
-  // (opened from the table below it: brought into view; nothing returned, as Chrome's scrollIntoView returns a promise
-  // that React would take for the effect's cleanup)
+  // (opened from the table below it: brought into view, with the keyboard where its Open had it, and not on a link's first
+  // load; nothing returned, as Chrome's scrollIntoView returns a promise that React would take for the effect's cleanup)
   useEffect(() => {
     box.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    if (document.activeElement?.closest("[data-open-hand]")) box.current?.focus({ preventScroll: true });
   }, [hand.id]);
   const r = useMemo((): ReplayedHand | string => {
     try {
@@ -606,7 +612,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
   }, [hand.text]);
   if (typeof r === "string")
     return (
-      <section aria-label="Hand" className="rounded-lg border border-border bg-surface p-3 text-sm">
+      <section ref={box} tabIndex={-1} aria-label="Hand" className="rounded-lg border border-border bg-surface p-3 text-sm">
         <p role="alert">This hand can't be read again: {r}</p>
       </section>
     );
@@ -615,7 +621,7 @@ function HandDetail({ hand, decisions, onSaved, onClose }: { hand: HandRecord; d
   const stacks = Object.entries(r.setup.stacks);
   const even = stacks.every(([, v]) => v === stacks[0]![1]);
   return (
-    <section ref={box} aria-label="Hand" className="scroll-mt-16 space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section ref={box} tabIndex={-1} aria-label="Hand" className="scroll-mt-16 space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-start gap-2">
         <div className="space-y-0.5">
           <h2 className="text-lg font-semibold">

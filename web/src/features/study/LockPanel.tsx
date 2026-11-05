@@ -273,11 +273,9 @@ function LockAnswer({ gto, br, hole, actor, preflop }: { gto: SolveResult; br: S
           <div className="max-w-md">
             <DiffMatrix diffs={classes} action={action} selected={sel} onSelect={setSel} />
           </div>
-          {selD && (
-            <p className="text-xs">
-              {preflop ? "Charts" : "GTO"} → against the read: {diffLabel(selD, selD.cls, action)}
-            </p>
-          )}
+          <p role="status" className="text-xs">
+            {selD ? `${preflop ? "Charts" : "GTO"} → against the read: ${diffLabel(selD, selD.cls, action)}` : ""}
+          </p>
           <p className="text-xs text-muted">
             The range: {Object.keys(rb).length ? `${names.map((n) => `${n} ${points((rb[n] ?? 0) - (rg[n] ?? 0))}`).join(" · ")} points against the read.` : "–"}
           </p>

@@ -68,6 +68,7 @@ import {
   DRILL_TRIES,
   facingBet,
   finish,
+  anyHandOnly,
   following,
   isPotDrill,
   needsIndex,
@@ -1409,7 +1410,7 @@ export class Room {
 
   /** Why Instant flops can't be dealt now. Before the index settles it can, so the hands dealt wait for it. */
   private get flopsOff(): FlopsOff | null {
-    if (this.session.opts.preflopOnly) return "preflop";
+    if (anyHandOnly(this.session.opts)) return "preflop";
     if (this.libState === "failed") return "failed";
     return this.lib && !this.held.length ? "game" : null;
   }
@@ -1429,7 +1430,7 @@ export class Room {
     const o = this.session.opts;
     if (n === 1) return o;
     const set = useSettings.getState();
-    const spot = spotOf(this.fixedSpot ?? set.practiceSpot, o.preflopOnly, this.flopsOff === null);
+    const spot = spotOf(this.fixedSpot ?? set.practiceSpot, anyHandOnly(o), this.flopsOff === null);
     return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false, board: null };
   }
 

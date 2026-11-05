@@ -143,9 +143,10 @@ describe("report", () => {
       quick({ confidence: undefined }),
       quick({ confidence: undefined, approximate: true }),
       cbet({ source: "instant", confidence: "low", verdict: "Mistake", evLossBb: null, lossPct: null, bestFreq: 0.9 }),
+      d({ source: "push-fold", confidence: "high", evLossBb: null, lossPct: null, bestFreq: 0.9 }),
       d({ source: "rules", verdict: "Not graded", why: "the rules" }),
     ];
-    expect(ds.slice(0, 9).map(basisOf)).toEqual([BASES[0], BASES[1], BASES[2], BASES[5], BASES[6], BASES[7], BASES[3], BASES[4], BASES[8]]);
+    expect(ds.slice(0, 10).map(basisOf)).toEqual([BASES[0], BASES[1], BASES[2], BASES[5], BASES[6], BASES[7], BASES[3], BASES[4], BASES[8], BASES[9]]);
     const rp = report(ds);
     // (the most solid first; the rules, not graded, stand on nothing)
     expect(rp.byBasis.map((g) => [g.key, g.graded])).toEqual(BASES.map((b) => [b, 1]));

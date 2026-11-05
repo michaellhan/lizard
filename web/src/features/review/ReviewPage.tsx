@@ -15,6 +15,7 @@ import { DecisionView, optionLabel, useHandKeys } from "@/features/practice/Prac
 import { ModePicker } from "@/features/study/ModePicker";
 import { versionOf, versionWords } from "@/grading/version";
 import { seatLabel } from "@/poker/seats";
+import { evUnit } from "@/solver/provenance";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError } from "@/solver/types";
 import { Compare } from "./Compare";
@@ -42,6 +43,7 @@ export function ReviewPage() {
   const [current, setCurrent] = useState<MistakeRecord | null>(null);
   const [passed, setPassed] = useState<ReadonlySet<string>>(() => new Set());
   const [shown, setShown] = useState(LIST_PAGE);
+  const [shownT, setShownT] = useState(LIST_PAGE);
 
   useEffect(() => {
     let alive = true;
@@ -58,10 +60,21 @@ export function ReviewPage() {
   const now = data?.now ?? 0;
   const queue = useMemo(() => dueQueue(list, now), [list, now]);
   const next = queue.find((m) => m.id !== current?.id && !passed.has(m.id)) ?? null;
+  // what opened the retry: Close gives the keyboard back to it (or, gone from the list, to the page's heading)
+  const opener = useRef<HTMLElement | null>(null);
   const open = (m: MistakeRecord | null) => {
     if (current) setPassed((s) => new Set(s).add(current.id));
+    if (m && !current && document.activeElement instanceof HTMLElement) opener.current = document.activeElement;
     setCurrent(m);
   };
+  useEffect(() => {
+    if (current || !opener.current) return;
+    const was = opener.current;
+    opener.current = null;
+    const heading = was.isConnected ? null : document.querySelector<HTMLElement>("main h1");
+    heading?.setAttribute("tabindex", "-1");
+    (heading ?? was).focus();
+  }, [current]);
   const setStreet = (v: string) =>
     setParams(
       (p) => {
@@ -73,7 +86,11 @@ export function ReviewPage() {
       { replace: true },
     );
 
-  const listed = street ? list.filter((m) => m.street === street) : list;
+  // (a tournament's EVs aren't bb won, so its mistakes have a list and a tally of their own; the queue is dates, and takes both)
+  const cash = useMemo(() => list.filter((m) => !m.tournament), [list]);
+  const tourney = useMemo(() => list.filter((m) => m.tournament), [list]);
+  const onStreet = (ms: MistakeRecord[]) => (street ? ms.filter((m) => m.street === street) : ms);
+  const listed = onStreet(cash);
 
   return (
     <div className="space-y-6">
@@ -109,34 +126,58 @@ export function ReviewPage() {
           ) : (
             <>
               <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />
-              <section aria-label="Past mistakes" className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold">Past mistakes</h2>
-                  <label className="text-sm">
-                    <span className="text-muted">Show</span>{" "}
-                    <select aria-label="Street" value={street ?? ""} onChange={(e) => setStreet(e.target.value)} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-                      <option value="">Every street ({list.length})</option>
-                      {STREET_ORDER.map((s) => (
-                        <option key={s} value={s}>
-                          {s} ({list.filter((m) => m.street === s).length})
-                        </option>
+              {cash.length > 0 && (
+                <section aria-label="Past mistakes" className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold">Past mistakes</h2>
+                    <label className="text-sm">
+                      <span className="text-muted">Show</span>{" "}
+                      <select aria-label="Street" value={street ?? ""} onChange={(e) => setStreet(e.target.value)} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+                        <option value="">Every street ({cash.length})</option>
+                        {STREET_ORDER.map((s) => (
+                          <option key={s} value={s}>
+                            {s} ({cash.filter((m) => m.street === s).length})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <Tally list={listed} />
+                  {!listed.length && <p className="text-sm text-muted">None on the {street}.</p>}
+                  <ul className="space-y-2">
+                    {listed.slice(0, shown).map((m) => (
+                      <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
+                    ))}
+                  </ul>
+                  {listed.length > shown && (
+                    <button type="button" onClick={() => setShown((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+                      Show {Math.min(LIST_PAGE, listed.length - shown)} more of {listed.length - shown}
+                    </button>
+                  )}
+                </section>
+              )}
+              {tourney.length > 0 && (
+                <section aria-label="Tournament mistakes" className="space-y-2">
+                  <h2 className="text-lg font-semibold">Tournament mistakes</h2>
+                  <p className="text-xs text-muted">
+                    From tournament sessions, kept apart from the list above: a prize-equity EV is chips worth as much prize equity, never bb won. Each says what it&rsquo;s in, and the badge says what answered it.
+                  </p>
+                  <Tally list={onStreet(tourney)} />
+                  {!onStreet(tourney).length && <p className="text-sm text-muted">None on the {street}.</p>}
+                  <ul className="space-y-2">
+                    {onStreet(tourney)
+                      .slice(0, shownT)
+                      .map((m) => (
+                        <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
                       ))}
-                    </select>
-                  </label>
-                </div>
-                <Tally list={listed} />
-                {!listed.length && <p className="text-sm text-muted">None on the {street}.</p>}
-                <ul className="space-y-2">
-                  {listed.slice(0, shown).map((m) => (
-                    <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} />
-                  ))}
-                </ul>
-                {listed.length > shown && (
-                  <button type="button" onClick={() => setShown((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
-                    Show {Math.min(LIST_PAGE, listed.length - shown)} more of {listed.length - shown}
-                  </button>
-                )}
-              </section>
+                  </ul>
+                  {onStreet(tourney).length > shownT && (
+                    <button type="button" onClick={() => setShownT((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+                      Show {Math.min(LIST_PAGE, onStreet(tourney).length - shownT)} more of {onStreet(tourney).length - shownT}
+                    </button>
+                  )}
+                </section>
+              )}
             </>
           )}
         </>
@@ -175,7 +216,7 @@ function Tally({ list }: { list: MistakeRecord[] }) {
   const done = list.filter((m) => m.due === null).length;
   return (
     <p className="text-xs text-muted">
-      {many(list.length, "spot")}: {byEv} graded by EV, {list.length - byEv} by frequency with no EV (the preflop charts and stored turns keep none). {done} finished.{" "}
+      {many(list.length, "spot")}: {byEv} graded by EV, {list.length - byEv} by frequency with no EV (the preflop charts, the push/fold model and stored turns keep none). {done} finished.{" "}
       {tries.length ? `Over the last retries kept, ${shareText(ok, tries.length)} Best or Correct${unlike ? `, ${unlike} of them against another kind of answer than the first` : ""}.` : "No retries yet."}
     </p>
   );
@@ -217,9 +258,10 @@ function MistakeRow({ m, now, active, onRetry }: { m: MistakeRecord; now: number
           you took <span className="font-mono">{m.chose}</span>
         </span>
         <VerdictTag v={m.grade.verdict} />
-        <span className="font-mono text-xs">{costWords(m.grade, m.mix, m.provenance?.source)}</span>
+        <span className="font-mono text-xs">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
       </div>
       <p className="text-xs text-muted">
+        {m.tournament ? "Tournament · " : ""}
         {m.game} · {m.line}
         {m.times > 1 ? ` · missed ${m.times} times in play` : ""}
       </p>
@@ -309,6 +351,7 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
       </div>
       <Spot m={m} />
       <p>
+        {m.tournament ? "Tournament · " : ""}
         {m.game} · pot {m.pot.toFixed(2).replace(/\.?0+$/, "")}bb
       </p>
       <p className="text-muted">{spotWords(m)}</p>

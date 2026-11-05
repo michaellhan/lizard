@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { bb, pct } from "@/components/actions";
 import { whoOf } from "@/grading/grade";
+import { evUnit } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 import { clipboardWhy, toClipboard } from "./copyForAi";
 import type { Decision } from "./practice";
@@ -16,14 +17,14 @@ export const REVEAL_NOTE = "You saw the answer first, so this decision isn't gra
 export const REVEAL_CHIPS = "The hand still counts in Hands and Net.";
 
 /** Your hand's mix: each action, how often it's played, and its EV where `hasEv`. `chose`: your action, marked. */
-export function MixTable({ mix, hasEv, labelOf, chose }: { mix: Mix; hasEv: boolean; labelOf: (a: Mix[number]) => string; chose?: string }) {
+export function MixTable({ mix, hasEv, labelOf, chose, unit = "bb" }: { mix: Mix; hasEv: boolean; labelOf: (a: Mix[number]) => string; chose?: string; unit?: string }) {
   return (
     <table className="w-full max-w-md text-left font-mono text-xs">
       <thead className="text-muted">
         <tr>
           <th className="py-0.5 font-normal">Action</th>
           <th className="py-0.5 text-right font-normal">Played</th>
-          {hasEv && <th className="py-0.5 text-right font-normal">EV bb</th>}
+          {hasEv && <th className="py-0.5 text-right font-normal">EV {unit}</th>}
         </tr>
       </thead>
       <tbody>
@@ -51,7 +52,7 @@ export function RevealedMix({ mix, provenance, labelOf, note }: { mix: Mix; prov
         <span className="font-medium">{whoOf(provenance.source)}&rsquo;s mix for your hand</span>
         <ProvenanceBadge p={provenance} />
       </div>
-      <MixTable mix={mix} hasEv={hasEv} labelOf={labelOf} />
+      <MixTable mix={mix} hasEv={hasEv} labelOf={labelOf} unit={evUnit(provenance)} />
       {!hasEv && <p className="text-xs text-muted">This answer has no EVs for your hand.</p>}
       <p role="status">{note}</p>
     </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibraryChoice } from "@/config";
 import { useRuntime } from "@/solver/runtime";
 import type { SolveMode } from "@/solver/types";
@@ -60,6 +61,12 @@ export function SettingsPage() {
 
       <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
         <legend className="px-1 font-medium">Solver backend</legend>
+        <p className="text-xs text-muted">
+          <Link to="/engine" className="underline">
+            Engine status
+          </Link>{" "}
+          shows the solver runtime, its threads, versions and diagnostics.
+        </p>
         <label className="flex items-center gap-2 text-sm">
           <input type="radio" name="transport" checked={s.transport === "worker"} onChange={() => s.set({ transport: "worker" })} />
           In this browser (default)
@@ -114,6 +121,14 @@ export function SettingsPage() {
           </select>
         </label>
         <p className="text-xs text-muted">Applies to Study's action buttons and the hand-class panel; the EV grid shades in bb either way.</p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.studyKeys} onChange={(e) => s.set({ studyKeys: e.target.checked })} />
+          Keyboard shortcuts in Study
+        </label>
+        <p className="text-xs text-muted">
+          The number keys play an action or pick a brush, b opens the range builder, and Backspace and the arrow keys walk the line. The number keys, b and Backspace only work
+          with focus away from buttons, links and fields. Turn this off if the keys get in the way of speech input or another tool.
+        </p>
       </fieldset>
 
       <button type="button" onClick={s.reset} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* Lizard design tokens. Dark is the default; a light theme overrides the surface tokens. Action colors are Lizard's
-   own palette (passive = teal, aggressive = warm ramp by size, all-in = crimson, fold = slate). */
+/* Lizard design tokens. The app has one theme, this dark one. Action colors are Lizard's own palette (passive = teal,
+   aggressive = warm ramp by size, all-in = crimson, fold = slate). styles/contrast.test.ts holds the contrast floors. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -11,13 +11,15 @@
   --color-surface-2: #19211d;
   --color-surface-3: #222c27;
   --color-border: #2c3833;
+  --color-control: #66786f; /* the edge of a field, where it's the only thing marking one out */
   --color-text: #e6ede9;
   --color-muted: #94a39b;
-  --color-faint: #64736b;
+  --color-faint: #87978f;
   --color-accent: #7ddc5a;
   --color-accent-strong: #5cc23a;
   --color-warn: #f0b429;
-  --color-danger: #ef5b5b;
+  --color-danger: #f26d6d;
+  --color-danger-soft: #ff9c9c; /* danger as text on a danger tint */
 
   --color-act-fold: #5d7590;
   --color-act-check: #2bb39a;
@@ -55,6 +57,36 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* Skip link and route changes land here: the region is a target, not a control, so it takes no ring. */
+#main:focus-visible {
+  outline: none;
+}
+
+/* A row of controls that clips its overflow would clip an outside ring, so the ring goes inside. Unlayered, like the
+   rule above, which beats any focus-visible: utility. */
+.segmented :focus-visible {
+  outline-offset: -2px;
+}
+
+/* Fields, whose edge is all that marks them out. */
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]),
+select,
+textarea {
+  border-color: var(--color-control);
+}
+
+:is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+/* A pressed control's fill is 1.25:1 against the panel, so it gets a mark that isn't only a shade. An underline, as a
+   box-shadow here would cancel the ring some of these use and forced-colors mode would drop it. */
+[aria-pressed="true"],
+[role="radio"][aria-checked="true"] {
+  text-decoration: underline 2px var(--color-accent);
+  text-underline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,10 +1,11 @@
 // The 13x13 hand-class matrix. Each cell shows its class's action mix as stacked bars, filled to the class's
 // weight in the range (a class half in the range is half full), as the upstream Study panel draws it.
-// Rendered as a DOM grid (169 cells) — cheap enough, and accessible: every cell is a labelled button.
+// Rendered as a DOM grid (169 cells) — cheap enough, and accessible: every cell is a labelled button, one tab stop in all.
 import { memo } from "react";
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
 import type { GridCell } from "@/solver/protocol";
 import { pct } from "./actions";
+import { useRovingGrid } from "./rovingGrid";
 
 export interface RangeMatrixProps {
   /** class -> cell; classes absent are out of the range */
@@ -41,6 +42,15 @@ export function cellValue(
   return ev != null && eq != null && eq > 0 && potBb ? ev / (eq * potBb) : null;
 }
 
+/** A cell in words, as a reader meets it in the grid and as a page says the hand class just picked. */
+export function cellLabel(cls: string, cell: RangeMatrixProps["cells"][string] | undefined, actions: readonly string[]): string {
+  if (!cell) return `${cls}: not in range`;
+  const w = Math.max(0, Math.min(1, cell.w));
+  return `${cls}: ${pct(w, 0)} in range${actions.map((a, i) => `, ${a} ${pct(cell.f[i], 0)}`).join("")}${cell.ev && cell.evm != null ? `, EV ${cell.evm.toFixed(2)}bb` : ""}${
+    cell.eq != null ? `, equity ${pct(cell.eq, 0)}` : ""
+  }`;
+}
+
 function heat(t: number): string {
   // 0 -> slate, 1 -> accent green, through teal
   const c = Math.max(0, Math.min(1, t));
@@ -54,6 +64,7 @@ const Cell = memo(function Cell({
   actions,
   colors,
   active,
+  tabbable,
   onSelect,
   view,
   evRange,
@@ -66,6 +77,7 @@ const Cell = memo(function Cell({
   actions: readonly string[];
   colors: readonly string[];
   active: boolean;
+  tabbable: boolean;
   onSelect?: (cls: string) => void;
   view: NonNullable<RangeMatrixProps["view"]>;
   evRange?: [number, number];
@@ -74,11 +86,7 @@ const Cell = memo(function Cell({
   hidden?: ReadonlySet<number>;
 }) {
   const w = cell ? Math.max(0, Math.min(1, cell.w)) : 0;
-  const label = cell
-    ? `${cls}: ${pct(w, 0)} in range${actions.map((a, i) => `, ${a} ${pct(cell.f[i], 0)}`).join("")}${
-        cell.ev && cell.evm != null ? `, EV ${cell.evm.toFixed(2)}bb` : ""
-      }${cell.eq != null ? `, equity ${pct(cell.eq, 0)}` : ""}`
-    : `${cls}: not in range`;
+  const label = cellLabel(cls, cell, actions);
 
   let fill: React.ReactNode = null;
   if (cell && w > 0) {
@@ -117,6 +125,7 @@ const Cell = memo(function Cell({
       role="gridcell"
       aria-label={label}
       aria-selected={active}
+      tabIndex={tabbable ? 0 : -1}
       onClick={() => onSelect?.(cls)}
       className={`relative aspect-square min-w-0 overflow-hidden rounded-[3px] bg-surface-2 text-left ${
         active ? "ring-2 ring-accent ring-offset-1 ring-offset-bg" : ""
@@ -143,8 +152,9 @@ export function RangeMatrix({
   hidden,
   caption,
 }: RangeMatrixProps) {
+  const { stop, gridProps } = useRovingGrid(selected);
   return (
-    <div role="grid" aria-label={caption ?? "Range matrix"} className="grid w-full grid-cols-13 gap-[2px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }}>
+    <div role="grid" aria-label={caption ?? "Range matrix"} className="grid w-full grid-cols-13 gap-[2px]" style={{ gridTemplateColumns: "repeat(13, minmax(0, 1fr))" }} {...gridProps}>
       {RANKS.map((_, i) => (
         <div role="row" key={i} className="contents">
           {RANKS.map((__, j) => {
@@ -157,6 +167,7 @@ export function RangeMatrix({
                 actions={actions}
                 colors={colors}
                 active={selected === cls}
+                tabbable={stop === cls}
                 onSelect={onSelect}
                 view={view}
                 evRange={evRange}

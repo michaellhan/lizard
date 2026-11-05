@@ -110,9 +110,11 @@ export const BASES = [
   "Quick solve, settled",
   "Quick solve, not settled",
   "Read at once",
+  "Push/fold model (by frequency, not a solve)",
 ];
 export function basisOf(d: DecisionRecord): string {
   if (d.source === "charts") return BASES[0]!;
+  if (d.source === "push-fold") return BASES[9]!;
   if (d.source === "library") return d.approximate || d.label.includes("another table's spot") ? BASES[2]! : BASES[1]!; // (kept before `approximate`: only its label says so)
   if (d.source === "library-turn") return BASES[5]!;
   if (d.source === "instant") return BASES[8]!;

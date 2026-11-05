@@ -163,4 +163,19 @@ describe("SolvePage", () => {
     num("Envelopes left", "");
     expect(within(problems()!).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["mystery bounties need the average envelope, or the pool and the envelopes left"]);
   });
+
+  it("ties each problem to its field, and says the limits before they're broken", () => {
+    open("p=2&s=100");
+    expect(screen.getByRole("spinbutton", { name: "Rake" })).not.toHaveAttribute("aria-invalid");
+    num("Rake", "30");
+    type("BB range", "22+, XYZ");
+    const rake = screen.getByRole("spinbutton", { name: "Rake" });
+    expect(rake).toHaveAttribute("aria-invalid", "true");
+    expect(rake).toHaveAccessibleDescription("the rake must be 0–25% of the pot");
+    expect(screen.getByRole("textbox", { name: "BB range" })).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("textbox", { name: "BB range" })).toHaveAccessibleDescription(/can.t read "XYZ"/);
+    num("Rake", "5");
+    expect(rake).not.toHaveAttribute("aria-invalid");
+    expect(rake).not.toHaveAttribute("aria-describedby");
+  });
 });
