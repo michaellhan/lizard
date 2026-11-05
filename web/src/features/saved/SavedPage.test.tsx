@@ -125,6 +125,15 @@ describe("SavedPage", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("That isn't a Lizard backup file."));
   });
 
+  it("refuses a file too big to read, before reading it", async () => {
+    renderAt("/saved");
+    const text = vi.fn();
+    const file = { name: "huge.json", size: 300 * 1024 * 1024, text } as unknown as File;
+    fireEvent.change(await screen.findByLabelText("Backup file to restore"), { target: { files: [file] } });
+    expect(await screen.findByText(/^That's 300 MB, over the 256 MB one import can read\./)).toBeInTheDocument();
+    expect(text).not.toHaveBeenCalled();
+  });
+
   it("lists saved drills of both kinds, opens one where it's dealt, renames and deletes", async () => {
     const at = { note: "", createdAt: 1 };
     await putDrill({ id: "l", name: "Monotone defence", kind: "library", to: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono", about: "BTN vs BB · BB facing a bet · Monotone", ...at, updatedAt: 2 });

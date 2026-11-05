@@ -532,6 +532,16 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(handRows()).toHaveLength(5));
   });
 
+  it("refuses files too big to read together, before reading them", async () => {
+    open();
+    const text = vi.fn();
+    const huge = (name: string) => ({ name, type: "text/plain", size: 150 * 1024 * 1024, text });
+    const drop = screen.getByRole("textbox", { name: "Paste hand histories" }).parentElement!;
+    fireEvent.drop(drop, { dataTransfer: { items: [], files: [huge("a.txt"), huge("b.txt")] } });
+    expect(await screen.findByText(/^That's 300 MB, over the 256 MB one import can read\./)).toBeInTheDocument();
+    expect(text).not.toHaveBeenCalled();
+  });
+
   it("folds each file's count away past a few files", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(5));

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Route, Routes } from "react-router";
 import { BASE_URL } from "@/config";
 import { useSettings } from "@/state/settings";
@@ -18,6 +18,9 @@ import { ReportsPage } from "@/features/reports/ReportsPage";
 import { SolvePage } from "@/features/solve/SolvePage";
 import { ComparePage } from "@/features/compare/ComparePage";
 import { NotFoundPage } from "@/features/home/NotFoundPage";
+
+// PLO stays out of the first download: its code comes with this route (IMPLEMENTATION_PLAN.md: "do not preload PLO")
+const EquityPage = lazy(() => import("@/features/equity/EquityPage").then((m) => ({ default: m.EquityPage })));
 
 export function App() {
   const load = useSettings((s) => s.load);
@@ -44,6 +47,14 @@ export function App() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="tournaments" element={<SolvePage kind="tournament" />} />
           <Route path="compare" element={<ComparePage />} />
+          <Route
+            path="equity"
+            element={
+              <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+                <EquityPage />
+              </Suspense>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

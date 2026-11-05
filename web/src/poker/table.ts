@@ -31,6 +31,10 @@ export interface TableSetup {
   ante?: number;
   /** the first seat posts a 2bb straddle and acts last preflop (3 or more players) */
   straddle?: boolean;
+  /** the small blind, bb (half a big blind when absent) */
+  smallBlind?: number;
+  /** "pot": pot-limit betting (engine/plo/betting.ts). Absent: no limit, and nothing below changes. */
+  limit?: "pot";
 }
 
 export interface StreetInfo {
@@ -77,6 +81,17 @@ const sum = (xs: Iterable<number>) => {
   return t;
 };
 
+/** The chips the blinds came up short by, which a pot-limit pot still counts before the flop (TDA Rule 56-B). */
+function blindsShort(t: TableSetup, POS: readonly string[]): number {
+  const short = (p: string, blind: number) => blind - Math.min(blind, Math.max(0, (t.stacks[p] ?? 0) - (t.ante ?? 0)));
+  const straddler = t.straddle && t.players >= 3 ? POS[0]! : null;
+  return short("SB", t.smallBlind ?? 0.5) + short("BB", 1) + (straddler ? short(straddler, 2) : 0);
+}
+
+/** The most a seat with `bet` in may make it under pot limit: it calls, then raises by the pot as it stands after the
+ * call. `pot`: every chip in, as counted for the limit. To the cent, down (chips are whole cents, see `settle`). */
+const potLimitTo = (pot: number, curBet: number, bet: number) => Math.floor((curBet + pot + (curBet - bet)) * 100 + 1e-6) / 100;
+
 /** The hand's state after the actions recorded, with `boardCount` cards out. */
 export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
   const POS = seatsOf(t.players);
@@ -107,7 +122,7 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
     const order = pre ? (straddler ? [...POS.slice(1), straddler] : POS) : orderPost(t.players);
     const bets: Record<string, number> = Object.fromEntries(POS.map((p) => [p, 0]));
     if (pre) {
-      bets.SB = 0.5;
+      bets.SB = t.smallBlind ?? 0.5;
       bets.BB = 1;
       if (straddler) bets[straddler] = 2;
       for (const p of POS) bets[p] = Math.min(bets[p]!, STACK(p) - inv[p]!);
@@ -122,6 +137,7 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
     let locked = new Set<string>();
     let returned: Record<string, number> | undefined;
     const potBefore = sum(Object.values(inv));
+    const potCounted = () => potBefore + sum(Object.values(bets)) + (pre ? blindsShort(t, POS) : 0);
     for (const a of lines[street]) {
       const p = a.pos;
       if (!active.has(p) || allin.has(p)) continue;
@@ -133,7 +149,8 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
         acted.add(p);
         locked.add(p);
       } else {
-        const to = a.action === "all-in" ? bets[p]! + remaining : Math.min(a.to ?? 0, bets[p]! + remaining);
+        let to = a.action === "all-in" ? bets[p]! + remaining : Math.min(a.to ?? 0, bets[p]! + remaining);
+        if (t.limit === "pot") to = Math.min(to, potLimitTo(potCounted(), curBet, bets[p]!));
         bets[p] = to;
         if (to > curBet + EPS) {
           if (to - curBet >= minRaise - EPS) {
@@ -151,6 +168,9 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
       }
       lastActor = p;
     }
+    // under pot limit, short all-ins that add up to a full raise reopen the betting for a seat facing that much (TDA Rule
+    // 49-A); no limit takes each short all-in on its own, as the classic page does
+    if (t.limit === "pot") for (const p of [...locked]) if (curBet - bets[p]! >= minRaise - EPS) locked.delete(p);
     let actors = [...active].filter((p) => !allin.has(p));
     // (one player left with chips who has matched the bet has nobody to bet against)
     const closed =
@@ -219,6 +239,17 @@ export function canRaise(sim: Sim, p: string): boolean {
 
 export const minRaiseTo = (info: StreetInfo) => info.curBet + info.minRaise;
 
+/** The largest bet or raise of the seat to act, as the street total: all-in under no limit, or what the pot allows. */
+export function maxRaiseTo(t: TableSetup, sim: Sim): number {
+  const p = sim.toAct;
+  const info = sim.cur;
+  if (!p || !info) return 0;
+  const allInTo = info.bets[p]! + behind(t, sim, p);
+  if (t.limit !== "pot") return allInTo;
+  const pot = sim.pot + (sim.current === "preflop" ? blindsShort(t, seatsOf(t.players)) : 0);
+  return Math.min(potLimitTo(pot, info.curBet, info.bets[p]!), allInTo);
+}
+
 export interface Legal {
   toAct: string;
   /** chips to call (0: may check) */
@@ -228,6 +259,8 @@ export interface Legal {
   minTo: number;
   /** all-in, as the street total */
   allInTo: number;
+  /** the largest bet or raise, as the street total: pot limit only (no limit's is allInTo) */
+  maxTo?: number;
 }
 
 /** What the seat to act may do, or null when nobody is to act. */
@@ -243,14 +276,16 @@ export function legal(t: TableSetup, sim: Sim): Legal | null {
     canRaise: canRaise(sim, p),
     minTo: Math.min(minRaiseTo(info), allInTo),
     allInTo,
+    ...(t.limit === "pot" ? { maxTo: maxRaiseTo(t, sim) } : {}),
   };
 }
 
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 
 /** The record of an action by whoever is to act, or why it can't be taken. A size is rounded to half a big
- * blind; `clamp` (an opponent's move) lifts a size under the minimum to it, and a raise that isn't allowed to a
- * call, rather than refuse them. */
+ * blind (to the cent under pot limit, whose largest raise rarely falls on a half); `clamp` (an opponent's move) lifts a
+ * size under the minimum to it, cuts one over the pot limit to it, and turns a raise that isn't allowed to a call,
+ * rather than refuse them. */
 export function recordOf(
   t: TableSetup,
   sim: Sim,
@@ -265,11 +300,20 @@ export function recordOf(
   const raiseOk = canRaise(sim, p);
   const allInTo = info.bets[p]! + remaining;
   const pass: Move = facing ? { pos: p, action: "call" } : { pos: p, action: "check" };
+  const pot = t.limit === "pot";
+  const maxTo = maxRaiseTo(t, sim);
+  const raiseWord = facing || info.curBet > 0 ? "raise" : "bet";
   if (a.action === "fold") return { pos: p, action: "fold" };
   if (a.action === "check") return facing ? `${p} can't check, there's ${fmt(toCall)}bb to call.` : { pos: p, action: "check" };
   if (a.action === "call") return pass;
-  if (a.action === "all-in") return raiseOk || remaining <= toCall + EPS ? { pos: p, action: "all-in" } : pass;
-  let to = Math.round((a.to ?? 0) * 2) / 2;
+  if (a.action === "all-in") {
+    if (remaining <= toCall + EPS) return { pos: p, action: "all-in" };
+    if (!raiseOk) return pass;
+    if (pot && allInTo > maxTo + EPS) return a.clamp ? { pos: p, action: raiseWord, to: maxTo } : `Pot limit: the largest ${raiseWord} is to ${fmt(maxTo)}bb.`;
+    return { pos: p, action: "all-in" };
+  }
+  const step = pot ? 100 : 2;
+  let to = Math.round((a.to ?? 0) * step) / step;
   if (!(to > 0)) return "Enter an amount.";
   if (to <= info.curBet + EPS && to < allInTo - EPS) return `${fmt(to)}bb isn't a raise, the bet is ${fmt(info.curBet)}bb.`;
   if (!raiseOk) {
@@ -283,8 +327,12 @@ export function recordOf(
     if (!a.clamp) return `The smallest ${facing || info.curBet > 0 ? "raise is to" : "bet is"} ${fmt(Math.min(minRaiseTo(info), allInTo))}bb.`;
     to = minRaiseTo(info);
   }
+  if (pot && to > maxTo + EPS) {
+    if (!a.clamp) return `Pot limit: the largest ${raiseWord} is to ${fmt(maxTo)}bb.`;
+    to = maxTo;
+  }
   if (to >= allInTo - EPS) return { pos: p, action: "all-in" };
-  return { pos: p, action: facing || info.curBet > 0 ? "raise" : "bet", to };
+  return { pos: p, action: raiseWord, to };
 }
 
 /** The lines with one more action on the street in progress. */
@@ -337,7 +385,8 @@ export interface Settlement {
 const cents = (x: number) => Math.round(x * 100);
 
 /** The pot to the best hands. `inv`: chips in by seat (every street closed); `live`: the players still in; the rake
- * only where `raked` (the hand saw a flop: no flop, no drop). */
+ * only where `raked` (the hand saw a flop: no flop, no drop). `rank` values a hand: hold'em's unless given another
+ * game's (engine/plo/betting.ts settleOmaha). */
 export function settle(
   t: TableSetup,
   inv: Readonly<Record<string, number>>,
@@ -347,6 +396,7 @@ export function settle(
   cardsOf: (p: string) => readonly string[],
   rake?: Rake,
   raked: boolean = board.length >= 3,
+  rank: (hole: readonly string[], board: readonly string[]) => HandValue = (hole, b) => rank7([...hole, ...b]),
 ): Settlement {
   const POS = seatsOf(t.players);
   const post = orderPost(t.players);
@@ -362,7 +412,7 @@ export function settle(
     if (live[0]) payC[live[0]] = netC;
     return { pays: toBb(payC), pots: [], winners: [...live], val: {}, rake: rakeC / 100 };
   }
-  const val: Record<string, HandValue> = Object.fromEntries(live.map((p) => [p, rank7([...cardsOf(p), ...board])]));
+  const val: Record<string, HandValue> = Object.fromEntries(live.map((p) => [p, rank(cardsOf(p), board)]));
   const top = (ps: readonly string[]) => {
     const b = ps.reduce((m, p) => (cmp(val[p]!, val[m]!) > 0 ? p : m));
     return ps.filter((p) => cmp(val[p]!, val[b]!) === 0).sort((x, y) => post.indexOf(x) - post.indexOf(y));

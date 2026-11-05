@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import type { SavedDrill, SavedRange, SavedSpot } from "@/data/db";
 import { restoreBackup, restoreSummary } from "@/data/backup";
+import { importTooBig } from "@/data/limits";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
 import { deleteDrill, deleteRange, deleteSpot, isDrillLink, listDrills, listRanges, listSpots, putDrill, putSpot, readTags, spotMatches } from "@/data/saved";
 import { describeSetup } from "@/features/solve/setup";
@@ -324,6 +325,8 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     setBusy(true);
     setMsg(null);
     try {
+      const big = importTooBig(file.size, "Is this the right file?");
+      if (big) throw new Error(big);
       let parsed: unknown;
       try {
         parsed = JSON.parse(await file.text());

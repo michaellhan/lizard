@@ -37,6 +37,13 @@ export function HomePage() {
           </Link>
         ))}
       </section>
+      <p className="text-sm text-muted">
+        Lizard solves no-limit Hold&rsquo;em. For Omaha there&rsquo;s only a{" "}
+        <Link to="/equity" className="underline">
+          PLO4 equity calculator
+        </Link>
+        , with no solver behind it.
+      </p>
     </div>
   );
 }

@@ -8,6 +8,7 @@ export interface PickedFile {
   name: string;
   type?: string;
   webkitRelativePath?: string;
+  size?: number;
   text(): Promise<string>;
 }
 
@@ -17,7 +18,7 @@ const batchOf = (r: FileSystemDirectoryReader) => new Promise<FileSystemEntry[]>
 async function walk(e: FileSystemEntry, out: PickedFile[]): Promise<void> {
   if (e.isFile) {
     const f = await fileOf(e as FileSystemFileEntry);
-    out.push({ name: f.name, type: f.type, webkitRelativePath: e.fullPath.replace(/^\//, ""), text: () => f.text() });
+    out.push({ name: f.name, type: f.type, webkitRelativePath: e.fullPath.replace(/^\//, ""), size: f.size, text: () => f.text() });
   } else if (e.isDirectory) {
     const r = (e as FileSystemDirectoryEntry).createReader();
     // (a reader hands its entries over in batches, an empty one at the end)

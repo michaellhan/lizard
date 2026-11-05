@@ -3977,3 +3977,26 @@ Checked on the real engine with the preview: `precomputed.board` matches the ind
 `library:srp_btn_bb:db7399ab:Kc7d2h:c08adb5815`, and all of srp_btn_bb read 54.5% against 45.5%, "BTN +9.0".
 
 Tests: 1966 unit tests outside the PLO work (`FEATURE_MATRIX.md` rows above), lint clean, 73 browser tests passed and 2 skipped.
+
+## The PLO4 foundation, and import limits (2026-11-05)
+
+Built by a subagent, reviewed here. Phase 7's first step, and no more than that: rules, hand counts, pot-limit betting and
+equity. PLO4 stays NOT IMPLEMENTED as a solving feature, and `FEATURE_MATRIX.md` says what stands under it.
+
+- **`poker/table.ts` takes pot limit:** there's no second betting engine. The change is optional, and a differential on 60,000
+  no-limit hands against the old code matched every state, legal set, record and settlement.
+- **Independent reference:** the Python shares no code with the TypeScript, and checks itself on all 2,598,960 five-card hands
+  before it's used. Breaking the rules on purpose made the tests fail. A public 27.75% in a third-party guide reads 27.694% exact
+  here; the page doesn't say how that figure was made, and the gap is about one standard error of a sized simulation.
+- **In a browser:** the subagent could run neither a build nor a browser, so the worker was unproven. I built it: the worker
+  loads as its own file, gives exact counts and Monte Carlo, and Cancel shows while it runs.
+- **One finding left as it is:** no-limit judges each short all-in on its own, as the classic page does, so short all-ins that
+  add up to a full raise don't reopen betting, as TDA Rule 49-A would have them. Pot limit does this correctly. Changing it would
+  move NLHE behaviour, so it's left for the owner.
+
+A file over 256 MB, or files adding up to that, is now refused by size before any of it is read, for hand histories and backups.
+A package audit found nothing in production dependencies, and a moderate `minimatch` advisory in the lint tools only. Nothing in
+`web/src` writes raw HTML.
+
+Tests: 2061 unit tests in 110 files, typecheck and lint clean, 76 browser tests passed and 2 skipped at three widths, 20 engine
+reference tests.

@@ -23,6 +23,7 @@ import { leakParam, parseLeakParam } from "./leakDrill";
 import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
 import { isGraded } from "./report";
+import { importTooBig } from "@/data/limits";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
 import { SessionsPanel } from "./SessionsPanel";
 import { StatsPanel } from "./StatsPanel";
@@ -190,6 +191,11 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
     const picked = hhFiles(all);
     if (!picked.length) {
       setError(all.length ? `None of the ${all.length} files is a hand history (.txt, .xml, .log or .hh).` : "No files picked.");
+      return;
+    }
+    const big = importTooBig(picked.reduce((n, f) => n + (f.size ?? 0), 0), "Import the files a few at a time.");
+    if (big) {
+      setError(big);
       return;
     }
     const files = await Promise.all(picked.map(async (f) => ({ name: f.webkitRelativePath || f.name, text: await f.text() })));
