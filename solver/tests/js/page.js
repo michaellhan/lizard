@@ -17,6 +17,9 @@ require("node:v8").setFlagsFromString("--no-sparkplug");
 // GTO_PAGE=<file> tests another copy of the page (e.g. an older version, to see a test catch its bug)
 const HTML_PATH = process.env.GTO_PAGE || path.join(__dirname, "..", "..", "gto", "static", "index.html");
 
+// practice.js as the page loads it (loadPractice): explain.js first, whose hand strength and words it reads
+const PRACTICE = ["explain.js", "practice.js"].map(f => fs.readFileSync(path.join(path.dirname(HTML_PATH), f), "utf8")).join("\n");
+
 function pageScript() {
   const html = fs.readFileSync(HTML_PATH, "utf8");
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
@@ -114,7 +117,7 @@ function loadPage(opts = {}) {
     terminate() { this.terminated = true; }
   }
   // the header's speed and opponents toggles (static markup in the page)
-  for (const [id, key, vals] of [["solvectl", "m", ["quick", "fast", "accurate"]], ["oppctl", "o", ["gto", "pool"]]])
+  for (const [id, key, vals] of [["solvectl", "m", ["fast", "accurate"]], ["oppctl", "o", ["gto", "pool"]]])
     for (const v of vals) { const b = new El("button"); b.dataset[key] = v; byId(id).appendChild(b); }
   const body = new El("body", "body");
   // a <script src> appended to the head runs (the page's own file, or opts.scripts') after the current task, then onload
@@ -231,6 +234,15 @@ function loadPage(opts = {}) {
     get S() { return val("S"); },
     set S(v) { ctx.__tmp = JSON.stringify(v); run("S = JSON.parse(__tmp); setPositions(S.players); save(); renderAll();"); },
     ready: () => run("modeReady"),
+    // Practice on, as far as the page can tell (its own hooks answer nothing): advice as you play, your moves graded
+    practice() { run("window.Practice = new Proxy({ on: true }, { get: (t, k) => k in t ? t[k] : () => null })"); },
+    // the hand st, you to act, as its review shows that decision: the hand played on from there (you fold), finished,
+    // that decision looked at. This is how advice reaches the page outside Practice. S is then the hand up to it.
+    spot(st) {
+      ctx.__tmp = JSON.stringify(st);
+      run(`(() => { if (stepView) stepStop(); S = JSON.parse(__tmp); setPositions(S.players); const s = simulate().current;
+        S.actions[s].push({ pos: S.hero, action: "fold" }); S.finished = true; save(); stepTo(s, S.actions[s].length - 1); })()`);
+    },
     // simulate(), with its sets as arrays in seat order
     sim: () => val("(() => { const s = simulate(); return { ...s, active: POS.filter(p => s.active.has(p)), allin: POS.filter(p => s.allin.has(p)) }; })()"),
     payload: () => val("payload()"),
@@ -276,4 +288,4 @@ function acts(str) {
   });
 }
 
-module.exports = { loadPage, state, acts, pageScript, HTML_PATH };
+module.exports = { loadPage, state, acts, pageScript, HTML_PATH, PRACTICE };

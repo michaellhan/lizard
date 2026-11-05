@@ -388,7 +388,10 @@ For library-turn, instant and a borrowed library spot (`precomputed.borrowed`: a
 this one) the response's `solver` numbers belong to another solve, so they are not shown. That solve is the flop
 entry, the previous street's solve, or the other table's spot on its own ranges. The badge shows the Advisor's label
 for what the answer was read from, or the borrowed spot's description, and marks it approximate. Preflop charts are
-marked approximate too.
+marked approximate too. Up to engine 9b907bd6 a pot of a heads-up spot's pot and stack (6 bb with 97 behind, 2 bb with 99
+behind) could not be borrowed once such a spot was in the index: `near_exact` raised, the advisor treated that as no
+library, and an 8- or 9-handed SB vs BB pot was solved live instead. Those answers were labelled as live solves, so
+nothing shown was wrong; from 1a14605e they read the 6-max spot and say so.
 
 `describe` writes the exploitability as "X% pot from equilibrium in the solved game", or "mean best-response gain"
 for a 3- or 4-way answer.

@@ -227,7 +227,7 @@ app redeploy.
 |---|---|---|
 | Web unit (Vitest, jsdom) | `npm test` | study state and URL encoding, cards and classes, range text, provenance, client queue and abort, worker transport (fake worker: boot, partials, both cancel paths, a stop nobody answers, boot failure), IndexedDB migrations (fake-indexeddb), library catalog, RangeMatrix accessibility |
 | Assembler | `.venv/bin/python -m unittest discover -s scripts/library` | validation, shrink protection, refusing foreign or protected output, sources untouched |
-| Solver (upstream) | `npm run test:solver`, `npm run test:solver-js` | 678 Python and 411 Node tests; about 12 minutes of CPU, and some need the library |
+| Solver (upstream) | `npm run test:solver`, `npm run test:solver-js` | 686 Python and 443 Node tests at `1a14605e`; about 15 minutes of CPU, and some need the library |
 | Browser | manual so far | Study flows, library and live answers, Engine self-test, CSP, phone width. Playwright suite **(planned)** |
 
 CI runs the first two suites plus the solver tests that need neither the library nor minutes of CPU

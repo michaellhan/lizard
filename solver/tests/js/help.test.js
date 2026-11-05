@@ -53,7 +53,7 @@ test("the help pages say what the page does: the badge's and the grades' thresho
   const grade = (g) => p.val(`gradeClass(${JSON.stringify(g)})`);
   assert.deepEqual([grade({ f: 0.15 }), grade({ f: 0.149 }), grade({ f: 0.03 }), grade({ f: 0.029 }), grade({ f: 0.01, r: 1 })], ["ok", "meh", "meh", "bad", "meh"]);
   const gl = Help.glossaryHtml();
-  assert.match(gl, /✓ \(the solver's mix takes it at least 15% of the time\), ~ \(3-15%\) or ✗ \(under 3%\); a rough solve never grades ✗/);
+  assert.match(gl, /✓ \(the solver's mix takes it at least 15% of the time\), ~ \(3-15%\) or ✗ \(under 3%\); a rough solve, or a line that gave up no EV, never grades ✗/);
   assert.deepEqual([p.val("HEUR_OK"), p.val("HEUR_MEH")], [3, 10]);
   assert.match(gl, /within 3% of the pot of the best is ✓, within 10% is ~/);
   assert.match(Help.fairplayHtml(), /Do not use it during a hand you are playing, online or live/);
@@ -192,7 +192,7 @@ test("the chooser's choices open Study, Practice, the session analyzer and the h
   const r = await go("welcomeReview");
   assert.deepEqual(r.pushed, []);
   assert.equal(r.byId("toast").hidden, false);
-  assert.match(r.byId("toast").innerHTML, /Pick your seat and cards in the setup panel, then enter the action seat by seat\./);
+  assert.match(r.byId("toast").innerHTML, /Pick your seat and cards in the setup panel, then enter the hand you played, seat by seat\. When it's finished, review it\./);
   const b = r.byId("toast").children.find(e => e.textContent === "Or import a hand history");
   b.onclick(); await flush();
   assert.equal(r.byId("importBox").hidden, false);
@@ -214,5 +214,6 @@ test("the chooser changes nothing the advice does", async () => {
   };
   const first = await run({}), seen = await run(SEEN);
   assert.deepEqual(first, seen);
-  assert.match(first.empty, /Advice appears here whenever it's your turn/);
+  assert.match(first.empty, /When it's finished, the solver reviews each decision you made/);
+  assert.deepEqual(first.sent, []);
 });

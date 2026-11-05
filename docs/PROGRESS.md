@@ -3716,6 +3716,72 @@ Claude session, not this one. It was running again by the next check, and nothin
 
 - Phase 1: measure Accurate and a phone on Play 20 hands, meet a real stuck worker, and measure what asking ahead buys at
   four tables with the postflop meter, on and off.
-- Re-pinning `solver/` to gto-solver `1a14605e`, the last full commit, is for the owner to decide. The gto-solver session
-  asked for it, and later commits must not come in.
 - Phase 2: what stays PARTIAL is in `FEATURE_MATRIX.md`.
+
+## Re-pinning `solver/` to gto-solver `1a14605e` (2026-11-05)
+
+The owner approved this after the gto-solver session asked for it. `solver/` went from `9b907bd6` to `1a14605e`, five
+commits, and no further: upstream's main is past it, but later commits rewrite `scripts/deploy.sh` and change the tests
+CI gates run. The solver build now reads `1a14605e/e13c4733fd`, on the Engine page and in every report.
+
+### What moved
+
+- Before anything changed, `solver/` was proved equal to the `9b907bd6` tree, apart from the three exclusions, the two
+  declared guards and `UPSTREAM.json`. After the change the same comparison against `1a14605e` finds the same things and
+  nothing else, 6 changed lines in each deploy script being the guard. Upstream's own `deploy.sh` change came through
+  under it.
+- 46 files outside the library changed, +2172 -828: `gto/advisor.py`, `breakdown.py`, `flop_approx.py`, `server.py`,
+  the classic app's pages and `explain.js`, the proxy, the legal pages and tests. This isn't the routes-only change the
+  other session described, so each engine file was read.
+- `solver/gto/static/flop_library/`, gitignored here, stays at 18 spots. `scripts/library/assemble.py` builds from it,
+  and the heads-up spots come from the builds in `.work/`, so taking upstream's 1,106 new files would add a second copy
+  of `srp_sb_bb_2max` to that merge.
+- The `9b907bd6` strings left in the web tests are fixtures for the build label. They don't name the running build.
+
+### What it changes for Lizard
+
+- **`near_exact` (`gto/flop_approx.py`), a real fix.** The index holds a spot's `game` as a dict, and the old code read
+  it as a format tag. On Lizard's live index that raises `AttributeError` for a pot of a heads-up spot's pot and stack
+  (6 bb with 97 behind, 2 bb with 99 behind) at 6- and 8-max alike. The advisor catches it (`a library that can't be
+  read is no library`), so nothing failed visibly: the pot just couldn't borrow.
+  - Same link on both builds, 8-max, SB opens to 3 and BB calls, `KhJd5c`. Live on the old engine: `Live solve · 0.10%
+    pot from equilibrium in the solved game (converged) · 300 iterations`. Dev on the new engine: `Precomputed solution
+    · srp_sb_bb · another table's spot read as this one`, 0.12%, ranges 0.4% apart at most.
+  - The old answer wasn't wrong and was labelled as what it was. It was a solve Lizard didn't need to run. At Practice's
+    Quick budgets a read is worth more than this comparison shows, but that wasn't measured.
+  - `scripts/engine/test_library_game.py` pins it, and CI runs it. It passes on `1a14605e` and fails on `9b907bd6` with
+    8 `AttributeError`s.
+- **`state.equity` (`gto/advisor.py`, `gto/breakdown.py`), new and unused.** Your equity once the betting is closed. Every
+  changed line in `advisor.py` is guarded by `_showdown`, which needs `equity` in the request, and Lizard never sends it,
+  so its requests are answered as before.
+- `gto/server.py` serves `explain.js`, and `gto/static/worker.js` changes by a comment. `scripts/build_bundle.py` and
+  `sw.js` aren't in the range. The worker's hash still moves, so a returning browser downloads the bundle once.
+- The preflop charts aren't in the range, so `docs/ARCHITECTURE.md`'s chart fingerprints stand.
+
+### Tests actually run
+
+- The solver's Python suite on a scratch copy of upstream's tree with its full 19-spot library: 43 modules, 686 tests, OK
+  with 5 expected failures, 883 s, through the slot. Upstream's own count was 678 before this range.
+- Node, `solver/tests/js`: 443 of 443 (411 before this range). CI's quick pair, `test_bundle` and `test_routes`: OK.
+- `scripts/library`: 8 OK. `scripts/engine`: 9 OK, the new test among them.
+- `npm run check`: 80 files, 1506 of 1506, 25.80 s, with lint, types and the build.
+- The first full Python run was ended by SIGTERM after 741 s, with no test having failed by then: exit 143, not the
+  10-minute limit I'd set, which it had already passed. That's the outside SIGTERM of Phase 1, now on a Python process
+  in another folder, so it isn't vitest's or that test file's doing. The second run went module by module with a handler
+  that logs the sender's pid, and nothing was sent to it, so the sender is still unknown. The handler is a small C
+  library in the session's scratchpad, not in the repo, and is worth loading again if this comes back.
+
+### Checked on the real worker
+
+Dev, isolated, build `1a14605e/e13c4733fd`, seed 20260001, 4 tables, 3 s to think, asking ahead on, Quick, with a slot
+held and the Python suite running beside it: passed, 20 of 20 hands on the same deal as before (fingerprint `ebh3r9`),
+62 verdicts in 188.53 s, 0 errors, 0 unlabelled, 0 restarts. Median wait under 0.01 s, p90 0.58 s (n 38). 224 requests,
+postflop median 0.02 s. Charts 24, Live 35, Precomputed 3. Asking ahead: 57 of 69 used, 0.00 s saved, 11.31 s spent.
+This isn't a like-for-like against the 47 and 51 verdicts of Phase 1, since how many verdicts a run gets depends on how
+the tables interleave.
+
+### Not done
+
+- Lizard has none of the classic app's new review work: record a hand and review it once it's finished, your equity on
+  a reviewed hand, Explain with AI on a reviewed decision. The engine half of the equity is now here.
+- Upstream's commits after `1a14605e` aren't taken.

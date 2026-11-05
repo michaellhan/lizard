@@ -35,10 +35,11 @@ run any test suite, solve, benchmark or build. Two library builds were running o
    their fold/call/raise shares match published aggregate frequencies from third-party solvers. They are **not**
    output of this solver. The postflop flop library *is* this solver's output: 18 heads-up spots (25,575 flop
    entries plus 12,978 turn files) and 4 three-way spots (740 entries). It totals 39,331 files and 315 MB on disk.
-4. **Snapshot provenance [V].** Upstream is `michaellhan/gto-solver` at commit `9b907bd6`, imported 2026-11-03
-   (`solver/UPSTREAM.json`). The flop library, `scripts/pfbench/` (AGPL) and `CLAUDE.md` are excluded. The only local
+4. **Snapshot provenance [V].** This audit read `michaellhan/gto-solver` at commit `9b907bd6`, imported 2026-11-03. `solver/`
+   has been at `1a14605e` since 2026-11-05 (`solver/UPSTREAM.json`; `docs/PROGRESS.md` has what that changed), and the
+   findings here stay those of `9b907bd6`. The flop library, `scripts/pfbench/` (AGPL) and `CLAUDE.md` are excluded. The only local
    patch is a guard in the two deploy scripts.
-5. **Test baseline.** Python: 678 tests, all passing except 5 expected failures. Node: 411 of 411 at run time
+5. **Test baseline.** At `9b907bd6` (at `1a14605e`: Python 686 and Node 443, run here on 2026-11-05). Python: 678 tests, all passing except 5 expected failures. Node: 411 of 411 at run time
    (379 static `test(` calls; loops generate the rest). The Python suite takes about 12 minutes on the user's Mac
    (704 to 761 s in the ship logs) [M]. Parts of both suites need the library, and some tests depend on machine load.
 6. **Licensing [V].** The solver has no LICENSE file anywhere. It bundles treys (MIT) and loads Pyodide (MPL-2.0)
@@ -55,7 +56,7 @@ run any test suite, solve, benchmark or build. Two library builds were running o
 
 | Item | Value | Source |
 |---|---|---|
-| Upstream | `michaellhan/gto-solver`, commit `9b907bd61a95758c48b1141cfadd854ba2c0eeaa` (2026-11-03 04:17 -0500) | `solver/UPSTREAM.json` [V] |
+| Upstream | `michaellhan/gto-solver`, commit `9b907bd61a95758c48b1141cfadd854ba2c0eeaa` (2026-11-03 04:17 -0500), when this was audited; `1a14605e` since 2026-11-05 | `solver/UPSTREAM.json` [V] |
 | Fidelity | 254 non-library files byte-identical to upstream; only the two deploy scripts differ | 01 §0 [V] |
 | Excluded | `gto/static/flop_library/` (served separately), `scripts/pfbench/` (AGPL Rust harness), `CLAUDE.md` | `UPSTREAM.json` [V] |
 | Local patch | `scripts/deploy.sh:5-10` and `scripts/deploy_library.sh:12-17` refuse to publish unless `BUILD_ONLY`, `DRY_RUN` (deploy.sh only) or `LIZARD_ALLOW_UPSTREAM_DEPLOY=1` is set | [V] |

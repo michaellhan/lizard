@@ -1,15 +1,17 @@
 # GTO Solver
 
-A No-Limit Hold'em hand-review solver. Enter a hand seat by seat and it returns
-a GTO-style mixed strategy with EVs and sizes, preflop through river, in a few
-seconds. 2 to 9 players.
+A No-Limit Hold'em hand-review solver. Enter a hand you played seat by seat,
+finish it, and it grades each decision you made against a GTO-style mixed strategy
+with EVs and sizes, preflop through river, in a few seconds each. 2 to 9 players.
 
 Live at **https://www.michael-han.com/gto-solver/** (the solver runs in your
 browser via Pyodide, nothing is uploaded).
 
-It is a review tool for hands you have already played. There is deliberately no
-screen capture, table reading or live-play hook; using anything like that on a
-real-money site is against every site's terms.
+It is a review tool for hands you have already played, not for use during a hand.
+A hand being entered gets no advice and nothing is solved until it's finished
+([Review first](#review-first)). There is deliberately no screen capture, table
+reading or live-play hook; using anything like that on a real-money site is against
+every site's terms.
 
 ## Setup
 
@@ -106,9 +108,56 @@ the select), and amounts go in half-big-blind steps ($2.50 at $2/$5). The Rake s
 (1bb at $2/$5, 2.5bb at $1/$2). The stakes are saved with the hand and remembered for new hands (`gto-stakes` in
 the browser's storage, store.js); off, nothing changes.
 
-Whenever it becomes your turn the advice panel solves the spot. The **Quick / Fast /
-Accurate** toggle in the header (remembered between visits) picks the solve
-time: Quick is about 2 s either way (the requests Practice makes at Fast, below: `QUICK_BUDGETS`, `"quick": true`;
+#### Review first
+
+**Entering a hand.** The main screen records a hand; it doesn't answer one. While a hand is entered your decisions are
+recorded and the worker is asked nothing, whoever is to act: no solve, no pre-solve, no library fetch, no strategy, EV,
+equity or grade, and the action buttons stay plain ("Record what you did."). The panel lists what's recorded and how to
+review it. **Finish hand** (under the action buttons once your cards are in, key E; also while a card is asked for) ends a hand
+you don't know the end of; a hand is finished by itself at a fold or showdown, or when you fold (the others' actions
+aren't entered after that). `handDone(sim)` in `gto/static/index.html` is the rule, `closed(sim)` the same outside Practice, and
+`adviceOpen()` the gate: Practice, or a review running, or a decision of a finished hand stepped to. `analyze` and
+`renderAll` check it, so no route to a solve goes round it.
+
+**Reviewing it.** **Review whole hand** (key R) grades each decision you recorded, in turn; a decision you
+didn't record isn't reviewed, so finishing at your turn leaves that turn without advice (the panel says so). Click any decision, in
+the list or on the timeline, for its full advice: a step view (`stepView`, Previous, Next, Back to the hand; arrow
+keys) that leaves the hand as it was. **What if? Study this spot** opens that decision in Study for other
+lines. The step view's **Details** offers **Copy for AI** and **Explain with AI** for that decision, once its advice shows: the buttons,
+proxy, daily limit and own-key form of Practice (`explain.js`, loaded then; [Explain with AI proxy](#explain-with-ai-proxy)), the explanation streamed into
+the row alone so the advice under it stays as it is, and kept per decision and answer. The prompt is Practice's with the hand as played: that it's a
+real hand, what the solver's numbers assume (GTO, the pool, your lock), the hand up to that decision and never the cards after it, and this
+answer's grade (a jam off its tree keeps the review's). `explainable()` is its gate, on top of `adviceOpen()`: never on a hand being entered,
+nor while Review whole hand runs through the decisions (no grade yet), nor in Practice (the coach's cards have their own). Drawing the row
+sends nothing; only the button does, and seats go by position, never by player name. That is where a finished hand's Pool, locks and speeds apply: they're hidden while a hand is being entered (`body.unfinished .nofin`)
+and not sent. Once any of a hand's advice has shown it stays as entered (`S.reviewed`; a link and a reload keep it):
+Undo and the card slots refuse, and a line tried differently is Study's, or a new hand's. **Keep entering**, or Undo, reopens a
+finished hand that nothing has been shown for. Rewinding an unfinished hand truncates it and gives no advice, with a toast. A saved,
+shared or reloaded hand comes back as it was left: unfinished with no advice, finished with its review.
+
+**Every route onto the table.** An import (`hh.js`), a session's decision (`session.js`) and **Review hand** in the
+write-up open finished; a hand from My hands opens finished if it was imported or reviewed, else as it was left,
+with a toast saying what it needs. A share link keeps `finished` and `reviewed` as they are. **Open on table** in the write-up
+is an unfinished hand. Reports and drills open their spot in Study (`window.studySpot`), which needs no hand of yours; Practice's
+hands stay in Practice. `Advisor.presolve` and the worker's `presolve` request stay for `scripts/bench_browser.mjs --presolve`, unused by the page.
+
+These are limits on what the page offers, enforced in the page: a made-up action, or a link edited to say `finished`,
+gets a review of that decision. The rule against use during a hand is in Fair play and the terms.
+
+**Your equity.** A reviewed hand you were still in when the betting closed (a street checked through or called with the
+next card not entered, everyone all-in, or the river's showdown) also shows **your equity** against the ranges that took
+the line: your share of the pot at showdown (ties half), win and tie, heads-up its share of the pot in bb, against several
+players each one alone too, and each opponent's range by hand. The ranges are narrowed through every street the way the
+next street's advice narrows them (its solves, cached for that advice; the flop library where it holds the spot); the
+equity is over every runout from the flop on, and preflop from the hand-class table heads-up or 3000 sampled boards
+against several ranges (`"equity": true`, below). It waits for the review, not just for Finish hand (`equitySpot`,
+`fixedHand`): a reviewed hand can't be reopened, so it never reaches a hand in progress. Practice and a decision stepped
+to don't show it.
+
+#### What a review shows
+
+Each decision opened solves the spot, and the **Fast / Accurate** toggle in the header (remembered between visits, and shown
+while reviewing) picks the solve time. (Practice at Fast asks for quick answers: about 2 s either way, `QUICK_BUDGETS`, `"quick": true`;
 rough on the turn, whose game is cut to fewer sizes when the whole one doesn't fit those 2 s, which the answer says; 3-way flops and turns solved in a smaller game, a 4-way flop left to the betting rules in the browser, and one whose tables can't be built in time anywhere); Fast is 8 s in the browser and 2.5 s against the local server (2.5 s per earlier street too); Accurate
 is about 60 s in the browser and 30 s locally (12 s per earlier street), with more time for the earlier
 streets used to narrow ranges. River spots are solid either way; turn spots need
@@ -118,9 +167,7 @@ flop's for the turn, the turn's for the river, or the street's own from your ear
 its precomputed solve's own turn, where the library has stored it) shows at once under the progress bar, marked
 approximate, until the answer replaces it. A flop or turn solved live then shows its own solve so far the same way
 (Fast at its 100th iteration, about half way to the answer, and at its 200th, 300th and 400th where it runs on past
-them; Accurate at its 100th, 300th and 600th), where the answer is more than a second off. In position, the street is solved while your
-opponent is to act, so the time you take entering their move counts toward the answer (a limped pot's turn answers
-in 3.2-3.4 s with the move entered 4 s in, against 7.0-7.3 s otherwise).
+them; Accurate at its 100th, 300th and 600th), where the answer is more than a second off.
 The panel shows the recommended action with its size (preflop: 2.5bb
 opens, 3bb from the small blind, 3x or 4x 3-bets, 2.3x 4-bets, then all-in; over limpers
 3x (4x from the blinds) plus 1bb a limper, and a squeeze adds one bet per caller;
@@ -136,11 +183,11 @@ range sorted high to low), with average equity, EV and the share of each range a
 3-way solves get the Breakdown only. Opening a tab asks again with `"breakdown": true` on the same state, answered
 from the solve the advice came from (no new solve; ~0.3 s native, ~0.5 s in the browser on a flop: the equities
 every turn and river on the turn, an even sample of flop runouts, `gto/breakdown.py`); the views are
-`gto/static/breakdown.js`, loaded when first opened, and the tab picked stays for later advice. Click an advice row to record it as what you did and keep going. Once the advice
+`gto/static/breakdown.js`, loaded when first opened, and the tab picked stays for later advice. In Practice, once the advice
 is in, your action buttons switch to the solver's own sizes with its frequency on each,
 so what you record is exactly what was solved. Postflop, a badge shows how well the solve
 converged (exploitability in % of the pot: converged under 3%, fair under 10%, rough
-above) with a one-click re-solve on Accurate; a rough solve never grades a line ✗. A jam the solve's tree has no all-in
+above) with a one-click re-solve on Accurate; a rough solve, or a line that gave up no EV, never grades ✗. A jam the solve's tree has no all-in
 for (all-in is offered at 2.5 pots behind or less: a 15x-pot flop jam isn't in it) is solved for its grade: the spot is
 asked again with `"jam": true`, which offers all-in at every decision of the street advised on (`Config.root_allin`;
 not the earlier streets' narrowing solves, nor the flop libraries), and the grade, its EV and the coach's card fill in
@@ -166,12 +213,10 @@ solves. Not against the pool or locks (the tab is hidden there); in a tournament
 prize equity as the advice's do, and the tab shows the tournament's notes. See [One bet size](#one-bet-size).
 
 Solver stats and the villain's inferred range (as text and as a 13x13 grid shaded by weight) sit behind a "Details" toggle.
-Each decision you record is marked against the advice that was showing (✓ in
-the mix, ~ rarely played, ✗ outside it, with the EV given up), and when the
-hand ends the advice panel lists them as a hand review with the EV given up per street.
-Click any of your decisions (in the review or the timeline) to replay the hand from that
-point; later actions and board cards are cleared, with Undo. While others act, the
-last advice stays visible but dimmed and labelled. The **⋯** menu has a four-colour
+A review marks each decision you recorded (✓ in
+the mix, ~ rarely played, ✗ outside it, with the EV given up) and lists them with the EV given up per street.
+In a hand being entered, clicking one of your decisions on the timeline goes back to it to enter it again,
+with Undo; in Practice the advice stays visible but dimmed and labelled while others act. The **⋯** menu has a four-colour
 deck (diamonds blue, clubs green), Sounds on/off, a switch that puts the advice on the left, and Reset layout.
 The menu is grouped: Review (Import hand, Analyze session), Study (Study, Preflop solve, Range builder, Drills, Flop
 reports), Help, and Settings (those switches, Reset practice, Reset layout); it scrolls on a short screen.
@@ -180,7 +225,7 @@ reports), Help, and Settings (those switches, Reset practice, Reset layout); it 
 (the table above) and tabs between them that move it: **Getting started** (reviewing a hand, a session, studying a
 spot, training, the settings worth knowing, with buttons that open each view), **About & accuracy** (the README's
 benchmarks in plain words: what "% of the pot from equilibrium" means, the comparison with postflop-solver, which
-spots are precomputed or solved live, Quick, Fast and Accurate, the known limits and where your data goes),
+spots are precomputed or solved live, Fast and Accurate, the known limits and where your data goes),
 **Glossary** (GTO, mix, EV and EV lost, equity and EQR, ranges and combos, exploitability, approximate, precomputed,
 borrowed, off the solved line, heuristic, the pool, node locks, ICM, the speeds, the grades, SPR, c-bet), a
 user-facing **Changelog** by week from the commit history, and **Fair play** (a study and review tool: not for use
@@ -207,9 +252,8 @@ become big blinds, antes are averaged per player, a 2bb straddle from the first 
 seats are dropped and returned bets are ignored; the history needs your hole cards. Every seat keeps its
 own stack (after the antes, as the history has it), so a short all-in, its side pot and an uncalled bet play
 out as they did. The parser is `gto/static/hh.js`,
-loaded only when the dialog opens. **Review whole hand** (offered after an import, and at the end of any
-hand with ungraded decisions) solves each of your decisions in order at the current Fast/Accurate setting,
-grades it as if it had been entered live and ends on the hand review; it shows "decision 2 of 5" while it
+loaded only when the dialog opens. **Review whole hand** (offered on any finished hand, an import straight away) solves each of your decisions in order at the current Fast/Accurate setting,
+grades it and ends on the hand review; it shows "decision 2 of 5" while it
 runs and can be cancelled, keeping the grades so far.
 
 **Write up a hand…** (beside Stakes) is for a hand played live, written up after the session on a phone. The game
@@ -267,8 +311,8 @@ solver's mix, the triage's confidence (high, medium, low) and sources; tables by
 (pot type, IP/OOP, facing a bet / first to act / checked to); your frequencies against the solver's for the same
 hands at the same decisions (opens, BB defence, folds and 4bets vs 3bets, flop c-bets, folds and raises vs c-bets,
 turn barrels, river bets, folds to turn and river bets); **This session's leaks** (the leaks below, over this
-session's decisions), each with its hands; the decisions by EV lost (a click opens that hand in the page rewound to
-that decision, Undo brings the rest back) and the clearest off-chart preflop plays. **Filters** narrow the tables and
+session's decisions), each with its hands; the decisions by EV lost (a click opens that hand finished, stepped to
+that decision, and Back to the hand or Undo shows the whole of it) and the clearest off-chart preflop plays. **Filters** narrow the tables and
 the list: street, position, pot type (single-raised, 3bet, 4bet+, limped, multiway), EV lost (any, 2% or 8% of the
 pot, 1bb or 5bb) and tags (in position, out of position, facing a bet, preflop raiser or caller, multiway, all-in,
 off the mix, flagged, checked at Fast, low confidence); a leak's **N hands** filters to its decisions. **Drill this
@@ -393,8 +437,8 @@ Pick an action (keys 1-4) and the hand's GTO mix and per-action EVs show at once
 highest EV, to the library's step of 1% of the pot), **Correct** (an action the hand plays 10% or more: "mixed"), or by
 the EV given up against the best, Inaccuracy (under 2% of the pot), Mistake (under 8%), Blunder. Space or Enter
 deals the next. The session's accuracy, average EV loss (bb and % of the pot) and streak show under the hand, and
-each drill's history (hands, accuracy, last 100, best streak) is kept in the browser; **Open in the solver** loads
-the hand into the page. `gto/static/drills.js` decodes the library's entries itself (no solver needed: answers are
+each drill's history (hands, accuracy, last 100, best streak) is kept in the browser; **Open in Study** opens
+the spot there. `gto/static/drills.js` decodes the library's entries itself (no solver needed: answers are
 instant, also before the in-browser solver has loaded) and reads the hand weights from `flop_library/<spot>/ranges.json`
 (both ranges entering the flop, written with the index, fingerprinted as the index's).
 
@@ -402,7 +446,7 @@ A **drill set** (Analyze session's **Drill this leak**) drills your own hands in
 (the line so far, the pot and the amount to call), the session's answer for it (its mix, and EVs where it had them),
 in a fresh order each round, graded on the same scale (an answer without EVs, a preflop chart's or a read at once, by
 frequency: Best the most played action, Correct 10% or more, else Inaccuracy or, under 3%, Mistake), with what you
-played in the hand after each; the summary at the end offers the set again. **Open in the solver** loads the spot.
+played in the hand after each; the summary at the end offers the set again. **Open in Study** opens the spot.
 
 **Study** (in the ⋯ menu) is a solution browser: walk a hand node by node with no cards of your own, and at each
 decision see the solver's answer for every hand of the player to act. Start from a precomputed spot's preflop line
@@ -802,7 +846,7 @@ model left to it gets draws wrong), what you did, the solver's mix with each act
 and the verdict, and a request for a short answer: a one-sentence verdict, three reasons, one takeaway. **Explain
 with AI** streams Claude's explanation (Claude Sonnet 5.5, extended thinking off, at most about 70 words: a bold
 Verdict, three one-line reasons shown as a list, cut at three if it writes more, and a bold Takeaway; the solver's
-numbers and the hand reading taken as given) into the card. Through the proxy (`EXPLAIN_PROXY` in `practice.js`, see
+numbers and the hand reading taken as given) into the card. Through the proxy (`EXPLAIN_PROXY` in `explain.js`, see
 [Explain with AI proxy](#explain-with-ai-proxy)) it works for every visitor with no key, a few a day each; when they're
 used up the card says "Daily free explanations used up — add your own key" and offers the key form, and a small
 **Use my own key** link switches to your own key (and **Use free explanations** back). Without the proxy, or with
@@ -810,7 +854,7 @@ your own key chosen, it goes straight from the browser to the Claude Messages AP
 first time it asks for one (a link to console.anthropic.com to get one); the key is kept only in this browser's
 localStorage (never in a backup or an export) and sent only to api.anthropic.com (the site is static, nothing of ours in between), and **Forget key**
 removes it. A refused key (401), a rate limit (429) or no network say so in the card with **Try again**; each
-explanation is kept in memory for its decision, so opening it again costs nothing. The page loads `practice.js` the first time Practice is turned on.
+explanation is kept in memory for its decision, so opening it again costs nothing. The page loads `practice.js` the first time Practice is turned on, after `explain.js` (the buttons, the prompt, the streaming and the hand reading, shared with a finished hand's review; a review loads only `explain.js`, when a decision's advice first shows).
 
 **Tables** (1-4, under the spots) plays several tables at once, as on a multi-tabling site; 1 is the table above,
 unchanged. With 2-4 a view of their own takes the place of the page's table and coach (`multitable.js`, loaded the
@@ -868,8 +912,8 @@ in Pyodide, above). `MultiTable.metrics()` in the console gives a session's numb
 
 ## Explain with AI proxy
 
-`cloudflare/explain-proxy/` is a small Cloudflare Worker that lets Practice mode's **Explain with AI** work for
-visitors without their own API key. The page POSTs `{prompt}` (the Copy for AI text, at most 8000 characters) to
+`cloudflare/explain-proxy/` is a small Cloudflare Worker that lets **Explain with AI** (Practice and a finished hand's
+review) work for visitors without their own API key. The page POSTs `{prompt}` (the Copy for AI text, at most 8000 characters) to
 `/explain`; the worker builds the Claude Messages API request itself (Claude Sonnet 5.5, the coach system prompt,
 700 tokens at most, streamed: the page can't choose any of these) with the key kept as a Worker secret, and streams
 the answer back. Only `https://www.michael-han.com`, `https://michael-han.com` and `http://localhost:*` /
@@ -894,7 +938,7 @@ Cloudflare account is enough):
 5. `npx wrangler secret put ANTHROPIC_API_KEY` and paste the key when it asks (it's stored encrypted by Cloudflare,
    never in the repo)
 6. `npx wrangler deploy`: it prints the worker's URL, like `https://gto-explain.<your-subdomain>.workers.dev`
-7. Set `EXPLAIN_PROXY` in `gto/static/practice.js` to that URL plus `/explain` (or tell Claude the URL), then
+7. Set `EXPLAIN_PROXY` in `gto/static/explain.js` to that URL plus `/explain` (or tell Claude the URL), then
    deploy the site.
 
 To check it: `curl -i -X POST https://gto-explain.<your-subdomain>.workers.dev/explain -H 'Origin: https://michael-han.com' -H 'content-type: application/json' -d '{"prompt":"Is folding 72o UTG right?"}'`
@@ -1040,6 +1084,16 @@ hand's pot, no EVs and `"solver": {"by": "the flop's solve" | "the turn's solve"
 "exploitability_pct"}`; `null` anywhere else (facing a turn bet on a library flop, a flop without a turn file, a line
 the stored flops or the solve take less than 10% of the time, a street before not solved yet, a tournament) and once
 the street's own solve is in hand (settled).
+
+`"equity": true` answers once the current street's betting is closed with hero still in (else an error): hero's
+equity against the opponents' ranges narrowed through the whole line, including the closed street (heads-up by the
+same solves and walk as the next street's advice, multiway by the betting rules or 3-way solves), over the cards to
+come (`breakdown.hand_equity`): `{"showdown": true, "street", "next" (the street to deal, null at the river),
+"allin" (nobody can bet any more), "pot_bb", "equity", "win", "tie", "share_bb" (heads-up), "villains": [{"seat",
+"equity" (against them alone), "combos", "range", "grid"}], "runouts", "exact", "notes"}`. Several opponents' hands are
+taken as independent (no card removal between them) and a tie splits the pot among the tied; preflop heads-up comes
+from the hand-class equity table (`win`/`tie` null), against several ranges from 3000 sampled boards (`exact` false,
+about ±1%).
 
 `"opponents": "pool"` (the page's Opponents: Pool toggle) is exploit mode: opponents play like a
 typical player pool instead of GTO. Preflop, hero's calls and raises are re-drawn against the pool's
@@ -2222,8 +2276,9 @@ identical trees and ranges (BTN open vs BB call, K72r runouts):
   after them, except from a stored turn: below), a street solved already, pots four or more saw the flop (3-way
   ones: below), Practice (it grades your move against the answer), exploit mode, locks, custom sizes or
   ranges, tournaments, Study (but for a library flop's stored turn: below), the breakdown, a jam request.
-* **The street solved while your opponent is to act** (`Advisor.presolve`; the worker's `presolve` request; the
-  page's `presolveFor`, `stopPresolve`). In position, your answer can't start until you enter the opponent's move,
+* **The street solved while your opponent is to act** (`Advisor.presolve`; the worker's `presolve` request). Not asked
+  by the page any more: the main screen solves nothing until a hand is finished ([Review first](#review-first)), and Practice looks
+  ahead on its own. What follows is what it was built and measured for; `scripts/bench_browser.mjs --presolve` still runs it. In position, your answer can't start until you enter the opponent's move,
   and the worker sat idle meanwhile. Now, while your opponent is to act heads-up after the flop, the page asks the
   worker for the solve your next decision on the street reads: the street's solve with your cards, as your advice
   makes it, within the setting's own budget. Entering their move stops it through the shared stop flag (0.02-0.11 s
@@ -4151,9 +4206,11 @@ The commonest flop decisions come from solves made offline (`gto/flop_library.py
   vs BB limped pot, heads-up", on 552 flops: pot 2, 99 behind, 38.8% of heads-up flop decisions; its base spot,
   6-max's limped pot `lp_sb_bb`, is `FORMAT_ONLY`: not built in the default game, nor listed there by
   `all_spots()`), built by `--format` (until built they are solved live, or read approximately off a 6-max spot;
-  their entries deal the river, as every spot's do).
+  their entries deal the river, as every spot's do). Built: the heads-up open on its 552 flops with turn files
+  (4.05 MB of entries, 12.3 MB of turn files; 306 iterations an entry on average, 0.113% of the pot from equilibrium,
+  0.150% at worst); its other 1,203 flops and the limped pot's 552 are building.
 * **Next for other games** (a plan, not built; `scripts/instant_coverage.py --players 2 --assume
-  "srp_sb_bb_2max=552,turns" --candidate ...`, over the heads-up open already listed): heads-up's limped pot (the
+  "srp_sb_bb_2max=552,turns" --candidate ...`, over the heads-up open's 552, now built): heads-up's limped pot (the
   small blind completes, the big blind checks: `SB:c,BB:x`, pot 2, stack 99, the heads-up charts' 384 / 1,007 combos
   by frequency; listed now, `lp_sb_bb_2max`, and queued on 552 flops with turn files) is 38.8% of heads-up flop
   decisions (53.6 a 100 hands) and nothing reads it at once (no spot has its ranges or a stack-to-pot ratio near
@@ -4161,8 +4218,13 @@ The commonest flop decisions come from solves made offline (`gto/flop_library.py
   the turn; 6.0 points of all of them; the other limped flops would read approximately off it, not counted); on every
   flop 76.3 (53.5 and 22.8). Timed on four flops (Kc7d2h, Jc9c4d, 8c6c2c, 7d7c3h, one process, with turn EVs) an
   entry takes 138-200 s (168 on average: 400-500 iterations to the build's target, where the open settles at 300) and
-  its worker 3.0 GB at its peak (the open's 2.1-2.6), entries ~10.5 KB and turn files ~28 KB: ~26 CPU-hours and ~5.8
-  MB of entries plus ~15 MB of turn files on 552 (built at one process), ~82 CPU-hours and ~67 MB on every flop. The heads-up open's other 1,203 flops add 59.3 over its 552 (~35 more CPU-hours; queued with
+  its worker 3.0 GB at its peak (the open's 2.1-2.6), entries ~10.5 KB and turn files ~28 KB. Its two-tone and
+  monotone flops' trees are 1.85 times its rainbow ones' (72.7M cells against 39.4M; 328 of the 552, built after the
+  rainbow ones), and one worker solving entry after entry keeps 0.5-1 GB of each solve's memory, which adds to the
+  next one's peak (a two-tone flop at 20 iterations 2.3 GB on its own, 3.1 after three others): the build's one
+  worker passed 4.2 GB on its 97th flop, so it builds with `--fresh` (a new worker process for each entry). ~26
+  CPU-hours and ~5.8 MB of entries plus ~15 MB of turn files on 552 (built at one process), ~82 CPU-hours and ~67 MB
+  on every flop. The heads-up open's other 1,203 flops add 59.3 over its 552 (~35 more CPU-hours; building, with
   turn files). With antes at
   8-max the heads-up flops left are 13.5% too far from any spot and 12.7% too little covered, 3-way flops 24.5
   decisions a 100 hands (67.5% of them now at once, read off the nearest 3-way spot: Precomputed 3-way flop
@@ -4182,8 +4244,8 @@ The commonest flop decisions come from solves made offline (`gto/flop_library.py
   BTN's of the CO), at 85-104 s an entry for a flatted open and 35-69 s for a 3bet pot (~15 and ~8 CPU-hours a spot
   on 552); CO vs BB on every flop makes 12.8 precomputed instead of read approximately. The pots nothing reads
   are solved live in under a second meanwhile (Another stack depth, above), so these builds buy precision more
-  than speed: not planned ahead of the heads-up builds. Heads-up raised pots at 40-200bb need nothing more: once
-  `srp_sb_bb_2max` is built its ranges hold 91-98% of each depth's, 0.14-0.39 apart, inside `NEAR_COVER`, so it
+  than speed: not planned ahead of the heads-up builds. Heads-up raised pots at 40-200bb need nothing more:
+  `srp_sb_bb_2max`'s ranges hold 91-98% of each depth's, 0.14-0.39 apart, inside `NEAR_COVER`, so it
   reads them as another depth (6-max and 8-max pots stay off it: 57-86% held, 1.5-3.1 apart).
 * **Flops**: canonical flops matched up to suits (the ranges are suit-symmetric, so a stored flop's solve is any
   suit permutation's, its combos permuted); other flops are solved live. Each spot stores a representative set
@@ -4266,15 +4328,15 @@ The commonest flop decisions come from solves made offline (`gto/flop_library.py
   on Kc7d2h and 0.02 at most on the other three, of 100% 0.10 / 0.02 on KcTd6h and ~0 elsewhere. Each costs 32-43%
   more nodes, up to 66% more time and a rebuild of every entry, so the library keeps bets of 33/75% and a 50% raise.
 * **Turns** (`<spot>/<flop>.turn.bin` beside each entry, `encode_turns`, GTOTN1; written by the builds, shipped for
-  BTN vs BB and the 3bet pots: 12,978 files, 167.6 MB): the flop solve's own turn strategies, for an answer at once on
-  the turn after a library flop (`FlopLibrary.turns`, `turn_node`; the advisor's approximate answer there,
-  `instant_from_store`: Accuracy vs speed, "The turn after a library flop"). Per flop line that 1% or more of the hand
-  pairs take to the turn (BTN vs BB on Kc7d2h: five lines, 66% of the pairs), the turn's first decision and the
-  in-position player's after a check; per turn class (one card a rank, a flush suit's apart: 13 on a rainbow flop, 26
-  two-tone, 23 monotone) the played card's strategies for the acting player's combos that reach the line (0.5% of its
-  most reached): strategies only, in 5% steps, at the flop solve's turn sizes (75% bets and raises).
-  Another card of a class reads the played card's: each combo the same combo's, and one holding the played card that
-  of its image holding the turn card. ~10 KB a rainbow flop, ~18 KB on average (~360 MB for 20,000 entries,
+  BTN vs BB, the 3bet pots and the heads-up open: 13,530 files, 179.9 MB): the flop solve's own turn strategies, for
+  an answer at once on the turn after a library flop (`FlopLibrary.turns`, `turn_node`; the advisor's approximate
+  answer there, `instant_from_store`: Accuracy vs speed, "The turn after a library flop"). Per flop line that 1% or
+  more of the hand pairs take to the turn (BTN vs BB on Kc7d2h: five lines, 66% of the pairs), the turn's first
+  decision and the in-position player's after a check; per turn class (one card a rank, a flush suit's apart: 13 on a
+  rainbow flop, 26 two-tone, 23 monotone) the played card's strategies for the acting player's combos that reach the
+  line (0.5% of its most reached): strategies only, in 5% steps, at the flop solve's turn sizes (75% bets and
+  raises). Another card of a class reads the played card's: each combo the same combo's, and one holding the played
+  card that of its image holding the turn card. ~10 KB a rainbow flop, ~18 KB on average (~360 MB for 20,000 entries,
   committed with the entries). Against a live Accurate turn (33/75/125%, 400 iterations; BTN vs BB on Kc7d2h, its
   two commonest lines; `scripts/bench_turn_store.py` on `scripts/turn_store_probe.py`'s dump) the stored turn gives
   up 0.50 / 0.67% of the pot out of / in position on the played cards and 0.81 / 0.63 on the others (1.6 at most),
@@ -4366,7 +4428,7 @@ KcTd9d and AcKdQd) ran to 23-73% of the pot after 1000 iterations, a regret sum 
 (fixed since) gone NaN, and were solved again with `GTO_CORE=0`: an entry the build leaves over `--target` at
 `--max-iters` is worth a second look.
 After changing the charts or the flop model, run it again (stale entries are re-solved). A spot on every flop is
-4.6-6.8 MB (SB vs BB's wide ranges 9.2): the test holds the library's entries (48.31 MB) under 150 MB. The five flatted opens on 552 (2760 entries, their callers'
+4.6-6.8 MB (SB vs BB's wide ranges 9.2): the test holds the library's entries (76.70 MB) under 150 MB. The five flatted opens on 552 (2760 entries, their callers'
 ranges narrow) took 165 minutes on 7 processes, the BTN's flatted by the SB the slowest (its opens' wide range).
 
 ### Precomputed 3-way flop library
@@ -4507,7 +4569,7 @@ python scripts/compare_mw_library.py --spot mw_co_btn_bb --boards Kh7d2c,9s8s5d 
 scripts/deploy.sh
 ```
 
-copies the page, the worker, `practice.js`, `multitable.js`, `reports.js`, `drills.js`, `breakdown.js`, `session.js`, `study.js`, `help.js`, `solver.zip` (the worker's Python code: every `gto/*.py` and treys, `scripts/build_bundle.py`), the `gto` sources and Study's stored preflop solves (`gto/static/pf/*.bin` as `pf/`) into the `gto-solver/` folder
+copies the page, the worker, `practice.js`, `explain.js`, `multitable.js`, `reports.js`, `drills.js`, `breakdown.js`, `session.js`, `study.js`, `help.js`, `solver.zip` (the worker's Python code: every `gto/*.py` and treys, `scripts/build_bundle.py`), the `gto` sources and Study's stored preflop solves (`gto/static/pf/*.bin` as `pf/`) into the `gto-solver/` folder
 of the michaellhan.github.io repo and pushes. The precomputed libraries (`gto/static/flop_library`: the heads-up and
 3-way indexes, entries and reports) go first to their own repo, michaellhan/gto-solver-library, served beside the page
 at /gto-solver-library/ (`scripts/deploy_library.sh`): one commit with no history, force-pushed on each publish and

@@ -1,0 +1,703 @@
+// Review first (index.html's gate: handDone, adviceOpen, analyze): while a hand is entered your decisions are recorded
+// and nothing goes to the solver. A hand is finished when it ended, when you folded, or when it was marked so, and each
+// decision you recorded can then be reviewed, all together (reviewHand) or one by one (stepTo). Every route onto the
+// table keeps to that. Practice answers as you play, and is untouched.
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const { loadPage, state, acts, HTML_PATH } = require("./page.js");
+
+const STATIC = path.join(__dirname, "..", "..", "gto", "static");
+const HH = (f) => fs.readFileSync(path.join(__dirname, "..", "data", "hh", f), "utf8");
+const flush = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
+const j = (x) => JSON.parse(JSON.stringify(x));
+const asked = (p) => p.posted.filter(m => m.state || m.presolve || m.prefetch || m.play);
+const nothingAsked = (p) => assert.deepEqual(asked(p), []);
+const OPENED = acts("UTG f, HJ f, CO f, BTN r2.5, SB f, BB c");
+const FLOP = { cards: ["Ah", "Kh", "Kd", "7s", "2c"], preflop: OPENED, flop: acts("BB x") };
+// BB checks, you bet 3, BB calls; BB checks, you check; BB bets, you call: four decisions, the hand over
+const WHOLE = { cards: ["Ah", "Kh", "Kd", "7s", "2c", "9h", "3d"], preflop: OPENED, flop: acts("BB x, BTN b3, BB c"), turn: acts("BB x, BTN x"), river: acts("BB b8, BTN c") };
+const answer = (m, x = {}) => ({ data: { id: m.id, result: { street: "flop", hero: "BTN", hand: "AKs", recommended: "check", pot_bb: 5.5,
+  actions: [{ action: "check", freq: 0.7, ev_bb: 2 }, { action: "bet 33%", amount_bb: 1.8, freq: 0.3, ev_bb: 1.9 }], notes: [], ...x } } });
+async function page(opts = { isolated: true }) {
+  const p = loadPage(opts);
+  await p.ready();
+  if (p.workers[0]) p.workers[0].onmessage({ data: { status: "Solving…" } });   // (the runtime is up: everything a pre-solve waited for)
+  return p;
+}
+async function reviewed(st, opts) {   // the whole hand reviewed: each decision answered as it's asked
+  const p = await page(opts);
+  p.S = st;
+  const done = p.run("reviewHand()");
+  const solves = () => p.posted.filter(x => x.state && !x.state.equity);   // (the hand's equity follows the review)
+  for (let n = 0; n < 60 && solves().length < 4 + 1; n++) {
+    await flush();
+    const m = solves().at(-1);
+    if (m && !m.answered) { m.answered = true; p.workers.at(-1).onmessage(answer(m)); }
+    if (p.val("review") === null) break;
+  }
+  await done; await flush();
+  return p;
+}
+const ids = (p) => p.buttons().map(b => b.id).filter(Boolean);
+const press = (p, id) => p.buttons().find(b => b.id === id).onclick();
+
+test("a whole hand entered, button by button: the worker is asked nothing, on any street, whoever is to act", async () => {
+  const p = await page();
+  p.run('placeCard("Ah"); placeCard("Kh")');
+  const check = async () => { await flush(); nothingAsked(p); assert.match(p.byId("result").innerHTML, /Recording your decisions/); };
+  await check();
+  assert.ok(p.buttons().every(b => !/best/.test(b.className)));
+  p.button("Fold").onclick(); await check();     // UTG
+  p.button("Fold to me").onclick(); await check();   // to you
+  p.button("Raise to 2.5").onclick(); await check();
+  p.button("Fold").onclick(); p.button("Call").onclick(); await flush();   // SB, BB
+  for (const c of ["Kd", "7s", "2c"]) p.run(`placeCard("${c}")`);
+  await check();
+  p.button("Check").onclick(); await check();    // BB
+  assert.match(p.buttons().find(b => /Check/.test(b.innerHTML)).innerHTML, /^Check/);   // your turn: the plain buttons, no mix
+  assert.doesNotMatch(p.byId("actionArea").innerHTML, /·\s*\d+%/);
+  assert.match(p.byId("actionArea").children[0].innerHTML, /Record what you did/);
+  p.button("Bet 2").onclick(); await check();
+  p.button("Call").onclick(); p.run('placeCard("9h")'); await check();
+  p.button("Check").onclick(); p.button("Check").onclick(); p.run('placeCard("3d")'); await check();
+  p.button("Check").onclick(); p.button("Check").onclick();
+  await flush();
+  assert.equal(p.sim().handOver, true);
+  nothingAsked(p);   // (over, it waits for you to ask)
+  assert.deepEqual(ids(p), ["reviewAll"]);
+  assert.match(p.byId("adviceNote").innerHTML, /<b>Your decisions<\/b>/);
+  assert.equal((p.byId("adviceNote").innerHTML.match(/not reviewed yet/g) || []).length, 4);
+});
+
+test("the panel says what's recorded; no grade or mix shows on a hand being entered, whatever it carries", async () => {
+  const p = await page();
+  const st = j(state(FLOP));
+  st.actions.preflop[3].g = { m: "raise 2.5", f: 0.6, b: "raise 2.5", bf: 0.6, l: 0 };   // (a hand from before review first)
+  p.S = st;
+  await flush();
+  const note = p.byId("adviceNote").innerHTML;
+  assert.match(note, /<b>Recorded so far<\/b>/);
+  assert.match(note, /raise to 2.5/);
+  assert.doesNotMatch(note, /solver|class="rewind|Review whole hand/);
+  assert.doesNotMatch(p.run("handText()"), /solver 60%/);
+  assert.doesNotMatch(p.byId("timeline").innerHTML, /class="g /);
+  assert.equal(p.run('document.body.classList.contains("heroturn")'), false);   // (a phone keeps the table and dock first)
+  nothingAsked(p);
+});
+
+test("rewinding a hand being entered brings no advice, nor do undo, a reload, or a saved or shared unfinished hand", async () => {
+  const p = await page();
+  p.S = state({ ...WHOLE, river: acts("BB b8") });   // you to act on the river
+  await flush();
+  p.run('rewindTo("flop", 1)');
+  await flush();
+  assert.equal(p.sim().toAct, "BTN");
+  assert.deepEqual(p.val("S.actions.flop"), [{ pos: "BB", action: "check" }]);
+  assert.match(p.byId("toast").innerHTML, /Back to your flop decision\. Enter it again\./);
+  nothingAsked(p);
+  p.run("undo()"); p.act({ action: "check" });
+  await flush();
+  nothingAsked(p);
+  // a reload at your turn
+  const again = await page({ isolated: true, storage: Object.fromEntries(p.storage) });
+  await flush();
+  assert.equal(again.sim().toAct, "BTN");
+  nothingAsked(again);
+  // a link to an unfinished hand, at load and in a tab already open; the page's loader
+  const b64 = Buffer.from(JSON.stringify(state(FLOP))).toString("base64");
+  const link = await page({ isolated: true, hash: "#h=" + b64 });
+  await flush();
+  assert.equal(link.sim().toAct, "BTN");
+  nothingAsked(link);
+  again.location.hash = "#h=" + b64; again.fire("hashchange");
+  await flush();
+  await again.run(`loadHandState(${JSON.stringify(state(FLOP))})`);
+  await flush();
+  assert.equal(again.sim().toAct, "BTN");
+  nothingAsked(again);
+});
+
+test("the page has one way to ask for a hand's advice, and it's shut on a hand being entered", async () => {
+  const p = await page();
+  p.S = state(FLOP);
+  await p.run("analyze(simulate())");   // (even called directly)
+  await p.run("reviewHand()");          // (and a stale toast's Review whole hand)
+  await flush();
+  nothingAsked(p);
+  assert.equal(p.val("review"), null);
+});
+
+test("Finish hand at your turn: what you recorded is reviewed, the decision you didn't record isn't", async () => {
+  const p = await page();
+  p.S = state(FLOP);   // your flop decision to come
+  assert.ok(ids(p).includes("finishHand"));
+  p.key("e");
+  await flush();
+  assert.equal(p.val("S.finished"), true);
+  assert.deepEqual(ids(p), ["reviewAll", "keepEntering"]);
+  assert.match(p.byId("actionArea").children[0].innerHTML, /Hand finished/);
+  assert.match(p.byId("adviceNote").innerHTML, /Your flop decision wasn't recorded, so it isn't reviewed\./);
+  assert.equal(p.run('document.body.classList.contains("heroturn")'), false);
+  assert.ok(p.byId("felt").children.every(s => !/toact/.test(s.className) && !/to act/.test(s.innerHTML)));   // (nobody's to act now)
+  nothingAsked(p);
+  const done = p.run("reviewHand()");
+  await flush();
+  const asks = p.posted.filter(m => m.state);
+  assert.equal(asks.length, 1);
+  assert.equal(asks[0].state.board, "");            // your preflop open
+  p.workers.at(-1).onmessage(answer(asks[0], { street: "preflop", actions: [{ action: "fold", freq: 0.4 }, { action: "raise 2.5", amount_bb: 2.5, freq: 0.6 }] }));
+  await done; await flush();
+  assert.equal(p.posted.filter(m => m.state).length, 1);   // nothing for the flop, then or after
+  assert.equal(p.sim().toAct, "BTN");
+  assert.equal(p.val("S.actions.flop.length"), 1);
+  assert.match(p.byId("adviceNote").innerHTML, /<b>Hand review<\/b> · 1 of 1 decisions/);
+  assert.match(p.byId("adviceNote").innerHTML, /Your flop decision wasn't recorded/);
+  // nor by a hand-made step to it
+  p.run('rewindTo("flop", 1)'); p.run('stepTo("flop", 0)');   // (past the end, and BB's check)
+  await flush();
+  assert.equal(p.val("stepView"), null);
+  assert.equal(p.posted.filter(m => m.state).length, 1);
+});
+
+test("Finish hand goes back: before any advice Keep entering (or Undo) reopens it; a card isn't asked for once it's finished", async () => {
+  const p = await page();
+  p.S = state({ cards: FLOP.cards.slice(0, 2), preflop: OPENED });   // the flop to deal
+  assert.equal(p.run("needCard(simulate())"), true);
+  p.key("e");
+  assert.equal(p.val("S.finished"), true);
+  assert.equal(p.run("needCard(simulate())"), false);
+  assert.equal(p.act({ action: "check" }), "Deal the next card first.");
+  press(p, "keepEntering");
+  assert.equal(p.val("S.finished"), undefined);
+  assert.equal(p.run("needCard(simulate())"), true);
+  p.S = state(FLOP); p.run("finishHand()");
+  assert.equal(p.act({ action: "check" }), "This hand is finished.");
+  p.run("undo()");
+  assert.equal(p.val("S.finished"), undefined);
+  assert.equal(p.val("S.actions.flop.length"), 1);
+  p.run("undo()");
+  assert.equal(p.val("S.actions.flop.length"), 0);   // (the next Undo takes an action back)
+  nothingAsked(p);
+});
+
+test("your fold finishes the hand: nothing more to enter, and the review is there", async () => {
+  const p = await page();
+  p.S = state({ cards: FLOP.cards.slice(0, 2), preflop: acts("UTG r2.5, HJ c, CO f") });
+  p.button("Fold").onclick();
+  await flush();
+  assert.equal(p.sim().handOver, false);
+  assert.match(p.byId("actionArea").children[0].innerHTML, /You folded/);
+  assert.deepEqual(ids(p), ["reviewAll"]);
+  assert.equal(p.byId("felt").children.filter(s => /clickable/.test(s.className)).length, 0);
+  assert.equal(p.run("needCard(simulate())"), false);
+  nothingAsked(p);
+});
+
+test("a decision of a finished hand: its advice, the whole hand kept; a reload brings the hand back, not the spot", async () => {
+  const p = await page();
+  p.S = state(WHOLE);
+  p.run('rewindTo("flop", 1)');
+  await flush();
+  assert.equal(p.val("stepView.s"), "flop");
+  assert.deepEqual(p.val("S.actions.flop"), [{ pos: "BB", action: "check" }]);
+  assert.equal(p.val("S.actions.turn.length"), 0);
+  assert.equal(p.val("S.cards[5]"), null);
+  const m = p.posted.filter(x => x.state).at(-1);
+  assert.equal(m.state.board, "Kd7s2c");
+  p.workers.at(-1).onmessage(answer(m));
+  await flush();
+  assert.match(p.byId("result").innerHTML, /<span class="big">check<\/span>/);
+  assert.deepEqual(ids(p), ["stepPrev", "stepNext", "stepBack", "stepStudy"]);
+  assert.match(p.byId("actionArea").children[0].innerHTML, /Your flop decision/);
+  assert.equal(p.byId("stepLabel").textContent, "decision 2 of 4");
+  assert.equal(p.run('document.body.classList.contains("heroturn")'), true);   // (a phone puts this advice after the table)
+  // saved whole, and no move can be recorded from here
+  assert.equal(JSON.parse(p.storage.get("handreview")).actions.river.length, 2);
+  assert.equal(p.act({ action: "check" }), "This hand is finished.");
+  // Next, Previous (and the arrow keys); past the ends nothing
+  press(p, "stepNext");
+  await flush();
+  assert.equal(p.val("stepView.s"), "turn");
+  p.key("ArrowLeft");
+  await flush();
+  assert.equal(p.val("stepView.s"), "flop");
+  assert.equal(p.posted.filter(x => x.state && x.state.board === "Kd7s2c" && x.state.flop.length === 1).length, 1);   // (the answer in hand)
+  // a reload: the whole hand, no decision's advice asked (a reviewed hand's equity is)
+  const q = await page({ isolated: true, storage: Object.fromEntries(p.storage) });
+  await flush();
+  assert.equal(q.val("stepView"), null);
+  assert.equal(q.sim().handOver, true);
+  assert.deepEqual(asked(q).map(m => !!m.state.equity), [true]);
+  // back to the hand: Undo here, as the button
+  p.run("undo()");
+  await flush();
+  assert.equal(p.val("stepView"), null);
+  assert.equal(p.val("S.actions.river.length"), 2);
+  assert.equal(p.byId("result").className, "empty");
+});
+
+test("once its advice has been seen a hand stays as entered: no Undo, no cards, a rewind only looks; other lines are Study's", async () => {
+  const p = await reviewed(state(WHOLE));
+  const whole = j(p.val("S.actions"));
+  assert.equal(p.val("S.reviewed"), true);
+  assert.match(p.byId("adviceNote").innerHTML, /<b>Hand review<\/b> · 3 of 3 decisions/);   // (the fixture answer has no call, so the river stays ungraded)
+  assert.match(p.byId("adviceNote").innerHTML, /no grade/);
+  assert.match(p.buttons().find(b => b.id === "reviewAll").innerHTML, /^Review again/);
+  assert.equal(p.byId("result").className, "empty");   // (no decision's advice left under the whole hand)
+  p.run("undo()");
+  assert.deepEqual(j(p.val("S.actions")), whole);
+  assert.match(p.byId("toast").innerHTML, /stays as entered/);
+  p.run("removeCard(6)");
+  assert.equal(p.val("S.cards[6]"), "3d");
+  assert.equal(p.byId("editCards").hidden, true);
+  p.run('rewindTo("flop", 1)');
+  await flush();
+  assert.equal(p.val("stepView.s"), "flop");
+  assert.deepEqual(j(p.val("stepView.full.actions")), whole);
+  assert.equal(p.posted.filter(m => m.state && !m.state.equity).length, 4);   // (the review's answer, not a new solve)
+  p.run("stepStop()");
+  // the mark survives a reload and a link
+  const q = await page({ isolated: true, storage: Object.fromEntries(p.storage) });
+  q.run("undo()");
+  assert.deepEqual(j(q.val("S.actions")), whole);
+  // a new hand is a new hand
+  p.click("newhand");
+  assert.equal(p.val("S.reviewed"), undefined);
+  assert.equal(p.val("S.finished"), undefined);
+});
+
+test("a review cancelled before any advice leaves the hand open; one cancelled after keeps the line", async () => {
+  const p = await page();
+  p.S = { ...state(FLOP), finished: true };
+  const done = p.run("reviewHand()");
+  await flush();
+  p.run('review.cancel = "restore"; cancelSolve()');
+  p.workers.at(-1).onmessage({ data: { id: p.posted.filter(m => m.state).at(-1).id, result: { cancelled: true } } });
+  await done; await flush();
+  assert.equal(p.val("S.reviewed"), undefined);
+  assert.ok(ids(p).includes("keepEntering"));
+  // an approximate answer counts: it's advice seen
+  const q = await page();
+  q.S = state(WHOLE);
+  const d2 = q.run("reviewHand()");
+  await flush();
+  const m = q.posted.filter(x => x.state).at(-1);
+  q.workers.at(-1).onmessage({ data: { id: m.id, partial: { street: "flop", hero: "BTN", recommended: "check", approximate: { source: "prev", label: "x" }, actions: [{ action: "check", freq: 1 }] } } });
+  await flush();
+  q.run('review.cancel = "restore"; cancelSolve()');
+  q.workers.at(-1).onmessage({ data: { id: m.id, result: { cancelled: true } } });
+  await d2; await flush();
+  assert.equal(q.val("S.reviewed"), true);
+});
+
+test("Pool and locks aren't offered or in effect until a hand is finished; Randomise and recording off the advice are gone", async () => {
+  const html = fs.readFileSync(HTML_PATH, "utf8");
+  assert.match(html, /<span class="ctl nopx nofin" id="oppctl">/);
+  assert.match(html, /<div class="row nofin" id="lockIns"/);
+  assert.match(html, /body\.unfinished \.nofin \{ display: none !important; \}/);
+  assert.doesNotMatch(html, /randomise|Randomise/);
+  assert.doesNotMatch(html, /data-act=|applyAction/);
+  const p = await page();
+  const unfinished = () => p.run('document.body.classList.contains("unfinished")');
+  assert.equal(unfinished(), true);
+  p.S = { ...state(FLOP), locks: { BB: { fold: 15 } } };
+  assert.equal(unfinished(), true);
+  assert.doesNotMatch(p.run("ADV_TEXT()"), /locked/);
+  assert.doesNotMatch(p.byId("setupSum").innerHTML, /locked/);
+  p.run("finishHand()");
+  assert.equal(unfinished(), false);
+  assert.match(p.run("ADV_TEXT()"), /BB locked/);
+  p.run("keepEntering()");
+  assert.equal(unfinished(), true);
+  // a decision looked at: on offer, and its request carries them
+  p.spot({ ...state(FLOP), locks: { BB: { fold: 15 } } });
+  assert.equal(unfinished(), false);
+  await flush();
+  assert.deepEqual(j(p.posted.filter(m => m.state).at(-1).state.locks), { BB: { fold: 15 } });
+  await p.byId("oppctl").children[1].onclick();
+  await flush();
+  assert.equal(p.posted.filter(m => m.state).at(-1).state.opponents, "pool");
+});
+
+test("an imported hand reviews straight away", async () => {
+  const p = await page({ isolated: true });
+  vm.runInContext(fs.readFileSync(path.join(STATIC, "hh.js"), "utf8"), p.ctx, { filename: "hh.js" });
+  p.click("importHand");
+  p.byId("hhText").value = HH("stars_6max_srp.txt");
+  await p.click("hhGo");
+  await flush();
+  assert.equal(p.val("S.finished"), true);
+  assert.match(p.byId("adviceNote").innerHTML, /Your decisions/);
+  assert.ok(ids(p).includes("reviewAll") && !ids(p).includes("keepEntering"));   // (it's all there: nothing more to enter)
+  nothingAsked(p);   // (it waits to be asked)
+  p.run('rewindTo("flop", 1)');
+  await flush();
+  assert.equal(p.posted.filter(m => m.state).length, 1);
+  assert.equal(p.posted.filter(m => m.state)[0].state.board, "Qs8d3c");
+  // cut short by the history (the flop only) it's finished all the same, and a mid-hand import asks no card
+  const st = p.run("importHand").call(null, HH("stars_6max_srp.txt")).state;
+  assert.equal(st.finished, true);
+});
+
+test("the flags: true or nothing on what's loaded, left out of a hand's identity in My hands", async () => {
+  const p = await page();
+  assert.equal(p.val(`cleanState(${JSON.stringify({ ...state(FLOP), finished: "yes", reviewed: 1 })}).finished`), undefined);
+  assert.equal(p.val(`cleanState(${JSON.stringify({ ...state(FLOP), finished: "yes", reviewed: 1 })}).reviewed`), undefined);
+  assert.equal(p.val(`cleanState(${JSON.stringify({ ...state(FLOP), finished: true, reviewed: true })}).finished`), true);
+  const { createStore } = require(path.join(STATIC, "store.js"));
+  const { fakeIndexedDB, fakeLocalStorage } = require("./idb_shim.js");
+  const H = createStore({ indexedDB: fakeIndexedDB(), localStorage: fakeLocalStorage() }).hands;
+  const st = state(FLOP);
+  assert.equal(H.sig({ ...st, finished: true, reviewed: true }), H.sig(st));
+});
+
+test("a share link carries a finished hand as finished, and from a decision looked at the whole hand", async () => {
+  const p = await page();
+  p.S = state(WHOLE);
+  p.run('rewindTo("turn", 1)');
+  await flush();
+  const b64 = p.run("handText()").match(/#h=([A-Za-z0-9+/=]+)/)[1];
+  const st = JSON.parse(Buffer.from(b64, "base64").toString());
+  assert.equal(st.actions.river.length, 2);
+  const q = await page({ isolated: true, hash: "#h=" + b64 });
+  await flush();
+  assert.equal(q.sim().handOver, true);
+  assert.deepEqual(ids(q), ["reviewAll"]);
+  nothingAsked(q);
+});
+
+test("My hands: an imported or reviewed hand opens finished, one left part way opens as it was, without advice", async () => {
+  const p = loadPage({ store: true, isolated: true });
+  await p.ready();
+  await p.run("GTOStore.ready");
+  p.workers[0].onmessage({ data: { status: "Solving…" } });
+  vm.runInContext(fs.readFileSync(path.join(STATIC, "hands.js"), "utf8"), p.ctx, { filename: "hands.js" });
+  const open = async (st, source) => {
+    const rec = j(await p.run(`GTOStore.hands.save(${JSON.stringify(st)}, ${JSON.stringify({ source })})`));
+    await p.run(`(async () => MyHands.pageHost().open(await GTOStore.hands.get(${JSON.stringify(rec.id)})))()`);
+    await flush();
+    return rec;
+  };
+  await open(state(FLOP), "table");
+  assert.equal(p.sim().toAct, "BTN");
+  assert.match(p.byId("toast").innerHTML, /It isn't finished: enter the rest, or press Finish hand, to review it\./);
+  assert.equal(p.byId("toast").children.filter(e => e.textContent === "Review whole hand").length, 0);
+  nothingAsked(p);
+  await open(state({ ...FLOP, cards: ["9s", "9d", "Kd", "7s", "2c"] }), "import");   // (kept before hands were marked finished)
+  assert.equal(p.val("S.finished"), true);
+  assert.equal(p.byId("toast").children.filter(e => e.textContent === "Review whole hand").length, 1);
+  nothingAsked(p);
+  p.click("newhand");
+});
+
+test("the analyzer's Open: a decision of the session's hand, its advice at once, the hand finished", async () => {
+  const p = await page();
+  vm.runInContext(fs.readFileSync(path.join(STATIC, "session.js"), "utf8"), p.ctx, { filename: "session.js" });
+  await p.run(`Session.pageHost().open(${JSON.stringify(state(WHOLE))}, "flop", 1)`);
+  await flush();
+  assert.equal(p.val("stepView.s"), "flop");
+  assert.equal(p.val("stepView.full.finished"), true);
+  assert.equal(p.posted.filter(m => m.state).at(-1).state.board, "Kd7s2c");
+});
+
+test("a write-up sent to review is finished and reviewed; one opened on the table stays open to enter", async () => {
+  const hand = (p) => { p.ctx.__w = JSON.stringify(state({ ...FLOP, flop: acts("BB x, BTN b3") })); p.run("WriteUp._set && WriteUp._set(JSON.parse(__w))"); };
+  const go = async (arg) => {
+    const p = await page();
+    p.click("writeupBtn"); await flush();
+    for (const c of ["setHole('AhKh')", "skipTo('BTN')", "record({ amount: '2.5' })"]) p.val(`WriteUp.${c}`);
+    const r = await p.run(`WriteUp.review(${arg})`);
+    await flush();
+    return { p, r };
+  };
+  assert.equal(typeof hand, "function");
+  const a = await go("");
+  assert.equal(a.r, true);
+  assert.equal(a.p.val("review && review.n"), 1);
+  assert.equal(a.p.posted.filter(m => m.state).length, 1);
+  const b = await go("true");
+  assert.equal(b.r, true);
+  assert.equal(b.p.val("S.finished"), undefined);
+  assert.equal(b.p.val("review"), null);
+  nothingAsked(b.p);
+});
+
+test("Study: a reviewed decision's What if opens on that spot, without your hand; the table keeps the hand", async () => {
+  const SCRIPTS = { "study.js": `globalThis.Study = { opened: 0, fromPayload: (p) => ({ board: p.board, flop: p.flop, hero: p.hero, hole: p.hole }), open() { this.opened++; return Promise.resolve(); }, close() { viewClosed("study"); } };` };
+  const p = await page({ isolated: true, scripts: SCRIPTS });
+  p.S = state(WHOLE);
+  p.run('rewindTo("flop", 1)');
+  await flush();
+  await press(p, "stepStudy");
+  await flush();
+  assert.equal(p.val("Study.opened"), 1);
+  const at = p.val("STUDY_AT");
+  assert.equal(at.spot, "table");
+  assert.equal(at.state.board, "Kd7s2c");
+  assert.equal(at.state.flop.length, 1);
+  assert.equal(JSON.parse(p.storage.get("handreview")).actions.river.length, 2);
+});
+
+test("a review that ends with the betting closed asks for your equity once, after the decisions; a hand being entered never does", async () => {
+  const p = await reviewed(state(WHOLE));
+  await flush();
+  const eq = p.posted.filter(m => m.state && m.state.equity);
+  assert.equal(eq.length, 1);
+  assert.equal(eq[0].state.board, "Kd7s2c9h3d");
+  assert.ok(p.posted.indexOf(eq[0]) > p.posted.findLastIndex(m => m.state && !m.state.equity));
+  const q = await page();
+  q.S = state({ ...FLOP, flop: acts("BB x, BTN x") });
+  await flush();
+  nothingAsked(q);
+  assert.equal(q.byId("equity").hidden, true);
+});
+
+test("Study's hand on the table: its game from the first decision while it's entered, its spot once it's finished", async () => {
+  const p = await page();
+  p.S = state(FLOP);
+  const open = j(p.run("studyTable()"));
+  assert.deepEqual([open.players, open.stack, open.board, open.preflop, open.flop], [6, 100, "", [], []]);
+  assert.match(p.byId("toast").innerHTML, /once it's finished/);
+  p.S = { ...state(FLOP), finished: true };
+  const done = j(p.run("studyTable()"));
+  assert.equal(done.board, "Kd7s2c");
+  assert.equal(done.flop.length, 1);
+  nothingAsked(p);
+  p.practice();
+  p.S = state(FLOP);
+  assert.equal(j(p.run("studyTable()")).board, "Kd7s2c");   // (Practice's hands aren't real)
+});
+
+// ---- Explain with AI on a reviewed decision (index.html showExplain, explain.js): only behind a click, only there
+const PROXY = /^https:\/\/gto-explain\.[a-z0-9-]+\.workers\.dev\/explain$/;
+const sse = (...texts) => new Response(texts.map(t => `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: t } })}\n\n`).join("") + `event: message_stop\ndata: {"type":"message_stop"}\n\n`, { status: 200 });
+// a page that records what reaches the proxy or Anthropic (nothing else fetch does changes)
+async function aiPage(opts, reply = async () => sse("**Verdict:** ", "Good.")) {
+  const p = await page(opts);
+  p.ctx.TextDecoder = TextDecoder;
+  p.ai = [];
+  const own = p.ctx.fetch;
+  p.ctx.fetch = (url, init) => /workers\.dev|anthropic\.com/.test(String(url)) ? (p.ai.push({ url: String(url), init }), reply(url, init)) : own(url, init);
+  return p;
+}
+// a decision of a finished hand, its advice shown; WHOLE's flop: you bet 3 where the solver checks 70%
+async function looked(p, st = state(WHOLE), s = "flop", i = 1, x) {
+  p.S = st;
+  p.run(`rewindTo("${s}", ${i})`);
+  await flush();
+  const m = p.posted.filter(q => q.state).at(-1);
+  if (!m.answered) { m.answered = true; p.workers.at(-1).onmessage(answer(m, x)); }
+  await flush();
+}
+const aiRow = (p) => p.byId("explainBox").innerHTML;
+const aiKey = (p) => p.run("window.Explain.keyOf(explained)");
+
+test("a reviewed decision offers Explain with AI in Details, with a prompt of that decision, and sends nothing until it's clicked", async () => {
+  const p = await aiPage();
+  await looked(p);
+  assert.ok(p.scripts.includes("explain.js"));
+  assert.ok(!p.scripts.includes("practice.js"), "a review doesn't load Practice");
+  const html = p.byId("result").innerHTML;
+  assert.ok(html.indexOf('id="explainBox"') > html.indexOf("<summary>Details</summary>"));
+  assert.match(aiRow(p), /data-ai="copy"[^>]*>Copy for AI</);
+  assert.match(aiRow(p), /data-ai="explain"[^>]*title="Claude explains this decision">Explain with AI</);
+  assert.deepEqual(p.ai, []);
+  // a decision of the hand you hold: hand, board, line, the solver's mix, what you did, the EV it cost
+  const text = p.run("window.Explain.prompt(explained)");
+  assert.match(text, /^I'm reviewing a no-limit hold'em hand I played, with a GTO solver\./);
+  assert.match(text, /- Hero: BTN with Ah Kh\n/);
+  assert.match(text, /Preflop \(pot 1\.5bb\): .*Hero \(BTN\) raises to 2\.5bb.*\nFlop Kd 7s 2c \(pot 5\.5bb\): BB checks\n/);
+  assert.match(text, /HERO'S HAND[^\n]*\n- Position: Hero is in position[^\n]*\n- Hero's made hand: pair of kings/);
+  assert.match(text, /- I chose: bet 3bb \(55% pot\) \(graded as the solver's "bet 33%"\)/);
+  assert.match(text, /- check: 70%, EV \+2\.00\n  - bet 33% \(1\.8bb\): 30%, EV \+1\.90  <- my move\n/);
+  assert.match(text, /- The solver's top action: check \(70%\)\n- EV lost against the best action: 0\.1bb\n/);
+  assert.match(text, /Real opponents; the solver's numbers assume they play its GTO strategy/);
+  assert.doesNotMatch(text, /practising|The opponents play the solver's GTO strategy|Kd 7s 2c 9h|9h/);   // (not Practice's, and not the cards still to come)
+  // the button: one request, to the same proxy, of that prompt alone, streamed into the row
+  await p.run(`reviewAi.click("explain", ${JSON.stringify(aiKey(p))})`);
+  await flush();
+  assert.equal(p.ai.length, 1);
+  assert.match(p.ai[0].url, PROXY);
+  assert.deepEqual(JSON.parse(p.ai[0].init.body), { prompt: text });
+  assert.match(aiRow(p), /<p><b>Verdict:<\/b> Good\.<\/p>/);
+  assert.match(aiRow(p), /aria-expanded="true"[^>]*>Hide explanation</);
+  assert.equal(p.ai.length, 1);
+  // kept per decision: away and back it's there, not asked again; the next decision has its own
+  p.key("ArrowRight");
+  await flush();
+  const m = p.posted.filter(q => q.state).at(-1);
+  p.workers.at(-1).onmessage(answer(m, { street: "turn" }));
+  await flush();
+  assert.equal(p.val("stepView.s"), "turn");
+  assert.doesNotMatch(aiRow(p), /Verdict/);
+  p.key("ArrowLeft");
+  await flush();
+  assert.match(aiRow(p), /Verdict:<\/b> Good/);
+  assert.equal(p.ai.length, 1);
+});
+
+test("Explain with AI isn't on a hand being entered, whatever reaches the panel; nor mid-review; nor in Practice", async () => {
+  const p = await aiPage();
+  p.S = state(FLOP);   // your flop decision to come
+  await flush();
+  assert.equal(p.run("explainable()"), false);
+  p.run(`renderResult(${JSON.stringify(answer({ id: 1 }).data.result)}, "k")`);   // (even an answer forced into the panel)
+  await flush();
+  assert.doesNotMatch(p.byId("result").innerHTML, /explainBox|data-ai|Explain with AI/);
+  assert.ok(!p.scripts.includes("explain.js"));
+  assert.deepEqual(p.ai, []);
+  // finished, nothing looked at: the hand's own panel has none
+  const q = await aiPage();
+  q.S = state(WHOLE);
+  await flush();
+  assert.equal(q.run("explainable()"), false);
+  assert.doesNotMatch(q.byId("result").innerHTML, /explainBox/);
+  // a review running through the hand: its decisions pass without one, and it leaves none under the hand
+  const r = await reviewed(state(WHOLE));
+  assert.ok(!r.scripts.includes("explain.js"));
+  assert.doesNotMatch(r.byId("result").innerHTML, /explainBox/);
+  // back to the hand from a decision: gone
+  const b = await aiPage();
+  await looked(b);
+  assert.match(aiRow(b), /Explain with AI/);
+  await b.run("stepStop()");
+  await flush();
+  assert.doesNotMatch(b.byId("result").innerHTML, /explainBox/);
+  assert.equal(b.run("explainable()"), false);
+  b.run("drawExplain()");   // (an answer still streaming draws nowhere)
+  // Practice: its cards have their own row, the advice panel none
+  const x = await aiPage();
+  x.practice();
+  x.S = state(FLOP);
+  await flush();
+  x.workers[0].onmessage(answer(x.posted.filter(m => m.state).at(-1)));
+  await flush();
+  assert.match(x.byId("result").innerHTML, /<span class="big">check<\/span>/);
+  assert.doesNotMatch(x.byId("result").innerHTML, /explainBox/);
+});
+
+test("Explain with AI on a review: an answer that isn't the decision's any more draws nothing", async () => {
+  const p = await aiPage();
+  const load = p.ctx.document.head.appendChild;
+  let held = null;
+  p.ctx.document.head.appendChild = (el) => { held = el; return el; };   // (explain.js still on its way)
+  await looked(p);
+  assert.ok(held);
+  p.run("stepStop()");
+  await flush();
+  p.ctx.document.head.appendChild = load;
+  load(held);
+  await flush();
+  assert.equal(p.val("explained"), null);
+});
+
+test("Explain with AI on a review says who the numbers are against, grades what the hand did, and streams without redrawing the advice", async () => {
+  // against a pool: the best response's numbers
+  const p = await aiPage();
+  await looked(p, state(WHOLE), "flop", 1, { actions: [{ action: "check", freq: 0.7, gto_freq: 0.5, ev_bb: 2 }, { action: "bet 33%", amount_bb: 1.8, freq: 0.3, gto_freq: 0.5, ev_bb: 1.9 }] });
+  assert.match(p.run("window.Explain.prompt(explained)"), /Real opponents; the solver's numbers are its best response to a typical player pool/);
+  // a lock: "Solver settings" names it
+  const l = await aiPage();
+  await looked(l, { ...state(WHOLE), locks: { BB: { fold: 15 } } }, "flop", 1, { locked: { BB: { fold: 15 } } });
+  const locked = l.run("window.Explain.prompt(explained)");
+  assert.match(locked, /Solver settings: BB locked/);
+  assert.match(locked, /best response to the lock above/);
+  // a decision no EVs price (the chart): no invented EV
+  const c = await aiPage();
+  await looked(c, state(WHOLE), "preflop", 3, { street: "preflop", actions: [{ action: "fold", freq: 0.4 }, { action: "raise 2.5", amount_bb: 2.5, freq: 0.6 }] });
+  const chart = c.run("window.Explain.prompt(explained)");
+  assert.match(chart, /- raise 2\.5: 60%  <- my move/);
+  assert.match(chart, /EV lost against the best action: not known \(no EVs preflop\)/);
+  // an all-in that's only a call is graded, and told, as the call
+  const st = state({ ...WHOLE, flop: acts("BB x, BTN x"), turn: acts("BB x, BTN x"), river: acts("BB a, BTN a") });
+  const jam = await aiPage();
+  await looked(jam, st, "river", 1, { street: "river", actions: [{ action: "fold", freq: 0.2, ev_bb: 0 }, { action: "call", freq: 0.8, ev_bb: 3 }] });
+  assert.equal(jam.val("explained.g.m"), "call");
+  assert.match(jam.run("window.Explain.prompt(explained)"), /- I chose: call 97\.5bb\n/);
+  // a move this answer can't grade (a jam off its tree) keeps the review's grade
+  const off = j(state(WHOLE));
+  off.actions.flop[1].g = { m: "all-in", f: 0, b: "check", bf: 0.7, l: 1.5, e: 0.5, o: 2 };
+  const kept = await aiPage();
+  await looked(kept, off, "flop", 1, { actions: [{ action: "check", freq: 1, ev_bb: 2 }] });
+  assert.match(kept.run("window.Explain.prompt(explained)"), /EV lost against the best action: 1\.5bb/);
+  // streaming redraws the row, never the advice (an open Details and a scrolled grid stay as they are)
+  let finish;
+  const s = await aiPage(undefined, () => new Promise(r => { finish = r; }));
+  await looked(s);
+  const before = s.byId("result").innerHTML;
+  const run = s.run(`reviewAi.click("explain", ${JSON.stringify(aiKey(s))})`);
+  await flush();
+  assert.match(aiRow(s), /Asking Claude/);
+  finish(sse("Fine."));
+  await run; await flush();
+  assert.match(aiRow(s), /Fine\./);
+  assert.equal(s.byId("result").innerHTML, before);
+});
+
+test("an imported hand's prompt names seats by position: no screen name, table, hand number or money", async () => {
+  const p = await aiPage();
+  vm.runInContext(fs.readFileSync(path.join(STATIC, "hh.js"), "utf8"), p.ctx, { filename: "hh.js" });
+  p.click("importHand");
+  p.byId("hhText").value = HH("stars_6max_srp.txt");
+  await p.click("hhGo");
+  await flush();
+  p.run('rewindTo("flop", 1)');
+  await flush();
+  p.workers.at(-1).onmessage(answer(p.posted.filter(m => m.state).at(-1)));
+  await flush();
+  const text = p.run("window.Explain.prompt(explained)");
+  assert.match(text, /Flop Qs 8d 3c/);
+  assert.doesNotMatch(text, /kroko77|Bluff_Maker|tilt_proof|HeroName|snowman_9|OldTAG|Aludra|249012345678|\$/);
+  assert.deepEqual(p.ai, []);
+});
+
+test("a tournament hand isn't called a cash game", async () => {
+  const p = await aiPage();
+  await looked(p, { ...state(WHOLE), tournament: { id: "1" } });
+  assert.match(p.run("window.Explain.prompt(explained)"), /GAME\n- No-limit hold'em tournament, 6-handed/);
+});
+
+test("Explain with AI on a review shares Practice's own-key flow, and a key form never reaches the proxy", async () => {
+  const KEY = "sk-ant-api03-obviously-fake-key-for-tests";
+  const p = await aiPage(undefined, async () => sse("From your key."));
+  await looked(p);
+  const k = JSON.stringify(aiKey(p));
+  // the free proxy used up: the same form as Practice's, the key saved under the same name
+  p.ctx.fetch = ((own) => (url, init) => /workers\.dev/.test(String(url)) ? (p.ai.push({ url: String(url), init }), Promise.resolve(new Response(JSON.stringify({ scope: "ip" }), { status: 429 }))) : own(url, init))(p.ctx.fetch);
+  await p.run(`reviewAi.click("explain", ${k})`);
+  await flush();
+  assert.match(aiRow(p), /Daily free explanations used up/);
+  assert.match(aiRow(p), /data-ai="own"[^>]*>Add your own key</);
+  await p.run(`reviewAi.click("own", ${k})`);
+  assert.match(aiRow(p), /type="password"/);
+  assert.match(aiRow(p), /sent only to api\.anthropic\.com/);
+  const calls = p.ai.length;
+  await p.run(`reviewAi.click("save", ${k}, ${JSON.stringify(KEY)})`);
+  await flush();
+  assert.equal(p.storage.get("gto-anthropic-key"), KEY);
+  assert.equal(p.ai.length, calls + 1);
+  const last = p.ai.at(-1);
+  assert.equal(last.url, "https://api.anthropic.com/v1/messages");
+  assert.equal(last.init.headers["x-api-key"], KEY);
+  assert.match(aiRow(p), /From your key\./);
+  assert.doesNotMatch(p.ai.filter(c => /workers\.dev/.test(c.url)).map(c => c.init.body).join(""), new RegExp(KEY));
+});
+
+test("Practice still answers as you play: advice on your turn, the speed it had, and no gate", async () => {
+  const p = await page();
+  p.practice();
+  p.S = state(FLOP);
+  await flush();
+  const ask = p.posted.filter(m => m.state).at(-1);
+  assert.ok(ask, "your turn in Practice asks the worker");
+  assert.equal(ask.state.quick, true);   // (Practice at Fast: about 2 s, as before)
+  p.workers[0].onmessage(answer(ask));
+  await flush();
+  assert.match(p.byId("result").innerHTML, /<span class="big">check<\/span>/);
+  assert.equal(p.run('document.body.classList.contains("unfinished")'), false);
+  // (its look-ahead, practice.js ahead: practice.test.js, "looking ahead…")
+});

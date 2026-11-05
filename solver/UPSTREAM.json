@@ -1,8 +1,8 @@
 {
   "repo": "michaellhan/gto-solver",
-  "commit": "9b907bd61a95758c48b1141cfadd854ba2c0eeaa",
-  "date": "2026-11-03T04:17:27-05:00",
-  "imported": "2026-11-03",
+  "commit": "1a14605e09d0cc58414b3a8a6c693041cbc2968d",
+  "date": "2026-11-04T01:01:32-05:00",
+  "imported": "2026-11-05",
   "excluded": [
     "gto/static/flop_library/ (315 MB precomputed library: served separately, see docs/DEPLOYMENT.md)",
     "scripts/pfbench/ (Rust benchmark harness around b-inary/postflop-solver, AGPL-3.0; research only)",
