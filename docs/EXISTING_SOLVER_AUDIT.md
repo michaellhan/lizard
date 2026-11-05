@@ -343,7 +343,7 @@ except for the declared patch list.
 | R7 | Cross-origin isolation is fragile | Threads need COOP/COEP; GitHub Pages cannot send headers, hence the service-worker workaround [V] | Header rules at the host, or the SW; show the thread count; degrade to one thread, then NumPy (`worker.js:98-152`) |
 | R8 | First load and memory | About 25 MB of Pyodide plus numpy on a first visit; heap peaks of 490-1,065 MB against a 2 GB shared-memory maximum (README) [M] | Lazy-load the engine; self-host Pyodide; a smaller mobile profile |
 | R9 | Local server open to any web page | Wildcard CORS on `127.0.0.1:8765` (`server.py:38,44`) [V] | Origin allowlist, a startup token, a body-size cap |
-| R10 | No license | Section 8.1 [V] | Owner decision before any public repo |
+| R10 | No license | Section 8.1 [V] | Closed for the repo: the owner decided on 2026-11-05 that it stays private. The engine's source is still downloadable from the site (`solver.zip`), which the owner accepted that day (`DEPLOYMENT.md`). No license was added, so nothing grants others any right to it |
 | R11 | Accidental publish over the legacy site | `deploy_library.sh` force-pushes a public repo [V] | Guards in place; keep them across syncs; CI tokens without write access |
 
 ---

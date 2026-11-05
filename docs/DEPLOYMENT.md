@@ -14,9 +14,10 @@ made, and none is needed. **Never add a CNAME file to either repo**: that would 
 Other paths on the domain belong to other repos and are not touched by any Lizard script: `/` (the homepage),
 `/gto-solver/` (the classic app), `/gto-solver-classic/` (a frozen full copy of it) and `/gto-solver-library/` (its library).
 
-Both repos are private, and Pages sites from private repos are public on this account. The private repo keeps the
-solver's sources, scripts and research private; the site itself exposes only the built app and the solver bundle,
-which the classic site already serves.
+Both repos are private, by the owner's decision of 2026-11-05, and Pages sites from private repos are public on this
+account. The private repo keeps the tests, build scripts, research and history private. It doesn't keep the engine
+private: `/lizard/solver/solver.zip` (695 KB) holds the readable Python, as it must to run in a visitor's browser, and the
+classic site serves the same bundle. The owner accepted that on 2026-11-05.
 
 ## 1. The app
 
@@ -114,6 +115,8 @@ builds run, launch it through the CPU slot helper:
 /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh
 ```
 
+launchd now does this every 6 hours (§4), so by hand it's only for flops wanted sooner.
+
 Cost: about 20 s of CPU to assemble (niced). The first push sent about 255 MB; later pushes send only new heads-up
 files and the index (a few MB). Pages rebuilds the library site in a few minutes.
 
@@ -136,8 +139,7 @@ Run `publish.sh` again. The app needs no redeploy:
 - the Library page reads it with `no-cache`;
 - a flop that is not published yet is solved live in the meantime.
 
-Automating this (a launchd job every 6 hours while the builds run) is a persistent change to this Mac, so it is
-left for the user to approve. A template is in §4.
+A launchd job does this every 6 hours (§4).
 
 ### Roll back the library
 
@@ -158,30 +160,46 @@ classic app. It is guarded to refuse from this snapshot.
    domain would fail. Fixing it means re-requesting the certificate on the user site's Pages settings, possibly with
    Cloudflare's proxy briefly off; that is the owner's call.
 2. **`http://www.michael-han.com/` is not redirected to https** (it serves 200). Lizard redirects itself in
-   `main.tsx`. A domain-wide fix would be Cloudflare's "Always Use HTTPS".
+   `main.tsx`. The fix is Cloudflare's "Always Use HTTPS" (SSL/TLS, Edge Certificates), which the owner chose on
+   2026-11-05 and which only they can switch on. Check it with
+   `curl -sI http://www.michael-han.com/lizard/ | head -3`, which should then answer 301 to https. The certificate in 1
+   stays as it is for now, by the same decision.
 
-## 4. Optional: scheduled library publishing (not installed)
+## 4. Scheduled library publishing (installed 2026-11-05)
 
-Install only with the owner's approval. Save as `~/Library/LaunchAgents/com.michaelhan.lizard-library.plist`, then
-`launchctl load` it:
+The owner approved this on 2026-11-05. launchd runs `publish.sh` on this Mac every 6 hours, through `slot.sh`, so it waits
+for a CPU slot and for any heavy work of this repo's that holds one. A run with nothing new ends at "nothing changed since
+the last publish"; a run that pushes holds its slot, idle, until the live index matches, at most 10 minutes. launchd
+catches up once after the Mac has slept, and never starts a second run while one is going.
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.michaelhan.lizard-library</string>
-  <key>ProgramArguments</key><array>
-    <string>/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh</string>
-    <string>/Users/mhan/Desktop/projects/lizard/scripts/library/publish.sh</string>
-  </array>
-  <key>WorkingDirectory</key><string>/Users/mhan/Desktop/projects/lizard</string>
-  <key>StartInterval</key><integer>21600</integer>
-  <key>LowPriorityIO</key><true/>
-  <key>Nice</key><integer>10</integer>
-  <key>StandardOutPath</key><string>/Users/mhan/Desktop/projects/lizard/library-build/publish.log</string>
-  <key>StandardErrorPath</key><string>/Users/mhan/Desktop/projects/lizard/library-build/publish.log</string>
-</dict></plist>
+- The job: `scripts/library/com.michaelhan.lizard-library.plist`, installed as
+  `~/Library/LaunchAgents/com.michaelhan.lizard-library.plist`.
+- The log: `~/Library/Logs/lizard-library.log`.
+- Run it now: `launchctl kickstart gui/$(id -u)/com.michaelhan.lizard-library`.
+- See how the last run ended: `launchctl print gui/$(id -u)/com.michaelhan.lizard-library | grep "last exit"`.
+
+Reinstall it after changing the file:
+
+```bash
+launchctl bootout gui/$(id -u)/com.michaelhan.lizard-library
+cp scripts/library/com.michaelhan.lizard-library.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.michaelhan.lizard-library.plist
 ```
+
+Remove it, when the builds are finished and published:
+
+```bash
+launchctl bootout gui/$(id -u)/com.michaelhan.lizard-library
+rm ~/Library/LaunchAgents/com.michaelhan.lizard-library.plist
+```
+
+What the first runs found about this Mac, each as an error in the job's log or exit code:
+
+| Setting | Why |
+| --- | --- |
+| launchd starts `/bin/bash`, which starts `zsh slot.sh` | Started directly, zsh can't read `~/Desktop` under launchd: "can't open input file". |
+| `/usr/bin` before `/opt/homebrew/bin` on `PATH` | Homebrew's git fails under launchd: "Unable to read current working directory: Operation not permitted". Apple's git works, and has the keychain helper itself. |
+| The log is in `~/Library/Logs` | `app.hclubs.refresh`, which logs under `~/Desktop`, exits 78 without starting. Lizard's was never tried there. |
 
 ## 5. Local preview
 

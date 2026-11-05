@@ -11,8 +11,8 @@ commits, and whether the two heads-up precompute builds were left alone. Read th
 2. Check the builds only with read-only commands, for example
    `ps -axo pid,etime,rss,command | grep build_flop_library`. Do not signal, renice or restart them.
 3. `npm install`, `npm run check`, then pick the next item in `docs/ROADMAP.md`.
-4. To publish newly finished heads-up flops: `/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh`
-   (see `docs/DEPLOYMENT.md` §2).
+4. Newly finished heads-up flops publish themselves every 6 hours by launchd (`docs/DEPLOYMENT.md` §4). To publish sooner:
+   `/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh scripts/library/publish.sh`.
 
 ## 2026-11-03 — Phase 1: audit, repo, first deploy
 
@@ -3852,3 +3852,60 @@ Below a postflop node, "Breakdown and equity" lists each range by made hands and
 - Checked on the live site at fbe271f (bundle `index-OU1lFUBp.js`, the local build's; manifest `e13c4733fd`; routes 200), with a slot held. A library flop (`srp_btn_bb`, Ks7d2c) answered in 0.5 s and stayed "Precomputed solution", so opening the panel doesn't force a solve there. A 3-way flop answered in 2.31 s with three lines and equities adding to 99.9%. A 4-way flop answered in 0.5 s with categories and EV, no equities, and the panel says it has none. A 3-way read said "Neither range", now "No range".
 - The grid's view, whether the breakdown is open, and made hands or draws are now Settings, so they last across nodes and visits.
 
+## The owner's decisions, and asking ahead measured (2026-11-05)
+
+### Decisions
+
+Asked one at a time, each with what was found:
+
+- **Repo:** stays private. That closes the audit's R10 for the repo.
+- **Engine source:** accepted as public. `/lizard/solver/solver.zip` (695 KB of readable Python) has to reach the browser,
+  and the classic site serves the same bundle, so a private repo doesn't hide it.
+- **Library publishing:** a launchd job every 6 hours, now installed (`docs/DEPLOYMENT.md` §4).
+- **Domain:** the owner will turn on Cloudflare's "Always Use HTTPS". The stuck Pages certificate stays as it is.
+- **Asking ahead at four tables:** measure, and change the default only if the numbers justify it.
+
+### The library job
+
+The first two tries each failed on a macOS limit on `~/Desktop`, and §4 lists them. The third ran under launchd from
+start to finish: exit 0, library commit `a11b7127`, 43,141 files, and "live: ... match the published ones". `srp_sb_bb_2max`
+went from 378 to 1,694 of 1,755 flops, and `lp_sb_bb_2max` from 168 to 208 of 552. Both counts were read back from the live
+`lizard-library.json`.
+
+### Asking ahead, four tables, on and off
+
+Play 20 hands on the live site, build `1a14605e/e13c4733fd`, deals `ebh3r9`, 3 s to think, Quick, cross-origin isolated, each
+run in a new headless Chromium through a slot, on an Apple M4 Mac under load from the builds. All that finished passed, with
+no request errors, no unlabelled verdicts and no worker ended.
+
+| Run | Asking ahead | Verdicts | Run | Spots | Wait, median (s) | Wait, p90 (s) | Requests | Postflop request, median (s) | Meter |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | off | 54 | 2 m 45 s | 31 | 0.01 | 0.72 | 200 | 0.01 | none |
+| 2 | on | 62 | 4 m 28 s, of which 81 s frozen | 39 | under 0.01 | 0.43 | 224 | 0.02 | 64 of 71 used, about 0 s saved, 7 s spent |
+| 3 | off | 52 | 2 m 38 s | 30 | 0.02 | 0.51 | 191 | 0.02 | none |
+| 4 | on | no report | frozen | | | | | | |
+| 5 | on | no report | frozen | | | | | | |
+
+**The default stays on.** Off, the p90 was 0.51 and 0.72 s. On, it was 0.43 s here, and 0.22, 0.47 and 0.48 s in the three
+earlier runs at four tables, on the same deals. A request took no longer either way. That's about a quarter of a second off
+the slowest tenth of spots, for 7 to 16 s of idle solver time in a run of about 2 m 40 s, and 90% of what's asked gets used.
+It's a small gain, and nothing here says to turn it off. The p90 moves on one or two spots a run, so two runs off can't
+pin it finer than that. The "0 s saved" isn't evidence either way: above one table there's nearly always another table to
+play, and the meter counts a wait only when there isn't.
+
+**Why runs 2, 4 and 5 froze: not Lizard.** The Mac's own memory guard (`~/.mem-guard`, the owner's, installed 2026-11-04)
+sends SIGSTOP to the biggest busy job when memory is tight, and resumes it when there's room. It treats headless Chromium
+as a job, though it leaves real browsers alone. It paused the page's renderer at 1.08 GB for 81 s in run 2, at 1.09 GB for
+good in run 4, and at 1.12 GB for good in run 5, which is why run 4 hit its 8-minute limit with nothing on the page. Its
+log, `actions.jsonl`, shows each one. Runs 4 and 5 were stopped by hand.
+
+What that means for later work:
+
+- A page that has played 20 hands holds about 1.1 GB, over `CLAUDE.md`'s 1 GB, so a headless browser run can be frozen
+  whenever the Mac is short of memory. A check that hangs with no CPU should look in that log first.
+- Three frozen runs out of five were all "on" and the two "off" runs weren't, but the guard picks the biggest job at the
+  moment memory turns tight, so this doesn't show that asking ahead uses more memory. It wasn't measured.
+- It may explain the one stalled boot left unexplained on 2026-11-05 (`A boot that goes quiet`). That's a guess: I didn't
+  look at that hour's log.
+
+Not measured: Accurate, phones, and two tables, which the check doesn't offer.

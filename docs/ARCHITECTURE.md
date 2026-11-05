@@ -239,6 +239,6 @@ CI runs the first two suites, the browser suite, and the solver tests that need 
 |---|---|
 | Reuse the upstream worker unchanged (one build-time cache rename) | It is the tested host of the Advisor. Re-hosting Pyodide would duplicate the protocol and its speed profiles |
 | One merged library repo, not a composite client | The worker takes one base. Merging offline keeps the worker unchanged and lets each publish be validated as a whole |
-| Private `lizard` repo, public Pages site | The solver has no license, and the snapshot includes C sources, calibration scripts and draft legal documents. The site itself only exposes what the classic site already does |
+| Private `lizard` repo, public Pages site | The solver has no license, and the snapshot includes C sources, calibration scripts and draft legal documents. The owner confirmed it on 2026-11-05. The site itself only exposes what the classic site already does, which includes the engine's readable Python in `solver.zip`, as the in-browser solver needs it; the owner accepted that the same day |
 | Static hosting only | Solving runs on the device. A server would add cost, secrets and accounts without making solves more accurate |
 | Port classic features into React one by one, link to the classic app meanwhile | An honest placeholder beats a dead button. The engine features exist; only their UI needs porting. The last such link, on the Solve page, went in Phase 1, once Study had locks and automatic sizing |
