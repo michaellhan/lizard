@@ -29,6 +29,7 @@ import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
+import { gradedOn, PF_MODEL } from "./pfGrade";
 import { boardShown, gameLabel, mixOf, modelled, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
@@ -227,6 +228,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.pushFold ? " · push/fold" : ""}
             {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
             {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
+            {session.opts.pfSolve ? " · preflop graded by the preflop solve" : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
         </details>
@@ -272,6 +274,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         </ul>
         <p className="mt-2 text-muted">
           Preflop the answer is the preflop charts (frequencies, no EVs): a preflop move is graded by how often the chart plays it, and no EV is counted as lost.
+          {session.opts.pfSolve &&
+            ` In this session a preflop decision is graded by EV against the stored preflop solve where its tree holds this very spot: an ${PF_MODEL}. Your options and the opponents stay the charts', so where the chips, the sizes or the options aren't the solve's, or it has folded your hand's class by then, the decision keeps the chart's frequency grade under the chart's label, and says why. The two are never added together.`}
         </p>
         <p className="mt-2 text-muted">
           At 12bb or less the answer is the push/fold model: first in, an equilibrium of a game with only all-in or fold, worked out by hand class; facing a jam, a call priced by equity against that range. It has no EVs and isn&rsquo;t a
@@ -313,6 +317,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
 function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; active: boolean }) {
   const { session, tables, kept } = snap;
   const { hand, answer, failed, error, last, lastRange } = tables[0]!;
+  const shown = answer && gradedOn(hand, answer);
   const [rangeOpen, setRangeOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const retry = useMemo(() => ({ getClient: room.retryClient, onOpen: setRetrying }), [room]);
@@ -449,7 +454,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             onReveal={answer ? () => room.reveal() : null}
             revealed={
               hand.revealed && answer ? (
-                <RevealedMix mix={mixOf(answer.data)} provenance={modelled(hand, answer.provenance) ?? answer.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
+                <RevealedMix mix={mixOf(shown!.data)} provenance={modelled(hand, shown!.provenance) ?? shown!.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${shown!.pfWhy ? `Not by the preflop solve here: ${shown!.pfWhy} ` : ""}${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
               ) : null
             }
           />

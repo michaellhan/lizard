@@ -3,20 +3,23 @@
 // check, out of position facing a bet, in position facing one), per flop and averaged by texture group, each flop weighted by how many of the
 // 22100 it stands for; filters, grouping and sorting on every column; each player's EQR; a CSV of the rows shown; a
 // flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
-// the URL. A 3-way spot's report is built in the page from its stored flops' entries (strategies only).
+// the URL. A 3-way spot's report is built in the page from its stored flops' entries (strategies only). Below it, a turn report
+// over a sample of the spot's flops of the texture chosen (TurnReportPanel.tsx).
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { actionFills, bb, pct } from "@/components/actions";
+import { bb, pct } from "@/components/actions";
 import { LIBRARY_SOURCES } from "@/config";
 import { TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "@/features/practice/drills";
 import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import { flopCards } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
+import { MixBar } from "./MixBar";
 import { ReportChart } from "./ReportChart";
+import { TurnReportPanel, type KeptTurns } from "./TurnReportPanel";
 import {
   ALL_FLOPS,
   average,
@@ -57,11 +60,13 @@ type Lib = { st: "loading" } | { st: "ready"; files: LibraryFiles; index: Librar
 /** flop rows listed before "Show all" (a spot can store all 1,755; averages, groups and the CSV take every flop) */
 export const ROW_LIMIT = 300;
 
-/** `files`: the library to read (tests); otherwise the one Settings picks. */
-export function ReportsPage({ files, rowLimit = ROW_LIMIT }: { files?: LibraryFiles; rowLimit?: number } = {}) {
+/** `files`: the library to read (tests); otherwise the one Settings picks. `turnSample`: flops the turn report reads at a
+ * time (tests). */
+export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files?: LibraryFiles; rowLimit?: number; turnSample?: number } = {}) {
   const [params, setParams] = useSearchParams();
   const choice = useSettings((s) => s.librarySource);
   const [lib, setLib] = useState<Lib>({ st: "loading" });
+  const [keptTurns] = useState<KeptTurns>(() => new Map());
 
   useEffect(() => {
     let alive = true;
@@ -119,7 +124,7 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT }: { files?: LibraryFi
         </p>
       )}
       {lib.st === "ready" && !spot && <p className="text-sm text-muted">This library has no spot with a flop report.</p>}
-      {lib.st === "ready" && spot && <SpotReport key={spot.id} files={lib.files} spot={spot} spots={spots} params={params} set={set} rowLimit={rowLimit} />}
+      {lib.st === "ready" && spot && <SpotReport key={spot.id} files={lib.files} spot={spot} spots={spots} params={params} set={set} rowLimit={rowLimit} keptTurns={keptTurns} turnSample={turnSample} />}
       {lib.st === "ready" && <Coverage spots={all} mw={mw} source={lib.label} />}
     </div>
   );
@@ -134,6 +139,8 @@ function SpotReport({
   params,
   set,
   rowLimit,
+  keptTurns,
+  turnSample,
 }: {
   files: LibraryFiles;
   spot: LibrarySpotIndex;
@@ -141,6 +148,8 @@ function SpotReport({
   params: URLSearchParams;
   set: (kv: Record<string, string | null>) => void;
   rowLimit: number;
+  keptTurns: KeptTurns;
+  turnSample?: number;
 }) {
   const mode = useSettings((s) => s.mode);
   const [data, setData] = useState<Rep>({ st: "loading" });
@@ -169,6 +178,7 @@ function SpotReport({
   const chart = params.get("show") === "chart";
   const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
   const filterKey = JSON.stringify(filter);
+  const steadyFilter = useMemo(() => filter, [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rep = data.st === "ready" ? data.rep : null;
   const all = useMemo(() => (rep ? rows(rep, view) : []), [rep, view]);
@@ -309,6 +319,8 @@ function SpotReport({
             {isFacing(view) &&
               ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
           </p>
+          {/* (a sample belongs to its texture and seed: a new one starts from the top, what's read kept in keptTurns) */}
+          <TurnReportPanel key={`${filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={steadyFilter} params={params} set={set} kept={keptTurns} sample={turnSample} />
         </>
       )}
     </div>
@@ -333,16 +345,6 @@ function Partial({ a }: { a: Pick<Average, "w" | "wf" | "freqs"> }) {
     <small className="block whitespace-nowrap font-normal text-faint" title="The strategy averages the flops that store this decision; the EVs and equities, every flop">
       strategy from {pct(a.wf / a.w, 0)} of them
     </small>
-  );
-}
-
-function Bar({ freqs, cols }: { freqs: number[] | null; cols: string[] }) {
-  if (!freqs) return <span className="text-xs text-faint">not stored</span>;
-  const colors = actionFills(cols);
-  return (
-    <span className="flex h-3 w-full min-w-24 gap-px overflow-hidden rounded-sm bg-surface-3" aria-label={cols.map((c, i) => `${c} ${pct(freqs[i])}`).join(", ")} role="img">
-      {freqs.map((x, i) => (x > 0.001 ? <i key={i} className="block h-full" style={{ width: `${(x * 100).toFixed(2)}%`, background: colors[i] }} /> : null))}
-    </span>
   );
 }
 
@@ -376,7 +378,7 @@ function ReportTable({
   const tot = all.reduce((a, r) => a + r.w, 0);
   const sum = average(shown);
   const head = (key: string, text: string, cls = "") => (
-    <th scope="col" aria-sort={sort === key ? (desc ? "descending" : "ascending") : "none"} className={`whitespace-nowrap px-2 py-1.5 font-medium ${cls}`}>
+    <th key={key} scope="col" aria-sort={sort === key ? (desc ? "descending" : "ascending") : "none"} className={`whitespace-nowrap px-2 py-1.5 font-medium ${cls}`}>
       {/* (the same column again turns the order around; a new one starts highest first) */}
       <button type="button" onClick={() => set({ sort: key === "flop" ? null : key, desc: sort === key && desc ? "0" : null })} className={`hover:text-text ${sort === key ? "text-accent" : ""}`}>
         {text}
@@ -440,7 +442,7 @@ function ReportTable({
               <Partial a={sum} />
             </td>
             <td className="w-1/3 px-2 py-1">
-              <Bar freqs={sum.freqs} cols={cols} />
+              <MixBar freqs={sum.freqs} cols={cols} />
             </td>
             {nums(sum)}
             <td />
@@ -456,7 +458,7 @@ function ReportTable({
                   <Partial a={g} />
                 </td>
                 <td className="px-2 py-1">
-                  <Bar freqs={g.freqs} cols={cols} />
+                  <MixBar freqs={g.freqs} cols={cols} />
                 </td>
                 {nums(g)}
                 <td />
@@ -486,7 +488,7 @@ function ReportTable({
                   )}
                 </td>
                 <td className="px-2 py-1">
-                  <Bar freqs={r.freqs} cols={cols} />
+                  <MixBar freqs={r.freqs} cols={cols} />
                 </td>
                 {nums(r)}
                 <td className="px-2 py-1">

@@ -7,13 +7,14 @@ import { chartKey, chartMove, chartState } from "@/library/flops";
 import { recordOf, seeded, type Move, type Sim, type Street } from "@/poker/table";
 import type { AdvisorState, PlayMove } from "@/solver/protocol";
 import type { PlayRequest, SolveMode, SolveResult } from "@/solver/types";
-import { adviceState, charting, needsIndex, phaseOf, setupOf, simOf, stateFor, villainMove, type PracticeHand } from "./practice";
+import { adviceState, charting, needsIndex, pfState, phaseOf, setupOf, simOf, stateFor, villainMove, type PracticeHand } from "./practice";
 
 export type Need =
   | { kind: "deal"; street: Street }
   | { kind: "over" }
   | { kind: "index" }
-  | { kind: "you" | "opp"; key: string; state: AdvisorState; play?: PlayRequest; street: Street }
+  /** `pf`: your preflop in a session graded by the preflop solve, the solve's node to ask once the chart has answered */
+  | { kind: "you" | "opp"; key: string; state: AdvisorState; play?: PlayRequest; pf?: AdvisorState; street: Street }
   | { kind: "chart"; key: string; ck: string; state: AdvisorState; street: "preflop" };
 
 /** The charts asked for so far, by `chartKey`: null where a node's can't be drawn from, so its seats are asked one by one. */
@@ -21,6 +22,10 @@ export type Charts = ReadonlyMap<string, SolveResult | null>;
 
 export const adviceKey = (mode: SolveMode, state: AdvisorState) => JSON.stringify([mode, state]);
 export const moveKey = (mode: SolveMode, state: AdvisorState, seat: string, hole: string) => JSON.stringify([mode, state, seat, hole]);
+
+/** Your spot's two requests as one key: the chart's and the solve's come together, and it's no key of either alone, so a
+ * retry that asks one of them isn't handed both. */
+export const pfKey = (mode: SolveMode, state: AdvisorState) => `${adviceKey(mode, state)}|pf`;
 
 /** What the hand needs next: your spot's advice, or an opponent's move (`play`; your own preflop in a drill is one).
  * `charts`: above one table, where a move played for you comes from the node's chart once that's been asked. */
@@ -30,6 +35,7 @@ export function needOf(h: PracticeHand, mode: SolveMode, sim: Sim = simOf(h), ch
   if (ph.kind === "deal" || ph.kind === "over") return ph;
   if (ph.kind === "hero") {
     const state = adviceState(h, sim);
+    if (h.pfSolve && ph.street === "preflop") return { kind: "you", key: pfKey(mode, state), state, pf: pfState(h), street: ph.street };
     return { kind: "you", key: adviceKey(mode, state), state, street: ph.street };
   }
   // (a run-out after your fold: from the seat's own view, as the classic page asks it)

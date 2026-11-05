@@ -18,6 +18,7 @@ import { spotVersion } from "@/grading/version";
 import { describeTournament } from "@/features/tournaments/tournament";
 import { PRIZE_UNIT, sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
+import { cellsOf } from "./progress";
 
 export type SessionKind = SessionRecord["kind"];
 
@@ -175,6 +176,8 @@ export interface SessionRow {
   n: number;
   /** of them Best or Correct (null for range builds, scored by accuracy) */
   ok: number | null;
+  /** a full-hands session with decisions graded both ways: each way's own count, so no share runs across the two */
+  okBy?: Record<"ev" | "freq", { ok: number; n: number }>;
   /** EV lost per decision graded by EV, bb and % of the pot (null where none was) */
   lossPer: number | null;
   lossPctPer: number | null;
@@ -203,6 +206,13 @@ export function sourcesText(sources: Record<string, unknown> | null): string {
     .join(", ");
 }
 
+/** The Best or Correct count by basis, where a session's kept cells have both. */
+function okBasis(cells: readonly GradeCell[] | null): Pick<SessionRow, "okBy"> | object {
+  const of = (byEv: boolean) => (cells ?? []).filter((c) => c.byEv === byEv).reduce((a, c) => ({ ok: a.ok + c.ok, n: a.n + c.n }), { ok: 0, n: 0 });
+  const ev = of(true), freq = of(false);
+  return ev.n && freq.n ? { okBy: { ev, freq } } : {};
+}
+
 /** A kept session as a row of the history. */
 export function rowOf(s: SessionRecord): SessionRow {
   const m = s.meta ?? {};
@@ -223,7 +233,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     return { ...base, what, ok: num(m.ok), ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)), hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
   }
   if (s.kind === "practice") {
-    const kind = isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : "";
+    const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? " · preflop graded by the preflop solve" : ""}`;
     const game = `${num(m.ante) ? ` · ante ${num(m.ante)}` : ""}${m.straddle ? " · straddle" : ""}${m.carry ? " · chips carried" : ""}${m.sizes ? " · your own sizes" : ""}${num(m.rake) ? ` · rake ${num(m.rake)}%` : ""}`;
     // (a filter picks what's dealt, so a session under one is said to be)
     const dealt = [...(isTextureFilter(m.board) ? boardWords(m.board) : []), ...(isHandKey(m.hand) ? [handLabel(m.hand).toLowerCase()] : [])].map((w) => ` · ${w}`).join("");
@@ -236,6 +246,7 @@ export function rowOf(s: SessionRecord): SessionRow {
       hands: num(m.hands),
       net: m.preflopOnly ? null : num(m.net),
       graded: sourcesText(obj(m.sources)),
+      ...okBasis(cellsOf(s)),
     };
   }
   if (s.kind === "drill") {

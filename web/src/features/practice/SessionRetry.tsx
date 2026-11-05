@@ -28,12 +28,13 @@ export function SessionRetry({ e, getClient, onClose }: { e: Reviewed; getClient
   const [done, setDone] = useState<Retried | null>(null);
   const ask = spot?.ask;
   const pot = spot?.pot;
+  const mix = spot?.mix;
 
   useEffect(() => {
     if (!ask || pot === undefined) return;
     let alive = true;
     const stop = new AbortController();
-    askAgain({ ask, pot }, getClient, stop.signal).then(
+    askAgain({ ask, pot, mix }, getClient, stop.signal).then(
       (answer) => alive && setAsked({ st: "ready", answer }),
       (x: unknown) => {
         if (alive && !(x instanceof SolverError && x.kind === "cancelled")) setAsked({ st: "failed", message: message(x) });
@@ -43,7 +44,7 @@ export function SessionRetry({ e, getClient, onClose }: { e: Reviewed; getClient
       alive = false;
       stop.abort();
     };
-  }, [ask, pot, attempt, getClient]);
+  }, [ask, pot, mix, attempt, getClient]);
 
   if (!spot) return null;
   return (

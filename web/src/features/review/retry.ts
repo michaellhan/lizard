@@ -5,6 +5,7 @@ import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
 import { spotStamp } from "@/library/version";
 import { drillProvenance, potAt } from "@/features/practice/drills";
+import { pfAgain } from "@/features/practice/pfGrade";
 import { isBestResponse, mixOf, optionsOf } from "@/features/practice/practice";
 import { resolveLibrarySource } from "@/library/catalog";
 import { cardInt, COMBOS, nodeAt, type Entry } from "@/library/entry";
@@ -20,9 +21,16 @@ export const retryMode = (): SolveMode => (useSettings.getState().mode === "accu
 
 export type GetClient = () => Promise<Pick<SolverClient, "solve">>;
 
-/** The spot's answer of the solver, for the request Practice sent. `pot`: the pot kept, where the answer gives none. */
-export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot: number, getClient: GetClient, mode: SolveMode, signal?: AbortSignal): Promise<RetryAnswer> {
+/** The spot's answer of the solver, for the request Practice sent. `pot`: the pot kept, where the answer gives none.
+ * `kept`: the options you had, which a decision graded by the preflop solve is read against again (pfGrade.ts). */
+export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot: number, getClient: GetClient, mode: SolveMode, signal?: AbortSignal, kept?: MistakeRecord["mix"]): Promise<RetryAnswer> {
   const client = await getClient();
+  if (ask.state.preflop_solve) {
+    const asked = await client.solve({ state: ask.state, mode, signal, untimed: true });
+    const read = pfAgain(asked, ask.state, kept, pot);
+    if ("why" in read) throw new Error(read.why);
+    return { mix: mixOf(read.data), pot: read.data.pot_bb ?? pot, provenance: read.provenance };
+  }
   const { data, provenance } = await client.solve({ state: ask.state, mode, signal });
   if (!optionsOf(data).length) throw new Error(data.error ?? "the answer has no actions at this spot");
   const mix = mixOf(data);
@@ -100,4 +108,4 @@ export function keptAnswer(m: Pick<MistakeRecord, "pot"> & Partial<Pick<MistakeR
 
 /** The current answer at a kept mistake's spot. */
 export const askAgain = async (m: Pick<MistakeRecord, "ask" | "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance">>, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
-  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, retryMode(), signal) : askLibrary(m.ask, retryMode());
+  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, retryMode(), signal, m.mix) : askLibrary(m.ask, retryMode());

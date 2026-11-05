@@ -56,6 +56,8 @@ export interface Decision {
   provenance: Provenance | null;
   /** the Study line at the decision: the action before it, the board out (Study shows your whole range there) */
   study: string;
+  /** in a session graded by the preflop solve, why this decision took the chart's grade instead, in words (pfGrade.ts) */
+  pfWhy?: string;
 }
 
 export interface HandResult {
@@ -114,6 +116,8 @@ export interface PracticeHand {
   tournament?: HandTournament;
   /** an exploit session's read: your answers are the best response to it (exploit.ts) */
   exploit?: Exploit;
+  /** your preflop decisions are graded by the stored preflop solve where it can answer them (pfGrade.ts) */
+  pfSolve?: true;
   /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
    * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
   run?: "played" | "shown";
@@ -234,6 +238,8 @@ export interface GameOptions {
   tournament?: TournamentOptions;
   /** exploit practice, in a pot drill: your decisions are graded against the best response to this read (exploit.ts) */
   exploit?: Exploit;
+  /** grade your preflop decisions by the stored preflop solve (`pfBlocked` says where it can) */
+  pfSolve?: boolean;
 }
 
 /** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop), and
@@ -251,6 +257,23 @@ export const anyHandOnly = (o: Pick<HandOptions, "preflopOnly"> & GameOptions) =
 /** Whether the options carry chips: full hands (not preflop only or a drill's pot), your seat moving one place a hand,
  * so each player keeps a seat and its chips follow it. */
 export const carries = (o: HandOptions & GameOptions) => !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly && !o.pot && !o.pushFold && !o.tournament;
+
+/** The rake of the one raked game the preflop solve is stored for (web/public/solver/pf/6max_100bb_r5c3.bin). */
+export const PF_STORED_RAKE = { pct: 5, cap: 3 };
+
+/** Why a session can't be graded by the preflop solve, in words; null where it can. It can only where the worker already
+ * holds a stored solve of this very game (pf_study.STORED), as Practice never starts one. */
+export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "pot" | "ante" | "straddle" | "carry" | "seat" | "preflopOnly" | "sizes" | "rake" | "rakeCap"> & GameOptions): string | null {
+  const stored = "The preflop solve is stored for";
+  if (o.pot) return "One kind of pot plays your preflop for you, so there's no preflop decision to grade.";
+  if (o.tournament) return "A tournament's stacks and prizes aren't the game the preflop solve is stored for.";
+  if (players !== 6 || stack !== 100) return `${stored} 6-max at 100bb only. This game would need a solve first, and Practice doesn't start one: Study can.`;
+  if (o.ante || o.straddle) return `${stored} no ante and no straddle only. This game would need a solve first, and Practice doesn't start one: Study can.`;
+  if (o.rake && !(o.rake === PF_STORED_RAKE.pct && o.rakeCap === PF_STORED_RAKE.cap)) return `${stored} no rake, or ${PF_STORED_RAKE.pct}% capped at ${PF_STORED_RAKE.cap}bb. This game would need a solve first, and Practice doesn't start one: Study can.`;
+  if (carries(o)) return "Carried chips leave stacks other than the solve's 100bb each.";
+  if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
+  return null;
+}
 
 /** A seat under this share of the starting stack rebuys to it before a hand (the classic table's REBUY). */
 export const REBUY = 0.25;
@@ -323,6 +346,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pushFold ? { pushFold: true as const } : {}),
     ...(opts.tournament ? tournamentHand(opts.tournament) : {}),
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
+    ...(opts.pfSolve && !pfBlocked(players, stack, opts) ? { pfSolve: true as const } : {}),
   };
 }
 
@@ -439,8 +463,8 @@ export const simOf = (h: PracticeHand): Sim => simulate(setupOf(h), h.lines, h.s
 const boardOf = (h: PracticeHand) => h.board.slice(0, h.shown);
 
 /** The Study line where the hand stands: each seat's chips as the hand started, with the hand's ante, straddle,
- * sizes and rake. */
-export function studyOf(h: PracticeHand): string {
+ * sizes and rake. `solved`: at the preflop solve rather than the charts, as a decision graded by it was. */
+export function studyOf(h: PracticeHand, solved = false): string {
   const conv = (ms: Move[]) => ms.map((m) => ({ pos: m.pos, action: m.action, ...(m.to !== undefined ? { to: m.to } : {}) }));
   const s: StudyHand = {
     players: h.players,
@@ -450,6 +474,7 @@ export function studyOf(h: PracticeHand): string {
     flop: conv(h.lines.flop),
     turn: conv(h.lines.turn),
     river: conv(h.lines.river),
+    ...(solved ? { pf: "solver" as const } : {}),
     ...(h.ante || h.straddle || h.sizes || h.rake || ownStacks(h).stacks || prizesOf(h) ? { setup: { ...gameOf(h), ...ownStacks(h), ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h), ...(prizesOf(h) ? { tournament: prizesOf(h) } : {}) } } : {}),
   };
   return toSearch(s);
@@ -489,6 +514,12 @@ export function adviceState(h: PracticeHand, sim: Sim = simOf(h)): AdvisorState 
   const others = [...sim.active].filter((p) => p !== h.hero);
   return others.length === 1 ? { ...state, locks: { [others[0]!]: { ...h.exploit.lock } } } : state;
 }
+
+/** The request of the preflop solve at your spot. The engine drops your seat and cards (Advisor.study): a retry reads them. */
+export const pfState = (h: PracticeHand): AdvisorState => ({ ...stateFor(h), study: true, preflop_solve: true });
+
+/** The request that answers a decision again: what it was graded on. */
+export const askOf = (h: PracticeHand, d: Pick<Decision, "provenance">): AdvisorState => (d.provenance?.source === "preflop-solve" ? pfState(h) : adviceState(h));
 
 export type Phase =
   | { kind: "deal"; street: Street }
@@ -597,13 +628,15 @@ export function gradeMix(mix: Decision["mix"], pot: number, i: number): Grade {
 }
 
 /** Your decision: the answer's i-th action taken, graded against the answer (by EV where it has EVs for every
- * action, else by frequency: the preflop charts). */
+ * action, else by frequency: the preflop charts). `pfWhy`: why a session graded by the preflop solve took this answer
+ * from the charts. */
 export function decide(
   h: PracticeHand,
   res: AdvisorResponse,
   i: number,
   provenance: Provenance | null,
   sim: Sim = simOf(h),
+  pfWhy?: string,
 ): { hand: PracticeHand; decision: Decision } | { error: string } {
   const a = optionsOf(res)[i];
   if (!a) return { error: "That action isn't in the answer." };
@@ -620,9 +653,10 @@ export function decide(
     mix,
     pot,
     provenance: modelled(h, provenance),
-    study: studyOf(h),
+    study: studyOf(h, provenance?.source === "preflop-solve"),
     ...(h.revealed ? { revealed: true as const } : {}),
     ...(offProfile ? { offProfile: true as const } : {}),
+    ...(pfWhy ? { pfWhy } : {}),
   };
   return { hand: withDecision(h, sim, m, decision), decision };
 }

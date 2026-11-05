@@ -117,6 +117,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.pushFold ? { pushFold: true } : {}),
     ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
     ...(s.opts.exploit ? { exploit: s.opts.exploit } : {}),
+    ...(s.opts.pfSolve ? { pfSolve: true } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),

@@ -161,3 +161,54 @@ describe("the board filter", () => {
     expect(screen.getByRole("status")).toHaveTextContent("3,744 of 22,100 flops fit");
   });
 });
+
+describe("grading preflop by the preflop solve", () => {
+  const box = () => screen.queryByRole("checkbox", { name: "Grade preflop by the preflop solve" }) as HTMLInputElement | null;
+  const typed = (name: string, value: string) => fireEvent.change(screen.getByRole("spinbutton", { name }), { target: { value } });
+
+  it("is off by default, and starts the session with it once it's ticked", () => {
+    const start = open();
+    expect(box()!.checked).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSolve");
+    fireEvent.click(box()!);
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[1]![2]).toMatchObject({ pfSolve: true });
+  });
+  it("says what the solve is, and that the opponents stay the charts'", () => {
+    open();
+    const note = document.getElementById("pf-note")!;
+    // (below the form's fold of words until it's chosen: your move stays on the first screen)
+    expect(note).not.toBeVisible();
+    fireEvent.click(box()!);
+    expect(note).toBeVisible();
+    expect(note).toHaveTextContent("equilibrium of a simplified class-level preflop game, not a full solve");
+    expect(note).toHaveTextContent("the opponents stay the charts");
+    expect(note).toHaveTextContent("keep the chart\u2019s grade and say why");
+  });
+  it("isn't there where no solve is stored, and says why", () => {
+    open();
+    pick("Players", "2");
+    expect(box()).toBeNull();
+    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for 6-max at 100bb only/)).toBeInTheDocument();
+    pick("Players", "6");
+    typed("Stack in big blinds", "60");
+    expect(box()).toBeNull();
+    typed("Stack in big blinds", "100");
+    expect(box()).not.toBeNull();
+    pick("Play", "srp");
+    expect(box()).toBeNull();
+    expect(screen.getByText(/no preflop decision to grade/)).toBeInTheDocument();
+  });
+  it("doesn't go on into a game that has no stored solve once it's been ticked", () => {
+    const start = open();
+    fireEvent.click(box()!);
+    pick("Players", "2");
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSolve");
+  });
+  it("comes back ticked with a session that had it", () => {
+    open({ ...OPTS, pfSolve: true });
+    expect(box()!.checked).toBe(true);
+  });
+});

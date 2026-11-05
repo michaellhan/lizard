@@ -232,7 +232,7 @@ the honest one for flops.
 | 6-max 100bb charts (`gto/preflop.py`) | Hand-written ranges "approximations of solver outputs" (`preflop.py:3`), tuned to published aggregate frequencies (gtopreflop.com, the GTO Wizard blog, Poker Academy and others; `tests/preflop_refs.py:1-20`) [V] | 0.96 points mean over 26 spots (`README.md:4547-4551`) [M]. Squeezes, 4-bet responses and cold calls vs 3-bets have one published figure each; 5-bets and limped pots have none and are judgement [M] |
 | Other formats (`pf_formats.py`) | The 100bb charts shifted by deltas from solves of the abstract preflop game | Approximate. About a point of noise per decision; antes solved only at 20/40/100bb; straddle 6-handed only (`README.md:4566-4577`) [M] |
 | Push/fold (≤ 12 bb raising first in; under 20 bb generally) | Fictitious play over 169 classes (`pf_classes.py:65`) [V] | An equilibrium of a jam-or-fold model; callers treated alike and independently [V] |
-| Preflop solve (Study) | DCFR over the abstract preflop game (`pf_game.py`) | About 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from published spots; opens tighter in places (UTG 14.8% vs the charts' 18.7%) [M] |
+| Preflop solve (Study, and Practice's preflop by choice, section 18) | DCFR over the abstract preflop game (`pf_game.py`) | About 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from published spots; opens tighter in places (UTG 14.8% vs the charts' 18.7%) [M] |
 | Rake, pool (exploit) adjustments | Rules on top of the charts | Fitted to one published raked solve, or to public population data plus judgement (`README.md:4578-4579; pool: `README.md:1529``) [M] |
 
 Five `@expectedFailure` tests (`tests/test_gto.py:2797-2932`) document that the equity-realization models disagree
@@ -798,3 +798,102 @@ The wasm core and the native one differ in thread timing, not in what they compu
 | An Accurate flop lock's memory | The baseline stays in memory to be compared, so two solves sit side by side. Accurate flop heaps can reach about 590 MB alone, so an estimated 1.2 GB; left unmeasured with the machine under 40% free, and the panel says so |
 
 **Not established.** Agreement on 31 small cases is evidence about these code paths, not a proof. It says the restricted game is solved correctly in exact mode, not that a held mix is a good model of any player.
+
+## 17. Turn report samples
+
+The aggregate turn report on Reports (`web/src/features/reports/turnReport.ts`) reads a sample of a spot's flops of a texture, with no solve. Its numbers carry two errors: the stored turns' own, in section 1 and the table of sources, and the sample's, which is what its margin covers. This section is about the sample.
+
+**Cost, measured [M], 2026-11-05.** A flop takes two files, its turn file and its entry: the turn file holds strategies, and only the entry says how much of each combo reaches a line. Over all 1,755 flops on disk, the mean for the two together runs from 9 KB (`3bp_co_hj`) to 31 KB (`srp_sb_bb_2max`). The ranges, about 10.5 KB, are already read with the report when the page opens. 40 flops are 80 requests and 0.4 to 1.2 MB. On the live site, from a laptop, eight requests at a time, 12 flops of `srp_btn_bb` (25 requests, 257 KB) took 0.81 s and 5 of `srp_sb_bb_2max` (11 requests, 141 KB) 0.39 s, so 40 flops should take under 3 s there; through the dev server's proxy in a real browser, 13 flops of `srp_btn_bb` took 0.9 s, 2026-11-05. Decoding and summing took 8.4 ms a flop in Node on a busy laptop. A phone wasn't measured.
+
+**How it's drawn.** The texture's flops with stored turns are sorted so alike ones sit together, then read in a van der Corput walk from a start the seed sets. Each flop is equally likely, any stretch from the start of the walk is spread evenly, so a stopped or extended sample stays fair, and reading every flop gives the whole. Each flop read counts by its weight of the 22,100.
+
+**The margin.** Half a 95% interval on a ratio of sums, by linearization, with the finite population correction, t on the flops that carry the weight (Kish's count). It's the simple random sampling formula, and the walk is more even than that, so it runs wide on the rows with many flops. A row behind fewer than 8 flops gets none.
+
+**Checked against the whole [M].** Every flop of all 11 spots with stored turns, summed locally from the assembled library, whose file hashes match the live index, gave the true table. Then 100 seeds were drawn at each size, over 10 textures, the 2 largest flop lines of each and both decisions. An error is the worst action's, in points of frequency.
+
+| Flops read | Row | Mean margin | RMS error | Largest error | Within its margin |
+|---|---|---:|---:|---:|---:|
+| 20 | All turns | ±2.4 | 1.1 | 8.6 | 97.6% |
+| 20 | Class, behind 20 or more flops | ±2.8 | 1.2 | 15.6 | 97.8% |
+| 20 | Class, behind 8 to 19 flops | ±4.3 | 2.1 | 22.8 | 94.1% |
+| 40 | All turns | ±1.6 | 0.65 | 4.7 | 98.6% |
+| 40 | Class, behind 20 or more flops | ±2.5 | 1.15 | 11.2 | 96.9% |
+| 40 | Class, behind 12 to 19 flops | ±3.6 | 1.8 | 14.0 | 94.0% |
+| 40 | Class, behind 8 to 11 flops | ±4.5 | 2.1 | 14.7 | 95.0% |
+| 80 | All turns | ±1.0 | 0.4 | 3.3 | 99.4% |
+| 80 | Class, behind 20 or more flops | ±1.8 | 0.8 | 8.6 | 97.8% |
+| 160 | All turns | ±0.6 | 0.2 | 1.7 | 99.5% |
+| 160 | Class, behind 20 or more flops | ±1.1 | 0.45 | 5.6 | 98.5% |
+
+Over every row with a margin, 96.7% were within it at 40 flops. At 40 flops 1.8% of rows had none, with an RMS error of 2.3 points and a largest of 16.4. Pooled figures hide single cells: over the 2,638 combinations of spot, texture, line, decision and row at 40 flops, the 5th percentile of coverage was 85% and the 1st 57%. The worst twelve of those are rows where nearly every flop plays an action 0% of the time, so the margin is near zero: their RMS error is 0.33 points at most, under 0.1 on nine of them. The sorted walk beat a plain shuffle (RMS error 0.71 against 1.08 on the All turns row, 5 spots, coverage 98% against 92.5%). Drawing by weight, which would need duplicates and no way to read the whole, was little better (0.64), so it wasn't used.
+
+**The mix itself [M].** On 9 flops of `srp_btn_bb`, `3bp_bb_sb` and `srp_sb_bb_2max`, 40 flop lines and 334 class rows at both decisions, the page's mix was compared with the solver's own reader of stored turns (`solver/gto/runouts.py` `store_parts`), which Study's stored report is built on: 0.16 points apart on average, 1.73 at most. The two differ in that the solver removes each card's own blocked combos where the file plays its class's one card. Every card of every class in every turn file on disk does the same thing to the board, so no class is split between rows.
+
+**Not covered.**
+
+| What | Why it matters |
+|---|---|
+| The solves' own error | The margin is the sample's only. The stored turn plays one bet size, in 5% steps, and a class's cards alike |
+| Flops without stored turns | The report is over those that have them. Five spots store 1,203 of 1,755 flops, 62% by weight, and that part isn't a random one: 235 of 455 rainbow flops, 257 of 286 monotone. The page says the share |
+| Lines under 1% of hand pairs | Not stored, so an average is over the flops that store the line. 3-10% of stored lines also can't be weighed, as a flop decision on the way is too rare for the entry to hold; those are left out and counted on the page |
+| A turn facing a bet | No file holds one |
+| Which seed | The table is over seeds; one report is one draw, and a largest error above is a real possibility on a row |
+| A phone | Time and memory there weren't measured |
+
+## 18. Practice's preflop graded by the preflop solve
+
+A New session option (off by default) grades a preflop decision by EV against the stored preflop solve, in place of the chart's frequency (`web/src/features/practice/pfGrade.ts`). It exists only for the two stored games, 6-max 100bb with no rake or with 5% capped at 3bb, with no ante, straddle, carried chips or own sizes. Practice never starts a solve. Your buttons and the opponents stay the charts', so turning it on changes no move, only the grade.
+
+The solve's limits are section 6's: about 1.5 mbb/hand in its own abstract game, 2.4-3.0 points from published spots, and not consistent with the charts. Every grade from it is labelled `preflop-solve`, marked approximate, with the model named. An EV here is your hand's class's, against the solve's own ranges. The opponents at the table play the charts, so a Best means the model's best, not the best against that table.
+
+**When a decision is graded by it.** Settled at the spot, before you choose, so that what you pick can't decide what grades you. The solve's node must be this very spot: the same pot and call, no earlier raise moved to the solve's size, your options the same in kind and size both ways, your class still in its range, and the node not rough. Anything else keeps the chart's frequency grade under the chart's own label, and the decision says why. A size is never mapped onto the solve's: an EV of a raise to 12bb isn't one of a raise to 10bb.
+
+**Coverage [M], 2026-11-05.** `scripts/pf_practice_coverage.py`: native Python, 30,000 hands on one seed, every seat dealt, your seat moving a place a hand, opponents from `Advisor.play`, sizes as the table takes them. 3,260 decisions of the same rules run through the real `pfRead` in Node agreed with the script on every one, and on the pot. Your moves come by policy: as the chart plays your hand, at random among your options, or as the solve plays your class.
+
+| You play | Decisions | Answered by the solve | Your own option's size isn't the solve's | The line left the solve's sizes | Class folded in the solve | Other options, or off the tree |
+|---|---:|---:|---:|---:|---:|---:|
+| The charts | 30,625 | 70.1% | 26.0% | 3.4% | 0.3% | 0.1% |
+| At random | 32,745 | 65.7% | 23.9% | 7.6% | 2.7% | 0.1% |
+| The solve | 30,530 | 70.7% | 26.2% | 3.0% | 0.0% | 0.1% |
+| The charts, 5% capped at 3bb | 30,625 | 70.1% | 26.0% | 3.4% | 0.3% | 0.1% |
+
+The rough rule refused nothing in the unraked game and 3 decisions in the raked one. 30.8% of hands with a decision (9,041 of 29,371, on the charts) had at least one the solve couldn't grade.
+
+The share isn't even, and it's lowest where a preflop mistake costs most. On the charts:
+
+| Spot | Share of decisions | Answered | | Seat | Answered |
+|---|---:|---:|---|---|---:|
+| First in | 50.8% | 100.0% | | UTG | 95.5% |
+| Facing an open | 40.8% | 46.7% | | HJ | 95.5% |
+| Facing a 3-bet | 7.7% | 3.7% | | CO | 93.1% |
+| Facing a 4-bet | 0.6% | 8.3% | | BTN | 90.9% |
+| Facing a 5-bet or more | 0.1% | 0.0% | | SB | 23.3% |
+| | | | | BB | 12.0% |
+
+The largest cause is one size: the blinds' chart 3-bets to 10bb and the solve's tree to 12bb, 6,227 of the 7,960 option refusals and most of what the blinds lose, then 4-bets to 20bb against 17.25bb (1,025). Allowing sizes within 0.25bb instead of the engine's 0.05bb moved coverage about a point (71.1% against 69.9% on 3,000 hands), so the rule stays strict.
+
+**What a grade reads as [M].** Of the decisions answered:
+
+| You play | Best | Correct | Inaccuracy | Mistake | Blunder | EV lost a decision |
+|---|---:|---:|---:|---:|---:|---:|
+| The charts | 90.8% | 0.3% | 1.4% | 5.1% | 2.4% | 0.0167bb |
+| At random | 47.0% | 0.3% | 1.6% | 9.6% | 41.4% | 0.2769bb |
+| The solve | 99.7% | 0.3% | 0.0% | 0.0% | 0.0% | 0.0001bb |
+
+So playing the charts exactly is called below Correct 8.9% of the time. That's the two disagreeing, as section 6 says they do, not a mistake found in you. The last row is a check that the grade reads the solve it's drawn from.
+
+**The other way, not built [M].** With your raise buttons at the solve's size wherever the line is on its tree, coverage on the charts would be 96.1% (first in and facing an open 100%, facing a 3-bet 59.2%, a 4-bet 8.4%, SB 98.6%, BB 92.7%). It would change what you play: a blind's raise to 12bb isn't the chart's, and the flop library's lines are kept by size, so those hands would leave the library for live solves.
+
+**The browser's path.** The stored files in `web/public/solver/pf/` are byte-identical to `solver/gto/static/pf/`, and both are in the manifest. Natively, with `sys.platform` set to `emscripten` and `js.siteFetch` reading the site's folder, `Advisor.advise` loaded each file once, 0.3 s the first time and 0.5 ms a node after, and answered `{study: "node"}` for both games and `pf_unsolved` for another game, which Practice takes as a refusal. Those answers went through the real `SolverClient` in the tests (`pfGrade.test.ts`, on `web/src/test/fixtures/pf_nodes.json`) and came back `preflop-solve`.
+
+**Not established.** No browser or real worker has run this yet, and Pyodide's load time isn't measured. No fuller model checks a verdict: nothing here says a grade by the solve is better for you than the chart's, only what each one is. A class's EV doesn't tell its combos apart. The coverage is of the charts' lines as they stand, and moves if the charts or the tree do.
+
+| A session's numbers | How they're kept |
+|---|---|
+| The score strip | Best or Correct and EV lost as ever, plus a line with each basis's own count |
+| History's streets | A street graded both ways has a row a way, so preflop by EV and by frequency are two rows |
+| History's session rows | A share by EV and a share by frequency where a session has both |
+| By seat, by pot, trends | Already a row a basis |
+| Lifetime totals by kind and by pot | **Not split**: their Best or Correct share still spans both bases, as it did for postflop against the charts, and EV lost in a kind adds preflop-solve bb to postflop solves' bb |
+| Review | A miss by the solve is its own record, retried against the solve or refused in words; a chart's is retried against the chart |
+| Analyze's kept hands | A kept hand is its history: Analyze grades its preflop against the charts by frequency, under that label, whatever graded it at the table |

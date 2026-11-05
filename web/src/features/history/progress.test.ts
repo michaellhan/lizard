@@ -61,8 +61,9 @@ describe("a decision's cell", () => {
 describe("the street split", () => {
   it("sums each street, EV lost only over what was graded by EV", () => {
     const t = streetTotals([practice("a", 1, 7, cell("preflop", "charts", false, 4, 3), cell("flop", "live", true, 2, 1, 0.5, 8), cell("flop", "charts", false, 1, 0))]);
-    expect(t.rows.map((r) => r.street)).toEqual(["preflop", "flop"]);
-    expect(t.rows[1]).toMatchObject({ n: 3, ok: 1, ne: 2, loss: 0.5, lossPct: 8, sources: { live: 2, charts: 1 } });
+    expect(t.rows.map((r) => [r.street, r.basis])).toEqual([["preflop", undefined], ["flop", "ev"], ["flop", "freq"]]);
+    expect(t.rows[1]).toMatchObject({ n: 2, ok: 1, ne: 2, loss: 0.5, lossPct: 8, sources: { live: 2 } });
+    expect(t.rows[2]).toMatchObject({ n: 1, ok: 0, ne: 0, loss: 0, sources: { charts: 1 } });
     expect(t.rows[0]).toMatchObject({ n: 4, ne: 0, loss: 0 });
     expect(t.apartSessions).toBe(0);
   });

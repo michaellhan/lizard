@@ -20,6 +20,7 @@ import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
 import { reviewedText } from "./copyForAi";
 import { exploitNote, GRADED_BY_READ } from "./exploit";
+import { PF_GRADED, pfWords } from "./pfGrade";
 import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
@@ -117,6 +118,7 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && !session.opts.tournament && !session.opts.exploit && item("Net", `${signed(session.net)}bb`)}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
+      {session.opts.pfSolve && pfWords(session.cells) && <p className="basis-full text-xs text-muted">{pfWords(session.cells)}</p>}
       {session.opts.tournament && <p className="basis-full text-xs text-muted">{tournamentNote(session.opts.tournament)}</p>}
       {session.opts.exploit && <p className="basis-full text-xs text-muted">{exploitNote(session.opts.exploit)}</p>}
       {!!session.revealed && (
@@ -427,6 +429,8 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
         </p>
       )}
       {g && d.provenance?.source === "best-response" && <p className="text-muted">{GRADED_BY_READ}</p>}
+      {g && d.provenance?.source === "preflop-solve" && <p className="text-muted">{PF_GRADED}</p>}
+      {g && d.pfWhy && <p className="text-muted">Not by the preflop solve here, so this is the chart&rsquo;s grade: {d.pfWhy}</p>}
       {g && d.mix.length > 0 && (
         <p>
           {whyText(

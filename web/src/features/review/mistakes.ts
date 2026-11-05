@@ -15,7 +15,7 @@ import { describe as describeProvenance, sourceLabel } from "@/solver/provenance
 import type { Provenance } from "@/solver/types";
 import { situation, type DrillProblem } from "@/features/practice/drills";
 import { bestResponse } from "@/features/practice/exploit";
-import { adviceState, CHIP_MODEL, gradable, gradeMix, type Decision, type PracticeHand } from "@/features/practice/practice";
+import { askOf, CHIP_MODEL, gradable, gradeMix, type Decision, type PracticeHand } from "@/features/practice/practice";
 import { reviewed } from "@/features/practice/review";
 import type { LibraryReport } from "@/library/files";
 import { seatsOf } from "@/poker/seats";
@@ -77,7 +77,7 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
     board: r.board,
     line: r.line,
     study: d.study,
-    ask: { via: "solver", state: adviceState(h) },
+    ask: { via: "solver", state: askOf(h, d) },
     chose: d.chose,
     mix: d.mix,
     pot: d.pot,

@@ -84,6 +84,8 @@ interface Tally {
 
 export interface StreetRow extends Tally {
   street: string;
+  /** a street graded both ways has a row a way, so that no Best or Correct share runs across EV and frequency */
+  basis?: Basis;
 }
 
 export interface StreetTotals {
@@ -123,8 +125,10 @@ export function streetTotals(sessions: readonly SessionRecord[]): StreetTotals {
     if (s.kind !== "practice" && s.kind !== "drill") continue;
     const cells = cellsOf(s);
     for (const c of cells ?? []) {
-      const r = by.get(c.street) ?? { street: c.street, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, sources: {} };
-      by.set(c.street, r);
+      const basis: Basis = c.byEv ? "ev" : "freq";
+      const key = `${c.street}|${basis}`;
+      const r = by.get(key) ?? { street: c.street, basis, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, sources: {} };
+      by.set(key, r);
       addTo(r, c);
     }
     const missing = num(s.decisions) - (cells ?? []).reduce((a, c) => a + c.n, 0);
@@ -133,7 +137,11 @@ export function streetTotals(sessions: readonly SessionRecord[]): StreetTotals {
       apartDecisions += missing;
     }
   }
-  return { rows: STREET_ORDER.flatMap((st) => by.get(st) ?? []), apartSessions, apartDecisions, leakDecisions };
+  const rows = STREET_ORDER.flatMap((st) => {
+    const both = [by.get(`${st}|ev`), by.get(`${st}|freq`)].flatMap((r) => r ?? []);
+    return both.length > 1 ? both : both.map(({ basis: _, ...r }) => r);
+  });
+  return { rows, apartSessions, apartDecisions, leakDecisions };
 }
 
 export type SplitBy = "seat" | "pot";

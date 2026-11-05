@@ -343,6 +343,22 @@ test("11b. A river drill and a turn bet drill: answered by a live solve, or refu
   await clean(page, problems);
 });
 
+test("11c. A turn report read from a sample of stored flops says what it stands on", async ({ page, problems }) => {
+  test.skip(Boolean(process.env.CI), "reads the live library");
+  await page.route(/\/lizard-library\//, async (r) => {
+    const u = new URL(r.request().url());
+    await r.fulfill({ response: await r.fetch({ url: `https://www.michael-han.com${u.pathname}${u.search}` }) });
+  });
+  await page.goto("/lizard/reports/?spot=3bp_bb_btn&suits=rainbow");
+  const panel = page.getByRole("region", { name: "Turn report", exact: true });
+  await panel.getByRole("button", { name: "Read 40 flops" }).click();
+  await expect(panel).toContainText(/Read 40 of \d+ flops of this texture with stored turns, drawn evenly/, { timeout: 60_000 });
+  await expect(panel).toContainText(/Margin on All turns: ±[\d.]+ points, 95%/);
+  await expect(panel.getByRole("button", { name: /^Stored turn from the flop library · 3bp_bb_btn · turn report over 40 of \d+ flops/ })).toBeVisible();
+  await expect(panel.getByRole("row", { name: /^All turns/ })).toBeVisible();
+  await clean(page, problems);
+});
+
 // (Practice's two modes that aren't cash, on the real worker)
 async function session(page: Page, play: string, then?: () => Promise<unknown>) {
   await page.goto("/lizard/practice/");
@@ -391,6 +407,48 @@ test("7f. A 4-bet pot dealt to a hand category finds one on the worker in time, 
   console.log(`4-bet quads search: ${took} ms, ${(await stopped.isVisible()) ? "stopped" : "found"}`);
   if (await stopped.isVisible()) await expect(page.getByText(/No 4-bet pot with Quads or better in [\d,]+ deals/)).toBeVisible();
   else await expect(page.getByRole("region", { name: "Table" })).toBeVisible();
+  await clean(page, problems);
+});
+
+test("7g. Preflop graded by the stored solve where it's that very spot, by the charts elsewhere, each under its own name, kept apart in History", async ({ page, problems }) => {
+  const fetched: string[] = [];
+  page.on("request", (r) => {
+    if (/\/solver\/pf\//.test(r.url())) fetched.push(r.url());
+  });
+  await session(page, "preflop", () => page.getByLabel("Grade preflop by the preflop solve").check());
+  const next = page.getByRole("button", { name: "Next hand" });
+  const solve = page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first();
+  const chart = page.getByText(/^Not by the preflop solve here/).first();
+  let [bySolve, byChart] = [0, 0];
+  for (let i = 0; i < 80 && !(bySolve && byChart); i += 1) {
+    await expect(options(page).first().or(next)).toBeVisible({ timeout: 90_000 });
+    if (await next.isVisible()) {
+      await next.click();
+      continue;
+    }
+    await options(page).first().click();
+    await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
+    if (await solve.isVisible()) {
+      if (!bySolve) await expect(page.getByText(/not a full solve/).first()).toBeVisible();
+      bySolve += 1;
+    }
+    if (await chart.isVisible()) {
+      if (!byChart) await expect(page.getByText(/Preflop charts/).first()).toBeVisible();
+      byChart += 1;
+    }
+  }
+  expect(bySolve).toBeGreaterThan(0);
+  expect(byChart).toBeGreaterThan(0);
+  // the stored solve came down once, and is no custom solve
+  expect(new Set(fetched).size).toBe(1);
+  expect(fetched[0]).toMatch(/6max_100bb\.bin/);
+  await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
+
+  await page.goto("/lizard/history/");
+  const streets = page.getByRole("table", { name: "Totals by street" });
+  await expect(streets.getByRole("row", { name: /preflop/i })).toHaveCount(2);
+  await expect(streets).toContainText("Preflop solve");
+  await expect(streets).toContainText("Preflop charts");
   await clean(page, problems);
 });
 

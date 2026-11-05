@@ -3,7 +3,7 @@
 // street's action before you); of them, the REVIEW_SHOW that gave up the most EV (then the rarest in the answer's mix:
 // the preflop charts have no EVs; then the newest), or the last RECENT, each opening its verdict.
 import type { AdvisorState } from "@/solver/protocol";
-import { adviceState, sayMove, type Decision, type PracticeHand } from "./practice";
+import { askOf, sayMove, type Decision, type PracticeHand } from "./practice";
 
 /** how many of your last decisions are kept, and how many of them shown as mistakes (the classic's) */
 export const REVIEW_KEEP = 60;
@@ -39,7 +39,7 @@ export function reviewed(h: PracticeHand, d: Decision, n: number, table?: number
     board: h.board.slice(0, h.shown),
     line: before.length ? before.map((m) => sayMove(m, h.hero, h.players)).join(", ") : d.street === "preflop" ? "folded to you" : "first to act",
     d,
-    state: adviceState(h),
+    state: askOf(h, d),
     ...(h.dealtTo ? { dealtTo: h.dealtTo } : {}),
   };
 }

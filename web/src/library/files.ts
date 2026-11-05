@@ -104,13 +104,13 @@ export class LibraryFiles {
   }
 
   /** A flop's turn file, decoded; the last 40 are kept. Refused unless it's the one solved with the entry the index
-   * lists: its header names that entry's hash, as the engine reads it. */
-  turns(sp: LibrarySpotIndex, flop: string): Promise<TurnFile> {
+   * lists: its header names that entry's hash, as the engine reads it. `signal` cancels the fetch. */
+  turns(sp: LibrarySpotIndex, flop: string, signal?: AbortSignal): Promise<TurnFile> {
     const k = `${sp.id}/${flop}`;
     let t = this.turnFiles.get(k);
     if (!t) {
       const v = sp.flops[flop] ?? "";
-      t = this.get(`${k}.turn.bin?v=${v}`).then(async (r) => {
+      t = this.get(`${k}.turn.bin?v=${v}`, signal ? { signal } : undefined).then(async (r) => {
         const file = await decodeTurns(await r.arrayBuffer());
         if (file.head.board !== flop || !v || !file.head.entry.startsWith(v)) throw new Error(`${k}'s turn file isn't its entry's`);
         return file;
@@ -122,12 +122,12 @@ export class LibraryFiles {
     return t;
   }
 
-  /** a flop's entry, decoded; the last 40 are kept */
-  entry(sp: LibrarySpotIndex, flop: string): Promise<Entry> {
+  /** a flop's entry, decoded; the last 40 are kept. `signal` cancels the fetch. */
+  entry(sp: LibrarySpotIndex, flop: string, signal?: AbortSignal): Promise<Entry> {
     const k = `${sp.id}/${flop}`;
     let e = this.entries.get(k);
     if (!e) {
-      e = this.get(`${k}.bin?v=${sp.flops[flop] ?? ""}`).then(async (r) => decodeEntry(await r.arrayBuffer()));
+      e = this.get(`${k}.bin?v=${sp.flops[flop] ?? ""}`, signal ? { signal } : undefined).then(async (r) => decodeEntry(await r.arrayBuffer()));
       e.catch(() => this.entries.delete(k));
       if (this.entries.size >= 40) this.entries.delete(this.entries.keys().next().value!);
       this.entries.set(k, e);

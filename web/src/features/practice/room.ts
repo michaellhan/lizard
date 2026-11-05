@@ -58,6 +58,7 @@ import { SolverError, type SolveMode, type SolverTransport, type SolveResult, ty
 import { useSettings } from "@/state/settings";
 import { aheadJobs, ASK_AHEAD, habit, NO_METER, noteBad, onward, readHabits, saveHabits, type AheadMeter, type Habits, type Waiting } from "./ahead";
 import { adviceKey, chartDraw, moveOf, needOf, type Need } from "./flow";
+import { gradedOn, type HeldAnswer, type PfAsked } from "./pfGrade";
 import { practiceRecord } from "./history";
 import { KEPT_KEY, keptTables, MAX_TABLES, sameKept, type KeptTable, type KeptTables, type LastHand } from "./keep";
 import {
@@ -195,7 +196,7 @@ export interface RoomWatch {
 export interface RoomTable {
   hand: PracticeHand;
   /** the answer at your spot, once it's in hand, whole: its provenance reaches the verdict untouched */
-  answer: SolveResult | null;
+  answer: HeldAnswer | null;
   /** why this step has no answer, your spot's or the move asked for (phaseOf says which); the table waits on you */
   failed: string | null;
   /** a move the table refused, a drill's deals used up, or a hand the doc couldn't bring back: said until the next move */
@@ -396,7 +397,7 @@ export class Room {
   private solver: RoomSolver | null = null;
   private client: RoomClient | null = null;
   private flight: Flight | null = null;
-  private readonly adv = new Map<string, SolveResult>();
+  private readonly adv = new Map<string, HeldAnswer>();
   private readonly moves = new Map<string, SolveResult<PlayMove>>();
   private readonly failed = new Map<string, string>();
   /** by `chartKey`: null, a node's chart that can't be drawn from */
@@ -728,13 +729,14 @@ export class Room {
     const need = this.needAt(h, this.mode, sim);
     const answer = need.kind === "you" && (key ?? need.key) === need.key ? this.adv.get(need.key) : undefined;
     if (!answer) return;
-    const r = decide(h, answer.data, i, answer.provenance, sim);
+    const on = gradedOn(h, answer, sim);
+    const r = decide(h, on.data, i, on.provenance, sim, on.pfWhy);
     if ("error" in r) {
       t.error = r.error;
     } else {
       t.error = null;
       t.last = r.decision;
-      t.lastRange = rangeAt(h, answer.data, answer.provenance, sim);
+      t.lastRange = rangeAt(h, on.data, on.provenance, sim);
       this.noteHabit(facingBet(sim, h.hero), r.decision.move.action);
       this.session = afterDecision(this.session, h, r.decision, this.many ? table + 1 : undefined);
       if (this.persist) this.noteMistake(h, r.decision);
@@ -1244,11 +1246,26 @@ export class Room {
         this.emit();
       }
       r = need.kind !== "chart" && need.play ? await client.play(need.state, need.play, { mode, signal }) : await client.solve({ state: need.state, mode, signal });
+      if (need.kind === "you" && need.pf && !r.data.error) {
+        const held: HeldAnswer = { ...(r as SolveResult), pf: await this.askPf(client, need.pf, mode, signal) };
+        r = held;
+      }
     } catch (e) {
       this.lost(fl, e);
       return;
     }
     this.took(fl, r);
+  }
+
+  /** The stored preflop solve's node, held with the chart's answer it grades beside. It's read, never run: a request with
+   * no `run` can't start a solve (Advisor._study_pf). Anything but our own stop leaves the chart's grade, with why. */
+  private async askPf(client: RoomClient, state: AdvisorState, mode: SolveMode, signal: AbortSignal): Promise<PfAsked> {
+    try {
+      return await client.solve({ state, mode, signal, untimed: true });
+    } catch (e) {
+      if (signal.aborted) throw e;
+      return { failed: message(e) };
+    }
   }
 
   /** A new client starts from nothing: what the last one's answers were keyed to has gone with it. */

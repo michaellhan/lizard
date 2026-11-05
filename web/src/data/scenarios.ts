@@ -6,7 +6,7 @@
 import { describeSetup, LIMITS, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { assumedWords, exploitOf, exploitNumbers, isProfile } from "@/features/practice/exploit";
 import { handFits, handLabel } from "@/features/practice/handFilter";
-import { carries, gameLabel, handWorks, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, type SessionOptions, type Sizes, type TournamentOptions } from "@/features/practice/practice";
+import { carries, gameLabel, handWorks, isPotDrill, MAX_STACK, MIN_STACK, pfBlocked, POT_DRILLS, PUSH_FOLD_MAX, type SessionOptions, type Sizes, type TournamentOptions } from "@/features/practice/practice";
 import { flopsLike, isTextureFilter, TEXTURE_GROUPS, type TextureFilter } from "@/features/practice/texture";
 import { draftOf, readDraft } from "@/features/practice/TournamentFields";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
@@ -61,9 +61,9 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   if (typeof seat !== "string" || !(seat === "moves" || seat === "random" || seatsOf(players).includes(seat))) return null;
   const pot = o.pot ?? null;
   if (pot !== null && !isPotDrill(pot)) return null;
-  const preflop = boolOr(o.preflopOnly), pushFold = boolOr(o.pushFold), straddle = boolOr(o.straddle), carry = boolOr(o.carry);
+  const preflop = boolOr(o.preflopOnly), pushFold = boolOr(o.pushFold), straddle = boolOr(o.straddle), carry = boolOr(o.carry), pfSolve = boolOr(o.pfSolve);
   const ante = numOr(o.ante, 0), rake = numOr(o.rake, 0), rakeCap = numOr(o.rakeCap, 0);
-  if (preflop === null || pushFold === null || straddle === null || carry === null || ante === null || rake === null || rakeCap === null) return null;
+  if (preflop === null || pushFold === null || straddle === null || carry === null || pfSolve === null || ante === null || rake === null || rakeCap === null) return null;
   if (!(ante >= 0 && ante <= LIMITS.ante) || !(rake >= 0 && rake <= LIMITS.rakePct) || !(rakeCap >= 0)) return null;
   const tournament = o.tournament === undefined || o.tournament === null ? null : readTournament(o.tournament, players, stack);
   if (o.tournament !== undefined && o.tournament !== null && !tournament) return null;
@@ -81,7 +81,7 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   const read = o.exploit === undefined || o.exploit === null ? null : isObj(o.exploit) && isProfile(o.exploit.profile) ? exploitOf(o.exploit.profile) : false;
   if (read === false || (read && !pot)) return null;
   const game = { pushFold, tournament: tournament ?? undefined, preflopOnly: preflop, pot, seat };
-  return {
+  const setup: SessionOptions = {
     seat,
     preflopOnly: preflop,
     pot,
@@ -97,6 +97,9 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
     ...(tournament ? { tournament } : {}),
     ...(read ? { exploit: read } : {}),
   };
+  // (the option exists only where a stored solve does: one set anywhere else was never the form's)
+  if (pfSolve && pfBlocked(players, stack, setup)) return null;
+  return pfSolve ? { ...setup, pfSolve: true } : setup;
 }
 
 /** A setup as it's stored, whole and playable, else null. */
@@ -162,6 +165,7 @@ export function scenarioWords({ players, stack, opts: o }: ScenarioSetup): strin
     ...(o.board ? boardWords(o.board) : []),
     o.pot && o.hand ? `hands: ${handLabel(o.hand).toLowerCase()}` : "",
     o.exploit ? `exploiting ${assumedWords(o.exploit)}: ${exploitNumbers(o.exploit)}` : "",
+    o.pfSolve ? "preflop graded by the preflop solve" : "",
     o.ante ? `ante ${o.ante}bb` : "",
     o.straddle ? "straddle" : "",
     o.rake ? `rake ${o.rake}%${o.rakeCap ? ` (cap ${o.rakeCap}bb)` : ""}` : "",

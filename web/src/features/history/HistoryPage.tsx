@@ -139,7 +139,7 @@ function SessionItem({ r }: { r: SessionRow }) {
       : [
           r.hands != null ? many(r.hands, "hand") : null,
           many(r.n, "decision"),
-          r.n ? `${okText(r.ok, r.n)} Best or Correct` : null,
+          r.okBy ? `${okText(r.okBy.ev.ok, r.okBy.ev.n)} Best or Correct of ${r.okBy.ev.n} by EV, ${okText(r.okBy.freq.ok, r.okBy.freq.n)} of ${r.okBy.freq.n} by frequency` : r.n ? `${okText(r.ok, r.n)} Best or Correct` : null,
           r.lossPer == null ? null : `${lossText(r.lossPer, r.lossPctPer, kindUnit(r.kind))} lost per decision`,
           r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : null,
         ];
@@ -234,8 +234,11 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
             </thead>
             <tbody className="font-mono">
               {t.rows.map((r) => (
-                <tr key={r.street}>
-                  <td className="py-0.5 pr-4 font-sans capitalize">{r.street}</td>
+                <tr key={`${r.street}|${r.basis ?? ""}`}>
+                  <td className="py-0.5 pr-4 font-sans capitalize">
+                    {r.street}
+                    {r.basis && <span className="normal-case text-muted"> {r.basis === "ev" ? "by EV" : "by frequency"}</span>}
+                  </td>
                   <td className="py-0.5 pr-4">{r.n}</td>
                   <td className="py-0.5 pr-4">{shareText(r.ok, r.n)}</td>
                   <td className="py-0.5 pr-4">{r.ne}</td>

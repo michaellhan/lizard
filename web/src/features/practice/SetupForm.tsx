@@ -17,7 +17,8 @@ import {
   type ExploitProfile,
 } from "./exploit";
 import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
-import { carries, drillTries, hardHand, handWorks, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
+import { PF_MODEL } from "./pfGrade";
+import { carries, drillTries, hardHand, handWorks, isPotDrill, MAX_STACK, MIN_STACK, pfBlocked, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
 import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
 import { draftOf, readDraft, TournamentFields } from "./TournamentFields";
 
@@ -59,6 +60,7 @@ export function SetupForm({
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
+  const [pfSolve, setPfSolve] = useState(!!opts.pfSolve);
   const [rake, setRake] = useState(opts.rake ? String(opts.rake) : "");
   const [cap, setCap] = useState(opts.rakeCap ? String(opts.rakeCap) : "");
   const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(
@@ -109,7 +111,7 @@ export function SetupForm({
     !tournament?.problems.length;
   // (only a kind of pot can be exploited: exploit.ts)
   const exploit = isPotDrill(play) && profile ? exploitOf(profile) : null;
-  const setup: SessionOptions | null = ok
+  const game: SessionOptions | null = ok
     ? {
         seat: seatOk ? seat : "moves",
         preflopOnly: play === "preflop" || (isT && stop),
@@ -127,6 +129,9 @@ export function SetupForm({
         ...(exploit ? { exploit } : {}),
       }
     : null;
+  // (null with the form unfinished, as there's no game yet to say anything of)
+  const pfNo = game && pfBlocked(p, n, game);
+  const setup = game && pfSolve && !pfNo ? { ...game, pfSolve: true } : game;
   return (
     <form
       aria-label="New session"
@@ -418,6 +423,19 @@ export function SetupForm({
         />
         <span className="text-muted">Carry chips</span>
       </label>
+      {game && !pfNo && (
+        <>
+          <label className="flex items-center gap-1.5" title={`By EV against the stored solve, an ${PF_MODEL}`}>
+            <input type="checkbox" aria-label="Grade preflop by the preflop solve" aria-describedby="pf-note" checked={pfSolve} onChange={(e) => setPfSolve(e.target.checked)} />
+            <span className="text-muted">Grade preflop by the preflop solve</span>
+          </label>
+          {/* (said once it's chosen: the form is above the table, and your move should stay on the first screen) */}
+          <p id="pf-note" hidden={!pfSolve} className="basis-full text-xs text-muted">
+            By EV in place of the chart&rsquo;s frequency, from the stored solve: an {PF_MODEL}. Your options and the opponents stay the charts&rsquo;, so the decisions its tree can&rsquo;t answer, measured at about 30% and most of the blinds&rsquo;, keep the chart&rsquo;s grade and say why. The two are never added together.
+          </p>
+        </>
+      )}
+      {game && pfNo && <p className="basis-full text-xs text-muted">Preflop is graded by the charts here. {pfNo}</p>}
       <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
         New session
       </button>
