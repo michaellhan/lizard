@@ -103,6 +103,7 @@ The sources match LIZARD's `ResultSource` (`web/src/solver/types.ts:11-20`) and 
 | `equity`: Equity estimate | Hero's equity against random hands, priced against the pot (`advisor.py:3836-3838`) | A rough last resort [V] | Heuristic, not a solve |
 | `library-turn`: Stored turn from the flop library | A library flop's stored turn strategy, read at once (Study's answer at once, its runouts) | 0.50-0.81% of the pot (table below); no exploitability shown, since the response's numbers are the flop entry's | Approximate |
 | `instant`: Answer at once | A read of another solution while the real solve runs: nearest stored flops, an earlier street's solve (heads-up or 3-way), this street's 3-way solve from an earlier decision, an unraked entry, an off-menu size. The badge shows the Advisor's own label | See the reads below; no exploitability shown | Approximate |
+| `node-lock`: Node-locked equilibrium of the restricted game | A re-solve with a mix held at one node (`engine/nodelock.py`, section 16). Not reachable from Study yet | Rivers 0.019% and flops 0.11% at Fast in one run on a loaded machine, by its own measure, which lets each player keep their own locks [M]. It's an equilibrium of the restricted game, not of the unlocked game. Class and combo locks on a turn are marked approximate | Solved, restricted game |
 
 Approximate reads also exist. They show at once while a real solve runs, or when nothing better is available.
 Each is flagged `approximate` in the response:
@@ -703,7 +704,7 @@ spot is the worst case on purpose and not a typical cost. Three-way is not measu
 | Wide ranges | The largest spot is 125 x 141 combos. Real ranges at real menus are far larger |
 | A flop by exact method | The LP was not attempted. `flop-tiny` has 9,608 betting rows, against 678 for `turn-one-size`, whose LP already has about 19,000 rows and took 12 s. So the flop's "reference" is DCFR, and the tree has only one flop bet (all-in) |
 | Rake or ICM by exact method | The LP needs zero-sum payoffs. Those rows are DCFR against DCFR, plus the closed form on the polar river |
-| A re-solve around a nodelock | The engine has none: locks act only in the best response (`gto/exploit.py`), so that is what was compared |
+| A re-solve around a nodelock | `solver/` has none: locks act only in the best response (`gto/exploit.py`), so that is what was compared. The later re-solve in `engine/nodelock.py` has its own benchmark (section 16) |
 | Three-way turns and flops, 4+ way pots | Reference only covers one street, three players; `MWConfig(exact=True)` is what was pinned. Pots of 5+ are rules anyway (section 8) |
 | Tournament payouts beyond one 3-left structure | One bubble, heads-up only. `MWPayoffs`, bounties, and stand-in field models were not run |
 | The engine's range parser and the app's presets | Both sides take the same combo list, by construction |
@@ -722,3 +723,78 @@ these trees, and nothing about how close an abstracted answer is to the full gam
 **What the figure means.** Exploitability on the page is from exact best responses on the listed tree: the average of each seat's gain, in % of the river's pot. It's exact for that tree, and silent on what a size outside the tree would win.
 
 **Not checked.** Large spots aren't cross-checked, the reference being a dense matrix. The ranges are typed, so nothing says they are the ranges a solved hand would reach the river with. Earlier streets, rake and node locks aren't there. Speed on a phone isn't measured.
+
+## 16. Node lock
+
+`engine/nodelock.py` holds a mix at chosen nodes and re-solves everything else. It sits outside `solver/` and runs the engine's own tree and iteration, so the answer is an equilibrium of the restricted game: the game in which the locked hands must play that mix. It isn't an equilibrium of the unlocked game, and it isn't a best response, which is what `gto/exploit.py` gives.
+
+**What the figures mean.** Each player's best response keeps that player's own locks. Exploitability is the average of those two gains, in % of the root's pot, so a converged lock reads near 0 even when the lock itself is a bad play. What the lock gives up is `lock_cost`: the player's free best response minus the same player's best response under the lock. When a lock leaves an action at 0, the opponent's answers on that line are never trained, so the free best response beats untrained play and `lock_cost` runs large (10-18bb on app spots). There the change in value is the better guide, and the panel says so.
+
+**Method.** `scripts/benchmarks/nodelock_bench.py` compares the engine in exact mode with an LP of the restricted game: `refsolver/`, the separate sequence-form reference of section 14, with the holds added (`refsolver/locks.py`), solved by HiGHS. Each case checks that the trees match cell for cell, that both sides hold the same cells, and that value and exploitability are within 0.05% of the pot. Exploitability is also re-measured by the reference's own best response. Raw numbers are in `scripts/benchmarks/results/nodelock.json`: a clean run of 295 s through `slot.sh` on an Apple M4, one thread, on a loaded machine, so the times are a loaded machine's.
+
+**Measured [M]: 31 of 31 cases pass** at top iterations, on 8 spots (6 rivers, 2 turns), covering whole-range, class and single-combo locks, both players, a merged turn information set, chosen runouts and every runout, weighted ranges and hands outside the range.
+
+| Cases | Iterations | Worst value gap (% pot) | Worst exploitability (% pot) | Time, peak memory |
+|---|---|---|---|---|
+| 18 rivers | 30,000 | 0.00000012 | 0.00017 | up to 0.34 s, 44 MB |
+| 13 turns | 3,000 | 0.000044 | 0.0023 | up to 0.49 s, 50 MB |
+| All 31 | 3,000 | 0.000044 | 0.0060 | |
+| All 31 | 300 | 0.0014 | 0.104 | |
+
+- At 300 iterations one case misses the tolerance: `flush-combo` at 0.104%, which is convergence, gone by 3,000.
+- The engine's exploitability and the reference's measure of the same strategy agree within 0.000012 points.
+- The mix is held exactly: read back in float32 the error is 0, and at most 0.000000024 against the float64 asked for. The LP took up to 15.7 s and 189 MB.
+
+Four more checks stand apart from the case table:
+
+| Check | Result |
+|---|---|
+| Lock an equilibrium's own strategy (10 runs) | The value shouldn't move. The LP moved at most 1.2e-13% of the pot, and the engine's gap was at most 0.0000022% |
+| Sign: one player locked, 30 cases | The other player can't end up below their equilibrium value. Lowest gain -2.7e-15bb by the LP, -1.4e-9bb by the engine |
+| Every node of one player locked (5 runs) | The other's best response is the answer, exactly. Gap at most 0.000019% of the pot. The LP agreed to 4e-14bb on 4 runs; `turn-one-size` was checked by the walker alone |
+| Compiled core against numpy, 3 spots | Strategies differ, up to 0.45 on reached cells (0.09 unlocked), because equilibria aren't unique. Playing one against the other, neither gains more than 0.0086% of the pot, so they are the same quality of answer. The core took 0.157 s where numpy took 1.92 s |
+
+**No power: 5 cases.** Passing here says little, because the lock didn't move the LP's value at all: `river-class-root`, `river-class-ip-bets`, `flush-combo`, `two-sizes-combo` and `low-turn-river-all`. They still check that a lock that costs nothing does no harm, but a broken pin could pass them. Four more moved it by less than the 0.05% tolerance: `weighted-combo` 0.0046%, `turn-river-combo-runout` 0.0078%, `turn-combo-root` 0.010% and `low-turn-river-runout` 0.030%. Their gaps at top iterations are far smaller than those moves, but the pass mark alone doesn't separate them from no lock. The other 22 moved value by 0.089% to 28.25% of the pot (`ties-whole-facing-bet`), and those are the cases with real power.
+
+**Spoiled on purpose.** To show the benchmark can fail, the engine was given seven wrong locks and judged against the LP of the right one. These simulate faults: the engine's code wasn't edited.
+
+| Fault | Value gap (% pot) | Caught |
+|---|---|---|
+| Mix off by 0.05 on a river | 0.27 | Yes |
+| Mix off by 0.05 on a turn | 0.57 | Yes |
+| The pin leaks to the merged sibling line on one runout | 0.0033 | **No** |
+| The same leak on every river | 0.27 | Yes |
+| The lock does nothing | 0.089 | Yes |
+| A combo's lock covers its class | 0.68 | Yes |
+| All runouts in place of one | 1.94 | Yes |
+
+The uncaught row is a real blind spot. On one runout the fault moves value by 0.0033% and exploitability by 0.0063%, both inside the 0.05% tolerance, so a leak confined to one runout is smaller than this benchmark can see. Only the wide form of that fault shows. The guard for it is structural, not numerical: `test_only_the_named_line_is_held` in `scripts/engine/test_nodelock.py` checks that a lock on one line leaves its merged sibling unpinned.
+
+**App-like spots (no LP) [M].** 300 iterations on a real range pair, flop `Kd7c2h` (pot 6) and turn `Kd7c2h5s` (pot 20), under the app's abstraction: flop locks 0.055-0.069% in the abstract game, 0.5 s, 85 MB, against 0.048% unlocked; turn locks 0.078-0.109%, 1.2 s, 167 MB, against 0.105% unlocked. These figures are inside the abstract game, so they say nothing about distance from the full game. Through `engine/study_lock.py` at Fast, on a loaded machine: river 300 iterations, 0.08 s, 0.019%; turn, 137 iterations in a 6 s budget, 0.387%; flop 300 iterations, 1.6 s, 0.11% against 0.09% unlocked.
+
+**In a browser, on the wasm core [M] (2026-11-05).** The three checks the native core gave numbers for, run in a page on the real worker with `solver.core` true, 8 threads, 300 iterations, each mix read back as asked:
+
+| Spot | Value, bb | Exploitability, % pot | Lock cost, bb | Solve |
+|---|---|---|---|---|
+| `Kd7c2h`, BB held 50/50 check and bet 33%, whole range | -1.8131 (native -1.8129) | 0.0874 (native 0.0963, numpy 0.0919) | 10.148 (10.148) | 0.56 s |
+| `Kd7c2h` after a check, BTN's AKs and KQs held to check | -1.2611 (-1.2611) | 0.0769 (0.0766) | 0.032 (0.032) | 0.18 s |
+| `Kd7c2h5s`, BB held to check, whole range | 0.0547 (0.0547) | 0.1765 (0.1788) | 16.719 (16.719) | 0.53 s |
+
+The wasm core and the native one differ in thread timing, not in what they compute, and the gaps are within what a repeat run moves. Through the page itself: an Accurate lock on a heads-up turn ran 1,000 iterations to 0.027% of the pot against 0.032% unlocked, moved BB's check from 72.9% to the 100% asked for, and a run cancelled at 800 of 1,000 iterations said "Stopped." and left the engine able to solve again. The browser's process grew about 300 MB over that turn's two Accurate solves.
+
+**Warm starts don't help.** At 1,000 iterations on `turn-one-size`, exploitability was 0.0039% cold, 0.0042% from the unlocked solve and 0.0028% from another lock. A lock is run cold, and a cancelled one starts over. Holding the lock costs nothing measurable: 0.41 s against 0.42 s at 3,000 iterations, and 1.4 ms to measure.
+
+**Not checked.**
+
+| Not covered | Why it matters |
+|---|---|
+| The browser, past those spots | Three spots and an Accurate turn on the wasm core, not the benchmark's 31 cases. The LP comparison above is native, compiled core or numpy |
+| Locks under river classes, turn classes or buckets | The benchmark is exact mode. A class or combo lock on a turn is marked approximate for that reason: river classes assume symmetric ranges |
+| A lock below the root | The app locks only the node on screen. A combo below buckets or river classes is refused |
+| Spots larger than the benchmark's | The LP's largest spots are small, so app-sized ranges have no reference, only the engine's own measure |
+| Rake | One note in the answer. No value under rake was compared; the LP needs zero-sum payoffs |
+| Accurate mode | Its node mapping is tested, and one turn was locked at Accurate by hand. None runs in the tests, and no flop has been locked at Accurate |
+| Earlier streets | They don't react. Ranges enter the street as the unlocked hand left them, so this is a lock of one street down, not of the whole hand |
+| An Accurate flop lock's memory | The baseline stays in memory to be compared, so two solves sit side by side. Accurate flop heaps can reach about 590 MB alone, so an estimated 1.2 GB; left unmeasured with the machine under 40% free, and the panel says so |
+
+**Not established.** Agreement on 31 small cases is evidence about these code paths, not a proof. It says the restricted game is solved correctly in exact mode, not that a held mix is a good model of any player.

@@ -430,7 +430,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </p>
       )}
       <p className="text-sm text-muted">
-        Node locks and automatic sizing are in Study, a hand at a time: &ldquo;Against a read (node lock)&rdquo; and &ldquo;Choose bet sizes (automatic sizing)&rdquo;, and after the flop only heads-up. Saved ranges come from{" "}
+        Node locks and automatic sizing are in Study, a hand at a time: &ldquo;Hold this node at a mix (true node lock)&rdquo;, &ldquo;Against a read (best response)&rdquo; and &ldquo;Choose bet sizes (automatic sizing)&rdquo;, and after the flop only heads-up. Saved ranges come from{" "}
         <Link to="/ranges" className="underline hover:text-text">
           Ranges
         </Link>

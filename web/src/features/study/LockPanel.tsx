@@ -91,7 +91,7 @@ export function LockPanel({ hand, res, cls, mode, getSolver }: { hand: StudyHand
   const field = "w-16 rounded border border-border bg-surface px-1.5 py-0.5 text-text";
   return (
     <details className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
-      <summary className="cursor-pointer font-medium">Against a read (node lock)</summary>
+      <summary className="cursor-pointer font-medium">Against a read (best response)</summary>
       <div className="mt-2 space-y-3">
         {preflop ? (
           <p className="text-xs text-muted">

@@ -2,7 +2,8 @@
 // Stage the upstream in-browser solver into web/public/solver/ (generated, gitignored):
 //   worker.js   solver/gto/static/worker.js with Lizard's declared edits (pyodide/worker-edits.mjs); its protocol is
 //               web/src/solver/protocol.ts
-//   solver.zip  every solver/gto/*.py + the wasm cores + treys, from solver/scripts/build_bundle.py (deterministic)
+//   solver.zip  every solver/gto/*.py + the wasm cores + treys, from solver/scripts/build_bundle.py, then Lizard's own
+//               engine/*.py (pyodide/bundle_engine.py); both deterministic
 //   pf/*.bin    stored preflop solves the worker reads synchronously (siteFetch "pf/<key>.bin")
 //   pyodide/*   the Python runtime and numpy, each checked against its pinned SHA-256 (pyodide/stage.mjs); kept across
 //               runs, so only the first needs the network
@@ -43,9 +44,13 @@ mkdirSync(join(OUT, "pf"), { recursive: true });
 writeFileSync(join(OUT, "worker.js"), editWorker(readFileSync(join(SOLVER, "gto", "static", "worker.js"), "utf8")));
 const pins = readPins();
 const staged = await stagePyodide({ pins });
-const bundleSha = execFileSync(python(), [join(SOLVER, "scripts", "build_bundle.py"), join(OUT, "solver.zip")], {
+execFileSync(python(), [join(SOLVER, "scripts", "build_bundle.py"), join(OUT, "solver.zip")], {
   cwd: SOLVER,
   env: { ...process.env, PYTHONPATH: SOLVER },
+  encoding: "utf8",
+});
+// (before the hash below: a change in engine/ is a new version, so a browser can't keep the bundle it has)
+const bundleSha = execFileSync(python(), [join(ROOT, "scripts", "pyodide", "bundle_engine.py"), join(OUT, "solver.zip")], {
   encoding: "utf8",
 }).trim();
 

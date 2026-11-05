@@ -56,6 +56,7 @@ import { AutoSizePanel } from "./AutoSizePanel";
 import { betMenuOf, CompareLinks } from "./CompareLinks";
 import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
+import { NodeLockPanel } from "./NodeLockPanel";
 import { ComboPanel } from "./ComboPanel";
 import { studyText } from "@/features/practice/copyForAi";
 import { CopyForAi } from "@/features/practice/HintReveal";
@@ -632,6 +633,7 @@ export function StudyPage() {
           <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
           {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
           {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
+          {raw && <NodeLockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
           {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
         </div>
       )}

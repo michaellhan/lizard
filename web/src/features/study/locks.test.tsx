@@ -115,7 +115,7 @@ describe("a read on the opponent", () => {
       },
     } as unknown as SolverClient;
     render(<LockPanel hand={HAND} res={NODE} cls="AQo" mode="fast" getSolver={async () => client} />);
-    fireEvent.click(screen.getByText("Against a read (node lock)"));
+    fireEvent.click(screen.getByText("Against a read (best response)"));
     const form = screen.getByRole("form", { name: "The read" });
     // the overfolder preset to start with
     expect(within(form).getByLabelText("Preset")).toHaveValue("overfolder");
@@ -212,7 +212,7 @@ describe("a read on the opponent", () => {
         },
       } as unknown as SolverClient;
       render(<LockPanel hand={PF_HAND} res={PF_NODE} cls="A5s" mode="fast" getSolver={async () => client} />);
-      fireEvent.click(screen.getByText("Against a read (node lock)"));
+      fireEvent.click(screen.getByText("Against a read (best response)"));
       const form = screen.getByRole("form", { name: "The read" });
       expect(within(form).queryByLabelText("Next: folds %")).toBeNull();
       expect(within(form).getByLabelText("Folds to raises ±")).toHaveValue("15");

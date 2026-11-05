@@ -1,6 +1,8 @@
 // `npm run test:scripts`. No network: downloads go to a fake fetch, on small fake files.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -145,10 +147,65 @@ test("an upstream worker that moved an edit fails rather than publishing without
   assert.throws(() => editWorker(upstream.replace("const PYODIDE =", "const RUNTIME =")), /expected exactly one/);
 });
 
+test("the published worker sends a node lock to engine/, before the advice and inside the cancel's try", () => {
+  const worker = editWorker(upstream);
+  const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
+  const at = (s) => {
+    assert.ok(body.includes(s), `answer() has no ${s}`);
+    return body.indexOf(s);
+  };
+  assert.ok(at("    try:") < at("if st.get('nodelock') and not pl:"));
+  assert.ok(at("if st.get('nodelock') and not pl:") < at("from engine.study_lock import answer as locked"));
+  assert.ok(at("from engine.study_lock import answer as locked") < at("adv.advise(st)"));
+  assert.ok(at("adv.advise(st)") < at("except Cancelled:"));
+  assert.match(worker, /py\.globals\.set\("post_partial", \(s\) => postMessage\(\{ id: CUR, partial: JSON\.parse\(s\) \}\)\);/);
+});
+
 test("hostsNamed sees URLs in comments and strings, and leaves the worker's own paths alone", () => {
   assert.deepEqual(hostsNamed("// from https://evil.example/x.js\n"), ["https://evil.example/x.js"]);
   assert.deepEqual(hostsNamed('importScripts("//evil.example/x.js")'), ["//evil.example/"]);
   assert.deepEqual(hostsNamed('fetch("pyodide/numpy.whl"); // a comment.\n// gto/core.wasm'), []);
+});
+
+const venv = join(ROOT, ".venv", "bin", "python");
+const python = process.env.PYTHON ?? (existsSync(venv) ? venv : "python3");
+
+/** bundle_engine.py on a copy of a small zip and an engine folder of these sources; (sha1, the zip's bytes) */
+function appended(sources) {
+  const dir = tempDir();
+  const zip = join(dir, "solver.zip");
+  const made = spawnSync(python, ["-c", `import zipfile\nz=zipfile.ZipFile(${JSON.stringify(zip)},'w');z.writestr(zipfile.ZipInfo('gto/a.py',(2020,1,1,0,0,0)),'x=1\\n');z.close()`]);
+  assert.equal(made.status, 0, String(made.stderr));
+  const engine = join(dir, "engine");
+  mkdirSync(engine);
+  for (const [name, text] of Object.entries(sources)) writeFileSync(join(engine, name), text);
+  const run = spawnSync(python, [join(ROOT, "scripts", "pyodide", "bundle_engine.py"), zip, engine], { encoding: "utf8" });
+  return { status: run.status, err: run.stderr, sha: run.stdout.trim(), bytes: readFileSync(zip) };
+}
+
+test("engine/ goes into the bundle the same way twice, and a change in it is a new bundle", () => {
+  const sources = { "__init__.py": "", "study_lock.py": "x = 1\n", "nodelock.py": "y = 2\n" };
+  const a = appended(sources);
+  const b = appended(sources);
+  assert.equal(a.status, 0, a.err);
+  assert.match(a.sha, /^[0-9a-f]{40}$/);
+  assert.deepEqual(a.bytes, b.bytes);
+  assert.equal(a.sha, createHash("sha1").update(a.bytes).digest("hex"));
+  assert.ok(a.bytes.includes("engine/nodelock.py"));
+  assert.ok(a.bytes.includes("gto/a.py"));
+  assert.notEqual(appended({ ...sources, "nodelock.py": "y = 3\n" }).sha, a.sha);
+});
+
+test("an engine folder nothing could import fails the build", () => {
+  assert.notEqual(appended({ "study_lock.py": "x = 1\n" }).status, 0);
+});
+
+test("the bundle's version is hashed after engine/ goes in", () => {
+  const build = readFileSync(join(ROOT, "scripts", "build-solver-assets.mjs"), "utf8");
+  const appendAt = build.indexOf('"bundle_engine.py"');
+  assert.ok(appendAt > 0);
+  assert.ok(build.indexOf('"build_bundle.py"') < appendAt);
+  assert.ok(appendAt < build.indexOf('h.update(readFileSync(join(OUT, "solver.zip")))'));
 });
 
 test("the pins name one version, one source and full hashes", () => {

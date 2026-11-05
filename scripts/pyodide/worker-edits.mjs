@@ -20,6 +20,22 @@ const EDITS = [
     from: "the HTTP cache (jsdelivr caches versioned files for a year) rather than",
     to: "the HTTP cache rather than",
   },
+  {
+    // A node lock's progress (engine/study_lock.py, in solver.zip beside gto/): it blocks this thread like any solve, so
+    // the request's {partial} messages go out from inside it. The request running is CUR.
+    from: 'py.globals.set("stop_now", stopNow);',
+    to: 'py.globals.set("stop_now", stopNow);\n  py.globals.set("post_partial", (s) => postMessage({ id: CUR, partial: JSON.parse(s) }));',
+  },
+  {
+    // A Study request with state.nodelock (web/src/solver/client.ts nodeLock) goes to the node lock, not the advice.
+    // Imported on first use: nothing else in the worker loads engine/. A cancel stays the handler's below it.
+    from: `+ "        return json.dumps(adv.play(st, pl['seat'], pl['hole'], pl.get('seed')) if pl else adv.advise(st))\\n"`,
+    to:
+      `+ "        if st.get('nodelock') and not pl:\\n"\n` +
+      `             + "            from engine.study_lock import answer as locked\\n"\n` +
+      `             + "            return json.dumps(locked(adv, st, lambda p: post_partial(json.dumps(p))))\\n"\n` +
+      `             + "        return json.dumps(adv.play(st, pl['seat'], pl['hole'], pl.get('seed')) if pl else adv.advise(st))\\n"`,
+  },
 ];
 
 export function editWorker(source) {

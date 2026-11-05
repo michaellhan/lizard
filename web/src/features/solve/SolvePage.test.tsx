@@ -28,7 +28,7 @@ const problems = () => screen.queryByRole("alert", { name: "Setup problems" });
 describe("SolvePage", () => {
   it("says node locks and automatic sizing are in Study, by the names they have there, and sends no one to the classic app for them", () => {
     open("p=2&s=100");
-    expect(screen.getByText(/Node locks and automatic sizing are in Study, a hand at a time: .Against a read \(node lock\). and .Choose bet sizes \(automatic sizing\)./)).toBeInTheDocument();
+    expect(screen.getByText(/Node locks and automatic sizing are in Study, a hand at a time: .Hold this node at a mix \(true node lock\)., .Against a read \(best response\). and .Choose bet sizes \(automatic sizing\)./)).toBeInTheDocument();
     expect(screen.queryByText(/Not here yet: node locks/)).toBeNull();
     expect(screen.queryByRole("link", { name: /classic/i })).toBeNull();
   });
