@@ -52,6 +52,7 @@ test("Study: the line walked by its breadcrumb, Forward and the keys, and a call
 
   // a number plays that action; what was ahead on another line is gone
   await page.keyboard.press("ArrowLeft");
+  await expect(here).toHaveText("BTN raise 2.5"); // (first, or the last node's answer could pass for this one's)
   await expect(actions.getByText(/to act on the preflop/)).toBeVisible({ timeout: 45_000 });
   await page.keyboard.press("1");
   await expect(here).not.toHaveText("BTN raise 2.5");
@@ -64,6 +65,30 @@ test("Study: the line walked by its breadcrumb, Forward and the keys, and a call
   await page.keyboard.press("ArrowLeft");
   expect(page.url()).toBe(url);
   await done(page, problems, info, "study-line");
+});
+
+test("Study: a river's breakdown, with its categories, its equity chart and a category shown in the grid", async ({ page, problems }, info) => {
+  await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
+  const panel = page.locator("details", { hasText: "Breakdown and equity" });
+  await expect(panel).toBeVisible({ timeout: 90_000 });
+  await panel.locator("summary").click();
+  const cats = panel.getByRole("region", { name: "Hand categories" });
+  await expect(cats.getByRole("row").nth(1)).toBeVisible({ timeout: 45_000 });
+  await expect(cats.getByRole("button", { name: /^Live solve|solve/i }).or(cats.getByText(/solve/i)).first()).toBeVisible();
+  const chart = panel.getByRole("region", { name: "Equity distribution" });
+  await expect(chart.getByText(/range advantage/)).toBeVisible();
+  await expect(chart.getByText("on the river, no cards to come", { exact: false })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Compare this spot" })).toHaveCount(1);
+  await chart.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-breakdown.png`, fullPage: false });
+  await cats.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-breakdown-cats.png`, fullPage: false });
+
+  await cats.getByRole("row").nth(1).getByRole("button").click();
+  await cats.getByRole("button", { name: "Show these hands in the grid" }).click();
+  await expect(page.getByRole("combobox", { name: /one category/ })).not.toHaveValue("");
+  expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+  expect(problems.errors).toEqual([]);
 });
 
 test("Practice: a decision made and graded", async ({ page, problems }, info) => {

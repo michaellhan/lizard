@@ -26,6 +26,8 @@ export interface AdvisorState {
   prior_budget?: number;
   /** Study mode: answer for whoever acts next with their whole range (Advisor.study). */
   study?: boolean;
+  /** ask for the category and equity breakdown of the node (breakdown.py); the answer's `breakdown` */
+  breakdown?: boolean;
   /** The analyzer's Quick triage: read from what's in hand, else a Quick solve at its own budgets (Advisor.triage). */
   triage?: boolean;
   [key: string]: unknown;
@@ -116,6 +118,8 @@ export interface AdvisorResponse {
   grid?: RangeGridData;
   opponent_grid?: RangeGridData;
   combos?: Record<string, ComboRow[]>;
+  /** the node's breakdown, where asked (`breakdown`); null where the betting rules answered, with no solve to break down */
+  breakdown?: Breakdown | null;
   /** breakdown.py MADE / DRAWS as [id, label]; combo rows index into them (draws empty on the river) */
   categories?: { made?: [string, string][]; draws?: [string, string][] };
   /** 3-way answers: each opponent's seat, range grid, combos and equity (advisor.py _study_range) */
@@ -170,6 +174,39 @@ export interface AdvisorActionStat {
   /** a bet's or raise's total this street, in bb (what Study plays it as) */
   amount_bb?: number;
   [key: string]: unknown;
+}
+
+/** One category of a range (breakdown.py _groups): c its combos; eq, f (the mix, along Breakdown.actions) and ev where known. */
+export interface BreakdownRow {
+  id: string;
+  label: string;
+  c: number;
+  eq?: number | null;
+  f?: number[];
+  ev?: number | null;
+}
+
+/** One player's side of a breakdown (breakdown.py side). curve: their equities high to low, at even steps of the range. */
+export interface BreakdownSide {
+  who: string;
+  combos: number;
+  made: BreakdownRow[];
+  draws: BreakdownRow[];
+  eq?: number | null;
+  /** the range's share with `nut_eq` equity or more */
+  nuts?: number;
+  curve?: number[];
+  ev?: number | null;
+}
+
+export interface Breakdown {
+  actions: string[];
+  pot: number;
+  hero: BreakdownSide;
+  villains: BreakdownSide[];
+  nut_eq: number;
+  /** the runouts the equities are over: [dealt, of all] */
+  runouts?: [number, number];
 }
 
 /** 13x13 hand-class grid: per class its weight in the range and its mix (same order as `actions`). */

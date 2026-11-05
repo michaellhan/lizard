@@ -3842,3 +3842,11 @@ Study's line is now a breadcrumb: each action, each street's cards and each run 
 
 1522 unit tests pass in 80 files. The new browser test passed at desktop and phone.
 
+## Study's breakdown (2026-11-05)
+
+Below a postflop node, "Breakdown and equity" lists each range by made hands and draws with the share, the mix, the equity and the EV of every category, and charts each range's equity distribution with its average, EV and share at 80% equity or better, naming who holds the range and the nut advantage. It's the engine's own `breakdown` answer (`gto/breakdown.py`, classic's view), asked only when opened, under its own provenance. On a heads-up river already solved it took 0.09 s in Python. A category picked can show just those hands in the grid. It stays open from node to node.
+
+- Looking at the screenshot caught what no test did: the panel shared a React `key` with the Compare links beside it, and a production build drops the warning and doubled the row. The browser test now counts that row.
+- A line colour was checked with the dataviz validator against the page's surface: the accent and suit tokens failed its lightness band, so the three series have colours of their own.
+- The same river's numbers moved a little between runs (BB 307.6 and 327.3 combos, 55.6% and 55.5% equity), since the turn solve that narrows the ranges stops on a time budget. The panel shows that run's answer under that run's provenance.
+

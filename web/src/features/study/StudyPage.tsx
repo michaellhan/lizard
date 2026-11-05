@@ -38,6 +38,7 @@ import {
   type StudyHand,
 } from "./studyState";
 import { encodePfSizes } from "./pfSizes";
+import { BreakdownPanel } from "./BreakdownPanel";
 import { BuildMode, type BuildSaved } from "./BuildMode";
 import { askNode, newRun, pfGame, runPf, type PfRun } from "./pfSolve";
 import { PfNote, PfPanel, PfProgress, PfSizesForm, PreflopSource } from "./PreflopSolve";
@@ -104,6 +105,8 @@ export function StudyPage() {
   // the range builder (kept on from node to node), and what's painted at each node visited
   const [building, setBuilding] = useState(false);
   const [paints] = useState(() => new Map<string, BuildSaved>());
+  // the breakdown panel: open from node to node, as asking a node costs a solve only where none is in hand
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const evUnit = useSettings((s) => s.evUnit);
   const abortRef = useRef<AbortController | null>(null);
   // the preflop solve run from the page (pfSolve.ts): only on its Solve button, going on while the page shows a
@@ -531,6 +534,9 @@ export function StudyPage() {
             )}
           </aside>
         </div>
+      )}
+      {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && res.street !== "preflop" && (
+        <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={setBreakdownOpen} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />
       )}
       {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
         <div className="flex flex-wrap items-start gap-2">
