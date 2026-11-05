@@ -9,7 +9,7 @@ import { useSolver } from "@/solver/useSolver";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { useSettings } from "@/state/settings";
 import type { SolveResult } from "@/solver/types";
-import { WorkerTransport } from "@/solver/worker-transport";
+import { sharesStop, WorkerTransport } from "@/solver/worker-transport";
 import { aheadLine, lastReport, progressLine, reportLine, runHandsCheck, setupLine, warmLine, whenLine, type HandsCheckReport } from "./handsCheck";
 
 const CHECK_HANDS = 20;
@@ -148,7 +148,10 @@ function HandsCheck() {
   const [line, setLine] = useState<string | null>(null);
   const [report, setReport] = useState<HandsCheckReport | null>(null);
   const stopper = useRef<AbortController | null>(null);
-  const askAhead = ahead ?? saved ?? ASK_AHEAD;
+  // (as in Practice: where a stop would end the solver nothing's asked ahead, so the box can't say it will be. It's
+  // worked out here as this page asks for no solver until you press something)
+  const kills = useSettings((s) => s.transport) !== "http" && !sharesStop();
+  const askAhead = !kills && (ahead ?? saved ?? ASK_AHEAD);
 
   useEffect(() => {
     let live = true;
@@ -202,9 +205,10 @@ function HandsCheck() {
           </select>
         </label>
         <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={askAhead} disabled={running} onChange={(e) => setAhead(e.target.checked)} />
+          <input type="checkbox" checked={askAhead} disabled={running || kills} onChange={(e) => setAhead(e.target.checked)} />
           <span className="text-muted">Ask ahead</span>
         </label>
+        {kills && <span className="text-xs text-muted">Off: this browser can&rsquo;t stop a solve, so a wrong guess would hold up your next answer.</span>}
       </div>
       <p className="text-sm text-muted">A few minutes of CPU. Nothing is saved to History or Analyze.</p>
       <p className="text-sm text-muted">Reload this page before a timed run: a solver keeps its answers, so a second run is quicker on the same deals for that alone.</p>

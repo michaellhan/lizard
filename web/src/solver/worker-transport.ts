@@ -36,6 +36,11 @@ interface InFlight {
   cleanup: () => void;
 }
 
+/** Whether the page can share a stop flag with the worker: with one a stop costs nothing, without it a stop ends the
+ * worker. Asked without a client, for a page that has yet to want a solver. */
+export const sharesStop = (isolated: boolean = typeof self !== "undefined" && self.crossOriginIsolated === true): boolean =>
+  isolated && typeof SharedArrayBuffer !== "undefined";
+
 export class WorkerTransport implements SolverTransport {
   readonly kind = "worker" as const;
   private worker: Worker | null = null;
@@ -59,9 +64,8 @@ export class WorkerTransport implements SolverTransport {
     this.st = { phase: "idle", transport: "worker", crossOriginIsolated: this.isolated };
   }
 
-  /** Whether the page can share a stop flag with the worker. */
   private get sharesStop(): boolean {
-    return this.isolated && typeof SharedArrayBuffer !== "undefined";
+    return sharesStop(this.isolated);
   }
 
   stopCost(): StopCost {

@@ -544,7 +544,7 @@ export const reportLine = (r: HandsCheckReport) =>
 
 /** How it was run: "4 tables · no time to think · asking ahead off · Quick". */
 export const setupLine = (r: HandsCheckReport) =>
-  [`${r.tables} ${r.tables === 1 ? "table" : "tables"}`, r.thinkMs ? `${r.thinkMs / 1000} s to think a decision` : "no time to think", `asking ahead ${r.askAhead ? "on" : "off"}`, "Quick"].join(" · ");
+  [`${r.tables} ${r.tables === 1 ? "table" : "tables"}`, r.thinkMs ? `${r.thinkMs / 1000} s to think a decision` : "no time to think", `asking ahead ${r.askAhead && r.stopCost !== "kills" ? "on" : "off"}`, "Quick"].join(" · ");
 
 /** When it ran and on what. `current`: the build on this page, where that's known. */
 export function whenLine(r: HandsCheckReport, current: string | null): string {

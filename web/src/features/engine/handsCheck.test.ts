@@ -925,6 +925,7 @@ describe("the figures", () => {
     expect(reportLine(r)).toBe("20 hands · 63 verdicts · 0 request errors · 0 without a label · 1 m 48 s");
     expect(setupLine(r)).toBe("4 tables · 3 s to think a decision · asking ahead on · Quick");
     expect(setupLine({ ...r, tables: 1, thinkMs: 0, askAhead: false })).toBe("1 table · no time to think · asking ahead off · Quick");
+    expect(setupLine({ ...r, stopCost: "kills" })).toBe("4 tables · 3 s to think a decision · asking ahead off · Quick");
     expect(timeText(59.4)).toBe("59 s");
     expect(timeText(60)).toBe("1 m 0 s");
     expect(progressLine({ hands: 6, of: 20, verdicts: 18, errors: 0 })).toBe("Hand 7 of 20 · 18 verdicts · 0 errors");

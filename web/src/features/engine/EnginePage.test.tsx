@@ -80,6 +80,7 @@ const report = () => screen.findByRole("region", { name: "Last report" });
 
 beforeEach(() => {
   build.manifest.mockResolvedValue(null);
+  vi.stubGlobal("crossOriginIsolated", true);
 });
 
 afterEach(async () => {
@@ -131,6 +132,20 @@ describe("the controls", () => {
     expect(useSettings.getState().askAhead).toBeNull();
     expect(useSettings.getState()).toEqual(before);
     expect(vi.mocked(runHandsCheck).mock.calls[0]![0]).toBe(solver.get);
+  });
+
+  it("can't ask ahead where a stop would end the solver, say why in words, and don't run it", async () => {
+    vi.stubGlobal("crossOriginIsolated", false);
+    useSettings.setState({ askAhead: true });
+    const { seen, end } = held();
+    show();
+    expect(screen.getByLabelText("Ask ahead")).toBeDisabled();
+    expect(screen.getByLabelText("Ask ahead")).not.toBeChecked();
+    expect(screen.getByText(/this browser can.t stop a solve, so a wrong guess would hold up your next answer/i)).toBeInTheDocument();
+    play();
+    await end(REPORT);
+    expect(seen[0]).toMatchObject({ askAhead: false });
+    expect(useSettings.getState().askAhead).toBe(true);
   });
 
   it("keep what you've ticked over what Settings read", () => {
@@ -208,6 +223,7 @@ describe("a run", () => {
   }, 70_000);
 
   it("gets to a report on the real thing, a solver that fails included", async () => {
+    vi.stubGlobal("crossOriginIsolated", false);
     vi.mocked(runHandsCheck).mockImplementation(realRun);
     const fail = () => Promise.reject(new SolverError("unreachable", "no server"));
     solver.get.mockResolvedValue({ solve: fail, play: fail, transport: { kind: "http" } });
