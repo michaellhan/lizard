@@ -39,6 +39,7 @@ export function SessionsPanel({
   decisions,
   params,
   lost,
+  exploits,
   set,
 }: {
   /** every hand kept: a sitting doesn't depend on the filters */
@@ -46,6 +47,8 @@ export function SessionsPanel({
   decisions: DecisionRecord[];
   params: URLSearchParams;
   lost: ReadonlyMap<string, number>;
+  /** the exploit sessions' imports, for the `game` filter */
+  exploits?: ReadonlySet<string>;
   set: (o: Record<string, string | null>) => void;
 }) {
   // (grading adds decisions hand by hand: the page keeps answering while this catches up)
@@ -55,7 +58,7 @@ export function SessionsPanel({
   const byLost = params.get("lost") ? lost : undefined;
   // (what the rows count: the filters but the session itself)
   const restKey = filterKey(params, "sess");
-  const rest = useMemo(() => filterHands(hands, new URLSearchParams(restKey), byLost), [hands, restKey, byLost]);
+  const rest = useMemo(() => filterHands(hands, new URLSearchParams(restKey), byLost, exploits), [hands, restKey, byLost, exploits]);
   const kept = useMemo(() => new Set(rest.map((h) => h.id)), [rest]);
   const picked = useMemo(() => (sess ? sits.find((s) => s.key === sess) : undefined), [sits, sess]);
 

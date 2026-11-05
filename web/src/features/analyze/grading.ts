@@ -230,6 +230,7 @@ export async function gradeDecision(
     potType: sit.potType,
     facing: sit.facing,
     ...(street === "preflop" ? {} : { ip: sit.ip, multi: sit.multi, role: roleOf(r) }),
+    ...(street === "flop" && r.lines.flop.slice(0, i).some((a) => a.pos === played.pos && AGGRESSIVE.has(a.action)) ? { ownBet: true } : {}),
     ...(street === "turn" ? { flopAggr: r.lines.flop.some((a) => a.pos === played.pos && AGGRESSIVE.has(a.action)) } : {}),
     pot: r2(simulate(r.setup, linesBefore(r, street, i), NEED[street]).pot),
     gradedAt: now,

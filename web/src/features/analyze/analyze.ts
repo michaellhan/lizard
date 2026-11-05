@@ -7,7 +7,7 @@ import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
 import { gameSetup, setupProblems, tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
-import { inSess } from "./sessions";
+import { inSess, isEquilibriumHand } from "./sessions";
 
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
 const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
@@ -95,9 +95,13 @@ export function preflopSituation(before: readonly Move[], hero: string): string 
 }
 
 /** The hands table's filters, in the page's URL: your seat, pot type, site, stakes (the big blind as the history
- * writes it), the days played (YYYY-MM-DD, by the site's clock) from and to, one of your tags, a search, and the EV
- * your graded decisions gave up in the hand (at least so many bb). */
-export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q", "lost", "sess"] as const;
+ * writes it), the days played (YYYY-MM-DD, by the site's clock) from and to, one of your tags, a search, the EV your
+ * graded decisions gave up in the hand (at least so many bb), and the kind of game (`GAME_EQUILIBRIUM`). */
+export const HAND_FILTERS = ["pos", "pot", "site", "bb", "from", "to", "tag", "q", "lost", "game", "sess"] as const;
+
+/** The `game` filter's value: no tournament hands and none from an exploit session (isEquilibriumHand). */
+export const GAME_EQUILIBRIUM = "equilibrium";
+export const GAME_WORDS = "no tournaments or exploit sessions";
 
 /** The EV-lost filter's steps, bb. */
 export const LOST_STEPS = ["0.1", "0.5", "1", "2", "5", "10"] as const;
@@ -120,9 +124,10 @@ export function handMatches(h: HandRecord, query: string): boolean {
     .every((w) => hay.includes(w));
 }
 
-/** The hands the filters keep; `lost`: the EV given up in each hand (lostByHand), for the EV-lost filter. */
-export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lost: ReadonlyMap<string, number> = new Map()): HandRecord[] {
-  const [pos, pot, site, bb, from, to, tag, q, minLost, sess] = HAND_FILTERS.map((k) => p.get(k));
+/** The hands the filters keep; `lost`: the EV given up in each hand (lostByHand), for the EV-lost filter; `exploits`: the
+ * exploit sessions' imports (sessions.ts exploitImports), for the kind of game. A `game` that can't be read keeps none. */
+export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lost: ReadonlyMap<string, number> = new Map(), exploits: ReadonlySet<string> = new Set()): HandRecord[] {
+  const [pos, pot, site, bb, from, to, tag, q, minLost, game, sess] = HAND_FILTERS.map((k) => p.get(k));
   const day = (h: HandRecord) => h.played.slice(0, 10);
   const sitting = sess ? inSess(sess) : null;
   return hands.filter(
@@ -136,7 +141,8 @@ export function filterHands(hands: readonly HandRecord[], p: URLSearchParams, lo
       (!tag || !!h.tags?.includes(tag)) &&
       (!q || handMatches(h, q)) &&
       (!minLost || (lost.get(h.id) ?? 0) >= Number(minLost) - 1e-9) &&
-      (!sitting || sitting(h)),
+      (!sitting || sitting(h)) &&
+      (!game || (game === GAME_EQUILIBRIUM && isEquilibriumHand(h, exploits))),
   );
 }
 

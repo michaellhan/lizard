@@ -57,7 +57,7 @@ const BR: AdvisorResponse = {
   range_action_freq: { check: 0.389, "bet 50%": 0.16, "bet 100%": 0.45 },
   grid: { actions: ["check", "bet 50%", "bet 100%"], cells: { AQo: { w: 1, f: [0, 0, 1] }, KK: { w: 0.5, f: [0, 0, 1] } } },
   locked: { BB: { fold: 15 } },
-  notes: ["locked: BB folds +15 pts to bets (on GTO); the advice is your best response to that, and EVs assume you keep best-responding on later streets"],
+  notes: ["locked: BB folds +15 pts to a first bet (on GTO); the advice is your best response to that, and EVs assume you keep best-responding on later streets"],
 };
 
 const HAND: StudyHand = {
@@ -75,7 +75,7 @@ describe("a read on the opponent", () => {
     expect(lockOf({ fold: "15", bluff: "", next_fold: "0" })).toEqual({ lock: { fold: 15, next_fold: 0 }, problems: [] });
     expect(lockOf({ fold: "0", bet: " " })).toEqual({ lock: null, problems: [] });
     expect(lockOf({ fold: "150", bluff: "lots", next_bet: "-5" }).problems).toEqual(["Folds to bets must be -100 to 100", "Bluffs: a number", "Next: bets must be 0 to 100"]);
-    expect(describeLock({ fold: 15, bluff: -50, next_fold: 40 })).toBe("folds +15 pts to bets, bluffs -50%, folds 40% to your next bet");
+    expect(describeLock({ fold: 15, bluff: -50, next_fold: 40 })).toBe("folds +15 pts to a first bet, bluffs 50% less, folds 40% to your next bet");
     expect(presetOf({ fold: 15 })).toBe("overfolder");
     expect(presetOf({ fold: -20, bluff: -50, raise: -50 })).toBe("station");
     expect(presetOf({ fold: 15, bluff: 1 })).toBeNull();
@@ -100,8 +100,8 @@ describe("a read on the opponent", () => {
 
   it("labels a locked answer the best response, never an equilibrium", () => {
     const p = provenanceOf(BR, ctx);
-    expect(p.lock).toBe("best response to BB folds +15 pts to bets, not an equilibrium re-solve");
-    expect(describeProvenance(p)).toBe("Live solve · best response to BB folds +15 pts to bets, not an equilibrium re-solve · 0.03% pot from equilibrium in the solved game (converged) · 1000 iterations");
+    expect(p.lock).toBe("best response to BB folds +15 pts to a first bet, not an equilibrium re-solve");
+    expect(describeProvenance(p)).toBe("Live solve · best response to BB folds +15 pts to a first bet, not an equilibrium re-solve · 0.03% pot from equilibrium in the solved game (converged) · 1000 iterations");
     expect(provenanceOf(GTO, ctx).lock).toBeUndefined();
   });
 
@@ -131,12 +131,12 @@ describe("a read on the opponent", () => {
       ["SB", "AhQd", null, false],
       ["SB", "AhQd", { BB: { fold: 15 } }, false],
     ]);
-    expect(answer).toHaveTextContent("best response to BB folds +15 pts to bets, not an equilibrium re-solve");
+    expect(answer).toHaveTextContent("best response to BB folds +15 pts to a first bet, not an equilibrium re-solve");
     const rows = within(answer).getAllByRole("row");
     expect(rows[3]).toHaveTextContent("bet 100%100.0% · EV 2.80bb0.0%45.0%25.0%");
     expect(rows[1]).toHaveTextContent("check0.0% · EV 2.65bb100.0%38.9%60.0%");
     expect(within(answer).getByRole("grid", { name: "Change in any bet or raise" })).toBeInTheDocument();
-    expect(within(answer).getByText(/^locked: BB folds \+15 pts to bets/)).toBeInTheDocument();
+    expect(within(answer).getByText(/^locked: BB folds \+15 pts to a first bet/)).toBeInTheDocument();
   });
 
   describe("preflop, on the charts", () => {

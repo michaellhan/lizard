@@ -16,7 +16,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
 import { recentSessions, type SessionRecord } from "@/data/db";
-import { getScenario } from "@/data/scenarios";
+import { getScenario, scenarioWords } from "@/data/scenarios";
 import { GRADE_RULES, summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
@@ -32,6 +32,7 @@ import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog
 import { boardShown, gameLabel, mixOf, modelled, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
+import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
 import { ASSUMED, assumedWords, EXPLOIT_SCOPE } from "./exploit";
 import { answering } from "./TableTile";
@@ -97,6 +98,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   const [room] = useState(() => new Room({ pace, pause, guard }));
   const [params, setParams] = useSearchParams();
   const scenario = params.get("scenario");
+  const linked = setupLinkKey(params);
   const [opened, setOpened] = useState<{ ok: boolean; text: string } | null>(null);
   // (as the page commits, before the Room starts: settings load after the first render, and each launch reads the latest)
   useLayoutEffect(() => {
@@ -122,23 +124,24 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     };
   }, []);
 
-  // A saved scenario's link: its setup starts at one table, as above one Spots and Seat deal in its place, and the link goes
-  // from the address, so a reload doesn't start it again.
+  // A saved scenario's link, or a setup's (setupLink.ts, the Plan page's): the setup starts at one table, as above one Spots
+  // and Seat deal in its place, and the link goes from the address, so a reload doesn't start it again.
   useEffect(() => {
-    if (!scenario) return;
+    if (!scenario && linked === null) return;
     let alive = true;
     const opening = async () => {
-      const s = await getScenario(scenario).catch(() => undefined);
+      const kept = scenario ? await getScenario(scenario).catch(() => undefined) : undefined;
       if (!alive) return;
+      const s = scenario ? kept : readSetupLink(new URLSearchParams(linked!));
       if (s) {
         room.setTables(1);
         room.startSession(s.players, s.stack, s.opts);
       }
-      setOpened(s ? { ok: true, text: `Started ${s.name}.` } : { ok: false, text: "That saved scenario is gone or can't be read, so nothing was started." });
+      setOpened(s ? { ok: true, text: `Started ${kept?.name ?? scenarioWords(s)}.` } : { ok: false, text: scenario ? "That saved scenario is gone or can't be read, so nothing was started." : "That link's setup can't be played, so nothing was started." });
       setParams(
         (p) => {
           const q = new URLSearchParams(p);
-          q.delete("scenario");
+          for (const k of ["scenario", ...SETUP_PARAMS]) q.delete(k);
           return q;
         },
         { replace: true },
@@ -148,7 +151,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     return () => {
       alive = false;
     };
-  }, [scenario, room, setParams]);
+  }, [scenario, linked, room, setParams]);
 
   // a press of New session or Tables that brings tables up, for MultiTables to take you to them
   const pressRef = useRef(false);

@@ -65,7 +65,7 @@ describe("Save scenario", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Ante" }), { target: { value: "0.5" } });
     openIt();
     const pop = screen.getByRole("form", { name: "Save scenario" });
-    expect(within(pop).getByText(/blind vs blind · exploiting Overfolds to bets \(assumed numbers\): folds \+15 pts to bets · ante 0.5bb/)).toBeInTheDocument();
+    expect(within(pop).getByText(/blind vs blind · exploiting Overfolds to bets \(assumed numbers\): folds \+15 pts to a first bet · ante 0.5bb/)).toBeInTheDocument();
     fireEvent.change(within(pop).getByLabelText("Name"), { target: { value: "Overfolders" } });
     fireEvent.change(within(pop).getByLabelText("Note"), { target: { value: "bet small" } });
     fireEvent.click(within(pop).getByRole("button", { name: "Save" }));
@@ -117,7 +117,7 @@ describe("the Saved page", () => {
     await putScenario(scenario("a b", { opts: { ...OPTS, pot: "srp", exploit: exploitOf("nit") }, note: "tight ones" }));
     saved();
     const row = await screen.findByRole("listitem", { name: "Scenario a b" });
-    expect(within(row).getByText(/exploiting Nit \(assumed numbers\): folds \+15 pts to bets/)).toBeInTheDocument();
+    expect(within(row).getByText(/exploiting Nit \(assumed numbers\): folds \+15 pts to a first bet/)).toBeInTheDocument();
     expect(within(row).getByText("tight ones")).toBeInTheDocument();
     fireEvent.click(within(row).getByRole("link", { name: "Start Scenario a b" }));
     expect(screen.getByTestId("where")).toHaveTextContent("/practice?scenario=a%20b");
@@ -197,6 +197,21 @@ describe("starting one in Practice", () => {
     await screen.findByText("Started Scenario a.");
     expect(screen.getByRole("combobox", { name: "Exploit" })).toHaveValue("maniac");
     expect(screen.getByRole("combobox", { name: "Play" })).toHaveValue("srp");
+  });
+
+  it("starts a setup link with what it says, in words, and takes it from the address, nothing saved", async () => {
+    await practice("/practice?play=preflop&seat=CO&players=6&stack=100");
+    expect(await screen.findByText("Started 6-max 100bb · seat CO · preflop only.")).toHaveAttribute("role", "status");
+    expect(screen.getByRole("combobox", { name: "Your seat" })).toHaveValue("CO");
+    await waitFor(() => expect(stub.states.at(-1)).toMatchObject({ stack: 100, players: 6 }));
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/practice"));
+    expect((await listScenarios()).list).toEqual([]);
+  });
+
+  it("starts nothing from a setup link that makes no sense", async () => {
+    await practice("/practice?play=preflop&seat=Nobody&players=6&stack=100");
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/practice"));
   });
 
   it("says when it can't be read, and starts nothing", async () => {

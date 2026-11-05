@@ -122,7 +122,7 @@ function SessionItem({ r }: { r: SessionRow }) {
   const time = new Date(r.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const parts =
     r.kind === "build"
-      ? [r.acc == null ? null : `${pct(r.acc)} accurate`, r.buildLoss == null ? null : `${r.buildLoss.toFixed(3)}bb a combo`]
+      ? [r.acc == null ? null : `${pct(r.acc)} accurate${r.byCombo ? ", by combo" : ""}`, r.buildLoss == null ? null : `${r.buildLoss.toFixed(3)}bb a combo`]
       : [
           r.hands != null ? many(r.hands, "hand") : null,
           many(r.n, "decision"),
@@ -191,7 +191,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
       </div>
       <p className="text-xs text-muted">
         EV lost is averaged over the decisions graded by EV (the preflop charts grade by frequency only). Net counts the hands played out, not those played preflop
-        only. A range build is scored by its accuracy over the node&rsquo;s hand classes.
+        only. A range build is scored by its accuracy over the node&rsquo;s hand classes, or combo by combo where it says so; the average takes both.
         {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") &&
           " Tournaments each have their own row and go in no other totals here, by pot type, street or over time: a prize-equity EV is chips worth as much prize equity, never bb won, and a tournament's hands count no net."}
         {totals.some((t) => t.kind === "exploit") &&

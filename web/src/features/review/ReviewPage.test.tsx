@@ -1,7 +1,7 @@
 // The Review page: the schedule said, the queue, a retry graded under the current answer's provenance, a changed answer
 // not compared, frequency grades never EV, a damaged record counted.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/data/db";
 import { keepMistake, listMistakes } from "@/data/mistakes";
@@ -16,10 +16,14 @@ import { ReviewPage } from "./ReviewPage";
 
 const PAST = new Date(2020, 0, 1).getTime();
 const seed = (...xs: MistakeRecord[]) => Promise.all(xs.map((m) => keepMistake(m, (_, f) => f)));
-const page = () =>
+function Address() {
+  return <output aria-label="address">{useLocation().search}</output>;
+}
+const page = (at = "/review") =>
   render(
-    <MemoryRouter initialEntries={["/review"]}>
+    <MemoryRouter initialEntries={[at]}>
       <ReviewPage />
+      <Address />
     </MemoryRouter>,
   );
 const answer = (x: Partial<RetryAnswer> = {}): RetryAnswer => ({ mix: mistake().mix, pot: 5.5, provenance: LIVE, ...x });
@@ -30,6 +34,28 @@ beforeEach(async () => {
 });
 
 describe("ReviewPage", () => {
+  it("opens the first due from the Plan's link, once, and takes the link from the address", async () => {
+    ask.next.mockReturnValue(new Promise(() => undefined));
+    await seed(mistake({ id: "a", due: PAST + 1 }), mistake({ id: "b", due: PAST }));
+    page("/review?retry=next&street=flop");
+    expect(await screen.findByRole("heading", { name: /Retry/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status", { name: "address" })).toHaveTextContent("?street=flop"));
+  });
+
+  it("opens nothing from that link with nothing due, and still takes it from the address", async () => {
+    await seed(mistake({ due: Date.now() + 5 * 86_400_000 }));
+    page("/review?retry=next");
+    expect(await screen.findByText(/Nothing is due today/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status", { name: "address" })).toHaveTextContent(/^$/));
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+  });
+
+  it("links to the Plan", async () => {
+    page();
+    await screen.findByText(/No mistake kept yet/);
+    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+  });
+
   it("says the schedule, and sends you to Practice with nothing kept", async () => {
     page();
     expect(await screen.findByText(/No mistake kept yet/)).toBeInTheDocument();

@@ -2,7 +2,7 @@
 // page and opened from there. A saved report keeps the filters and no numbers, so opening one counts the hands and grades
 // kept by then. What's stored can be old or hand-edited, and a backup can carry anything, so every read goes through
 // `readReport`: a damaged record is counted and left out, and nothing here throws.
-import { HAND_FILTERS, LOST_STEPS } from "@/features/analyze/analyze";
+import { GAME_EQUILIBRIUM, GAME_WORDS, HAND_FILTERS, LOST_STEPS } from "@/features/analyze/analyze";
 import { noteSaved } from "./backupNudge";
 import { db, type SavedReport } from "./db";
 import { isTime, isWellFormed } from "./shapes";
@@ -28,6 +28,7 @@ function validFilters(x: unknown): x is ReportFilters {
   return Object.entries(x).every(([k, v]) => {
     if (!(HAND_FILTERS as readonly string[]).includes(k) || !isWellFormed(v) || !v || v.length > MAX_FILTER) return false;
     if (k === "from" || k === "to") return DATE.test(v);
+    if (k === "game") return v === GAME_EQUILIBRIUM;
     return k !== "lost" || (LOST_STEPS as readonly string[]).includes(v);
   });
 }
@@ -76,6 +77,7 @@ export function reportWords(f: ReportFilters): string {
     f.lost && `${f.lost}bb or more EV lost`,
     f.q && `search "${f.q}"`,
     f.sess && "one session",
+    f.game && GAME_WORDS,
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "All hands";
 }

@@ -199,13 +199,24 @@ describe("report", () => {
     expect(leakIsRead(freq)).toBe(true);
     expect(leakIsRead({ ...freq, n: 29 })).toBe(false);
     expect(leakIsRead({ ...freq, gto: 0.85 })).toBe(false);
-    expect(leakIsRead({ ...freq, gto: 0.5, range: [0.1, 0.4] })).toBe(true);
+    expect(leakIsRead({ ...freq, gto: 0.5, range: [0.1, 0.35] })).toBe(true);
+    // (past the answer, but not all of it 10 points past)
+    expect(leakIsRead({ ...freq, n: 400, you: 0.6025, gto: 0.5, range: [0.554, 0.649] })).toBe(false);
     const pf: Leak = { ...base, kind: "pf", n: 40, inMix: 0.5, range: [0.4, 0.79] };
     expect(leakIsRead(pf)).toBe(true);
     expect(leakIsRead({ ...pf, range: [0.4, 0.8] })).toBe(false);
-    const spot: Leak = { ...base, kind: "spot", n: 40, avg: 1, lost: 40, range: [0.1, 1.9] };
+    const spot: Leak = { ...base, kind: "spot", n: 40, avg: 1, lost: 40, range: [0.6, 1.4] };
     expect(leakIsRead(spot)).toBe(true);
-    expect(leakIsRead({ ...spot, range: [-0.1, 2.1] })).toBe(false);
+    // (clear of nothing, but astride the half a big blind)
+    expect(leakIsRead({ ...spot, avg: 0.55, range: [0.15, 0.95] })).toBe(false);
+  });
+
+  it("doesn't call a raise of your own flop bet a c-bet", () => {
+    const facing = (o: Partial<DecisionRecord>) =>
+      d({ street: "flop", role: "caller", facing: true, multi: false, mix: [["fold", 1, null]], matched: "fold", action: "fold", ...o });
+    const count = (o: Partial<DecisionRecord>) => freqs([facing(o)]).find((f) => f.label === "Flop vs c-bet: fold")?.n ?? 0;
+    expect(count({})).toBe(1);
+    expect(count({ ownBet: true })).toBe(0);
   });
 
   it("works the range on a mean by hand, and has none from one number", () => {

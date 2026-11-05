@@ -46,7 +46,7 @@ describe("an exploit session", () => {
     );
     expect(await screen.findByText(/Exploit sessions have their own row and go in no other totals here/)).toBeInTheDocument();
     expect(screen.getAllByText("Exploiting an assumed profile").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Nit \(assumed: folds \+15 pts to bets, bluffs -60%\) · 3 players · 20bb · single-raised pots/)).toBeInTheDocument();
+    expect(screen.getByText(/Nit \(assumed: folds \+15 pts to a first bet, bluffs 60% less\) · 3 players · 20bb · single-raised pots/)).toBeInTheDocument();
     expect(screen.queryByText(/net \+9/)).toBeNull();
   });
 });

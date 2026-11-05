@@ -7,7 +7,7 @@ import { grade, type Grade, type Score } from "@/grading/grade";
 import type { ReplayedHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
-import { HAND_FILTERS, STREETS } from "./analyze";
+import { GAME_WORDS, HAND_FILTERS, STREETS } from "./analyze";
 import { isGraded, isOk, leakTest, type Leak } from "./report";
 import { sessWords } from "./sessions";
 
@@ -33,6 +33,7 @@ const FILTER_WORDS: Record<(typeof HAND_FILTERS)[number], string> = {
   q: "search",
   lost: "EV lost ≥",
   sess: "session",
+  game: "",
 };
 /** The leak's drill as a link to keep (data/saved.ts): the leak and the hands' filters, nothing else of the page. */
 export function leakDrillLink(l: LeakRef, params: URLSearchParams): string {
@@ -42,7 +43,7 @@ export function leakDrillLink(l: LeakRef, params: URLSearchParams): string {
 }
 /** What the link drills, in words: "Leak: … · your seat BTN, stakes 0.5/1". */
 export function leakDrillAbout(l: LeakRef, params: URLSearchParams): string {
-  const fs = HAND_FILTERS.filter((k) => params.get(k)).map((k) => `${FILTER_WORDS[k]} ${k === "sess" ? sessWords(params.get(k)!) : params.get(k)}${k === "lost" ? "bb" : ""}`);
+  const fs = HAND_FILTERS.filter((k) => params.get(k)).map((k) => (k === "game" ? GAME_WORDS : `${FILTER_WORDS[k]} ${k === "sess" ? sessWords(params.get(k)!) : params.get(k)}${k === "lost" ? "bb" : ""}`));
   return `Leak: ${l.key}${fs.length ? ` · ${fs.join(", ")}` : ""}`;
 }
 
@@ -58,11 +59,22 @@ export interface DrillItem {
   hand: HandRecord;
 }
 
+const evsOf = (d: DecisionRecord) => {
+  const mix = d.mix ?? [];
+  return mix.every((x) => x[2] !== null) ? mix.map((x) => x[2]!) : null;
+};
+
+/** A mix with EVs needs its pot: EV lost is graded as a share of it (a decision kept with none can't be drilled). */
+const canGradePick = (d: DecisionRecord) => !evsOf(d) || (d.pot ?? 0) > 0;
+
+/** A decision a drill can deal: graded, with its mix kept, and a pick there can be graded again. */
+export const canDrill = (d: DecisionRecord): boolean => isGraded(d) && !!d.mix?.length && canGradePick(d);
+
 /** The leak's decisions to drill: graded ones whose mix is kept and can be graded again, in hands still kept; your misses
  * first (the most EV lost, then the rarest in the answer), then the rest in the order played. */
 export function drillItems(ds: readonly DecisionRecord[], leak: LeakRef, hands: ReadonlyMap<string, HandRecord>): DrillItem[] {
   const test = leakTest(leak);
-  const out = ds.filter((d) => isGraded(d) && d.mix?.length && canGradePick(d) && hands.has(d.handId) && test(d)).map((d) => ({ d, hand: hands.get(d.handId)! }));
+  const out = ds.filter((d) => canDrill(d) && hands.has(d.handId) && test(d)).map((d) => ({ d, hand: hands.get(d.handId)! }));
   const miss = (x: DrillItem) => (isOk(x.d) ? 1 : 0);
   return out.sort(
     (a, b) =>
@@ -100,14 +112,6 @@ export function lineBefore(r: ReplayedHand, street: Street, i: number): { board:
   }
   return { board: h.board.slice(0, NEED[street]), streets };
 }
-
-const evsOf = (d: DecisionRecord) => {
-  const mix = d.mix ?? [];
-  return mix.every((x) => x[2] !== null) ? mix.map((x) => x[2]!) : null;
-};
-
-/** A mix with EVs needs its pot: EV lost is graded as a share of it (a decision kept with none can't be drilled). */
-const canGradePick = (d: DecisionRecord) => !evsOf(d) || (d.pot ?? 0) > 0;
 
 /** A pick among the kept mix's actions, graded as the decision was: by EV where the mix has EVs for every action, else
  * by frequency (the charts, a read at once). Null where its EVs have no pot to be measured against. */

@@ -92,7 +92,8 @@ export function parseRange(text: string): {
   for (const part of text.split(":").map((x) => x.trim()).join(":").split(/[,\s]+/)) {
     if (!part) continue;
     const [tok = "", w, ...more] = part.split(":");
-    const weight = w === undefined ? 1 : Number(w);
+    // (a colon with nothing after it is a mistake, as the engine says, and not a weight of 0)
+    const weight = w === undefined ? 1 : w === "" ? NaN : Number(w);
     const combo = comboOf(tok);
     const cls = combo ? [] : expandToken(tok);
     if (more.length || !(weight >= 0 && weight <= 1) || (!combo && !cls.length)) {

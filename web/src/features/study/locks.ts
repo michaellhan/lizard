@@ -47,11 +47,15 @@ export const LOCK_PRESETS: Record<string, [string, Lock]> = {
   overfolder: ["Overfolds to bets", { fold: 15 }],
 };
 
+// (the engine reads a cut as a share of the action, and a rise as a share of the action it comes from: `_shift` in
+// TendencyLock. So "+30" isn't 30% more bets: it's 30% of the checks, and the words have to say which)
+const more = (verb: string, from: string) => (v: number) => (v < 0 ? `${verb} ${-v}% less` : `${verb} ${v}% of ${from}`);
+
 const WORDS: Record<LockKey, (v: number) => string> = {
-  fold: (v) => `folds ${signed(v)} pts to bets`,
-  bluff: (v) => `bluffs ${signed(v)}%`,
-  bet: (v) => `bets ${signed(v)}%`,
-  raise: (v) => `raises ${signed(v)}%`,
+  fold: (v) => `folds ${signed(v)} pts to a first bet`,
+  bluff: more("bluffs", "its weak checks"),
+  bet: more("bets", "its checks"),
+  raise: more("raises", "its calls"),
   next_fold: (v) => `folds ${v}% to your next bet`,
   next_raise: (v) => `raises ${v}% against your next bet`,
   next_bet: (v) => `bets ${v}% when you check`,
@@ -64,7 +68,7 @@ const WORDS_PREFLOP: Partial<Record<LockKey, (v: number) => string>> = {
 };
 const signed = (v: number) => `${v > 0 ? "+" : ""}${v}`;
 
-/** "folds +15 pts to bets, bluffs -50%" (exploit.py describe_lock's words; preflop, the keys that act there in theirs:
+/** "folds +15 pts to a first bet, bluffs 50% less" (after exploit.py describe_lock; preflop, the keys that act there in theirs:
  * "folds +15 pts to raises, re-raises -30%"). */
 export function describeLock(l: Lock, preflop = false): string {
   return (Object.keys(LOCK_KEYS) as LockKey[])

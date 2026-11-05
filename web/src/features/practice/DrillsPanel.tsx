@@ -19,7 +19,7 @@ import { keepMistake } from "@/data/mistakes";
 import { addVersion } from "@/features/history/history";
 import { drillMistake, drillMix, missedAgain } from "@/features/review/mistakes";
 import { addScore, emptyScore, GRADE_RULES, summary, whyText, type Grade, type Score } from "@/grading/grade";
-import { gameLabel, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
+import { gameLabel, isDrillable, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
 import { spotStamp } from "@/library/version";
@@ -60,7 +60,6 @@ import { CopyForAi, HintReveal, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const isView = (v: string | null): v is DrillView => DRILL_VIEWS.includes(v as DrillView);
-const drillable = (s: LibrarySpotIndex) => s.seats.length === 2 && Boolean(s.report) && Object.keys(s.flops ?? {}).length > 0;
 /** a count's flops read, at most: each is a file or two fetched */
 const COUNT_FLOPS = 12;
 /** under this many matching deals on the flops read, a filter is said to leave too few */
@@ -103,7 +102,7 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
     };
   }, [files, choice]);
 
-  const spots = useMemo(() => (lib.st === "ready" ? lib.index.spots.filter(drillable) : []), [lib]);
+  const spots = useMemo(() => (lib.st === "ready" ? lib.index.spots.filter(isDrillable) : []), [lib]);
   const spot = spots.find((s) => s.id === params.get("spot")) ?? spots[0];
   const street: DrillStreet = params.get("street") === "turn" ? "turn" : "flop";
   const asked = params.get("view");

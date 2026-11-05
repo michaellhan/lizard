@@ -130,7 +130,7 @@ describe("scenarioWords", () => {
     const words = scenarioWords(s);
     expect(words).toContain("HU 100bb · seat ");
     expect(words).toContain("single-raised pots");
-    expect(words).toContain("exploiting Calling station (assumed numbers): folds -20 pts to bets, bluffs -50%, raises -50%");
+    expect(words).toContain("exploiting Calling station (assumed numbers): folds -20 pts to a first bet, bluffs 50% less, raises 50% less");
     expect(words).toContain("ante 0.5bb");
     expect(words).toContain("rake 5% (cap 3bb)");
     expect(words).toContain("33%");

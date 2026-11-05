@@ -32,6 +32,9 @@ export interface LibrarySpotIndex {
 export const storedTurnFlops = (s: Pick<LibrarySpotIndex, "turns" | "flops">): string[] =>
   s.turns === true ? Object.keys(s.flops) : Array.isArray(s.turns) ? s.turns.filter((f) => Object.hasOwn(s.flops, f)) : [];
 
+/** A spot Practice's drills can deal: two players, with its report and a stored flop. */
+export const isDrillable = (s: LibrarySpotIndex) => s.seats.length === 2 && Boolean(s.report) && Object.keys(s.flops ?? {}).length > 0;
+
 export interface LibraryIndex {
   format: number;
   tree: unknown;

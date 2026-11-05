@@ -425,6 +425,59 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   await clean(page, problems);
 });
 
+test("10c. The plan starts empty, reads what's graded, and its practice step opens a started session", async ({ page, problems }) => {
+  await page.goto("/lizard/plan/");
+  await expect(page.getByRole("heading", { level: 1, name: "Plan" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "How this plan is made" })).toBeVisible();
+  const start = page.getByRole("region", { name: "Start here" });
+  await expect(start.getByRole("link", { name: "Play hands in Practice" })).toBeVisible();
+  await start.getByRole("link", { name: "Import hands in Analyze" }).click();
+  await expect(page).toHaveURL(/\/analyze/);
+
+  await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
+  await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("button", { name: /^Grade \d/ }).click();
+  await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
+
+  // Graded and clean, there's nothing to do yet, and the page says so
+  await page.goto("/lizard/plan/");
+  await expect(page.getByRole("region", { name: "Start here" })).toContainText(/leave no step to take/);
+
+  // Marked as missed in the browser's own store, as a worse player's grades would be
+  await page.evaluate(
+    () =>
+      new Promise<void>((done, fail) => {
+        const open = indexedDB.open("lizard");
+        open.onerror = () => fail(open.error);
+        open.onsuccess = () => {
+          const store = open.result.transaction("decisions", "readwrite").objectStore("decisions");
+          const all = store.getAll();
+          all.onsuccess = () => {
+            for (const d of all.result) store.put({ ...d, verdict: "Mistake" });
+            store.transaction.oncomplete = () => (open.result.close(), done());
+          };
+        };
+      }),
+  );
+  await page.goto("/lizard/plan/");
+  const next = page.getByRole("status", { name: "Next step" });
+  await expect(next).toBeVisible();
+  await expect(page.getByRole("region", { name: "Start here" })).toHaveCount(0);
+  const drill = page.getByRole("region", { name: "Practice drill" });
+  await expect(drill).toBeVisible();
+  await page.screenshot({ path: "e2e-results/shots/desktop/plan.png", fullPage: true });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.screenshot({ path: "e2e-results/shots/desktop/plan-phone.png", fullPage: true });
+  expect(await overflow(page), "sideways scroll at phone width, px").toBeLessThanOrEqual(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  await drill.getByRole("link", { name: /^Practice / }).first().click();
+  await expect(page).toHaveURL(/\/practice/);
+  await expect(page.getByRole("status").filter({ hasText: /^Started / })).toBeVisible({ timeout: 60_000 });
+  await expect(page).not.toHaveURL(/play=/);
+  await clean(page, problems);
+});
+
 test("14d. A single combo painted apart from its class, graded by combo, on a real river answer, with EQR by combo", async ({ page, problems }) => {
   await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
   await expect(actions(page)).toBeVisible({ timeout: 120_000 });

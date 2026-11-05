@@ -25,6 +25,7 @@ export const ROUTES: RouteDef[] = [
   { path: "equity", label: "PLO equity", nav: false, status: "partial", summary: "PLO4 hand and range equity, exact or Monte Carlo, each number labelled as such: a calculator, not a solver." },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
   { path: "history", label: "History", nav: true, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions." },
+  { path: "plan", label: "Plan", nav: true, status: "partial", summary: "What to do next, in order, from what you've kept: reviews due, leaks that can be read, spots with too few hands to read, and a Practice drill, by a plain rule stated on the page." },
   { path: "review", label: "Review", nav: true, status: "partial", summary: "Your mistakes kept across sessions, what's due to retry on a spaced schedule, each graded again under the current answer's provenance." },
   { path: "saved", label: "Saved", nav: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore." },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },

@@ -20,6 +20,7 @@ const SettingsPage = page(() => import("@/features/settings/SettingsPage"), "Set
 const RangesPage = page(() => import("@/features/ranges/RangesPage"), "RangesPage");
 const SavedPage = page(() => import("@/features/saved/SavedPage"), "SavedPage");
 const HistoryPage = page(() => import("@/features/history/HistoryPage"), "HistoryPage");
+const PlanPage = page(() => import("@/features/plan/PlanPage"), "PlanPage");
 const ReviewPage = page(() => import("@/features/review/ReviewPage"), "ReviewPage");
 const AnalyzePage = page(() => import("@/features/analyze/AnalyzePage"), "AnalyzePage");
 const ReportsPage = page(() => import("@/features/reports/ReportsPage"), "ReportsPage");
@@ -57,6 +58,7 @@ export function App() {
             <Route path="ranges" element={<RangesPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="history" element={<HistoryPage />} />
+            <Route path="plan" element={<PlanPage />} />
             <Route path="review" element={<ReviewPage />} />
             <Route path="saved" element={<SavedPage />} />
             <Route path="engine" element={<EnginePage />} />

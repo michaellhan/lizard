@@ -46,3 +46,4 @@ solver/sanity_report.md
 .vscode/
 *.swp
 .claude/settings.local.json
+web/.vitest/

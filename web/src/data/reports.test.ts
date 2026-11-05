@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { GAME_EQUILIBRIUM, GAME_WORDS } from "@/features/analyze/analyze";
 import { db } from "./db";
 import { filtersOf, listReports, putReport, readReport, reportLink, reportWords } from "./reports";
 
@@ -19,6 +20,12 @@ describe("saved reports", () => {
   it("says its filters in words, and all hands where there are none", () => {
     expect(reportWords({})).toBe("All hands");
     expect(reportWords({ site: "GGPoker", lost: "1", from: "2024-01-02" })).toBe("GGPoker · from 2024-01-02 · 1bb or more EV lost");
+  });
+
+  it("says the game filter in words, and keeps no other value of it", () => {
+    expect(reportWords({ game: GAME_EQUILIBRIUM })).toBe(GAME_WORDS);
+    expect(readReport({ ...report, filters: { game: GAME_EQUILIBRIUM } })?.filters).toEqual({ game: GAME_EQUILIBRIUM });
+    expect(readReport({ ...report, filters: { game: "everything" } })).toBeNull();
   });
 
   it.each([

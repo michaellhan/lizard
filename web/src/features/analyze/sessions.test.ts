@@ -1,11 +1,11 @@
 // Sittings read from the hands kept: where one ends, what keeps kinds and sites apart, and the `sess` filter's range
 // test (the hands' own clock, whatever the browser's zone).
 import { describe, expect, it, vi } from "vitest";
-import type { HandRecord } from "@/data/db";
+import type { HandRecord, SessionRecord } from "@/data/db";
 import { CLASSIC_SITE, PRACTICE_SITE } from "@/data/hands";
-import { filterHands, HAND_FILTERS } from "./analyze";
+import { filterHands, GAME_EQUILIBRIUM, GAME_WORDS, HAND_FILTERS } from "./analyze";
 import { leakDrillAbout, leakDrillLink } from "./leakDrill";
-import { BREAK, handKind, inSess, parseSess, sessionsOf, sessKey, sessWords } from "./sessions";
+import { BREAK, exploitImports, handKind, inSess, isEquilibriumHand, parseSess, sessionImport, sessionsOf, sessKey, sessWords } from "./sessions";
 import { tallyWinnings } from "./winnings";
 
 const T0 = Date.UTC(2026, 2, 4, 21, 30);
@@ -134,5 +134,33 @@ describe("the sess filter", () => {
     expect(back.get("sess")).toBe(first!.key);
     expect(back.has("hand")).toBe(false);
     expect(leakDrillAbout(leak, back)).toBe("Leak: RFI · your seat BTN, session PokerStars cash, 2026-03-04 21:30 to 21:40");
+  });
+});
+
+describe("the hands an equilibrium can be read from", () => {
+  const sessions = (["practice", "exploit", "drill"] as const).map((kind): SessionRecord => ({ id: `s-${kind}`, kind, startedAt: 1, decisions: 0, evLossBb: 0, meta: {} }));
+  const exploits = exploitImports(sessions);
+  const cash = hand({ importId: sessionImport("s-practice") });
+  const exploit = hand({ importId: sessionImport("s-exploit") });
+  const tour = hand({ tournament: "Practice" });
+
+  it("knows an exploit session's hands by the session, and no other's", () => {
+    expect([...exploits]).toEqual(["practice:s-exploit"]);
+    expect(isEquilibriumHand(cash, exploits)).toBe(true);
+    expect(isEquilibriumHand(exploit, exploits)).toBe(false);
+    expect(isEquilibriumHand(tour, exploits)).toBe(false);
+  });
+
+  it("filters them with `game`, keeps all without it, and keeps none on a value it doesn't know", () => {
+    const hands = [cash, exploit, tour];
+    expect(filterHands(hands, new URLSearchParams(), new Map(), exploits)).toEqual(hands);
+    expect(filterHands(hands, new URLSearchParams({ game: GAME_EQUILIBRIUM }), new Map(), exploits)).toEqual([cash]);
+    expect(filterHands(hands, new URLSearchParams({ game: "x" }), new Map(), exploits)).toEqual([]);
+  });
+
+  it("carries it on a leak's drill, and says it", () => {
+    const params = new URLSearchParams({ game: GAME_EQUILIBRIUM });
+    expect(leakDrillLink({ kind: "pf", key: "RFI" }, params)).toBe("/analyze?drill=pf%3ARFI&game=equilibrium");
+    expect(leakDrillAbout({ kind: "pf", key: "RFI" }, params)).toContain(GAME_WORDS);
   });
 });

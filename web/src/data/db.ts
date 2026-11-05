@@ -187,6 +187,8 @@ export interface DecisionRecord {
   off?: string;
   /** on the turn: you bet or raised the flop */
   flopAggr?: boolean;
+  /** on the flop: you'd already bet or raised on it, so what you face is a raise of yours */
+  ownBet?: boolean;
   /** a Quick triage read: how far to trust it and what the Advisor read it from (Advisor.triage) */
   confidence?: Confidence;
   triageSource?: string;

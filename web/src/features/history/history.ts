@@ -161,6 +161,8 @@ export interface SessionRow {
   net?: number | null;
   /** range builds: the range's accuracy by hand class, and its EV lost a combo (bb) */
   acc?: number | null;
+  /** a range build scored combo by combo, not by hand class */
+  byCombo?: boolean;
   buildLoss?: number | null;
   /** what the grades are against */
   graded: string;
@@ -251,6 +253,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     lossPer: null,
     lossPctPer: null,
     acc: typeof m.acc === "number" ? m.acc : null,
+    byCombo: m.graded === "combo",
     buildLoss: typeof m.evLossBb === "number" ? m.evLossBb : null,
     graded: src ? `${sourceWords(src)}${m.approximate && src !== "charts" && src !== "library-turn" ? " (approximate)" : ""}` : "Not kept",
     ...(line ? { to: { href: `/study?${line}`, label: "Open the node in Study" } } : {}),

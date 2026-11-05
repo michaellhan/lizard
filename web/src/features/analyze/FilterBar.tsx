@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import type { HandRecord } from "@/data/db";
 import { SaveReport } from "@/features/saved/SaveReport";
-import { HAND_FILTERS, LOST_STEPS, POT_TYPES } from "./analyze";
+import { GAME_EQUILIBRIUM, GAME_WORDS, HAND_FILTERS, LOST_STEPS, POT_TYPES } from "./analyze";
 
 const count = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
 
@@ -95,6 +95,13 @@ export function FilterBar({
                 {x}bb or more
               </option>
             ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1" title="Leaves out tournament hands, Practice's and a site's, and the hands of Practice's exploit sessions: what the Plan page reads leaks from">
+          <span className="text-muted">Game</span>
+          <select aria-label="Game" value={params.get("game") ?? ""} onChange={(e) => set({ game: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+            <option value="">Any</option>
+            <option value={GAME_EQUILIBRIUM}>{GAME_WORDS}</option>
           </select>
         </label>
         <input

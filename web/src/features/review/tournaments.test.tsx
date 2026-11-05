@@ -106,7 +106,7 @@ describe("ReviewPage", () => {
   const FAR = Date.now() + 5 * 86_400_000;
 
   it("lists an exploit session's mistakes on their own, in no other list or tally", async () => {
-    const READ: Provenance = { ...LIVE, source: "best-response", approximate: true, exploit: "Nit (assumed numbers)", lock: "best response to BB folds +15 pts to bets, not an equilibrium re-solve" };
+    const READ: Provenance = { ...LIVE, source: "best-response", approximate: true, exploit: "Nit (assumed numbers)", lock: "best response to BB folds +15 pts to a first bet, not an equilibrium re-solve" };
     await seed(mistake({ due: FAR }), mistake({ id: "hand|x", due: FAR, exploit: "nit", provenance: READ, grade: { a: 0, best: 1, verdict: "Blunder", ok: false, mixed: false, loss: 2, lossPct: 36, byEv: true } }));
     page();
     const own = await screen.findByRole("region", { name: "Exploit mistakes" });

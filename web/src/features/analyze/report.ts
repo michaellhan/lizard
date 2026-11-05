@@ -95,8 +95,9 @@ export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
   ["vs 3bet: fold", "fold", (d) => d.situation === "vs 3bet"],
   ["vs 3bet: 4bet", "aggr", (d) => d.situation === "vs 3bet"],
   ["Flop c-bet", "aggr", (d) => d.street === "flop" && d.role === "PFR" && !d.facing && !d.multi],
-  ["Flop vs c-bet: fold", "fold", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi],
-  ["Flop vs c-bet: raise", "aggr", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi],
+  // (not a raise of a bet you made: that's no c-bet. A grade kept before `ownBet` was can't tell)
+  ["Flop vs c-bet: fold", "fold", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi && !d.ownBet],
+  ["Flop vs c-bet: raise", "aggr", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi && !d.ownBet],
   ["Flop out of position vs bet: raise", "aggr", (d) => d.street === "flop" && d.ip === false && !!d.facing && !d.multi],
   ["Turn barrel", "aggr", (d) => d.street === "turn" && d.role === "PFR" && !!d.flopAggr && !d.facing && !d.multi],
   ["Turn vs bet: fold", "fold", (d) => d.street === "turn" && !!d.facing],
@@ -175,6 +176,9 @@ const MIN_THIN = 10;
  * sample) and with its 95% interval clear of the line (leakIsRead). */
 export const LEAK = { freq: [0.1, MIN_READ], pf: [0.8, MIN_READ], spot: [0.5, MIN_READ] } as const;
 
+/** What a leak is, said beside them. */
+export const LEAK_RULE = `A leak is a frequency ${Math.round(LEAK.freq[0] * 100)} points off the answer's, a preflop situation under ${Math.round(LEAK.pf[0] * 100)}% in the mix, or a spot after the flop losing ${LEAK.spot[0]}bb per decision. Each needs at least ${MIN_READ} decisions and a 95% interval clear of that line; anything short of that is too few to read, and isn't marked.`;
+
 /** (`low`: how many of its decisions stand on a low-confidence read, which the leak may not survive a check of;
  * `versions`: where its decisions don't stand on one known version, in words; `range`: your rate's 95% interval, a
  * spot's EV lost per decision) */
@@ -198,10 +202,10 @@ export function meanRange(xs: readonly number[]): [number, number] | null {
   return [mean - half, mean + half];
 }
 
-/** Whether a row past a leak's line can be read: over MIN_READ decisions, and its interval clear of the line: the
- * answer's frequency outside yours, the share in the mix under 80%, the EV lost per decision over nothing. */
+/** Whether a row past a leak's line can be read: over MIN_READ decisions, and its whole interval past the line: yours
+ * 10 points from the answer's frequency, under 80% in the mix, over 0.5bb lost per decision. */
 export const leakIsRead = (l: Leak): boolean =>
-  l.n >= MIN_READ && (l.kind === "freq" ? l.gto < l.range[0] || l.gto > l.range[1] : l.kind === "pf" ? l.range[1] < LEAK.pf[0] : l.range[0] > 0);
+  l.n >= MIN_READ && (l.kind === "freq" ? l.gto + LEAK.freq[0] < l.range[0] || l.gto - LEAK.freq[0] > l.range[1] : l.kind === "pf" ? l.range[1] < LEAK.pf[0] : l.range[0] > LEAK.spot[0]);
 
 /** Every row past a leak's line: `leaks` can be read (leakIsRead), `thin` look off but are too few to say. */
 export function readLeaks(ds: readonly DecisionRecord[]): { leaks: Leak[]; thin: Leak[] } {
@@ -309,12 +313,12 @@ export interface Report {
   notGraded: { why: string; n: number }[];
 }
 
-export function report(ds: readonly DecisionRecord[], top = 20): Report {
+export function report(ds: readonly DecisionRecord[], top = 20, leakFrom: readonly DecisionRecord[] = ds): Report {
   const why = new Map<string, number>();
   for (const d of ds) if (!isGraded(d)) why.set(d.why ?? "", (why.get(d.why ?? "") ?? 0) + 1);
   const unweighed = ds.filter((d) => isGraded(d) && d.evLossBb == null && d.verdict === "Mistake").sort((a, b) => (b.bestFreq ?? 0) - (a.bestFreq ?? 0));
   const low = ds.filter(isLow);
-  const { leaks: found, thin } = readLeaks(ds);
+  const { leaks: found, thin } = readLeaks(leakFrom);
   return {
     all: tally(ds),
     hands: new Set(ds.map((d) => d.handId)).size,

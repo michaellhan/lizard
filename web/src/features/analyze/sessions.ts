@@ -3,7 +3,7 @@
 // night). Nothing here is stored, so deleting an import removes its sessions and a re-import adds none. `playedAt` is
 // the site's own clock read as UTC: dates are written with toISOString, never in the browser's zone. (This file sits
 // under analyze.ts: it can import neither that nor report.ts, nor classic.ts.)
-import type { HandRecord } from "@/data/db";
+import type { HandRecord, SessionRecord } from "@/data/db";
 import { CLASSIC_SITE, PRACTICE_SITE } from "@/data/hands";
 
 export type HandKind = "cash" | "tour" | "practice";
@@ -12,6 +12,20 @@ export type HandKind = "cash" | "tour" | "practice";
  * still a tournament: `tournament` is "" there. */
 export const handKind = (h: Pick<HandRecord, "site" | "tournament">): HandKind =>
   h.site === PRACTICE_SITE || h.site === CLASSIC_SITE ? "practice" : h.tournament !== undefined ? "tour" : "cash";
+
+/** The import a Practice session's kept hands come in under (practice/history.ts practiceRecord). */
+export const sessionImport = (id: string) => `practice:${id}`;
+
+/** The imports of the exploit sessions: a kept hand says nothing of its session's read, its import does. */
+export const exploitImports = (sessions: readonly Pick<SessionRecord, "id" | "kind">[]): Set<string> => new Set(sessions.filter((s) => s.kind === "exploit").map((s) => sessionImport(s.id)));
+
+/** Neither a tournament's (Practice's or a site's: its chips aren't bb, and it's graded with no ICM) nor from an exploit
+ * session (played against an assumed profile): the hands an equilibrium's leak can be read from. */
+export const isEquilibriumHand = (h: Pick<HandRecord, "tournament" | "importId">, exploits: ReadonlySet<string>) => h.tournament === undefined && !exploits.has(h.importId);
+
+/** The words for hands an exploit session kept, which stay listed but count nowhere. */
+export const exploitsApartNote = (n: number) =>
+  `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"} from exploit sessions ${n === 1 ? "is" : "are"} listed here and left out of your results, stats and report: the table played the charts, not the assumed profile, so the chips don't test the read, and the answer was the profile's best response, not equilibrium.`;
 
 /** in the order played: the history's clock, then the site's hand number */
 export const byPlayed = (a: HandRecord, b: HandRecord) =>

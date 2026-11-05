@@ -10,7 +10,7 @@ import { bringIntoView } from "@/components/scroll";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
-import type { DecisionRecord, HandRecord } from "@/data/db";
+import { recentSessions, type DecisionRecord, type HandRecord } from "@/data/db";
 import { addHands, deleteImport, importsOf, listDecisions, listHands, putHandNotes, PRACTICE_SITE, type ImportSummary } from "@/data/hands";
 import { readTags } from "@/data/saved";
 import type { Verdict } from "@/grading/grade";
@@ -30,6 +30,7 @@ import { decisionId } from "./grading";
 import { isGraded, lostByKind } from "./report";
 import { importTooBig } from "@/data/limits";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
+import { exploitImports, exploitsApartNote, isEquilibriumHand } from "./sessions";
 import { SessionsPanel } from "./SessionsPanel";
 import { StatsPanel } from "./StatsPanel";
 import { WinningsPanel } from "./WinningsPanel";
@@ -40,6 +41,7 @@ export const ROW_LIMIT = 200;
 /** the most listed at a press: tens of thousands of rows of cards would hold the page */
 const ROW_STEP = 1000;
 const NO_LOST: ReadonlyMap<string, number> = new Map();
+const NO_EXPLOITS: ReadonlySet<string> = new Set();
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const cardsOf = (s: string) => s.match(/../g) ?? [];
 // each move said of another seat, and of you
@@ -63,14 +65,17 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const [params, setParams] = useSearchParams();
   const [hands, setHands] = useState<HandRecord[] | null>(null);
   const [decisions, setDecisions] = useState<DecisionRecord[]>([]);
+  // (the `game` filter's: a kept hand doesn't say it was an exploit session's)
+  const [exploits, setExploits] = useState(NO_EXPLOITS);
   const [n, setN] = useState(0);
   const reload = () => setN((x) => x + 1);
   useEffect(() => {
     let alive = true;
-    void Promise.all([listHands(), listDecisions()]).then(([h, d]) => {
+    void Promise.all([listHands(), listDecisions(), recentSessions("exploit", Infinity)]).then(([h, d, s]) => {
       if (!alive) return;
       setHands(h);
       setDecisions(d);
+      setExploits(exploitImports(s));
     });
     return () => {
       alive = false;
@@ -96,9 +101,14 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const filters = useMemo(() => new URLSearchParams(key), [key]);
   // (the same hands, the same array, while the filters stand: opening a hand, or a grade, recounts nothing)
   const lostFor = filters.get("lost") ? lost : NO_LOST;
-  const shown = useMemo(() => (hands ? filterHands(hands, filters, lostFor) : null), [hands, filters, lostFor]);
+  const shown = useMemo(() => (hands ? filterHands(hands, filters, lostFor, exploits) : null), [hands, filters, lostFor, exploits]);
   const shownById = useMemo(() => new Map(shown?.map((h) => [h.id, h])), [shown]);
-  const losses = useMemo(() => lostByKind(later, shownById), [later, shownById]);
+  const lossesShown = useMemo(() => lostByKind(later, shownById), [later, shownById]);
+  // (an exploit session's hands stay listed and count nowhere: sessions.ts exploitsApartNote)
+  const played = useMemo(() => (hands && exploits.size ? hands.filter((h) => !exploits.has(h.importId)) : hands), [hands, exploits]);
+  const counted = useMemo(() => (shown && exploits.size ? shown.filter((h) => !exploits.has(h.importId)) : shown), [shown, exploits]);
+  const countedById = useMemo(() => new Map(counted?.map((h) => [h.id, h])), [counted]);
+  const losses = useMemo(() => lostByKind(later, countedById), [later, countedById]);
   const graded = useMemo(() => later.reduce((n, d) => n + Number(isGraded(d)), 0), [later]);
   const openDecisions = useMemo(() => (open ? decisions.filter((d) => d.handId === open.id) : []), [open, decisions]);
   const set = (o: Record<string, string | null>) =>
@@ -125,12 +135,12 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       <ImportPanel onImported={reload} />
       {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
       {hands && shown && hands.length > 0 && (
-        <FilterBar hands={hands} shown={shown} graded={graded} gradedShown={losses.reduce((n, k) => n + k.graded, 0)} params={params} set={set} />
+        <FilterBar hands={hands} shown={shown} graded={graded} gradedShown={lossesShown.reduce((n, k) => n + k.graded, 0)} params={params} set={set} />
       )}
-      {hands && shown && hands.length > 0 && <GradePanel hands={params.get("sess") ? shown : hands} decisions={decisions} onGraded={onGraded} />}
-      {hands && hands.length > 0 && <SessionsPanel hands={hands} decisions={decisions} params={params} lost={lost} set={set} />}
-      {hands && shown && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={shown} kept={hands} onClose={() => set({ drill: null })} />}
-      {hands && shown && <GradeReport decisions={later} hands={shown} of={hands.length} />}
+      {played && counted && played.length > 0 && <GradePanel hands={params.get("sess") ? counted : played} decisions={decisions} onGraded={onGraded} />}
+      {played && played.length > 0 && <SessionsPanel hands={played} decisions={decisions} params={params} lost={lost} exploits={exploits} set={set} />}
+      {played && counted && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={counted.filter((h) => isEquilibriumHand(h, exploits))} kept={played} onClose={() => set({ drill: null })} />}
+      {played && counted && <GradeReport decisions={later} hands={counted} of={played.length} exploits={exploits} />}
       {open && (
         <HandDetail
           hand={open}
@@ -150,8 +160,9 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       ) : (
         <>
           <HandsTable hands={hands} shown={shown} set={set} rowLimit={rowLimit} />
-          {shown.length > 0 && <WinningsPanel hands={shown} of={hands.length} losses={losses} />}
-          {shown.length > 0 && <StatsPanel hands={shown} of={hands.length} />}
+          {counted && counted.length < shown.length && <p className="text-sm text-muted">{exploitsApartNote(shown.length - counted.length)}</p>}
+          {counted && counted.length > 0 && <WinningsPanel hands={counted} of={played?.length ?? hands.length} losses={losses} />}
+          {counted && counted.length > 0 && <StatsPanel hands={counted} of={played?.length ?? hands.length} />}
         </>
       )}
     </div>

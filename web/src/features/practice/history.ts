@@ -9,6 +9,7 @@
 import type { HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
 import { heroDecisions, recordOf } from "@/features/analyze/analyze";
+import { sessionImport } from "@/features/analyze/sessions";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
 import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
@@ -115,7 +116,7 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
   const replayed = importHand(text);
   const revealed = revealedMoves(h);
   const r = recordOf(text, replayed, {
-    id: `practice:${session.id}`,
+    id: sessionImport(session.id),
     name: `Practice, ${new Date(session.startedAt).toLocaleString()}`,
     at: at.getTime(),
   });

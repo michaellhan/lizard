@@ -4122,3 +4122,23 @@ Three things a reader should know. Action fills now carry patterns, as seven col
 Browser test 14d paints a combo on a real river solve and checks it's graded by combo; 10b now saves a report and opens it from Saved. Neither ran on a phone or a tablet.
 
 Tests: 2496 unit tests in 140 files, typecheck and lint clean, 102 browser tests passed and 42 skipped (the QA list at the other two widths).
+
+Live check of `9596e2a` (run 42054537505, 2026-11-05): `index-B_GjjvYX.js` at 297,002 bytes, the size a local build gave, with the Study title, cross-origin isolated and "Engine ready · 8 threads" on the live page. `/`, `/gto-solver/`, `/gto-solver-classic/`, `/lizard/saved/` and the solver manifest answered 200.
+
+### A plan page, and what an independent review of the last two commits found (Phases 5, 6)
+
+`/plan` turns what's kept here into an ordered list of next steps: reviews due, leaks by EV given up, rows too few to read, one Practice drill. Each step is a link that starts it, and the page states the rule that orders them. It is a rule, not a coach. Browser test 10c goes from the empty page through grading to a started Practice session and checks phone width. The fixtures grade clean, so the test writes misses into IndexedDB to reach the drill step; a player's real misses weren't watched.
+
+An independent review of `930c999` and `9596e2a` found six defects and one minor one, all fixed here:
+
+- Positive Maniac numbers were worded as a change in frequency when the engine moves a share of the other action across. The postflop words now say that.
+- A fold number is capped by what the range has to move and applies to a first bet only. The assumed-profile words now say so.
+- The leak rule's words and code disagreed on where the interval has to sit. Now one rule, `leakIsRead`, with cases at each edge.
+- A hand kept from an exploit session reached Analyze as an ordinary Practice hand: its chips were in the winnings Practice said weren't counted, and equilibrium grades of deliberate exploits could read as leaks. It now stays listed, says so, and is left out of results, stats, sittings, grading and the report (`exploitHands.test.tsx`).
+- "Flop vs c-bet" rows counted your own later decisions. New grades carry `ownBet`; grades kept from before can't tell, so old rows stay as they were.
+- History showed a score graded by combo as a class score. It now says "by combo".
+- "AKs:" read as full weight; it's now unknown.
+
+One change of behaviour: Analyze's leaks are now read from the same hands as the Plan's, so tournament grades stay in the report's tables and out of its leaks, and the page says how many. Someone who imports only tournaments gets no leaks from Analyze. Before, those leaks mixed chips with big blinds and had no ICM.
+
+Tests: 2567 unit tests in 144 files, typecheck and lint clean, 106 browser tests passed and 44 skipped (the QA list at the other two widths).

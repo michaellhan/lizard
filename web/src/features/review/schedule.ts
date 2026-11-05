@@ -10,7 +10,7 @@ export const REVIEW_DAYS = [1, 3, 7, 21] as const;
 /** the step past the last: nothing more to come */
 export const FINISHED = REVIEW_DAYS.length;
 
-const midnight = (t: number, plus = 0) => {
+export const midnight = (t: number, plus = 0) => {
   const d = new Date(t);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + plus).getTime();
 };

@@ -72,3 +72,11 @@ describe("range text", () => {
     expect(rangeCombos(Object.fromEntries(ALL_CLASSES.map((c) => [c, 1])))).toBe(1326);
   });
 });
+
+describe("a weight left empty", () => {
+  it("is a mistake, as in the engine, and not a weight of 0", () => {
+    const r = parseRange("AKs:, QQ");
+    expect(r.unknown).toEqual(["AKs:"]);
+    expect(parseRange("AKs:").unknown).toEqual(["AKs:"]);
+  });
+});

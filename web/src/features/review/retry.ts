@@ -66,7 +66,7 @@ export function storedTurnAnswer(e: Entry, t: TurnFile, ask: Pick<Extract<Mistak
 }
 
 /** The library the Settings pick, as the drills read it. */
-async function libraryFiles(): Promise<LibraryFiles> {
+export async function libraryFiles(): Promise<LibraryFiles> {
   const choice = useSettings.getState().librarySource;
   const id = choice === "auto" ? await resolveLibrarySource() : choice;
   return new LibraryFiles((LIBRARY_SOURCES.find((s) => s.id === id) ?? LIBRARY_SOURCES[0]).base);

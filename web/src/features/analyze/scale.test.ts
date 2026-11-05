@@ -10,6 +10,7 @@ import type { DecisionRecord, HandRecord } from "@/data/db";
 import { importHand } from "@/hh/replay";
 import { filterHands, lostByHand, recordOf } from "./analyze";
 import { BREAKDOWNS, breakdown } from "./breakdown";
+import { buildPlan } from "@/features/plan/plan";
 import { lostByKind, report } from "./report";
 import { answersOf, tallies, trendOf } from "./trend";
 import { sessionsOf } from "./sessions";
@@ -92,6 +93,12 @@ describe("Analyze at 50,000 hands", () => {
     expect(rp.all.n).toBe(N * 3);
     expect(rp.freqs.length).toBeGreaterThan(0);
     timed("solver EV lost by kind", () => lostByKind(decisions, byId));
+  });
+
+  it("builds the plan, once, as the Plan page does", { timeout: 60_000 }, () => {
+    const plan = timed("the plan over 150,000 decisions", () => buildPlan({ now: T0, mistakes: [], hands, decisions, sessions: [] }));
+    expect(plan.first).toBeNull();
+    expect(plan.drill).not.toBeNull();
   });
 
   it("breaks the decisions down every way", { timeout: 60_000 }, () => {

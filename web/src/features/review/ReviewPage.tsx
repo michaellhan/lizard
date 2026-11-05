@@ -47,23 +47,48 @@ export function ReviewPage() {
   const [shownT, setShownT] = useState(LIST_PAGE);
   const [shownX, setShownX] = useState(LIST_PAGE);
 
+  // the Plan page's link: the first due opens as it's read, as Retry the next one would, and the link goes from the address
+  const opener = useRef<HTMLElement | null>(null);
+  const retryNext = useRef(params.get("retry") === "next");
+  const openAsked = (list: readonly MistakeRecord[], now: number) => {
+    if (!retryNext.current) return;
+    retryNext.current = false;
+    const first = dueQueue(list, now)[0];
+    if (first) {
+      opener.current = document.body;
+      setCurrent(first);
+    }
+    setParams(
+      (p) => {
+        const q = new URLSearchParams(p);
+        q.delete("retry");
+        return q;
+      },
+      { replace: true },
+    );
+  };
+
   useEffect(() => {
     let alive = true;
     void listMistakes()
-      .then((d) => alive && setData({ ...d, now: Date.now() }))
+      .then((d) => {
+        if (!alive) return;
+        const at = Date.now();
+        setData({ ...d, now: at });
+        openAsked(d.list, at);
+      })
       .catch(() => alive && setData({ list: [], damaged: 0, now: Date.now() }));
     return () => {
       alive = false;
     };
-  }, [n]);
+  }, [n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => setN((x) => x + 1), []);
   const list = useMemo(() => data?.list ?? [], [data]);
   const now = data?.now ?? 0;
   const queue = useMemo(() => dueQueue(list, now), [list, now]);
   const next = queue.find((m) => m.id !== current?.id && !passed.has(m.id)) ?? null;
-  // what opened the retry: Close gives the keyboard back to it (or, gone from the list, to the page's heading)
-  const opener = useRef<HTMLElement | null>(null);
+  // (opener: what opened the retry. Close gives the keyboard back to it, or, gone from the list, to the page's heading)
   const open = (m: MistakeRecord | null) => {
     if (current) setPassed((s) => new Set(s).add(current.id));
     if (m && !current && document.activeElement instanceof HTMLElement) opener.current = document.activeElement;
@@ -73,7 +98,7 @@ export function ReviewPage() {
     if (current || !opener.current) return;
     const was = opener.current;
     opener.current = null;
-    const heading = was.isConnected ? null : document.querySelector<HTMLElement>("main h1");
+    const heading = was.isConnected && was !== document.body ? null : document.querySelector<HTMLElement>("main h1");
     heading?.setAttribute("tabindex", "-1");
     (heading ?? was).focus();
   }, [current]);
@@ -103,7 +128,7 @@ export function ReviewPage() {
         <p className="text-sm text-muted">
           The decisions you got wrong in <Link to="/practice" className="underline">Practice</Link>, its full hands and its drills: every Inaccuracy, Mistake and Blunder, one entry a spot, across
           sessions. They&rsquo;re kept in this browser with no account, and they go in your <Link to="/saved" className="underline">backup</Link>. Your numbers by street and over time are in{" "}
-          <Link to="/history" className="underline">History</Link>.
+          <Link to="/history" className="underline">History</Link>, and what to do next, in order, in your <Link to="/plan" className="underline">Plan</Link>.
         </p>
       </div>
 

@@ -20,7 +20,8 @@ import { Breakdowns } from "./BreakdownPanel";
 import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
-import { basisOf, isGraded, LEAK, leakTest, MIN_READ, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { isEquilibriumHand } from "./sessions";
+import { basisOf, isGraded, LEAK_RULE, leakTest, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
@@ -228,14 +229,18 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   );
 }
 
+const NO_EXPLOITS: ReadonlySet<string> = new Set();
 const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
 
 /** The report over the graded decisions of `hands` (the hands the filters show, of `of` kept). */
-export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecord[]; hands: HandRecord[]; of?: number }) {
+export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { decisions: DecisionRecord[]; hands: HandRecord[]; of?: number; exploits?: ReadonlySet<string> }) {
   const byId = useMemo(() => new Map(hands.map((h) => [h.id, h])), [hands]);
   // (decisions of hands no longer kept are left out)
   const ds = useMemo(() => decisions.filter((d) => byId.has(d.handId)), [decisions, byId]);
-  const rp = useMemo(() => report(ds), [ds]);
+  // (leaks read from the hands an equilibrium can be read from, as the Plan's are: sessions.ts isEquilibriumHand)
+  const eq = useMemo(() => ds.filter((d) => isEquilibriumHand(byId.get(d.handId)!, exploits)), [ds, byId, exploits]);
+  const rp = useMemo(() => report(ds, 20, eq), [ds, eq]);
+  const apart = useMemo(() => ds.length && ds.reduce((n, d) => n + Number(isGraded(d)), 0) - eq.reduce((n, d) => n + Number(isGraded(d)), 0), [ds, eq]);
   const [leak, setLeak] = useState<Leak | null>(null);
   const [freq, setFreq] = useState<string | null>(null);
   const [params] = useSearchParams();
@@ -354,6 +359,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
       <p role="group" aria-label="What makes a leak" className="text-xs text-muted">
         {rp.leaks.length === 0 ? "No clear leak yet. " : ""}
         {LEAK_RULE}
+        {apart > 0 ? ` ${nDecisions(apart)} in tournament hands ${apart === 1 ? "is" : "are"} left out of the leaks: their chips aren't big blinds and they're graded with no ICM.` : ""}
       </p>
       {rp.thin.length > 0 && (
         <details className="space-y-1">
@@ -372,7 +378,7 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
           </ul>
         </details>
       )}
-      {leak && <DecisionList title={leak.key} ds={ds.filter(leakTest(leak))} byId={byId} />}
+      {leak && <DecisionList title={leak.key} ds={eq.filter(leakTest(leak))} byId={byId} />}
 
       <Breakdowns ds={ds} hands={hands} byId={byId} />
       <GroupTable title="By street" first="Street" rows={rp.byStreet} ds={ds} keyOf={streetOf} byId={byId} />
@@ -428,9 +434,6 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
     </section>
   );
 }
-
-/** What a leak is, said beside them. */
-export const LEAK_RULE = `A leak is a frequency ${Math.round(LEAK.freq[0] * 100)} points off the answer's, a preflop situation under ${pct(LEAK.pf[0])} in the mix, or a spot after the flop losing ${LEAK.spot[0]}bb per decision. Each needs at least ${MIN_READ} decisions and a 95% interval clear of that line; anything short of that is too few to read, and isn't marked.`;
 
 function leakText(l: Leak): string {
   const low = l.low ? `, ${l.low} on a low-confidence read` : "";
