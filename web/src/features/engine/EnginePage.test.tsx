@@ -2,7 +2,7 @@
 // handsCheck.test.ts's; here it's a stand-in that goes when it's told, but for one run that's real.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { kvGet, kvSet } from "@/data/db";
 import { SolverError } from "@/solver/types";
 import { useSettings } from "@/state/settings";
@@ -191,6 +191,10 @@ describe("a run", () => {
   });
 
   it("takes a double-click as one press, though Stop comes up under the second, and Play under one at the end", async () => {
+    // (on a held clock: a second press counts by the time since the first, which a busy machine can stretch)
+    let now = 1e6;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    onTestFinished(() => clock.mockRestore());
     const { seen, end } = held();
     show();
     play();
@@ -199,7 +203,7 @@ describe("a run", () => {
     await end(REPORT);
     play();
     expect(seen).toHaveLength(1);
-    await swapped();
+    now += 400;
     play();
     expect(seen).toHaveLength(2);
     await end(REPORT);
@@ -398,8 +402,7 @@ describe("the report", () => {
     await kvSet(CHECK_KEY, REPORT);
     show();
     const r = await report();
-    await act(async () => {});
-    expect(build.manifest).toHaveBeenCalled();
+    await waitFor(() => expect(build.manifest).toHaveBeenCalled());
     expect(r).toHaveTextContent("on build 9b907bd6/abc");
   });
 

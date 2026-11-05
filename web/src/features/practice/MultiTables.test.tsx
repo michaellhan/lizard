@@ -1172,6 +1172,9 @@ describe("Spots and Seat", () => {
 
   it("stay put on an arrow's step, which changes them at each press, and give focus back on Enter or Escape", async () => {
     await atTables(2);
+    // (on a held clock: the change counts by the time since the key)
+    const clock = vi.spyOn(performance, "now").mockReturnValue(1e6);
+    onTestFinished(() => clock.mockRestore());
     for (const [name, value, end] of [["Spots", "srp", "Enter"], ["Seat", "UTG", "Escape"]] as const) {
       const box = screen.getByRole("combobox", { name });
       box.focus();

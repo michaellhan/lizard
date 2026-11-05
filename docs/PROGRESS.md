@@ -3617,8 +3617,25 @@ Two things turned up on the way there:
 - **A test process ended from outside.** Twice `handsCheck.test.ts` lost its process to a SIGTERM with no test failing, once
   during the fixes and once in a full check on `59b06ed`. It isn't memory: the highest peak in those six runs, with each
   process logged, was 374 MB. It isn't vitest stopping its own worker, which takes its exit listener off first and so can't
-  report this error. The six runs didn't meet it, so what sends the signal is unknown, and that file running longest may be
-  all that picks it. If it comes back the check fails and a rerun is the answer until the sender is known.
+  report this error. The six runs didn't meet it, but the slowed runs under "CI and the clock" did, in seven more runs, on other
+  files too and on one run with nothing slowed, so it isn't that file's doing. What sends the signal is unknown. It hasn't
+  shown in CI. If it comes back the check fails with no test failed, and a rerun is the answer until the sender is known.
+
+### CI and the clock
+
+The deploy of `125a09e`, which only changed notes, failed on `handsCheck.test.ts`, and nothing went live: the site stayed on
+`192a07c`. A test on the real clock assumed you'd move inside a 20 ms stubbed look-ahead, and CI's runner took 176 s for a
+suite that takes 30 s here. It had passed on the runs before.
+
+A sweep then slowed the tests down rather than only reading them, with timers and clocks scaled so the CPU ran up to 30 times
+slower against time, a delay before every task, and random stalls. The copy of that test reproduced CI's error from about 12
+times slower. One more race was real: "names only the hands that didn't end" flipped in 51 of 3,000 runs at about 10 times
+slower. Two others held up at that speed, a double-click on Play and an arrow's step on Spots, in 0 of 1,910 and 0 of 620
+runs, though both could flip far beyond it.
+
+All six now run on a held clock, and two asserts that came straight after a press wait
+for what they check. No code the site runs changed. The four files passed 10 of 11 slowed runs, 234 of 234 tests each, at 14,
+20 and 30 times slower and with 20 ms before every task. The eleventh lost a process to the signal below.
 
 ### The two reviews after the first
 
@@ -3689,10 +3706,11 @@ while it reduces `/gto-solver/`. That cut is that project's and hadn't landed wh
 
 ### Precompute builds
 
-Untouched: read only with `ps`. The suites went through `slot.sh`, a slot was held while the browser ran the solver, and
+Untouched by this work: read only with `ps`. The suites went through `slot.sh`, a slot was held while the browser ran the solver, and
 nothing here ran `quiet.sh`. The gto-solver session says the limped build stopped on 2026-11-03 at 11:55. I haven't
 checked that: `ps` shows one `guarded_build.sh` still running (PID 45594, up 1 d 12 h), and the docs say something true
-either way.
+either way. On 2026-11-04 at 23:08 that build showed as stopped, with a `quiet.sh` running from `gtosolver/.work` under another
+Claude session, not this one. It was running again by the next check, and nothing here touched it.
 
 ### Next
 

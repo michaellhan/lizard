@@ -352,8 +352,9 @@ describe("the hero's time", () => {
   });
 
   it("plays on through another table's failures while it thinks", async () => {
+    vi.useFakeTimers();
     let n = 0;
-    const r = await check(
+    const run = check(
       {
         takes: () => 1,
         play: (q, p) => {
@@ -361,8 +362,10 @@ describe("the hero's time", () => {
           return { data: move(facingBet(simOfState({ ...q, hero: p.seat }), p.seat) ? "call" : "check"), provenance: prov("live") };
         },
       },
-      { thinkMs: 8, stallMs: 300, hands: 12 },
+      { thinkMs: 8, stallMs: 300, hands: 12, now: () => Date.now() },
     );
+    await vi.advanceTimersByTimeAsync(60_000);
+    const r = await run;
     expect(rules(r)).toEqual(["request"]);
     expect(r.hands).toBe(12);
   });
@@ -549,7 +552,11 @@ describe("what it fails on", () => {
   it("names only the hands that didn't end", async () => {
     const quiet = () => vi.mocked(practiceRecord).mock.calls.length > 0;
     const never = new Promise<never>(() => {});
-    const r = await check({ solve: (q) => (quiet() ? never : good(q)), play: () => (quiet() ? never : { data: move("fold"), provenance: prov("live") }) }, { stallMs: 40, hands: 4 });
+    // (on a clock: a stall of 40 ms before a first hand ends would leave no hand to name, and a busy machine can do that)
+    vi.useFakeTimers();
+    const run = check({ solve: (q) => (quiet() ? never : good(q)), play: () => (quiet() ? never : { data: move("fold"), provenance: prov("live") }) }, { stallMs: 40, hands: 4, now: () => Date.now() });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const r = await run;
     failsOn(r, "unended");
     expect(r.hands).toBeGreaterThan(0);
     expect(r.failures).toHaveLength(4 - r.hands);
@@ -835,7 +842,11 @@ describe("asking ahead in the check", () => {
   beforeEach(() => show("visible"));
 
   it("doesn't count its stopped requests as errors, and its meter is in the report", async () => {
-    const r = await check({ stop: "cheap", takes: (q) => (q.board ? 20 : 0) }, { askAhead: true, thinkMs: 5, hands: 12 });
+    // (on a clock: you move 5 ms into a 20 ms look-ahead each time, which on the real one a slow machine needn't do)
+    vi.useFakeTimers();
+    const run = check({ stop: "cheap", takes: (q) => (q.board ? 20 : 0) }, { askAhead: true, thinkMs: 5, hands: 12, now: () => Date.now() });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const r = await run;
     expect(r.failures).toEqual([]);
     expect(r).toMatchObject({ passed: true, requestErrors: 0, askAhead: true, thinkMs: 5, stopCost: "cheap" });
     expect(r.requests.stopped).toBeGreaterThan(0);
@@ -846,8 +857,9 @@ describe("asking ahead in the check", () => {
   });
 
   it("still fails on a look-ahead that failed by itself, as nothing stopped it", async () => {
+    vi.useFakeTimers();
     let n = 0;
-    const r = await check(
+    const run = check(
       {
         stop: "cheap",
         takes: () => 1,
@@ -857,8 +869,10 @@ describe("asking ahead in the check", () => {
           return good(q);
         },
       },
-      { askAhead: true, thinkMs: 5, hands: 12 },
+      { askAhead: true, thinkMs: 5, hands: 12, now: () => Date.now() },
     );
+    await vi.advanceTimersByTimeAsync(60_000);
+    const r = await run;
     expect(rules(r)).toEqual(["request"]);
     expect(r.requestErrors).toBe(1);
     expect(r.failures[0]!.text).toMatch(/a look-ahead blew up/);

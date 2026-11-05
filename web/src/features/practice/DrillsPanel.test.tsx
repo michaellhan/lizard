@@ -58,7 +58,7 @@ describe("DrillsPanel", () => {
     await screen.findByRole("group", { name: "Your options" });
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled());
     fireEvent.keyDown(window, { key: "2" });
-    expect(within(screen.getByRole("region", { name: "Answer" })).getByRole("row", { name: /^bet 33% \(1\.82bb\) ← you/ })).toBeInTheDocument();
+    expect(within(await screen.findByRole("region", { name: "Answer" })).getByRole("row", { name: /^bet 33% \(1\.82bb\) ← you/ })).toBeInTheDocument();
   });
 
   it("in position facing out of position's first bet (the 3-bet pot's c-bet): the bet said, Study at it", async () => {
