@@ -125,6 +125,10 @@ describe("keptHand", () => {
     expect(keptHand(structuredClone(r.hand))).toEqual(r.hand);
   });
 
+  it("reads a hand's filter back", () => {
+    expect(keptHand({ ...flop(), dealtTo: "m:set", noFit: true })).toMatchObject({ dealtTo: "m:set", noFit: true });
+  });
+
   it("takes a hand mid-Reveal and a decision made after it, and no decision that's flagged and graded, or graded by nothing", () => {
     const h = newHand(2, 100, 0, 7, OPTS);
     const shown = { ...h, revealed: true as const };
@@ -197,6 +201,8 @@ describe("keptHand", () => {
     ["a street that's no street", (h) => ({ ...h, shown: 2 })],
     ["more cards out than a board has", (h) => ({ ...h, shown: 6 })],
     ["no lines", (h) => ({ ...h, lines: null })],
+    ["a hand filter that isn't one", (h) => ({ ...h, dealtTo: "m:nonsense" })],
+    ["a hand filter's miss that isn't true", (h) => ({ ...h, noFit: 1 })],
     ["a street missing", ({ lines: { river: _, ...lines }, ...h }) => ({ ...h, lines })],
     ["a street that's not a list", (h) => ({ ...h, lines: { ...h.lines, turn: "x" } })],
     ["a move that's no move", (h) => ({ ...h, lines: { ...h.lines, flop: [...h.lines.flop, "call"] } })],
@@ -432,6 +438,25 @@ describe("keptTables", () => {
     expect(read({ ...cell, versions: { "build:a/1": "two" } })).toBeNull();
   });
 
+  it("reads a cell's seat and pot back, one kept before them as it was, and a crafted one loses the session", () => {
+    const cell = { street: "flop", source: "live", byEv: true, n: 2, ok: 1, loss: 0, lossPct: 0 };
+    const read = (c: unknown) => keptTables(spoiled({ cells: { a: c } }));
+    expect(read({ ...cell, seat: "BTN", pot: "SRP" })?.session.cells?.a).toMatchObject({ seat: "BTN", pot: "SRP" });
+    expect(read({ ...cell, seat: { a: 1 } })).toBeNull();
+    expect(read({ ...cell, seat: "Dealer" })).toBeNull();
+    expect(read({ ...cell, pot: 3 })).toBeNull();
+    expect(read({ ...cell, ok: 3 })).toBeNull();
+    expect(read({ ...cell, n: 0, ok: 0 })).toBeNull();
+    expect(read({ ...cell, loss: -1 })).toBeNull();
+  });
+
+  it("reads a session's hand filter back; one kept before it has none", () => {
+    const opts = (o: object) => ({ opts: { ...doc().session.opts, ...o } });
+    expect(keptTables(structuredClone(spoiled(opts({ pot: "srp", hand: "m:set" }))))?.session.opts.hand).toBe("m:set");
+    expect(keptTables(spoiled(opts({ hand: null })))?.session.opts.hand).toBeNull();
+    expect("hand" in keptTables(doc())!.session.opts).toBe(false);
+  });
+
   it("reads a session's board filter back; one kept before it has none; one that isn't a filter loses the session", () => {
     const opts = (o: object) => ({ opts: { ...doc().session.opts, ...o } });
     const board = { suits: "mono", hi: "A" };
@@ -479,6 +504,10 @@ describe("keptTables", () => {
     ["a setup not straddled or not", spoiled({ opts: { ...OPTS, straddle: 0 } })],
     ["a setup not carrying chips or not", spoiled({ opts: { ...OPTS, carry: 0 } })],
     ["a setup with a pot named as what every object has", spoiled({ opts: { ...OPTS, pot: "toString" } })],
+    ["a setup with a hand filter that isn't one", spoiled({ opts: { ...OPTS, pot: "srp", hand: "m:nonsense" } })],
+    ["a setup with a hand filter that isn't text", spoiled({ opts: { ...OPTS, pot: "srp", hand: 5 } })],
+    ["a setup with a hand filter and no pot", spoiled({ opts: { ...OPTS, hand: "m:set" } })],
+    ["a setup with a hand filter that pot doesn't offer", spoiled({ opts: { ...OPTS, pot: "4bet", hand: "m:nothing" } })],
     ["a setup with sizes that are no sizes", spoiled({ opts: { ...OPTS, sizes: 3 } })],
     ["a setup with sizes with no list", spoiled({ opts: { ...OPTS, sizes: { flop: 5 } } })],
     ["a setup with no rake", spoiled({ opts: { ...OPTS, rake: "0" } })],
@@ -513,6 +542,8 @@ describe("keptTables", () => {
     if ("error" in r) throw new Error(r.error);
     const e = { n: 1, table: 2, seat: h.hero, players: 2, hole: h.hands[h.hero], board: ["Ah", "Kd", "2c"], line: "first to act", d: r.decision };
     expect(keptTables(spoiled({ review: [e] }))?.session.review).toEqual([e]);
+    expect(keptTables(spoiled({ review: [{ ...e, dealtTo: "m:set" }] }))?.session.review[0]?.dealtTo).toBe("m:set");
+    expect(keptTables(spoiled({ review: [{ ...e, dealtTo: "m:nonsense" }] }))).toBeNull();
     const ungraded = { ...r.decision, grade: null, provenance: null };
     for (const spoil of [{ n: "1" }, { table: "2" }, { seat: 1 }, { players: "2" }, { hole: "AhKh" }, { hole: ["ZZ", "YY"] }, { hole: ["Ah"] }, { hole: ["Ah", "Kd", "2c"] }, { board: "" }, { board: ["ZZ"] }, { line: 1 }, { d: null }, { d: ungraded }]) {
       expect(keptTables(spoiled({ review: [{ ...e, ...spoil }] }))).toBeNull();

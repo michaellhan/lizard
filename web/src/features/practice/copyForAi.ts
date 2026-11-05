@@ -12,6 +12,7 @@ import type { AdvisorResponse } from "@/solver/protocol";
 import { describe as describeProvenance, evUnit } from "@/solver/provenance";
 import type { Provenance, ResultSource } from "@/solver/types";
 import { drillActionLabel, situation, studyHandOf, studyLink, type DrillProblem } from "./drills";
+import { handLabel } from "./handFilter";
 import { liveActionLabel, liveStudyHand, type LiveAnswer, type LiveProblem } from "./liveDeal";
 import { mixOf, optionLabel, type Decision } from "./practice";
 import type { Reviewed } from "./review";
@@ -38,6 +39,8 @@ export interface AiSpot {
   line: string;
   /** the street and pot */
   at: string;
+  /** the hand filter it was dealt under, in words */
+  dealt?: string;
   /** what you took and how it was graded, on a graded decision */
   took?: string;
   mix: Decision["mix"];
@@ -68,6 +71,7 @@ export function aiText(s: AiSpot): string {
     `Seats, first to act preflop first: ${s.seats}`,
     `Stacks as the hand started: ${s.stacks}`,
     `You: ${s.you}`,
+    ...(s.dealt ? [s.dealt] : []),
     `Board: ${s.board}`,
     `Line so far, preflop folds left out: ${s.line}`,
     `Decision: ${s.at}`,
@@ -92,6 +96,7 @@ export function reviewedText(e: Reviewed): string {
     ...rows,
     you: `${seatLabel(e.seat, e.players)}, holding ${e.hole.join(" ")}`,
     at: `${e.d.street}, pot ${fmt(e.d.pot)}bb`,
+    ...(e.dealtTo ? { dealt: `This hand was dealt under a hand filter: ${handLabel(e.dealtTo)}. The filter picks what's dealt; the answer below is the strategy for every hand you could hold here, not one fitted to these hands.` } : {}),
     ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source, evUnit(e.d.provenance))}.` } : {}),
     mix: e.d.mix,
     labelOf: (a) => optionLabel(a.action, a.amount),

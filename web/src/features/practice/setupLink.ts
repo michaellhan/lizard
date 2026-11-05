@@ -11,15 +11,18 @@ export interface LinkSetup {
   seat: string;
   players: number;
   stack: number;
+  /** a pot drill's hand filter, by its key (handFilter.ts) */
+  hand?: string;
 }
 
-export const SETUP_PARAMS = ["play", "seat", "players", "stack"] as const;
+export const SETUP_PARAMS = ["play", "seat", "players", "stack", "hand"] as const;
 
 /** The setup a link stands for, whole and playable, else null. */
-export const linkSetup = ({ play, seat, players, stack }: LinkSetup): ScenarioSetup | null =>
-  play === "full" || play === "preflop" || isPotDrill(play) ? readSetup({ players, stack, opts: { seat, preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null } }) : null;
+export const linkSetup = ({ play, seat, players, stack, hand }: LinkSetup): ScenarioSetup | null =>
+  play === "full" || play === "preflop" || isPotDrill(play) ? readSetup({ players, stack, opts: { seat, preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, hand } }) : null;
 
-export const setupLink = ({ play, seat, players, stack }: LinkSetup): string => `/practice?${new URLSearchParams({ play, seat, players: String(players), stack: String(stack) })}`;
+export const setupLink = ({ play, seat, players, stack, hand }: LinkSetup): string =>
+  `/practice?${new URLSearchParams({ play, seat, players: String(players), stack: String(stack), ...(hand ? { hand } : {}) })}`;
 
 /** The link's own params in an address, as a string that stands still while nothing about them moves; null with none. */
 export function setupLinkKey(p: URLSearchParams): string | null {
@@ -29,7 +32,7 @@ export function setupLinkKey(p: URLSearchParams): string | null {
 
 /** A link's setup read back; null where it isn't one. */
 export function readSetupLink(p: URLSearchParams): ScenarioSetup | null {
-  const [play, seat, players, stack] = SETUP_PARAMS.map((k) => p.get(k));
+  const [play, seat, players, stack, hand] = SETUP_PARAMS.map((k) => p.get(k));
   if (!play || !seat || !players || !stack) return null;
-  return linkSetup({ play: play as PlayKind, seat, players: Number(players), stack: Number(stack) });
+  return linkSetup({ play: play as PlayKind, seat, players: Number(players), stack: Number(stack), ...(hand === null ? {} : { hand: hand! }) });
 }

@@ -57,6 +57,13 @@ describe("reviewedText", () => {
     expect(t).toContain("Stacks as the hand started: BTN/SB 40bb, BB 120bb");
   });
 
+  it("names a hand filter, and what it did and didn't change", () => {
+    const t = reviewedText({ ...flopSpot("live"), dealtTo: "m:top_tk" });
+    expect(t).toContain("This hand was dealt under a hand filter: Top pair, top kicker.");
+    expect(t).toContain("the answer below is the strategy for every hand you could hold here, not one fitted to these hands");
+    expect(reviewedText(flopSpot("live"))).not.toContain("filter");
+  });
+
   it("calls the charts what they are: not a solve, with no EVs to quote", () => {
     const t = reviewedText(flopSpot("charts", false));
     expect(t).toContain("The preflop charts are approximate tables. They are not a solved answer, and they have no EVs.");

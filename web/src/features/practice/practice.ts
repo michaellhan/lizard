@@ -36,6 +36,7 @@ import {
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
 import { assumedWords, bestResponse, type Exploit } from "./exploit";
+import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { flopsLike, type TextureFilter } from "./texture";
 
 export interface Decision {
@@ -93,6 +94,10 @@ export interface PracticeHand {
   /** one kind of pot only: the preflop is played for you, and dealt again until it is that pot (`tries`: the deals so far) */
   pot?: HandPot;
   tries?: number;
+  /** a pot drill's hand filter (handFilter.ts) this hand was dealt under, and `noFit`, where no deal could meet it: this
+   * hand's cards are any, and it stops there */
+  dealtTo?: string;
+  noFit?: true;
   /** Instant flops: the lines this hand's flop is held on with you in them, as the index's tokens (flops.ts). None: the
    * index hasn't been read yet, so nothing is played */
   cands?: string[][];
@@ -173,8 +178,33 @@ export const potLabel = (p: HandPot) => (p === "lib" ? INSTANT_FLOPS : POT_DRILL
 export const DRILL_TRIES = 400;
 /** A heads-up 4-bet pot with you in it comes about once in 350 to 1,000 deals, by seat, on the charts. */
 export const drillTries = (pot: HandPot | null | undefined) => (pot === "4bet" ? 3000 : DRILL_TRIES);
+/** Deals for each that reaches the pot with such a hand, at the hardest seat, where `drillTries` can run out more than one
+ * time in fifty. Measured 2026-11-05: 400,000 deals a seat on the 6-max 100bb charts, each hand class's rate over the
+ * classes a filter's deals hold. Another game's rates aren't known. Other pots, and other hands, need far fewer. */
+const HARD_HANDS: Partial<Record<PotDrill, Record<string, number>>> = {
+  "3bet": { "m:straight": 117, "m:trips": 183, "m:two_pair": 185, "m:top_wk": 388, "m:weak": 116, "m:nothing": 340, "d:oesd": 178, "d:gutshot": 116, "d:backdoor": 105 },
+  "4bet": { "m:straight": 1086, "m:trips": 1081, "m:two_pair": 1136, "m:top_wk": 4542, "m:weak": 2674, "m:nothing": 8147, "d:oesd": 3824, "d:gutshot": 797 },
+};
+/** How many deals reach this pot with this hand at the hardest seat, where that's few enough to matter; else null. */
+export const hardHand = (pot: PotDrill, key: string): number | null => HARD_HANDS[pot]?.[key] ?? null;
+/** Whether a pot drill deals to this hand filter: a key offered, that the pot's deals find three times in four at any
+ * seat. Past that a search mostly ends in "No such pot", after the longest wait there is, so it isn't offered. */
+export function handWorks(pot: unknown, key: unknown): key is string {
+  if (!isPotDrill(pot) || !isHandKey(key)) return false;
+  const deals = hardHand(pot, key);
+  return deals === null || Math.exp(-drillTries(pot) / deals) <= 0.25;
+}
 /** A drill hand gone another way has another deal left. */
-export const dealsLeft = (h: Pick<PracticeHand, "pot" | "tries">) => (h.tries ?? 0) + 1 < drillTries(h.pot);
+export const dealsLeft = (h: Pick<PracticeHand, "pot" | "tries" | "noFit">) => !h.noFit && (h.tries ?? 0) + 1 < drillTries(h.pot);
+/** Why a drill's deals stopped, in words. */
+export function dealsOut(h: Pick<PracticeHand, "pot" | "dealtTo" | "noFit">): string {
+  const hand = h.dealtTo ? handLabel(h.dealtTo) : "";
+  if (h.noFit) return `No ${hand} came up in ${HAND_DRAWS.toLocaleString("en-US")} draws of a flop and your cards: pick other hands or widen the flop.`;
+  const pot = potLabel(h.pot!).replace(/^an? /, "");
+  const deals = drillTries(h.pot).toLocaleString("en-US");
+  if (hand) return `No ${pot} with ${hand} in ${deals} deals: try another seat or other hands.`;
+  return `No ${pot} in ${drillTries(h.pot)} deals${h.pot === "lib" ? " at this seat: try another seat or spot" : ""}.`;
+}
 const BLINDS = ["SB", "BB"];
 
 /** Your seat each hand: moving one place a hand ("moves"), drawn at random from the hand's seed ("random"), or one
@@ -206,12 +236,14 @@ export interface GameOptions {
   exploit?: Exploit;
 }
 
-/** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop). */
+/** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop), and
+ * a hand filter's key (handFilter.ts; null: any hand), read on your cards and the flop dealt. */
 export interface DealOptions extends HandOptions, GameOptions {
   board?: TextureFilter | null;
+  hand?: string | null;
 }
-/** A session's setup, as it's kept. One kept before the board filter has none. */
-export type SessionOptions = Required<HandOptions> & GameOptions & Pick<DealOptions, "board">;
+/** A session's setup, as it's kept. One kept before the board filter or the hand filter has none. */
+export type SessionOptions = Required<HandOptions> & GameOptions & Pick<DealOptions, "board" | "hand">;
 
 /** A session that's only ever any hand above one table: a pot played for you would stop it being what was set up. */
 export const anyHandOnly = (o: Pick<HandOptions, "preflopOnly"> & GameOptions) => !!o.preflopOnly || !!o.pushFold || !!o.tournament;
@@ -244,14 +276,18 @@ export function seatFor(choice: SeatChoice | undefined, n: number, players: numb
  * flop would use up its deals. */
 function dealOnFlop(players: number, rnd: () => number, flops: readonly string[]): ReturnType<typeof deal> {
   const f = flops[Math.floor(rnd() * flops.length)]!;
-  const flop = [f.slice(0, 2), f.slice(2, 4), f.slice(4, 6)];
-  const deck = DECK.filter((c) => !flop.includes(c));
+  return dealAround(players, rnd, [f.slice(0, 2), f.slice(2, 4), f.slice(4, 6)]);
+}
+
+/** The deal with this flop and, if any, your two cards in it: the rest shuffled from what's left. */
+function dealAround(players: number, rnd: () => number, flop: readonly string[], you?: { seat: string; hole: [string, string] }): ReturnType<typeof deal> {
+  const deck = DECK.filter((c) => !flop.includes(c) && !you?.hole.includes(c));
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(rnd() * (i + 1));
     [deck[i], deck[j]] = [deck[j]!, deck[i]!];
   }
   const hands: Record<string, [string, string]> = {};
-  for (const p of seatsOf(players)) hands[p] = [deck.pop()!, deck.pop()!];
+  for (const p of seatsOf(players)) hands[p] = p === you?.seat ? you.hole : [deck.pop()!, deck.pop()!];
   return { hands, board: [...flop, deck[0]!, deck[1]!] };
 }
 
@@ -259,19 +295,26 @@ function dealOnFlop(players: number, rnd: () => number, flops: readonly string[]
  * starts at `stack`. */
 export function newHand(players: number, stack: number, n: number, seed: number, opts: DealOptions = {}, table?: Table): PracticeHand {
   const flops = flopsFor(opts);
-  const d = flops?.length ? dealOnFlop(players, seeded(seed), flops) : deal(players, seeded(seed));
+  const hero = seatFor(opts.seat, n, players, seed, opts.pot);
+  const rnd = seeded(seed);
+  // (the filter's search, ahead of the preflop, as a mode deals until it reaches its pot and each of those deals would use up
+  // its turn on a hand that couldn't count)
+  const dealtTo = isPotDrill(opts.pot) && opts.hand ? opts.hand : null;
+  const fit = dealtTo ? drawFit(dealtTo, rnd, flops?.length ? flops : null) : null;
+  const d = fit ? dealAround(players, rnd, fit.flop, { seat: hero, hole: fit.hole }) : flops?.length ? dealOnFlop(players, rnd, flops) : deal(players, rnd);
   return {
     seed,
     n,
     players,
     stack,
-    hero: seatFor(opts.seat, n, players, seed, opts.pot),
+    hero,
     ...d,
     shown: 0,
     lines: noLines(),
     decisions: [],
     result: null,
     ...(opts.pot ? { pot: opts.pot } : opts.preflopOnly ? { preflopOnly: true as const } : {}),
+    ...(dealtTo ? { dealtTo, ...(fit ? {} : { noFit: true as const }) } : {}),
     ...(opts.ante && opts.ante > 0 ? { ante: opts.ante } : {}),
     ...(opts.straddle && players >= 3 ? { straddle: true as const } : {}),
     ...(opts.sizes && Object.keys(opts.sizes).length ? { sizes: opts.sizes } : {}),
@@ -333,6 +376,7 @@ export const redeal = (h: PracticeHand, seed: number, opts: DealOptions): Practi
  * reached by more than two players or with another number of raises (the classic trainer's `offDrill`). Instant flops:
  * no line held for this flop still fits, you folded, or the flop came on a line that's only the start of one. */
 export function offDrill(h: PracticeHand, sim: Sim = simOf(h)): boolean {
+  if (h.noFit) return true;
   if (!h.pot || h.shown >= 3) return false;
   const pre = h.lines.preflop;
   if (h.pot === "lib") {

@@ -7,7 +7,7 @@ import { allSessions, db, putSession, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { mistake } from "@/test/mistake";
 import type { Sim } from "@/poker/table";
-import { addHandToPot, addSource, byDay, handPot, kindTotals, potTotals, rowOf } from "./history";
+import { addHandToPot, addSource, byDay, handPot, kindTotals, linePot, potTotals, rowOf } from "./history";
 import { HistoryPage } from "./HistoryPage";
 
 const at = (d: number, h: number) => new Date(2026, 10, d, h, 0).getTime();
@@ -95,6 +95,9 @@ describe("sessions history", () => {
     expect(old.graded).toBe("Not kept: played before Lizard kept what graded each decision");
     expect(rowOf(NEW).graded).toBe("Live solve 2, Preflop charts (approximate) 1");
     expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet" } }).what).toBe("2 players · 100bb · 3-bet pots");
+    expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet", board: { suits: "mono" }, hand: "m:set" } }).what).toMatch(/^2 players · 100bb · 3-bet pots · .+ · set$/);
+    // (a backup can carry anything, and it's left unsaid rather than drawn)
+    expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet", board: { suits: "nonsense" }, hand: "m:nonsense" } }).what).toBe("2 players · 100bb · 3-bet pots");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, ante: 0.1, straddle: true } }).what).toBe("6 players · 100bb · ante 0.1 · straddle");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, carry: true } }).what).toBe("6 players · 100bb · chips carried");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, sizes: { flop: [50] } } }).what).toBe("6 players · 100bb · your own sizes");
@@ -182,6 +185,133 @@ describe("sessions history", () => {
     cleanup();
     await d.clear("sessions");
     await d.clear("mistakes");
+  });
+
+  it("names a library line's pot as a hand's would be", () => {
+    const m = (action: string) => ({ pos: "X", action });
+    expect(linePot([m("fold"), m("raise"), m("call")])).toBe("SRP");
+    expect(linePot([m("raise"), m("raise"), m("call")])).toBe("3bet pot");
+    expect(linePot([m("raise"), m("raise"), m("raise"), m("all-in"), m("call")])).toBe("4bet+ pot");
+    expect(linePot([m("call"), m("check")])).toBe("Limped");
+  });
+
+  describe("rates by seat and pot type", () => {
+    const CELLS: SessionRecord = {
+      id: "practice-seats",
+      kind: "practice",
+      startedAt: at(4, 20),
+      decisions: 40,
+      evLossBb: 3,
+      meta: {
+        cells: {
+          a: { street: "flop", source: "live", byEv: true, seat: "BTN", pot: "SRP", n: 30, ok: 24, loss: 3, lossPct: 60 },
+          b: { street: "preflop", source: "charts", byEv: false, seat: "BTN", pot: "Unopened", n: 6, ok: 5, loss: 0, lossPct: 0 },
+          c: { street: "river", source: "library-turn", byEv: false, seat: "BB", pot: "SRP", n: 4, ok: 1, loss: 0, lossPct: 0 },
+        },
+      },
+    };
+    const OLDER: SessionRecord = { id: "practice-older", kind: "practice", startedAt: at(1, 20), decisions: 4, evLossBb: 0.5, meta: { hands: 3 } };
+    const LEAK: SessionRecord = { id: "leak-1", kind: "analysis", startedAt: at(2, 20), decisions: 7, evLossBb: 0, meta: { score: { n: 7 } } };
+    const page = async (...kept: SessionRecord[]) => {
+      const d = (await db())!;
+      await d.clear("sessions");
+      for (const s of kept) await putSession(s);
+      render(
+        <MemoryRouter initialEntries={["/history"]}>
+          <HistoryPage />
+        </MemoryRouter>,
+      );
+      return screen.findByRole("region", { name: "Rates by seat and pot type" });
+    };
+    const rows = (box: HTMLElement, name: string) => within(within(box).getByRole("table", { name })).getAllByRole("row").slice(1);
+
+    it("shows each seat and pot by basis, with what graded it, a count under too few, and no chart called solved", async () => {
+      const box = await page(CELLS);
+      const ev = rows(box, "By seat: Graded by EV");
+      expect(ev).toHaveLength(1);
+      expect(ev[0]).toHaveTextContent(/BTN\s*30\s*80%\s*0\.10bb · 2\.0% pot\s*Live solve 30/);
+      const freq = rows(box, "By seat: Graded by frequency (no EV)");
+      expect(freq[0]).toHaveTextContent(/BTN\s*6\s*5 of 6\s*Preflop charts \(approximate\) 6/);
+      expect(freq[1]).toHaveTextContent(/BB\s*4\s*1 of 4/);
+      expect(rows(box, "By pot type: Graded by frequency (no EV)").map((r) => r.textContent)).toEqual([expect.stringMatching(/^Unopened/), expect.stringMatching(/^SRP/)]);
+      expect(rows(box, "By pot type: Graded by EV")[0]).toHaveTextContent(/SRP\s*30\s*80%/);
+      expect(within(box).getAllByRole("columnheader", { name: "EV lost per decision" })).toHaveLength(2);
+      expect(box).toHaveTextContent("the pot as it stood when you decided, before your own move");
+      expect(box).toHaveTextContent(/isn.t a result or a win rate/);
+      expect(box).toHaveTextContent("Graded by EV and graded by frequency are never added together");
+      expect(box.textContent).not.toMatch(/(?<!never a )solved/i);
+      cleanup();
+    });
+
+    it("says how many weren't kept, makes up no seat for them, and keeps them in the street table", async () => {
+      const box = await page(CELLS, OLDER, LEAK);
+      expect(box).toHaveTextContent("Seat not kept: 4 decisions in 1 session");
+      expect(box).toHaveTextContent("Pot type not kept: 4 decisions in 1 session");
+      expect(box).toHaveTextContent("7 leak drill decisions aren't split");
+      expect(within(screen.getByRole("region", { name: "Decisions by street" })).getByRole("table")).toHaveTextContent(/flop\s*30/i);
+      expect(screen.getByRole("region", { name: "Decisions by street" })).toHaveTextContent("4 decisions in 1 earlier session");
+      cleanup();
+      const none = await page(OLDER);
+      expect(within(none).queryByRole("table")).toBeNull();
+      expect(none).toHaveTextContent("No decision here keeps its seat");
+      expect(none).toHaveTextContent("Seat not kept: 4 decisions in 1 session");
+      cleanup();
+    });
+
+    it("filters with the page's kind, which the sessions list follows, and each scrolling table takes the keys", async () => {
+      const box = await page(CELLS, OLDER, LEAK);
+      const scroller = within(box).getByRole("group", { name: /^By seat: Graded by EV/ });
+      expect(scroller).toHaveClass("scroll-x");
+      expect(scroller).toHaveAttribute("tabindex", "0");
+      fireEvent.change(within(box).getByRole("combobox", { name: "Rates from" }), { target: { value: "analysis" } });
+      expect(within(box).queryByRole("table")).toBeNull();
+      expect(box).toHaveTextContent("Leak drills: not split by seat or pot");
+      expect(within(screen.getByRole("region", { name: "Sessions" })).getByRole("combobox", { name: "Show" })).toHaveValue("analysis");
+      fireEvent.change(within(box).getByRole("combobox", { name: "Rates from" }), { target: { value: "drill" } });
+      expect(box).toHaveTextContent("No decision here keeps its seat");
+      fireEvent.change(within(box).getByRole("combobox", { name: "Rates from" }), { target: { value: "" } });
+      expect(rows(box, "By seat: Graded by EV")).toHaveLength(1);
+      cleanup();
+    });
+
+    it("draws a stored session with crafted cells, and fakes no total", async () => {
+      const bad: SessionRecord = {
+        id: "practice-bad",
+        kind: "practice",
+        startedAt: at(5, 20),
+        decisions: 3,
+        evLossBb: 0,
+        meta: {
+          cells: {
+            a: { street: "flop", source: "live", byEv: true, seat: { toString: 1 }, pot: ["SRP"], n: 2, ok: 2, loss: 0, lossPct: 0 },
+            b: { street: "flop", source: { a: 1 }, byEv: true, seat: "BB", pot: "SRP", n: 1, ok: 1, loss: 0, lossPct: 0 },
+            c: { street: "turn", source: "live", byEv: true, seat: "BB", pot: "SRP", n: 1_000_000, ok: 1_000_000, loss: -5, lossPct: 0 },
+          },
+        },
+      };
+      const box = await page(CELLS, bad);
+      expect(rows(box, "By seat: Graded by EV")).toHaveLength(1);
+      expect(rows(box, "By seat: Graded by EV")[0]).toHaveTextContent(/BTN\s*30/);
+      expect(box).toHaveTextContent("Seat not kept: 3 decisions in 1 session");
+      expect(box.textContent).not.toContain("1000000");
+      cleanup();
+      await (await db())!.clear("sessions");
+    });
+
+    it("isn't drawn where nothing it reads is kept", async () => {
+      const d = (await db())!;
+      await d.clear("sessions");
+      await putSession({ id: "b", kind: "build", startedAt: at(1, 1), decisions: 1, evLossBb: 0, meta: { acc: 0.5 } });
+      render(
+        <MemoryRouter initialEntries={["/history"]}>
+          <HistoryPage />
+        </MemoryRouter>,
+      );
+      await screen.findByRole("region", { name: "Sessions" });
+      expect(screen.queryByRole("region", { name: "Rates by seat and pot type" })).toBeNull();
+      cleanup();
+      await (await db())!.clear("sessions");
+    });
   });
 
   it("shows nothing kept yet, then every session by day with the totals, filtered by kind in the URL", async () => {

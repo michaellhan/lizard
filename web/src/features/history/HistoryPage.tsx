@@ -1,6 +1,6 @@
 // History: every session kept in this browser, by day, newest first, with lifetime totals by kind, Practice's finished
-// hands by pot type (features/history/history.ts), and decisions by street and over time (progress.ts). Each row says
-// what graded it; nothing here is solved anew.
+// hands by pot type (features/history/history.ts), and decisions by street, by seat, by pot and over time (progress.ts).
+// Each row says what graded it; nothing here is solved anew.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bb, pct } from "@/components/actions";
@@ -10,13 +10,15 @@ import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
 import { byDay, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, type SessionKind, type SessionRow } from "./history";
-import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, streetTotals, trends, type BasisTrend } from "./progress";
+import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, type Basis, type BasisTrend, type SplitTotals } from "./progress";
 
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x * 100) / 100)}`;
 const lossText = (bbPer: number | null, pctPer: number | null, unit = "bb") => (bbPer == null ? "–" : `${bb(bbPer)}${unit}${pctPer == null ? "" : ` · ${pctPer.toFixed(1)}% pot`}`);
 const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
 const okText = (ok: number | null, n: number) => (ok == null || !n ? "–" : pct(ok / n, 0));
+/** The kinds the seat and pot rates read, as the street table does; a leak drill's are counted beside them. */
+const SPLIT_KINDS: readonly SessionKind[] = ["practice", "drill", "analysis"];
 
 export function HistoryPage() {
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
@@ -41,7 +43,10 @@ export function HistoryPage() {
   const pots = useMemo(() => potTotals(sessions ?? []), [sessions]);
   const streets = useMemo(() => streetTotals(sessions ?? []), [sessions]);
   const lines = useMemo(() => trends(sessions ?? []), [sessions]);
-  const days = useMemo(() => byDay((sessions ?? []).filter((s) => !kind || s.kind === kind).map(rowOf)), [sessions, kind]);
+  const shown = useMemo(() => (sessions ?? []).filter((s) => !kind || s.kind === kind), [sessions, kind]);
+  const seats = useMemo(() => splitTotals(shown, "seat"), [shown]);
+  const potSplit = useMemo(() => splitTotals(shown, "pot"), [shown]);
+  const days = useMemo(() => byDay(shown.map(rowOf)), [shown]);
 
   const setKind = (k: string) =>
     setParams(
@@ -84,21 +89,12 @@ export function HistoryPage() {
           <Lifetime totals={totals} />
           <PotTypes pots={pots} />
           <Streets t={streets} />
+          {sessions.some((s) => SPLIT_KINDS.includes(s.kind)) && <Splits seat={seats} pot={potSplit} kind={kind} setKind={setKind} />}
           <Trends lines={lines} />
           <section aria-label="Sessions" className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">Sessions</h2>
-              <label className="text-sm">
-                <span className="text-muted">Show</span>{" "}
-                <select value={kind ?? ""} onChange={(e) => setKind(e.target.value)} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-                  <option value="">Every kind</option>
-                  {KINDS.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <KindSelect label="Show" kind={kind} setKind={setKind} />
             </div>
             {!days.length && <p className="text-sm text-muted">No {kind ? kindLabel(kind).toLowerCase() : "session"} kept yet.</p>}
             {days.map((d) => (
@@ -115,6 +111,23 @@ export function HistoryPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** The page's one filter, `kind` in the URL: said where it's used. */
+function KindSelect({ label, kind, setKind }: { label: string; kind: SessionKind | null; setKind: (k: string) => void }) {
+  return (
+    <label className="text-sm">
+      <span className="text-muted">{label}</span>{" "}
+      <select value={kind ?? ""} onChange={(e) => setKind(e.target.value)} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+        <option value="">Every kind</option>
+        {KINDS.map((k) => (
+          <option key={k.id} value={k.id}>
+            {k.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -240,6 +253,86 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
         {t.apartDecisions > 0 &&
           ` ${many(t.apartDecisions, "decision")} in ${many(t.apartSessions, "earlier session")} ${t.apartDecisions === 1 ? "was" : "were"} played before streets were kept, and ${t.apartDecisions === 1 ? "isn't" : "aren't"} split.`}
         {t.leakDecisions > 0 && ` ${many(t.leakDecisions, "leak drill decision")} ${t.leakDecisions === 1 ? "isn't" : "aren't"} split: a leak drill keeps no street.`}
+      </p>
+    </section>
+  );
+}
+
+const SPLITS = { seat: { title: "By seat", head: "Seat", word: "seat" }, pot: { title: "By pot type", head: "Pot", word: "pot type" } };
+
+function SplitTable({ t, basis }: { t: SplitTotals; basis: Basis }) {
+  const { title, head } = SPLITS[t.by];
+  const name = `${title}: ${BASIS_WORDS[basis]}`;
+  return (
+    <div className="space-y-0.5">
+      <h4 className="text-xs font-medium text-muted">{BASIS_WORDS[basis]}</h4>
+      {/* (focusable, so the keys scroll what doesn't fit a phone) */}
+      <div className="scroll-x" role="group" aria-label={`${name}, scrolls sideways`} tabIndex={0}>
+        <table className="text-left text-sm" aria-label={name}>
+          <thead className="text-xs text-muted">
+            <tr>
+              <th className="py-0.5 pr-4 font-normal">{head}</th>
+              <th className="py-0.5 pr-4 font-normal">Decisions</th>
+              <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
+              {basis === "ev" && <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>}
+              <th className="py-0.5 pr-4 font-normal">Graded against</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono">
+            {t[basis].map((r) => (
+              <tr key={r.name}>
+                <td className="py-0.5 pr-4 font-sans">{r.name}</td>
+                <td className="py-0.5 pr-4">{r.n}</td>
+                <td className="py-0.5 pr-4">{shareText(r.ok, r.n)}</td>
+                {basis === "ev" && <td className="py-0.5 pr-4">{lossText(r.loss / r.ne, r.lossPct / r.ne)}</td>}
+                <td className="py-0.5 pr-4 font-sans text-xs text-muted">{sourcesText(r.sources)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SplitBlock({ t }: { t: SplitTotals }) {
+  const { title, word } = SPLITS[t.by];
+  return (
+    <div className="space-y-1">
+      <h3 className="text-sm font-medium">{title}</h3>
+      {t.ev.length > 0 && <SplitTable t={t} basis="ev" />}
+      {t.freq.length > 0 && <SplitTable t={t} basis="freq" />}
+      {!t.ev.length && !t.freq.length && <p className="text-sm text-muted">No decision here keeps its {word}.</p>}
+      {t.notKept > 0 && (
+        <p className="text-xs text-muted">
+          {word[0]!.toUpperCase() + word.slice(1)} not kept: {many(t.notKept, "decision")} in {many(t.notKeptSessions, "session")}, played before it was kept or from a stored drill. They count in the totals above and are left out here.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTotals; kind: SessionKind | null; setKind: (k: string) => void }) {
+  const leak = seat.leakDecisions;
+  return (
+    <section aria-label="Rates by seat and pot type" className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">Rates by seat and pot type</h2>
+        <KindSelect label="Rates from" kind={kind} setKind={setKind} />
+      </div>
+      {kind && kind !== "practice" && kind !== "drill" ? (
+        <p className="text-sm text-muted">{kindLabel(kind)}: not split by seat or pot. These rates read full hands and drills only.</p>
+      ) : (
+        <>
+          <SplitBlock t={seat} />
+          <SplitBlock t={pot} />
+        </>
+      )}
+      <p className="text-xs text-muted">
+        Full hands and live drills, each decision under the seat you held in that hand and the pot as it stood when you decided, before your own move: an open counts as Unopened, facing an open as SRP, facing a 3-bet as a 3bet pot, and
+        from the flop on the pot the preflop made. So these won&rsquo;t match the finished hands by pot type above, which put all of a hand&rsquo;s decisions under the pot it ended as. A seat&rsquo;s rows take every table size together. Graded by EV and graded by frequency are never added together. Under {MIN_SHARE} decisions a share is
+        written as a count. EV lost is what a decision gave up against the answer named: it isn&rsquo;t a result or a win rate. The preflop charts are approximate, never a solve. Tournaments and exploit sessions go in neither.
+        {leak > 0 && ` ${many(leak, "leak drill decision")} ${leak === 1 ? "isn't" : "aren't"} split: a leak drill keeps no seat or pot.`}
       </p>
     </section>
   );

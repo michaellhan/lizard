@@ -11,7 +11,7 @@ import { midnight } from "@/features/review/schedule";
 import type { LibrarySpotIndex } from "@/library/catalog";
 import { SEATS } from "@/poker/seats";
 import { CHART, chartMistake, mistake } from "@/test/mistake";
-import { buildPlan, DRILL_TARGET, librarySpotFor, PLAN_RULE, PLAN_SCOPE, withLibrary, type PlanHand, type PlanInput } from "./plan";
+import { buildPlan, DRILL_TARGET, gameOf, librarySpotFor, PLAN_RULE, PLAN_SCOPE, withLibrary, type PlanHand, type PlanInput } from "./plan";
 
 const NOW = new Date(2026, 10, 5, 12).getTime();
 const DAY = 86_400_000;
@@ -448,5 +448,60 @@ describe("with nothing to go on", () => {
     const plan = buildPlan(input({ mistakes: [mistake({ due: NOW + 3 * DAY, tries: [moved], provenance: CHART })] }));
     expect(plan.reviews?.done).toBe(true);
     expect(plan.next?.kind).toBe("drill");
+  });
+});
+
+describe("a generated session is set to the game you play", () => {
+  const played = (x: Partial<SessionRecord>, meta: Record<string, unknown> = {}) => session({ meta: { hands: 3, players: 3, stack: 40, ...meta }, ...x });
+  const missed = times(30, () => flop("SRP · IP · checked to", 2));
+  const spot = (id: string, seats: string[], game?: { players: number; stack: number }): LibrarySpotIndex =>
+    ({ id, label: id, seats, report: "r", flops: { AsKsQs: {} }, ...(game ? { game: { ...game, ante: 0, straddle: false } } : {}) }) as unknown as LibrarySpotIndex;
+
+  it("takes the last Practice session's table and stack", () => {
+    const older = played({ id: "a", startedAt: 1 }, { players: 9, stack: 200 });
+    const last = played({ id: "b", startedAt: 2 });
+    expect(gameOf([last, older])).toEqual({ players: 3, stack: 40, yours: true });
+    expect(gameOf([older, last])).toEqual({ players: 3, stack: 40, yours: true });
+  });
+
+  it("isn't told by a session of another game, of no hands or that can't be set up", () => {
+    const none = { players: 6, stack: 100, yours: false };
+    expect(gameOf([])).toEqual(none);
+    expect(gameOf([played({ kind: "tournament" })])).toEqual(none);
+    expect(gameOf([played({ kind: "exploit" })])).toEqual(none);
+    expect(gameOf([played({}, { pushFold: true })])).toEqual(none);
+    expect(gameOf([played({}, { hands: 0 })])).toEqual(none);
+    expect(gameOf([played({}, { players: "3" })])).toEqual(none);
+    expect(gameOf([played({}, { stack: 99999 })])).toEqual(none);
+    expect(gameOf([played({}, { players: 11 })])).toEqual(none);
+  });
+
+  it("sets the drill and the thin rows to it and says so", () => {
+    const plan = buildPlan(input({ decisions: missed, sessions: [played({})] }));
+    const t = plan.drill!.target;
+    expect(t.kind === "setup" && [t.setup.players, t.setup.stack]).toEqual([3, 40]);
+    expect(t.to).toContain("players=3");
+    expect(t.to).toContain("stack=40");
+    expect(plan.drill!.says.join(" ")).toContain("The table and stack are your last Practice session's.");
+    for (const step of plan.thin) expect(step.to).toContain("stack=40");
+  });
+
+  it("says when there's no session to go by, and sits a seat off your table at the smallest that has it", () => {
+    const plan = buildPlan(input({ decisions: missed }));
+    expect(plan.drill!.says.join(" ")).toContain("No Practice session is kept, so that's 6-max at 100bb.");
+    const seated = buildPlan(input({ decisions: missed, sessions: [played({}, { players: 2 })] }));
+    const t = seated.drill!.target;
+    expect(t.kind === "setup" && t.setup.stack).toBe(40);
+    expect(t.kind === "setup" && SEATS[t.setup.players]!.includes(t.setup.opts.seat)).toBe(true);
+  });
+
+  it("drills a library spot only at your game", () => {
+    const six = spot("six", ["BB", "BTN"]);
+    const hu = spot("hu", ["BB", "SB"], { players: 2, stack: 100 });
+    const yours = { players: 2, stack: 100, yours: true };
+    expect(librarySpotFor([six, hu], "BB", "flop")?.id).toBe("six");
+    expect(librarySpotFor([six, hu], "BB", "flop", yours)?.id).toBe("hu");
+    expect(librarySpotFor([six, hu], "BB", "flop", { players: 6, stack: 100, yours: true })?.id).toBe("six");
+    expect(librarySpotFor([six, hu], "BB", "flop", { players: 6, stack: 40, yours: true })).toBeNull();
   });
 });

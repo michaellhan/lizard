@@ -3,6 +3,8 @@
 // should be blanks a page on every load (React can't draw it), and a card that isn't one, a time no Date can hold or a
 // lone surrogate in a link throws the same way. Nothing here throws, and a real record of any version passes: a field
 // added later is optional here too, and the fields every version wrote are required.
+import { SEATS } from "@/poker/seats";
+
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const isStr = (x: unknown): x is string => typeof x === "string";
 const isBool = (x: unknown): x is boolean => typeof x === "boolean";
@@ -39,13 +41,49 @@ export const isOptTags = (x: unknown): boolean => x === undefined || isStrs(x);
 export const validRange = (d: Record<string, unknown>): boolean =>
   isStr(d.name) && isStr(d.text) && isNum(d.combos) && isStr(d.note) && isOptTags(d.tags) && isTime(d.createdAt) && isTime(d.updatedAt);
 
-// A session's `meta` is open: what's read of it, by key. A field read through a guard (byPot, sources, cells, versions)
-// isn't here.
+/** A pot as a decision or a hand is named: History's order. */
+export const POT_NAMES: readonly string[] = ["Unopened", "Limped", "SRP", "3bet pot", "4bet+ pot"];
+export const isPotName = (x: unknown): x is string => isStr(x) && POT_NAMES.includes(x);
+/** A seat at any table, in action order: every table's seats are among the nine-handed one's. */
+export const SEAT_NAMES: readonly string[] = SEATS[9]!;
+export const isSeatName = (x: unknown): x is string => isStr(x) && SEAT_NAMES.includes(x);
+
+/** What a cell (history.ts `GradeCell`) must hold to be counted: some decisions, on a street, against something, on one
+ * basis, no more of them right than there are, and no EV lost below nothing. */
+export const isCellCounts = (c: Record<string, unknown>): boolean =>
+  ["preflop", "flop", "turn", "river"].includes(c.street as string) &&
+  isWellFormed(c.source) &&
+  isBool(c.byEv) &&
+  isCount(c.n) &&
+  c.n > 0 &&
+  isCount(c.ok) &&
+  c.ok <= c.n &&
+  [c.loss, c.lossPct].every((x) => isNum(x) && x >= 0);
+
+/** A whole cell as it's kept; its seat, pot and versions came later, so each may be missing. */
+export const isCell = (x: unknown): boolean =>
+  isObj(x) &&
+  isCellCounts(x) &&
+  (x.seat === undefined || isSeatName(x.seat)) &&
+  (x.pot === undefined || isPotName(x.pot)) &&
+  (x.versions === undefined || (isObj(x.versions) && Object.values(x.versions).every(isCount)));
+
+/** Cells can't hold more decisions than their session graded; they hold fewer where it began before they were kept. */
+export const cellsFit = (ns: readonly number[], decisions: number): boolean => ns.reduce((a, n) => a + n, 0) <= decisions;
+
+// A session's `meta` is open: what's read of it, by key. A field read through a guard (byPot, sources, versions) isn't
+// here, and cells have their own check below.
 const META_NUMBERS = ["hands", "net", "ok", "graded", "lossPct", "players", "stack", "ante", "rake", "rakeCap", "best", "acc", "evLossBb", "evLossPct", "comboAcc", "total", "tables"];
-const META_TEXT = ["spot", "view", "label", "leak", "line", "source", "actor", "street", "drill", "seat"];
+const META_TEXT = ["spot", "view", "label", "leak", "line", "source", "actor", "street", "drill", "seat", "hand"];
 
 const isScore = (x: unknown): boolean =>
   isObj(x) && [x.n, x.ok, x.loss, x.lossPct, x.ne, x.streak, x.best].every(isNum) && Array.isArray(x.recent) && x.recent.every(isNum);
+
+const isSessionCells = (x: unknown, decisions: number): boolean => {
+  if (!isObj(x)) return false;
+  const cells = Object.values(x);
+  return cells.every(isCell) && cellsFit(cells.map((c) => (c as { n: number }).n), decisions);
+};
 
 export function validSession(d: Record<string, unknown>): boolean {
   const { meta } = d;
@@ -60,7 +98,8 @@ export function validSession(d: Record<string, unknown>): boolean {
     META_TEXT.every((k) => meta[k] === undefined || meta[k] === null || isWellFormed(meta[k])) &&
     (meta.done === undefined || isStrs(meta.done)) &&
     (meta.exploit === undefined || (isObj(meta.exploit) && isStr(meta.exploit.profile) && isObj(meta.exploit.lock) && Object.values(meta.exploit.lock).every(isNum))) &&
-    (meta.score === undefined || isScore(meta.score))
+    (meta.score === undefined || isScore(meta.score)) &&
+    (meta.cells === undefined || isSessionCells(meta.cells, d.decisions as number))
   );
 }
 

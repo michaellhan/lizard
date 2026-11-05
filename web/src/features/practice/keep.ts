@@ -5,6 +5,7 @@
 // outside: `keptTables` says what can be used, down to what's in each list, as the views draw what they're given and a
 // throw there blanks the page on every load, and a hand that won't replay comes back as null, its table's results kept,
 // for the Room to deal again. Pure: when the doc is written, and what's done about a lost hand, are the Room's.
+import { isCell } from "@/data/shapes";
 import { emptyTally, type PotTally } from "@/features/history/history";
 import { SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { GRADE_RULES } from "@/grading/grade";
@@ -12,9 +13,10 @@ import { SEATS, seatsOf } from "@/poker/seats";
 import { DECK, legal, NEED, noLines, recordOf, simulate, STREETS, withMove, type Lines, type Move, type Street } from "@/poker/table";
 import { sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
-import { isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type HandTournament, type PracticeHand } from "./practice";
+import { handWorks, isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type HandTournament, type PracticeHand } from "./practice";
 import type { PracticeSession } from "./session";
 import { isExploit } from "./exploit";
+import { isHandKey } from "./handFilter";
 import { isTextureFilter } from "./texture";
 
 export const KEPT_KEY = "practice.tables.v1";
@@ -114,6 +116,8 @@ const isHand = (x: unknown): x is PracticeHand =>
   (x.result === null || isResult(x.result)) &&
   opt(x.ante, isNum) &&
   opt(x.pot, isHandPot) &&
+  opt(x.dealtTo, isHandKey) &&
+  opt(x.noFit, (n) => n === true) &&
   opt(x.cands, (c) => isList(c, (l) => isList(l, isStr))) &&
   opt(x.tries, isCount) &&
   opt(x.stacks, (s) => isObj(s) && Object.values(s).every(isNum)) &&
@@ -181,14 +185,14 @@ const isOpts = (x: unknown) =>
   isNum(x.rake) &&
   isNum(x.rakeCap) &&
   opt(x.board, (b) => b === null || isTextureFilter(b)) &&
+  opt(x.hand, (k) => k === null || handWorks(x.pot, k)) &&
   opt(x.pushFold, isBool) &&
   opt(x.tournament, (t) => isGame(t) && isObj(t) && isObj(t.stacks) && Object.values(t.stacks).every(isNum)) &&
   opt(x.exploit, isExploit);
 /** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
-  isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null && opt(x.state, isObj);
+  isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null && opt(x.state, isObj) && opt(x.dealtTo, isHandKey);
 
-const isCell = (x: unknown) => isObj(x) && isStr(x.street) && isStr(x.source) && isBool(x.byEv) && [x.n, x.ok].every(isCount) && [x.loss, x.lossPct].every(isNum) && opt(x.versions, (v) => isObj(v) && Object.values(v).every(isCount));
 const isCells = (x: unknown) => isObj(x) && Object.values(x).every(isCell);
 
 const isSession = (x: unknown): x is PracticeSession =>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { cardInt } from "@/library/entry";
 import { seatsOf } from "@/poker/seats";
 import { deal, noLines, recordOf, seeded, type Move } from "@/poker/table";
 import type { AdvisorResponse } from "@/solver/protocol";
@@ -22,6 +23,9 @@ import {
   potLabel,
   POT_DRILLS,
   dealsLeft,
+  dealsOut,
+  hardHand,
+  handWorks,
   drillTries,
   DRILL_TRIES,
   rangeAt,
@@ -41,6 +45,7 @@ import {
   type HandOptions,
   type PracticeHand,
 } from "./practice";
+import { HAND_GROUPS, handTest } from "./handFilter";
 import { texture } from "./texture";
 
 // a hand dealt by hand: your seat, everyone's cards, the board
@@ -157,6 +162,74 @@ describe("seats and dealing", () => {
     const again = redeal(redeal(h, 77, { seat: "BTN", pot: "3bet" }), 78, { seat: "BTN", pot: "3bet" });
     expect(again).toMatchObject({ n: 0, hero: "BTN", pot: "3bet", tries: 2, seed: 78 });
     expect(again.lines.preflop).toEqual([]);
+  });
+
+  it("a pot drill's hand filter: your cards fit the flop dealt, from one deck, and a redeal keeps it", () => {
+    const fits = (h: PracticeHand, key: string) => {
+      const [a, b] = h.hands[h.hero]!.map(cardInt);
+      return handTest(key, h.board.slice(0, 3).map(cardInt))(Math.min(a!, b!), Math.max(a!, b!));
+    };
+    for (const pot of ["srp", "3bet", "4bet", "bvb"] as const)
+      for (const key of ["m:top_tk", "d:fd", "c:pairs", "m:quads"])
+        for (const seed of [1, 2, 3]) {
+          const h = newHand(6, 100, 0, seed, { pot, hand: key });
+          expect(fits(h, key)).toBe(true);
+          expect(h).toMatchObject({ pot, dealtTo: key });
+          expect(h.noFit).toBeUndefined();
+          expect(new Set([...Object.values(h.hands).flat(), ...h.board]).size).toBe(17);
+        }
+    const opts = { seat: "BTN", pot: "3bet" as const, hand: "d:fd", board: { suits: "twotone" } };
+    const h = redeal(newHand(6, 100, 4, 1, opts), 8, opts);
+    expect(h).toMatchObject({ tries: 1, hero: "BTN", dealtTo: "d:fd", n: 4 });
+    expect(fits(h, "d:fd")).toBe(true);
+    expect(texture(h.board.slice(0, 3).join("")).suits).toBe("twotone");
+    expect(newHand(6, 100, 0, 9, opts).hands).toEqual(newHand(6, 100, 0, 9, opts).hands);
+  });
+
+  it("a hand filter leaves your seat where the seed puts it, and a hand with no filter as it was", () => {
+    const opts = { seat: "random", pot: "srp" as const };
+    expect(newHand(6, 100, 0, 11, { ...opts, hand: "m:set" }).hero).toBe(newHand(6, 100, 0, 11, opts).hero);
+    const plain = newHand(6, 100, 0, 11, opts);
+    expect(plain).toEqual(newHand(6, 100, 0, 11, { ...opts, hand: null }));
+    expect(plain).not.toHaveProperty("dealtTo");
+  });
+
+  it("a hand filter does nothing outside a pot drill", () => {
+    const plain = newHand(6, 100, 0, 11);
+    expect(newHand(6, 100, 0, 11, { hand: "m:quads" })).toEqual(plain);
+    expect(newHand(6, 100, 0, 11, { pot: "lib", hand: "m:quads" }).hands).toEqual(plain.hands);
+  });
+
+  it("a filter no deal can meet stops the hand, in words, with no deals left", () => {
+    const h = newHand(6, 100, 0, 3, { pot: "srp", hand: "m:flush", board: { suits: "rainbow" } });
+    expect(h).toMatchObject({ noFit: true, dealtTo: "m:flush", pot: "srp" });
+    expect(offDrill(h)).toBe(true);
+    expect(dealsLeft(h)).toBe(false);
+    expect(dealsOut(h)).toBe("No Flush came up in 200,000 draws of a flop and your cards: pick other hands or widen the flop.");
+    expect(new Set([...Object.values(h.hands).flat(), ...h.board]).size).toBe(17);
+  });
+
+  it("offers a pot the hands its deals can find: all of them where it's easy, not what hardly ever gets there", () => {
+    const count = (pot: unknown) => HAND_GROUPS.flatMap((g) => g.options).filter((o) => handWorks(pot, o.key)).length;
+    expect(count("srp")).toBe(25);
+    expect(count("bvb")).toBe(25);
+    expect(count("3bet")).toBe(23);
+    expect(count("4bet")).toBe(21);
+    expect(count("lib")).toBe(0);
+    expect(count(null)).toBe(0);
+    for (const key of ["m:top_wk", "m:nothing"]) expect(handWorks("3bet", key)).toBe(false);
+    for (const key of ["m:top_wk", "m:nothing", "m:weak", "d:oesd"]) expect(handWorks("4bet", key)).toBe(false);
+    expect(handWorks("4bet", "m:quads")).toBe(true);
+    expect(handWorks("4bet", "m:unknown")).toBe(false);
+    expect(hardHand("4bet", "m:quads")).toBeNull();
+    expect(hardHand("3bet", "m:two_pair")).toBe(185);
+    expect(hardHand("srp", "m:nothing")).toBeNull();
+  });
+
+  it("says why a drill's deals ran out, naming the filter where there is one", () => {
+    expect(dealsOut({ pot: "srp" })).toBe("No single-raised pot in 400 deals.");
+    expect(dealsOut({ pot: "lib" })).toBe("No instant flop in 400 deals at this seat: try another seat or spot.");
+    expect(dealsOut({ pot: "4bet", dealtTo: "m:quads" })).toBe("No 4-bet pot with Quads or better in 3,000 deals: try another seat or other hands.");
   });
 
   it("a pot-type mode's board filter: the flop dealt has the texture, from one deck, and redeals keep it", () => {

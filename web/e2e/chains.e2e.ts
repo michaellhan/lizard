@@ -106,3 +106,32 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
   expect(await overflow(page)).toBeLessThanOrEqual(0);
   expect(problems.errors).toEqual([]);
 });
+
+test("Practice's rates by seat and pot come back in History", async ({ page, problems }) => {
+  await page.goto("/lizard/practice/");
+  await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
+  await page.getByLabel("Players").selectOption("3");
+  await page.getByLabel("Stack in big blinds").fill("40");
+  await page.getByLabel("Play", { exact: true }).selectOption("preflop");
+  await page.getByRole("button", { name: "New session" }).click();
+  const next = page.getByRole("button", { name: "Next hand" });
+  const graded = page.getByRole("button", { name: /Preflop charts/ }).first();
+  for (let i = 0; i < 12; i += 1) {
+    await expect(options(page).first().or(next)).toBeVisible({ timeout: 60_000 });
+    if (await next.isVisible()) await next.click();
+    else await options(page).last().click();
+    await page.waitForTimeout(200);
+  }
+  await expect(graded.or(page.getByText("Decisions graded")).first()).toBeVisible();
+
+  await page.goto("/lizard/history/");
+  const rates = page.getByRole("region", { name: "Rates by seat and pot type" });
+  await expect(rates).toBeVisible();
+  await expect(rates.getByRole("table", { name: /seat/i }).first()).toContainText(/BTN|SB|BB/);
+  await expect(rates.getByRole("table", { name: /pot/i }).first()).toContainText(/Unopened|SRP|Limped|3bet pot/);
+  await expect(rates).toContainText(/Preflop charts/);
+  await expect(rates).not.toContainText(/solved/i);
+  expect(await overflow(page)).toBeLessThanOrEqual(0);
+  expect(problems.errors).toEqual([]);
+});
+

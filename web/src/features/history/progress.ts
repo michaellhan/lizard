@@ -1,6 +1,8 @@
-// Decisions by street and how they've moved over time, from the sessions kept. A Practice session keeps its decisions by
-// street, source and basis (`cells`, history.ts) from 2026-11-05 on; earlier ones have only their totals, and are counted
-// apart. A flop drill's decisions are stored and graded by EV and a turn drill's by the stored mix, so every drill counts, old ones too. A leak drill
+// Decisions by street, seat and pot and how they've moved over time, from the sessions kept. A Practice session keeps its
+// decisions by street, source and basis (`cells`, history.ts) from 2026-11-05 on; earlier ones have only their totals, and
+// are counted apart. Each cell also keeps a seat and a pot from later that day: what's kept before them counts in every
+// total and stays out of those two splits, said with a count. A flop drill's decisions are stored and graded by EV and
+// a turn drill's by the stored mix, so every drill counts, old ones too. A leak drill
 // grades your imported decisions again and keeps no street: those count apart as well. A retry is no session: it's a spot
 // you've already missed, so it would only drag the share down, and it stays out of both.
 //
@@ -10,6 +12,7 @@
 // no change in how you play. Whole sessions make a stretch. EV lost isn't drawn: it's what a decision gave up against the
 // answer named, so it's neither a result nor a win rate, and one big pot would own a line of it.
 import type { SessionRecord } from "@/data/db";
+import { cellsFit, isCellCounts, isPotName, isSeatName, POT_NAMES, SEAT_NAMES } from "@/data/shapes";
 import { BAR, BLOCK, MIN_BLOCKS, MIN_SHARE, moreForLine, shareZ, type Block, type Change } from "@/features/analyze/trend";
 import { wilson } from "@/features/analyze/stats";
 import { keptCounts, versionSpan, type VersionSpan } from "@/grading/version";
@@ -29,20 +32,35 @@ function readVersions(x: unknown): { versions: Record<string, number> } | object
   return ok.length ? { versions: Object.fromEntries(ok) } : {};
 }
 
-/** A cell read defensively: one with no street, no source or no count isn't one. */
+/** A cell read defensively: one whose counts don't stand (`isCellCounts`) isn't one, and it counts nowhere. A seat or a
+ * pot that isn't one is read as not kept, and the cell's decisions still count. */
 function readCell(x: unknown): GradeCell | null {
   const c = obj(x);
-  if (!c || !STREET_ORDER.includes(c.street as (typeof STREET_ORDER)[number]) || typeof c.source !== "string" || !num(c.n)) return null;
-  return { street: c.street as string, source: c.source, byEv: c.byEv === true, n: num(c.n), ok: num(c.ok), loss: num(c.loss), lossPct: num(c.lossPct), ...readVersions(c.versions) };
+  if (!c || !isCellCounts(c)) return null;
+  return {
+    street: c.street as string,
+    source: c.source as string,
+    byEv: c.byEv as boolean,
+    n: num(c.n),
+    ok: num(c.ok),
+    loss: num(c.loss),
+    lossPct: num(c.lossPct),
+    ...readVersions(c.versions),
+    ...(isSeatName(c.seat) ? { seat: c.seat } : {}),
+    ...(isPotName(c.pot) ? { pot: c.pot } : {}),
+  };
 }
 
-/** A session's cells: a Practice session's as kept (null: played before they were kept), a drill's from its totals: a
- * flop drill's the flop library's by EV, a turn drill's the stored turn's by frequency. Any other kind has none. */
+/** A session's cells: a Practice session's as kept (null: played before they were kept; none where they add up to more
+ * decisions than it graded, as no real session's do), a drill's from its totals: a flop drill's the flop library's by EV,
+ * a turn drill's the stored turn's by frequency. Any other kind has none. */
 export function cellsOf(s: SessionRecord): GradeCell[] | null {
   const m = s.meta ?? {};
   if (s.kind === "practice") {
     const kept = obj(m.cells);
-    return kept ? Object.values(kept).map(readCell).filter((c): c is GradeCell => c !== null) : null;
+    if (!kept) return null;
+    const cells = Object.values(kept).map(readCell).filter((c): c is GradeCell => c !== null);
+    return cellsFit(cells.map((c) => c.n), num(s.decisions)) ? cells : [];
   }
   if (s.kind === "drill" && num(s.decisions) > 0) {
     const n = num(s.decisions);
@@ -53,8 +71,7 @@ export function cellsOf(s: SessionRecord): GradeCell[] | null {
   return s.kind === "drill" ? [] : null;
 }
 
-export interface StreetRow {
-  street: string;
+interface Tally {
   n: number;
   ok: number;
   /** of them graded by EV, and the EV lost over those */
@@ -63,6 +80,10 @@ export interface StreetRow {
   lossPct: number;
   /** how many each source graded */
   sources: Record<string, number>;
+}
+
+export interface StreetRow extends Tally {
+  street: string;
 }
 
 export interface StreetTotals {
@@ -74,7 +95,7 @@ export interface StreetTotals {
   leakDecisions: number;
 }
 
-const addTo = (r: StreetRow, c: GradeCell) => {
+const addTo = (r: Tally, c: GradeCell) => {
   r.n += c.n;
   r.ok += c.ok;
   if (c.byEv) {
@@ -85,14 +106,18 @@ const addTo = (r: StreetRow, c: GradeCell) => {
   r.sources[c.source] = (r.sources[c.source] ?? 0) + c.n;
 };
 
+const leakCount = (s: SessionRecord) => {
+  const score = obj(s.meta?.score);
+  return score ? num(score.n) : num(s.decisions);
+};
+
 /** Every decision kept by street (only the streets played); those that can't be split, counted apart. */
 export function streetTotals(sessions: readonly SessionRecord[]): StreetTotals {
   const by = new Map<string, StreetRow>();
   let apartSessions = 0, apartDecisions = 0, leakDecisions = 0;
   for (const s of sessions) {
     if (s.kind === "analysis") {
-      const score = obj(s.meta?.score);
-      leakDecisions += score ? num(score.n) : num(s.decisions);
+      leakDecisions += leakCount(s);
       continue;
     }
     if (s.kind !== "practice" && s.kind !== "drill") continue;
@@ -109,6 +134,59 @@ export function streetTotals(sessions: readonly SessionRecord[]): StreetTotals {
     }
   }
   return { rows: STREET_ORDER.flatMap((st) => by.get(st) ?? []), apartSessions, apartDecisions, leakDecisions };
+}
+
+export type SplitBy = "seat" | "pot";
+
+export interface SplitRow extends Tally {
+  /** the seat or the pot */
+  name: string;
+}
+
+export interface SplitTotals {
+  by: SplitBy;
+  /** a row for each seat or pot with any decision, by basis: graded by EV and by frequency are never one row */
+  ev: SplitRow[];
+  freq: SplitRow[];
+  /** decisions kept with no seat or pot, or none here, and the sessions they're in */
+  notKept: number;
+  notKeptSessions: number;
+  /** leak drills' decisions: no seat or pot kept */
+  leakDecisions: number;
+}
+
+const SPLIT_ORDER: Record<SplitBy, readonly string[]> = { seat: SEAT_NAMES, pot: POT_NAMES };
+
+/** Every decision kept by seat or by pot, a row a basis; those that can't be split, counted apart. A row adds up what
+ * the same cells add up by street, so every decision is either in one row or in `notKept`. Only Practice and drills, as
+ * by street: a tournament's or a read's EVs go in no total with an equilibrium's. */
+export function splitTotals(sessions: readonly SessionRecord[], by: SplitBy): SplitTotals {
+  const rows = new Map<string, SplitRow>();
+  let notKept = 0, notKeptSessions = 0, leakDecisions = 0;
+  for (const s of sessions) {
+    if (s.kind === "analysis") {
+      leakDecisions += leakCount(s);
+      continue;
+    }
+    if (s.kind !== "practice" && s.kind !== "drill") continue;
+    let split = 0;
+    for (const c of cellsOf(s) ?? []) {
+      const name = c[by];
+      if (!name) continue;
+      split += c.n;
+      const key = `${c.byEv ? "ev" : "freq"}|${name}`;
+      const r = rows.get(key) ?? { name, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, sources: {} };
+      rows.set(key, r);
+      addTo(r, c);
+    }
+    const missing = num(s.decisions) - split;
+    if (missing > 0) {
+      notKept += missing;
+      notKeptSessions++;
+    }
+  }
+  const of = (b: Basis) => SPLIT_ORDER[by].flatMap((name) => rows.get(`${b}|${name}`) ?? []);
+  return { by, ev: of("ev"), freq: of("freq"), notKept, notKeptSessions, leakDecisions };
 }
 
 /** A share of decisions: a percent over enough of them, else the plain count. */

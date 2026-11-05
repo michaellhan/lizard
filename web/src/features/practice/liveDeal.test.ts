@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { readMistake } from "@/data/mistakes";
 import { cellsOf } from "@/features/history/progress";
-import { rowOf } from "@/features/history/history";
+import { linePot, POT_ORDER, rowOf } from "@/features/history/history";
 import { spotKey } from "@/features/review/mistakes";
 import { madeCategory } from "@/features/study/categories";
 import { fromSearch } from "@/features/study/studyState";
@@ -440,8 +440,8 @@ describe("what's kept", () => {
   it("History reads the session as live solves, never as the stored library", () => {
     const g = gradeLive(a, 0);
     let s = freshLiveSession();
-    s = afterLive(s, "river", g, a.provenance);
-    s = afterLive(s, "river", gradeLive(a, 1), a.provenance);
+    s = afterLive(s, pr, g, a.provenance);
+    s = afterLive(s, pr, gradeLive(a, 1), a.provenance);
     const rec = liveRecord(s, rep, "BB");
     expect(rec).toMatchObject({ kind: "practice", decisions: 2 });
     const row = rowOf(rec);
@@ -450,6 +450,18 @@ describe("what's kept", () => {
     expect(cellsOf(rec)).toEqual([expect.objectContaining({ street: "river", source: "live", byEv: true, n: 2 })]);
     expect(s.sources).toEqual({ live: 2 });
     expect(emptyScore().n).toBe(0);
+  });
+
+  it("keeps the seat you held and the spot's pot with each decision", () => {
+    const p = liveProblem(rep, E0, T, "river", "ip", rg, seeded(6))!;
+    expect(rep.line).toMatch(/:r/);
+    const both = [pr, p].reduce((s, x) => afterLive(s, x, gradeLive(a, 0), a.provenance), freshLiveSession());
+    expect(cellsOf(liveRecord(both, rep, "BB"))?.map((c) => [c.seat, c.pot, c.n])).toEqual([
+      [pr.hero, linePot(pr.state.preflop!), 1],
+      [p.hero, linePot(pr.state.preflop!), 1],
+    ]);
+    expect(pr.hero).not.toBe(p.hero);
+    expect(POT_ORDER).toContain(linePot(pr.state.preflop!));
   });
 
   it("a miss is a mistake asked again through the solver, one a spot, and a kept record that reads back", () => {

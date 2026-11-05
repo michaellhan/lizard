@@ -23,9 +23,14 @@ import { gameLabel, isDrillable, storedTurnFlops, type LibrarySpotIndex } from "
 import { SEATS, seatLabel } from "@/poker/seats";
 import { sourceLabel } from "@/solver/provenance";
 
-/** the table and depth a generated session is set to */
-const TABLE = 6;
-const STACK = 100;
+/** The table and depth a generated session is set to: your last Practice session's, so a drill is at the game you play.
+ * With none, the game the library's plain spots are; `yours` says which, as the drill says it in words. */
+export interface PlanGame {
+  players: number;
+  stack: number;
+  yours: boolean;
+}
+const NO_GAME: PlanGame = { players: 6, stack: 100, yours: false };
 /** the decisions in a generated drill, in sessions started today, that mark it done */
 export const DRILL_TARGET = 20;
 /** the rows too few to read that are listed before "Show more" */
@@ -127,6 +132,8 @@ export interface Plan {
   /** the sessions started today a drill can count, and what picked it (withLibrary reads them again) */
   today: readonly SessionRecord[];
   facts: DrillFacts | null;
+  /** the game a generated session is set to */
+  game: PlanGame;
 }
 
 // ---- reviews
@@ -278,15 +285,28 @@ const byLost = (a: LeakStep & { score: number }, b: LeakStep & { score: number }
 
 // ---- collecting more hands
 
-const seatedSetup = (play: PlayKind, seat: string): { link: LinkSetup; setup: ScenarioSetup } => {
-  // (a seat that isn't at the table generated sits at the smallest that has it)
-  const players = seat === "moves" || SEATS[TABLE]!.includes(seat) ? TABLE : Number(Object.keys(SEATS).find((p) => SEATS[Number(p)]!.includes(seat)));
-  const link = { play, seat, players, stack: STACK };
+/** The last Practice session's table and depth, where a session of hands could be set to them. A session that's another
+ * game (a tournament, an exploit, push/fold) or that played no hand says nothing of the game you play. */
+export function gameOf(sessions: readonly SessionRecord[]): PlanGame {
+  const last = sessions
+    .filter((s) => s.kind === "practice" && !s.meta.pushFold && typeof s.meta.hands === "number" && s.meta.hands > 0)
+    .reduce<SessionRecord | null>((a, s) => (!a || s.startedAt > a.startedAt ? s : a), null);
+  if (!last) return NO_GAME;
+  const { players, stack } = last.meta;
+  if (typeof players !== "number" || typeof stack !== "number") return NO_GAME;
+  const fits = (["full", "preflop", "srp", "3bet"] as const).every((play) => linkSetup({ play, seat: "moves", players, stack }));
+  return fits ? { players, stack, yours: true } : NO_GAME;
+}
+
+const seatedSetup = (play: PlayKind, seat: string, game: PlanGame): { link: LinkSetup; setup: ScenarioSetup } => {
+  // (a seat that isn't at the table sits at the smallest that has it)
+  const players = seat === "moves" || SEATS[game.players]!.includes(seat) ? game.players : Number(Object.keys(SEATS).find((p) => SEATS[Number(p)]!.includes(seat)));
+  const link = { play, seat, players, stack: game.stack };
   return { link, setup: linkSetup(link)! };
 };
 
-const setupTarget = (play: PlayKind, seat: string): DrillTarget => {
-  const { link, setup } = seatedSetup(play, seat);
+const setupTarget = (play: PlayKind, seat: string, game: PlanGame): DrillTarget => {
+  const { link, setup } = seatedSetup(play, seat, game);
   return { kind: "setup", setup, about: scenarioWords(setup), to: setupLink(link) };
 };
 
@@ -298,8 +318,8 @@ function collectPlay(t: RowTally): PlayKind {
   return pot === "SRP" ? "srp" : pot === "3bet pot" ? "3bet" : "full";
 }
 
-function thinStep(l: Leak, t: RowTally): ThinStep {
-  const target = setupTarget(collectPlay(t), "moves");
+function thinStep(l: Leak, t: RowTally, game: PlanGame): ThinStep {
+  const target = setupTarget(collectPlay(t), "moves", game);
   const short = MIN_READ - l.n;
   return {
     kind: "thin",
@@ -404,9 +424,12 @@ interface DrillFacts {
   total: number;
 }
 
-function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRecord[]): DrillStep {
+/** Why the table and depth are what they are, after the settings' words. */
+const gameWords = (t: DrillTarget, g: PlanGame) => (t.kind !== "setup" ? "" : g.yours ? " The table and stack are your last Practice session's." : " No Practice session is kept, so that's 6-max at 100bb.");
+
+function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRecord[], game: PlanGame): DrillStep {
   const { street, seat, seatMiss: m } = f;
-  const name = seatLabel(seat, TABLE);
+  const name = seatLabel(seat, target.kind === "setup" ? target.setup.players : game.players);
   const count = drilledToday(target, today);
   const where = `${STREET_WORD[street]} from ${name}`;
   return {
@@ -420,7 +443,7 @@ function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRe
     says: [
       `The most misses are on ${STREET_WORD[street]}: ${f.streetMisses.toLocaleString()} of the ${many(f.total, "miss", "misses")} counted, ${m.n.toLocaleString()} of them from ${name}.`,
       `Those ${m.n.toLocaleString()}: ${m.graded.toLocaleString()} in hands graded in Analyze, ${m.kept.toLocaleString()} kept in the review queue; ${m.byEv.toLocaleString()} by EV, ${(m.n - m.byEv).toLocaleString()} by frequency. ${basisWords(m.bases)}`,
-      `Settings: ${target.about}. ${answeredBy(target, street)}`,
+      `Settings: ${target.about}.${gameWords(target, game)} ${answeredBy(target, street)}`,
     ],
     street,
     seat,
@@ -439,13 +462,15 @@ function drillFacts(misses: ReadonlyMap<string, ReadonlyMap<string, Miss>>): Dri
 }
 
 /** A session in the seat that missed: preflop only, or a single-raised pot from the flop on. */
-const seatTarget = (street: string, seat: string) => setupTarget(street === "preflop" ? "preflop" : "srp", seat);
+const seatTarget = (street: string, seat: string, game: PlanGame) => setupTarget(street === "preflop" ? "preflop" : "srp", seat, game);
 
 /** The library's spot for a seat on a street, out of position or in: a plain game's first where one has it. */
-export function librarySpotFor(spots: readonly LibrarySpotIndex[], seat: string, street: string): LibrarySpotIndex | null {
+export function librarySpotFor(spots: readonly LibrarySpotIndex[], seat: string, street: string, game: PlanGame = NO_GAME): LibrarySpotIndex | null {
   if (street !== "flop" && street !== "turn") return null;
   const fits = spots.filter((s) => isDrillable(s) && s.seats.includes(seat) && (street === "flop" || storedTurnFlops(s).length > 0));
-  return fits.find((s) => !s.game) ?? fits[0] ?? null;
+  if (!game.yours) return fits.find((s) => !s.game) ?? fits[0] ?? null;
+  // (the game you play or none: a spot at another table or depth isn't a drill of your game, and a session of hands is)
+  return fits.find((s) => (s.game?.players ?? 6) === game.players && (s.game?.stack ?? 100) === game.stack) ?? null;
 }
 
 /** The first step left to do (a leak with nothing to deal can't be: it stays listed, and isn't next). */
@@ -455,7 +480,7 @@ const nextOf = (p: Pick<Plan, "reviews" | "leaks" | "thin" | "drill">): PlanStep
  * Without the library, or a spot for the seat, the drill stays a session of hands. */
 export function withLibrary(plan: Plan, spots: readonly LibrarySpotIndex[]): Plan {
   const step = plan.drill;
-  const spot = step && librarySpotFor(spots, step.seat, step.street);
+  const spot = step && librarySpotFor(spots, step.seat, step.street, plan.game);
   if (!step || !spot) return plan;
   const street = step.street as DrillStreet;
   const view: DrillView = spot.seats.indexOf(step.seat) === 0 ? "oop" : "ip";
@@ -464,7 +489,7 @@ export function withLibrary(plan: Plan, spots: readonly LibrarySpotIndex[]): Pla
   const label = street === "turn" ? turnViewLabel(view, spot.seats) : viewLabel(view, spot.seats);
   const target: DrillTarget = { kind: "library", spot: spot.id, view, street, about: `${spot.label}${spot.game ? ` (${gameLabel(spot)})` : ""} · ${label}`, to: `/practice?${q}` };
   const facts = plan.facts;
-  const drill = facts ? drillStep(facts, target, plan.today) : step;
+  const drill = facts ? drillStep(facts, target, plan.today, plan.game) : step;
   const next = { ...plan, drill };
   return { ...next, next: nextOf(next) };
 }
@@ -492,6 +517,7 @@ export function buildPlan({ now, mistakes, damaged = 0, hands, decisions, sessio
   }
   const graded = gradedAll - tour - exploit;
 
+  const game = gameOf(sessions);
   const { leaks: read, thin: few } = readLeaks(ds);
   const byId = new Map(sessions.map((s) => [s.id, s]));
   const rows = [...read, ...few];
@@ -501,13 +527,13 @@ export function buildPlan({ now, mistakes, damaged = 0, hands, decisions, sessio
     .sort(byLost)
     .map(({ score: _, ...s }) => s);
   const thin = few
-    .map((l, i) => thinStep(l, tallies[read.length + i]!))
+    .map((l, i) => thinStep(l, tallies[read.length + i]!, game))
     .sort((a, b) => b.n - a.n || (a.id < b.id ? -1 : 1));
 
   const today = midnight(now);
   const recent = sessions.filter((s) => s.startedAt >= today && (s.kind === "practice" || s.kind === "drill"));
   const facts = drillFacts(countMisses(ds, kept, mistakes));
-  const drill = facts && drillStep(facts, seatTarget(facts.street, facts.seat), recent);
+  const drill = facts && drillStep(facts, seatTarget(facts.street, facts.seat, game), recent, game);
   const reviews = reviewStep(mistakes, now);
 
   const steps = { reviews, leaks, thin, drill };
@@ -536,5 +562,5 @@ export function buildPlan({ now, mistakes, damaged = 0, hands, decisions, sessio
     return { text: `Your ${many(graded, "graded decision")} leave no step to take: nothing due, no leak to read, and no miss counted. Play more, and this fills in.`, links: [practice] };
   })();
 
-  return { ...steps, next: nextOf(steps), first, notes, apart: apartWords(tour, exploit), damaged, today: recent, facts };
+  return { ...steps, next: nextOf(steps), first, notes, apart: apartWords(tour, exploit), damaged, today: recent, facts, game };
 }

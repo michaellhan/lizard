@@ -44,6 +44,11 @@ describe("readScenario", () => {
     expect(read({ rake: 0, rakeCap: 4 })?.opts.rakeCap).toBe(0);
     expect(read({ board: { suits: "mono" } })?.opts.board).toBeNull();
     expect(read({ pot: "srp", board: {} })?.opts.board).toBeNull();
+    expect(read({ pot: "srp", hand: "m:set" })?.opts.hand).toBe("m:set");
+    expect(read({ pot: "srp", hand: "m:flush", board: { suits: "mono" } })?.opts).toMatchObject({ hand: "m:flush", board: { suits: "mono" } });
+    // (a record from before the filter, and one that says there's none, are the same setup)
+    expect(read({ pot: "srp" })?.opts).not.toHaveProperty("hand");
+    expect(read({ pot: "srp", hand: null })?.opts).not.toHaveProperty("hand");
     expect(read({ preflopOnly: true, sizes: { flop: [33] } })?.opts.sizes).toBeNull();
   });
 
@@ -82,6 +87,18 @@ describe("readScenario", () => {
       withOpts({ sizes: { preflop: [33] } }),
       withOpts({ pot: "srp", board: { suits: "rainbowish" } }),
       withOpts({ pot: "srp", board: { pair: "trips", suits: "mono" } }),
+      withOpts({ pot: "srp", hand: "m:unknown" }),
+      withOpts({ pot: "srp", hand: "m:board" }),
+      withOpts({ pot: "srp", hand: "d:none" }),
+      withOpts({ pot: "srp", hand: "__proto__" }),
+      withOpts({ pot: "srp", hand: "" }),
+      withOpts({ pot: "srp", hand: 5 }),
+      withOpts({ pot: "srp", hand: { key: "m:set" } }),
+      withOpts({ pot: "srp", hand: ["m:set"] }),
+      withOpts({ hand: "m:set" }),
+      withOpts({ preflopOnly: true, hand: "c:pairs" }),
+      withOpts({ pot: "srp", hand: "m:flush", board: { suits: "rainbow" } }),
+      withOpts({ pot: "4bet", hand: "m:nothing" }),
       withOpts({ pushFold: true }),
       withOpts({ pushFold: true, pot: "srp" }),
       withOpts({ pot: "srp", preflopOnly: true }),
@@ -133,6 +150,11 @@ describe("scenarioWords", () => {
     expect(words).toContain("ante 0.5bb");
     expect(words).toContain("rake 5% (cap 3bb)");
     expect(words).toContain("33%");
+  });
+
+  it("names a hand filter", () => {
+    expect(scenarioWords(scenario("a", 2, { opts: { ...OPTS, pot: "3bet", hand: "m:top_tk" } }))).toBe("6-max 100bb · 3-bet pots · hands: top pair, top kicker");
+    expect(scenarioWords(scenario("a", 2, { opts: { ...OPTS, pot: "3bet" } }))).toBe("6-max 100bb · 3-bet pots");
   });
 
   it("says a game's kind", () => {

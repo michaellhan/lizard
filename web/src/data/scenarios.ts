@@ -5,7 +5,8 @@
 // counted and left out, and nothing here throws.
 import { describeSetup, LIMITS, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { assumedWords, exploitOf, exploitNumbers, isProfile } from "@/features/practice/exploit";
-import { carries, gameLabel, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, type SessionOptions, type Sizes, type TournamentOptions } from "@/features/practice/practice";
+import { handFits, handLabel } from "@/features/practice/handFilter";
+import { carries, gameLabel, handWorks, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, type SessionOptions, type Sizes, type TournamentOptions } from "@/features/practice/practice";
 import { flopsLike, isTextureFilter, TEXTURE_GROUPS, type TextureFilter } from "@/features/practice/texture";
 import { draftOf, readDraft } from "@/features/practice/TournamentFields";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
@@ -48,6 +49,12 @@ function readBoard(x: unknown): TextureFilter | null | undefined {
   return flopsLike(x).length ? x : undefined;
 }
 
+/** The hand filter, or undefined where it isn't one the form offers this pot, or the board filter leaves no such hand. */
+function readHand(x: unknown, pot: unknown, board: TextureFilter | null): string | null | undefined {
+  if (x === undefined || x === null) return null;
+  return handWorks(pot, x) && handFits(x, board) ? x : undefined;
+}
+
 function readOpts(o: unknown, players: number, stack: number): SessionOptions | null {
   if (!isObj(o)) return null;
   const seat = o.seat ?? "moves";
@@ -67,6 +74,8 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   const sizes = readSizes(o.sizes, players);
   const board = readBoard(o.board);
   if (sizes === undefined || board === undefined) return null;
+  const hand = readHand(o.hand, pot, board);
+  if (hand === undefined) return null;
   // (a stored read's numbers aren't kept: a scenario is a setup, and it starts with the profile as it stands. Numbers that
   // don't belong to the profile named can't then be graded against under its name)
   const read = o.exploit === undefined || o.exploit === null ? null : isObj(o.exploit) && isProfile(o.exploit.profile) ? exploitOf(o.exploit.profile) : false;
@@ -83,6 +92,7 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
     rake: tournament ? 0 : rake,
     rakeCap: rake && !tournament ? rakeCap : 0,
     board: pot ? board : null,
+    ...(hand ? { hand } : {}),
     ...(pushFold ? { pushFold: true } : {}),
     ...(tournament ? { tournament } : {}),
     ...(read ? { exploit: read } : {}),
@@ -140,7 +150,7 @@ export async function deleteScenario(id: string): Promise<void> {
   if (d) await d.delete("savedScenarios", id);
 }
 
-const boardWords = (b: TextureFilter) => TEXTURE_GROUPS.flatMap((g) => (b[g.key] ? [g.values[b[g.key]!]!.toLowerCase()] : []));
+export const boardWords = (b: TextureFilter) => TEXTURE_GROUPS.flatMap((g) => (b[g.key] ? [g.values[b[g.key]!]!.toLowerCase()] : []));
 
 /** The setup in words: what you typed, with an exploit profile's numbers said to be assumed. */
 export function scenarioWords({ players, stack, opts: o }: ScenarioSetup): string {
@@ -150,6 +160,7 @@ export function scenarioWords({ players, stack, opts: o }: ScenarioSetup): strin
     o.pot ? POT_DRILLS[o.pot as keyof typeof POT_DRILLS].label.toLowerCase() : o.pushFold ? "push/fold" : o.tournament ? gameLabel(o.tournament) : o.preflopOnly ? "preflop only" : "full hands",
     o.tournament && o.preflopOnly ? "stops at the flop" : "",
     ...(o.board ? boardWords(o.board) : []),
+    o.pot && o.hand ? `hands: ${handLabel(o.hand).toLowerCase()}` : "",
     o.exploit ? `exploiting ${assumedWords(o.exploit)}: ${exploitNumbers(o.exploit)}` : "",
     o.ante ? `ante ${o.ante}bb` : "",
     o.straddle ? "straddle" : "",

@@ -2,8 +2,8 @@
 // grades never added, and no line through too few.
 import { describe, expect, it } from "vitest";
 import type { SessionRecord } from "@/data/db";
-import { addCell, type GradeCell } from "./history";
-import { basisTrend, BLOCK, cellsOf, MIN_BLOCKS, MIN_SHARE, shareText, streetTotals, trends } from "./progress";
+import { addCell, kindTotals, type CellAt, type GradeCell } from "./history";
+import { basisTrend, BLOCK, cellsOf, MIN_BLOCKS, MIN_SHARE, shareText, splitTotals, streetTotals, trends } from "./progress";
 
 const cell = (street: string, source: string, byEv: boolean, n: number, ok: number, loss = 0, lossPct = 0): GradeCell => ({ street, source, byEv, n, ok, loss, lossPct });
 const cells = (...xs: GradeCell[]) => Object.fromEntries(xs.map((c) => [`${c.street}|${c.source}|${c.byEv ? "ev" : "freq"}`, c]));
@@ -133,5 +133,202 @@ describe("the trend", () => {
 
   it("leaves out sessions from before streets were kept", () => {
     expect(basisTrend([OLD], "ev").n).toBe(0);
+  });
+});
+
+describe("rates by seat and by pot", () => {
+  type One = { street: string; source: "live" | "charts" | "library"; byEv: boolean; ok: boolean; loss: number; version: string; at: CellAt };
+  const SEATS = ["UTG", "CO", "BTN", "SB", "BB"];
+  const POTS = ["Unopened", "Limped", "SRP", "3bet pot", "4bet+ pot"];
+  const STREETS = ["preflop", "flop", "turn", "river"];
+
+  /** A session's decisions, seeded. `step` is the loss's grain: 1/8 adds up exactly in any order. */
+  function deal(seed: number, n: number, step: number): One[] {
+    let x = seed;
+    const r = (k: number) => {
+      x = (x * 1664525 + 1013904223) % 2 ** 32;
+      return Math.floor((x / 2 ** 32) * k);
+    };
+    return Array.from({ length: n }, () => {
+      const street = STREETS[r(4)]!;
+      const byEv = street !== "preflop" || r(2) === 0;
+      const source = byEv ? (r(2) ? "live" : "library") : "charts";
+      return { street, source, byEv, ok: r(3) > 0, loss: byEv ? r(9) * step : 0, version: `build:v${r(2)}/1`, at: { seat: SEATS[r(5)]!, pot: POTS[r(5)]! } };
+    });
+  }
+  const record = (i: number, ds: One[], split: boolean): SessionRecord => {
+    let c: Record<string, GradeCell> | undefined;
+    for (const d of ds) c = addCell(c, d.street, d.source, { ok: d.ok, byEv: d.byEv, loss: d.loss, lossPct: d.loss * 10 }, d.version, split ? d.at : undefined);
+    return { id: `s${i}`, kind: "practice", startedAt: i * 1000, decisions: ds.length, evLossBb: 0, meta: { hands: 1, ok: ds.filter((d) => d.ok).length, graded: ds.filter((d) => d.byEv).length, lossPct: 0, cells: c } };
+  };
+  const pair = (step: number) => {
+    const ds = [40, 150, 3, 220, 90, 310].map((n, i) => deal(i + 1, n, step));
+    return [ds.map((d, i) => record(i, d, false)), ds.map((d, i) => record(i, d, true))] as const;
+  };
+
+  it("keeps a seat and a pot on a cell, one cell each, and none where it isn't given", () => {
+    const g = { ok: true, byEv: true, loss: 0.5, lossPct: 5 };
+    let c = addCell(undefined, "flop", "live", g, undefined, { seat: "BTN", pot: "SRP" });
+    c = addCell(c, "flop", "live", g, undefined, { seat: "BTN", pot: "SRP" });
+    c = addCell(c, "flop", "live", g, undefined, { seat: "BB", pot: "SRP" });
+    c = addCell(c, "flop", "live", g, undefined, { seat: "BTN", pot: "3bet pot" });
+    expect(Object.values(c).map((x) => [x.seat, x.pot, x.n])).toEqual([
+      ["BTN", "SRP", 2],
+      ["BB", "SRP", 1],
+      ["BTN", "3bet pot", 1],
+    ]);
+    const plain = addCell(undefined, "flop", "live", g);
+    expect(Object.keys(plain)).toEqual(["flop|live|ev"]);
+    expect(plain["flop|live|ev"]).not.toHaveProperty("seat");
+    expect(plain["flop|live|ev"]).not.toHaveProperty("pot");
+  });
+
+  it("changes no total: by street, over time, by kind, to the last digit where the sums can't round", () => {
+    const [plain, split] = pair(1 / 8);
+    expect(Object.keys(split[3]!.meta!.cells as object).length).toBeGreaterThan(Object.keys(plain[3]!.meta!.cells as object).length);
+    expect(streetTotals(split)).toEqual(streetTotals(plain));
+    expect(trends(split)).toEqual(trends(plain));
+    expect(basisTrend(split, "ev").change).toEqual(basisTrend(plain, "ev").change);
+    expect(kindTotals(split)).toEqual(kindTotals(plain));
+    expect(streetTotals(split).rows.map((r) => r.n).reduce((a, b) => a + b)).toBe(813);
+  });
+
+  it("changes no total on real losses either, past rounding that no page can show", () => {
+    const [plain, split] = pair(0.0737);
+    const a = streetTotals(plain), b = streetTotals(split);
+    expect(b.rows.map(({ loss: _l, lossPct: _p, ...r }) => r)).toEqual(a.rows.map(({ loss: _l, lossPct: _p, ...r }) => r));
+    b.rows.forEach((r, i) => {
+      expect(r.loss).toBeCloseTo(a.rows[i]!.loss, 9);
+      expect(r.lossPct).toBeCloseTo(a.rows[i]!.lossPct, 9);
+    });
+    const strip = (ts: ReturnType<typeof trends>) => ts.map((t) => ({ ...t, blocks: t.blocks.map(({ lossPct: _p, ...x }) => x) }));
+    expect(strip(trends(split))).toEqual(strip(trends(plain)));
+    trends(split).forEach((t, i) => t.blocks.forEach((x, j) => expect(x.lossPct).toBeCloseTo(trends(plain)[i]!.blocks[j]!.lossPct, 9)));
+  });
+
+  it("puts every decision in one row or says it wasn't kept, and adds up to the street totals", () => {
+    const [, split] = pair(1 / 8);
+    const all = [...split, OLD, DRILL, TURN, LEAK];
+    const streets = streetTotals(all);
+    const count = streets.rows.reduce((a, r) => a + r.n, 0) + streets.apartDecisions;
+    for (const by of ["seat", "pot"] as const) {
+      const t = splitTotals(all, by);
+      const rows = [...t.ev, ...t.freq];
+      expect(rows.reduce((a, r) => a + r.n, 0) + t.notKept).toBe(count);
+      expect(rows.reduce((a, r) => a + r.ok, 0)).toBe(split.reduce((a, s) => a + Object.values(s.meta!.cells as Record<string, GradeCell>).reduce((x, c) => x + c.ok, 0), 0));
+      expect(t.ev.reduce((a, r) => a + r.loss, 0)).toBe(streets.rows.reduce((a, r) => a + r.loss, 0) - DRILL.evLossBb);
+      expect(t.notKept).toBe(OLD.decisions + DRILL.decisions + TURN.decisions);
+      expect(t.notKeptSessions).toBe(3);
+      expect(t.leakDecisions).toBe(5);
+    }
+  });
+
+  it("never adds a basis into the other: a seat graded both ways is two rows, and frequency counts no EV", () => {
+    const at = { seat: "BTN", pot: "SRP" };
+    const s = practice("a", 1, 7, { ...cell("flop", "live", true, 3, 2, 0.6, 9), ...at }, { ...cell("preflop", "charts", false, 4, 1), ...at });
+    const t = splitTotals([s], "seat");
+    expect(t.ev).toEqual([{ name: "BTN", n: 3, ok: 2, ne: 3, loss: 0.6, lossPct: 9, sources: { live: 3 } }]);
+    expect(t.freq).toEqual([{ name: "BTN", n: 4, ok: 1, ne: 0, loss: 0, lossPct: 0, sources: { charts: 4 } }]);
+    // (a loss on a frequency cell, as a damaged one might have, is never summed)
+    const damaged = practice("b", 1, 2, { ...cell("flop", "charts", false, 2, 1, 5, 50), ...at });
+    expect(splitTotals([damaged], "pot").freq[0]).toMatchObject({ ne: 0, loss: 0, lossPct: 0 });
+  });
+
+  it("orders seats by the action and pots as History does, whatever was played first", () => {
+    const of = (street: string, seat: string, pot: string) => ({ ...cell(street, "live", true, 1, 1), seat, pot });
+    const s = practice("a", 1, 3, of("preflop", "BB", "4bet+ pot"), of("flop", "UTG", "Unopened"), of("turn", "BTN", "SRP"));
+    expect(splitTotals([s], "seat").ev.map((r) => r.name)).toEqual(["UTG", "BTN", "BB"]);
+    expect(splitTotals([s], "pot").ev.map((r) => r.name)).toEqual(["Unopened", "SRP", "4bet+ pot"]);
+  });
+
+  it("keeps a cell from before seats and pots readable, in every total, out of the split, with no seat made up", () => {
+    const s = practice("a", 1, 3, cell("flop", "live", true, 3, 2, 0.3, 3));
+    expect(cellsOf(s)![0]).not.toHaveProperty("seat");
+    expect(cellsOf(s)![0]).not.toHaveProperty("pot");
+    expect(streetTotals([s]).rows[0]).toMatchObject({ street: "flop", n: 3, ok: 2 });
+    expect(splitTotals([s], "seat")).toMatchObject({ ev: [], freq: [], notKept: 3, notKeptSessions: 1 });
+  });
+
+  it("splits a session begun before seats and pots were kept only as far as they were", () => {
+    const old = cell("flop", "live", true, 3, 2);
+    const s = { ...practice("a", 1, 5, old), meta: { cells: { "flop|live|ev": old, "flop|live|ev|BB|SRP": { ...old, seat: "BB", pot: "SRP", n: 2, ok: 1 } } } };
+    expect(streetTotals([s]).rows).toEqual([expect.objectContaining({ street: "flop", n: 5, ok: 3 })]);
+    expect(splitTotals([s], "seat")).toMatchObject({ ev: [{ name: "BB", n: 2 }], notKept: 3, notKeptSessions: 1 });
+  });
+
+  it("counts a seat kept without a pot under the one and not the other", () => {
+    const s = practice("a", 1, 2, { ...cell("flop", "live", true, 2, 1), seat: "BB" });
+    expect(splitTotals([s], "seat")).toMatchObject({ ev: [{ name: "BB", n: 2 }], notKept: 0 });
+    expect(splitTotals([s], "pot")).toMatchObject({ ev: [], notKept: 2 });
+  });
+
+  it("reads tournaments and exploit sessions into neither, as the street table", () => {
+    const c = { ...cell("flop", "live", true, 2, 1), seat: "BB", pot: "SRP" };
+    const others = (["tournament", "tournament-chips", "exploit"] as const).map((kind) => ({ ...practice("a", 1, 2, c), kind }));
+    expect(splitTotals(others, "seat")).toMatchObject({ ev: [], freq: [], notKept: 0 });
+  });
+
+  describe("crafted cells", () => {
+    const good = { ...cell("flop", "live", true, 2, 1, 0.5, 5), seat: "BB", pot: "SRP" };
+    const stored = (c: unknown, decisions = 5) => ({ ...practice("a", 1, decisions), meta: { cells: { good, bad: c } } }) as unknown as SessionRecord;
+
+    it.each([
+      ["a negative count", { ...good, n: -50 }],
+      ["a part of a decision", { ...good, n: 1.5 }],
+      ["a count in text", { ...good, n: "3" }],
+      ["no count", { ...good, n: null }],
+      ["more right than made", { ...good, ok: 3 }],
+      ["fewer right than none", { ...good, ok: -1 }],
+      ["EV gained", { ...good, loss: -40 }],
+      ["EV lost in text", { ...good, loss: "lots" }],
+      ["EV lost as nothing", { ...good, lossPct: null }],
+      ["a basis in text", { ...good, byEv: "true" }],
+      ["a street that isn't one", { ...good, street: "showdown" }],
+      ["a source that's an object", { ...good, source: { a: 1 } }],
+      ["nothing", null],
+      ["a list", [good]],
+    ])("drops %s: its decisions count apart, never as made", (_, bad) => {
+      const s = stored(bad);
+      expect(cellsOf(s)).toEqual([good]);
+      expect(streetTotals([s]).rows).toEqual([expect.objectContaining({ n: 2, ok: 1, loss: 0.5 })]);
+      expect(streetTotals([s]).apartDecisions).toBe(3);
+      expect(splitTotals([s], "seat")).toMatchObject({ ev: [{ name: "BB", n: 2, ok: 1 }], notKept: 3 });
+    });
+
+    it.each([
+      ["an object", { a: 1 }],
+      ["a number", 7],
+      ["a name no table has", "Dealer"],
+      ["a key of every object", "constructor"],
+      ["the prototype", "__proto__"],
+    ])("reads %s for a seat or a pot as not kept, and the decisions still count", (_, bad) => {
+      const s = stored({ ...good, street: "turn", n: 3, ok: 2, seat: bad, pot: bad });
+      expect(cellsOf(s)![1]).not.toHaveProperty("seat");
+      expect(cellsOf(s)![1]).not.toHaveProperty("pot");
+      expect(streetTotals([s]).rows.map((r) => r.n)).toEqual([2, 3]);
+      for (const by of ["seat", "pot"] as const) expect(splitTotals([s], by)).toMatchObject({ ev: [{ n: 2 }], notKept: 3 });
+    });
+
+    it("takes no cell at all where they add up to more than the session graded", () => {
+      const s = stored({ ...good, street: "turn", n: 1_000_000, ok: 1_000_000 });
+      expect(cellsOf(s)).toEqual([]);
+      expect(streetTotals([s])).toMatchObject({ rows: [], apartDecisions: 5, apartSessions: 1 });
+      expect(trends([s])).toEqual([]);
+      expect(splitTotals([s], "pot")).toMatchObject({ ev: [], freq: [], notKept: 5 });
+    });
+
+    it("draws a source named for an object's own keys without harm", () => {
+      for (const source of ["__proto__", "constructor", "toString"]) {
+        const s = stored({ ...good, street: "turn", source, n: 3, ok: 2 });
+        expect(() => [streetTotals([s]), trends([s])]).not.toThrow();
+        expect(splitTotals([s], "seat").ev[0]).toMatchObject({ n: 5, ok: 3 });
+      }
+    });
+
+    it.each([["a list", [good]], ["text", "cells"], ["a number", 3]])("reads %s for the cells as none kept", (_, bad) => {
+      const s = { id: "a", kind: "practice", startedAt: 1, decisions: 4, evLossBb: 0, meta: { cells: bad } } as unknown as SessionRecord;
+      expect(cellsOf(s)).toBeNull();
+      expect(splitTotals([s], "seat")).toMatchObject({ ev: [], notKept: 4, notKeptSessions: 1 });
+    });
   });
 });

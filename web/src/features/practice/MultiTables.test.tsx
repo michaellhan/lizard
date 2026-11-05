@@ -229,6 +229,13 @@ describe("Tables (multitable.test.js:68)", () => {
     expect(screen.getByRole("radio", { name: "3" })).toHaveAttribute("aria-checked", "true");
   });
 
+  it("says in the form that a hand filter deals at one table, with the tables as they're set", async () => {
+    await atTables(3);
+    fireEvent.change(screen.getByRole("combobox", { name: "Play" }), { target: { value: "srp" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Hands" }), { target: { value: "m:set" } });
+    expect(screen.getByText("3 tables are set, and hands are filtered at one table only: above it they aren't.")).toBeInTheDocument();
+  });
+
   it("takes focus off a button that's done to the dock: a change of Tables, New session, a tile, a tab", async () => {
     page();
     await ready();

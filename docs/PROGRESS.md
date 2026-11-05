@@ -4232,3 +4232,15 @@ Live check of `e6ac43e`: run 42087738239 green, `index-w4figzSS.js` 301,360 byte
 
 
 Tests: 2988 unit tests in 163 files (2 skipped), typecheck and lint clean, 131 browser tests passed and 88 skipped, `scripts/engine` OK. New browser tests: `web/e2e/saved.e2e.ts` (4), `web/e2e/chains.e2e.ts` (2), `qa.e2e.ts` 2b, 5b, 7e, and 11b (reads the live library, so not in CI).
+
+Live check of `1fde274`: run 42095655679 green, `index-Cu0960xe.js` 310,507 bytes matches the local build, engine version `8b6a5072b4`, `/`, `/gto-solver/`, `/gto-solver-classic/`, `/lizard/saved/` and `/lizard/practice/` 200, cross-origin isolated, the database at version 9, and a heads-up river drill answered on the live library.
+
+### 2026-11-05: rates by seat and pot, hand filters on pot drills, drills at your own game (Phases 3 and 5)
+
+**Rates.** History has "Rates by seat and pot type": a table graded by EV and a separate one by frequency for each, never averaged, under what graded them. The pot is named as it stood when you decided, so an open is Unopened and facing an open is SRP, which is why it differs from the by-hand pot table, and the page says so. Decisions kept before this stay in every total and are counted apart, with no seat made up. Seat rows merge table sizes, and stored library drills write no seat or pot. A crafted cell counts nowhere; a wholly self-consistent forged session can't be told from a real one.
+
+**Hand filter on pot drills.** New session offers a Hands select with a pot drill, one table only. Made hands and draws are read on the flop dealt, hand classes on your two cards, and grading is unchanged, which the form says once. A category whose deals would run out more than 1 time in 4 at the hardest seat isn't offered in that pot (3-bet pots 23 of 25, 4-bet pots 21 of 25). Node: 295 board filters × 25 hands, longest search that found its hand 15 ms, with nothing to find 0.35 s, then it stops in words. History's session line now names the board and hand filters. Copy for AI names the hand filter, not the board filter.
+
+**Your own game.** The Plan's generated drills and thin rows take the table and stack of your last Practice session, not its ante, rake or straddle, and say so; with no session they stay 6-max 100bb and say that. A library drill is offered only at your game, otherwise the drill stays a session of hands. The note above about needing a new Practice field was wrong: session records already hold both.
+
+On the real worker, a 4-bet pot asked for quads found one in 4.9 s, in a real browser (one run; a run that finds none would take longer, and stops in words). Tests: 3112 unit tests in 163 files (2 skipped), typecheck and lint clean, 133 browser tests passed (the full run had 132 with one failing on my test's selector, fixed and that test run alone).

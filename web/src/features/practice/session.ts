@@ -70,7 +70,7 @@ export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, 
     ...s,
     score: addScore(s.score, d.grade),
     sources: addSource(s.sources, d.provenance?.source),
-    cells: addCell(s.cells, d.street, d.provenance?.source, d.grade, versionOf(d.provenance)),
+    cells: addCell(s.cells, d.street, d.provenance?.source, d.grade, versionOf(d.provenance), { seat: h.hero, pot: handPot(h.lines.preflop, simOf(h)) }),
     review: withReviewed(s.review, reviewed(h, d, h.n + 1, table)),
   };
 }
@@ -113,6 +113,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     // (an exploit session deals its pot at every table)
     ...(s.opts.pot && (tables <= 1 || s.opts.exploit) ? { pot: s.opts.pot } : {}),
     ...(s.opts.pot && s.opts.board && tables <= 1 ? { board: s.opts.board } : {}),
+    ...(s.opts.pot && s.opts.hand && tables <= 1 ? { hand: s.opts.hand } : {}),
     ...(s.opts.pushFold ? { pushFold: true } : {}),
     ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
     ...(s.opts.exploit ? { exploit: s.opts.exploit } : {}),

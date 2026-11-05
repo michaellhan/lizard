@@ -1161,6 +1161,33 @@ describe("Room hands", () => {
     expect(asked).toHaveLength(DRILL_TRIES + 1);
   });
 
+  it("stops at once where a hand filter can't be met, in words, and asks nothing", async () => {
+    const { room, asked } = setup({ players: 2, opts: { ...OPTS, pot: "srp", hand: "m:flush", board: { suits: "rainbow" } } as typeof OPTS });
+    await flush();
+    expect(table(room).error).toBe("No Flush came up in 200,000 draws of a flop and your cards: pick other hands or widen the flop.");
+    expect(table(room).failed).toBeNull();
+    expect(asked).toHaveLength(0);
+    expect(room.snapshot().session).toMatchObject({ hands: 0 });
+    // (Try again searches once more, and says so again)
+    room.retry();
+    await flush();
+    expect(table(room).error).toContain("No Flush came up");
+    expect(asked).toHaveLength(0);
+  });
+
+  it("names the hand filter when the deals run out, and deals to it each time", async () => {
+    const { room, asked } = setup({ players: 2, opts: { ...OPTS, pot: "srp", hand: "c:pairs" } as typeof OPTS });
+    for (let i = 0; i < DRILL_TRIES; i += 1) {
+      await flush();
+      const [a, b] = table(room).hand.hands[table(room).hand.hero]!;
+      expect(a![0]).toBe(b![0]);
+      asked.at(-1)!.answer(move("fold"));
+    }
+    await pass(2000);
+    expect(table(room).error).toBe(`No single-raised pot with Pocket pairs in ${DRILL_TRIES} deals: try another seat or other hands.`);
+    expect(asked).toHaveLength(DRILL_TRIES);
+  });
+
   it("runs a hand out from each seat's own view, your fold as it was", async () => {
     const { room, asked } = setup({ players: 3, pace: 0 });
     await flush();
@@ -1513,6 +1540,24 @@ describe("Room at several tables", () => {
     expect(room.snapshot()).toMatchObject({ focus: 2, queue: [0, 1] });
     room.choose(2, "not your turn at this table", 0);
     expect(at(room, 2).hand.decisions).toHaveLength(1);
+  });
+
+  it("keeps each decision's cell under its own table's seat, and the pot before your move", async () => {
+    const one = setup({ players: 2 });
+    await flush();
+    one.asked[0]!.answer(CHART);
+    await flush();
+    one.room.choose(2);
+    expect(Object.values(one.room.snapshot().session.cells!)).toEqual([expect.objectContaining({ street: "preflop", seat: "SB", pot: "Unopened", n: 1 })]);
+
+    const { room, asked } = several([flopYou(1), preflop(2)]);
+    await answer(asked, 0, CHART, FLOP);
+    press(room, room.snapshot().focus, 0);
+    press(room, room.snapshot().focus, 0);
+    expect(Object.values(room.snapshot().session.cells!).map((c) => [c.street, c.seat, c.pot, c.n])).toEqual([
+      ["preflop", "UTG", "Unopened", 1],
+      ["flop", "BTN", "SRP", 1],
+    ]);
   });
 
   it("marks a decision with the table it was made at, and its hand's own number", async () => {
@@ -2278,6 +2323,16 @@ describe("Room changing the number of tables", () => {
     // (three flops all trips by chance: a one in 50 million)
     expect([1, 2, 3].every((i) => new Set(at(room, i).hand.board.slice(0, 3).map((c) => c[0])).size === 1)).toBe(false);
     expect(room.snapshot().session.opts.board).toEqual({ pair: "trips" });
+  });
+
+  it("deals one table by the session's hand filter, and more than one by Spots alone", async () => {
+    useSettings.setState({ practiceSpot: "srp", practiceSeat: "UTG" });
+    const { room } = setup({ pace: 0, pause: 0, guard: 0 });
+    room.startSession(6, 100, { ...room.snapshot().session.opts, pot: "srp" as const, hand: "m:quads" });
+    expect(at(room, 0).hand.dealtTo).toBe("m:quads");
+    room.setTables(4);
+    expect([1, 2, 3].map((i) => at(room, i).hand.dealtTo)).toEqual([undefined, undefined, undefined]);
+    expect(room.snapshot().session.opts.hand).toBe("m:quads");
   });
 
   it("reads a saved seat that isn't at this game, or a spot it can't use, as what's left", async () => {

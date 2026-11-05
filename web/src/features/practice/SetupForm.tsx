@@ -16,12 +16,15 @@ import {
   profileName,
   type ExploitProfile,
 } from "./exploit";
-import { carries, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
+import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
+import { carries, drillTries, hardHand, handWorks, isPotDrill, MAX_STACK, MIN_STACK, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
 import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
 import { draftOf, readDraft, TournamentFields } from "./TournamentFields";
 
 const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter =>
   Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
+
+const ON_WORDS = { flop: "read on the flop dealt", cards: "read on your two cards" } as const;
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 
@@ -29,12 +32,15 @@ export function SetupForm({
   players,
   stack,
   opts,
+  tables = 1,
   onEdit,
   onStart,
 }: {
   players: number;
   stack: number;
   opts: SessionOptions;
+  /** the tables set now: a filter deals at one */
+  tables?: number;
   /** you've gone to the form: what's typed here goes if it's drawn again for another session */
   onEdit: () => void;
   onStart: (players: number, stack: number, opts: SessionOptions) => void;
@@ -49,6 +55,7 @@ export function SetupForm({
   const [draft, setDraft] = useState(() => draftOf(opts.tournament, stack));
   const [stop, setStop] = useState(!!opts.tournament && opts.preflopOnly);
   const [board, setBoard] = useState<TextureFilter>(opts.board ?? {});
+  const [hand, setHand] = useState(opts.hand ?? "");
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
@@ -83,6 +90,10 @@ export function SetupForm({
   // (a pot-type mode's board filter: the flops of the 22,100 it leaves, none being a filter no flop can meet)
   const boardOn = isPotDrill(play) && Object.values(board).some(Boolean);
   const fits = boardOn ? flopsLike(board).length : null;
+  // (the hand filter, as this pot offers it, none being one these flops can't deal)
+  const handOn = handWorks(play, hand);
+  const handOk = !handOn || fits === 0 || handFits(hand, boardOn ? board : null);
+  const hard = handOn && isPotDrill(play) ? hardHand(play, hand) : null;
   const pfOk = !isPF || n <= PUSH_FOLD_MAX;
   const tournament = isT ? readDraft(draft, p, n, MAX_STACK) : null;
   const ok =
@@ -93,6 +104,7 @@ export function SetupForm({
     (isT || rakeOk) &&
     !sizeProblems.length &&
     fits !== 0 &&
+    handOk &&
     pfOk &&
     !tournament?.problems.length;
   // (only a kind of pot can be exploited: exploit.ts)
@@ -109,6 +121,7 @@ export function SetupForm({
         rake: isT ? 0 : rk,
         rakeCap: rk && !isT ? rc : 0,
         board: boardOn ? board : null,
+        ...(handOn ? { hand } : {}),
         ...(isPF ? { pushFold: true } : {}),
         ...(tournament?.value ? { tournament: tournament.value } : {}),
         ...(exploit ? { exploit } : {}),
@@ -270,6 +283,48 @@ export function SetupForm({
             </span>
           )}
         </fieldset>
+      )}
+      {isPotDrill(play) && (
+        <div className="flex basis-full flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1">
+            <span className="text-muted">Hands</span>
+            <select
+              aria-label="Hands"
+              aria-describedby="hands-note"
+              value={handOn ? hand : ""}
+              onChange={(e) => setHand(e.target.value)}
+              className="rounded border border-border bg-surface-2 px-1.5 py-1"
+            >
+              <option value="">Any hand</option>
+              {HAND_GROUPS.map((g) => (
+                <optgroup key={g.label} label={`${g.label}: ${ON_WORDS[g.on]}`}>
+                  {g.options
+                    .filter((o) => handWorks(play, o.key))
+                    .map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <p id="hands-note" className="min-w-0 flex-1 text-xs text-muted">
+            {handOn
+              ? `${handLabel(hand)}: ${ON_WORDS[HAND_GROUPS.find((g) => g.options.some((o) => o.key === hand))?.on ?? "flop"]}, at one table. This only picks what you're dealt: each decision is graded as any other hand's, against the strategy for every hand you could hold there, not one fitted to these hands.${hard ? ` Rare in ${POT_DRILLS[play].label.toLowerCase()}: on the 6-max 100bb charts about 1 deal in ${hard.toLocaleString("en-US")} gets here at the hardest seat, so the ${drillTries(play).toLocaleString("en-US")} deals can run out.` : ""}`
+              : `Made hands and draws are read on the flop dealt, hand classes on your two cards.${isPotDrill(play) && HAND_GROUPS.some((g) => g.options.some((o) => !handWorks(play, o.key))) ? " Hands this pot almost never reaches aren't listed." : ""}`}
+          </p>
+          {handOn && tables > 1 && (
+            <p role="status" className="basis-full text-xs text-danger">
+              {`${tables} tables are set, and hands are filtered at one table only: above it they aren't.`}
+            </p>
+          )}
+          {!handOk && (
+            <p role="alert" className="basis-full text-xs text-danger">
+              {`No ${handLabel(hand)} turned up on these flops: widen them or pick other hands.`}
+            </p>
+          )}
+        </div>
       )}
       <label className="flex items-center gap-1" title={`Each seat's ante, 0–${LIMITS.ante}bb`}>
         <span className="text-muted">Ante</span>

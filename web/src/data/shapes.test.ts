@@ -146,7 +146,7 @@ describe("records that blanked a page", () => {
     expect((await restored("sessions", { ...SESSION, meta: { ...SESSION.meta, [k]: "1" } })).skipped).toBe(1);
   });
 
-  it.each(["spot", "view", "label", "leak", "line", "source", "actor", "street", "drill", "seat"])("refuses a session whose meta.%s can't be text, or a link", async (k) => {
+  it.each(["spot", "view", "label", "leak", "line", "source", "actor", "street", "drill", "seat", "hand"])("refuses a session whose meta.%s can't be text, or a link", async (k) => {
     expect((await restored("sessions", { ...SESSION, meta: { ...SESSION.meta, [k]: { a: 1 } } })).skipped).toBe(1);
     expect((await restored("sessions", { ...SESSION, meta: { ...SESSION.meta, [k]: "\ud800" } })).skipped).toBe(1);
   });
@@ -174,6 +174,54 @@ describe("records that blanked a page", () => {
     expect(readMistake(mistake())).not.toBeNull();
     expect(readMistake({ ...mistake(), hole: ["Ah", "Kx"] })).toBeNull();
     expect(readMistake({ ...mistake(), board: ["2c", "?"] })).toBeNull();
+  });
+});
+
+describe("a session's cells", () => {
+  const cell = { street: "flop", source: "live", byEv: true, n: 2, ok: 1, loss: 0.2, lossPct: 4 };
+  const withCells = (cells: unknown) => ({ ...SESSION, meta: { ...SESSION.meta, cells } });
+
+  it.each([
+    ["kept before seats and pots", { a: cell }],
+    ["with them", { a: { ...cell, seat: "BTN", pot: "3bet pot" } }],
+    ["with one and not the other", { a: { ...cell, seat: "UTG2" } }],
+    ["with versions", { a: { ...cell, versions: { "build:a/1": 2 } } }],
+    ["as many as the session graded", { a: { ...cell, n: 3 } }],
+    ["fewer, the rest from before they were kept", { a: { ...cell, n: 1, ok: 0 } }],
+    ["from a frequency grade", { a: { ...cell, byEv: false, loss: 0, lossPct: 0 } }],
+  ])("restores cells %s", async (_, cells) => {
+    expect((await restored("sessions", withCells(cells))).added).toBe(1);
+    await (await db())!.clear("sessions");
+  });
+
+  it("restores a session with no cells, as an older backup has", async () => {
+    expect((await restored("sessions", withCells(undefined))).added).toBe(1);
+  });
+
+  it.each([
+    ["a list", [cell]],
+    ["text", "cells"],
+    ["a cell that's nothing", { a: null }],
+    ["an object for a seat", { a: { ...cell, seat: { toString: 1 } } }],
+    ["a seat no table has", { a: { ...cell, seat: "Dealer" } }],
+    ["a number for a pot", { a: { ...cell, pot: 3 } }],
+    ["a pot that isn't one", { a: { ...cell, pot: "Solved" } }],
+    ["no decisions", { a: { ...cell, n: 0, ok: 0 } }],
+    ["fewer than none", { a: { ...cell, n: -2 } }],
+    ["part of a decision", { a: { ...cell, n: 1.5 } }],
+    ["text for a count", { a: { ...cell, n: "2" } }],
+    ["more right than made", { a: { ...cell, ok: 3 } }],
+    ["EV gained", { a: { ...cell, loss: -5 } }],
+    ["no EV count", { a: { ...cell, lossPct: null } }],
+    ["no basis", { a: { ...cell, byEv: "yes" } }],
+    ["a street that isn't one", { a: { ...cell, street: "showdown" } }],
+    ["a source that isn't text", { a: { ...cell, source: { a: 1 } } }],
+    ["a lone surrogate", { a: { ...cell, source: "\ud800" } }],
+    ["versions that aren't counts", { a: { ...cell, versions: { x: "2" } } }],
+    ["more decisions than the session graded", { a: { ...cell, n: 3 }, b: { ...cell, street: "turn", n: 1, ok: 0 } }],
+    ["a total no session could hold", { a: { ...cell, n: 1_000_000, ok: 1_000_000 } }],
+  ])("skips %s, counted as skipped", async (_, cells) => {
+    expect(await restored("sessions", withCells(cells))).toMatchObject({ added: 0, skipped: 1 });
   });
 });
 

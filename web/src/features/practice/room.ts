@@ -66,7 +66,7 @@ import {
   decide,
   decideUngraded,
   dealsLeft,
-  drillTries,
+  dealsOut,
   facingBet,
   finish,
   anyHandOnly,
@@ -76,7 +76,6 @@ import {
   newHand,
   offDrill,
   phaseOf,
-  potLabel,
   rangeAt,
   redeal,
   runKind,
@@ -1133,7 +1132,7 @@ export class Room {
       if (dealsLeft(h)) {
         this.dealt(t, redeal(h, this.seed(), this.opts));
       } else {
-        t.error = `No ${potLabel(h.pot!).replace(/^an? /, "")} in ${drillTries(h.pot)} deals${h.pot === "lib" ? " at this seat: try another seat or spot" : ""}.`;
+        t.error = dealsOut(h);
         t.spent = true;
       }
       return;
@@ -1425,7 +1424,7 @@ export class Room {
   }
 
   /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots (an exploit session has its pot) and Seat, no chips carried
-   * and no board filter (Spots has none).
+   * and no board or hand filter (Spots has none).
    * Settings are read here, at the deal, not fed in by the page: a session read back deals a lost hand the moment they load,
    * before anything has rendered with them. */
   private optsAt(n: number): SessionOptions {
@@ -1434,7 +1433,7 @@ export class Room {
     const set = useSettings.getState();
     // (an exploit session stays in its pot: only there can every decision be best-responded to, exploit.ts)
     const spot = o.exploit ? (o.pot ?? "any") : spotOf(this.fixedSpot ?? set.practiceSpot, anyHandOnly(o), this.flopsOff === null);
-    return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false, board: null };
+    return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false, board: null, hand: null };
   }
 
   /** As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor). */

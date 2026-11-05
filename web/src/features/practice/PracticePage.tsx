@@ -173,6 +173,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       players={session.players}
       stack={session.stack}
       opts={session.opts}
+      tables={tables.length}
       onEdit={() => room.editing()}
       onStart={(p, n, o) => {
         pressRef.current = many;

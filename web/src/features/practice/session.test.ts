@@ -4,7 +4,8 @@ import { emptyScore, type Grade } from "@/grading/grade";
 import type { Move } from "@/poker/table";
 import type { ResultSource } from "@/solver/types";
 import { practiceNumber } from "./history";
-import { following, newHand, redeal, withVillain, type Decision, type HandOptions, type HandResult, type PracticeHand } from "./practice";
+import { handPot } from "@/features/history/history";
+import { following, newHand, redeal, simOf, withVillain, type Decision, type HandOptions, type HandResult, type PracticeHand } from "./practice";
 import { afterDeal, afterDecision, afterHand, atTables, freshSession, keyOf, toRecord } from "./session";
 
 const OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
@@ -125,6 +126,14 @@ describe("dealt", () => {
     expect(following(b, 3, OPTS).n).toBe(c.n);
   });
 
+  it("keeps a pot drill's hand filter in its record, at one table only", () => {
+    const s = freshSession(6, 100, { ...OPTS, pot: "srp", hand: "m:set" });
+    expect(toRecord(s).meta.hand).toBe("m:set");
+    expect(toRecord(s, 3).meta.hand).toBeUndefined();
+    expect(toRecord(freshSession(6, 100, OPTS)).meta).not.toHaveProperty("hand");
+    expect(toRecord(freshSession(6, 100, { ...OPTS, hand: "m:set" })).meta).not.toHaveProperty("hand");
+  });
+
   it("keeps a pot-type mode's board filter in its record, at one table only", () => {
     const s = freshSession(6, 100, { ...OPTS, pot: "srp", board: { suits: "mono" } });
     expect(toRecord(s).meta.board).toEqual({ suits: "mono" });
@@ -147,6 +156,58 @@ describe("dealt", () => {
     const h = newHand(6, 100, 0, 1, s.opts);
     expect(redeal(h, 2, s.opts).n).toBe(h.n);
     expect(s.dealt).toBe(1);
+  });
+});
+
+describe("where a decision is kept", () => {
+  const cells = (s: ReturnType<typeof freshSession>) => Object.values(s.cells ?? {}).map((c) => [c.street, c.seat, c.pot, c.n]);
+  const at = (h: PracticeHand, street: Decision["street"] = "preflop") => cells(afterDecision(freshSession(6, 100, OPTS), h, { ...dec(grade(), "live"), street }));
+
+  it("takes the seat from the hand, whatever the session's setting, each table's its own", () => {
+    const a = newHand(6, 100, 0, 1);
+    const b = newHand(6, 100, 1, 2);
+    expect(a.hero).not.toBe(b.hero);
+    let s = freshSession(6, 100, { ...OPTS, seat: "moves" });
+    s = afterDecision(s, a, dec(grade(), "live"), 1);
+    s = afterDecision(s, b, dec(grade(), "live"), 2);
+    s = afterDecision(s, a, dec(grade(), "live"), 1);
+    expect(cells(s)).toEqual([
+      ["preflop", a.hero, "Unopened", 2],
+      ["preflop", b.hero, "Unopened", 1],
+    ]);
+    expect(cells(afterDecision(freshSession(6, 100, { ...OPTS, seat: "BB" }), a, dec(grade(), "live")))[0]![1]).toBe(a.hero);
+  });
+
+  it("names the pot as it stood when you decided, your own move not in it", () => {
+    const h = newHand(6, 100, 0, 1);
+    expect(h.hero).toBe("BTN");
+    const before = (ms: Move[]) => at(played(h, ms))[0]![2];
+    // first in, your open not yet made
+    expect(before([mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold")])).toBe("Unopened");
+    // a limper ahead
+    expect(before([mv("UTG", "call"), mv("HJ", "fold"), mv("CO", "fold")])).toBe("Limped");
+    // facing an open, and facing a 3-bet
+    expect(before([mv("UTG", "raise", 2.5), mv("HJ", "fold"), mv("CO", "fold")])).toBe("SRP");
+    expect(before([mv("UTG", "raise", 2.5), mv("HJ", "raise", 8), mv("CO", "fold")])).toBe("3bet pot");
+    expect(before([mv("UTG", "raise", 2.5), mv("HJ", "raise", 8), mv("CO", "raise", 20)])).toBe("4bet+ pot");
+  });
+
+  it("names a postflop decision by the pot the preflop made, as the hand's own pot is", () => {
+    const h = { ...played(newHand(6, 100, 0, 1), SRP), shown: 3 };
+    expect(at(h, "flop")).toEqual([["flop", "BTN", "SRP", 1]]);
+    expect(handPot(h.lines.preflop, simOf(h))).toBe("SRP");
+  });
+
+  it("keeps an ungraded decision out, and leaves a cell kept before seats and pots as it was", () => {
+    const h = newHand(6, 100, 0, 1);
+    expect(cells(afterDecision(freshSession(6, 100, OPTS), h, dec(null)))).toEqual([]);
+    const old = { street: "preflop", source: "live", byEv: true, n: 2, ok: 1, loss: 0, lossPct: 0 };
+    const s = afterDecision({ ...freshSession(6, 100, OPTS), cells: { "preflop|live|ev": old } }, h, dec(grade(), "live"));
+    expect(s.cells?.["preflop|live|ev"]).toEqual(old);
+    expect(cells(s)).toEqual([
+      ["preflop", undefined, undefined, 2],
+      ["preflop", "BTN", "Unopened", 1],
+    ]);
   });
 });
 
@@ -183,7 +244,7 @@ describe("History's record", () => {
         rakeCap: 3,
         byPot: s.byPot,
         sources: { live: 1 },
-        cells: { "preflop|live|ev": { street: "preflop", source: "live", byEv: true, n: 1, ok: 1, loss: 0.2, lossPct: 4, versions: { "build:test": 1 } } },
+        cells: { "preflop|live|ev|BTN|Unopened": { street: "preflop", source: "live", byEv: true, seat: "BTN", pot: "Unopened", n: 1, ok: 1, loss: 0.2, lossPct: 4, versions: { "build:test": 1 } } },
       },
     });
     expect(toRecord(session({ carry: true })).meta).toMatchObject({ seat: "moves", carry: true });

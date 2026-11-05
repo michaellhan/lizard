@@ -4,14 +4,17 @@
 // Practice session keeps its pot types (`byPot`) and what graded its decisions (`sources`) from 2026-11-03 on: earlier
 // sessions have neither, and are counted as such. Records are read defensively: any field may be missing.
 import type { SessionRecord } from "@/data/db";
+import { POT_NAMES } from "@/data/shapes";
+import { boardWords } from "@/data/scenarios";
 import { potType } from "@/features/analyze/analyze";
 import { profileName } from "@/features/practice/exploit";
+import { handLabel, isHandKey } from "@/features/practice/handFilter";
 import { isPotDrill, POT_DRILLS } from "@/features/practice/practice";
+import { isTextureFilter } from "@/features/practice/texture";
 import { describeLock, type Lock } from "@/features/study/locks";
 import { fromSearch } from "@/features/study/studyState";
 import type { Grade } from "@/grading/grade";
 import { spotVersion } from "@/grading/version";
-import type { Move, Sim } from "@/poker/table";
 import { describeTournament } from "@/features/tournaments/tournament";
 import { PRIZE_UNIT, sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
@@ -47,18 +50,23 @@ export interface PotTally {
   net: number;
 }
 
-export const POT_ORDER = ["Unopened", "Limped", "SRP", "3bet pot", "4bet+ pot"];
+export const POT_ORDER = POT_NAMES;
 
 export const emptyTally = (): PotTally => ({ hands: 0, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, played: 0, net: 0 });
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
+type SeatMove = { pos: string; action: string; to?: number };
+
 /** A Practice hand's pot as its preflop went while you were in it, named as Analyze names pot types; "Unopened" where
  * nobody raised or called (it folded to you and you folded, or the blinds were left to you). */
-export function handPot(preflop: readonly Move[], sim: Pick<Sim, "streets">): string {
+export function handPot(preflop: readonly SeatMove[], sim: { streets: { preflop?: { nRaises: number } } }): string {
   const raises = sim.streets.preflop?.nRaises ?? 0;
   if (raises) return potType(raises);
   return preflop.some((m) => m.action === "call") ? "Limped" : "Unopened";
 }
+
+/** The pot of a preflop line that's already settled, a library spot's. */
+export const linePot = (preflop: readonly SeatMove[]) => handPot(preflop, { streets: { preflop: { nRaises: preflop.filter((m) => m.action === "raise" || m.action === "bet" || m.action === "all-in").length } } });
 
 /** A finished hand added to its pot type's tally: its graded decisions, and its net (null preflop only). */
 export function addHandToPot(t: PotTally | undefined, grades: readonly (Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> | null)[], net: number | null): PotTally {
@@ -81,12 +89,24 @@ export function addHandToPot(t: PotTally | undefined, grades: readonly (Pick<Gra
   return out;
 }
 
-/** Decisions graded alike: on a street, against one source, by EV or by frequency. A Practice session keeps these from
- * 2026-11-05 on, so its totals can be split by street and neither basis is averaged into the other (progress.ts). */
+/** Where a graded decision was made: your seat in that hand, and its pot as it stood when you decided, your own move
+ * not yet in it (`handPot` on the hand before the move). So an open is Unopened, facing an open is SRP and facing a 3-bet
+ * is a 3bet pot; from the flop on it's the pot the preflop made. */
+export interface CellAt {
+  seat: string;
+  pot: string;
+}
+
+/** Decisions graded alike: on a street, against one source, by EV or by frequency, and from the same day on at one seat
+ * in one pot. A Practice session keeps these from 2026-11-05 on, so its totals can be split and neither basis is
+ * averaged into the other (progress.ts). */
 export interface GradeCell {
   street: string;
   source: string;
   byEv: boolean;
+  /** where it was made: a cell kept before these has neither, and none is made up for it */
+  seat?: string;
+  pot?: string;
   n: number;
   ok: number;
   /** EV lost, bb and % of the pot: only ever summed where `byEv` */
@@ -98,10 +118,10 @@ export interface GradeCell {
 }
 
 /** A graded decision added to its cell. */
-export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">, version?: string): Record<string, GradeCell> {
+export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">, version?: string, at?: CellAt): Record<string, GradeCell> {
   const src = source ?? "unknown";
-  const key = `${street}|${src}|${g.byEv ? "ev" : "freq"}`;
-  const c = cells?.[key] ?? { street, source: src, byEv: g.byEv, n: 0, ok: 0, loss: 0, lossPct: 0 };
+  const key = `${street}|${src}|${g.byEv ? "ev" : "freq"}${at ? `|${at.seat}|${at.pot}` : ""}`;
+  const c = cells?.[key] ?? { street, source: src, byEv: g.byEv, ...at, n: 0, ok: 0, loss: 0, lossPct: 0 };
   return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + (g.byEv ? g.loss : 0), lossPct: c.lossPct + (g.byEv ? g.lossPct : 0), ...(version || c.versions ? { versions: addVersion(c.versions, version) } : {}) } };
 }
 
@@ -205,7 +225,9 @@ export function rowOf(s: SessionRecord): SessionRow {
   if (s.kind === "practice") {
     const kind = isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : "";
     const game = `${num(m.ante) ? ` · ante ${num(m.ante)}` : ""}${m.straddle ? " · straddle" : ""}${m.carry ? " · chips carried" : ""}${m.sizes ? " · your own sizes" : ""}${num(m.rake) ? ` · rake ${num(m.rake)}%` : ""}`;
-    const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${game}${kind}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
+    // (a filter picks what's dealt, so a session under one is said to be)
+    const dealt = [...(isTextureFilter(m.board) ? boardWords(m.board) : []), ...(isHandKey(m.hand) ? [handLabel(m.hand).toLowerCase()] : [])].map((w) => ` · ${w}`).join("");
+    const what = `${num(m.players) || "?"} players · ${num(m.stack) || "?"}bb${game}${kind}${dealt}${m.seat && m.seat !== "moves" ? ` · seat ${str(m.seat)}` : ""}`;
     return {
       ...base,
       what,

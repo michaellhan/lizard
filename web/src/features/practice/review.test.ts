@@ -56,6 +56,8 @@ describe("Review mistakes", () => {
     const mv = (pos: string, action: Move["action"], to?: number): Move => ({ pos, action, ...(to !== undefined ? { to } : {}) });
     h = [mv("UTG", "raise", 2.5), mv("HJ", "fold"), mv("CO", "call")].reduce((x, m) => withVillain(x, m), h);
     expect(reviewed(h, dec("Best", 0, 0.7, "preflop"), 3).line).toBe("UTG raises to 2.5, CO calls");
+    expect(reviewed(h, dec("Best", 0, 0.7, "preflop"), 3)).not.toHaveProperty("dealtTo");
+    expect(reviewed({ ...h, dealtTo: "m:set" }, dec("Best", 0, 0.7, "preflop"), 3).dealtTo).toBe("m:set");
     // on the flop, first to act; then facing a bet after your check
     h = { ...h, shown: 3, lines: { ...h.lines, preflop: [...h.lines.preflop, mv("BTN", "call"), mv("SB", "fold"), mv("BB", "fold")] } };
     const flop = { ...h, lines: { ...h.lines, flop: [mv("UTG", "check"), mv("CO", "bet", 4)] } };

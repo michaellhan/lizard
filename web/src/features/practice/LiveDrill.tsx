@@ -137,11 +137,11 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
       }
       const g = gradeLive(answer, a);
       setPicked({ key: dealKey, a, g });
-      setSession((s) => afterLive(s, street, g, answer.provenance));
+      setSession((s) => afterLive(s, pr, g, answer.provenance));
       const m = liveMistake(session.id, data.report, pr, answer, g, Date.now());
       if (m) void keepMistake(m, missedAgain).catch(() => {});
     },
-    [pr, answer, graded, data, peeked, dealKey, street, session.id],
+    [pr, answer, graded, data, peeked, dealKey, session.id],
   );
   const next = useCallback(() => setN((x) => x + 1), []);
 

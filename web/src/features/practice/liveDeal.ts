@@ -15,7 +15,7 @@
 // library's; its mistakes retry through the solver, as a hand's do.
 import type { MistakeRecord, SessionRecord } from "@/data/db";
 import { offText } from "@/features/analyze/grading";
-import { addCell, addSource, type GradeCell } from "@/features/history/history";
+import { addCell, addSource, linePot, type GradeCell } from "@/features/history/history";
 import { gradeOf } from "@/features/review/mistakes";
 import { dueAfter } from "@/features/review/schedule";
 import { gameSetup } from "@/features/solve/setup";
@@ -349,11 +349,11 @@ export const freshLiveSession = (): LiveSession => ({
   cells: {},
 });
 
-export const afterLive = (s: LiveSession, street: LiveStreet, g: Grade, p: Provenance): LiveSession => ({
+export const afterLive = (s: LiveSession, pr: Pick<LiveProblem, "street" | "hero" | "state">, g: Grade, p: Provenance): LiveSession => ({
   ...s,
   score: addScore(s.score, g),
   sources: addSource(s.sources, p.source),
-  cells: addCell(s.cells, street, p.source, g, versionOf(p)),
+  cells: addCell(s.cells, pr.street, p.source, g, versionOf(p), { seat: pr.hero, pot: linePot(pr.state.preflop ?? []) }),
 });
 
 /** The session as History keeps it: a Practice session of no hands, its grades under what answered them. */

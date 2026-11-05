@@ -23,6 +23,8 @@ export interface Reviewed {
   d: Decision;
   /** the request your spot was answered by, to ask it again (a doc written before it was kept has none) */
   state?: AdvisorState;
+  /** the hand filter it was dealt under (handFilter.ts) */
+  dealtTo?: string;
 }
 
 /** Your decision `d` at the hand `h` (as it stood when you decided), the session's `n`th hand; `table`, above one table. */
@@ -38,6 +40,7 @@ export function reviewed(h: PracticeHand, d: Decision, n: number, table?: number
     line: before.length ? before.map((m) => sayMove(m, h.hero, h.players)).join(", ") : d.street === "preflop" ? "folded to you" : "first to act",
     d,
     state: adviceState(h),
+    ...(h.dealtTo ? { dealtTo: h.dealtTo } : {}),
   };
 }
 

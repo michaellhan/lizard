@@ -378,6 +378,22 @@ test("7e. A 4-bet pot drill plays from the flop, with the preflop said to come f
   await clean(page, problems);
 });
 
+test("7f. A 4-bet pot dealt to a hand category finds one on the worker in time, or stops in words", async ({ page, problems }) => {
+  await session(page, "4bet", async () => {
+    await page.getByLabel("Hands", { exact: true }).selectOption("Quads or better");
+    await expect(page.locator("#hands-note")).toContainText("This only picks what you're dealt");
+  });
+  const began = Date.now();
+  const stopped = page.getByRole("button", { name: "Try again" });
+  await expect(options(page).first().or(stopped)).toBeVisible({ timeout: 200_000 });
+  const took = Date.now() - began;
+  test.info().annotations.push({ type: "search", description: `${took} ms` });
+  console.log(`4-bet quads search: ${took} ms, ${(await stopped.isVisible()) ? "stopped" : "found"}`);
+  if (await stopped.isVisible()) await expect(page.getByText(/No 4-bet pot with Quads or better in [\d,]+ deals/)).toBeVisible();
+  else await expect(page.getByRole("region", { name: "Table" })).toBeVisible();
+  await clean(page, problems);
+});
+
 test("7c. A tournament session in prize equity says so, with chip EV apart from it", async ({ page, problems }) => {
   await session(page, "tournament", () => page.getByLabel("Stack at UTG").fill("10"));
   await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
