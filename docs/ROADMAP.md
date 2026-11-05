@@ -1,11 +1,11 @@
 # LIZARD roadmap
 
-Status as of 2026-11-03. This plans the path from today's state to broad parity with the public feature set of GTO Wizard. Today's state, row by row, is in `docs/FEATURE_MATRIX.md`. The working rules (provenance labels, storage, no accounts, resource safety) are in `IMPLEMENTATION_PLAN.md` and are not repeated here.
+Status as of 2026-11-05. This plans the path from today's state to broad parity with the public feature set of GTO Wizard. Today's state, row by row, is in `docs/FEATURE_MATRIX.md`. The working rules (provenance labels, storage, no accounts, resource safety) are in `IMPLEMENTATION_PLAN.md` and are not repeated here.
 
 ## Where we start
 
 - **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`, with a frozen full copy at `/gto-solver-classic/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
-- **Lizard's own interface covers Study, a range editor, the library view, settings and engine diagnostics.** Practice, Analyze, Solve, Reports and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:31-35`). Lizard was WORKING on 2 rows and PARTIAL on 17 when this was written; `FEATURE_MATRIX.md` has the current counts.
+- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 63 matrix rows, Lizard is WORKING on 8, PARTIAL on 46, APPROXIMATE on 5 and NOT IMPLEMENTED on 4 (2026-11-05). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
 - **Much of the plumbing is ready but unused.** That includes:
   - the `SolverClient` queue with worker and HTTP backends;
   - provenance on every answer;

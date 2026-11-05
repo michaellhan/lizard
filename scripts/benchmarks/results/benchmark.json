@@ -1,0 +1,4978 @@
+{
+ "spots": {
+  "river-one-size": {
+   "spot": {
+    "name": "river-one-size",
+    "kind": "hu",
+    "board": "Ks7d2c3h9s",
+    "oop": "99,77,33,K9s,K7s,AKs,KQs,QJs,JTs,T8s,65s,54s",
+    "ip": "AKo,KQo,KJo,KTs,A9s,QQ,JJ,98s,87s,AJs",
+    "pot": 20,
+    "stack": 60,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "dry river, one bet and raise size"
+   },
+   "reference": {
+    "build_s": 0.0012128353118896484,
+    "acts": 8,
+    "ends": 13,
+    "pairs": 1954.0,
+    "hands": [
+     40,
+     55
+    ],
+    "method": "lp",
+    "solve_s": 0.15657997131347656,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 361
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 376
+     }
+    ],
+    "lp_rows": [
+     712,
+     622
+    ],
+    "lp_cols": [
+     622,
+     712
+    ],
+    "lp_nonzeros": 25234,
+    "lp_method": "highs-ds",
+    "value_each_side": [
+     2.655724521128828,
+     -2.6557245211288136
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.31785714137684073,
+      0.3178571471746906
+     ],
+     "bet 75%": [
+      0.6821428528253097,
+      0.6821428586231596
+     ]
+    },
+    "bounds_s": 0.03010392189025879,
+    "dcfr_check": {
+     "iterations": 20000,
+     "seconds": 4.378408908843994,
+     "value": [
+      2.655724520594189,
+      -2.6557245205941884
+     ],
+     "br": [
+      2.655727237604736,
+      -2.6557190071189867
+     ],
+     "gain": [
+      2.7170105472151818e-06,
+      5.51347520172385e-06
+     ]
+    },
+    "gains": {
+     "value": [
+      2.6557245211288203,
+      -2.6557245211288207
+     ],
+     "br": [
+      2.6557245211288207,
+      -2.6557245211288207
+     ],
+     "gain": [
+      4.440892098500626e-16,
+      0.0
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 4.566553831100464,
+    "peak_rss_mb": 70.109375
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 2.6557245211288203,
+     "value_ip_ref": -2.6557245211288207,
+     "value_oop_engine_own": 2.655724126216455,
+     "value_ip_engine_own": -2.6557213384028957,
+     "value_oop_engine_by_ref": 2.6557243942004374,
+     "value_ip_engine_by_ref": -2.6557243942004374,
+     "value_diff_bb": 1.269283833593704e-07,
+     "value_diff_pct_pot": 6.34641916796852e-07,
+     "own_vs_ref_walk_bb": 3.0557975416733996e-06,
+     "expl_engine_by_ref_pct": 0.0004561654155799122,
+     "gains_engine_by_ref_bb": [
+      0.00015755390063842967,
+      2.491226559353521e-05
+     ],
+     "expl_ref_pct": 1.1102230246251565e-15,
+     "gains_ref_bb": [
+      4.440892098500626e-16,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.0004630542704368443,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.1636010427196197e-05,
+     "cev_identity_bb": 4.1726626642812903e-07,
+     "root_freq_engine": {
+      "check": 0.3178715329704211,
+      "bet 75%": 0.682128467029579
+     },
+     "root_freq_ref": {
+      "check": 0.31785714285714284,
+      "bet 75%": 0.6821428571428572
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.31785714137684073,
+       0.3178571471746906
+      ],
+      "bet 75%": [
+       0.6821428528253097,
+       0.6821428586231596
+      ]
+     },
+     "root_freq_outside_bounds": 1.4385795730764706e-05,
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.9999730572801822,
+      "mean_tv_weighted": 0.052100821047787876,
+      "differing": 28,
+      "differing_within_indifference": 28,
+      "largest_gap_bb": 1.7763568394002505e-15,
+      "largest_gap_pct_pot": 8.881784197001252e-15,
+      "worst": {
+       "node": "",
+       "hand": "5c4c",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.0894,
+        0.9106
+       ],
+       "reference": [
+        0.0,
+        1.0
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 1.7763568394002505e-15
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.003175020217895508,
+     "iterate_s": 0.0027599334716796875,
+     "peak_rss_mb": 38.84375,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 2.6557245211288203,
+     "value_ip_ref": -2.6557245211288207,
+     "value_oop_engine_own": 2.655724469812524,
+     "value_ip_engine_own": -2.655727644171661,
+     "value_oop_engine_by_ref": 2.655724524435652,
+     "value_ip_engine_by_ref": -2.6557245244356515,
+     "value_diff_bb": 3.306831697358348e-09,
+     "value_diff_pct_pot": 1.653415848679174e-08,
+     "own_vs_ref_walk_bb": 3.1197360095269744e-06,
+     "expl_engine_by_ref_pct": 0.00014183216073493377,
+     "gains_engine_by_ref_bb": [
+      5.414766384159719e-06,
+      5.131809790981379e-05
+     ],
+     "expl_ref_pct": 1.1102230246251565e-15,
+     "gains_ref_bb": [
+      4.440892098500626e-16,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.00013638421237285696,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 4.440892098500626e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.5421535792370378e-05,
+     "cev_identity_bb": 2.4544777321722222e-08,
+     "root_freq_engine": {
+      "check": 0.31784624404173367,
+      "bet 75%": 0.6821537559582663
+     },
+     "root_freq_ref": {
+      "check": 0.31785714285714284,
+      "bet 75%": 0.6821428571428572
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.31785714137684073,
+       0.3178571471746906
+      ],
+      "bet 75%": [
+       0.6821428528253097,
+       0.6821428586231596
+      ]
+     },
+     "root_freq_outside_bounds": 1.0897335107062922e-05,
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.9999744136479867,
+      "mean_tv_weighted": 0.04956210885770966,
+      "differing": 28,
+      "differing_within_indifference": 28,
+      "largest_gap_bb": 1.7763568394002505e-15,
+      "largest_gap_pct_pot": 8.881784197001252e-15,
+      "worst": {
+       "node": "",
+       "hand": "5c4c",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.0892,
+        0.9108
+       ],
+       "reference": [
+        0.0,
+        1.0
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 1.7763568394002505e-15
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.013645172119140625,
+     "iterate_s": 0.013228893280029297,
+     "peak_rss_mb": 38.796875,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 2.6557245211288203,
+     "value_ip_ref": -2.6557245211288207,
+     "value_oop_engine_own": 2.6557247353185773,
+     "value_ip_engine_own": -2.655727265435085,
+     "value_oop_engine_by_ref": 2.655724521100941,
+     "value_ip_engine_by_ref": -2.6557245211009417,
+     "value_diff_bb": 2.787947650517708e-11,
+     "value_diff_pct_pot": 1.393973825258854e-10,
+     "own_vs_ref_walk_bb": 2.744334143489624e-06,
+     "expl_engine_by_ref_pct": 6.512314496553983e-06,
+     "gains_engine_by_ref_bb": [
+      3.9136910512382883e-07,
+      2.2135566934977646e-06
+     ],
+     "expl_ref_pct": 1.1102230246251565e-15,
+     "gains_ref_bb": [
+      4.440892098500626e-16,
+      0.0
+     ],
+     "expl_engine_own_pct": -2.7331505485542473e-07,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.1972084948297379e-05,
+     "cev_identity_bb": 1.2494475676305683e-07,
+     "root_freq_engine": {
+      "check": 0.317858415017218,
+      "bet 75%": 0.682141584982782
+     },
+     "root_freq_ref": {
+      "check": 0.31785714285714284,
+      "bet 75%": 0.6821428571428572
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.31785714137684073,
+       0.3178571471746906
+      ],
+      "bet 75%": [
+       0.6821428528253097,
+       0.6821428586231596
+      ]
+     },
+     "root_freq_outside_bounds": 1.2678425277412586e-06,
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.9997763686539667,
+      "mean_tv_weighted": 0.048037598905116774,
+      "differing": 28,
+      "differing_within_indifference": 28,
+      "largest_gap_bb": 1.7763568394002505e-15,
+      "largest_gap_pct_pot": 8.881784197001252e-15,
+      "worst": {
+       "node": "",
+       "hand": "5c4c",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.0893,
+        0.9107
+       ],
+       "reference": [
+        0.0,
+        1.0
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 1.7763568394002505e-15
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.11849093437194824,
+     "iterate_s": 0.11807680130004883,
+     "peak_rss_mb": 38.9375,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    }
+   ],
+   "total_s": 5.093052864074707
+  },
+  "river-two-sizes": {
+   "spot": {
+    "name": "river-two-sizes",
+    "kind": "hu",
+    "board": "Ks7d2c3h9s",
+    "oop": "99,77,33,K9s,K7s,AKs,KQs,QJs,JTs,T8s,65s,54s",
+    "ip": "AKo,KQo,KJo,KTs,A9s,QQ,JJ,98s,87s,AJs",
+    "pot": 20,
+    "stack": 60,
+    "menu": {
+     "bets": [
+      0.5,
+      1.0
+     ],
+     "raises": [
+      0.5,
+      1.0
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 2.5,
+    "rake": 0.0,
+    "cap": null,
+    "what": "dry river, two sizes, all-in on the menu"
+   },
+   "reference": {
+    "build_s": 0.0018219947814941406,
+    "acts": 22,
+    "ends": 41,
+    "pairs": 1954.0,
+    "hands": [
+     40,
+     55
+    ],
+    "method": "lp",
+    "solve_s": 0.32689881324768066,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 1651
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 2863
+     }
+    ],
+    "lp_rows": [
+     2147,
+     1847
+    ],
+    "lp_cols": [
+     1847,
+     2147
+    ],
+    "lp_nonzeros": 79610,
+    "lp_method": "highs-ds",
+    "value_each_side": [
+     3.127827298634501,
+     -3.127827298634503
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.2968851054970022,
+      0.29688513135903294
+     ],
+     "bet 50%": [
+      0.07823620495058874,
+      0.07823639676017637
+     ],
+     "bet 100%": [
+      0.6248784718807836,
+      0.6248786855084454
+     ]
+    },
+    "bounds_s": 0.9295759201049805,
+    "dcfr_check": {
+     "iterations": 20000,
+     "seconds": 12.26830792427063,
+     "value": [
+      3.1278272982831146,
+      -3.1278272982831146
+     ],
+     "br": [
+      3.1278282713384122,
+      -3.1278267325050586
+     ],
+     "gain": [
+      9.730552976705553e-07,
+      5.657780559609193e-07
+     ]
+    },
+    "gains": {
+     "value": [
+      3.127827298634505,
+      -3.1278272986345046
+     ],
+     "br": [
+      3.1278272986345086,
+      -3.1278272986345046
+     ],
+     "gain": [
+      3.552713678800501e-15,
+      0.0
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 13.527245044708252,
+    "peak_rss_mb": 102.65625
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 3.127827298634505,
+     "value_ip_ref": -3.1278272986345046,
+     "value_oop_engine_own": 3.128043980046939,
+     "value_ip_engine_own": -3.12804637741042,
+     "value_oop_engine_by_ref": 3.1280440269704024,
+     "value_ip_engine_by_ref": -3.128044026970403,
+     "value_diff_bb": 0.00021672833589825302,
+     "value_diff_pct_pot": 0.0010836416794912651,
+     "own_vs_ref_walk_bb": 2.350440017284683e-06,
+     "expl_engine_by_ref_pct": 0.006030593499314341,
+     "gains_engine_by_ref_bb": [
+      0.0004382662024684514,
+      0.001973971197257285
+     ],
+     "expl_ref_pct": 8.881784197001252e-15,
+     "gains_ref_bb": [
+      3.552713678800501e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.006028539448701981,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 4.440892098500626e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.323135607833592e-05,
+     "cev_identity_bb": 1.4342563137148545e-07,
+     "root_freq_engine": {
+      "check": 0.29655798398546096,
+      "bet 50%": 0.0781643655743846,
+      "bet 100%": 0.6252776504401546
+     },
+     "root_freq_ref": {
+      "check": 0.29688511326860845,
+      "bet 50%": 0.07823624595469285,
+      "bet 100%": 0.6248786407766987
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.2968851054970022,
+       0.29688513135903294
+      ],
+      "bet 50%": [
+       0.07823620495058874,
+       0.07823639676017637
+      ],
+      "bet 100%": [
+       0.6248784718807836,
+       0.6248786855084454
+      ]
+     },
+     "root_freq_outside_bounds": 0.00039896493170921143,
+     "strategy": {
+      "infosets": 1045,
+      "infosets_reached": 213,
+      "largest_tv_reached": 0.9822991691628302,
+      "mean_tv_weighted": 0.06570120241284791,
+      "differing": 53,
+      "differing_within_indifference": 51,
+      "largest_gap_bb": 0.21956789039171554,
+      "largest_gap_pct_pot": 1.0978394519585777,
+      "worst": {
+       "node": "/bet 50%",
+       "hand": "Ad9d",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.6849,
+        0.3151,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "reference": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 30",
+        "raise to 50",
+        "all-in"
+       ],
+       "gap_bb": 0.21956789039171554
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.005667924880981445,
+     "iterate_s": 0.005068063735961914,
+     "peak_rss_mb": 38.90625,
+     "use_core": true,
+     "cells": 5890,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 3.127827298634505,
+     "value_ip_ref": -3.1278272986345046,
+     "value_oop_engine_own": 3.1278265071622915,
+     "value_ip_engine_own": -3.127825140587017,
+     "value_oop_engine_by_ref": 3.127827292309738,
+     "value_ip_engine_by_ref": -3.1278272923097377,
+     "value_diff_bb": 6.3247669324084654e-09,
+     "value_diff_pct_pot": 3.162383466204233e-08,
+     "own_vs_ref_walk_bb": 2.1517227204448375e-06,
+     "expl_engine_by_ref_pct": 0.0003977873088112371,
+     "gains_engine_by_ref_bb": [
+      0.0001262743925329879,
+      3.2840530991506967e-05
+     ],
+     "expl_ref_pct": 8.881784197001252e-15,
+     "gains_ref_bb": [
+      3.552713678800501e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.0004004748841269111,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 4.440892098500626e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.7663543392387737e-05,
+     "cev_identity_bb": 8.707730576595907e-07,
+     "root_freq_engine": {
+      "check": 0.29688559787159985,
+      "bet 50%": 0.07826738209281167,
+      "bet 100%": 0.6248470200355885
+     },
+     "root_freq_ref": {
+      "check": 0.29688511326860845,
+      "bet 50%": 0.07823624595469285,
+      "bet 100%": 0.6248786407766987
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.2968851054970022,
+       0.29688513135903294
+      ],
+      "bet 50%": [
+       0.07823620495058874,
+       0.07823639676017637
+      ],
+      "bet 100%": [
+       0.6248784718807836,
+       0.6248786855084454
+      ]
+     },
+     "root_freq_outside_bounds": 3.145184519515176e-05,
+     "strategy": {
+      "infosets": 1045,
+      "infosets_reached": 213,
+      "largest_tv_reached": 0.9724163032681823,
+      "mean_tv_weighted": 0.06351385631655246,
+      "differing": 51,
+      "differing_within_indifference": 51,
+      "largest_gap_bb": 2.4868995751603507e-14,
+      "largest_gap_pct_pot": 1.2434497875801753e-13,
+      "worst": {
+       "node": "/bet 50%",
+       "hand": "KdJc",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.3535,
+        0.6425,
+        0.0,
+        0.004,
+        0.0
+       ],
+       "reference": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 30",
+        "raise to 50",
+        "all-in"
+       ],
+       "gap_bb": 2.4868995751603507e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.03288602828979492,
+     "iterate_s": 0.03231477737426758,
+     "peak_rss_mb": 39.125,
+     "use_core": true,
+     "cells": 5890,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 3.127827298634505,
+     "value_ip_ref": -3.1278272986345046,
+     "value_oop_engine_own": 3.1278265930613087,
+     "value_ip_engine_own": -3.1278271865454275,
+     "value_oop_engine_by_ref": 3.1278272985404127,
+     "value_ip_engine_by_ref": -3.1278272985404127,
+     "value_diff_bb": 9.409228951540172e-11,
+     "value_diff_pct_pot": 4.704614475770086e-10,
+     "own_vs_ref_walk_bb": 7.05479104023965e-07,
+     "expl_engine_by_ref_pct": 0.00019189359928506455,
+     "gains_engine_by_ref_bb": [
+      6.247337757159244e-05,
+      1.4284062142433385e-05
+     ],
+     "expl_ref_pct": 8.881784197001252e-15,
+     "gains_ref_bb": [
+      3.552713678800501e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.0001899149181166837,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.0301003349866278e-05,
+     "cev_identity_bb": 3.4004459914527274e-07,
+     "root_freq_engine": {
+      "check": 0.29688502988550364,
+      "bet 50%": 0.07823530222453196,
+      "bet 100%": 0.6248796678899646
+     },
+     "root_freq_ref": {
+      "check": 0.29688511326860845,
+      "bet 50%": 0.07823624595469285,
+      "bet 100%": 0.6248786407766987
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.2968851054970022,
+       0.29688513135903294
+      ],
+      "bet 50%": [
+       0.07823620495058874,
+       0.07823639676017637
+      ],
+      "bet 100%": [
+       0.6248784718807836,
+       0.6248786855084454
+      ]
+     },
+     "root_freq_outside_bounds": 9.823815192433472e-07,
+     "strategy": {
+      "infosets": 1045,
+      "infosets_reached": 213,
+      "largest_tv_reached": 0.9051519699778554,
+      "mean_tv_weighted": 0.06233903124448412,
+      "differing": 49,
+      "differing_within_indifference": 49,
+      "largest_gap_bb": 2.4868995751603507e-14,
+      "largest_gap_pct_pot": 1.2434497875801753e-13,
+      "worst": {
+       "node": "/bet 50%",
+       "hand": "KdJc",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.3419,
+        0.6467,
+        0.0,
+        0.0115,
+        0.0
+       ],
+       "reference": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 30",
+        "raise to 50",
+        "all-in"
+       ],
+       "gap_bb": 2.4868995751603507e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.3067636489868164,
+     "iterate_s": 0.306124210357666,
+     "peak_rss_mb": 39.03125,
+     "use_core": true,
+     "cells": 5890,
+     "pass": true
+    }
+   ],
+   "total_s": 14.286458015441895
+  },
+  "river-low-spr": {
+   "spot": {
+    "name": "river-low-spr",
+    "kind": "hu",
+    "board": "Ks7d2c3h9s",
+    "oop": "99,77,33,K9s,K7s,AKs,KQs,QJs,JTs,T8s,65s,54s",
+    "ip": "AKo,KQo,KJo,KTs,A9s,QQ,JJ,98s,87s,AJs",
+    "pot": 40,
+    "stack": 16,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "stack under the pot: all-ins and folds"
+   },
+   "reference": {
+    "build_s": 0.001046895980834961,
+    "acts": 4,
+    "ends": 5,
+    "pairs": 1954.0,
+    "hands": [
+     40,
+     55
+    ],
+    "method": "lp",
+    "solve_s": 0.14182567596435547,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 204
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 86
+     }
+    ],
+    "lp_rows": [
+     302,
+     272
+    ],
+    "lp_cols": [
+     272,
+     302
+    ],
+    "lp_nonzeros": 9698,
+    "lp_method": "highs-ds",
+    "value_each_side": [
+     3.287030267582976,
+     -3.28703026758297
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.3714285614365335,
+      0.37142857203018603
+     ],
+     "all-in": [
+      0.6285714279698144,
+      0.6285714385634668
+     ]
+    },
+    "bounds_s": 0.013821840286254883,
+    "dcfr_check": {
+     "iterations": 20000,
+     "seconds": 2.010356903076172,
+     "value": [
+      3.2870302683245303,
+      -3.2870302683245303
+     ],
+     "br": [
+      3.287033507280587,
+      -3.2870239215246335
+     ],
+     "gain": [
+      3.238956056694775e-06,
+      6.346799896750355e-06
+     ]
+    },
+    "gains": {
+     "value": [
+      3.28703026758298,
+      -3.28703026758298
+     ],
+     "br": [
+      3.2870302675829834,
+      -3.28703026758298
+     ],
+     "gain": [
+      3.552713678800501e-15,
+      0.0
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 2.1671640872955322,
+    "peak_rss_mb": 61.46875
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 3.28703026758298,
+     "value_ip_ref": -3.28703026758298,
+     "value_oop_engine_own": 3.2870460596152924,
+     "value_ip_engine_own": -3.2870431859027156,
+     "value_oop_engine_by_ref": 3.287046285307116,
+     "value_ip_engine_by_ref": -3.287046285307116,
+     "value_diff_bb": 1.6017724135952705e-05,
+     "value_diff_pct_pot": 4.004431033988176e-05,
+     "own_vs_ref_walk_bb": 3.099404400241923e-06,
+     "expl_engine_by_ref_pct": 0.0020810273527216427,
+     "gains_engine_by_ref_bb": [
+      0.0007736138506317936,
+      0.0008912080315455206
+     ],
+     "expl_ref_pct": 4.440892098500626e-15,
+     "gains_ref_bb": [
+      3.552713678800501e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.0020855305260743186,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 2.154426485390104e-05,
+     "cev_identity_bb": 3.3707932001192376e-07,
+     "root_freq_engine": {
+      "check": 0.3713442388966019,
+      "all-in": 0.628655761103398
+     },
+     "root_freq_ref": {
+      "check": 0.37142857142857133,
+      "all-in": 0.6285714285714288
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.3714285614365335,
+       0.37142857203018603
+      ],
+      "all-in": [
+       0.6285714279698144,
+       0.6285714385634668
+      ]
+     },
+     "root_freq_outside_bounds": 8.432253993162497e-05,
+     "strategy": {
+      "infosets": 190,
+      "infosets_reached": 170,
+      "largest_tv_reached": 0.9997836425900868,
+      "mean_tv_weighted": 0.13571985635300787,
+      "differing": 48,
+      "differing_within_indifference": 48,
+      "largest_gap_bb": 2.4868995751603507e-14,
+      "largest_gap_pct_pot": 6.217248937900877e-14,
+      "worst": {
+       "node": "",
+       "hand": "5c4c",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.4634,
+        0.5366
+       ],
+       "reference": [
+        0.7143,
+        0.2857
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 2.4868995751603507e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.00255584716796875,
+     "iterate_s": 0.002186298370361328,
+     "peak_rss_mb": 38.78125,
+     "use_core": true,
+     "cells": 760,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 3.28703026758298,
+     "value_ip_ref": -3.28703026758298,
+     "value_oop_engine_own": 3.287031253748321,
+     "value_ip_engine_own": -3.2870293483519384,
+     "value_oop_engine_by_ref": 3.2870303750721708,
+     "value_ip_engine_by_ref": -3.28703037507217,
+     "value_diff_bb": 1.0748919088143793e-07,
+     "value_diff_pct_pot": 2.6872297720359484e-07,
+     "own_vs_ref_walk_bb": 1.026720231500633e-06,
+     "expl_engine_by_ref_pct": 0.00026785094631498474,
+     "gains_engine_by_ref_bb": [
+      7.394204978306007e-05,
+      0.00014033870726892772
+     ],
+     "expl_ref_pct": 4.440892098500626e-15,
+     "gains_ref_bb": [
+      3.552713678800501e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.0002714604169831915,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 2.7207321437572318e-05,
+     "cev_identity_bb": 8.743096451269139e-07,
+     "root_freq_engine": {
+      "check": 0.3714265147440351,
+      "all-in": 0.6285734852559649
+     },
+     "root_freq_ref": {
+      "check": 0.37142857142857133,
+      "all-in": 0.6285714285714288
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.3714285614365335,
+       0.37142857203018603
+      ],
+      "all-in": [
+       0.6285714279698144,
+       0.6285714385634668
+      ]
+     },
+     "root_freq_outside_bounds": 2.046692498425262e-06,
+     "strategy": {
+      "infosets": 190,
+      "infosets_reached": 170,
+      "largest_tv_reached": 0.9997045332118102,
+      "mean_tv_weighted": 0.1352324108845327,
+      "differing": 52,
+      "differing_within_indifference": 52,
+      "largest_gap_bb": 2.4868995751603507e-14,
+      "largest_gap_pct_pot": 6.217248937900877e-14,
+      "worst": {
+       "node": "",
+       "hand": "5c4c",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.4644,
+        0.5356
+       ],
+       "reference": [
+        0.7143,
+        0.2857
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 2.4868995751603507e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.008795976638793945,
+     "iterate_s": 0.008427858352661133,
+     "peak_rss_mb": 38.734375,
+     "use_core": true,
+     "cells": 760,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 3.28703026758298,
+     "value_ip_ref": -3.28703026758298,
+     "value_oop_engine_own": 3.2870313162203333,
+     "value_ip_engine_own": -3.287025639076194,
+     "value_oop_engine_by_ref": 3.287030265719436,
+     "value_ip_engine_by_ref": -3.287030265719435,
+     "value_diff_bb": 1.8635448739701133e-09,
+     "value_diff_pct_pot": 4.658862184925283e-09,
+     "own_vs_ref_walk_bb": 4.626643240968065e-06,
+     "expl_engine_by_ref_pct": 2.5064498830884574e-05,
+     "gains_engine_by_ref_bb": [
+      1.802686543994625e-05,
+      2.02473362476141e-06
+     ],
+     "expl_ref_pct": 4.440892098500626e-15,
+     "gains_ref_bb": [
+      3.552713678800501e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 3.278804533069185e-05,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 2.667354218743867e-05,
+     "cev_identity_bb": 8.746049160457403e-07,
+     "root_freq_engine": {
+      "check": 0.3714273459943257,
+      "all-in": 0.6285726540056742
+     },
+     "root_freq_ref": {
+      "check": 0.37142857142857133,
+      "all-in": 0.6285714285714288
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.3714285614365335,
+       0.37142857203018603
+      ],
+      "all-in": [
+       0.6285714279698144,
+       0.6285714385634668
+      ]
+     },
+     "root_freq_outside_bounds": 1.2154422078247684e-06,
+     "strategy": {
+      "infosets": 190,
+      "infosets_reached": 170,
+      "largest_tv_reached": 0.9995033138551204,
+      "mean_tv_weighted": 0.1413004438871884,
+      "differing": 52,
+      "differing_within_indifference": 52,
+      "largest_gap_bb": 2.4868995751603507e-14,
+      "largest_gap_pct_pot": 6.217248937900877e-14,
+      "worst": {
+       "node": "",
+       "hand": "5c4c",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.4643,
+        0.5357
+       ],
+       "reference": [
+        0.7143,
+        0.2857
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 2.4868995751603507e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.0714120864868164,
+     "iterate_s": 0.07101798057556152,
+     "peak_rss_mb": 38.953125,
+     "use_core": true,
+     "cells": 760,
+     "pass": true
+    }
+   ],
+   "total_s": 2.639923095703125
+  },
+  "river-flush": {
+   "spot": {
+    "name": "river-flush",
+    "kind": "hu",
+    "board": "Ah9h4h7c2d",
+    "oop": "KhQh,JhTh,AsKs,AdQd,99,44,77,Kh9c,QhJs,Th9d,Ts9c,As4c",
+    "ip": "AcKc,KsKh,Qh8h,6h5h,Jh8h,AcQc,AsTs,8h8d,9c8c,Ac9d",
+    "pot": 20,
+    "stack": 40,
+    "menu": {
+     "bets": [
+      0.5,
+      1.0
+     ],
+     "raises": [
+      0.5,
+      1.0
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 2.5,
+    "rake": 0.0,
+    "cap": null,
+    "what": "monotone river: flush blockers"
+   },
+   "reference": {
+    "build_s": 0.0009310245513916016,
+    "acts": 16,
+    "ends": 29,
+    "pairs": 164.0,
+    "hands": [
+     18,
+     10
+    ],
+    "method": "lp",
+    "solve_s": 0.1490011215209961,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 388
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 404
+     }
+    ],
+    "lp_rows": [
+     366,
+     478
+    ],
+    "lp_cols": [
+     478,
+     366
+    ],
+    "lp_nonzeros": 4726,
+    "lp_method": "highs-ds",
+    "value_each_side": [
+     -0.731707317073171,
+     0.73170731707317
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.9999997637860121,
+      1.000000001870097
+     ],
+     "bet 50%": [
+      0.0,
+      2.3621399452996425e-07
+     ],
+     "bet 100%": [
+      0.0,
+      2.9526748499912135e-08
+     ],
+     "all-in": [
+      0.0,
+      1.1716963849778889e-08
+     ]
+    },
+    "bounds_s": 0.044634103775024414,
+    "dcfr_check": {
+     "iterations": 20000,
+     "seconds": 6.774763107299805,
+     "value": [
+      -0.7317073263635603,
+      0.7317073263635602
+     ],
+     "br": [
+      -0.7317016685805398,
+      0.7317178108316766
+     ],
+     "gain": [
+      5.65778302052955e-06,
+      1.0484468116467305e-05
+     ]
+    },
+    "gains": {
+     "value": [
+      -0.7317073170731707,
+      0.7317073170731707
+     ],
+     "br": [
+      -0.7317073170731688,
+      0.7317073170731728
+     ],
+     "gain": [
+      1.887379141862766e-15,
+      2.1094237467877974e-15
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 6.969686985015869,
+    "peak_rss_mb": 60.28125
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -0.7317073170731707,
+     "value_ip_ref": 0.7317073170731707,
+     "value_oop_engine_own": -0.7315438171712364,
+     "value_ip_engine_own": 0.7315412498101955,
+     "value_oop_engine_by_ref": -0.7315442252249681,
+     "value_ip_engine_by_ref": 0.7315442252249663,
+     "value_diff_bb": 0.0001630918482043997,
+     "value_diff_pct_pot": 0.0008154592410219985,
+     "own_vs_ref_walk_bb": 2.975414770789442e-06,
+     "expl_engine_by_ref_pct": 0.1451104848524909,
+     "gains_engine_by_ref_bb": [
+      0.043053709255524986,
+      0.014990484685471372
+     ],
+     "expl_ref_pct": 9.992007221626409e-15,
+     "gains_ref_bb": [
+      1.887379141862766e-15,
+      2.1094237467877974e-15
+     ],
+     "expl_engine_own_pct": 0.14510439663398558,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 1.7763568394002505e-15,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.7117496508234353e-05,
+     "cev_identity_bb": 8.732461833638183e-07,
+     "root_freq_engine": {
+      "check": 0.9972982209917658,
+      "bet 50%": 0.0027017788466780117,
+      "bet 100%": 1.5632657012054587e-10,
+      "all-in": 5.229560383342376e-12
+     },
+     "root_freq_ref": {
+      "check": 1.0,
+      "bet 50%": 0.0,
+      "bet 100%": 0.0,
+      "all-in": 0.0
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.9999997637860121,
+       1.000000001870097
+      ],
+      "bet 50%": [
+       0.0,
+       2.3621399452996425e-07
+      ],
+      "bet 100%": [
+       0.0,
+       2.9526748499912135e-08
+      ],
+      "all-in": [
+       0.0,
+       1.1716963849778889e-08
+      ]
+     },
+     "root_freq_outside_bounds": 0.002701542794246281,
+     "strategy": {
+      "infosets": 224,
+      "infosets_reached": 67,
+      "largest_tv_reached": 0.9003236372011765,
+      "mean_tv_weighted": 0.05876848960133777,
+      "differing": 26,
+      "differing_within_indifference": 17,
+      "largest_gap_bb": 3.3661151969313394,
+      "largest_gap_pct_pot": 16.830575984656697,
+      "worst": {
+       "node": "/check/bet 100%",
+       "hand": "QhJs",
+       "board": "Ah9h4h7c2d",
+       "engine": [
+        0.6509,
+        0.0,
+        0.3491
+       ],
+       "reference": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "all-in"
+       ],
+       "gap_bb": 3.3661151969313394
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.003789186477661133,
+     "iterate_s": 0.0032770633697509766,
+     "peak_rss_mb": 38.78125,
+     "use_core": true,
+     "cells": 1232,
+     "pass": false
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -0.7317073170731707,
+     "value_ip_ref": 0.7317073170731707,
+     "value_oop_engine_own": -0.7317083536124811,
+     "value_ip_engine_own": 0.73170549113576,
+     "value_oop_engine_by_ref": -0.7317075994637497,
+     "value_ip_engine_by_ref": 0.7317075994637487,
+     "value_diff_bb": 2.823905790316772e-07,
+     "value_diff_pct_pot": 1.411952895158386e-06,
+     "own_vs_ref_walk_bb": 2.108327988747938e-06,
+     "expl_engine_by_ref_pct": 0.0036754584028639292,
+     "gains_engine_by_ref_bb": [
+      0.0011352180434353043,
+      0.0003349653177102674
+     ],
+     "expl_ref_pct": 9.992007221626409e-15,
+     "gains_ref_bb": [
+      1.887379141862766e-15,
+      2.1094237467877974e-15
+     ],
+     "expl_engine_own_pct": 0.0036683896692787732,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 9.992007221626409e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 3.547613528809279e-05,
+     "cev_identity_bb": 6.085166994740376e-07,
+     "root_freq_engine": {
+      "check": 0.9999463161568031,
+      "bet 50%": 5.368384316958285e-05,
+      "bet 100%": 1.5844400656287074e-19,
+      "all-in": 2.7332938085052092e-14
+     },
+     "root_freq_ref": {
+      "check": 1.0,
+      "bet 50%": 0.0,
+      "bet 100%": 0.0,
+      "all-in": 0.0
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.9999997637860121,
+       1.000000001870097
+      ],
+      "bet 50%": [
+       0.0,
+       2.3621399452996425e-07
+      ],
+      "bet 100%": [
+       0.0,
+       2.9526748499912135e-08
+      ],
+      "all-in": [
+       0.0,
+       1.1716963849778889e-08
+      ]
+     },
+     "root_freq_outside_bounds": 5.344762920900248e-05,
+     "strategy": {
+      "infosets": 224,
+      "infosets_reached": 67,
+      "largest_tv_reached": 0.748861865680357,
+      "mean_tv_weighted": 0.07013409304459162,
+      "differing": 32,
+      "differing_within_indifference": 28,
+      "largest_gap_bb": 0.025556681164038864,
+      "largest_gap_pct_pot": 0.12778340582019432,
+      "worst": {
+       "node": "/check/bet 100%",
+       "hand": "QhJs",
+       "board": "Ah9h4h7c2d",
+       "engine": [
+        0.9294,
+        0.0,
+        0.0706
+       ],
+       "reference": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "all-in"
+       ],
+       "gap_bb": 0.025556681164038864
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.016904115676879883,
+     "iterate_s": 0.016386985778808594,
+     "peak_rss_mb": 38.78125,
+     "use_core": true,
+     "cells": 1232,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -0.7317073170731707,
+     "value_ip_ref": 0.7317073170731707,
+     "value_oop_engine_own": -0.7317094032357379,
+     "value_ip_engine_own": 0.7317078055405035,
+     "value_oop_engine_by_ref": -0.7317073305432577,
+     "value_ip_engine_by_ref": 0.7317073305432573,
+     "value_diff_bb": 1.3470086934752601e-08,
+     "value_diff_pct_pot": 6.7350434673763e-08,
+     "own_vs_ref_walk_bb": 2.0726924802039193e-06,
+     "expl_engine_by_ref_pct": 8.574389600363164e-05,
+     "gains_engine_by_ref_bb": [
+      8.533544739064425e-06,
+      2.576401366238823e-05
+     ],
+     "expl_ref_pct": 9.992007221626409e-15,
+     "gains_ref_bb": [
+      1.887379141862766e-15,
+      2.1094237467877974e-15
+     ],
+     "expl_engine_own_pct": 8.370818161382907e-05,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 3.3306690738754696e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 2.446742355743936e-05,
+     "cev_identity_bb": 2.0593092270315694e-06,
+     "root_freq_engine": {
+      "check": 0.9999856776055824,
+      "bet 50%": 1.432239441749428e-05,
+      "bet 100%": 1.5866101619619022e-28,
+      "all-in": 2.7370629931580487e-23
+     },
+     "root_freq_ref": {
+      "check": 1.0,
+      "bet 50%": 0.0,
+      "bet 100%": 0.0,
+      "all-in": 0.0
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.9999997637860121,
+       1.000000001870097
+      ],
+      "bet 50%": [
+       0.0,
+       2.3621399452996425e-07
+      ],
+      "bet 100%": [
+       0.0,
+       2.9526748499912135e-08
+      ],
+      "all-in": [
+       0.0,
+       1.1716963849778889e-08
+      ]
+     },
+     "root_freq_outside_bounds": 1.4086180429639938e-05,
+     "strategy": {
+      "infosets": 224,
+      "infosets_reached": 67,
+      "largest_tv_reached": 0.7205117059847725,
+      "mean_tv_weighted": 0.0715127640284478,
+      "differing": 33,
+      "differing_within_indifference": 33,
+      "largest_gap_bb": 0.002456146078770871,
+      "largest_gap_pct_pot": 0.012280730393854355,
+      "worst": {
+       "node": "/check/bet 100%",
+       "hand": "Ts9c",
+       "board": "Ah9h4h7c2d",
+       "engine": [
+        0.8129,
+        0.0674,
+        0.1198
+       ],
+       "reference": [
+        1.0,
+        0.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "all-in"
+       ],
+       "gap_bb": 0.002456146078770871
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.14623069763183594,
+     "iterate_s": 0.14556312561035156,
+     "peak_rss_mb": 39.03125,
+     "use_core": true,
+     "cells": 1232,
+     "pass": true
+    }
+   ],
+   "total_s": 7.542129993438721
+  },
+  "river-board-plays": {
+   "spot": {
+    "name": "river-board-plays",
+    "kind": "hu",
+    "board": "5c6d7h8s9c",
+    "oop": "JTs,J9o:0.5,TT,JJ,AA,KK,Ts9d,AsKs,AhQh,T7s",
+    "ip": "T9s,QQ,AdKd,AcTc,TsJh,AsQd,KdQc,Td8c,T4s",
+    "pot": 20,
+    "stack": 40,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "straight on the board: many ties, a higher straight wins"
+   },
+   "reference": {
+    "build_s": 0.0008180141448974609,
+    "acts": 6,
+    "ends": 9,
+    "pairs": 651.0,
+    "hands": [
+     43,
+     19
+    ],
+    "method": "lp",
+    "solve_s": 0.14090800285339355,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 147
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 172
+     }
+    ],
+    "lp_rows": [
+     264,
+     360
+    ],
+    "lp_cols": [
+     360,
+     264
+    ],
+    "lp_nonzeros": 5079,
+    "lp_method": "highs-ds",
+    "value_each_side": [
+     -1.1772246381514881,
+     1.1772246381514906
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.9193341806541987,
+      0.9193342047773969
+     ],
+     "bet 75%": [
+      0.08066579522260224,
+      0.08066581934580139
+     ]
+    },
+    "bounds_s": 0.01099395751953125,
+    "dcfr_check": {
+     "iterations": 20000,
+     "seconds": 2.565164089202881,
+     "value": [
+      -1.1772246383708103,
+      1.1772246383708098
+     ],
+     "br": [
+      -1.1772195431230053,
+      1.1772295458966924
+     ],
+     "gain": [
+      5.095247805009251e-06,
+      4.907525882558161e-06
+     ]
+    },
+    "gains": {
+     "value": [
+      -1.1772246381514897,
+      1.17722463815149
+     ],
+     "br": [
+      -1.1772246381514893,
+      1.17722463815149
+     ],
+     "gain": [
+      4.440892098500626e-16,
+      0.0
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 2.718019962310791,
+    "peak_rss_mb": 59.8125
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -1.1772246381514897,
+     "value_ip_ref": 1.17722463815149,
+     "value_oop_engine_own": -1.177223586450158,
+     "value_ip_engine_own": 1.1772230297739055,
+     "value_oop_engine_by_ref": -1.1772232067760346,
+     "value_ip_engine_by_ref": 1.1772232067760353,
+     "value_diff_bb": 1.4313754550521196e-06,
+     "value_diff_pct_pot": 7.156877275260598e-06,
+     "own_vs_ref_walk_bb": 3.796741232520162e-07,
+     "expl_engine_by_ref_pct": 0.006203544314444254,
+     "gains_engine_by_ref_bb": [
+      0.0012338807815910346,
+      0.0012475369441866668
+     ],
+     "expl_ref_pct": 1.1102230246251565e-15,
+     "gains_ref_bb": [
+      4.440892098500626e-16,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.006204361922913066,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 6.661338147750939e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 9.796354490276826e-06,
+     "cev_identity_bb": 3.7945631570224236e-07,
+     "root_freq_engine": {
+      "check": 0.919197643064135,
+      "bet 75%": 0.08080235693586514
+     },
+     "root_freq_ref": {
+      "check": 0.9193341869398208,
+      "bet 75%": 0.08066581306017931
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.9193341806541987,
+       0.9193342047773969
+      ],
+      "bet 75%": [
+       0.08066579522260224,
+       0.08066581934580139
+      ]
+     },
+     "root_freq_outside_bounds": 0.00013653759006375388,
+     "strategy": {
+      "infosets": 186,
+      "infosets_reached": 133,
+      "largest_tv_reached": 0.9999916152327563,
+      "mean_tv_weighted": 0.06756927041703802,
+      "differing": 20,
+      "differing_within_indifference": 20,
+      "largest_gap_bb": 1.7763568394002505e-15,
+      "largest_gap_pct_pot": 8.881784197001252e-15,
+      "worst": {
+       "node": "",
+       "hand": "Jc9h",
+       "board": "5c6d7h8s9c",
+       "engine": [
+        0.9855,
+        0.0145
+       ],
+       "reference": [
+        0.7324,
+        0.2676
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 1.7763568394002505e-15
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.002816915512084961,
+     "iterate_s": 0.002429962158203125,
+     "peak_rss_mb": 38.78125,
+     "use_core": true,
+     "cells": 868,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -1.1772246381514897,
+     "value_ip_ref": 1.17722463815149,
+     "value_oop_engine_own": -1.1772257018199164,
+     "value_ip_engine_own": 1.1772239438949093,
+     "value_oop_engine_by_ref": -1.1772246691872508,
+     "value_ip_engine_by_ref": 1.1772246691872505,
+     "value_diff_bb": 3.103576107221784e-08,
+     "value_diff_pct_pot": 1.551788053610892e-07,
+     "own_vs_ref_walk_bb": 1.0326326655984985e-06,
+     "expl_engine_by_ref_pct": 0.0004816194902268478,
+     "gains_engine_by_ref_bb": [
+      9.071262487192477e-05,
+      0.00010193517121881435
+     ],
+     "expl_ref_pct": 1.1102230246251565e-15,
+     "gains_ref_bb": [
+      4.440892098500626e-16,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.00047776006883190527,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 2.220446049250313e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 8.002047913180377e-06,
+     "cev_identity_bb": 1.1626209532877851e-06,
+     "root_freq_engine": {
+      "check": 0.919299039801035,
+      "bet 75%": 0.08070096019896512
+     },
+     "root_freq_ref": {
+      "check": 0.9193341869398208,
+      "bet 75%": 0.08066581306017931
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.9193341806541987,
+       0.9193342047773969
+      ],
+      "bet 75%": [
+       0.08066579522260224,
+       0.08066581934580139
+      ]
+     },
+     "root_freq_outside_bounds": 3.514085316373705e-05,
+     "strategy": {
+      "infosets": 186,
+      "infosets_reached": 133,
+      "largest_tv_reached": 0.9999972060697111,
+      "mean_tv_weighted": 0.06794245502382927,
+      "differing": 20,
+      "differing_within_indifference": 20,
+      "largest_gap_bb": 1.7763568394002505e-15,
+      "largest_gap_pct_pot": 8.881784197001252e-15,
+      "worst": {
+       "node": "",
+       "hand": "Jc9h",
+       "board": "5c6d7h8s9c",
+       "engine": [
+        0.9834,
+        0.0166
+       ],
+       "reference": [
+        0.7324,
+        0.2676
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 1.7763568394002505e-15
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.010895967483520508,
+     "iterate_s": 0.01051020622253418,
+     "peak_rss_mb": 38.875,
+     "use_core": true,
+     "cells": 868,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -1.1772246381514897,
+     "value_ip_ref": 1.17722463815149,
+     "value_oop_engine_own": -1.1772249459121633,
+     "value_ip_engine_own": 1.1772233110419066,
+     "value_oop_engine_by_ref": -1.1772246395413786,
+     "value_ip_engine_by_ref": 1.1772246395413786,
+     "value_diff_bb": 1.3898888706620482e-09,
+     "value_diff_pct_pot": 6.949444353310242e-09,
+     "own_vs_ref_walk_bb": 1.328499471986433e-06,
+     "expl_engine_by_ref_pct": 5.371762999029083e-05,
+     "gains_engine_by_ref_bb": [
+      9.297286656106962e-06,
+      1.2189765340009373e-05
+     ],
+     "expl_ref_pct": 1.1102230246251565e-15,
+     "gains_ref_bb": [
+      4.440892098500626e-16,
+      0.0
+     ],
+     "expl_engine_own_pct": 5.147790396085349e-05,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 9.057300331960505e-06,
+     "cev_identity_bb": 2.714635622957928e-07,
+     "root_freq_engine": {
+      "check": 0.9193316572616145,
+      "bet 75%": 0.08066834273838568
+     },
+     "root_freq_ref": {
+      "check": 0.9193341869398208,
+      "bet 75%": 0.08066581306017931
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.9193341806541987,
+       0.9193342047773969
+      ],
+      "bet 75%": [
+       0.08066579522260224,
+       0.08066581934580139
+      ]
+     },
+     "root_freq_outside_bounds": 2.523392584288797e-06,
+     "strategy": {
+      "infosets": 186,
+      "infosets_reached": 133,
+      "largest_tv_reached": 0.9995332481283064,
+      "mean_tv_weighted": 0.0697556726948834,
+      "differing": 20,
+      "differing_within_indifference": 20,
+      "largest_gap_bb": 1.7763568394002505e-15,
+      "largest_gap_pct_pot": 8.881784197001252e-15,
+      "worst": {
+       "node": "",
+       "hand": "Jc9h",
+       "board": "5c6d7h8s9c",
+       "engine": [
+        0.9974,
+        0.0026
+       ],
+       "reference": [
+        0.7324,
+        0.2676
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 1.7763568394002505e-15
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.09297609329223633,
+     "iterate_s": 0.09243416786193848,
+     "peak_rss_mb": 38.96875,
+     "use_core": true,
+     "cells": 868,
+     "pass": true
+    }
+   ],
+   "total_s": 3.213315010070801
+  },
+  "river-weighted": {
+   "spot": {
+    "name": "river-weighted",
+    "kind": "hu",
+    "board": "KcKd7s7h2c",
+    "oop": "AA:0.5,KQs,QQ:0.25,JJ,A7s:0.75,87s,T9s:0.5,K2s,76s,65s:0.4",
+    "ip": "KJs:0.5,AQo:0.33,QQ,TT:0.6,99,A2s,22:0.1,AKo:0.2",
+    "pot": 20,
+    "stack": 50,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 2.5,
+    "rake": 0.0,
+    "cap": null,
+    "what": "double-paired board, fractional weights"
+   },
+   "reference": {
+    "build_s": 0.0010859966278076172,
+    "acts": 8,
+    "ends": 13,
+    "pairs": 538.491,
+    "hands": [
+     36,
+     44
+    ],
+    "method": "lp",
+    "solve_s": 0.16841793060302734,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 648
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 966
+     }
+    ],
+    "lp_rows": [
+     586,
+     538
+    ],
+    "lp_cols": [
+     538,
+     586
+    ],
+    "lp_nonzeros": 17786,
+    "lp_method": "highs-ds",
+    "value_each_side": [
+     5.740324358627496,
+     -5.7403243586274995
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.38930080686912194,
+      0.38930086872987624
+     ],
+     "bet 75%": [
+      0.6106991312701329,
+      0.610699193130896
+     ],
+     "all-in": [
+      0.0,
+      6.646558676883822e-09
+     ]
+    },
+    "bounds_s": 0.10707402229309082,
+    "dcfr_check": {
+     "iterations": 20000,
+     "seconds": 4.2242419719696045,
+     "value": [
+      5.74032433395041,
+      -5.74032433395041
+     ],
+     "br": [
+      5.740343236438858,
+      -5.740315830551156
+     ],
+     "gain": [
+      1.890248844826914e-05,
+      8.50339925406729e-06
+     ]
+    },
+    "gains": {
+     "value": [
+      5.740324358627499,
+      -5.7403243586274995
+     ],
+     "br": [
+      5.7403243586275,
+      -5.7403243586274995
+     ],
+     "gain": [
+      1.7763568394002505e-15,
+      0.0
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 4.501041889190674,
+    "peak_rss_mb": 66.25
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 5.740324358627499,
+     "value_ip_ref": -5.7403243586274995,
+     "value_oop_engine_own": 5.740046543619693,
+     "value_ip_engine_own": -5.740046656681135,
+     "value_oop_engine_by_ref": 5.7400469226031205,
+     "value_ip_engine_by_ref": -5.740046922603121,
+     "value_diff_bb": 0.0002774360243780194,
+     "value_diff_pct_pot": 0.001387180121890097,
+     "own_vs_ref_walk_bb": 3.7898342775122273e-07,
+     "expl_engine_by_ref_pct": 0.018343672661780275,
+     "gains_engine_by_ref_bb": [
+      0.005052626654442172,
+      0.0022848424102699383
+     ],
+     "expl_ref_pct": 4.440892098500626e-15,
+     "gains_ref_bb": [
+      1.7763568394002505e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.018341695443640206,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 8.982732765616674e-06,
+     "cev_identity_bb": 3.070091452173074e-07,
+     "root_freq_engine": {
+      "check": 0.3912584470010252,
+      "bet 75%": 0.6087414394350666,
+      "all-in": 1.1356390803168428e-07
+     },
+     "root_freq_ref": {
+      "check": 0.38930084745762705,
+      "bet 75%": 0.6106991525423726,
+      "all-in": 0.0
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.38930080686912194,
+       0.38930086872987624
+      ],
+      "bet 75%": [
+       0.6106991312701329,
+       0.610699193130896
+      ],
+      "all-in": [
+       0.0,
+       6.646558676883822e-09
+      ]
+     },
+     "root_freq_outside_bounds": 0.001957691835066222,
+     "strategy": {
+      "infosets": 320,
+      "infosets_reached": 173,
+      "largest_tv_reached": 0.7338637113660981,
+      "mean_tv_weighted": 0.09297041615755039,
+      "differing": 54,
+      "differing_within_indifference": 54,
+      "largest_gap_bb": 1.0658141036401503e-14,
+      "largest_gap_pct_pot": 5.3290705182007514e-14,
+      "worst": {
+       "node": "/bet 75%/all-in",
+       "hand": "7d6d",
+       "board": "KcKd7s7h2c",
+       "engine": [
+        0.7508,
+        0.2492
+       ],
+       "reference": [
+        0.028,
+        0.972
+       ],
+       "actions": [
+        "fold",
+        "call"
+       ],
+       "gap_bb": 1.0658141036401503e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.003326892852783203,
+     "iterate_s": 0.0028688907623291016,
+     "peak_rss_mb": 38.828125,
+     "use_core": true,
+     "cells": 1480,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 5.740324358627499,
+     "value_ip_ref": -5.7403243586274995,
+     "value_oop_engine_own": 5.740324445241025,
+     "value_ip_engine_own": -5.740324624609176,
+     "value_oop_engine_by_ref": 5.740324624623322,
+     "value_ip_engine_by_ref": -5.740324624623324,
+     "value_diff_bb": 2.659958244777272e-07,
+     "value_diff_pct_pot": 1.329979122388636e-06,
+     "own_vs_ref_walk_bb": 1.7938229746050638e-07,
+     "expl_engine_by_ref_pct": 0.0007585342098681558,
+     "gains_engine_by_ref_bb": [
+      0.00016902969393228773,
+      0.00013438399001497459
+     ],
+     "expl_ref_pct": 4.440892098500626e-15,
+     "gains_ref_bb": [
+      1.7763568394002505e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.0007589851363122606,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 1.7763568394002505e-15,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 8.549953300018842e-06,
+     "cev_identity_bb": 2.5685824667220913e-07,
+     "root_freq_engine": {
+      "check": 0.3892520147627595,
+      "bet 75%": 0.6107479852368605,
+      "all-in": 3.799850106687874e-13
+     },
+     "root_freq_ref": {
+      "check": 0.38930084745762705,
+      "bet 75%": 0.6106991525423726,
+      "all-in": 0.0
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.38930080686912194,
+       0.38930086872987624
+      ],
+      "bet 75%": [
+       0.6106991312701329,
+       0.610699193130896
+      ],
+      "all-in": [
+       0.0,
+       6.646558676883822e-09
+      ]
+     },
+     "root_freq_outside_bounds": 4.879210636243858e-05,
+     "strategy": {
+      "infosets": 320,
+      "infosets_reached": 172,
+      "largest_tv_reached": 0.7639959594066528,
+      "mean_tv_weighted": 0.09134111720154314,
+      "differing": 59,
+      "differing_within_indifference": 59,
+      "largest_gap_bb": 1.0658141036401503e-14,
+      "largest_gap_pct_pot": 5.3290705182007514e-14,
+      "worst": {
+       "node": "/bet 75%/all-in",
+       "hand": "7d6d",
+       "board": "KcKd7s7h2c",
+       "engine": [
+        0.792,
+        0.208
+       ],
+       "reference": [
+        0.028,
+        0.972
+       ],
+       "actions": [
+        "fold",
+        "call"
+       ],
+       "gap_bb": 1.0658141036401503e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.014025211334228516,
+     "iterate_s": 0.01359415054321289,
+     "peak_rss_mb": 39.015625,
+     "use_core": true,
+     "cells": 1480,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 5.740324358627499,
+     "value_ip_ref": -5.7403243586274995,
+     "value_oop_engine_own": 5.740324948916993,
+     "value_ip_engine_own": -5.740325206351375,
+     "value_oop_engine_by_ref": 5.740324364446452,
+     "value_ip_engine_by_ref": -5.740324364446453,
+     "value_diff_bb": 5.818953319192133e-09,
+     "value_diff_pct_pot": 2.9094766595960664e-08,
+     "own_vs_ref_walk_bb": 8.419049226660036e-07,
+     "expl_engine_by_ref_pct": 0.00012000119622879168,
+     "gains_engine_by_ref_bb": [
+      1.2522326878539047e-05,
+      3.5478151612977626e-05
+     ],
+     "expl_ref_pct": 4.440892098500626e-15,
+     "gains_ref_bb": [
+      1.7763568394002505e-15,
+      0.0
+     ],
+     "expl_engine_own_pct": 0.00011726759567168223,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.1842111447890602e-05,
+     "cev_identity_bb": 3.9709295585055315e-07,
+     "root_freq_engine": {
+      "check": 0.38930057235395166,
+      "bet 75%": 0.610699427646048,
+      "all-in": 3.8049949332304254e-22
+     },
+     "root_freq_ref": {
+      "check": 0.38930084745762705,
+      "bet 75%": 0.6106991525423726,
+      "all-in": 0.0
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.38930080686912194,
+       0.38930086872987624
+      ],
+      "bet 75%": [
+       0.6106991312701329,
+       0.610699193130896
+      ],
+      "all-in": [
+       0.0,
+       6.646558676883822e-09
+      ]
+     },
+     "root_freq_outside_bounds": 2.3451517028316715e-07,
+     "strategy": {
+      "infosets": 320,
+      "infosets_reached": 172,
+      "largest_tv_reached": 0.7648196601565946,
+      "mean_tv_weighted": 0.09198462425452723,
+      "differing": 61,
+      "differing_within_indifference": 61,
+      "largest_gap_bb": 1.0658141036401503e-14,
+      "largest_gap_pct_pot": 5.3290705182007514e-14,
+      "worst": {
+       "node": "/bet 75%/all-in",
+       "hand": "7d6d",
+       "board": "KcKd7s7h2c",
+       "engine": [
+        0.7928,
+        0.2072
+       ],
+       "reference": [
+        0.028,
+        0.972
+       ],
+       "actions": [
+        "fold",
+        "call"
+       ],
+       "gap_bb": 1.0658141036401503e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.12197399139404297,
+     "iterate_s": 0.12120413780212402,
+     "peak_rss_mb": 39.09375,
+     "use_core": true,
+     "cells": 1480,
+     "pass": true
+    }
+   ],
+   "total_s": 5.044348955154419
+  },
+  "river-app-menu": {
+   "spot": {
+    "name": "river-app-menu",
+    "kind": "hu",
+    "board": "Ks7d2c3h9s",
+    "oop": "AA,KK,QQ,JJ,TT,99,88,77,AKs,AQs,AJs,ATs,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,65s,54s,AKo,AQo,KQo",
+    "ip": "AK,AQ,AJs,ATs,A9s,KQ,KJ,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,T9s,T8s,98s,97s,87s,76s,99,88,77,66,55,44,33,22",
+    "pot": 20,
+    "stack": 90,
+    "menu": {
+     "bets": [
+      0.33,
+      0.75,
+      1.25,
+      2.5
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000,
+     10000
+    ],
+    "ref_iters": 3000,
+    "max_raises": 2,
+    "allin_spr": 2.5,
+    "rake": 0.0,
+    "cap": null,
+    "what": "wider river with the app's river menu",
+    "lp_method": "highs-ipm",
+    "bounds": false
+   },
+   "reference": {
+    "build_s": 0.0066640377044677734,
+    "acts": 26,
+    "ends": 49,
+    "pairs": 15601.0,
+    "hands": [
+     125,
+     141
+    ],
+    "method": "lp",
+    "solve_s": 9.612622022628784,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 30
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 31
+     }
+    ],
+    "lp_rows": [
+     6844,
+     6460
+    ],
+    "lp_cols": [
+     6460,
+     6844
+    ],
+    "lp_nonzeros": 754399,
+    "lp_method": "highs-ipm",
+    "value_each_side": [
+     -0.684799860686752,
+     0.6847998606867467
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "bounds_s": 0.0,
+    "dcfr_check": {
+     "iterations": 3000,
+     "seconds": 2.5575287342071533,
+     "value": [
+      -0.6847956519291377,
+      0.6847956519291379
+     ],
+     "br": [
+      -0.6845926343608795,
+      0.6850288983102276
+     ],
+     "gain": [
+      0.0002030175682582458,
+      0.0002332463810896801
+     ]
+    },
+    "gains": {
+     "value": [
+      -0.684799860686751,
+      0.684799860686751
+     ],
+     "br": [
+      -0.6847998606867428,
+      0.684799860686768
+     ],
+     "gain": [
+      8.215650382226158e-15,
+      1.6986412276764895e-14
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 12.17769193649292,
+    "peak_rss_mb": 312.5
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -0.684799860686751,
+     "value_ip_ref": 0.684799860686751,
+     "value_oop_engine_own": -0.6847941954467062,
+     "value_ip_engine_own": 0.6847936741381637,
+     "value_oop_engine_by_ref": -0.6847932022367686,
+     "value_ip_engine_by_ref": 0.6847932022367678,
+     "value_diff_bb": 6.658449983265591e-06,
+     "value_diff_pct_pot": 3.3292249916327954e-05,
+     "own_vs_ref_walk_bb": 9.932099375165038e-07,
+     "expl_engine_by_ref_pct": 0.08370436800143932,
+     "gains_engine_by_ref_bb": [
+      0.018635645302189197,
+      0.014846101898386532
+     ],
+     "expl_ref_pct": 6.300515664747763e-14,
+     "gains_ref_bb": [
+      8.215650382226158e-15,
+      1.6986412276764895e-14
+     ],
+     "expl_engine_own_pct": 0.08370237421984857,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.9939696215942604e-05,
+     "cev_identity_bb": 9.148898145738826e-07,
+     "root_freq_engine": {
+      "check": 0.6377124425537675,
+      "bet 33%": 0.3260208698294831,
+      "bet 75%": 0.036251651467704135,
+      "bet 125%": 1.5034696977910157e-05,
+      "bet 250%": 1.452067474469805e-09
+     },
+     "root_freq_ref": {
+      "check": 0.6427008515016707,
+      "bet 33%": 0.32286009456252746,
+      "bet 75%": 0.03443905393580184,
+      "bet 125%": 2.007283228522283e-16,
+      "bet 250%": 0.0
+     },
+     "strategy": {
+      "infosets": 3458,
+      "infosets_reached": 545,
+      "largest_tv_reached": 0.8060655114905855,
+      "mean_tv_weighted": 0.12932699546790177,
+      "differing": 251,
+      "differing_within_indifference": 234,
+      "largest_gap_bb": 0.2402935110571569,
+      "largest_gap_pct_pot": 1.2014675552857845,
+      "worst": {
+       "node": "/bet 33%/raise to 31.5",
+       "hand": "KdJd",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.0564,
+        0.9436,
+        0.0
+       ],
+       "reference": [
+        0.0,
+        1.0,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "all-in"
+       ],
+       "gap_bb": 0.2402935110571569
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.010654211044311523,
+     "iterate_s": 0.00997304916381836,
+     "peak_rss_mb": 39.125,
+     "use_core": true,
+     "cells": 13024,
+     "pass": false
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -0.684799860686751,
+     "value_ip_ref": 0.684799860686751,
+     "value_oop_engine_own": -0.6847901687538935,
+     "value_ip_engine_own": 0.6847912456032466,
+     "value_oop_engine_by_ref": -0.6847912442209538,
+     "value_ip_engine_by_ref": 0.6847912442209536,
+     "value_diff_bb": 8.616465797417483e-06,
+     "value_diff_pct_pot": 4.3082328987087415e-05,
+     "own_vs_ref_walk_bb": 1.0754670602963756e-06,
+     "expl_engine_by_ref_pct": 0.001926862716808142,
+     "gains_engine_by_ref_bb": [
+      0.00039536889959801425,
+      0.00037537618712524257
+     ],
+     "expl_ref_pct": 6.300515664747763e-14,
+     "gains_ref_bb": [
+      8.215650382226158e-15,
+      1.6986412276764895e-14
+     ],
+     "expl_engine_own_pct": 0.0019288807295505894,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 2.220446049250313e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 2.1335828019886094e-05,
+     "cev_identity_bb": 9.74351102689397e-07,
+     "root_freq_engine": {
+      "check": 0.6441383743339905,
+      "bet 33%": 0.3211121019267908,
+      "bet 75%": 0.03474952372167978,
+      "bet 125%": 1.7538856722119686e-11,
+      "bet 250%": 1.471735907143845e-18
+     },
+     "root_freq_ref": {
+      "check": 0.6427008515016707,
+      "bet 33%": 0.32286009456252746,
+      "bet 75%": 0.03443905393580184,
+      "bet 125%": 2.007283228522283e-16,
+      "bet 250%": 0.0
+     },
+     "strategy": {
+      "infosets": 3458,
+      "infosets_reached": 539,
+      "largest_tv_reached": 0.8852926360772158,
+      "mean_tv_weighted": 0.07679336103162368,
+      "differing": 160,
+      "differing_within_indifference": 160,
+      "largest_gap_bb": 4.454214774796128e-13,
+      "largest_gap_pct_pot": 2.227107387398064e-12,
+      "worst": {
+       "node": "/check",
+       "hand": "Ah9h",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.1955,
+        0.0865,
+        0.5751,
+        0.0231,
+        0.1199
+       ],
+       "reference": [
+        0.1175,
+        0.0517,
+        0.69,
+        0.0454,
+        0.0953
+       ],
+       "actions": [
+        "check",
+        "bet 33%",
+        "bet 75%",
+        "bet 125%",
+        "bet 250%"
+       ],
+       "gap_bb": 4.454214774796128e-13
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.08142209053039551,
+     "iterate_s": 0.08066511154174805,
+     "peak_rss_mb": 39.046875,
+     "use_core": true,
+     "cells": 13024,
+     "pass": true
+    },
+    {
+     "iterations": 10000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": -0.684799860686751,
+     "value_ip_ref": 0.684799860686751,
+     "value_oop_engine_own": -0.6848000457413524,
+     "value_ip_engine_own": 0.6848001352342824,
+     "value_oop_engine_by_ref": -0.6848003827468169,
+     "value_ip_engine_by_ref": 0.6848003827468168,
+     "value_diff_bb": 5.220600658439878e-07,
+     "value_diff_pct_pot": 2.610300329219939e-06,
+     "own_vs_ref_walk_bb": 3.37005464423612e-07,
+     "expl_engine_by_ref_pct": 0.0002860804526308436,
+     "gains_engine_by_ref_bb": [
+      7.135347208109266e-05,
+      4.307870897124477e-05
+     ],
+     "expl_ref_pct": 6.300515664747763e-14,
+     "gains_ref_bb": [
+      8.215650382226158e-15,
+      1.6986412276764895e-14
+     ],
+     "expl_engine_own_pct": 0.00028664634347107156,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 1.1102230246251565e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.9072844434475655e-05,
+     "cev_identity_bb": 4.246150210329702e-07,
+     "root_freq_engine": {
+      "check": 0.6432567354007858,
+      "bet 33%": 0.3219307406030544,
+      "bet 75%": 0.03481252399615954,
+      "bet 125%": 3.455799572025555e-16,
+      "bet 250%": 2.8998652776907926e-23
+     },
+     "root_freq_ref": {
+      "check": 0.6427008515016707,
+      "bet 33%": 0.32286009456252746,
+      "bet 75%": 0.03443905393580184,
+      "bet 125%": 2.007283228522283e-16,
+      "bet 250%": 0.0
+     },
+     "strategy": {
+      "infosets": 3458,
+      "infosets_reached": 540,
+      "largest_tv_reached": 0.8839586041231592,
+      "mean_tv_weighted": 0.0741093055328485,
+      "differing": 156,
+      "differing_within_indifference": 156,
+      "largest_gap_bb": 4.454214774796128e-13,
+      "largest_gap_pct_pot": 2.227107387398064e-12,
+      "worst": {
+       "node": "/check",
+       "hand": "Ah9h",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.168,
+        0.0876,
+        0.5976,
+        0.0255,
+        0.1213
+       ],
+       "reference": [
+        0.1175,
+        0.0517,
+        0.69,
+        0.0454,
+        0.0953
+       ],
+       "actions": [
+        "check",
+        "bet 33%",
+        "bet 75%",
+        "bet 125%",
+        "bet 250%"
+       ],
+       "gap_bb": 4.454214774796128e-13
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.26335597038269043,
+     "iterate_s": 0.2626152038574219,
+     "peak_rss_mb": 39.5,
+     "use_core": true,
+     "cells": 13024,
+     "pass": true
+    }
+   ],
+   "total_s": 12.983323812484741
+  },
+  "river-rake-5pct-cap2": {
+   "spot": {
+    "name": "river-rake-5pct-cap2",
+    "kind": "hu",
+    "board": "Ks7d2c3h9s",
+    "oop": "99,77,33,K9s,K7s,AKs,KQs,QJs,JTs,T8s,65s,54s",
+    "ip": "AKo,KQo,KJo,KTs,A9s,QQ,JJ,98s,87s,AJs",
+    "pot": 20,
+    "stack": 60,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.05,
+    "cap": 2.0,
+    "what": "river-one-size with 5% rake capped at 2 bb: the cap binds on any called bet"
+   },
+   "reference": {
+    "build_s": 0.0012421607971191406,
+    "acts": 8,
+    "ends": 13,
+    "pairs": 1954.0,
+    "hands": [
+     40,
+     55
+    ],
+    "method": "cfr",
+    "solve_s": 4.244750738143921,
+    "iterations": 20000,
+    "tolerance": "DCFR 20000 iterations, no target; each side's gain below is the measure",
+    "gains": {
+     "value": [
+      1.8669415699376652,
+      -3.2379716054704737
+     ],
+     "br": [
+      1.866942305308631,
+      -3.237968285441501
+     ],
+     "gain": [
+      7.353709656765517e-07,
+      3.3200289726309506e-06
+     ]
+    },
+    "expected_rake": 1.3710300355328016,
+    "wall_s": 4.246384143829346,
+    "peak_rss_mb": 24.671875
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 1.8669415699376652,
+     "value_ip_ref": -3.2379716054704737,
+     "value_oop_engine_own": 1.866856101591487,
+     "value_ip_engine_own": -3.2379804511641286,
+     "value_oop_engine_by_ref": 1.8668554129374397,
+     "value_ip_engine_by_ref": -3.237979342743527,
+     "value_diff_bb": 8.615700022551742e-05,
+     "value_diff_pct_pot": 0.0004307850011275871,
+     "own_vs_ref_walk_bb": 1.108420601525495e-06,
+     "expl_engine_by_ref_pct": 0.0024628499681350613,
+     "gains_engine_by_ref_bb": [
+      0.0008941494021719176,
+      9.099058508210689e-05
+     ],
+     "expl_ref_pct": 1.0138499845768756e-05,
+     "gains_ref_bb": [
+      7.353709656765517e-07,
+      3.3200289726309506e-06
+     ],
+     "expl_engine_own_pct": 0.0024694698493824764,
+     "rake_check_bb": 2.886579864025407e-15,
+     "rake_paid_bb": 1.3711239298060844,
+     "root_ev_max_diff_bb": 6.882000818109191e-06,
+     "cev_identity_bb": 5.839873080670799e-07,
+     "root_freq_engine": {
+      "check": 0.3068086441296725,
+      "bet 75%": 0.6931913558703275
+     },
+     "root_freq_ref": {
+      "check": 0.30682101407126117,
+      "bet 75%": 0.6931789859287389
+     },
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.14870246130031334,
+      "mean_tv_weighted": 0.005552140648021208,
+      "differing": 9,
+      "differing_within_indifference": 9,
+      "largest_gap_bb": 0.00015119336751645562,
+      "largest_gap_pct_pot": 0.0007559668375822781,
+      "worst": {
+       "node": "/bet 75%",
+       "hand": "KdJs",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.4951,
+        0.5049,
+        0.0
+       ],
+       "reference": [
+        0.6393,
+        0.3607,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 52.5"
+       ],
+       "gap_bb": 0.00015119336751645562
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.003961086273193359,
+     "iterate_s": 0.0034220218658447266,
+     "peak_rss_mb": 38.828125,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 1.8669415699376652,
+     "value_ip_ref": -3.2379716054704737,
+     "value_oop_engine_own": 1.866937455769815,
+     "value_ip_engine_own": -3.2379705415411397,
+     "value_oop_engine_by_ref": 1.8669371391352354,
+     "value_ip_engine_by_ref": -3.2379677735987173,
+     "value_diff_bb": 4.430802429844505e-06,
+     "value_diff_pct_pot": 2.2154012149222524e-05,
+     "own_vs_ref_walk_bb": 2.76794242237699e-06,
+     "expl_engine_by_ref_pct": 9.709836698512665e-05,
+     "gains_engine_by_ref_bb": [
+      2.6275797976316184e-05,
+      1.2563548817734471e-05
+     ],
+     "expl_ref_pct": 1.0138499845768756e-05,
+     "gains_ref_bb": [
+      7.353709656765517e-07,
+      3.3200289726309506e-06
+     ],
+     "expl_engine_own_pct": 9.754419082750928e-05,
+     "rake_check_bb": 1.7763568394002505e-15,
+     "rake_paid_bb": 1.3710306344634802,
+     "root_ev_max_diff_bb": 1.2204933540260754e-05,
+     "cev_identity_bb": 1.5170902423200516e-07,
+     "root_freq_engine": {
+      "check": 0.3068271069701447,
+      "bet 75%": 0.6931728930298554
+     },
+     "root_freq_ref": {
+      "check": 0.30682101407126117,
+      "bet 75%": 0.6931789859287389
+     },
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.08339644109782123,
+      "mean_tv_weighted": 0.003135800706972184,
+      "differing": 3,
+      "differing_within_indifference": 3,
+      "largest_gap_bb": 0.00015119336751645562,
+      "largest_gap_pct_pot": 0.0007559668375822781,
+      "worst": {
+       "node": "/bet 75%",
+       "hand": "KdJs",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.5587,
+        0.4413,
+        0.0
+       ],
+       "reference": [
+        0.6393,
+        0.3607,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 52.5"
+       ],
+       "gap_bb": 0.00015119336751645562
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.018127918243408203,
+     "iterate_s": 0.017575979232788086,
+     "peak_rss_mb": 38.859375,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 1.8669415699376652,
+     "value_ip_ref": -3.2379716054704737,
+     "value_oop_engine_own": 1.8669403919544045,
+     "value_ip_engine_own": -3.2379730169946366,
+     "value_oop_engine_by_ref": 1.8669411096927884,
+     "value_ip_engine_by_ref": -3.2379717142357967,
+     "value_diff_bb": 4.602448768764589e-07,
+     "value_diff_pct_pot": 2.3012243843822944e-06,
+     "own_vs_ref_walk_bb": 1.3027588399161516e-06,
+     "expl_engine_by_ref_pct": 9.888713667360882e-06,
+     "gains_engine_by_ref_bb": [
+      5.622924346138092e-07,
+      3.3931930323305437e-06
+     ],
+     "expl_ref_pct": 1.0138499845768756e-05,
+     "gains_ref_bb": [
+      7.353709656765517e-07,
+      3.3200289726309506e-06
+     ],
+     "expl_engine_own_pct": 1.8204734903763113e-05,
+     "rake_check_bb": 1.3322676295501878e-15,
+     "rake_paid_bb": 1.3710306045430096,
+     "root_ev_max_diff_bb": 9.55280809478154e-06,
+     "cev_identity_bb": 5.390639139513098e-07,
+     "root_freq_engine": {
+      "check": 0.3068208415991468,
+      "bet 75%": 0.6931791584008532
+     },
+     "root_freq_ref": {
+      "check": 0.30682101407126117,
+      "bet 75%": 0.6931789859287389
+     },
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.02906277745899426,
+      "mean_tv_weighted": 0.001098877141306424,
+      "differing": 0,
+      "differing_within_indifference": 0,
+      "largest_gap_bb": 0.0,
+      "largest_gap_pct_pot": 0.0,
+      "worst": null,
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.16338706016540527,
+     "iterate_s": 0.16275405883789062,
+     "peak_rss_mb": 38.9375,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    }
+   ],
+   "total_s": 4.900841951370239
+  },
+  "river-rake-5pct-nocap": {
+   "spot": {
+    "name": "river-rake-5pct-nocap",
+    "kind": "hu",
+    "board": "Ks7d2c3h9s",
+    "oop": "99,77,33,K9s,K7s,AKs,KQs,QJs,JTs,T8s,65s,54s",
+    "ip": "AKo,KQo,KJo,KTs,A9s,QQ,JJ,98s,87s,AJs",
+    "pot": 20,
+    "stack": 60,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 20000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.05,
+    "cap": null,
+    "what": "river-one-size with 5% rake and no cap"
+   },
+   "reference": {
+    "build_s": 0.0014829635620117188,
+    "acts": 8,
+    "ends": 13,
+    "pairs": 1954.0,
+    "hands": [
+     40,
+     55
+    ],
+    "method": "cfr",
+    "solve_s": 4.336536884307861,
+    "iterations": 20000,
+    "tolerance": "DCFR 20000 iterations, no target; each side's gain below is the measure",
+    "gains": {
+     "value": [
+      1.7498741092099221,
+      -3.309225454868566
+     ],
+     "br": [
+      1.749874397549455,
+      -3.3092228067900527
+     ],
+     "gain": [
+      2.883395329167371e-07,
+      2.6480785133564666e-06
+     ]
+    },
+    "expected_rake": 1.5593513456586414,
+    "wall_s": 4.338400840759277,
+    "peak_rss_mb": 24.546875
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 1.7498741092099221,
+     "value_ip_ref": -3.309225454868566,
+     "value_oop_engine_own": 1.749781847732216,
+     "value_ip_engine_own": -3.3092365050145034,
+     "value_oop_engine_by_ref": 1.7497820096148065,
+     "value_ip_engine_by_ref": -3.309235525643807,
+     "value_diff_bb": 9.20995951156911e-05,
+     "value_diff_pct_pot": 0.0004604979755784555,
+     "own_vs_ref_walk_bb": 9.79370696541082e-07,
+     "expl_engine_by_ref_pct": 0.0017124436271226393,
+     "gains_engine_by_ref_bb": [
+      0.0006443797529216422,
+      4.0597697927413634e-05
+     ],
+     "expl_ref_pct": 7.34104511568301e-06,
+     "gains_ref_bb": [
+      2.883395329167371e-07,
+      2.6480785133564666e-06
+     ],
+     "expl_engine_own_pct": 0.0017199618789532289,
+     "rake_check_bb": 1.1102230246251565e-14,
+     "rake_paid_bb": 1.5594535160289893,
+     "root_ev_max_diff_bb": 1.547276882973847e-05,
+     "cev_identity_bb": 2.4479466009807993e-08,
+     "root_freq_engine": {
+      "check": 0.3038377486510335,
+      "bet 75%": 0.6961622513489666
+     },
+     "root_freq_ref": {
+      "check": 0.3038484476029657,
+      "bet 75%": 0.6961515523970343
+     },
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.15962995147017484,
+      "mean_tv_weighted": 0.006033669143797675,
+      "differing": 9,
+      "differing_within_indifference": 9,
+      "largest_gap_bb": 0.00012001450513032808,
+      "largest_gap_pct_pot": 0.0006000725256516404,
+      "worst": {
+       "node": "/bet 75%",
+       "hand": "KdJs",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.5053,
+        0.4947,
+        0.0
+       ],
+       "reference": [
+        0.6623,
+        0.3377,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 52.5"
+       ],
+       "gap_bb": 0.00012001450513032808
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.0033578872680664062,
+     "iterate_s": 0.0029189586639404297,
+     "peak_rss_mb": 38.84375,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 1.7498741092099221,
+     "value_ip_ref": -3.309225454868566,
+     "value_oop_engine_own": 1.7498709015860894,
+     "value_ip_engine_own": -3.309229129412523,
+     "value_oop_engine_by_ref": 1.7498712862175925,
+     "value_ip_engine_by_ref": -3.309226433930591,
+     "value_diff_bb": 2.8229923296763104e-06,
+     "value_diff_pct_pot": 1.4114961648381554e-05,
+     "own_vs_ref_walk_bb": 2.695481932324384e-06,
+     "expl_engine_by_ref_pct": 1.750855313953359e-05,
+     "gains_engine_by_ref_bb": [
+      5.519662851227736e-06,
+      1.4837584045857e-06
+     ],
+     "expl_ref_pct": 7.34104511568301e-06,
+     "gains_ref_bb": [
+      2.883395329167371e-07,
+      2.6480785133564666e-06
+     ],
+     "expl_engine_own_pct": 1.818521239984487e-05,
+     "rake_check_bb": 1.1102230246251565e-15,
+     "rake_paid_bb": 1.5593551477129972,
+     "root_ev_max_diff_bb": 1.1289716400852967e-05,
+     "cev_identity_bb": 1.9597796829806668e-07,
+     "root_freq_engine": {
+      "check": 0.30384741048685376,
+      "bet 75%": 0.6961525895131463
+     },
+     "root_freq_ref": {
+      "check": 0.3038484476029657,
+      "bet 75%": 0.6961515523970343
+     },
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.07716165025674175,
+      "mean_tv_weighted": 0.0029521807399737264,
+      "differing": 3,
+      "differing_within_indifference": 3,
+      "largest_gap_bb": 0.00012001450513032808,
+      "largest_gap_pct_pot": 0.0006000725256516404,
+      "worst": {
+       "node": "/bet 75%",
+       "hand": "KdJs",
+       "board": "Ks7d2c3h9s",
+       "engine": [
+        0.5867,
+        0.4133,
+        0.0
+       ],
+       "reference": [
+        0.6623,
+        0.3377,
+        0.0
+       ],
+       "actions": [
+        "fold",
+        "call",
+        "raise to 52.5"
+       ],
+       "gap_bb": 0.00012001450513032808
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.015154838562011719,
+     "iterate_s": 0.014706850051879883,
+     "peak_rss_mb": 39.015625,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 1.7498741092099221,
+     "value_ip_ref": -3.309225454868566,
+     "value_oop_engine_own": 1.7498741969847509,
+     "value_ip_engine_own": -3.3092226284187185,
+     "value_oop_engine_by_ref": 1.7498734518005181,
+     "value_ip_engine_by_ref": -3.3092268814630437,
+     "value_diff_bb": 1.426594477660359e-06,
+     "value_diff_pct_pot": 7.132972388301794e-06,
+     "own_vs_ref_walk_bb": 4.253044325164268e-06,
+     "expl_engine_by_ref_pct": 2.960009470864833e-06,
+     "gains_engine_by_ref_bb": [
+      1.9577039944707053e-07,
+      9.882333888988626e-07
+     ],
+     "expl_ref_pct": 7.34104511568301e-06,
+     "gains_ref_bb": [
+      2.883395329167371e-07,
+      2.6480785133564666e-06
+     ],
+     "expl_engine_own_pct": 2.2841329584346213e-06,
+     "rake_check_bb": 8.881784197001252e-16,
+     "rake_paid_bb": 1.5593534296625247,
+     "root_ev_max_diff_bb": 8.970987728673663e-06,
+     "cev_identity_bb": 2.2013897216233147e-07,
+     "root_freq_engine": {
+      "check": 0.30384693620724573,
+      "bet 75%": 0.6961530637927543
+     },
+     "root_freq_ref": {
+      "check": 0.3038484476029657,
+      "bet 75%": 0.6961515523970343
+     },
+     "strategy": {
+      "infosets": 380,
+      "infosets_reached": 150,
+      "largest_tv_reached": 0.025597532196537976,
+      "mean_tv_weighted": 0.0009954991647192022,
+      "differing": 0,
+      "differing_within_indifference": 0,
+      "largest_gap_bb": 0.0,
+      "largest_gap_pct_pot": 0.0,
+      "worst": null,
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.13356971740722656,
+     "iterate_s": 0.13296818733215332,
+     "peak_rss_mb": 38.9375,
+     "use_core": true,
+     "cells": 1900,
+     "pass": true
+    }
+   ],
+   "total_s": 4.896664142608643
+  },
+  "turn-one-size": {
+   "spot": {
+    "name": "turn-one-size",
+    "kind": "hu",
+    "board": "Ks7d2c3h",
+    "oop": "77,33,K3s,KQs,QJs,76s",
+    "ip": "AKs,KJs,QQ,JTs,98s",
+    "pot": 20,
+    "stack": 40,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 6000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "turn, every river dealt, one size",
+    "lp_method": "highs-ipm"
+   },
+   "reference": {
+    "build_s": 0.05644798278808594,
+    "acts": 20,
+    "ends": 25,
+    "pairs": 322.0,
+    "hands": [
+     18,
+     20
+    ],
+    "method": "lp",
+    "solve_s": 12.242263793945312,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 38
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 35
+     }
+    ],
+    "lp_rows": [
+     19792,
+     19048
+    ],
+    "lp_cols": [
+     19048,
+     19792
+    ],
+    "lp_nonzeros": 298816,
+    "lp_method": "highs-ipm",
+    "value_each_side": [
+     9.360731048211587,
+     -9.360731048211607
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.17031623098148035,
+      0.1703171613032841
+     ],
+     "bet 75%": [
+      0.8296828386967097,
+      0.8296837690185187
+     ]
+    },
+    "bounds_s": 36.14277911186218,
+    "dcfr_check": {
+     "iterations": 6000,
+     "seconds": 5.100056886672974,
+     "value": [
+      9.360731086462453,
+      -9.360731086462454
+     ],
+     "br": [
+      9.360754173610628,
+      -9.36071731298164
+     ],
+     "gain": [
+      2.30871481754491e-05,
+      1.3773480814549544e-05
+     ]
+    },
+    "gains": {
+     "value": [
+      9.360731048211589,
+      -9.360731048211589
+     ],
+     "br": [
+      9.36073104821159,
+      -9.360731048211582
+     ],
+     "gain": [
+      1.7763568394002505e-15,
+      7.105427357601002e-15
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 53.54237699508667,
+    "peak_rss_mb": 208.859375
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 9.360731048211589,
+     "value_ip_ref": -9.360731048211589,
+     "value_oop_engine_own": 9.360782901692835,
+     "value_ip_engine_own": -9.36078397383601,
+     "value_oop_engine_by_ref": 9.360783185731812,
+     "value_ip_engine_by_ref": -9.360783185731812,
+     "value_diff_bb": 5.213752022292795e-05,
+     "value_diff_pct_pot": 0.00026068760111463973,
+     "own_vs_ref_walk_bb": 7.881041987900517e-07,
+     "expl_engine_by_ref_pct": 0.02386594841734535,
+     "gains_engine_by_ref_bb": [
+      0.007066698243775704,
+      0.002479681123162436
+     ],
+     "expl_ref_pct": 2.220446049250313e-14,
+     "gains_ref_bb": [
+      1.7763568394002505e-15,
+      7.105427357601002e-15
+     ],
+     "expl_engine_own_pct": 0.023863670988852937,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 4.122320781618782e-06,
+     "cev_identity_bb": 3.4097876344674205e-07,
+     "root_freq_engine": {
+      "check": 0.1703274541503165,
+      "bet 75%": 0.8296725458496834
+     },
+     "root_freq_ref": {
+      "check": 0.17031705931464833,
+      "bet 75%": 0.8296829406853516
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.17031623098148035,
+       0.1703171613032841
+      ],
+      "bet 75%": [
+       0.8296828386967097,
+       0.8296837690185187
+      ]
+     },
+     "root_freq_outside_bounds": 1.0292847032411512e-05,
+     "strategy": {
+      "infosets": 12882,
+      "infosets_reached": 62,
+      "largest_tv_reached": 0.14327622387025718,
+      "mean_tv_weighted": 0.030194797803885724,
+      "differing": 6,
+      "differing_within_indifference": 6,
+      "largest_gap_bb": 6.927791673660977e-14,
+      "largest_gap_pct_pot": 3.4638958368304884e-13,
+      "worst": {
+       "node": "/check",
+       "hand": "9h8h",
+       "board": "Ks7d2c3h",
+       "engine": [
+        0.8116,
+        0.1884
+       ],
+       "reference": [
+        0.6683,
+        0.3317
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 6.927791673660977e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.05702018737792969,
+     "iterate_s": 0.056017160415649414,
+     "peak_rss_mb": 44.515625,
+     "use_core": true,
+     "cells": 55252,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 9.360731048211589,
+     "value_ip_ref": -9.360731048211589,
+     "value_oop_engine_own": 9.360730970868413,
+     "value_ip_engine_own": -9.360730070505083,
+     "value_oop_engine_by_ref": 9.36073103473486,
+     "value_ip_engine_by_ref": -9.36073103473486,
+     "value_diff_bb": 1.3476729066042026e-08,
+     "value_diff_pct_pot": 6.738364533021013e-08,
+     "own_vs_ref_walk_bb": 9.642297769119068e-07,
+     "expl_engine_by_ref_pct": 0.0008975268520883261,
+     "gains_engine_by_ref_bb": [
+      0.0002388789218805698,
+      0.00012013181895476066
+     ],
+     "expl_ref_pct": 2.220446049250313e-14,
+     "gains_ref_bb": [
+      1.7763568394002505e-15,
+      7.105427357601002e-15
+     ],
+     "expl_engine_own_pct": 0.0009000671576268926,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.882346481352215e-06,
+     "cev_identity_bb": 4.460218683277617e-08,
+     "root_freq_engine": {
+      "check": 0.17032295782450654,
+      "bet 75%": 0.8296770421754933
+     },
+     "root_freq_ref": {
+      "check": 0.17031705931464833,
+      "bet 75%": 0.8296829406853516
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.17031623098148035,
+       0.1703171613032841
+      ],
+      "bet 75%": [
+       0.8296828386967097,
+       0.8296837690185187
+      ]
+     },
+     "root_freq_outside_bounds": 5.796521222456441e-06,
+     "strategy": {
+      "infosets": 12882,
+      "infosets_reached": 62,
+      "largest_tv_reached": 0.1334212402796473,
+      "mean_tv_weighted": 0.029244875539536776,
+      "differing": 6,
+      "differing_within_indifference": 6,
+      "largest_gap_bb": 6.927791673660977e-14,
+      "largest_gap_pct_pot": 3.4638958368304884e-13,
+      "worst": {
+       "node": "/check",
+       "hand": "9h8h",
+       "board": "Ks7d2c3h",
+       "engine": [
+        0.8018,
+        0.1982
+       ],
+       "reference": [
+        0.6683,
+        0.3317
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 6.927791673660977e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.428631067276001,
+     "iterate_s": 0.42749524116516113,
+     "peak_rss_mb": 44.4375,
+     "use_core": true,
+     "cells": 55252,
+     "pass": true
+    }
+   ],
+   "total_s": 54.40006184577942
+  },
+  "turn-rake": {
+   "spot": {
+    "name": "turn-rake",
+    "kind": "hu",
+    "board": "Ks7d2c3h",
+    "oop": "77,33,K3s,KQs,QJs,76s",
+    "ip": "AKs,KJs,QQ,JTs,98s",
+    "pot": 20,
+    "stack": 40,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 6000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.05,
+    "cap": 3.0,
+    "what": "turn-one-size with 5% rake capped at 3 bb"
+   },
+   "reference": {
+    "build_s": 0.05765700340270996,
+    "acts": 20,
+    "ends": 25,
+    "pairs": 322.0,
+    "hands": [
+     18,
+     20
+    ],
+    "method": "cfr",
+    "solve_s": 5.051496744155884,
+    "iterations": 6000,
+    "tolerance": "DCFR 6000 iterations, no target; each side's gain below is the measure",
+    "gains": {
+     "value": [
+      8.28535521586461,
+      -9.568383762264144
+     ],
+     "br": [
+      8.28539275578122,
+      -9.568369885848206
+     ],
+     "gain": [
+      3.7539916609929946e-05,
+      1.3876415938085529e-05
+     ]
+    },
+    "expected_rake": 1.283028546399538,
+    "wall_s": 5.11082911491394,
+    "peak_rss_mb": 31.84375
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 8.28535521586461,
+     "value_ip_ref": -9.568383762264144,
+     "value_oop_engine_own": 8.285173167353092,
+     "value_ip_engine_own": -9.568864526215547,
+     "value_oop_engine_by_ref": 8.285172817976527,
+     "value_ip_engine_by_ref": -9.568864165261106,
+     "value_diff_bb": 0.00048040299696161526,
+     "value_diff_pct_pot": 0.0024020149848080763,
+     "own_vs_ref_walk_bb": 3.6095444144734756e-07,
+     "expl_engine_by_ref_pct": 0.024946694952578955,
+     "gains_engine_by_ref_bb": [
+      0.005786869530060912,
+      0.004191808450970669
+     ],
+     "expl_ref_pct": 0.0001285408313700387,
+     "gains_ref_bb": [
+      3.7539916609929946e-05,
+      1.3876415938085529e-05
+     ],
+     "expl_engine_own_pct": 0.024944906649382217,
+     "rake_check_bb": 2.6645352591003757e-15,
+     "rake_paid_bb": 1.2836913472845763,
+     "root_ev_max_diff_bb": 2.494944810749189e-06,
+     "cev_identity_bb": 2.263333787055899e-07,
+     "root_freq_engine": {
+      "check": 0.1371035085051985,
+      "bet 75%": 0.8628964914948015
+     },
+     "root_freq_ref": {
+      "check": 0.15136954833040772,
+      "bet 75%": 0.8486304516695923
+     },
+     "strategy": {
+      "infosets": 12882,
+      "infosets_reached": 63,
+      "largest_tv_reached": 0.06749880129030633,
+      "mean_tv_weighted": 0.008084830375959829,
+      "differing": 3,
+      "differing_within_indifference": 3,
+      "largest_gap_bb": 0.00018224097944052886,
+      "largest_gap_pct_pot": 0.0009112048972026443,
+      "worst": {
+       "node": "",
+       "hand": "KhQh",
+       "board": "Ks7d2c3h",
+       "engine": [
+        0.8638,
+        0.1362
+       ],
+       "reference": [
+        0.9313,
+        0.0687
+       ],
+       "actions": [
+        "check",
+        "bet 75%"
+       ],
+       "gap_bb": 0.00018224097944052886
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.06380200386047363,
+     "iterate_s": 0.06263995170593262,
+     "peak_rss_mb": 44.734375,
+     "use_core": true,
+     "cells": 55252,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": false,
+     "value_oop_ref": 8.28535521586461,
+     "value_ip_ref": -9.568383762264144,
+     "value_oop_engine_own": 8.28536203633184,
+     "value_ip_engine_own": -9.568372311799422,
+     "value_oop_engine_by_ref": 8.285362689943408,
+     "value_ip_engine_by_ref": -9.568372347251655,
+     "value_diff_bb": 1.1415012489024434e-05,
+     "value_diff_pct_pot": 5.707506244512217e-05,
+     "own_vs_ref_walk_bb": 6.536115684241395e-07,
+     "expl_engine_by_ref_pct": 0.0011435557020211817,
+     "gains_engine_by_ref_bb": [
+      0.00030961328767276086,
+      0.00014780899313571183
+     ],
+     "expl_ref_pct": 0.0001285408313700387,
+     "gains_ref_bb": [
+      3.7539916609929946e-05,
+      1.3876415938085529e-05
+     ],
+     "expl_engine_own_pct": 0.001144024155895162,
+     "rake_check_bb": 4.440892098500626e-16,
+     "rake_paid_bb": 1.2830096573082463,
+     "root_ev_max_diff_bb": 3.0918917008904145e-06,
+     "cev_identity_bb": 4.78381064539235e-07,
+     "root_freq_engine": {
+      "check": 0.15179566832068184,
+      "bet 75%": 0.8482043316793181
+     },
+     "root_freq_ref": {
+      "check": 0.15136954833040772,
+      "bet 75%": 0.8486304516695923
+     },
+     "strategy": {
+      "infosets": 12882,
+      "infosets_reached": 63,
+      "largest_tv_reached": 0.015698863263355484,
+      "mean_tv_weighted": 0.002185839687796336,
+      "differing": 0,
+      "differing_within_indifference": 0,
+      "largest_gap_bb": 0.0,
+      "largest_gap_pct_pot": 0.0,
+      "worst": null,
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.4848446846008301,
+     "iterate_s": 0.483612060546875,
+     "peak_rss_mb": 44.625,
+     "use_core": true,
+     "cells": 55252,
+     "pass": true
+    }
+   ],
+   "total_s": 6.03092098236084
+  },
+  "turn-low-spr": {
+   "spot": {
+    "name": "turn-low-spr",
+    "kind": "hu",
+    "board": "Qh8d3c5s",
+    "oop": "QJs,88,33,JTs,A5s,76s",
+    "ip": "AQs,KQs,55,T9s,KJs",
+    "pot": 30,
+    "stack": 18,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "lp",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 6000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "turn with all-ins before the river: equity run-outs",
+    "lp_method": "highs-ipm"
+   },
+   "reference": {
+    "build_s": 0.0334470272064209,
+    "acts": 8,
+    "ends": 9,
+    "pairs": 315.0,
+    "hands": [
+     20,
+     17
+    ],
+    "method": "lp",
+    "solve_s": 1.1337409019470215,
+    "lp_status": [
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 33
+     },
+     {
+      "status": 0,
+      "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+      "iterations": 33
+     }
+    ],
+    "lp_rows": [
+     5078,
+     5360
+    ],
+    "lp_cols": [
+     5360,
+     5078
+    ],
+    "lp_nonzeros": 97650,
+    "lp_method": "highs-ipm",
+    "value_each_side": [
+     1.5343919355243407,
+     -1.5343919355243432
+    ],
+    "tolerance": "HiGHS feasibility 1e-9",
+    "frequency_bounds": {
+     "check": [
+      0.27015054857681375,
+      0.27015429363307303
+     ],
+     "all-in": [
+      0.72984570636701,
+      0.729849451422317
+     ]
+    },
+    "bounds_s": 3.329035758972168,
+    "dcfr_check": {
+     "iterations": 6000,
+     "seconds": 1.8599631786346436,
+     "value": [
+      1.5343919639790469,
+      -1.5343919639790486
+     ],
+     "br": [
+      1.5344144280663852,
+      -1.534380122535892
+     ],
+     "gain": [
+      2.2464087338303074e-05,
+      1.1841443156690445e-05
+     ]
+    },
+    "gains": {
+     "value": [
+      1.5343919355243436,
+      -1.5343919355243432
+     ],
+     "br": [
+      1.5343919355245121,
+      -1.5343919355243414
+     ],
+     "gain": [
+      1.6853185513809876e-13,
+      1.7763568394002505e-15
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 6.35654878616333,
+    "peak_rss_mb": 107.953125
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 1.5343919355243436,
+     "value_ip_ref": -1.5343919355243432,
+     "value_oop_engine_own": 1.5343839251805866,
+     "value_ip_engine_own": -1.534384034171937,
+     "value_oop_engine_by_ref": 1.5343843107833242,
+     "value_ip_engine_by_ref": -1.534384310783321,
+     "value_diff_bb": 7.62474102211641e-06,
+     "value_diff_pct_pot": 2.54158034070547e-05,
+     "own_vs_ref_walk_bb": 3.8560273751819807e-07,
+     "expl_engine_by_ref_pct": 0.007997561052083638,
+     "gains_engine_by_ref_bb": [
+      0.0029834574436118366,
+      0.0018150791876383465
+     ],
+     "expl_ref_pct": 2.8384701996249834e-13,
+     "gains_ref_bb": [
+      1.6853185513809876e-13,
+      1.7763568394002505e-15
+     ],
+     "expl_engine_own_pct": 0.007999763286933697,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 3.1086244689504383e-15,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 4.038756989288572e-06,
+     "cev_identity_bb": 5.075132674114968e-07,
+     "root_freq_engine": {
+      "check": 0.27080096430412043,
+      "all-in": 0.7291990356958796
+     },
+     "root_freq_ref": {
+      "check": 0.27015334287806697,
+      "all-in": 0.7298466571219331
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.27015054857681375,
+       0.27015429363307303
+      ],
+      "all-in": [
+       0.72984570636701,
+       0.729849451422317
+      ]
+     },
+     "root_freq_outside_bounds": 0.0006466706711303338,
+     "strategy": {
+      "infosets": 3626,
+      "infosets_reached": 71,
+      "largest_tv_reached": 0.49999999999999933,
+      "mean_tv_weighted": 0.02550997035656846,
+      "differing": 12,
+      "differing_within_indifference": 12,
+      "largest_gap_bb": 8.526512829121202e-14,
+      "largest_gap_pct_pot": 2.8421709430404007e-13,
+      "worst": {
+       "node": "",
+       "hand": "8h8c",
+       "board": "Qh8d3c5s",
+       "engine": [
+        0.0922,
+        0.9078
+       ],
+       "reference": [
+        0.168,
+        0.832
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 8.526512829121202e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.02593994140625,
+     "iterate_s": 0.02539992332458496,
+     "peak_rss_mb": 43.125,
+     "use_core": true,
+     "cells": 14504,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 1.5343919355243436,
+     "value_ip_ref": -1.5343919355243432,
+     "value_oop_engine_own": 1.5343914274185424,
+     "value_ip_engine_own": -1.5343917362273685,
+     "value_oop_engine_by_ref": 1.5343919032974764,
+     "value_ip_engine_by_ref": -1.5343919032974764,
+     "value_diff_bb": 3.222686717485601e-08,
+     "value_diff_pct_pot": 1.0742289058285338e-07,
+     "own_vs_ref_walk_bb": 4.7587893403644443e-07,
+     "expl_engine_by_ref_pct": 0.0005211125298187902,
+     "gains_engine_by_ref_bb": [
+      0.00019648046267639607,
+      0.00011618705521487804
+     ],
+     "expl_ref_pct": 2.8384701996249834e-13,
+     "gains_ref_bb": [
+      1.6853185513809876e-13,
+      1.7763568394002505e-15
+     ],
+     "expl_engine_own_pct": 0.0005200401185050843,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 4.371395263547129e-06,
+     "cev_identity_bb": 4.0430454006923355e-07,
+     "root_freq_engine": {
+      "check": 0.2701982543147773,
+      "all-in": 0.7298017456852228
+     },
+     "root_freq_ref": {
+      "check": 0.27015334287806697,
+      "all-in": 0.7298466571219331
+     },
+     "root_freq_bounds": {
+      "check": [
+       0.27015054857681375,
+       0.27015429363307303
+      ],
+      "all-in": [
+       0.72984570636701,
+       0.729849451422317
+      ]
+     },
+     "root_freq_outside_bounds": 4.39606817871363e-05,
+     "strategy": {
+      "infosets": 3626,
+      "infosets_reached": 71,
+      "largest_tv_reached": 0.5,
+      "mean_tv_weighted": 0.024712679759459247,
+      "differing": 12,
+      "differing_within_indifference": 12,
+      "largest_gap_bb": 8.526512829121202e-14,
+      "largest_gap_pct_pot": 2.8421709430404007e-13,
+      "worst": {
+       "node": "",
+       "hand": "8h8c",
+       "board": "Qh8d3c5s",
+       "engine": [
+        0.0923,
+        0.9077
+       ],
+       "reference": [
+        0.168,
+        0.832
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 8.526512829121202e-14
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 0.12509679794311523,
+     "iterate_s": 0.12445473670959473,
+     "peak_rss_mb": 43.265625,
+     "use_core": true,
+     "cells": 14504,
+     "pass": true
+    }
+   ],
+   "total_s": 6.83319091796875
+  },
+  "flop-tiny": {
+   "spot": {
+    "name": "flop-tiny",
+    "kind": "hu",
+    "board": "Ks7d2c",
+    "oop": "KQs,77,A2s,98s",
+    "ip": "AKs,KJo,QQ,JTs",
+    "pot": 20,
+    "stack": 14,
+    "menu": {
+     "bets": [
+      0.75
+     ],
+     "raises": [
+      0.75
+     ]
+    },
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000
+    ],
+    "ref_iters": 3000,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "flop, every turn and river dealt, low stack, tiny ranges"
+   },
+   "reference": {
+    "build_s": 2.59893798828125,
+    "acts": 12,
+    "ends": 13,
+    "pairs": 263.0,
+    "hands": [
+     13,
+     22
+    ],
+    "method": "cfr",
+    "solve_s": 18.40530800819397,
+    "iterations": 3000,
+    "tolerance": "DCFR 3000 iterations, no target; each side's gain below is the measure",
+    "gains": {
+     "value": [
+      2.083682062182098,
+      -2.083682062182098
+     ],
+     "br": [
+      2.083711529306992,
+      -2.0836265257650344
+     ],
+     "gain": [
+      2.946712489393377e-05,
+      5.5536417063795085e-05
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 21.01218295097351,
+    "peak_rss_mb": 153.9375
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 2.083682062182098,
+     "value_ip_ref": -2.083682062182098,
+     "value_oop_engine_own": 2.0838678164173894,
+     "value_ip_engine_own": -2.083868146395955,
+     "value_oop_engine_by_ref": 2.0838679617798435,
+     "value_ip_engine_by_ref": -2.0838679617798435,
+     "value_diff_bb": 0.00018589959774528708,
+     "value_diff_pct_pot": 0.0009294979887264353,
+     "own_vs_ref_walk_bb": 1.846161117313727e-07,
+     "expl_engine_by_ref_pct": 0.015923406833313614,
+     "gains_engine_by_ref_bb": [
+      0.0023060823071832104,
+      0.004063280426142235
+     ],
+     "expl_ref_pct": 0.00021250885489432214,
+     "gains_ref_bb": [
+      2.946712489393377e-05,
+      5.5536417063795085e-05
+     ],
+     "expl_engine_own_pct": 0.0159228165340061,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 0.0,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 4.010697132628138e-06,
+     "cev_identity_bb": 2.2087464746078922e-08,
+     "root_freq_engine": {
+      "check": 0.9998689657281512,
+      "all-in": 0.00013103427184884046
+     },
+     "root_freq_ref": {
+      "check": 0.9999921898111848,
+      "all-in": 7.810188815273661e-06
+     },
+     "strategy": {
+      "infosets": 168140,
+      "infosets_reached": 696,
+      "largest_tv_reached": 0.33616866431439413,
+      "mean_tv_weighted": 0.02198971286594861,
+      "differing": 52,
+      "differing_within_indifference": 52,
+      "largest_gap_bb": 0.019835791204599218,
+      "largest_gap_pct_pot": 0.09917895602299608,
+      "worst": {
+       "node": "/check/check|",
+       "hand": "7s7c",
+       "board": "Ks7d2c7h",
+       "engine": [
+        0.8926,
+        0.1074
+       ],
+       "reference": [
+        0.9999,
+        0.0001
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 0.019835791204599218
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 1.0796411037445068,
+     "iterate_s": 1.0746288299560547,
+     "peak_rss_mb": 92.75,
+     "use_core": true,
+     "cells": 672560,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "zero_sum": true,
+     "value_oop_ref": 2.083682062182098,
+     "value_ip_ref": -2.083682062182098,
+     "value_oop_engine_own": 2.083679025164122,
+     "value_ip_engine_own": -2.0836790541732264,
+     "value_oop_engine_by_ref": 2.0836791439728333,
+     "value_ip_engine_by_ref": -2.0836791439728337,
+     "value_diff_bb": 2.9182092649016056e-06,
+     "value_diff_pct_pot": 1.4591046324508028e-05,
+     "own_vs_ref_walk_bb": 1.1880871131353388e-07,
+     "expl_engine_by_ref_pct": 0.000736499410174396,
+     "gains_engine_by_ref_bb": [
+      0.00012441652690142746,
+      0.00017018323716833095
+     ],
+     "expl_ref_pct": 0.00021250885489432214,
+     "gains_ref_bb": [
+      2.946712489393377e-05,
+      5.5536417063795085e-05
+     ],
+     "expl_engine_own_pct": 0.0007354895878200748,
+     "value_in_engine_bracket": true,
+     "rake_check_bb": 4.440892098500626e-16,
+     "rake_paid_bb": 0.0,
+     "root_ev_max_diff_bb": 1.5230366088303526e-06,
+     "cev_identity_bb": 2.944069268373539e-07,
+     "root_freq_engine": {
+      "check": 0.9999991031616884,
+      "all-in": 8.96838311555287e-07
+     },
+     "root_freq_ref": {
+      "check": 0.9999921898111848,
+      "all-in": 7.810188815273661e-06
+     },
+     "strategy": {
+      "infosets": 168140,
+      "infosets_reached": 694,
+      "largest_tv_reached": 0.13772562047693965,
+      "mean_tv_weighted": 0.00343689436338633,
+      "differing": 8,
+      "differing_within_indifference": 8,
+      "largest_gap_bb": 4.197302949648929e-08,
+      "largest_gap_pct_pot": 2.0986514748244645e-07,
+      "worst": {
+       "node": "/check/check|",
+       "hand": "9s8s",
+       "board": "Ks7d2cTs",
+       "engine": [
+        0.0722,
+        0.9278
+       ],
+       "reference": [
+        0.0101,
+        0.9899
+       ],
+       "actions": [
+        "check",
+        "all-in"
+       ],
+       "gap_bb": 4.197302949648929e-08
+      },
+      "tv_flag": 0.05,
+      "reach_floor": 0.001,
+      "indifferent_pct_pot": 0.1
+     },
+     "wall_s": 5.883100986480713,
+     "iterate_s": 5.8779871463775635,
+     "peak_rss_mb": 92.921875,
+     "use_core": true,
+     "cells": 672560,
+     "pass": true
+    }
+   ],
+   "total_s": 31.132774114608765
+  },
+  "3way-river-one-size": {
+   "spot": {
+    "name": "3way-river-one-size",
+    "kind": "mw",
+    "board": "Ks7d2c3h9s",
+    "ranges": [
+     "KQs,QQ,JJ,98s,A2s,KJs",
+     "AKs,99,77,QJs,JTs,KTo",
+     "KTs,TT,AQs,87s,A3s,76s"
+    ],
+    "pot": 30,
+    "stack": 60,
+    "bet": [
+     0.5
+    ],
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 30000,
+    "raise_frac": 0.75,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.0,
+    "cap": null,
+    "what": "three-way river, one size, one raise"
+   },
+   "reference": {
+    "build_s": 0.0074460506439208984,
+    "acts": 33,
+    "ends": 43,
+    "deals": 9664.0,
+    "hands": [
+     24,
+     26,
+     22
+    ],
+    "method": "cfr",
+    "iterations": 30000,
+    "tolerance": "DCFR 30000 iterations; three-way CFR has no equilibrium guarantee, the gains below are the measure",
+    "solve_s": 39.31929087638855,
+    "gains": {
+     "value": [
+      5.551405643002037,
+      23.416545943827415,
+      1.0320484131705423
+     ],
+     "br": [
+      5.5514060941152685,
+      23.416547043126695,
+      1.032048413184397
+     ],
+     "gain": [
+      4.51113231214606e-07,
+      1.0992992791614142e-06,
+      1.3854695168902253e-11
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 39.328490018844604,
+    "peak_rss_mb": 38.609375
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "values_ref": [
+      5.551405643002037,
+      23.416545943827415,
+      1.0320484131705423
+     ],
+     "values_engine_own": [
+      5.551085472106934,
+      23.416544515367995,
+      1.032370772640271
+     ],
+     "values_engine_by_ref": [
+      5.551085687581666,
+      23.416543487284642,
+      1.0323708251336876
+     ],
+     "own_vs_ref_walk_bb": 1.0280833535603051e-06,
+     "value_diff_bb": 0.0003224119631453082,
+     "value_diff_pct_pot": 0.001074706543817694,
+     "nashconv_engine_by_ref_pct": 0.001281975702892198,
+     "nashconv_engine_own_pct": 0.0012828682430117884,
+     "nashconv_ref_pct": 5.16808788357063e-06,
+     "gains_engine_by_ref_bb": [
+      0.00013391312917310216,
+      0.00024974564207624894,
+      9.339396183083437e-07
+     ],
+     "gains_engine_own_bb": [
+      0.00013401966221326944,
+      0.00024992035138993174,
+      9.204593003353523e-07
+     ],
+     "gains_ref_bb": [
+      4.51113231214606e-07,
+      1.0992992791614142e-06,
+      1.3854695168902253e-11
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 7.105427357601002e-15,
+     "largest_tv_reached": 0.004957281973187065,
+     "mean_tv_weighted": 9.402690235167532e-05,
+     "wall_s": 0.12925004959106445,
+     "peak_rss_mb": 39.328125,
+     "use_core": true,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "values_ref": [
+      5.551405643002037,
+      23.416545943827415,
+      1.0320484131705423
+     ],
+     "values_engine_own": [
+      5.551440504213042,
+      23.41654627610665,
+      1.0320134352113033
+     ],
+     "values_engine_by_ref": [
+      5.551440588749531,
+      23.41654595040299,
+      1.0320134608474756
+     ],
+     "own_vs_ref_walk_bb": 3.257036595982754e-07,
+     "value_diff_bb": 3.495232306671703e-05,
+     "value_diff_pct_pot": 0.00011650774355572342,
+     "nashconv_engine_by_ref_pct": 0.00010709725543659823,
+     "nashconv_engine_own_pct": 0.00010708570806169013,
+     "nashconv_ref_pct": 5.16808788357063e-06,
+     "gains_engine_by_ref_bb": [
+      4.921086576459288e-06,
+      2.7207995060507528e-05,
+      9.499401265600227e-11
+     ],
+     "gains_engine_own_bb": [
+      4.92152788833522e-06,
+      2.720415837842438e-05,
+      2.6151747434255412e-11
+     ],
+     "gains_ref_bb": [
+      4.51113231214606e-07,
+      1.0992992791614142e-06,
+      1.3854695168902253e-11
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.0003660498269955907,
+     "mean_tv_weighted": 5.382660810582444e-06,
+     "wall_s": 1.2441620826721191,
+     "peak_rss_mb": 39.1875,
+     "use_core": true,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "values_ref": [
+      5.551405643002037,
+      23.416545943827415,
+      1.0320484131705423
+     ],
+     "values_engine_own": [
+      5.551395114683947,
+      23.416546070052238,
+      1.0320590173961284
+     ],
+     "values_engine_by_ref": [
+      5.551395088049212,
+      23.416545943736846,
+      1.0320589682139445
+     ],
+     "own_vs_ref_walk_bb": 1.2631539192398122e-07,
+     "value_diff_bb": 1.0555043402193931e-05,
+     "value_diff_pct_pot": 3.5183478007313106e-05,
+     "nashconv_engine_by_ref_pct": 1.0840513979815114e-05,
+     "nashconv_engine_own_pct": 1.0905052860721298e-05,
+     "nashconv_ref_pct": 5.16808788357063e-06,
+     "gains_engine_by_ref_bb": [
+      2.6896303930712406e-06,
+      5.62523791103331e-07,
+      9.769962616701378e-15
+     ],
+     "gains_engine_own_bb": [
+      2.690498402735386e-06,
+      5.81017452816468e-07,
+      2.6645352591003757e-15
+     ],
+     "gains_ref_bb": [
+      4.51113231214606e-07,
+      1.0992992791614142e-06,
+      1.3854695168902253e-11
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 3.552713678800501e-15,
+     "largest_tv_reached": 0.00017754806454778338,
+     "mean_tv_weighted": 2.437385069894205e-06,
+     "wall_s": 12.442816019058228,
+     "peak_rss_mb": 39.328125,
+     "use_core": true,
+     "pass": true
+    }
+   ],
+   "total_s": 53.58773493766785
+  },
+  "3way-river-low-spr": {
+   "spot": {
+    "name": "3way-river-low-spr",
+    "kind": "mw",
+    "board": "Ks7d2c3h9s",
+    "ranges": [
+     "KQs,QQ,JJ,98s,A2s,KJs",
+     "AKs,99,77,QJs,JTs,KTo",
+     "KTs,TT,AQs,87s,A3s,76s"
+    ],
+    "pot": 30,
+    "stack": 20,
+    "bet": [
+     0.5
+    ],
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 30000,
+    "raise_frac": 0.75,
+    "max_raises": 2,
+    "allin_spr": 1.5,
+    "rake": 0.0,
+    "cap": null,
+    "what": "three-way river, stacks under the pot, all-ins"
+   },
+   "reference": {
+    "build_s": 0.009530782699584961,
+    "acts": 42,
+    "ends": 55,
+    "deals": 9664.0,
+    "hands": [
+     24,
+     26,
+     22
+    ],
+    "method": "cfr",
+    "iterations": 30000,
+    "tolerance": "DCFR 30000 iterations; three-way CFR has no equilibrium guarantee, the gains below are the measure",
+    "solve_s": 50.622020959854126,
+    "gains": {
+     "value": [
+      5.354539685938741,
+      23.861319362525066,
+      0.7841409515361933
+     ],
+     "br": [
+      5.354624787543197,
+      23.861509932703196,
+      0.7842123815551058
+     ],
+     "gain": [
+      8.510160445585058e-05,
+      0.00019057017813040034,
+      7.143001891241063e-05
+     ]
+    },
+    "expected_rake": 0.0,
+    "wall_s": 50.633864879608154,
+    "peak_rss_mb": 42.75
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "values_ref": [
+      5.354539685938741,
+      23.861319362525066,
+      0.7841409515361933
+     ],
+     "values_engine_own": [
+      5.364647245564997,
+      23.859971663936978,
+      0.7753812039796408
+     ],
+     "values_engine_by_ref": [
+      5.364647222487236,
+      23.859971617058164,
+      0.7753811604545986
+     ],
+     "own_vs_ref_walk_bb": 4.6878813719786194e-08,
+     "value_diff_bb": 0.010107536548495055,
+     "value_diff_pct_pot": 0.03369178849498352,
+     "nashconv_engine_by_ref_pct": 0.01966298893751846,
+     "nashconv_engine_own_pct": 0.019661596687494308,
+     "nashconv_ref_pct": 0.0011570060049955384,
+     "gains_engine_by_ref_bb": [
+      0.0005992500405511691,
+      0.004922996211945474,
+      0.00037665042875889565
+     ],
+     "gains_engine_own_bb": [
+      0.0005992595723132155,
+      0.004922580907571472,
+      0.00037663852636360406
+     ],
+     "gains_ref_bb": [
+      8.510160445585058e-05,
+      0.00019057017813040034,
+      7.143001891241063e-05
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.19714742597829138,
+     "mean_tv_weighted": 0.009112680463095026,
+     "wall_s": 0.163621187210083,
+     "peak_rss_mb": 39.4375,
+     "use_core": true,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "values_ref": [
+      5.354539685938741,
+      23.861319362525066,
+      0.7841409515361933
+     ],
+     "values_engine_own": [
+      5.356114561984081,
+      23.860171051423407,
+      0.7837141687013605
+     ],
+     "values_engine_by_ref": [
+      5.356114544751896,
+      23.86017127743555,
+      0.7837141778125544
+     ],
+     "own_vs_ref_walk_bb": 2.260121441111096e-07,
+     "value_diff_bb": 0.001574858813154556,
+     "value_diff_pct_pot": 0.005249529377181854,
+     "nashconv_engine_by_ref_pct": 0.0021329319145639105,
+     "nashconv_engine_own_pct": 0.002134198906467155,
+     "nashconv_ref_pct": 0.0011570060049955384,
+     "gains_engine_by_ref_bb": [
+      0.00015127663926683965,
+      0.0003983521541073287,
+      9.025078099500483e-05
+     ],
+     "gains_engine_own_bb": [
+      0.00015129395668100898,
+      0.0003987446019522167,
+      9.022111330692084e-05
+     ],
+     "gains_ref_bb": [
+      8.510160445585058e-05,
+      0.00019057017813040034,
+      7.143001891241063e-05
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 3.552713678800501e-15,
+     "largest_tv_reached": 0.14804737184115857,
+     "mean_tv_weighted": 0.0024364909205704484,
+     "wall_s": 1.5904572010040283,
+     "peak_rss_mb": 39.34375,
+     "use_core": true,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "values_ref": [
+      5.354539685938741,
+      23.861319362525066,
+      0.7841409515361933
+     ],
+     "values_engine_own": [
+      5.35684524782446,
+      23.85983379765272,
+      0.7833213258411731
+     ],
+     "values_engine_by_ref": [
+      5.356845258153702,
+      23.85983345780739,
+      0.7833212840389091
+     ],
+     "own_vs_ref_walk_bb": 3.3984532876729645e-07,
+     "value_diff_bb": 0.0023055722149605273,
+     "value_diff_pct_pot": 0.007685240716535092,
+     "nashconv_engine_by_ref_pct": 0.0024098576650399828,
+     "nashconv_engine_own_pct": 0.002408913583262414,
+     "nashconv_ref_pct": 0.0011570060049955384,
+     "gains_engine_by_ref_bb": [
+      0.00014604144107632777,
+      0.0004418786237252448,
+      0.00013503723471042228
+     ],
+     "gains_engine_own_bb": [
+      0.00014602980076894312,
+      0.000441571953551545,
+      0.00013507232065823604
+     ],
+     "gains_ref_bb": [
+      8.510160445585058e-05,
+      0.00019057017813040034,
+      7.143001891241063e-05
+     ],
+     "rake_paid_bb": 0.0,
+     "conservation_bb": 0.0,
+     "largest_tv_reached": 0.13519306589049118,
+     "mean_tv_weighted": 0.004853813053210409,
+     "wall_s": 15.86152195930481,
+     "peak_rss_mb": 39.421875,
+     "use_core": true,
+     "pass": true
+    }
+   ],
+   "total_s": 68.70887494087219
+  },
+  "3way-river-rake": {
+   "spot": {
+    "name": "3way-river-rake",
+    "kind": "mw",
+    "board": "Ks7d2c3h9s",
+    "ranges": [
+     "KQs,QQ,JJ,98s,A2s,KJs",
+     "AKs,99,77,QJs,JTs,KTo",
+     "KTs,TT,AQs,87s,A3s,76s"
+    ],
+    "pot": 30,
+    "stack": 60,
+    "bet": [
+     0.5
+    ],
+    "reference": "cfr",
+    "engine_iters": [
+     300,
+     3000,
+     30000
+    ],
+    "ref_iters": 30000,
+    "raise_frac": 0.75,
+    "max_raises": 2,
+    "allin_spr": 0.0,
+    "rake": 0.05,
+    "cap": 3.0,
+    "what": "three-way river with 5% rake capped at 3 bb"
+   },
+   "reference": {
+    "build_s": 0.007485866546630859,
+    "acts": 33,
+    "ends": 43,
+    "deals": 9664.0,
+    "hands": [
+     24,
+     26,
+     22
+    ],
+    "method": "cfr",
+    "iterations": 30000,
+    "tolerance": "DCFR 30000 iterations; three-way CFR has no equilibrium guarantee, the gains below are the measure",
+    "solve_s": 38.9155068397522,
+    "gains": {
+     "value": [
+      5.020856667410643,
+      21.886561010074434,
+      0.8486211566478519
+     ],
+     "br": [
+      5.020856692707118,
+      21.88656152863809,
+      0.848621156661084
+     ],
+     "gain": [
+      2.5296474248648337e-08,
+      5.185636560156581e-07,
+      1.3232082096692466e-11
+     ]
+    },
+    "expected_rake": 2.243961165867044,
+    "wall_s": 38.92626714706421,
+    "peak_rss_mb": 38.75
+   },
+   "engine": [
+    {
+     "iterations": 300,
+     "tree_identical": true,
+     "values_ref": [
+      5.020856667410643,
+      21.886561010074434,
+      0.8486211566478519
+     ],
+     "values_engine_own": [
+      5.022179571208575,
+      21.886620885212178,
+      0.8469064417575701
+     ],
+     "values_engine_by_ref": [
+      5.0221797725214685,
+      21.88662037357973,
+      0.8469064768329986
+     ],
+     "own_vs_ref_walk_bb": 5.116324466314381e-07,
+     "value_diff_bb": 0.0017146798148532927,
+     "value_diff_pct_pot": 0.005715599382844309,
+     "nashconv_engine_by_ref_pct": 0.0015485983071935236,
+     "nashconv_engine_own_pct": 0.0015483275597509099,
+     "nashconv_ref_pct": 1.812911207821344e-06,
+     "gains_engine_by_ref_bb": [
+      0.00041264216537673093,
+      5.1204106156887974e-05,
+      7.332206244381467e-07
+     ],
+     "gains_engine_own_bb": [
+      0.0004126686134080515,
+      5.1113640452626896e-05,
+      7.16014064594539e-07
+     ],
+     "gains_ref_bb": [
+      2.5296474248648337e-08,
+      5.185636560156581e-07,
+      1.3232082096692466e-11
+     ],
+     "rake_paid_bb": 2.2442933770658238,
+     "conservation_bb": 2.1316282072803006e-14,
+     "largest_tv_reached": 0.007171824876473387,
+     "mean_tv_weighted": 0.00013488722396310637,
+     "wall_s": 0.12801098823547363,
+     "peak_rss_mb": 39.3125,
+     "use_core": true,
+     "pass": true
+    },
+    {
+     "iterations": 3000,
+     "tree_identical": true,
+     "values_ref": [
+      5.020856667410643,
+      21.886561010074434,
+      0.8486211566478519
+     ],
+     "values_engine_own": [
+      5.020766840075815,
+      21.886575656885302,
+      0.8487376092847385
+     ],
+     "values_engine_by_ref": [
+      5.020766750844552,
+      21.886575771788756,
+      0.8487376030070972
+     ],
+     "own_vs_ref_walk_bb": 1.1490345386278022e-07,
+     "value_diff_bb": 0.00011644635924534796,
+     "value_diff_pct_pot": 0.0003881545308178265,
+     "nashconv_engine_by_ref_pct": 0.00014009409610789744,
+     "nashconv_engine_own_pct": 0.00014008063548935173,
+     "nashconv_ref_pct": 1.812911207821344e-06,
+     "gains_engine_by_ref_bb": [
+      2.9694341010078062e-05,
+      1.2333814289888778e-05,
+      7.353240238927583e-11
+     ],
+     "gains_engine_own_bb": [
+      2.9691797218234228e-05,
+      1.2332370669554393e-05,
+      2.2759016893303397e-11
+     ],
+     "gains_ref_bb": [
+      2.5296474248648337e-08,
+      5.185636560156581e-07,
+      1.3232082096692466e-11
+     ],
+     "rake_paid_bb": 2.2439198743595896,
+     "conservation_bb": 3.552713678800501e-15,
+     "largest_tv_reached": 0.0006610120205399472,
+     "mean_tv_weighted": 9.344350360854268e-06,
+     "wall_s": 1.2494709491729736,
+     "peak_rss_mb": 39.28125,
+     "use_core": true,
+     "pass": true
+    },
+    {
+     "iterations": 30000,
+     "tree_identical": true,
+     "values_ref": [
+      5.020856667410643,
+      21.886561010074434,
+      0.8486211566478519
+     ],
+     "values_engine_own": [
+      5.0208649643209595,
+      21.88655938857523,
+      0.8486103143123579
+     ],
+     "values_engine_by_ref": [
+      5.020865018798595,
+      21.88655984285656,
+      0.8486103433442441
+     ],
+     "own_vs_ref_walk_bb": 4.542813307750748e-07,
+     "value_diff_bb": 1.0813303607748459e-05,
+     "value_diff_pct_pot": 3.604434535916153e-05,
+     "nashconv_engine_by_ref_pct": 1.709914228431586e-05,
+     "nashconv_engine_own_pct": 1.7041662500420312e-05,
+     "nashconv_ref_pct": 1.812911207821344e-06,
+     "gains_engine_by_ref_bb": [
+      2.558035524735658e-06,
+      2.5717071530095836e-06,
+      7.549516567451064e-15
+     ],
+     "gains_engine_own_bb": [
+      2.557868199914992e-06,
+      2.554630547990655e-06,
+      2.220446049250313e-15
+     ],
+     "gains_ref_bb": [
+      2.5296474248648337e-08,
+      5.185636560156581e-07,
+      1.3232082096692466e-11
+     ],
+     "rake_paid_bb": 2.2439647950005863,
+     "conservation_bb": 1.4210854715202004e-14,
+     "largest_tv_reached": 0.000245435343486089,
+     "mean_tv_weighted": 3.6597762934874564e-06,
+     "wall_s": 12.346735954284668,
+     "peak_rss_mb": 39.359375,
+     "use_core": true,
+     "pass": true
+    }
+   ],
+   "total_s": 53.09406614303589
+  }
+ },
+ "machine": {
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "cpu": "Apple M4",
+  "memory_gb": 16.0,
+  "python": "3.9.6",
+  "numpy": "2.0.2",
+  "scipy": "1.13.1",
+  "git_commit": "8d902b6f1c4653c8d054f835794358f2a5f3bdf3",
+  "solver_upstream_commit": "1a14605e09d0cc58414b3a8a6c693041cbc2968d",
+  "threads": 1,
+  "load_note": "run niced through slot.sh beside other builds: times are a loaded machine's, not a benchmark of speed"
+ },
+ "tolerances": {
+  "value_pct_pot": 0.05,
+  "exploitability_pct_pot": 0.05,
+  "three_way_nashconv_pct_pot": 0.1,
+  "tv_flag": 0.05,
+  "reach_floor": 0.001,
+  "indifferent_pct_pot": 0.1
+ },
+ "numpy_parity": {
+  "spot": "river-two-sizes",
+  "iterations": 3000,
+  "core": {
+   "use_core": true,
+   "wall_s": 0.03292703628540039,
+   "peak_rss_mb": 39.015625,
+   "value_diff_pct_pot": 3.162383466204233e-08,
+   "expl_engine_own_pct": 0.0004004748841269111,
+   "expl_engine_by_ref_pct": 0.0003977873088112371,
+   "pass": true
+  },
+  "numpy": {
+   "use_core": false,
+   "wall_s": 5.4837870597839355,
+   "peak_rss_mb": 38.734375,
+   "value_diff_pct_pot": 1.0051914856035182e-09,
+   "expl_engine_own_pct": 0.00031358322252774887,
+   "expl_engine_by_ref_pct": 0.00031585967219194266,
+   "pass": true
+  },
+  "largest_tv_reached": 0.00616238749744385,
+  "largest_tv_any_infoset": 0.15526091531625932
+ },
+ "last_run_s": 353.67000818252563
+}

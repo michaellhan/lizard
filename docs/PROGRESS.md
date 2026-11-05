@@ -4156,3 +4156,18 @@ Study filters by equity bucket: 0 to 25, 25 to 50, 50 to 75 and 75 to 100%, agai
 Plan now puts its steps above the rule, since the rule took a whole phone screen. A wide table's right edge now fades while there's more to scroll to. In a real Chromium: forced colours keep the fills and draw cell edges and the selected cell, reduced motion stops transitions and keeps that cue, one Tab crosses the grid, and Copy for AI reaches the real clipboard (`web/e2e/modes.e2e.ts`). The report chart draws 1,694 flops on the live library. Firefox has no scroll timelines, so it gets no cue.
 
 Tests: 2628 unit tests in 147 files, typecheck and lint clean, 111 browser tests passed and 54 skipped (the QA list and system-mode checks at the other two widths).
+
+Live check of `8d902b6` (run 42064203315, 2026-11-05): `index-DGSeHMgE.js` at 298,193 bytes, the name a local build gave, with `/`, `/gto-solver/`, `/gto-solver-classic/`, `/lizard/review/` and the manifest at 200.
+
+### A numerical benchmark against an independent reference, the favicon, and a web manifest (Phases 4, 7)
+
+`scripts/benchmarks/` holds a reference solver written separately from the engine: its own evaluator, tree walker and best response, an exact sequence-form LP through scipy, and a DCFR for raked, flop and 3-way spots. On all 16 small spots, on trees checked identical node by node, the engine's exact mode agrees with it: at the highest iteration count, every game value is within 0.01% of the pot, and exploitability is under 0.003%. Two of 44 runs failed the 0.05% tolerance, both at 300 iterations, short of converged rather than in disagreement. No engine bug turned up. Details and commands are in `docs/ACCURACY.md` section 14.
+
+Three limits matter. The largest spot is 125 by 141 hands, and the app's real solves use buckets, so this says nothing about abstraction error. The tree rules were restated from the engine, so identical trees show agreement, not that the rules match a poker room. The same agent wrote the reference after reading the engine, and only the LP differs from it in method.
+
+It measured one known approximation: in prize equity the engine pays a split as the mean of a win and a loss, as its comment says. On a bubble river built to chop, that leaves the solve 0.25% of the pot exploitable in the true payoffs, with values off by up to 0.67% of the pot. That's a deliberate worst case. `solver/` stays unchanged.
+
+One 3-way river (low stack-to-pot ratio) doesn't settle: both sides are hard to exploit, but they may be near different equilibria, so passing doesn't show they match.
+
+Separately, the favicon was a 404 on every page but home, because its path was relative. It now uses the base path, as does a new web manifest. Adding Lizard to a real phone's home screen hasn't been tried.
+

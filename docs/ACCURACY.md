@@ -12,8 +12,8 @@ Paths are relative to `/Users/mhan/Desktop/projects/lizard/`. The tags are the s
 | **[M]** | A measurement recorded upstream (README, a code comment, a test, a build log), quoted but not reproduced here. Most were taken on a 10-core Mac laptop, often while a library build was running. |
 | **[I]** | Inferred, or a judgement. |
 
-None of the numbers below were re-measured for this document: no solver, test or benchmark was run while it was
-written.
+Outside section 14, none of the numbers below were re-measured for this document: no solver, test or benchmark was
+run while it was written. Section 14 was measured for it.
 
 ---
 
@@ -32,6 +32,8 @@ written.
   are answered by heuristic betting rules, not a solve [V].
 - **Tournament (ICM) answers** use the Malmuth-Harville model: exact for that model, but the model is itself an
   approximation. Preflop ICM adjustments and the bounty model are heuristics [V].
+- **The exact engine underneath** agrees with an independent reference on 16 small spots: rivers, turns, one tiny flop
+  and three-way rivers. That covers small exact trees, not the app's abstractions or real range sizes (section 14).
 - **The rule:** every number LIZARD shows carries its provenance. Approximate answers are labelled. Charts and
   rules are never called "solved" (section 11).
 
@@ -312,7 +314,7 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
 | Piece | Status | Limits |
 |---|---|---|
 | ICM equity (`icm.py`) | Malmuth-Harville, exact by dynamic programming, O(2^n·n) [V] | Up to 12 players modelled (`icm.py:25`). Bigger fields become average-stack stand-ins with compressed payouts (`icm.py:166-195`). No future-game model (`README.md:4597`) [M] |
-| Heads-up postflop | Solved in prize equity (`HUPayoffs`, `advisor.py:8136-8150`) [V] | Every tournament flop is a live solve: the libraries are skipped under ICM (`advisor.py:4742, 4826-4827`) [V] |
+| Heads-up postflop | Solved in prize equity (`HUPayoffs`, `advisor.py:8136-8150`) [V] | Every tournament flop is a live solve: the libraries are skipped under ICM (`advisor.py:4742, 4826-4827`) [V]. A split pays the mean of a win and a loss: 0.25% of the pot given up on a river built to chop (section 14.6) |
 | 3- and 4-way postflop | Solved with `MWPayoffs` [V] | Who wins when a player busts is averaged: 0.002-0.33% of the pot given up against the exact prize game on a 3-way river (`scripts/bench_mw_icm.py`) [M]. A chip-EV solve on a bubble gives up 3.3-5.5% [M] |
 | 5+ way pots | Betting rules, in chips [M] | Not ICM-aware |
 | Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M] | Heuristic. Study's preflop solver refuses tournaments (`pf_study.py:187-188`) [V] |
@@ -423,6 +425,9 @@ These commands exist in the repository. Run them from `solver/` with the project
 running**: the suites and benchmarks are CPU-heavy, and timing-based results change under load. Use
 `nice -n 19` and one module at a time.
 
+The numerical benchmark against an independent reference runs from the Lizard root, with its own venv: see section
+14.2.
+
 **Tests that pin accuracy**
 
 ```bash
@@ -479,3 +484,231 @@ python -m gto.server --port 8765     # then: curl -X POST localhost:8765/advise 
   turns). Treat the "vs reference" figures as indicative.
 - Mobile devices were not measured. Expect fewer iterations per second than the desktop figures, and therefore
   rougher answers at the same budget [I].
+
+---
+
+## 14. Numerical benchmark against an independent reference
+
+This section is the exception to the note at the top: everything in it was measured for this document, on the date
+and machine below, by the commands below. Raw numbers are in `scripts/benchmarks/results/`. It answers one question:
+**on small spots, on the same tree and ranges, does the engine reach the same answer as a solver written separately
+from the game's rules?** It says nothing directly about the answers the app gives on real spots (see 14.6).
+
+### 14.1 The reference, and how independent it is
+
+`scripts/benchmarks/refsolver/` imports no engine code, and that is checked: `ref_worker.py` refuses to write its
+result if any `gto` module was loaded, and `test_reference.py` greps the package. It has its own hand evaluator, tree
+walker, card-removal arithmetic, best response, prize model and rake arithmetic.
+
+| Part | What it is |
+|---|---|
+| Exact method | A sequence-form LP (von Stengel; Koller, Megiddo, von Stengel) solved twice, once from each side, by HiGHS through scipy. Zero-sum heads-up only: `highs-ds` on rivers, `highs-ipm` on turns and the wide river. |
+| Iterative method | Its own DCFR in float64, for what the LP can't do: raked games, which aren't zero-sum, the flop, whose LP was not attempted, and three-way pots, where no LP gives an equilibrium. |
+| Best response | Exact, in float64, walking the tree it built itself. Every "by the reference" number below comes from this, applied to the engine's exported strategies. |
+| Evaluator | Checked on every 5-card and 7-card hand against the published counts (14.3). |
+
+What is **not** independent, so a shared mistake here would not show:
+
+- **The tree's rules are restated, not rediscovered.** The size rounding, the all-in rule, the raise cap and the rake
+  base are the engine's own rules, read from `solver/gto/solver.py` and written again in `refsolver/rules.py`, because
+  the point is to solve the same game. Comparing trees node by node proves the two agree, not that the rule is what a
+  poker room does.
+- **Same author, same idea of the layout.** The reference was written by the same agent that read the engine for its
+  menu, not by a separate team. Its DCFR is the same family of method as the engine's, in the same per-board, per-hand
+  array layout. The LP shares neither, so it is the independent check on method, and the DCFR is checked against it.
+- **The spots are read by a helper.** `engine_worker.py` is the only benchmark file that imports `gto`. It uses
+  `refsolver.cards` to turn a spot's text into combos, so both sides get the same range by construction: a range-parsing
+  mistake would be shared. Comparing the engine's own range parser is outside this benchmark.
+- **HiGHS and scipy** are outside dependencies, trusted as such. They are dev-only: `scripts/benchmarks/.venv`, never
+  shipped.
+
+### 14.2 How to run it
+
+The machine for every number below: Apple M4 (10 cores), 16 GB, macOS 26.5.2 arm64, Python 3.9.6, numpy 2.0.2, scipy
+1.13.1, Lizard at commit `8d902b6` with uncommitted edits outside `solver/`, engine at upstream `1a14605`, compiled core,
+one thread, `nice -n 10`, run through `slot.sh` beside other builds. **Times are a loaded machine's**: read them as
+sizes, not speeds. Measured 2026-11-05.
+
+```bash
+python3 -m venv scripts/benchmarks/.venv                    # dev only: nothing in the app depends on it
+scripts/benchmarks/.venv/bin/pip install numpy==2.0.2 treys==0.1.8 scipy==1.13.1
+SLOT=/Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh   # while the precomputation builds run
+PY=scripts/benchmarks/.venv/bin/python
+$SLOT nice -n 10 $PY scripts/benchmarks/run_benchmark.py        # every spot: 6 minutes; --spots a,b for some
+$SLOT nice -n 10 $PY scripts/benchmarks/invariants.py           # the checks in 14.5: 20 seconds
+$SLOT nice -n 10 $PY scripts/benchmarks/check_evaluator.py      # every 5- and 7-card hand: 90 seconds
+$PY scripts/benchmarks/run_benchmark.py --table                 # the tables below, from the results
+python -m unittest discover -s scripts/benchmarks               # the reference on known games: 12 s, numpy only
+```
+
+Each spot runs the reference and the engine in separate processes (`ref_worker.py`, `engine_worker.py`), so the
+engine's strategies reach the reference only as exported numbers. The engine's `Config` deals every turn and river,
+with no buckets, card classes or sampling. Each iteration count is a fresh solve, because the engine's schedule depends
+on its horizon. Raw results: `scripts/benchmarks/results/benchmark.json`, `invariants.json`, `evaluator_counts.json`.
+
+The tolerances are fixed in `compare.py`: game value within **0.05% of the pot** and the
+engine's exploitability, by the reference's best response, under **0.05% of the pot** (three-way: the sum of all three
+gains under 0.10%, and the engine's own walk within 0.05%). Exploitability is half the sum of the two players' gains
+(`br - value`), the same quantity as section 2.1. That is well defined in raked and three-way games too. There the two
+gains are each a player's distance from a best response, and no longer bracket a single game value.
+
+### 14.3 Hand evaluator
+
+Against the standard counts of hold'em hand ranks, by enumerating every hand (`check_evaluator.py`), all match:
+2,598,960 five-card hands in 7,462 distinct values, and 133,784,560 seven-card hands in 4,824 distinct values, each
+category exact. Against the engine's evaluator: every hand on each of 3,000 random boards, 1,081 hands each, 0 boards
+with any difference in order.
+
+### 14.4 Results
+
+Hands are OOP x IP combos. `Value diff` is the largest difference in either player's value between the engine's
+strategies, walked by the reference, and the reference's solution. `Expl` is by the reference's best response.
+`Largest TV` and `Mean TV` are total variation between the two strategies, on infosets reached at least once per
+thousand deals, and reach-weighted over all. `Differ / within indiff.`: infosets past 0.05 TV and that reach floor,
+and how many of those are explained by an indifference (every action the engine plays more than the reference earns
+within 0.10% of the pot of the best one, against the reference's opponent). `Ref s` is the whole reference process,
+including the bounds and the DCFR check. `lp` means exact; `cfr` means the reference's DCFR, so on those rows both
+sides are iterative and each is measured by the reference's exact best response.
+
+| Spot | Reference | Hands | Iter | Value OOP ref (bb) | Value diff (bb) | Value diff (% pot) | Expl engine (% pot) | Expl ref (% pot) | Largest TV | Mean TV | Differ / within indiff. | Engine s | Engine MB | Ref s | Ref MB | Pass |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| river-one-size | lp | 40x55 | 300 | 2.6557 | 1.27e-07 | 0.00000 | 0.00046 | 1.1e-15 | 1.000 | 0.0521 | 28 / 28 | 0.003 | 39 | 4.6 | 70 | yes |
+| river-one-size | lp | 40x55 | 3000 | 2.6557 | 3.31e-09 | 0.00000 | 0.00014 | 1.1e-15 | 1.000 | 0.0496 | 28 / 28 | 0.014 | 39 | 4.6 | 70 | yes |
+| river-one-size | lp | 40x55 | 30000 | 2.6557 | 2.79e-11 | 0.00000 | 0.00001 | 1.1e-15 | 1.000 | 0.0480 | 28 / 28 | 0.118 | 39 | 4.6 | 70 | yes |
+| river-two-sizes | lp | 40x55 | 300 | 3.1278 | 2.17e-04 | 0.00108 | 0.00603 | 8.9e-15 | 0.982 | 0.0657 | 53 / 51 | 0.006 | 39 | 13.5 | 103 | yes |
+| river-two-sizes | lp | 40x55 | 3000 | 3.1278 | 6.32e-09 | 0.00000 | 0.00040 | 8.9e-15 | 0.972 | 0.0635 | 51 / 51 | 0.033 | 39 | 13.5 | 103 | yes |
+| river-two-sizes | lp | 40x55 | 30000 | 3.1278 | 9.41e-11 | 0.00000 | 0.00019 | 8.9e-15 | 0.905 | 0.0623 | 49 / 49 | 0.307 | 39 | 13.5 | 103 | yes |
+| river-low-spr | lp | 40x55 | 300 | 3.2870 | 1.60e-05 | 0.00004 | 0.00208 | 4.4e-15 | 1.000 | 0.1357 | 48 / 48 | 0.003 | 39 | 2.2 | 61 | yes |
+| river-low-spr | lp | 40x55 | 3000 | 3.2870 | 1.07e-07 | 0.00000 | 0.00027 | 4.4e-15 | 1.000 | 0.1352 | 52 / 52 | 0.009 | 39 | 2.2 | 61 | yes |
+| river-low-spr | lp | 40x55 | 30000 | 3.2870 | 1.86e-09 | 0.00000 | 0.00003 | 4.4e-15 | 1.000 | 0.1413 | 52 / 52 | 0.071 | 39 | 2.2 | 61 | yes |
+| river-flush | lp | 18x10 | 300 | -0.7317 | 1.63e-04 | 0.00082 | 0.14511 | 1.0e-14 | 0.900 | 0.0588 | 26 / 17 | 0.004 | 39 | 7.0 | 60 | NO |
+| river-flush | lp | 18x10 | 3000 | -0.7317 | 2.82e-07 | 0.00000 | 0.00368 | 1.0e-14 | 0.749 | 0.0701 | 32 / 28 | 0.017 | 39 | 7.0 | 60 | yes |
+| river-flush | lp | 18x10 | 30000 | -0.7317 | 1.35e-08 | 0.00000 | 0.00009 | 1.0e-14 | 0.721 | 0.0715 | 33 / 33 | 0.146 | 39 | 7.0 | 60 | yes |
+| river-board-plays | lp | 43x19 | 300 | -1.1772 | 1.43e-06 | 0.00001 | 0.00620 | 1.1e-15 | 1.000 | 0.0676 | 20 / 20 | 0.003 | 39 | 2.7 | 60 | yes |
+| river-board-plays | lp | 43x19 | 3000 | -1.1772 | 3.10e-08 | 0.00000 | 0.00048 | 1.1e-15 | 1.000 | 0.0679 | 20 / 20 | 0.011 | 39 | 2.7 | 60 | yes |
+| river-board-plays | lp | 43x19 | 30000 | -1.1772 | 1.39e-09 | 0.00000 | 0.00005 | 1.1e-15 | 1.000 | 0.0698 | 20 / 20 | 0.093 | 39 | 2.7 | 60 | yes |
+| river-weighted | lp | 36x44 | 300 | 5.7403 | 2.77e-04 | 0.00139 | 0.01834 | 4.4e-15 | 0.734 | 0.0930 | 54 / 54 | 0.003 | 39 | 4.5 | 66 | yes |
+| river-weighted | lp | 36x44 | 3000 | 5.7403 | 2.66e-07 | 0.00000 | 0.00076 | 4.4e-15 | 0.764 | 0.0913 | 59 / 59 | 0.014 | 39 | 4.5 | 66 | yes |
+| river-weighted | lp | 36x44 | 30000 | 5.7403 | 5.82e-09 | 0.00000 | 0.00012 | 4.4e-15 | 0.765 | 0.0920 | 61 / 61 | 0.122 | 39 | 4.5 | 66 | yes |
+| river-app-menu | lp | 125x141 | 300 | -0.6848 | 6.66e-06 | 0.00003 | 0.08370 | 6.3e-14 | 0.806 | 0.1293 | 251 / 234 | 0.011 | 39 | 12.2 | 312 | NO |
+| river-app-menu | lp | 125x141 | 3000 | -0.6848 | 8.62e-06 | 0.00004 | 0.00193 | 6.3e-14 | 0.885 | 0.0768 | 160 / 160 | 0.081 | 39 | 12.2 | 312 | yes |
+| river-app-menu | lp | 125x141 | 10000 | -0.6848 | 5.22e-07 | 0.00000 | 0.00029 | 6.3e-14 | 0.884 | 0.0741 | 156 / 156 | 0.263 | 40 | 12.2 | 312 | yes |
+| river-rake-5pct-cap2 | cfr | 40x55 | 300 | 1.8669 | 8.62e-05 | 0.00043 | 0.00246 | 1.0e-05 | 0.149 | 0.0056 | 9 / 9 | 0.004 | 39 | 4.2 | 25 | yes |
+| river-rake-5pct-cap2 | cfr | 40x55 | 3000 | 1.8669 | 4.43e-06 | 0.00002 | 0.00010 | 1.0e-05 | 0.083 | 0.0031 | 3 / 3 | 0.018 | 39 | 4.2 | 25 | yes |
+| river-rake-5pct-cap2 | cfr | 40x55 | 30000 | 1.8669 | 4.60e-07 | 0.00000 | 0.00001 | 1.0e-05 | 0.029 | 0.0011 | 0 / 0 | 0.163 | 39 | 4.2 | 25 | yes |
+| river-rake-5pct-nocap | cfr | 40x55 | 300 | 1.7499 | 9.21e-05 | 0.00046 | 0.00171 | 7.3e-06 | 0.160 | 0.0060 | 9 / 9 | 0.003 | 39 | 4.3 | 25 | yes |
+| river-rake-5pct-nocap | cfr | 40x55 | 3000 | 1.7499 | 2.82e-06 | 0.00001 | 0.00002 | 7.3e-06 | 0.077 | 0.0030 | 3 / 3 | 0.015 | 39 | 4.3 | 25 | yes |
+| river-rake-5pct-nocap | cfr | 40x55 | 30000 | 1.7499 | 1.43e-06 | 0.00001 | 0.00000 | 7.3e-06 | 0.026 | 0.0010 | 0 / 0 | 0.134 | 39 | 4.3 | 25 | yes |
+| turn-one-size | lp | 18x20 | 300 | 9.3607 | 5.21e-05 | 0.00026 | 0.02387 | 2.2e-14 | 0.143 | 0.0302 | 6 / 6 | 0.057 | 45 | 53.5 | 209 | yes |
+| turn-one-size | lp | 18x20 | 3000 | 9.3607 | 1.35e-08 | 0.00000 | 0.00090 | 2.2e-14 | 0.133 | 0.0292 | 6 / 6 | 0.429 | 44 | 53.5 | 209 | yes |
+| turn-rake | cfr | 18x20 | 300 | 8.2854 | 4.80e-04 | 0.00240 | 0.02495 | 1.3e-04 | 0.067 | 0.0081 | 3 / 3 | 0.064 | 45 | 5.1 | 32 | yes |
+| turn-rake | cfr | 18x20 | 3000 | 8.2854 | 1.14e-05 | 0.00006 | 0.00114 | 1.3e-04 | 0.016 | 0.0022 | 0 / 0 | 0.485 | 45 | 5.1 | 32 | yes |
+| turn-low-spr | lp | 20x17 | 300 | 1.5344 | 7.62e-06 | 0.00003 | 0.00800 | 2.8e-13 | 0.500 | 0.0255 | 12 / 12 | 0.026 | 43 | 6.4 | 108 | yes |
+| turn-low-spr | lp | 20x17 | 3000 | 1.5344 | 3.22e-08 | 0.00000 | 0.00052 | 2.8e-13 | 0.500 | 0.0247 | 12 / 12 | 0.125 | 43 | 6.4 | 108 | yes |
+| flop-tiny | cfr | 13x22 | 300 | 2.0837 | 1.86e-04 | 0.00093 | 0.01592 | 2.1e-04 | 0.336 | 0.0220 | 52 / 52 | 1.080 | 93 | 21.0 | 154 | yes |
+| flop-tiny | cfr | 13x22 | 3000 | 2.0837 | 2.92e-06 | 0.00001 | 0.00074 | 2.1e-04 | 0.138 | 0.0034 | 8 / 8 | 5.883 | 93 | 21.0 | 154 | yes |
+
+| Spot | Hands | Iter | Values ref (bb) | Value diff (% pot) | NashConv engine (% pot) | NashConv ref (% pot) | Largest TV | Mean TV | Engine s | Engine MB | Ref s | Ref MB | Pass |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 3way-river-one-size | 24x26x22 | 300 | 5.551 / 23.417 / 1.032 | 0.0011 | 0.00128 | 0.00001 | 0.005 | 0.0001 | 0.13 | 39 | 39.3 | 39 | yes |
+| 3way-river-one-size | 24x26x22 | 3000 | 5.551 / 23.417 / 1.032 | 0.0001 | 0.00011 | 0.00001 | 0.000 | 0.0000 | 1.24 | 39 | 39.3 | 39 | yes |
+| 3way-river-one-size | 24x26x22 | 30000 | 5.551 / 23.417 / 1.032 | 0.0000 | 0.00001 | 0.00001 | 0.000 | 0.0000 | 12.44 | 39 | 39.3 | 39 | yes |
+| 3way-river-low-spr | 24x26x22 | 300 | 5.355 / 23.861 / 0.784 | 0.0337 | 0.01966 | 0.00116 | 0.197 | 0.0091 | 0.16 | 39 | 50.6 | 43 | yes |
+| 3way-river-low-spr | 24x26x22 | 3000 | 5.355 / 23.861 / 0.784 | 0.0052 | 0.00213 | 0.00116 | 0.148 | 0.0024 | 1.59 | 39 | 50.6 | 43 | yes |
+| 3way-river-low-spr | 24x26x22 | 30000 | 5.355 / 23.861 / 0.784 | 0.0077 | 0.00241 | 0.00116 | 0.135 | 0.0049 | 15.86 | 39 | 50.6 | 43 | yes |
+| 3way-river-rake | 24x26x22 | 300 | 5.021 / 21.887 / 0.849 | 0.0057 | 0.00155 | 0.00000 | 0.007 | 0.0001 | 0.13 | 39 | 38.9 | 39 | yes |
+| 3way-river-rake | 24x26x22 | 3000 | 5.021 / 21.887 / 0.849 | 0.0004 | 0.00014 | 0.00000 | 0.001 | 0.0000 | 1.25 | 39 | 38.9 | 39 | yes |
+| 3way-river-rake | 24x26x22 | 30000 | 5.021 / 21.887 / 0.849 | 0.0000 | 0.00002 | 0.00000 | 0.000 | 0.0000 | 12.35 | 39 | 38.9 | 39 | yes |
+
+**What these show.**
+
+- **The trees are the same.** All 16 spots, node by node: players, actions in order, chips, rake, boards.
+- **No disagreement in value.** At 3,000 iterations and above, every heads-up spot is within 0.00006% of the pot of
+  the reference, and every three-way spot within 0.0077%. On the seven exact-LP rivers and two exact-LP turns, the
+  LP's value lies inside the bracket set by the engine's two best responses on every run.
+- **The engine's own exploitability is right.** On every heads-up run, what the engine reports matches the
+  reference's best response on its strategies within 0.00001% of the pot. Nothing in this benchmark contradicts section
+  2.1's measure, on trees this size.
+- **Strategies differ, and that is expected.** Largest TV is often near 1.0 on the exact rivers, and mean TV 0.03 to
+  0.14. The LP returns a vertex, while CFR's average sits inside the set of equilibria, so a hand that is exactly
+  indifferent can read as pure on one side and mixed on the other. On every run at 3,000 iterations or more but one,
+  every flagged infoset is within an indifference, most of them to rounding (gaps of 1e-13 bb or less). The LP's bounds agree: where
+  they were run (rivers, turns), the engine's root frequencies at 3,000+ iterations are at most 0.0053 percentage points
+  outside the range of every optimal plan. The strategy numbers alone would have been a false alarm.
+- **The DCFR agrees with the LP.** On each LP spot it reaches the LP's value within 5e-6 bb, which is the check that
+  the reference's iterative rows can be trusted.
+- **CEV identities hold.** Zero-sum and rake conservation (the two players' values sum to minus the rake) hold to
+  2e-14 bb on the reference's walk of the engine's strategies, and three-way chips to 2e-14. The engine's own values
+  match that walk within 5e-6 bb (float32 rounding), its displayed root EVs within 4e-5 bb per combo and action, and
+  those EVs mixed by its strategy give its value within 3e-6 bb.
+- **The engine's two paths agree.** River-two-sizes at 3,000 iterations, compiled core against numpy (`GTO_CORE=0`):
+  exploitability 0.00040% and 0.00032%, largest TV 0.006 on reached infosets. They are not bit-identical. The largest
+  TV anywhere is 0.155, on an infoset that is reached too rarely to matter. Numpy took 5.5 s to the core's 0.03 s.
+
+### 14.5 Invariants
+
+`invariants.py`: all pass. Each one is checked, not assumed, and a spoiled answer has to fail (the last row).
+
+| Check | What was compared | Largest difference |
+|---|---|---|
+| Polar river, closed form | Air's bet and the catcher's call, value: engine, reference, against the hand solution; no rake, 5%, 5% capped at 2 | Frequencies 0.0003; value 0.0004 bb (engine, 20,000 iterations) |
+| Locked node, by hand | Engine's best response into a locked river: action EVs -4 and +8, and a `TendencyLock` fold +30 giving -4, worked on paper | 0 |
+| Locked node, on a spot | Engine's best response, per combo and action, against the reference's own, with a `TendencyLock` and an arbitrary per-combo lock, 40 combos | 1.2e-5 bb |
+| Node subgame | The ranges reaching a node in the whole solve, solved alone by the engine and by the LP, against the value inside the whole. River facing a bet; a river after a turn checks through | Whole vs LP 1.4e-5 bb; alone vs LP 1.6e-6 bb |
+| Prize model | Malmuth-Harville against walking every finishing order, 4 cases | 1e-14 |
+| ICM terminals | Engine's prize equity at each terminal against the reference's, from its own count | 4e-15 chip equivalents |
+| River in prize equity | Non-zero-sum, DCFR on both sides: tree identical, values 1.04476 / -2.02025 on both | 8e-6 chip equivalents |
+| Winner-take-all | The same river in prizes and in chips | 3e-6 bb |
+| Bubble direction | Two players in a pot lose prize equity to the third: the values sum to -0.975, chips to 0 | sign only: a sanity check |
+| Determinism | The same solve twice, engine and LP | Identical |
+| Would it notice? | Engine's answer spoiled on purpose: 5% toward uniform (exploitability 1.31%), hands crossed (40.2%), half a blind off at one showdown, actions reordered. Each must fail | All four failed, the clean run passed |
+
+The ICM terminal check also found a bug, **in the reference**: a player busted by the hand got nothing, instead of the
+place left to them. The engine was right, and the reference was fixed.
+
+### 14.6 Failures, and what this does not show
+
+**Failed the tolerance (2 of 44 runs).** Neither is a disagreement. Both are 300-iteration runs short of converged, and
+the engine reports the same number itself:
+
+| Run | Exploitability | Same spot at more iterations |
+|---|---|---|
+| river-flush, 300 iterations | 0.145% (engine says 0.145%) | 0.0037% at 3,000 |
+| river-app-menu, 300 iterations | 0.084% (engine says 0.084%) | 0.0019% at 3,000 |
+
+**Outside an indifference, though passing.** River-flush at 3,000 iterations has 4 of 32 flagged infosets with an action
+0.026 bb short of the best one (0.13% of the pot), against the 0.10% ceiling. They clear at 30,000. River-two-sizes
+and river-app-menu have 2 and 17 such infosets at 300 iterations, none at 3,000.
+
+**Three-way, one spot that doesn't settle.** 3way-river-low-spr gets no better with iterations: NashConv 0.0021% at
+3,000 and 0.0024% at 30,000, value difference 0.0052% then 0.0077%, largest TV about 0.14. The reference stalls too,
+at 0.0012%. Both are small and pass, but three-way CFR has no convergence guarantee, the two sides may be near
+different equilibria, and no indifference check exists for three-way strategies here. Passing means each is hard to
+exploit, not that they are the same.
+
+**A known approximation, measured (engine's side).** In prize equity the engine pays a split the mean of a win and a
+loss (`solver/gto/icm.py`, `HUPayoffs.showdown`), which it documents. The rule is that each player gets their half
+back. At the all-in of a 60-chip pot that is 0.80 chip equivalents apart. On a river built to chop often, at a bubble,
+the engine's solve, 0.00003% in its own payoffs, is **0.25% of the pot** exploitable in the true payoffs, and its
+reported values are off by up to 0.67% of the pot. Its comment says ties are rare, and on most boards they are; this
+spot is the worst case on purpose and not a typical cost. Three-way is not measured.
+
+**Not compared, and why.**
+
+| Not compared | Why |
+|---|---|
+| The app's real solves: bucketed flops, card classes, river classes, sampled runouts, later-street size limits | Those are abstractions of the game, so "identical tree" doesn't apply. Everything above is the exact game. This benchmark checks the engine underneath, not section 2.2's abstraction error |
+| The precomputed library, preflop charts, and rule fallbacks | Not this engine's exact mode. The charts aren't solved at all |
+| The browser build | Native compiled core and numpy only. The browser's path (Pyodide) was not run |
+| Wide ranges | The largest spot is 125 x 141 combos. Real ranges at real menus are far larger |
+| A flop by exact method | The LP was not attempted. `flop-tiny` has 9,608 betting rows, against 678 for `turn-one-size`, whose LP already has about 19,000 rows and took 12 s. So the flop's "reference" is DCFR, and the tree has only one flop bet (all-in) |
+| Rake or ICM by exact method | The LP needs zero-sum payoffs. Those rows are DCFR against DCFR, plus the closed form on the polar river |
+| A re-solve around a nodelock | The engine has none: locks act only in the best response (`gto/exploit.py`), so that is what was compared |
+| Three-way turns and flops, 4+ way pots | Reference only covers one street, three players; `MWConfig(exact=True)` is what was pinned. Pots of 5+ are rules anyway (section 8) |
+| Tournament payouts beyond one 3-left structure | One bubble, heads-up only. `MWPayoffs`, bounties, and stand-in field models were not run |
+| The engine's range parser and the app's presets | Both sides take the same combo list, by construction |
+
+**Not established.** Two solvers agreeing on 16 small spots is evidence about the code paths they ran, not a proof.
+River-flush's OOP checks every hand in all equilibria (the LP's bounds show it), so that spot tests only IP's bets and the
+responses. In `flop-tiny`, OOP checks the flop too, on both sides (over 99.99%). Passing here says the engine's exact mode is right on
+these trees, and nothing about how close an abstracted answer is to the full game.

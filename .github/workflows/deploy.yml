@@ -44,6 +44,8 @@ jobs:
         run: python -m unittest discover -s scripts/library
       - name: Engine contract tests (what Lizard reads from the engine's tournament answer; the prize model only)
         run: python -m unittest discover -s scripts/engine
+      - name: Benchmark reference tests (the reference's own games and rules; the benchmark itself runs by hand)
+        run: python -m unittest discover -s scripts/benchmarks
       - name: Solver quick tests (the ones that need neither the library nor minutes of CPU)
         working-directory: solver
         run: |

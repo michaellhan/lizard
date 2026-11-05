@@ -1,0 +1,279 @@
+{
+ "evaluator": {
+  "boards": 3000,
+  "hands_each": 1081,
+  "boards_disagreeing": 0,
+  "pass": true,
+  "seconds": 4.790701866149902
+ },
+ "polar_river": {
+  "no rake": {
+   "air_bets_hand": 0.49999999999999994,
+   "air_bets_engine": 0.49980644881148484,
+   "air_bets_reference": 0.4999392364913919,
+   "ip_calls_hand": 0.5,
+   "ip_calls_engine": 0.5000968277396662,
+   "ip_calls_reference": 0.5000388519762792,
+   "oop_value_hand": 5.0,
+   "oop_value_engine": 5.000000476837158,
+   "oop_value_reference": 5.000000047162096,
+   "gains_engine_by_ref_bb": [
+    0.0009679025741800018,
+    0.0019358867076331165
+   ],
+   "oop_value_lp": 5.000000000000001,
+   "pass": true
+  },
+  "5% uncapped": {
+   "air_bets_hand": 0.5405405405405405,
+   "air_bets_engine": 0.5406814378703069,
+   "air_bets_reference": 0.5404540118427046,
+   "ip_calls_hand": 0.48717948717948717,
+   "ip_calls_engine": 0.4869421430264626,
+   "ip_calls_reference": 0.4871533490639313,
+   "oop_value_hand": 3.8846153846153832,
+   "oop_value_engine": 3.884982109069824,
+   "oop_value_reference": 3.884655607285005,
+   "gains_engine_by_ref_bb": [
+    0.002125823214393918,
+    0.0013373369181692851
+   ],
+   "pass": true
+  },
+  "5% capped at 2": {
+   "air_bets_hand": 0.5263157894736843,
+   "air_bets_engine": 0.5264979318677147,
+   "air_bets_reference": 0.5262483969061684,
+   "ip_calls_hand": 0.48717948717948717,
+   "ip_calls_engine": 0.48729839845290174,
+   "ip_calls_reference": 0.4871188942533841,
+   "oop_value_hand": 4.128205128205128,
+   "oop_value_engine": 4.128113746643066,
+   "oop_value_reference": 4.128251290490541,
+   "gains_engine_by_ref_bb": [
+    0.0012208275208065444,
+    0.0017743092454498566
+   ],
+   "pass": true
+  },
+  "pass": true,
+  "seconds": 4.987971782684326
+ },
+ "lock_toy": {
+  "A: AA calls, KQ folds 60%": {
+   "allin_hand": -4.0,
+   "allin_engine": -4.0,
+   "check_hand": 0.0,
+   "check_engine": 0.0,
+   "pass": true
+  },
+  "B: both fold 90%": {
+   "allin_hand": 8.0,
+   "allin_engine": 8.0,
+   "check_hand": 0.0,
+   "check_engine": 0.0,
+   "pass": true
+  },
+  "TendencyLock fold +30": {
+   "allin_hand": -4.0,
+   "allin_engine": -4.0,
+   "pass": true
+  },
+  "pass": true,
+  "seconds": 0.004418134689331055
+ },
+ "lock_spot": {
+  "TendencyLock fold +25": {
+   "largest_diff_bb": 1.1948550621809773e-05,
+   "combos": 40,
+   "pass": true
+  },
+  "arbitrary per-combo lock": {
+   "largest_diff_bb": 1.0803550011928564e-05,
+   "combos": 40,
+   "pass": true
+  },
+  "pass": true,
+  "seconds": 0.08376312255859375
+ },
+ "subgame": {
+  "/bet 75%": {
+   "node": "/bet 75%",
+   "tree_identical": true,
+   "hands_at_node": [
+    28,
+    55
+   ],
+   "whole_oop_value_bb": 8.486392986098101,
+   "alone_engine_oop_value_bb": 8.486378155083008,
+   "alone_lp_oop_value_bb": 8.48637884596355,
+   "alone_engine_expl_by_ref_pct": 6.137312880127865e-11,
+   "diff_whole_vs_lp_bb": 1.4140134551254846e-05,
+   "diff_engine_vs_lp_bb": -6.908805421090847e-07,
+   "pot_at_node": 35.0,
+   "pass": true
+  },
+  "/check/check|9d": {
+   "node": "/check/check|9d",
+   "tree_identical": true,
+   "hands_at_node": [
+    13,
+    19
+   ],
+   "whole_oop_value_bb": 8.721526630806437,
+   "alone_engine_oop_value_bb": 8.721525763827767,
+   "alone_lp_oop_value_bb": 8.721527406754172,
+   "alone_engine_expl_by_ref_pct": 0.00021552095645471778,
+   "diff_whole_vs_lp_bb": -7.75947734510396e-07,
+   "diff_engine_vs_lp_bb": -1.6429264046990966e-06,
+   "pot_at_node": 20.0,
+   "pass": true
+  },
+  "pass": true,
+  "seconds": 0.6875488758087158
+ },
+ "icm": {
+  "malmuth_harville": {
+   "cases": 4,
+   "largest_diff": 1.0658141036401503e-14,
+   "pass": true
+  },
+  "spot_has_ties": false,
+  "terminal_values": {
+   "terminals": 9,
+   "largest_diff_chip_eq": 3.552713678800501e-15,
+   "pass": true
+  },
+  "split_value": {
+   "pot": 60.0,
+   "rule_chip_eq": 0.0,
+   "engine_mean_chip_eq": -0.8035714285714306,
+   "note": "the engine's documented approximation; this spot has no ties, so the river below doesn't feel it"
+  },
+  "river_in_prize_equity": {
+   "tree_identical": true,
+   "iterations": 20000,
+   "root_pot": 20.0,
+   "value_engine_by_ref": [
+    1.0447566358882103,
+    -2.020252699814003
+   ],
+   "value_engine_own": [
+    1.0447563913133409,
+    -2.0202522728178236
+   ],
+   "value_ref_cfr": [
+    1.0447607038034972,
+    -2.0202601956461423
+   ],
+   "gains_engine_by_ref": [
+    1.3743950122879767e-05,
+    3.853629150274429e-05
+   ],
+   "gains_ref_cfr": [
+    1.6284975625557863e-05,
+    5.013041969093024e-06
+   ],
+   "engine_own_pct": 0.00012936857011583116,
+   "zero_sum": false,
+   "pass": true
+  },
+  "winner_take_all_is_chips": {
+   "largest_value_diff_bb": 2.977583143604079e-06,
+   "pass": true
+  },
+  "bubble_direction": {
+   "chip_values": [
+    4.386906369527181,
+    -4.386904981401232
+   ],
+   "prize_values": [
+    1.0447563913133409,
+    -2.0202522728178236
+   ],
+   "sum_prize_values_vs_others": -0.9754958815044827,
+   "note": "two players in a pot lose prize equity to the third on average: the sum should be negative, the chip game's zero",
+   "pass": true
+  },
+  "pass": true,
+  "seconds": 2.7386839389801025
+ },
+ "determinism": {
+  "engine_identical": true,
+  "lp_identical": true,
+  "pass": true,
+  "seconds": 0.48160576820373535
+ },
+ "icm_ties": {
+  "tree_identical": true,
+  "has_ties": true,
+  "iterations": 20000,
+  "root_pot": 20.0,
+  "engine_own_expl_pct_in_its_payoffs": 2.651039613496273e-05,
+  "engine_values_own": [
+   -1.9581658905799235,
+   1.480823193121394
+  ],
+  "engine_values_true_split": [
+   -1.9019990719490967,
+   1.615382825466454
+  ],
+  "ref_values_true_split": [
+   -1.9077192819988231,
+   1.6336282187170406
+  ],
+  "gains_engine_true_split": [
+   0.06909905086465784,
+   0.02991685506683539
+  ],
+  "gains_ref_true_split": [
+   3.080263195398558e-06,
+   3.813335899272019e-06
+  ],
+  "engine_gain_pct_pot_true_split": 0.24753976482873308,
+  "own_vs_true_value_pct_pot": 0.6727981617252998,
+  "note": "measures a documented approximation, so it is reported rather than judged",
+  "pass": true,
+  "seconds": 2.572709083557129
+ },
+ "sensitivity": {
+  "clean": {
+   "tree_identical": true,
+   "not_compared": null,
+   "value_diff_pct_pot": 1.653415848679174e-08,
+   "expl_engine_by_ref_pct": 0.00014183216073493377,
+   "pass": true
+  },
+  "strategies_5pct_toward_uniform": {
+   "tree_identical": true,
+   "not_compared": null,
+   "value_diff_pct_pot": 0.5589210784570819,
+   "expl_engine_by_ref_pct": 1.307177136309725,
+   "pass": false
+  },
+  "hands_crossed": {
+   "tree_identical": true,
+   "not_compared": null,
+   "value_diff_pct_pot": 0.7079701199065291,
+   "expl_engine_by_ref_pct": 40.23123254994923,
+   "pass": false
+  },
+  "tree_chips_off": {
+   "tree_identical": false,
+   "not_compared": "'/check/check': chips in, reference (10.0, 10.0), engine [10.5, 10.5]",
+   "value_diff_pct_pot": null,
+   "expl_engine_by_ref_pct": null,
+   "pass": null
+  },
+  "tree_actions_reordered": {
+   "tree_identical": false,
+   "not_compared": "'': reference 0 ['check', 'bet 75%'], engine {'kind': 'act', 'player': 0, 'names': ['bet 75%', 'check'], 'street': 5}",
+   "value_diff_pct_pot": null,
+   "expl_engine_by_ref_pct": null,
+   "pass": null
+  },
+  "pass": true,
+  "seconds": 0.04513669013977051
+ },
+ "peak_rss_mb": 122.984375
+}

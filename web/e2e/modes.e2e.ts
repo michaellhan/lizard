@@ -85,3 +85,15 @@ test("Copy for AI puts the spot and its source on the real clipboard", async ({ 
   expect(problems.errors).toEqual([]);
 });
 
+test("The web manifest is linked from a deep page and names the app under its own path", async ({ page, request, problems }) => {
+  await page.goto("/lizard/study/");
+  const href = await page.locator('link[rel="manifest"]').evaluate((l: HTMLLinkElement) => l.href);
+  expect(new URL(href).pathname).toBe("/lizard/manifest.webmanifest");
+  const icon = await page.locator('link[rel="icon"]').evaluate((l: HTMLLinkElement) => l.href);
+  expect(new URL(icon).pathname).toBe("/lizard/lizard.svg");
+  const m = await (await request.get(href)).json();
+  expect([m.start_url, m.scope, m.display]).toEqual(["/lizard/", "/lizard/", "standalone"]);
+  expect((await request.get(new URL(m.icons[0].src, href).href)).ok()).toBe(true);
+  expect(problems.errors).toEqual([]);
+});
+
