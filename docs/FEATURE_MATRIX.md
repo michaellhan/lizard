@@ -166,6 +166,6 @@ Lizard's Tournaments page (`/tournaments`, `SolvePage.tsx` with `kind="tournamen
 - **Solution comparisons (classic, PARTIAL).** It is only the one-size view plus GTO % beside exploit answers, so NOT IMPLEMENTED could be argued.
 - **Postflop in Lizard (PARTIAL).** The 3-way display was checked in a browser on a library spot (2026-11-03); a 4-way answer was not, and there is no custom-spot builder. WORKING could be argued for the display alone.
 - **Satellites (Lizard, APPROXIMATE).** Postflop is a prize-equity solve with flat payouts; preflop is the chip chart with a risk premium. PARTIAL could be argued.
-- **Mobile (both, PARTIAL).** Not checked at phone width in this pass.
+- **Mobile (both, PARTIAL).** Lizard: every route and the Study, Practice and Analyze flows run at 390 px on each deploy (`web/e2e/`), in Chromium with a phone's touch and viewport. No real phone has been tried. Classic: not checked at phone width in this pass.
 - **Lower than the research reviews.** Five more rows are graded below 07a or 07c by a stricter rule: classic chipEV, cash, preferences/progress, range-builder trainer, and preflop trainer.
 - **All Lizard grades.** The first pass came from code reading and unit tests only. Rows changed since then by the Phase 0 Study work (Solution browser, Postflop, Range matrices, Frequencies & EV, Equity & EQR, Range comparison, Filters, Convergence display, 2–9 handed, Short and Deep stack, Preferences) were also checked in a local production build in the browser, on library spots (`docs/PROGRESS.md`, 2026-11-03).

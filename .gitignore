@@ -22,6 +22,7 @@ coverage/
 
 # --- generated build output ---
 web/dist/
+web/e2e-results/
 dist/
 web/public/solver/
 web/public/library/

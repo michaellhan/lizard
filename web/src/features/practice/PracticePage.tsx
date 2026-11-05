@@ -122,6 +122,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     return d;
   });
   const place = useCallback((at: HTMLElement | null) => void at?.append(home), [home]);
+  // On a phone the table comes first: the setup and everything else above it would fill the first screen and more.
+  const [wide] = useState(() => typeof matchMedia !== "function" || matchMedia("(min-width: 768px)").matches);
 
   const sum = summary(session.score);
   const others = past.filter((p) => p.id !== session.id);
@@ -140,9 +142,14 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <ModePicker modes={["quick", "accurate"]} />
+        <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
+      </div>
+      <details className="text-sm">
+        <summary className="cursor-pointer text-muted">How this table works</summary>
+        <div className="mt-1">
           {many ? (
             <p className="text-sm text-muted">
               Several tables, one score across them all. Opponents play the charts preflop, then the solver, or betting rules on a flop or turn with five or more still in. The table that needs
@@ -162,12 +169,15 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ModePicker modes={["quick", "accurate"]} />
-          <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
-          {!many && <div ref={place} className="contents" />}
-        </div>
-      </div>
+      </details>
+      {!many && (
+        <details open={wide} className="rounded-lg border border-border bg-surface p-3 text-sm">
+          <summary className="cursor-pointer">
+            Game · {session.players}-max · {session.stack}bb
+          </summary>
+          <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
+        </details>
+      )}
 
       {many && (
         <details className="rounded-lg border border-border bg-surface p-3 text-sm">
@@ -184,8 +194,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
 
       <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
 
-      <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} reserve={many} />
-      <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
+      <div className="order-last space-y-4 md:order-none">
+        <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} reserve={many} />
+        <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
+      </div>
       {snap.keptRead && (
         <p role="status" className="text-sm text-warn">
           {keptNote(snap.keptRead)}

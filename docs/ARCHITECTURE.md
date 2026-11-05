@@ -228,9 +228,9 @@ app redeploy.
 | Web unit (Vitest, jsdom) | `npm test` | study state and URL encoding, cards and classes, range text, provenance, client queue and abort, worker transport (fake worker: boot, partials, both cancel paths, a stop nobody answers, boot failure), IndexedDB migrations (fake-indexeddb), library catalog, RangeMatrix accessibility |
 | Assembler | `.venv/bin/python -m unittest discover -s scripts/library` | validation, shrink protection, refusing foreign or protected output, sources untouched |
 | Solver (upstream) | `npm run test:solver`, `npm run test:solver-js` | 686 Python and 443 Node tests at `1a14605e`; about 15 minutes of CPU, and some need the library |
-| Browser | manual so far | Study flows, library and live answers, Engine self-test, CSP, phone width. Playwright suite **(planned)** |
+| Browser (Playwright) | `npm run test:e2e`, after `npm run build`, through the slot here | every route at 1440, 1024 and 390 px (no sideways scroll, no error logged, screenshots in `web/e2e-results/shots` to look at), every nav link, and on the real worker a Study spot, its action and link, a graded Practice decision, an import, and a worker that goes quiet in boot. No library behind the preview server, so library answers are still checked by hand, as are the Engine self-test and CSP |
 
-CI runs the first two suites plus the solver tests that need neither the library nor minutes of CPU
+CI runs the first two suites, the browser suite, and the solver tests that need neither the library nor minutes of CPU
 (`test_bundle`, `test_routes`, `routes.test.js`, `solver_state.test.js`).
 
 ## 10. Decisions

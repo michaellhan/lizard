@@ -196,7 +196,7 @@ describe("Tables (multitable.test.js:68)", () => {
     expect(screen.queryByRole("tablist", { name: "Tables" })).toBeNull();
     expect(screen.queryByText(/Not here yet/)).toBeNull();
     expect(screen.queryByText(/Spots and Seat apply/)).toBeNull();
-    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toBeNull();
+    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toHaveProperty("open", true);
     const yours = () => cardsIn(within(screen.getByRole("region", { name: "Table" })).getByRole("listitem", { name: "BTN (you)" }));
     const cards = yours();
 
@@ -216,7 +216,7 @@ describe("Tables (multitable.test.js:68)", () => {
     await screen.findByRole("region", { name: "Table" });
     expect(screen.queryByRole("region", { name: "Table 1" })).toBeNull();
     expect(yours()).toEqual(cards);
-    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toBeNull();
+    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toHaveProperty("open", true);
   });
 
   it("restarts every table on a New session", async () => {
@@ -302,18 +302,18 @@ describe("Tables (multitable.test.js:68)", () => {
     const stack = () => screen.getByRole("spinbutton", { name: "Stack in big blinds" });
     fireEvent.change(stack(), { target: { value: "150" } });
     const field = stack();
-    expect(form().closest("details")).toBeNull();
+    expect(form().closest("details")).toHaveProperty("open", true);
 
     fireEvent.click(screen.getByRole("radio", { name: "2" }));
     await screen.findByRole("region", { name: "Table 2" });
     expect(stack()).toBe(field);
     expect(stack()).toHaveValue(150);
-    expect(form().closest("details")).not.toBeNull();
+    expect(form().closest("details")).toHaveProperty("open", false);
 
     fireEvent.click(screen.getByRole("radio", { name: "1" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Table 2" })).toBeNull());
     expect(stack()).toHaveValue(150);
-    expect(form().closest("details")).toBeNull();
+    expect(form().closest("details")).toHaveProperty("open", true);
   });
 
   it("says what it is opponents play by, above one table and at one", async () => {

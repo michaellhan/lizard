@@ -22,7 +22,10 @@ export function Shell() {
             <img src={`${BASE_URL}lizard.svg`} alt="" className="h-7 w-7" />
             <span className="text-lg">Lizard</span>
           </NavLink>
-          <nav aria-label="Primary" className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1">
+          <nav
+            aria-label="Primary"
+            className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1 pr-6 [mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)] lg:pr-1 lg:[mask-image:none]"
+          >
             {ROUTES.filter((r) => r.nav).map((r) => (
               <NavLink key={r.path} to={`/${r.path}`} className={linkClass}>
                 {r.label}

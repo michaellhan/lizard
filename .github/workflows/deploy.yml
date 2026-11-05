@@ -48,6 +48,16 @@ jobs:
           node --test tests/js/routes.test.js tests/js/solver_state.test.js
       - name: Build
         run: npm run build
+      - name: Browser tests (every route at three widths, and the flows on the real worker)
+        run: |
+          npx -w web playwright install --with-deps chromium
+          npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: web/e2e-results
+          retention-days: 7
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

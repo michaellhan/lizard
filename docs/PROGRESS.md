@@ -3805,3 +3805,25 @@ nothing would ever have ended it: the transport only watched a worker after a st
 - Not tested: a phone on a slow link, so whether 2 minutes is enough for a first visit there isn't known. A wrong guess
   costs one restart, with a further 2 minutes.
 
+## Browser tests, and Practice on a phone (2026-11-05)
+
+Section 5 of the plan asks for screenshots at 1440, 1024 and 390 px and for browser tests of the main flows, and until
+now those checks had only been made by hand. This is the earliest unmet criterion left, so it came next.
+
+- `web/e2e/`, on Playwright 1.56.1, against the built site: every route at the three widths with no sideways scroll and
+  no logged error, every primary nav link, and on the real worker a Study spot with an action, its link reloaded and Back,
+  a Practice decision graded, a hand history imported, and the boot stall above. 60 tests, 58 run: 2 are the stall test
+  skipped at the other widths. CI runs them before a deploy, with one retry and the results kept on a failure.
+- The first full run passed at every width, because the empty pages have nothing to break. The screenshots showed what
+  a pass couldn't:
+  - **Practice on a phone.** The table started about 1,000 px down, under the page's description, the score and every
+    setting. The description is now behind "How this table works", the setup behind "Game · 6-max · 100bb", closed on a
+    phone and open from 768 px up, and on a phone the score and the asking-ahead line go below the table. A test now
+    fails if your move doesn't start on the first screen, at any of the three widths.
+  - **The nav on a phone.** It scrolls sideways with nothing to say so. It now fades at its right edge below 1024 px.
+- Still by hand: anything needing the library, since the preview server has none. Nothing compares screenshots between
+  runs, so a change in how a page looks fails no test.
+- The re-pin's live check, on `e0f2ed0`: the same 8-max link that showed a live solve on the old engine reads
+  `Precomputed solution · srp_sb_bb · another table's spot read as this one`, 0.12%. The manifest says `e13c4733fd` on
+  `1a14605e`, and `/`, `/gto-solver/` and `/gto-solver-classic/` answer 200.
+
