@@ -169,7 +169,7 @@ const isOpts = (x: unknown) =>
 const isReviewed = (x: unknown) =>
   isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null;
 
-const isCell = (x: unknown) => isObj(x) && isStr(x.street) && isStr(x.source) && isBool(x.byEv) && [x.n, x.ok].every(isCount) && [x.loss, x.lossPct].every(isNum);
+const isCell = (x: unknown) => isObj(x) && isStr(x.street) && isStr(x.source) && isBool(x.byEv) && [x.n, x.ok].every(isCount) && [x.loss, x.lossPct].every(isNum) && opt(x.versions, (v) => isObj(v) && Object.values(v).every(isCount));
 const isCells = (x: unknown) => isObj(x) && Object.values(x).every(isCell);
 
 const isSession = (x: unknown): x is PracticeSession =>

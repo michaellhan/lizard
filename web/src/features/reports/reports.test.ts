@@ -19,6 +19,9 @@ import {
   REPORT_VIEWS,
   reportProvenance,
   rows,
+  rangeLead,
+  rangeLeadParts,
+  rangeLeadText,
   sortRows,
   studyHandAt,
   studyLink,
@@ -111,6 +114,30 @@ describe("flop reports", () => {
     expect(sortRows(rs, "eqr1", true, REP.pot).map((r) => r.f)).toEqual(["Ac4d3h", "Kc7d7h", "9c8c7c"]);
   });
 
+  it("range advantage: who has the higher equity and by how many points, from the stored equities", () => {
+    const rs = rows(REP, "oop");
+    expect(rs.map((r) => rangeLeadText(r.eq, REP.seats))).toEqual(["BTN +10.0", "BB +4.0", "BTN +18.0"]);
+    close(rangeLead([0.45, 0.55]), 10);
+    expect(rangeLeadText([0.5, 0.5], REP.seats)).toBe("Even");
+    expect(rangeLeadText([0.5, 0.5004], REP.seats)).toBe("Even");
+    // (none stored: shown as such, never as Even)
+    expect(rangeLeadText([NaN, NaN], REP.seats)).toBe("–");
+    expect(rangeLeadParts([NaN, NaN], REP.seats)).toBeNull();
+    // highest first: in position most ahead; lowest first: out of position most ahead
+    expect(sortRows(rs, "adv", true).map((r) => r.f)).toEqual(["Kc7d7h", "Ac4d3h", "9c8c7c"]);
+    expect(sortRows(rs, "adv", false).map((r) => r.f)).toEqual(["9c8c7c", "Ac4d3h", "Kc7d7h"]);
+  });
+
+  it("an average's range advantage is that of its equities, each flop weighted as they are", () => {
+    const rs = rows(REP, "oop");
+    // 100 at BTN +10, 50 at BB +4, 50 at BTN +18: BTN's 0.5375 against BB's 0.4625 by the report_weights
+    const a = average(rs);
+    close(a.eq[0], (0.45 * 100 + 0.52 * 50 + 0.41 * 50) / 200);
+    expect(rangeLeadText(a.eq, REP.seats)).toBe("BTN +8.5");
+    const g = groups(rs, "pair").find((x) => x.g === "unpaired")!;
+    expect(rangeLeadText(g.eq, REP.seats)).toBe(`BTN +${(((100 * 0.1 + 50 * -0.04) / 150) * 100).toFixed(1)}`);
+  });
+
   it("covers its stored flops' share of all 22100", () => {
     expect(coverage(REP)).toEqual({ flops: 3, share: 200 / ALL_FLOPS });
   });
@@ -142,10 +169,10 @@ describe("flop reports", () => {
     const p = reportProvenance(REP, "fast");
     const csv = toCsv(REP, "vsbet", rows(REP, "vsbet"), p).trim().split("\n");
     expect(csv[0]).toBe(
-      "flop,weight,share of flops,high card,suits,pairing,connectedness,bet faced,bet frequency,fold,call,raise,BB EV (bb),BTN EV (bb),BB equity,BTN equity,BB EQR,BTN EQR,source",
+      "flop,weight,share of flops,high card,suits,pairing,connectedness,bet faced,bet frequency,fold,call,raise,BB EV (bb),BTN EV (bb),BB equity,BTN equity,BB EQR,BTN EQR,range advantage seat,range advantage (equity points),source",
     );
     expect(csv[1]).toBe(
-      "Ac4d3h,100,0.00452,A,rainbow,unpaired,conn,bet 75%,0.300,0.500,0.400,0.100,2.10,3.40,0.450,0.550,0.848,1.124,Precomputed solution · srp_btn_bb · flop report over its 3 stored flops",
+      "Ac4d3h,100,0.00452,A,rainbow,unpaired,conn,bet 75%,0.300,0.500,0.400,0.100,2.10,3.40,0.450,0.550,0.848,1.124,BTN,10.0,Precomputed solution · srp_btn_bb · flop report over its 3 stored flops",
     );
     // a flop that doesn't store the node: its frequencies left blank, not 0
     expect(csv[3]).toMatch(/^Kc7d7h,50,0\.00226,K,rainbow,paired,dry,,,,,,1\.90,3\.60,/);
@@ -197,6 +224,7 @@ describe("flop reports", () => {
     ]);
     const p = reportProvenance(rep, "fast");
     expect(p.approximateLabel).toBe("3-way flop report over its 6 stored flops, built in the page from their entries");
+    expect(toCsv(rep, "third", rows(rep, "third"), p).split("\n")[0]).not.toContain("range advantage");
     expect(toCsv(rep, "third", rows(rep, "third"), p).split("\n")[0]).toBe(
       "flop,weight,share of flops,high card,suits,pairing,connectedness,check,bet 33%,bet 75%,source",
     );

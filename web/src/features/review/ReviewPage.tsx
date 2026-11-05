@@ -13,6 +13,7 @@ import { changeMistake, listMistakes } from "@/data/mistakes";
 import { STREET_ORDER, shareText } from "@/features/history/progress";
 import { DecisionView, optionLabel, useHandKeys } from "@/features/practice/PracticeParts";
 import { ModePicker } from "@/features/study/ModePicker";
+import { versionOf, versionWords } from "@/grading/version";
 import { seatLabel } from "@/poker/seats";
 import { describe as describeProvenance } from "@/solver/provenance";
 import { useSolver } from "@/solver/useSolver";
@@ -224,7 +225,8 @@ function MistakeRow({ m, now, active, onRetry }: { m: MistakeRecord; now: number
       </p>
       <p className="text-xs text-muted">
         Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} /> : "an answer not kept"}
-        {last ? ` · last retry ${day(last.at)}: ${last.verdict}, against ${last.label}` : ""}
+        {` · version ${versionWords(versionOf(m.provenance))}`}
+        {last ? ` · last retry ${day(last.at)}: ${last.verdict}, against ${last.label}, version ${versionWords(last.version)}` : ""}
       </p>
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <span>{dueWords(m, now)}</span>

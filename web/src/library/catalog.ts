@@ -5,6 +5,7 @@
 // spot is planned to reach comes from lizard-library.json, which scripts/library/assemble.py writes from the
 // solver's SPOT_FLOPS; a library without it (the upstream one) shows counts only.
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
+import { libraryStamps, type LibraryStamp } from "./version";
 
 export interface LibrarySpotIndex {
   id: string;
@@ -113,6 +114,12 @@ async function getJson<T>(url: string, fetchImpl: typeof fetch): Promise<T | nul
   } catch {
     return null;
   }
+}
+
+/** The stamps of a library's stored answers (null where its index can't be read). */
+export async function loadStamps(base: string, fetchImpl: typeof fetch = (...a) => fetch(...a)): Promise<LibraryStamp | null> {
+  const [index, mw] = await Promise.all([getJson<LibraryIndex>(`${base}index.json`, fetchImpl), getJson<LibraryIndex>(`${base}mw_index.json`, fetchImpl)]);
+  return index ? libraryStamps(index, mw) : null;
 }
 
 export async function loadCatalog(source: LibrarySourceId, fetchImpl: typeof fetch = fetch): Promise<LibraryCatalog> {

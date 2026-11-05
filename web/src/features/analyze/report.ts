@@ -4,6 +4,7 @@
 // charts by frequency and have no EV lost; after the flop against what answered, by EV where it has EVs, each decision
 // saying what that was: the library, a stored turn, a read at once, a Quick or a Fast solve (byBasis keeps them apart).
 import type { DecisionRecord, HandRecord } from "@/data/db";
+import { countVersions, versionNote, versionSpan, versionSummary } from "@/grading/version";
 import { STREETS } from "./analyze";
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -152,8 +153,9 @@ export function freqs(ds: readonly DecisionRecord[]): FreqRow[] {
  * over this many. */
 export const LEAK = { freq: [0.1, 15], pf: [0.8, 15], spot: [0.5, 10] } as const;
 
-/** (`low`: how many of its decisions stand on a low-confidence read, which the leak may not survive a check of) */
-export type Leak = { low: number } & (
+/** (`low`: how many of its decisions stand on a low-confidence read, which the leak may not survive a check of;
+ * `versions`: where its decisions don't stand on one known version, in words) */
+export type Leak = { low: number; versions: string | null } & (
   | { kind: "freq"; key: string; n: number; you: number; gto: number; score: number }
   | { kind: "pf"; key: string; n: number; inMix: number; score: number }
   | { kind: "spot"; key: string; n: number; avg: number; lost: number; score: number }
@@ -163,13 +165,16 @@ export function leaks(ds: readonly DecisionRecord[]): Leak[] {
   const out: Leak[] = [];
   for (const f of freqs(ds)) {
     const d = f.you - f.gto;
-    if (f.n >= LEAK.freq[1] && Math.abs(d) >= LEAK.freq[0]) out.push({ kind: "freq", key: f.label, n: f.n, you: f.you, gto: f.gto, score: Math.abs(d) * Math.sqrt(f.n), low: 0 });
+    if (f.n >= LEAK.freq[1] && Math.abs(d) >= LEAK.freq[0]) out.push({ kind: "freq", key: f.label, n: f.n, you: f.you, gto: f.gto, score: Math.abs(d) * Math.sqrt(f.n), low: 0, versions: null });
   }
   for (const r of groupBy(ds.filter((d) => d.street === "preflop"), (d) => d.situation, PF_ORDER))
-    if (r.graded >= LEAK.pf[1] && r.ok / r.graded < LEAK.pf[0]) out.push({ kind: "pf", key: r.key, n: r.graded, inMix: r.ok / r.graded, score: (1 - r.ok / r.graded) * Math.sqrt(r.graded), low: 0 });
+    if (r.graded >= LEAK.pf[1] && r.ok / r.graded < LEAK.pf[0]) out.push({ kind: "pf", key: r.key, n: r.graded, inMix: r.ok / r.graded, score: (1 - r.ok / r.graded) * Math.sqrt(r.graded), low: 0, versions: null });
   for (const r of groupBy(ds, spotOf))
-    if (r.ev >= LEAK.spot[1] && (r.avg ?? 0) >= LEAK.spot[0]) out.push({ kind: "spot", key: r.key, n: r.ev, avg: r.avg!, lost: r.lost, score: (r.avg! / 2) * Math.sqrt(r.ev), low: 0 });
-  return out.sort((a, b) => b.score - a.score).map((l) => ({ ...l, low: ds.filter((d) => leakTest(l)(d) && isLow(d) && (l.kind !== "spot" || hasEv(d))).length }));
+    if (r.ev >= LEAK.spot[1] && (r.avg ?? 0) >= LEAK.spot[0]) out.push({ kind: "spot", key: r.key, n: r.ev, avg: r.avg!, lost: r.lost, score: (r.avg! / 2) * Math.sqrt(r.ev), low: 0, versions: null });
+  return out.sort((a, b) => b.score - a.score).map((l) => {
+    const its = ds.filter((d) => leakTest(l)(d) && isGraded(d) && (l.kind !== "spot" || hasEv(d)));
+    return { ...l, low: its.filter(isLow).length, versions: versionNote(versionSpan(countVersions(its.map((d) => d.version)))) };
+  });
 }
 
 /** A leak's decisions. */
@@ -207,6 +212,8 @@ export interface Report {
   bySpot: Group[];
   /** what the grades stand on, the most solid first */
   byBasis: Group[];
+  /** the versions they were graded on, in words (null with none graded) */
+  versions: string | null;
   /** of the decisions graded, how many are low-confidence reads, and the EV they lost */
   low: { n: number; lost: number };
   /** the reads checked at Fast */
@@ -236,6 +243,7 @@ export function report(ds: readonly DecisionRecord[], top = 20): Report {
     byPf: groupBy(ds.filter((d) => d.street === "preflop"), (d) => d.situation, PF_ORDER),
     bySpot: groupBy(ds, spotOf),
     byBasis: groupBy(ds.filter(isGraded), basisOf, BASES),
+    versions: versionSummary(countVersions(ds.filter(isGraded).map((d) => d.version))),
     low: { n: low.length, lost: r2(low.reduce((t, d) => t + (d.evLossBb ?? 0), 0)) },
     agree: agreement(ds),
     freqs: freqs(ds),
@@ -252,7 +260,7 @@ export const COLS = [
   "hand", "hand_id", "site", "played", "position", "hole", "street", "board", "situation", "action", "graded_as", "solver_freq",
   "best_action", "best_freq", "ev_lost_bb", "ev_lost_pct", "grade", "graded_by", "source", "pot_bb", "facing_bet", "in_position",
   "note", "not_graded_why", "tournament", "basis", "confidence", "triage_source", "triage_grade", "triage_ev_lost_bb", "rough_ev", "grade_capped",
-  "off_solution",
+  "off_solution", "graded_version",
 ] as const;
 const BOARD_N: Record<string, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 
@@ -293,6 +301,7 @@ export function rowsOf(ds: readonly DecisionRecord[], hands: ReadonlyMap<string,
       rough_ev: d.roughEv ? true : "",
       grade_capped: d.capped ? true : "",
       off_solution: d.off ?? "",
+      graded_version: isGraded(d) ? (d.version ?? "unknown") : "",
     };
   });
 }
@@ -304,12 +313,12 @@ export function toCSV(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, 
 
 export function toJSON(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, HandRecord>, now = Date.now()): string {
   const rp = report(ds, 50);
-  const strip = (d: DecisionRecord) => ({ hand: hands.get(d.handId)?.number ?? "", hand_id: d.handId, street: d.street, action: d.action, situation: d.situation, grade: d.verdict, ev_lost_bb: d.evLossBb, rough_ev: !!d.roughEv, grade_capped: !!d.capped, solver_freq: d.freq, best_action: d.best, source: d.label, basis: basisOf(d), confidence: d.read ? "checked at Fast" : (d.confidence ?? "") });
+  const strip = (d: DecisionRecord) => ({ hand: hands.get(d.handId)?.number ?? "", hand_id: d.handId, street: d.street, action: d.action, situation: d.situation, grade: d.verdict, ev_lost_bb: d.evLossBb, rough_ev: !!d.roughEv, grade_capped: !!d.capped, solver_freq: d.freq, best_action: d.best, source: d.label, basis: basisOf(d), version: d.version ?? "unknown", confidence: d.read ? "checked at Fast" : (d.confidence ?? "") });
   return JSON.stringify(
     {
       exported: new Date(now).toISOString(),
       graded_against: "preflop: the preflop charts, by frequency (not a solve); after the flop: what answered each decision (its source and basis), by EV where it has EVs",
-      summary: { ...rp.all, hands: rp.hands, byStreet: rp.byStreet, byPf: rp.byPf, bySpot: rp.bySpot, byBasis: rp.byBasis, low: rp.low, agreementAtFast: rp.agree, freqs: rp.freqs.map(({ label, cls, n, you, gto }) => ({ label, cls, n, you, gto })), leaks: rp.leaks, mistakes: rp.mistakes.map(strip), offChart: rp.offChart.map(strip), offRead: rp.offRead.map(strip), notGraded: rp.notGraded },
+      summary: { ...rp.all, hands: rp.hands, byStreet: rp.byStreet, byPf: rp.byPf, bySpot: rp.bySpot, byBasis: rp.byBasis, versions: rp.versions, low: rp.low, agreementAtFast: rp.agree, freqs: rp.freqs.map(({ label, cls, n, you, gto }) => ({ label, cls, n, you, gto })), leaks: rp.leaks, mistakes: rp.mistakes.map(strip), offChart: rp.offChart.map(strip), offRead: rp.offRead.map(strip), notGraded: rp.notGraded },
       decisions: rowsOf(ds, hands),
     },
     null,

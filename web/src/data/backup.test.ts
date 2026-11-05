@@ -98,6 +98,26 @@ describe("saved drills", () => {
 });
 
 describe("backup and restore", () => {
+  it("keeps a grade's version, restores a grade from before versions as it is, and skips a damaged one", async () => {
+    const base: DecisionRecord = { id: "d|flop|1", handId: "h", street: "flop", pos: "BTN", action: "check", verdict: "Best", evLossBb: 0, source: "library", label: "Precomputed solution", gradedAt: 1 };
+    const stamped: DecisionRecord = { ...base, id: "d|flop|2", version: "library:srp_btn_bb:11112222:Ac4d3h:abc", read: { verdict: "Mistake", source: "instant", label: "a read", version: "build:aaa/111", evLossBb: null } };
+    await clearAll();
+    await putDecisions([base, stamped]);
+    const b: Backup = JSON.parse(JSON.stringify(await makeBackup()));
+    await clearAll();
+    expect((await restoreBackup(b)).decisions).toMatchObject({ added: 2, skipped: 0 });
+    const back = await listDecisions();
+    expect(back.find((d) => d.id === base.id)).toEqual(base);
+    expect(back.find((d) => d.id === base.id)).not.toHaveProperty("version");
+    expect(back.find((d) => d.id === stamped.id)).toEqual(stamped);
+    expect(b.schema).toBe(1);
+    await clearAll();
+    const bad = { ...stamped, id: "d|flop|3", version: 7 };
+    const hurt: Backup = { ...b, stores: { ...b.stores, decisions: [{ id: bad.id, v: 1, created: 1, updated: 1, dev: "x", data: bad as never }] } };
+    expect((await restoreBackup(hurt)).decisions).toMatchObject({ added: 0, skipped: 1 });
+    await clearAll();
+  });
+
   it("round-trips every record exactly, in the classic record shape", async () => {
     await putSpot(spot("a", 5));
     await putRange(range("r", 7));

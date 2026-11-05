@@ -43,6 +43,8 @@ export interface Provenance {
   seconds?: number;
   /** precomputed library spot id, e.g. "srp_btn_bb" */
   librarySpot?: string;
+  /** the stored answer's version (library/version.ts), where the library's index is read; never a local server's */
+  libraryVersion?: string;
   /** why a fallback answered */
   fallbackReason?: string;
   /** the solver's own words for what an approximate answer was read from */

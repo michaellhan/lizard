@@ -4,6 +4,7 @@
 // stats follow it, and grading takes its hands alone. Everything is read from the hands and grades kept.
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { DecisionRecord, HandRecord } from "@/data/db";
+import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
 import { filterHands } from "./analyze";
 import { BASES } from "./report";
 import { clockOf, handKind, inSess, parseSess, sessionsOf, sessWords, type HandKind, type Sitting } from "./sessions";
@@ -279,6 +280,7 @@ function Verdict({ latest: l, basis, since }: { latest: LatestThird; basis: stri
           Under {MIN_SIDE} on a side is too few to call the share as a whole; a row below needs {MIN_ROW}.
         </span>
       )}{" "}
+      {versionNote(l.versions) && <span aria-label="Versions compared">{versionNote(l.versions)} </span>}
       <span className="text-muted">The share moves with the spots dealt as well as with how they were played; the rows below compare a spot with itself, though another table size or depth still moves its answer.</span>
     </p>
   );
@@ -303,6 +305,7 @@ function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMi
             <th className="py-0.5 pr-4 font-normal">Before</th>
             <th className="py-0.5 pr-4 font-normal">Latest</th>
             <th className="py-0.5 pr-4 font-normal">Change</th>
+            <th className="py-0.5 pr-4 font-normal">Versions</th>
           </tr>
         </thead>
         <tbody>
@@ -315,6 +318,7 @@ function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMi
                 {r.change ?? "No clear change"}
                 {r.leak ? " · Leak now" : ""}
               </td>
+              <td className="min-w-48 py-0.5 pr-4 text-xs">{versionNote(r.versions) ?? <span className="text-muted">Same</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -338,6 +342,8 @@ function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMi
         {tooFew > 0 ? ` ${tooFew.toLocaleString()} more ${tooFew === 1 ? "has" : "have"} under ${MIN_ROW} decisions on a side.` : ""}
         {shifts.length > 0 ? " About one row in a hundred shows a change by chance." : ""}
         {noMix > 0 ? ` ${plural(noMix, "read")} checked before a read's own mix was kept ${noMix === 1 ? "is" : "are"} left out of the frequencies.` : ""}
+        {shifts.length > 0 ? " Where a row spans versions, part of its change can be the answer's: the preflop charts come with the solver build, and a library version is its spot's ranges and bet tree." : ""}
+        {shifts.some((r) => r.versions.unknown[0] + r.versions.unknown[1] > 0) ? ` ${VERSION_UNKNOWN}` : ""}
       </p>
     </div>
   );

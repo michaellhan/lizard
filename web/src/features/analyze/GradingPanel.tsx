@@ -9,6 +9,7 @@ import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { clearDecisions, putDecisions } from "@/data/hands";
 import type { Verdict } from "@/grading/grade";
+import { VERSION_UNKNOWN } from "@/grading/version";
 import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
 import { useRuntime } from "@/solver/runtime";
@@ -313,6 +314,11 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
       </div>
 
       {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ev noUngraded />}
+      {rp.versions && (
+        <p aria-label="Versions graded on" className="text-xs text-muted">
+          {rp.versions} The preflop charts come with the solver build. A library version is its spot&rsquo;s ranges and bet tree. {rp.versions.includes("unknown") ? VERSION_UNKNOWN : ""}
+        </p>
+      )}
 
       {rp.leaks.length > 0 && (
         <div className="space-y-1">
@@ -320,7 +326,10 @@ export function GradeReport({ decisions, hands, of }: { decisions: DecisionRecor
           <ul aria-label="Leaks" className="space-y-1">
             {rp.leaks.map((l) => (
               <li key={`${l.kind}|${l.key}`} className="flex flex-wrap items-center gap-2">
-                <span>{leakText(l)}</span>
+                <span>
+                  {leakText(l)}
+                  {l.versions && <span className="text-xs text-muted"> {l.versions}</span>}
+                </span>
                 <button type="button" onClick={() => setLeak(leak?.key === l.key && leak.kind === l.kind ? null : l)} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
                   {leak?.key === l.key && leak.kind === l.kind ? "Hide" : "Show"} its decisions
                 </button>

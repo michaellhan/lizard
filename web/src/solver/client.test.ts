@@ -146,6 +146,46 @@ describe("SolverClient", () => {
   });
 });
 
+describe("a stored answer's version", () => {
+  const STORED = { actions: [], precomputed: { spot: "srp_btn_bb", board: "Ac4d3h" } } as AdvisorResponse;
+  const TURN = { actions: [], approximate: { source: "store", label: "the flop's stored turn" } } as AdvisorResponse;
+  const LIVE = { actions: [], solver: { iterations: 300, exploitability_pct: 0.5 } } as AdvisorResponse;
+  const ask = async (data: AdvisorResponse, stamps?: () => Promise<((s?: string, f?: string) => string | undefined) | null>) => {
+    const t = new FakeTransport();
+    const c = new SolverClient(t, "v", stamps);
+    const p = c.solve({ state: {} as AdvisorState, mode: "fast" });
+    t.calls[0]?.resolve(data);
+    await tick();
+    t.calls[0]!.resolve(data);
+    return p;
+  };
+  const stamp = (s?: string, f?: string) => (s ? `library:${s}:11112222:${f}:abc` : "library:*:ffff");
+
+  it("is the stored entry the engine names, read when the answer comes", async () => {
+    const stamps = vi.fn(async () => stamp);
+    expect((await ask(STORED, stamps)).provenance.libraryVersion).toBe("library:srp_btn_bb:11112222:Ac4d3h:abc");
+    expect(stamps).toHaveBeenCalledOnce();
+  });
+
+  it("is the whole library's for a stored turn, whose answer names no spot, or the spot it says it read", async () => {
+    expect((await ask(TURN, async () => stamp)).provenance).toMatchObject({ source: "library-turn", libraryVersion: "library:*:ffff" });
+    const near = { ...TURN, approximate: { source: "store", label: "x", near_spot: "srp_co_bb" } } as AdvisorResponse;
+    expect((await ask(near, async () => stamp)).provenance.libraryVersion).toBe("library:srp_co_bb:11112222:undefined:abc");
+  });
+
+  it("isn't asked for on a live answer", async () => {
+    const stamps = vi.fn(async () => stamp);
+    expect((await ask(LIVE, stamps)).provenance.libraryVersion).toBeUndefined();
+    expect(stamps).not.toHaveBeenCalled();
+  });
+
+  it("is left off where the index can't be read or there's nothing to read it from, and the answer still comes", async () => {
+    expect((await ask(STORED, async () => null)).provenance.libraryVersion).toBeUndefined();
+    expect((await ask(STORED, () => Promise.reject(new Error("offline")))).provenance).toMatchObject({ source: "library" });
+    expect((await ask(STORED)).provenance.libraryVersion).toBeUndefined();
+  });
+});
+
 describe("stopCost", () => {
   const worker = (crossOriginIsolated: boolean) => {
     const createWorker = vi.fn();

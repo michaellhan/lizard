@@ -143,6 +143,23 @@ describe("gradeDecision", () => {
     expect(flop.mix).toEqual([["check", 0.48, 3.1], ["bet 33%", 0.09, 3], ["bet 75%", 0.43, 3.12]]);
   });
 
+  it("stamps a grade with what graded it, and says nothing where it can't tell", async () => {
+    const r = SRP();
+    const on = (data: AdvisorResponse, p: Partial<ReturnType<typeof answer>["provenance"]> = {}): Ask => async () => {
+      const a = answer(data);
+      return { ...a, provenance: { ...a.provenance, ...p } };
+    };
+    // (the charts come with the solver build)
+    expect((await gradeDecision({ id: "h" }, r, "preflop", 3, on(CHART))).version).toBe("build:t");
+    const stored = await gradeDecision({ id: "h" }, r, "flop", 1, on(LIB, { libraryVersion: "library:srp_btn_bb:11112222:Qs8d3c:abc" }));
+    expect(stored.version).toBe("library:srp_btn_bb:11112222:Qs8d3c:abc");
+    // a stored answer whose index couldn't be read has no build to stand in for it; nor does a local server or a dev build
+    expect((await gradeDecision({ id: "h" }, r, "flop", 1, on(LIB))).version).toBeUndefined();
+    expect((await gradeDecision({ id: "h" }, r, "preflop", 3, on(CHART, { transport: "http" }))).version).toBeUndefined();
+    expect((await gradeDecision({ id: "h" }, r, "preflop", 3, on(CHART, { solverVersion: "dev" }))).version).toBeUndefined();
+    expect(await gradeDecision({ id: "h" }, r, "flop", 1, on({ skipped: "not a flop-library spot" }))).not.toHaveProperty("version");
+  });
+
   it("says why a decision isn't graded: not a library flop, an answer by the rules, an error", async () => {
     const r = SRP();
     const skip = await gradeDecision({ id: "h" }, r, "flop", 1, asking([{ skipped: "not a flop-library spot" }]).ask);

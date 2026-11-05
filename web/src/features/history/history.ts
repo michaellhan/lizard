@@ -8,6 +8,7 @@ import { potType } from "@/features/analyze/analyze";
 import { isPotDrill, POT_DRILLS } from "@/features/practice/practice";
 import { fromSearch } from "@/features/study/studyState";
 import type { Grade } from "@/grading/grade";
+import { spotVersion } from "@/grading/version";
 import type { Move, Sim } from "@/poker/table";
 import { sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
@@ -80,14 +81,24 @@ export interface GradeCell {
   /** EV lost, bb and % of the pot: only ever summed where `byEv` */
   loss: number;
   lossPct: number;
+  /** how many stand on each version (grading/version.ts, a spot's without its flop): those not counted here, every one
+   * in a cell kept before versions were, are unknown */
+  versions?: Record<string, number>;
 }
 
 /** A graded decision added to its cell. */
-export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">): Record<string, GradeCell> {
+export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">, version?: string): Record<string, GradeCell> {
   const src = source ?? "unknown";
   const key = `${street}|${src}|${g.byEv ? "ev" : "freq"}`;
   const c = cells?.[key] ?? { street, source: src, byEv: g.byEv, n: 0, ok: 0, loss: 0, lossPct: 0 };
-  return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + (g.byEv ? g.loss : 0), lossPct: c.lossPct + (g.byEv ? g.lossPct : 0) } };
+  return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + (g.byEv ? g.loss : 0), lossPct: c.lossPct + (g.byEv ? g.lossPct : 0), ...(version || c.versions ? { versions: addVersion(c.versions, version) } : {}) } };
+}
+
+/** A grade counted under its version; one with none, as it was. */
+export function addVersion(kept: Record<string, number> | undefined, version: string | undefined): Record<string, number> {
+  if (!version) return kept ?? {};
+  const k = spotVersion(version);
+  return { ...kept, [k]: (kept?.[k] ?? 0) + 1 };
 }
 
 /** A graded decision counted under what answered it. */

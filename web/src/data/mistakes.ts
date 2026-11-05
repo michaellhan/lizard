@@ -32,7 +32,7 @@ const isProvenance = (p: unknown): p is Provenance =>
   isStr(p.solverVersion) &&
   isNum(p.receivedAt) &&
   [p.exploitabilityPct, p.targetPct, p.iterations, p.seconds, p.mbbPerHand].every(isOptNum) &&
-  [p.band, p.librarySpot, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.sizing, p.confidence].every(isOptStr);
+  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.sizing, p.confidence].every(isOptStr);
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;
@@ -47,7 +47,7 @@ const isGrade = (g: unknown, mix: readonly unknown[]): g is MistakeRecord["grade
   isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv);
 
 const isTry = (t: unknown): t is MistakeTry =>
-  isObj(t) && isNum(t.at) && isStr(t.chose) && VERDICTS.includes(t.verdict as string) && isBool(t.ok) && isBool(t.byEv) && isNum(t.loss) && isNum(t.lossPct) && isStr(t.source) && isStr(t.label) && isBool(t.like) && isBool(t.moved);
+  isObj(t) && isNum(t.at) && isStr(t.chose) && VERDICTS.includes(t.verdict as string) && isBool(t.ok) && isBool(t.byEv) && isNum(t.loss) && isNum(t.lossPct) && isStr(t.source) && isStr(t.label) && isOptStr(t.version) && isBool(t.like) && isBool(t.moved);
 
 /** A stored or restored record, whole and of the types it says, else null. Nothing here throws. */
 export function readMistake(x: unknown): MistakeRecord | null {

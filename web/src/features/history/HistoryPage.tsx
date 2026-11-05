@@ -8,6 +8,7 @@ import { allSessions, type SessionRecord } from "@/data/db";
 import { listMistakes } from "@/data/mistakes";
 import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
+import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
 import { byDay, KINDS, kindLabel, kindTotals, potTotals, rowOf, sourcesText, type SessionKind, type SessionRow } from "./history";
 import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, streetTotals, trends, type BasisTrend } from "./progress";
 
@@ -276,6 +277,13 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           <p className="text-xs text-muted">
             {many(t.n, "decision")} in {many(t.sessions, "session")}. Graded against: {sourcesText(t.sources)}.
           </p>
+          {versionNote(t.versions) && (
+            <p aria-label="Versions compared" className="text-xs text-muted">
+              {versionNote(t.versions)}
+              {t.versions.changed.length > 0 ? " Part of a change here can be the answer's." : ""}
+              {t.versions.unknown[0] + t.versions.unknown[1] > 0 ? ` ${VERSION_UNKNOWN}` : ""}
+            </p>
+          )}
         </div>
       ))}
       <p className="text-xs text-muted">

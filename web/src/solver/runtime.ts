@@ -1,7 +1,8 @@
 // The app's solver instance: built from settings, rebuilt when the transport or library source changes.
 import { create } from "zustand";
 import { LIBRARY_SOURCES, SOLVER_ASSET_BASE, type LibrarySourceId } from "@/config";
-import { resolveLibrarySource } from "@/library/catalog";
+import { loadStamps, resolveLibrarySource } from "@/library/catalog";
+import type { LibraryStamp } from "@/library/version";
 import { SolverClient } from "./client";
 import { HttpTransport } from "./http-transport";
 import type { RuntimeStatus, TransportKind } from "./types";
@@ -26,6 +27,19 @@ export function loadManifest(): Promise<SolverManifest | null> {
 
 /** The build a client says it's running, as its answers' provenance carries it. */
 export const solverVersionOf = (m: SolverManifest | null) => (m ? `${m.upstream.commit.slice(0, 8)}/${m.version}` : "dev");
+
+/** The library's stamps, read once when a stored answer first needs them (again next time where they couldn't be). The
+ * worker reads its index once too, so the two say the same library for a client's life. */
+export function stampsAt(base: string): () => Promise<LibraryStamp | null> {
+  let kept: Promise<LibraryStamp | null> | null = null;
+  return () => {
+    const p = (kept ??= loadStamps(base).catch(() => null));
+    void p.then((s) => {
+      if (!s && kept === p) kept = null;
+    });
+    return p;
+  };
+}
 
 interface RuntimeState {
   client: SolverClient | null;
@@ -67,7 +81,7 @@ export const useRuntime = create<RuntimeState>((set, get) => {
       transport === "http"
         ? new HttpTransport({ url: localSolverUrl })
         : new WorkerTransport({ assetBase: SOLVER_ASSET_BASE, version, libraryBase: lib.base });
-    const client = new SolverClient(t, solverVersionOf(manifest));
+    const client = new SolverClient(t, solverVersionOf(manifest), transport === "worker" ? stampsAt(lib.base) : undefined);
     get().client?.dispose();
     client.onStatus((status) => set({ status }));
     set({ client, manifest, key, librarySource: lib.id });

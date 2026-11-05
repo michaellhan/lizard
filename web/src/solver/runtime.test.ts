@@ -2,7 +2,7 @@
 // older call can be made to finish after a newer one, as it does on a load where the saved settings come in meanwhile.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SolverClient } from "./client";
-import { solverVersionOf, useRuntime } from "./runtime";
+import { solverVersionOf, stampsAt, useRuntime } from "./runtime";
 
 const ensure = (librarySource: string) => useRuntime.getState().ensure({ transport: "worker", localSolverUrl: "http://x", librarySource });
 const SAVED = "lizard-library";
@@ -25,6 +25,26 @@ beforeEach(() => {
 afterEach(() => {
   useRuntime.setState({ client: null, key: "", librarySource: null });
   vi.unstubAllGlobals();
+});
+
+describe("the library's stamps", () => {
+  it("reads the index once, and again next time where it couldn't", async () => {
+    let up = false;
+    const get = vi.fn(async (url: string) =>
+      up && url.endsWith("/index.json") ? new Response(JSON.stringify({ format: 2, tree: {}, spots: [{ id: "a", fp: ["x", "y"], flops: {} }] })) : new Response("{}", { status: 404 }),
+    );
+    vi.stubGlobal("fetch", get);
+    const stamps = stampsAt("https://lib.test/");
+    expect(await stamps()).toBeNull();
+    await tick();
+    up = true;
+    const s = await stamps();
+    expect(s?.("a")).toMatch(/^library:a:/);
+    const reads = get.mock.calls.length;
+    await tick();
+    expect(await stamps()).toBe(s);
+    expect(get.mock.calls.length).toBe(reads);
+  });
 });
 
 describe("ensure", () => {

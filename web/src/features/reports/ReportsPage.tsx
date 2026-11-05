@@ -28,6 +28,7 @@ import {
   groups,
   hasEv,
   isFacing,
+  rangeLeadText,
   REPORT_VIEWS,
   reportProvenance,
   rows,
@@ -301,7 +302,7 @@ function SpotReport({
             {rep.label}
             {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision
             {hasEv(rep)
-              ? `; EV in bb at the start of the flop (pot ${rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group's EQR is that of its averages.`
+              ? `; EV in bb at the start of the flop (pot ${rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group's EQR is that of its averages. Range adv is the side with the higher range equity, and by how many points of equity. It's worked out from the stored equities, which run over every 8th turn and river runout (about 135 of the 1,081), so it can differ a little from Study's breakdown, which samples its own. A group's is that of its averaged equities, each flop weighted by how many of the ${ALL_FLOPS} it stands for. There's no nut advantage column: the library stores a range's equity with no equity by hand, so how much of a range is near the nuts can't be read from it. Study's breakdown works that out for one flop.`
               : ` (pot ${rep.pot}bb). The 3-way library stores each flop's strategies but no range EVs or equities, so this report has strategies only; it is built here from the ${rep.flops.length} flops' files, read once. Its flops are a sample spread over the flop space by how often each comes up, so each counts the same${rep.flops.some((f) => f.w === 0) ? `; ${rep.flops.filter((f) => f.w === 0).map((f) => f.f).join(", ")}, solved besides the sample, is listed but not averaged` : ""}.`}{" "}
             Each flop is its own stored solve: open one in Study to see how close it is to equilibrium.
             {isFacing(view) &&
@@ -317,6 +318,7 @@ function SpotReport({
 function orderText(sort: string, desc: boolean, cols: string[], seats: readonly string[]): string {
   if (sort === "flop") return desc ? "high flops first" : "low flops first";
   if (sort === "w") return `by how often they come up, ${desc ? "most" : "least"} first`;
+  if (sort === "adv") return `by range advantage, ${seats[desc ? 1 : 0]} most ahead first`;
   const m = /^(a|ev|eq|eqr)(\d+)$/.exec(sort);
   const i = Number(m?.[2] ?? 0);
   const what = !m ? sort : m[1] === "a" ? label(cols[i] ?? "") : `${seats[i]} ${m[1] === "ev" ? "EV" : m[1] === "eq" ? "equity" : "EQR"}`;
@@ -396,6 +398,7 @@ function ReportTable({
           <td className="hidden px-2 py-1 text-right sm:table-cell">{pct(a.eq[1])}</td>
           <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[0], a.eq[0], rep.pot))}</td>
           <td className="hidden px-2 py-1 text-right sm:table-cell">{ratio(eqr(a.ev[1], a.eq[1], rep.pot))}</td>
+          <td className="whitespace-nowrap px-2 py-1 text-right">{rangeLeadText(a.eq, rep.seats)}</td>
         </>
       )}
     </>
@@ -418,6 +421,7 @@ function ReportTable({
                 {head("eq1", `${p} eq`, "hidden text-right sm:table-cell")}
                 {head("eqr0", `${o} EQR`, "hidden text-right sm:table-cell")}
                 {head("eqr1", `${p} EQR`, "hidden text-right sm:table-cell")}
+                {head("adv", "Range adv", "text-right")}
               </>
             )}
             <th scope="col" className="px-2 py-1.5">
@@ -495,7 +499,7 @@ function ReportTable({
           })}
           {listed.length < shown.length && (
             <tr className="border-t border-border">
-              <td colSpan={cols.length + (ev ? 9 : 3)} className="px-2 py-2 text-muted">
+              <td colSpan={cols.length + (ev ? 10 : 3)} className="px-2 py-2 text-muted">
                 {listed.length} of {shown.length} flops listed, in this order; the averages above take all of them.{" "}
                 <button type="button" onClick={() => setShowAll(true)} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2">
                   Show all {shown.length} flops

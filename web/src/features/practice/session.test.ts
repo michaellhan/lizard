@@ -172,7 +172,7 @@ describe("History's record", () => {
         rakeCap: 3,
         byPot: s.byPot,
         sources: { live: 1 },
-        cells: { "preflop|live|ev": { street: "preflop", source: "live", byEv: true, n: 1, ok: 1, loss: 0.2, lossPct: 4 } },
+        cells: { "preflop|live|ev": { street: "preflop", source: "live", byEv: true, n: 1, ok: 1, loss: 0.2, lossPct: 4, versions: { "build:test": 1 } } },
       },
     });
     expect(toRecord(session({ carry: true })).meta).toMatchObject({ seat: "moves", carry: true });

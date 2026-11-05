@@ -6,7 +6,8 @@
 // session's results are the cards. Which rows are compared is decided by sample size alone: choosing them by value
 // would manufacture improvement from chance.
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { basisOf, freqs, FREQS, groupBy, isGraded, isOk, LEAK, leaks, PF_ORDER, spotOf, type FreqRow, type Group } from "./report";
+import { countVersions, versionSpan, type VersionSpan } from "@/grading/version";
+import { basisOf, freqs, FREQS, groupBy, isGraded, isOk, LEAK, leaks, leakTest, PF_ORDER, type FreqRow, type Group, spotOf } from "./report";
 import { byPlayed, type Sitting } from "./sessions";
 import { wilson } from "./stats";
 
@@ -31,10 +32,11 @@ export type Change = "Better" | "Worse";
 export type RowChange = Change | "Now over the answer" | "Now under the answer";
 
 /** The decision as it was first answered: a read a check at Fast replaced, under the read's own basis, with the read's
- * own mix. (`approximate` isn't kept with a read, and is the check's here; a library read's basis is in its label. A
- * read checked before its mix was kept has none, never the check's: it stays out of the frequencies, and says so.) */
+ * own mix and version. (`approximate` isn't kept with a read, and is the check's here; a library read's basis is in its
+ * label. A read checked before its mix or version was kept has none, never the check's: it stays out of the frequencies,
+ * says so, and its version is unknown.) */
 export function firstAnswer(d: DecisionRecord): DecisionRecord {
-  return d.read ? { ...d, ...d.read, mix: d.read.mix, approximate: false } : d;
+  return d.read ? { ...d, ...d.read, mix: d.read.mix, version: d.read.version, approximate: false } : d;
 }
 
 /** A fold the answer takes almost always. (By the answer's own frequency for your action: a read keeps it, and not its
@@ -126,6 +128,9 @@ export function latestCut(list: readonly Pick<Answer, "sit">[]): number | null {
   return cut;
 }
 
+/** The versions two sides' decisions were graded on. */
+const spanOf = (before: readonly DecisionRecord[], later: readonly DecisionRecord[]): VersionSpan => versionSpan(countVersions(before.map((d) => d.version)), countVersions(later.map((d) => d.version)));
+
 /** How far two shares are apart, in standard errors, the later above the earlier being positive; null with no spread. */
 export function shareZ(ok1: number, n1: number, ok2: number, n2: number): number | null {
   const p = (ok1 + ok2) / (n1 + n2);
@@ -177,6 +182,8 @@ export interface LatestThird {
   /** null: no clear change. `enough` false: too few to say either way */
   change: Change | null;
   enough: boolean;
+  /** what the two sides were graded on */
+  versions: VersionSpan;
 }
 
 export function latestThird(list: readonly Answer[], at: number): LatestThird {
@@ -184,11 +191,11 @@ export function latestThird(list: readonly Answer[], at: number): LatestThird {
   const [ok1, ok2] = [before, later].map((s) => s.filter((a) => isOk(a.d)).length) as [number, number];
   const [n1, n2] = [before.length, later.length];
   const enough = Math.min(n1, n2) >= MIN_SIDE;
-  return { at, n1, ok1, n2, ok2, change: enough ? changeOf(shareZ(ok1, n1, ok2, n2)) : null, enough };
+  return { at, n1, ok1, n2, ok2, change: enough ? changeOf(shareZ(ok1, n1, ok2, n2)) : null, enough, versions: spanOf(before.map((a) => a.d), later.map((a) => a.d)) };
 }
 
 type Sides<T> = [T, T];
-export type Shift = { key: string; n: Sides<number>; z: number | null; change: RowChange | null; leak: boolean } & (
+export type Shift = { key: string; n: Sides<number>; z: number | null; change: RowChange | null; leak: boolean; versions: VersionSpan } & (
   | { kind: "freq"; you: Sides<number>; gto: Sides<number> }
   | { kind: "pf"; share: Sides<number> }
   | { kind: "spot"; share: Sides<number>; avg: Sides<number | null> }
@@ -201,6 +208,11 @@ export function shifts(before: readonly DecisionRecord[], later: readonly Decisi
   const now = new Set(leaks([...later]).map((l) => `${l.kind}:${l.key}`));
   const rows: Shift[] = [];
   let tooFew = 0;
+  const rowVersions = (kind: Shift["kind"], key: string) => {
+    const of = leakTest({ kind, key });
+    const its = (d: DecisionRecord) => isGraded(d) && of(d);
+    return spanOf(before.filter(its), later.filter(its));
+  };
   const [f1, f2] = [before, later].map((ds) => new Map(freqs(ds).map((r) => [r.label, r])));
   for (const [key] of FREQS) {
     const [a, b] = [f1!.get(key), f2!.get(key)];
@@ -212,7 +224,7 @@ export function shifts(before: readonly DecisionRecord[], later: readonly Decisi
     const z = gapZ(a, b);
     const cross = changeOf(z) ? null : crossZ(a, b);
     const change = cross == null ? changeOf(z) : cross > 0 ? "Now over the answer" : "Now under the answer";
-    rows.push({ kind: "freq", key, n: [a.n, b.n], you: [a.you, b.you], gto: [a.gto, b.gto], z: cross ?? z, change, leak: now.has(`freq:${key}`) });
+    rows.push({ kind: "freq", key, n: [a.n, b.n], you: [a.you, b.you], gto: [a.gto, b.gto], z: cross ?? z, change, leak: now.has(`freq:${key}`), versions: rowVersions("freq", key) });
   }
   const compare = (kind: "pf" | "spot", of: (ds: readonly DecisionRecord[]) => Group[]) => {
     const [g1, g2] = [before, later].map((ds) => new Map(of(ds).map((g) => [g.key, g])));
@@ -223,7 +235,7 @@ export function shifts(before: readonly DecisionRecord[], later: readonly Decisi
         continue;
       }
       const z = shareZ(a.ok, a.graded, b.ok, b.graded);
-      const row = { key, n: [a.graded, b.graded] as Sides<number>, share: [a.ok / a.graded, b.ok / b.graded] as Sides<number>, z, change: changeOf(z), leak: now.has(`${kind}:${key}`) };
+      const row = { key, n: [a.graded, b.graded] as Sides<number>, share: [a.ok / a.graded, b.ok / b.graded] as Sides<number>, z, change: changeOf(z), leak: now.has(`${kind}:${key}`), versions: rowVersions(kind, key) };
       rows.push(kind === "pf" ? { ...row, kind } : { ...row, kind, avg: [a.avg, b.avg] });
     }
   };

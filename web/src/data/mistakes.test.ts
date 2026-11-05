@@ -1,12 +1,21 @@
 // The kept mistakes in IndexedDB: added, merged, changed, and a damaged record left out, never a crash.
 import { describe, expect, it } from "vitest";
-import { chartMistake, DAY_ONE, mistake } from "@/test/mistake";
+import { chartMistake, DAY_ONE, mistake, STORED } from "@/test/mistake";
 import { db } from "./db";
 import { changeMistake, keepMistake, listMistakes, readMistake } from "./mistakes";
 
 const wipe = async () => (await db())!.clear("mistakes");
 
 describe("a kept record, read", () => {
+  it("takes a version on a try and on a stored answer, an old record with neither, and no version that isn't a string", () => {
+    const tried = { at: 1, chose: "check", verdict: "Best", ok: true, byEv: true, loss: 0, lossPct: 0, source: "live", label: "x", like: true, moved: true } as const;
+    expect(readMistake(mistake({ tries: [tried] }))).not.toBeNull();
+    expect(readMistake(mistake({ tries: [{ ...tried, version: "build:aaa/111" }] }))).not.toBeNull();
+    expect(readMistake(mistake({ tries: [{ ...tried, version: 7 as never }] }))).toBeNull();
+    expect(readMistake(mistake({ provenance: { ...STORED, libraryVersion: "library:s:1" } }))).not.toBeNull();
+    expect(readMistake(mistake({ provenance: { ...STORED, libraryVersion: 7 as never } }))).toBeNull();
+  });
+
   it("takes a whole one, of either kind of answer", () => {
     expect(readMistake(mistake())).toEqual(mistake());
     expect(readMistake(chartMistake())).toEqual(chartMistake());

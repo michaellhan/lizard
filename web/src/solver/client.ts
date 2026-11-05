@@ -1,12 +1,14 @@
 // SolverClient: the one object views talk to. It maps modes onto the Advisor's request keys, serializes
 // requests (the backends run one solve at a time), supports AbortSignal cancellation for queued and running
 // requests, and attaches provenance to every answer.
+import type { LibraryStamp } from "@/library/version";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "./protocol";
 import { provenanceOf } from "./provenance";
 import { recordTiming } from "./timings";
 import {
   SolverError,
   type PlayRequest,
+  type Provenance,
   type RuntimeStatus,
   type SolveMode,
   type SolveRequest,
@@ -63,10 +65,26 @@ export class SolverClient {
   private running = false;
   readonly transport: SolverTransport;
   readonly solverVersion: string;
+  /** the stamps of the library this backend answers from, read when a stored answer first needs one; none for a local
+   * server, whose library isn't the page's */
+  private readonly libraryStamp?: () => Promise<LibraryStamp | null>;
 
-  constructor(transport: SolverTransport, solverVersion: string) {
+  constructor(transport: SolverTransport, solverVersion: string, libraryStamp?: () => Promise<LibraryStamp | null>) {
     this.transport = transport;
     this.solverVersion = solverVersion;
+    this.libraryStamp = libraryStamp;
+  }
+
+  /** A stored answer's version: the entry the engine names, or for a stored turn, which names none, the whole library's
+   * (or the nearest spot's, where it read another). None where the library's index can't be read. */
+  private async stamped(data: AdvisorResponse, p: Provenance): Promise<Provenance> {
+    if ((p.source !== "library" && p.source !== "library-turn") || !this.libraryStamp) return p;
+    const stamp = await this.libraryStamp().catch(() => null);
+    const near = (data.approximate as { near_spot?: unknown } | null | undefined)?.near_spot;
+    const spot = data.precomputed?.spot ?? (typeof near === "string" ? near : undefined);
+    const board = data.precomputed?.board;
+    const libraryVersion = stamp?.(spot, typeof board === "string" ? board : undefined);
+    return libraryVersion ? { ...p, libraryVersion } : p;
   }
 
   status(): RuntimeStatus {
@@ -126,7 +144,7 @@ export class SolverClient {
           ? (p: AdvisorResponse) => req.onPartial?.({ data: p, provenance: provenanceOf(p, { ...ctx, partial: true }) })
           : undefined,
       });
-      const provenance = provenanceOf(data, { ...ctx, partial: false });
+      const provenance = await this.stamped(data, provenanceOf(data, { ...ctx, partial: false }));
       // (the mode's measured times: a live advice or Study answer, not an opponent's move; a triage solve is Quick's)
       if (!req.play && !req.untimed) recordTiming(JSON.stringify(sent), this.transport.kind, provenance.mode, data, provenance);
       item.resolve({ data, provenance });

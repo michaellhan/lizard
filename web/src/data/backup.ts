@@ -85,7 +85,8 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; upda
   decisions: {
     created: (d) => d.gradedAt,
     updated: (d) => d.gradedAt,
-    valid: (d) => isStr(d.handId) && isStr(d.street) && isStr(d.verdict) && isStr(d.source) && isStr(d.label) && isNum(d.gradedAt),
+    // (a grade from before versions were kept has none)
+    valid: (d) => isStr(d.handId) && isStr(d.street) && isStr(d.verdict) && isStr(d.source) && isStr(d.label) && isNum(d.gradedAt) && (d.version === undefined || isStr(d.version)),
   },
   mistakes: {
     created: (d) => d.at,

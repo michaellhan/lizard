@@ -2,6 +2,7 @@
 // deal, graded decision and finished hand gives the next session, whichever table it came from, so one session scores
 // them all. Decisions count as they're graded and a hand as it ends, so `score.n` runs ahead of the tallies mid-hand.
 import type { SessionRecord } from "@/data/db";
+import { versionOf } from "@/grading/version";
 import { addCell, addHandToPot, addSource, handPot, type GradeCell, type PotTally } from "@/features/history/history";
 import { addScore, emptyScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
@@ -66,7 +67,7 @@ export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, 
     ...s,
     score: addScore(s.score, d.grade),
     sources: addSource(s.sources, d.provenance?.source),
-    cells: addCell(s.cells, d.street, d.provenance?.source, d.grade),
+    cells: addCell(s.cells, d.street, d.provenance?.source, d.grade, versionOf(d.provenance)),
     review: withReviewed(s.review, reviewed(h, d, h.n + 1, table)),
   };
 }

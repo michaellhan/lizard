@@ -168,6 +168,40 @@ describe("Your sessions", () => {
     expect(within(p).getByRole("table", { name: "Changes against before" })).toHaveTextContent("RFI");
   });
 
+  it("says on the row and the comparison where the versions differ, and keeps the row's numbers", async () => {
+    const hs = Array.from({ length: 330 }, (_, k) => hand(T0 + k * DAY));
+    const version = (k: number) => (k < 220 ? "build:aaaa/1111" : "build:bbbb/2222");
+    await seed(hs, hs.map((h, k) => dec(h, { version: version(k), verdict: k < 220 ? (k % 2 ? "Best" : "Mistake") : k % 10 ? "Best" : "Mistake" })));
+    open();
+    const p = await panel();
+    await within(p).findByRole("figure");
+    expect(screen.getByLabelText("Versions compared")).toHaveTextContent("Graded on different versions: solver build aaaa/1111 before, bbbb/2222 latest.");
+    const table = within(p).getByRole("table", { name: "Changes against before" });
+    expect(within(table).getByRole("columnheader", { name: "Versions" })).toBeInTheDocument();
+    const [row] = within(table).getAllByRole("row").slice(1);
+    expect(row).toHaveTextContent("RFI");
+    expect(row).toHaveTextContent("Better");
+    expect(row).toHaveTextContent("solver build aaaa/1111 before, bbbb/2222 latest");
+    expect(p).toHaveTextContent("Where a row spans versions, part of its change can be the answer's");
+  });
+
+  it("shows grades with no version as unknown, and one known version as the same", async () => {
+    const hs = Array.from({ length: 330 }, (_, k) => hand(T0 + k * DAY));
+    const graded = (over: Partial<DecisionRecord>) => hs.map((h, k) => dec(h, { ...over, verdict: k < 220 ? (k % 2 ? "Best" : "Mistake") : k % 10 ? "Best" : "Mistake" }));
+    await seed(hs, graded({}));
+    open();
+    const p = await panel();
+    const table = await within(p).findByRole("table", { name: "Changes against before" });
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent(/Version unknown \(\d+ before, \d+ latest\)/);
+    expect(p).toHaveTextContent("A version is unknown where a grade was made before versions were kept");
+    cleanup();
+    await putDecisions(graded({ version: "build:aaaa/1111" }));
+    open();
+    const same = await within(await panel()).findByRole("table", { name: "Changes against before" });
+    expect(within(within(same).getAllByRole("row")[1]!).getAllByRole("cell").at(-1)).toHaveTextContent(/^Same$/);
+    expect(screen.queryByLabelText("Versions compared")).toBeNull();
+  });
+
   it("hides the line and the comparison under a session and the filters that pick hands by how they went", async () => {
     const hs = Array.from({ length: 330 }, (_, k) => hand(T0 + k * DAY));
     await seed(hs, hs.map((h) => dec(h)));

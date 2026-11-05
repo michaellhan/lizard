@@ -407,6 +407,14 @@ describe("keptTables", () => {
     expect(read({ sources: "live" })).toEqual({});
   });
 
+  it("reads a cell's version counts back, one kept before them as it was, and damaged ones lose the session", () => {
+    const cell = { street: "flop", source: "live", byEv: true, n: 2, ok: 1, loss: 0, lossPct: 0 };
+    const read = (c: unknown) => keptTables(spoiled({ cells: { a: c } }));
+    expect(read(cell)?.session.cells?.a).toEqual(cell);
+    expect(read({ ...cell, versions: { "build:a/1": 2 } })?.session.cells?.a?.versions).toEqual({ "build:a/1": 2 });
+    expect(read({ ...cell, versions: { "build:a/1": "two" } })).toBeNull();
+  });
+
   it("reads a session's board filter back; one kept before it has none; one that isn't a filter loses the session", () => {
     const opts = (o: object) => ({ opts: { ...doc().session.opts, ...o } });
     const board = { suits: "mono", hi: "A" };

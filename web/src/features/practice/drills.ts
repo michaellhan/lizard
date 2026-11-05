@@ -377,7 +377,8 @@ export function studyLink(rep: LibraryReport, pr: DrillProblem): string | null {
 
 /** The answer's provenance: the stored solve, read in the page from the library file. A turn's is the stored turn's:
  * approximate, with none of the flop solve's numbers, as Study's badge for the same file (provenance.ts). */
-export function drillProvenance(e: Entry, mode: SolveMode, pr?: Pick<DrillProblem, "turn" | "names">): Provenance {
+export function drillProvenance(e: Entry, mode: SolveMode, pr?: Pick<DrillProblem, "turn" | "names">, libraryVersion?: string): Provenance {
+  const stamped = libraryVersion ? { libraryVersion } : {};
   if (pr?.turn) {
     const bets = pr.names.filter((n) => /^bet /.test(n));
     return {
@@ -385,6 +386,7 @@ export function drillProvenance(e: Entry, mode: SolveMode, pr?: Pick<DrillProble
       approximate: true,
       approximateLabel: `the precomputed flop solve's view of this turn, in 5% steps (${bets.length === 1 ? `one bet size, ${bets[0]!.slice(4)}` : "its turn sizes"})`,
       librarySpot: e.head.spot,
+      ...stamped,
       mode,
       transport: "file",
       solverVersion: `library tree ${e.head.tree}`,
@@ -399,6 +401,7 @@ export function drillProvenance(e: Entry, mode: SolveMode, pr?: Pick<DrillProble
     band: bandOf(e.head.expl, false),
     iterations: e.head.iters,
     librarySpot: e.head.spot,
+    ...stamped,
     mode,
     transport: "file",
     solverVersion: `library tree ${e.head.tree}`,

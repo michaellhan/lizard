@@ -12,6 +12,7 @@
 import type { SessionRecord } from "@/data/db";
 import { BAR, BLOCK, MIN_BLOCKS, MIN_SHARE, moreForLine, shareZ, type Block, type Change } from "@/features/analyze/trend";
 import { wilson } from "@/features/analyze/stats";
+import { keptCounts, versionSpan, type VersionSpan } from "@/grading/version";
 import type { GradeCell } from "./history";
 
 export { MIN_BLOCKS, BLOCK, MIN_SHARE };
@@ -21,11 +22,18 @@ export const STREET_ORDER = ["preflop", "flop", "turn", "river"] as const;
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
 const obj = (x: unknown) => (x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
 
+/** Counts by version, as a session keeps them; a damaged one leaves its decisions unknown. */
+function readVersions(x: unknown): { versions: Record<string, number> } | object {
+  const v = obj(x);
+  const ok = v ? Object.entries(v).filter((e): e is [string, number] => num(e[1]) > 0) : [];
+  return ok.length ? { versions: Object.fromEntries(ok) } : {};
+}
+
 /** A cell read defensively: one with no street, no source or no count isn't one. */
 function readCell(x: unknown): GradeCell | null {
   const c = obj(x);
   if (!c || !STREET_ORDER.includes(c.street as (typeof STREET_ORDER)[number]) || typeof c.source !== "string" || !num(c.n)) return null;
-  return { street: c.street as string, source: c.source, byEv: c.byEv === true, n: num(c.n), ok: num(c.ok), loss: num(c.loss), lossPct: num(c.lossPct) };
+  return { street: c.street as string, source: c.source, byEv: c.byEv === true, n: num(c.n), ok: num(c.ok), loss: num(c.loss), lossPct: num(c.lossPct), ...readVersions(c.versions) };
 }
 
 /** A session's cells: a Practice session's as kept (null: played before they were kept), a drill's from its totals: a
@@ -39,8 +47,8 @@ export function cellsOf(s: SessionRecord): GradeCell[] | null {
   if (s.kind === "drill" && num(s.decisions) > 0) {
     const n = num(s.decisions);
     // (a turn drill's mark: it's graded by the stored mix, with no EV)
-    if (m.street === "turn") return [{ street: "turn", source: "library-turn", byEv: false, n, ok: num(m.ok), loss: 0, lossPct: 0 }];
-    return [{ street: "flop", source: "library", byEv: true, n, ok: num(m.ok), loss: num(s.evLossBb), lossPct: num(m.lossPct) }];
+    if (m.street === "turn") return [{ street: "turn", source: "library-turn", byEv: false, n, ok: num(m.ok), loss: 0, lossPct: 0, ...readVersions(m.versions) }];
+    return [{ street: "flop", source: "library", byEv: true, n, ok: num(m.ok), loss: num(s.evLossBb), lossPct: num(m.lossPct), ...readVersions(m.versions) }];
   }
   return s.kind === "drill" ? [] : null;
 }
@@ -129,6 +137,8 @@ export interface BasisTrend {
   change: Change | null;
   /** the case against drawing: said on the page */
   why: string | null;
+  /** what graded it: the last stretch against those before it where there's a line, else all of it */
+  versions: VersionSpan;
 }
 
 // (TrendChart prints a day with clockOf, which reads a time as UTC: these are local times, so they're moved to print as such)
@@ -137,13 +147,13 @@ const asClock = (t: number) => t - new Date(t).getTimezoneOffset() * 60_000;
 /** One basis over the sessions, oldest first, in stretches of at least BLOCK decisions: whole sessions, the remainder
  * going in the last. */
 export function basisTrend(sessions: readonly SessionRecord[], basis: Basis): BasisTrend {
-  const parts: { at: number; n: number; ok: number; lossPct: number; sources: Record<string, number> }[] = [];
+  const parts: { at: number; n: number; ok: number; lossPct: number; sources: Record<string, number>; cells: GradeCell[] }[] = [];
   for (const s of [...sessions].sort((a, b) => num(a.startedAt) - num(b.startedAt))) {
     const cs = (cellsOf(s) ?? []).filter((c) => c.byEv === (basis === "ev"));
     if (!cs.length) continue;
     const sources: Record<string, number> = {};
     for (const c of cs) sources[c.source] = (sources[c.source] ?? 0) + c.n;
-    parts.push({ at: num(s.startedAt), n: cs.reduce((a, c) => a + c.n, 0), ok: cs.reduce((a, c) => a + c.ok, 0), lossPct: cs.reduce((a, c) => a + c.lossPct, 0), sources });
+    parts.push({ at: num(s.startedAt), n: cs.reduce((a, c) => a + c.n, 0), ok: cs.reduce((a, c) => a + c.ok, 0), lossPct: cs.reduce((a, c) => a + c.lossPct, 0), sources, cells: cs });
   }
   const n = parts.reduce((a, p) => a + p.n, 0);
   const sources: Record<string, number> = {};
@@ -183,7 +193,13 @@ export function basisTrend(sessions: readonly SessionRecord[], basis: Basis): Ba
     : n < MIN_BLOCKS * BLOCK
       ? `${n.toLocaleString()} decision${n === 1 ? "" : "s"} so far: a line needs ${(MIN_BLOCKS * BLOCK).toLocaleString()}, ${moreForLine(n).toLocaleString()} more, as a share over fewer than ${BLOCK} is mostly chance.`
       : `${n.toLocaleString()} decisions, but they make only ${blocks.length} stretch${blocks.length === 1 ? "" : "es"} of ${BLOCK} or more, since a session isn't cut in two, and a line needs ${MIN_BLOCKS}.`;
-  return { basis, n, sessions: parts.length, sources, blocks, line, change, why };
+  const counted = (ps: typeof parts) => {
+    const all = new Map<string | null, number>();
+    for (const c of ps.flatMap((p) => p.cells)) for (const [v, k] of keptCounts(c.versions, c.n)) all.set(v, (all.get(v) ?? 0) + k);
+    return all;
+  };
+  const versions = line ? versionSpan(counted(groups.slice(0, -1).flat()), counted(groups.at(-1)!)) : versionSpan(counted(parts));
+  return { basis, n, sessions: parts.length, sources, blocks, line, change, why, versions };
 }
 
 /** Both bases, those with any decision; `why` a basis isn't drawn, in words; what graded each. */

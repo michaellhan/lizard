@@ -155,7 +155,7 @@ describe("sessions history", () => {
       meta: {
         cells: {
           "preflop|charts|freq": { street: "preflop", source: "charts", byEv: false, n: 4, ok: 3, loss: 0, lossPct: 0 },
-          "flop|live|ev": { street: "flop", source: "live", byEv: true, n: 2, ok: 1, loss: 0.4, lossPct: 6 },
+          "flop|live|ev": { street: "flop", source: "live", byEv: true, n: 2, ok: 1, loss: 0.4, lossPct: 6, versions: { "build:aaa/111": 1, "build:bbb/222": 1 } },
         },
       },
     });
@@ -175,6 +175,9 @@ describe("sessions history", () => {
     const trend = screen.getByRole("region", { name: "Over time" });
     expect(within(trend).getAllByText(/^No line yet\./)).toHaveLength(2);
     expect(within(trend).queryByRole("img")).toBeNull();
+    const notes = within(trend).getAllByLabelText("Versions compared").map((p) => p.textContent);
+    expect(notes[0]).toMatch(/^Graded on different versions: solver build aaa\/111 and bbb\/222\. Part of a change here can be the answer's\.$/);
+    expect(notes[1]).toMatch(/^Version unknown\. A version is unknown where a grade was made before versions were kept/);
     expect(screen.getByRole("link", { name: /2 mistakes kept for review, 1 due/ })).toHaveAttribute("href", "/review");
     cleanup();
     await d.clear("sessions");

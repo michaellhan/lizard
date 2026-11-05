@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mistake } from "@/test/mistake";
-import { DB_VERSION, MIGRATIONS, openLizardDB, putSession, recentSessions } from "./db";
+import { versionWords } from "@/grading/version";
+import { DB_VERSION, MIGRATIONS, openLizardDB, putSession, recentSessions, type DecisionRecord } from "./db";
 
 let n = 0;
 const fresh = () => `lizard-test-${++n}`;
@@ -88,6 +89,18 @@ describe("IndexedDB migrations", () => {
     await v6.put("mistakes", mistake());
     expect(await v6.countFromIndex("mistakes", "byStreet", "flop")).toBe(1);
     v6.close();
+  });
+
+  it("reads a version-6 grade kept before versions were, as it was, with no migration: a stamp is a field with no index", async () => {
+    const db6 = await openLizardDB(6, fresh());
+    const old: DecisionRecord = { id: "h|flop|1", handId: "h", street: "flop", pos: "BTN", action: "check", verdict: "Best", evLossBb: 0, source: "library", label: "Precomputed solution · srp_btn_bb", gradedAt: 1 };
+    await db6.put("decisions", old);
+    await db6.put("decisions", { ...old, id: "h|flop|2", version: "build:aaa/111" });
+    const got = await db6.get("decisions", old.id);
+    expect(got).toEqual(old);
+    expect(versionWords(got?.version)).toBe("unknown");
+    expect(versionWords((await db6.get("decisions", "h|flop|2"))?.version)).toBe("solver build aaa/111");
+    db6.close();
   });
 
   it("opens at version 6", () => {

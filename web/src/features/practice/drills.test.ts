@@ -230,6 +230,13 @@ describe("a problem's spot", () => {
     expect(describeProvenance(p)).toBe("Precomputed solution · srp_btn_bb · 0.11% pot from equilibrium in the solved game (converged) · 300 iterations");
     expect(p.transport).toBe("file");
   });
+
+  it("carries the stored answer's version where it's given one, a stored turn's too", async () => {
+    const e = await load("srp_btn_bb", "Ac4d3h");
+    expect(drillProvenance(e, "fast", undefined, "library:srp_btn_bb:1111:Ac4d3h:aa").libraryVersion).toBe("library:srp_btn_bb:1111:Ac4d3h:aa");
+    expect(drillProvenance(e, "fast", { names: ["check"], turn: { card: "9s", at: [], rangeEvs: null } }, "library:srp_btn_bb:1111:Ac4d3h:aa")).toMatchObject({ source: "library-turn", libraryVersion: "library:srp_btn_bb:1111:Ac4d3h:aa" });
+    expect(drillProvenance(e, "fast")).not.toHaveProperty("libraryVersion");
+  });
 });
 
 describe("the hand filter on flop drills", () => {

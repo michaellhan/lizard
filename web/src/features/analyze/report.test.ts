@@ -24,6 +24,39 @@ const open = (o: Partial<DecisionRecord> = {}) => d({ situation: "RFI", mix: [["
 const cbet = (o: Partial<DecisionRecord> = {}) =>
   d({ street: "flop", action: "bet 1.8", situation: "SRP · IP · checked to", role: "PFR", facing: false, multi: false, ip: true, mix: [["check", 0.6, 3.1], ["bet 33%", 0.4, 2.5]], verdict: "Mistake", evLossBb: 0.6, lossPct: 10.9, pot: 5.5, source: "library", label: "Precomputed solution · srp_btn_bb", ...o });
 
+describe("the versions behind a report", () => {
+  const A = "build:aaa/111";
+  const B = "build:bbb/222";
+
+  it("says what the grades stand on, and which have none", () => {
+    expect(report([open({ version: A }), open({ version: A }), cbet({ version: "library:srp_btn_bb:1111" }), cbet()]).versions).toBe("Graded on solver build aaa/111 (2), library srp_btn_bb 1111 (1). Version unknown for 1.");
+    expect(report([open()]).versions).toBe("Version unknown: none of these grades has one.");
+    expect(report([d({ verdict: "Not graded", why: "x" })]).versions).toBeNull();
+  });
+
+  it("says it on a leak that spans versions, and of that leak's decisions alone", () => {
+    const miss = (i: number, version: string) => cbet({ handId: `h${i}`, verdict: "Blunder", evLossBb: 2, lossPct: 30, version });
+    const ls = leaks(Array.from({ length: 30 }, (_, i) => miss(i, i % 2 ? "library:srp_btn_bb:1111" : "library:srp_btn_bb:2222")));
+    expect(ls.length).toBeGreaterThan(0);
+    expect(ls[0]!.versions).toBe("Graded on different versions: library srp_btn_bb 1111 and 2222.");
+    const one = leaks(Array.from({ length: 30 }, (_, i) => miss(i, A)));
+    expect(one[0]!.versions).toBeNull();
+    expect(leaks(Array.from({ length: 30 }, (_, i) => miss(i, i ? A : B)))[0]!.versions).toMatch(/different versions: solver build/);
+  });
+
+  it("writes each decision's version in the CSV and the JSON, unknown where it has none, blank where nothing graded it", () => {
+    const ds = [open({ version: A }), open(), d({ verdict: "Not graded", why: "x" })];
+    const hands = new Map<string, HandRecord>();
+    const csv = toCSV(ds, hands).trim().split("\n");
+    const at = csv[0]!.split(",").indexOf("graded_version");
+    expect(at).toBeGreaterThan(0);
+    expect(csv.slice(1).map((l) => l.split(",").at(-1))).toEqual([A, "unknown", ""]);
+    expect(COLS).toContain("graded_version");
+    const json = JSON.parse(toJSON(ds, hands)) as { summary: { versions: string } };
+    expect(json.summary.versions).toMatch(/solver build aaa\/111 \(1\)/);
+  });
+});
+
 describe("report", () => {
   it("tallies the grades, the EV lost by EV only, and groups in order", () => {
     const ds = [open(), open({ verdict: "Mistake", action: "call", freq: 0 }), cbet(), cbet({ verdict: "Best", evLossBb: 0, lossPct: 0 }), d({ verdict: "Not graded", why: "not a flop-library spot", street: "flop" })];

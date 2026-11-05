@@ -8,6 +8,7 @@
 // every action, by frequency where it hasn't (the charts; a read at once).
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { grade, type Grade, type Verdict } from "@/grading/grade";
+import { versionOf } from "@/grading/version";
 import { importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Lines, type Move, type Street } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, OffSolution } from "@/solver/protocol";
@@ -267,6 +268,7 @@ export async function gradeDecision(
   // (a rough or cut-short solve can't condemn a line, as the classic gradeClass has it: its EV is kept, as measured)
   const unsure = ans.provenance.band === "rough" || ans.provenance.band === "approximate";
   const capped = unsure && (g.grade.verdict === "Mistake" || g.grade.verdict === "Blunder");
+  const version = versionOf(ans.provenance);
   return {
     ...base,
     verdict: capped ? "Inaccuracy" : g.grade.verdict,
@@ -285,6 +287,7 @@ export async function gradeDecision(
     ...(off ? { off } : {}),
     source,
     label,
+    ...(version ? { version } : {}),
     ...(ans.provenance.approximate ? { approximate: true } : {}),
     ...(ans.provenance.band ? { band: ans.provenance.band } : {}),
     ...tri,
@@ -299,8 +302,8 @@ export const answeredIds = (ds: readonly DecisionRecord[]) => new Set(ds.filter(
  * that can't grade your move leaves the read as it stands, saying why. */
 export function deepened(read: DecisionRecord, d: DecisionRecord): DecisionRecord {
   if (d.verdict === "Not graded") return { ...read, notChecked: d.why ?? "", gradedAt: d.gradedAt };
-  const { verdict, source, label, confidence, triageSource, evLossBb, freq, mix } = read;
-  return { ...d, read: { verdict, source, label, confidence, triageSource, evLossBb, freq, mix } };
+  const { verdict, source, label, version, confidence, triageSource, evLossBb, freq, mix } = read;
+  return { ...d, read: { verdict, source, label, ...(version ? { version } : {}), confidence, triageSource, evLossBb, freq, mix } };
 }
 
 export interface GradeRun {

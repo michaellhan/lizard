@@ -77,6 +77,51 @@ describe("firstAnswer", () => {
   });
 });
 
+describe("the versions behind a comparison", () => {
+  const A = "build:aaa/111";
+  const B = "build:bbb/222";
+
+  it("keeps a read's version as the read's, and shows a read from before versions as unknown, never the check's", () => {
+    const h = hand(T0);
+    const read: DecisionRecord["read"] = { verdict: "Mistake", source: "solve", label: "a Quick solve", evLossBb: 2, version: A };
+    expect(firstAnswer(dec(h, { version: B, read })).version).toBe(A);
+    expect(firstAnswer(dec(h, { version: B, read: { ...read, version: undefined } })).version).toBeUndefined();
+    expect(firstAnswer(dec(h, { version: B })).version).toBe(B);
+    expect(firstAnswer(dec(h)).version).toBeUndefined();
+    // a check at Fast keeps the read's own
+    const fast = dec(h, { version: B });
+    expect(deepened({ ...dec(h, { version: A }) }, fast).read?.version).toBe(A);
+  });
+
+  it("says on the latest third what each side stood on", () => {
+    const side = (n: number, sit: number, version?: string) => Array.from({ length: n }, () => ({ d: dec(hand(T0), { ...(version ? { version } : {}) }), sit })) as unknown as Answer[];
+    const span = latestThird([...side(100, 0, A), ...side(100, 1, B)], 1).versions;
+    expect(span).toMatchObject({ changed: [{ what: "solver build", before: ["aaa/111"], later: ["bbb/222"] }], unknown: [0, 0], n: [100, 100] });
+    expect(latestThird([...side(100, 0), ...side(100, 1, B)], 1).versions).toMatchObject({ changed: [], unknown: [100, 0] });
+    expect(latestThird([...side(100, 0, A), ...side(100, 1, A)], 1).versions.changed).toEqual([]);
+  });
+
+  it("says it row by row, of that row's decisions alone", () => {
+    const rfi = (version: string) => dec(hand(T0), { version, source: "charts", street: "preflop", situation: "RFI", action: "raise to 2.5", verdict: "Best", evLossBb: null, mix: [["fold", 0.5, null], ["raise", 0.5, null]], freq: 0.5 });
+    const flop = (version: string) => dec(hand(T0), { version });
+    const of = (n: number, f: () => DecisionRecord) => Array.from({ length: n }, f);
+    const { rows } = shifts([...of(60, () => rfi(A)), ...of(60, () => flop("library:s:1"))], [...of(60, () => rfi(B)), ...of(60, () => flop("library:s:1"))]);
+    expect(rows.length).toBeGreaterThan(1);
+    for (const r of rows) {
+      const charts = r.kind !== "spot";
+      expect(r.versions.changed.map((c) => c.what)).toEqual(charts ? ["solver build"] : []);
+    }
+  });
+
+  it("keeps a row across versions, with its change: the numbers aren't hidden", () => {
+    const rfi = (version: string, you: boolean) => dec(hand(T0), { version, source: "charts", street: "preflop", situation: "RFI", action: you ? "raise to 2.5" : "fold", verdict: "Best", evLossBb: null, mix: [["fold", 0.5, null], ["raise", 0.5, null]], freq: 0.5 });
+    const of = (n: number, f: (k: number) => DecisionRecord) => Array.from({ length: n }, (_, k) => f(k));
+    const row = shifts(of(200, (k) => rfi(A, k % 10 !== 0)), of(200, (k) => rfi(B, k % 2 === 0))).rows.find((r) => r.kind === "freq")!;
+    expect(row.change).toBe("Better");
+    expect(row.versions.changed).toHaveLength(1);
+  });
+});
+
 describe("what the share counts", () => {
   it("leaves out a fold the answer takes, keeps an overfold and a played hand it folds", () => {
     const hs = days(4);

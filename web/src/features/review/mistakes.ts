@@ -8,6 +8,7 @@ import type { MistakeRecord, MistakeTry } from "@/data/db";
 import { describeSetup } from "@/features/solve/setup";
 import { describeLine, fromSearch } from "@/features/study/studyState";
 import { whoOf, type Grade } from "@/grading/grade";
+import { storedMoved, versionOf } from "@/grading/version";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 import { situation, type DrillProblem } from "@/features/practice/drills";
@@ -129,7 +130,7 @@ export function answerChange(m: Pick<MistakeRecord, "provenance" | "mix" | "ask"
   if (a.source === "library" || a.source === "library-turn") {
     const was = m.ask.via === "library" ? m.ask.version : undefined;
     const version = was !== undefined && now.version !== undefined && was !== now.version;
-    if (version || !sameNumber(a.iterations, b.iterations) || !sameNumber(a.exploitabilityPct, b.exploitabilityPct))
+    if (version || storedMoved(a.libraryVersion, b.libraryVersion) || !sameNumber(a.iterations, b.iterations) || !sameNumber(a.exploitabilityPct, b.exploitabilityPct))
       out.push("The library has changed since: this flop's stored solve isn't the one you were graded on.");
   }
   if (a.solverVersion && b.solverVersion && a.solverVersion !== b.solverVersion)
@@ -158,12 +159,13 @@ export function retried(m: MistakeRecord, answer: RetryAnswer, i: number, now: n
   const g = gradeMix(mix, pot, i);
   const was = mix.findIndex((a) => a.action === m.chose);
   const change = answerChange(m, answer);
+  const version = versionOf(provenance);
   return {
     decision: { street: m.street as Decision["street"], chose: mix[i]!.action, grade: g, mix, pot, provenance, study: m.study ?? "" },
     grade: g,
     change,
     first: was >= 0 ? gradeMix(mix, pot, was) : null,
-    tried: { at: now, chose: mix[i]!.action, verdict: g.verdict, ok: g.ok, byEv: g.byEv, loss: g.loss, lossPct: g.lossPct, source: provenance.source, label: describeProvenance(provenance), like: change.length === 0 },
+    tried: { at: now, chose: mix[i]!.action, verdict: g.verdict, ok: g.ok, byEv: g.byEv, loss: g.loss, lossPct: g.lossPct, source: provenance.source, label: describeProvenance(provenance), ...(version ? { version } : {}), like: change.length === 0 },
   };
 }
 

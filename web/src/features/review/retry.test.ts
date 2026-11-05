@@ -49,6 +49,7 @@ describe("the library's answer", () => {
     const a = await askLibrary({ via: "library", spot: spot.id, flop, path: [], combo: [combo[0], combo[1]] }, "quick", f);
     expect(a.provenance).toMatchObject({ source: "library", librarySpot: "srp_btn_bb" });
     expect(a.version).toBe(spot.flops[flop]);
+    expect(a.provenance.libraryVersion).toMatch(new RegExp(`^library:srp_btn_bb:[0-9a-f]{8}:${flop}:${spot.flops[flop]}$`));
     expect(a.mix.map((m) => m.action)).toEqual(nd.names);
     expect(a.mix[0]!.freq).toBeCloseTo(nd.strat[0]![j]!);
     expect(a.mix[0]!.ev).toBeCloseTo(nd.evs[0]![j]!);
@@ -77,6 +78,7 @@ describe("the library's answer", () => {
     const ask: Extract<MistakeAsk, { via: "library" }> = { via: "library", spot: spot.id, flop, path: line.path, combo: [combo[0], combo[1]], turn: { card: cardStr(t.played[0]!), at: node.at } };
     const a = await askLibrary(ask, "quick", f);
     expect(a.provenance).toMatchObject({ source: "library-turn", approximate: true });
+    expect(a.provenance.libraryVersion).toMatch(new RegExp(`^library:${spot.id}:[0-9a-f]{8}:${flop}:`));
     expect(a.pot).toBe(line.pot);
     expect(a.mix.map((m) => m.action)).toEqual(node.names);
     expect(a.mix.every((m) => m.ev === null)).toBe(true);

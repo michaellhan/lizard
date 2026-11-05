@@ -50,7 +50,14 @@ describe("ReportsPage", () => {
     expect(Math.abs(cells.reduce((a, b) => a + b, 0) - 100)).toBeLessThan(0.3);
     // columns: the view's actions, each player's EV, equity and EQR
     const heads = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(heads).toEqual(["Flop ▾", "Strategy", "Check", "Bet 33%", "Bet 75%", "BB EV", "BTN EV", "BB eq", "BTN eq", "BB EQR", "BTN EQR", "Study"]);
+    expect(heads).toEqual(["Flop ▾", "Strategy", "Check", "Bet 33%", "Bet 75%", "BB EV", "BTN EV", "BB eq", "BTN eq", "BB EQR", "BTN EQR", "Range adv", "Study"]);
+    // the range advantage, a row's and the average's, with its definition, and why there's no nut advantage
+    const lead = (eq: [number, number]) => `${eq[1] > eq[0] ? "BTN" : "BB"} +${(Math.abs(eq[1] - eq[0]) * 100).toFixed(1)}`;
+    expect(within(screen.getByRole("row", { name: REP.flops[0]!.f })).getAllByRole("cell").at(-2)).toHaveTextContent(lead(REP.flops[0]!.eq as [number, number]));
+    const sum = REP.flops.reduce((a, f) => a + f.w, 0);
+    const mean = [0, 1].map((i) => REP.flops.reduce((a, f) => a + f.w * f.eq![i]!, 0) / sum) as [number, number];
+    expect(within(avg).getAllByRole("cell").at(-2)).toHaveTextContent(lead(mean));
+    expect(screen.getByText(/Range adv is the side with the higher range equity, and by how many points of equity\..*every 8th turn and river runout.*There's no nut advantage column: the library stores a range's equity with no equity by hand/)).toBeInTheDocument();
     // one row's EQR: EV over equity times the pot
     const fl = REP.flops[0]!;
     const row = screen.getByRole("row", { name: fl.f });
@@ -70,6 +77,7 @@ describe("ReportsPage", () => {
     expect(flopRows()).toHaveLength(6);
     // no EV, equity or EQR columns: the 3-way library stores none
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Flop ▾", "Strategy", "Check", "Bet 33%", "Bet 75%", "Study"]);
+    expect(screen.queryByText(/Range adv/)).toBeNull();
     const row = screen.getByRole("row", { name: "5c4d2h" });
     expect(row).toHaveTextContent(/56\.1%20\.8%23\.2%/);
     expect(within(row).getByRole("link", { name: "Study" }).getAttribute("href")).toBe(

@@ -3956,3 +3956,24 @@ mode above" with no mode showing; both now read as they should.
 
 Tests: 1903 unit tests in 100 files, typecheck and lint clean, 73 browser tests passed and 2 skipped at three widths, `/review`
 among the routes. Library-backed work can't be reached by the browser tests, so turn drills were checked by hand as above.
+
+The live check of `bf53101`: run 42019231556 succeeded, the live bundle `index-BRGYz4Dl.js` equals the local one, and
+`/lizard/review`, the other routes, the manifest, the homepage, `/gto-solver/` and `/gto-solver-classic/` answered 200. A live
+turn drill on K♣6♦5♣ A♦, 9♠7♠ as BB: a 75% bet the mix plays 35% graded Correct, under "Stored turn from the flop library".
+
+## What graded a grade, and range advantage in reports (2026-11-05)
+
+A subagent built both, reviewed here. `FEATURE_MATRIX.md` has what each does: the Leak finding, Reports and Aggregate reports
+rows.
+
+- **Version stamps:** a change in the charts or the library could read as a change in the player's play. A new grade now keeps
+  what graded it, and a comparison across versions says so beside its numbers. The library has no version of its own, and its
+  lists move whenever a flop is added, so a spot's stamp hashes its ranges and tree. An old grade stays unknown.
+- **No IndexedDB migration:** the stamp is an optional field with no index, so `DB_VERSION` stays 6.
+- **Range advantage:** from the stored equities. Nut advantage is left out because the library holds no equity by hand; the
+  page says so rather than estimating it.
+
+Checked on the real engine with the preview: `precomputed.board` matches the index's flop names, so Study on K-7-2 got
+`library:srp_btn_bb:db7399ab:Kc7d2h:c08adb5815`, and all of srp_btn_bb read 54.5% against 45.5%, "BTN +9.0".
+
+Tests: 1966 unit tests outside the PLO work (`FEATURE_MATRIX.md` rows above), lint clean, 73 browser tests passed and 2 skipped.

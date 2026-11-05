@@ -51,6 +51,8 @@ describe("DrillsPanel", () => {
     expect(score.getByText("Decisions").nextSibling).toHaveTextContent(/^1$/);
     // the decision is kept
     await waitFor(async () => expect((await recentSessions("drill")).some((s) => s.decisions === 1 && s.meta.spot === "srp_btn_bb")).toBe(true));
+    const kept = (await recentSessions("drill")).find((s) => s.decisions === 1)!;
+    expect(Object.entries(kept.meta.versions as Record<string, number>)).toEqual([[expect.stringMatching(/^library:srp_btn_bb:[0-9a-f]{8}$/), 1]]);
 
     // Enter: the next hand; a number key answers it
     fireEvent.keyDown(window, { key: "Enter" });

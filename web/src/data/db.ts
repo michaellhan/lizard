@@ -143,6 +143,9 @@ export interface DecisionRecord {
   /** the answer graded against: its source and its provenance line */
   source: string;
   label: string;
+  /** what graded it, at which version (grading/version.ts). A field of the record, with no index, so no migration: a
+   * grade kept before versions were has none, and reads as unknown */
+  version?: string;
   /** that answer is labelled approximate, and how settled a live solve was (provenance.ts) */
   approximate?: boolean;
   band?: ConvergenceBand;
@@ -158,7 +161,7 @@ export interface DecisionRecord {
   confidence?: Confidence;
   triageSource?: string;
   /** the triage read a deeper answer at Fast replaced */
-  read?: Pick<DecisionRecord, "verdict" | "source" | "label" | "confidence" | "triageSource" | "evLossBb" | "freq" | "mix">;
+  read?: Pick<DecisionRecord, "verdict" | "source" | "label" | "version" | "confidence" | "triageSource" | "evLossBb" | "freq" | "mix">;
   /** why the answer at Fast couldn't grade this read, which stands */
   notChecked?: string;
   gradedAt: number;
@@ -180,9 +183,10 @@ export interface MistakeTry {
   /** EV given up against the best action, bb and % of the pot (0 where graded by frequency) */
   loss: number;
   lossPct: number;
-  /** the answer graded against: its source and its provenance line */
+  /** the answer graded against: its source and its provenance line, and its version (grading/version.ts) */
   source: string;
   label: string;
+  version?: string;
   /** that answer is the kind the mistake was graded on (features/review/mistakes.ts answerChange) */
   like: boolean;
   /** it moved the schedule (one before its day doesn't) */

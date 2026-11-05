@@ -13,6 +13,41 @@ const DRILL: SessionRecord = { id: "d", kind: "drill", startedAt: 2, decisions: 
 const TURN: SessionRecord = { id: "t", kind: "drill", startedAt: 3, decisions: 6, evLossBb: 0, meta: { spot: "srp", street: "turn", ok: 4, graded: 0, lossPct: 0 } };
 const LEAK: SessionRecord = { id: "l", kind: "analysis", startedAt: 4, decisions: 5, evLossBb: 0, meta: { score: { n: 5 } } };
 
+describe("what graded a session", () => {
+  const g = { ok: true, byEv: true, loss: 0, lossPct: 0 } as never;
+
+  it("counts a cell's decisions by version, a spot's without its flop, and those with none aren't counted", () => {
+    let c = addCell(undefined, "flop", "library", g, "library:s:1:Ac4d3h:aa");
+    c = addCell(c, "flop", "library", g, "library:s:1:Kd7c2h:bb");
+    c = addCell(c, "flop", "library", g);
+    expect(Object.values(c)[0]).toMatchObject({ n: 3, versions: { "library:s:1": 2 } });
+    expect(Object.values(addCell(undefined, "flop", "live", g))[0]).not.toHaveProperty("versions");
+  });
+
+  it("reads a session's counts back, a damaged one's decisions unknown, and a drill's from its own", () => {
+    expect(cellsOf(practice("a", 1, 2, { ...cell("flop", "live", true, 2, 1), versions: { "build:a/1": 2 } }))![0]!.versions).toEqual({ "build:a/1": 2 });
+    expect(cellsOf(practice("a", 1, 2, { ...cell("flop", "live", true, 2, 1), versions: "no" as never }))![0]).not.toHaveProperty("versions");
+    expect(cellsOf({ ...DRILL, meta: { ...DRILL.meta, versions: { "library:srp:1": 10 } } })![0]!.versions).toEqual({ "library:srp:1": 10 });
+    expect(cellsOf({ ...TURN, meta: { ...TURN.meta, versions: { "library:srp:1": 6 } } })![0]!.versions).toEqual({ "library:srp:1": 6 });
+    expect(cellsOf(DRILL)![0]).not.toHaveProperty("versions");
+  });
+
+  it("sets the last stretch against those before it, and keeps a session from before versions unknown", () => {
+    const at = (i: number, version?: string) => practice(`s${i}`, i, BLOCK, { ...cell("flop", "live", true, BLOCK, BLOCK / 2), ...(version ? { versions: { [version]: BLOCK } } : {}) });
+    const lined = basisTrend([at(1, "build:a/1"), at(2, "build:a/1"), at(3, "build:a/1"), at(4, "build:b/2")].slice(0, Math.max(MIN_BLOCKS, 4)), "ev");
+    expect(lined.line).toBe(true);
+    expect(lined.versions).toMatchObject({ changed: [{ what: "solver build", before: ["a/1"], later: ["b/2"] }], unknown: [0, 0] });
+    const old = basisTrend([at(1), at(2, "build:a/1"), at(3, "build:a/1"), at(4, "build:a/1")], "ev");
+    expect(old.versions).toMatchObject({ changed: [], unknown: [BLOCK, 0] });
+  });
+
+  it("reads one set where there's no line yet", () => {
+    const t = basisTrend([practice("a", 1, 5, { ...cell("flop", "live", true, 5, 2), versions: { "build:a/1": 3 } })], "ev");
+    expect(t.line).toBe(false);
+    expect(t.versions).toMatchObject({ changed: [], unknown: [2, 0], n: [5, 0] });
+  });
+});
+
 describe("a decision's cell", () => {
   it("adds by street, source and how it was graded", () => {
     let c: Record<string, GradeCell> | undefined;

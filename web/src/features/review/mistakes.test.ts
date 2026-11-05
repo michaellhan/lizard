@@ -115,10 +115,27 @@ describe("whether a retry is like with like", () => {
     expect(answerChange(m, answer({ provenance: { ...STORED, iterations: 900 }, version: "aaa" }))[0]).toMatch(/library has changed/);
   });
 
+  it("isn't, a stored answer at another version, and is where one side has none or only the id for stored turns moved", () => {
+    const m = (libraryVersion?: string) => mistake({ provenance: { ...STORED, ...(libraryVersion ? { libraryVersion } : {}) } });
+    const now = (libraryVersion?: string) => answer({ provenance: { ...STORED, ...(libraryVersion ? { libraryVersion } : {}) } });
+    expect(answerChange(m("library:s:1:Ac8c6c:aa"), now("library:s:2:Ac8c6c:bb"))[0]).toMatch(/library has changed/);
+    expect(answerChange(m("library:s:1:Ac8c6c:aa"), now("library:s:1:Ac8c6c:aa"))).toEqual([]);
+    expect(answerChange(m(), now("library:s:1:Ac8c6c:aa"))).toEqual([]);
+    expect(answerChange(m("library:*:aa"), now("library:*:bb"))).toEqual([]);
+  });
+
   it("isn't, a solve at another mode, or other options, or one with no provenance kept", () => {
     expect(answerChange(mistake(), answer({ provenance: { ...LIVE, mode: "accurate" } }))).toEqual(["It was solved at quick; this time at accurate."]);
     expect(answerChange(mistake(), answer({ mix: [{ action: "check", freq: 1, ev: 4 }] }))).toEqual(["The options aren't the ones you had."]);
     expect(answerChange(mistake({ provenance: null }), answer())).toEqual(["What answered it the first time wasn't kept."]);
+  });
+});
+
+describe("a retry's version", () => {
+  it("is kept with the try, unknown where the answer has none", () => {
+    expect(retried(mistake(), answer(), 0, 5).tried.version).toBe("build:1.0");
+    expect(retried(mistake(), answer({ provenance: { ...LIVE, transport: "http" } }), 0, 5).tried).not.toHaveProperty("version");
+    expect(retried(mistake({ provenance: STORED }), answer({ provenance: { ...STORED, libraryVersion: "library:s:1" } }), 0, 5).tried.version).toBe("library:s:1");
   });
 });
 

@@ -14,11 +14,13 @@ import { bb, pct } from "@/components/actions";
 import { LIBRARY_SOURCES } from "@/config";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
+import { addVersion } from "@/features/history/history";
 import { drillMistake, missedAgain } from "@/features/review/mistakes";
 import { addScore, emptyScore, GRADE_RULES, summary, whyText, type Grade, type Score } from "@/grading/grade";
 import { gameLabel, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
+import { spotStamp } from "@/library/version";
 import { SaveDrill } from "@/features/saved/SaveDrill";
 import { useSettings } from "@/state/settings";
 import {
@@ -206,7 +208,7 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
         </form>
         <SaveDrill kind="library" to={`/practice?${link}`} about={about} />
       </div>
-      <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} street={street} view={view} filter={filter} hand={hand} rng={rng} source={lib.label} />
+      <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} tree={lib.index.tree} street={street} view={view} filter={filter} hand={hand} rng={rng} source={lib.label} />
     </div>
   );
 }
@@ -232,6 +234,8 @@ interface DrillSession {
   id: string;
   startedAt: number;
   score: Score;
+  /** how many stand on each version of the spot (a decision's grade has its own) */
+  versions: Record<string, number>;
 }
 
 const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, view: DrillView): SessionRecord => ({
@@ -241,7 +245,7 @@ const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, 
   endedAt: Date.now(),
   decisions: s.score.n,
   evLossBb: s.score.loss,
-  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best },
+  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions },
 });
 
 type SpotData = { st: "loading" } | { st: "ready"; report: LibraryReport; ranges: LibraryRanges } | { st: "error"; message: string };
@@ -255,6 +259,7 @@ type Screened = { key: string; cands: Candidate[] };
 function SpotDrill({
   files,
   spot,
+  tree,
   street,
   view,
   filter,
@@ -264,6 +269,8 @@ function SpotDrill({
 }: {
   files: LibraryFiles;
   spot: LibrarySpotIndex;
+  /** the index's, which a spot's own tree goes before */
+  tree: unknown;
   street: DrillStreet;
   view: DrillView;
   filter: TextureFilter;
@@ -277,6 +284,7 @@ function SpotDrill({
     id: `drill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     startedAt: Date.now(),
     score: emptyScore(),
+    versions: {},
   }));
   const [n, setN] = useState(0);
   const [deal, setDeal] = useState<Deal>({ key: "", st: "dealing" });
@@ -397,13 +405,14 @@ function SpotDrill({
       if (!pr || graded) return;
       const g = gradeDrill(pr, a);
       setAnswer({ key: dealKey, a, g });
-      setSession((s) => ({ ...s, score: addScore(s.score, g) }));
+      const version = spotStamp(spot, tree, pr.flop);
+      setSession((s) => ({ ...s, score: addScore(s.score, g), versions: addVersion(s.versions, version) }));
       if (deal.st === "ready" && data.st === "ready") {
-        const m = drillMistake(session.id, data.report, pr, g, drillProvenance(deal.entry, mode, pr), studyLink(data.report, pr), spot.flops[pr.flop], Date.now());
+        const m = drillMistake(session.id, data.report, pr, g, drillProvenance(deal.entry, mode, pr, version), studyLink(data.report, pr), spot.flops[pr.flop], Date.now());
         if (m) void keepMistake(m, missedAgain).catch(() => {});
       }
     },
-    [pr, graded, dealKey, deal, data, mode, session.id, spot],
+    [pr, graded, dealKey, deal, data, mode, session.id, spot, tree],
   );
   const next = useCallback(() => setN((x) => x + 1), []);
 
@@ -543,7 +552,7 @@ function SpotDrill({
                 </>
               )}
             </span>
-            <ProvenanceBadge p={drillProvenance(shown.entry, mode, pr)} />
+            <ProvenanceBadge p={drillProvenance(shown.entry, mode, pr, spotStamp(spot, tree, pr.flop))} />
           </div>
           <p>
             {whyText(

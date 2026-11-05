@@ -1,7 +1,9 @@
 // Flop reports (classic reports.js): a precomputed spot's flop strategy across all its stored flops, read from the
 // library's <spot>/report.json with no solver (a 3-way spot's built in the page from its entries, library/mwReport.ts). Per flop and averaged by texture group, each flop weighted by how many
 // of the 22100 flops it stands for; filtered by texture and sorted by any column. Lizard adds what classic lacks: each
-// player's EQR (EV over equity times the pot), and a CSV of the rows shown.
+// player's EQR (EV over equity times the pot), each flop's range advantage from the stored equities, and a CSV of the
+// rows shown. There's no nut advantage: report.json holds each side's equity over its whole range, and no file holds a
+// hand's equity, so a nut share can't be read from the library: it would take a field stored for each flop.
 import { pct } from "@/components/actions";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance, SolveMode } from "@/solver/types";
@@ -147,11 +149,32 @@ export function eqr(ev: number, eq: number, pot: number): number | null {
   return Number.isFinite(ev) && Number.isFinite(eq) && eq > 0 && pot > 0 ? ev / (eq * pot) : null;
 }
 
-// sort keys: "flop" (ranks high to low), "w", "ev0", "ev1", "eq0", "eq1", "eqr0", "eqr1", "a<i>" (the i-th column)
+/** The range advantage: in position's lead in range equity, in points of equity (out of position's is below zero),
+ * the same read as Study's (who has the higher equity), from the report's own equities. NaN with none. */
+export const rangeLead = (eq: readonly [number, number]): number => (eq[1] - eq[0]) * 100;
+
+/** Who leads and by how much: "BTN +8.4", "Even" where it rounds to nothing, null with no equities. */
+export function rangeLeadParts(eq: readonly [number, number], seats: readonly string[]): { seat: string; points: number } | null {
+  const lead = rangeLead(eq);
+  if (Number.isNaN(lead)) return null;
+  const points = Math.round(Math.abs(lead) * 10) / 10;
+  return { seat: points === 0 ? "" : (seats[lead > 0 ? 1 : 0] ?? ""), points };
+}
+export function rangeLeadText(eq: readonly [number, number], seats: readonly string[]): string {
+  const l = rangeLeadParts(eq, seats);
+  return !l ? "–" : l.seat ? `${l.seat} +${l.points.toFixed(1)}` : "Even";
+}
+
+// sort keys: "flop" (ranks high to low), "w", "adv" (in position's range lead), "ev0", "ev1", "eq0", "eq1", "eqr0", "eqr1",
+// "a<i>" (the i-th column)
 export type SortKey = string;
 function sortKey(r: ReportRow, key: SortKey, pot: number): number {
   if (key === "flop") return r.ranks[0]! * 169 + r.ranks[1]! * 13 + r.ranks[2]!;
   if (key === "w") return r.w;
+  if (key === "adv") {
+    const lead = rangeLead(r.eq);
+    return Number.isNaN(lead) ? -Infinity : lead;
+  }
   const m = /^(ev|eq|eqr|a)(\d+)$/.exec(key);
   if (!m) return 0;
   const i = Number(m[2]);
@@ -273,7 +296,7 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
     "connectedness",
     ...(isFacing(view) ? ["bet faced", "bet frequency"] : []),
     ...cols,
-    ...(ev ? [`${o} EV (bb)`, `${ip} EV (bb)`, `${o} equity`, `${ip} equity`, `${o} EQR`, `${ip} EQR`] : []),
+    ...(ev ? [`${o} EV (bb)`, `${ip} EV (bb)`, `${o} equity`, `${ip} equity`, `${o} EQR`, `${ip} EQR`, "range advantage seat", "range advantage (equity points)"] : []),
     "source",
   ];
   const src = describeProvenance(p);
@@ -288,7 +311,7 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
       r.t.conn,
       ...(isFacing(view) ? [r.bet ?? "", num(r.made, 3)] : []),
       ...cols.map((_, i) => num(r.freqs?.[i], 3)),
-      ...(ev ? [num(r.ev[0], 2), num(r.ev[1], 2), num(r.eq[0], 3), num(r.eq[1], 3), num(eqr(r.ev[0], r.eq[0], rep.pot), 3), num(eqr(r.ev[1], r.eq[1], rep.pot), 3)] : []),
+      ...(ev ? [num(r.ev[0], 2), num(r.ev[1], 2), num(r.eq[0], 3), num(r.eq[1], 3), num(eqr(r.ev[0], r.eq[0], rep.pot), 3), num(eqr(r.ev[1], r.eq[1], rep.pot), 3), rangeLeadParts(r.eq, rep.seats)?.seat ?? "", num(rangeLeadParts(r.eq, rep.seats)?.points, 1)] : []),
       src,
     ]
       .map(cell)

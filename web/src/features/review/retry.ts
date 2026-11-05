@@ -2,6 +2,7 @@
 // library, read in the page as the drill was. What comes back is the current answer, with its own provenance.
 import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
+import { spotStamp } from "@/library/version";
 import { drillProvenance, potAt } from "@/features/practice/drills";
 import { mixOf, optionsOf } from "@/features/practice/practice";
 import { resolveLibrarySource } from "@/library/catalog";
@@ -27,7 +28,7 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
 }
 
 /** Your combo's stored answer in an entry; null where the entry holds no node or no hand there. */
-export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pick<Extract<MistakeAsk, { via: "library" }>, "path" | "combo">, mode: SolveMode): Omit<RetryAnswer, "version"> | null {
+export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pick<Extract<MistakeAsk, { via: "library" }>, "path" | "combo">, mode: SolveMode, libraryVersion?: string): Omit<RetryAnswer, "version"> | null {
   const nd = nodeAt(e, ask.path);
   if (!nd) return null;
   const j = (e.combos[nd.player] ?? []).findIndex((k) => {
@@ -40,12 +41,12 @@ export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pic
     const amount = betAmount(action, pot);
     return { action, freq: nd.strat[i]?.[j] ?? 0, ev: nd.evs[i]?.[j] ?? null, ...(amount !== undefined ? { amount } : {}) };
   });
-  return { mix, pot, provenance: drillProvenance(e, mode) };
+  return { mix, pot, provenance: drillProvenance(e, mode, undefined, libraryVersion) };
 }
 
 /** Your hand's stored mix on a stored turn: `null` where the turn file no longer has it. No file holds a hand's EV at a
  * turn, so it's graded by frequency, as the drill was. */
-export function storedTurnAnswer(e: Entry, t: TurnFile, ask: Pick<Extract<MistakeAsk, { via: "library" }>, "path" | "combo" | "turn">, mode: SolveMode): Omit<RetryAnswer, "version"> | null {
+export function storedTurnAnswer(e: Entry, t: TurnFile, ask: Pick<Extract<MistakeAsk, { via: "library" }>, "path" | "combo" | "turn">, mode: SolveMode, libraryVersion?: string): Omit<RetryAnswer, "version"> | null {
   const turn = ask.turn;
   if (!turn) return null;
   const line = t.lines.find((l) => l.path.join("|") === ask.path.join("|"));
@@ -58,7 +59,7 @@ export function storedTurnAnswer(e: Entry, t: TurnFile, ask: Pick<Extract<Mistak
     const amount = betAmount(action, line.pot);
     return { action, freq: cls.strat[i]?.[j] ?? 0, ev: null, ...(amount !== undefined ? { amount } : {}) };
   });
-  return { mix, pot: line.pot, provenance: drillProvenance(e, mode, { names: node.names, turn: { card: turn.card, at: turn.at, rangeEvs: null } }) };
+  return { mix, pot: line.pot, provenance: drillProvenance(e, mode, { names: node.names, turn: { card: turn.card, at: turn.at, rangeEvs: null } }, libraryVersion) };
 }
 
 /** The library the Settings pick, as the drills read it. */
@@ -71,7 +72,8 @@ async function libraryFiles(): Promise<LibraryFiles> {
 /** The spot's answer as the library stores it now. Throws, in words, where it no longer does. */
 export async function askLibrary(ask: Extract<MistakeAsk, { via: "library" }>, mode: SolveMode, files?: LibraryFiles): Promise<RetryAnswer> {
   const f = files ?? (await libraryFiles());
-  const spot = (await f.index()).spots.find((s) => s.id === ask.spot);
+  const index = await f.index();
+  const spot = index.spots.find((s) => s.id === ask.spot);
   if (!spot || !(ask.flop in (spot.flops ?? {}))) throw new Error(`this library doesn't hold ${ask.spot} on ${ask.flop} any more`);
   const [{ report }, entry] = await Promise.all([f.spot(spot), f.entry(spot, ask.flop)]);
   const turns = ask.turn
@@ -79,7 +81,8 @@ export async function askLibrary(ask: Extract<MistakeAsk, { via: "library" }>, m
         throw new Error(`this library doesn't hold ${ask.flop}'s turns in ${ask.spot} any more`);
       })
     : null;
-  const a = turns ? storedTurnAnswer(entry, turns, ask, mode) : storedAnswer(report, entry, ask, mode);
+  const stamp = spotStamp(spot, index.tree, ask.flop);
+  const a = turns ? storedTurnAnswer(entry, turns, ask, mode, stamp) : storedAnswer(report, entry, ask, mode, stamp);
   if (!a) throw new Error(`the library no longer stores your hand at this node of ${ask.spot}`);
   const version = spot.flops[ask.flop];
   return { ...a, ...(version !== undefined ? { version } : {}) };
