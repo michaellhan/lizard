@@ -4054,3 +4054,10 @@ Tests: 2208 unit tests in 118 files, typecheck and lint clean, 82 browser tests 
 two new ones: a page and its workers ask no host but this one, and a poisoned record on `/saved` still leaves a working backup. A
 browser run caught Copy for AI sitting ahead of Study's actions, so it's now below them, and off in a tournament, whose EVs aren't
 in bb.
+
+Live check of `af72d22`, run 42034320997 green: `index-DHQGEcrO.js` is the bundle in `web/dist`; `/`, `/study`, `/practice`, `/review`,
+`/equity`, `/engine`, `/reports` and the three neighbours answer 200; the page's `.map` is 404; `/lizard/solver/worker.js` is byte-identical
+to the build and names no jsDelivr; all six Pyodide files fetched from Pages hash to their pins, with the `.wasm` served as `application/wasm`;
+and on the live site `crossOriginIsolated` is true and the pill reads "Engine ready · 8t", so the engine started from those files. The live
+page also loads Cloudflare's analytics beacon, which the edge injects and the preview doesn't have, so "no third-party request" holds for the
+app and its workers, not for the domain. DEPLOYMENT now says so.

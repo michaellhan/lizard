@@ -36,7 +36,26 @@ classic site serves the same bundle. The owner accepted that on 2026-11-05.
      - `scripts/postbuild.mjs` writes `<route>/index.html` for every route, plus `404.html` and `.nojekyll`.
 3. `deploy` uploads `web/dist` with `actions/deploy-pages`. Pages serves it about a minute later.
 
-Pull requests run the checks and the build but do not deploy.
+Pull requests run the checks and the build but do not deploy, and only `refs/heads/main` can reach the upload or the deploy.
+Every action is pinned by commit, and `npm ci` runs with `--ignore-scripts`.
+
+Source maps are off (`web/vite.config.ts`). The repository is private, so the build doesn't publish the app's source. Deploys
+before `af72d22` did publish maps, and those were public while they were live.
+
+### Pyodide is served from this site
+
+The worker loads Pyodide 0.26.4 and NumPy from `/lizard/solver/pyodide/`, six files listed with their sizes and hashes in
+`scripts/pyodide/files.json`. `scripts/pyodide/stage.mjs` downloads them from jsDelivr at build time, refuses any hash that differs,
+and leaves them in the build only (they're gitignored). `scripts/postbuild.mjs` fails the build if the built worker names a
+third-party host. The build edits the worker's Pyodide address, which `solver/UPSTREAM.json` declares under `build_time_edits`.
+
+The cost is bandwidth: a first visit fetches about 25.7 MB from Pages, where it used to come from jsDelivr, and `web/dist` is
+27.7 MB. The largest file is the 11.96 MB NumPy wheel, under Pages' file limit. To change the version, edit `files.json` with the
+new hashes and re-run the tests in `scripts/pyodide/`.
+
+Cloudflare injects its own analytics beacon (`static.cloudflareinsights.com`) into pages at the edge, a domain-wide setting of the
+owner's that this repository doesn't control. It's there on the live site and absent from the local preview, so the browser test
+"asks no host but this one" can't see it. Everything the app and its workers request themselves comes from this site.
 
 The bundle is deterministic. The CI build and a local build of the same commit produce the same manifest version,
 `3a94eea354` for the first deploy.
@@ -46,10 +65,11 @@ The bundle is deterministic. The CI build and a local build of the same commit p
 GitHub Actions turning green is not the check. Fetch the site:
 
 ```bash
-for p in "" study/ engine/ library/ solver/manifest.json solver/worker.js sw.js no/such/page; do curl -s -o /dev/null -w "%{http_code} /lizard/$p\n" "https://www.michael-han.com/lizard/$p"; done
+for p in "" study/ engine/ library/ solver/manifest.json solver/worker.js solver/pyodide/pyodide.asm.wasm sw.js no/such/page; do curl -s -o /dev/null -w "%{http_code} /lizard/$p\n" "https://www.michael-han.com/lizard/$p"; done
 ```
 
 Expect 200 for everything except `no/such/page`, which is 404 but still serves the app (it renders Not Found).
+The `.wasm` must come back as `application/wasm`, and the `.map` of the page's `assets/index-*.js` must be 404.
 
 Pages serves HTML with `Cache-Control: max-age=600`, so a browser that visited before the deploy can run the previous
 bundle for up to 10 minutes. The service worker caches nothing. To check a deploy at once, add any query string
