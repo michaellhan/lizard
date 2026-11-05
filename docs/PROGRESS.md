@@ -3662,6 +3662,24 @@ By hand on the dev server, with a real worker, on `59b06ed`:
 
 Not done live: a table failing, a stuck worker, a real phone, a screen reader, Accurate.
 
+### The live check of `192a07c`
+
+Deploy run 41965120160 passed. `/lizard/` and its practice, analyze, engine, solve, study and saved pages all answered 200
+with `assets/index-DQIx4Er1.js`, the bundle of the local build, at the same 826,241 bytes. `/`, `/gto-solver/`,
+`/gto-solver-classic/`, `/gto-solver-classic/practice/` and the library's `index.json` answered 200. In the browser the page
+was cross-origin isolated under the service worker, Solve carried the corrected sentence, and it had no link to the classic
+app.
+
+Play 20 hands on the live site, from a reload, on the same build and seed, four tables, 3 s to think, asking ahead on:
+passed, 20 hands, deals `ebh3r9`, 51 verdicts, 155.14 s, no request errors, every verdict labelled, no worker ended. Median
+wait under 0.01 s, p90 0.47 s over 27 spots. 202 requests, median 0.01 s, postflop 0.03 s. What answered: the preflop charts
+24, live solves 24, the library 3. The meter read 44 of 56 postflop look-aheads used, 0.04 s saved, 15.94 s of solver time.
+
+That meter is worth a second look. At four tables, by what it counts, asking ahead spent about 16 s of solver time in a
+2 m 35 s run and saved almost nothing, because saved counts only with no other table waiting. The default rests on the wait
+and on how often a look-ahead is used, and these two later runs didn't compare it off. Whether it should stay on at four
+tables, and on phones, needs a like-for-like measure.
+
 ### The classic app in these docs
 
 Nothing in Lizard links to the classic app now. The Solve page said node locks and automatic sizing weren't here yet and
@@ -3678,7 +3696,8 @@ either way.
 
 ### Next
 
-- Phase 1: measure Accurate and a phone on Play 20 hands, and meet a real stuck worker.
+- Phase 1: measure Accurate and a phone on Play 20 hands, meet a real stuck worker, and measure what asking ahead buys at
+  four tables with the postflop meter, on and off.
 - Re-pinning `solver/` to gto-solver `1a14605e`, the last full commit, is for the owner to decide. The gto-solver session
   asked for it, and later commits must not come in.
 - Phase 2: what stays PARTIAL is in `FEATURE_MATRIX.md`.
