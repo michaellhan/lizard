@@ -2,7 +2,7 @@
 
 Status as of 2026-11-03 (Lizard grades updated for the Phase 0 Study work, the Phase 1 Practice page and drills, the Phase 4 range builder, the Phase 5 saved spots, drills and ranges, backup and the classic import, the Phase 3 flop reports, and the first part of Phase 2, Analyze's import, `docs/PROGRESS.md`). This compares LIZARD with the public feature set of GTO Wizard, one row per feature. Each row has two grades:
 
-- **Engine / classic.** What the bundled solver and its own web app (the "classic" app, `solver/gto/static/`, served at `/gto-solver/`) can do today.
+- **Engine / classic.** What the bundled solver and its own web app (the "classic" app, `solver/gto/static/`, at snapshot 9b907bd6) can do today. It was served at `/gto-solver/`. `/gto-solver-classic/` is a frozen full copy, and the gto-solver project is reducing `/gto-solver/`, so that copy is where these features stay.
 - **Lizard UI.** What the new React app (`web/src/`) does today.
 
 The solver is a snapshot of michaellhan/gto-solver at 9b907bd6, in `solver/`. Paths below are relative to the repository root.
@@ -50,7 +50,7 @@ In short, the engine covers most of the feature list, often in part. Lizard's Re
   - Practice grades by frequency. Best, Good, Inaccuracy or Mistake; a frequency of 15% or more is fine (`solver/gto/static/practice.js:417-424`, `index.html:1543-1544`).
   - Drills grade by EV on five levels (`drills.js:154-169`).
   - The session analyzer uses mix thresholds of 0.15 and 0.03 (`session.js:528-532`).
-- **What Lizard sends.** Its Study request carries players, stack, board, the line and `study: true` (`web/src/features/study/studyState.ts`, `studyRequest`). A spot set up on the Solve page adds `stacks`, `sizes`, `rake` and `rake_cap`, `ante`, `straddle` and `ranges` (`web/src/features/solve/setup.ts`, `setupRequest`); one set up on the Tournaments page adds `payouts`, `field` and `bounties` instead of rake (`web/src/features/tournaments/tournament.ts`, `tournamentRequest`). It sends no locks, automatic sizing or preflop-solve flag.
+- **What Lizard sends.** Its Study request carries players, stack, board, the line and `study: true` (`web/src/features/study/studyState.ts`, `studyRequest`). A spot set up on the Solve page adds `stacks`, `sizes`, `rake` and `rake_cap`, `ante`, `straddle` and `ranges` (`web/src/features/solve/setup.ts`, `setupRequest`); one set up on the Tournaments page adds `payouts`, `field` and `bounties` instead of rake (`web/src/features/tournaments/tournament.ts`, `tournamentRequest`). None of those carries locks, automatic sizing or a preflop solve: Study's own panels send those, each on request (`locks.ts`, `autoSize.ts`, `pfSolve.ts`).
 - **Two Lizard over-claims were found by this review and fixed the same day (2026-11-03).** The Practice route summary said "scored by EV loss" (`web/src/app/routes.ts:18`), and the placeholder page listed "EV-loss grading" for Practice. Classic Practice verdicts are frequency-based; only Drills use EV. Both now say so.
 
 ## Study

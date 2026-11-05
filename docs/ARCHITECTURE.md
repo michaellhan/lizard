@@ -16,7 +16,8 @@ and planned pieces are marked **(planned)**.
  │    └── solver/             worker.js, solver.zip, pf/*.bin, manifest.json (scripts/build-solver-assets.mjs)
  ├── /lizard-library/         michaellhan/lizard-library: 6-max library + heads-up builds (scripts/library/)
  ├── /gto-solver-library/     upstream's 6-max library (read-only for Lizard; fallback source)
- └── /gto-solver/             the classic app (untouched; Lizard links to it for features not yet ported)
+ ├── /gto-solver/             the classic app (not this repo; nothing in Lizard links to it)
+ └── /gto-solver-classic/     a frozen full copy of the classic app (not this repo)
 
  Browser
  ┌──────────────── main thread ────────────────┐      ┌──────── Web Worker (solver/worker.js) ────────┐
@@ -38,7 +39,7 @@ and planned pieces are marked **(planned)**.
 | Path | Role |
 |---|---|
 | `web/src/app/` | `routes.ts` (the route table: path, label, status), `App.tsx` (router), `Shell.tsx` (layout, nav) |
-| `web/src/features/` | One folder per area: `study`, `library`, `ranges`, `engine`, `settings`, `home`, `classic` (honest placeholders that link to the classic app) |
+| `web/src/features/` | One folder per area: `study`, `practice`, `analyze`, `solve`, `reports`, `compare`, `tournaments`, `library`, `ranges`, `saved`, `history`, `engine`, `settings`, `home` |
 | `web/src/solver/` | The solver interface: `protocol.ts` (wire types), `types.ts` (public API), `client.ts`, `worker-transport.ts`, `http-transport.ts`, `provenance.ts`, `runtime.ts`, `useSolver.ts` |
 | `web/src/engine/` | Game engines (`GameEngine`): NLHE cards and hand classes; PLO4 registered as unsupported |
 | `web/src/library/catalog.ts` | Reads library indexes for coverage; resolves the library source |
@@ -178,8 +179,8 @@ The worker reads one library base (`?lib=`), so Lizard publishes one merged libr
 
 - **6-max**: the snapshot's library (18 heads-up-to-the-flop spots, 552 or 1,755 flops each, turn files for 9 of them;
   4 three-way spots on 185 flops), a byte-identical copy of the published `/gto-solver-library/`.
-- **Heads-up** `srp_sb_bb_2max` and `lp_sb_bb_2max`: copied from the offline builds still running in
-  `gtosolver/.work`. Only entries their index lists are copied, and each is validated on the copy.
+- **Heads-up** `srp_sb_bb_2max` and `lp_sb_bb_2max`: copied from the offline builds in
+  `gtosolver/.work`, as far as each has got. Only entries their index lists are copied, and each is validated on the copy.
 
 `scripts/library/assemble.py` builds the stage. It treats the sources as read-only, checks every `.bin` against its
 sha1 in the index and every turn file against the entry hash in its header, and checks `report.json` against the
@@ -240,4 +241,4 @@ CI runs the first two suites plus the solver tests that need neither the library
 | One merged library repo, not a composite client | The worker takes one base. Merging offline keeps the worker unchanged and lets each publish be validated as a whole |
 | Private `lizard` repo, public Pages site | The solver has no license, and the snapshot includes C sources, calibration scripts and draft legal documents. The site itself only exposes what the classic site already does |
 | Static hosting only | Solving runs on the device. A server would add cost, secrets and accounts without making solves more accurate |
-| Port classic features into React one by one, link to the classic app meanwhile | An honest placeholder beats a dead button. The engine features exist; only their UI needs porting |
+| Port classic features into React one by one, link to the classic app meanwhile | An honest placeholder beats a dead button. The engine features exist; only their UI needs porting. The last such link, on the Solve page, went in Phase 1, once Study had locks and automatic sizing |

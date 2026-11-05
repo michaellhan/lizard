@@ -4,7 +4,7 @@ Status as of 2026-11-03. This plans the path from today's state to broad parity 
 
 ## Where we start
 
-- **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
+- **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`, with a frozen full copy at `/gto-solver-classic/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
 - **Lizard's own interface covers Study, a range editor, the library view, settings and engine diagnostics.** Practice, Analyze, Solve, Reports and Tournaments are placeholder pages that link to the classic app (`web/src/app/App.tsx:31-35`). Lizard was WORKING on 2 rows and PARTIAL on 17 when this was written; `FEATURE_MATRIX.md` has the current counts.
 - **Much of the plumbing is ready but unused.** That includes:
   - the `SolverClient` queue with worker and HTTP backends;
@@ -30,7 +30,7 @@ Effort sizes are rough: **S** is a few days, **M** is one to three weeks, **L** 
   - Cross-origin isolation comes from the service worker (`web/src/main.tsx`), which is fragile on first load. Features must still work, more slowly, without threads.
   - Deployment notes in `docs/research/05` §0 record an expired Pages certificate (2026-11-02) and no http-to-https redirect. Fix both before a public launch.
 - **No forced accounts.** Every feature works signed out, with data kept in the browser's IndexedDB. Sync, if built, is opt-in (Phase 11).
-- **The origin is shared with the classic app.** `/lizard/` and `/gto-solver/` are one origin, so they share storage. Lizard keeps its own database name (`lizard`) and key prefixes. It never writes the classic databases (`gto-store`, `gto-session`, `gto-pf`), and reads them only on an explicit "import from the classic app" action. A script injection bug in either app exposes both, so the CSP and sanitizing work in `docs/research/06` §0 applies to every phase.
+- **The origin is shared with the classic app.** `/lizard/`, `/gto-solver/` and the frozen `/gto-solver-classic/` are one origin, so they share storage. Lizard keeps its own database name (`lizard`) and key prefixes. It never writes the classic databases (`gto-store`, `gto-session`, `gto-pf`), and reads them only on an explicit "import from the classic app" action. A script injection bug in either app exposes both, so the CSP and sanitizing work in `docs/research/06` §0 applies to every phase.
 - **Resource safety.** While library builds run, development must not start solver test suites, full builds or solves on the same machine. Each phase's acceptance tests are split in two:
   - Fast unit and component tests (Vitest, stubbed solver), which run anywhere.
   - A small opt-in engine check against the real solver, run only when the machine is free.
@@ -171,7 +171,7 @@ Moves matrix rows: every Practice row except Range-builder trainer and Custom dr
 - Multitable scheduler (done 2026-11-04, `scheduler.test.ts`, `room.test.ts`): port `multitable.test.js:170` (instant first, long solves yield).
 - Session persistence: a stubbed session is written to `sessions` and read back after a reload (fake-indexeddb). It survives a database migration.
 - Grades: on a stubbed answer, an action the hand plays under 10% of the time that loses 0.5% of the pot is an Inaccuracy, not a Mistake. The same loss on an action played 10% or more is Correct. A chart preflop decision is graded by frequency and marked so.
-- Engine check (opt-in; done 2026-11-04, four runs in `docs/PROGRESS.md`): play 20 seeded hands at Quick through the worker. No request errors, and every verdict has a provenance label.
+- Engine check (opt-in; done 2026-11-04, the four runs and two more on the final code in `docs/PROGRESS.md`): play 20 seeded hands at Quick through the worker. No request errors, and every verdict has a provenance label.
 
 **Risks.**
 - **Scope.** The classic table logic is spread through `index.html`. Extract it carefully and test it before building UI.
@@ -336,7 +336,8 @@ Moves matrix rows: Range-builder trainer.
   drill, listed on the Saved page, in a `savedDrills` store (database version 5) and the backup. The backup prompt (2026-11-03): saves counted since the last
   backup made here, a line under the header past 10 (`app/BackupNudge.tsx`). The classic import (2026-11-03): "Import
   its My hands" in Analyze (`web/src/features/analyze/classic.ts`) reads `gto-store` hands read only, on request
-  (fixture test `classic.test.ts`: the database is the same after, and none is created where there's none); hands
+  (fixture test `classic.test.ts`: the database is the same after, and none is created where there's none; the classic
+  site's "Delete everything this site keeps" clears `gto-store`, so an import after it finds nothing); hands
   with an ante, a straddle or a tournament's prizes are left out and counted. The classic settings: only its speed
   (`gto-speed`) has a Lizard counterpart, and "Use its speed" in Settings reads it on request and sets the solve mode.
   **Still open in Phase 5:** settings in the backup (left out on purpose for now). The record shape still wants the review named in Risks

@@ -3605,15 +3605,80 @@ marked with what they were played for, the chart draw refused on Retry, and test
 
 ### Tests actually run
 
-Unit tests on a stubbed solver through `slot.sh`, with `tsc` and eslint on what changed, each fix's own test seen failing
-with the fix taken out by hand. No browser, dev server or real solve for this review's fixes, so what they change on a
-real worker is unchecked.
+The full check through `slot.sh` (typecheck, lint, tests, build) on the final code: 1506 of 1506 tests in 80 files, in about
+29 s, with the machine's load average at 11 to 15 on 10 cores. Each fix's own test was seen failing with the fix taken out
+by hand.
+
+Two things turned up on the way there:
+
+- **Timing under load.** Of six runs of the suite, one failed 4 tests at a load average near 19: three waits for a screen
+  ran out at the 1 s default, and one long test took 7 s against the 5 s limit. The other five had none of these. A screen
+  now gets 5 s and a test 20 s (`vite.config.ts`, `src/test/setup.ts`), which only a failing test waits out.
+- **A test process ended from outside.** Twice `handsCheck.test.ts` lost its process to a SIGTERM with no test failing, once
+  during the fixes and once in a full check on `59b06ed`. It isn't memory: the highest peak in those six runs, with each
+  process logged, was 374 MB. It isn't vitest stopping its own worker, which takes its exit listener off first and so can't
+  report this error. The six runs didn't meet it, so what sends the signal is unknown, and that file running longest may be
+  all that picks it. If it comes back the check fails and a rerun is the answer until the sender is known.
+
+### The two reviews after the first
+
+The first review made 29 claims and 26 held up. A second review read the fixes themselves: all 13 of its findings held up,
+each low or medium, and 12 are fixed in `59b06ed`. The one left is that an old report keeps its old meter words. A third
+read of `59b06ed`, for anything that would hurt a player, found nothing at high or medium and passed Phase 1 to ship.
+
+### Checked on the real worker, on `59b06ed`
+
+Play 20 hands from a reload, on the same build and seed as the four runs above. An Apple M4 Mac, under load from the
+precompute builds. Both passed: 20 hands, no request errors, every verdict labelled, no worker ended.
+
+| Page | Tables | Think | Asking ahead | Deals | Verdicts | Run (s) | Spots | Wait, median (s) | Wait, p90 (s) | Requests | Postflop request, median (s) | Meter |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| isolated | 4 | 3 s | on | `ebh3r9` | 47 | 142.96 | 24 | under 0.01 | 0.22 | 194 | 0.02 | 36 of 45 postflop look-aheads used, 1.84 s saved, 9.15 s spent |
+| no isolation | 4 | none | off, and can't be on | `ebh3r9` | 56 | 38.27 | 32 | 0.14 | 2.20 | 199 | 0.06 | none |
+
+What answered: on the isolated page, the preflop charts 23, live solves 21, the library 3; with no isolation 24, 30 and 2.
+This is the first run with the meter counting postflop only: 9.15 s of solver time against 1.84 s saved, where saved counts
+only with no other table waiting. It's one run, and the default rests on the four above and their waits, not on this.
+The estimates ran high again, 0.2 s against 0.02 to 0.03 s taken after the flop and 0.05 s against 0.01 s preflop, which
+only makes a spot look slower than it is, so nothing in `ACCURACY.md` changes.
+
+By hand on the dev server, with a real worker, on `59b06ed`:
+
+- **The setup.** A stack typed at three tables stayed through going down to one and up to four. The Game box closes as the
+  form moves, and what's typed is still in it.
+- **New session.** With a changed stack, all four tables dealt at 90bb, focus went to the dock and the page scrolled to
+  it. Arriving at Practice by a link moved neither. Instant flops is greyed at 90bb and Spots reads Any hand.
+- **Spots.** A letter picks by type-ahead, keeps focus and hands it back after 1.5 s. Escape hands it back. A change with
+  no key before it hands it back at once, though that one was sent by script. On this Mac an arrow on a closed select
+  changed nothing, most likely because it opens the system's list, which these tools can't see or drive, so a real pick
+  from that list wasn't watched.
+- **Keys and the dock.** F folded and graded at the table in front, labelled Preflop charts (approximate); S moved to the
+  next waiting table; the status line read `Table 3: your turn, preflop, pot 1.5bb`.
+- **A phone's width.** At 375 px nothing scrolls sideways, the session came back on a reload, and a tab moved the dock to
+  that table: `Table 2: your turn, preflop, pot 4bb`.
+- **No isolation.** The Ask ahead box is off and disabled. New session pressed during a live solve had all four tables
+  back about 2 s later with no error on the page. The console's only errors were Vite's WebSocket, which the test proxy
+  doesn't carry.
+
+Not done live: a table failing, a stuck worker, a real phone, a screen reader, Accurate.
+
+### The classic app in these docs
+
+Nothing in Lizard links to the classic app now. The Solve page said node locks and automatic sizing weren't here yet and
+sent people to it, wrong since Study gained both, so it now names Study's two panels and `CLASSIC_URL` is gone. The docs
+now say the classic app is frozen at snapshot `9b907bd6` at `/gto-solver-classic/`, which the gto-solver project keeps
+while it reduces `/gto-solver/`. That cut is that project's and hadn't landed when last checked.
 
 ### Precompute builds
 
-Untouched. The suites went through `slot.sh`, and nothing here ran `quiet.sh`.
+Untouched: read only with `ps`. The suites went through `slot.sh`, a slot was held while the browser ran the solver, and
+nothing here ran `quiet.sh`. The gto-solver session says the limped build stopped on 2026-11-03 at 11:55. I haven't
+checked that: `ps` shows one `guarded_build.sh` still running (PID 45594, up 1 d 12 h), and the docs say something true
+either way.
 
 ### Next
 
 - Phase 1: measure Accurate and a phone on Play 20 hands, and meet a real stuck worker.
+- Re-pinning `solver/` to gto-solver `1a14605e`, the last full commit, is for the owner to decide. The gto-solver session
+  asked for it, and later commits must not come in.
 - Phase 2: what stays PARTIAL is in `FEATURE_MATRIX.md`.

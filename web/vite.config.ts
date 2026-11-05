@@ -75,5 +75,8 @@ export default defineConfig({
     globals: false,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // Twenty seconds, with five for a screen to appear in setup.ts: on a machine busy with builds a page's long test
+    // took 7 s and a screen over the 1 s default. Only a failing test waits this long.
+    testTimeout: 20_000,
   },
 });

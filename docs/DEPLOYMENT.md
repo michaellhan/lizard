@@ -12,7 +12,7 @@ Neither repo has a CNAME file. GitHub serves a project site without a CNAME unde
 made, and none is needed. **Never add a CNAME file to either repo**: that would claim the whole domain for it.
 
 Other paths on the domain belong to other repos and are not touched by any Lizard script: `/` (the homepage),
-`/gto-solver/` (the classic app) and `/gto-solver-library/` (its library).
+`/gto-solver/` (the classic app), `/gto-solver-classic/` (a frozen full copy of it) and `/gto-solver-library/` (its library).
 
 Both repos are private, and Pages sites from private repos are public on this account. The private repo keeps the
 solver's sources, scripts and research private; the site itself exposes only the built app and the solver bundle,
@@ -58,7 +58,7 @@ build of the same commit.
 matches both.
 
 ```bash
-for u in https://www.michael-han.com/ https://www.michael-han.com/gto-solver/ https://www.michael-han.com/gto-solver-library/index.json; do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done
+for u in https://www.michael-han.com/ https://www.michael-han.com/gto-solver/ https://www.michael-han.com/gto-solver-classic/ https://www.michael-han.com/gto-solver-library/index.json; do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done
 ```
 
 These are the neighbours; all should be 200.
@@ -92,7 +92,7 @@ One merged format-2 library, because the solver worker reads a single base URL:
 - the 6-max library from `solver/gto/static/flop_library/` (gitignored here; a verified copy of
   `/gto-solver-library/`): 18 spots and 4 three-way spots;
 - the heads-up spots from the offline builds in `/Users/mhan/Desktop/projects/gtosolver/.work/hu-lib` and
-  `.work/hu-lp-lib`, as far as they have got. Those builds are still running and are never touched: they are read only.
+  `.work/hu-lp-lib`, as far as they have got. Whether or not a build is running, its output is only ever read.
 
 `lizard-library.json` at the site root records what each publish contained: per-spot flop counts, file count, and any
 flops left out by validation. Each spot also has a `target`, the flop count it is being built to, which the app's
