@@ -8,6 +8,7 @@ import { actionColors, evIn, evUnitLabel, pct, type EvUnit } from "@/components/
 import type { Breakdown, BreakdownRow, BreakdownSide } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import { SolverError, type Provenance, type SolveMode } from "@/solver/types";
+import { useSettings } from "@/state/settings";
 import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf, takingAction } from "./breakdown";
 import { studyRequest, type StudyHand } from "./studyState";
 
@@ -90,7 +91,8 @@ function Shown({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; provenance
 function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; provenance: Provenance; evUnit: EvUnit; onFilter: (key: string) => void }) {
   const sides = sidesOf(bd);
   const [who, setWho] = useState(0);
-  const [part, setPart] = useState<"made" | "draws">("made");
+  const part = useSettings((s) => s.breakdownPart);
+  const saveSettings = useSettings((s) => s.set);
   const [sel, setSel] = useState<string | null>(null);
   // one action picked: what it's made of, by category
   const [act, setAct] = useState<number | null>(null);
@@ -124,7 +126,7 @@ function Categories({ bd, provenance, evUnit, onFilter }: { bd: Breakdown; prove
         {bd.hero.draws.length > 0 && (
           <div role="group" aria-label="Categories" className="flex gap-1">
             {(["made", "draws"] as const).map((p) => (
-              <button key={p} type="button" aria-pressed={p === shownPart} onClick={() => (setPart(p), setSel(null))} className={`rounded px-2 py-0.5 ${p === shownPart ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}>
+              <button key={p} type="button" aria-pressed={p === shownPart} onClick={() => (saveSettings({ breakdownPart: p }), setSel(null))} className={`rounded px-2 py-0.5 ${p === shownPart ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}>
                 {p === "made" ? "Made hands" : "Draws"}
               </button>
             ))}

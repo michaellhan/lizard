@@ -95,7 +95,10 @@ export function StudyPage() {
   // the answer is tagged with the request it answers; a new request shows "loading" until its own answer arrives
   const [answer, setAnswer] = useState<{ key: string; phase: Phase }>({ key: "", phase: { kind: "loading" } });
   const [selected, setSelected] = useState<string | null>(null);
-  const [chosenView, setView] = useState<GridView>("mix");
+  // (what the grid shows and the breakdown's state are Settings, so they last from visit to visit)
+  const chosenView = useSettings((s) => s.studyView);
+  const breakdownOpen = useSettings((s) => s.breakdownOpen);
+  const saveSettings = useSettings((s) => s.set);
   // whose range the grid shows: 0 the player to act, i the i-th opponent
   const [who, setWho] = useState(0);
   // a hand category ("m:<id>" / "d:<id>"), kept from node to node while the node has it
@@ -105,8 +108,6 @@ export function StudyPage() {
   // the range builder (kept on from node to node), and what's painted at each node visited
   const [building, setBuilding] = useState(false);
   const [paints] = useState(() => new Map<string, BuildSaved>());
-  // the breakdown panel: open from node to node, as asking a node costs a solve only where none is in hand
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const evUnit = useSettings((s) => s.evUnit);
   const abortRef = useRef<AbortController | null>(null);
   // the preflop solve run from the page (pfSolve.ts): only on its Solve button, going on while the page shows a
@@ -477,7 +478,7 @@ export function StudyPage() {
                     key={v}
                     type="button"
                     aria-pressed={view === v}
-                    onClick={() => setView(v)}
+                    onClick={() => saveSettings({ studyView: v })}
                     title={v === "eqr" ? "Equity realization: EV / (equity × pot)" : undefined}
                     className={`rounded px-2 py-0.5 ${view === v ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}
                   >
@@ -536,7 +537,7 @@ export function StudyPage() {
         </div>
       )}
       {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && res.street !== "preflop" && (
-        <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={setBreakdownOpen} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />
+        <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={(o) => saveSettings({ breakdownOpen: o })} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />
       )}
       {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
         <div className="flex flex-wrap items-start gap-2">

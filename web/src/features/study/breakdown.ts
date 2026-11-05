@@ -38,7 +38,7 @@ export function nutAdvantage(ss: readonly BreakdownSide[], nutEq: number): strin
   if (!a || !b) return null;
   const lead = a.v - b.v;
   return lead < NUT_LEAD
-    ? "Neither range has a nut advantage."
+    ? `${ss.length > 2 ? "No" : "Neither"} range has a nut advantage.`
     : `${a.who} has the nut advantage: ${(lead * 100).toFixed(1)} points more of the range at ${pct(nutEq, 0)} equity or better.`;
 }
 

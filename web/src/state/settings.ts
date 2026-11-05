@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { kvGet, kvSet } from "@/data/db";
 import { DEFAULT_LOCAL_SOLVER_URL, type LibraryChoice } from "@/config";
 import type { Spot } from "@/features/practice/room";
+import type { GridView } from "@/features/study/views";
 import type { SolveMode, TransportKind } from "@/solver/types";
 
 export interface Settings {
@@ -21,6 +22,10 @@ export interface Settings {
   /** Practice: ask ahead for your likeliest lines while you decide (null: not chosen, read as the measured default, ahead.ts's
    * `ASK_AHEAD`, which a saved `false` would hide when it changes) */
   askAhead: boolean | null;
+  /** Study: what the grid shows, whether the breakdown is open, and which of its categories */
+  studyView: GridView;
+  breakdownOpen: boolean;
+  breakdownPart: "made" | "draws";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +38,9 @@ export const DEFAULT_SETTINGS: Settings = {
   practiceSpot: null,
   practiceSeat: "random",
   askAhead: null,
+  studyView: "mix",
+  breakdownOpen: false,
+  breakdownPart: "made",
 };
 
 const KEY = "settings.v1";
@@ -46,8 +54,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

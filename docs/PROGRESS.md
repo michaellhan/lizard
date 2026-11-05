@@ -3849,4 +3849,6 @@ Below a postflop node, "Breakdown and equity" lists each range by made hands and
 - Looking at the screenshot caught what no test did: the panel shared a React `key` with the Compare links beside it, and a production build drops the warning and doubled the row. The browser test now counts that row.
 - A line colour was checked with the dataviz validator against the page's surface: the accent and suit tokens failed its lightness band, so the three series have colours of their own.
 - The same river's numbers moved a little between runs (BB 307.6 and 327.3 combos, 55.6% and 55.5% equity), since the turn solve that narrows the ranges stops on a time budget. The panel shows that run's answer under that run's provenance.
+- Checked on the live site at fbe271f (bundle `index-OU1lFUBp.js`, the local build's; manifest `e13c4733fd`; routes 200), with a slot held. A library flop (`srp_btn_bb`, Ks7d2c) answered in 0.5 s and stayed "Precomputed solution", so opening the panel doesn't force a solve there. A 3-way flop answered in 2.31 s with three lines and equities adding to 99.9%. A 4-way flop answered in 0.5 s with categories and EV, no equities, and the panel says it has none. A 3-way read said "Neither range", now "No range".
+- The grid's view, whether the breakdown is open, and made hands or draws are now Settings, so they last across nodes and visits.
 

@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Breakdown } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import { SolverError, type Provenance } from "@/solver/types";
+import { useSettings } from "@/state/settings";
 import { BreakdownPanel } from "./BreakdownPanel";
 import { freshHand } from "./studyState";
 
@@ -81,6 +82,17 @@ describe("BreakdownPanel", () => {
     fireEvent.click(within(cats).getByRole("button", { name: "Flush draw" }));
     fireEvent.click(within(cats).getByRole("button", { name: "Show these hands in the grid" }));
     expect(onFilter).toHaveBeenCalledWith("d:fd");
+  });
+
+  it("remembers Draws in Settings, for the next node", async () => {
+    const { getSolver } = solver(() => ({ data: { breakdown: BD }, provenance: PROV }));
+    await opened(getSolver);
+    fireEvent.click(within(screen.getByRole("region", { name: "Hand categories" })).getByRole("button", { name: "Draws" }));
+    expect(useSettings.getState().breakdownPart).toBe("draws");
+    cleanup();
+    await opened(getSolver);
+    expect(within(screen.getByRole("region", { name: "Hand categories" })).getByRole("button", { name: "Flush draw" })).toBeTruthy();
+    useSettings.getState().set({ breakdownPart: "made" });
   });
 
   it("shows what one action is made of, without the whole category's equity and EV", async () => {

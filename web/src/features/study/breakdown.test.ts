@@ -41,6 +41,11 @@ describe("the advantages", () => {
     expect(nutAdvantage(ss, 0.8)).toBe("Neither range has a nut advantage.");
   });
 
+  it("says no range of three, not neither", () => {
+    const ss = [side("SB", { nuts: 0.027 }), side("BB", { nuts: 0.021 }), side("BTN", { nuts: 0.033 })];
+    expect(nutAdvantage(ss, 0.8)).toBe("No range has a nut advantage.");
+  });
+
   it("compares the best two of three", () => {
     const ss = [side("SB", { eq: 0.3, nuts: 0.1 }), side("BB", { eq: 0.31, nuts: 0.05 }), side("BTN", { eq: 0.39, nuts: 0.15 })];
     expect(rangeAdvantage(ss)).toMatch(/^BTN/);
