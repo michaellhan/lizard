@@ -2,10 +2,10 @@
 // deal, graded decision and finished hand gives the next session, whichever table it came from, so one session scores
 // them all. Decisions count as they're graded and a hand as it ends, so `score.n` runs ahead of the tallies mid-hand.
 import type { SessionRecord } from "@/data/db";
-import { addHandToPot, addSource, handPot, type PotTally } from "@/features/history/history";
+import { addCell, addHandToPot, addSource, handPot, type GradeCell, type PotTally } from "@/features/history/history";
 import { addScore, emptyScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
-import { carries, simOf, type Decision, type HandOptions, type HandResult, type PracticeHand } from "./practice";
+import { carries, simOf, type Decision, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
 import { reviewed, withReviewed, type Reviewed } from "./review";
 
 export interface PracticeSession {
@@ -14,7 +14,7 @@ export interface PracticeSession {
   players: number;
   stack: number;
   /** your seat each hand ("moves", "random" or a seat) and whether hands stop as the preflop closes */
-  opts: Required<HandOptions>;
+  opts: SessionOptions;
   /** hands dealt so far, the next hand's `n`: one count across tables, so a number is one hand */
   dealt: number;
   /** the most tables it has been played at (above one, its record leaves out the seat, pot and carry) */
@@ -26,13 +26,15 @@ export interface PracticeSession {
   /** finished hands by pot type, and the decisions graded by what answered them (the History page) */
   byPot: Record<string, PotTally>;
   sources: Partial<Record<ResultSource, number>>;
+  /** the decisions graded by street, source and basis (a doc written before they were kept has none) */
+  cells?: Record<string, GradeCell>;
   /** your last graded decisions, with their spots (Review mistakes, review.ts) */
   review: Reviewed[];
 }
 
 const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 
-export const freshSession = (players: number, stack: number, opts: Required<HandOptions> = DEFAULT_OPTS): PracticeSession => ({
+export const freshSession = (players: number, stack: number, opts: SessionOptions = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
   startedAt: Date.now(),
   players,
@@ -45,6 +47,7 @@ export const freshSession = (players: number, stack: number, opts: Required<Hand
   score: emptyScore(),
   byPot: {},
   sources: {},
+  cells: {},
   review: [],
 });
 
@@ -63,6 +66,7 @@ export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, 
     ...s,
     score: addScore(s.score, d.grade),
     sources: addSource(s.sources, d.provenance?.source),
+    cells: addCell(s.cells, d.street, d.provenance?.source, d.grade),
     review: withReviewed(s.review, reviewed(h, d, h.n + 1, table)),
   };
 }
@@ -98,6 +102,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(tables > 1 ? { tables } : { seat: s.opts.seat }),
     ...(s.opts.preflopOnly ? { preflopOnly: true } : {}),
     ...(s.opts.pot && tables <= 1 ? { pot: s.opts.pot } : {}),
+    ...(s.opts.pot && s.opts.board && tables <= 1 ? { board: s.opts.board } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),
@@ -105,6 +110,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.rake ? { rake: s.opts.rake, ...(s.opts.rakeCap ? { rakeCap: s.opts.rakeCap } : {}) } : {}),
     byPot: s.byPot,
     sources: s.sources,
+    cells: s.cells ?? {},
   },
 });
 

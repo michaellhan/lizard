@@ -407,6 +407,18 @@ describe("keptTables", () => {
     expect(read({ sources: "live" })).toEqual({});
   });
 
+  it("reads a session's board filter back; one kept before it has none; one that isn't a filter loses the session", () => {
+    const opts = (o: object) => ({ opts: { ...doc().session.opts, ...o } });
+    const board = { suits: "mono", hi: "A" };
+    expect(keptTables(structuredClone(spoiled(opts({ pot: "srp", board }))))?.session.opts.board).toEqual(board);
+    expect(keptTables(spoiled(opts({ board: null })))?.session.opts.board).toBeNull();
+    const before = keptTables(doc());
+    expect(before).not.toBeNull();
+    expect("board" in before!.session.opts).toBe(false);
+    expect(keptTables(spoiled(opts({ board: { suits: "mauve" } })))).toBeNull();
+    expect(keptTables(spoiled(opts({ board: "mono" })))).toBeNull();
+  });
+
   it("reads a doc as it was written, four places long", () => {
     const d = doc();
     const k = keptTables(structuredClone(d))!;

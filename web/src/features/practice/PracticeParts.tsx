@@ -177,6 +177,9 @@ export function ReviewMistakes({ review }: { review: Reviewed[] }) {
           {bad.length > 0 && <span className="ml-2 rounded-full bg-surface-3 px-1.5 font-mono text-xs">{bad.length}</span>}
         </button>
       </div>
+      <Link to="/review" className="text-xs underline">
+        Every mistake kept, and what&rsquo;s due for review
+      </Link>
       {xs.length === 0 ? (
         <p className="text-muted">No mistakes in your last {review.length} decisions so far.</p>
       ) : (
@@ -337,8 +340,10 @@ export function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a
   );
 }
 
-export function DecisionView({ d, players, title = "Your last decision", children }: { d: Decision; players: number; title?: string; children?: ReactNode }) {
+export function DecisionView({ d, players, title = "Your last decision", children }: { d: Omit<Decision, "move">; players: number; title?: string; children?: ReactNode }) {
   const g = d.grade;
+  // (a stored turn keeps no hand's EV, so there's no column of dashes to read as if one had been left out)
+  const hasEv = d.provenance?.source !== "library-turn";
   return (
     <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -370,7 +375,9 @@ export function DecisionView({ d, players, title = "Your last decision", childre
             ? g.loss > 0
               ? `EV given up: ${bb(g.loss)}bb, ${g.lossPct.toFixed(1)}% of the ${fmt(d.pot)}bb pot.`
               : "No EV given up."
-            : "Graded by how often the chart plays it: the preflop charts have no EVs."}
+            : d.provenance?.source === "library-turn"
+              ? "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost."
+              : "Graded by how often the chart plays it: the preflop charts have no EVs."}
           {g.mixed && " This hand mixes actions here."}
         </p>
       )}
@@ -380,7 +387,7 @@ export function DecisionView({ d, players, title = "Your last decision", childre
             <tr>
               <th className="py-0.5 font-normal">Action</th>
               <th className="py-0.5 text-right font-normal">Played</th>
-              <th className="py-0.5 text-right font-normal">EV bb</th>
+              {hasEv && <th className="py-0.5 text-right font-normal">EV bb</th>}
             </tr>
           </thead>
           <tbody>
@@ -391,17 +398,19 @@ export function DecisionView({ d, players, title = "Your last decision", childre
                   {a.action === d.chose && " ← you"}
                 </td>
                 <td className="py-0.5 text-right">{pct(a.freq)}</td>
-                <td className="py-0.5 text-right">{bb(a.ev)}</td>
+                {hasEv && <td className="py-0.5 text-right">{bb(a.ev)}</td>}
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <p className="text-xs text-muted">Your hand&rsquo;s frequencies and EVs at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
+      <p className="text-xs text-muted">Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.</p>
       {children}
-      <Link to={`/study?${d.study}`} className="inline-block text-accent hover:underline">
-        Open this spot in Study →
-      </Link>
+      {d.study && (
+        <Link to={`/study?${d.study}`} className="inline-block text-accent hover:underline">
+          Open this spot in Study →
+        </Link>
+      )}
     </section>
   );
 }

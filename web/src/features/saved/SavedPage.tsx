@@ -316,7 +316,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
     const b = await downloadBackup();
     setMsg({
       ok: true,
-      text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions.`,
+      text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedDrills} drills, ${b.counts.savedRanges} ranges, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
     });
   };
 
@@ -345,7 +345,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
       <h2 className="text-lg font-semibold">Backup and restore</h2>
       <p className="text-muted">
         One file with your saved spots, saved drills, saved ranges, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
-        imported into Analyze with your tags, notes and grades; settings are not in it.
+        imported into Analyze with your tags, notes and grades, and the mistakes kept for review with their schedule; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
       </p>
       {count && (

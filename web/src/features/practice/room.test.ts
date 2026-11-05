@@ -3,6 +3,7 @@
 // stop here settles as the worker's does, about 0.1 s later, as a cancel.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { putSession } from "@/data/db";
+import { keepMistake } from "@/data/mistakes";
 import { addHands } from "@/data/hands";
 import { SolverClient } from "@/solver/client";
 import type { AdvisorResponse, AdvisorState, PlayMove, WorkerInbound, WorkerOutbound } from "@/solver/protocol";
@@ -21,6 +22,7 @@ import { flopsNote, Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomFl
 import { keyOf } from "./session";
 
 vi.mock("@/data/db", async (orig) => ({ ...(await orig<typeof import("@/data/db")>()), putSession: vi.fn(async () => {}) }));
+vi.mock("@/data/mistakes", async (orig) => ({ ...(await orig<typeof import("@/data/mistakes")>()), keepMistake: vi.fn(async () => {}) }));
 vi.mock("@/data/hands", async (orig) => ({ ...(await orig<typeof import("@/data/hands")>()), addHands: vi.fn(async () => ({ added: 1, existing: 0 })) }));
 
 const OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
@@ -1182,6 +1184,41 @@ describe("Room hands", () => {
     expect(room.snapshot().kept).toBeNull();
   });
 
+  it("keeps a decision that wasn't Best or Correct for review, as graded, and none with persist off", async () => {
+    vi.mocked(keepMistake).mockClear();
+    const RARE: AdvisorResponse = { ...CHART, actions: [{ action: "fold", freq: 0.01 }, { action: "call", freq: 0.04 }, { action: "raise 2.5", freq: 0.95, amount_bb: 2.5 }] };
+    const off = setup({ players: 2, pace: 0 });
+    await flush();
+    off.asked[0]!.answer(RARE);
+    await flush();
+    off.room.choose(0);
+    await flush();
+    expect(keepMistake).not.toHaveBeenCalled();
+
+    const { room, asked } = setup({ players: 2, pace: 0, persist: true, readKept: async () => undefined });
+    await flush();
+    asked[0]!.answer(RARE);
+    await flush();
+    room.choose(0);
+    await flush();
+    expect(keepMistake).toHaveBeenCalledTimes(1);
+    const [m, merge] = vi.mocked(keepMistake).mock.calls[0]!;
+    expect(m).toMatchObject({ from: "hand", street: "preflop", chose: "fold", step: 0, grade: { byEv: false, loss: 0 }, ask: { via: "solver" } });
+    expect(m.provenance?.source).toBeTruthy();
+    expect(merge(m, m)).toMatchObject({ times: 2 });
+  });
+
+  it("keeps nothing of a decision that was Best or Correct", async () => {
+    vi.mocked(keepMistake).mockClear();
+    const { room, asked } = setup({ players: 2, pace: 0, persist: true, readKept: async () => undefined });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(2);
+    await flush();
+    expect(keepMistake).not.toHaveBeenCalled();
+  });
+
   it("tells the client once a flop: the board cut to it, the streets after preflop emptied", async () => {
     const { room, asked, prefetched } = setup({ players: 2, pace: 0 });
     await toFlop(room, asked);
@@ -2114,6 +2151,18 @@ describe("Room changing the number of tables", () => {
     useSettings.setState({ practiceSpot: "any" });
     room.setTables(4);
     expect(at(room, 3).hand).not.toHaveProperty("pot");
+  });
+
+  it("deals one table by the session's board filter, and more than one by Spots alone", async () => {
+    useSettings.setState({ practiceSpot: "srp", practiceSeat: "UTG" });
+    const { room } = setup({ pace: 0, pause: 0, guard: 0 });
+    const opts = { ...room.snapshot().session.opts, pot: "srp" as const, board: { pair: "trips" } };
+    room.startSession(6, 100, opts);
+    expect(new Set(at(room, 0).hand.board.slice(0, 3).map((c) => c[0])).size).toBe(1);
+    room.setTables(4);
+    // (three flops all trips by chance: a one in 50 million)
+    expect([1, 2, 3].every((i) => new Set(at(room, i).hand.board.slice(0, 3).map((c) => c[0])).size === 1)).toBe(false);
+    expect(room.snapshot().session.opts.board).toEqual({ pair: "trips" });
   });
 
   it("reads a saved seat that isn't at this game, or a spot it can't use, as what's left", async () => {

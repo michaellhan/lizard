@@ -14,6 +14,7 @@ const ROUTES: readonly (readonly [string, RegExp])[] = [
   ["compare", /./],
   ["library", /./],
   ["history", /./],
+  ["review", /./],
   ["saved", /./],
   ["settings", /./],
   ["engine", /./],

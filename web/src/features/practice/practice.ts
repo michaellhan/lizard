@@ -16,6 +16,7 @@ import { cmp, handName } from "@/poker/evaluate";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import {
   deal,
+  DECK,
   noLines,
   recordOf,
   seeded,
@@ -33,6 +34,7 @@ import {
 } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
+import { flopsLike, type TextureFilter } from "./texture";
 
 export interface Decision {
   street: Street;
@@ -111,6 +113,8 @@ export const POT_DRILLS: Record<PotDrill, { label: string; one: string; tip: str
   "3bet": { label: "3-bet pots", one: "a 3-bet pot", tip: "Heads-up after a 3-bet and a call: the preflop is played for you, you play from the flop" },
   bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "Small blind against big blind, folded to them: the preflop is played for you, you play from the flop" },
 };
+/** The drills' board filter's flops, as a hand's cards: none where it's not a drill's pot or the filter is empty. */
+const flopsFor = (o: DealOptions): readonly string[] | null => (isPotDrill(o.pot) && o.board && Object.values(o.board).some(Boolean) ? flopsLike(o.board) : null);
 export const isPotDrill = (x: unknown): x is PotDrill => typeof x === "string" && Object.hasOwn(POT_DRILLS, x);
 /** A hand's pot: a drill, or Instant flops, a heads-up flop the library holds. That one needs the tables' index, so it's
  * no drill: it isn't in POT_DRILLS, and the Play select stays as it was. */
@@ -142,6 +146,13 @@ export interface HandOptions {
   rakeCap?: number;
 }
 
+/** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop). */
+export interface DealOptions extends HandOptions {
+  board?: TextureFilter | null;
+}
+/** A session's setup, as it's kept. One kept before the board filter has none. */
+export type SessionOptions = Required<HandOptions> & Pick<DealOptions, "board">;
+
 /** Whether the options carry chips: full hands (not preflop only or a drill's pot), your seat moving one place a hand,
  * so each player keeps a seat and its chips follow it. */
 export const carries = (o: HandOptions) => !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly && !o.pot;
@@ -165,10 +176,27 @@ export function seatFor(choice: SeatChoice | undefined, n: number, players: numb
   return choice && s.includes(choice) ? choice : heroSeat(n, players);
 }
 
+/** Every seat's cards and the board with the flop drawn evenly from `flops`, the rest shuffled from what's left: a
+ * pot-type mode's board filter, read before the preflop's played, as a mode deals until it reaches its pot and a rare
+ * flop would use up its deals. */
+function dealOnFlop(players: number, rnd: () => number, flops: readonly string[]): ReturnType<typeof deal> {
+  const f = flops[Math.floor(rnd() * flops.length)]!;
+  const flop = [f.slice(0, 2), f.slice(2, 4), f.slice(4, 6)];
+  const deck = DECK.filter((c) => !flop.includes(c));
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+  }
+  const hands: Record<string, [string, string]> = {};
+  for (const p of seatsOf(players)) hands[p] = [deck.pop()!, deck.pop()!];
+  return { hands, board: [...flop, deck[0]!, deck[1]!] };
+}
+
 /** The n-th hand of a session. With chips carried, `table` gives each seat's chips (nextTable); without it, every seat
  * starts at `stack`. */
-export function newHand(players: number, stack: number, n: number, seed: number, opts: HandOptions = {}, table?: Table): PracticeHand {
-  const d = deal(players, seeded(seed));
+export function newHand(players: number, stack: number, n: number, seed: number, opts: DealOptions = {}, table?: Table): PracticeHand {
+  const flops = flopsFor(opts);
+  const d = flops?.length ? dealOnFlop(players, seeded(seed), flops) : deal(players, seeded(seed));
   return {
     seed,
     n,
@@ -415,6 +443,12 @@ export function mixOf(res: AdvisorResponse): Decision["mix"] {
   }));
 }
 
+/** The mix's i-th action graded: by EV where it has EVs for every action, else by frequency (the preflop charts). */
+export function gradeMix(mix: Decision["mix"], pot: number, i: number): Grade {
+  const evs = mix.every((x) => x.ev !== null) ? mix.map((x) => x.ev!) : null;
+  return grade({ freqs: mix.map((x) => x.freq), evs, pot }, i);
+}
+
 /** Your decision: the answer's i-th action taken, graded against the answer (by EV where it has EVs for every
  * action, else by frequency: the preflop charts). */
 export function decide(
@@ -430,8 +464,7 @@ export function decide(
   if (typeof m === "string") return { error: m };
   const mix = mixOf(res);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;
-  const evs = mix.every((x) => x.ev !== null) ? mix.map((x) => x.ev!) : null;
-  const g = grade({ freqs: mix.map((x) => x.freq), evs, pot }, i);
+  const g = gradeMix(mix, pot, i);
   const decision: Decision = { street: sim.current!, chose: a.action, move: m, grade: g, mix, pot, provenance, study: studyOf(h) };
   return { hand: { ...withMoveOf(h, sim, m), decisions: [...h.decisions, decision] }, decision };
 }

@@ -45,7 +45,9 @@
 // is asked ahead for the Room's life, whatever the box says, and the page says why.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { addHands } from "@/data/hands";
+import { keepMistake } from "@/data/mistakes";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
+import { handMistake, missedAgain } from "@/features/review/mistakes";
 import { candsFor, flopIndex, gamesHeld, gameWords, heldSpots, instantSpots, isChart, libFlop, type FlopSpot } from "@/library/flops";
 import { seatsOf } from "@/poker/seats";
 import type { Sim, Street } from "@/poker/table";
@@ -81,7 +83,7 @@ import {
   stateFor,
   withVillain,
   type Decision,
-  type HandOptions,
+  type SessionOptions,
   type HandPot,
   type PracticeHand,
   type RangeAt,
@@ -630,7 +632,7 @@ export class Room {
   // ---- actions
 
   /** Every table starts again; what was set aside goes with the session it belonged to. */
-  startSession(players: number, stack: number, opts: Required<HandOptions>): void {
+  startSession(players: number, stack: number, opts: SessionOptions): void {
     this.session = atTables(freshSession(players, stack, opts), this.tables.length);
     this.spare = [];
     for (const t of this.tables) {
@@ -734,12 +736,19 @@ export class Room {
       t.lastRange = rangeAt(h, answer.data, answer.provenance, sim);
       this.noteHabit(facingBet(sim, h.hero), r.decision.move.action);
       this.session = afterDecision(this.session, h, r.decision, this.many ? table + 1 : undefined);
+      if (this.persist) this.noteMistake(h, r.decision);
       this.begun = true;
       this.saveNow = true;
       this.commit(t, r.hand);
       this.acted();
     }
     this.pump();
+  }
+
+  /** A graded miss kept for the review queue, across sessions. Nothing's lost at the table if the browser refuses it. */
+  private noteMistake(h: PracticeHand, d: Decision): void {
+    const m = handMistake(this.session.id, h, d, Date.now());
+    if (m) void keepMistake(m, missedAgain).catch(() => {});
   }
 
   /** A move of your own where your spot has no answer: not graded. Only there: this records for whoever is to act, so
@@ -1362,7 +1371,7 @@ export class Room {
     return this.tables.map((t) => ({ since: t.waiting, over: !!t.hand.result }));
   }
 
-  private get opts(): Required<HandOptions> {
+  private get opts(): SessionOptions {
     return this.optsAt(this.tables.length);
   }
 
@@ -1386,15 +1395,16 @@ export class Room {
     return { off: this.flopsOff, holds: gamesHeld(this.lib ?? []), game: own.length ? `${game} with ${own.join(" and ")}` : game };
   }
 
-  /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots and Seat and no chips carried.
+  /** What a hand is dealt by at `n` tables. At one, the session's own setup; above it, Spots and Seat, no chips carried
+   * and no board filter (Spots has none).
    * Settings are read here, at the deal, not fed in by the page: a session read back deals a lost hand the moment they load,
    * before anything has rendered with them. */
-  private optsAt(n: number): Required<HandOptions> {
+  private optsAt(n: number): SessionOptions {
     const o = this.session.opts;
     if (n === 1) return o;
     const set = useSettings.getState();
     const spot = spotOf(this.fixedSpot ?? set.practiceSpot, o.preflopOnly, this.flopsOff === null);
-    return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false };
+    return { ...o, seat: this.fixedSeat ?? seatOf(set.practiceSeat, this.session.players, spot), pot: spot === "any" ? null : spot, carry: false, board: null };
   }
 
   /** As the classic trainer, a Fast setting plays Quick's budgets after the flop (index.html budgetsFor). */

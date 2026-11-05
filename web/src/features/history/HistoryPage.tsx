@@ -1,10 +1,15 @@
-// History: every session kept in this browser, by day, newest first, with lifetime totals by kind and Practice's
-// finished hands by pot type (features/history/history.ts). Each row says what graded it; nothing here is solved anew.
+// History: every session kept in this browser, by day, newest first, with lifetime totals by kind, Practice's finished
+// hands by pot type (features/history/history.ts), and decisions by street and over time (progress.ts). Each row says
+// what graded it; nothing here is solved anew.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bb, pct } from "@/components/actions";
 import { allSessions, type SessionRecord } from "@/data/db";
-import { byDay, KINDS, kindLabel, kindTotals, potTotals, rowOf, type SessionKind, type SessionRow } from "./history";
+import { listMistakes } from "@/data/mistakes";
+import { TrendChart } from "@/features/analyze/SessionsPanel";
+import { dueQueue } from "@/features/review/schedule";
+import { byDay, KINDS, kindLabel, kindTotals, potTotals, rowOf, sourcesText, type SessionKind, type SessionRow } from "./history";
+import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, streetTotals, trends, type BasisTrend } from "./progress";
 
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x * 100) / 100)}`;
@@ -14,6 +19,7 @@ const okText = (ok: number | null, n: number) => (ok == null || !n ? "–" : pct
 
 export function HistoryPage() {
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
+  const [mistakes, setMistakes] = useState<{ kept: number; due: number } | null>(null);
   const [params, setParams] = useSearchParams();
   const kind = isKind(params.get("kind")) ? (params.get("kind") as SessionKind) : null;
 
@@ -22,6 +28,9 @@ export function HistoryPage() {
     void allSessions()
       .then((xs) => alive && setSessions(xs))
       .catch(() => alive && setSessions([]));
+    void listMistakes()
+      .then(({ list }) => alive && setMistakes({ kept: list.length, due: dueQueue(list, Date.now()).length }))
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -29,6 +38,8 @@ export function HistoryPage() {
 
   const totals = useMemo(() => kindTotals(sessions ?? []), [sessions]);
   const pots = useMemo(() => potTotals(sessions ?? []), [sessions]);
+  const streets = useMemo(() => streetTotals(sessions ?? []), [sessions]);
+  const lines = useMemo(() => trends(sessions ?? []), [sessions]);
   const days = useMemo(() => byDay((sessions ?? []).filter((s) => !kind || s.kind === kind).map(rowOf)), [sessions, kind]);
 
   const setKind = (k: string) =>
@@ -51,6 +62,13 @@ export function HistoryPage() {
           Each one&rsquo;s grades are against the answers it was played with, said in its row; nothing here is solved again. The sittings in your imported hands
           are in <Link to="/analyze" className="underline">Analyze</Link>, under Your sessions, read from those hands.
         </p>
+        {mistakes != null && mistakes.kept > 0 && (
+          <p className="text-sm">
+            <Link to="/review" className="underline">
+              {many(mistakes.kept, "mistake")} kept for review, {mistakes.due} due
+            </Link>
+          </p>
+        )}
       </div>
 
       {sessions == null ? (
@@ -64,6 +82,8 @@ export function HistoryPage() {
         <>
           <Lifetime totals={totals} />
           <PotTypes pots={pots} />
+          <Streets t={streets} />
+          <Trends lines={lines} />
           <section aria-label="Sessions" className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">Sessions</h2>
@@ -171,6 +191,96 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
       <p className="text-xs text-muted">
         EV lost is averaged over the decisions graded by EV (the preflop charts grade by frequency only). Net counts the hands played out, not those played preflop
         only. A range build is scored by its accuracy over the node&rsquo;s hand classes.
+      </p>
+    </section>
+  );
+}
+
+function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
+  if (!t.rows.length && !t.apartDecisions && !t.leakDecisions) return null;
+  return (
+    <section aria-label="Decisions by street" className="space-y-1">
+      <h2 className="text-lg font-semibold">Decisions by street</h2>
+      {t.rows.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="text-left text-sm" aria-label="Totals by street">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="py-0.5 pr-4 font-normal">Street</th>
+                <th className="py-0.5 pr-4 font-normal">Decisions</th>
+                <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
+                <th className="py-0.5 pr-4 font-normal">Graded by EV</th>
+                <th className="py-0.5 pr-4 font-normal">EV lost a decision</th>
+                <th className="py-0.5 pr-4 font-normal">Graded against</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              {t.rows.map((r) => (
+                <tr key={r.street}>
+                  <td className="py-0.5 pr-4 font-sans capitalize">{r.street}</td>
+                  <td className="py-0.5 pr-4">{r.n}</td>
+                  <td className="py-0.5 pr-4">{shareText(r.ok, r.n)}</td>
+                  <td className="py-0.5 pr-4">{r.ne}</td>
+                  <td className="py-0.5 pr-4">{r.ne ? lossText(r.loss / r.ne, r.lossPct / r.ne) : "none: by frequency"}</td>
+                  <td className="py-0.5 pr-4 font-sans text-xs text-muted">{sourcesText(r.sources)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-xs text-muted">
+        Full hands and drills. Under {MIN_SHARE} decisions a share is written as a count. EV lost is what a decision gave up against the answer named, averaged over those graded by EV: it isn&rsquo;t a
+        result or a win rate. Decisions graded by frequency count no EV.
+        {t.apartDecisions > 0 &&
+          ` ${many(t.apartDecisions, "decision")} in ${many(t.apartSessions, "earlier session")} ${t.apartDecisions === 1 ? "was" : "were"} played before streets were kept, and ${t.apartDecisions === 1 ? "isn't" : "aren't"} split.`}
+        {t.leakDecisions > 0 && ` ${many(t.leakDecisions, "leak drill decision")} ${t.leakDecisions === 1 ? "isn't" : "aren't"} split: a leak drill keeps no street.`}
+      </p>
+    </section>
+  );
+}
+
+function Trends({ lines }: { lines: BasisTrend[] }) {
+  if (!lines.length) return null;
+  const end = (t: BasisTrend) => {
+    if (!t.line) return null;
+    const last = t.blocks.at(-1)!;
+    const before = t.blocks.slice(0, -1).reduce((a, b) => ({ n: a.n + b.n, ok: a.ok + b.ok }), { n: 0, ok: 0 });
+    return `Your last stretch: ${shareText(last.ok, last.n)} of ${last.n}, against ${shareText(before.ok, before.n)} of ${before.n} before it. ${t.change ? `${t.change}: beyond what chance explains.` : "No clear change: what's moved is within chance."}`;
+  };
+  return (
+    <section aria-label="Over time" className="space-y-3">
+      <h2 className="text-lg font-semibold">Over time</h2>
+      {lines.map((t) => (
+        <div key={t.basis} className="space-y-1 text-sm">
+          {t.line ? (
+            <TrendChart
+              basis={BASIS_WORDS[t.basis]}
+              points={t.blocks}
+              about={`share of decisions in the mix (Best or Correct), in stretches of ${BLOCK} decisions or more, whole sessions, the band its 95% range.`}
+            />
+          ) : (
+            <>
+              <h3 className="font-medium">{BASIS_WORDS[t.basis]}</h3>
+              <p className="text-muted">
+                No line yet. {t.why} {shareText(t.blocks.reduce((a, b) => a + b.ok, 0), t.n)} Best or Correct over those.
+              </p>
+            </>
+          )}
+          {end(t) && <p>{end(t)}</p>}
+          {t.basis === "ev" && t.line && (
+            <p className="text-xs text-muted">
+              EV lost a decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot, against the answers named. It isn&rsquo;t a result or a win rate.
+            </p>
+          )}
+          <p className="text-xs text-muted">
+            {many(t.n, "decision")} in {many(t.sessions, "session")}. Graded against: {sourcesText(t.sources)}.
+          </p>
+        </div>
+      ))}
+      <p className="text-xs text-muted">
+        A line takes {MIN_BLOCKS} stretches of {BLOCK} decisions or more. The two kinds of grade are kept apart, as how many of each you played would otherwise move the line. Retries aren&rsquo;t counted: they&rsquo;re
+        spots you&rsquo;ve already missed. Full hands from before the split was kept aren&rsquo;t in either.
       </p>
     </section>
   );

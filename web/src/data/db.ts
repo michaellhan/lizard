@@ -2,7 +2,9 @@
 // the user's browser (no accounts). Each migration runs once, in order, inside the upgrade transaction; a test
 // (db.test.ts) opens every historical version and checks the upgrade path.
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
-import type { Confidence, ConvergenceBand } from "@/solver/types";
+import type { Verdict } from "@/grading/grade";
+import type { AdvisorState } from "@/solver/protocol";
+import type { Confidence, ConvergenceBand, Provenance } from "@/solver/types";
 
 export const DB_NAME = "lizard";
 
@@ -162,6 +164,69 @@ export interface DecisionRecord {
   gradedAt: number;
 }
 
+/** How a kept mistake's spot is asked again: what Practice asked the engine, or the library entry a drill read
+ * (`version`: the entry's, as the library's index gave it). */
+export type MistakeAsk =
+  | { via: "solver"; state: AdvisorState }
+  | { via: "library"; spot: string; flop: string; path: string[]; combo: [number, number]; version?: string; turn?: { card: string; at: string[] } };
+
+/** One retry of a kept mistake, as graded then. */
+export interface MistakeTry {
+  at: number;
+  chose: string;
+  verdict: Verdict;
+  ok: boolean;
+  byEv: boolean;
+  /** EV given up against the best action, bb and % of the pot (0 where graded by frequency) */
+  loss: number;
+  lossPct: number;
+  /** the answer graded against: its source and its provenance line */
+  source: string;
+  label: string;
+  /** that answer is the kind the mistake was graded on (features/review/mistakes.ts answerChange) */
+  like: boolean;
+  /** it moved the schedule (one before its day doesn't) */
+  moved: boolean;
+}
+
+/** A graded decision that wasn't Best or Correct, one record a spot, with what's needed to ask it again and when to
+ * (features/review/schedule.ts). The grade and the answer are the latest miss's in play. */
+export interface MistakeRecord {
+  /** the spot: the same spot missed again is this record */
+  id: string;
+  /** Practice's full hands, or its drills */
+  from: "hand" | "drill";
+  sessionId: string;
+  street: string;
+  /** when it was first missed, when it last was, and when this record last changed */
+  at: number;
+  lastAt: number;
+  updatedAt: number;
+  /** how many times it has been missed in play */
+  times: number;
+  seat: string;
+  players: number;
+  /** the game in words ("6-max 100bb · ante 1"; a drill's library spot) */
+  game: string;
+  hole: [string, string];
+  board: string[];
+  /** the street's action before you, in words */
+  line: string;
+  /** the Study line (studyState.ts toSearch); null for a game Study can't set up */
+  study: string | null;
+  ask: MistakeAsk;
+  chose: string;
+  mix: { action: string; freq: number; ev: number | null; amount?: number }[];
+  pot: number;
+  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean };
+  /** what graded it; null where none was kept */
+  provenance: Provenance | null;
+  /** how far along the schedule, and the day it's next due (null: finished) */
+  step: number;
+  due: number | null;
+  tries: MistakeTry[];
+}
+
 export interface LizardDB extends DBSchema {
   /** key/value settings (mirrors the persisted settings store) */
   kv: { key: string; value: unknown };
@@ -171,6 +236,7 @@ export interface LizardDB extends DBSchema {
   hands: { key: string; value: HandRecord; indexes: { byPlayed: number; bySite: string; byImport: string; byHero: string; byPotType: string } };
   decisions: { key: string; value: DecisionRecord; indexes: { byHand: string; byVerdict: string; byStreet: string; byPos: string } };
   savedDrills: { key: string; value: SavedDrill; indexes: { byUpdated: number } };
+  mistakes: { key: string; value: MistakeRecord; indexes: { byDue: number; byLast: number; byStreet: string } };
 }
 
 type UpgradeTx = IDBPTransaction<LizardDB, StoreNames<LizardDB>[], "versionchange">;
@@ -207,6 +273,12 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
   5: (db) => {
     const s = db.createObjectStore("savedDrills", { keyPath: "id" });
     s.createIndex("byUpdated", "updatedAt");
+  },
+  6: (db) => {
+    const m = db.createObjectStore("mistakes", { keyPath: "id" });
+    m.createIndex("byDue", "due");
+    m.createIndex("byLast", "lastAt");
+    m.createIndex("byStreet", "street");
   },
 };
 

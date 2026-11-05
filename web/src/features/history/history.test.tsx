@@ -1,9 +1,11 @@
 // The sessions history (ROADMAP Phase 1): every kept session by day with what graded it, lifetime totals by kind,
 // and Practice's finished hands by pot type, where the session kept them.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import { allSessions, putSession, type SessionRecord } from "@/data/db";
+import { allSessions, db, putSession, type SessionRecord } from "@/data/db";
+import { keepMistake } from "@/data/mistakes";
+import { mistake } from "@/test/mistake";
 import type { Sim } from "@/poker/table";
 import { addHandToPot, addSource, byDay, handPot, kindTotals, potTotals, rowOf } from "./history";
 import { HistoryPage } from "./HistoryPage";
@@ -101,6 +103,12 @@ describe("sessions history", () => {
     expect(rowOf(DRILL)).toMatchObject({ what: "SRP BTN vs BB, facing a bet", ok: 3, lossPer: 0.05, to: { href: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet" } });
     expect(rowOf({ ...DRILL, meta: { ...DRILL.meta, view: "ipvsbet" } }).what).toBe("SRP BTN vs BB, in position facing a bet");
     expect(rowOf(DRILL).graded).toBe("Precomputed solution (the flop library)");
+    expect(rowOf({ ...DRILL, evLossBb: 0, meta: { ...DRILL.meta, view: "oop", street: "turn", graded: 0, lossPct: 0 } })).toMatchObject({
+      what: "SRP BTN vs BB, first to act on the turn",
+      lossPer: null,
+      graded: "Stored turn from the flop library (by how often, in 5% steps)",
+      to: { href: "/practice?tab=drills&spot=srp_btn_bb&street=turn&view=oop" },
+    });
     expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done when last drilled", n: 2, ok: 1, lossPer: null, to: { href: "/analyze?drill=pf%3ARFI" } });
     // (a row sits under the day it was started: a drill resumed since says its own day)
     expect(rowOf({ ...LEAK, endedAt: Date.UTC(2026, 9, 30, 14) }).what).toMatch(/^Leak: RFI · 2 of 5 done when last drilled, \S+.*\d/);
@@ -131,6 +139,46 @@ describe("sessions history", () => {
     expect([pots.without, pots.withoutHands]).toEqual([1, 3]);
     const days = byDay(all.map(rowOf));
     expect(days.map((d) => d.rows.map((r) => r.id))).toEqual([["practice-new", "build-1", "drill-1", "practice-pf"], ["leak-drill|pf:RFI"], ["practice-old"]]);
+  });
+
+  it("splits decisions by street, counts the old ones apart, says why there's no trend, and never calls EV lost a result", async () => {
+    const d = (await db())!;
+    await d.clear("sessions");
+    await keepMistake(mistake({ id: "a", due: 1 }), (_, f) => f);
+    await keepMistake(mistake({ id: "b", due: null, step: 4 }), (_, f) => f);
+    await putSession({
+      id: "practice-cells",
+      kind: "practice",
+      startedAt: at(4, 20),
+      decisions: 6,
+      evLossBb: 0.4,
+      meta: {
+        cells: {
+          "preflop|charts|freq": { street: "preflop", source: "charts", byEv: false, n: 4, ok: 3, loss: 0, lossPct: 0 },
+          "flop|live|ev": { street: "flop", source: "live", byEv: true, n: 2, ok: 1, loss: 0.4, lossPct: 6 },
+        },
+      },
+    });
+    await putSession(OLD);
+    render(
+      <MemoryRouter initialEntries={["/history"]}>
+        <HistoryPage />
+      </MemoryRouter>,
+    );
+    const split = await screen.findByRole("region", { name: "Decisions by street" });
+    const rows = within(within(split).getByRole("table", { name: "Totals by street" })).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent(/preflop\s*4\s*3 of 4\s*0\s*none: by frequency/i);
+    expect(rows[1]).toHaveTextContent(/Preflop charts \(approximate\)/);
+    expect(rows[2]).toHaveTextContent(/flop\s*2\s*1 of 2\s*2\s*0\.20bb · 3\.0% pot/i);
+    expect(split).toHaveTextContent("4 decisions in 1 earlier session");
+    expect(split).toHaveTextContent(/isn.t a result or a win rate/);
+    const trend = screen.getByRole("region", { name: "Over time" });
+    expect(within(trend).getAllByText(/^No line yet\./)).toHaveLength(2);
+    expect(within(trend).queryByRole("img")).toBeNull();
+    expect(screen.getByRole("link", { name: /2 mistakes kept for review, 1 due/ })).toHaveAttribute("href", "/review");
+    cleanup();
+    await d.clear("sessions");
+    await d.clear("mistakes");
   });
 
   it("shows nothing kept yet, then every session by day with the totals, filtered by kind in the URL", async () => {

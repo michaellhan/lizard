@@ -3932,3 +3932,27 @@ A screenshot showed "0.0 of 0.0, 34%" in the blocked table, so a category under 
 
 Tests: 1647 unit tests in 87 files, typecheck and lint clean, 70 browser tests passed and 2 skipped at three widths, including
 two new ones on the real worker.
+
+The live check of `8a74b6d`: run 42013956553 succeeded, the live bundle `index-wZfaLEx8.js` equals the local one, and the
+routes, the manifest, the homepage, `/gto-solver/` and `/gto-solver-classic/` answered 200. On the live Kd7c2h, "Precomputed
+solution · srp_sb_bb_2max · 0.14%", a 33% bet split into 54.3% value (0.9 combos) and 45.7% bluff (0.8 combos), and A6s taking
+out 68.0 of SB's 692.5 combos (9.8%) on average.
+
+## Review, turn drills and filters (2026-11-05)
+
+Built by two subagents on separate files, reviewed here. `FEATURE_MATRIX.md` has what each does: the Study plans, Drills,
+Postflop trainer and Session stats rows.
+
+- **Review queue:** mistakes from Practice kept across sessions and retried on a 1, 3, 7, 21 day schedule. A local count of
+  days, in the browser, with no account.
+- **Turn drills and the hand filter:** from the flop library's turn files. They hold no EV, so a turn is graded by frequency
+  under its own source, and nothing pretends otherwise.
+- **History:** decisions by street, what graded them, and a trend once there are enough decisions to read one.
+
+A real browser found what the tests couldn't: a retried stored turn said "Graded by how often the chart plays it", with an
+EV column of dashes, because Review shows a decision through Practice's `DecisionView`, which had only the charts in mind.
+That's a provenance slip, so it's fixed with a test. The queue's count also blamed the preflop charts for a turn, and said "the
+mode above" with no mode showing; both now read as they should.
+
+Tests: 1903 unit tests in 100 files, typecheck and lint clean, 73 browser tests passed and 2 skipped at three widths, `/review`
+among the routes. Library-backed work can't be reached by the browser tests, so turn drills were checked by hand as above.

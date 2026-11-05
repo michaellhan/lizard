@@ -4,6 +4,7 @@
 import type { LibraryIndex, LibrarySpotIndex } from "./catalog";
 import { decodeEntry, decodeHead, type Entry, type EntryHead, type LibraryRanges } from "./entry";
 import { reportFromHeads } from "./mwReport";
+import { decodeTurns, type TurnFile } from "./turns";
 
 /** <spot>/report.json (scripts/build_flop_library.py): the spot's flop strategy on each stored flop */
 export interface ReportFlop {
@@ -35,6 +36,7 @@ export interface LibraryReport {
 
 export class LibraryFiles {
   private entries = new Map<string, Promise<Entry>>();
+  private turnFiles = new Map<string, Promise<TurnFile>>();
   private spots = new Map<string, Promise<{ report: LibraryReport; ranges: LibraryRanges }>>();
   private mw = new Map<string, LibraryReport>();
 
@@ -99,6 +101,25 @@ export class LibraryFiles {
       this.spots.set(sp.id, s);
     }
     return s;
+  }
+
+  /** A flop's turn file, decoded; the last 40 are kept. Refused unless it's the one solved with the entry the index
+   * lists: its header names that entry's hash, as the engine reads it. */
+  turns(sp: LibrarySpotIndex, flop: string): Promise<TurnFile> {
+    const k = `${sp.id}/${flop}`;
+    let t = this.turnFiles.get(k);
+    if (!t) {
+      const v = sp.flops[flop] ?? "";
+      t = this.get(`${k}.turn.bin?v=${v}`).then(async (r) => {
+        const file = await decodeTurns(await r.arrayBuffer());
+        if (file.head.board !== flop || !v || !file.head.entry.startsWith(v)) throw new Error(`${k}'s turn file isn't its entry's`);
+        return file;
+      });
+      t.catch(() => this.turnFiles.delete(k));
+      if (this.turnFiles.size >= 40) this.turnFiles.delete(this.turnFiles.keys().next().value!);
+      this.turnFiles.set(k, t);
+    }
+    return t;
   }
 
   /** a flop's entry, decoded; the last 40 are kept */

@@ -345,8 +345,9 @@ function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMi
 
 const AXIS = [0, 25, 50, 75, 100];
 
-/** The share by blocks of decisions: a line with its 95% band on a fixed 0 to 100% axis. */
-export function TrendChart({ basis, points }: { basis: string; points: Block[] }) {
+/** The share by blocks of decisions: a line with its 95% band on a fixed 0 to 100% axis. `about`: what the line counts,
+ * where it isn't this page's. */
+export function TrendChart({ basis, points, about }: { basis: string; points: Block[]; about?: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const n = points.length;
   const xAt = (i: number) => ((i + 0.5) / n) * 100;
@@ -366,7 +367,7 @@ export function TrendChart({ basis, points }: { basis: string; points: Block[] }
         <span className="font-medium">{basis}</span>
         <span className="text-xs text-muted">
           {" "}
-          · share of decisions in the mix, by blocks of about {points[0]!.n.toLocaleString()} in the order played, clear folds left out; the band is its 95% range.
+          · {about ?? `share of decisions in the mix, by blocks of about ${points[0]!.n.toLocaleString()} in the order played, clear folds left out; the band is its 95% range.`}
         </span>
       </figcaption>
       <div className="flex h-44">

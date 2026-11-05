@@ -18,13 +18,18 @@ export interface LibrarySpotIndex {
   stack: number;
   /** flop -> sha1(entry)[:10] */
   flops: Record<string, string>;
-  turns?: boolean;
+  /** the flops with a turn file (<flop>.turn.bin): all of them, or these */
+  turns?: boolean | string[];
   /** format spots (other depths / heads-up): the game they belong to */
   game?: { players: number; stack: number; ante: number; straddle: boolean };
   tree?: unknown;
   /** sha1(report.json)[:10] */
   report?: string;
 }
+
+/** the flops of a spot with a stored turn file */
+export const storedTurnFlops = (s: Pick<LibrarySpotIndex, "turns" | "flops">): string[] =>
+  s.turns === true ? Object.keys(s.flops) : Array.isArray(s.turns) ? s.turns.filter((f) => Object.hasOwn(s.flops, f)) : [];
 
 export interface LibraryIndex {
   format: number;

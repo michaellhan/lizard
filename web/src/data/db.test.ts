@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mistake } from "@/test/mistake";
 import { DB_VERSION, MIGRATIONS, openLizardDB, putSession, recentSessions } from "./db";
 
 let n = 0;
@@ -11,11 +12,12 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "savedDrills", "savedRanges", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedDrills", "savedRanges", "savedSpots", "sessions"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("hands").store.indexNames].sort()).toEqual(["byHero", "byImport", "byPlayed", "byPotType", "bySite"]);
     expect([...db.transaction("decisions").store.indexNames].sort()).toEqual(["byHand", "byPos", "byStreet", "byVerdict"]);
+    expect([...db.transaction("mistakes").store.indexNames].sort()).toEqual(["byDue", "byLast", "byStreet"]);
     db.close();
   });
 
@@ -69,6 +71,27 @@ describe("IndexedDB migrations", () => {
     expect((await v5.get("decisions", "h|0"))?.verdict).toBe("best");
     expect(await v5.count("savedDrills")).toBe(0);
     v5.close();
+  });
+
+  it("upgrades a version-5 database in place, keeping its data and giving the mistakes an empty store", async () => {
+    const name = fresh();
+    const v5 = await openLizardDB(5, name);
+    expect([...v5.objectStoreNames]).not.toContain("mistakes");
+    const old = { id: "x", kind: "practice", startedAt: 5, decisions: 3, evLossBb: 0.4, meta: { hands: 2 } } as const;
+    await v5.put("sessions", old);
+    await v5.put("savedDrills", { id: "d1", name: "Flops", to: "/practice?tab=drills", note: "", createdAt: 1, updatedAt: 2 } as never);
+    v5.close();
+    const v6 = await openLizardDB(DB_VERSION, name);
+    expect(await v6.get("sessions", "x")).toEqual(old);
+    expect((await v6.get("savedDrills", "d1"))?.name).toBe("Flops");
+    expect(await v6.count("mistakes")).toBe(0);
+    await v6.put("mistakes", mistake());
+    expect(await v6.countFromIndex("mistakes", "byStreet", "flop")).toBe(1);
+    v6.close();
+  });
+
+  it("opens at version 6", () => {
+    expect(DB_VERSION).toBe(6);
   });
 });
 

@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
-import { carries, isPotDrill, POT_DRILLS, REBUY, type HandOptions, type Sizes } from "./practice";
+import { carries, isPotDrill, POT_DRILLS, REBUY, type SessionOptions, type Sizes } from "./practice";
+import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
 
 export const MIN_STACK = 10;
 export const MAX_STACK = 250;
+
+const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter => Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 
@@ -19,15 +22,16 @@ export function SetupForm({
 }: {
   players: number;
   stack: number;
-  opts: Required<HandOptions>;
+  opts: SessionOptions;
   /** you've gone to the form: what's typed here goes if it's drawn again for another session */
   onEdit: () => void;
-  onStart: (players: number, stack: number, opts: Required<HandOptions>) => void;
+  onStart: (players: number, stack: number, opts: SessionOptions) => void;
 }) {
   const [p, setP] = useState(players);
   const [s, setS] = useState(String(stack));
   const [seat, setSeat] = useState(opts.seat);
   const [play, setPlay] = useState<string>(opts.pot ?? (opts.preflopOnly ? "preflop" : "full"));
+  const [board, setBoard] = useState<TextureFilter>(opts.board ?? {});
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
@@ -47,7 +51,10 @@ export function SetupForm({
   const rk = rake.trim() === "" ? 0 : Number(rake);
   const rc = cap.trim() === "" ? 0 : Number(cap);
   const rakeOk = Number.isFinite(rk) && rk >= 0 && rk <= LIMITS.rakePct && Number.isFinite(rc) && rc >= 0;
-  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && rakeOk && !sizeProblems.length;
+  // (a pot-type mode's board filter: the flops of the 22,100 it leaves, none being a filter no flop can meet)
+  const boardOn = isPotDrill(play) && Object.values(board).some(Boolean);
+  const fits = boardOn ? flopsLike(board).length : null;
+  const ok = Number.isFinite(n) && n >= MIN_STACK && n <= MAX_STACK && anteOk && rakeOk && !sizeProblems.length && fits !== 0;
   return (
     <form
       aria-label="New session"
@@ -56,7 +63,7 @@ export function SetupForm({
       onChange={onEdit}
       onSubmit={(e) => {
         e.preventDefault();
-        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes, rake: rk, rakeCap: rk ? rc : 0 });
+        if (ok) onStart(p, n, { seat: seatOk ? seat : "moves", preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, ante: a, straddle: straddle && p >= 3, carry: carry && canCarry, sizes, rake: rk, rakeCap: rk ? rc : 0, board: boardOn ? board : null });
       }}
     >
       <label className="flex items-center gap-1">
@@ -113,6 +120,34 @@ export function SetupForm({
           ))}
         </select>
       </label>
+      {isPotDrill(play) && (
+        <fieldset className="flex basis-full flex-wrap items-center gap-2">
+          <legend className="sr-only">Flop in {POT_DRILLS[play].label.toLowerCase()}</legend>
+          <span className="text-muted">Flop</span>
+          {TEXTURE_GROUPS.map((g) => (
+            <select
+              key={g.key}
+              aria-label={`Flop: ${g.label}`}
+              title={g.label}
+              value={board[g.key] ?? ""}
+              onChange={(e) => setBoard(setTexture(board, g.key, e.target.value))}
+              className="rounded border border-border bg-surface-2 px-1.5 py-1"
+            >
+              <option value="">{`${g.label}: any`}</option>
+              {Object.entries(g.values).map(([v, label]) => (
+                <option key={v} value={v}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          ))}
+          {fits !== null && (
+            <span role={fits ? "status" : "alert"} className={`text-xs ${fits ? "text-muted" : "text-danger"}`}>
+              {fits ? `${fits.toLocaleString()} of 22,100 flops fit, at one table.` : "No flop fits these: widen them."}
+            </span>
+          )}
+        </fieldset>
+      )}
       <label className="flex items-center gap-1" title={`Each seat's ante, 0–${LIMITS.ante}bb`}>
         <span className="text-muted">Ante</span>
         <input

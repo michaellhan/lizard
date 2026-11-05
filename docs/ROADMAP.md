@@ -643,7 +643,7 @@ Moves matrix rows: Solution comparisons, Range comparison.
 
 ## Not scheduled
 
-- **Study plans.** Ordered drill sets with progress. This is cheap once Phases 1, 4 and 5 exist; lesson content is the expensive part.
+- **Study plans.** Ordered drill sets with progress. The review queue from demonstrated mistakes is built (`FEATURE_MATRIX.md`, Study plans); lesson content is the expensive part and isn't.
 - **Installable app and offline use.** A web app manifest and an offline cache for the app shell. The solver assets (about 25 MB) need a deliberate cache policy.
 - **Human-vs-human play or a ranked heads-up arena.** This needs a real-time server, matchmaking and anti-collusion work. It does not fit static hosting.
 - **Live-table assistance.** Out of scope by the ethical rules in `IMPLEMENTATION_PLAN.md` §0.

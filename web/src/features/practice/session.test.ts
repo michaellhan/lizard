@@ -114,6 +114,13 @@ describe("dealt", () => {
     expect(following(b, 3, OPTS).n).toBe(c.n);
   });
 
+  it("keeps a pot-type mode's board filter in its record, at one table only", () => {
+    const s = freshSession(6, 100, { ...OPTS, pot: "srp", board: { suits: "mono" } });
+    expect(toRecord(s).meta.board).toEqual({ suits: "mono" });
+    expect(toRecord(s, 3).meta.board).toBeUndefined();
+    expect(toRecord(freshSession(6, 100, OPTS)).meta).not.toHaveProperty("board");
+  });
+
   it("gives two hands dealt alike their own numbers, so their keys and hand histories don't collide", () => {
     const h = newHand(6, 100, 0, 1, OPTS);
     const s = afterDeal(afterDeal(freshSession(6, 100, OPTS)));
@@ -165,6 +172,7 @@ describe("History's record", () => {
         rakeCap: 3,
         byPot: s.byPot,
         sources: { live: 1 },
+        cells: { "preflop|live|ev": { street: "preflop", source: "live", byEv: true, n: 1, ok: 1, loss: 0.2, lossPct: 4 } },
       },
     });
     expect(toRecord(session({ carry: true })).meta).toMatchObject({ seat: "moves", carry: true });

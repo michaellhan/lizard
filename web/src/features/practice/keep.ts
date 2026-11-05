@@ -14,6 +14,7 @@ import { sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
 import { isHandPot, isPotDrill, phaseOf, setupOf, type Decision, type HandResult, type PracticeHand } from "./practice";
 import type { PracticeSession } from "./session";
+import { isTextureFilter } from "./texture";
 
 export const KEPT_KEY = "practice.tables.v1";
 export const MAX_TABLES = 4;
@@ -162,10 +163,14 @@ const isOpts = (x: unknown) =>
   isBool(x.carry) &&
   (x.sizes === null || isSizes(x.sizes)) &&
   isNum(x.rake) &&
-  isNum(x.rakeCap);
+  isNum(x.rakeCap) &&
+  opt(x.board, (b) => b === null || isTextureFilter(b));
 /** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
   isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null;
+
+const isCell = (x: unknown) => isObj(x) && isStr(x.street) && isStr(x.source) && isBool(x.byEv) && [x.n, x.ok].every(isCount) && [x.loss, x.lossPct].every(isNum);
+const isCells = (x: unknown) => isObj(x) && Object.values(x).every(isCell);
 
 const isSession = (x: unknown): x is PracticeSession =>
   isObj(x) &&
@@ -182,6 +187,7 @@ const isSession = (x: unknown): x is PracticeSession =>
   isObj(x.byPot) &&
   Object.values(x.byPot).every(isTally) &&
   isSources(x.sources) &&
+  opt(x.cells, isCells) &&
   isList(x.review, isReviewed);
 
 /** A place in the doc: a hand of another game is as lost as one that won't replay, since the table deals on from it. */

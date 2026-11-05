@@ -69,6 +69,27 @@ export function addHandToPot(t: PotTally | undefined, grades: readonly (Pick<Gra
   return out;
 }
 
+/** Decisions graded alike: on a street, against one source, by EV or by frequency. A Practice session keeps these from
+ * 2026-11-05 on, so its totals can be split by street and neither basis is averaged into the other (progress.ts). */
+export interface GradeCell {
+  street: string;
+  source: string;
+  byEv: boolean;
+  n: number;
+  ok: number;
+  /** EV lost, bb and % of the pot: only ever summed where `byEv` */
+  loss: number;
+  lossPct: number;
+}
+
+/** A graded decision added to its cell. */
+export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">): Record<string, GradeCell> {
+  const src = source ?? "unknown";
+  const key = `${street}|${src}|${g.byEv ? "ev" : "freq"}`;
+  const c = cells?.[key] ?? { street, source: src, byEv: g.byEv, n: 0, ok: 0, loss: 0, lossPct: 0 };
+  return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + (g.byEv ? g.loss : 0), lossPct: c.lossPct + (g.byEv ? g.lossPct : 0) } };
+}
+
 /** A graded decision counted under what answered it. */
 export const addSource = (s: Partial<Record<ResultSource, number>>, src: ResultSource | undefined): Partial<Record<ResultSource, number>> => {
   const k = src ?? "unknown";
@@ -157,11 +178,11 @@ export function rowOf(s: SessionRecord): SessionRow {
     const spot = str(m.spot), view = str(m.view);
     return {
       ...base,
-      what: `${str(m.label) || spot || "A library spot"}${VIEW_WORDS[view] ? `, ${VIEW_WORDS[view]}` : ""}`,
+      what: `${str(m.label) || spot || "A library spot"}${VIEW_WORDS[view] ? `, ${VIEW_WORDS[view]}` : ""}${m.street === "turn" ? " on the turn" : ""}`,
       ok: num(m.ok),
       ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)),
-      graded: "Precomputed solution (the flop library)",
-      ...(spot ? { to: { href: `/practice?tab=drills&spot=${encodeURIComponent(spot)}${view ? `&view=${encodeURIComponent(view)}` : ""}`, label: "Drill it again" } } : {}),
+      graded: m.street === "turn" ? "Stored turn from the flop library (by how often, in 5% steps)" : "Precomputed solution (the flop library)",
+      ...(spot ? { to: { href: `/practice?tab=drills&spot=${encodeURIComponent(spot)}${m.street === "turn" ? "&street=turn" : ""}${view ? `&view=${encodeURIComponent(view)}` : ""}`, label: "Drill it again" } } : {}),
     };
   }
   if (s.kind === "analysis") {

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { BACKUP_FORMAT, BACKUP_STORES, backupFileName, makeBackup, restoreBackup, restoreSummary, type Backup } from "./backup";
 import { db, putSession, type DecisionRecord, type HandRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
 import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
+import { chartMistake, mistake } from "@/test/mistake";
+import { keepMistake, listMistakes } from "./mistakes";
 import { deleteDrill, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, spotAt, spotMatches } from "./saved";
 
 const spot = (id: string, updatedAt: number, extra: Partial<SavedSpot> = {}): SavedSpot => ({
@@ -105,7 +107,7 @@ describe("backup and restore", () => {
     const b = await makeBackup(() => Date.UTC(2026, 10, 3));
     expect(b.format).toBe(BACKUP_FORMAT);
     expect(b.exported).toBe("2026-11-03T00:00:00.000Z");
-    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, savedDrills: 1, sessions: 2, hands: 0, decisions: 0 });
+    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, savedDrills: 1, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
     expect(b.stores.savedDrills[0]).toEqual({ id: "k", v: 1, created: 1, updated: 8, dev: b.device, data: drill("k", 8, { note: "every texture" }) });
     expect(b.stores.sessions.find((r) => r.id === "d")).toMatchObject({ id: "d", v: 1, created: 10, updated: 20, dev: b.device });
     expect(b.stores.sessions.find((r) => r.id === "e")).toMatchObject({ created: 30, updated: 30 });
@@ -221,6 +223,39 @@ describe("backup and restore", () => {
     b.stores.hands[0]!.data = { ...hand(b.stores.hands[0]!.id), tags: "bluff" as never };
     await clearAll();
     expect((await restoreBackup(b)).hands).toMatchObject({ added: 1, skipped: 1 });
+  });
+
+  it("carries the kept mistakes: exactly, the later change winning, a damaged one skipped", async () => {
+    const a = mistake({ id: "a", updatedAt: 10 });
+    const retried = chartMistake({ id: "b", updatedAt: 20, step: 2, tries: [{ at: 20, chose: "fold", verdict: "Best", ok: true, byEv: false, loss: 0, lossPct: 0, source: "charts", label: "Preflop charts", like: true, moved: true }] });
+    await keepMistake(a, (_, f) => f);
+    await keepMistake(retried, (_, f) => f);
+    const b = JSON.parse(JSON.stringify(await makeBackup()));
+    expect(b.counts.mistakes).toBe(2);
+    expect(b.stores.mistakes.find((r: { id: string }) => r.id === "a")).toMatchObject({ created: a.at, updated: 10 });
+
+    await (await db())!.clear("mistakes");
+    await keepMistake(mistake({ id: "a", updatedAt: 15, times: 7 }), (_, f) => f); // newer here: kept
+    const r = await restoreBackup({
+      ...b,
+      stores: { mistakes: [...b.stores.mistakes, { id: "x", v: 1, created: 1, updated: 1, dev: "d", data: { id: "x", due: "soon" } }, { id: "y", v: 1, created: 1, updated: 1, dev: "d", data: mistake({ id: "z" }) }] },
+    });
+    expect(r.mistakes).toEqual({ added: 1, updated: 0, kept: 1, skipped: 2 });
+    const { list, damaged } = await listMistakes();
+    expect(list.find((m) => m.id === "a")?.times).toBe(7);
+    expect(list.find((m) => m.id === "b")).toEqual(retried);
+    expect(damaged).toBe(0);
+  });
+
+  it("restores a backup from before mistakes were kept", async () => {
+    await putSpot(spot("a", 5));
+    const b = JSON.parse(JSON.stringify(await makeBackup()));
+    delete b.stores.mistakes;
+    delete b.counts.mistakes;
+    await clearAll();
+    const r = await restoreBackup(b);
+    expect(r.savedSpots.added).toBe(1);
+    expect(r.mistakes).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
   });
 
   it("names the file by the day", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seatsOf } from "@/poker/seats";
-import { noLines, recordOf, seeded, type Move } from "@/poker/table";
+import { deal, noLines, recordOf, seeded, type Move } from "@/poker/table";
 import type { AdvisorResponse } from "@/solver/protocol";
 import {
   carries,
@@ -38,6 +38,7 @@ import {
   type HandOptions,
   type PracticeHand,
 } from "./practice";
+import { texture } from "./texture";
 
 // a hand dealt by hand: your seat, everyone's cards, the board
 function fixed(players: number, hero: string, hands: Record<string, string>, board: string, stack = 100): PracticeHand {
@@ -132,6 +133,35 @@ describe("seats and dealing", () => {
     const again = redeal(redeal(h, 77, { seat: "BTN", pot: "3bet" }), 78, { seat: "BTN", pot: "3bet" });
     expect(again).toMatchObject({ n: 0, hero: "BTN", pot: "3bet", tries: 2, seed: 78 });
     expect(again.lines.preflop).toEqual([]);
+  });
+
+  it("a pot-type mode's board filter: the flop dealt has the texture, from one deck, and redeals keep it", () => {
+    for (const pot of ["srp", "3bet", "bvb"] as const)
+      for (let seed = 1; seed <= 60; seed++) {
+        const h = newHand(6, 100, 0, seed, { pot, board: { suits: "mono", pair: "unpaired" } });
+        expect(texture(h.board.slice(0, 3).join(""))).toMatchObject({ suits: "mono", pair: "unpaired" });
+        expect(new Set([...Object.values(h.hands).flat(), ...h.board]).size).toBe(17);
+      }
+    // the rarest filter there is: no deals spent looking for it
+    expect(texture(newHand(2, 100, 0, 5, { pot: "srp", board: { pair: "trips", hi: "A" } }).board.slice(0, 3).join("")).high).toBe("A");
+    const opts = { seat: "BTN", pot: "3bet" as const, board: { pair: "paired" } };
+    const h = redeal(newHand(6, 100, 0, 9, opts), 10, opts);
+    expect(texture(h.board.slice(0, 3).join("")).pair).toBe("paired");
+    // the same seed, the same hand
+    expect(newHand(6, 100, 0, 9, opts).board).toEqual(newHand(6, 100, 0, 9, opts).board);
+    // and over many seeds the rest of the board and everyone's cards still vary
+    expect(new Set(Array.from({ length: 40 }, (_, i) => newHand(6, 100, 0, i, opts).board.join(""))).size).toBe(40);
+  });
+
+  it("no filter, or one outside a pot-type mode: dealt as ever, a seed's hand unchanged", () => {
+    for (const seed of [1, 7, 99]) {
+      const d = deal(6, seeded(seed));
+      expect(newHand(6, 100, 0, seed, { pot: "srp" })).toMatchObject(d);
+      expect(newHand(6, 100, 0, seed, { pot: "srp", board: null })).toMatchObject(d);
+      expect(newHand(6, 100, 0, seed, { pot: "srp", board: {} })).toMatchObject(d);
+      expect(newHand(6, 100, 0, seed, { pot: null, board: { suits: "mono" } })).toMatchObject(d);
+      expect(newHand(6, 100, 0, seed, { pot: "lib", board: { suits: "mono" } })).toMatchObject(d);
+    }
   });
 
   it("an ante and a straddle: on the table, in the engine's request and in the Study line", () => {

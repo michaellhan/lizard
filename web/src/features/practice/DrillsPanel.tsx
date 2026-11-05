@@ -1,8 +1,10 @@
-// Practice's drills: one spot's flop decision dealt hand after hand from the precomputed library, read in the page
-// from the library's files (src/library/files.ts) with no solver, so each answer is there at once. Pick a spot, a
-// decision (out of position first, in position after a check, out of position facing a bet) and a texture; your
-// pick is graded against the stored mix and EVs for your hand (src/grading/grade.ts), with the stored solve's
-// provenance. The drill's spot, decision and texture are in the URL; its score is kept in IndexedDB (sessions).
+// Practice's drills: one spot's decision dealt hand after hand from the precomputed library, read in the page from the
+// library's files (src/library/files.ts) with no solver, so each answer is there at once. Pick a spot, a street, a
+// decision (on the flop: out of position first, in position after a check, facing a bet; on a turn a flop's turn file
+// stores, the first two), a texture and a kind of hand. A flop pick is graded against the stored mix and EVs for your
+// hand with the stored solve's provenance; a turn pick against the stored mix alone, as no file holds a hand's EV there,
+// with the stored turn's (src/grading/grade.ts, drills.ts). The drill's settings are in the URL, only the ones set; its
+// score is kept in IndexedDB (sessions). Nothing is solved: a river isn't stored, so none is dealt.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -11,8 +13,10 @@ import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
 import { LIBRARY_SOURCES } from "@/config";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
+import { keepMistake } from "@/data/mistakes";
+import { drillMistake, missedAgain } from "@/features/review/mistakes";
 import { addScore, emptyScore, GRADE_RULES, summary, whyText, type Grade, type Score } from "@/grading/grade";
-import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
+import { gameLabel, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
 import { SaveDrill } from "@/features/saved/SaveDrill";
@@ -22,21 +26,44 @@ import {
   DRILL_VIEWS,
   drillActionLabel,
   drillProvenance,
+  flopDeals,
   gradeDrill,
+  heroOf,
+  holding,
   pick,
   problem,
+  sampleFlops,
   situation,
   studyLink,
   TEXTURE_GROUPS,
+  TURN_VIEWS,
+  turnCandidates,
+  turnDeals,
+  turnProblem,
+  turnViewLabel,
   viewLabel,
+  type Candidate,
+  type DealCount,
   type DrillProblem,
+  type DrillStreet,
   type DrillView,
   type TextureFilter,
 } from "./drills";
+import { HAND_GROUPS, handLabel, isHandKey } from "./handFilter";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const isView = (v: string | null): v is DrillView => DRILL_VIEWS.includes(v as DrillView);
 const drillable = (s: LibrarySpotIndex) => s.seats.length === 2 && Boolean(s.report) && Object.keys(s.flops ?? {}).length > 0;
+/** a count's flops read, at most: each is a file or two fetched */
+const COUNT_FLOPS = 12;
+/** under this many matching deals on the flops read, a filter is said to leave too few */
+const FEW_DEALS = 20;
+/** the flops a deal draws before it gives up: more where a hand filter may miss on most of them */
+const TRIES = 8;
+const FILTER_TRIES = 24;
+/** flops looked through at a time for the hands asked for, the page answering between batches (a big spot's whole
+ * range on all of its flops takes some of a second) */
+const SCREEN_BATCH = 100;
 
 type Lib = { st: "loading" } | { st: "ready"; files: LibraryFiles; index: LibraryIndex; label: string } | { st: "error"; message: string };
 
@@ -71,7 +98,11 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
 
   const spots = useMemo(() => (lib.st === "ready" ? lib.index.spots.filter(drillable) : []), [lib]);
   const spot = spots.find((s) => s.id === params.get("spot")) ?? spots[0];
-  const view: DrillView = isView(params.get("view")) ? (params.get("view") as DrillView) : "vsbet";
+  const street: DrillStreet = params.get("street") === "turn" ? "turn" : "flop";
+  const asked = params.get("view");
+  // (a turn file stores only these two decisions; a flop drill's setting stays in the URL for coming back to the flop)
+  const view: DrillView = street === "turn" ? (TURN_VIEWS.includes(asked as DrillView) ? (asked as DrillView) : "oop") : isView(asked) ? asked : "vsbet";
+  const hand = isHandKey(params.get("hand")) ? params.get("hand") : null;
   const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
   const set = (k: string, v: string | null) =>
     setParams((p) => {
@@ -91,18 +122,23 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   if (!spot) return <p className="text-sm text-muted">This library has no two-player spot to drill.</p>;
   // the drill as set, to keep (Saved): the spot named, not left to the first
   const link = new URLSearchParams({ tab: "drills", spot: spot.id, view });
+  if (street === "turn") link.set("street", street);
   for (const g of TEXTURE_GROUPS) if (filter[g.key]) link.set(g.key, filter[g.key]!);
+  if (hand) link.set("hand", hand);
+  const labelOf = (v: DrillView) => (street === "turn" ? turnViewLabel(v, spot.seats) : viewLabel(v, spot.seats));
   const about = [
     `${spot.label}${spot.game ? ` (${gameLabel(spot)})` : ""}`,
-    viewLabel(view, spot.seats),
+    labelOf(view),
     ...TEXTURE_GROUPS.flatMap((g) => (filter[g.key] ? [g.values[filter[g.key]!] ?? filter[g.key]!] : [])),
+    ...(hand ? [handLabel(hand)] : []),
   ].join(" · ");
+  const hasTurns = storedTurnFlops(spot).length > 0;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        One flop decision, dealt again and again from the precomputed library: answered at once, with no solve. The flop is drawn by how often it comes up,
-        your hand by how often you&rsquo;d hold it here. Keys: 1&ndash;9 answer, Enter or Space for the next hand.
+        One decision, dealt again and again from the precomputed library: answered at once, with no solve. The flop is drawn by how often it comes up, your
+        hand by how often you&rsquo;d hold it here, among the hands you ask for. Keys: 1&ndash;9 answer, Enter or Space for the next hand.
       </p>
       <div className="flex flex-wrap items-start gap-2">
         <form aria-label="Drill" className="flex flex-1 flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
@@ -118,11 +154,23 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
             </select>
           </label>
           <label className="flex items-center gap-1">
+            <span className="text-muted">Street</span>
+            <select aria-label="Street" value={street} onChange={(e) => set("street", e.target.value === "turn" ? "turn" : null)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+              <option value="flop">Flop</option>
+              <option value="turn" disabled={!hasTurns}>
+                {hasTurns ? "Turn" : "Turn (none stored for this spot)"}
+              </option>
+              <option value="river" disabled>
+                River (none stored)
+              </option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1">
             <span className="text-muted">Decision</span>
-            <select aria-label="Decision" value={view} onChange={(e) => set("view", e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
-              {DRILL_VIEWS.map((v) => (
+            <select aria-label="Decision" value={view} onChange={(e) => set("view", e.target.value)} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
+              {(street === "turn" ? TURN_VIEWS : DRILL_VIEWS).map((v) => (
                 <option key={v} value={v}>
-                  {viewLabel(v, spot.seats)}
+                  {labelOf(v)}
                 </option>
               ))}
             </select>
@@ -140,11 +188,43 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
               </select>
             </label>
           ))}
+          <label className="flex items-center gap-1">
+            <span className="text-muted">Hands</span>
+            <select aria-label="Hands" value={hand ?? ""} onChange={(e) => set("hand", e.target.value || null)} className="max-w-[12rem] rounded border border-border bg-surface-2 px-1.5 py-1">
+              <option value="">Any</option>
+              {HAND_GROUPS.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
         </form>
         <SaveDrill kind="library" to={`/practice?${link}`} about={about} />
       </div>
-      <SpotDrill key={`${spot.id}|${view}`} files={lib.files} spot={spot} view={view} filter={filter} rng={rng} source={lib.label} />
+      <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} street={street} view={view} filter={filter} hand={hand} rng={rng} source={lib.label} />
     </div>
+  );
+}
+
+/** What a hand filter leaves: the deals (a hand at a stored spot) on the flops read, said plainly when it's too few. */
+function DealsLeft({ hand, of, count }: { hand: string; of: number; count: Counted | null }) {
+  const label = handLabel(hand);
+  if (!count) return <p className="text-xs text-muted">Counting the deals that are {label}…</p>;
+  if (count.st === "failed") return <p className="text-xs text-muted">Couldn&rsquo;t count the deals that are {label}.</p>;
+  const { read, c } = count;
+  const where = read >= of ? `on ${of === 1 ? "the 1 flop" : `all ${of.toLocaleString()} flops`}` : `on the ${read} of ${of.toLocaleString()} flops read for this count`;
+  const few = c.match < FEW_DEALS;
+  return (
+    <p role={few ? "status" : undefined} className={`text-xs ${few ? "text-warn" : "text-muted"}`}>
+      {label}: {c.match.toLocaleString()} of {c.deals.toLocaleString()} deals match {where}
+      {c.deals ? ` (${pct(c.match / c.deals, 1)})` : ""}.
+      {c.match === 0 ? " None to deal here: widen a filter." : few ? " Too few: the same hands will keep coming back. Widen a filter for more." : ""}
+    </p>
   );
 }
 
@@ -154,32 +234,40 @@ interface DrillSession {
   score: Score;
 }
 
-const toRecord = (s: DrillSession, spot: LibrarySpotIndex, view: DrillView): SessionRecord => ({
+const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, view: DrillView): SessionRecord => ({
   id: s.id,
   kind: "drill",
   startedAt: s.startedAt,
   endedAt: Date.now(),
   decisions: s.score.n,
   evLossBb: s.score.loss,
-  meta: { spot: spot.id, label: spot.label, view, ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best },
+  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best },
 });
 
 type SpotData = { st: "loading" } | { st: "ready"; report: LibraryReport; ranges: LibraryRanges } | { st: "error"; message: string };
 type Deal = { key: string } & ({ st: "dealing" } | { st: "ready"; pr: DrillProblem; entry: Entry } | { st: "none"; message: string });
+/** a hand filter's count, on the flops read */
+type Counted = { key: string } & ({ st: "done"; read: number; c: DealCount } | { st: "failed" });
+/** the draws of a filter that can hold its hands, once looked through */
+type Screened = { key: string; cands: Candidate[] };
 
-/** One spot's decision drilled: mounted afresh (a new score) for each spot and decision. */
+/** One spot's decision drilled: mounted afresh (a new score) for each spot, street and decision. */
 function SpotDrill({
   files,
   spot,
+  street,
   view,
   filter,
+  hand,
   rng,
   source,
 }: {
   files: LibraryFiles;
   spot: LibrarySpotIndex;
+  street: DrillStreet;
   view: DrillView;
   filter: TextureFilter;
+  hand: string | null;
   rng: () => number;
   source: string;
 }) {
@@ -193,6 +281,8 @@ function SpotDrill({
   const [n, setN] = useState(0);
   const [deal, setDeal] = useState<Deal>({ key: "", st: "dealing" });
   const [answer, setAnswer] = useState<{ key: string; a: number; g: Grade } | null>(null);
+  const [counted, setCounted] = useState<Counted | null>(null);
+  const [screened, setScreened] = useState<Screened | null>(null);
   const [past, setPast] = useState<SessionRecord[]>([]);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -203,16 +293,40 @@ function SpotDrill({
       (e: unknown) => alive && setData({ st: "error", message: message(e) }),
     );
     void recentSessions("drill", 12)
-      .then((xs) => alive && setPast(xs.filter((x) => x.meta.spot === spot.id && x.meta.view === view).slice(0, 5)))
+      .then((xs) => alive && setPast(xs.filter((x) => x.meta.spot === spot.id && x.meta.view === view && (x.meta.street ?? "flop") === street).slice(0, 5)))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [files, spot, view]);
+  }, [files, spot, street, view]);
 
-  const filterKey = JSON.stringify(filter);
-  const cands = useMemo(() => (data.st === "ready" ? candidates(data.report, view, filter) : []), [data, view, filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filterKey = JSON.stringify([filter, hand]);
+  // the draws of the texture; then, on a flop, those that can hold the hands asked for (a turn's cards aren't known yet)
+  const stored = useMemo(
+    () => (data.st !== "ready" ? [] : street === "turn" ? turnCandidates(data.report, storedTurnFlops(spot), filter) : candidates(data.report, view, filter)),
+    [data, spot, street, view, filterKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const screens = Boolean(hand) && street === "flop";
+  const screening = screens && screened?.key !== filterKey;
+  const cands = useMemo(() => (!screens ? stored : screened?.key === filterKey ? screened.cands : []), [screens, stored, screened, filterKey]);
   const dealKey = `${filterKey}|${n}`;
+
+  useEffect(() => {
+    if (data.st !== "ready" || !hand || street !== "flop") return;
+    let alive = true;
+    void (async () => {
+      const out: Candidate[] = [];
+      for (let i = 0; i < stored.length; i += SCREEN_BATCH) {
+        out.push(...holding(stored.slice(i, i + SCREEN_BATCH), data.ranges, heroOf(view), hand));
+        await new Promise((go) => setTimeout(go));
+        if (!alive) return;
+      }
+      setScreened({ key: filterKey, cands: out });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [data, stored, filterKey, hand, street, view]);
 
   // a hand dealt: a (flop, node) drawn by weight, its entry read, a hand drawn from the range there
   useEffect(() => {
@@ -220,17 +334,19 @@ function SpotDrill({
     let alive = true;
     void (async () => {
       try {
-        for (let tries = 0; tries < 8; tries++) {
+        const tries = hand ? FILTER_TRIES : TRIES;
+        for (let i = 0; i < tries; i++) {
           const c = cands[pick(cands.map((x) => x.w), rng)]!;
           const entry = await files.entry(spot, c.f);
+          const turns = street === "turn" ? await files.turns(spot, c.f) : null;
           if (!alive) return;
-          const pr = problem(data.report, entry, c, data.ranges, rng);
+          const pr = turns ? turnProblem(data.report, entry, turns, view, data.ranges, rng, hand) : problem(data.report, entry, c, data.ranges, rng, hand);
           if (pr) {
             setDeal({ key: dealKey, st: "ready", pr, entry });
             return;
           }
         }
-        setDeal({ key: dealKey, st: "none", message: "No hand was found at the drawn spots: deal again." });
+        setDeal({ key: dealKey, st: "none", message: hand ? `No hand of this kind reached this decision on the ${tries} flops drawn: widen a filter, or deal again.` : "No hand was found at the drawn spots: deal again." });
       } catch (e) {
         if (alive) setDeal({ key: dealKey, st: "none", message: `Couldn't deal: ${message(e)}` });
       }
@@ -238,11 +354,39 @@ function SpotDrill({
     return () => {
       alive = false;
     };
-  }, [data, cands, dealKey, files, spot, rng]);
+  }, [data, cands, dealKey, files, spot, street, view, hand, rng]);
+
+  // how many deals a hand filter leaves, on a sample of the flops (a spot's every file would be hundreds of fetches)
+  useEffect(() => {
+    if (data.st !== "ready" || !hand || !cands.length) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const flops = sampleFlops(cands, COUNT_FLOPS);
+        const c: DealCount = { deals: 0, match: 0 };
+        for (const f of flops) {
+          const entry = await files.entry(spot, f);
+          const turns = street === "turn" ? await files.turns(spot, f) : null;
+          if (!alive) return;
+          const one = turns
+            ? turnDeals(entry, turns, view, data.ranges, hand)
+            : flopDeals(entry, cands.filter((x) => x.f === f).map((x) => x.path), data.ranges, hand);
+          c.deals += one.deals;
+          c.match += one.match;
+        }
+        setCounted({ key: filterKey, st: "done", read: flops.length, c });
+      } catch {
+        if (alive) setCounted({ key: filterKey, st: "failed" });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [data, cands, filterKey, files, spot, street, view, hand]);
 
   useEffect(() => {
-    if (session.score.n) void putSession(toRecord(session, spot, view)).catch(() => {});
-  }, [session, spot, view]);
+    if (session.score.n) void putSession(toRecord(session, spot, street, view)).catch(() => {});
+  }, [session, spot, street, view]);
 
   const shown: Deal = deal.key === dealKey ? deal : { key: dealKey, st: "dealing" };
   const pr = shown.st === "ready" ? shown.pr : null;
@@ -254,8 +398,12 @@ function SpotDrill({
       const g = gradeDrill(pr, a);
       setAnswer({ key: dealKey, a, g });
       setSession((s) => ({ ...s, score: addScore(s.score, g) }));
+      if (deal.st === "ready" && data.st === "ready") {
+        const m = drillMistake(session.id, data.report, pr, g, drillProvenance(deal.entry, mode, pr), studyLink(data.report, pr), spot.flops[pr.flop], Date.now());
+        if (m) void keepMistake(m, missedAgain).catch(() => {});
+      }
     },
-    [pr, graded, dealKey],
+    [pr, graded, dealKey, deal, data, mode, session.id, spot],
   );
   const next = useCallback(() => setN((x) => x + 1), []);
 
@@ -289,8 +437,11 @@ function SpotDrill({
 
   const rep = data.report;
   const flops = Object.keys(spot.flops).length;
-  const storing = new Set(cands.map((c) => c.f)).size;
+  const storing = new Set(stored.map((c) => c.f)).size;
+  const able = new Set(cands.map((c) => c.f)).size;
   const filtered = Object.values(filter).some(Boolean);
+  const texture = filtered ? " with this texture" : "";
+  const count = hand && counted?.key === filterKey ? counted : null;
   const sum = summary(session.score);
   const s = session.score;
   const item = (label: string, value: string) => (
@@ -304,9 +455,17 @@ function SpotDrill({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted">
-        {spot.label} in {source}: {flops.toLocaleString()} flops stored; {storing.toLocaleString()} store this decision
-        {filtered ? " with this texture" : ""}.
+        {spot.label} in {source}: {flops.toLocaleString()} flops stored; {storing.toLocaleString()} store {street === "turn" ? "their turns" : "this decision"}
+        {texture}
+        {screens && !screening ? `, and ${able.toLocaleString()} of them can hold ${handLabel(hand!)}` : ""}.
       </p>
+      {hand && cands.length > 0 && <DealsLeft hand={hand} of={able} count={count} />}
+      {street === "turn" && (
+        <p className="text-xs text-muted">
+          Only the turn cards the stored flop solve played are dealt, on the flop lines it stored. A turn file stores a mix for your hand, in 5% steps, but no EV for it, so a turn is graded by that
+          mix alone and no EV lost is counted. It stores no bet to face on the turn, and no river.
+        </p>
+      )}
 
       <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
         {item("Decisions", String(s.n))}
@@ -316,9 +475,15 @@ function SpotDrill({
       </section>
 
       <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
-        {!cands.length ? (
+        {screening ? (
+          <p className="text-sm text-muted">Looking for flops that can hold {handLabel(hand!)}…</p>
+        ) : !cands.length ? (
           <p role="status" className="text-sm text-muted">
-            No flop in this spot stores this decision{filtered ? " with that texture: widen the filter" : ""}.
+            {stored.length
+              ? `No flop here can hold ${handLabel(hand!)}${filtered ? " with that texture" : ""}: widen a filter.`
+              : street === "turn"
+                ? `${spot.label} stores no turn${filtered ? " with that texture: widen the filter" : " in this library: pick another spot, or the flop"}.`
+                : `No flop in this spot stores this decision${filtered ? " with that texture: widen the filter" : ""}.`}
           </p>
         ) : shown.st === "dealing" ? (
           <p className="text-sm text-muted">Dealing…</p>
@@ -378,7 +543,7 @@ function SpotDrill({
                 </>
               )}
             </span>
-            <ProvenanceBadge p={drillProvenance(shown.entry, mode)} />
+            <ProvenanceBadge p={drillProvenance(shown.entry, mode, pr)} />
           </div>
           <p>
             {whyText(
@@ -388,7 +553,11 @@ function SpotDrill({
             )}
           </p>
           <p className="text-muted">
-            {graded.g.loss > 0 ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.` : "No EV given up."}
+            {!graded.g.byEv
+              ? "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost."
+              : graded.g.loss > 0
+                ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.`
+                : "No EV given up."}
             {graded.g.mixed && " This hand mixes actions here."}
           </p>
           <table className="w-full max-w-md text-left font-mono text-xs">
@@ -396,7 +565,7 @@ function SpotDrill({
               <tr>
                 <th className="py-0.5 font-normal">Action</th>
                 <th className="py-0.5 text-right font-normal">Played</th>
-                <th className="py-0.5 text-right font-normal">EV bb</th>
+                {pr.evs ? <th className="py-0.5 text-right font-normal">EV bb</th> : pr.turn?.rangeEvs && <th className="py-0.5 text-right font-normal">Range&rsquo;s EV bb</th>}
               </tr>
             </thead>
             <tbody>
@@ -407,12 +576,16 @@ function SpotDrill({
                     {i === graded.a && " ← you"}
                   </td>
                   <td className="py-0.5 text-right">{pct(pr.freqs[i])}</td>
-                  <td className="py-0.5 text-right">{bb(pr.evs[i])}</td>
+                  {pr.evs ? <td className="py-0.5 text-right">{bb(pr.evs[i])}</td> : pr.turn?.rangeEvs && <td className="py-0.5 text-right">{pr.turn.rangeEvs[i] == null ? "–" : bb(pr.turn.rangeEvs[i]!)}</td>}
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="text-xs text-muted">Your hand&rsquo;s frequencies and EVs at this node, as stored for the flop {pr.flop} (shown in other suits).</p>
+          <p className="text-xs text-muted">
+            {pr.turn
+              ? `Your hand's frequencies at this node, as stored for the flop ${pr.flop} and the turn ${pr.turn.card} (shown in other suits).${pr.turn.rangeEvs ? " The range's EV is what the hands of your range that take the action make on average, against folding now: not your hand's, and not what's graded." : ""}`
+              : `Your hand's frequencies and EVs at this node, as stored for the flop ${pr.flop} (shown in other suits).`}
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <button ref={nextRef} type="button" onClick={next} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
@@ -435,7 +608,11 @@ function SpotDrill({
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-muted">The EVs are the stored solve&rsquo;s, kept in steps of 1% of the pot (coarser for actions far below the best).</p>
+        <p className="mt-2 text-muted">
+          {street === "turn"
+            ? "A turn is graded by the rules' \"without EVs\" parts: no EV is stored for your hand there."
+            : "The EVs are the stored solve\u2019s, kept in steps of 1% of the pot (coarser for actions far below the best)."}
+        </p>
       </details>
 
       {past.filter((p) => p.id !== session.id).length > 0 && (
@@ -453,7 +630,7 @@ function SpotDrill({
                 <li key={p.id} className="text-muted">
                   {new Date(p.startedAt).toLocaleString()} · {p.decisions} decisions
                   {p.decisions ? ` · ${pct((Number(p.meta.ok) || 0) / p.decisions, 0)} correct` : ""}
-                  {p.decisions ? ` · ${bb(p.evLossBb / p.decisions)}bb lost a decision` : ""}
+                  {p.decisions && Number(p.meta.graded) ? ` · ${bb(p.evLossBb / p.decisions)}bb lost a decision` : ""}
                 </li>
               ))}
           </ul>

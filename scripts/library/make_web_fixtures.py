@@ -3,9 +3,10 @@
 
 The library itself (solver/gto/static/flop_library, 315 MB) is git-ignored, so the web tests that decode real
 entries (entry.test.ts, drills.test.ts, DrillsPanel.test.tsx) read this subset instead, which is committed and
-small. Entries and ranges are copied byte for byte; index.json and each report.json keep only the chosen flops. A
-3-way spot's entries are copied too, with mw_index.json keeping only them (the 3-way library has no report.json:
-Reports builds one in the page from the entries' headers).
+small. Entries, turn files and ranges are copied byte for byte; index.json and each report.json keep only the chosen
+flops, and a spot's "turns" only those of its chosen flops that store one. A 3-way spot's entries are copied too, with
+mw_index.json keeping only them (the 3-way library has no report.json: Reports builds one in the page from the
+entries' headers).
 
     python3 scripts/library/make_web_fixtures.py
 
@@ -30,6 +31,12 @@ FLOPS = {
 MW_FLOPS = {"mw_btn_sb_bb": ["4c3c2c", "4c3h3d", "5c4d2h", "Ac4d3h", "8c7c2c", "Kc7d2h"]}
 
 
+def kept_turns(spot: dict, keep: list[str]) -> list[str]:
+    """The chosen flops whose turn file the spot's index lists: "turns" is true for all of them, or a list."""
+    t = spot.get("turns")
+    return [f for f in keep if t is True or (isinstance(t, list) and f in t)]
+
+
 def main() -> None:
     index = json.loads((SRC / "index.json").read_text())
     if DST.exists():
@@ -40,7 +47,10 @@ def main() -> None:
         if keep is None:
             continue
         (DST / sp["id"]).mkdir(parents=True)
-        spots.append({**sp, "flops": {f: h for f, h in sp["flops"].items() if f in keep}})
+        turns = kept_turns(sp, keep)
+        spots.append({**sp, "flops": {f: h for f, h in sp["flops"].items() if f in keep}, **({"turns": turns} if turns else {})})
+        for f in turns:
+            shutil.copyfile(SRC / sp["id"] / f"{f}.turn.bin", DST / sp["id"] / f"{f}.turn.bin")
         report = json.loads((SRC / sp["id"] / "report.json").read_text())
         report["flops"] = [fl for fl in report["flops"] if fl["f"] in keep]
         (DST / sp["id"] / "report.json").write_text(json.dumps(report, separators=(",", ":")))
