@@ -151,10 +151,12 @@ export const CHIP_MODEL = "chip EV: these stacks with no prizes";
 /** The drill modes (the classic trainer's, `practice.js:169-196`): only one kind of pot. The preflop is played for you
  * too (from the charts, as the opponents' is), and the hand dealt again until it reaches the flop heads-up, you in it, as
  * that kind of pot; you play from the flop. */
-export type PotDrill = "srp" | "3bet" | "bvb";
+export type PotDrill = "srp" | "3bet" | "4bet" | "bvb";
 export const POT_DRILLS: Record<PotDrill, { label: string; one: string; tip: string }> = {
   srp: { label: "Single-raised pots", one: "a single-raised pot", tip: "Heads-up after one preflop raise and a call: the preflop is played for you, you play from the flop" },
   "3bet": { label: "3-bet pots", one: "a 3-bet pot", tip: "Heads-up after a 3-bet and a call: the preflop is played for you, you play from the flop" },
+  // (no library spot holds one: its decisions are live solves on the charts' ranges)
+  "4bet": { label: "4-bet pots", one: "a 4-bet pot", tip: "Heads-up after a 4-bet and a call: the preflop is played for you from the charts and the library stores no such pot, so every decision is a live solve. Rare, so it can take many deals to find one" },
   bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "Small blind against big blind, folded to them: the preflop is played for you, you play from the flop" },
 };
 /** The drills' board filter's flops, as a hand's cards: none where it's not a drill's pot or the filter is empty. */
@@ -169,6 +171,10 @@ export const isHandPot = (x: unknown): x is HandPot => x === "lib" || isPotDrill
 export const potLabel = (p: HandPot) => (p === "lib" ? INSTANT_FLOPS : POT_DRILLS[p]).one;
 /** the deals a drill hand may take to reach its pot */
 export const DRILL_TRIES = 400;
+/** A heads-up 4-bet pot with you in it comes about once in 350 to 1,000 deals, by seat, on the charts. */
+export const drillTries = (pot: HandPot | null | undefined) => (pot === "4bet" ? 3000 : DRILL_TRIES);
+/** A drill hand gone another way has another deal left. */
+export const dealsLeft = (h: Pick<PracticeHand, "pot" | "tries">) => (h.tries ?? 0) + 1 < drillTries(h.pot);
 const BLINDS = ["SB", "BB"];
 
 /** Your seat each hand: moving one place a hand ("moves"), drawn at random from the hand's seed ("random"), or one
@@ -337,7 +343,7 @@ export function offDrill(h: PracticeHand, sim: Sim = simOf(h)): boolean {
     return sim.waiting === "flop" && !on.some((c) => c.length === toks.length);
   }
   const raises = pre.filter((m) => m.action === "raise" || m.action === "bet").length;
-  const want = h.pot === "srp" ? 1 : h.pot === "3bet" ? 2 : null;
+  const want = h.pot === "srp" ? 1 : h.pot === "3bet" ? 2 : h.pot === "4bet" ? 3 : null;
   if (!sim.active.has(h.hero) || pre.some((m) => m.action === "all-in") || (want != null && raises > want)) return true;
   if (h.pot === "bvb" && (!BLINDS.includes(h.hero) || pre.some((m) => !BLINDS.includes(m.pos) && m.action !== "fold"))) return true;
   if (sim.handOver) return true;

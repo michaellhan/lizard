@@ -4,11 +4,14 @@ import { pct } from "@/components/actions";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { behind, legal, type Sim } from "@/poker/table";
 import type { DrillProblem } from "./drills";
+import type { LiveProblem } from "./liveDeal";
 import { setupOf, type PracticeHand } from "./practice";
 
 /** said beside a hint, as these numbers aren't the answer's */
 export const HINT_SOURCE = "Worked out from the chips on the table. The answer isn't read for a hint, and a hint doesn't change the grade.";
 export const DRILL_HINT_SOURCE = "Worked out from this stored spot's pot and bet. The answer isn't read for a hint, and a hint doesn't change the grade.";
+
+export const LIVE_HINT_SOURCE = "Worked out from this spot's pot and bet. The answer isn't read for a hint, and a hint doesn't change the grade.";
 
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const POTS = ["limped", "single-raised", "3-bet", "4-bet"];
@@ -51,6 +54,13 @@ export function handHint(h: Pick<PracticeHand, "hero" | "players" | "stack" | "a
 
 /** A drill's spot: where you sit in the stored heads-up pot, and the price of the bet you face, if you face one. */
 export function drillHint(pr: Pick<DrillProblem, "player" | "hero" | "pot" | "bet" | "turn">): string {
-  const spot = `${pr.turn ? "Turn" : "Flop"}, heads-up, ${pr.hero} ${pr.player === 1 ? "in position" : "out of position"}.`;
+  return headsUp(pr.turn ? "Turn" : "Flop", pr);
+}
+
+/** A live drill's spot, the same way. */
+export const liveHint = (pr: Pick<LiveProblem, "street" | "player" | "hero" | "pot" | "bet">): string => headsUp(pr.street === "river" ? "River" : "Turn", pr);
+
+function headsUp(street: string, pr: Pick<DrillProblem, "player" | "hero" | "pot" | "bet">): string {
+  const spot = `${street}, heads-up, ${pr.hero} ${pr.player === 1 ? "in position" : "out of position"}.`;
   return pr.bet > 0 ? `${spot} ${price(pr.bet, pr.pot, false)}` : `${spot} Nothing to call: the pot is ${fmt(pr.pot)}bb.`;
 }

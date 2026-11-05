@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BACKUP_FORMAT, BACKUP_STORES, backupFileName, makeBackup, restoreBackup, restoreSummary, type Backup } from "./backup";
+import { BACKUP_FORMAT, BACKUP_SCHEMA, BACKUP_STORES, backupFileName, itemBackup, makeBackup, restoreBackup, restoreSummary, type Backup } from "./backup";
+import { MAX_ANSWER_BYTES, answerToKeep, openAnswer, readAnswer } from "./answers";
 import { db, putSession, type DecisionRecord, type HandRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
 import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
 import { chartMistake, mistake } from "@/test/mistake";
@@ -7,7 +8,10 @@ import { exploitOf } from "@/features/practice/exploit";
 import { keepMistake, listMistakes } from "./mistakes";
 import { listReports, putReport } from "./reports";
 import { listScenarios, putScenario } from "./scenarios";
-import { deleteDrill, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, spotAt, spotMatches } from "./saved";
+import { deleteDrill, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, sortSaved, spotAt, spotMatches, textMatches } from "./saved";
+import { fromSearch, toSearch } from "@/features/study/studyState";
+import { provenanceOf } from "@/solver/provenance";
+import { CHART_ANSWER, LIVE_ANSWER } from "@/test/answers";
 
 const spot = (id: string, updatedAt: number, extra: Partial<SavedSpot> = {}): SavedSpot => ({
   id,
@@ -130,7 +134,7 @@ describe("backup and restore", () => {
     const b = await makeBackup(() => Date.UTC(2026, 10, 3));
     expect(b.format).toBe(BACKUP_FORMAT);
     expect(b.exported).toBe("2026-11-03T00:00:00.000Z");
-    expect(b.counts).toEqual({ savedSpots: 1, savedRanges: 1, savedDrills: 1, savedScenarios: 0, savedReports: 0, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
+    expect(b.counts).toEqual({ savedSpots: 1, savedAnswers: 0, savedRanges: 1, savedDrills: 1, savedScenarios: 0, savedReports: 0, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
     expect(b.stores.savedDrills[0]).toEqual({ id: "k", v: 1, created: 1, updated: 8, dev: b.device, data: drill("k", 8, { note: "every texture" }) });
     expect(b.stores.sessions.find((r) => r.id === "d")).toMatchObject({ id: "d", v: 1, created: 10, updated: 20, dev: b.device });
     expect(b.stores.sessions.find((r) => r.id === "e")).toMatchObject({ created: 30, updated: 30 });
@@ -357,5 +361,198 @@ describe("backup and restore", () => {
 
   it("names the file by the day", () => {
     expect(backupFileName(new Date(Date.UTC(2026, 10, 3, 12)))).toBe("lizard-backup-2026-11-03.json");
+  });
+});
+
+describe("a saved answer", () => {
+  const CHART_LINE = toSearch(fromSearch("p=6&s=100")!);
+  const TURN_LINE = toSearch(fromSearch("p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Ac7s3d9h&flop=BB:x,BTN:x")!);
+  const CTX = { mode: "fast", transport: "worker", solverVersion: "aaa/111", partial: false, now: 5 } as const;
+  const kept = (id: string, line: string, data: typeof CHART_ANSWER) => {
+    const k = answerToKeep(id, line, { data, provenance: provenanceOf(data, CTX) }, 1000);
+    if (!("answer" in k)) throw new Error(k.refused);
+    return k.answer;
+  };
+  const withAnswer = () => putSpot(spot("s", 9, { line: TURN_LINE }), kept("s", TURN_LINE, LIVE_ANSWER));
+
+  it("goes in with its spot, and a later save takes its place", async () => {
+    await withAnswer();
+    expect((await openAnswer("s", TURN_LINE))?.result.data).toEqual(LIVE_ANSWER);
+    await putSpot(spot("s", 10, { line: TURN_LINE }), { ...kept("s", TURN_LINE, LIVE_ANSWER), savedAt: 2000 });
+    expect((await openAnswer("s", TURN_LINE))?.record.savedAt).toBe(2000);
+    expect(await (await db())!.count("savedAnswers")).toBe(1);
+  });
+
+  it("stays when the spot is edited without one, and goes when the spot does", async () => {
+    await withAnswer();
+    await putSpot(spot("s", 11, { line: TURN_LINE, title: "Renamed" }));
+    expect(await openAnswer("s", TURN_LINE)).not.toBeNull();
+    await deleteSpot("s");
+    expect(await openAnswer("s", TURN_LINE)).toBeNull();
+    expect(await (await db())!.count("savedAnswers")).toBe(0);
+  });
+
+  it("answers only its own line", async () => {
+    await withAnswer();
+    expect(await openAnswer("s", CHART_LINE)).toBeNull();
+  });
+
+  it("isn't half stored: a refused answer leaves the spot out too", async () => {
+    const bad = { ...kept("s", TURN_LINE, LIVE_ANSWER), id: undefined } as never;
+    await expect(putSpot(spot("s", 9, { line: TURN_LINE }), bad)).rejects.toThrow();
+    expect(await listSpots()).toEqual([]);
+  });
+
+  it("travels in the backup file as text, and survives a restore into an empty browser, marked as restored", async () => {
+    await withAnswer();
+    const b = await makeBackup();
+    expect(b.counts.savedAnswers).toBe(1);
+    expect(b.stores.savedAnswers[0]).toMatchObject({ id: "s", created: 1000, updated: 1000 });
+    const file = JSON.parse(JSON.stringify(b)) as Backup;
+    await clearAll();
+    expect((await restoreBackup(file)).savedAnswers).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    const back = await openAnswer("s", TURN_LINE);
+    expect(back?.result.data).toEqual(LIVE_ANSWER);
+    expect(back?.result.provenance).toMatchObject({ source: "live", solverVersion: "aaa/111" });
+    expect(back?.record.restored).toBe(true);
+    expect((await restoreBackup(file)).savedAnswers).toEqual({ added: 0, updated: 0, kept: 1, skipped: 0 });
+  });
+
+  it("from a file is said to be, however the file reads, on an answer replaced as on a new one", async () => {
+    await withAnswer();
+    const b = JSON.parse(JSON.stringify(await makeBackup())) as Backup;
+    b.stores.savedAnswers[0]!.data.savedAt = 5000;
+    expect((await restoreBackup(b)).savedAnswers.updated).toBe(1);
+    expect((await openAnswer("s", TURN_LINE))?.record).toMatchObject({ savedAt: 5000, restored: true });
+    expect(b.stores.savedAnswers[0]!.data.restored).toBeUndefined();
+  });
+
+  it("a crafted file can't call a chart solved: the record is skipped and counted, and nothing is stored", async () => {
+    await putSpot(spot("s", 9, { line: CHART_LINE }), kept("s", CHART_LINE, CHART_ANSWER));
+    const b = JSON.parse(JSON.stringify(await makeBackup())) as Backup;
+    await clearAll();
+    const rec = b.stores.savedAnswers[0]!;
+    const hurt = (id: string, json: unknown) => ({ ...rec, id, data: { ...rec.data, id, json: JSON.stringify(json) } });
+    b.stores.savedAnswers = [hurt("a", { ...CHART_ANSWER, solver: { iterations: 500, exploitability_pct: 0.1 } }), hurt("b", { ...CHART_ANSWER, precomputed: { spot: "x" } }), hurt("c", { ...CHART_ANSWER, street: "river" }), { ...rec, id: "d", data: { ...rec.data, id: "d", json: " ".repeat(MAX_ANSWER_BYTES + 1) } }];
+    expect((await restoreBackup(b)).savedAnswers).toEqual({ added: 0, updated: 0, kept: 0, skipped: 4 });
+    expect(await (await db())!.count("savedAnswers")).toBe(0);
+    expect((await listSpots()).map((s) => s.id)).toEqual(["s"]);
+  });
+
+  it("a provenance edited in a file changes nothing: what's shown comes from the answer", async () => {
+    await putSpot(spot("s", 9, { line: CHART_LINE }), kept("s", CHART_LINE, CHART_ANSWER));
+    const b = JSON.parse(JSON.stringify(await makeBackup())) as Backup;
+    await clearAll();
+    b.stores.savedAnswers[0]!.data.provenance = { ...b.stores.savedAnswers[0]!.data.provenance, source: "live", approximate: false, exploitabilityPct: 0.1, keptLabel: "Live solve" };
+    await restoreBackup(b);
+    const p = (await openAnswer("s", CHART_LINE))!.result.provenance;
+    expect(p).toMatchObject({ source: "charts", approximate: true });
+    expect(p.exploitabilityPct).toBeUndefined();
+  });
+
+  it("a backup made before answers has none, and restores all it has; the record version stands, so an older page reads this one", async () => {
+    await putSpot(spot("s", 9));
+    const b = JSON.parse(JSON.stringify(await makeBackup())) as { stores: Partial<Backup["stores"]> };
+    delete b.stores.savedAnswers;
+    await clearAll();
+    const r = await restoreBackup(b);
+    expect(r.savedSpots.added).toBe(1);
+    expect(r.savedAnswers).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
+    expect(BACKUP_SCHEMA).toBe(1);
+  });
+});
+
+describe("one item to a file", () => {
+  it("is a backup a restore takes, a spot with its answer, and nothing else", async () => {
+    const line = toSearch(fromSearch("p=6&s=100")!);
+    const k = answerToKeep("s", line, { data: CHART_ANSWER, provenance: provenanceOf(CHART_ANSWER, { mode: "fast", transport: "worker", solverVersion: "a/b", partial: false, now: 1 }) });
+    const s = spot("s", 9, { line });
+    await putSpot(s, "answer" in k ? k.answer : undefined);
+    await putSpot(spot("other", 9));
+    const b = JSON.parse(JSON.stringify(await itemBackup("savedSpots", s))) as Backup;
+    expect(b.counts).toMatchObject({ savedSpots: 1, savedAnswers: 1, sessions: 0 });
+    expect(b.format).toBe(BACKUP_FORMAT);
+    await clearAll();
+    const r = await restoreBackup(b);
+    expect([r.savedSpots.added, r.savedAnswers.added]).toEqual([1, 1]);
+    expect((await listSpots()).map((x) => x.id)).toEqual(["s"]);
+    expect((await openAnswer("s", line))?.result.data).toEqual(CHART_ANSWER);
+  });
+
+  it("of another kind holds that record alone", async () => {
+    const b = await itemBackup("savedRanges", range("r", 3));
+    expect(b.stores.savedRanges.map((x) => x.id)).toEqual(["r"]);
+    expect(b.stores.savedAnswers).toEqual([]);
+    expect(readAnswer(undefined)).toBeNull();
+  });
+});
+
+describe("the other kinds' tags", () => {
+  const TAGS = { tags: ["3bp", "nit"] };
+  const SCENARIO = { id: "c", name: "Nit", players: 6, stack: 100, opts: { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0, board: null }, note: "", createdAt: 1, updatedAt: 2 } as never;
+  const REPORT = { id: "p", name: "All", filters: {}, note: "", createdAt: 1, updatedAt: 2 };
+
+  it("come back through each kind's reader, which rebuilds the record", async () => {
+    await putScenario({ ...(SCENARIO as object), ...TAGS } as never);
+    await putReport({ ...REPORT, ...TAGS });
+    expect((await listScenarios()).list[0]?.tags).toEqual(TAGS.tags);
+    expect((await listReports()).list[0]?.tags).toEqual(TAGS.tags);
+  });
+
+  it("a record with none reads with none, not an empty list that wasn't saved", async () => {
+    await putScenario(SCENARIO);
+    await putReport(REPORT);
+    expect((await listScenarios()).list[0]).not.toHaveProperty("tags");
+    expect((await listReports()).list[0]).not.toHaveProperty("tags");
+  });
+
+  it("the Ranges editor saving over a range keeps its tags, knowing nothing of them", async () => {
+    await putRange({ ...range("r", 3), ...TAGS });
+    await putRange({ ...range("r", 4), text: "33+" });
+    expect((await listRanges())[0]).toMatchObject({ text: "33+", tags: TAGS.tags });
+    await putRange({ ...range("r", 5), tags: [] });
+    expect((await listRanges())[0]?.tags).toEqual([]);
+  });
+
+  it("round-trip a backup, and tags that aren't a list of text are skipped", async () => {
+    await putRange({ ...range("r", 3), ...TAGS });
+    await putDrill(drill("d", 3, TAGS));
+    await putReport({ ...REPORT, ...TAGS });
+    await putScenario({ ...(SCENARIO as object), ...TAGS } as never);
+    const b = JSON.parse(JSON.stringify(await makeBackup())) as Backup;
+    await clearAll();
+    await restoreBackup(b);
+    expect((await listRanges())[0]?.tags).toEqual(TAGS.tags);
+    expect((await listDrills())[0]?.tags).toEqual(TAGS.tags);
+    expect((await listReports()).list[0]?.tags).toEqual(TAGS.tags);
+    expect((await listScenarios()).list[0]?.tags).toEqual(TAGS.tags);
+    await clearAll();
+    for (const s of ["savedRanges", "savedDrills", "savedReports", "savedScenarios"] as const) (b.stores[s][0]!.data as { tags: unknown }).tags = [{}];
+    const r = await restoreBackup(b);
+    expect([r.savedRanges.skipped, r.savedDrills.skipped, r.savedReports.skipped, r.savedScenarios.skipped]).toEqual([1, 1, 1, 1]);
+  });
+});
+
+describe("sorting a list", () => {
+  const X = [
+    { id: "a", name: "beta", createdAt: 2, updatedAt: 9 },
+    { id: "b", name: "Alpha", createdAt: 3, updatedAt: 5 },
+    { id: "c", name: "gamma 10", createdAt: 1, updatedAt: 7 },
+    { id: "d", name: "gamma 9", createdAt: 4, updatedAt: 6 },
+  ];
+  const ids = (by: Parameters<typeof sortSaved>[1]) => sortSaved(X, by, (x) => x.name).map((x) => x.id).join("");
+
+  it("reads each order, leaving the list it's given alone", () => {
+    expect(ids("changed")).toBe("acdb");
+    expect(ids("newest")).toBe("dbac");
+    expect(ids("oldest")).toBe("cabd");
+    expect(ids("name")).toBe("badc");
+    expect(X.map((x) => x.id).join("")).toBe("abcd");
+  });
+
+  it("searches any kind's texts as a spot's: every word, ignoring case", () => {
+    expect(textMatches(["Flop drill", "3bp"], "3BP flop")).toBe(true);
+    expect(textMatches(["Flop drill", "3bp"], "turn")).toBe(false);
+    expect(textMatches(["x"], "")).toBe(true);
   });
 });

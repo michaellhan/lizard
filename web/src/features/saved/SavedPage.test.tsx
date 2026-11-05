@@ -1,13 +1,21 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BACKUP_STORES, makeBackup } from "@/data/backup";
-import { db, type SavedSpot } from "@/data/db";
+import { answerToKeep } from "@/data/answers";
+import { BACKUP_STORES, makeBackup, restoreBackup, type Backup } from "@/data/backup";
+import { db, kvGet, kvSet, type SavedSpot } from "@/data/db";
+import { filtersOf, putReport, reportWords } from "@/data/reports";
 import { listDrills, listRanges, listSpots, putDrill, putRange, putSpot } from "@/data/saved";
-import { fromSearch, studyRequest } from "@/features/study/studyState";
+import { putScenario, type ScenarioSetup } from "@/data/scenarios";
+import { provenanceOf } from "@/solver/provenance";
+import { CHART_ANSWER, LIBRARY_ANSWER } from "@/test/answers";
+import { fromSearch, studyRequest, toSearch } from "@/features/study/studyState";
 import { RangesPage } from "@/features/ranges/RangesPage";
 import { formatRange, parseRange, rangeCombos } from "@/features/ranges/rangeText";
 
+import { SaveDrill } from "./SaveDrill";
+import { SaveReport } from "./SaveReport";
+import { SaveScenario } from "./SaveScenario";
 import { SavedPage } from "./SavedPage";
 
 const LINE = "p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Af%2CBB%3Ac&b=Ac7s3d&flop=BB%3Ax";
@@ -60,7 +68,7 @@ describe("SavedPage", () => {
     expect(within(a).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", `/study?${LINE}`);
 
     // search: every word, over names, tags, notes and the line as shown
-    const search = screen.getByRole("searchbox", { name: "Search saved spots" });
+    const search = screen.getByRole("searchbox", { name: "Search everything saved" });
     fireEvent.change(search, { target: { value: "dry ace" } });
     expect(within(list).getAllByRole("listitem")).toHaveLength(1);
     fireEvent.change(search, { target: { value: "HU 7c5d2h" } });
@@ -106,7 +114,7 @@ describe("SavedPage", () => {
     renderAt("/saved");
     await screen.findByRole("listitem", { name: "Kept" });
     fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(await screen.findByText("Backup made: 1 spots, 0 drills, 0 scenarios, 0 ranges, 0 sessions, 0 hands, 0 graded decisions, 0 kept mistakes.")).toBeInTheDocument();
+    expect(await screen.findByText("Backup made: 1 spots, 0 saved answers, 0 drills, 0 scenarios, 0 ranges, 0 sessions, 0 hands, 0 graded decisions, 0 kept mistakes.")).toBeInTheDocument();
     expect(click).toHaveBeenCalledOnce();
     expect(JSON.parse(await created[0]!.text()).stores.savedSpots[0].data.title).toBe("Kept");
     expect(await screen.findByLabelText("Last backup")).toHaveTextContent(/^Last backup made here .+; 0 saves since\.$/);
@@ -224,6 +232,177 @@ describe("SavedPage", () => {
     expect(await screen.findByText(/No saved spots yet/)).toBeInTheDocument();
     expect(screen.getByText(/No saved drills yet/)).toBeInTheDocument();
     expect(screen.getByText(/No saved ranges yet/)).toBeInTheDocument();
+  });
+});
+
+describe("every kind on the Saved page", () => {
+  const CHART_LINE = toSearch(fromSearch("p=6&s=100")!);
+  const SCENARIO = { id: "c", name: "Nit table", players: 6, stack: 100, opts: { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0, board: null }, note: "", createdAt: 1, updatedAt: 2 } as never;
+  const REPORT = { id: "p", name: "Stars 2026", filters: {}, note: "", createdAt: 1, updatedAt: 2 };
+  const DRILL = { id: "d", name: "Flops", kind: "library" as const, to: "/practice?tab=drills", about: "a", note: "", createdAt: 1, updatedAt: 2 };
+  const RANGE = { id: "r", name: "UTG open", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 2 };
+
+  it("sorts by the control across kinds, and remembers it", async () => {
+    await putRange({ ...RANGE, id: "1", name: "beta", createdAt: 5, updatedAt: 5 });
+    await putRange({ ...RANGE, id: "2", name: "alpha", createdAt: 9, updatedAt: 1 });
+    await putRange({ ...RANGE, id: "3", name: "gamma", createdAt: 1, updatedAt: 9 });
+    await putSpot(spot("a", "Zed", { createdAt: 2, updatedAt: 2 }));
+    await putSpot(spot("b", "Abe", { createdAt: 1, updatedAt: 1, line: "p=2&s=100" }));
+    renderAt("/saved");
+    const names = async (kind: string) => within(await screen.findByRole("region", { name: kind })).findAllByRole("listitem").then((l) => l.map((x) => x.getAttribute("aria-label")));
+    expect(await names("Saved ranges")).toEqual(["gamma", "beta", "alpha"]);
+    expect(await names("Saved spots")).toEqual(["Zed", "Abe"]);
+    const sort = screen.getByRole("combobox", { name: "Sort" });
+    fireEvent.change(sort, { target: { value: "name" } });
+    expect(await names("Saved ranges")).toEqual(["alpha", "beta", "gamma"]);
+    expect(await names("Saved spots")).toEqual(["Abe", "Zed"]);
+    await waitFor(async () => expect(await kvGet("savedSort")).toBe("name"));
+    fireEvent.change(sort, { target: { value: "newest" } });
+    expect(await names("Saved ranges")).toEqual(["alpha", "beta", "gamma"]);
+    fireEvent.change(sort, { target: { value: "oldest" } });
+    expect(await names("Saved ranges")).toEqual(["gamma", "beta", "alpha"]);
+  });
+
+  it("reads a kept sort back, and ignores one it doesn't know", async () => {
+    await putRange({ ...RANGE, id: "1", name: "beta", updatedAt: 5 });
+    await putRange({ ...RANGE, id: "2", name: "alpha", updatedAt: 1 });
+    await kvSet("savedSort", "name");
+    const first = renderAt("/saved");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Sort" })).toHaveValue("name"));
+    await waitFor(async () => expect(within(await screen.findByRole("region", { name: "Saved ranges" })).getAllByRole("listitem")[0]).toHaveAttribute("aria-label", "alpha"));
+    first.unmount();
+    await kvSet("savedSort", "whatever");
+    renderAt("/saved");
+    await screen.findByRole("region", { name: "Saved ranges" });
+    expect(screen.getByRole("combobox", { name: "Sort" })).toHaveValue("changed");
+  });
+
+  it("shows a kind's tags, edits them, and finds them in the one search", async () => {
+    await putRange({ ...RANGE, tags: ["open"] });
+    await putDrill({ ...DRILL, tags: ["3bp"] });
+    await putReport({ ...REPORT, tags: ["stars"] });
+    await putScenario({ ...(SCENARIO as object), tags: ["nit"] } as never);
+    renderAt("/saved");
+    const rows = [
+      ["UTG open", "open"],
+      ["Flops", "3bp"],
+      ["Stars 2026", "stars"],
+      ["Nit table", "nit"],
+    ] as const;
+    for (const [name, tag] of rows) expect(await screen.findByRole("listitem", { name })).toHaveTextContent(tag);
+    for (const [name, tag] of rows) {
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search everything saved" }), { target: { value: tag } });
+      expect(await screen.findByRole("listitem", { name })).toBeInTheDocument();
+      expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    }
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search everything saved" }), { target: { value: "" } });
+    for (const [name] of rows) {
+      const row = await screen.findByRole("listitem", { name });
+      fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+      fireEvent.change(within(row).getByRole("textbox", { name: "Tags" }), { target: { value: "alike, two" } });
+      fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(within(screen.getByRole("listitem", { name })).queryByRole("form")).toBeNull());
+    }
+    expect((await listRanges())[0]?.tags).toEqual(["alike", "two"]);
+    expect((await listDrills())[0]?.tags).toEqual(["alike", "two"]);
+    const d = (await db())!;
+    expect((await d.get("savedReports", "p"))?.tags).toEqual(["alike", "two"]);
+    expect((await d.get("savedScenarios", "c"))?.tags).toEqual(["alike", "two"]);
+  });
+
+  it("keeps the tags through a save from a drill's, a report's or a scenario's own page, none of which edit them", async () => {
+    const twice = async (name: string) => {
+      fireEvent.click(await screen.findByRole("button", { expanded: false }));
+      const form = screen.getByRole("form");
+      if (name) fireEvent.change(within(form).getByRole("textbox", { name: "Name" }), { target: { value: name } });
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+      await within(form).findByRole("status");
+    };
+    const d = (await db())!;
+    await putDrill({ ...DRILL, tags: ["kept"] });
+    const drill = render(
+      <MemoryRouter>
+        <SaveDrill kind={DRILL.kind} to={DRILL.to} about={DRILL.about} />
+      </MemoryRouter>,
+    );
+    const open = await screen.findByRole("button", { name: "★ Saved drill" });
+    fireEvent.click(open);
+    fireEvent.change(within(screen.getByRole("form")).getByRole("textbox", { name: "Note" }), { target: { value: "n" } });
+    fireEvent.click(within(screen.getByRole("form")).getByRole("button", { name: "Save" }));
+    await within(screen.getByRole("form")).findByRole("status");
+    expect((await d.get("savedDrills", "d"))).toMatchObject({ note: "n", tags: ["kept"] });
+    drill.unmount();
+
+    const params = new URLSearchParams();
+    const about = reportWords(filtersOf(params));
+    await putReport({ ...REPORT, name: about, tags: ["kept"] });
+    const report = render(
+      <MemoryRouter>
+        <SaveReport params={params} />
+      </MemoryRouter>,
+    );
+    await twice("");
+    expect((await d.get("savedReports", "p"))).toMatchObject({ name: about, tags: ["kept"] });
+    expect((await d.get("savedReports", "p"))?.updatedAt).toBeGreaterThan(2);
+    report.unmount();
+
+    await putScenario({ ...(SCENARIO as object), tags: ["kept"] } as never);
+    const { players, stack, opts } = SCENARIO as unknown as ScenarioSetup;
+    render(
+      <MemoryRouter>
+        <SaveScenario setup={{ players, stack, opts }} />
+      </MemoryRouter>,
+    );
+    await twice("Nit table");
+    expect((await d.get("savedScenarios", "c"))).toMatchObject({ name: "Nit table", tags: ["kept"] });
+    expect((await d.get("savedScenarios", "c"))?.updatedAt).toBeGreaterThan(2);
+  });
+
+  it("exports one item, of any kind, to a file a restore takes", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const made = vi.mocked(URL.createObjectURL);
+    await putRange(RANGE);
+    await putSpot(spot("a", "A spot"));
+    renderAt("/saved");
+    fireEvent.click(await screen.findByRole("button", { name: "Export UTG open" }));
+    await waitFor(() => expect(made).toHaveBeenCalledOnce());
+    const file = JSON.parse(await (made.mock.calls[0]![0] as Blob).text()) as Backup;
+    expect(file.stores.savedRanges.map((r) => r.id)).toEqual(["r"]);
+    expect(file.stores.savedSpots).toEqual([]);
+    const d = (await db())!;
+    await d.clear("savedRanges");
+    expect((await restoreBackup(file)).savedRanges.added).toBe(1);
+  });
+
+  it("says a spot keeps its answer, under that answer's own label, and links to it", async () => {
+    const k = answerToKeep("a", CHART_LINE, { data: CHART_ANSWER, provenance: provenanceOf(CHART_ANSWER, { mode: "fast", transport: "worker", solverVersion: "aaa/111", partial: false, now: 1 }) }, Date.UTC(2026, 10, 5, 12));
+    await putSpot(spot("a", "Kept", { line: CHART_LINE }), "answer" in k ? k.answer : undefined);
+    await putSpot(spot("b", "Plain", { line: LINE }));
+    renderAt("/saved");
+    const row = await screen.findByRole("listitem", { name: "Kept" });
+    await waitFor(() => expect(row).toHaveTextContent(/Answer kept: Preflop charts.*\(\d+(\.\d)? KB\)\. Saved answer of 2026-11-05, not solved again\./));
+    expect(row).toHaveTextContent("aaa/111");
+    expect(within(row).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", `/study?${CHART_LINE}&saved=a`);
+    expect(within(await screen.findByRole("listitem", { name: "Plain" })).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", `/study?${LINE}`);
+  });
+
+  it("says when a spot's answer can't be read, and opens the line plainly", async () => {
+    const k = answerToKeep("a", LINE, { data: LIBRARY_ANSWER, provenance: provenanceOf(LIBRARY_ANSWER, { mode: "fast", transport: "worker", solverVersion: "aaa/111", partial: false, now: 1 }) });
+    await putSpot(spot("a", "Hurt"), "answer" in k ? { ...k.answer, json: "{not json" } : undefined);
+    renderAt("/saved");
+    const row = await screen.findByRole("listitem", { name: "Hurt" });
+    await waitFor(() => expect(row).toHaveTextContent("The answer saved with this spot can’t be read, so opening it asks the engine again."));
+    expect(within(row).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", `/study?${LINE}`);
+  });
+
+  it("won't repeat a label calling a chart solved, from a spot a crafted file brought", async () => {
+    await putSpot(spot("a", "Crafted", { line: CHART_LINE, seen: { source: "live", label: "Solved by the engine" } }));
+    renderAt("/saved");
+    const row = await screen.findByRole("listitem", { name: "Crafted" });
+    expect(row).not.toHaveTextContent("Solved by the engine");
+    expect(row).not.toHaveTextContent("the answer then");
   });
 });
 

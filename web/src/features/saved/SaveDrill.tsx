@@ -47,6 +47,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
       to,
       about,
       note: note.trim(),
+      ...(here?.tags ? { tags: here.tags } : {}),
       createdAt: here?.createdAt ?? t,
       updatedAt: t,
     };

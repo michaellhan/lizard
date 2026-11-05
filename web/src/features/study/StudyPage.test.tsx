@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { kvGet, kvSet } from "@/data/db";
-import { spotAt } from "@/data/saved";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { answerToKeep, openAnswer } from "@/data/answers";
+import { db, kvGet, kvSet, type SavedAnswer } from "@/data/db";
+import { putSpot, spotAt } from "@/data/saved";
+import { CHART_ANSWER, LIVE_ANSWER } from "@/test/answers";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { describe as describeProvenance, provenanceOf } from "@/solver/provenance";
 import type { SolveResult } from "@/solver/types";
@@ -43,6 +45,13 @@ const stub = vi.hoisted(() => {
   return s;
 });
 vi.mock("@/solver/useSolver", () => ({ useSolver: () => stub.getSolver }));
+// the build this page says it runs: none, as in a dev server, unless a test sets one
+const build = vi.hoisted(() => ({ now: null as string | null }));
+vi.mock("@/solver/runtime", async (real) => ({
+  ...(await real<typeof import("@/solver/runtime")>()),
+  loadManifest: async () => (build.now ? {} : null),
+  solverVersionOf: () => build.now,
+}));
 
 const cell = (eq: number) => ({ w: 1, f: [0.5, 0.5], ev: [2, 4], evm: 3, eq });
 
@@ -493,5 +502,149 @@ describe("StudyPage", () => {
       renderAt(search);
       expect(await screen.findByRole("separator")).toHaveAttribute("aria-valuenow", "58");
     });
+  });
+});
+
+describe("a spot opened with its saved answer", () => {
+  const TURN = toSearch(fromSearch("p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Ac7s3d9h&flop=BB:x,BTN:x")!);
+  const CHART = toSearch(fromSearch("p=6&s=100")!);
+  const CTX = { mode: "fast", transport: "worker", solverVersion: "aaa/111", partial: false, now: 5 } as const;
+  const answerAt = (line: string, data: AdvisorResponse, id = "s"): SavedAnswer => {
+    const k = answerToKeep(id, line, { data, provenance: provenanceOf(data, CTX) }, Date.UTC(2026, 10, 5, 12));
+    if (!("answer" in k)) throw new Error(k.refused);
+    return k.answer;
+  };
+  const spotOf = (line: string) => ({ id: "s", title: "Kept", line, state: studyRequest(fromSearch(line)!) as unknown as Record<string, unknown>, tags: [], note: "", createdAt: 1, updatedAt: 1 });
+
+  beforeEach(async () => {
+    const d = (await db())!;
+    await Promise.all([d.clear("savedSpots"), d.clear("savedAnswers")]);
+    stub.asked = [];
+    stub.answer = LIVE_ANSWER;
+    build.now = null;
+    useSettings.setState({ mode: "fast" });
+  });
+
+  it("shows it at once with no request, plainly marked, and Re-solve asks the engine as usual", async () => {
+    await putSpot(spotOf(TURN), answerAt(TURN, LIVE_ANSWER));
+    renderAt(`${TURN}&saved=s`);
+    const note = await screen.findByRole("group", { name: "Saved answer" });
+    expect(note).toHaveTextContent("Saved answer of 2026-11-05, not solved again. Solver build aaa/111; whether this page runs the same one can't be told.");
+    await screen.findByRole("region", { name: "Actions" });
+    expect(screen.getAllByText(/saved answer of 2026-11-05, solver build aaa\/111/).length).toBeGreaterThan(0);
+    expect(stub.asked).toEqual([]);
+
+    fireEvent.click(within(note).getByRole("button", { name: "Re-solve" }));
+    await waitFor(() => expect(stub.asked).toHaveLength(1));
+    expect(screen.queryByRole("group", { name: "Saved answer" })).toBeNull();
+  });
+
+  it("says an answer from another engine version is that, not the current one", async () => {
+    build.now = "bbb/222";
+    await putSpot(spotOf(TURN), answerAt(TURN, LIVE_ANSWER));
+    renderAt(`${TURN}&saved=s`);
+    const note = await screen.findByRole("group", { name: "Saved answer" });
+    await waitFor(() => expect(note).toHaveTextContent("From another engine version, not the current one: solver build aaa/111, where this page runs bbb/222."));
+    expect(stub.asked).toEqual([]);
+  });
+
+  it("says one from this build is this build's", async () => {
+    build.now = "aaa/111";
+    await putSpot(spotOf(TURN), answerAt(TURN, LIVE_ANSWER));
+    renderAt(`${TURN}&saved=s`);
+    const note = await screen.findByRole("group", { name: "Saved answer" });
+    await waitFor(() => expect(note).toHaveTextContent("Solver build aaa/111, the one this page runs."));
+  });
+
+  it("keeps a chart's answer a chart's, under its own label, not a solve", async () => {
+    await putSpot(spotOf(CHART), answerAt(CHART, CHART_ANSWER));
+    renderAt(`${CHART}&saved=s`);
+    await screen.findByRole("group", { name: "Saved answer" });
+    expect(await screen.findAllByText(/Preflop chart.*saved answer of/i)).not.toHaveLength(0);
+    expect(document.body.textContent).not.toMatch(/Live solve/);
+    expect(stub.asked).toEqual([]);
+  });
+
+  it("asks afresh, and says why, for a link whose answer is gone", async () => {
+    renderAt(`${TURN}&saved=gone`);
+    expect(await screen.findByText("The answer saved with this spot is gone or can’t be read, so this one is asked afresh.")).toBeInTheDocument();
+    await waitFor(() => expect(stub.asked).toHaveLength(1));
+  });
+
+  it.each([
+    ["stored at another line", () => answerAt(CHART, CHART_ANSWER)],
+    ["that can't be read", () => ({ ...answerAt(TURN, LIVE_ANSWER), json: "{not json" })],
+  ])("asks afresh for an answer %s", async (_, answer) => {
+    await putSpot(spotOf(TURN), answer());
+    renderAt(`${TURN}&saved=s`);
+    expect(await screen.findByText(/asked afresh/)).toBeInTheDocument();
+    await waitFor(() => expect(stub.asked).toHaveLength(1));
+    expect(screen.queryByRole("group", { name: "Saved answer" })).toBeNull();
+  });
+
+  it("lets go when another mode is picked: that's a solve", async () => {
+    await putSpot(spotOf(TURN), answerAt(TURN, LIVE_ANSWER));
+    renderAt(`${TURN}&saved=s`);
+    await screen.findByRole("group", { name: "Saved answer" });
+    useSettings.setState({ mode: "accurate" });
+    await waitFor(() => expect(stub.asked).toHaveLength(1));
+    expect(screen.queryByRole("group", { name: "Saved answer" })).toBeNull();
+  });
+
+  it("lets go when an unfinished preflop solve it holds is carried on: the page moves on to the run", async () => {
+    const line = toSearch(fromSearch("p=2&s=100&pf=solver")!);
+    const half = { ...CHART_ANSWER, actor: "SB", players: 2, source: "solver", solver: { iterations: 1500 }, pf_solve: { done: false, iterations: 1500, mbb: 4, label: "HU 100bb" } } as AdvisorResponse;
+    await putSpot(spotOf(line), answerAt(line, half));
+    renderAt(`${line}&saved=s`);
+    await screen.findByRole("group", { name: "Saved answer" });
+    fireEvent.click(await screen.findByRole("button", { name: "Continue the solve" }));
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Saved answer" })).toBeNull());
+  });
+
+  it("keeps a finished answer with the spot on Save, stamped with its provenance", async () => {
+    renderAt(TURN);
+    await screen.findByRole("region", { name: "Actions" });
+    const open = await screen.findByRole("button", { name: "☆ Save spot" });
+    await waitFor(() => expect(open).toBeEnabled());
+    fireEvent.click(open);
+    const form = screen.getByRole("form", { name: "Save spot" });
+    expect(form).toHaveTextContent("Keeps this answer with the spot");
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    await within(form).findByRole("status");
+    const s = (await spotAt(TURN))!;
+    const kept = await openAnswer(s.id, TURN);
+    expect(kept?.result.data).toEqual(stub.answer);
+    expect(kept?.record.provenance).toMatchObject({ source: "live", solverVersion: "test", exploitabilityPct: 0.3 });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("saves the line without an answer past the limit, and says so", async () => {
+    stub.answer = { ...LIVE_ANSWER, notes: ["x".repeat(600 * 1024)] };
+    renderAt(TURN);
+    await screen.findByRole("region", { name: "Actions" });
+    const open = await screen.findByRole("button", { name: "☆ Save spot" });
+    await waitFor(() => expect(open).toBeEnabled());
+    fireEvent.click(open);
+    fireEvent.click(within(screen.getByRole("form", { name: "Save spot" })).getByRole("button", { name: "Save" }));
+    const said = await screen.findByRole("alert");
+    expect(said.textContent).toMatch(/^The line is saved, but not its answer: it's \d+ KB, over the 512 KB a saved answer can be\.$/);
+    expect(await openAnswer((await spotAt(TURN))!.id, TURN)).toBeNull();
+  });
+
+  it("saving while the saved answer is on screen leaves that answer as it was, not stamped anew", async () => {
+    const was = answerAt(TURN, LIVE_ANSWER);
+    await putSpot(spotOf(TURN), was);
+    renderAt(`${TURN}&saved=s`);
+    await screen.findByRole("group", { name: "Saved answer" });
+    const open = await screen.findByRole("button", { name: "★ Saved" });
+    await waitFor(() => expect(open).toBeEnabled());
+    fireEvent.click(open);
+    const form = screen.getByRole("form", { name: "Save spot" });
+    expect(form).not.toHaveTextContent("Keeps this answer");
+    fireEvent.change(within(form).getByRole("textbox", { name: "Note" }), { target: { value: "seen again" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    await within(form).findByRole("status");
+    expect((await spotAt(TURN))?.note).toBe("seen again");
+    expect((await openAnswer("s", TURN))?.record.savedAt).toBe(was.savedAt);
   });
 });

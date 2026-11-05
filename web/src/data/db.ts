@@ -1,7 +1,7 @@
 // Local persistence: one IndexedDB database, versioned, with explicit forward migrations. Everything stays in
 // the user's browser (no accounts). Each migration runs once, in order, inside the upgrade transaction; a test
 // (db.test.ts) opens every historical version and checks the upgrade path.
-import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
+import { deleteDB, openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
 import type { SessionOptions } from "@/features/practice/practice";
 import type { SpotSetup } from "@/features/solve/setup";
 import type { Verdict } from "@/grading/grade";
@@ -25,6 +25,23 @@ export interface SavedSpot {
   updatedAt: number;
 }
 
+/** The one answer kept with a saved spot, under the spot's id. A store of its own: an answer runs to tens of KB, and Study
+ * reads the list of spots at every node. Read through `readAnswer` (answers.ts), which says what it may be called. */
+export interface SavedAnswer {
+  /** the spot's id */
+  id: string;
+  /** the Study line it answers */
+  line: string;
+  /** the engine's answer, as JSON */
+  json: string;
+  /** as it was given. Only its mode, backend, versions and time are believed: what produced the answer is worked out
+   * from the answer again, so nothing written here can name a source the answer doesn't have */
+  provenance: Provenance;
+  savedAt: number;
+  /** it came in from a file: set by the restore, whatever the file says */
+  restored?: true;
+}
+
 export interface SavedRange {
   id: string;
   name: string;
@@ -32,6 +49,8 @@ export interface SavedRange {
   text: string;
   combos: number;
   note: string;
+  /** a field of the record, with no index, so no migration: one kept before tags were has none (as the other kinds') */
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -45,6 +64,7 @@ export interface SavedScenario {
   /** the New session form's setup: seat, what's played, ante, rake, straddle, sizes, board filter and the game's options */
   opts: SessionOptions;
   note: string;
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -56,6 +76,7 @@ export interface SavedReport {
   /** the filters set, by their URL names */
   filters: Record<string, string>;
   note: string;
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -72,6 +93,7 @@ export interface SavedDrill {
   /** what it drills, as the page put it when saved */
   about: string;
   note: string;
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -284,6 +306,7 @@ export interface LizardDB extends DBSchema {
   /** key/value settings (mirrors the persisted settings store) */
   kv: { key: string; value: unknown };
   savedSpots: { key: string; value: SavedSpot; indexes: { byUpdated: number } };
+  savedAnswers: { key: string; value: SavedAnswer };
   sessions: { key: string; value: SessionRecord; indexes: { byStarted: number; byKind: string } };
   savedRanges: { key: string; value: SavedRange; indexes: { byUpdated: number } };
   hands: { key: string; value: HandRecord; indexes: { byPlayed: number; bySite: string; byImport: string; byHero: string; byPotType: string } };
@@ -341,6 +364,9 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
   8: (db) => {
     db.createObjectStore("savedReports", { keyPath: "id" }).createIndex("byUpdated", "updatedAt");
   },
+  9: (db) => {
+    db.createObjectStore("savedAnswers", { keyPath: "id" });
+  },
 };
 
 export const DB_VERSION = Math.max(...Object.keys(MIGRATIONS).map(Number));
@@ -384,6 +410,24 @@ const setState = (s: DbState) => {
   for (const f of listeners) f();
 };
 export const dbState = (): DbState => state;
+
+/** Why the database wouldn't open, for the recovery panel: "unavailable", this browser isn't letting the page store
+ * anything (no IndexedDB, some private modes, site data blocked); "newer", it was written by a later Lizard than this
+ * page; "upgrade", bringing it up to this version failed, which leaves it as it was; "full", the disk or the site's
+ * quota; "damaged", anything else the browser refused with. */
+export type DbFailure = "unavailable" | "newer" | "upgrade" | "full" | "damaged";
+let failure: { kind: DbFailure; detail: string } | null = null;
+export const dbFailure = () => failure;
+
+function failureOf(e: unknown): DbFailure {
+  const name = e instanceof Error || e instanceof DOMException ? e.name : "";
+  if (name === "VersionError") return "newer";
+  if (name === "QuotaExceededError") return "full";
+  if (name === "SecurityError" || name === "InvalidStateError" || name === "NotAllowedError") return "unavailable";
+  // (a migration that throws aborts its transaction, and the open reports that)
+  if (name === "AbortError" || (e instanceof Error && e.message.startsWith("no migration"))) return "upgrade";
+  return "damaged";
+}
 export function onDbState(f: () => void): () => void {
   listeners.add(f);
   return () => listeners.delete(f);
@@ -398,6 +442,7 @@ export const DB_WAIT_NOTICE_MS = 3000;
 export async function db(): Promise<IDBPDatabase<LizardDB> | null> {
   if (state === "replaced") return null;
   if (typeof indexedDB === "undefined") {
+    failure = { kind: "unavailable", detail: "no IndexedDB in this browser" };
     setState("failed");
     return null;
   }
@@ -423,11 +468,22 @@ export async function db(): Promise<IDBPDatabase<LizardDB> | null> {
   } catch (e) {
     dbP = null;
     console.error("The browser's database wouldn't open:", e);
+    failure = { kind: failureOf(e), detail: e instanceof Error ? `${e.name}: ${e.message}` : String(e) };
     if (dbState() !== "replaced") setState("failed");
     return null;
   } finally {
     clearTimeout(slow);
   }
+}
+
+/** Delete the database and open a new, empty one: whether that opened. `blocked`: another tab holds the old one, and this
+ * waits for it to let go. It can't be undone, so the only caller is the recovery panel, behind its confirm. */
+export async function deleteLizardDB(blocked?: () => void): Promise<boolean> {
+  const open = dbP;
+  dbP = null;
+  await open?.then((d) => d.close()).catch(() => {});
+  await deleteDB(DB_NAME, { blocked });
+  return (await db()) !== null;
 }
 
 export async function kvGet<T>(key: string): Promise<T | undefined> {

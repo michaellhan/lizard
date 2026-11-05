@@ -76,6 +76,11 @@ describe("the request at each of your decisions", () => {
     // the ante and the straddle go with it
     expect(adviceStateAt(importHand(HH("stars_9max_mtt_ante.txt")), "preflop", 5).ante).toBe(0.1);
     expect(adviceStateAt(importHand(HH("gg_straddle.txt")), "preflop", 4).straddle).toBe(true);
+    // a Practice hand's rake goes with the question; a history alone has none to send
+    expect(adviceStateAt(r, "flop", 1, "library", { rake: 5, rakeCap: 3 })).toMatchObject({ rake: 0.05, rake_cap: 3 });
+    expect(adviceStateAt(r, "flop", 1, "library", { rake: 4.5 })).toMatchObject({ rake: 0.045 });
+    expect(adviceStateAt(r, "flop", 1, "library", { rake: 4.5 }).rake_cap).toBeUndefined();
+    expect(adviceStateAt(r, "flop", 1).rake).toBeUndefined();
   });
 
   it("names the situation, and your role after the flop", () => {

@@ -21,6 +21,9 @@ import {
   nextTable,
   potLabel,
   POT_DRILLS,
+  dealsLeft,
+  drillTries,
+  DRILL_TRIES,
   rangeAt,
   redeal,
   REBUY,
@@ -129,6 +132,27 @@ describe("seats and dealing", () => {
     expect(offDrill(bvb)).toBe(false);
     expect(phaseOf(bvb)).toEqual({ kind: "deal", street: "flop" });
     expect(offDrill(play(newHand(6, 100, 1, 9, { pot: "bvb" }), f("UTG"), { pos: "HJ", action: "call" }))).toBe(true);
+    // a 4-bet pot: a 3-bet is on course, a call of the 4-bet is the pot, a call of the 3-bet or a 5-bet is off it
+    const raised = play(newHand(6, 100, 0, 9, { seat: "BTN", pot: "4bet" }), f("UTG"), f("HJ"), { pos: "CO", action: "raise", to: 2.5 }, { pos: "BTN", action: "raise", to: 7.5 }, f("SB"), f("BB"));
+    expect(offDrill(raised)).toBe(false);
+    const fourBet = play(raised, { pos: "CO", action: "raise", to: 17 });
+    expect(offDrill(fourBet)).toBe(false);
+    const inPot = play(fourBet, { pos: "BTN", action: "call" });
+    expect(offDrill(inPot)).toBe(false);
+    expect(phaseOf(inPot)).toEqual({ kind: "deal", street: "flop" });
+    expect(offDrill(play(raised, { pos: "CO", action: "call" }))).toBe(true);
+    expect(offDrill(play(fourBet, { pos: "BTN", action: "raise", to: 40 }))).toBe(true);
+    expect(offDrill(play(fourBet, { pos: "BTN", action: "all-in" }))).toBe(true);
+    expect(offDrill(play(raised, f("CO")))).toBe(true);
+    // (it's rare, so it may take more deals; no other pot's count moves)
+    expect(drillTries("4bet")).toBe(3000);
+    for (const pot of ["srp", "3bet", "bvb", "lib", null] as const) expect(drillTries(pot)).toBe(DRILL_TRIES);
+    expect(dealsLeft({ pot: "4bet", tries: 2998 })).toBe(true);
+    expect(dealsLeft({ pot: "4bet", tries: 2999 })).toBe(false);
+    expect(dealsLeft({ pot: "3bet", tries: DRILL_TRIES - 2 })).toBe(true);
+    expect(dealsLeft({ pot: "3bet", tries: DRILL_TRIES - 1 })).toBe(false);
+    expect(dealsLeft({ pot: "4bet" })).toBe(true);
+    expect(POT_DRILLS["4bet"].tip).toMatch(/from the charts and the library stores no such pot, so every decision is a live solve/);
     // dealt again: the same hand number and seat, another deal, the tries counted
     const again = redeal(redeal(h, 77, { seat: "BTN", pot: "3bet" }), 78, { seat: "BTN", pot: "3bet" });
     expect(again).toMatchObject({ n: 0, hero: "BTN", pot: "3bet", tries: 2, seed: 78 });
@@ -315,7 +339,7 @@ describe("Instant flops as a hand's pot", () => {
   const open = (h: PracticeHand) => play(h, f("UTG"), f("HJ"), f("CO"), { pos: "BTN", action: "raise", to: 2.5 }, f("SB"));
 
   it("isn't one of the drills: the Play select stays as it was, and History's words", () => {
-    expect(Object.keys(POT_DRILLS)).toEqual(["srp", "3bet", "bvb"]);
+    expect(Object.keys(POT_DRILLS)).toEqual(["srp", "3bet", "4bet", "bvb"]);
     expect(isPotDrill("lib")).toBe(false);
     expect(isHandPot("lib")).toBe(true);
     expect(isHandPot("srp")).toBe(true);

@@ -58,8 +58,10 @@ export const potBefore = (r: ReplayedHand, street: Street, i: number) => r2(simu
 
 /** The Advisor's request at one of your decisions, as the classic page sends it (payload()): your seat, cards and
  * stack, every seat's own stack where they differ, the ante and the straddle, the actions before it; what the scope
- * adds (session.js processItem): a flop that asks the library only, or "triage". */
-export function adviceStateAt(r: ReplayedHand, street: Street, i: number, scope: GradeScope = "library"): AdvisorState {
+ * adds (session.js processItem): a flop that asks the library only, or "triage". `kept`: what a Practice hand's record
+ * holds beyond its history. Its rake goes with the question: a history shows an amount, not the percentage and cap, so
+ * only a hand played here can say. */
+export function adviceStateAt(r: ReplayedHand, street: Street, i: number, scope: GradeScope = "library", kept?: HandRecord["setup"]): AdvisorState {
   const h = r.hand;
   const lines = linesBefore(r, street, i);
   const conv = (ms: readonly Move[]) =>
@@ -78,6 +80,7 @@ export function adviceStateAt(r: ReplayedHand, street: Street, i: number, scope:
     ...(unequal ? { stacks: { ...stacks } } : {}),
     ...(h.ante > 0 ? { ante: h.ante } : {}),
     ...(h.straddle ? { straddle: true } : {}),
+    ...(kept?.rake ? { rake: Math.round(kept.rake * 10) / 1000, ...(kept.rakeCap ? { rake_cap: kept.rakeCap } : {}) } : {}),
     preflop: conv(lines.preflop),
     flop: conv(lines.flop),
     turn: conv(lines.turn),
@@ -213,7 +216,7 @@ export type Ask = (state: AdvisorState) => Promise<{ data: AdvisorResponse; prov
 
 /** One of your decisions graded, as kept: the grade and what it stands on, or why it isn't graded. */
 export async function gradeDecision(
-  hand: Pick<HandRecord, "id">,
+  hand: Pick<HandRecord, "id" | "setup">,
   r: ReplayedHand,
   street: Street,
   i: number,
@@ -253,7 +256,7 @@ export async function gradeDecision(
     label,
     why,
   });
-  const state = adviceStateAt(r, street, i, scope);
+  const state = adviceStateAt(r, street, i, scope, hand.setup);
   let ans = await ask(state);
   if (ans.data.cancelled) throw new Error("cancelled");
   if (ans.data.skipped) return ungraded(typeof ans.data.skipped === "string" ? ans.data.skipped : "skipped");

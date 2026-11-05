@@ -4213,3 +4213,22 @@ First run on the wasm core, in a browser: `solver.core` true, 300 iterations, ea
 Not measured: an Accurate flop lock. The baseline stays in memory beside the locked solve, so that's an estimated 1.2 GB, and free memory was under 40% when I'd have run it, so the panel says it's an estimate instead. Benchmark note: besides the 5 cases with no power, 4 more moved value by less than the tolerance, so 22 of the 31 have real power (ACCURACY section 16).
 
 Tests: 2822 unit tests in 157 files (2 skipped), typecheck and lint clean, 121 browser tests passed and 68 skipped, `scripts/engine` 104 tests OK. `docs/FEATURE_MATRIX.md` also had a pass over stale notes: the tally is recounted (63 rows, Lizard 8 / 47 / 5 / 3, engine 12 / 40 / 4 / 7), and how the grades were reached is restated.
+
+Live check of `e6ac43e`: run 42087738239 green, `index-w4figzSS.js` 301,360 bytes matches the local build, engine bundle 712,774 bytes with version `8b6a5072b4`, `/`, `/gto-solver/` and `/gto-solver-classic/` 200, Engine ready · 8 threads. On the live site a lock ran on a live heads-up flop and on a stored flop, `srp_btn_bb` Ks7d2c: the node's answer stayed "Precomputed solution", and the lock came back beside a live solve of that flop, with the note saying stored flops can't be re-solved.
+
+### 2026-11-05: answers kept with spots, recovery from a database that won't open, river and turn-bet drills (Phases 2, 3, 5, 6)
+
+**Saved answers.** A saved spot now keeps its finished answer. Reopening it shows that answer at once, without starting the engine, marked with its date and build. An answer from another build says so, and Re-solve is one press. What produced the answer is worked out from the answer again, never taken from the record, so a hand-edited record can't call a chart solved. A backup carries answers, and a restored one says it came from a file. Answers over 512 KB are refused in words and the line is saved without one. Schema v9 adds `savedAnswers`, tested on v8 data.
+
+**Recovery.** When the browser won't open the database, a panel says why, tries again, downloads what can still be read, and starts fresh behind a confirm whose default keeps everything, then offers a restore. In a real browser I tested the real refusal, a database at a later version, through download, delete and restore. A truly corrupted store wasn't tested.
+
+**Saved page.** Sort (remembered), one search, tags on every kind, and export of one item.
+
+**Drills.** River first to act or after a check, and two turn decisions facing a bet, dealt from stored turn files and graded by a live solve's EVs at Fast or above. Whatever isn't a measured live solve is refused in words and scores nothing: rules, equity, charts, a rough or cut-short solve, a line leaning on the betting rules. Native, 48 deals at Fast budgets: at most 0.14% of the pot, mean 4 s, longest 17 s. Answered: rivers 20 of 21, out of position facing a bet 7 of 10, in position facing a bet only 6 of 17, as the live tree's other sizes make the stored 75% rare. A river facing a bet isn't dealt, as no file stores who calls a turn bet. Checked in a real browser on the wasm core: a river at 0.12%, 300 iterations, a turn spot refused with nothing scored. Wasm time wasn't measured properly.
+
+**4-bet pots** are a new Practice pot type: chart preflop, played for you, live decisions after it. Native at Quick budgets on about a dozen lines: at most 0.01%, one cold 4-bet leaning on rules, which Practice doesn't flag beyond its usual cap.
+
+**Smaller.** Study can change the card on the street on screen and keep the line. Analyze now grades a raked Practice hand with its rake and cap, which corrects the "still grades a raked Practice hand unraked" noted above; imported hands stay unraked. Browser tests were added for the Phase 5 and 6 acceptance chains and for a side pot from an all-in of separate stacks.
+
+
+Tests: 2988 unit tests in 163 files (2 skipped), typecheck and lint clean, 131 browser tests passed and 88 skipped, `scripts/engine` OK. New browser tests: `web/e2e/saved.e2e.ts` (4), `web/e2e/chains.e2e.ts` (2), `qa.e2e.ts` 2b, 5b, 7e, and 11b (reads the live library, so not in CI).

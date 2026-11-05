@@ -12,6 +12,7 @@ import type { AdvisorResponse } from "@/solver/protocol";
 import { describe as describeProvenance, evUnit } from "@/solver/provenance";
 import type { Provenance, ResultSource } from "@/solver/types";
 import { drillActionLabel, situation, studyHandOf, studyLink, type DrillProblem } from "./drills";
+import { liveActionLabel, liveStudyHand, type LiveAnswer, type LiveProblem } from "./liveDeal";
 import { mixOf, optionLabel, type Decision } from "./practice";
 import type { Reviewed } from "./review";
 
@@ -143,4 +144,17 @@ export async function toClipboard(text: string): Promise<void> {
 export function clipboardWhy(e: unknown): string {
   if (e instanceof DOMException && e.name === "NotAllowedError") return "the browser refused it (the page may need to be in front, or to be allowed the clipboard)";
   return e instanceof Error ? e.message : String(e);
+}
+
+/** A graded live drill, under the live solve that answered it. */
+export function liveDrillText(rep: LibraryReport, pr: LiveProblem, g: Grade, a: LiveAnswer): string {
+  return aiText({
+    ...gameRows(liveStudyHand(rep, pr)),
+    you: `${pr.hero}, holding ${pr.hand.join(" ")}`,
+    at: `${pr.street}, ${pr.words}`,
+    took: `You took: ${liveActionLabel(a, a.mix[g.a]!)}. Lizard's grade: ${g.verdict}, ${costWords(g, a.mix, a.provenance.source)}.`,
+    mix: a.mix,
+    labelOf: (row) => liveActionLabel(a, row),
+    provenance: a.provenance,
+  });
 }

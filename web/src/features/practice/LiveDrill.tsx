@@ -1,0 +1,353 @@
+// A live drill: one decision no file stores, dealt hand after hand from a spot's stored turns and answered by a live
+// solve while you wait (liveDeal.ts). The cards and the spot come first, the options with the answer. Where the answer
+// can't grade the spot it's said in words and dealt again, with nothing scored. Kept apart from the stored drills, which
+// answer at once and read no solver.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
+import { PlayingCard } from "@/components/PlayingCard";
+import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { VerdictTag } from "@/components/VerdictTag";
+import { bb, pct } from "@/components/actions";
+import { putSession } from "@/data/db";
+import { keepMistake } from "@/data/mistakes";
+import { missedAgain } from "@/features/review/mistakes";
+import { CAPPED_WORDS, GRADE_RULES, summary, whoOf, whyText, type Grade } from "@/grading/grade";
+import { storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
+import type { LibraryRanges } from "@/library/entry";
+import type { LibraryFiles, LibraryReport } from "@/library/files";
+import { evUnit } from "@/solver/provenance";
+import { SolverError } from "@/solver/types";
+import { useSolver } from "@/solver/useSolver";
+import { useSettings } from "@/state/settings";
+import { liveDrillText } from "./copyForAi";
+import { pick, turnCandidates, type TextureFilter } from "./drills";
+import { handLabel } from "./handFilter";
+import { liveHint, LIVE_HINT_SOURCE } from "./hint";
+import { CopyForAi, HintReveal, MixTable, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { afterLive, freshLiveSession, gradeLive, liveActionLabel, liveMistake, liveMode, liveProblem, liveRecord, liveStudyLink, readLive, type LiveAnswer, type LiveProblem, type LiveSession, type LiveStreet, type LiveView } from "./liveDeal";
+
+const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/** the flops a deal draws before it gives up: more where a hand filter may miss on most of them */
+const TRIES = 8;
+const FILTER_TRIES = 24;
+
+type SpotData = { st: "loading" } | { st: "ready"; report: LibraryReport; ranges: LibraryRanges } | { st: "error"; message: string };
+type Deal = { key: string } & ({ st: "ready"; pr: LiveProblem } | { st: "none"; message: string });
+type Solved = { key: string } & ({ st: "answer"; answer: LiveAnswer } | { st: "refused"; words: string });
+type Picked = { key: string; a: number; g: Grade | null };
+
+/** One spot's live decision drilled: mounted afresh (a new score) for each spot, street and decision. */
+export function LiveDrill({ files, spot, street, view, filter, hand, rng, source }: { files: LibraryFiles; spot: LibrarySpotIndex; street: LiveStreet; view: LiveView; filter: TextureFilter; hand: string | null; rng: () => number; source: string }) {
+  const mode = useSettings((s) => s.mode);
+  const getSolver = useSolver();
+  const [data, setData] = useState<SpotData>({ st: "loading" });
+  const [session, setSession] = useState<LiveSession>(freshLiveSession);
+  const [n, setN] = useState(0);
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [solved, setSolved] = useState<Solved | null>(null);
+  const [picked, setPicked] = useState<Picked | null>(null);
+  const [peeked, setPeeked] = useState<string | null>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    files.spot(spot).then(
+      (d) => alive && setData({ st: "ready", ...d }),
+      (e: unknown) => alive && setData({ st: "error", message: message(e) }),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [files, spot]);
+
+  const filterKey = JSON.stringify([filter, hand]);
+  const cands = useMemo(
+    () => (data.st === "ready" ? turnCandidates(data.report, storedTurnFlops(spot), filter) : []),
+    [data, spot, filterKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const dealKey = `${filterKey}|${n}`;
+  const noDraws = street === "river" && !!hand?.startsWith("d:");
+
+  // a flop drawn by weight, its entry and turn file read, a spot and a hand dealt on them
+  useEffect(() => {
+    if (data.st !== "ready" || !cands.length || noDraws) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const tries = hand ? FILTER_TRIES : TRIES;
+        for (let i = 0; i < tries; i++) {
+          const c = cands[pick(cands.map((x) => x.w), rng)]!;
+          const entry = await files.entry(spot, c.f);
+          const turns = await files.turns(spot, c.f);
+          if (!alive) return;
+          const pr = liveProblem(data.report, entry, turns, street, view, data.ranges, rng, hand);
+          if (pr) {
+            setDeal({ key: dealKey, st: "ready", pr });
+            return;
+          }
+        }
+        setDeal({ key: dealKey, st: "none", message: hand ? `No hand of this kind reached this decision on the ${tries} flops drawn: widen a filter, or deal again.` : "No stored line reaches this decision on the flops drawn: deal again, or pick another." });
+      } catch (e) {
+        if (alive) setDeal({ key: dealKey, st: "none", message: `Couldn't deal: ${message(e)}` });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [data, cands, dealKey, files, spot, street, view, hand, rng, noDraws]);
+
+  const shown = deal?.key === dealKey ? deal : null;
+  const pr = shown?.st === "ready" ? shown.pr : null;
+
+  // the live solve of what's dealt, dropped if you've moved on
+  useEffect(() => {
+    if (!pr) return;
+    let alive = true;
+    const ctl = new AbortController();
+    void (async () => {
+      try {
+        const client = await getSolver();
+        const res = await client.solve({ state: pr.state, mode: liveMode(mode), signal: ctl.signal });
+        if (alive) setSolved({ key: dealKey, ...readLive(res, pr) });
+      } catch (e) {
+        if (alive && !(e instanceof SolverError && e.kind === "cancelled")) setSolved({ key: dealKey, st: "refused", words: `The solver couldn't answer this spot: ${message(e)}` });
+      }
+    })();
+    return () => {
+      alive = false;
+      ctl.abort();
+    };
+  }, [pr, dealKey, getSolver, mode]);
+
+  const told = solved?.key === dealKey ? solved : null;
+  const answer = told?.st === "answer" ? told.answer : null;
+  const graded = picked?.key === dealKey ? picked : null;
+
+  useEffect(() => {
+    if (session.score.n && data.st === "ready") void putSession(liveRecord(session, data.report, spot.seats[view === "ip" || view === "ipfaces" ? 1 : 0]!)).catch(() => {});
+  }, [session, data, spot, view]);
+
+  const choose = useCallback(
+    (a: number) => {
+      if (!pr || !answer || graded || data.st !== "ready") return;
+      if (peeked === dealKey) {
+        setPicked({ key: dealKey, a, g: null });
+        setSession((s) => ({ ...s, revealed: (s.revealed ?? 0) + 1 }));
+        return;
+      }
+      const g = gradeLive(answer, a);
+      setPicked({ key: dealKey, a, g });
+      setSession((s) => afterLive(s, street, g, answer.provenance));
+      const m = liveMistake(session.id, data.report, pr, answer, g, Date.now());
+      if (m) void keepMistake(m, missedAgain).catch(() => {});
+    },
+    [pr, answer, graded, data, peeked, dealKey, street, session.id],
+  );
+  const next = useCallback(() => setN((x) => x + 1), []);
+
+  useEffect(() => {
+    if (graded) nextRef.current?.focus();
+  }, [graded]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
+      if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+      if (answer && !graded && /^[1-9]$/.test(e.key) && Number(e.key) <= answer.mix.length) choose(Number(e.key) - 1);
+      else if ((graded || told?.st === "refused") && (e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
+        e.preventDefault();
+        next();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [answer, graded, told, choose, next]);
+
+  if (data.st === "loading") return <p className="text-sm text-muted">Loading {spot.label}…</p>;
+  if (data.st === "error")
+    return (
+      <p role="alert" className="text-sm text-danger">
+        Couldn&rsquo;t load the spot: {data.message}
+      </p>
+    );
+
+  const rep = data.report;
+  const filtered = Object.values(filter).some(Boolean);
+  const sum = summary(session.score);
+  const s = session.score;
+  const item = (label: string, value: string) => (
+    <div className="rounded bg-surface-2 px-2 py-1">
+      <div className="text-xs text-muted">{label}</div>
+      <div className="font-mono">{value}</div>
+    </div>
+  );
+  const label = (row: LiveAnswer["mix"][number]) => (answer ? liveActionLabel(answer, row) : row.action);
+  const link = pr ? liveStudyLink(rep, pr) : null;
+  const hasEv = !!answer?.mix.every((a) => a.ev !== null);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted">
+        {spot.label} in {source}: {new Set(cands.map((c) => c.f)).size.toLocaleString()} flops with stored turns{filtered ? " and this texture" : ""}. No file stores this decision: the line, the {street === "river" ? "turn card and which hands get here are stored ones, the river is dealt at random," : "bet and which hands get here are stored ones,"} and each hand is answered by a live solve, at Fast or above, so it takes some seconds. It&rsquo;s graded by that solve&rsquo;s EVs, on the same scale as any decision.
+        {street === "river" ? " A river comes only after the turn checks through: no file stores who calls a turn bet, so a river facing a bet isn't dealt." : ""}
+      </p>
+
+      <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
+        {item("Decisions", String(s.n))}
+        {item("Best or correct", s.n ? pct(sum.acc, 0) : "–")}
+        {item("EV lost per decision", sum.loss == null || !s.n ? "–" : `${bb(sum.loss)}bb · ${sum.lossPct!.toFixed(1)}% pot`)}
+        {item("Streak", `${s.streak} (best ${s.best})`)}
+        {!!session.revealed && (
+          <p className="basis-full text-xs text-muted">
+            {session.revealed} pick{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers.
+          </p>
+        )}
+      </section>
+
+      <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
+        {noDraws ? (
+          <p role="status" className="text-sm text-muted">
+            No card is left to come on the river, so {handLabel(hand!)} deals nothing: pick a made hand or a hand class.
+          </p>
+        ) : !cands.length ? (
+          <p role="status" className="text-sm text-muted">
+            {spot.label} stores no turn{filtered ? " with that texture: widen the filter" : " in this library, so nothing can be dealt here: pick another spot"}.
+          </p>
+        ) : !shown ? (
+          <p className="text-sm text-muted">Dealing…</p>
+        ) : shown.st === "none" ? (
+          <p role="alert" className="text-sm text-danger">
+            {shown.message}{" "}
+            <button type="button" className="underline" onClick={next}>
+              Deal again
+            </button>
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-4">
+              <div role="group" aria-label="Board" className="flex gap-1">
+                {shown.pr.board.map((c) => (
+                  <PlayingCard key={c} card={c} />
+                ))}
+              </div>
+              <div role="group" aria-label="Your cards" className="flex items-center gap-1">
+                <span className="text-xs text-muted">{shown.pr.hero} · you</span>
+                {shown.pr.hand.map((c) => (
+                  <PlayingCard key={c} card={c} />
+                ))}
+              </div>
+            </div>
+            <p className="text-sm">{shown.pr.words}</p>
+            {told?.st === "refused" ? (
+              <p role="alert" className="text-sm text-danger">
+                {told.words} Nothing was scored.{" "}
+                <button type="button" className="underline" onClick={next}>
+                  Deal again
+                </button>
+              </p>
+            ) : !answer ? (
+              <p role="status" className="text-sm text-muted">
+                Solving this spot live…
+              </p>
+            ) : (
+              <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
+                {answer.mix.map((row, i) => (
+                  <button
+                    key={row.action}
+                    type="button"
+                    disabled={Boolean(graded)}
+                    aria-pressed={graded ? graded.a === i : undefined}
+                    onClick={() => choose(i)}
+                    className={`rounded-md border px-3 py-1.5 text-sm hover:bg-surface-3 disabled:cursor-default ${graded?.a === i ? "border-accent bg-surface-3" : "border-border bg-surface-2"}`}
+                  >
+                    <span aria-hidden className="mr-1.5 text-xs text-faint">
+                      {i + 1}
+                    </span>
+                    {label(row)}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!graded && told?.st !== "refused" && (
+              <HintReveal
+                key={dealKey}
+                hint={() => liveHint(shown.pr)}
+                source={LIVE_HINT_SOURCE}
+                onReveal={answer ? () => setPeeked(dealKey) : null}
+                revealed={answer && peeked === dealKey ? <RevealedMix mix={answer.mix} provenance={answer.provenance} labelOf={label} note={REVEAL_NOTE} /> : null}
+              />
+            )}
+          </>
+        )}
+      </section>
+
+      {pr && answer && graded && (
+        <section aria-label="Answer" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: you revealed the answer first</span>}
+            <span>
+              you took <span className="font-mono">{label(answer.mix[graded.a]!)}</span>
+              {graded.g && graded.g.a !== graded.g.best && (
+                <>
+                  ; the best was <span className="font-mono">{label(answer.mix[graded.g.best]!)}</span>
+                </>
+              )}
+            </span>
+            <ProvenanceBadge p={answer.provenance} />
+          </div>
+          {graded.g ? (
+            <>
+              <p>
+                {whyText(
+                  graded.g,
+                  answer.mix.map(label),
+                  answer.mix.map((a) => a.freq),
+                  whoOf(answer.provenance.source),
+                )}
+              </p>
+              <p className="text-muted">
+                {graded.g.loss > 0 ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(answer.pot)}bb pot.` : "No EV given up."}
+                {graded.g.mixed && " This hand mixes actions here."}
+                {graded.g.capped && ` ${CAPPED_WORDS}`}
+              </p>
+            </>
+          ) : (
+            <p role="status" className="text-muted">
+              {REVEAL_NOTE}
+            </p>
+          )}
+          {answer.off && <p className="text-warn">Off the solve here: {answer.off}.</p>}
+          <MixTable mix={answer.mix} hasEv={hasEv} labelOf={label} chose={answer.mix[graded.a]!.action} unit={evUnit(answer.provenance)} />
+          <p className="text-xs text-muted">
+            Your hand&rsquo;s frequencies and EVs from this solve, on ranges narrowed by solving the streets before it. The flop {pr.flop} and the {pr.cards.length > 1 ? `cards ${pr.cards.join(" ")}` : `turn ${pr.cards[0]}`} are shown in other suits.
+          </p>
+          {graded.g && <CopyForAi key={dealKey} text={() => liveDrillText(rep, pr, graded.g!, answer)} />}
+          <div className="flex flex-wrap items-center gap-3">
+            <button ref={nextRef} type="button" onClick={next} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
+              Next hand
+            </button>
+            {link && (
+              <Link to={link} className="text-accent hover:underline">
+                Open in Study →
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+        <summary className="cursor-pointer">How decisions are graded</summary>
+        <ul className="mt-2 space-y-1">
+          {GRADE_RULES.map((r) => (
+            <li key={r.verdict}>
+              <VerdictTag v={r.verdict} /> {r.rule}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-muted">
+          Only a live solve of the spot with an EV for every action and a measured distance from equilibrium grades here. Betting rules, an equity estimate, a chart or a rough or cut-short solve is said in words and the spot is dealt again, with nothing scored.
+        </p>
+      </details>
+    </div>
+  );
+}

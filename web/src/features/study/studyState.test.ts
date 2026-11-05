@@ -3,6 +3,9 @@ import type { AdvisorResponse } from "@/solver/protocol";
 import {
   back,
   deal,
+  randomReplacement,
+  readReplacement,
+  replaceCards,
   describeLine,
   encodeLine,
   forward,
@@ -187,5 +190,30 @@ describe("potOdds", () => {
     expect(potOdds(short, { actor: "BTN", pot_bb: 40, to_call_bb: 10 })).toBeCloseTo(0.2);
     const gone: StudyHand = { ...short, preflop: [{ pos: "BTN", action: "fold" }] }; // (the big stack has folded)
     expect(potOdds({ ...gone, stack: 30 }, { actor: "BB", pot_bb: 4, to_call_bb: 1 })).toBeCloseTo(0.2);
+  });
+});
+
+describe("changing the cards on screen", () => {
+  const turn = fromSearch("p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h&flop=BB:x,SB:x&turn=BB:x")!;
+
+  it("swaps only that street's cards and keeps the line", () => {
+    const h = replaceCards(turn, "9d");
+    expect(h.board).toBe("Ks7d2c9d");
+    expect(h.flop).toEqual(turn.flop);
+    expect(h.turn).toEqual(turn.turn);
+    expect(replaceCards({ ...turn, board: "Ks7d2c" }, "Ah8h3c").board).toBe("Ah8h3c");
+    expect(replaceCards({ ...turn, board: "Ks7d2c5h9c" }, "Td").board).toBe("Ks7d2c5hTd");
+  });
+
+  it("lets the street's own card come back, and no other card on the board", () => {
+    expect(readReplacement(turn, "5h", 1)).toEqual({ cards: "5h" });
+    expect(readReplacement(turn, "Ks", 1)).toEqual({ error: "that card is already on the board" });
+    expect(readReplacement(turn, "9", 1)).toMatchObject({ error: expect.stringMatching(/type a card/) });
+    expect(readReplacement({ ...turn, board: "Ks7d2c" }, "Ks7d2c", 3)).toEqual({ cards: "Ks7d2c" });
+  });
+
+  it("deals at random from what's left, the street's own card included", () => {
+    expect(randomReplacement(turn, 1, () => 0)).toBe("As");
+    for (let i = 0; i < 52; i += 1) expect(["Ks", "7d", "2c"]).not.toContain(randomReplacement(turn, 1, () => i / 52));
   });
 });

@@ -9,7 +9,8 @@
 // played card is dealt: it's the one the flop solve played, and another card of its class is read off it by the engine,
 // flush draws and all. The file holds a mix for each hand but an EV only for the class, so a turn is graded by that mix
 // (grade.ts's frequency branch, which says so and counts no EV lost), under the stored turn's provenance, not the
-// flop solve's distance from equilibrium, which doesn't describe it. No file stores a river or a turn facing a bet.
+// flop solve's distance from equilibrium, which doesn't describe it. No file stores a river or a turn facing a bet:
+// those are dealt from these files and answered live (liveDeal.ts).
 import { gameSetup } from "@/features/solve/setup";
 import { parseLine, toSearch, type StudyHand } from "@/features/study/studyState";
 import { grade, type Grade } from "@/grading/grade";
@@ -35,7 +36,7 @@ export function viewLabel(view: DrillView, seats: readonly string[]): string {
   return `${seats[0]} checks, faces a bet`;
 }
 
-/** The streets a drill can deal. A river isn't stored in any file. */
+/** The streets a stored drill can deal. A river isn't stored in any file: it's a live drill's (liveDeal.ts). */
 export type DrillStreet = "flop" | "turn";
 /** the two turn decisions a turn file stores */
 export const TURN_VIEWS: readonly DrillView[] = ["oop", "ip"];
@@ -103,7 +104,7 @@ export function pick(ws: readonly number[], rng: () => number): number {
   return -1;
 }
 
-function shuffle(rng: () => number): number[] {
+export function shuffle(rng: () => number): number[] {
   const p = [0, 1, 2, 3];
   for (let i = 3; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -111,7 +112,7 @@ function shuffle(rng: () => number): number[] {
   }
   return p;
 }
-const relabel = (c: string, perm: readonly number[]) => c[0]! + SUITS[perm[SUITS.indexOf(c[1]!)]!]!;
+export const relabel = (c: string, perm: readonly number[]) => c[0]! + SUITS[perm[SUITS.indexOf(c[1]!)]!]!;
 
 /** pot at the node and the bet faced (bb): the bet sizes are fractions of the pot ("bet 33%") */
 export function potAt(rep: Pick<LibraryReport, "pot">, path: readonly string[]): { pot: number; bet: number } {
@@ -321,7 +322,7 @@ export function drillActionLabel(pr: Pick<DrillProblem, "pot" | "bet">, name: st
 }
 
 /** a flop line in words: "BB checks, BTN bets 75%, BB calls" */
-function flopWords(rep: Pick<LibraryReport, "seats">, path: readonly string[]): string {
+export function flopWords(rep: Pick<LibraryReport, "seats">, path: readonly string[]): string {
   const [o, p] = rep.seats;
   if (path.join("|") === "check|check") return `${o} and ${p} check`;
   return path

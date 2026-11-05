@@ -56,6 +56,7 @@ import { AutoSizePanel } from "./AutoSizePanel";
 import { betMenuOf, CompareLinks } from "./CompareLinks";
 import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
+import { ChangeCards } from "./ChangeCards";
 import { NodeLockPanel } from "./NodeLockPanel";
 import { ComboPanel } from "./ComboPanel";
 import { studyText } from "@/features/practice/copyForAi";
@@ -63,6 +64,8 @@ import { CopyForAi } from "@/features/practice/HintReveal";
 import { offersReport } from "./runouts";
 import { RunoutPanel } from "./RunoutPanel";
 import { SaveSpot } from "./SaveSpot";
+import { SavedAnswerNote } from "@/features/saved/SavedAnswerNote";
+import { useSavedAnswer } from "@/features/saved/useSavedAnswer";
 import { bubbleTableOf } from "@/features/tournaments/icm";
 import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
 import { ModePicker } from "./ModePicker";
@@ -152,6 +155,8 @@ export function StudyPage() {
 
   const requestKey = `${toSearch(hand)}|${mode}`;
   const askKey = `${requestKey}|${attempt}`;
+  // a saved spot opened with its answer (?saved=): that answer stands until Re-solve, another node or another mode
+  const kept = useSavedAnswer(params.get("saved"), toSearch(hand), requestKey);
   useEffect(() => {
     latest.current = { hand, key: askKey, mode };
   });
@@ -179,6 +184,7 @@ export function StudyPage() {
   }, [getSolver]);
   const startPf = () => {
     if (runRef.current?.running) return;
+    if (kept.result) setHand(hand);
     const run = newRun(hand);
     runRef.current = run;
     setPfRun({ ...run });
@@ -205,11 +211,13 @@ export function StudyPage() {
   const problems = useMemo(() => setupProblems(hand.players, hand.setup), [hand]);
   const phase: Phase = problems.length
     ? { kind: "error", message: `This setup can't be solved: ${problems.join("; ")}.` }
-    : answer.key === askKey
-      ? answer.phase
-      : { kind: "loading" };
+    : kept.result
+      ? { kind: "done", result: kept.result }
+      : answer.key === askKey && !kept.reading
+        ? answer.phase
+        : { kind: "loading" };
   useEffect(() => {
-    if (problems.length) return;
+    if (problems.length || kept.result || kept.reading) return;
     const ac = new AbortController();
     abortRef.current = ac;
     let alive = true;
@@ -248,7 +256,7 @@ export function StudyPage() {
     };
     // the request key covers hand and mode
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [askKey, getSolver]);
+  }, [askKey, getSolver, kept.result, kept.reading]);
 
   const shown: SolveResult | undefined = phase.kind === "done" ? phase.result : phase.partial;
   // said once, in the one region that's always there
@@ -402,8 +410,10 @@ export function StudyPage() {
         <button type="button" onClick={() => setHand(samePf(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
           Reset
         </button>
-        <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" ? phase.result.provenance : undefined} />
+        <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
+        <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
       </nav>
+      <SavedAnswerNote hold={kept} onResolve={() => setHand(hand)} />
       <p role="group" aria-label="Setup" className="-mt-2 text-xs text-muted">
         {hand.setup ? (
           <>

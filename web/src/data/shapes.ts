@@ -25,14 +25,19 @@ const HOLE_RE = new RegExp(`^(?:${CARD}){2}$`);
 const BOARD_RE = new RegExp(`^(?:${CARD})*$`);
 /** one card as `PlayingCard` draws it (it throws on any other suit) */
 export const isCard = (x: unknown): x is string => isStr(x) && CARD_RE.test(x);
+/** two cards as a combo's row writes them */
+export const isHole = (x: unknown): x is string => isStr(x) && HOLE_RE.test(x);
 
 export function validSpot(d: Record<string, unknown>): boolean {
   const seen = d.seen === undefined || (isObj(d.seen) && isStr(d.seen.source) && isStr(d.seen.label));
   return isStr(d.title) && isStr(d.line) && isObj(d.state) && isStrs(d.tags) && isStr(d.note) && seen && isTime(d.createdAt) && isTime(d.updatedAt);
 }
 
+/** The tags of a kind that had none at first: a record kept before them has none. */
+export const isOptTags = (x: unknown): boolean => x === undefined || isStrs(x);
+
 export const validRange = (d: Record<string, unknown>): boolean =>
-  isStr(d.name) && isStr(d.text) && isNum(d.combos) && isStr(d.note) && isTime(d.createdAt) && isTime(d.updatedAt);
+  isStr(d.name) && isStr(d.text) && isNum(d.combos) && isStr(d.note) && isOptTags(d.tags) && isTime(d.createdAt) && isTime(d.updatedAt);
 
 // A session's `meta` is open: what's read of it, by key. A field read through a guard (byPot, sources, cells, versions)
 // isn't here.

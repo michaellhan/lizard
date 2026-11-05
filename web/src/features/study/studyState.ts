@@ -98,6 +98,19 @@ export function back(h: StudyHand): StudyHand | null {
   return { ...h, board: h.board.slice(0, keep) };
 }
 
+/** The board without the cards of the street on screen: what a replacement for them can't repeat. */
+const boardBefore = (h: StudyHand) => {
+  const street = streetOf(h);
+  return h.board.slice(0, street === "river" ? 8 : street === "turn" ? 6 : 0);
+};
+
+/** The same line on other cards: the street on screen's cards swapped, its actions and everything before kept. */
+export const replaceCards = (h: StudyHand, cards: string): StudyHand => ({ ...h, board: boardBefore(h) + cards });
+
+/** readCards and randomCards for that swap: the street's own cards may come back, the rest of the board can't. */
+export const readReplacement = (h: StudyHand, text: string, n: number) => readCards({ ...h, board: boardBefore(h) }, text, n);
+export const randomReplacement = (h: StudyHand, n: number, rnd?: () => number) => randomCards({ ...h, board: boardBefore(h) }, n, rnd);
+
 /** Cards a "deal" answer asks for. */
 export function cardsNeeded(street: string | undefined): number {
   return street === "flop" ? 3 : street === "turn" || street === "river" ? 1 : 0;

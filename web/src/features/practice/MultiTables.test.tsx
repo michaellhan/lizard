@@ -1072,6 +1072,12 @@ describe("a failed table", () => {
     expect(screen.queryByRole("region", { name: "Your decisions" })).toBeNull();
   });
 
+  it("gives a 4-bet pot more deals, and says so when they're used up", async () => {
+    useSettings.setState({ practiceSpot: "4bet" });
+    await open(doc([youFirst(1), { ...spot(2, "BTN"), pot: "4bet", tries: 2999 }]));
+    expect(await within(tile(2)).findByRole("alert")).toHaveTextContent("No 4-bet pot in 3000 deals.");
+  });
+
   it("says a drill's deals are used up, and deals afresh on Try again", async () => {
     useSettings.setState({ practiceSpot: "srp" });
     await open(doc([youFirst(1), { ...spot(2, "BTN"), pot: "srp", tries: DRILL_TRIES - 1 }]));
@@ -1470,7 +1476,7 @@ describe("Instant flops", () => {
     library(answers());
     await open(doc([betInto(1), betInto(2)]));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/index\.json$/), { cache: "no-cache" }));
-    expect(within(select()).getAllByRole("option").map((o) => o.textContent)).toEqual(["Instant flops", "Any hand", "Single-raised pots", "3-bet pots", "Blind vs blind"]);
+    expect(within(select()).getAllByRole("option").map((o) => o.textContent)).toEqual(["Instant flops", "Any hand", "Single-raised pots", "3-bet pots", "4-bet pots", "Blind vs blind"]);
     expect(select()).toHaveValue("lib");
     await waitFor(() => expect(option()).toBeEnabled());
     expect(screen.getByText(/^Preflop is played for you from the charts, not solved\./)).toHaveTextContent(

@@ -11,7 +11,7 @@ import { draftOf, readDraft } from "@/features/practice/TournamentFields";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { noteSaved } from "./backupNudge";
 import { db, type SavedScenario } from "./db";
-import { isTime, isWellFormed } from "./shapes";
+import { isOptTags, isTime, isWellFormed } from "./shapes";
 
 export type ScenarioSetup = Pick<SavedScenario, "players" | "stack" | "opts">;
 
@@ -103,10 +103,10 @@ export function readSetup(x: unknown): ScenarioSetup | null {
 export function readScenario(x: unknown): SavedScenario | null {
   try {
     if (!isObj(x)) return null;
-    const { id, name, note, createdAt, updatedAt } = x;
-    if (!isWellFormed(id) || !id || !isWellFormed(name) || !name.trim() || !(note === undefined || isWellFormed(note)) || !isTime(createdAt) || !isTime(updatedAt)) return null;
+    const { id, name, note, tags, createdAt, updatedAt } = x;
+    if (!isWellFormed(id) || !id || !isWellFormed(name) || !name.trim() || !(note === undefined || isWellFormed(note)) || !isOptTags(tags) || !isTime(createdAt) || !isTime(updatedAt)) return null;
     const setup = readSetup(x);
-    return setup && { id, name, ...setup, note: note ?? "", createdAt, updatedAt };
+    return setup && { id, name, ...setup, note: note ?? "", ...(tags ? { tags: tags as string[] } : {}), createdAt, updatedAt };
   } catch {
     return null;
   }

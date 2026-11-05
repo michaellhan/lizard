@@ -4,9 +4,10 @@
 // stores, the first two), a texture and a kind of hand. A flop pick is graded against the stored mix and EVs for your
 // hand with the stored solve's provenance; a turn pick against the stored mix alone, as no file holds a hand's EV there,
 // with the stored turn's (src/grading/grade.ts, drills.ts). The drill's settings are in the URL, only the ones set; its
-// score is kept in IndexedDB (sessions). Nothing is solved: a river isn't stored, so none is dealt. Reveal shows the same
-// stored mix before you pick, and a pick after it has no grade: it adds nothing to the score and keeps no mistake, and
-// the session only counts how many there were.
+// score is kept in IndexedDB (sessions). Nothing is solved here. Reveal shows the same stored mix before you pick, and a
+// pick after it has no grade: it adds nothing to the score and keeps no mistake, and the session only counts how many
+// there were. What no file stores, a river and a turn facing a bet, is a live drill's (LiveDrill.tsx): the same page and
+// settings, each hand answered by a solve.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -57,6 +58,8 @@ import { drillText } from "./copyForAi";
 import { HAND_GROUPS, handLabel, isHandKey } from "./handFilter";
 import { drillHint, DRILL_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { LiveDrill } from "./LiveDrill";
+import { isLiveTurnView, isRiverView, LIVE_TURN_VIEWS, liveViewLabel, RIVER_VIEWS, type LiveStreet, type LiveView } from "./liveDeal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const isView = (v: string | null): v is DrillView => DRILL_VIEWS.includes(v as DrillView);
@@ -104,10 +107,12 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
 
   const spots = useMemo(() => (lib.st === "ready" ? lib.index.spots.filter(isDrillable) : []), [lib]);
   const spot = spots.find((s) => s.id === params.get("spot")) ?? spots[0];
-  const street: DrillStreet = params.get("street") === "turn" ? "turn" : "flop";
+  const street: DrillStreet | "river" = params.get("street") === "turn" ? "turn" : params.get("street") === "river" ? "river" : "flop";
   const asked = params.get("view");
-  // (a turn file stores only these two decisions; a flop drill's setting stays in the URL for coming back to the flop)
-  const view: DrillView = street === "turn" ? (TURN_VIEWS.includes(asked as DrillView) ? (asked as DrillView) : "oop") : isView(asked) ? asked : "vsbet";
+  // (a turn file stores only two decisions and the rest of the turn is live; a flop drill's setting stays in the URL for coming back to the flop)
+  const live: LiveView | null = street === "river" ? (isRiverView(asked) ? asked : "oop") : street === "turn" && isLiveTurnView(asked) ? asked : null;
+  const stored: DrillView = street === "turn" ? (TURN_VIEWS.includes(asked as DrillView) ? (asked as DrillView) : "oop") : isView(asked) ? asked : "vsbet";
+  const view = live ?? stored;
   const hand = isHandKey(params.get("hand")) ? params.get("hand") : null;
   const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
   const set = (k: string, v: string | null) =>
@@ -128,10 +133,11 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   if (!spot) return <p className="text-sm text-muted">This library has no two-player spot to drill.</p>;
   // the drill as set, to keep (Saved): the spot named, not left to the first
   const link = new URLSearchParams({ tab: "drills", spot: spot.id, view });
-  if (street === "turn") link.set("street", street);
+  if (street !== "flop") link.set("street", street);
   for (const g of TEXTURE_GROUPS) if (filter[g.key]) link.set(g.key, filter[g.key]!);
   if (hand) link.set("hand", hand);
-  const labelOf = (v: DrillView) => (street === "turn" ? turnViewLabel(v, spot.seats) : viewLabel(v, spot.seats));
+  const labelOf = (v: DrillView | LiveView) =>
+    street === "river" || LIVE_TURN_VIEWS.includes(v as LiveView) ? liveViewLabel(street === "river" ? "river" : "turn", v as LiveView, spot.seats) : street === "turn" ? turnViewLabel(v as DrillView, spot.seats) : viewLabel(v as DrillView, spot.seats);
   const about = [
     `${spot.label}${spot.game ? ` (${gameLabel(spot)})` : ""}`,
     labelOf(view),
@@ -143,7 +149,7 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        One decision, dealt again and again from the precomputed library: answered at once, with no solve. The flop is drawn by how often it comes up, your
+        {live ? "One decision, dealt again and again from the library's stored lines and answered by a live solve while you wait." : "One decision, dealt again and again from the precomputed library: answered at once, with no solve."} The flop is drawn by how often it comes up, your
         hand by how often you&rsquo;d hold it here, among the hands you ask for. Keys: 1&ndash;9 answer, Enter or Space for the next hand.
       </p>
       <div className="flex flex-wrap items-start gap-2">
@@ -161,20 +167,20 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
           </label>
           <label className="flex items-center gap-1">
             <span className="text-muted">Street</span>
-            <select aria-label="Street" value={street} onChange={(e) => set("street", e.target.value === "turn" ? "turn" : null)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+            <select aria-label="Street" value={street} onChange={(e) => set("street", e.target.value === "flop" ? null : e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
               <option value="flop">Flop</option>
               <option value="turn" disabled={!hasTurns}>
                 {hasTurns ? "Turn" : "Turn (none stored for this spot)"}
               </option>
-              <option value="river" disabled>
-                River (none stored)
+              <option value="river" disabled={!hasTurns}>
+                {hasTurns ? "River (live solve)" : "River (needs this spot's stored turns)"}
               </option>
             </select>
           </label>
           <label className="flex items-center gap-1">
             <span className="text-muted">Decision</span>
             <select aria-label="Decision" value={view} onChange={(e) => set("view", e.target.value)} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
-              {(street === "turn" ? TURN_VIEWS : DRILL_VIEWS).map((v) => (
+              {(street === "river" ? RIVER_VIEWS : street === "turn" ? [...TURN_VIEWS, ...LIVE_TURN_VIEWS] : DRILL_VIEWS).map((v) => (
                 <option key={v} value={v}>
                   {labelOf(v)}
                 </option>
@@ -212,7 +218,11 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
         </form>
         <SaveDrill kind="library" to={`/practice?${link}`} about={about} />
       </div>
-      <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} tree={lib.index.tree} street={street} view={view} filter={filter} hand={hand} rng={rng} source={lib.label} />
+      {live ? (
+        <LiveDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} street={street as LiveStreet} view={live} filter={filter} hand={hand} rng={rng} source={lib.label} />
+      ) : (
+        <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} tree={lib.index.tree} street={street as DrillStreet} view={stored} filter={filter} hand={hand} rng={rng} source={lib.label} />
+      )}
     </div>
   );
 }
@@ -486,7 +496,7 @@ function SpotDrill({
       {street === "turn" && (
         <p className="text-xs text-muted">
           Only the turn cards the stored flop solve played are dealt, on the flop lines it stored. A turn file stores a mix for your hand, in 5% steps, but no EV for it, so a turn is graded by that
-          mix alone and no EV lost is counted. It stores no bet to face on the turn, and no river.
+          mix alone and no EV lost is counted. A bet to face on the turn and the river are live drills.
         </p>
       )}
 

@@ -13,7 +13,7 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedAnswers", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("savedScenarios").store.indexNames]).toEqual(["byUpdated"]);
@@ -135,8 +135,40 @@ describe("IndexedDB migrations", () => {
     v8.close();
   });
 
-  it("opens at version 8", () => {
-    expect(DB_VERSION).toBe(8);
+  it("upgrades a version-8 database in place: every kept record as it was, an empty store for answers, and each loads with no tags", async () => {
+    const name = fresh();
+    const v8 = await openLizardDB(8, name);
+    expect([...v8.objectStoreNames]).not.toContain("savedAnswers");
+    const spot = { id: "s1", title: "SRP", line: "p=2&s=100", state: {}, tags: ["a"], note: "n", seen: { source: "charts", label: "Preflop charts · approximate" }, createdAt: 1, updatedAt: 2 };
+    const range = { id: "r1", name: "UTG open", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 1 };
+    const drill = { id: "d1", name: "Flops", kind: "library", to: "/practice?tab=drills", about: "", note: "", createdAt: 1, updatedAt: 2 } as const;
+    const report = { id: "p1", name: "All", filters: { site: "PokerStars" }, note: "", createdAt: 1, updatedAt: 2 };
+    const scenario = { id: "c1", name: "Nit", players: 6, stack: 100, opts: { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0, board: null }, note: "", createdAt: 1, updatedAt: 2 };
+    await v8.put("savedSpots", spot);
+    await v8.put("savedRanges", range);
+    await v8.put("savedDrills", drill);
+    await v8.put("savedReports", report);
+    await v8.put("savedScenarios", scenario as never);
+    await v8.put("kv", "name", "savedSort");
+    v8.close();
+
+    const v9 = await openLizardDB(9, name);
+    expect(v9.version).toBe(9);
+    expect(await v9.count("savedAnswers")).toBe(0);
+    expect(await v9.get("savedSpots", "s1")).toEqual(spot);
+    expect(await v9.get("savedRanges", "r1")).toEqual(range);
+    expect(await v9.get("savedDrills", "d1")).toEqual(drill);
+    expect(await v9.get("kv", "savedSort")).toBe("name");
+    const [{ readReport }, { readScenario }] = await Promise.all([import("./reports"), import("./scenarios")]);
+    expect(readReport(await v9.get("savedReports", "p1"))).toEqual(report);
+    expect(readScenario(await v9.get("savedScenarios", "c1"))?.name).toBe("Nit");
+    await v9.put("savedAnswers", { id: "s1", line: spot.line, json: "{}", provenance: {} as never, savedAt: 1 });
+    expect(await v9.count("savedAnswers")).toBe(1);
+    v9.close();
+  });
+
+  it("opens at version 9", () => {
+    expect(DB_VERSION).toBe(9);
   });
 });
 

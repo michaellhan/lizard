@@ -51,6 +51,22 @@ test("2. A 6-max hand built from the form and walked to the river", async ({ pag
   await clean(page, problems);
 });
 
+test("2b. The turn on screen swapped for another card, the line kept", async ({ page, problems }) => {
+  await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h&flop=BB:x,SB:x");
+  await expect(actions(page).getByRole("strong")).toHaveText("BB", { timeout: 120_000 });
+  await page.getByRole("button", { name: "Change the turn" }).click();
+  const form = page.getByRole("form", { name: "Change the turn" });
+  await form.getByLabel("New turn").fill("Ks");
+  await form.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(form.getByRole("alert")).toHaveText("that card is already on the board");
+  await form.getByLabel("New turn").fill("9d");
+  await form.getByRole("button", { name: "Change", exact: true }).click();
+  await expect(page).toHaveURL(/b=Ks7d2c9d&flop=BB%3Ax%2CSB%3Ax|b=Ks7d2c9d&flop=BB:x,SB:x/);
+  await expect(actions(page).getByRole("strong")).toHaveText("BB", { timeout: 120_000 });
+  await expect(page.getByRole("button", { name: "Change the turn" })).toBeVisible();
+  await clean(page, problems);
+});
+
 test("3. A class picked in the grid shows its exact combos, without the ones the board blocks", async ({ page, problems }) => {
   await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
   await expect(actions(page)).toBeVisible({ timeout: 120_000 });
@@ -95,6 +111,41 @@ test("5. Rake, a straddle, an ante and separate stacks reach Study, and say so",
   const setup = page.getByLabel("Setup");
   await expect(setup).toContainText("Your setup:");
   for (const word of ["rake 5%, capped at 3bb", "straddle", "ante 0.5bb", "UTG 30bb", "BTN 60bb"]) await expect(setup).toContainText(word);
+  await clean(page, problems);
+});
+
+test("5b. Separate stacks all in: a side pot won by the bigger stack, the main pot lost to the short one", async ({ page, problems }) => {
+  // Hero covers Shorty and is covered: Shorty wins the 120 main pot of 40 from each, Hero the 120 side pot of 60 from each, so Hero is up 20 on the 100 put in, 10bb
+  const hand = `PokerStars Hand #252000000099:  Hold'em No Limit ($1/$2 USD) - 2024/07/01 18:00:12 CET [2024/07/01 12:00:12 ET]
+Table 'Sides' 3-max Seat #1 is the button
+Seat 1: Shorty ($40 in chips)
+Seat 2: Hero ($100 in chips)
+Seat 3: Deep ($300 in chips)
+Hero: posts small blind $1
+Deep: posts big blind $2
+*** HOLE CARDS ***
+Dealt to Hero [Qd Qc]
+Shorty: raises $38 to $40 and is all-in
+Hero: raises $60 to $100 and is all-in
+Deep: calls $98
+*** FLOP *** [Ah 7d 2c]
+*** TURN *** [Ah 7d 2c] [4s]
+*** RIVER *** [Ah 7d 2c 4s] [9h]
+*** SHOW DOWN ***
+Shorty: shows [As Kd]
+Hero: shows [Qd Qc]
+Deep: shows [Jh Jd]
+Hero collected $120 from side pot
+Shorty collected $120 from main pot
+*** SUMMARY ***
+Total pot $240 Main pot $120. Side pot $120. | Rake $0
+`;
+  await page.goto("/lizard/analyze/");
+  await page.getByLabel("Paste hand histories").fill(hand);
+  await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await expect(page.getByRole("row", { name: /^Hand / }).first()).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Hand / }).first()).toContainText("3bet pot120");
+  await expect(page.getByText("won +10.0bb").first()).toBeVisible();
   await clean(page, problems);
 });
 
@@ -260,6 +311,38 @@ test("11. A texture-filtered flop report says how many flops it stands on", asyn
     await clean(page, problems);
 });
 
+test("11b. A river drill and a turn bet drill: answered by a live solve, or refused in words and not scored", async ({ page, problems }) => {
+  test.skip(Boolean(process.env.CI), "reads the live library");
+  await page.route(/\/lizard-library\//, async (r) => {
+    const u = new URL(r.request().url());
+    await r.fulfill({ response: await r.fetch({ url: `https://www.michael-han.com${u.pathname}${u.search}` }) });
+  });
+  const panel = page.getByRole("tabpanel");
+  const decisions = () => panel.getByText("Decisions", { exact: true }).locator("..");
+  for (const [view, street, words] of [
+    ["oop", "river", /first to act on the river|to act first on the river/],
+    ["checkfaces", "turn", /checks the turn, \w+ bets 75%/],
+  ] as const) {
+    await page.goto(`/lizard/practice/?tab=drills&spot=srp_sb_bb_2max&street=${street}&view=${view}`);
+    const answers = panel.getByRole("group", { name: "Your options" }).getByRole("button").first();
+    const again = panel.getByRole("button", { name: "Deal again" });
+    // a refused deal says why and scores nothing; the next is dealt on request
+    for (let i = 0; i < 8; i++) {
+      await expect(answers.or(again).first()).toBeVisible({ timeout: 120_000 });
+      if (await answers.isVisible()) break;
+      await expect(panel).toContainText("Nothing was scored");
+      await expect(decisions()).toContainText("0");
+      await again.click();
+    }
+    await expect(panel).toContainText(words);
+    await answers.click();
+    await expect(decisions()).toContainText("1");
+    await expect(panel.getByRole("button", { name: /^Live solve · [\d.]+% pot from equilibrium/ })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Next hand" })).toBeVisible();
+  }
+  await clean(page, problems);
+});
+
 // (Practice's two modes that aren't cash, on the real worker)
 async function session(page: Page, play: string, then?: () => Promise<unknown>) {
   await page.goto("/lizard/practice/");
@@ -281,6 +364,17 @@ test("7b. Push/fold: all-in or fold, graded by frequency, and named a model", as
   await expect(page.getByText("Decisions graded")).toBeVisible();
   await expect(page.getByText(/Push\/fold model \(not a solve\)/).first()).toBeVisible();
   await expect(page.getByText(/by how often/i).first()).toBeVisible();
+  await clean(page, problems);
+});
+
+test("7e. A 4-bet pot drill plays from the flop, with the preflop said to come from the charts", async ({ page, problems }) => {
+  await session(page, "4bet");
+  await expect(options(page).first()).toBeVisible({ timeout: 180_000 });
+  // the 4-bet and the call were played for you; the pot is one
+  const pot = Number((await page.getByRole("region", { name: /table/i }).first().innerText()).match(/pot\s*([\d.]+)/i)?.[1]);
+  expect(pot).toBeGreaterThan(30);
+  await options(page).first().click();
+  await expect(page.getByText("Decisions graded")).toBeVisible({ timeout: 120_000 });
   await clean(page, problems);
 });
 

@@ -70,7 +70,6 @@ describe("readScenario", () => {
       withOpts({ seat: "UTG9" }),
       withOpts({ seat: 7 }),
       withOpts({ pot: "lib" }),
-      withOpts({ pot: "4bet" }),
       withOpts({ preflopOnly: "yes" }),
       withOpts({ ante: 2 }),
       withOpts({ ante: "x" }),

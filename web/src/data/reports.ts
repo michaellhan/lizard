@@ -5,7 +5,7 @@
 import { GAME_EQUILIBRIUM, GAME_WORDS, HAND_FILTERS, LOST_STEPS } from "@/features/analyze/analyze";
 import { noteSaved } from "./backupNudge";
 import { db, type SavedReport } from "./db";
-import { isTime, isWellFormed } from "./shapes";
+import { isOptTags, isTime, isWellFormed } from "./shapes";
 
 export type ReportFilters = SavedReport["filters"];
 
@@ -36,10 +36,10 @@ function validFilters(x: unknown): x is ReportFilters {
 /** A report as it's stored, else null. */
 export function readReport(x: unknown): SavedReport | null {
   if (typeof x !== "object" || x === null) return null;
-  const { id, name, note, filters, createdAt, updatedAt } = x as Record<string, unknown>;
+  const { id, name, note, tags, filters, createdAt, updatedAt } = x as Record<string, unknown>;
   if (!isWellFormed(id) || !id || !isWellFormed(name) || !name.trim() || !validFilters(filters)) return null;
-  if (!(note === undefined || isWellFormed(note)) || !isTime(createdAt) || !isTime(updatedAt)) return null;
-  return { id, name, filters, note: note ?? "", createdAt, updatedAt };
+  if (!(note === undefined || isWellFormed(note)) || !isOptTags(tags) || !isTime(createdAt) || !isTime(updatedAt)) return null;
+  return { id, name, filters, note: note ?? "", ...(tags ? { tags: tags as string[] } : {}), createdAt, updatedAt };
 }
 
 /** Whether it was stored: false where the browser's database can't be used. */

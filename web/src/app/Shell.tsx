@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from "react-router";
 import { BASE_URL } from "@/config";
 import { ROUTES, routeTitle } from "./routes";
 import { EngineStatusPill } from "@/components/EngineStatusPill";
+import { DbRecovery } from "@/features/saved/DbRecovery";
 import { BackupNudge } from "./BackupNudge";
 import { DbNotice } from "./DbNotice";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -82,6 +83,7 @@ export function Shell() {
         </div>
       </header>
       <DbNotice />
+      <DbRecovery />
       <BackupNudge />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 scroll-mt-16 px-4 py-6 [&_h1]:scroll-mt-20">
         <Page />

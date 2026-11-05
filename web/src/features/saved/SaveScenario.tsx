@@ -32,7 +32,7 @@ export function SaveScenario({ setup }: { setup: ScenarioSetup | null }) {
     const title = name.trim() || about;
     const kept = await stored(async () => {
       const here = (await listScenarios()).list.find((s) => s.name === title);
-      const s: SavedScenario = { id: here?.id ?? newId(), name: title, ...setup, note: note.trim(), createdAt: here?.createdAt ?? t, updatedAt: t };
+      const s: SavedScenario = { id: here?.id ?? newId(), name: title, ...setup, note: note.trim(), ...(here?.tags ? { tags: here.tags } : {}), createdAt: here?.createdAt ?? t, updatedAt: t };
       const put = await putScenario(s);
       if (put) setDone(here ? "changed" : "saved");
       return put;

@@ -161,13 +161,13 @@ describe("DrillsPanel", () => {
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(4);
     expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("Turn");
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB first to act on the turn");
-    expect(within(screen.getByRole("combobox", { name: "Decision" })).getAllByRole("option")).toHaveLength(2);
+    expect(within(screen.getByRole("combobox", { name: "Decision" })).getAllByRole("option")).toHaveLength(4);
     expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, "").replace(/ \(.*/, ""))).toEqual(["check", "bet 75%"]);
     expect(screen.getByText(/^On the flop .*\. BB to act first on the turn · pot \d+(\.\d+)?bb$/)).toBeInTheDocument();
     expect(screen.getByText(/7 flops stored; 7 store their turns\./)).toBeInTheDocument();
     expect(asked.slice(before).some((p) => p.endsWith(".turn.bin"))).toBe(true);
-    // (only what's stored: the river isn't offered)
-    expect(within(screen.getByRole("combobox", { name: "Street" })).getByRole("option", { name: "River (none stored)" })).toBeDisabled();
+    // (the river is a live drill, which this stored one reads nothing of)
+    expect(within(screen.getByRole("combobox", { name: "Street" })).getByRole("option", { name: "River (live solve)" })).toBeEnabled();
 
     fireEvent.click(within(options).getByRole("button", { name: /^.?check$/ }));
     const answer = screen.getByRole("region", { name: "Answer" });
@@ -252,7 +252,7 @@ describe("DrillsPanel", () => {
   });
 
   it("a street or hand the URL can't mean is ignored; a turn with a flop's facing-a-bet decision starts out of position", async () => {
-    open("spot=srp_btn_bb&street=river&view=oop&hand=m:nonsense");
+    open("spot=srp_btn_bb&street=moon&view=oop&hand=m:nonsense");
     await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
     expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("Flop");
     expect(screen.getByRole("combobox", { name: "Hands" })).toHaveDisplayValue("Any");

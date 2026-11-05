@@ -32,7 +32,7 @@ export function SaveReport({ params }: { params: URLSearchParams }) {
     const title = name.trim() || about;
     const kept = await stored(async () => {
       const here = (await listReports()).list.find((r) => r.name === title);
-      const r: SavedReport = { id: here?.id ?? newId(), name: title, filters, note: note.trim(), createdAt: here?.createdAt ?? t, updatedAt: t };
+      const r: SavedReport = { id: here?.id ?? newId(), name: title, filters, note: note.trim(), ...(here?.tags ? { tags: here.tags } : {}), createdAt: here?.createdAt ?? t, updatedAt: t };
       const put = await putReport(r);
       if (put) setDone(here ? "changed" : "saved");
       return put;

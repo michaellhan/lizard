@@ -15,7 +15,7 @@ export const HAND_CLASSES: readonly { id: string; label: string; test: Test }[] 
 ];
 
 export const HAND_GROUPS: readonly { label: string; options: readonly { key: string; label: string }[] }[] = [
-  // (no drill reaches a river, where a hand plays the board)
+  // (not offered, though a live river can deal a hand that plays the board)
   { label: "Made hands", options: MADE.filter(([id]) => id !== "board").map(([id, label]) => ({ key: `m:${id}`, label })) },
   // (as Study's, "No draw" is no category)
   { label: "Draws", options: DRAWS.filter(([id]) => id !== "none").map(([id, label]) => ({ key: `d:${id}`, label })) },
@@ -30,7 +30,7 @@ const NEVER = () => false;
 const mostOfASuit = (board: readonly number[]) => Math.max(...[0, 1, 2, 3].map((s) => board.filter((c) => (c & 3) === s).length));
 const paired = (board: readonly number[]) => new Set(board.map((c) => c >> 2)).size < board.length;
 
-/** Whether a combo (a < b, as COMBOS) is in the filter, on this board of 3 or 4 cards. What the board rules out is
+/** Whether a combo (a < b, as COMBOS) is in the filter, on this board of 3 to 5 cards (no card to come, no draw). What the board rules out is
  * ruled out before any hand is looked at: Flush on a spot's rainbow flops is otherwise most of a filter's work. */
 export function handTest(key: string, board: readonly number[]): (a: number, b: number) => boolean {
   const [part, id] = [key.slice(0, 1), key.slice(2)];

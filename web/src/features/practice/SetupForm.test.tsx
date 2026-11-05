@@ -18,7 +18,7 @@ describe("the board filter", () => {
     expect(screen.queryByRole("combobox", { name: "Flop: Suits" })).toBeNull();
     pick("Play", "preflop");
     expect(screen.queryByRole("combobox", { name: "Flop: Suits" })).toBeNull();
-    for (const p of ["srp", "3bet", "bvb"]) {
+    for (const p of ["srp", "3bet", "4bet", "bvb"]) {
       pick("Play", p);
       expect(screen.getByRole("combobox", { name: "Flop: Suits" })).toBeInTheDocument();
     }

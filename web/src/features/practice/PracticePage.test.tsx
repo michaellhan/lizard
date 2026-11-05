@@ -161,7 +161,7 @@ describe("PracticePage", () => {
     );
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
     const play = screen.getByRole("combobox", { name: "Play" });
-    expect(within(play).getAllByRole("option").map((o) => o.textContent)).toEqual(["Full hands", "Preflop only", "Single-raised pots", "3-bet pots", "Blind vs blind", "Push/fold", "Tournament"]);
+    expect(within(play).getAllByRole("option").map((o) => o.textContent)).toEqual(["Full hands", "Preflop only", "Single-raised pots", "3-bet pots", "4-bet pots", "Blind vs blind", "Push/fold", "Tournament"]);
     fireEvent.change(play, { target: { value: "srp" } });
     stub.calls = [];
     fireEvent.click(screen.getByRole("button", { name: "New session" }));

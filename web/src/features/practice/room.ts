@@ -65,7 +65,8 @@ import {
   dealNext,
   decide,
   decideUngraded,
-  DRILL_TRIES,
+  dealsLeft,
+  drillTries,
   facingBet,
   finish,
   anyHandOnly,
@@ -1127,12 +1128,12 @@ export class Room {
 
   /** The hand after a move or a card: settled, and counted, where that ended it (and kept, where you keep them all). */
   private commit(t: Table, h: PracticeHand): void {
-    // a drill's preflop gone another way: dealt again, not counted (up to DRILL_TRIES deals)
+    // a drill's preflop gone another way: dealt again, not counted (up to drillTries deals)
     if (offDrill(h)) {
-      if ((h.tries ?? 0) + 1 < DRILL_TRIES) {
+      if (dealsLeft(h)) {
         this.dealt(t, redeal(h, this.seed(), this.opts));
       } else {
-        t.error = `No ${potLabel(h.pot!).replace(/^an? /, "")} in ${DRILL_TRIES} deals${h.pot === "lib" ? " at this seat: try another seat or spot" : ""}.`;
+        t.error = `No ${potLabel(h.pot!).replace(/^an? /, "")} in ${drillTries(h.pot)} deals${h.pot === "lib" ? " at this seat: try another seat or spot" : ""}.`;
         t.spent = true;
       }
       return;
