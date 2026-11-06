@@ -4303,3 +4303,15 @@ Two things to know. Practice hands from a session that didn't tick the box get t
 Tests before this commit: 3318 unit tests in 171 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, the Worker's 24 tests and the two-browser sync check. The browser run gave 136 passed and 2 failed, 12 and 7h: 12 still expected a backup to bring back what was deleted after it, and 7h's pattern didn't match the button's words, so neither was the app. Both were corrected, and pass run alone. 7h and 7i have now run in a real browser.
 
 Live check of `0e4be85`: run 42195777801 green, `index-DPpLcghx.js` 303,047 bytes is the local build's name and size, `/lizard/`, `/lizard/settings/`, `/lizard/practice/`, `/lizard/saved/`, `/lizard/analyze/`, `/lizard/solver/manifest.json`, `/`, `/gto-solver/` and `/gto-solver-classic/` answer 200, and `/lizard/api/health` answers 404, as it should with no service there. In a browser on the live site: database version 10, the patterns switch present and on, no Account sync panel, no request to `/lizard/api`, and Practice's "Grade preflop by the preflop solve" with its second box appearing only on ticking.
+
+### 2026-11-06: nut advantage, ready for when the builds finish (Phase 3)
+
+The owner chose to run the nut advantage library step after the builds finish, and the limped SB-vs-BB spot is still building (208 of 552 stored flops at the last publish). So the step and its reader are built, and the step hasn't run over the library.
+
+- `scripts/library/nuts.py` works each flop's nut share from `ranges.json` with the solver's `range_equities` and Study's definition. It refuses while `hu-solver` runs or a spot is short of its target, saves every 50 flops and never does a flop twice.
+- `publish.sh` calls it on each run, so the launchd job starts it by itself once the builds are done. `assemble.py` publishes `<spot>/nuts.json` for the ranges and flops the index lists, and names it in the index.
+- Reports shows a sortable Nut adv column once a spot has the file, phone-hidden behind the existing button, with its definition, how many flops have it and the CSV marked as calculated, not solved. Without the file nothing changes and nothing is requested.
+
+The time and error differ from what I reported earlier. The 54 minutes was over about 25,000 flops at 0.13 s; the library is now about 28,000, and a flop took about 0.23 s under load, so one to two hours. The error wasn't measured before: on 20 flops against every runout a share is off by about half a point on average and 4.1 at most (`docs/ACCURACY.md` section 19), and the page says a small lead may be no lead.
+
+Tests before this commit: 3325 unit tests (2 skipped), typecheck and lint clean, `scripts/library` 18 tests. The browser run gave 138 passed and one failed, the new step 11d, which had a mistake of its own: it asked for the live index with the page's conditional request and got an empty 304, and named a flop the library doesn't store. Fixed, 11d passes alone on the built site, desktop and 375px, with the file stood in. The real file has never been read by the page, since none exists yet.

@@ -963,3 +963,24 @@ The owner asked for EV and frequency to stay apart, and for preflop-solve bb nev
 Where it doesn't: Analyze's rows by position and by spot count both in a row, and the rows by basis are the ones to read for that. The
 Plan orders its steps by the two together, as an order and not a number on the page. A drill's score line stays one figure, as a
 drill stands on one spot, though a fallback inside one can mix.
+
+## 19. Nut advantage on Reports (2026-11-06)
+
+Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the
+other range, over its weight with an equity. That's Study's definition, from the same two solver functions, read from
+`ranges.json` by `scripts/library/nuts.py` and published as `<spot>/nuts.json`. No solve stores it, so it is calculated, not
+solved, and the page and CSV say so. It covers two-player spots; a 3-way spot has no column.
+
+The equity behind it runs over a sample of runouts, thinned to bound the work (`breakdown._runouts`). Against every runout, in
+20 flops drawn at random:
+
+| Flops | Share off, on average | Share off, at most | Lead off, at most |
+|---|---|---|---|
+| 8 of `srp_btn_bb` | 0.71 points | 4.1 | 2.5 |
+| 12 of `srp_btn_bb` and `3bp_bb_btn` | 0.41 | 2.1 | 1.6 |
+
+That is noisier than the stored range equity (0.04 of a point on average, under Aggregate reports in `FEATURE_MATRIX.md`),
+because a share is a count across a line: a group of hands that sit near 80% can cross it together on a small change. Random
+runouts did no better: 540 of them, at three times the time, were off by 0.35 on average and 4.4 at most. Every runout would
+take about 2.5 s a flop, about 19 hours on one core over the library, so the step keeps Study's sample and the page states the
+error. A small lead may be no lead. This sample of flops is small, and no flop's share has been checked by a second engine.

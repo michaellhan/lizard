@@ -26,6 +26,8 @@ export interface LibrarySpotIndex {
   tree?: unknown;
   /** sha1(report.json)[:10] */
   report?: string;
+  /** sha1(nuts.json)[:10], where the library has each flop's nut share (scripts/library/nuts.py) */
+  nuts?: string;
 }
 
 /** the flops of a spot with a stored turn file */

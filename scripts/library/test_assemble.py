@@ -83,6 +83,31 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(summary["spots"]["srp_sb_bb_2max"]["target"], 1755)  # BUILD_PLANS: extended to every flop
         self.assertEqual(summary["spots"]["srp_btn_bb"]["target"], 1755)
 
+    def nuts_file(self, fp, flops) -> Path:
+        d = self.tmp / "nuts"
+        d.mkdir(exist_ok=True)
+        (d / "srp_btn_bb.json").write_text(json.dumps({"format": 1, "nut_eq": 0.8, "fp": fp, "flops": flops}))
+        return d
+
+    def test_nut_shares_go_in_for_the_flops_listed_and_are_named_in_the_index(self):
+        d = self.nuts_file(["a", "b"], {"Ks7d2c": [0.1, 0.2], "2h2d2c": [0.3, 0.4]})
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--nuts", d)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        spots = {s["id"]: s for s in self.index()["spots"]}
+        data = (self.out / "srp_btn_bb" / "nuts.json").read_bytes()
+        self.assertEqual(spots["srp_btn_bb"]["nuts"], h(data, 10))
+        self.assertEqual(json.loads(data)["flops"], {"Ks7d2c": [0.1, 0.2]})  # not a flop the index doesn't list
+        self.assertNotIn("nuts", spots["srp_sb_bb_2max"])
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["spots"]["srp_btn_bb"]["nuts"], 1)
+
+    def test_nut_shares_for_other_ranges_are_left_out_and_the_publish_goes_on(self):
+        d = self.nuts_file(["old", "ranges"], {"Ks7d2c": [0.1, 0.2]})
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--nuts", d)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("nuts", {s["id"]: s for s in self.index()["spots"]}["srp_btn_bb"])
+        self.assertFalse((self.out / "srp_btn_bb" / "nuts.json").exists())
+
     def test_a_spot_with_no_plan_gets_no_target(self):
         sys.path.insert(0, str(HERE))
         try:

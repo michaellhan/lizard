@@ -20,6 +20,12 @@ PY="$ROOT/.venv/bin/python"
 [ -x "$PY" ] || PY=python3
 case "$REPO" in michaellhan/gto-solver-library|*michaellhan.github.io) echo "refusing to publish to $REPO" >&2; exit 1;; esac
 
+# Each flop's nut share, once the builds are done (nuts.py says "not yet" until then, and picks up where it stopped).
+# It's worked from the last stage, so flops new in this one get theirs on the next run; a stop here publishes what's there.
+if [ -f "$STAGE/index.json" ]; then
+  nice -n 10 "$PY" "$ROOT/scripts/library/nuts.py" --stage "$STAGE" || echo "nuts: left for the next run"
+fi
+
 prev=()
 [ -f "$CLONE/index.json" ] && prev=(--previous "$CLONE")
 nice -n 10 "$PY" "$ROOT/scripts/library/assemble.py" --out "$STAGE" ${prev[@]+"${prev[@]}"}

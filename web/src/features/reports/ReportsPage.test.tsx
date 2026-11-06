@@ -69,6 +69,33 @@ describe("ReportsPage", () => {
     expect(screen.getByText(/Which spots have reports \(4 in the library\)/)).toBeInTheDocument();
   });
 
+  it("has a Nut adv column with its definition where the library has nuts.json, and none where it hasn't", async () => {
+    const nuts = { format: 1, nut_eq: 0.8, fp: libJson<{ fp: string[] }>("srp_btn_bb/ranges.json").fp, flops: { [REP.flops[0]!.f]: [0.1, 0.25] } };
+    const withFile = (async (url: string) => {
+      const path = String(url).replace(/^lib\//, "").split("?")[0]!;
+      if (path === "srp_btn_bb/nuts.json") return new Response(JSON.stringify(nuts));
+      if (path !== "index.json") return fakeFetch(url);
+      const idx = libJson<{ spots: { id: string; nuts?: string }[] }>("index.json");
+      return new Response(JSON.stringify({ ...idx, spots: idx.spots.map((s) => (s.id === "srp_btn_bb" ? { ...s, nuts: "abc" } : s)) }));
+    }) as unknown as typeof fetch;
+    const view = open("spot=srp_btn_bb", new LibraryFiles("lib/", withFile));
+    await screen.findByRole("button", { name: "Nut adv" });
+    const seat = REP.seats[1];
+    expect(screen.getByRole("row", { name: REP.flops[0]!.f })).toHaveTextContent(`${seat} +15.0`);
+    expect(screen.getByRole("row", { name: "Average" })).toHaveTextContent(`${seat} +15.0`);
+    expect(screen.getByText(/Nut adv is the side with more of its range at 80% equity or more/)).toHaveTextContent(`on 1 of these ${REP.flops.length} flops so far`);
+    expect(screen.getByText(/Nut adv is the side/)).toHaveTextContent("not solved");
+    fireEvent.click(screen.getByRole("button", { name: "Nut adv" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("sort=nut"));
+    expect(flopRows()[0]).toBe(REP.flops[0]!.f);
+    view.unmount();
+
+    open("spot=srp_btn_bb");
+    await screen.findByRole("button", { name: /Range adv/ });
+    expect(screen.queryByRole("button", { name: /Nut adv/ })).toBeNull();
+    expect(screen.queryByText(/Nut adv is/)).toBeNull();
+  });
+
   it("builds a 3-way spot's report from its flops' files: three decisions, strategies only, Study after two checks", async () => {
     open("spot=mw_btn_sb_bb&view=third");
     expect(await screen.findByText(/^Precomputed solution · mw_btn_sb_bb · 3-way flop report over its 6 stored flops, built in the page from their entries$/)).toBeInTheDocument();

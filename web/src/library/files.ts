@@ -17,6 +17,34 @@ export interface ReportFlop {
   ev?: [number, number];
   /** each range's equity against the other's */
   eq?: [number, number];
+  /** each range's share at NUT_EQUITY or more: not in report.json, but joined on from nuts.json (reportWithNuts) */
+  nuts?: [number, number];
+}
+
+/** a range's nut share is its weight at this much equity or more against the other range, as Study's breakdown reads it */
+export const NUT_EQUITY = 0.8;
+
+/** <spot>/nuts.json (scripts/library/nuts.py): each flop's nut shares, worked from the stored ranges with no solve */
+export interface LibraryNuts {
+  format: number;
+  nut_eq: number;
+  fp: string[];
+  flops: Record<string, [number, number]>;
+}
+
+const isShare = (x: unknown) => typeof x === "number" && x >= 0 && x <= 1;
+
+/** The report with its nut shares joined on. Shares for other ranges or another definition aren't used, and a flop
+ * with no good pair has none: it shows as a dash, never as 0. */
+export function withNuts(report: LibraryReport, nuts: LibraryNuts, fp: readonly string[] | undefined): LibraryReport {
+  if (nuts.format !== 1 || nuts.nut_eq !== NUT_EQUITY || String(nuts.fp) !== String(fp ?? [])) return report;
+  return {
+    ...report,
+    flops: report.flops.map((fl) => {
+      const n = nuts.flops?.[fl.f];
+      return Array.isArray(n) && n.length === 2 && n.every(isShare) ? { ...fl, nuts: n } : fl;
+    }),
+  };
 }
 
 export interface LibraryReport {
@@ -101,6 +129,18 @@ export class LibraryFiles {
       this.spots.set(sp.id, s);
     }
     return s;
+  }
+
+  /** a spot's report with its nut shares where the library has them. They're extra: without the file, or with one
+   * that won't load, this is the plain report. */
+  async reportWithNuts(sp: LibrarySpotIndex): Promise<LibraryReport> {
+    const { report } = await this.spot(sp);
+    if (!sp.nuts) return report;
+    try {
+      return withNuts(report, (await (await this.get(`${sp.id}/nuts.json?v=${sp.nuts}`)).json()) as LibraryNuts, sp.fp);
+    } catch {
+      return report;
+    }
   }
 
   /** A flop's turn file, decoded; the last 40 are kept. Refused unless it's the one solved with the entry the index

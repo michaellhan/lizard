@@ -213,6 +213,11 @@ launchctl bootout gui/$(id -u)/com.michaelhan.lizard-library
 rm ~/Library/LaunchAgents/com.michaelhan.lizard-library.plist
 ```
 
+Each run also takes the next step on the nut shares (`scripts/library/nuts.py`). It prints "nuts: not yet" while a heads-up
+build runs or a spot is short of its target, as the owner chose. After that one run computes every flop's share, in one slot on
+one core, for about one to two hours, saving as it goes to `library-build/nuts/`, and the same run publishes them. A flop new
+to the stage gets its share on the run after. Don't remove the job until the log shows that done.
+
 What the first runs found about this Mac, each as an error in the job's log or exit code:
 
 | Setting | Why |

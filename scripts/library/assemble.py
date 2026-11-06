@@ -10,6 +10,8 @@ Safety (the heads-up builds are still running and own their directories):
   - only entries a source's index.json lists are copied (never .tmp files, never entries newer than the index);
   - every copied file is checked on the copy: an entry by its sha1 in the index, a turn file by the entry hash in its
     header, report.json by the index's report hash; a file that fails is left out and that flop is solved live;
+  - each spot's nuts.json comes from library-build/nuts (scripts/library/nuts.py), only for the ranges and flops the
+    index lists, with its hash in the index as `nuts`; a spot with none just has no Nut adv column;
   - a spot that fails or shrinks keeps its previous release (--previous), so a publish never loses flops.
 
 Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...]
@@ -37,6 +39,8 @@ WORK = Path("/Users/mhan/Desktop/projects/gtosolver/.work")
 HU_SOURCES = [WORK / "hu-lib", WORK / "hu-lp-lib"]
 PROTECTED = Path("/Users/mhan/Desktop/projects/gtosolver")
 STAGE_MARK = ".lizard-stage"
+NUTS = ROOT / "library-build" / "nuts"
+NUTS_FORMAT = 1  # scripts/library/nuts.py FORMAT
 
 FORMAT = 2  # gto/flop_library.py FORMAT
 MW_FORMAT = 1  # gto/mw_library.py
@@ -185,6 +189,29 @@ def copy_mw(src_root: Path, stage: Path, link: bool, log: list[str]) -> dict | N
     return idx
 
 
+def attach_nuts(src: Path, out: Path, spot: dict, log: list[str]) -> int:
+    """Put a spot's nut shares in the stage, as far as they go, and name them in its index entry; returns the flops."""
+    spot.pop("nuts", None)  # (a spot carried from the previous release)
+    p = src / f"{spot['id']}.json"
+    if not p.exists():
+        return 0
+    try:
+        d = json.loads(p.read_bytes())
+    except ValueError:
+        log.append(f"{spot['id']}: nuts file won't read, left out")
+        return 0
+    if d.get("format") != NUTS_FORMAT or d.get("fp") != spot.get("fp"):
+        log.append(f"{spot['id']}: nuts file is for other ranges, left out")
+        return 0
+    flops = {f: v for f, v in d["flops"].items() if f in spot["flops"]}
+    if not flops:
+        return 0
+    data = json.dumps({**d, "flops": flops}, separators=(",", ":")).encode()
+    (out / spot["id"] / "nuts.json").write_bytes(data)
+    spot["nuts"] = sha(data, 10)
+    return len(flops)
+
+
 def spot_key(s: dict) -> tuple:
     return (s["fp"][0], s["fp"][1], round(float(s["pot"]), 2), round(float(s["stack"]), 2))
 
@@ -196,6 +223,7 @@ def main() -> int:
     ap.add_argument("--hu", type=Path, action="append", help="a heads-up build directory (repeatable)")
     ap.add_argument("--previous", type=Path, help="the last published release (to keep spots that fail or shrink)")
     ap.add_argument("--allow-shrink", action="store_true")
+    ap.add_argument("--nuts", type=Path, default=NUTS, help="where nuts.py wrote each spot's nut shares")
     a = ap.parse_args()
     hu_sources = a.hu if a.hu else HU_SOURCES
 
@@ -282,6 +310,8 @@ def main() -> int:
                 if cur is None:
                     merged.append(kept)
 
+    nut_flops = {s["id"]: attach_nuts(a.nuts, out, s, log) for s in merged}
+
     index = {"format": FORMAT, "tree": tree, "spots": merged}
     (out / "index.json").write_text(json.dumps(index, separators=(",", ":")))
     if mw is not None:
@@ -292,6 +322,8 @@ def main() -> int:
     listed = {"index.json", "mw_index.json", ".nojekyll", STAGE_MARK, "lizard-library.json"}
     for s in merged:
         listed |= {f"{s['id']}/report.json", f"{s['id']}/ranges.json"}
+        if s.get("nuts"):
+            listed.add(f"{s['id']}/nuts.json")
         t = turns_set(s)
         for f in s["flops"]:
             listed.add(f"{s['id']}/{f}.bin")
@@ -323,7 +355,7 @@ def main() -> int:
         "assembledAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "sources": sources,
         "spots": {
-            s["id"]: {"flops": len(s["flops"]), "target": target_of(s["id"], len(s["flops"]), planned), "game": s.get("game")}
+            s["id"]: {"flops": len(s["flops"]), "target": target_of(s["id"], len(s["flops"]), planned), "game": s.get("game"), "nuts": nut_flops[s["id"]]}
             for s in merged
         },
         "multiway": {s["id"]: len(s["flops"]) for s in (mw or {}).get("spots", [])},

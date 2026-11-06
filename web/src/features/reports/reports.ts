@@ -2,8 +2,8 @@
 // library's <spot>/report.json with no solver (a 3-way spot's built in the page from its entries, library/mwReport.ts). Per flop and averaged by texture group, each flop weighted by how many
 // of the 22100 flops it stands for; filtered by texture and sorted by any column. Lizard adds what classic lacks: each
 // player's EQR (EV over equity times the pot), each flop's range advantage from the stored equities, and a CSV of the
-// rows shown. There's no nut advantage: report.json holds each side's equity over its whole range, and no file holds a
-// hand's equity, so a nut share can't be read from the library: it would take a field stored for each flop.
+// rows shown. Nut advantage comes from a file of its own, nuts.json, worked from the stored ranges with no solve
+// (scripts/library/nuts.py), since no solve's file holds a hand's equity; a spot without one has no such column.
 import { pct } from "@/components/actions";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance, SolveMode } from "@/solver/types";
@@ -97,6 +97,8 @@ export interface ReportRow {
   /** each player's EV in bb at the start of the flop, [out of position, in position] */
   ev: [number, number];
   eq: [number, number];
+  /** each range's nut share; NaN where nuts.json has none for this flop */
+  nuts: [number, number];
   /** by column; null where the flop doesn't store the view's node */
   freqs: number[] | null;
   /** the facing views: the bet faced, and how often it's made */
@@ -112,7 +114,7 @@ export function facingText(r: Pick<ReportRow, "bet" | "made">): string {
 
 const RANKS = "23456789TJQKA";
 // (NaN where a report has none: shown as "–", never as 0)
-const evOf = (fl: ReportFlop, k: "ev" | "eq"): [number, number] => [fl[k]?.[0] ?? NaN, fl[k]?.[1] ?? NaN];
+const evOf = (fl: ReportFlop, k: "ev" | "eq" | "nuts"): [number, number] => [fl[k]?.[0] ?? NaN, fl[k]?.[1] ?? NaN];
 
 /** one row per stored flop */
 export function rows(rep: LibraryReport, view: ReportView): ReportRow[] {
@@ -134,6 +136,7 @@ export function rows(rep: LibraryReport, view: ReportView): ReportRow[] {
         .sort((a, b) => b - a),
       ev: evOf(fl, "ev"),
       eq: evOf(fl, "eq"),
+      nuts: evOf(fl, "nuts"),
       freqs,
       bet: nd?.bet ?? null,
       made: nd?.made ?? null,
@@ -165,14 +168,14 @@ export function rangeLeadText(eq: readonly [number, number], seats: readonly str
   return !l ? "–" : l.seat ? `${l.seat} +${l.points.toFixed(1)}` : "Even";
 }
 
-// sort keys: "flop" (ranks high to low), "w", "adv" (in position's range lead), "ev0", "ev1", "eq0", "eq1", "eqr0", "eqr1",
+// sort keys: "flop" (ranks high to low), "w", "adv" (in position's range lead), "nut" (its nut lead), "ev0", "ev1", "eq0", "eq1", "eqr0", "eqr1",
 // "a<i>" (the i-th column)
 export type SortKey = string;
 function sortKey(r: ReportRow, key: SortKey, pot: number): number {
   if (key === "flop") return r.ranks[0]! * 169 + r.ranks[1]! * 13 + r.ranks[2]!;
   if (key === "w") return r.w;
-  if (key === "adv") {
-    const lead = rangeLead(r.eq);
+  if (key === "adv" || key === "nut") {
+    const lead = rangeLead(key === "adv" ? r.eq : r.nuts);
     return Number.isNaN(lead) ? -Infinity : lead;
   }
   const m = /^(ev|eq|eqr|a)(\d+)$/.exec(key);
@@ -195,13 +198,21 @@ export interface Average {
   wf: number;
   ev: [number, number];
   eq: [number, number];
+  /** over the flops that have nut shares; NaN where none does */
+  nuts: [number, number];
 }
 
 /** weighted averages over rows */
 export function average(rs: readonly ReportRow[]): Average {
-  const out: Average = { n: rs.length, w: 0, freqs: null, wf: 0, ev: [0, 0], eq: [0, 0] };
+  const out: Average = { n: rs.length, w: 0, freqs: null, wf: 0, ev: [0, 0], eq: [0, 0], nuts: [0, 0] };
+  let wn = 0;
   for (const r of rs) {
     out.w += r.w;
+    if (!Number.isNaN(r.nuts[0])) {
+      out.nuts[0] += r.w * r.nuts[0];
+      out.nuts[1] += r.w * r.nuts[1];
+      wn += r.w;
+    }
     for (const i of [0, 1] as const) {
       out.ev[i] += r.w * r.ev[i];
       out.eq[i] += r.w * r.eq[i];
@@ -215,6 +226,7 @@ export function average(rs: readonly ReportRow[]): Average {
   for (const i of [0, 1] as const) {
     out.ev[i] /= out.w || 1;
     out.eq[i] /= out.w || 1;
+    out.nuts[i] = wn ? out.nuts[i] / wn : NaN;
   }
   if (out.freqs) out.freqs = out.freqs.map((x) => x / out.wf);
   return out;
@@ -233,6 +245,9 @@ export function groups(rs: readonly ReportRow[], by: TextureKey): Group[] {
 
 /** whether a report has EVs and equities (a 3-way one has strategies only) */
 export const hasEv = (rep: Pick<LibraryReport, "flops">) => rep.flops.some((f) => f.ev != null);
+
+/** how many of a report's flops have nut shares (nuts.json) */
+export const nutFlops = (rep: Pick<LibraryReport, "flops">) => rep.flops.filter((f) => f.nuts != null).length;
 
 /** how much of the game a spot's report covers */
 export function coverage(rep: Pick<LibraryReport, "flops">): { flops: number; share: number } {
@@ -286,6 +301,7 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
   const cols = columns(rep, view);
   const [o, ip] = rep.seats;
   const ev = hasEv(rep);
+  const nuts = nutFlops(rep) > 0;
   const head = [
     "flop",
     "weight",
@@ -297,9 +313,10 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
     ...(isFacing(view) ? ["bet faced", "bet frequency"] : []),
     ...cols,
     ...(ev ? [`${o} EV (bb)`, `${ip} EV (bb)`, `${o} equity`, `${ip} equity`, `${o} EQR`, `${ip} EQR`, "range advantage seat", "range advantage (equity points)"] : []),
+    ...(nuts ? [`${o} nut share`, `${ip} nut share`, "nut advantage seat", "nut advantage (points of range)"] : []),
     "source",
   ];
-  const src = describeProvenance(p);
+  const src = describeProvenance(p) + (nuts ? "; nut shares calculated from the stored ranges, not solved" : "");
   const lines = rs.map((r) =>
     [
       r.f,
@@ -312,6 +329,7 @@ export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportR
       ...(isFacing(view) ? [r.bet ?? "", num(r.made, 3)] : []),
       ...cols.map((_, i) => num(r.freqs?.[i], 3)),
       ...(ev ? [num(r.ev[0], 2), num(r.ev[1], 2), num(r.eq[0], 3), num(r.eq[1], 3), num(eqr(r.ev[0], r.eq[0], rep.pot), 3), num(eqr(r.ev[1], r.eq[1], rep.pot), 3), rangeLeadParts(r.eq, rep.seats)?.seat ?? "", num(rangeLeadParts(r.eq, rep.seats)?.points, 1)] : []),
+      ...(nuts ? [num(r.nuts[0], 3), num(r.nuts[1], 3), rangeLeadParts(r.nuts, rep.seats)?.seat ?? "", num(rangeLeadParts(r.nuts, rep.seats)?.points, 1)] : []),
       src,
     ]
       .map(cell)

@@ -15,7 +15,7 @@ import { LIBRARY_SOURCES } from "@/config";
 import { TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "@/features/practice/drills";
 import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import { flopCards } from "@/library/entry";
-import { LibraryFiles, type LibraryReport } from "@/library/files";
+import { LibraryFiles, NUT_EQUITY, type LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
 import { MixBar } from "./MixBar";
 import { ReportChart } from "./ReportChart";
@@ -32,6 +32,7 @@ import {
   groups,
   hasEv,
   isFacing,
+  nutFlops,
   rangeLeadText,
   REPORT_VIEWS,
   reportProvenance,
@@ -160,7 +161,7 @@ function SpotReport({
     const report =
       spot.seats.length > 2
         ? files.mwReport(spot, { signal: ac.signal, onProgress: (done, total) => alive && setData({ st: "loading", done, total }) })
-        : files.spot(spot).then((d) => d.report);
+        : files.reportWithNuts(spot);
     report.then(
       (rep) => alive && setData({ st: "ready", rep }),
       (e: unknown) => alive && setData({ st: "error", message: message(e) }),
@@ -316,6 +317,15 @@ function SpotReport({
             {hasEv(rep)
               ? `; EV in bb at the start of the flop (pot ${rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group's EQR is that of its averages. Range adv is the side with the higher range equity, and by how many points of equity. It's worked out from the stored equities, which run over every 8th turn and river runout (about 135 of the 1,081), so it can differ a little from Study's breakdown, which samples its own. A group's is that of its averaged equities, each flop weighted by how many of the ${ALL_FLOPS} it stands for. There's no nut advantage column: the library stores a range's equity with no equity by hand, so how much of a range is near the nuts can't be read from it. Study's breakdown works that out for one flop.`
               : ` (pot ${rep.pot}bb). The 3-way library stores each flop's strategies but no range EVs or equities, so this report has strategies only; it is built here from the ${rep.flops.length} flops' files, read once. Its flops are a sample spread over the flop space by how often each comes up, so each counts the same${rep.flops.some((f) => f.w === 0) ? `; ${rep.flops.filter((f) => f.w === 0).map((f) => f.f).join(", ")}, solved besides the sample, is listed but not averaged` : ""}.`}{" "}
+            {nutFlops(rep) > 0 && (
+              <>
+                {" "}
+                Nut adv is the side with more of its range at {pct(NUT_EQUITY, 0)} equity or more against the other range, and by how many points of range
+                {nutFlops(rep) < rep.flops.length ? `, on ${nutFlops(rep)} of these ${rep.flops.length} flops so far; an average takes those` : ""}. It&rsquo;s
+                calculated from the stored ranges, not solved, the way Study&rsquo;s breakdown reads it, over a sample of the runouts: on 20 flops checked
+                against every runout a share was off by about half a point on average and 4.1 points at most, so a small lead may be no lead.
+              </>
+            )}{" "}
             Each flop is its own stored solve: open one in Study to see how close it is to equilibrium.
             {isFacing(view) &&
               ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
@@ -333,6 +343,7 @@ function orderText(sort: string, desc: boolean, cols: string[], seats: readonly 
   if (sort === "flop") return desc ? "high flops first" : "low flops first";
   if (sort === "w") return `by how often they come up, ${desc ? "most" : "least"} first`;
   if (sort === "adv") return `by range advantage, ${seats[desc ? 1 : 0]} most ahead first`;
+  if (sort === "nut") return `by nut advantage, ${seats[desc ? 1 : 0]} most ahead first`;
   const m = /^(a|ev|eq|eqr)(\d+)$/.exec(sort);
   const i = Number(m?.[2] ?? 0);
   const what = !m ? sort : m[1] === "a" ? label(cols[i] ?? "") : `${seats[i]} ${m[1] === "ev" ? "EV" : m[1] === "eq" ? "equity" : "EQR"}`;
@@ -376,6 +387,7 @@ function ReportTable({
   const [o, p] = rep.seats;
   // (a 3-way report has strategies only: no EV, equity or EQR columns)
   const ev = hasEv(rep);
+  const nuts = ev && nutFlops(rep) > 0;
   const tot = all.reduce((a, r) => a + r.w, 0);
   const sum = average(shown);
   const head = (key: string, text: string, cls = "") => (
@@ -387,7 +399,7 @@ function ReportTable({
       </button>
     </th>
   );
-  const nums = (a: Pick<Average, "freqs" | "ev" | "eq">) => (
+  const nums = (a: Pick<Average, "freqs" | "ev" | "eq" | "nuts">) => (
     <>
       {cols.map((_, i) => (
         <td key={i} className="px-2 py-1 text-right">
@@ -403,12 +415,13 @@ function ReportTable({
           <td className="phone-col px-2 py-1 text-right">{ratio(eqr(a.ev[0], a.eq[0], rep.pot))}</td>
           <td className="phone-col px-2 py-1 text-right">{ratio(eqr(a.ev[1], a.eq[1], rep.pot))}</td>
           <td className="whitespace-nowrap px-2 py-1 text-right">{rangeLeadText(a.eq, rep.seats)}</td>
+          {nuts && <td className="phone-col whitespace-nowrap px-2 py-1 text-right">{rangeLeadText(a.nuts, rep.seats)}</td>}
         </>
       )}
     </>
   );
   return (
-    <PhoneColumns hidden={ev ? [`${o} eq`, `${p} eq`, `${o} EQR`, `${p} EQR`] : []}>
+    <PhoneColumns hidden={ev ? [`${o} eq`, `${p} eq`, `${o} EQR`, `${p} EQR`, ...(nuts ? ["Nut adv"] : [])] : []}>
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-border">
       <table className="w-full border-collapse text-xs tabular-nums">
         <thead className="sticky top-0 z-10 bg-surface text-left text-muted">
@@ -427,6 +440,7 @@ function ReportTable({
                 {head("eqr0", `${o} EQR`, "phone-col text-right")}
                 {head("eqr1", `${p} EQR`, "phone-col text-right")}
                 {head("adv", "Range adv", "text-right")}
+                {nuts && head("nut", "Nut adv", "phone-col text-right")}
               </>
             )}
             <th scope="col" className="px-2 py-1.5">
@@ -504,7 +518,7 @@ function ReportTable({
           })}
           {listed.length < shown.length && (
             <tr className="border-t border-border">
-              <td colSpan={cols.length + (ev ? 10 : 3)} className="px-2 py-2 text-muted">
+              <td colSpan={cols.length + (nuts ? 11 : ev ? 10 : 3)} className="px-2 py-2 text-muted">
                 {listed.length} of {shown.length} flops listed, in this order; the averages above take all of them.{" "}
                 <button type="button" onClick={() => setShowAll(true)} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2">
                   Show all {shown.length} flops

@@ -334,6 +334,38 @@ test("11. A texture-filtered flop report says how many flops it stands on", asyn
     await clean(page, problems);
 });
 
+// (the library has no nuts.json until the builds finish, so the file and its naming in the index are stood in here)
+test("11d. A spot with nut shares has a Nut adv column, defined on the page, and the page stays within its width", async ({ page, problems }) => {
+  test.skip(Boolean(process.env.CI), "reads the live library");
+  // (asked for afresh: the page's own request can carry a condition that gets an empty 304)
+  const index = async () => (await (await page.request.get("https://www.michael-han.com/lizard-library/index.json")).json()) as { spots: { id: string; fp: string[] }[] };
+  await page.route(/\/lizard-library\//, async (r) => {
+    const u = new URL(r.request().url());
+    if (u.pathname.endsWith("/nuts.json")) {
+      const fp = (await index()).spots.find((s) => s.id === "srp_btn_bb")!.fp;
+      return r.fulfill({ json: { format: 1, nut_eq: 0.8, fp, flops: { "3c2d2c": [0.1, 0.25], "2h2d2c": [0.014, 0.066] } } });
+    }
+    if (u.pathname.endsWith("/lizard-library/index.json")) {
+      const idx = await index();
+      return r.fulfill({ json: { ...idx, spots: idx.spots.map((s) => (s.id === "srp_btn_bb" ? { ...s, nuts: "test" } : s)) } });
+    }
+    return r.fulfill({ response: await r.fetch({ url: `https://www.michael-han.com${u.pathname}${u.search}` }) });
+  });
+  await page.goto("/lizard/reports/?spot=srp_btn_bb");
+  const words = page.getByText(/Nut adv is the side with more of its range at 80% equity or more/);
+  await expect(words).toContainText("not solved", { timeout: 60_000 });
+  await expect(words).toContainText("on 2 of these 1755 flops so far");
+  await expect(page.getByRole("row", { name: "Average" }).first()).toContainText("BTN +");
+  await expect(page.getByRole("button", { name: "Nut adv" })).toBeVisible();
+  await clean(page, problems);
+
+  // at a phone's width it joins the columns behind the button
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(page.getByText(/Hidden at this width: .*Nut adv\./)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Nut adv" })).toBeHidden();
+  await clean(page, problems);
+});
+
 test("11b. A river drill and a turn bet drill: answered by a live solve, or refused in words and not scored", async ({ page, problems }) => {
   test.skip(Boolean(process.env.CI), "reads the live library");
   await page.route(/\/lizard-library\//, async (r) => {

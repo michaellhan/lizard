@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryIndex } from "@/library/catalog";
-import type { LibraryReport } from "@/library/files";
+import { LibraryFiles, withNuts, type LibraryNuts, type LibraryReport } from "@/library/files";
 import { fromSearch } from "@/features/study/studyState";
 import { decodeHead } from "@/library/entry";
 import { MW_EXTRA_FLOPS, reportFromHeads } from "@/library/mwReport";
@@ -16,6 +16,7 @@ import {
   groups,
   hasEv,
   nodeOf,
+  nutFlops,
   REPORT_VIEWS,
   reportProvenance,
   rows,
@@ -112,6 +113,65 @@ describe("flop reports", () => {
     const rs = rows(REP, "oop");
     // sorting by EQR: in position's, highest first (A43 3.4/(0.55*5.5)=1.124, K77 1.109, 987 1.023)
     expect(sortRows(rs, "eqr1", true, REP.pot).map((r) => r.f)).toEqual(["Ac4d3h", "Kc7d7h", "9c8c7c"]);
+  });
+
+  describe("nut advantage", () => {
+    const fp = ["a", "b"];
+    const file = (flops: Record<string, unknown>, over: Partial<LibraryNuts> = {}) => ({ format: 1, nut_eq: 0.8, fp, flops, ...over }) as LibraryNuts;
+    const NUT = withNuts(REP, file({ Ac4d3h: [0.1, 0.2], "9c8c7c": [0.15, 0.05] }), fp);
+
+    it("joins each flop's shares on, leaving a flop without them a dash, never 0", () => {
+      const rs = rows(NUT, "oop");
+      expect(nutFlops(NUT)).toBe(2);
+      expect(rs.map((r) => rangeLeadText(r.nuts, NUT.seats))).toEqual(["BTN +10.0", "BB +10.0", "–"]);
+      expect(REP.flops[0]!.nuts).toBeUndefined(); // the kept report is as it was
+    });
+
+    it("averages over the flops that have shares, by the report's weights", () => {
+      const a = average(rows(NUT, "oop"));
+      close(a.nuts[0], (0.1 * 100 + 0.15 * 50) / 150);
+      close(a.nuts[1], (0.2 * 100 + 0.05 * 50) / 150);
+      expect(a.nuts.every(Number.isNaN)).toBe(false);
+      expect(average(rows(REP, "oop")).nuts.every(Number.isNaN)).toBe(true);
+    });
+
+    it("sorts by the lead, a flop with no shares last", () => {
+      const rs = rows(NUT, "oop");
+      expect(sortRows(rs, "nut", true).map((r) => r.f)).toEqual(["Ac4d3h", "9c8c7c", "Kc7d7h"]);
+      expect(sortRows(rs, "nut", false).map((r) => r.f)).toEqual(["Kc7d7h", "9c8c7c", "Ac4d3h"]);
+    });
+
+    it("won't use shares for other ranges, another format or another definition, or a value that isn't a share", () => {
+      for (const over of [{ fp: ["x", "y"] }, { format: 2 }, { nut_eq: 0.9 }]) expect(nutFlops(withNuts(REP, file({ Ac4d3h: [0.1, 0.2] }, over), fp))).toBe(0);
+      expect(nutFlops(withNuts(REP, file({ Ac4d3h: [0.1, 1.2], "9c8c7c": [0.1], Kc7d7h: ["0.1", 0.2] }), fp))).toBe(0);
+    });
+
+    it("the CSV gives the shares and the lead and says they weren't solved, and has no such columns without them", () => {
+      const p = reportProvenance(NUT, "fast");
+      const lines = toCsv(NUT, "oop", rows(NUT, "oop"), p).trim().split("\n");
+      expect(lines[0]).toContain("BB nut share,BTN nut share,nut advantage seat,nut advantage (points of range),source");
+      expect(lines[1]).toContain("0.100,0.200,BTN,10.0,");
+      expect(lines[1]).toContain("nut shares calculated from the stored ranges, not solved");
+      expect(toCsv(REP, "oop", rows(REP, "oop"), p)).not.toContain("nut");
+    });
+
+    it("reads nuts.json only where the index names it, and a file that won't load leaves the report plain", async () => {
+      const asked: string[] = [];
+      const ok = (body: unknown) => new Response(JSON.stringify(body));
+      const stub = (nuts: () => Response) =>
+        (async (url: string) => {
+          asked.push(String(url));
+          return /nuts\.json/.test(String(url)) ? nuts() : /report\.json/.test(String(url)) ? ok(REP) : ok({ fp, w: [] });
+        }) as unknown as typeof fetch;
+      const sp = { id: "srp_btn_bb", label: "", seats: ["BB", "BTN"], fp, flops: {} } as unknown as LibraryIndex["spots"][number];
+      expect(nutFlops(await new LibraryFiles("lib/", stub(() => ok(file({})))).reportWithNuts(sp))).toBe(0);
+      expect(asked.some((u) => /nuts/.test(u))).toBe(false);
+      const named = { ...sp, nuts: "abc" };
+      expect(nutFlops(await new LibraryFiles("lib/", stub(() => ok(file({ Ac4d3h: [0.1, 0.2] })))).reportWithNuts(named))).toBe(1);
+      expect(asked).toContain("lib/srp_btn_bb/nuts.json?v=abc");
+      expect(nutFlops(await new LibraryFiles("lib/", stub(() => new Response("gone", { status: 404 }))).reportWithNuts(named))).toBe(0);
+      expect(nutFlops(await new LibraryFiles("lib/", stub(() => new Response("not json"))).reportWithNuts(named))).toBe(0);
+    });
   });
 
   it("range advantage: who has the higher equity and by how many points, from the stored equities", () => {
