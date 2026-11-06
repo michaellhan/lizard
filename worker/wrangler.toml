@@ -1,4 +1,4 @@
-# No ids or secrets here. database_id is set when the owner creates the database; secrets go in with `wrangler secret put`.
+# No secrets here: database_id is an identifier, and secrets go in with `wrangler secret put`.
 name = "lizard-sync"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
@@ -15,4 +15,4 @@ crons = ["17 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "lizard-sync"
-database_id = "SET_WHEN_CREATED"
+database_id = "13d02dd7-86f6-4846-a573-538cad9d313b"

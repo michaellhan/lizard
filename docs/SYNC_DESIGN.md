@@ -3,9 +3,10 @@
 Decided by the owner on 2026-11-06: Cloudflare Workers + D1, email magic link through Resend, end to end encrypted, for
 saved spots, session history, imported hands and kept mistakes. An account is optional, and the site stays whole with none.
 
-Status: the Worker (`worker/`) and the client (`web/src/sync/`, `features/settings/SyncPanel.tsx`) are built and tested against
-stand-ins; nothing is deployed, and the panel stays out of the build until `LIZARD_SYNC` is set. No test has yet run against real
-D1, real Resend or two real browsers. See "What the owner has to provide".
+Status: the Worker (`worker/`) has been up on real D1 since 2026-11-06, answering `health` and `me` and refusing a bad origin; no
+one has signed in on it, as it has no mail key yet. The client (`web/src/sync/`, `features/settings/SyncPanel.tsx`) is built and
+tested against stand-ins, and stays out of the build until `LIZARD_SYNC` is set. No test has yet run on real Resend or two real
+browsers against this service. See "What the owner has to provide".
 
 ## What the server can and can't see
 

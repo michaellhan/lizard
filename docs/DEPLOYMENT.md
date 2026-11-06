@@ -235,7 +235,10 @@ npm run build && npm run preview
 Serves `web/dist` at http://localhost:4173/lizard/ with the COOP/COEP headers. The library paths are proxied to the
 live site.
 
-## 6. Account sync (built, not deployed)
+## 6. Account sync (service up, sign-in waiting on the mail key)
+
+Done on 2026-11-06: the database, its schema, the Worker on its route and `EMAIL_HMAC_KEY`. Left: `RESEND_API_KEY`, then steps 5
+and 6.
 
 The design and what it costs in privacy are in `docs/SYNC_DESIGN.md`. The service is a Cloudflare Worker with a D1 database at
 `www.michael-han.com/lizard/api/*`, which goes in front of Pages for that path only. Until these steps are done the site
@@ -280,4 +283,4 @@ npx wrangler@4 secret put RESEND_API_KEY
 6. Check it for real, as nothing has yet: sign in from a mail, choose a passphrase, sync, unlock in a second browser, delete
    something in one and see it go in the other, delete the account, and read the D1 rows to see only ciphertext.
 
-To take it down, set `LIZARD_SYNC` off and redeploy, then remove the route. Local data is untouched by either.
+To take it down, set `LIZARD_SYNC` off and redeploy, then remove the route (`npx wrangler@4 delete` from `worker/` removes the Worker and its route, and leaves the database). Local data is untouched by either.
