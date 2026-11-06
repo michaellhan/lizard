@@ -31,6 +31,8 @@ export interface Settings {
   studySplit: number | null;
   /** Study: the keys that walk the line, play an action and open the range builder (off: none of them) */
   studyKeys: boolean;
+  /** the patterns over the action colours, wherever a mix is drawn (off: colour alone) */
+  patterns: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   breakdownPart: "made",
   studySplit: null,
   studyKeys: true,
+  patterns: true,
 };
 
 const KEY = "settings.v1";
@@ -61,8 +64,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, patterns } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, patterns };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
@@ -81,3 +84,9 @@ export const useSettings = create<SettingsState>((set, get) => ({
     void kvSet(KEY, DEFAULT_SETTINGS);
   },
 }));
+
+// The fills are CSS (index.css), so the switch is an attribute on the page: every mix drawn, now or later, follows it.
+useSettings.subscribe((s) => {
+  if (s.patterns) delete document.documentElement.dataset.patterns;
+  else document.documentElement.dataset.patterns = "off";
+});

@@ -4,7 +4,7 @@ Lizard is two GitHub Pages project sites under the account's custom domain, behi
 
 | URL | Repo | Published by | Pages source |
 |---|---|---|---|
-| https://www.michael-han.com/lizard/ | [michaellhan/lizard](https://github.com/michaellhan/lizard) (private) | `.github/workflows/deploy.yml` on every push to `main` | GitHub Actions |
+| https://www.michael-han.com/lizard/ | [michaellhan/lizard](https://github.com/michaellhan/lizard) (private) | `.github/workflows/deploy.yml` on every push to `main`, except one that touches only `docs/` or a top-level `.md` file (those change nothing served) | GitHub Actions |
 | https://www.michael-han.com/lizard-library/ | [michaellhan/lizard-library](https://github.com/michaellhan/lizard-library) (private) | `scripts/library/publish.sh`, run on this Mac | `main` branch, root |
 
 Neither repo has a CNAME file. GitHub serves a project site without a CNAME under the user site's custom domain
@@ -229,3 +229,45 @@ npm run build && npm run preview
 
 Serves `web/dist` at http://localhost:4173/lizard/ with the COOP/COEP headers. The library paths are proxied to the
 live site.
+
+## 6. Account sync (built, not deployed)
+
+The design and what it costs in privacy are in `docs/SYNC_DESIGN.md`. The service is a Cloudflare Worker with a D1 database at
+`www.michael-han.com/lizard/api/*`, which goes in front of Pages for that path only. Until these steps are done the site
+contains no sync panel and makes no request to it.
+
+What needs the owner's accounts, in order:
+
+1. Resend: create the account, verify `michael-han.com` with the DNS records it gives, create an API key.
+2. Cloudflare: create the D1 database, and a token that can edit Workers, routes and D1 on this zone.
+3. From `worker/`, with that token in `CLOUDFLARE_API_TOKEN`:
+
+```bash
+npx wrangler d1 create lizard-sync
+```
+
+Put the id it prints in `wrangler.toml` as `database_id`. It's an identifier, not a secret.
+
+```bash
+npx wrangler d1 execute lizard-sync --remote --file schema.sql
+```
+
+```bash
+npx wrangler secret put RESEND_API_KEY
+```
+
+```bash
+openssl rand -base64 32 | npx wrangler secret put EMAIL_HMAC_KEY
+```
+
+```bash
+npx wrangler deploy
+```
+
+4. Check `https://www.michael-han.com/lizard/api/health` answers JSON, and that the site itself, `/gto-solver/` and the homepage
+   are as they were.
+5. Set the repo variable `LIZARD_SYNC` to `on` and redeploy, which builds the panel in.
+6. Check it for real, as nothing has yet: sign in from a mail, choose a passphrase, sync, unlock in a second browser, delete
+   something in one and see it go in the other, delete the account, and read the D1 rows to see only ciphertext.
+
+To take it down, set `LIZARD_SYNC` off and redeploy, then remove the route. Local data is untouched by either.

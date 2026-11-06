@@ -3,7 +3,7 @@
 // Lizard wrote, can still be read; it reads store by store and record by record, so a store that fails costs only what
 // came after the failure; and it changes nothing.
 import { backupOf, BACKUP_STORES, type Backup, type BackupStore } from "./backup";
-import { DB_NAME, type DbFailure } from "./db";
+import { DB_NAME, type DbFailure, type Tombstone } from "./db";
 
 /** how long a look at a database that won't answer may take */
 const SALVAGE_MS = 10_000;
@@ -49,9 +49,14 @@ function readStore(d: IDBDatabase, store: string, into: unknown[], stopped: () =
 /** A record that can go in a backup at all: restoring takes each on its own merits. */
 const isRecord = (x: unknown): x is { id: string } => typeof x === "object" && x !== null && typeof (x as { id?: unknown }).id === "string";
 
+/** A tombstone that names a store a backup carries; the restore checks the rest of it. */
+const isGrave = (x: unknown): x is Tombstone => isRecord(x) && BACKUP_STORES.includes((x as { store?: unknown }).store as BackupStore) && typeof (x as { at?: unknown }).at === "number";
+
 /** What's been read so far, as it stands: records by store, and the stores not read to the end. */
 interface Reading {
   records: Partial<Record<BackupStore, unknown[]>>;
+  /** what had been deleted, so the file keeps it deleted: gone with a database older than v10, which never had the store */
+  graves: unknown[];
   unread: Set<BackupStore>;
   stopped: boolean;
   /** lets go of the database, which a read that never ends wouldn't: nothing could delete it while it's held */
@@ -74,6 +79,7 @@ async function readAll(r: Reading): Promise<void> {
       );
       if (whole) r.unread.delete(s);
     }
+    if (!r.stopped && d.objectStoreNames.contains("tombstones")) await readStore(d, "tombstones", r.graves, () => r.stopped).catch(() => undefined);
   } finally {
     d.close();
   }
@@ -82,14 +88,14 @@ async function readAll(r: Reading): Promise<void> {
 const standing = (r: Reading): Salvage => {
   const records = Object.fromEntries(Object.entries(r.records).map(([s, xs]) => [s, xs.filter(isRecord)]));
   const read = Object.values(records).reduce((n, xs) => n + xs.length, 0);
-  return { backup: read ? backupOf(records as never, "recovered") : null, read, unread: [...r.unread] };
+  return { backup: read ? backupOf(records as never, "recovered", Date.now, r.graves.filter(isGrave)) : null, read, unread: [...r.unread] };
 };
 
 /** All that can be read of the database. Never rejects. On one that doesn't answer in time it gives what it has, and says
  * which stores it didn't finish. */
 export async function salvage(ms = SALVAGE_MS): Promise<Salvage> {
   if (typeof indexedDB === "undefined") return NOTHING;
-  const r: Reading = { records: {}, unread: new Set(), stopped: false };
+  const r: Reading = { records: {}, graves: [], unread: new Set(), stopped: false };
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, ms);

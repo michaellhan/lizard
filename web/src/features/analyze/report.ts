@@ -1,8 +1,10 @@
 // The report over your graded decisions, ported from the classic analyzer (solver/gto/static/session.js tally,
 // groupBy, FREQS / freqs, PF_ORDER, report's mistakes and off-chart lists, LEAK / leaks, COLS / toCSV / toJSON), on
 // Lizard's grade scale (grading/grade.ts: "in the mix" is Best or Correct). Preflop decisions are graded against the
-// charts by frequency and have no EV lost; after the flop against what answered, by EV where it has EVs, each decision
-// saying what that was: the library, a stored turn, a read at once, a Quick or a Fast solve (byBasis keeps them apart).
+// stored preflop solve by EV where it reads the spot, else against the charts by frequency with no EV lost, and the two
+// are kept apart here, row by row, never added together; after the flop against what answered, by EV where it has EVs, each
+// decision saying what that was: the library, a stored turn, a read at once, a Quick or a Fast solve (byBasis keeps them
+// apart).
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { countVersions, versionNote, versionSpan, versionSummary } from "@/grading/version";
 import { STREETS } from "./analyze";
@@ -17,6 +19,11 @@ export const isGraded = (d: DecisionRecord) => d.verdict !== "Not graded";
 export const isOk = (d: DecisionRecord) => OK.has(d.verdict);
 const hasEv = (d: DecisionRecord) => isGraded(d) && d.evLossBb != null;
 const isLow = (d: DecisionRecord) => isGraded(d) && d.confidence === "low";
+/** graded by the stored preflop solve, an equilibrium of a class-level model, and not a chart or a solve of your spot */
+export const isPfSolve = (d: Pick<DecisionRecord, "source">) => d.source === "preflop-solve";
+/** The mark on a row of decisions graded by the preflop solve: a row beside the charts', as the two are never added. */
+export const PF_ROW = " (preflop solve)";
+export const pfKey = (d: DecisionRecord) => `${d.situation}${isPfSolve(d) ? PF_ROW : ""}`;
 
 export interface Tally {
   /** decisions, graded or not */
@@ -123,9 +130,11 @@ export const BASES = [
   "Quick solve, not settled",
   "Read at once",
   "Push/fold model (by frequency, not a solve)",
+  "Preflop solve (class-level model, by EV, not a full solve)",
 ];
 export function basisOf(d: DecisionRecord): string {
   if (d.source === "charts") return BASES[0]!;
+  if (isPfSolve(d)) return BASES[10]!;
   if (d.source === "push-fold") return BASES[9]!;
   if (d.source === "library") return d.approximate || d.label.includes("another table's spot") ? BASES[2]! : BASES[1]!; // (kept before `approximate`: only its label says so)
   if (d.source === "library-turn") return BASES[5]!;
@@ -151,9 +160,8 @@ export interface FreqRow {
 export function freqs(ds: readonly DecisionRecord[]): FreqRow[] {
   const rows = ds.filter((d) => isGraded(d) && d.mix);
   const out: FreqRow[] = [];
-  for (const [label, cls, f] of FREQS) {
-    const rs = rows.filter(f);
-    if (!rs.length) continue;
+  const row = (label: string, cls: Cls, rs: readonly DecisionRecord[]) => {
+    if (!rs.length) return;
     let [you, gto, sq] = [0, 0, 0];
     for (const d of rs) {
       const [y, m] = [Number(clsOf(d.action) === cls), mixByClass(d)[cls]];
@@ -162,6 +170,12 @@ export function freqs(ds: readonly DecisionRecord[]): FreqRow[] {
       sq += (y - m) ** 2;
     }
     out.push({ label, cls, n: rs.length, k: you, you: you / rs.length, range: wilson(you, rs.length), gto: gto / rs.length, sq: sq / rs.length });
+  };
+  for (const [label, cls, f] of FREQS) {
+    const rs = rows.filter(f);
+    // (the charts' frequencies and the solve's are two answers: each its own row)
+    row(label, cls, rs.filter((d) => !isPfSolve(d)));
+    row(`${label}${PF_ROW}`, cls, rs.filter(isPfSolve));
   }
   return out;
 }
@@ -215,7 +229,7 @@ export function readLeaks(ds: readonly DecisionRecord[]): { leaks: Leak[]; thin:
     const d = f.you - f.gto;
     if (f.n >= MIN_THIN && Math.abs(d) >= LEAK.freq[0]) out.push({ kind: "freq", key: f.label, n: f.n, you: f.you, gto: f.gto, range: f.range, score: Math.abs(d) * Math.sqrt(f.n), ...none });
   }
-  for (const r of groupBy(ds.filter((d) => d.street === "preflop"), (d) => d.situation, PF_ORDER))
+  for (const r of groupBy(ds.filter((d) => d.street === "preflop"), pfKey, PF_ORDER))
     if (r.graded >= MIN_THIN && r.ok / r.graded < LEAK.pf[0]) out.push({ kind: "pf", key: r.key, n: r.graded, inMix: r.ok / r.graded, range: wilson(r.ok, r.graded), score: (1 - r.ok / r.graded) * Math.sqrt(r.graded), ...none });
   for (const r of groupBy(ds, spotOf))
     if (r.ev >= MIN_THIN && (r.avg ?? 0) >= LEAK.spot[0]) {
@@ -234,10 +248,11 @@ export const leaks = (ds: readonly DecisionRecord[]): Leak[] => readLeaks(ds).le
 /** A leak's decisions. */
 export function leakTest(l: Pick<Leak, "kind" | "key">): (d: DecisionRecord) => boolean {
   if (l.kind === "freq") {
-    const f = FREQS.find((x) => x[0] === l.key);
-    return f ? (d) => isGraded(d) && !!d.mix && f[2](d) : () => false;
+    const solve = l.key.endsWith(PF_ROW);
+    const f = FREQS.find((x) => x[0] === (solve ? l.key.slice(0, -PF_ROW.length) : l.key));
+    return f ? (d) => isGraded(d) && !!d.mix && f[2](d) && isPfSolve(d) === solve : () => false;
   }
-  if (l.kind === "pf") return (d) => d.street === "preflop" && d.situation === l.key;
+  if (l.kind === "pf") return (d) => d.street === "preflop" && pfKey(d) === l.key;
   // (a link kept from when only flops were graded names the spot without its street)
   const key = /^(Flop|Turn|River) · /.test(l.key) ? l.key : `Flop · ${l.key}`;
   return (d) => spotOf(d) === key;
@@ -264,24 +279,31 @@ export interface KindLoss {
   graded: number;
   ev: number;
   lost: number;
+  /** those graded by the preflop solve, in neither of the two above */
+  pfEv: number;
+  pfLost: number;
 }
 
 /** The EV your decisions lost, by kind of game; only kinds with something graded. */
 export function lostByKind(ds: readonly DecisionRecord[], hands: ReadonlyMap<string, HandRecord>): KindLoss[] {
+  // (the preflop solve's EV stands on its own model, so it's kept beside what a solve of the spot says, not added to it)
   const m = new Map<HandKind, KindLoss>();
   for (const d of ds) {
     const h = hands.get(d.handId);
     if (!h || !isGraded(d)) continue;
     const kind = handKind(h);
-    const k = m.get(kind) ?? { kind, graded: 0, ev: 0, lost: 0 };
+    const k = m.get(kind) ?? { kind, graded: 0, ev: 0, lost: 0, pfEv: 0, pfLost: 0 };
     k.graded++;
-    if (hasEv(d)) {
+    if (hasEv(d) && isPfSolve(d)) {
+      k.pfEv++;
+      k.pfLost += d.evLossBb ?? 0;
+    } else if (hasEv(d)) {
       k.ev++;
       k.lost += d.evLossBb ?? 0;
     }
     m.set(kind, k);
   }
-  return [...m.values()].map((k) => ({ ...k, lost: r2(k.lost) }));
+  return [...m.values()].map((k) => ({ ...k, lost: r2(k.lost), pfLost: r2(k.pfLost) }));
 }
 
 export interface Report {
@@ -289,7 +311,9 @@ export interface Report {
   hands: number;
   byStreet: Group[];
   byPos: Group[];
+  /** preflop by situation, each against what graded it: the charts' and the preflop solve's apart */
   byPf: Group[];
+  byPfSolve: Group[];
   bySpot: Group[];
   /** what the grades stand on, the most solid first */
   byBasis: Group[];
@@ -297,6 +321,10 @@ export interface Report {
   versions: string | null;
   /** of the decisions graded, how many are low-confidence reads, and the EV they lost */
   low: { n: number; lost: number };
+  /** of the decisions graded by EV, how many the preflop solve graded, and the EV of its model they lost */
+  pfEv: { n: number; lost: number };
+  /** graded by EV by anything but the preflop solve: the two are never added */
+  spotEv: { n: number; lost: number; avgPct: number | null };
   /** the reads checked at Fast */
   agree: ReturnType<typeof agreement>;
   freqs: FreqRow[];
@@ -318,17 +346,22 @@ export function report(ds: readonly DecisionRecord[], top = 20, leakFrom: readon
   for (const d of ds) if (!isGraded(d)) why.set(d.why ?? "", (why.get(d.why ?? "") ?? 0) + 1);
   const unweighed = ds.filter((d) => isGraded(d) && d.evLossBb == null && d.verdict === "Mistake").sort((a, b) => (b.bestFreq ?? 0) - (a.bestFreq ?? 0));
   const low = ds.filter(isLow);
+  const pfEv = ds.filter((d) => hasEv(d) && isPfSolve(d));
+  const spotEv = tally(ds.filter((d) => hasEv(d) && !isPfSolve(d)));
   const { leaks: found, thin } = readLeaks(leakFrom);
   return {
     all: tally(ds),
     hands: new Set(ds.map((d) => d.handId)).size,
     byStreet: groupBy(ds, (d) => d.street, STREETS),
     byPos: groupBy(ds, (d) => d.pos, ["UTG", "UTG1", "UTG2", "LJ", "HJ", "CO", "BTN", "SB", "BB"]),
-    byPf: groupBy(ds.filter((d) => d.street === "preflop"), (d) => d.situation, PF_ORDER),
+    byPf: groupBy(ds.filter((d) => d.street === "preflop" && !isPfSolve(d)), (d) => d.situation, PF_ORDER),
+    byPfSolve: groupBy(ds.filter((d) => d.street === "preflop" && isPfSolve(d)), (d) => d.situation, PF_ORDER),
     bySpot: groupBy(ds, spotOf),
     byBasis: groupBy(ds.filter(isGraded), basisOf, BASES),
     versions: versionSummary(countVersions(ds.filter(isGraded).map((d) => d.version))),
     low: { n: low.length, lost: r2(low.reduce((t, d) => t + (d.evLossBb ?? 0), 0)) },
+    pfEv: { n: pfEv.length, lost: r2(pfEv.reduce((t, d) => t + (d.evLossBb ?? 0), 0)) },
+    spotEv: { n: spotEv.ev, lost: spotEv.lost, avgPct: spotEv.avgPct },
     agree: agreement(ds),
     freqs: freqs(ds),
     leaks: found,
@@ -375,7 +408,7 @@ export function rowsOf(ds: readonly DecisionRecord[], hands: ReadonlyMap<string,
       pot_bb: d.pot,
       facing_bet: d.facing,
       in_position: d.ip,
-      note: d.note ?? "",
+      note: [d.note, d.pfWhy].filter(Boolean).join("; "),
       not_graded_why: d.why ?? "",
       tournament: h?.tournament ?? "",
       basis: isGraded(d) ? basisOf(d) : "",

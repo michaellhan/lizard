@@ -6,6 +6,11 @@ name: deploy
 on:
   push:
     branches: [main]
+    # Words alone change nothing the site serves. A push that touches anything else still runs everything. PROGRESS.md and
+    # the rest of docs/ aren't in the build (no file under web/ or scripts/ reads them; checked 2026-11-06).
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
   pull_request:
   workflow_dispatch:
 
@@ -40,6 +45,9 @@ jobs:
           npm test
       - name: Pyodide staging tests (pins, verification, what the published worker names)
         run: npm run test:scripts
+      - name: Sync service tests (the Worker on its real schema, D1 stood in for by SQLite; nothing here deploys it)
+        working-directory: worker
+        run: ../node_modules/.bin/tsc --noEmit -p . && ../node_modules/.bin/vitest run --root . src
       - name: Library assembler tests
         run: python -m unittest discover -s scripts/library
       - name: Engine contract tests (what Lizard reads from the engine's tournament answer; the prize model only)
@@ -53,6 +61,8 @@ jobs:
           node --test tests/js/routes.test.js tests/js/solver_state.test.js
       - name: Build
         run: npm run build
+        env:
+          VITE_SYNC: ${{ vars.LIZARD_SYNC }}
       - name: Browser tests (every route at three widths, and the flows on the real worker)
         run: |
           npx -w web playwright install --with-deps chromium

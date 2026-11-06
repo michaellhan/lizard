@@ -592,6 +592,8 @@ Moves matrix rows: Solution comparisons, Range comparison.
 
 **Goal.** Let users who want it sync their saved data across devices. Nobody is ever required to sign in.
 
+**Status (2026-11-06).** Decided by the owner and built: Cloudflare Workers + D1, email magic link through Resend, end-to-end encrypted, for saved spots, session history, imported hands and kept mistakes. Tested against stand-ins, not deployed. It waits on the owner's Cloudflare and Resend accounts (`docs/DEPLOYMENT.md` section 6). The design is `docs/SYNC_DESIGN.md`.
+
 **Deliverables.**
 - **A separate small service.** Not part of the static site. It stores encrypted record blobs, using the Phase 5 record shape, `{id, v, created, updated, dev, data}`.
 - **Client.** A sync module in `web/src/data/`, off by default and enabled from Settings. It uses end-to-end encryption with a user passphrase, so the server cannot read hands.

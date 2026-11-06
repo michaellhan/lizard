@@ -1,19 +1,25 @@
 // Your imported decisions graded against the Advisor's answer for your hand, as the classic analyzer does it
 // (solver/gto/static/session.js classify / processItem, index.html payload / gradeWith / gradedMove / jamOffTree), at
-// four scopes. Two solve nothing: preflop against the charts, graded by frequency only (the charts have no EVs), and
-// flops from the precomputed library ("library_only": a flop the library doesn't hold is skipped, never solved). Two
-// reach every street: Quick triage ("triage": what's in hand first, else a Quick solve; each read says how far to
-// trust it, and triage.ts checks the doubtful ones at Fast) and Fast. The betting rules and equity guesses are never
-// graded against, at any scope. The grade is Lizard's one scale (grading/grade.ts): by EV where the answer has EVs for
-// every action, by frequency where it hasn't (the charts; a read at once).
+// four scopes. Two solve nothing: preflop, and flops from the precomputed library ("library_only": a flop the library
+// doesn't hold is skipped, never solved). Two reach every street: Quick triage ("triage": what's in hand first, else a
+// Quick solve; each read says how far to trust it, and triage.ts checks the doubtful ones at Fast) and Fast. The betting
+// rules and equity guesses are never graded against, at any scope. The grade is Lizard's one scale (grading/grade.ts): by
+// EV where the answer has EVs for every action, by frequency where it hasn't (the charts; a read at once).
+// Preflop at every scope: in a game the preflop solve is stored for, by EV against that solve wherever it holds the spot
+// (the file Practice reads, read and never run), under its own label; anywhere else against the charts, by frequency, with
+// `pfWhy` saying why. A hand played in Practice is read by the table's own rule (pfGrade.ts pfReadAt), so one decision
+// has one grade. Any other game is asked what it always was.
 import type { DecisionRecord, HandRecord } from "@/data/db";
+import { PRACTICE_SITE } from "@/data/hands";
+import { pfPlayed, pfReadAt, type PfAsked, type PfSpot } from "@/features/practice/pfGrade";
+import { pfBlocked } from "@/features/practice/practice";
 import { capGrade, grade, type Grade, type Verdict } from "@/grading/grade";
 import { versionOf } from "@/grading/version";
 import { importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Lines, type Move, type Street } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, OffSolution } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
-import type { Provenance, ResultSource } from "@/solver/types";
+import { SolverError, type Provenance, type ResultSource } from "@/solver/types";
 import { heroDecisions, potType, preflopRaises, preflopSituation, STREETS } from "./analyze";
 
 const NEED: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
@@ -24,7 +30,7 @@ const AGGRESSIVE: ReadonlySet<string> = new Set(["bet", "raise", "all-in"]);
 
 export type GradeScope = "preflop" | "library" | "triage" | "all";
 export const SCOPES: Record<GradeScope, string> = {
-  preflop: "Preflop, against the charts",
+  preflop: "Preflop: the stored solve, else the charts",
   library: "Preflop and the flops the library holds",
   triage: "Every street, Quick triage",
   all: "Every street, at Fast",
@@ -33,7 +39,7 @@ export const SCOPES: Record<GradeScope, string> = {
 const SCOPE_STREETS: Record<GradeScope, readonly Street[]> = { preflop: ["preflop"], library: ["preflop", "flop"], triage: STREETS, all: STREETS };
 /** The answers a grade may stand on: without a solve the charts and the library, with one a stored turn, a read at
  * once or the solve too. Never the betting rules or an equity guess. */
-const NOTHING_SOLVED: readonly ResultSource[] = ["charts", "push-fold", "library"];
+const NOTHING_SOLVED: readonly ResultSource[] = ["charts", "push-fold", "library", "preflop-solve"];
 const SOLVING: readonly ResultSource[] = [...NOTHING_SOLVED, "library-turn", "instant", "live"];
 const GRADED_SOURCES: Record<GradeScope, readonly ResultSource[]> = { preflop: NOTHING_SOLVED, library: NOTHING_SOLVED, triage: SOLVING, all: SOLVING };
 
@@ -214,9 +220,36 @@ export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix
 /** Asks the solver for one state (the page's SolverClient.solve, with its provenance). */
 export type Ask = (state: AdvisorState) => Promise<{ data: AdvisorResponse; provenance: Provenance }>;
 
+/** Why a hand's game isn't one the preflop solve is stored for, in words; null where it is. A site's history says no rake
+ * or cap (`adviceStateAt`), so it's asked as the game with none, and a decision says so (`PF_NO_RAKE`). */
+export function pfOut(hand: Pick<HandRecord, "tournament" | "setup">, r: Pick<ReplayedHand, "hand" | "setup">): string | null {
+  const h = r.hand;
+  if (hand.tournament !== undefined) return "A tournament's stacks and prizes aren't the game the preflop solve is stored for.";
+  if (r.setup.limit === "pot" || h.hole.length !== 2) return "The preflop solve is of no-limit hold'em.";
+  if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks of 100bb only.";
+  const { sizes, rake = 0, rakeCap = 0 } = hand.setup ?? {};
+  return pfBlocked(h.players, h.stack, { ante: h.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
+}
+
+/** What a site's hand graded by the solve says with it. */
+export const PF_NO_RAKE = "this history doesn't say its rake or cap, so it's read against the stored game with no rake";
+
+/** The stored solve's node at a decision: read and never run, as the request has no `run` (Advisor._study_pf). Anything but
+ * a stop leaves the chart's grade, with why. */
+async function askPf({ triage: _t, library_only: _l, ...state }: AdvisorState, ask: Ask): Promise<PfAsked> {
+  try {
+    const a = await ask({ ...state, study: true, preflop_solve: true });
+    if (a.data.cancelled) throw new SolverError("cancelled", "cancelled");
+    return a;
+  } catch (e) {
+    if (e instanceof SolverError && e.kind === "cancelled") throw e;
+    return { failed: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** One of your decisions graded, as kept: the grade and what it stands on, or why it isn't graded. */
 export async function gradeDecision(
-  hand: Pick<HandRecord, "id" | "setup">,
+  hand: Pick<HandRecord, "id" | "setup"> & Partial<Pick<HandRecord, "site" | "tournament">>,
   r: ReplayedHand,
   street: Street,
   i: number,
@@ -266,13 +299,27 @@ export async function gradeDecision(
     if (again.data.cancelled) throw new Error("cancelled");
     if (!again.data.error && !again.data.skipped && Array.isArray(again.data.actions)) ans = again;
   }
+  const tri = read(ans.data);
+  let pf: { pfWhy?: string; noRake?: boolean } = {};
+  if (street === "preflop" && !pfOut(hand, r)) {
+    const practice = hand.site === PRACTICE_SITE;
+    const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(r.setup, linesBefore(r, street, i), 0), table: r.setup, ownSizes: !!hand.setup?.pfSizes };
+    const asked = await askPf(state, ask);
+    const by = practice ? pfReadAt(spot, ans.data, asked) : pfPlayed(spot, m, asked);
+    if ("why" in by) pf = { pfWhy: by.why };
+    else {
+      ans = by;
+      pf = { noRake: !practice };
+    }
+  }
   const source = ans.provenance.source;
   const label = describeProvenance(ans.provenance);
-  const tri = read(ans.data);
   // (a fallback's rules or an equity guess is never graded against)
   if (!GRADED_SOURCES[scope].includes(source))
     return ungraded(`answered by ${label}, ${GRADED_SOURCES[scope] === SOLVING ? "which isn't graded against" : "not the charts or the library"}`, source, label, tri);
   const g = gradeAgainst(ans.data, m);
+  // (the site's words beside any the grade has)
+  const note = [g?.note, pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
   if (!g) return ungraded(matchMove(ans.data, m) ? "the answer gave no pot to measure the EV lost against" : `your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);
   // (the answer's most frequent action, as the classic analyzer reports it; the grade's best is by EV)
   const best = g.mix.reduce((b, x) => (x[1] > b[1] ? x : b));
@@ -293,7 +340,8 @@ export async function gradeDecision(
     bestFreq: best[1],
     pot: r2(g.pot),
     mix: g.mix,
-    ...(g.note ? { note: g.note } : {}),
+    ...(note ? { note } : {}),
+    ...(pf.pfWhy ? { pfWhy: pf.pfWhy } : {}),
     ...(g.roughEv ? { roughEv: true } : {}),
     ...(g.roughEvs ? { roughEvs: g.roughEvs } : {}),
     ...(off ? { off } : {}),
@@ -306,9 +354,41 @@ export async function gradeDecision(
   };
 }
 
+/** A chart's preflop grade kept from before Analyze asked the preflop solve: in a stored game the solve may read it. */
+const pfUnasked = (d: DecisionRecord) => d.street === "preflop" && d.source === "charts" && d.pfWhy === undefined;
+
+const games = new WeakMap<HandRecord, boolean>();
+/** Whether a hand's game is one the preflop solve is stored for, once for each hand, as a hand that reads no more isn't. */
+function pfStored(h: HandRecord): boolean {
+  let yes = games.get(h);
+  if (yes === undefined) {
+    try {
+      yes = !pfOut(h, importHand(h.text));
+    } catch {
+      yes = false;
+    }
+    games.set(h, yes);
+  }
+  return yes;
+}
+
 /** What a new run doesn't ask again: each decision an answer was kept for. One nothing answered, a flop the library
- * didn't hold or the solver's failure, is asked again: by a wider scope, or by the library once it holds that flop. */
-export const answeredIds = (ds: readonly DecisionRecord[]) => new Set(ds.filter((d) => d.verdict !== "Not graded" || d.source).map((d) => d.id));
+ * didn't hold or the solver's failure, is asked again: by a wider scope, or by the library once it holds that flop. So is
+ * a chart's preflop grade from before Analyze asked the preflop solve, in `hands` of a stored game: it's graded again, and
+ * either the solve takes it or it says why not, so it isn't asked a third time. */
+export function answeredIds(ds: readonly DecisionRecord[], hands: readonly HandRecord[] = []): Set<string> {
+  const stored = new Map(hands.map((h) => [h.id, h]));
+  return new Set(
+    ds
+      .filter((d) => {
+        if (d.verdict === "Not graded" && !d.source) return false;
+        if (!pfUnasked(d)) return true;
+        const h = stored.get(d.handId);
+        return !h || !pfStored(h);
+      })
+      .map((d) => d.id),
+  );
+}
 
 /** A read checked at Fast: the answer at Fast in its place, keeping the read to compare (session.js triageOf); one
  * that can't grade your move leaves the read as it stands, saying why. */

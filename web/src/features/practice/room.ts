@@ -92,7 +92,7 @@ import {
   type SeatChoice,
 } from "./practice";
 import { estimate, plan, queue, refocus, SHORT, streetKey, type Asked, type Front, type Job, type Waiter } from "./scheduler";
-import { afterDeal, afterDecision, afterHand, atTables, freshSession, keyOf, toRecord, type Kept, type PracticeSession } from "./session";
+import { afterDeal, afterDecision, afterHand, atTables, freshSession, gradesOf, keyOf, toRecord, type Kept, type PracticeSession } from "./session";
 
 /** ms an opponent's move and a new card take at least at one table, so the hand can be followed. */
 export const PACE = 450;
@@ -236,6 +236,10 @@ export interface RoomSnapshot {
   ahead: { on: boolean; meter: AheadMeter };
   /** the kept session's read, where it hasn't gone as it should */
   keptRead: KeptRead | null;
+  /** the kept doc is still being read, so what's at the tables may yet be replaced by what's read back */
+  holding: boolean;
+  /** something would be lost by starting over: you've played here, or a kept session hasn't been read yet (at KEPT_WAIT) */
+  underWay: boolean;
 }
 
 /** A wait: the seconds from your turn to its buttons. `table`: from 1. */
@@ -1146,7 +1150,7 @@ export class Room {
     const result = finish(h);
     this.put(t, { ...h, result });
     this.session = afterHand(this.session, h, result);
-    t.stats = addHandToPot(t.stats, h.decisions.map((d) => d.grade), this.session.opts.preflopOnly ? null : result.net);
+    t.stats = addHandToPot(t.stats, gradesOf(h), this.session.opts.preflopOnly ? null : result.net);
     // (as the hand ends, with its tally, so these are the decisions `stats` counts)
     t.sources = h.decisions.reduce((s, d) => (d.grade ? addSource(s, d.provenance?.source) : s), t.sources);
     t.lastHand = { n: h.n, seat: h.hero, result };
@@ -1494,6 +1498,8 @@ export class Room {
       flops: this.flops,
       ahead: { on: this.askAhead, meter: this.meter },
       keptRead: this.keptRead,
+      holding: this.holding,
+      underWay: this.keptRead === "waiting" || this.session.hands > 0 || this.tables.some((t) => t.hand.decisions.length > 0),
     };
   }
 

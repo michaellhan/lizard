@@ -8,15 +8,22 @@
 // class of yours still in its range. Anywhere else the decision keeps the chart's frequency grade under the chart's own
 // label, and `pfWhy` says why in words. A size is never mapped onto the solve's: an EV of raising to 12bb isn't one of
 // raising to 10bb. docs/ACCURACY.md has how often each happens, by scripts/pf_practice_coverage.py.
+//
+// A session can go the other way (`pfSizes`, its own tick box): at a spot the solve would grade but for your raise's size,
+// the button is offered at the solve's size, so it's the move that changes, not the EV. The opponents still play the charts,
+// and that raise is no longer the chart's, so the hand leaves the flop library, whose lines are kept by size.
+//
+// Analyze asks the same of a kept hand (`pfReadAt`), so a decision has one grade. A site's hand had no buttons, so what can
+// be asked of it is the move it made (`pfPlayed`).
 import { kindOf } from "@/components/actions";
 import { classOf } from "@/engine/nlhe/cards";
-import type { Sim } from "@/poker/table";
+import { recordOf, type Move, type Sim, type TableSetup } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { bb } from "@/components/actions";
 import type { GradeCell } from "@/features/history/history";
 import { shareText } from "@/features/history/progress";
-import { moveOfOption, optionsOf, simOf, type Decision, type PracticeHand } from "./practice";
+import { optionsOf, setupOf, simOf, type Decision, type PracticeHand } from "./practice";
 
 /** What the worker answered at the node, or why it didn't. */
 export type PfAsked = SolveResult | { failed: string };
@@ -59,10 +66,11 @@ function readNode(asked: PfAsked | undefined, seat: string, hole: string): NodeR
   return { node, provenance: { ...provenance, approximate: true, approximateLabel: PF_MODEL }, f, ev };
 }
 
-/** Each of your options' place among the node's actions: null unless they're the same options, kind and size, both ways. */
-function lineUp(moves: readonly { action: string; to?: number | null }[], actions: readonly AdvisorActionStat[]): number[] | null {
+/** Each of your options' place among the node's actions: null unless they're the same options, kind and size, both ways
+ * (`anySize`: kind only, where your raise is about to take the node's size). */
+function lineUp(moves: readonly { action: string; to?: number | null }[], actions: readonly AdvisorActionStat[], anySize = false): number[] | null {
   if (moves.length !== actions.length) return null;
-  const at = moves.map((m) => actions.findIndex((a) => a.action === m.action && (m.action !== "raise" || Math.abs((m.to ?? NaN) - (a.amount_bb ?? NaN)) <= SIZE_EPS)));
+  const at = moves.map((m) => actions.findIndex((a) => a.action === m.action && (anySize || m.action !== "raise" || Math.abs((m.to ?? NaN) - (a.amount_bb ?? NaN)) <= SIZE_EPS)));
   return at.includes(-1) || new Set(at).size !== at.length ? null : at;
 }
 
@@ -74,21 +82,59 @@ const asOptions = (read: Extract<NodeRead, { node: unknown }>, options: readonly
 
 export type PfRead = { data: AdvisorResponse; provenance: Provenance } | { why: string };
 
-/** The solve's grade at your spot, as an answer `decide` takes, or why it's the chart's. `res`: the chart's answer. */
-export function pfRead(h: PracticeHand, res: AdvisorResponse, asked: PfAsked | undefined, sim: Sim = simOf(h)): PfRead {
-  const read = readNode(asked, h.hero, h.hands[h.hero]!.join(""));
+/** A decision as the solve's read needs it, from a hand at the table or kept. `ownSizes`: the session's `pfSizes`. */
+export interface PfSpot {
+  hero: string;
+  hole: string;
+  sim: Sim;
+  table: TableSetup;
+  ownSizes?: boolean;
+}
+
+/** The chips in aren't the tree's, in words; null where they are. An all-in with no size is walked onto the tree's raise
+ * with no note: the chips are what tell. */
+function chipsOff({ sim, hero }: PfSpot, node: AdvisorResponse): string | null {
+  const toCall = (sim.cur?.curBet ?? 0) - (sim.cur?.bets[hero] ?? 0);
+  if (Math.abs((node.pot_bb ?? NaN) - sim.pot) <= CHIP_EPS && Math.abs((node.to_call_bb ?? NaN) - toCall) <= CHIP_EPS) return null;
+  return `The chips in aren't the solve's: the pot is ${sim.pot}bb here and ${node.pot_bb}bb on its tree.`;
+}
+
+/** The solve's grade at a spot, as an answer `decide` takes, or why it's the chart's. `res`: the chart's answer. */
+export function pfReadAt(spot: PfSpot, res: AdvisorResponse, asked: PfAsked | undefined): PfRead {
+  const read = readNode(asked, spot.hero, spot.hole);
   if ("why" in read) return read;
   const { node } = read;
-  // (an all-in with no size is walked onto the tree's raise with no note: the chips are what tell)
-  const toCall = (sim.cur?.curBet ?? 0) - (sim.cur?.bets[h.hero] ?? 0);
-  if (Math.abs((node.pot_bb ?? NaN) - sim.pot) > CHIP_EPS || Math.abs((node.to_call_bb ?? NaN) - toCall) > CHIP_EPS) return chart(`The chips in aren't the solve's: the pot is ${sim.pot}bb here and ${node.pot_bb}bb on its tree.`);
+  const off = chipsOff(spot, node);
+  if (off) return chart(off);
   const options = optionsOf(res);
-  const moves = options.map((a) => moveOfOption(h, a, sim));
+  const moves = options.map((a) => recordOf(spot.table, spot.sim, { action: kindOf(a.action), to: typeof a.amount_bb === "number" ? a.amount_bb : undefined, clamp: true }));
   const table = moves.flatMap((m) => (typeof m === "string" ? [] : [m]));
-  const at = table.length === moves.length ? lineUp(table, node.actions ?? []) : null;
+  const whole = table.length === moves.length;
+  const at = whole ? lineUp(table, node.actions ?? []) : null;
+  if (at) return { data: asOptions(read, options, at), provenance: read.provenance };
+  const own = whole && spot.ownSizes ? lineUp(table, node.actions ?? [], true) : null;
+  if (own) return { data: asOptions(read, options.map((o, i) => (kindOf(o.action) === "raise" ? { ...o, amount_bb: node.actions![own[i]!]!.amount_bb } : o)), own), provenance: read.provenance };
   const its = (node.actions ?? []).map((a) => ({ action: a.action, to: a.amount_bb }));
-  if (!at) return chart(`The solve's options aren't yours here: you have ${sizes(table)}, and it has ${sizes(its)}.`);
-  return { data: asOptions(read, options, at), provenance: read.provenance };
+  return chart(`The solve's options aren't yours here: you have ${sizes(table)}, and it has ${sizes(its)}.`);
+}
+
+/** A hand at the table's spot (`pfReadAt`). */
+export function pfRead(h: PracticeHand, res: AdvisorResponse, asked: PfAsked | undefined, sim: Sim = simOf(h)): PfRead {
+  return pfReadAt({ hero: h.hero, hole: h.hands[h.hero]!.join(""), sim, table: setupOf(h), ownSizes: h.pfSizes }, res, asked);
+}
+
+/** A site's hand: no buttons were offered, so there are no options to line up, and what the solve can say of it is the move
+ * made. It reads where the node is this spot and holds that move, a raise at its own size: an EV of a raise to 12bb isn't one
+ * of a raise to 11bb. So here, unlike the table, the size you raised to can leave a decision with the chart. */
+export function pfPlayed(spot: PfSpot, m: Move, asked: PfAsked | undefined): PfRead {
+  const read = readNode(asked, spot.hero, spot.hole);
+  if ("why" in read) return read;
+  const { node } = read;
+  const off = chipsOff(spot, node);
+  if (off) return chart(off);
+  const actions = node.actions ?? [];
+  if (!lineUp([m], actions.filter((a) => a.action === m.action))) return chart(`The solve has no such move here: you played ${sizes([m])}, and it has ${sizes(actions.map((a) => ({ action: a.action, to: a.amount_bb })))}.`);
+  return { data: asOptions(read, actions, actions.map((_, i) => i)), provenance: read.provenance };
 }
 
 /** What a decision at this spot is graded on: the solve's answer where it reads, else the chart's, with why. */
@@ -96,6 +142,11 @@ export function gradedOn(h: PracticeHand, held: HeldAnswer, sim: Sim = simOf(h))
   if (!h.pfSolve || sim.current !== "preflop") return held;
   const read = pfRead(h, held.data, held.pf, sim);
   return "why" in read ? { data: held.data, provenance: held.provenance, pfWhy: read.why } : read;
+}
+
+/** Your options at a spot: the answer's, at the solve's sizes where the session offers them. */
+export function optionsAt(h: PracticeHand, held: HeldAnswer | null | undefined, sim: Sim = simOf(h)): AdvisorActionStat[] {
+  return held ? optionsOf(h.pfSizes ? gradedOn(h, held, sim).data : held.data) : [];
 }
 
 /** A retry of a decision graded by the solve: the same read, of the answer asked now, against the options and pot kept with

@@ -211,4 +211,56 @@ describe("grading preflop by the preflop solve", () => {
     open({ ...OPTS, pfSolve: true });
     expect(box()!.checked).toBe(true);
   });
+  describe("offering the solve's raise sizes", () => {
+    const sizes = () => screen.queryByRole("checkbox", { name: "Offer the solve's raise sizes" }) as HTMLInputElement | null;
+
+    it("is there only once the first is ticked, and off by default", () => {
+      const start = open();
+      expect(sizes()).toBeNull();
+      fireEvent.click(box()!);
+      expect(sizes()!.checked).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "New session" }));
+      expect(start.mock.calls[0]![2]).toMatchObject({ pfSolve: true });
+      expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSizes");
+    });
+    it("starts the session with it once it's ticked, and never without the first", () => {
+      const start = open();
+      fireEvent.click(box()!);
+      fireEvent.click(sizes()!);
+      fireEvent.click(screen.getByRole("button", { name: "New session" }));
+      expect(start.mock.calls[0]![2]).toMatchObject({ pfSolve: true, pfSizes: true });
+      fireEvent.click(box()!);
+      expect(sizes()).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "New session" }));
+      expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSolve");
+      expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSizes");
+    });
+    it("says its cost in plain words before you tick it, and what it is once you have", () => {
+      open();
+      fireEvent.click(box()!);
+      const note = document.getElementById("pf-note")!;
+      expect(sizes()).toHaveAccessibleDescription(/not a full solve/);
+      expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
+      expect(note).toHaveTextContent("leave the flop library");
+      fireEvent.click(sizes()!);
+      expect(note).toHaveTextContent("equilibrium of a simplified class-level preflop game, not a full solve");
+      expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
+      expect(note).toHaveTextContent("leave the flop library");
+      expect(note).not.toHaveTextContent("Your options and the opponents stay the charts");
+      expect(note).toHaveTextContent("The opponents stay the charts");
+    });
+    it("doesn't go on into a game with no stored solve", () => {
+      const start = open();
+      fireEvent.click(box()!);
+      fireEvent.click(sizes()!);
+      pick("Players", "2");
+      expect(sizes()).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "New session" }));
+      expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSizes");
+    });
+    it("comes back ticked with a session that had it", () => {
+      open({ ...OPTS, pfSolve: true, pfSizes: true });
+      expect(sizes()!.checked).toBe(true);
+    });
+  });
 });

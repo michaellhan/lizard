@@ -12,7 +12,7 @@ import { heldDecisions } from "@/data/mistakes";
 import { scenarioWords, type ScenarioSetup } from "@/data/scenarios";
 import { GAME_EQUILIBRIUM } from "@/features/analyze/analyze";
 import { canDrill, drillSessionId, fromSession, leakDrillLink, leakParam, type LeakRef } from "@/features/analyze/leakDrill";
-import { BASES, basisOf, isGraded, isOk, LEAK_RULE, leakTest, MIN_READ, readLeaks, type Leak } from "@/features/analyze/report";
+import { BASES, basisOf, isGraded, isOk, isPfSolve, LEAK_RULE, leakTest, MIN_READ, readLeaks, type Leak } from "@/features/analyze/report";
 import { exploitImports, isEquilibriumHand } from "@/features/analyze/sessions";
 import { STREET_ORDER } from "@/features/history/progress";
 import type { DrillStreet, DrillView } from "@/features/practice/drills";
@@ -196,6 +196,9 @@ interface RowTally {
   n: number;
   ev: number;
   lost: number;
+  /** those graded by the preflop solve, in neither of the two above: never added to them in what's said */
+  pfEv: number;
+  pfLost: number;
   rough: number;
   bases: Map<string, number>;
   streets: Map<string, number>;
@@ -210,7 +213,7 @@ interface RowTally {
 function tallyRows(rows: readonly Leak[], ds: readonly DecisionRecord[], sessions: ReadonlyMap<string, SessionRecord>): RowTally[] {
   const tests = rows.map((l) => leakTest(l));
   const answered = rows.map((l) => new Set(fromSession(sessions.get(drillSessionId(l)))?.done));
-  const out = rows.map((): RowTally => ({ n: 0, ev: 0, lost: 0, rough: 0, bases: new Map(), streets: new Map(), pots: new Map(), dealt: 0, left: 0, unread: 0 }));
+  const out = rows.map((): RowTally => ({ n: 0, ev: 0, lost: 0, pfEv: 0, pfLost: 0, rough: 0, bases: new Map(), streets: new Map(), pots: new Map(), dealt: 0, left: 0, unread: 0 }));
   for (const d of ds) {
     if (!isGraded(d)) continue;
     const drillable = canDrill(d);
@@ -227,7 +230,10 @@ function tallyRows(rows: readonly Leak[], ds: readonly DecisionRecord[], session
       }
       if (!read) continue;
       t.n++;
-      if (hasEv) {
+      if (hasEv && isPfSolve(d)) {
+        t.pfEv++;
+        t.pfLost += d.evLossBb ?? 0;
+      } else if (hasEv) {
         t.ev++;
         t.lost += d.evLossBb ?? 0;
         if (d.roughEv) t.rough++;
@@ -252,9 +258,10 @@ function readingOf(l: Leak, t: RowTally): string {
 }
 
 function costOf(t: RowTally): string {
-  if (!t.ev) return `No EV to weigh: all ${many(t.n, "decision")} graded by frequency, so it's ranked after the leaks with an EV.`;
-  const rest = t.n - t.ev;
-  return `${bbs(t.lost)} of solver EV given up over ${many(t.ev, "decision")} graded by EV${rest ? `; the other ${rest.toLocaleString()} were graded by frequency and count none` : ""}.`;
+  if (!t.ev && !t.pfEv) return `No EV to weigh: all ${many(t.n, "decision")} graded by frequency, so it's ranked after the leaks with an EV.`;
+  const rest = t.n - t.ev - t.pfEv;
+  const parts = [t.ev ? `${bbs(t.lost)} of solver EV given up over ${many(t.ev, "decision")} graded by EV` : "", t.pfEv ? `${bbs(t.pfLost)} given up by the preflop solve's EV over ${many(t.pfEv, "decision")}` : ""].filter(Boolean);
+  return `${parts.join("; apart from that, ")}${rest ? `; the other ${rest.toLocaleString()} were graded by frequency and count none` : ""}.`;
 }
 
 /** What it stands on: the grades' bases, and what they're worth where that's less than the rest. */
@@ -274,7 +281,8 @@ function leakStep(l: Leak, t: RowTally): LeakStep {
     progress: t.dealt ? `${answered.toLocaleString()} of ${many(t.dealt, "decision")} answered in its drill${t.unread ? `, ${t.unread.toLocaleString()} of them graded by frequency and dealt though the read above can't use them` : ""}.` : "None of its decisions keeps its mix, so its drill has nothing to deal.",
     says: [readingOf(l, t), costOf(t), standsOn(l, t)],
     leak,
-    lost: t.ev && t.lost > 0 ? Math.round(t.lost * 100) / 100 : null,
+    // (only the order of the steps: no number on the page adds the two)
+    lost: t.lost + t.pfLost > 0 ? Math.round((t.lost + t.pfLost) * 100) / 100 : null,
     dealt: t.dealt,
   };
 }

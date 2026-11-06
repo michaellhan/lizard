@@ -167,6 +167,14 @@ describe("leaks", () => {
     expect(leak.says.join(" ")).toMatch(/Graded against: Library, 40|Graded against: .*40/);
   });
 
+  it("says the preflop solve's EV apart from a spot's, and still ranks a row that has only that", () => {
+    const pf = () => open({ source: "preflop-solve", byEv: true, evLossBb: 0.5, lossPct: 10, mix: [["fold", 1, 0], ["raise", 0, -0.5]] });
+    const leak = buildPlan(input({ decisions: times(40, pf) })).leaks.find((l) => l.leak.kind === "pf")!;
+    expect(leak.says.join(" ")).toMatch(/20\.00bb given up by the preflop solve's EV over 40 decisions/);
+    expect(leak.says.join(" ")).not.toMatch(/No EV to weigh|of solver EV given up/);
+    expect(leak.lost).toBe(20);
+  });
+
   it("is done when every decision its drill can deal has been answered, and a new one undoes it", () => {
     const ds = times(40, () => flop("SRP · IP · checked to", 1));
     const key = buildPlan(input({ decisions: ds })).leaks.find((l) => l.leak.kind === "spot")!;

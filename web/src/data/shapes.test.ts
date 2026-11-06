@@ -104,8 +104,8 @@ describe("records that blanked a page", () => {
     const bad: unknown = { ...SPOT, id: "bad", tags: [{ a: 1 }] };
     const hand: unknown = { ...HAND, id: "bad", potType: { a: 1 } };
     const r = await restoreBackup(file({ savedSpots: [bad, SPOT], hands: [hand, HAND] }));
-    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1 });
-    expect(r.hands).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1 });
+    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1, deleted: 0, stillHere: 0 });
+    expect(r.hands).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1, deleted: 0, stillHere: 0 });
     expect(restoreSummary(r)).toContain("2 skipped");
     expect((await listSpots()).map((s) => s.id)).toEqual(["s1"]);
     expect((await listHands()).map((h) => h.id)).toEqual([HAND.id]);
@@ -233,7 +233,7 @@ describe("older backups still restore", () => {
     const hand = { id: "h", site: "s", number: "", played: "", playedAt: 0, hero: "SB", players: 2, hole: "AhKd", board: "", bb: "$1", potType: "SRP", pot: 0, end: "showdown", decisions: 0, text: "x", importId: "i", importName: "", importedAt: AT };
     const decision = { id: "x", handId: "h", street: "preflop", pos: "SB", action: "fold", verdict: "Not graded", evLossBb: null, source: "none", label: "No answer", gradedAt: AT };
     const r = await restoreBackup(file({ savedSpots: [spot], savedRanges: [range], sessions: [session], hands: [hand], decisions: [decision] }));
-    for (const s of ["savedSpots", "savedRanges", "sessions", "hands", "decisions"] as const) expect(r[s]).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    for (const s of ["savedSpots", "savedRanges", "sessions", "hands", "decisions"] as const) expect(r[s]).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     expect((await listDecisions()).map((d) => d.id)).toEqual(["x"]);
   });
 

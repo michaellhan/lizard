@@ -252,7 +252,30 @@ test("12. A spot saved, a backup taken, and everything restored from it", async 
   await page.getByRole("listitem", { name: "QA spot" }).getByRole("button", { name: "Delete" }).click();
   await page.getByRole("listitem", { name: "QA spot" }).getByRole("button", { name: /Delete|Yes/ }).first().click();
   await expect(page.getByRole("listitem", { name: "QA spot" })).toHaveCount(0);
+
+  // deleted after that copy: it stays deleted, and the restore says so
   await backup.getByLabel("Backup file to restore").setInputFiles(path);
+  await expect(page.getByText(/left out because (it was|they were) deleted after that copy/)).toBeVisible();
+  await expect(page.getByRole("listitem", { name: "QA spot" })).toHaveCount(0);
+
+  // a browser that never deleted it, as after moving to a new one, gets it all back
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const q = indexedDB.open("lizard");
+        q.onerror = () => reject(new Error("open"));
+        q.onsuccess = () => {
+          const tx = q.result.transaction("tombstones", "readwrite");
+          tx.objectStore("tombstones").clear();
+          tx.oncomplete = () => {
+            q.result.close();
+            resolve();
+          };
+        };
+      }),
+  );
+  await page.reload();
+  await page.getByRole("region", { name: "Backup" }).getByLabel("Backup file to restore").setInputFiles(path);
   await expect(page.getByRole("region", { name: "Saved spots" }).getByText("QA spot")).toBeVisible();
   await clean(page, problems);
 });
@@ -449,6 +472,57 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   await expect(streets.getByRole("row", { name: /preflop/i })).toHaveCount(2);
   await expect(streets).toContainText("Preflop solve");
   await expect(streets).toContainText("Preflop charts");
+  await clean(page, problems);
+});
+
+
+test("7h. The solve's raise sizes are offered once the first box is ticked, off by default, with what they cost said; a raise goes in at the solve's size", async ({ page, problems }) => {
+  await session(page, "preflop", async () => {
+    const sizes = page.getByLabel("Offer the solve's raise sizes");
+    await expect(sizes).toHaveCount(0);
+    await page.getByLabel("Grade preflop by the preflop solve").check();
+    await expect(sizes).not.toBeChecked();
+    await expect(page.locator("#pf-note")).toContainText("leave the flop library");
+    await sizes.check();
+  });
+  await expect(page.getByText(/preflop graded by the preflop solve, at its raise sizes/).first()).toBeVisible();
+  const next = page.getByRole("button", { name: "Next hand" });
+  let seen = 0;
+  for (let i = 0; i < 80 && !seen; i += 1) {
+    await expect(options(page).first().or(next)).toBeVisible({ timeout: 90_000 });
+    if (await next.isVisible()) {
+      await next.click();
+      continue;
+    }
+    // (a blind's 3-bet, or any 4-bet: the sizes the charts don't have)
+    const raise = options(page).filter({ hasText: /raise\D*(12|14\.5|17\.25|23|24\.75|27\.6|28\.75|33|33\.35|39\.1|39\.6)(?![\d.])/ }).first();
+    if (await raise.isVisible()) {
+      await raise.click();
+      await expect(page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first()).toBeVisible({ timeout: 90_000 });
+      seen += 1;
+    } else await options(page).last().click();
+    await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
+  }
+  expect(seen).toBeGreaterThan(0);
+  await clean(page, problems);
+});
+
+test("7i. A link that lands on a hand under way asks first, with keeping it the focused answer", async ({ page, problems }) => {
+  await session(page, "preflop", async () => {});
+  await options(page).first().or(page.getByRole("button", { name: "Next hand" })).waitFor({ timeout: 90_000 });
+  // (a hand finished or a move made: something to lose)
+  if (await options(page).first().isVisible()) await options(page).first().click();
+  // (in the page, as a link in the app goes: a new load is a new page with nothing running)
+  await page.evaluate(() => {
+    history.pushState(null, "", `${location.pathname}?play=preflop&seat=moves&players=2&stack=40`);
+    dispatchEvent(new PopStateEvent("popstate"));
+  });
+  const ask = page.getByRole("alertdialog", { name: "A session is under way" });
+  await expect(ask).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep this session" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(ask).toHaveCount(0);
+  await expect(page.getByText(/^Kept this session\./)).toBeVisible();
   await clean(page, problems);
 });
 

@@ -4,7 +4,7 @@
 // `readReport`: a damaged record is counted and left out, and nothing here throws.
 import { GAME_EQUILIBRIUM, GAME_WORDS, HAND_FILTERS, LOST_STEPS } from "@/features/analyze/analyze";
 import { noteSaved } from "./backupNudge";
-import { db, type SavedReport } from "./db";
+import { db, deleteRecord, type SavedReport } from "./db";
 import { isOptTags, isTime, isWellFormed } from "./shapes";
 
 export type ReportFilters = SavedReport["filters"];
@@ -60,8 +60,7 @@ export async function listReports(): Promise<{ list: SavedReport[]; damaged: num
 }
 
 export async function deleteReport(id: string): Promise<void> {
-  const d = await db();
-  if (d) await d.delete("savedReports", id);
+  await deleteRecord("savedReports", id);
 }
 
 /** The filters in words. */

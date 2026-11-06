@@ -54,6 +54,17 @@
   --fill-act-allin: repeating-linear-gradient(135deg, var(--color-text) 0 2.5px, transparent 2.5px 6px), var(--color-act-allin);
 }
 
+/* Settings can take the patterns off: an action's fill is then its colour alone, and the gap between shares and the
+   names in the legend are all that's left to tell the closest two apart. */
+:root[data-patterns="off"] {
+  --fill-act-fold: var(--color-act-fold);
+  --fill-act-bet1: var(--color-act-bet1);
+  --fill-act-bet2: var(--color-act-bet2);
+  --fill-act-bet3: var(--color-act-bet3);
+  --fill-act-bet4: var(--color-act-bet4);
+  --fill-act-allin: var(--color-act-allin);
+}
+
 html,
 body,
 #root {

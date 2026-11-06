@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BACKUP_FORMAT, BACKUP_SCHEMA, BACKUP_STORES, backupFileName, itemBackup, makeBackup, restoreBackup, RestoreStopped, restoreSummary, type Backup } from "./backup";
 import { MAX_ANSWER_BYTES, answerToKeep, openAnswer, readAnswer } from "./answers";
 import { db, putSession, type DecisionRecord, type HandRecord, type SavedDrill, type SavedRange, type SavedSpot, type SessionRecord } from "./db";
-import { addHands, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
+import { addHands, clearDecisions, deleteImport, getHand, listDecisions, listHands, putDecisions, putHandNotes } from "./hands";
 import { chartMistake, mistake } from "@/test/mistake";
 import { exploitOf } from "@/features/practice/exploit";
-import { keepMistake, listMistakes } from "./mistakes";
-import { listReports, putReport } from "./reports";
-import { listScenarios, putScenario } from "./scenarios";
-import { deleteDrill, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, sortSaved, spotAt, spotMatches, textMatches } from "./saved";
+import { deleteMistake, keepMistake, listMistakes } from "./mistakes";
+import { deleteReport, listReports, putReport } from "./reports";
+import { deleteScenario, listScenarios, putScenario } from "./scenarios";
+import { deleteDrill, deleteRange, drillAt, isDrillLink, listDrills, deleteSpot, listRanges, listSpots, putDrill, putRange, putSpot, readTags, sortSaved, spotAt, spotMatches, textMatches } from "./saved";
 import { fromSearch, toSearch } from "@/features/study/studyState";
 import { provenanceOf } from "@/solver/provenance";
 import { CHART_ANSWER, LIVE_ANSWER } from "@/test/answers";
@@ -50,6 +50,7 @@ const session = (id: string, startedAt: number, endedAt?: number): SessionRecord
 async function clearAll() {
   const d = (await db())!;
   for (const s of BACKUP_STORES) await d.clear(s);
+  await d.clear("tombstones");
 }
 
 beforeEach(clearAll);
@@ -163,7 +164,7 @@ describe("backup and restore", () => {
     expect(await listSpots()).toEqual([]);
     // through the file's text, as a download and an upload would
     const r = await restoreBackup(JSON.parse(JSON.stringify(b)));
-    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     expect(r.sessions.added).toBe(2);
     expect(await listSpots()).toEqual(before.spots);
     expect(await listRanges()).toEqual(before.ranges);
@@ -172,7 +173,7 @@ describe("backup and restore", () => {
     expect(restoreSummary(r)).toBe("5 added, 0 updated, 0 kept (as new or newer here)");
   });
 
-  it("merges: a newer record here is kept, an older one replaced, a missing one added, nothing deleted", async () => {
+  it("merges: a newer record here is kept, an older one replaced, a missing one added, what was deleted left out, nothing deleted", async () => {
     await putSpot(spot("a", 5));
     await putSpot(spot("b", 5));
     const old = await makeBackup();
@@ -180,9 +181,9 @@ describe("backup and restore", () => {
     await putSpot(spot("c", 6));
     await deleteSpot("b");
     const r = await restoreBackup(old);
-    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 1, skipped: 0 });
+    expect(r.savedSpots).toEqual({ added: 0, updated: 0, kept: 1, skipped: 0, deleted: 1, stillHere: 0 });
     const got = Object.fromEntries((await listSpots()).map((s) => [s.id, s.title]));
-    expect(got).toEqual({ a: "renamed later", b: "spot b", c: "spot c" });
+    expect(got).toEqual({ a: "renamed later", c: "spot c" });
     // and a newer backup's record replaces an older one here
     const newer: Backup = JSON.parse(JSON.stringify(await makeBackup()));
     newer.stores.savedSpots.find((x) => x.id === "c")!.data = spot("c", 99, { title: "from the other device" });
@@ -211,11 +212,11 @@ describe("backup and restore", () => {
       },
     };
     const r = await restoreBackup(bad);
-    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 3 });
+    expect(r.savedSpots).toEqual({ added: 1, updated: 0, kept: 0, skipped: 3, deleted: 0, stillHere: 0 });
     expect(r.sessions.skipped).toBe(1);
-    expect(r.savedDrills).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1 });
+    expect(r.savedDrills).toEqual({ added: 1, updated: 0, kept: 0, skipped: 1, deleted: 0, stillHere: 0 });
     expect((await listDrills()).map((d) => d.id)).toEqual(["g"]);
-    expect(r.savedRanges).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
+    expect(r.savedRanges).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     expect(restoreSummary(r)).toMatch(/5 skipped/);
     await expect(restoreBackup({ format: "gto-solver-backup", stores: {} })).rejects.toThrow("That isn't a Lizard backup file.");
     await expect(restoreBackup(null)).rejects.toThrow("That isn't a Lizard backup file.");
@@ -258,7 +259,7 @@ describe("backup and restore", () => {
     expect(await listDecisions()).toEqual([graded]);
     // a note changed here after the backup stays; one cleared in the backup's copy later replaces this one
     await putHandNotes("h1", ["later"], "", 400);
-    expect((await restoreBackup(b)).hands).toEqual({ added: 0, updated: 0, kept: 2, skipped: 0 });
+    expect((await restoreBackup(b)).hands).toEqual({ added: 0, updated: 0, kept: 2, skipped: 0, deleted: 0, stillHere: 0 });
     expect((await listHands()).find((h) => h.id === "h1")?.tags).toEqual(["later"]);
     b.stores.hands.find((x) => x.id === "h1")!.data = { ...hand("h1"), updatedAt: 500 };
     expect((await restoreBackup(b)).hands.updated).toBe(1);
@@ -285,7 +286,7 @@ describe("backup and restore", () => {
       ...b,
       stores: { mistakes: [...b.stores.mistakes, { id: "x", v: 1, created: 1, updated: 1, dev: "d", data: { id: "x", due: "soon" } }, { id: "y", v: 1, created: 1, updated: 1, dev: "d", data: mistake({ id: "z" }) }] },
     });
-    expect(r.mistakes).toEqual({ added: 1, updated: 0, kept: 1, skipped: 2 });
+    expect(r.mistakes).toEqual({ added: 1, updated: 0, kept: 1, skipped: 2, deleted: 0, stillHere: 0 });
     const { list, damaged } = await listMistakes();
     expect(list.find((m) => m.id === "a")?.times).toBe(7);
     expect(list.find((m) => m.id === "b")).toEqual(retried);
@@ -300,16 +301,16 @@ describe("backup and restore", () => {
     expect(b.counts.savedScenarios).toBe(1);
     expect(b.stores.savedScenarios[0]).toMatchObject({ id: "s1", created: 1, updated: 2, data: s });
     await clearAll();
-    expect((await restoreBackup(b)).savedScenarios).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    expect((await restoreBackup(b)).savedScenarios).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     expect((await listScenarios()).list).toEqual([s]);
 
     await putScenario({ ...s, name: "Newer here", updatedAt: 9 });
-    expect((await restoreBackup(b)).savedScenarios).toEqual({ added: 0, updated: 0, kept: 1, skipped: 0 });
+    expect((await restoreBackup(b)).savedScenarios).toEqual({ added: 0, updated: 0, kept: 1, skipped: 0, deleted: 0, stillHere: 0 });
     expect((await listScenarios()).list[0]?.name).toBe("Newer here");
 
     const hurt = (o: Record<string, unknown>, id: string) => ({ ...b.stores.savedScenarios[0], id, data: { ...s, ...o, id } });
     b.stores.savedScenarios = [hurt({ stack: 3 }, "x"), hurt({ opts: { ...s.opts, exploit: { profile: "shark" } } }, "y"), hurt({ opts: { ...s.opts, pot: null } }, "z")];
-    expect((await restoreBackup(b)).savedScenarios).toEqual({ added: 0, updated: 0, kept: 0, skipped: 3 });
+    expect((await restoreBackup(b)).savedScenarios).toEqual({ added: 0, updated: 0, kept: 0, skipped: 3, deleted: 0, stillHere: 0 });
     expect((await listScenarios()).list.map((x) => x.id)).toEqual(["s1"]);
   });
 
@@ -332,7 +333,7 @@ describe("backup and restore", () => {
     const b = JSON.parse(JSON.stringify(await makeBackup()));
     expect(b.counts.savedReports).toBe(1);
     await clearAll();
-    expect((await restoreBackup(b)).savedReports).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    expect((await restoreBackup(b)).savedReports).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     expect((await listReports()).list).toEqual([r]);
     await clearAll();
     b.stores.savedReports[0].data.filters = { from: "not a date" };
@@ -348,7 +349,7 @@ describe("backup and restore", () => {
     await clearAll();
     const r = await restoreBackup(b);
     expect(r.savedSpots.added).toBe(1);
-    expect(r.savedScenarios).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
+    expect(r.savedScenarios).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
   });
 
   it("carries an entry from Analyze with what it was graded on, and skips one a hostile file made up", async () => {
@@ -362,7 +363,7 @@ describe("backup and restore", () => {
       ...b,
       stores: { mistakes: [...b.stores.mistakes, bad("x", { ask: { ...ask, hand: { a: 1 } } }), bad("y", { provenance: null }), bad("z", { from: "__proto__" }), bad("w", { mix: [{ action: "check", freq: 1, ev: 1, rough: 7 }] })] },
     } as Backup);
-    expect(r.mistakes).toEqual({ added: 1, updated: 0, kept: 0, skipped: 4 });
+    expect(r.mistakes).toEqual({ added: 1, updated: 0, kept: 0, skipped: 4, deleted: 0, stillHere: 0 });
     expect((await listMistakes()).list).toEqual([a]);
   });
 
@@ -374,11 +375,308 @@ describe("backup and restore", () => {
     await clearAll();
     const r = await restoreBackup(b);
     expect(r.savedSpots.added).toBe(1);
-    expect(r.mistakes).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
+    expect(r.mistakes).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
   });
 
   it("names the file by the day", () => {
     expect(backupFileName(new Date(Date.UTC(2026, 10, 3, 12)))).toBe("lizard-backup-2026-11-03.json");
+  });
+});
+
+describe("what was deleted", () => {
+  const LINE = toSearch(fromSearch("p=6&s=100")!);
+  const CTX = { mode: "fast", transport: "worker", solverVersion: "a/b", partial: false, now: 5 } as const;
+  const answer = (id: string) => {
+    const k = answerToKeep(id, LINE, { data: CHART_ANSWER, provenance: provenanceOf(CHART_ANSWER, CTX) }, 1000);
+    if (!("answer" in k)) throw new Error(k.refused);
+    return k.answer;
+  };
+  const SCENARIO = { id: "c", name: "Nit", players: 6, stack: 100, opts: { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0, board: null }, note: "", createdAt: 1, updatedAt: 2 } as const;
+  const REPORT = { id: "p", name: "All", filters: {}, note: "", createdAt: 1, updatedAt: 2 };
+  const hand = (id: string, importId = "imp", extra: Partial<HandRecord> = {}): HandRecord => ({ id, site: "PokerStars", number: id, played: "", playedAt: 1, hero: "BTN", players: 6, hole: "AhQd", board: "", bb: "$1", potType: "SRP", pot: 5.5, end: "won, all folded", decisions: 1, text: `hand ${id}`, importId, importName: "Pasted", importedAt: 100, ...extra });
+  const grade = (handId: string, gradedAt = 1): DecisionRecord => ({ id: `${handId}|flop|1`, handId, street: "flop", pos: "BTN", action: "check", verdict: "Best", evLossBb: 0, source: "library", label: "Precomputed solution", gradedAt });
+  const copy = async (): Promise<Backup> => JSON.parse(JSON.stringify(await makeBackup())) as Backup;
+  const LATER = Date.now() + 60_000;
+  const grave = (id: string, updated = 50, extra: object = {}) => ({ id, v: 1, updated, dev: "other", deleted: true as const, ...extra });
+  const graves = async () => (await db())!.getAll("tombstones");
+
+  it("stays deleted through a restore, on every way of deleting, each said in the count", async () => {
+    await putSpot(spot("s", 5, { line: LINE }), answer("s"));
+    await putRange(range("r", 5));
+    await putDrill(drill("j", 5));
+    await putScenario(SCENARIO);
+    await putReport(REPORT);
+    await keepMistake(mistake({ id: "m" }), (_, f) => f);
+    await addHands([hand("h1"), hand("h2", "other")]);
+    await putDecisions([grade("h1"), grade("h2")]);
+    const b = await copy();
+
+    await deleteSpot("s");
+    await deleteRange("r");
+    await deleteDrill("j");
+    await deleteScenario("c");
+    await deleteReport("p");
+    await deleteMistake("m");
+    await deleteImport("imp");
+    await clearDecisions();
+
+    const r = await restoreBackup(b);
+    for (const s of ["savedSpots", "savedAnswers", "savedRanges", "savedDrills", "savedScenarios", "savedReports", "hands", "decisions", "mistakes"] as const)
+      expect(r[s], s).toEqual({ added: 0, updated: 0, kept: s === "hands" ? 1 : 0, skipped: 0, deleted: s === "decisions" ? 2 : 1, stillHere: 0 });
+    const d = (await db())!;
+    for (const s of ["savedSpots", "savedAnswers", "savedRanges", "savedDrills", "savedScenarios", "savedReports", "decisions", "mistakes"] as const) expect(await d.count(s), s).toBe(0);
+    expect((await listHands()).map((h) => h.id)).toEqual(["h2"]);
+  });
+
+  it("writes one tombstone a record, naming the store, the id and when", async () => {
+    await putSpot(spot("s", 5, { line: LINE }), answer("s"));
+    await addHands([hand("h1")]);
+    await putDecisions([grade("h1")]);
+    const before = Date.now();
+    await deleteSpot("s");
+    await deleteImport("imp");
+    const all = await graves();
+    expect(all.map((t) => `${t.store}/${t.id}`).sort()).toEqual(["decisions/h1|flop|1", "hands/h1", "savedAnswers/s", "savedSpots/s"]);
+    for (const t of all) expect(t.at).toBeGreaterThanOrEqual(before);
+  });
+
+  it("forgetting every grade leaves the hands, and a grade given again stands", async () => {
+    await addHands([hand("h1")]);
+    await putDecisions([grade("h1", 5)]);
+    const b = await copy();
+    await clearDecisions();
+    expect(await listDecisions()).toEqual([]);
+    expect((await listHands()).length).toBe(1);
+    expect((await graves()).map((t) => t.store)).toEqual(["decisions"]);
+    await putDecisions([grade("h1", LATER)]);
+    expect((await restoreBackup(b)).decisions).toMatchObject({ kept: 1, deleted: 0 });
+    expect((await listDecisions())[0]?.gradedAt).toBe(LATER);
+  });
+
+  it("comes back where the copy changed after the delete", async () => {
+    await putSpot(spot("s", 5));
+    const b = await copy();
+    await deleteSpot("s");
+    b.stores.savedSpots[0]!.data = spot("s", LATER, { title: "changed since" });
+    b.stores.savedSpots[0]!.updated = LATER;
+    expect((await restoreBackup(b)).savedSpots).toMatchObject({ added: 1, deleted: 0 });
+    expect((await listSpots())[0]?.title).toBe("changed since");
+  });
+
+  it("says nothing against a record made again since: the one here is newer, and is kept", async () => {
+    await putSpot(spot("s", 5));
+    const b = await copy();
+    await deleteSpot("s");
+    await putSpot(spot("s", LATER, { title: "made again" }));
+    expect((await restoreBackup(b)).savedSpots).toMatchObject({ kept: 1, deleted: 0 });
+    expect((await listSpots())[0]?.title).toBe("made again");
+  });
+
+  it("isn't undone by a device whose clock ran ahead: a delete is after what it deleted", async () => {
+    await putSpot(spot("s", LATER));
+    const b = await copy();
+    await deleteSpot("s");
+    expect((await (await db())!.get("tombstones", ["savedSpots", "s"]))?.at).toBe(LATER + 1);
+    expect((await restoreBackup(b)).savedSpots.deleted).toBe(1);
+    expect(await listSpots()).toEqual([]);
+  });
+
+  it("restores a backup from before tombstones, leaving out only what this browser remembers", async () => {
+    await putSpot(spot("a", 5));
+    await putSpot(spot("b", 5));
+    const b = await copy();
+    delete b.tombstones;
+    await deleteSpot("a");
+    await (await db())!.clear("savedSpots");
+    expect((await restoreBackup(b)).savedSpots).toMatchObject({ added: 1, deleted: 1 });
+    await clearAll();
+    expect((await restoreBackup(b)).savedSpots).toMatchObject({ added: 2, deleted: 0 });
+  });
+
+  it("carries tombstones in a backup, in classic's shape and beside the records, at the same schema", async () => {
+    await putSpot(spot("s", 5, { line: LINE }), answer("s"));
+    await deleteSpot("s");
+    const b = await copy();
+    expect(b.schema).toBe(1);
+    expect(BACKUP_SCHEMA).toBe(1);
+    expect(b.stores.savedSpots).toEqual([]);
+    expect(Object.keys(b.tombstones!).sort()).toEqual(["savedAnswers", "savedSpots"]);
+    const t = b.tombstones!.savedSpots![0]!;
+    expect(t).toEqual({ id: "s", v: 1, updated: t.updated, dev: b.device, deleted: true });
+  });
+
+  it("travels: deleted on one device, it stays out of a restore on another, from that file and from older ones", async () => {
+    await putSpot(spot("x", 5));
+    const older = await copy();
+    await deleteSpot("x");
+    const newer = await copy();
+    newer.tombstones!.savedSpots![0]!.dev = "the laptop";
+    // another browser, which has neither
+    await clearAll();
+    expect((await restoreBackup(newer)).savedSpots).toMatchObject({ added: 0, deleted: 0 });
+    expect((await restoreBackup(older)).savedSpots).toMatchObject({ added: 0, deleted: 1 });
+    expect(await listSpots()).toEqual([]);
+    // and on from there, keeping who deleted it
+    const onward = await copy();
+    expect(onward.tombstones!.savedSpots![0]!.dev).toBe("the laptop");
+  });
+
+  it("leaves out a record its own file says was deleted later, and a tombstone can't outlast a later copy", async () => {
+    const b = await copy();
+    b.stores.savedSpots = [{ id: "old", v: 1, created: 1, updated: 5, dev: "d", data: spot("old", 5) }, { id: "new", v: 1, created: 1, updated: 90, dev: "d", data: spot("new", 90) }];
+    b.tombstones = { savedSpots: [grave("old"), grave("new")] };
+    expect((await restoreBackup(b)).savedSpots).toMatchObject({ added: 1, deleted: 1 });
+    expect((await listSpots()).map((s) => s.id)).toEqual(["new"]);
+    // (the one that came in is live here, so no tombstone stands beside it)
+    expect((await graves()).map((t) => t.id)).toEqual(["old"]);
+  });
+
+  it("never deletes a record kept here, says so, and doesn't mark it for this browser's next backups", async () => {
+    await putSpot(spot("here", 5));
+    const b = await copy();
+    b.stores.savedSpots = [];
+    b.tombstones = { savedSpots: [grave("here")] };
+    const r = await restoreBackup(b);
+    expect(r.savedSpots).toMatchObject({ added: 0, kept: 0, deleted: 0, stillHere: 1 });
+    expect(restoreSummary(r)).toBe("0 added, 0 updated, 0 kept (as new or newer here), 1 still here though the file says it was deleted elsewhere, as a restore deletes nothing");
+    expect((await listSpots()).map((s) => s.id)).toEqual(["here"]);
+    expect(await graves()).toEqual([]);
+  });
+
+  it("says how many were left out for being deleted, apart from the damaged", async () => {
+    await putSpot(spot("a", 5));
+    await putSpot(spot("b", 5));
+    const b = await copy();
+    b.stores.savedSpots.push({ id: "bad", v: 1, created: 1, updated: 1, dev: "d", data: { id: "bad", title: 3 } as never });
+    await deleteSpot("a");
+    await deleteSpot("b");
+    expect(restoreSummary(await restoreBackup(b))).toBe("0 added, 0 updated, 0 kept (as new or newer here), 2 left out because they were deleted after that copy, 1 skipped (damaged or not Lizard's)");
+    await putSpot(spot("c", 5));
+    const one = await copy();
+    await deleteSpot("c");
+    expect(restoreSummary(await restoreBackup(one))).toContain("1 left out because it was deleted after that copy");
+  });
+
+  it("counts a tombstone that isn't one as damaged, and takes nothing from it", async () => {
+    const now = 1_000_000;
+    const bad: unknown[] = [
+      "x",
+      null,
+      { id: "a", updated: 5 },
+      grave("", 5),
+      grave("\ud800", 5),
+      grave("x".repeat(513), 5),
+      grave("t", "5" as never),
+      grave("t", 0),
+      grave("t", -1),
+      grave("t", 9e15),
+      grave("t", now + 2 * 86_400_000),
+      grave("t", 5, { dev: 7 }),
+    ];
+    const b = await copy();
+    b.tombstones = { savedSpots: bad as never, savedRanges: "all" as never };
+    const r = await restoreBackup(b, { now: () => now });
+    expect(r.savedSpots.skipped).toBe(bad.length);
+    expect(r.savedRanges.skipped).toBe(1);
+    expect(await graves()).toEqual([]);
+    expect(restoreSummary(r)).toContain(`${bad.length + 1} skipped (damaged or not Lizard's)`);
+  });
+
+  it("reaches no store but the backup's: settings and any other name are left unread", async () => {
+    await (await db())!.put("kv", "name", "savedSort");
+    const b = await copy();
+    b.tombstones = { kv: [grave("savedSort")], tombstones: [grave("x")], ["__proto__"]: [grave("y")], savedSpots: "nope" } as never;
+    await restoreBackup(b);
+    expect(await (await db())!.get("kv", "savedSort")).toBe("name");
+    expect(await graves()).toEqual([]);
+    for (const not of [7, "x", null, []]) await restoreBackup({ ...b, tombstones: not });
+    expect(await graves()).toEqual([]);
+  });
+
+  it("takes a store's tombstones where the file has no such store, as an older page's or one by hand", async () => {
+    const b = await copy();
+    expect((await restoreBackup({ format: b.format, schema: 1, stores: {}, tombstones: { hands: [grave("h")] } })).hands).toMatchObject({ added: 0 });
+    expect((await graves()).map((t) => t.id)).toEqual(["h"]);
+  });
+
+  it("keeps a later deletion of two, here and in a file", async () => {
+    const b = await copy();
+    b.tombstones = { savedSpots: [grave("x", 30), grave("x", 60), grave("x", 40)] };
+    await restoreBackup(b);
+    expect((await graves()).map((t) => t.at)).toEqual([60]);
+    b.tombstones = { savedSpots: [grave("x", 20)] };
+    await restoreBackup(b);
+    expect((await graves()).map((t) => t.at)).toEqual([60]);
+    b.tombstones = { savedSpots: [grave("x", 70)] };
+    await restoreBackup(b);
+    expect((await graves()).map((t) => t.at)).toEqual([70]);
+  });
+
+  it("can't push out a deletion remembered here: a file only fills what room the bound leaves, its latest first", async () => {
+    await putSpot(spot("mine", 5));
+    const b = await copy();
+    await deleteSpot("mine");
+    const flood = await copy();
+    flood.tombstones = { savedSpots: [grave("a", 10), grave("b", 30), grave("c", 20)] };
+    await restoreBackup(flood, { maxTombstones: 3 });
+    const spots = async () => (await graves()).filter((t) => t.store === "savedSpots").map((t) => t.id);
+    expect((await spots()).sort()).toEqual(["b", "c", "mine"]);
+    expect((await restoreBackup(b, { maxTombstones: 3 })).savedSpots.deleted).toBe(1);
+    await restoreBackup({ ...flood, tombstones: { savedSpots: [grave("z", 40)] } }, { maxTombstones: 3 });
+    expect(await spots()).not.toContain("z");
+  });
+
+  it("takes a file's tombstones with its records or not at all, where the browser stops it", async () => {
+    const b = await copy();
+    b.stores.savedSpots = [{ id: "a", v: 1, created: 1, updated: 90, dev: "d", data: spot("a", 90) }];
+    b.tombstones = { savedSpots: [grave("gone")] };
+    const real = IDBObjectStore.prototype.put;
+    const put = vi.spyOn(IDBObjectStore.prototype, "put").mockImplementation(function (this: IDBObjectStore, ...a) {
+      if ((a[0] as { id?: string }).id === "gone") throw new DOMException("full", "QuotaExceededError");
+      return real.apply(this, a);
+    });
+    expect(await restoreBackup(b).catch((e: unknown) => e)).toBeInstanceOf(RestoreStopped);
+    put.mockRestore();
+    expect(await listSpots()).toEqual([]);
+    expect(await graves()).toEqual([]);
+  });
+
+  it("leaves a deleted hand's grades out by the hand's tombstone, whose own the bound may have forgotten", async () => {
+    await addHands([hand("h1")]);
+    await putDecisions([grade("h1", 5)]);
+    const b = await copy();
+    await deleteImport("imp");
+    await (await db())!.delete("tombstones", ["decisions", grade("h1").id]);
+    expect((await restoreBackup(b)).decisions).toMatchObject({ added: 0, deleted: 1 });
+    // a grade given after it isn't one of those
+    b.stores.decisions[0]!.data = grade("h1", LATER);
+    expect((await restoreBackup(b)).decisions).toMatchObject({ added: 1, deleted: 0 });
+  });
+
+  it("brings a hand back that's imported again, with the note on it, and leaves the grades that went with it", async () => {
+    await addHands([hand("h1")]);
+    await putDecisions([grade("h1", 5)]);
+    const b = await copy();
+    await deleteImport("imp");
+    await addHands([hand("h1", "again", { importedAt: LATER })]);
+    expect((await restoreBackup(b)).hands).toMatchObject({ kept: 1, deleted: 0 });
+    expect((await restoreBackup(b)).decisions.deleted).toBe(1);
+    const moved = await copy();
+    await clearAll();
+    const r = await restoreBackup(moved);
+    expect(r.hands).toMatchObject({ added: 1, deleted: 0 });
+    expect((await getHand("h1"))?.importedAt).toBe(LATER);
+  });
+
+  it("isn't undone by one item's file, which names no other deletion", async () => {
+    await putRange(range("r", 3));
+    await putRange(range("other", 3));
+    await deleteRange("other");
+    const item = await itemBackup("savedRanges", range("r", 3));
+    expect(item.tombstones).toEqual({});
+    await deleteRange("r");
+    const r = await restoreBackup(JSON.parse(JSON.stringify(item)));
+    expect(r.savedRanges).toMatchObject({ added: 0, deleted: 1 });
   });
 });
 
@@ -428,12 +726,12 @@ describe("a saved answer", () => {
     expect(b.stores.savedAnswers[0]).toMatchObject({ id: "s", created: 1000, updated: 1000 });
     const file = JSON.parse(JSON.stringify(b)) as Backup;
     await clearAll();
-    expect((await restoreBackup(file)).savedAnswers).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0 });
+    expect((await restoreBackup(file)).savedAnswers).toEqual({ added: 1, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     const back = await openAnswer("s", TURN_LINE);
     expect(back?.result.data).toEqual(LIVE_ANSWER);
     expect(back?.result.provenance).toMatchObject({ source: "live", solverVersion: "aaa/111" });
     expect(back?.record.restored).toBe(true);
-    expect((await restoreBackup(file)).savedAnswers).toEqual({ added: 0, updated: 0, kept: 1, skipped: 0 });
+    expect((await restoreBackup(file)).savedAnswers).toEqual({ added: 0, updated: 0, kept: 1, skipped: 0, deleted: 0, stillHere: 0 });
   });
 
   it("from a file is said to be, however the file reads, on an answer replaced as on a new one", async () => {
@@ -452,7 +750,7 @@ describe("a saved answer", () => {
     const rec = b.stores.savedAnswers[0]!;
     const hurt = (id: string, json: unknown) => ({ ...rec, id, data: { ...rec.data, id, json: JSON.stringify(json) } });
     b.stores.savedAnswers = [hurt("a", { ...CHART_ANSWER, solver: { iterations: 500, exploitability_pct: 0.1 } }), hurt("b", { ...CHART_ANSWER, precomputed: { spot: "x" } }), hurt("c", { ...CHART_ANSWER, street: "river" }), { ...rec, id: "d", data: { ...rec.data, id: "d", json: " ".repeat(MAX_ANSWER_BYTES + 1) } }];
-    expect((await restoreBackup(b)).savedAnswers).toEqual({ added: 0, updated: 0, kept: 0, skipped: 4 });
+    expect((await restoreBackup(b)).savedAnswers).toEqual({ added: 0, updated: 0, kept: 0, skipped: 4, deleted: 0, stillHere: 0 });
     expect(await (await db())!.count("savedAnswers")).toBe(0);
     expect((await listSpots()).map((s) => s.id)).toEqual(["s"]);
   });
@@ -475,7 +773,7 @@ describe("a saved answer", () => {
     await clearAll();
     const r = await restoreBackup(b);
     expect(r.savedSpots.added).toBe(1);
-    expect(r.savedAnswers).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0 });
+    expect(r.savedAnswers).toEqual({ added: 0, updated: 0, kept: 0, skipped: 0, deleted: 0, stillHere: 0 });
     expect(BACKUP_SCHEMA).toBe(1);
   });
 });

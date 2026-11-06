@@ -235,6 +235,24 @@ describe("the latest third", () => {
   });
 });
 
+describe("shifts over the charts and the preflop solve", () => {
+  const rfi = (handId: string, raised: boolean, o: Partial<DecisionRecord>): DecisionRecord =>
+    ({ id: `${handId}|preflop|0`, handId, street: "preflop", pos: "BTN", action: raised ? "raise to 2.5" : "fold", situation: "RFI", verdict: "Correct", evLossBb: null, lossPct: null, source: "charts", label: "x", gradedAt: 0, mix: [["fold", 0.5, null], ["raise", 0.5, null]], matched: raised ? "raise" : "fold", freq: 0.5, best: "fold", bestFreq: 0.5, ...o });
+  const solve = { source: "preflop-solve", byEv: true, evLossBb: 0 };
+
+  it("never reads a move from the charts to the solve as a change in you: each answer is its own row", () => {
+    const of = (n: number, o: Partial<DecisionRecord> = {}) => Array.from({ length: n }, (_, k) => rfi(`h${k}${o.source ?? ""}`, k % 2 === 0, o));
+    const { rows } = shifts([...of(60), ...of(60, solve)], [...of(60), ...of(60, solve)]);
+    const keys = rows.filter((r) => r.kind === "pf").map((r) => r.key).sort();
+    expect(keys).toEqual(["RFI", "RFI (preflop solve)"]);
+    for (const r of rows.filter((x) => x.kind === "pf")) expect(r.n).toEqual([60, 60]);
+    expect(rows.filter((r) => r.kind === "freq").every((r) => r.n[0] === 60 && r.n[1] === 60)).toBe(true);
+    expect(rows.filter((r) => r.kind === "freq").some((r) => r.key.endsWith(" (preflop solve)"))).toBe(true);
+    // the charts one side, the solve the other: nothing to compare
+    expect(shifts(of(60), of(60, solve)).rows).toEqual([]);
+  });
+});
+
 describe("shifts", () => {
   const rfi = (h: HandRecord, you: boolean, ok = true) =>
     dec(h, { source: "charts", street: "preflop", situation: "RFI", action: you ? "raise to 2.5" : "fold", verdict: ok ? "Best" : "Mistake", evLossBb: null, mix: [["fold", 0.5, null], ["raise", 0.5, null]], freq: 0.5 });

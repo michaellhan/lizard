@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibraryChoice } from "@/config";
 import { useRuntime } from "@/solver/runtime";
@@ -6,6 +6,9 @@ import type { SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { readClassicSpeed } from "@/features/analyze/classic";
 import { ModePicker, ModeTimes } from "@/features/study/ModePicker";
+
+// (off until the service is deployed, by LIZARD_SYNC in the deploy: docs/DEPLOYMENT.md)
+const SyncPanel = import.meta.env.VITE_SYNC === "on" ? lazy(() => import("./SyncPanel")) : null;
 
 const SPEED_LABEL: Record<SolveMode, string> = { quick: "Quick", fast: "Fast", accurate: "Accurate" };
 
@@ -122,6 +125,14 @@ export function SettingsPage() {
         </label>
         <p className="text-xs text-muted">Applies to Study's action buttons and the hand-class panel; the EV grid shades in bb either way.</p>
         <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.patterns} onChange={(e) => s.set({ patterns: e.target.checked })} />
+          Patterns on action colours
+        </label>
+        <p className="text-xs text-muted">
+          On a range grid or a mix bar each action has its colour and, over it, a pattern. Seven colours can&rsquo;t all be told apart by eye, least of all with colour-blindness, so the pattern is
+          what separates the closest. Turned off, actions are colour alone: cleaner to look at, but two sizes of bet can look alike, and the gaps and the legend are all that tell them apart.
+        </p>
+        <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={s.studyKeys} onChange={(e) => s.set({ studyKeys: e.target.checked })} />
           Keyboard shortcuts in Study
         </label>
@@ -130,6 +141,12 @@ export function SettingsPage() {
           with focus away from buttons, links and fields. Turn this off if the keys get in the way of speech input or another tool.
         </p>
       </fieldset>
+
+      {SyncPanel && (
+        <Suspense fallback={null}>
+          <SyncPanel />
+        </Suspense>
+      )}
 
       <button type="button" onClick={s.reset} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
         Reset to defaults

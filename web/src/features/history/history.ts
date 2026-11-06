@@ -18,7 +18,7 @@ import { spotVersion } from "@/grading/version";
 import { describeTournament } from "@/features/tournaments/tournament";
 import { PRIZE_UNIT, sourceLabel } from "@/solver/provenance";
 import type { ResultSource } from "@/solver/types";
-import { cellsOf } from "./progress";
+import { cellsOf, keptCells } from "./progress";
 
 export type SessionKind = SessionRecord["kind"];
 
@@ -49,6 +49,81 @@ export interface PotTally {
   lossPct: number;
   played: number;
   net: number;
+  /** the same decisions by how they were graded: a hand finished before this was kept has none */
+  ways?: Ways;
+}
+
+/** How a decision was graded, for a total. Graded by EV and by frequency are never one share; and the preflop solve's EV
+ * lost, on a simplified game, is never added to the bb a postflop solve loses. So a total has a figure a way. */
+export type GradeWay = "ev" | "solve" | "freq";
+export const GRADE_WAYS: readonly GradeWay[] = ["ev", "solve", "freq"];
+export const WAY_HEADS: Record<GradeWay, string> = { ev: "By EV", solve: "By the preflop solve", freq: "By frequency" };
+export const WAY_WORDS: Record<GradeWay, string> = { ev: "by EV", solve: "by the preflop solve", freq: "by frequency" };
+export interface WayTally {
+  n: number;
+  ok: number;
+  /** EV lost, bb and % of the pot: none by frequency */
+  loss: number;
+  lossPct: number;
+}
+export type Ways = Partial<Record<GradeWay, WayTally>>;
+/** A total's decisions a way, and those that can't be told apart (`apart`): they're in no share and no EV lost. */
+export interface Split {
+  ways: Ways;
+  apart: number;
+}
+
+export const wayOf = (byEv: boolean, source: string | undefined): GradeWay => (!byEv ? "freq" : source === "preflop-solve" ? "solve" : "ev");
+
+function addWay(w: Ways | undefined, way: GradeWay, t: WayTally): Ways {
+  const b = w?.[way];
+  return { ...w, [way]: { n: (b?.n ?? 0) + t.n, ok: (b?.ok ?? 0) + t.ok, loss: (b?.loss ?? 0) + t.loss, lossPct: (b?.lossPct ?? 0) + t.lossPct } };
+}
+
+const mergeWays = (a: Ways, b: Ways): Ways => GRADE_WAYS.reduce((w, way) => (b[way] ? addWay(w, way, b[way]) : w), a);
+export const mergeSplit = (a: Split, b: Split): Split => ({ ways: mergeWays(a.ways, b.ways), apart: a.apart + b.apart });
+const waysCount = (w: Ways) => GRADE_WAYS.reduce((n, way) => n + (w[way]?.n ?? 0), 0);
+
+/** Ways as kept, read defensively: one whose counts don't stand isn't one. */
+function readWays(x: unknown): Ways {
+  const kept = obj(x);
+  let out: Ways = {};
+  for (const way of GRADE_WAYS) {
+    const t = obj(kept?.[way]);
+    if (t && num(t.n) > 0 && num(t.ok) >= 0 && num(t.ok) <= num(t.n)) out = addWay(out, way, { n: num(t.n), ok: num(t.ok), loss: num(t.loss), lossPct: num(t.lossPct) });
+  }
+  return out;
+}
+
+/** A tally's split: what it kept a way. A tally kept before ways were still splits where every decision went one way, and
+ * from before the preflop solve could grade, so its EV is a postflop answer's; otherwise what's left stands apart. */
+function tallySplit(x: Record<string, unknown>): Split {
+  const ways = readWays(x.ways);
+  const n = num(x.n), ne = num(x.ne);
+  const rest = n - waysCount(ways);
+  if (rest <= 0) return { ways, apart: 0 };
+  if (waysCount(ways)) return { ways, apart: rest };
+  if (ne === 0) return { ways: { freq: { n, ok: num(x.ok), loss: 0, lossPct: 0 } }, apart: 0 };
+  if (ne === n) return { ways: { ev: { n, ok: num(x.ok), loss: num(x.loss), lossPct: num(x.lossPct) } }, apart: 0 };
+  return { ways: {}, apart: n };
+}
+
+/** A kept session's decisions a way, from its cells where it kept them. */
+/** Grade cells by how they were graded. */
+export const cellWays = (cells: readonly GradeCell[]): Ways => cells.reduce<Ways>((w, c) => addWay(w, wayOf(c.byEv, c.source), { n: c.n, ok: c.ok, loss: c.byEv ? c.loss : 0, lossPct: c.byEv ? c.lossPct : 0 }), {});
+
+/** One way's figures in a short space, for a score beside the table: a rate of its own, and EV lost where there is one. */
+export const wayFigures = (way: GradeWay, t: WayTally, unit: string) => `${Math.round((100 * t.ok) / t.n)}% of ${t.n}${way === "freq" ? "" : ` · ${(t.loss / t.n).toFixed(2)}${unit} lost · ${(t.lossPct / t.n).toFixed(1)}% pot`}`;
+
+export function sessionSplit(s: SessionRecord): Split {
+  const m = s.meta ?? {};
+  if (s.kind === "build") return { ways: {}, apart: 0 };
+  if (s.kind === "analysis") return tallySplit({ ...(obj(m.score) ?? {}), ways: m.ways });
+  const cells = s.kind === "drill" ? cellsOf(s) : keptCells(s);
+  const n = num(s.decisions);
+  if (!cells?.length) return tallySplit({ n, ok: m.ok, ne: m.graded, loss: s.evLossBb, lossPct: m.lossPct });
+  const ways = cellWays(cells);
+  return { ways, apart: Math.max(0, n - waysCount(ways)) };
 }
 
 export const POT_ORDER = POT_NAMES;
@@ -70,7 +145,7 @@ export function handPot(preflop: readonly SeatMove[], sim: { streets: { preflop?
 export const linePot = (preflop: readonly SeatMove[]) => handPot(preflop, { streets: { preflop: { nRaises: preflop.filter((m) => m.action === "raise" || m.action === "bet" || m.action === "all-in").length } } });
 
 /** A finished hand added to its pot type's tally: its graded decisions, and its net (null preflop only). */
-export function addHandToPot(t: PotTally | undefined, grades: readonly (Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> | null)[], net: number | null): PotTally {
+export function addHandToPot(t: PotTally | undefined, grades: readonly ((Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> & { source?: string }) | null)[], net: number | null): PotTally {
   const out = { ...(t ?? emptyTally()) };
   out.hands++;
   for (const g of grades) {
@@ -82,6 +157,7 @@ export function addHandToPot(t: PotTally | undefined, grades: readonly (Pick<Gra
       out.loss += g.loss;
       out.lossPct += g.lossPct;
     }
+    out.ways = addWay(out.ways, wayOf(g.byEv, g.source), { n: 1, ok: g.ok ? 1 : 0, loss: g.byEv ? g.loss : 0, lossPct: g.byEv ? g.lossPct : 0 });
   }
   if (net != null) {
     out.played++;
@@ -174,13 +250,8 @@ export interface SessionRow {
   what: string;
   /** decisions graded (range builds: 1, the range) */
   n: number;
-  /** of them Best or Correct (null for range builds, scored by accuracy) */
-  ok: number | null;
-  /** a full-hands session with decisions graded both ways: each way's own count, so no share runs across the two */
-  okBy?: Record<"ev" | "freq", { ok: number; n: number }>;
-  /** EV lost per decision graded by EV, bb and % of the pot (null where none was) */
-  lossPer: number | null;
-  lossPctPer: number | null;
+  /** the decisions a way (range builds: none, scored by accuracy): no share or EV runs across them */
+  split: Split;
   /** full hands: hands played, and net over them (null preflop only) */
   hands?: number;
   net?: number | null;
@@ -206,34 +277,26 @@ export function sourcesText(sources: Record<string, unknown> | null): string {
     .join(", ");
 }
 
-/** The Best or Correct count by basis, where a session's kept cells have both. */
-function okBasis(cells: readonly GradeCell[] | null): Pick<SessionRow, "okBy"> | object {
-  const of = (byEv: boolean) => (cells ?? []).filter((c) => c.byEv === byEv).reduce((a, c) => ({ ok: a.ok + c.ok, n: a.n + c.n }), { ok: 0, n: 0 });
-  const ev = of(true), freq = of(false);
-  return ev.n && freq.n ? { okBy: { ev, freq } } : {};
-}
-
 /** A kept session as a row of the history. */
 export function rowOf(s: SessionRecord): SessionRow {
   const m = s.meta ?? {};
-  const base = { id: s.id, kind: s.kind, at: num(s.startedAt), n: num(s.decisions) };
-  const per = (ne: number, loss: number, lossPct: number) => ({ lossPer: ne ? loss / ne : null, lossPctPer: ne ? lossPct / ne : null });
+  const base = { id: s.id, kind: s.kind, at: num(s.startedAt), n: num(s.decisions), split: sessionSplit(s) };
   if (isTournamentKind(s.kind)) {
     const t = obj(m.tournament);
     const game = t && s.kind === "tournament" ? describeTournament({ payouts: Array.isArray(t.payouts) ? t.payouts.filter((x): x is number => typeof x === "number") : [], ...(obj(t.field) ? { field: t.field as { players: number; avg: number } } : {}) }) : [];
     const stacks = Object.entries(obj(t?.stacks) ?? {}).map(([p, v]) => `${p} ${num(v)}`).join(", ");
     const what = [`${num(m.players) || "?"} players`, ...(stacks ? [`stacks ${stacks}`] : []), ...game, ...(num(m.ante) ? [`ante ${num(m.ante)}`] : []), ...(m.preflopOnly ? ["stops at the flop"] : []), ...(m.seat && m.seat !== "moves" ? [`seat ${str(m.seat)}`] : [])].join(" · ");
-    return { ...base, what, ok: num(m.ok), ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)), hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
+    return { ...base, what, hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
   }
   if (s.kind === "exploit") {
     const read = obj(m.exploit);
     const numbers = read && obj(read.lock) ? describeLock(read.lock as Lock) : "";
     const what = [`${profileName(read?.profile)} (assumed${numbers ? `: ${numbers}` : ""})`, `${num(m.players) || "?"} players`, `${num(m.stack) || "?"}bb`, ...(isPotDrill(m.pot) ? [POT_DRILLS[m.pot].label.toLowerCase()] : [])].join(" · ");
     // (no net: the opponents played the equilibrium, not the profile, so the chips say nothing of it)
-    return { ...base, what, ok: num(m.ok), ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)), hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
+    return { ...base, what, hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
   }
   if (s.kind === "practice") {
-    const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? " · preflop graded by the preflop solve" : ""}`;
+    const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? ` · preflop graded by the preflop solve${m.pfSizes ? ", at its raise sizes" : ""}` : ""}`;
     const game = `${num(m.ante) ? ` · ante ${num(m.ante)}` : ""}${m.straddle ? " · straddle" : ""}${m.carry ? " · chips carried" : ""}${m.sizes ? " · your own sizes" : ""}${num(m.rake) ? ` · rake ${num(m.rake)}%` : ""}`;
     // (a filter picks what's dealt, so a session under one is said to be)
     const dealt = [...(isTextureFilter(m.board) ? boardWords(m.board) : []), ...(isHandKey(m.hand) ? [handLabel(m.hand).toLowerCase()] : [])].map((w) => ` · ${w}`).join("");
@@ -241,12 +304,9 @@ export function rowOf(s: SessionRecord): SessionRow {
     return {
       ...base,
       what,
-      ok: num(m.ok),
-      ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)),
       hands: num(m.hands),
       net: m.preflopOnly ? null : num(m.net),
       graded: sourcesText(obj(m.sources)),
-      ...okBasis(cellsOf(s)),
     };
   }
   if (s.kind === "drill") {
@@ -254,14 +314,11 @@ export function rowOf(s: SessionRecord): SessionRow {
     return {
       ...base,
       what: `${str(m.label) || spot || "A library spot"}${VIEW_WORDS[view] ? `, ${VIEW_WORDS[view]}` : ""}${m.street === "turn" ? " on the turn" : ""}`,
-      ok: num(m.ok),
-      ...per(num(m.graded), num(s.evLossBb), num(m.lossPct)),
       graded: m.street === "turn" ? "Stored turn from the flop library (by how often, in 5% steps)" : "Precomputed solution (the flop library)",
       ...(spot ? { to: { href: `/practice?tab=drills&spot=${encodeURIComponent(spot)}${m.street === "turn" ? "&street=turn" : ""}${view ? `&view=${encodeURIComponent(view)}` : ""}`, label: "Drill it again" } } : {}),
     };
   }
   if (s.kind === "analysis") {
-    const sc = obj(m.score) ?? {};
     const leak = str(m.leak);
     const done = Array.isArray(m.done) ? m.done.length : 0;
     // (a row sits under the day it was started: a drill resumed since says its own day)
@@ -269,8 +326,6 @@ export function rowOf(s: SessionRecord): SessionRow {
     return {
       ...base,
       what: `Leak: ${str(m.label) || leak || "?"}${num(m.total) ? ` · ${done} of ${num(m.total)} done when last drilled${last}` : ""}`,
-      ok: num(sc.ok),
-      ...per(num(sc.ne), num(sc.loss), num(sc.lossPct)),
       graded: "Analyze's answers to your own decisions: the preflop charts by frequency (not a solve) preflop, after the flop what answered each one, said in the drill",
       ...(leak ? { to: { href: `/analyze?drill=${encodeURIComponent(leak)}`, label: "Open the drill" } } : {}),
     };
@@ -284,9 +339,6 @@ export function rowOf(s: SessionRecord): SessionRow {
     ...base,
     what: [table, node, m.actor ? `${str(m.actor)}'s range` : ""].filter(Boolean).join(" · ") || "A node",
     n: 1,
-    ok: null,
-    lossPer: null,
-    lossPctPer: null,
     acc: typeof m.acc === "number" ? m.acc : null,
     byCombo: m.graded === "combo",
     buildLoss: typeof m.evLossBb === "number" ? m.evLossBb : null,
@@ -295,14 +347,10 @@ export function rowOf(s: SessionRecord): SessionRow {
   };
 }
 
-export interface KindTotal {
+export interface KindTotal extends Split {
   kind: SessionKind;
   sessions: number;
   n: number;
-  ok: number;
-  ne: number;
-  loss: number;
-  lossPct: number;
   /** full hands: hands, and net over the sessions played out */
   hands: number;
   played: number;
@@ -318,11 +366,10 @@ export function kindTotals(sessions: readonly SessionRecord[]): KindTotal[] {
   for (const { id } of KINDS) {
     const ss = sessions.filter((s) => s.kind === id);
     if (!ss.length) continue;
-    const t: KindTotal = { kind: id, sessions: ss.length, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, hands: 0, played: 0, net: 0, acc: null, buildLoss: null };
+    const t: KindTotal = { kind: id, sessions: ss.length, n: 0, ways: {}, apart: 0, hands: 0, played: 0, net: 0, acc: null, buildLoss: null };
     const accs: number[] = [], losses: number[] = [];
     for (const s of ss) {
       const r = rowOf(s);
-      const m = s.meta ?? {};
       if (id === "build") {
         if (r.acc != null) accs.push(r.acc);
         if (r.buildLoss != null) losses.push(r.buildLoss);
@@ -330,12 +377,9 @@ export function kindTotals(sessions: readonly SessionRecord[]): KindTotal[] {
         continue;
       }
       t.n += r.n;
-      t.ok += r.ok ?? 0;
-      const sc = id === "analysis" ? (obj(m.score) ?? {}) : null;
-      const ne = sc ? num(sc.ne) : num(m.graded);
-      t.ne += ne;
-      t.loss += sc ? num(sc.loss) : num(s.evLossBb);
-      t.lossPct += sc ? num(sc.lossPct) : num(m.lossPct);
+      const both = mergeSplit(t, r.split);
+      t.ways = both.ways;
+      t.apart = both.apart;
       if (isTournamentKind(id) || id === "exploit") t.hands += r.hands ?? 0;
       if (id === "practice") {
         t.hands += r.hands ?? 0;
@@ -353,10 +397,18 @@ export function kindTotals(sessions: readonly SessionRecord[]): KindTotal[] {
   return out;
 }
 
+export interface PotRow extends Split {
+  pot: string;
+  hands: number;
+  n: number;
+  played: number;
+  net: number;
+}
+
 /** Practice's finished hands by pot type, over the sessions that kept them; and the sessions (and their hands) that
  * didn't, played before pot types were kept. */
-export function potTotals(sessions: readonly SessionRecord[]): { rows: (PotTally & { pot: string })[]; without: number; withoutHands: number } {
-  const m = new Map<string, PotTally>();
+export function potTotals(sessions: readonly SessionRecord[]): { rows: PotRow[]; without: number; withoutHands: number } {
+  const m = new Map<string, Omit<PotRow, "pot">>();
   let without = 0, withoutHands = 0;
   for (const s of sessions) {
     if (s.kind !== "practice") continue;
@@ -371,16 +423,13 @@ export function potTotals(sessions: readonly SessionRecord[]): { rows: (PotTally
     for (const [pot, raw] of Object.entries(byPot)) {
       const x = obj(raw);
       if (!x) continue;
-      const t = m.get(pot) ?? emptyTally();
+      const t = m.get(pot) ?? { hands: 0, n: 0, played: 0, net: 0, ways: {}, apart: 0 };
       m.set(pot, {
         hands: t.hands + num(x.hands),
         n: t.n + num(x.n),
-        ok: t.ok + num(x.ok),
-        ne: t.ne + num(x.ne),
-        loss: t.loss + num(x.loss),
-        lossPct: t.lossPct + num(x.lossPct),
         played: t.played + num(x.played),
         net: round2(t.net + num(x.net)),
+        ...mergeSplit(t, tallySplit(x)),
       });
     }
   }

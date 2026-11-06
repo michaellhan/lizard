@@ -1,7 +1,7 @@
 // Saved spots (Study lines), saved ranges (the Ranges editor's) and saved drills (Practice's and Analyze's), kept in
 // this browser's IndexedDB (db.ts).
 import { noteSaved } from "./backupNudge";
-import { db, type SavedAnswer, type SavedDrill, type SavedRange, type SavedSpot } from "./db";
+import { db, deleteRecord, deleting, type SavedAnswer, type SavedDrill, type SavedRange, type SavedSpot } from "./db";
 
 export const NOT_SAVED = "Not saved: this browser isn't keeping Lizard's data right now.";
 
@@ -46,12 +46,14 @@ export async function listSpots(): Promise<SavedSpot[]> {
   return d ? newestFirst(await d.getAll("savedSpots")) : [];
 }
 
-/** The spot and the answer kept with it. */
+/** The spot and the answer kept with it, each remembered as deleted. */
 export async function deleteSpot(id: string): Promise<void> {
   const d = await db();
   if (!d) return;
-  const tx = d.transaction(["savedSpots", "savedAnswers"], "readwrite");
-  await Promise.all([tx.objectStore("savedSpots").delete(id), tx.objectStore("savedAnswers").delete(id), tx.done]);
+  await deleting(d, ["savedSpots", "savedAnswers"], async (gone) => {
+    await gone("savedSpots", id);
+    await gone("savedAnswers", id);
+  });
 }
 
 /** The spot saved at this Study line, if any (a line is saved once: saving it again updates it). */
@@ -81,8 +83,7 @@ export async function getRange(id: string): Promise<SavedRange | undefined> {
 }
 
 export async function deleteRange(id: string): Promise<void> {
-  const d = await db();
-  if (d) await d.delete("savedRanges", id);
+  await deleteRecord("savedRanges", id);
 }
 
 /** Whether it was stored, as putSpot. */
@@ -101,8 +102,7 @@ export async function listDrills(): Promise<SavedDrill[]> {
 }
 
 export async function deleteDrill(id: string): Promise<void> {
-  const d = await db();
-  if (d) await d.delete("savedDrills", id);
+  await deleteRecord("savedDrills", id);
 }
 
 /** The drill saved at this link, if any (a drill is saved once: saving it again updates it). */

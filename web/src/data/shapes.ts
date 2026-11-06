@@ -21,6 +21,19 @@ export const isTime = (x: unknown): x is number => isNum(x) && Math.abs(x) <= 8.
 /** `encodeURIComponent` throws on a lone surrogate, and JSON can write one */
 export const isWellFormed = (x: unknown): x is string => isStr(x) && !/\p{Cs}/u.test(x);
 
+/** The longest id a tombstone in a file may name: well past a real one (a hand's site, number and cards, a decision's
+ * with its street), as a tombstone's kept here and in every backup after. */
+export const MAX_TOMBSTONE_ID = 512;
+/** how far ahead of this browser's clock a file's deletion may be dated: a device's clock can run ahead, but one dated far
+ * on would hold off every later copy of what it names */
+export const TOMBSTONE_LEEWAY_MS = 24 * 60 * 60 * 1000;
+
+/** A deletion a backup says happened: one id, a real time not ahead of now, and nothing else it can do. */
+export function validTombstone(t: unknown, now: number): t is { id: string; updated: number; dev?: string } {
+  if (!isObj(t) || t.deleted !== true || !isWellFormed(t.id) || !t.id || t.id.length > MAX_TOMBSTONE_ID) return false;
+  return isTime(t.updated) && t.updated > 0 && t.updated <= now + TOMBSTONE_LEEWAY_MS && (t.dev === undefined || (isWellFormed(t.dev) && t.dev.length <= MAX_TOMBSTONE_ID));
+}
+
 const CARD = "[2-9TJQKA][shdc]";
 const CARD_RE = new RegExp(`^${CARD}$`);
 const HOLE_RE = new RegExp(`^(?:${CARD}){2}$`);

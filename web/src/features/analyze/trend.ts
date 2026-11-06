@@ -7,7 +7,7 @@
 // would manufacture improvement from chance.
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { countVersions, versionSpan, type VersionSpan } from "@/grading/version";
-import { basisOf, freqs, FREQS, groupBy, isGraded, isOk, LEAK, leaks, leakTest, PF_ORDER, type FreqRow, type Group, spotOf } from "./report";
+import { basisOf, freqs, FREQS, groupBy, isGraded, isOk, LEAK, leaks, leakTest, PF_ORDER, PF_ROW, pfKey, type FreqRow, type Group, spotOf } from "./report";
 import { byPlayed, type Sitting } from "./sessions";
 import { wilson } from "./stats";
 
@@ -216,7 +216,8 @@ export function shifts(before: readonly DecisionRecord[], later: readonly Decisi
     return spanOf(before.filter(its), later.filter(its));
   };
   const [f1, f2] = [before, later].map((ds) => new Map(freqs(ds).map((r) => [r.label, r])));
-  for (const [key] of FREQS) {
+  // (the charts' rows and the preflop solve's beside them: no row moves from one answer to the other)
+  for (const key of FREQS.flatMap(([k]) => [k, `${k}${PF_ROW}`])) {
     const [a, b] = [f1!.get(key), f2!.get(key)];
     if (!a && !b) continue;
     if (!a || !b || Math.min(a.n, b.n) < MIN_ROW) {
@@ -241,7 +242,7 @@ export function shifts(before: readonly DecisionRecord[], later: readonly Decisi
       rows.push(kind === "pf" ? { ...row, kind } : { ...row, kind, avg: [a.avg, b.avg] });
     }
   };
-  compare("pf", (ds) => groupBy(ds.filter((d) => d.street === "preflop"), (d) => d.situation, PF_ORDER));
+  compare("pf", (ds) => groupBy(ds.filter((d) => d.street === "preflop"), pfKey, PF_ORDER));
   compare("spot", (ds) => groupBy(ds, spotOf));
   const noMix = [...before, ...later].filter((d) => d.read && !d.mix).length;
   return { rows: rows.sort((a, b) => Number(!!b.change) - Number(!!a.change) || Math.abs(b.z ?? 0) - Math.abs(a.z ?? 0)), tooFew, noMix };

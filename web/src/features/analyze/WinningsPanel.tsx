@@ -104,7 +104,7 @@ function Measures({ w, losses }: { w: Winnings; losses: readonly KindLoss[] }) {
       {card(
         "Solver EV lost",
         "What your graded decisions gave up against the answers that graded them. It covers only decisions graded by EV, as the preflop charts have no EVs. It isn't a win rate, and none is worked out from it.",
-        losses.map((k) => `${KIND_NAME[k.kind]}: ${k.ev ? `${k.lost.toLocaleString()}bb lost over ${k.ev.toLocaleString()} ${k.ev === 1 ? "decision" : "decisions"} graded by EV` : "none graded by EV"}, of ${k.graded.toLocaleString()} graded`),
+        losses.map((k) => `${KIND_NAME[k.kind]}: ${k.ev ? `${k.lost.toLocaleString()}bb lost over ${k.ev.toLocaleString()} ${k.ev === 1 ? "decision" : "decisions"} graded by EV` : "none graded by EV"}${k.pfEv ? `, and apart from that ${k.pfLost.toLocaleString()}bb over ${k.pfEv.toLocaleString()} by the preflop solve` : ""}, of ${k.graded.toLocaleString()} graded`),
         "Nothing here is graded.",
       )}
     </div>

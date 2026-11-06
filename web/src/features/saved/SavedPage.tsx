@@ -8,7 +8,7 @@ import { useFocusHold } from "@/components/useFocusHold";
 import type { SavedDrill, SavedRange, SavedReport, SavedScenario, SavedSpot } from "@/data/db";
 import { answerWords, kb, listAnswers, seenWords, type KeptAnswer } from "@/data/answers";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
-import { kvGet, kvSet } from "@/data/db";
+import { kvGet, kvSet, MAX_TOMBSTONES } from "@/data/db";
 import { NOT_SAVED, SAVED_SORTS, deleteDrill, deleteRange, deleteSpot, isDrillLink, isSavedSort, listDrills, listRanges, listSpots, putDrill, putRange, putSpot, readTags, sortSaved, spotMatches, stored, textMatches, type SavedSort } from "@/data/saved";
 import { deleteReport, listReports, putReport, reportLink, reportWords } from "@/data/reports";
 import { deleteScenario, listScenarios, putScenario, scenarioWords } from "@/data/scenarios";
@@ -751,6 +751,8 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
         One file with your saved spots and the answers kept with them, saved drills, saved scenarios, saved ranges, saved reports, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
         imported into Analyze with your tags, notes and grades, and the mistakes kept for review with their schedule; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
+        What you delete stays deleted: this browser remembers your deletes, up to the latest {MAX_TOMBSTONES.toLocaleString("en-US")} of each kind, and a backup takes them to another browser, so a restore leaves those records out and says how many.
+        A copy changed after its delete still comes back, a delete made before this version wasn&rsquo;t remembered, and a restore won&rsquo;t remove a copy kept here that another browser deleted.
       </p>
       {count && (
         <p role="group" aria-label="Last backup">

@@ -51,17 +51,21 @@ function readCell(x: unknown): GradeCell | null {
   };
 }
 
+/** The cells a session kept (null: none; none either where they add up to more decisions than it graded, as no real
+ * session's do). A tournament's and a read's are kept too, read only for their own kind's totals. */
+export function keptCells(s: SessionRecord): GradeCell[] | null {
+  const kept = obj(s.meta?.cells);
+  if (!kept) return null;
+  const cells = Object.values(kept).map(readCell).filter((c): c is GradeCell => c !== null);
+  return cellsFit(cells.map((c) => c.n), num(s.decisions)) ? cells : [];
+}
+
 /** A session's cells: a Practice session's as kept (null: played before they were kept; none where they add up to more
  * decisions than it graded, as no real session's do), a drill's from its totals: a flop drill's the flop library's by EV,
  * a turn drill's the stored turn's by frequency. Any other kind has none. */
 export function cellsOf(s: SessionRecord): GradeCell[] | null {
   const m = s.meta ?? {};
-  if (s.kind === "practice") {
-    const kept = obj(m.cells);
-    if (!kept) return null;
-    const cells = Object.values(kept).map(readCell).filter((c): c is GradeCell => c !== null);
-    return cellsFit(cells.map((c) => c.n), num(s.decisions)) ? cells : [];
-  }
+  if (s.kind === "practice") return keptCells(s);
   if (s.kind === "drill" && num(s.decisions) > 0) {
     const n = num(s.decisions);
     // (a turn drill's mark: it's graded by the stored mix, with no EV)

@@ -124,7 +124,10 @@ describe("PracticePage", () => {
     expect(screen.getByRole("status")).toHaveTextContent("You won 2.5bb");
     const score = screen.getByRole("region", { name: "Score" });
     expect(within(score).getByText("+2.5bb")).toBeInTheDocument();
-    expect(within(score).getByText("100%")).toBeInTheDocument();
+    // (graded by EV after the flop and by frequency before it: a figure each, and none that adds them)
+    expect(within(score).getByText("By frequency")).toBeInTheDocument();
+    expect(within(score).getByText("By EV")).toBeInTheDocument();
+    expect(within(score).queryByText("Best or correct")).toBeNull();
     // one request a decision: yours (advice) and the big blind's (a move)
     // (from the heads-up hand: the 6-max hand dealt on load may have asked for its first move)
     const mine = stub.calls.slice(stub.calls.indexOf("advise SB preflop"));

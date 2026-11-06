@@ -10,7 +10,7 @@ import { streetTotals, trends } from "./progress";
 
 const AT = new Date(2026, 10, 3, 20).getTime();
 const cell = (byEv: boolean, loss: number) => ({ street: "flop", source: "live", byEv, n: 2, ok: 1, loss, lossPct: 5 });
-const byPot = { SRP: { hands: 2, n: 3, ok: 2, ne: 2, loss: 1, lossPct: 5, played: 2, net: 9 } };
+const byPot = { SRP: { hands: 2, n: 3, ok: 2, ne: 2, loss: 1, lossPct: 5, played: 2, net: 9, ways: { ev: { n: 2, ok: 1, loss: 1, lossPct: 5 }, freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } } } };
 const session = (id: string, kind: SessionRecord["kind"], loss: number, meta: Record<string, unknown>): SessionRecord => ({
   id,
   kind,
@@ -32,11 +32,11 @@ describe("an exploit session", () => {
   const READ = session("read", "exploit", 8, { exploit: { profile: "nit", lock: { fold: 15, bluff: -60 } }, pot: "srp", sources: { "best-response": 3 } });
 
   it("has a row of its own, in no total with an equilibrium's, and says so", async () => {
-    expect(kindTotals([CASH, READ]).map((x) => [x.kind, x.loss, x.net])).toEqual([
+    expect(kindTotals([CASH, READ]).map((x) => [x.kind, x.ways.ev?.loss, x.net])).toEqual([
       ["practice", 1, 9],
       ["exploit", 8, 0],
     ]);
-    expect(potTotals([CASH, READ]).rows.find((r) => r.pot === "SRP")).toMatchObject({ loss: 1, hands: 2 });
+    expect(potTotals([CASH, READ]).rows.find((r) => r.pot === "SRP")).toMatchObject({ ways: { ev: { loss: 1 } }, hands: 2 });
     expect(streetTotals([CASH, READ]).rows).toEqual([expect.objectContaining({ n: 2, loss: 1 })]);
     await putSession(READ);
     render(
@@ -54,7 +54,7 @@ describe("an exploit session", () => {
 describe("the totals", () => {
   it("keeps each kind's EV lost apart", () => {
     const t = kindTotals(ALL);
-    expect(t.map((x) => [x.kind, x.loss])).toEqual([
+    expect(t.map((x) => [x.kind, x.ways.ev?.loss])).toEqual([
       ["practice", 1],
       ["tournament", 2],
       ["tournament-chips", 4],
@@ -67,7 +67,7 @@ describe("the totals", () => {
   });
 
   it("leaves tournaments out of the totals by pot and by street, which are in bb", () => {
-    expect(potTotals(ALL).rows.find((r) => r.pot === "SRP")).toMatchObject({ loss: 1, net: 9, hands: 2 });
+    expect(potTotals(ALL).rows.find((r) => r.pot === "SRP")).toMatchObject({ ways: { ev: { loss: 1 } }, net: 9, hands: 2 });
     const st = streetTotals(ALL);
     expect(st.rows).toEqual([expect.objectContaining({ street: "flop", n: 2, loss: 1 })]);
     expect(st.apartSessions).toBe(0);

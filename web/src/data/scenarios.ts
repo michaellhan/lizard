@@ -11,7 +11,7 @@ import { flopsLike, isTextureFilter, TEXTURE_GROUPS, type TextureFilter } from "
 import { draftOf, readDraft } from "@/features/practice/TournamentFields";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import { noteSaved } from "./backupNudge";
-import { db, type SavedScenario } from "./db";
+import { db, deleteRecord, type SavedScenario } from "./db";
 import { isOptTags, isTime, isWellFormed } from "./shapes";
 
 export type ScenarioSetup = Pick<SavedScenario, "players" | "stack" | "opts">;
@@ -61,9 +61,9 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   if (typeof seat !== "string" || !(seat === "moves" || seat === "random" || seatsOf(players).includes(seat))) return null;
   const pot = o.pot ?? null;
   if (pot !== null && !isPotDrill(pot)) return null;
-  const preflop = boolOr(o.preflopOnly), pushFold = boolOr(o.pushFold), straddle = boolOr(o.straddle), carry = boolOr(o.carry), pfSolve = boolOr(o.pfSolve);
+  const preflop = boolOr(o.preflopOnly), pushFold = boolOr(o.pushFold), straddle = boolOr(o.straddle), carry = boolOr(o.carry), pfSolve = boolOr(o.pfSolve), pfSizes = boolOr(o.pfSizes);
   const ante = numOr(o.ante, 0), rake = numOr(o.rake, 0), rakeCap = numOr(o.rakeCap, 0);
-  if (preflop === null || pushFold === null || straddle === null || carry === null || pfSolve === null || ante === null || rake === null || rakeCap === null) return null;
+  if (preflop === null || pushFold === null || straddle === null || carry === null || pfSolve === null || pfSizes === null || ante === null || rake === null || rakeCap === null) return null;
   if (!(ante >= 0 && ante <= LIMITS.ante) || !(rake >= 0 && rake <= LIMITS.rakePct) || !(rakeCap >= 0)) return null;
   const tournament = o.tournament === undefined || o.tournament === null ? null : readTournament(o.tournament, players, stack);
   if (o.tournament !== undefined && o.tournament !== null && !tournament) return null;
@@ -99,7 +99,7 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   };
   // (the option exists only where a stored solve does: one set anywhere else was never the form's)
   if (pfSolve && pfBlocked(players, stack, setup)) return null;
-  return pfSolve ? { ...setup, pfSolve: true } : setup;
+  return pfSolve ? { ...setup, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : setup;
 }
 
 /** A setup as it's stored, whole and playable, else null. */
@@ -149,8 +149,7 @@ export async function getScenario(id: string): Promise<SavedScenario | undefined
 }
 
 export async function deleteScenario(id: string): Promise<void> {
-  const d = await db();
-  if (d) await d.delete("savedScenarios", id);
+  await deleteRecord("savedScenarios", id);
 }
 
 export const boardWords = (b: TextureFilter) => TEXTURE_GROUPS.flatMap((g) => (b[g.key] ? [g.values[b[g.key]!]!.toLowerCase()] : []));
@@ -165,7 +164,7 @@ export function scenarioWords({ players, stack, opts: o }: ScenarioSetup): strin
     ...(o.board ? boardWords(o.board) : []),
     o.pot && o.hand ? `hands: ${handLabel(o.hand).toLowerCase()}` : "",
     o.exploit ? `exploiting ${assumedWords(o.exploit)}: ${exploitNumbers(o.exploit)}` : "",
-    o.pfSolve ? "preflop graded by the preflop solve" : "",
+    o.pfSolve ? (o.pfSizes ? "preflop graded by the preflop solve, at its raise sizes" : "preflop graded by the preflop solve") : "",
     o.ante ? `ante ${o.ante}bb` : "",
     o.straddle ? "straddle" : "",
     o.rake ? `rake ${o.rake}%${o.rakeCap ? ` (cap ${o.rakeCap}bb)` : ""}` : "",

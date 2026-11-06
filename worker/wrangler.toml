@@ -1,0 +1,18 @@
+# No ids or secrets here. database_id is set when the owner creates the database; secrets go in with `wrangler secret put`.
+name = "lizard-sync"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "www.michael-han.com/lizard/api/*", zone_name = "michael-han.com" }]
+
+[vars]
+SITE_ORIGIN = "https://www.michael-han.com"
+MAIL_FROM = "Lizard <lizard@michael-han.com>"
+
+[triggers]
+crons = ["17 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lizard-sync"
+database_id = "SET_WHEN_CREATED"

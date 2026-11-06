@@ -162,6 +162,7 @@ export function decisionNote(d: DecisionRecord): string {
   if (d.roughEv) parts.push("a move the range almost never takes, so its EV is rough");
   if (d.capped) parts.push("a rough solve can't condemn a line, so this stops at Inaccuracy");
   if (d.note) parts.push(d.note);
+  if (d.pfWhy) parts.push(`not by the preflop solve here: ${d.pfWhy}`);
   if (d.off) parts.push(d.off);
   parts.push(d.source === "charts" ? "preflop charts, by frequency (not a solve)" : d.label);
   if (d.read) parts.push(`checked at Fast: the read said ${d.read.verdict}${d.read.label ? `, from ${d.read.label}` : ""}`);

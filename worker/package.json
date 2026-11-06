@@ -1,0 +1,9 @@
+{
+  "name": "lizard-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --root . src",
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

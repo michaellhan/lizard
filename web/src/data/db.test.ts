@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mistake } from "@/test/mistake";
 import { versionWords } from "@/grading/version";
-import { DB_VERSION, MIGRATIONS, openLizardDB, putSession, recentSessions, type DecisionRecord } from "./db";
+import { DB_VERSION, deleting, MIGRATIONS, openLizardDB, putSession, recentSessions, type DecisionRecord } from "./db";
 
 let n = 0;
 const fresh = () => `lizard-test-${++n}`;
@@ -13,7 +13,7 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedAnswers", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedAnswers", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions", "tombstones"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("savedScenarios").store.indexNames]).toEqual(["byUpdated"]);
@@ -167,8 +167,126 @@ describe("IndexedDB migrations", () => {
     v9.close();
   });
 
-  it("opens at version 9", () => {
-    expect(DB_VERSION).toBe(9);
+  it("upgrades a version-9 database in place: every record as it was, and an empty store for deletions", async () => {
+    const name = fresh();
+    const v9 = await openLizardDB(9, name);
+    expect([...v9.objectStoreNames]).not.toContain("tombstones");
+    const spot = { id: "s1", title: "SRP", line: "p=2&s=100", state: {}, tags: ["a"], note: "n", createdAt: 1, updatedAt: 2 };
+    const answer = { id: "s1", line: spot.line, json: "{}", provenance: {} as never, savedAt: 1 };
+    await v9.put("savedSpots", spot);
+    await v9.put("savedAnswers", answer);
+    await v9.put("mistakes", mistake());
+    await v9.put("kv", "name", "savedSort");
+    v9.close();
+
+    const v10 = await openLizardDB(10, name);
+    expect(v10.version).toBe(10);
+    expect(await v10.get("savedSpots", "s1")).toEqual(spot);
+    expect(await v10.get("savedAnswers", "s1")).toEqual(answer);
+    expect(await v10.get("mistakes", mistake().id)).toEqual(mistake());
+    expect(await v10.get("kv", "savedSort")).toBe("name");
+    expect(await v10.count("tombstones")).toBe(0);
+    await v10.put("tombstones", { store: "savedSpots", id: "gone", at: 5 });
+    await v10.put("tombstones", { store: "savedSpots", id: "gone", at: 6 });
+    await v10.put("tombstones", { store: "savedRanges", id: "gone", at: 7 });
+    expect(await v10.get("tombstones", ["savedSpots", "gone"])).toEqual({ store: "savedSpots", id: "gone", at: 6 });
+    expect(await v10.count("tombstones")).toBe(2);
+    v10.close();
+  });
+
+  it("a tab at version 9 steps aside for version 10, and an upgrade it holds up says so until it does", async () => {
+    const name = fresh();
+    // an older tab, as db() opens: it's told a newer one is waiting, and closes
+    let old: Awaited<ReturnType<typeof openLizardDB>> | null = null;
+    const stepped = new Promise<void>((resolve) => {
+      void openLizardDB(9, name, {
+        blocking: () => {
+          old?.close();
+          resolve();
+        },
+      }).then((c) => (old = c));
+    });
+    await vi.waitFor(() => expect(old).not.toBeNull());
+    await old!.put("kv", 1, "k");
+    const v10 = await openLizardDB(10, name);
+    await stepped;
+    expect(await v10.get("kv", "k")).toBe(1);
+    v10.close();
+
+    // one that doesn't let go: the upgrade waits, says so, and goes on when the tab closes, with nothing lost
+    const held = fresh();
+    const stuck = await openLizardDB(9, held);
+    await stuck.put("kv", 2, "k");
+    let blocked = false;
+    const waiting = openLizardDB(10, held, { blocked: () => (blocked = true) });
+    await vi.waitFor(() => expect(blocked).toBe(true));
+    stuck.close();
+    const up = await waiting;
+    expect(await up.get("kv", "k")).toBe(2);
+    up.close();
+
+    // and a tab from before this can't open it again: the browser refuses, which is db()'s "newer"
+    const rejected = await openLizardDB(9, held).catch((e: unknown) => e);
+    expect((rejected as Error).name).toBe("VersionError");
+  });
+
+  it("opens at version 10", () => {
+    expect(DB_VERSION).toBe(10);
+  });
+});
+
+describe("a delete and its tombstone", () => {
+  const spot = (id: string, updatedAt: number) => ({ id, title: id, line: "p=2&s=100", state: {}, tags: [], note: "", createdAt: 1, updatedAt });
+
+  it("stamps a time after the record's last change, however the clock stands, and now where the record says none", async () => {
+    const d = await openLizardDB(DB_VERSION, fresh());
+    await d.put("savedSpots", spot("ahead", 5000));
+    await d.put("savedSpots", spot("behind", 10));
+    await d.put("savedSpots", { ...spot("damaged", 10), updatedAt: "soon" as never });
+    await deleting(d, ["savedSpots"], async (gone) => {
+      await gone("savedSpots", "ahead");
+      await gone("savedSpots", "behind");
+      await gone("savedSpots", "damaged");
+      await gone("savedSpots", "never here");
+    }, () => 1000);
+    expect(await d.count("savedSpots")).toBe(0);
+    const at = Object.fromEntries((await d.getAll("tombstones")).map((t) => [t.id, t.at]));
+    expect(at).toEqual({ ahead: 5001, behind: 1000, damaged: 1000, "never here": 1000 });
+    d.close();
+  });
+
+  it("undoes both where a delete fails: the record stays, with no tombstone", async () => {
+    const d = await openLizardDB(DB_VERSION, fresh());
+    await d.put("savedSpots", spot("a", 1));
+    await d.put("savedSpots", spot("b", 1));
+    await expect(
+      deleting(d, ["savedSpots"], async (gone) => {
+        await gone("savedSpots", "a");
+        throw new Error("stopped");
+      }),
+    ).rejects.toThrow("stopped");
+    expect(await d.count("savedSpots")).toBe(2);
+    expect(await d.count("tombstones")).toBe(0);
+    d.close();
+  });
+
+  it("keeps each kind to its bound, the oldest forgotten, without touching another kind's", async () => {
+    const d = await openLizardDB(DB_VERSION, fresh());
+    await d.put("tombstones", { store: "savedRanges", id: "other", at: 1 });
+    for (const [id, t] of [["a", 3], ["b", 1], ["c", 2]] as const) await deleting(d, ["savedSpots"], (gone) => gone("savedSpots", id), () => t, 2);
+    expect((await d.getAll("tombstones")).map((t) => `${t.store}/${t.id}`).sort()).toEqual(["savedRanges/other", "savedSpots/a", "savedSpots/c"]);
+    d.close();
+  });
+
+  it("writes no more than the bound in a bulk delete, and still deletes every record", async () => {
+    const d = await openLizardDB(DB_VERSION, fresh());
+    for (const id of ["a", "b", "c", "d"]) await d.put("savedSpots", spot(id, 1));
+    await deleting(d, ["savedSpots"], async (gone) => {
+      for (const id of ["a", "b", "c", "d"]) await gone("savedSpots", id);
+    }, Date.now, 2);
+    expect(await d.count("savedSpots")).toBe(0);
+    expect(await d.count("tombstones")).toBe(2);
+    d.close();
   });
 });
 

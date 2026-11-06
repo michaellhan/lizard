@@ -11,7 +11,9 @@ move is then drawn by one of three policies:
   uniform  any option the table offers, evenly (someone playing badly, which is who goes off the lines the solve plays)
   solve    from the solve's mix for your class where it answers, else the chart's (someone playing what it's graded on)
 
---own-sizes prices the option nobody built: your raise buttons at the solve's size wherever the line is on its tree.
+--own-sizes is the session option "Offer the solve's raise sizes" (pfGrade.ts `pfRead` with `ownSizes`): at a spot the solve
+can grade whose options are its in kind, your raise is at the solve's own size, to the cent as the tree has it (17.25bb, not
+the table's half big blind). Anywhere else your raise stays the chart's, and that decision the chart's.
 
     .venv/bin/python scripts/pf_practice_coverage.py --hands 30000 --policy chart,uniform,solve [--rake] [--own-sizes]
 """
@@ -211,9 +213,13 @@ def run(policy, hands, seed, rake, own_sizes):
                 loss[1] += 1
             name = pick["action"].split()[0]
             size = pick.get("amount_bb")
-            if own_sizes and r and name == "raise":
-                size = next((a["amount_bb"] for a in r["actions"] if a["action"] == "raise"), size)
-            t.apply(t.record(p, name, size))
+            own = own_sizes and kind == "answered" and name == "raise"
+            if own:
+                size = next(a["amount_bb"] for a in r["actions"] if a["action"] == "raise")
+            m = t.record(p, name, size)
+            if own and m["action"] == "raise":
+                m["to"] = size                   # (practice.ts moveOfOption `exact`: the solve's, not the half big blind)
+            t.apply(m)
             if name == "fold":
                 break
         handsseen["hands"] += 1

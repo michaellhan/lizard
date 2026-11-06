@@ -47,7 +47,7 @@ describe("the session's totals", () => {
     expect(s.net).toBe(0.3);
     expect(s.score).toEqual({ ...emptyScore(), n: 2, ok: 1, ne: 1, loss: 0.4, lossPct: 8, best: 1, recent: [1, 0] });
     expect(s.sources).toEqual({ charts: 1, live: 1 });
-    expect(s.byPot).toEqual({
+    expect(s.byPot).toMatchObject({
       SRP: { hands: 1, n: 2, ok: 1, ne: 1, loss: 0.4, lossPct: 8, played: 1, net: 0.1 },
       Unopened: { hands: 1, n: 0, ok: 0, ne: 0, loss: 0, lossPct: 0, played: 1, net: 0.2 },
     });

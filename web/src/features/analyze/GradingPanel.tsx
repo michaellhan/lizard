@@ -3,7 +3,8 @@
 // then checked at Fast: triage.ts), and the report over what's graded (report.ts): the grades, what they stand on, the
 // leaks and what's too few to call one, the breakdowns (BreakdownPanel.tsx), the frequencies against the answer's, the
 // decisions that lost the most, and CSV and JSON export. Every number
-// says what it stands on: the charts (by frequency, not a solve), the library, a read or a solve.
+// says what it stands on: the charts (by frequency, not a solve), the stored preflop solve (by EV, of a class-level model),
+// the library, a read or a solve.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -12,6 +13,7 @@ import { clearDecisions, putDecisions } from "@/data/hands";
 import { VERSION_UNKNOWN } from "@/grading/version";
 import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
+import { PF_MODEL } from "@/features/practice/pfGrade";
 import { useRuntime } from "@/solver/runtime";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
@@ -21,7 +23,7 @@ import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
 import { isEquilibriumHand } from "./sessions";
-import { basisOf, isGraded, LEAK_RULE, leakTest, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { basisOf, isGraded, isPfSolve, LEAK_RULE, leakTest, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
@@ -30,11 +32,11 @@ const bbs = (x: number | null | undefined) => (x == null ? "—" : `${Math.round
 
 /** What the grades stand on, said wherever they are shown. */
 export const GRADED_ON =
-  "Preflop decisions are graded against the preflop charts by how often your hand takes the action: the charts aren't a solve and have no EVs, so no EV lost is counted. After the flop a decision is graded against what answered it, which it names: the precomputed flop library, a stored turn, a read at once, or a Quick or Fast solve; by EV where that answer has EVs, by frequency where it hasn't. A rough or cut-short solve can't condemn a line: its grade stops at Inaccuracy. The betting rules and equity guesses are never graded against. Tournament hands are graded in chips, with no ICM or bounties.";
+  `In a game the preflop solve is stored for (6-max at 100bb each, with no ante or straddle, and no rake or 5% capped at 3bb), a preflop decision is graded by EV against that solve wherever its tree holds the spot: an ${PF_MODEL}, and its EVs are against its own ranges. Anywhere else it's graded against the preflop charts by how often your hand takes the action: the charts aren't a solve and have no EVs, so no EV lost is counted. Each says which graded it, and the two are never added together. A hand played in Practice is read as its table read it; a site's history says no rake, so it's read as the game with none. After the flop a decision is graded against what answered it, which it names: the precomputed flop library, a stored turn, a read at once, or a Quick or Fast solve; by EV where that answer has EVs, by frequency where it hasn't. A rough or cut-short solve can't condemn a line: its grade stops at Inaccuracy. The betting rules and equity guesses are never graded against. Tournament hands are graded in chips, with no ICM or bounties.`;
 
 /** What each scope asks of the solver. */
 const SCOPE_NOTES: Record<GradeScope, string> = {
-  preflop: "Nothing is solved.",
+  preflop: "Nothing is solved: the charts and the stored preflop solve are read as they stand.",
   library: "Nothing is solved; a flop the library doesn't hold isn't graded.",
   triage:
     "What's in hand first (the charts, the library, its stored turns, nearby solutions), else a Quick solve. Each read says how far to trust it, and the doubtful ones can then be checked at Fast.",
@@ -65,7 +67,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   useEffect(() => {
     if (running) return;
     const ctl = new AbortController();
-    void toAsk(hands, scope, answeredIds(decisions), { signal: ctl.signal }).then((left) => {
+    void toAsk(hands, scope, answeredIds(decisions, hands), { signal: ctl.signal }).then((left) => {
       if (left) setPlanned({ of: hands, scope, left });
     });
     return () => ctl.abort();
@@ -91,9 +93,11 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
       const client = await getSolver();
       const ask: Ask = async (state) => {
         // (the solver's boot isn't the street's time, and it starts inside the first ask: only a ready solver is timed)
-        const timed = useRuntime.getState().status.phase === "ready";
+        // (the stored solve's file is a fetch, not a street's time, and its read goes with the chart's for one decision)
+        const pf = !!state.preflop_solve;
+        const timed = !pf && useRuntime.getState().status.phase === "ready";
         const t0 = performance.now();
-        const ans = await client.solve({ state, mode: "fast", signal: ctl.signal });
+        const ans = await client.solve({ state, mode: "fast", signal: ctl.signal, ...(pf ? { untimed: true } : {}) });
         const s = STREETS[[0, 6, 8, 10].indexOf(state.board?.length ?? 0)];
         if (timed && s) {
           const m = (timing[s] ??= [0, 0]);
@@ -130,7 +134,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
       ac.current = null;
     }
   };
-  const start = () => void run(scope, hands, answeredIds(decisions), null);
+  const start = () => void run(scope, hands, answeredIds(decisions, hands), null);
   const deepen = (every: boolean) => {
     const p = deepenPlan(hands, decisions, every);
     void run("all", p.hands, new Set(), p.left, p.reads);
@@ -245,7 +249,8 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
   const [freq, setFreq] = useState<string | null>(null);
   const [params] = useSearchParams();
   const streetOf = useCallback((d: DecisionRecord) => d.street, []);
-  const pfOf = useCallback((d: DecisionRecord) => (d.street === "preflop" ? d.situation : null), []);
+  const pfOf = useCallback((d: DecisionRecord) => (d.street === "preflop" && !isPfSolve(d) ? d.situation : null), []);
+  const pfSolveOf = useCallback((d: DecisionRecord) => (d.street === "preflop" && isPfSolve(d) ? d.situation : null), []);
   const basisKey = useCallback((d: DecisionRecord) => (isGraded(d) ? basisOf(d) : null), []);
   const freqTest = useMemo(() => (freq ? leakTest({ kind: "freq", key: freq }) : null), [freq]);
   const freqDs = useMemo(() => (freqTest ? ds.filter(freqTest) : []), [freqTest, ds]);
@@ -296,9 +301,14 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
             </span>
           ))}
         </p>
-        {a.ev > 0 && (
+        {rp.spotEv.n > 0 && (
           <p>
-            Graded by EV: {nDecisions(a.ev)}, {bbs(a.lost)} lost in all, {a.avgPct}% of the pot per decision on average. This is solver EV lost, measured over graded decisions: it isn't what you won, and no win rate is worked out from it.
+            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} lost in all, {rp.spotEv.avgPct}% of the pot per decision on average. This is solver EV lost, measured over graded decisions: it isn't what you won, and no win rate is worked out from it.
+          </p>
+        )}
+        {rp.pfEv.n > 0 && (
+          <p>
+            Graded by the preflop solve: {nDecisions(rp.pfEv.n)}, {bbs(rp.pfEv.lost)} lost in all, an {PF_MODEL}. Its EVs are of your hand&rsquo;s class against its own ranges, so they&rsquo;re kept apart from what a solve of your spot says after the flop, and the two are never added.
           </p>
         )}
         {rp.low.n > 0 && (
@@ -383,6 +393,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
       <Breakdowns ds={ds} hands={hands} byId={byId} />
       <GroupTable title="By street" first="Street" rows={rp.byStreet} ds={ds} keyOf={streetOf} byId={byId} />
       {rp.byPf.length > 0 && <GroupTable title="Preflop, by situation (against the charts, by frequency)" first="Situation" rows={rp.byPf} ds={ds} keyOf={pfOf} byId={byId} />}
+      {rp.byPfSolve.length > 0 && <GroupTable title="Preflop, by situation (against the preflop solve, by EV: a class-level model, not a full solve)" first="Situation" rows={rp.byPfSolve} ds={ds} keyOf={pfSolveOf} byId={byId} ev />}
       {rp.bySpot.length > 0 && <GroupTable title="After the flop, by spot" first="Spot" rows={rp.bySpot} ds={ds} keyOf={spotOf} byId={byId} ev />}
       {rp.freqs.length > 0 && (
         <div className="space-y-1">
@@ -422,7 +433,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
             </table>
           </div>
           <p className="text-xs text-muted">
-            The answer's: the same hands at the same decisions, from what graded each (the charts preflop, which aren't a solve; after the flop the library, a read or a solve). The range is a 95% interval on your rate. The
+            The answer's: the same hands at the same decisions, from what graded each (preflop the charts, which aren't a solve, or on a row of its own the preflop solve, a class-level model; after the flop the library, a read or a solve). The range is a 95% interval on your rate. The
             squeeze row leaves out the blinds, whose decisions don't store a caller. VPIP, PFR, check-raise and the river barrel as such are in Your stats, counted from the histories: a decision doesn't store what you did before it.
           </p>
           {freq && freqDs.length > 0 && <DecisionList title={freq} ds={freqDs} byId={byId} />}
@@ -439,6 +450,6 @@ function leakText(l: Leak): string {
   const low = l.low ? `, ${l.low} on a low-confidence read` : "";
   const n = `${l.n.toLocaleString()} decisions`;
   if (l.kind === "freq") return `${l.key}: you ${pct(l.you)} (95% range ${pair(l.range)}), the answer ${pct(l.gto)} (${n}${low})`;
-  if (l.kind === "pf") return `${l.key}: ${pct(l.inMix)} in the mix against the charts (95% range ${pair(l.range)}, ${n})`;
+  if (l.kind === "pf") return `${l.key}: ${pct(l.inMix)} in the mix against the ${l.key.endsWith(PF_ROW) ? "preflop solve" : "charts"} (95% range ${pair(l.range)}, ${n})`;
   return `${l.key}: ${bbs(l.avg)} lost per decision (95% range ${bbs(l.range[0])} to ${bbs(l.range[1])}, ${n}${low})`;
 }

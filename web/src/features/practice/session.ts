@@ -75,6 +75,9 @@ export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, 
   };
 }
 
+/** A hand's grades, each with what answered it, for its pot's tally: the preflop solve's EV is kept apart from a postflop solve's. */
+export const gradesOf = (h: Pick<PracticeHand, "decisions">) => h.decisions.map((d) => d.grade && { ...d.grade, source: d.provenance?.source });
+
 /** The session after the hand `h` ended with `result`. */
 export function afterHand(s: PracticeSession, h: PracticeHand, result: HandResult): PracticeSession {
   const pot = handPot(h.lines.preflop, simOf(h));
@@ -82,7 +85,7 @@ export function afterHand(s: PracticeSession, h: PracticeHand, result: HandResul
     ...s,
     hands: s.hands + 1,
     net: s.opts.preflopOnly ? s.net : Math.round((s.net + result.net) * 100) / 100,
-    byPot: { ...s.byPot, [pot]: addHandToPot(s.byPot[pot], h.decisions.map((d) => d.grade), s.opts.preflopOnly ? null : result.net) },
+    byPot: { ...s.byPot, [pot]: addHandToPot(s.byPot[pot], gradesOf(h), s.opts.preflopOnly ? null : result.net) },
   };
 }
 
@@ -117,7 +120,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.pushFold ? { pushFold: true } : {}),
     ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
     ...(s.opts.exploit ? { exploit: s.opts.exploit } : {}),
-    ...(s.opts.pfSolve ? { pfSolve: true } : {}),
+    ...(s.opts.pfSolve ? { pfSolve: true, ...(s.opts.pfSizes ? { pfSizes: true } : {}) } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),

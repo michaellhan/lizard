@@ -32,6 +32,7 @@ describe("leakDrill", () => {
   it("reads the leak from the URL and back", () => {
     expect(parseLeakParam(leakParam({ kind: "spot", key: "SRP · IP · checked to" }))).toEqual({ kind: "spot", key: "SRP · IP · checked to" });
     expect(parseLeakParam("pf:vs 3bet")).toEqual({ kind: "pf", key: "vs 3bet" });
+    expect(parseLeakParam(leakParam({ kind: "pf", key: "vs 3bet (preflop solve)" }))).toEqual({ kind: "pf", key: "vs 3bet (preflop solve)" });
     expect([parseLeakParam(null), parseLeakParam("pf:"), parseLeakParam("nope:RFI")]).toEqual([null, null, null]);
     expect(drillSessionId({ kind: "freq", key: "Open (RFI)" })).toBe("leak-drill|freq:Open (RFI)");
   });

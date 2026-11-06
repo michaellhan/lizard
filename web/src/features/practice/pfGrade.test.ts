@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import nodes from "@/test/fixtures/pf_nodes.json";
 import { keptHand } from "./keep";
 import { adviceKey, needOf, pfKey } from "./flow";
-import { gradedOn, PF_MODEL, pfRead, pfWords, type HeldAnswer, type PfAsked } from "./pfGrade";
-import { dealNext, decide, gradeMix, newHand, optionsOf, pfBlocked, pfState, rangeAt, stateFor, studyOf, withVillain, type PracticeHand } from "./practice";
+import { gradedOn, optionsAt, pfAgain, PF_MODEL, pfRead, pfWords, type HeldAnswer, type PfAsked } from "./pfGrade";
+import { dealNext, decide, following, gradeMix, newHand, optionsOf, pfBlocked, pfState, rangeAt, simOf, stateFor, studyOf, withVillain, type PracticeHand } from "./practice";
 import { reviewed } from "./review";
 import { afterDecision, freshSession, toRecord } from "./session";
 import { retrySpot } from "./SessionRetry";
@@ -223,6 +223,92 @@ describe("a node it can't", () => {
   });
 });
 
+describe("at the solve's raise sizes", () => {
+  const sized = (hero: string, hole: [string, string], line: Move[]) => spot(hero, hole, line, { pfSizes: true });
+  const CHART_SB: AdvisorResponse = { street: "preflop", pot_bb: 11.5, actions: [{ action: "fold", freq: 0.9 }, { action: "call", freq: 0.05 }, { action: "raise", freq: 0.05, amount_bb: 17 }] };
+  const threeBet: Move[] = [...OPEN, { pos: "BTN", action: "raise", to: 7.5 }];
+
+  it("comes with the option and only with it, and goes on from hand to hand", () => {
+    expect(newHand(6, 100, 0, 7, { pfSizes: true }).pfSizes).toBeUndefined();
+    expect(newHand(6, 100, 0, 7, { pfSolve: true }).pfSizes).toBeUndefined();
+    expect(sized("BB", ["Ah", "Kd"], toBb).pfSizes).toBe(true);
+    expect(following(sized("BB", ["Ah", "Kd"], toBb), 3, { pfSolve: true, pfSizes: true }).pfSizes).toBe(true);
+    expect(following(sized("BB", ["Ah", "Kd"], toBb), 3, { pfSolve: true, pfSizes: true, pot: "lib" }).pfSizes).toBeUndefined();
+  });
+  it("puts the solve's 12bb on a blind's button, and grades the three moves by EV", () => {
+    const h = sized("BB", ["Ah", "Kd"], toBb);
+    const held: HeldAnswer = { data: CHART_BB, provenance: CHART_P, pf: asked(NODES.offSize) };
+    expect(optionsAt(h, held).map((a) => [a.action, a.amount_bb])).toEqual([["raise", 12], ["call", undefined], ["fold", undefined]]);
+    const on = gradedOn(h, held);
+    expect(on.pfWhy).toBeUndefined();
+    expect(on.provenance.source).toBe("preflop-solve");
+    for (const i of [0, 1, 2]) {
+      const r = decide(h, on.data, i, on.provenance);
+      if ("error" in r) throw new Error(r.error);
+      expect(r.decision.grade!.byEv).toBe(true);
+    }
+    const raise = decide(h, on.data, 0, on.provenance);
+    if ("error" in raise) throw new Error(raise.error);
+    expect(raise.decision.move).toEqual({ pos: "BB", action: "raise", to: 12 });
+  });
+  it("leaves the chart's 10bb on the button without the second box, as ever", () => {
+    const h = bb();
+    const held: HeldAnswer = { data: CHART_BB, provenance: CHART_P, pf: asked(NODES.offSize) };
+    expect(optionsAt(h, held)[0]!.amount_bb).toBe(10);
+    expect(gradedOn(h, held).pfWhy).toMatch(/raise 10bb/);
+  });
+  it("plays a raise the table's half big blind wouldn't reach at its own size, or it would leave the solve's tree", () => {
+    const h = sized("SB", newHand(6, 100, 0, 7).hands.SB!, threeBet);
+    const on = gradedOn(h, { data: CHART_SB, provenance: CHART_P, pf: asked({ ...NODES.other, notes: [] }) });
+    expect(on.pfWhy).toBeUndefined();
+    const r = decide(h, on.data, 2, on.provenance);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.decision.move).toEqual({ pos: "SB", action: "raise", to: 17.25 });
+    expect(r.decision.mix[2]!.amount).toBe(17.25);
+    // the table carries on from it, and it's kept to the quarter
+    const kept = keptHand(JSON.parse(JSON.stringify(r.hand)));
+    expect(kept!.pfSizes).toBe(true);
+    expect(kept!.decisions[0]!.move).toEqual({ pos: "SB", action: "raise", to: 17.25 });
+    expect(simOf(r.hand).current).toBe("preflop");
+  });
+  it("rounds nothing it didn't size: a chart's answer at the same table still goes to the half big blind", () => {
+    const h = sized("SB", ["Ah", "Kd"], threeBet);
+    const r = decide(h, { ...CHART_SB, actions: [{ action: "raise", freq: 1, amount_bb: 17.25 }] }, 0, CHART_P);
+    if ("error" in r) throw new Error(r.error);
+    expect(r.decision.move.to).not.toBe(17.25);
+  });
+  it("offers the chart's size, and says why, wherever the solve doesn't grade the spot", () => {
+    const h = sized("BB", ["Ah", "Kd"], toBb);
+    const cells = Object.fromEntries(Object.entries(NODES.offSize.grid!.cells).filter(([k]) => k !== "AKo"));
+    const gone: HeldAnswer = { data: CHART_BB, provenance: CHART_P, pf: asked({ ...NODES.offSize, grid: { ...NODES.offSize.grid!, cells } }) };
+    expect(optionsAt(h, gone)[0]!.amount_bb).toBe(10);
+    expect(gradedOn(h, gone).pfWhy).toMatch(/\w+ \w+/);
+    const none: HeldAnswer = { data: CHART_BB, provenance: CHART_P };
+    expect(optionsAt(h, none)[0]!.amount_bb).toBe(10);
+    expect(gradedOn(h, none).provenance.source).toBe("charts");
+  });
+  it("won't line up a different set of moves whatever the sizes", () => {
+    const h = sized("BB", ["Ah", "Kd"], toBb);
+    const twoRaises: AdvisorResponse = { ...CHART_BB, actions: [...CHART_BB.actions!, { action: "raise", freq: 0, amount_bb: 20 }] };
+    expect(gradedOn(h, { data: twoRaises, provenance: CHART_P, pf: asked(NODES.offSize) }).pfWhy).toMatch(/\w+ \w+/);
+  });
+  it("reads the same on a retry, at the size you had", () => {
+    const h = sized("BB", ["Ah", "Kd"], toBb);
+    const on = gradedOn(h, { data: CHART_BB, provenance: CHART_P, pf: asked(NODES.offSize) });
+    const r = decide(h, on.data, 0, on.provenance);
+    if ("error" in r) throw new Error(r.error);
+    const again = pfAgain(asked(NODES.offSize), { hero: "BB", hole: "AhKd" }, r.decision.mix, r.decision.pot);
+    if ("why" in again) throw new Error(again.why);
+    expect(again.provenance.source).toBe("preflop-solve");
+    expect(optionsOf(again.data)[0]!.amount_bb).toBe(12);
+  });
+  it("is kept on a hand and in a session's options, and reads no junk", () => {
+    const kept = JSON.parse(JSON.stringify(sized("BB", ["Ah", "Kd"], toBb)));
+    expect(keptHand(kept)?.pfSizes).toBe(true);
+    expect(keptHand({ ...kept, pfSizes: "yes" })).toBeNull();
+  });
+});
+
 describe("kept apart", () => {
   const graded = (h: PracticeHand, held: HeldAnswer, i = 1) => {
     const on = gradedOn(h, held);
@@ -262,12 +348,12 @@ describe("kept apart", () => {
     one = afterDecision(one, bb(), chartD());
     expect(streetTotals([toRecord(one)]).rows[0]).not.toHaveProperty("basis");
   });
-  it("keeps the session's row's share by basis where it has both", () => {
+  it("keeps the preflop solve's figures apart from the charts' and a postflop solve's in the session's row", () => {
     const row = rowOf(toRecord(session()));
-    expect(row.okBy!.ev.n).toBe(1);
-    expect(row.okBy!.freq.n).toBe(1);
+    expect(row.split.ways.solve?.n).toBe(1);
+    expect(row.split.ways.freq?.n).toBe(1);
     const cells = addCell(undefined, "flop", "live", { ok: true, loss: 0, lossPct: 0, byEv: true });
-    expect(rowOf({ id: "x", kind: "practice", startedAt: 1, endedAt: 2, decisions: 1, evLossBb: 0, meta: { cells } }).okBy).toBeUndefined();
+    expect(rowOf({ id: "x", kind: "practice", startedAt: 1, endedAt: 2, decisions: 1, evLossBb: 0, meta: { cells } }).split).toEqual({ ways: { ev: { n: 1, ok: 1, loss: 0, lossPct: 0 } }, apart: 0 });
   });
 
   it("files a miss by the solve apart from a miss by the chart on the same spot", () => {

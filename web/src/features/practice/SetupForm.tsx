@@ -1,6 +1,7 @@
 // The New session form: the table's size and stack, your seat, what's played (full hands, preflop only, one kind of pot,
 // push/fold or a tournament), in one kind of pot an assumed profile to exploit, the ante, rake and straddle, chips carried
-// and your own bet sizes. It holds what's typed until it's submitted, and keeps a setup that can start as a saved scenario.
+// and your own bet sizes, and in a stored game the preflop solve as what grades preflop, at its raise sizes if you ask. It
+// holds what's typed until it's submitted, and keeps a setup that can start as a saved scenario.
 import { useState } from "react";
 import { SaveScenario } from "@/features/saved/SaveScenario";
 import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
@@ -26,6 +27,11 @@ const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter
   Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
 
 const ON_WORDS = { flop: "read on the flop dealt", cards: "read on your two cards" } as const;
+
+// (measured: docs/ACCURACY.md section 18)
+const PF_SIZES_COST = "With its sizes a blind\u2019s 3-bet of a 2.5bb open is 12bb, not the chart\u2019s 10bb, and those hands leave the flop library, kept by size, for live solves after the flop.";
+const PF_SIZES_OFF = `Your options and the opponents stay the charts\u2019, so the decisions its tree can\u2019t answer, measured at about 30% and most of the blinds\u2019, keep the chart\u2019s grade and say why. Offering its raise sizes takes that to about 4% if you play the charts. ${PF_SIZES_COST}`;
+const PF_SIZES_ON = `The opponents stay the charts\u2019, and where it answers, your raise is at its size. About 4% of decisions if you play the charts, more if you go off its lines, it can\u2019t answer: those keep the chart\u2019s size and grade and say why. ${PF_SIZES_COST}`;
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 
@@ -61,6 +67,7 @@ export function SetupForm({
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
   const [pfSolve, setPfSolve] = useState(!!opts.pfSolve);
+  const [pfSizes, setPfSizes] = useState(!!opts.pfSizes);
   const [rake, setRake] = useState(opts.rake ? String(opts.rake) : "");
   const [cap, setCap] = useState(opts.rakeCap ? String(opts.rakeCap) : "");
   const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(
@@ -131,7 +138,7 @@ export function SetupForm({
     : null;
   // (null with the form unfinished, as there's no game yet to say anything of)
   const pfNo = game && pfBlocked(p, n, game);
-  const setup = game && pfSolve && !pfNo ? { ...game, pfSolve: true } : game;
+  const setup = game && pfSolve && !pfNo ? { ...game, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : game;
   return (
     <form
       aria-label="New session"
@@ -429,9 +436,16 @@ export function SetupForm({
             <input type="checkbox" aria-label="Grade preflop by the preflop solve" aria-describedby="pf-note" checked={pfSolve} onChange={(e) => setPfSolve(e.target.checked)} />
             <span className="text-muted">Grade preflop by the preflop solve</span>
           </label>
-          {/* (said once it's chosen: the form is above the table, and your move should stay on the first screen) */}
+          {/* (the rest said once it's chosen: the form is above the table, and your move should stay on the first screen) */}
+          {pfSolve && (
+            <label className="flex basis-full items-center gap-1.5">
+              <input type="checkbox" aria-label="Offer the solve's raise sizes" aria-describedby="pf-note" checked={pfSizes} onChange={(e) => setPfSizes(e.target.checked)} />
+              <span className="text-muted">Offer the solve&rsquo;s raise sizes</span>
+            </label>
+          )}
           <p id="pf-note" hidden={!pfSolve} className="basis-full text-xs text-muted">
-            By EV in place of the chart&rsquo;s frequency, from the stored solve: an {PF_MODEL}. Your options and the opponents stay the charts&rsquo;, so the decisions its tree can&rsquo;t answer, measured at about 30% and most of the blinds&rsquo;, keep the chart&rsquo;s grade and say why. The two are never added together.
+            By EV in place of the chart&rsquo;s frequency, from the stored solve: an {PF_MODEL}.{" "}
+            {pfSizes ? PF_SIZES_ON : PF_SIZES_OFF} The two are never added together.
           </p>
         </>
       )}

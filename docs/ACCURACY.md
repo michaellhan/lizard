@@ -892,8 +892,74 @@ So playing the charts exactly is called below Correct 8.9% of the time. That's t
 |---|---|
 | The score strip | Best or Correct and EV lost as ever, plus a line with each basis's own count |
 | History's streets | A street graded both ways has a row a way, so preflop by EV and by frequency are two rows |
-| History's session rows | A share by EV and a share by frequency where a session has both |
+| History's session rows | A figure a way, as the lifetime totals below; a session from before that mixes ways shows only its count |
 | By seat, by pot, trends | Already a row a basis |
-| Lifetime totals by kind and by pot | **Not split**: their Best or Correct share still spans both bases, as it did for postflop against the charts, and EV lost in a kind adds preflop-solve bb to postflop solves' bb |
+| Lifetime totals by kind and by pot | **Split, 2026-11-06**: a figure a way, by EV, by the preflop solve, by frequency, with no share or EV lost across them. Decisions from before the split was kept that mix ways stand apart, in no figure, with a count. Before this, the share spanned both bases and EV lost added preflop-solve bb to postflop solves' bb |
 | Review | A miss by the solve is its own record, retried against the solve or refused in words; a chart's is retried against the chart |
 | Analyze's kept hands | A kept hand is its history: Analyze grades its preflop against the charts by frequency, under that label, whatever graded it at the table |
+
+### 18.1 The solve's raise sizes, and Analyze, 2026-11-06
+
+This supersedes "The other way, not built" above and the "Analyze's kept hands" row of the last table. Both stand as what was true on 2026-11-05.
+
+**The option.** A second tick box, off by default and shown only once the first is ticked: "Offer the solve's raise sizes" (`pfSizes`, `web/src/features/practice/pfGrade.ts` `pfReadAt` with `ownSizes`). Where the node answers and your options are the solve's in kind (raise, call, fold, whatever their sizes), your buttons are the solve's and the decision is graded by it. Anywhere the solve wouldn't grade the spot, the chart's size and the chart's grade stay, with why, so a button never carries a size nothing can grade. The rule is still settled before you choose, and it's the same rule on a retry, in Analyze and in the coverage script.
+
+**Raises are kept to the cent.** Of the tree's raise sizes (opens 2.5, 3; 3-bets 7.5, 10, 12, 12.5, 14.5, 17; 4-bets 17.25, 23, 24.75, 27.6, 28.75, 33, 33.35, 39.1, 39.6), most 4-bets aren't on the table's half big blind. Rounded, a 17.25bb raise would be a size the solve has no EV for, and the line would leave its tree at the very decision graded. So a solve-sized raise is recorded as it stands (`practice.ts` `moveOfOption` with `exact`), which only happens with this option on; the table's half big blind still rounds everything else, a chart's answer at the same table included. These moves go through the kept hand and the hand history (`history.test.ts`, 17.25, 27.6 and 33.35bb).
+
+**The cost, said on the form.** The flop library's lines are kept by size (`solver/gto/flop_library.py`: a blind's 3-bet is `r10`), so a blind's 3-bet to 12bb is not on one, and that hand's flop is answered by a live solve. Read from the keys, not timed here: how much slower a session is with the option on isn't measured.
+
+**Coverage [M], 2026-11-06.** `scripts/pf_practice_coverage.py --own-sizes`, native Python, 30,000 hands on the same seed as above, routed through `slot.sh`. "--own-sizes" was tightened for this: it used to answer the spot and still play the rounded size, and used the solve's size at spots the solve couldn't grade; now each raise is at the size the app plays and only where the app plays it, so a line goes on from the right chips. The 96.1% above came from the older form. Measured again this way, on the charts, it's 96.2%, so that figure held.
+
+| You play | Decisions | Answered by the solve | The line left the solve's sizes | Class folded in the solve | Other options, rough, or off the tree |
+|---|---:|---:|---:|---:|---:|
+| The charts | 30,625 | 96.2% | 3.4% | 0.3% | 0.1% |
+| At random | 32,765 | 89.5% | 7.4% | 2.7% | 0.3% |
+| The solve | 30,539 | 96.8% | 3.1% | 0.0% | 0.2% |
+| The charts, 5% capped at 3bb | 30,625 | 96.2% | 3.4% | 0.3% | 0.1% |
+
+1,151 of 29,371 hands with a decision (3.9%, on the charts) had at least one the solve couldn't grade, against 30.8% without the option. Most of what's left isn't your size at all: the opponents stay the charts', so a 3-bet from a blind is to 10bb and the line has left the tree before you act. That's where it stays low:
+
+| Spot | Share of decisions | Answered | | Seat | Answered |
+|---|---:|---:|---|---|---:|
+| First in | 50.8% | 100.0% | | UTG | 97.9% |
+| Facing an open | 40.8% | 100.0% | | HJ | 97.1% |
+| Facing a 3-bet | 7.7% | 59.2% | | CO | 96.0% |
+| Facing a 4-bet | 0.6% | 8.4% | | BTN | 94.3% |
+| Facing a 5-bet or more | 0.1% | 27.3% | | SB | 98.7% |
+| | | | | BB | 92.7% |
+
+The grades, of the decisions it answered:
+
+| You play | Best | Correct | Inaccuracy | Mistake | Blunder | EV lost a decision |
+|---|---:|---:|---:|---:|---:|---:|
+| The charts | 88.5% | 0.3% | 1.9% | 6.2% | 3.0% | 0.0272bb |
+| At random | 43.8% | 0.3% | 2.4% | 10.5% | 42.9% | 0.4318bb |
+| The solve | 99.7% | 0.3% | 0.0% | 0.0% | 0.0% | 0.0001bb |
+
+These aren't comparable row for row with section 18's grades table: this one also counts the blinds' 3-bets and the spots they lead to, where the charts and the solve play differently, so a chart player's EV lost by this measure goes up (0.0167bb to 0.0272bb a decision). That isn't play getting worse.
+
+**The rule checked across the two languages [M].** Four runs dumped each decision with the worker's own answer (`Advisor.advise` with `study` and `preflop_solve`): 3,701 decisions at random, on the charts and on the solve, raked and unraked, with and without the option. The TypeScript `pfRead` and `optionsAt` gave the Python's verdict and the Python's raise size on every one: 0 disagreements. That was a throwaway script, not a test in the repo.
+
+**Analyze.** Analyze now asks the stored solve (`web/src/features/analyze/grading.ts`), reading the same file the table does and never running one, for a 6-max 100bb hand of equal stacks with no ante or straddle, and no rake or 5% capped at 3bb. On a screen each graded preflop decision says `preflop solve` or `charts`, and the report keeps the two as separate rows, never added: basis, situation, frequency, leak and comparison.
+
+- A kept Practice hand reads the spot by the table's rule, at the sizes that hand was played at, so a decision the table graded by the solve gets the same grade. It's kept whether the session offered the solve's sizes (`setup.pfSizes`).
+- A hand from a Practice session without the option is read the same way, so its decisions can be the solve's in Analyze though the table graded them by the chart. Each says which.
+- A site's hand has no buttons, so it's the move made: on the tree at the tree's size, the solve; a raise of another size, the chart, saying why. A history says no rake percentage or cap, so a site's hand is asked as the game with no rake, and each decision says that in its note.
+- Anything else is unchanged: one question, the chart's answer, as before, tournaments included. A chart's grade kept from before is asked again once in a stored game; it then either takes the solve's grade or says why not.
+- Where the file can't be read the chart's grade stands, with why, and that reason is kept, so that decision isn't asked again by itself.
+
+**Not established.** No browser has run the option, the Analyze change or the link question: browser steps 7h and 7i are written and unrun at the time of this note. Nothing here says a solve-sized raise is better for you than the chart's: the verdicts above are the class-level model's. The Analyze parity is tested against the fixture nodes and the rule above, not over played sessions. Analyze's EV lost in a report says how much of it is the preflop solve's, but a session's trend and a hand's total add it to what a solve said after the flop.
+
+### 18.2 Nothing adds unlike grades (2026-11-06)
+
+The owner asked for EV and frequency to stay apart, and for preflop-solve bb never to be added to postflop bb. Where that now holds:
+
+| Where | What it shows |
+|---|---|
+| History, rows by kind, pot and session | A figure a way: by EV, by the preflop solve, by frequency |
+| Practice's score and its table rail | The same, once a session has been graded more than one way; one rate only where one way graded everything |
+| Analyze's summary, Winnings, the Plan's cost of a leak | EV lost by a solve of the spot, and by the preflop solve, each on its own |
+
+Where it doesn't: Analyze's rows by position and by spot count both in a row, and the rows by basis are the ones to read for that. The
+Plan orders its steps by the two together, as an order and not a number on the page. A drill's score line stays one figure, as a
+drill stands on one spot, though a fallback inside one can mix.

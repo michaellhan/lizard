@@ -1,6 +1,6 @@
 # Lizard architecture
 
-Lizard is a static web app. All solving happens on the user's device. There are no accounts and no Lizard backend.
+Lizard is a static web app. All solving happens on the user's device. Accounts are optional and nothing needs one: an end-to-end encrypted sync service (`worker/`, `docs/SYNC_DESIGN.md`) is built and not yet deployed, and it's the only Lizard backend.
 The numerical engine is the GTO Solver snapshot in `solver/`, reused unchanged behind a typed interface.
 
 Status words in this document follow [FEATURE_MATRIX.md](FEATURE_MATRIX.md): what exists today is described as such,
@@ -215,6 +215,9 @@ app redeploy.
   If AI explanations come back, it will be through a server-side proxy that builds the prompt from validated fields
   **(planned)**.
 - React rendering only; no `dangerouslySetInnerHTML`.
+- Account sync seals records in the browser with keys from a passphrase the server never sees (`docs/SYNC_DESIGN.md`). The
+  service's own keys are Worker secrets, in neither the bundle nor the repo. A request from any other origin is refused, and every write
+  must carry a header a cross-site form can't set.
 - The built pages carry a `<meta>` Content-Security-Policy: `default-src 'self'`; scripts from self only; workers
   from self and `blob:`; connections to self and the local solver. `sw.js` adds `frame-ancestors 'self'` and
   `nosniff` to navigations once installed.
@@ -240,5 +243,6 @@ CI runs the first two suites, the browser suite, and the solver tests that need 
 | Reuse the upstream worker with declared build-time edits (`scripts/pyodide/worker-edits.mjs`: the cache name and where Pyodide is read from) | It is the tested host of the Advisor. Pyodide itself is served from `/lizard/solver/pyodide/`, each of its six files checked against a pinned SHA-256 at build (`scripts/pyodide/files.json`), so the browser makes no third-party request in the origin that holds the hands |
 | One merged library repo, not a composite client | The worker takes one base. Merging offline keeps the worker unchanged and lets each publish be validated as a whole |
 | Private `lizard` repo, public Pages site | The solver has no license, and the snapshot includes C sources, calibration scripts and draft legal documents. The owner confirmed it on 2026-11-05. The site itself only exposes what the classic site already does, which includes the engine's readable Python in `solver.zip`, as the in-browser solver needs it; the owner accepted that the same day |
-| Static hosting only | Solving runs on the device. A server would add cost, secrets and accounts without making solves more accurate |
+| Static hosting for the site | Solving runs on the device. A server would add cost, secrets and accounts without making solves more accurate |
+| Sync as a separate Worker, off unless built in | The owner chose optional accounts for sync alone (2026-11-06). The site stays static and whole without it, and the server can read nothing |
 | Port classic features into React one by one, link to the classic app meanwhile | An honest placeholder beats a dead button. The engine features exist; only their UI needs porting. The last such link, on the Solve page, went in Phase 1, once Study had locks and automatic sizing |

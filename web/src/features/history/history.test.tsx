@@ -85,13 +85,13 @@ describe("sessions history", () => {
     expect(handPot([{ pos: "SB", action: "call" }, { pos: "BB", action: "check" }], sim(0))).toBe("Limped");
     expect(handPot([{ pos: "UTG", action: "fold" }], sim(0))).toBe("Unopened");
     const t = addHandToPot(addHandToPot(undefined, [g(true, 0, false), null, g(false, 0.5)], -3), [g(true, 0.1)], null);
-    expect(t).toEqual({ hands: 2, n: 3, ok: 2, ne: 2, loss: 0.6, lossPct: 6, played: 1, net: -3 });
+    expect(t).toMatchObject({ hands: 2, n: 3, ok: 2, ne: 2, loss: 0.6, lossPct: 6, played: 1, net: -3 });
     expect(addSource(addSource({}, "charts"), undefined)).toEqual({ charts: 1, unknown: 1 });
   });
 
   it("reads each kind's record into a row with what graded it and where it opens again", () => {
     const old = rowOf(OLD);
-    expect(old).toMatchObject({ what: "6 players · 100bb", n: 4, ok: 3, lossPer: 0.25, lossPctPer: 2.5, hands: 3, net: -2 });
+    expect(old).toMatchObject({ what: "6 players · 100bb", n: 4, split: { ways: {}, apart: 4 }, hands: 3, net: -2 });
     expect(old.graded).toBe("Not kept: played before Lizard kept what graded each decision");
     expect(rowOf(NEW).graded).toBe("Live solve 2, Preflop charts (approximate) 1");
     expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet" } }).what).toBe("2 players · 100bb · 3-bet pots");
@@ -102,23 +102,23 @@ describe("sessions history", () => {
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, carry: true } }).what).toBe("6 players · 100bb · chips carried");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, sizes: { flop: [50] } } }).what).toBe("6 players · 100bb · your own sizes");
     expect(rowOf({ ...OLD, meta: { ...OLD.meta, rake: 5, rakeCap: 3 } }).what).toBe("6 players · 100bb · rake 5%");
-    expect(rowOf(PREFLOP)).toMatchObject({ what: "6 players · 100bb · preflop only · seat BTN", net: null, lossPer: null });
-    expect(rowOf(DRILL)).toMatchObject({ what: "SRP BTN vs BB, facing a bet", ok: 3, lossPer: 0.05, to: { href: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet" } });
+    expect(rowOf(PREFLOP)).toMatchObject({ what: "6 players · 100bb · preflop only · seat BTN", net: null, split: { ways: { freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } }, apart: 0 } });
+    expect(rowOf(DRILL)).toMatchObject({ what: "SRP BTN vs BB, facing a bet", split: { ways: { ev: { n: 4, ok: 3, loss: 0.2, lossPct: 4 } }, apart: 0 }, to: { href: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet" } });
     expect(rowOf({ ...DRILL, meta: { ...DRILL.meta, view: "ipvsbet" } }).what).toBe("SRP BTN vs BB, in position facing a bet");
     expect(rowOf(DRILL).graded).toBe("Precomputed solution (the flop library)");
     expect(rowOf({ ...DRILL, evLossBb: 0, meta: { ...DRILL.meta, view: "oop", street: "turn", graded: 0, lossPct: 0 } })).toMatchObject({
       what: "SRP BTN vs BB, first to act on the turn",
-      lossPer: null,
+      split: { ways: { freq: { n: 4, ok: 3, loss: 0, lossPct: 0 } }, apart: 0 },
       graded: "Stored turn from the flop library (by how often, in 5% steps)",
       to: { href: "/practice?tab=drills&spot=srp_btn_bb&street=turn&view=oop" },
     });
-    expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done when last drilled", n: 2, ok: 1, lossPer: null, to: { href: "/analyze?drill=pf%3ARFI" } });
+    expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done when last drilled", n: 2, split: { ways: { freq: { n: 2, ok: 1, loss: 0, lossPct: 0 } }, apart: 0 }, to: { href: "/analyze?drill=pf%3ARFI" } });
     // (a row sits under the day it was started: a drill resumed since says its own day)
     expect(rowOf({ ...LEAK, endedAt: Date.UTC(2026, 9, 30, 14) }).what).toMatch(/^Leak: RFI · 2 of 5 done when last drilled, \S+.*\d/);
     // (a leak's decisions may stand on a solve or a read on any street: its row doesn't name one answer for them all)
     expect(rowOf(LEAK).graded).toContain("preflop charts by frequency (not a solve)");
     expect(rowOf(LEAK).graded).not.toContain("flop library");
-    expect(rowOf(BUILD)).toMatchObject({ n: 1, ok: null, acc: 0.82, buildLoss: 0.04, graded: "Precomputed solution", to: { href: `/study?${BUILD.meta.line as string}` } });
+    expect(rowOf(BUILD)).toMatchObject({ n: 1, split: { ways: {}, apart: 0 }, acc: 0.82, buildLoss: 0.04, graded: "Precomputed solution", to: { href: `/study?${BUILD.meta.line as string}` } });
     expect(rowOf(BUILD).what).toBe("HU 100bb · SB raise 2.5 BB call Ks7d2c · BB's range");
     expect(rowOf({ ...BUILD, meta: { ...BUILD.meta, source: "charts" } }).graded).toBe("Preflop charts (approximate)");
     // a preflop node's empty label: the table and "first in"
@@ -130,14 +130,16 @@ describe("sessions history", () => {
   it("totals each kind, and full hands by pot type over the sessions that kept them", () => {
     const all = [OLD, NEW, PREFLOP, DRILL, LEAK, BUILD];
     const [practice, drill, leak, build] = kindTotals(all);
-    expect(practice).toMatchObject({ kind: "practice", sessions: 3, n: 8, ok: 6, ne: 4, loss: 0.8, hands: 6, played: 5, net: 2.5 });
-    expect(drill).toMatchObject({ kind: "drill", sessions: 1, n: 4, ok: 3, ne: 4 });
-    expect(leak).toMatchObject({ kind: "analysis", sessions: 1, n: 2, ok: 1, ne: 0 });
+    // (an old session of both ways can't be told apart: it stands apart, in no share and no EV lost)
+    expect(practice).toMatchObject({ kind: "practice", sessions: 3, n: 8, apart: 7, hands: 6, played: 5, net: 2.5 });
+    expect(practice!.ways).toEqual({ freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } });
+    expect(drill).toMatchObject({ kind: "drill", sessions: 1, n: 4, ways: { ev: { n: 4, ok: 3, loss: 0.2 } }, apart: 0 });
+    expect(leak).toMatchObject({ kind: "analysis", sessions: 1, n: 2, ways: { freq: { n: 2, ok: 1 } }, apart: 0 });
     expect(build).toMatchObject({ kind: "build", sessions: 1, acc: 0.82, buildLoss: 0.04 });
     const pots = potTotals(all);
-    expect(pots.rows.map((r) => [r.pot, r.hands, r.n, r.ok, r.ne, r.played, r.net])).toEqual([
-      ["SRP", 2, 3, 3, 1, 1, 2.5],
-      ["3bet pot", 1, 1, 0, 1, 1, 2],
+    expect(pots.rows.map((r) => [r.pot, r.hands, r.n, r.ways.ev?.n, r.ways.ev?.ok, r.ways.freq?.n, r.ways.freq?.ok, r.apart, r.played, r.net])).toEqual([
+      ["SRP", 2, 3, 1, 1, 2, 2, 0, 1, 2.5],
+      ["3bet pot", 1, 1, 1, 0, undefined, undefined, 0, 1, 2],
     ]);
     expect([pots.without, pots.withoutHands]).toEqual([1, 3]);
     const days = byDay(all.map(rowOf));
@@ -185,6 +187,75 @@ describe("sessions history", () => {
     cleanup();
     await d.clear("sessions");
     await d.clear("mistakes");
+  });
+
+  describe("the totals, a way of grading each", () => {
+    const solve = { street: "preflop", source: "preflop-solve", byEv: true, n: 12, ok: 9, loss: 2.4, lossPct: 30 };
+    const live = { street: "flop", source: "live", byEv: true, n: 20, ok: 15, loss: 8, lossPct: 100 };
+    const chart = { street: "preflop", source: "charts", byEv: false, n: 10, ok: 8, loss: 0, lossPct: 0 };
+    const pot = (over: object) => ({ hands: 4, n: 42, ok: 32, ne: 32, loss: 10.4, lossPct: 130, played: 4, net: 3, ...over });
+    const WAYS = { ev: { n: 20, ok: 15, loss: 8, lossPct: 100 }, solve: { n: 12, ok: 9, loss: 2.4, lossPct: 30 }, freq: { n: 10, ok: 8, loss: 0, lossPct: 0 } };
+    const MIXED: SessionRecord = { id: "m", kind: "practice", startedAt: at(4, 20), decisions: 42, evLossBb: 10.4, meta: { hands: 4, net: 3, ok: 32, graded: 32, lossPct: 130, cells: { a: solve, b: live, c: chart }, byPot: { SRP: pot({ ways: WAYS }) } } };
+
+    it("adds no EV lost or share across the ways", () => {
+      const [t] = kindTotals([MIXED]);
+      expect(t).toMatchObject({ n: 42, apart: 0, ways: WAYS });
+      expect(t).not.toHaveProperty("ok");
+      expect(t).not.toHaveProperty("loss");
+      const [p] = potTotals([MIXED]).rows;
+      expect(p).toMatchObject({ n: 42, apart: 0, ways: WAYS });
+      expect(p).not.toHaveProperty("ok");
+      expect(rowOf(MIXED).split).toEqual({ ways: WAYS, apart: 0 });
+    });
+
+    it("tallies a finished hand by what answered each decision", () => {
+      const t = addHandToPot(undefined, [{ ...g(true, 0.5), source: "preflop-solve" }, { ...g(false, 1), source: "live" }, { ...g(true, 0, false), source: "charts" }, null], 1);
+      expect(t.ways).toEqual({ solve: { n: 1, ok: 1, loss: 0.5, lossPct: 5 }, ev: { n: 1, ok: 0, loss: 1, lossPct: 10 }, freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } });
+    });
+
+    it("leaves what a tally kept before ways apart, and what it kept since in its way", () => {
+      const before = pot({ n: 5, ok: 3, ne: 2, loss: 1, lossPct: 5 });
+      const [old] = potTotals([{ ...MIXED, meta: { byPot: { SRP: before } } }]).rows;
+      expect(old).toMatchObject({ ways: {}, apart: 5 });
+      const [part] = potTotals([{ ...MIXED, meta: { byPot: { SRP: { ...before, ways: { freq: { n: 2, ok: 1, loss: 0, lossPct: 0 } } } } } }]).rows;
+      expect(part).toMatchObject({ ways: { freq: { n: 2, ok: 1 } }, apart: 3 });
+    });
+
+    it("trusts no damaged way: its decisions stand apart", () => {
+      for (const ways of [{ ev: { n: "2", ok: 1 } }, { ev: { n: 2, ok: 3 } }, "no", { other: { n: 5, ok: 5 } }]) {
+        const [r] = potTotals([{ ...MIXED, meta: { byPot: { SRP: pot({ n: 5, ok: 3, ne: 2, ways }) } } }]).rows;
+        expect(r).toMatchObject({ ways: {}, apart: 5 });
+      }
+    });
+
+    it("draws the preflop solve's column only where it graded, and a row's figures a way", async () => {
+      const d = (await db())!;
+      await d.clear("sessions");
+      await putSession(MIXED);
+      render(
+        <MemoryRouter initialEntries={["/history"]}>
+          <HistoryPage />
+        </MemoryRouter>,
+      );
+      const table = await screen.findByRole("table", { name: "Totals by kind" });
+      const [head, row] = within(table).getAllByRole("row");
+      expect(head).toHaveTextContent("KindSessionsDecisionsBy EVBy the preflop solveBy frequencyHands · net");
+      expect(row).toHaveTextContent("Full hands14215 of 20 · 0.40bb · 5.0% pot9 of 12 · 0.20bb · 2.5% pot8 of 104 · +3bb over 4");
+      expect(screen.getByRole("region", { name: "Sessions" })).toHaveTextContent(
+        "75% Best or Correct of 20 by EV, 0.40bb · 5.0% pot lost per decision · 75% Best or Correct of 12 by the preflop solve, 0.20bb · 2.5% pot lost per decision · 80% Best or Correct of 10 by frequency",
+      );
+      cleanup();
+      await d.clear("sessions");
+      await putSession({ ...MIXED, meta: { ...MIXED.meta, cells: { b: live, c: chart } }, decisions: 30 });
+      render(
+        <MemoryRouter initialEntries={["/history"]}>
+          <HistoryPage />
+        </MemoryRouter>,
+      );
+      expect(within(await screen.findByRole("table", { name: "Totals by kind" })).getAllByRole("row")[0]).not.toHaveTextContent("preflop solve");
+      cleanup();
+      await d.clear("sessions");
+    });
   });
 
   it("names a library line's pot as a hand's would be", () => {
@@ -329,14 +400,15 @@ describe("sessions history", () => {
     expect((await allSessions()).map((s) => s.id)).toEqual(["practice-new", "build-1", "drill-1", "practice-pf", "leak-drill|pf:RFI", "practice-old"]);
     page();
     const totals = within(await screen.findByRole("table", { name: "Totals by kind" })).getAllByRole("row");
-    expect(totals[1]).toHaveTextContent("Full hands3875%0.20bb · 2.8% pot6 · +2.5bb over 5");
-    expect(totals[2]).toHaveTextContent("Drills1475%0.05bb · 1.0% pot–");
-    expect(totals[3]).toHaveTextContent("Leak drills1250%––");
+    expect(totals[1]).toHaveTextContent("Full hands38–1 of 16 · +2.5bb over 5");
+    expect(totals[2]).toHaveTextContent("Drills143 of 4 · 0.05bb · 1.0% pot––");
+    expect(totals[3]).toHaveTextContent("Leak drills12–1 of 2–");
+    expect(screen.getByRole("region", { name: "Lifetime totals" })).toHaveTextContent(/7 decisions aren't in these figures: played before Lizard kept how each one was graded/);
     expect(totals[4]).toHaveTextContent("Range builds182.0% accurate on average · 0.040bb a combo lost on average");
     const pots = screen.getByRole("region", { name: "Full hands by pot type" });
     const rows = within(within(pots).getByRole("table", { name: "Totals by pot type" })).getAllByRole("row");
-    expect(rows[1]).toHaveTextContent("SRP23100%0.00bb · 0.0% pot+2.5bb over 1");
-    expect(rows[2]).toHaveTextContent("3bet pot110%0.30bb · 3.0% pot+2bb over 1");
+    expect(rows[1]).toHaveTextContent("SRP231 of 1 · 0.00bb · 0.0% pot2 of 2+2.5bb over 1");
+    expect(rows[2]).toHaveTextContent("3bet pot110 of 1 · 0.30bb · 3.0% pot–+2bb over 1");
     expect(pots).toHaveTextContent("1 earlier session (3 hands) was played before pot types were kept, and isn't split.");
 
     const label = (d: number) => new Date(at(d, 12)).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
@@ -345,13 +417,13 @@ describe("sessions history", () => {
     const items = within(today).getAllByRole("listitem");
     expect(items).toHaveLength(4);
     expect(items[0]).toHaveTextContent("Full hands2 players · 100bb");
-    expect(items[0]).toHaveTextContent("2 hands · 3 decisions · 67% Best or Correct · 0.15bb · 3.0% pot lost per decision · net +4.5bb");
+    expect(items[0]).toHaveTextContent("2 hands · 3 decisions · 3 not told apart by how they were graded · net +4.5bb");
     expect(items[0]).toHaveTextContent("Graded against: Live solve 2, Preflop charts (approximate) 1");
     expect(items[1]).toHaveTextContent("82.0% accurate · 0.040bb a combo");
     expect(within(items[1]!).getByRole("link", { name: "Open the node in Study" })).toHaveAttribute("href", `/study?${BUILD.meta.line as string}`);
     expect(within(items[2]!).getByRole("link", { name: "Drill it again" })).toHaveAttribute("href", "/practice?tab=drills&spot=srp_btn_bb&view=vsbet");
-    expect(items[3]).toHaveTextContent("1 hand · 1 decision · 100% Best or Correct · no net (preflop only)");
-    expect(within(sessions).getByRole("region", { name: label(1) })).toHaveTextContent("3 hands · 4 decisions · 75% Best or Correct");
+    expect(items[3]).toHaveTextContent("1 hand · 1 decision · 100% Best or Correct of 1 by frequency · no net (preflop only)");
+    expect(within(sessions).getByRole("region", { name: label(1) })).toHaveTextContent("3 hands · 4 decisions · 4 not told apart by how they were graded");
 
     fireEvent.change(within(sessions).getByRole("combobox", { name: "Show" }), { target: { value: "analysis" } });
     await waitFor(() => expect(within(sessions).queryByRole("region", { name: label(3) })).toBeNull());

@@ -16,7 +16,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
 import { recentSessions, type SessionRecord } from "@/data/db";
-import { getScenario, scenarioWords } from "@/data/scenarios";
+import { getScenario, scenarioWords, type ScenarioSetup } from "@/data/scenarios";
 import { GRADE_RULES, summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
@@ -29,8 +29,8 @@ import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
-import { gradedOn, PF_MODEL } from "./pfGrade";
-import { boardShown, gameLabel, mixOf, modelled, optionsOf, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
+import { gradedOn, optionsAt, PF_MODEL } from "./pfGrade";
+import { boardShown, gameLabel, mixOf, modelled, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
@@ -101,6 +101,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   const scenario = params.get("scenario");
   const linked = setupLinkKey(params);
   const [opened, setOpened] = useState<{ ok: boolean; text: string } | null>(null);
+  // a setup's link that came with a hand under way, until you've said what to do with it
+  const [asking, setAsking] = useState<ScenarioSetup | null>(null);
   // (as the page commits, before the Room starts: settings load after the first render, and each launch reads the latest)
   useLayoutEffect(() => {
     room.setSolver(getSolver);
@@ -126,19 +128,26 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   }, []);
 
   // A saved scenario's link, or a setup's (setupLink.ts, the Plan page's): the setup starts at one table, as above one Spots
-  // and Seat deal in its place, and the link goes from the address, so a reload doesn't start it again.
+  // and Seat deal in its place, and the link goes from the address, so a reload doesn't start it again. A link can come from
+  // anywhere and a session you're in the middle of is yours, so a setup's link waits for the kept session to be read, and
+  // with a hand under way it asks first.
+  const waiting = linked !== null && !scenario && snap.holding;
   useEffect(() => {
-    if (!scenario && linked === null) return;
+    if ((!scenario && linked === null) || waiting) return;
     let alive = true;
     const opening = async () => {
       const kept = scenario ? await getScenario(scenario).catch(() => undefined) : undefined;
       if (!alive) return;
       const s = scenario ? kept : readSetupLink(new URLSearchParams(linked!));
-      if (s) {
-        room.setTables(1);
-        room.startSession(s.players, s.stack, s.opts);
+      if (s && !scenario && room.snapshot().underWay) {
+        setAsking(s);
+      } else {
+        if (s) {
+          room.setTables(1);
+          room.startSession(s.players, s.stack, s.opts);
+        }
+        setOpened(s ? { ok: true, text: `Started ${kept?.name ?? scenarioWords(s)}.` } : { ok: false, text: scenario ? "That saved scenario is gone or can't be read, so nothing was started." : "That link's setup can't be played, so nothing was started." });
       }
-      setOpened(s ? { ok: true, text: `Started ${kept?.name ?? scenarioWords(s)}.` } : { ok: false, text: scenario ? "That saved scenario is gone or can't be read, so nothing was started." : "That link's setup can't be played, so nothing was started." });
       setParams(
         (p) => {
           const q = new URLSearchParams(p);
@@ -152,7 +161,36 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     return () => {
       alive = false;
     };
-  }, [scenario, linked, room, setParams]);
+  }, [scenario, linked, waiting, room, setParams]);
+
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const saidRef = useRef<HTMLParagraphElement>(null);
+  const cameFrom = useRef<HTMLElement | null>(null);
+  const wasAsking = useRef(false);
+  // The question takes the focus, on the answer that loses nothing, and gives it back: to where it was, or where that has gone
+  // with the tables, to the line saying what happened. (A hand that ended meanwhile has already put it on Next hand.)
+  useEffect(() => {
+    if (asking) {
+      if (!wasAsking.current) cameFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      wasAsking.current = true;
+      keepRef.current?.focus();
+    } else if (wasAsking.current) {
+      wasAsking.current = false;
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const back = cameFrom.current;
+      (back?.isConnected && back !== document.body ? back : saidRef.current)?.focus({ preventScroll: true });
+    }
+  }, [asking]);
+  const answerLink = (replace: boolean) => {
+    const s = asking;
+    if (!s) return;
+    if (replace) {
+      room.setTables(1);
+      room.startSession(s.players, s.stack, s.opts);
+    }
+    setOpened({ ok: true, text: replace ? `Started ${scenarioWords(s)}.` : `Kept this session. ${scenarioWords(s)} wasn't started.` });
+    setAsking(null);
+  };
 
   // a press of New session or Tables that brings tables up, for MultiTables to take you to them
   const pressRef = useRef(false);
@@ -186,9 +224,37 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   return (
     <div className="flex flex-col gap-4">
       {opened && (
-        <p role={opened.ok ? "status" : "alert"} className={`text-sm ${opened.ok ? "text-muted" : "text-danger"}`}>
+        <p ref={saidRef} tabIndex={-1} role={opened.ok ? "status" : "alert"} className={`text-sm ${opened.ok ? "text-muted" : "text-danger"}`}>
           {opened.text}
         </p>
+      )}
+      {asking && (
+        <div
+          role="alertdialog"
+          aria-labelledby="link-ask-title"
+          aria-describedby="link-ask-words"
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            e.stopPropagation();
+            answerLink(false);
+          }}
+          className="space-y-2 rounded-lg border border-warn/50 bg-surface p-3 text-sm"
+        >
+          <h2 id="link-ask-title" className="font-medium">
+            A session is under way
+          </h2>
+          <p id="link-ask-words" className="text-muted">
+            This link starts {scenarioWords(asking)}, in place of what you&rsquo;re playing. Finished hands stay in History, and the hand in progress goes.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button ref={keepRef} type="button" onClick={() => answerLink(false)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">
+              Keep this session
+            </button>
+            <button type="button" onClick={() => answerLink(true)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
+              Start the new one
+            </button>
+          </div>
+        </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <ModePicker modes={["quick", "accurate"]} />
@@ -228,7 +294,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.pushFold ? " · push/fold" : ""}
             {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
             {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
-            {session.opts.pfSolve ? " · preflop graded by the preflop solve" : ""}
+            {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
         </details>
@@ -261,7 +327,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         </p>
       )}
 
-      {many ? <MultiTables room={room} snap={snap} active={active} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active} />}
+      {/* (while a link is being asked about, a key answers that, not the table) */}
+      {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active && !asking} />}
 
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
@@ -275,7 +342,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <p className="mt-2 text-muted">
           Preflop the answer is the preflop charts (frequencies, no EVs): a preflop move is graded by how often the chart plays it, and no EV is counted as lost.
           {session.opts.pfSolve &&
-            ` In this session a preflop decision is graded by EV against the stored preflop solve where its tree holds this very spot: an ${PF_MODEL}. Your options and the opponents stay the charts', so where the chips, the sizes or the options aren't the solve's, or it has folded your hand's class by then, the decision keeps the chart's frequency grade under the chart's label, and says why. The two are never added together.`}
+            ` In this session a preflop decision is graded by EV against the stored preflop solve where its tree holds this very spot: an ${PF_MODEL}. ${session.opts.pfSizes ? "The opponents stay the charts', and your raise is offered at the solve's size where it can grade the spot, so that raise isn't the chart's and the hand leaves the flop library for live solves. Where the chips or the options aren't the solve's" : "Your options and the opponents stay the charts', so where the chips, the sizes or the options aren't the solve's"}, or it has folded your hand's class by then, the decision keeps the chart's frequency grade under the chart's label, and says why. The two are never added together.`}
         </p>
         <p className="mt-2 text-muted">
           At 12bb or less the answer is the push/fold model: first in, an equilibrium of a game with only all-in or fold, worked out by hand class; facing a jam, a call priced by equity against that range. It has no EVs and isn&rsquo;t a
@@ -337,7 +404,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
   useHandKeys(active && !retrying, (e, tag) => {
     if (phase.kind === "hero" && answer && /^[1-9]$/.test(e.key)) {
       const i = Number(e.key) - 1;
-      if (i < optionsOf(answer.data).length) room.choose(i);
+      if (i < optionsAt(hand, answer, sim).length) room.choose(i);
     } else if (phase.kind === "over" && hand.result) {
       // (Enter or Space on a focused button or link is that control's own)
       if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A|SUMMARY)$/.test(tag)) {
@@ -429,7 +496,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
         )}
         {phase.kind === "hero" && answer && (
           <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
-            {optionsOf(answer.data).map((a, i) => (
+            {optionsAt(hand, answer, sim).map((a, i) => (
               <button
                 key={a.action}
                 type="button"

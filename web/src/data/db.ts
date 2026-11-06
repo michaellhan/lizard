@@ -1,7 +1,7 @@
 // Local persistence: one IndexedDB database, versioned, with explicit forward migrations. Everything stays in
 // the user's browser (no accounts). Each migration runs once, in order, inside the upgrade transaction; a test
 // (db.test.ts) opens every historical version and checks the upgrade path.
-import { deleteDB, openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from "idb";
+import { deleteDB, openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction, type StoreNames } from "idb";
 import type { SessionOptions } from "@/features/practice/practice";
 import type { SpotSetup } from "@/features/solve/setup";
 import type { Verdict } from "@/grading/grade";
@@ -143,7 +143,7 @@ export interface HandRecord {
   revealed?: string[];
   /** a Practice hand's rake and own sizes, as its Study line has them: a history doesn't carry them. An imported hand has
    * none, so its line is never taken for a raked game's. */
-  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap">;
+  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap"> & { pfSizes?: true };
   tournament?: string;
   text: string;
   /** your tags and note on the hand, and when you last changed them (none until you do) */
@@ -196,6 +196,8 @@ export interface DecisionRecord {
   note?: string;
   /** why it isn't graded */
   why?: string;
+  /** a preflop decision of a stored game the charts graded: why the preflop solve didn't (features/practice/pfGrade.ts) */
+  pfWhy?: string;
   /** the answer graded against: its source and its provenance line */
   source: string;
   label: string;
@@ -316,7 +318,35 @@ export interface LizardDB extends DBSchema {
   savedScenarios: { key: string; value: SavedScenario; indexes: { byUpdated: number } };
   savedReports: { key: string; value: SavedReport; indexes: { byUpdated: number } };
   mistakes: { key: string; value: MistakeRecord; indexes: { byDue: number; byLast: number; byStreet: string } };
+  tombstones: { key: [string, string]; value: Tombstone; indexes: { byAge: [string, number] } };
 }
+
+/** A record you deleted: which, and when. Without one a restore can't tell a deletion from a record never seen. Written
+ * with the delete, in its transaction (`deleting`); kept under the store and the id, so deleting one twice is one. */
+export interface Tombstone {
+  store: KeptStore;
+  id: string;
+  /** when it was deleted: always later than the record's last change (`deleting`) */
+  at: number;
+  /** the browser that deleted it, where it came in from a file; none where it was this one */
+  dev?: string;
+}
+
+/** When a record of each kind last changed: what a backup calls `updated`, and what its deletion is measured against. */
+export const LAST_CHANGED = {
+  savedSpots: (d: SavedSpot) => d.updatedAt,
+  savedAnswers: (d: SavedAnswer) => d.savedAt,
+  savedRanges: (d: SavedRange) => d.updatedAt,
+  savedDrills: (d: SavedDrill) => d.updatedAt,
+  savedScenarios: (d: SavedScenario) => d.updatedAt,
+  savedReports: (d: SavedReport) => d.updatedAt,
+  sessions: (d: SessionRecord) => d.endedAt ?? d.startedAt,
+  hands: (d: HandRecord) => d.updatedAt ?? d.importedAt,
+  decisions: (d: DecisionRecord) => d.gradedAt,
+  mistakes: (d: MistakeRecord) => d.updatedAt,
+};
+/** The stores a backup carries, and so a deletion is remembered for. Settings (`kv`) aren't among them. */
+export type KeptStore = keyof typeof LAST_CHANGED;
 
 type UpgradeTx = IDBPTransaction<LizardDB, StoreNames<LizardDB>[], "versionchange">;
 
@@ -367,6 +397,10 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
   },
   9: (db) => {
     db.createObjectStore("savedAnswers", { keyPath: "id" });
+  },
+  // (adds a store and touches no record, so what was deleted before this has no tombstone: nothing could say it was)
+  10: (db) => {
+    db.createObjectStore("tombstones", { keyPath: ["store", "id"] }).createIndex("byAge", ["store", "at"]);
   },
 };
 
@@ -485,6 +519,77 @@ export async function deleteLizardDB(blocked?: () => void): Promise<boolean> {
   await open?.then((d) => d.close()).catch(() => {});
   await deleteDB(DB_NAME, { blocked });
   return (await db()) !== null;
+}
+
+/** The most deletions remembered of each kind, the oldest forgotten first, and a kind's own, so deleting a large import
+ * can't forget a saved spot. The largest import a page reads (256 MB) is about 100,000 hands, so one import fits, and a
+ * kind at the bound is about 20 MB of backup, far less than what it stood for. A hand's grades can run past it, and a
+ * restore leaves out the grades of a deleted hand by the hand's tombstone (backup.ts). */
+export const MAX_TOMBSTONES = 100_000;
+
+/** Every tombstone of a store, oldest first by the `byAge` index. */
+export const tombstonesOf = (store: KeptStore) => IDBKeyRange.bound([store, -Infinity], [store, Infinity]);
+
+/** The readwrite tombstone store, of whichever transaction holds it. */
+export type TombstoneStore = IDBPObjectStore<LizardDB, ArrayLike<StoreNames<LizardDB>>, "tombstones", "readwrite">;
+
+/** Forgets a store's oldest tombstones down to `max`. A record older than one forgotten can come back from a backup. */
+export async function trimTombstones(graves: TombstoneStore, store: KeptStore, max = MAX_TOMBSTONES): Promise<void> {
+  const age = graves.index("byAge");
+  let over = (await age.count(tombstonesOf(store))) - max;
+  if (over <= 0) return;
+  for (let c = await age.openCursor(tombstonesOf(store)); c && over > 0; c = await c.continue(), over--) await c.delete();
+}
+
+/** A delete, with a tombstone for each record in the same transaction: both happen or neither does, and every user delete
+ * goes through here. `work` calls `gone` for each record, which needn't be here: a spot with no answer, deleted, still
+ * can't have one come back from a backup. The time is the record's last change or later, whatever this browser's clock
+ * says, as a record can come in from a device whose clock runs ahead: a delete is after what it deleted. */
+export async function deleting<S extends KeptStore, T>(
+  d: IDBPDatabase<LizardDB>,
+  stores: readonly S[],
+  work: (gone: (store: S, id: string) => Promise<void>, tx: IDBPTransaction<LizardDB, (S | "tombstones")[], "readwrite">) => Promise<T>,
+  now: () => number = Date.now,
+  max = MAX_TOMBSTONES,
+): Promise<T> {
+  const tx = d.transaction([...stores, "tombstones"], "readwrite");
+  // (its failure is what's awaited below: this only keeps it from being reported as unhandled too)
+  tx.done.catch(() => undefined);
+  const graves = tx.objectStore("tombstones") as unknown as TombstoneStore;
+  const stamped = new Map<KeptStore, number>();
+  const gone = async (store: S, id: string) => {
+    const kept = tx.objectStore(store) as unknown as { get: (id: string) => Promise<unknown>; delete: (id: string) => Promise<void> };
+    const was = await kept.get(id);
+    const n = stamped.get(store) ?? 0;
+    stamped.set(store, n + 1);
+    // (a bulk delete past the bound would write what's about to be forgotten)
+    if (n < max) {
+      const changed = was === undefined ? NaN : (LAST_CHANGED[store] as (x: unknown) => unknown)(was);
+      await graves.put({ store, id, at: typeof changed === "number" && Number.isFinite(changed) ? Math.max(now(), changed + 1) : now() });
+    }
+    await kept.delete(id);
+  };
+  try {
+    const out = await work(gone, tx);
+    for (const s of stamped.keys()) await trimTombstones(graves, s, max);
+    await tx.done;
+    return out;
+  } catch (e) {
+    try {
+      tx.abort();
+    } catch {
+      // (it's already over)
+    }
+    throw e;
+  }
+}
+
+/** One record deleted, as `deleting`: false where this browser keeps nothing. */
+export async function deleteRecord(store: KeptStore, id: string): Promise<boolean> {
+  const d = await db();
+  if (!d) return false;
+  await deleting(d, [store], (gone) => gone(store, id));
+  return true;
 }
 
 export async function kvGet<T>(key: string): Promise<T | undefined> {

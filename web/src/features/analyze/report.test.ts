@@ -2,7 +2,7 @@
 // on decisions made up for it.
 import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { agreement, basisOf, BASES, COLS, freqs, groupBy, leakIsRead, leaks, leakTest, lostByKind, meanRange, MIN_READ, mixByClass, readLeaks, report, rowsOf, spotOf, tally, toCSV, toJSON, type Leak } from "./report";
+import { agreement, basisOf, BASES, COLS, freqs, groupBy, isPfSolve, leakIsRead, leaks, leakTest, lostByKind, meanRange, MIN_READ, mixByClass, PF_ROW, readLeaks, report, rowsOf, spotOf, tally, toCSV, toJSON, type Leak } from "./report";
 import { wilson } from "./stats";
 
 let k = 0;
@@ -24,6 +24,47 @@ const d = (o: Partial<DecisionRecord>): DecisionRecord => ({
 const open = (o: Partial<DecisionRecord> = {}) => d({ situation: "RFI", mix: [["fold", 0.5, null], ["raise", 0.5, null]], matched: "raise", freq: 0.5, best: "fold", bestFreq: 0.5, verdict: "Correct", ...o });
 const cbet = (o: Partial<DecisionRecord> = {}) =>
   d({ street: "flop", action: "bet 1.8", situation: "SRP · IP · checked to", role: "PFR", facing: false, multi: false, ip: true, mix: [["check", 0.6, 3.1], ["bet 33%", 0.4, 2.5]], verdict: "Mistake", evLossBb: 0.6, lossPct: 10.9, pot: 5.5, source: "library", label: "Precomputed solution · srp_btn_bb", ...o });
+
+describe("the preflop solve and the charts in one report", () => {
+  const solved = (o: Partial<DecisionRecord> = {}) =>
+    open({ source: "preflop-solve", label: "Preflop solve (class-level model)", mix: [["fold", 0.8, 0], ["raise", 0.2, 0.5]], verdict: "Mistake", evLossBb: 0.5, lossPct: 12, byEv: true, freq: 0.8, matched: "fold", ...o });
+
+  it("never calls the solve's grade a chart's or a full solve", () => {
+    expect(basisOf(solved())).toBe("Preflop solve (class-level model, by EV, not a full solve)");
+    expect(basisOf(open())).toBe(BASES[0]);
+    expect(BASES[10]).toMatch(/not a full solve/);
+    expect(isPfSolve(open())).toBe(false);
+  });
+  it("keeps each situation's rows apart, and says the EV lost to the solve on its own", () => {
+    const r = report([open(), open(), solved(), solved({ evLossBb: 0.25 })]);
+    expect(r.byPf.map((g) => [g.key, g.graded])).toEqual([["RFI", 2]]);
+    expect(r.byPfSolve.map((g) => [g.key, g.graded])).toEqual([["RFI", 2]]);
+    expect(r.pfEv).toEqual({ n: 2, lost: 0.75 });
+    expect(report([open()]).pfEv).toEqual({ n: 0, lost: 0 });
+    expect(r.byBasis.map((g) => [g.key, g.graded])).toEqual([[BASES[0], 2], [BASES[10], 2]]);
+  });
+  it("gives a frequency a row by each answer, never one row of both", () => {
+    const rows = freqs([open(), open(), solved()]);
+    const labels = rows.map((x) => x.label);
+    expect(labels.filter((l) => l.endsWith(PF_ROW))).toHaveLength(labels.length / 2);
+    for (const row of rows) expect(row.n).toBe(row.label.endsWith(PF_ROW) ? 1 : 2);
+  });
+  it("finds a leak against each on its own, and a leak's decisions are its own", () => {
+    const miss = (o: Partial<DecisionRecord> = {}) => open({ verdict: "Mistake", ...o });
+    const ds = [...Array.from({ length: 30 }, (_, i) => solved({ handId: `h${i}` })), ...Array.from({ length: 30 }, (_, i) => miss({ handId: `c${i}` }))];
+    const ls = leaks(ds).filter((l) => l.kind === "pf");
+    expect(ls.map((l) => l.key).sort()).toEqual(["RFI", `RFI${PF_ROW}`]);
+    for (const l of ls) {
+      const its = ds.filter(leakTest(l));
+      expect(its).toHaveLength(30);
+      expect(its.every((x) => isPfSolve(x) === l.key.endsWith(PF_ROW))).toBe(true);
+    }
+  });
+  it("says in the CSV why the chart graded a decision in a stored game", () => {
+    const csv = toCSV([open({ pfWhy: "why it's the chart" })], new Map());
+    expect(csv).toContain("why it's the chart");
+  });
+});
 
 describe("the versions behind a report", () => {
   const A = "build:aaa/111";
@@ -146,9 +187,10 @@ describe("report", () => {
       quick({ confidence: undefined, approximate: true }),
       cbet({ source: "instant", confidence: "low", verdict: "Mistake", evLossBb: null, lossPct: null, bestFreq: 0.9 }),
       d({ source: "push-fold", confidence: "high", evLossBb: null, lossPct: null, bestFreq: 0.9 }),
+      d({ source: "preflop-solve", verdict: "Inaccuracy", evLossBb: 0.1, lossPct: 2, byEv: true }),
       d({ source: "rules", verdict: "Not graded", why: "the rules" }),
     ];
-    expect(ds.slice(0, 10).map(basisOf)).toEqual([BASES[0], BASES[1], BASES[2], BASES[5], BASES[6], BASES[7], BASES[3], BASES[4], BASES[8], BASES[9]]);
+    expect(ds.slice(0, 11).map(basisOf)).toEqual([BASES[0], BASES[1], BASES[2], BASES[5], BASES[6], BASES[7], BASES[3], BASES[4], BASES[8], BASES[9], BASES[10]]);
     const rp = report(ds);
     // (the most solid first; the rules, not graded, stand on nothing)
     expect(rp.byBasis.map((g) => [g.key, g.graded])).toEqual(BASES.map((b) => [b, 1]));
@@ -265,7 +307,7 @@ describe("report", () => {
     const hands = new Map([[cash.id, cash], [mtt.id, mtt]]);
     const out = lostByKind([cbet({ handId: "h1" }), cbet({ handId: "h1" }), open({ handId: "h1" }), cbet({ handId: "h2", evLossBb: 2 }), cbet({ handId: "gone" }), d({ handId: "h1", verdict: "Not graded", why: "x" })], hands);
     expect(out.map((k) => [k.kind, k.graded, k.ev, k.lost])).toEqual([["cash", 3, 2, 1.2], ["tour", 1, 1, 2]]);
-    expect(Object.keys(out[0]!).sort()).toEqual(["ev", "graded", "kind", "lost"]);
+    expect(Object.keys(out[0]!).sort()).toEqual(["ev", "graded", "kind", "lost", "pfEv", "pfLost"]);
   });
 
   it("counts how a check at Fast agreed with the read, on the one scale", () => {
@@ -302,5 +344,15 @@ describe("report", () => {
     expect(toCSV([quick], h).split("\n")[0]).toContain("rough_ev,grade_capped,off_solution");
     const out = JSON.parse(toJSON([quick], h, 0)) as { summary: { mistakes: Record<string, unknown>[] } };
     expect(out.summary.mistakes[0]).toMatchObject({ rough_ev: true, grade_capped: true, source: "Live solve (Quick)", basis: BASES[7], confidence: "low" });
+  });
+
+  it("keeps the preflop solve's EV out of the spot's, in the totals and by kind", () => {
+    const h = new Map([["h1", { id: "h1", tournament: undefined } as unknown as HandRecord]]);
+    const pf = open({ handId: "h1", source: "preflop-solve", byEv: true, verdict: "Mistake", evLossBb: 0.5, lossPct: 10 });
+    const spot = cbet({ handId: "h1", evLossBb: 2, lossPct: 40 });
+    const r = report([pf, spot]);
+    expect(r.spotEv).toEqual({ n: 1, lost: 2, avgPct: 40 });
+    expect(r.pfEv).toEqual({ n: 1, lost: 0.5 });
+    expect(lostByKind([pf, spot], h)[0]).toMatchObject({ ev: 1, lost: 2, pfEv: 1, pfLost: 0.5 });
   });
 });

@@ -118,6 +118,8 @@ export interface PracticeHand {
   exploit?: Exploit;
   /** your preflop decisions are graded by the stored preflop solve where it can answer them (pfGrade.ts) */
   pfSolve?: true;
+  /** with `pfSolve`: at a spot the solve grades, your raise is at the solve's own size in place of the chart's (pfGrade.ts) */
+  pfSizes?: true;
   /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
    * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
   run?: "played" | "shown";
@@ -240,6 +242,8 @@ export interface GameOptions {
   exploit?: Exploit;
   /** grade your preflop decisions by the stored preflop solve (`pfBlocked` says where it can) */
   pfSolve?: boolean;
+  /** with `pfSolve`: offer the solve's own raise sizes where it grades the spot, in place of the chart's */
+  pfSizes?: boolean;
 }
 
 /** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop), and
@@ -346,7 +350,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pushFold ? { pushFold: true as const } : {}),
     ...(opts.tournament ? tournamentHand(opts.tournament) : {}),
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
-    ...(opts.pfSolve && !pfBlocked(players, stack, opts) ? { pfSolve: true as const } : {}),
+    ...(opts.pfSolve && !pfBlocked(players, stack, opts) ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}) } : {}),
   };
 }
 
@@ -589,10 +593,14 @@ export function optionsOf(res: AdvisorResponse | null | undefined): AdvisorActio
   return res && !res.error && Array.isArray(res.actions) ? res.actions : [];
 }
 
-/** The move one of the answer's actions records (sizes to the half big blind, as the table takes them). */
-export function moveOfOption(h: PracticeHand, a: AdvisorActionStat, sim: Sim = simOf(h)): Move | string {
+/** The move one of the answer's actions records (sizes to the half big blind, as the table takes them). `exact`: a raise
+ * at the preflop solve's own size, which is its to the cent: its 4-bets are to 17.25bb and 27.6bb, and rounded they'd be a
+ * raise it holds no EV for, and a line off its tree. */
+export function moveOfOption(h: PracticeHand, a: AdvisorActionStat, sim: Sim = simOf(h), exact = false): Move | string {
   const kind = kindOf(a.action);
-  return recordOf(setupOf(h), sim, { action: kind, to: typeof a.amount_bb === "number" ? a.amount_bb : undefined, clamp: true });
+  const to = typeof a.amount_bb === "number" ? a.amount_bb : undefined;
+  const m = recordOf(setupOf(h), sim, { action: kind, to, clamp: true });
+  return exact && typeof m !== "string" && m.action === "raise" && to !== undefined ? { ...m, to } : m;
 }
 
 /** The answer's mix at your spot, per action: frequency, and EV where the answer has EVs for every action. */
@@ -640,7 +648,7 @@ export function decide(
 ): { hand: PracticeHand; decision: Decision } | { error: string } {
   const a = optionsOf(res)[i];
   if (!a) return { error: "That action isn't in the answer." };
-  const m = moveOfOption(h, a, sim);
+  const m = moveOfOption(h, a, sim, !!h.pfSizes && provenance?.source === "preflop-solve");
   if (typeof m === "string") return { error: m };
   const mix = gradable(mixOf(res), provenance);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;

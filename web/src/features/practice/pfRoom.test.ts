@@ -5,7 +5,8 @@ import nodes from "@/test/fixtures/pf_nodes.json";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { provenanceOf } from "@/solver/provenance";
 import { SolverError, type Provenance, type SolveRequest, type SolveResult } from "@/solver/types";
-import { following, newHand, type PracticeHand } from "./practice";
+import { optionsAt } from "./pfGrade";
+import { following, newHand, withVillain, type PracticeHand } from "./practice";
 import { Room, type RoomClient } from "./room";
 
 const NODE = (nodes as unknown as { first: AdvisorResponse }).first;
@@ -96,6 +97,23 @@ describe("a table graded by the preflop solve", () => {
     const r = await client.solve({ state, mode: "quick" });
     expect(r.data).toBe(NODE);
     expect(need.pfSolve).toBe(true);
+  });
+  it("offers the solve's sizes at a table with the second box, on the buttons and in the keys, and plays what it offered", async () => {
+    const oppo = (nodes as unknown as { offSize: AdvisorResponse }).offSize;
+    const line = [{ pos: "UTG", action: "raise", to: 2.5 }, { pos: "HJ", action: "fold" }, { pos: "CO", action: "fold" }, { pos: "BTN", action: "fold" }, { pos: "SB", action: "fold" }] as const;
+    let h: PracticeHand = { ...newHand(6, 100, 0, 7, { pfSolve: true, pfSizes: true }), hero: "BB" };
+    for (const m of line) h = withVillain(h, m);
+    const three: AdvisorResponse = { street: "preflop", pot_bb: 4, actions: [{ action: "raise", freq: 0.2, amount_bb: 10 }, { action: "call", freq: 0.7 }, { action: "fold", freq: 0.1 }] };
+    const chart = async () => ({ data: three, provenance: CHART_P });
+    const { room } = table(h, async () => ({ data: oppo, provenance: provenanceOf(oppo, ctx) }), chart);
+    await settled();
+    const t = room.snapshot().tables[0]!;
+    expect(optionsAt(t.hand, t.answer)[0]!.amount_bb).toBe(12);
+    room.choose(0);
+    const after = room.snapshot().tables[0]!;
+    expect(after.last!.move).toEqual({ pos: "BB", action: "raise", to: 12 });
+    expect(after.last!.grade!.byEv).toBe(true);
+    expect(after.last!.provenance!.source).toBe("preflop-solve");
   });
   it("shows Reveal what would have graded you, and keeps that with the ungraded move", async () => {
     const { room } = table(yours(true), solved);

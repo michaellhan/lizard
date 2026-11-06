@@ -9,14 +9,29 @@ import { listMistakes } from "@/data/mistakes";
 import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
-import { byDay, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, type SessionKind, type SessionRow } from "./history";
+import { byDay, GRADE_WAYS, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, WAY_HEADS, WAY_WORDS, type GradeWay, type SessionKind, type SessionRow, type Split, type WayTally } from "./history";
 import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, type Basis, type BasisTrend, type SplitTotals } from "./progress";
 
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x * 100) / 100)}`;
 const lossText = (bbPer: number | null, pctPer: number | null, unit = "bb") => (bbPer == null ? "–" : `${bb(bbPer)}${unit}${pctPer == null ? "" : ` · ${pctPer.toFixed(1)}% pot`}`);
 const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
-const okText = (ok: number | null, n: number) => (ok == null || !n ? "–" : pct(ok / n, 0));
+const okText = (ok: number, n: number) => (!n ? "–" : pct(ok / n, 0));
+/** A way's figures for a session's row. */
+const wayText = (way: GradeWay, t: WayTally, unit: string) => `${okText(t.ok, t.n)} Best or Correct of ${t.n} ${WAY_WORDS[way]}${way === "freq" ? "" : `, ${lossText(t.loss / t.n, t.lossPct / t.n, unit)} lost per decision`}`;
+/** The ways any of these totals used: a column for each, the preflop solve's only where it graded. */
+const waysIn = (rows: readonly Split[]) => GRADE_WAYS.filter((w) => rows.some((r) => r.ways[w]));
+/** A way's figures in a totals table. */
+function WayCells({ row, ways, unit }: { row: Split; ways: readonly GradeWay[]; unit: string }) {
+  return ways.map((w) => {
+    const t = row.ways[w];
+    return (
+      <td key={w} className="py-0.5 pr-4">
+        {!t ? "–" : `${t.n < MIN_SHARE ? shareText(t.ok, t.n) : `${shareText(t.ok, t.n)} of ${t.n}`}${w === "freq" ? "" : ` · ${lossText(t.loss / t.n, t.lossPct / t.n, unit)}`}`}
+      </td>
+    );
+  });
+}
 /** The kinds the seat and pot rates read, as the street table does; a leak drill's are counted beside them. */
 const SPLIT_KINDS: readonly SessionKind[] = ["practice", "drill", "analysis"];
 
@@ -139,8 +154,8 @@ function SessionItem({ r }: { r: SessionRow }) {
       : [
           r.hands != null ? many(r.hands, "hand") : null,
           many(r.n, "decision"),
-          r.okBy ? `${okText(r.okBy.ev.ok, r.okBy.ev.n)} Best or Correct of ${r.okBy.ev.n} by EV, ${okText(r.okBy.freq.ok, r.okBy.freq.n)} of ${r.okBy.freq.n} by frequency` : r.n ? `${okText(r.ok, r.n)} Best or Correct` : null,
-          r.lossPer == null ? null : `${lossText(r.lossPer, r.lossPctPer, kindUnit(r.kind))} lost per decision`,
+          ...GRADE_WAYS.flatMap((w) => (r.split.ways[w] ? [wayText(w, r.split.ways[w], kindUnit(r.kind))] : [])),
+          r.split.apart ? `${r.split.apart} not told apart by how ${r.split.apart === 1 ? "it was" : "they were"} graded` : null,
           r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : null,
         ];
   return (
@@ -162,6 +177,8 @@ function SessionItem({ r }: { r: SessionRow }) {
 }
 
 function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
+  const ways = waysIn(totals);
+  const apart = totals.reduce((a, t) => a + t.apart, 0);
   return (
     <section aria-label="Lifetime totals" className="space-y-1">
       <h2 className="text-lg font-semibold">Lifetime</h2>
@@ -172,8 +189,11 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
               <th className="py-0.5 pr-4 font-normal">Kind</th>
               <th className="py-0.5 pr-4 font-normal">Sessions</th>
               <th className="py-0.5 pr-4 font-normal">Decisions</th>
-              <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
-              <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>
+              {ways.map((w) => (
+                <th key={w} className="py-0.5 pr-4 font-normal">
+                  {WAY_HEADS[w]}
+                </th>
+              ))}
               <th className="py-0.5 pr-4 font-normal">Hands · net</th>
             </tr>
           </thead>
@@ -183,7 +203,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
                 <tr key={t.kind}>
                   <td className="py-0.5 pr-4 font-sans">{kindLabel(t.kind)}</td>
                   <td className="py-0.5 pr-4">{t.sessions}</td>
-                  <td className="py-0.5 pr-4 font-sans" colSpan={4}>
+                  <td className="py-0.5 pr-4 font-sans" colSpan={ways.length + 2}>
                     {t.acc == null ? "–" : `${pct(t.acc)} accurate on average`}
                     {t.buildLoss == null ? "" : ` · ${t.buildLoss.toFixed(3)}bb a combo lost on average`}
                   </td>
@@ -193,8 +213,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
                   <td className="py-0.5 pr-4 font-sans">{kindLabel(t.kind)}</td>
                   <td className="py-0.5 pr-4">{t.sessions}</td>
                   <td className="py-0.5 pr-4">{t.n}</td>
-                  <td className="py-0.5 pr-4">{okText(t.ok, t.n)}</td>
-                  <td className="py-0.5 pr-4">{lossText(t.ne ? t.loss / t.ne : null, t.ne ? t.lossPct / t.ne : null, kindUnit(t.kind))}</td>
+                  <WayCells row={t} ways={ways} unit={kindUnit(t.kind)} />
                   <td className="py-0.5 pr-4">{t.kind === "practice" ? `${t.hands}${t.played ? ` · ${signed(t.net)}bb over ${t.played}` : ""}` : t.hands ? String(t.hands) : "–"}</td>
                 </tr>
               ),
@@ -203,8 +222,10 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
         </table>
       </div>
       <p className="text-xs text-muted">
-        EV lost is averaged over the decisions graded by EV (the preflop charts grade by frequency only). Net counts the hands played out, not those played preflop
+        Each way of grading has its own figures, Best or Correct and then EV lost per decision, and none is added to another: a share by EV says something else than a share by frequency, and the
+        preflop solve&rsquo;s EV lost is on a simplified game, never added to a postflop solve&rsquo;s. The preflop charts grade by frequency only, so they have no EV. Net counts the hands played out, not those played preflop
         only. A range build is scored by its accuracy over the node&rsquo;s hand classes, or combo by combo where it says so; the average takes both.
+        {apart > 0 && ` ${many(apart, "decision")} ${apart === 1 ? "isn't" : "aren't"} in these figures: played before Lizard kept how each one was graded, ${apart === 1 ? "it was" : "they were"} added up across both ways and can't be told apart now.`}
         {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") &&
           " Tournaments each have their own row and go in no other totals here, by pot type, street or over time: a prize-equity EV is chips worth as much prize equity, never bb won, and a tournament's hands count no net."}
         {totals.some((t) => t.kind === "exploit") &&
@@ -396,6 +417,8 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
 
 function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
   if (!pots.rows.length && !pots.without) return null;
+  const ways = waysIn(pots.rows);
+  const apart = pots.rows.reduce((a, t) => a + t.apart, 0);
   return (
     <section aria-label="Full hands by pot type" className="space-y-1">
       <h2 className="text-lg font-semibold">Full hands by pot type</h2>
@@ -407,8 +430,11 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
                 <th className="py-0.5 pr-4 font-normal">Pot</th>
                 <th className="py-0.5 pr-4 font-normal">Hands</th>
                 <th className="py-0.5 pr-4 font-normal">Decisions</th>
-                <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
-                <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>
+                {ways.map((w) => (
+                  <th key={w} className="py-0.5 pr-4 font-normal">
+                    {WAY_HEADS[w]}
+                  </th>
+                ))}
                 <th className="py-0.5 pr-4 font-normal">Net</th>
               </tr>
             </thead>
@@ -418,8 +444,7 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
                   <td className="py-0.5 pr-4 font-sans">{t.pot}</td>
                   <td className="py-0.5 pr-4">{t.hands}</td>
                   <td className="py-0.5 pr-4">{t.n}</td>
-                  <td className="py-0.5 pr-4">{okText(t.ok, t.n)}</td>
-                  <td className="py-0.5 pr-4">{lossText(t.ne ? t.loss / t.ne : null, t.ne ? t.lossPct / t.ne : null)}</td>
+                  <WayCells row={t} ways={ways} unit="bb" />
                   <td className="py-0.5 pr-4">{t.played ? `${signed(t.net)}bb over ${t.played}` : "–"}</td>
                 </tr>
               ))}
@@ -428,7 +453,8 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
         </div>
       )}
       <p className="text-xs text-muted">
-        Finished hands only, each under its pot as the preflop went while you were in it (&ldquo;Unopened&rdquo;: nobody raised or called). Best or Correct here counts a grade of either kind, by EV or by frequency; the tables by seat and pot type keep the two apart.
+        Finished hands only, each under its pot as the preflop went while you were in it (&ldquo;Unopened&rdquo;: nobody raised or called). Each way of grading has its own figures, Best or Correct and then EV lost per decision, as in the lifetime table.
+        {apart > 0 && ` ${many(apart, "decision")} from before grades were kept apart ${apart === 1 ? "isn't" : "aren't"} in them.`}
         {pots.without > 0 &&
           ` ${pots.without} earlier session${pots.without === 1 ? "" : "s"} (${pots.withoutHands} hand${pots.withoutHands === 1 ? "" : "s"}) ${pots.without === 1 ? "was" : "were"} played before pot types were kept, and ${pots.without === 1 ? "isn't" : "aren't"} split.`}
       </p>

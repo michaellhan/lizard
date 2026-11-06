@@ -58,6 +58,17 @@ function roundTrip(h: PracticeHand) {
 }
 const brackets = (text: string) => text.match(/\[[^\]]*\]/g);
 
+describe("a raise at the preflop solve's size", () => {
+  // (the solve's 4-bets aren't the table's half big blind: 17.25bb, 27.6bb, kept to the cent)
+  it.each([17.25, 27.6, 33.35])("goes through a history at %sbb, its chips and its result to the cent", (to) => {
+    const h = newHand(6, 100, 0, 7, { pfSolve: true, pfSizes: true });
+    const line = [mv("UTG", "raise", 2.5), ...folds("HJ", "CO"), mv("BTN", "raise", 7.5), mv("SB", "raise", to), ...folds("BB", "UTG", "BTN")];
+    const { r, rec } = roundTrip(played(h, ...line));
+    expect(r.lines.preflop.find((m) => m.pos === "SB" && m.action === "raise")?.to).toBe(to);
+    expect(rec.setup).toEqual({ pfSizes: true });
+  });
+});
+
 describe("Practice hands as hand histories", () => {
   it("a single-raised pot to a showdown: every move, the cards shown, the pot collected", () => {
     // (hand 1 of the session: you're on the button)

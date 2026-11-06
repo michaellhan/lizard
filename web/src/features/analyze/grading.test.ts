@@ -7,6 +7,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { importHand, type ReplayedHand } from "@/hh/replay";
+import nodes from "@/test/fixtures/pf_nodes.json";
+import { practiceRecord } from "@/features/practice/history";
+import { gradedOn, PF_MODEL } from "@/features/practice/pfGrade";
+import { decide, finish, newHand, setupOf, withVillain, type PracticeHand } from "@/features/practice/practice";
+import type { Move } from "@/poker/table";
+import { SolverError, type Provenance } from "@/solver/types";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { provenanceOf } from "@/solver/provenance";
 import type { DecisionRecord, HandRecord } from "@/data/db";
@@ -376,5 +382,137 @@ describe("turns and rivers", () => {
     expect(run).toEqual({ graded: 2, hands: 1, stopped: false });
     expect(asked.map((s) => [s.board?.length, s.triage])).toEqual([[8, undefined], [10, undefined]]);
     expect(out.map((d) => [d.id, d.read?.verdict])).toEqual([["h|turn|1", "Mistake"], ["h|river|1", "Mistake"]]);
+  });
+});
+
+describe("preflop by the stored solve", () => {
+  const NODES = nodes as unknown as Record<"first" | "opened" | "offSize" | "other" | "unsolved", AdvisorResponse>;
+  const CHART_OPENED: AdvisorResponse = { street: "preflop", pot_bb: 4, actions: [{ action: "fold", freq: 0.1 }, { action: "call", freq: 0.6 }, { action: "raise", freq: 0.3, amount_bb: 7.5 }] };
+  const CHART_BB: AdvisorResponse = { street: "preflop", pot_bb: 4, actions: [{ action: "raise", freq: 0.2, amount_bb: 10 }, { action: "call", freq: 0.7 }, { action: "fold", freq: 0.1 }] };
+  const CHART_P: Provenance = { source: "charts", approximate: true, mode: "quick", transport: "worker", solverVersion: "1", partial: false, receivedAt: 0 };
+  const OPEN: Move[] = [{ pos: "UTG", action: "raise", to: 2.5 }, { pos: "HJ", action: "fold" }, { pos: "CO", action: "fold" }];
+  const TO_BB: Move[] = [{ pos: "BTN", action: "fold" }, { pos: "SB", action: "fold" }];
+  const BEHIND: Move[] = [{ pos: "SB", action: "fold" }, { pos: "BB", action: "fold" }, { pos: "UTG", action: "fold" }];
+
+  /** the chart, then the node; what was asked; a throw or an answer in place of the node */
+  const pair = (chart: AdvisorResponse, node: AdvisorResponse | Error) => {
+    const asked: AdvisorState[] = [];
+    const ask: Ask = async (s) => {
+      asked.push(s);
+      if (!s.preflop_solve) return answer(chart);
+      if (node instanceof Error) throw node;
+      return answer(node);
+    };
+    return { ask, asked };
+  };
+  const table = (hero: string, line: Move[], opts = {}): PracticeHand => {
+    let h: PracticeHand = { ...newHand(6, 100, 0, 7, { pfSolve: true, ...opts }), hero };
+    for (const m of line) h = withVillain(h, m);
+    return h;
+  };
+  /** the hand as the table played it, your move by the option `i` of what graded it, then kept as Practice keeps it */
+  const kept = (h: PracticeHand, chart: AdvisorResponse, node: AdvisorResponse, i: number, rest: Move[] = []) => {
+    const on = gradedOn(h, { data: chart, provenance: CHART_P, pf: answer(node) });
+    const r = decide(h, on.data, i, on.provenance, undefined, on.pfWhy);
+    if ("error" in r) throw new Error(r.error);
+    const after = rest.reduce<PracticeHand>((x, m) => withVillain(x, m), r.hand);
+    const rec = practiceRecord({ ...after, result: finish(after) }, { id: "s", startedAt: 1 }, new Date(2));
+    return { rec, replayed: importHand(rec.text), table: r.decision, on };
+  };
+  const yours = (r: ReplayedHand) => r.lines.preflop.findIndex((m) => m.pos === r.hand.hero);
+  // a site's hand of the stored game (only what the grading reads)
+  const site = (line: Move[], hero = "BTN"): ReplayedHand =>
+    ({
+      hand: { players: 6, hero, hole: ["Ah", "Kd"], board: [], stack: 100, ante: 0, straddle: false },
+      setup: setupOf(newHand(6, 100, 0, 7)),
+      lines: { preflop: line, flop: [], turn: [], river: [] },
+      stopped: null,
+      warnings: [],
+    }) as unknown as ReplayedHand;
+
+  it("gives a kept Practice hand the grade the table gave it", async () => {
+    const { rec, replayed, table: d } = kept(table("BTN", OPEN), CHART_OPENED, NODES.opened, 2, BEHIND);
+    const { ask, asked } = pair(CHART_OPENED, NODES.opened);
+    const g = await gradeDecision(rec, replayed, "preflop", yours(replayed), ask);
+    expect(g).toMatchObject({ source: "preflop-solve", byEv: true, pot: d.pot, verdict: d.grade!.verdict, evLossBb: Math.round(d.grade!.loss * 100) / 100 });
+    expect(g.mix!.map((m) => m[0])).toEqual(d.mix.map((m) => m.action));
+    expect(g.mix!.map((m) => m[2])).toEqual(d.mix.map((m) => m.ev));
+    expect(g.pfWhy).toBeUndefined();
+    expect(g.note).toBeUndefined();
+    // read, never run, and never a chart under its name
+    expect(asked[1]).toMatchObject({ study: true, preflop_solve: true });
+    expect(asked[1]).not.toHaveProperty("run");
+    expect(asked[1]).not.toHaveProperty("triage");
+    expect(g.label).toContain("Preflop solve (class-level model)");
+    expect(g.label).toContain(PF_MODEL);
+  });
+  it("asks a raked hand's own stored game", async () => {
+    const { rec, replayed } = kept(table("BTN", OPEN, { rake: 5, rakeCap: 3 }), CHART_OPENED, NODES.opened, 2, BEHIND);
+    const { ask, asked } = pair(CHART_OPENED, NODES.opened);
+    await gradeDecision(rec, replayed, "preflop", yours(replayed), ask);
+    expect(asked[1]).toMatchObject({ preflop_solve: true, rake: 0.05, rake_cap: 3 });
+  });
+  it("leaves a spot the table left to the chart to the chart, labelled so, and says why", async () => {
+    const { rec, replayed, table: d, on } = kept(table("BB", [...OPEN, ...TO_BB]), CHART_BB, NODES.offSize, 2);
+    expect(d.provenance!.source).toBe("charts");
+    const { ask } = pair(CHART_BB, NODES.offSize);
+    const g = await gradeDecision(rec, replayed, "preflop", yours(replayed), ask);
+    expect(g).toMatchObject({ source: "charts", byEv: false, evLossBb: null, verdict: d.grade!.verdict, pfWhy: on.pfWhy });
+    expect(g.label).toBe("Preflop charts · approximate");
+  });
+  it("reads a hand kept at the solve's sizes as the table did, at them", async () => {
+    const { rec, replayed, table: d } = kept(table("BB", [...OPEN, ...TO_BB], { pfSizes: true }), CHART_BB, NODES.offSize, 0, [{ pos: "UTG", action: "fold" }]);
+    expect(d.move).toEqual({ pos: "BB", action: "raise", to: 12 });
+    expect(rec.setup).toEqual({ pfSizes: true });
+    const { ask } = pair(CHART_BB, NODES.offSize);
+    const g = await gradeDecision(rec, replayed, "preflop", yours(replayed), ask);
+    expect(g).toMatchObject({ source: "preflop-solve", byEv: true, verdict: d.grade!.verdict, matched: "raise" });
+    expect(g.pfWhy).toBeUndefined();
+  });
+  it("reads a site's hand of the stored game by the move made, and says what it took for the rake", async () => {
+    const { ask } = pair(CHART_OPENED, NODES.opened);
+    const g = await gradeDecision({ id: "x", site: "PokerStars" }, site([...OPEN, { pos: "BTN", action: "raise", to: 7.5 }]), "preflop", 3, ask);
+    expect(g).toMatchObject({ source: "preflop-solve", byEv: true, matched: "raise" });
+    expect(g.note).toContain("stored game with no rake");
+  });
+  it("keeps a site's raise the solve has no such size for by the chart, and says why", async () => {
+    const { ask } = pair(CHART_OPENED, NODES.opened);
+    const g = await gradeDecision({ id: "x", site: "PokerStars" }, site([...OPEN, { pos: "BTN", action: "raise", to: 9 }]), "preflop", 3, ask);
+    expect(g.source).toBe("charts");
+    expect(g.byEv).toBe(false);
+    expect(g.pfWhy).toMatch(/no such move here.*raise 9bb.*raise 7\.5bb/);
+  });
+  it("changes nothing for a hand that isn't one of the stored games: one question, the chart's answer, no word of the solve", async () => {
+    const heads = hu({ SB: 100, BB: 100 }, [{ pos: "SB", action: "raise", to: 2.5 }, { pos: "BB", action: "fold" }] as never);
+    const { ask, asked } = pair({ ...CHART, pot_bb: 3 }, NODES.opened);
+    const g = await gradeDecision({ id: "x", site: "PokerStars" }, heads, "preflop", 1, ask);
+    expect(asked).toHaveLength(1);
+    expect(g.source).toBe("charts");
+    expect(g).not.toHaveProperty("pfWhy");
+    const { ask: ask2, asked: asked2 } = pair(CHART, NODES.first);
+    const srp = await gradeDecision({ id: "h1", tournament: "x" } as never, site([...OPEN, { pos: "BTN", action: "raise", to: 7.5 }]), "preflop", 3, ask2);
+    expect(asked2).toHaveLength(1);
+    expect(srp).not.toHaveProperty("pfWhy");
+  });
+  it("keeps the chart's grade, and why, where the solve can't be read, and stops on a stop", async () => {
+    const line = site([...OPEN, { pos: "BTN", action: "call" }]);
+    const failed = await gradeDecision({ id: "x", site: "PokerStars" }, line, "preflop", 3, pair(CHART_OPENED, new Error("the file didn't come")).ask);
+    expect(failed).toMatchObject({ source: "charts", byEv: false });
+    expect(failed.pfWhy).toContain("the file didn't come");
+    const unsolved = await gradeDecision({ id: "x", site: "PokerStars" }, line, "preflop", 3, pair(CHART_OPENED, NODES.unsolved).ask);
+    expect(unsolved).toMatchObject({ source: "charts", byEv: false });
+    expect(unsolved.pfWhy).toMatch(/\w+ \w+/);
+    await expect(gradeDecision({ id: "x", site: "PokerStars" }, line, "preflop", 3, pair(CHART_OPENED, new SolverError("cancelled", "cancelled")).ask)).rejects.toThrow();
+  });
+  it("asks again once a chart's grade kept from before, in a stored game, and only those", async () => {
+    const { rec } = kept(table("BTN", OPEN), CHART_OPENED, NODES.opened, 2, BEHIND);
+    const other = { ...rec, id: "t", tournament: "Practice" };
+    const chart = (handId: string, o: Partial<DecisionRecord> = {}): DecisionRecord => ({ id: `${handId}|preflop|3`, handId, street: "preflop", pos: "BTN", action: "raise to 7.5", verdict: "Correct", evLossBb: null, lossPct: null, source: "charts", label: "Preflop charts · approximate", gradedAt: 0, ...o });
+    const ds = [chart(rec.id), chart(other.id), { ...chart(rec.id), id: "said", pfWhy: "why" }, { ...chart(rec.id), id: "solve", source: "preflop-solve" }];
+    const ids = answeredIds(ds, [rec, other]);
+    expect(ids.has(ds[0]!.id)).toBe(false);
+    expect([ds[1]!, ds[2]!, ds[3]!].every((x) => ids.has(x.id))).toBe(true);
+    // (without the hands, as ever)
+    expect(answeredIds(ds).has(ds[0]!.id)).toBe(true);
   });
 });

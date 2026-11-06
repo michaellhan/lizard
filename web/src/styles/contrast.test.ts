@@ -114,6 +114,11 @@ describe("an action mix", () => {
     }
   });
 
+  it("has every patterned fill fall back to its plain colour when Settings takes patterns off", () => {
+    const off = css.match(/:root\[data-patterns="off"\] \{([^}]*)\}/)![1]!;
+    for (const a of ACTIONS.filter((x) => pattern(x))) expect(off, a).toContain(`--fill-act-${a}: var(--color-act-${a});`);
+  });
+
   it("gives a grid cell's label 4.5:1 on its plate over any colour or ink of a mix", () => {
     const m = /bg-bg\/(\d+)/.exec(readFileSync(join(here, "../components/RangeMatrix.tsx"), "utf8").match(/cell-label[^"]*/)![0]);
     const alpha = Number(m![1]) / 100;

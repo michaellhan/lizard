@@ -2,14 +2,14 @@
 // last decision and your range at it, the hand's log, keeping a hand, and Review mistakes with stepping back through
 // your decisions. Each draws what it's given: the hand and the session stay with the page. And the keys' rules, which
 // each view of the hand keeps.
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { actionFills, bb, pct } from "@/components/actions";
 import { RangeMatrix } from "@/components/RangeMatrix";
-import { sourcesText } from "@/features/history/history";
+import { cellWays, GRADE_WAYS, sourcesText, WAY_HEADS, wayFigures } from "@/features/history/history";
 import { whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
@@ -103,6 +103,9 @@ export function byFrequency(p: Provenance | null | undefined): string {
 /** `reserve`: hold the line under it before there's anything to say, as above one table the dock sits below it. */
 export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; reserve?: boolean }) {
   const s = session.score;
+  // (graded more than one way, a single rate or EV figure would add unlike things: each way gets its own, as in History)
+  const ways = cellWays(Object.values(session.cells ?? {}));
+  const split = GRADE_WAYS.filter((w) => ways[w]);
   const item = (label: string, value: string) => (
     <div className="rounded bg-surface-2 px-2 py-1">
       <div className="text-xs text-muted">{label}</div>
@@ -113,8 +116,14 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
     <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
       {item("Hands", String(session.hands))}
       {item("Decisions graded", String(s.n))}
-      {item("Best or correct", s.n ? pct(acc, 0) : "–")}
-      {item("EV lost per decision", loss == null ? "–" : `${bb(loss)}${sessionUnit(session.opts)} · ${lossPct!.toFixed(1)}% pot`)}
+      {split.length > 1 ? (
+        split.map((w) => <Fragment key={w}>{item(WAY_HEADS[w], wayFigures(w, ways[w]!, sessionUnit(session.opts)))}</Fragment>)
+      ) : (
+        <>
+          {item("Best or correct", s.n ? pct(acc, 0) : "–")}
+          {item("EV lost per decision", loss == null ? "–" : `${bb(loss)}${sessionUnit(session.opts)} · ${lossPct!.toFixed(1)}% pot`)}
+        </>
+      )}
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && !session.opts.tournament && !session.opts.exploit && item("Net", `${signed(session.net)}bb`)}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}

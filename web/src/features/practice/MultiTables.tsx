@@ -9,13 +9,14 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
 import { rowKeys } from "@/components/rowKeys";
 import { bb, kindOf, pct } from "@/components/actions";
-import { sourcesText } from "@/features/history/history";
+import { GRADE_WAYS, sourcesText, WAY_WORDS, wayFigures } from "@/features/history/history";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSettings } from "@/state/settings";
 import { MAX_TABLES } from "./keep";
 import { DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, RangeView, ReviewMistakes, signed, useHandKeys } from "./PracticeParts";
 import { PRIZE_UNIT } from "@/solver/provenance";
-import { anyHandOnly, INSTANT_FLOPS, isPotDrill, optionsOf, phaseOf, POT_DRILLS, simOf } from "./practice";
+import { anyHandOnly, INSTANT_FLOPS, isPotDrill, phaseOf, POT_DRILLS, simOf } from "./practice";
+import { optionsAt } from "./pfGrade";
 import { flopsNote, seatOf, seatsFor, spotOf, type Room, type RoomSnapshot, type RoomTable, type Spot } from "./room";
 import { keyOf, type PracticeSession } from "./session";
 import { resultLine, Spinner, stateOf, TableTile, verdictLine, type TableState } from "./TableTile";
@@ -201,7 +202,7 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
   const moving = ph.kind === "villain" || ph.kind === "auto" ? ph : null;
   const ready = t.answer;
   const key = t.turnKey ?? "";
-  const options = optionsOf(ready?.data);
+  const options = optionsAt(h, ready, sim);
   const next = queue[0];
   const more = queue.filter((i) => i !== focus).length;
   const busy = tables.filter((x) => !x.hand.result && !x.failed && !x.spent).length;
@@ -287,6 +288,7 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
   const s = t.stats;
   const last = t.lastHand;
   const unit = t.hand.tournament?.model === "icm" ? PRIZE_UNIT : "bb";
+  const split = GRADE_WAYS.filter((w) => s.ways?.[w]);
   return (
     <li aria-label={`Table ${i + 1}`} aria-current={front ? "true" : undefined} className="space-y-0.5 border-t border-border pt-1.5 first:border-t-0 first:pt-0">
       <p className="flex flex-wrap gap-x-2">
@@ -294,8 +296,18 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
         <span>
           {s.hands} hand{s.hands === 1 ? "" : "s"}
         </span>
-        {s.n > 0 && <span className="font-mono">{pct(s.ok / s.n, 0)} best or correct</span>}
-        {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}{unit} lost per decision</span>}
+        {split.length > 1 ? (
+          split.map((w) => (
+            <span key={w} className="font-mono">
+              {WAY_WORDS[w]}: {wayFigures(w, s.ways![w]!, unit)}
+            </span>
+          ))
+        ) : (
+          <>
+            {s.n > 0 && <span className="font-mono">{pct(s.ok / s.n, 0)} best or correct</span>}
+            {s.ne > 0 && <span className="font-mono">{bb(s.loss / s.ne)}{unit} lost per decision</span>}
+          </>
+        )}
         {s.played > 0 && !t.hand.tournament && !t.hand.exploit && <span className="font-mono">net {signed(s.net)}bb</span>}
       </p>
       {last && (
@@ -368,7 +380,7 @@ export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap
       return room.dealFinished();
     }
     if (!front.turnKey) return;
-    const options = optionsOf(front.answer?.data);
+    const options = optionsAt(front.hand, front.answer);
     const kinds = options.map((a) => kindOf(a.action));
     const i = /^[1-9]$/.test(e.key) ? Number(e.key) - 1 : k === "f" ? kinds.indexOf("fold") : k === "c" || k === "x" ? kinds.findIndex((a) => a === "call" || a === "check") : -1;
     if (i >= 0 && i < options.length) room.choose(focus, front.turnKey, i);

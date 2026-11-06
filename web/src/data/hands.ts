@@ -1,7 +1,7 @@
 // Analyze's hands and graded decisions, kept in this browser's IndexedDB (db.ts): added once each (a hand already
 // kept is left as it is), listed newest first, and removed an import at a time with their decisions.
 import { noteSaved } from "./backupNudge";
-import { db, type DecisionRecord, type HandRecord } from "./db";
+import { db, deleting, type DecisionRecord, type HandRecord } from "./db";
 
 /** The site a hand played in Practice is kept under (features/practice/history.ts). */
 export const PRACTICE_SITE = "Lizard Practice";
@@ -83,14 +83,14 @@ export function importsOf(hands: readonly HandRecord[]): ImportSummary[] {
 export async function deleteImport(importId: string): Promise<number> {
   const d = await db();
   if (!d) return 0;
-  const tx = d.transaction(["hands", "decisions"], "readwrite");
-  const ids = await tx.objectStore("hands").index("byImport").getAllKeys(importId);
-  for (const id of ids) {
-    await tx.objectStore("hands").delete(id);
-    for (const k of await tx.objectStore("decisions").index("byHand").getAllKeys(id)) await tx.objectStore("decisions").delete(k);
-  }
-  await tx.done;
-  return ids.length;
+  return deleting(d, ["hands", "decisions"], async (gone, tx) => {
+    const ids = await tx.objectStore("hands").index("byImport").getAllKeys(importId);
+    for (const id of ids) {
+      await gone("hands", id);
+      for (const k of await tx.objectStore("decisions").index("byHand").getAllKeys(id)) await gone("decisions", k);
+    }
+    return ids.length;
+  });
 }
 
 /** Whether they were stored. */
@@ -114,8 +114,12 @@ export async function listDecisions(): Promise<DecisionRecord[]> {
   return d ? d.getAll("decisions") : [];
 }
 
-/** Forget every grade (the hands stay): they are graded again from the start. */
+/** Forget every grade (the hands stay): they are graded again from the start. Each is deleted by name, so a backup can't
+ * bring back one forgotten here; a grade given again is newer than its tombstone. */
 export async function clearDecisions(): Promise<void> {
   const d = await db();
-  if (d) await d.clear("decisions");
+  if (!d) return;
+  await deleting(d, ["decisions"], async (gone, tx) => {
+    for (const id of await tx.objectStore("decisions").getAllKeys()) await gone("decisions", id);
+  });
 }

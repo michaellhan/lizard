@@ -5,7 +5,7 @@ import { answerToKeep } from "@/data/answers";
 import { BACKUP_STORES, makeBackup, restoreBackup, type Backup } from "@/data/backup";
 import { db, kvGet, kvSet, type SavedSpot } from "@/data/db";
 import { filtersOf, putReport, reportWords } from "@/data/reports";
-import { listDrills, listRanges, listSpots, putDrill, putRange, putSpot } from "@/data/saved";
+import { deleteSpot, listDrills, listRanges, listSpots, putDrill, putRange, putSpot } from "@/data/saved";
 import { putScenario, type ScenarioSetup } from "@/data/scenarios";
 import { provenanceOf } from "@/solver/provenance";
 import { CHART_ANSWER, LIBRARY_ANSWER } from "@/test/answers";
@@ -51,6 +51,7 @@ function renderAt(path: string) {
 beforeEach(async () => {
   const d = (await db())!;
   for (const s of BACKUP_STORES) await d.clear(s);
+  await d.clear("tombstones");
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -142,6 +143,18 @@ describe("SavedPage", () => {
     fireEvent.change(await screen.findByLabelText("Backup file to restore"), { target: { files: [file] } });
     expect(await screen.findByText(/^That's 1,100 MB, over the 1,024 MB one import can read\./)).toBeInTheDocument();
     expect(text).not.toHaveBeenCalled();
+  });
+
+  it("says a restore keeps out what was deleted, and how many it left out", async () => {
+    await putSpot(spot("a", "Kept"));
+    await putSpot(spot("b", "Deleted"));
+    const b = await makeBackup();
+    await deleteSpot("b");
+    renderAt("/saved");
+    expect(await screen.findByText(/What you delete stays deleted: this browser remembers your deletes, up to the latest 100,000 of each kind/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [new File([JSON.stringify(b)], "backup.json")] } });
+    expect(await screen.findByText("Restored: 0 added, 0 updated, 1 kept (as new or newer here), 1 left out because it was deleted after that copy. Nothing here was deleted.")).toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: "Deleted" })).toBeNull();
   });
 
   it("lists saved drills of both kinds, opens one where it's dealt, renames and deletes", async () => {

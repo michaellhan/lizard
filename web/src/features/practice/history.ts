@@ -129,8 +129,9 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
     // (Analyze's money totals leave a tournament's out: these chips were no cash game's)
     ...(h.tournament ? { tournament: "Practice" } : {}),
     ...(revealed.length ? { revealed } : {}),
-    // (what the history can't say, for its Study links)
-    ...(h.sizes || h.rake ? { setup: { ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h) } } : {}),
+    // (what the history can't say, for its Study links, and whether its raises were offered at the preflop solve's sizes,
+    // which Analyze reads a spot by)
+    ...(h.sizes || h.rake || h.pfSizes ? { setup: { ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h), ...(h.pfSizes ? { pfSizes: true as const } : {}) } } : {}),
     ...(h.pot ? { playedFor: "preflop" as const, decisions: heroDecisions(replayed).filter((d) => d.street !== "preflop").length } : {}),
   };
 }

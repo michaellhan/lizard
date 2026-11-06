@@ -18,6 +18,18 @@ afterEach(() => {
 });
 
 describe("salvage", () => {
+  it("keeps what was deleted deleted: the file it makes carries the tombstones, and leaves out those of no store it knows", async () => {
+    await wipe();
+    const d = await openLizardDB(DB_VERSION);
+    await d.put("savedSpots", SPOT);
+    await d.put("tombstones", { store: "savedSpots", id: "gone", at: 50, dev: "here" });
+    await d.put("tombstones", { store: "nothing", id: "x", at: 50 } as never);
+    d.close();
+    const s = await salvage();
+    expect(s.read).toBe(1);
+    expect(s.backup!.tombstones).toEqual({ savedSpots: [{ id: "gone", v: s.backup!.schema, updated: 50, dev: "here", deleted: true }] });
+  });
+
   it("reads a database at an older version, as it stands, without upgrading it", async () => {
     await wipe();
     const v4 = await openLizardDB(4);

@@ -161,3 +161,41 @@ test("A database this page can't open is read round, deleted behind a confirm an
   // the console said the database wouldn't open, and nothing else went wrong
   expect(problems.errors.filter((e) => !/database wouldn.t open/.test(e) && !/VersionError/.test(e))).toEqual([]);
 });
+
+test("A spot deleted after a backup stays deleted through a restore of it, and the restore says so", async ({ page, problems }) => {
+  await page.goto("/lizard/saved");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const q = indexedDB.open("lizard");
+        q.onerror = () => reject(new Error("open"));
+        q.onsuccess = () => {
+          const tx = q.result.transaction("savedSpots", "readwrite");
+          tx.objectStore("savedSpots").put({ id: "gone", title: "Old flop", line: "p=2&s=100", state: {}, tags: [], note: "", createdAt: 1, updatedAt: 2 });
+          tx.oncomplete = () => {
+            q.result.close();
+            resolve();
+          };
+        };
+      }),
+  );
+  await page.reload();
+  const row = page.getByRole("listitem", { name: "Old flop" });
+  await expect(row).toBeVisible();
+
+  const wait = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download backup" }).click();
+  const path = await (await wait).path();
+
+  await row.getByRole("button", { name: "Delete", exact: true }).click();
+  await row.getByRole("button", { name: "Delete spot", exact: true }).click();
+  await expect(row).toBeHidden();
+
+  await page.getByLabel("Backup file to restore").setInputFiles(path);
+  await expect(page.getByText(/1 left out because it was deleted after that copy/)).toBeVisible();
+  await expect(row).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Download backup" })).toBeVisible();
+  await expect(row).toBeHidden();
+  expect(problems.errors).toEqual([]);
+});

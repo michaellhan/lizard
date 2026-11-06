@@ -928,6 +928,27 @@ describe("Room lifecycle", () => {
     expect(asked).toHaveLength(1);
   });
 
+  it("says a session is under way once there's something to lose, not for a hand only dealt", async () => {
+    const { room, asked } = setup({ players: 2 });
+    expect(room.snapshot()).toMatchObject({ holding: false, underWay: false });
+    await toFlop(room, asked);
+    expect(room.snapshot().underWay).toBe(true);
+    // (a session begun in its place has nothing to lose yet)
+    room.startSession(2, 100, OPTS);
+    expect(room.snapshot().underWay).toBe(false);
+  });
+
+  it("counts a kept session it hasn't read yet as under way, and holds until it knows", async () => {
+    let read = () => {};
+    const { room } = setup({ persist: true, readKept: () => new Promise<void>((r) => (read = r)) });
+    expect(room.snapshot().holding).toBe(true);
+    await pass(1000);
+    expect(room.snapshot()).toMatchObject({ holding: false, underWay: true });
+    read();
+    await flush();
+    expect(room.snapshot().underWay).toBe(false);
+  });
+
   it("still deals at one table when the kept doc's read never settles", async () => {
     const { room, asked } = setup({ persist: true, readKept: () => new Promise(() => {}) });
     await pass(999);

@@ -36,6 +36,14 @@ async function ensureIsolation(): Promise<void> {
 
 void ensureIsolation();
 
+// A browser left unlocked for account sync takes up where it was. Nothing of sync loads without the mark, and it's off
+// until the service is deployed. Reading it can throw, with site data blocked.
+try {
+  if (import.meta.env.VITE_SYNC === "on" && localStorage.getItem("lizard-sync")) void import("./sync/auto").then((m) => m.resumeHere());
+} catch {
+  /* no sync here */
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>

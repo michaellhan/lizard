@@ -4,7 +4,7 @@
 // drawn or changed. Two tabs can miss or retry at once, so a change reads and writes in one transaction.
 import type { Verdict } from "@/grading/grade";
 import type { Provenance, ResultSource } from "@/solver/types";
-import { db, type MistakeAsk, type MistakeRecord, type MistakeTry } from "./db";
+import { db, deleteRecord, type MistakeAsk, type MistakeRecord, type MistakeTry } from "./db";
 import { isCard, isWellFormed } from "./shapes";
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
@@ -119,12 +119,7 @@ export async function addMistake(fresh: MistakeRecord, keyOf: SpotKey = noKey): 
 }
 
 /** A record taken out of the queue, its retries with it. Whether this browser could: a damaged one goes the same way. */
-export async function deleteMistake(id: string): Promise<boolean> {
-  const d = await db();
-  if (!d) return false;
-  await d.delete("mistakes", id);
-  return true;
-}
+export const deleteMistake = (id: string): Promise<boolean> => deleteRecord("mistakes", id);
 
 /** Every record, and how many couldn't be read, the latest missed first. */
 export async function listMistakes(): Promise<{ list: MistakeRecord[]; damaged: number }> {

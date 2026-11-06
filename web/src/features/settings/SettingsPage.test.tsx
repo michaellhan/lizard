@@ -24,6 +24,19 @@ describe("SettingsPage", () => {
     expect(accuracy.querySelector('[aria-checked="true"]')).toHaveTextContent("Accurate");
   });
 
+  it("keeps the patterns on by default, and takes them off the whole page on request", () => {
+    useSettings.getState().reset();
+    render(<SettingsPage />, { wrapper: MemoryRouter });
+    const box = screen.getByRole("checkbox", { name: "Patterns on action colours" });
+    expect(box).toBeChecked();
+    expect(document.documentElement.dataset.patterns).toBeUndefined();
+    fireEvent.click(box);
+    expect(useSettings.getState().patterns).toBe(false);
+    expect(document.documentElement.dataset.patterns).toBe("off");
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(document.documentElement.dataset.patterns).toBeUndefined();
+  });
+
   it("reaches Engine from here, as a phone hides the status pill", () => {
     render(<SettingsPage />, { wrapper: MemoryRouter });
     expect(screen.getByRole("link", { name: "Engine status" })).toHaveAttribute("href", "/engine");
