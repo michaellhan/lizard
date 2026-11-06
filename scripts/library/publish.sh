@@ -38,9 +38,14 @@ G=(git -C "$CLONE" -c core.compression=0 -c pack.threads=1 -c pack.compression=0
 rsync -a --delete --exclude .git --exclude .lizard-stage "$STAGE/" "$CLONE/"
 "${G[@]}" add -A
 if "${G[@]}" diff --cached --quiet; then
-  echo "lizard-library: nothing changed since the last publish"
-  exit 0
-fi
+  # A push that failed leaves its commit here, with nothing new to commit: it's still to send, or it never would be.
+  ahead=$("${G[@]}" rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo 0)
+  if [ "$ahead" = "0" ]; then
+    echo "lizard-library: nothing changed since the last publish"
+    exit 0
+  fi
+  echo "lizard-library: nothing new, but $ahead commit(s) from a push that failed are still to send"
+else
 msg=$("$PY" - "$CLONE/lizard-library.json" <<'PY'
 import json, sys
 s = json.load(open(sys.argv[1]))
@@ -50,6 +55,7 @@ PY
 )
 "${G[@]}" commit --quiet -m "$msg"
 echo "$msg"
+fi
 if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "DRY_RUN: committed locally in $CLONE; not pushed"
   exit 0
