@@ -243,30 +243,35 @@ contains no sync panel and makes no request to it.
 
 What needs the owner's accounts, in order:
 
-1. Resend: create the account, verify `michael-han.com` with the DNS records it gives, create an API key.
-2. Cloudflare: create the D1 database, and a token that can edit Workers, routes and D1 on this zone.
-3. From `worker/`, with that token in `CLOUDFLARE_API_TOKEN`:
+1. Resend: confirm `michael-han.com` shows Verified, and create an API key with sending access to that domain only. As of
+   2026-11-06, public DNS already has Resend's records (`resend._domainkey`, and MX and SPF on `send`); they don't touch the
+   domain's IONOS mail on the root. The free plan allows 100 mails a day.
+2. Cloudflare: `npx wrangler@4 login`, once. No token is needed, as nothing in CI deploys the Worker. As of 2026-11-06 this Mac
+   is logged in with `workers_scripts`, `workers_routes` and `d1` write, and the account has no `lizard-sync` database.
+3. From `worker/`, deploying first so that the secret has a Worker to go on:
 
 ```bash
-npx wrangler d1 create lizard-sync
+npx wrangler@4 d1 create lizard-sync
 ```
 
 Put the id it prints in `wrangler.toml` as `database_id`. It's an identifier, not a secret.
 
 ```bash
-npx wrangler d1 execute lizard-sync --remote --file schema.sql
+npx wrangler@4 d1 execute lizard-sync --remote --file schema.sql
 ```
 
 ```bash
-npx wrangler secret put RESEND_API_KEY
+npx wrangler@4 deploy
 ```
 
 ```bash
-openssl rand -base64 32 | npx wrangler secret put EMAIL_HMAC_KEY
+openssl rand -base64 32 | npx wrangler@4 secret put EMAIL_HMAC_KEY
 ```
 
+The owner types this one, at its hidden prompt, in their own terminal:
+
 ```bash
-npx wrangler deploy
+npx wrangler@4 secret put RESEND_API_KEY
 ```
 
 4. Check `https://www.michael-han.com/lizard/api/health` answers JSON, and that the site itself, `/gto-solver/` and the homepage

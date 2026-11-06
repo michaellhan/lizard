@@ -114,8 +114,8 @@ Client code: `web/src/sync/`, with the crypto and merge tested on their own.
 
 ## What the owner has to provide
 
-- Cloudflare: a D1 database and a token allowed to edit Workers, routes and D1 on this zone, as `CLOUDFLARE_API_TOKEN` in
-  the repo's Actions secrets. It goes nowhere else.
+- Cloudflare: a D1 database, created with Wrangler logged in on this Mac. No token goes in the repo's Actions secrets, as
+  CI doesn't deploy the Worker.
 - Resend: an account, `michael-han.com` verified with the DNS records it gives, and an API key.
 - Worker secrets, set with `wrangler secret put`: `RESEND_API_KEY`, and `EMAIL_HMAC_KEY` (32 random bytes). I can generate
   the second, but only in a step that doesn't print it.
