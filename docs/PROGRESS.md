@@ -4348,3 +4348,5 @@ Live check of `daad850`: run 42379285348 green, `index-Dm744-HT.js` 295,518 byte
 The other faults were in the tests. Timings through the real worker, with builds and other sessions on the machine: 40 flops of the turn report read in 2.0 s, a 3-way turn report 5.0 s, 3-bet pots on monotone flops at worst 2.7 s to deal, a 4-bet pot 6.7 s, and on a straight filter 8.5 s. Running out of the 3,000 deals wasn't reached, so that stays untimed.
 
 Tests before this commit: 3346 unit tests in 171 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, and all 152 browser tests passed.
+
+Live check of `2cbd957`: run 42381640713 green, `index-DaHiDh6A.js` 295,555 bytes, `/lizard/` and three more pages, `/lizard/solver/manifest.json`, `/`, `/gto-solver/` and `/gto-solver-classic/` 200, `health` still 503 until the Google client exists. The scroll on New session couldn't be seen in the browser pane, which was hidden, so nothing that animates runs there. The tablet test now asserts it straight after the press, with no other click to cause it, and passes.

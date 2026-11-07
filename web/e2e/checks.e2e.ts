@@ -595,6 +595,7 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   expect(start!.y + start!.height, "New session on the first screen, px").toBeLessThanOrEqual(768);
 
   await page.getByRole("button", { name: "New session" }).click();
+  await expect.poll(() => page.evaluate(() => scrollY), "New session brings the table up, with no other click to do it").toBeGreaterThan(0);
   await expect(page.getByText(/preflop graded by the preflop solve, at its raise sizes/).first()).toBeVisible();
   await expect(options(page).first().or(nextHand(page))).toBeVisible({ timeout: 120_000 });
   for (let i = 0; i < 12 && !(await options(page).first().isVisible()); i += 1) {
