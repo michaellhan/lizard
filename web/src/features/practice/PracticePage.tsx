@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
+import { bringIntoView } from "@/components/scroll";
 import { rowKeys } from "@/components/rowKeys";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -203,6 +204,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   const place = useCallback((at: HTMLElement | null) => void at?.append(home), [home]);
   // On a phone the table comes first: the setup and everything else above it would fill the first screen and more.
   const [wide] = useState(() => typeof matchMedia !== "function" || matchMedia("(min-width: 768px)").matches);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const sum = summary(session.score);
   const others = past.filter((p) => p.id !== session.id);
@@ -217,6 +219,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       onStart={(p, n, o) => {
         pressRef.current = many;
         room.startSession(p, n, o);
+        // (at one table: with the form open on a tablet or laptop, the hand starts below the fold. MultiTables has its own.)
+        if (!many) bringIntoView(tableRef.current);
       }}
     />
   );
@@ -328,7 +332,9 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       )}
 
       {/* (while a link is being asked about, a key answers that, not the table) */}
-      {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active && !asking} />}
+      <div ref={tableRef} className="scroll-mt-14">
+        {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active && !asking} />}
+      </div>
 
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>

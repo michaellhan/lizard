@@ -4332,6 +4332,19 @@ The owner tried the magic link live and changed their mind: "why so complicated 
 - **Grades, from the owner's "split them":** Analyze's report tables give a row graded more than one way a figure a way under it, with no share or EV lost for the row as a whole. The Plan orders by EV lost to a solve of the spot, then by EV lost to the preflop solve, then by frequency, and never adds the two. A leak drill's score line splits, and keeps its picks a way for History. The EV-lost filter stands a hand at the larger kind rather than the sum. The JSON summary keeps the two EVs in separate fields.
 - **`?scenario=`** now waits for the kept session and asks first, as `?play=` does.
 
-A note on process. The subagent checking unverified features in a browser died when the Mac restarted overnight, and I went on waiting for its notice, so nothing ran for about sixteen hours. Its test file `web/e2e/checks.e2e.ts` is kept and is being run on its own; it isn't counted below until it has been.
+A note on process. The subagent checking unverified features in a browser died when the Mac restarted overnight, and I went on waiting for its notice, so nothing ran for about sixteen hours. Its test file `web/e2e/checks.e2e.ts` is kept and was finished after that commit (see the next entry).
 
 Tests before this commit: 3346 unit tests in 171 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, the Worker's 28 tests, and the two-browser sync check with Google stood in for, 12 of 12. The browser run gave 138 passed and 1 failed, step 7d, whose new line assumed a dialog that shows only when a hand was kept in time. It now takes either, and passed alone. Google itself hasn't been reached: that needs the owner's client.
+
+Live check of `daad850`: run 42379285348 green, `index-Dm744-HT.js` 295,518 bytes, `/lizard/` and six more pages, `/lizard/solver/manifest.json`, `/`, `/gto-solver/` and `/gto-solver-classic/` 200. Worker version 43350160 is on its route, the database has `account_hash` and no `login_tokens`, its one old row kept. `health` answers 503, so Settings shows no sync panel, as meant until the Google client exists. The console shows that 503 and the Cloudflare beacon the page's own policy blocks, which goes when the owner turns the beacon off. The Worker's secrets weren't changed: writing them was refused to me, so `docs/DEPLOYMENT.md` §6 has the owner run those commands.
+
+### 2026-11-07: the features that had no look in a browser (Phases 2 to 6)
+
+`web/e2e/checks.e2e.ts` is 13 tests on the built site and the real worker, for matrix rows that said "not yet checked in a browser". It runs in the local gate and is skipped in CI, as several read the live library or wait on the worker and none should hold up a deploy. Two real faults came out of it:
+
+- **Practice at tablet size:** with the Game form open, the first hand started below the fold at 1024×768, and the last option ended at 934px. New session now brings the table up, at one table, as several tables already did.
+- **History:** Totals by kind and by street could scroll sideways at 375px, but no key could reach them. They're stops for the keys now, like the rate tables.
+
+The other faults were in the tests. Timings through the real worker, with builds and other sessions on the machine: 40 flops of the turn report read in 2.0 s, a 3-way turn report 5.0 s, 3-bet pots on monotone flops at worst 2.7 s to deal, a 4-bet pot 6.7 s, and on a straight filter 8.5 s. Running out of the 3,000 deals wasn't reached, so that stays untimed.
+
+Tests before this commit: 3346 unit tests in 171 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, and all 152 browser tests passed.

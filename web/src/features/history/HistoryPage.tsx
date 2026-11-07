@@ -182,7 +182,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
   return (
     <section aria-label="Lifetime totals" className="space-y-1">
       <h2 className="text-lg font-semibold">Lifetime</h2>
-      <div className="scroll-x">
+      <div className="scroll-x" role="group" aria-label="Totals by kind, scrolls sideways" tabIndex={0}>
         <table className="text-left text-sm" aria-label="Totals by kind">
           <thead className="text-xs text-muted">
             <tr>
@@ -241,7 +241,7 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
     <section aria-label="Decisions by street" className="space-y-1">
       <h2 className="text-lg font-semibold">Decisions by street</h2>
       {t.rows.length > 0 && (
-        <div className="scroll-x">
+        <div className="scroll-x" role="group" aria-label="Totals by street, scrolls sideways" tabIndex={0}>
           <table className="text-left text-sm" aria-label="Totals by street">
             <thead className="text-xs text-muted">
               <tr>
