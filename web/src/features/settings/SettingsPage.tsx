@@ -47,7 +47,7 @@ export function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
-      <p className="text-sm text-muted">Saved in this browser (IndexedDB). Nothing leaves your device.</p>
+      <p className="text-sm text-muted">Saved in this browser (IndexedDB). Settings never leave your device.</p>
 
       <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
         <legend className="px-1 font-medium">Solve accuracy</legend>

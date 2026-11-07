@@ -4350,3 +4350,19 @@ The other faults were in the tests. Timings through the real worker, with builds
 Tests before this commit: 3346 unit tests in 171 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, and all 152 browser tests passed.
 
 Live check of `2cbd957`: run 42381640713 green, `index-DaHiDh6A.js` 295,555 bytes, `/lizard/` and three more pages, `/lizard/solver/manifest.json`, `/`, `/gto-solver/` and `/gto-solver-classic/` 200, `health` still 503 until the Google client exists. The scroll on New session couldn't be seen in the browser pane, which was hidden, so nothing that animates runs there. The tablet test now asserts it straight after the press, with no other click to cause it, and passes.
+
+### 2026-11-07: sync with no passphrase, the turn report's chart and CSV, and one split in Study (Phases 3, 6, 7)
+
+**Sync.** The owner chose to drop the passphrase, so signing in with Google is now all there is to it. No client-side encryption is left: `web/src/sync/crypto.ts` is gone, a record goes as JSON, and `PUT keys`, the salt and check value, Lock, Unlock and Stay unlocked went with it. The server can read what's synced, so the words moved with the risk:
+
+- `ABOUT_SYNC`, above the Sign in button, says signing in starts it, that nothing is encrypted end to end, that the site's owner can read it and Cloudflare could, player names in imported hands included, and that staying signed out with Download backup avoids it.
+- Home and Settings said your data stays on this device. They now say that only until you sign in, and Settings speaks for settings alone.
+- The account panel says D1's restore points can hold a deleted copy for up to 30 days.
+
+The salt had a second job: a browser used it to tell that the copy on the server wasn't the one it had been keeping up with. `GET me` now gives the account's row id for that, or an account deleted and come back would never be sent what the browser holds. A record's size is counted in bytes on the Worker and as sent on the client, as a hand's quotes are escaped in the request. Two-browser check (`scripts/sync_check.mjs`, Google and D1 stood in for): 11 of 11. The Worker has 29 tests. It still hasn't run against Google.
+
+**Turn report.** A chart of the table's rows (`TurnChart.tsx`) and "Download turn CSV", each carrying what the numbers are and how many flops they stand on. A stopped or unfinished read says so on every row and in the file's name. The action palette, used app-wide, fails the dataviz validator in dark mode (normal-vision separation 9.2 on `#d23c4b` / `#e8613c` against a floor of 15, All-in's contrast 2.21 against the surface): the patterns, gaps, legend and table offset it, and it wasn't changed here.
+
+**Study.** Build mode's grid now shares Study's split (`StudySplit.tsx`), and Enter resets the separator. Fixing that found a fault: `1` or `b` on the focused separator left the grid in Study, and `2` changed the brush in Build. The separator now counts as a control that keeps single keys. One first End at 1440px stopped at 68% rather than 74%, in one run of five, unexplained and unfixed; a second press reaches it.
+
+Tests before this commit: 3355 unit tests in 170 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, the Worker's 29, and 151 browser tests passed with 130 skipped. One failed: `/study` on desktop timed out at 60 s, because the machine guard paused the Playwright runner from 10:25 to 10:51 (memory tight, the runner at 2.5 GB, over the 1 GB this project keeps to). That test then passed 5 of 5 alone. The rest of the suite wasn't rerun.

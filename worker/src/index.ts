@@ -4,7 +4,7 @@
 import { finishGoogle, signOut, startGoogle, userOf } from "./auth";
 import type { Env } from "./env";
 import { json, Refused, refuse } from "./http";
-import { deleteAccount, me, pull, push, setKeys } from "./records";
+import { deleteAccount, me, pull, push } from "./records";
 
 const BASE = "/lizard/api/";
 
@@ -24,9 +24,8 @@ async function route(req: Request, env: Env, now: number): Promise<Response> {
   if (at === "POST auth/signout") return signOut(req, env);
   const user = await userOf(req, env, now);
   if (at === "GET me") return me(env, user);
-  if (path === "keys" || path === "records" || path === "account") {
+  if (path === "records" || path === "account") {
     if (!user) throw new Refused(401, "signed_out");
-    if (at === "PUT keys") return setKeys(req, env, user);
     if (at === "GET records") return pull(url, env, user);
     if (at === "POST records") return push(req, env, user, now);
     if (at === "DELETE account") return deleteAccount(env, user);

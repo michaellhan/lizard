@@ -285,7 +285,14 @@ What needs the owner's Google account:
 npx wrangler@4 secret put GOOGLE_CLIENT_SECRET
 ```
 
-6. Check it for real: sign in with Google, choose a passphrase, sync, unlock in a second browser, delete something in one and
-   see it go in the other, delete the account, and read the D1 rows to see only ciphertext.
+6. Check it for real: sign in with Google, see it sync with nothing to type, sign in in a second browser, delete something in
+   one and see it go in the other, delete the account, and read the D1 rows to see that nothing of it is left.
+7. The live `users` table still has the unused `salt` and `check_value` columns of the encrypted version, holding the old test
+   account's values. `worker/schema.sql` no longer has them and nothing reads them. Once that account is deleted they're empty,
+   and these drop them:
+
+```bash
+npx wrangler@4 d1 execute lizard-sync --remote --command "ALTER TABLE users DROP COLUMN salt; ALTER TABLE users DROP COLUMN check_value;"
+```
 
 To take it down, set `LIZARD_SYNC` off and redeploy, then remove the route (`npx wrangler@4 delete` from `worker/` removes the Worker and its route, and leaves the database). Local data is untouched by either.

@@ -592,11 +592,11 @@ Moves matrix rows: Solution comparisons, Range comparison.
 
 **Goal.** Let users who want it sync their saved data across devices. Nobody is ever required to sign in.
 
-**Status (2026-11-06).** Decided by the owner and built: Cloudflare Workers + D1, Sign in with Google (an email magic link until the owner tried it and changed their mind), end-to-end encrypted, for saved spots, session history, imported hands and kept mistakes. The service is up on real D1 and the panel is in the site. It waits on the owner's Google OAuth client (`docs/DEPLOYMENT.md` section 6). The design is `docs/SYNC_DESIGN.md`.
+**Status (2026-11-06).** Decided by the owner and built: Cloudflare Workers + D1, Sign in with Google (an email magic link until the owner tried it and changed their mind), with no passphrase and no end-to-end encryption (dropped by the owner on 2026-11-07 so signing in is all there is to it, the page saying so before the button), for saved spots, session history, imported hands and kept mistakes. The service is up on real D1 and the panel is in the site. It waits on the owner's Google OAuth client (`docs/DEPLOYMENT.md` section 6). The design is `docs/SYNC_DESIGN.md`.
 
 **Deliverables.**
-- **A separate small service.** Not part of the static site. It stores encrypted record blobs, using the Phase 5 record shape, `{id, v, created, updated, dev, data}`.
-- **Client.** A sync module in `web/src/data/`, off by default and enabled from Settings. It uses end-to-end encryption with a user passphrase, so the server cannot read hands.
+- **A separate small service.** Not part of the static site. It stores records as JSON the service can read, using the Phase 5 record shape, `{id, v, created, updated, dev, data}`.
+- **Client.** A sync module in `web/src/data/`, off by default and enabled from Settings. It sends nothing until the user signs in, and says first that the server can read what's synced, hands included.
 - **Conflicts.** Newer record wins, as in restore. Deletions use tombstones.
 - **Manual backup stays.** Backup and restore remain the main no-account path.
 
@@ -607,11 +607,11 @@ Moves matrix rows: Solution comparisons, Range comparison.
 **Acceptance tests.**
 - With sync off, the app makes no requests to the sync host.
 - Two simulated devices converge after offline edits.
-- Server data is unreadable without the passphrase. Losing the passphrase loses only the server copy, not local data.
+- The page says who can read the synced copy before the sign-in button. Signing out or deleting the account leaves local data as it was.
 
 **Risks.**
 - **It is an ongoing service,** with cost, abuse handling and privacy duties.
-- **Passphrase loss** cannot be recovered by design. Say so.
+- **Readable hand histories on the server,** with the screen names in them: the owner holds other people's private data once anyone else signs in. Say so, and keep Delete my account working.
 
 ### Phase 12: AI explanations through a server-side proxy
 

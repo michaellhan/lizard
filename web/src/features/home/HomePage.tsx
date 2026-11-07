@@ -15,7 +15,7 @@ export function HomePage() {
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Study poker at equilibrium.</h1>
         <p className="max-w-2xl text-muted">
           Lizard solves No-Limit Hold'em in your browser — preflop charts, a precomputed flop library, live turn and river solves — and
-          labels every number with what produced it and how close to equilibrium it is. No account; your data stays on this device.
+          labels every number with what produced it and how close to equilibrium it is. No account needed; your data stays on this device unless you sign in to sync it.
         </p>
         <div className="flex flex-wrap gap-2">
           <Link to="/study" className="rounded-md bg-accent px-4 py-2 font-medium text-bg hover:bg-accent-strong">

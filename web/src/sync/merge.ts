@@ -1,10 +1,9 @@
-// One sync: what's new on the server comes in, then what's new here goes out. The server can't read a record, so all the
-// deciding is done here, by the rule of a restore (data/backup.ts): of two copies the later stays, and a deletion stands
+// One sync: what's new on the server comes in, then what's new here goes out. The server only keeps what it's given, so all
+// the deciding is done here, by the rule of a restore (data/backup.ts): of two copies the later stays, and a deletion stands
 // against any copy not changed after it. A sync differs from a restore in one thing, which backup.ts sets out: a deletion
-// that arrives here takes the record here too, as it comes sealed by this account's key, where a file can come from anyone.
+// that arrives here takes the record here too, as it comes from this account, where a file can come from anyone.
 //
-// The record's id is inside what's sealed, as a hand's id holds its site, number and hole cards. So is the deletion: to the
-// server a deleted record is one more sealed record replacing the copy it had.
+// A deletion is a record like any other: to the server it's one more record replacing the copy it had.
 //
 // Saved answers and grades aren't synced (docs/SYNC_DESIGN.md). They go with what they belong to all the same, so a spot or
 // hand deleted on another device takes them here, as deleting it here would.
@@ -12,7 +11,6 @@ import { recordValid } from "@/data/backup";
 import { db, kvGet, kvSet, LAST_CHANGED, tombstonesOf, trimTombstones, type KeptStore, type LizardDB, type TombstoneStore } from "@/data/db";
 import type { IDBPDatabase } from "idb";
 import { pull, push, type Outgoing, type RemoteRecord } from "./api";
-import { idHash, openRecord, sealRecord, type SyncKeys } from "./crypto";
 
 /** What's synced, and the number the server knows each by: position + 1, so never reorder this. */
 export const SYNCED = ["savedSpots", "sessions", "hands", "mistakes"] as const satisfies readonly KeptStore[];
@@ -27,8 +25,8 @@ const STATE = "syncState";
 
 /** What this browser has seen of the account. It's kept with the data, so a browser that lost its data starts over. */
 export interface SyncState {
-  /** the account's salt: a new one means the synced copy was reset, and what's known of the old one is worth nothing */
-  salt: string;
+  /** the account's row: another one means what's known here is of something else, and is worth nothing */
+  account: string;
   /** the last sequence number read */
   seq: number;
   /** `store|id` to the time of the copy the server has, sent or read: what differs is what's to send */
@@ -36,7 +34,7 @@ export interface SyncState {
 }
 
 export interface SyncReport {
-  /** records read, what changed here by them, and what couldn't be opened or wasn't a record */
+  /** records read, what changed here by them, and what wasn't a record */
   read: number;
   changed: number;
   unread: number;
@@ -50,25 +48,31 @@ export interface SyncReport {
 
 const keyOf = (s: SyncedStore, id: string) => `${s}|${id}`;
 
-/** A record as sealed, or that it was deleted and when. */
-type Sealed = { id: string; updated: number; data: Record<string, unknown> } | { id: string; updated: number; deleted: true };
+/** A record as synced, or that it was deleted and when. */
+type Synced = { id: string; updated: number; data: Record<string, unknown> } | { id: string; updated: number; deleted: true };
 
 const changedAt = (s: SyncedStore, d: unknown) => (LAST_CHANGED[s] as (x: unknown) => number)(d);
 
-export async function readState(salt: string): Promise<SyncState> {
+export async function readState(account: string): Promise<SyncState> {
   const kept = await kvGet<SyncState>(STATE);
-  return kept?.salt === salt && kept.sent instanceof Map && Number.isSafeInteger(kept.seq) ? kept : { salt, seq: 0, sent: new Map() };
+  return kept?.account === account && kept.sent instanceof Map && Number.isSafeInteger(kept.seq) ? kept : { account, seq: 0, sent: new Map() };
 }
 
-/** Forgets what's known of the account: signing out, or the synced copy reset. What's kept here stands. */
+/** Forgets what's known of the account: signing out, or deleting it. What's kept here stands. */
 export const forgetState = () => kvSet(STATE, null);
 
 const writeState = (s: SyncState) => kvSet(STATE, s);
 
 const storeOf = (n: number): SyncedStore | undefined => SYNCED[n - 1];
 
-/** What a sealed record says, or null where it isn't one: nothing in it is trusted further than its shape. */
-export function readSealed(s: SyncedStore, x: unknown): Sealed | null {
+/** What the server files a record under, for one length and one alphabet whatever the id holds. It hides nothing: the id's in the record. */
+export async function fileId(store: number, id: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${store}|${id}`));
+  return [...new Uint8Array(hash)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** What a synced record says, or null where it isn't one: nothing in it is trusted further than its shape. */
+export function readRecord(s: SyncedStore, x: unknown): Synced | null {
   if (typeof x !== "object" || x === null) return null;
   const o = x as Record<string, unknown>;
   if (typeof o.id !== "string" || !o.id || !Number.isFinite(o.updated)) return null;
@@ -104,8 +108,8 @@ async function takeWith(tx: Tx, graves: TombstoneStore, s: SyncedStore, id: stri
   }
 }
 
-/** A page of sealed records, weighed against what's here, in one transaction. Nothing here happens unless all of it does. */
-async function merge(d: IDBPDatabase<LizardDB>, page: { s: SyncedStore; r: Sealed }[], sent: Map<string, number>): Promise<number> {
+/** A page of synced records, weighed against what's here, in one transaction. Nothing here happens unless all of it does. */
+async function merge(d: IDBPDatabase<LizardDB>, page: { s: SyncedStore; r: Synced }[], sent: Map<string, number>): Promise<number> {
   const tx = beginMerge(d);
   const graves = tx.objectStore("tombstones") as unknown as TombstoneStore;
   let changed = 0;
@@ -146,10 +150,10 @@ async function merge(d: IDBPDatabase<LizardDB>, page: { s: SyncedStore; r: Seale
 }
 
 /** Reads what's new on the server, page by page, each kept as it's merged, so a stop loses no more than the page. */
-async function pullAll(keys: SyncKeys, d: IDBPDatabase<LizardDB>, state: SyncState, out: SyncReport) {
+async function pullAll(d: IDBPDatabase<LizardDB>, state: SyncState, out: SyncReport) {
   for (;;) {
     const { records, more } = await pull(state.seq);
-    const page = await Promise.all(records.map((x) => openOne(keys, x)));
+    const page = await Promise.all(records.map(readOne));
     const good = page.filter((x) => x !== null);
     out.read += records.length;
     out.unread += records.length - good.length;
@@ -160,12 +164,21 @@ async function pullAll(keys: SyncKeys, d: IDBPDatabase<LizardDB>, state: SyncSta
   }
 }
 
-async function openOne(keys: SyncKeys, x: RemoteRecord): Promise<{ s: SyncedStore; r: Sealed } | null> {
+/** A body's JSON: null where it isn't, as nothing says the server was given something a device wrote. */
+function parsed(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
+}
+
+async function readOne(x: RemoteRecord): Promise<{ s: SyncedStore; r: Synced } | null> {
   const s = storeOf(x.store);
   if (!s) return null;
-  const r = readSealed(s, await openRecord(keys, x.store, x.id, x.body));
-  // (filed under another record's hash: the seal's additional data holds the hash, not the id inside)
-  return r && (await idHash(keys, x.store, r.id)) === x.id ? { s, r } : null;
+  const r = readRecord(s, parsed(x.body));
+  // (filed under another record's id: it would replace the wrong copy on the server the next time it's sent)
+  return r && (await fileId(x.store, r.id)) === x.id ? { s, r } : null;
 }
 
 /** What differs from the server's copy: of a record and its deletion, the later. */
@@ -186,10 +199,11 @@ async function toSend(d: IDBPDatabase<LizardDB>, sent: Map<string, number>): Pro
   return out;
 }
 
-const sealedLength = (json: string) => Math.ceil((new TextEncoder().encode(json).length + 28) / 3) * 4;
+/** A body's size as sent: it goes as a string inside the request's JSON, which adds to it, as a hand's text is full of quotes. */
+const sentLength = (body: string) => new TextEncoder().encode(JSON.stringify(body)).length;
 
 /** Sends what's new here. A failure stops it, with what went out already marked. */
-async function pushAll(keys: SyncKeys, d: IDBPDatabase<LizardDB>, state: SyncState, out: SyncReport) {
+async function pushAll(d: IDBPDatabase<LizardDB>, state: SyncState, out: SyncReport) {
   const queue = await toSend(d, state.sent);
   out.left = queue.length;
   let batch: Outgoing[] = [];
@@ -209,8 +223,8 @@ async function pushAll(keys: SyncKeys, d: IDBPDatabase<LizardDB>, state: SyncSta
     size = 0;
   };
   for (const { s, id, updated, data } of queue) {
-    const value = data === undefined ? { id, updated, deleted: true } : { id, updated, data };
-    const length = sealedLength(JSON.stringify(value));
+    const body = JSON.stringify(data === undefined ? { id, updated, deleted: true } : { id, updated, data });
+    const length = sentLength(body);
     if (length > SEND.record) {
       out.tooLarge++;
       out.left--;
@@ -218,8 +232,7 @@ async function pushAll(keys: SyncKeys, d: IDBPDatabase<LizardDB>, state: SyncSta
     }
     if (batch.length >= SEND.records || size + length > SEND.bytes) await flush();
     const n = numberOf(s);
-    const hash = await idHash(keys, n, id);
-    batch.push({ store: n, id: hash, body: await sealRecord(keys, n, hash, value) });
+    batch.push({ store: n, id: await fileId(n, id), body });
     names.push([keyOf(s, id), updated]);
     size += length;
   }
@@ -227,20 +240,20 @@ async function pushAll(keys: SyncKeys, d: IDBPDatabase<LizardDB>, state: SyncSta
 }
 
 /** One sync. Rejects with SyncFailed where it's stopped, with what was done kept; run again, it picks up from there. */
-export async function syncOnce(keys: SyncKeys, salt: string): Promise<SyncReport> {
+export async function syncOnce(account: string): Promise<SyncReport> {
   const d = await db();
   const out: SyncReport = { read: 0, changed: 0, unread: 0, sent: 0, tooLarge: 0, left: 0 };
   if (!d) return out;
-  const state = await readState(salt);
-  await pullAll(keys, d, state, out);
-  await pushAll(keys, d, state, out);
+  const state = await readState(account);
+  await pullAll(d, state, out);
+  await pushAll(d, state, out);
   return out;
 }
 
 /** Sync's report in words. */
 export function reportWords(r: SyncReport): string {
   const parts = [`${r.changed} changed here`, `${r.sent} sent`];
-  if (r.unread) parts.push(`${r.unread} couldn't be opened and were left alone`);
+  if (r.unread) parts.push(`${r.unread} couldn't be read and were left alone`);
   if (r.tooLarge) parts.push(`${r.tooLarge} too large to sync, kept here only`);
   if (r.left) parts.push(`${r.left} still to send`);
   return parts.join(", ");

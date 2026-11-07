@@ -1,6 +1,6 @@
 // Account sync in two real browsers, against the Worker's real code on the real schema. SQLite stands in for D1 and two
 // stubs for Google, as neither is reachable from here; everything else is real: the redirects through the service worker,
-// the cookies, WebCrypto, keys kept in IndexedDB, and two browsers converging. It's run by hand:
+// the cookies, and two browsers converging. It's run by hand:
 //
 //   node --experimental-transform-types --no-warnings scripts/sync_check.mjs
 //
@@ -77,7 +77,6 @@ const check = (name, ok, more = "") => {
   if (!ok) failures.push(name);
 };
 
-const PHRASE = "a long enough phrase";
 const settings = `${ORIGIN}/lizard/settings`;
 
 /** What Google's page does once you've picked an account, or pressed Cancel. */
@@ -138,27 +137,19 @@ try {
   await a.context().unroute("https://accounts.google.com/**");
 
   await signIn(a);
-  await a.getByLabel(/^Passphrase/).fill(PHRASE);
-  await a.getByLabel("The same again").fill(PHRASE);
   check("the redirects run through the service worker and sign in", true);
-  await a.getByRole("button", { name: "Start syncing" }).click();
   await a.getByText(/Last synced at/).waitFor();
-  check("a passphrase chosen, and a first sync", true);
+  check("signing in is enough: the first sync follows with nothing to type", (await a.getByRole("textbox").count()) === 0);
 
   await seed(a, spot("sync-check-1", "Sealed flop"));
   await syncNow(a, /, 1 sent/);
   const held = await rows();
   check("one record reached the server", held.length === 1, `${held.length}`);
-  check("the server holds no name or id", !JSON.stringify(held).includes("Sealed flop") && !JSON.stringify(held).includes("sync-check-1"));
+  check("the server holds the record as JSON, as the panel says it does", JSON.parse(held[0].body).data?.title === "Sealed flop");
 
   await signIn(b);
-  await b.getByLabel("Passphrase", { exact: true }).fill("not the right phrase at all");
-  await b.getByRole("button", { name: "Unlock" }).click();
-  await b.getByText("isn't the passphrase").waitFor();
-  check("a new device finds the same account, and a wrong passphrase opens nothing", true);
-  await b.getByLabel("Passphrase", { exact: true }).fill(PHRASE);
-  await b.getByRole("button", { name: "Unlock" }).click();
   await b.getByText(/1 changed here/).waitFor();
+  check("a new device finds the same account, and syncs on signing in", true);
   await b.goto(`${ORIGIN}/lizard/saved`);
   await saved(b, "Sealed flop").waitFor();
   check("the second device has the spot", true);
@@ -167,37 +158,22 @@ try {
   await saved(b, "Sealed flop").getByRole("button", { name: "Delete spot", exact: true }).click();
   await saved(b, "Sealed flop").waitFor({ state: "hidden" });
   await b.goto(settings);
-  await b.getByLabel("Passphrase", { exact: true }).fill(PHRASE);
-  await b.getByRole("button", { name: "Unlock" }).click();
   await b.getByText(/1 sent/).waitFor();
   await syncNow(a, /1 changed here/);
   await a.goto(`${ORIGIN}/lizard/saved`);
   await a.getByRole("button", { name: "Download backup" }).waitFor();
   check("the deletion reached the first device", (await saved(a, "Sealed flop").count()) === 0);
 
-  await a.goto(settings);
-  await a.getByLabel("Passphrase", { exact: true }).fill(PHRASE);
-  await a.getByRole("checkbox", { name: "Stay unlocked on this device" }).check();
-  await a.getByRole("button", { name: "Unlock" }).click();
-  await a.getByRole("button", { name: "Sync now" }).waitFor();
-  await a.goto(`${ORIGIN}/lizard/`);
+  await seed(a, spot("sync-check-2", "Kept going"));
+  await a.goto(`${ORIGIN}/lizard/saved`);
   await a.reload();
-  await a.goto(settings);
-  await a.getByRole("button", { name: "Sync now" }).waitFor();
-  check("stay unlocked holds through a reload: the keys are kept in IndexedDB unextractable", true);
-  const extractable = await a.evaluate(
-    () =>
-      new Promise((resolve, reject) => {
-        const q = indexedDB.open("lizard");
-        q.onerror = () => reject(new Error("open"));
-        q.onsuccess = () => {
-          const g = q.result.transaction("kv").objectStore("kv").get("syncKeys");
-          g.onsuccess = () => (q.result.close(), resolve(g.result ? g.result.keys.seal.extractable : "none"));
-        };
-      }),
-  );
-  check("the kept key can't be read out", extractable === false, String(extractable));
+  await a.waitForFunction(() => document.visibilityState === "visible");
+  await a.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  const reached = async () => (await rows()).some((r) => r.body.includes("Kept going"));
+  for (let i = 0; i < 40 && !(await reached()); i++) await a.waitForTimeout(250);
+  check("a reload away from Settings keeps syncing: the signed-in browser needs nothing typed", await reached());
 
+  await a.goto(settings);
   await a.getByRole("button", { name: "Delete my account" }).click();
   await a.getByRole("button", { name: "Delete the account and the synced copy" }).click();
   await a.getByRole("link", { name: "Sign in with Google" }).waitFor();

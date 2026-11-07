@@ -4,8 +4,8 @@ const BASE = "/lizard/api/";
 
 export interface Me {
   signedIn: boolean;
-  salt?: string | null;
-  check?: string | null;
+  /** the account's row: it's new if the account was deleted and came back */
+  account?: string;
   seq?: number;
   bytes?: number;
   maxBytes?: number;
@@ -22,7 +22,6 @@ const WORDS: Record<string, string> = {
   slow_down: "Too many tries. Wait a while, then try again.",
   signed_out: "You're signed out of sync.",
   account_full: "The synced copy is full: delete some kept data to make room.",
-  keys_set: "This account already has a passphrase.",
 };
 
 export class SyncFailed extends Error {
@@ -62,7 +61,6 @@ export const me = () => call<Me>("GET", "me");
 /** Where the browser goes to sign in: the service sends it on to Google, and Google sends it back to Settings. */
 export const GOOGLE_SIGN_IN = `${BASE}auth/google`;
 export const signOut = () => call("POST", "auth/signout", {});
-export const setKeys = (salt: string, check: string, reset = false) => call("PUT", "keys", { salt, check, ...(reset ? { reset } : {}) });
 export const pull = (since: number) => call<{ records: RemoteRecord[]; more: boolean }>("GET", `records?since=${since}`);
 export const push = (records: Outgoing[]) => call<{ seq: number; bytes: number }>("POST", "records", { records });
 export const deleteAccount = () => call("DELETE", "account");

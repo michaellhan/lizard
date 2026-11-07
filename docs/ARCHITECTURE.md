@@ -1,6 +1,6 @@
 # Lizard architecture
 
-Lizard is a static web app. All solving happens on the user's device. Accounts are optional and nothing needs one: an end-to-end encrypted sync service (`worker/`, `docs/SYNC_DESIGN.md`) is built and not yet deployed, and it's the only Lizard backend.
+Lizard is a static web app. All solving happens on the user's device. Accounts are optional and nothing needs one: a sync service (`worker/`, `docs/SYNC_DESIGN.md`) is up and waits on the owner's Google client, and it's the only Lizard backend. It isn't end to end encrypted: what a signed-in user syncs is readable on the server, and the page says so before they sign in.
 The numerical engine is the GTO Solver snapshot in `solver/`, reused unchanged behind a typed interface.
 
 Status words in this document follow [FEATURE_MATRIX.md](FEATURE_MATRIX.md): what exists today is described as such,
@@ -215,7 +215,8 @@ app redeploy.
   If AI explanations come back, it will be through a server-side proxy that builds the prompt from validated fields
   **(planned)**.
 - React rendering only; no `dangerouslySetInnerHTML`.
-- Account sync seals records in the browser with keys from a passphrase the server never sees (`docs/SYNC_DESIGN.md`). The
+- Account sync sends records as readable JSON, by the owner's decision of 2026-11-07, and only once a user has signed in with
+  the words saying so in front of them (`docs/SYNC_DESIGN.md`). Records coming down are shape-checked and rendered by React. The
   service's own keys are Worker secrets, in neither the bundle nor the repo. A request from any other origin is refused, and every write
   must carry a header a cross-site form can't set.
 - The built pages carry a `<meta>` Content-Security-Policy: `default-src 'self'`; scripts from self only; workers

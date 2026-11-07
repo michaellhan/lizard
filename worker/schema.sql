@@ -1,10 +1,8 @@
--- Account sync's tables. The server holds ciphertext, never a key, an email address or a name: see docs/SYNC_DESIGN.md.
+-- Account sync's tables. The records are readable here; the account behind them is a keyed hash, never an email address or a name: see docs/SYNC_DESIGN.md.
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   account_hash TEXT NOT NULL UNIQUE,
   created_at INTEGER NOT NULL,
-  salt TEXT,
-  check_value TEXT,
   seq INTEGER NOT NULL DEFAULT 0,
   bytes INTEGER NOT NULL DEFAULT 0
 );

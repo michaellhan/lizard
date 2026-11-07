@@ -224,7 +224,6 @@ describe("records", () => {
   it("asks for a session", async () => {
     expect((await call("GET", "records")).status).toBe(401);
     expect((await call("POST", "records", { body: { records: [rec(1)] } })).status).toBe(401);
-    expect((await call("PUT", "keys", { body: {} })).status).toBe(401);
     expect((await call("DELETE", "account")).status).toBe(401);
   });
 
@@ -256,9 +255,17 @@ describe("records", () => {
 
   it("refuses what isn't a record, with nothing written", async () => {
     const c = await signIn();
-    const cases: unknown[] = [[], "x", [rec(1), { ...rec(2), store: 9 }], [{ ...rec(1), id: "short" }], [{ ...rec(1), body: "<b>" }], [{ ...rec(1), body: "" }], [rec(1), rec(1)], Array.from({ length: MAX_RECORDS + 1 }, (_, i) => rec(i)), [{ ...rec(1), body: "A".repeat(700_004) }]];
+    const cases: unknown[] = [[], "x", [rec(1), { ...rec(2), store: 9 }], [{ ...rec(1), id: "short" }], [{ ...rec(1), body: "" }], [rec(1), rec(1)], Array.from({ length: MAX_RECORDS + 1 }, (_, i) => rec(i)), [{ ...rec(1), body: "A".repeat(700_004) }]];
     for (const bad of cases) expect((await put(c, bad)).status).toBe(400);
     expect((await get(c)).records).toEqual([]);
+  });
+
+  it("holds a device's JSON as it came, and counts its size in bytes", async () => {
+    const c = await signIn();
+    const body = JSON.stringify({ id: "h1", data: { text: 'Seat 1: "Ωmega" (€5)' } });
+    expect(await (await put(c, [rec(1, body)])).json()).toEqual({ seq: 1, bytes: new TextEncoder().encode(body).length });
+    expect((await get(c)).records[0]!.body).toBe(body);
+    expect((await put(c, [rec(2, "€".repeat(240_000))])).status).toBe(400);
   });
 
   it("refuses a request or an account too large", async () => {
@@ -299,25 +306,20 @@ describe("records", () => {
   });
 });
 
-describe("keys and the account", () => {
-  const keys = (c: string, salt: string, reset?: boolean) => call("PUT", "keys", { cookie: c, body: { salt, check: "Y2hlY2s=", ...(reset ? { reset } : {}) } });
-
-  it("sets the salt once, and only a reset replaces it, taking the old records", async () => {
+describe("the account", () => {
+  it("says which account it is, the same each time, and a new one after a delete", async () => {
     const c = await signIn();
-    expect(await (await call("GET", "me", { cookie: c })).json()).toMatchObject({ salt: null, check: null });
-    expect((await keys(c, "c2FsdA==")).status).toBe(200);
-    expect((await keys(c, "b3RoZXI=")).status).toBe(409);
-    expect(await (await call("GET", "me", { cookie: c })).json()).toMatchObject({ salt: "c2FsdA==", check: "Y2hlY2s=" });
-    await call("POST", "records", { cookie: c, body: { records: [{ store: 1, id: id(1), body: "QUJD" }] } });
-    expect((await keys(c, "b3RoZXI=", true)).status).toBe(200);
-    expect(await (await call("GET", "me", { cookie: c })).json()).toMatchObject({ salt: "b3RoZXI=", bytes: 0 });
-    expect((await (await call("GET", "records", { cookie: c })).json() as { records: unknown[] }).records).toEqual([]);
+    const me = async (cookie: string) => (await (await call("GET", "me", { cookie })).json()) as { account: string };
+    const { account } = await me(c);
+    expect(account).toBeTruthy();
+    expect((await me(await signIn())).account).toBe(account);
+    await call("DELETE", "account", { cookie: c });
+    expect((await me(await signIn())).account).not.toBe(account);
   });
 
-  it("refuses keys that aren't", async () => {
+  it("answers nothing to the keys route that's gone", async () => {
     const c = await signIn();
-    expect((await call("PUT", "keys", { cookie: c, body: { salt: 1, check: "x" } })).status).toBe(400);
-    expect((await call("PUT", "keys", { cookie: c, body: { salt: "<x>", check: "eA==" } })).status).toBe(400);
+    expect((await call("PUT", "keys", { cookie: c, body: { salt: "c2FsdA==", check: "Y2hlY2s=" } })).status).toBe(404);
   });
 
   it("deletes an account and everything of it, leaving another's", async () => {
