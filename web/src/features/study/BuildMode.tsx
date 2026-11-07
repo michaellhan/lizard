@@ -49,6 +49,7 @@ import {
 } from "@/features/ranges/build";
 import { formatRange, parseRange } from "@/features/ranges/rangeText";
 import { ComboPainter } from "./ComboPainter";
+import { StudySplit } from "./StudySplit";
 import { catsOf, classesIn } from "./filters";
 
 /** What a node's builder keeps while Study moves on and back (by the node's request). */
@@ -342,7 +343,7 @@ export function BuildMode({
   const ownOf = (cls: string) => h.now.combos[cls];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+    <StudySplit>
       <section aria-label="Build" className="space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <strong>{res.actor}</strong>
@@ -668,7 +669,7 @@ export function BuildMode({
           </section>
         )}
       </aside>
-    </div>
+    </StudySplit>
   );
 }
 

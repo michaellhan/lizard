@@ -135,6 +135,26 @@ test("Study: the folds to a seat in one step, and the split beside the grid that
     await expect(split).toBeVisible({ timeout: 90_000 });
     await expect(split).toHaveAttribute("aria-valuenow", at ?? "");
     await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-split.png`, fullPage: false });
+
+    // Build's grid is that same split: at the size it was left, moved by a real drag, and put back by a real key
+    await page.getByRole("button", { name: "✎ Build" }).click();
+    await expect(page.getByRole("region", { name: "Build" })).toBeVisible();
+    await expect(split).toHaveAttribute("aria-valuenow", at ?? "");
+    await expect(split).toHaveAccessibleDescription(/Press Enter or double-click to reset/);
+    const bar = (await split.boundingBox())!;
+    await page.mouse.move(bar.x + bar.width / 2, bar.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(bar.x + bar.width / 2 + 120, bar.y + 100, { steps: 4 });
+    await page.mouse.up();
+    await expect(split).not.toHaveAttribute("aria-valuenow", at ?? "");
+    await split.dblclick();
+    await expect(split).toHaveAttribute("aria-valuenow", "58");
+    await split.focus();
+    await page.keyboard.press("End");
+    await expect(split).not.toHaveAttribute("aria-valuenow", "58");
+    await page.keyboard.press("Enter");
+    await expect(split).toHaveAttribute("aria-valuenow", "58");
+    await expect(split).toBeFocused();
   }
   expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
   expect(problems.errors).toEqual([]);

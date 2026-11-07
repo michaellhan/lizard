@@ -1,5 +1,7 @@
-// Two panes side by side with a separator between them to drag, or to move with the arrow keys. Below Tailwind's `lg`
-// the panes stack, as a plain `grid gap-4` with no separator, so a page's narrow layout stays what it was.
+// Two panes side by side with a separator between them to drag, or to move with the arrow keys, Home and End; Enter or
+// a double-click puts it back (Enter as the ARIA window splitter's own key, and one Study's page keys leave alone).
+// Below Tailwind's `lg` the panes stack, as a plain `grid gap-4` with no separator, so a page's narrow layout stays what
+// it was.
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 /** The width the panes sit side by side from: Tailwind's `lg`, in rem as Tailwind writes it. */
@@ -53,7 +55,7 @@ export function ResizableWorkspace({
   children: [ReactNode, ReactNode];
   /** the start pane's share of the width, 0 to 1 (null: not moved, read as `defaultSize`); clamped here on every read */
   size: number | null;
-  /** when a drag ends or an arrow key moves it; null on the double-click that resets it */
+  /** when a drag ends or a key moves it; null on the Enter or double-click that resets it */
   onResize: (size: number | null) => void;
   defaultSize: number;
   /** in px, the narrowest each pane can go */
@@ -91,6 +93,10 @@ export function ResizableWorkspace({
     grab.current = null;
     setDragged(null);
   };
+  const reset = () => {
+    letGo();
+    onResize(null);
+  };
   const moveTo = (next: number) => {
     const s = clampSize(next, defaultSize, limits);
     if (s !== shown) onResize(s);
@@ -117,7 +123,7 @@ export function ResizableWorkspace({
           aria-valuenow={Math.round(shown * 100)}
           aria-valuemin={Math.round(Math.min(limits.min, shown) * 100)}
           aria-valuemax={Math.round(Math.max(limits.max, shown) * 100)}
-          title="Drag or use the arrow keys to resize. Double-click to reset."
+          title="Drag or use the arrow keys to resize, Home and End for the limits. Press Enter or double-click to reset."
           className="group relative cursor-col-resize touch-none select-none"
           onPointerDown={(e) => {
             if (e.button !== 0) return;
@@ -137,16 +143,14 @@ export function ResizableWorkspace({
             letGo();
           }}
           onPointerCancel={letGo}
-          onDoubleClick={() => {
-            letGo();
-            onResize(null);
-          }}
+          onDoubleClick={reset}
           onKeyDown={(e) => {
             const next = keys[e.key];
-            if (next === undefined || e.ctrlKey || e.metaKey || e.altKey) return;
+            if ((next === undefined && e.key !== "Enter") || e.ctrlKey || e.metaKey || e.altKey) return;
             // (handled here, or the page's own arrow keys would walk the line as well: Study skips what's defaultPrevented)
             e.preventDefault();
-            moveTo(next);
+            if (next === undefined) reset();
+            else moveTo(next);
           }}
         >
           <span

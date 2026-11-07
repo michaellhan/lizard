@@ -289,7 +289,7 @@ export function studyKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | 
 // where a key belongs to what's focused: every key to a field or the grid (which walks itself with the arrows); the
 // single keys also to a link, a button or any other control that a key acts on (WCAG 2.1.4)
 const TAKES_ALL_KEYS = 'input, select, textarea, [contenteditable], [role="grid"]';
-const TAKES_SINGLE_KEYS = 'a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="radio"], [role="checkbox"], [role="switch"], [role="slider"], [role="spinbutton"], [role="combobox"], [role="menuitem"]';
+const TAKES_SINGLE_KEYS = 'a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="radio"], [role="checkbox"], [role="switch"], [role="slider"], [role="spinbutton"], [role="combobox"], [role="menuitem"], [role="separator"]';
 
 /** Whether a key pressed with focus on `el` is the page's, not the control's: the arrows anywhere but a field or the grid,
  * 1-9, b and Backspace only away from any control. (Enter and Space aren't the page's: a focused button keeps them.) */

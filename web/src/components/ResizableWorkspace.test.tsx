@@ -248,6 +248,46 @@ describe("ResizableWorkspace", () => {
     expect(laidOut()).toBeCloseTo(DEFAULT);
   });
 
+  it("resets on Enter, as on a double-click, keeping the focus, with the page's keys left out of it", () => {
+    stubWindow(true);
+    const saved = vi.fn();
+    render(<Harness saved={0.65} onResize={saved} />);
+    const s = separator();
+    s.focus();
+    const seen: boolean[] = [];
+    const on = (e: KeyboardEvent) => seen.push(e.defaultPrevented);
+    window.addEventListener("keydown", on);
+    fireEvent.keyDown(s, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(s, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(s, { key: "Enter", altKey: true });
+    expect(saved).not.toHaveBeenCalled();
+    fireEvent.keyDown(s, { key: "Enter" });
+    window.removeEventListener("keydown", on);
+    expect(seen).toEqual([false, false, false, true]);
+    expect(saved.mock.calls).toEqual([[null]]);
+    expect(laidOut()).toBeCloseTo(DEFAULT);
+    expect(separator()).toBe(s);
+    expect(s).toHaveFocus();
+  });
+
+  it("drops a drag under way when Enter resets it", () => {
+    stubWindow(true);
+    const saved = vi.fn();
+    render(<Harness saved={0.5} onResize={saved} />);
+    fireEvent.pointerDown(separator(), { button: 0, buttons: 1, clientX: 600, pointerId: 1 });
+    fireEvent.pointerMove(separator(), { buttons: 1, clientX: 650, pointerId: 1 });
+    fireEvent.keyDown(separator(), { key: "Enter" });
+    expect(laidOut()).toBeCloseTo(DEFAULT);
+    fireEvent.pointerUp(separator(), { button: 0, clientX: 650, pointerId: 1 });
+    expect(saved.mock.calls).toEqual([[null]]);
+  });
+
+  it("says in its accessible description how to resize and how to reset", () => {
+    stubWindow(true);
+    render(<Harness />);
+    expect(separator()).toHaveAccessibleDescription("Drag or use the arrow keys to resize, Home and End for the limits. Press Enter or double-click to reset.");
+  });
+
   it.each([
     ["too small", 0.01, 40],
     ["too large", 0.99, 70],

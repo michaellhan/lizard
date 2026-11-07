@@ -6,7 +6,6 @@ import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useStat
 import { Link, useSearchParams } from "react-router";
 import { cellLabel, cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
-import { ResizableWorkspace } from "@/components/ResizableWorkspace";
 import { useFocusHold } from "@/components/useFocusHold";
 import { actionFills, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
 import { useSolver } from "@/solver/useSolver";
@@ -44,6 +43,7 @@ import {
 import { encodePfSizes } from "./pfSizes";
 import { BreakdownPanel } from "./BreakdownPanel";
 import { BuildMode, type BuildSaved } from "./BuildMode";
+import { StudySplit } from "./StudySplit";
 import { FoldTo } from "./FoldTo";
 import { askNode, newRun, pfGame, runPf, type PfRun } from "./pfSolve";
 import { PfNote, PfPanel, PfProgress, PfSizesForm, PreflopSource } from "./PreflopSolve";
@@ -83,12 +83,6 @@ export const PLAYERS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
 export const MIN_STACK = 10;
 export const MAX_STACK = 250;
 
-/** The grid's share of the width beside its panel, 1.4 to 1 as before it could be moved; and in px, the narrowest each can
- * go: 420 leaves the 13 columns about 30px each for their labels, 320 the combo table its four columns. */
-const STUDY_SPLIT = 1.4 / 2.4;
-const STUDY_MIN_MATRIX = 420;
-const STUDY_MIN_PANEL = 320;
-
 /** An answer in a sentence for a reader, told once as it arrives: who acts, where, the pot, and what produced it. */
 export function answerWords(r: AdvisorResponse, p: Provenance): string {
   if (typeof r.error === "string") return r.error;
@@ -125,10 +119,9 @@ export function StudyPage() {
   // Try again: the same request, asked afresh
   const [attempt, setAttempt] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  // (what the grid shows, the breakdown's state and the split beside the grid are Settings, so they last from visit to visit)
+  // (what the grid shows and the breakdown's state are Settings, so they last from visit to visit, as StudySplit's split does)
   const chosenView = useSettings((s) => s.studyView);
   const breakdownOpen = useSettings((s) => s.breakdownOpen);
-  const studySplit = useSettings((s) => s.studySplit);
   const saveSettings = useSettings((s) => s.set);
   // whose range the grid shows: 0 the player to act, i the i-th opponent
   const [who, setWho] = useState(0);
@@ -506,14 +499,7 @@ export function StudyPage() {
         />
       )}
       {!(building && buildable) && res?.study === "node" && grid && (
-        <ResizableWorkspace
-          label="Resize the range and the panel beside it"
-          size={studySplit}
-          onResize={(s) => saveSettings({ studySplit: s })}
-          defaultSize={STUDY_SPLIT}
-          minStart={STUDY_MIN_MATRIX}
-          minEnd={STUDY_MIN_PANEL}
-        >
+        <StudySplit>
           <section aria-label="Range" className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               {opps.length > 0 ? (
@@ -640,7 +626,7 @@ export function StudyPage() {
               </p>
             )}
           </aside>
-        </ResizableWorkspace>
+        </StudySplit>
       )}
       {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && res.street !== "preflop" && (
         <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={(o) => saveSettings({ breakdownOpen: o })} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />

@@ -494,6 +494,78 @@ describe("StudyPage", () => {
       expect(useSettings.getState().studySplit).toBe(saved);
     });
 
+    it("leaves the separator's keys to it: 1-9, b and Backspace do nothing from it, and Enter puts it back where it was focused", async () => {
+      wide(true);
+      useSettings.setState({ studySplit: 0.65 });
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      const bar = await screen.findByRole("separator");
+      expect(bar).toHaveAttribute("aria-valuenow", "65");
+      expect(bar).toHaveAccessibleDescription(/Enter/);
+      bar.focus();
+      const asked = stub.asked.length;
+      for (const key of ["1", "b", "Backspace"]) fireEvent.keyDown(bar, { key });
+      expect(screen.getByRole("region", { name: "Range" })).toBeInTheDocument();
+      expect(stub.asked).toHaveLength(asked);
+      expect(bar).toHaveAttribute("aria-valuenow", "65");
+      fireEvent.keyDown(bar, { key: "Enter" });
+      expect(bar).toHaveAttribute("aria-valuenow", "58");
+      expect(useSettings.getState().studySplit).toBeNull();
+      expect(bar).toHaveFocus();
+    });
+
+    it("is the same split around Build's grid, at the same size, and what moves there lasts back in Study", async () => {
+      wide(true);
+      useSettings.setState({ studySplit: 0.5 });
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      await screen.findByRole("separator");
+      fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
+      const painting = await screen.findByRole("region", { name: "Build" });
+      const bar = screen.getByRole("separator", { name: "Resize the range and the panel beside it" });
+      expect(bar).toHaveAttribute("aria-valuenow", "50");
+      expect(bar.previousElementSibling).toContainElement(painting);
+      expect(bar.nextElementSibling).toContainElement(screen.getByRole("complementary"));
+      fireEvent.keyDown(bar, { key: "ArrowRight" });
+      expect(bar).toHaveAttribute("aria-valuenow", "52");
+      expect(useSettings.getState().studySplit).toBeCloseTo(0.52);
+      fireEvent.click(screen.getByRole("button", { name: "Show the solution" }));
+      await screen.findByRole("region", { name: "Range" });
+      expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", "52");
+    });
+
+    it("leaves a brush key alone on Build's separator, and Enter puts it back there too", async () => {
+      wide(true);
+      useSettings.setState({ studySplit: 0.5 });
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      await screen.findByRole("separator");
+      fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
+      const brushes = within(await screen.findByRole("group", { name: "Brush" })).getAllByRole("button");
+      const bar = screen.getByRole("separator");
+      fireEvent.keyDown(bar, { key: "2" });
+      expect(brushes[0]).toHaveAttribute("aria-pressed", "true");
+      fireEvent.keyDown(bar, { key: "b" });
+      expect(screen.getByRole("region", { name: "Build" })).toBeInTheDocument();
+      fireEvent.keyDown(bar, { key: "Enter" });
+      expect(bar).toHaveAttribute("aria-valuenow", "58");
+    });
+
+    it("stacks Build's grid and its panel on a narrow window, with no separator", async () => {
+      wide(false);
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      await screen.findByRole("region", { name: "Range" });
+      fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
+      const painting = await screen.findByRole("region", { name: "Build" });
+      expect(screen.queryByRole("separator")).toBeNull();
+      const box = painting.parentElement!.parentElement!;
+      expect(box.className).toBe("grid gap-4");
+      expect(box.getAttribute("style")).toBeNull();
+      expect(box.children).toHaveLength(2);
+      expect(box.children[1]).toContainElement(screen.getByRole("complementary"));
+    });
+
     it("lays out a corrupt saved value as the default", async () => {
       wide(true);
       await kvSet("settings.v1", { studySplit: "wide" });

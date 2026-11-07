@@ -337,7 +337,7 @@ describe("Study's keys", () => {
       box.innerHTML = html;
       return box.firstElementChild!;
     };
-    for (const el of ["<a href='#x'>x</a>", "<button>x</button>", "<select></select>", "<summary>x</summary>", "<span role='tab'>x</span>"]) expect(studyKeyFrom(at(el), "1")).toBe(false);
+    for (const el of ["<a href='#x'>x</a>", "<button>x</button>", "<select></select>", "<summary>x</summary>", "<span role='tab'>x</span>", "<div role='separator' tabindex='0'></div>"]) expect(studyKeyFrom(at(el), "1")).toBe(false);
     for (const el of ["<div tabindex='-1'>x</div>", "<h2>x</h2>", "<a>not a link</a>"]) expect(studyKeyFrom(at(el), "1")).toBe(true);
     expect(studyKeyFrom(at("<button>x</button>"), "ArrowLeft")).toBe(true);
     for (const el of ["<input>", "<textarea></textarea>", "<div contenteditable='true'>x</div>", "<div role='grid'><button role='gridcell'>x</button></div>"]) {
