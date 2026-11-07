@@ -7,6 +7,7 @@ import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
 import { gameSetup, setupProblems, tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
+import { isPfSolve } from "./report";
 import { inSess, isEquilibriumHand } from "./sessions";
 
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -106,11 +107,18 @@ export const GAME_WORDS = "no tournaments or exploit sessions";
 /** The EV-lost filter's steps, bb. */
 export const LOST_STEPS = ["0.1", "0.5", "1", "2", "5", "10"] as const;
 
-/** The EV your graded decisions gave up in each hand, bb (graded by EV only: the preflop charts' grades have none). */
+/** The EV your graded decisions gave up in each hand, bb (graded by EV only: the preflop charts' grades have none). The
+ * preflop solve's is added up on its own, and a hand stands at the larger: the two are of different models, so never summed. */
 export function lostByHand(decisions: readonly DecisionRecord[]): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const d of decisions) if (d.evLossBb != null && d.evLossBb > 0) m.set(d.handId, (m.get(d.handId) ?? 0) + d.evLossBb);
-  return m;
+  const spot = new Map<string, number>();
+  const pf = new Map<string, number>();
+  for (const d of decisions) {
+    if (d.evLossBb == null || d.evLossBb <= 0) continue;
+    const m = isPfSolve(d) ? pf : spot;
+    m.set(d.handId, (m.get(d.handId) ?? 0) + d.evLossBb);
+  }
+  for (const [id, bb] of pf) if (bb > (spot.get(id) ?? 0)) spot.set(id, bb);
+  return spot;
 }
 
 /** Whether a hand matches a search: every word in its number, site, seat, cards, board, pot type, how it ended,

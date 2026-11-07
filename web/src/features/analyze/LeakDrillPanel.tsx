@@ -9,6 +9,7 @@ import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { getSession, putSession, type DecisionRecord, type HandRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
+import { addGradeWay, GRADE_WAYS, tallySplit, WAY_WORDS, wayFigures } from "@/features/history/history";
 import { addScore, emptyScore, summary, type Grade, type Verdict } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
@@ -102,7 +103,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
     const g = gradePick(cur.d, a);
     if (!g) return;
     setAnswer({ id: cur.d.id, a, g });
-    save({ ...prog, done: [...prog.done, cur.d.id], score: addScore(prog.score, g) });
+    save({ ...prog, done: [...prog.done, cur.d.id], score: addScore(prog.score, g), ways: addGradeWay(prog.ways, g, cur.d.source) });
     if (g.ok) return;
     const told = (due: string | null) => setQueued({ id: cur.d.id, due });
     queueMiss(cur.d, cur.hand, g, drillSessionId(leak)).then(told, () => told(null));
@@ -178,13 +179,20 @@ function DrillScore({ prog, done, total, onRestart }: { prog: DrillProgress; don
   const m = summary(s);
   // (the score is the whole leak's, a filter or none: over other hands it says so)
   const beyond = prog.done.length !== done;
+  // (a drill can hold decisions graded different ways, say a stored turn's and a solve's: more than one, a single rate or EV
+  // figure would add unlike things, so each gets its own, as in Practice's score. Picks kept before ways stand apart.)
+  const { ways, apart } = tallySplit({ ...s, ways: prog.ways });
+  const split = GRADE_WAYS.filter((w) => ways[w]);
+  const figures = [...split.map((w) => `${WAY_WORDS[w]}: ${wayFigures(w, ways[w]!, "bb")}`), ...(apart ? [`${apart} kept before grades were told apart by way, in none of these`] : [])];
   return (
     <p role="group" aria-label="Drill score" className="flex flex-wrap items-center gap-2 text-muted">
       <span>
         {done} of {total} drilled
         {beyond ? ` here; ${prog.done.length} of this leak in all` : ""}
-        {s.n ? `: ${s.ok} in the mix (${pct(m.acc)})` : ""}
-        {m.loss != null ? `, ${fmt(s.loss)}bb lost over ${s.ne} graded by EV` : ""}.
+        {figures.length > 1 || apart ? `: ${figures.join("; ")}` : <>
+          {s.n ? `: ${s.ok} in the mix (${pct(m.acc)})` : ""}
+          {m.loss != null ? `, ${fmt(s.loss)}bb lost over ${s.ne} graded by ${ways.solve ? "the preflop solve" : "EV"}` : ""}
+        </>}.
       </span>
       {prog.done.length > 0 && (
         <button type="button" onClick={onRestart} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">

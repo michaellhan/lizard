@@ -172,7 +172,27 @@ describe("leaks", () => {
     const leak = buildPlan(input({ decisions: times(40, pf) })).leaks.find((l) => l.leak.kind === "pf")!;
     expect(leak.says.join(" ")).toMatch(/20\.00bb given up by the preflop solve's EV over 40 decisions/);
     expect(leak.says.join(" ")).not.toMatch(/No EV to weigh|of solver EV given up/);
-    expect(leak.lost).toBe(20);
+    expect(leak.lost).toBeNull();
+    expect(leak.pfLost).toBe(20);
+  });
+
+  it("orders a spot's EV before the preflop solve's and that before frequency, and never by the two together", () => {
+    const pf = (situation: string, lost: number) => () => open({ situation, source: "preflop-solve", byEv: true, evLossBb: lost, lossPct: 10, mix: [["fold", 1, 0], ["raise", 0, -lost]] });
+    const plan = buildPlan(input({ decisions: [...times(40, pf("RFI", 2)), ...times(40, pf("vs 3bet", 3)), ...times(40, () => flop("SRP · IP · checked to", 0.6)), ...times(40, () => open({ situation: "BB defence" }))] }));
+    const pfs = plan.leaks.filter((l) => l.leak.kind === "pf");
+    // (a spot's 24bb goes first, past the preflop solve's 120bb: they aren't one scale; each solve leak by its own EV after)
+    expect(plan.leaks[0]).toMatchObject({ lost: 24, pfLost: null });
+    expect(plan.leaks.findIndex((l) => l.what === "Flop · SRP · IP · checked to")).toBeLessThan(plan.leaks.findIndex((l) => l.pfLost !== null));
+    expect(plan.leaks.findLastIndex((l) => l.lost !== null)).toBeLessThan(plan.leaks.findIndex((l) => l.pfLost !== null));
+    expect(pfs.filter((l) => l.pfLost !== null).map((l) => [l.what, l.pfLost])).toEqual([["vs 3bet (preflop solve)", 120], ["RFI (preflop solve)", 80]]);
+    const firstFreq = plan.leaks.findIndex((l) => l.lost === null && l.pfLost === null);
+    expect(firstFreq).toBeGreaterThan(plan.leaks.findLastIndex((l) => l.pfLost !== null));
+  });
+
+  it("says the order on the page, and that the two are neither added nor weighed", () => {
+    expect(PLAN_RULE[1]).toMatch(/a solve of the spot first, the most first; then those with EV given up to the preflop solve/);
+    expect(PLAN_RULE[1]).toMatch(/neither added to a spot's nor weighed against them/);
+    expect(PLAN_RULE[1]).toMatch(/graded by frequency has no EV to weigh/);
   });
 
   it("is done when every decision its drill can deal has been answered, and a new one undoes it", () => {

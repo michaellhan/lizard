@@ -1,12 +1,15 @@
-// A setup's link, at a page with a session on it: it opens straight away with nothing running, and with a hand under way it
-// asks first, with keeping what you're playing as the answer that has the focus.
+// A setup's link or a saved scenario's, at a page with a session on it: it opens straight away with nothing running, and with
+// a hand under way it asks first, with keeping what you're playing as the answer that has the focus.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { db, type SavedScenario } from "@/data/db";
+import { putScenario } from "@/data/scenarios";
 import type { AdvisorResponse, AdvisorState, PlayMove } from "@/solver/protocol";
 import type { PlayRequest, Provenance, SolveResult } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 
+import type { SessionOptions } from "./practice";
 import { PracticePage } from "./PracticePage";
 import { setupLink } from "./setupLink";
 
@@ -47,6 +50,9 @@ function Page() {
       <button type="button" onClick={() => void go(LINK)}>
         a link
       </button>
+      <button type="button" onClick={() => void go("/practice?scenario=short")}>
+        a saved link
+      </button>
       <output aria-label="address">{search}</output>
       <PracticePage pace={0} />
     </>
@@ -70,8 +76,8 @@ async function underWay() {
   fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
   await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).queryByRole("button", { name: "raise 2.5" })).toBeNull());
 }
-const clickLink = () => {
-  const link = screen.getByRole("button", { name: "a link" });
+const clickLink = (name = "a link") => {
+  const link = screen.getByRole("button", { name });
   link.focus();
   fireEvent.click(link);
   return link;
@@ -159,5 +165,66 @@ describe("a setup's link", () => {
     fireEvent.click(keep());
     fireEvent.keyDown(document.body, { key: "1" });
     await waitFor(() => expect(screen.queryByRole("region", { name: "Last decision" })).toHaveTextContent(/check/));
+  });
+});
+
+describe("a saved scenario's link", () => {
+  const OPTS: SessionOptions = { seat: "moves", preflopOnly: true, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0, board: null };
+  const SHORT: SavedScenario = { id: "short", name: "Short ones", players: 2, stack: 40, opts: OPTS, note: "", createdAt: 1, updatedAt: 2 };
+  beforeEach(async () => {
+    await (await db())!.clear("savedScenarios");
+    expect(await putScenario(SHORT)).toBe(true);
+  });
+
+  it("opens straight away with nothing running", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?scenario=short"]}>
+        <Page />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Started Short ones.")).toBeInTheDocument();
+    expect(dialog()).toBeNull();
+    await waitFor(() => expect(screen.getByLabelText("address").textContent).toBe(""));
+  });
+
+  it("asks first with a hand under way, by its name, and the address goes", async () => {
+    await underWay();
+    clickLink("a saved link");
+    const ask = await screen.findByRole("alertdialog", { name: "A session is under way" });
+    expect(keep()).toHaveFocus();
+    expect(ask).toHaveAccessibleDescription(/^This link starts Short ones, in place of what you.re playing\./);
+    await waitFor(() => expect(screen.getByLabelText("address").textContent).toBe(""));
+  });
+
+  it("keeps the session on Keep, saying so, and gives the focus back", async () => {
+    await underWay();
+    const before = score().textContent;
+    const link = clickLink("a saved link");
+    await screen.findByRole("alertdialog");
+    fireEvent.click(keep());
+    expect(dialog()).toBeNull();
+    expect(screen.getByText("Kept this session. Short ones wasn't started.")).toBeInTheDocument();
+    expect(link).toHaveFocus();
+    expect(score().textContent).toBe(before);
+  });
+
+  it("starts it on Start the new one, in place of the session", async () => {
+    await underWay();
+    clickLink("a saved link");
+    await screen.findByRole("alertdialog");
+    fireEvent.click(replace());
+    expect(dialog()).toBeNull();
+    expect(screen.getByText("Started Short ones.")).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Stack in big blinds" })).toHaveValue(40);
+  });
+
+  it("asks nothing of a link to a scenario that's gone: it says so, and the hand goes on", async () => {
+    await (await db())!.clear("savedScenarios");
+    await underWay();
+    const before = score().textContent;
+    clickLink("a saved link");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/gone or can't be read/);
+    expect(dialog()).toBeNull();
+    expect(score().textContent).toBe(before);
   });
 });

@@ -2,27 +2,24 @@
 // account never meets it. Nothing here is needed for anything else on the site.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { DeleteButton } from "@/components/DeleteButton";
-import { finishSignIn, startSignIn, syncAvailable, SyncFailed } from "@/sync/api";
+import { GOOGLE_SIGN_IN, syncAvailable, SyncFailed } from "@/sync/api";
 import { lastSync, onLastSync, runSync, startAuto } from "@/sync/auto";
 import { MIN_PASSPHRASE } from "@/sync/crypto";
 import { choosePassphrase, deleteEverything, leave, lock, resume, status, unlock, type SyncStatus } from "@/sync/session";
 
 export const ABOUT_SYNC =
-  "Optional, and Lizard is whole without it. It keeps your saved spots, session history, imported hands and kept mistakes the same on your devices. They're sealed here with your passphrase before they leave, so the server holds only ciphertext: it can see how many records there are, their sizes, when they arrived and which of those four kinds each is, and nothing inside them. Your email is kept as a keyed hash, and goes through Resend to send the sign-in link. Saved answers, grades, ranges, drills and settings stay in each browser.";
+  "Optional, and Lizard is whole without it. It keeps your saved spots, session history, imported hands and kept mistakes the same on your devices. They're sealed here with your passphrase before they leave, so the server holds only ciphertext: it can see how many records there are, their sizes, when they arrived and which of those four kinds each is, and nothing inside them. You sign in with Google, which tells the service only which account it is, as a number it keeps a keyed hash of: it never sees your email or name. Google can see that you signed in here. Saved answers, grades, ranges, drills and settings stay in each browser.";
 export const LOST_WORDS = "Nobody can reset a passphrase, because nobody else ever has it. If you lose it the synced copy is gone. What's kept in each browser stays, and a new passphrase can start a new synced copy from it.";
 
-const TOKEN = "#sync-token=";
+const ERROR = "#sync-error=";
+const SIGN_IN_WORDS: Record<string, string> = {
+  cancelled: "Sign-in was cancelled. Nothing changed.",
+  busy: "Too many sign-ins from here. Wait a while, then try again.",
+  failed: "Google sign-in didn't finish. Try again in a while.",
+};
 
-/** The first visit in a browser reloads once for the service worker (main.tsx), and a link opened on a new device is just
- * that. A token is good for one use, so it waits: a token spent as the page reloads would be lost with the answer. */
-function reloadComing(): boolean {
-  try {
-    return !self.crossOriginIsolated && "serviceWorker" in navigator && !navigator.serviceWorker.controller && !sessionStorage.getItem("lizard.sw-reloaded");
-  } catch {
-    return false;
-  }
-}
-const RELOAD_MS = 3000;
+/** What Google sent back, if this page is its answer. */
+const cameBack = () => (location.hash.startsWith(ERROR) ? (SIGN_IN_WORDS[location.hash.slice(ERROR.length)] ?? SIGN_IN_WORDS.failed!) : null);
 
 const failed = (e: unknown) => (e instanceof SyncFailed ? e.message : "Sync failed. Everything here stays as it is.");
 
@@ -39,22 +36,11 @@ function Field({ label, ...rest }: { label: string } & React.InputHTMLAttributes
 
 const BUTTON = "rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2 disabled:opacity-50";
 
-function SignIn({ busy, act }: { busy: boolean; act: (f: () => Promise<string | void>) => void }) {
-  const [email, setEmail] = useState("");
-  const send = (e: FormEvent) => {
-    e.preventDefault();
-    act(async () => {
-      await startSignIn(email.trim());
-      return "If that address can sign in, a link is on its way. It works once, for 15 minutes.";
-    });
-  };
+function SignIn() {
   return (
-    <form onSubmit={send} className="space-y-2">
-      <Field label="Email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <button type="submit" disabled={busy || !email.trim()} className={BUTTON}>
-        Email me a sign-in link
-      </button>
-    </form>
+    <a href={GOOGLE_SIGN_IN} className={`${BUTTON} inline-block`}>
+      Sign in with Google
+    </a>
   );
 }
 
@@ -167,7 +153,7 @@ export default function SyncPanel() {
   const [there, setThere] = useState(false);
   const [st, setSt] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
-  const [said, setSaid] = useState<string | null>(null);
+  const [said, setSaid] = useState(cameBack);
   const alive = useRef(true);
 
   const reload = useCallback(() => {
@@ -183,27 +169,15 @@ export default function SyncPanel() {
 
   useEffect(() => {
     alive.current = true;
-    const spendToken = async () => {
-      if (!location.hash.startsWith(TOKEN)) return;
-      const token = location.hash.slice(TOKEN.length);
-      // (the token goes from the address at once, whatever happens to it next)
-      history.replaceState(history.state, "", location.pathname + location.search);
-      await finishSignIn(token).catch((e: unknown) => setSaid(failed(e)));
-    };
+    if (location.hash.startsWith(ERROR)) history.replaceState(history.state, "", location.pathname + location.search);
     void (async () => {
-      if (reloadComing()) await new Promise((resolve) => setTimeout(resolve, RELOAD_MS));
-      if (!alive.current || !(await syncAvailable()) || !alive.current) return;
+      if (!(await syncAvailable()) || !alive.current) return;
       setThere(true);
-      await spendToken();
       await resume().catch(() => false);
       reload();
     })();
-    // (a link pasted into this very tab changes only the fragment, so no page loads to find it)
-    const pasted = () => void spendToken().then(reload);
-    addEventListener("hashchange", pasted);
     return () => {
       alive.current = false;
-      removeEventListener("hashchange", pasted);
     };
   }, [reload]);
 
@@ -231,7 +205,7 @@ export default function SyncPanel() {
     <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
       <legend className="px-1 font-medium">Account sync</legend>
       <p className="text-xs text-muted">{ABOUT_SYNC}</p>
-      {st && !st.signedIn && <SignIn busy={busy} act={act} />}
+      {st && !st.signedIn && <SignIn />}
       {st?.signedIn && !st.hasPhrase && <Choose busy={busy} act={act} />}
       {st?.signedIn && st.hasPhrase && !st.unlocked && <Unlock busy={busy} act={act} />}
       {st?.signedIn && st.hasPhrase && st.unlocked && <Unlocked st={st} busy={busy} act={act} reload={reload} />}

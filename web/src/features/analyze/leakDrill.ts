@@ -6,6 +6,7 @@
 // or Fast keeps your hand's mix, its EVs where it has them, and the pot), so a turn or river decision is dealt like a flop
 // one. One kept without its mix isn't dealt, and the drill says how many (notDealt).
 import type { DecisionRecord, HandRecord, SessionRecord } from "@/data/db";
+import { readWays, type Ways } from "@/features/history/history";
 import { capGrade, CAPPED_WORDS, grade, type Grade, type Score } from "@/grading/grade";
 import { versionWords } from "@/grading/version";
 import type { ReplayedHand } from "@/hh/replay";
@@ -175,11 +176,13 @@ export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | 
   ].filter(Boolean);
 }
 
-/** The drill's progress, kept as an "analysis" session so it resumes: the decisions answered and the score. */
+/** The drill's progress, kept as an "analysis" session so it resumes: the decisions answered and the score, and the score
+ * by how each pick was graded (`ways`: progress kept before these has its score alone). */
 export interface DrillProgress {
   startedAt: number;
   done: string[];
   score: Score;
+  ways?: Ways;
 }
 
 export function toSession(l: LeakRef, p: DrillProgress, total: number, now = Date.now()): SessionRecord {
@@ -190,12 +193,12 @@ export function toSession(l: LeakRef, p: DrillProgress, total: number, now = Dat
     endedAt: now,
     decisions: p.score.n,
     evLossBb: p.score.loss,
-    meta: { drill: "leak", leak: leakParam(l), label: l.key, total, done: p.done, score: p.score },
+    meta: { drill: "leak", leak: leakParam(l), label: l.key, total, done: p.done, score: p.score, ...(p.ways ? { ways: p.ways } : {}) },
   };
 }
 
 export function fromSession(s: SessionRecord | undefined): DrillProgress | null {
-  const m = s?.meta as { drill?: string; done?: unknown; score?: Score } | undefined;
+  const m = s?.meta as { drill?: string; done?: unknown; score?: Score; ways?: unknown } | undefined;
   if (!s || m?.drill !== "leak" || !Array.isArray(m.done) || !m.score) return null;
-  return { startedAt: s.startedAt, done: m.done.filter((x): x is string => typeof x === "string"), score: m.score };
+  return { startedAt: s.startedAt, done: m.done.filter((x): x is string => typeof x === "string"), score: m.score, ...(m.ways ? { ways: readWays(m.ways) } : {}) };
 }

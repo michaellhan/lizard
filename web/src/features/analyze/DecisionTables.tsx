@@ -1,14 +1,16 @@
 // The report's tables and lists of graded decisions: a table of groups, each row with its count, its share in the mix
-// with a 95% interval and the decisions behind it; the decisions themselves, each a link to its hand.
-import { useId, useMemo, useState } from "react";
+// with a 95% interval and the decisions behind it, a row graded more than one way having those a way under it; the
+// decisions themselves, each a link to its hand.
+import { Fragment, useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
+import { GRADE_WAYS, WAY_HEADS, WAY_WORDS } from "@/features/history/history";
 import type { Verdict } from "@/grading/grade";
 import type { BreakRow } from "./breakdown";
 import { worstFirst } from "./breakdown";
 import { withParams } from "./leakDrill";
-import { isGraded, MIN_READ, type Group } from "./report";
+import { isGraded, MIN_READ, type Group, type Tally } from "./report";
 import { wilson } from "./stats";
 import { flagged } from "./triage";
 
@@ -35,6 +37,22 @@ const SHORT: Record<string, string> = {
 const standsOn = (r: BreakRow) => r.bases.map((b) => `${SHORT[b.basis] ?? b.basis} ${b.n.toLocaleString()}`).join(" · ");
 
 type Row = Group & Partial<Pick<BreakRow, "bases">>;
+
+/** A tally's figures, from its share to its EV lost: one kind of EV, as a tally of both is drawn a way (Group `ways`). */
+function Figures({ t, ev }: { t: Tally; ev?: boolean }) {
+  const [n, avg, avgPct] = t.ev ? [t.ev, t.avg, t.avgPct] : [t.pfEv, t.pfAvg, t.pfAvgPct];
+  return (
+    <>
+      <td className="pr-3 text-right tabular-nums">{pct(t.graded ? t.ok / t.graded : null)}</td>
+      <td className="whitespace-nowrap pr-3 tabular-nums">
+        <RangeCell k={t.ok} n={t.graded} />
+      </td>
+      <td className="pr-3 text-right tabular-nums">{(t.by.Mistake + t.by.Blunder).toLocaleString()}</td>
+      {ev && <td className="pr-3 text-right tabular-nums">{n.toLocaleString()}</td>}
+      {ev && <td className="pr-3 text-right tabular-nums">{n ? `${bbs(avg)} (${avgPct}%)` : "—"}</td>}
+    </>
+  );
+}
 
 export function GroupTable({
   title,
@@ -83,33 +101,50 @@ export function GroupTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.key} aria-label={r.key} className="border-t border-border align-top">
-                <th scope="row" className="pr-3 font-normal">{r.key}</th>
-                <td className="pr-3 text-right tabular-nums">{r.graded.toLocaleString()}</td>
-                <td className="pr-3 text-right tabular-nums">{pct(r.graded ? r.ok / r.graded : null)}</td>
-                <td className="whitespace-nowrap pr-3 tabular-nums">
-                  <RangeCell k={r.ok} n={r.graded} />
-                </td>
-                <td className="pr-3 text-right tabular-nums">{(r.by.Mistake + r.by.Blunder).toLocaleString()}</td>
-                {ev && <td className="pr-3 text-right tabular-nums">{r.ev.toLocaleString()}</td>}
-                {ev && <td className="pr-3 text-right tabular-nums">{r.ev ? `${bbs(r.avg)} (${r.avgPct}%)` : "—"}</td>}
-                {!noUngraded && <td className="pr-3 text-right tabular-nums">{(r.n - r.graded).toLocaleString()}</td>}
-                {stands && <td className="min-w-40 pr-3 text-xs text-muted">{standsOn(r as BreakRow)}</td>}
-                <td className="text-right">
-                  <button
-                    type="button"
-                    aria-expanded={open === r.key}
-                    aria-controls={open === r.key ? list : undefined}
-                    aria-label={`Decisions: ${r.key}`}
-                    onClick={() => setOpen(open === r.key ? null : r.key)}
-                    className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2"
-                  >
-                    Decisions
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const split = GRADE_WAYS.filter((w) => r.ways?.[w]);
+              return (
+                <Fragment key={r.key}>
+                  <tr aria-label={r.key} className="border-t border-border align-top">
+                    <th scope="row" className="pr-3 font-normal">{r.key}</th>
+                    <td className="pr-3 text-right tabular-nums">{r.graded.toLocaleString()}</td>
+                    {r.ways ? (
+                      <td colSpan={ev ? 5 : 3} className="pr-3 text-xs text-muted">
+                        A figure for each way
+                      </td>
+                    ) : (
+                      <Figures t={r} ev={ev} />
+                    )}
+                    {!noUngraded && <td className="pr-3 text-right tabular-nums">{(r.n - r.graded).toLocaleString()}</td>}
+                    {stands && <td rowSpan={split.length + 1} className="min-w-40 pr-3 text-xs text-muted">{standsOn(r as BreakRow)}</td>}
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        aria-expanded={open === r.key}
+                        aria-controls={open === r.key ? list : undefined}
+                        aria-label={`Decisions: ${r.key}`}
+                        onClick={() => setOpen(open === r.key ? null : r.key)}
+                        className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2"
+                      >
+                        Decisions
+                      </button>
+                    </td>
+                  </tr>
+                  {split.map((w) => {
+                    const t = r.ways![w]!;
+                    return (
+                      <tr key={w} aria-label={`${r.key}, ${WAY_WORDS[w]}`} className="align-top">
+                        <th scope="row" className="pl-3 pr-3 font-normal text-muted">{WAY_HEADS[w]}</th>
+                        <td className="pr-3 text-right tabular-nums">{t.graded.toLocaleString()}</td>
+                        <Figures t={t} ev={ev} />
+                        {!noUngraded && <td />}
+                        <td />
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

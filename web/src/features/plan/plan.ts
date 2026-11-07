@@ -44,7 +44,7 @@ const CHARTS = BASES[0]!;
 
 export const PLAN_RULE: readonly string[] = [
   "Reviews due today, from the review queue: the longest overdue first, then the worst grades.",
-  "The leaks that pass the read rule, the most EV given up first. A leak graded by frequency has no EV to weigh, so those come after, by the report's score: how far off, by the square root of the decisions.",
+  "The leaks that pass the read rule: those with EV given up to a solve of the spot first, the most first; then those with EV given up to the preflop solve, the most first, as its EVs are of a simplified model and are neither added to a spot's nor weighed against them. A leak graded by frequency has no EV to weigh, so those come last, by the report's score: how far off, by the square root of the decisions.",
   "The rows too few to read, the most decisions first, as the nearest to being read: places to collect more hands, not leaks.",
   `One Practice drill, on the street with the most decisions missed and from the seat with the most missed on it. Misses are counted, not weighed: a miss by frequency counts as one by EV, and it's a count, so what you play most can top it. A missed decision is one graded below Correct in hands you imported, or a cash mistake kept in the review queue, as many times as it was missed. An entry added from Analyze or a leak drill isn't counted again where its own decision already is.`,
 ];
@@ -87,8 +87,10 @@ export interface ReviewStep extends StepBase {
 export interface LeakStep extends StepBase {
   kind: "leak";
   leak: LeakRef;
-  /** the EV given up over its decisions graded by EV, bb; null with none graded by EV */
+  /** the EV given up over its decisions graded by EV by a solve of the spot, bb; null with none */
   lost: number | null;
+  /** the same over those graded by the preflop solve: never added to `lost`, and only looked at after it */
+  pfLost: number | null;
   /** its decisions a drill can deal */
   dealt: number;
 }
@@ -281,15 +283,16 @@ function leakStep(l: Leak, t: RowTally): LeakStep {
     progress: t.dealt ? `${answered.toLocaleString()} of ${many(t.dealt, "decision")} answered in its drill${t.unread ? `, ${t.unread.toLocaleString()} of them graded by frequency and dealt though the read above can't use them` : ""}.` : "None of its decisions keeps its mix, so its drill has nothing to deal.",
     says: [readingOf(l, t), costOf(t), standsOn(l, t)],
     leak,
-    // (only the order of the steps: no number on the page adds the two)
-    lost: t.lost + t.pfLost > 0 ? Math.round((t.lost + t.pfLost) * 100) / 100 : null,
+    lost: t.lost > 0 ? Math.round(t.lost * 100) / 100 : null,
+    pfLost: t.pfLost > 0 ? Math.round(t.pfLost * 100) / 100 : null,
     dealt: t.dealt,
   };
 }
 
-/** The most EV given up first; with none, by the report's score; a name settles the rest. */
+/** The most EV given up to a solve of the spot first, then to the preflop solve, the two never added; with neither, by the
+ * report's score; a name settles the rest. */
 const byLost = (a: LeakStep & { score: number }, b: LeakStep & { score: number }) =>
-  (b.lost ?? -1) - (a.lost ?? -1) || b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  (b.lost ?? -1) - (a.lost ?? -1) || (b.pfLost ?? -1) - (a.pfLost ?? -1) || b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 // ---- collecting more hands
 

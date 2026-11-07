@@ -7,7 +7,7 @@ import { allSessions, db, putSession, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { mistake } from "@/test/mistake";
 import type { Sim } from "@/poker/table";
-import { addHandToPot, addSource, byDay, handPot, kindTotals, linePot, potTotals, rowOf } from "./history";
+import { addGradeWay, addHandToPot, addSource, byDay, handPot, kindTotals, linePot, potTotals, rowOf } from "./history";
 import { HistoryPage } from "./HistoryPage";
 
 const at = (d: number, h: number) => new Date(2026, 10, d, h, 0).getTime();
@@ -114,6 +114,10 @@ describe("sessions history", () => {
     });
     expect(rowOf(LEAK)).toMatchObject({ what: "Leak: RFI · 2 of 5 done when last drilled", n: 2, split: { ways: { freq: { n: 2, ok: 1, loss: 0, lossPct: 0 } }, apart: 0 }, to: { href: "/analyze?drill=pf%3ARFI" } });
     // (a row sits under the day it was started: a drill resumed since says its own day)
+    // a leak drill keeps its picks a way: the preflop solve's EV isn't read as a spot's, nor two ways as one
+    const solveLeak = { ...LEAK, meta: { ...LEAK.meta, ways: { solve: { n: 2, ok: 1, loss: 0.5, lossPct: 5 } } } };
+    expect(rowOf(solveLeak).split).toEqual({ ways: { solve: { n: 2, ok: 1, loss: 0.5, lossPct: 5 } }, apart: 0 });
+    expect(addGradeWay(addGradeWay(undefined, { ok: false, loss: 0.5, lossPct: 5, byEv: true }, "preflop-solve"), { ok: true, loss: 0, lossPct: 0, byEv: false }, "charts")).toEqual({ solve: { n: 1, ok: 0, loss: 0.5, lossPct: 5 }, freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } });
     expect(rowOf({ ...LEAK, endedAt: Date.UTC(2026, 9, 30, 14) }).what).toMatch(/^Leak: RFI · 2 of 5 done when last drilled, \S+.*\d/);
     // (a leak's decisions may stand on a solve or a read on any street: its row doesn't name one answer for them all)
     expect(rowOf(LEAK).graded).toContain("preflop charts by frequency (not a solve)");

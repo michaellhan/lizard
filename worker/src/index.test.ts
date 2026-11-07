@@ -1,7 +1,6 @@
-// The sync service, end to end through its fetch handler, on the real schema: Resend is mocked, D1 stood in for by SQLite.
+// The sync service, end to end through its fetch handler, on the real schema: Google is mocked, D1 stood in for by SQLite.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_ACCOUNT, MAX_RECORDS, PAGE } from "./records";
-import { TOKEN_MS } from "./auth";
 import { handle, sweep } from "./index";
 import type { Env } from "./env";
 import { testDb } from "./sqlite.test-helper";
@@ -10,8 +9,7 @@ const ORIGIN = "https://www.michael-han.com";
 const NOW = 1_800_000_000_000;
 const id = (n: number) => n.toString(16).padStart(64, "0");
 let env: Env;
-let sent: { to: string; text: string; auth: string }[];
-let mailOk: boolean;
+let google: { claims: Record<string, unknown>; raw?: unknown; status: number; down: boolean; asked: URLSearchParams[] };
 
 function call(method: string, path: string, o: { body?: unknown; cookie?: string; origin?: string | null; header?: boolean; now?: number; ip?: string } = {}) {
   const h: Record<string, string> = {};
@@ -23,89 +21,158 @@ function call(method: string, path: string, o: { body?: unknown; cookie?: string
   return handle(new Request(`${ORIGIN}/lizard/api/${path}`, { method, headers: h, body }), env, o.now ?? NOW);
 }
 
-const tokenIn = (text: string) => text.match(/#sync-token=([\w-]+)/)![1]!;
+const url64 = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+const idToken = (claims: Record<string, unknown>) => `head.${url64(new TextEncoder().encode(JSON.stringify(claims)))}.sig`;
 
-async function signIn(email = "a@example.com", now = NOW) {
-  await call("POST", "auth/start", { body: { email }, now });
-  const res = await call("POST", "auth/finish", { body: { token: tokenIn(sent.at(-1)!.text) }, now });
-  expect(res.status).toBe(200);
-  return res.headers.get("set-cookie")!.split(";")[0]!;
+/** To Google: where it sent the browser, and the cookie it holds meanwhile. */
+async function toGoogle(now = NOW, ip?: string) {
+  const res = await call("GET", "auth/google", { origin: null, now, ip });
+  expect(res.status).toBe(302);
+  return { to: new URL(res.headers.get("location")!), held: res.headers.getSetCookie()[0]!, cookie: res.headers.getSetCookie()[0]!.split(";")[0]! };
 }
 
+/** Back from Google, as a browser holding the cookie comes back. */
+const fromGoogle = (query: string, cookie?: string, now = NOW) => call("GET", `auth/google/callback?${query}`, { origin: null, cookie, now });
+
+const cookieNamed = (res: Response, name: string) => res.headers.getSetCookie().find((c) => c.startsWith(`${name}=`));
+
+async function signIn(account = "1001", now = NOW) {
+  google.claims = { ...google.claims, sub: account, exp: Math.floor(now / 1000) + 3600 };
+  const { to, cookie } = await toGoogle(now);
+  const res = await fromGoogle(`code=the-code&state=${to.searchParams.get("state")}`, cookie, now);
+  expect(res.headers.get("location")).toBe(`${ORIGIN}/lizard/settings`);
+  return cookieNamed(res, "lizard_session")!.split(";")[0]!;
+}
+
+const count = async (t: string) => (await env.DB.prepare(`SELECT count(*) AS n FROM ${t}`).first<{ n: number }>())!.n;
+
 beforeEach(() => {
-  sent = [];
-  mailOk = true;
-  env = { DB: testDb(), EMAIL_HMAC_KEY: "test-hmac", RESEND_API_KEY: "test-resend", SITE_ORIGIN: ORIGIN, MAIL_FROM: "Lizard <l@example.com>" };
+  google = { claims: { iss: "https://accounts.google.com", aud: "the-client", sub: "1001", exp: Math.floor(NOW / 1000) + 3600 }, status: 200, down: false, asked: [] };
+  env = { DB: testDb(), ACCOUNT_HMAC_KEY: "test-hmac", GOOGLE_CLIENT_ID: "the-client", GOOGLE_CLIENT_SECRET: "test-secret", SITE_ORIGIN: ORIGIN };
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
-    expect(url).toBe("https://api.resend.com/emails");
-    const b = JSON.parse(init.body as string);
-    sent.push({ to: b.to, text: b.text, auth: (init.headers as Record<string, string>).authorization! });
-    return new Response("{}", { status: mailOk ? 200 : 500 });
+    expect(url).toBe("https://oauth2.googleapis.com/token");
+    if (google.down) throw new Error("no route");
+    google.asked.push(new URLSearchParams(init.body as URLSearchParams));
+    const claims = google.claims;
+    return new Response(JSON.stringify({ id_token: google.raw ?? idToken(claims) }), { status: google.status });
   });
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("signing in", () => {
-  it("mails a link holding the token in its fragment, and keeps only hashes", async () => {
-    const res = await call("POST", "auth/start", { body: { email: " A@Example.com " } });
-    expect(await res.json()).toEqual({ ok: true });
-    expect(sent[0]!.to).toBe("A@Example.com");
-    expect(sent[0]!.auth).toBe("Bearer test-resend");
-    expect(sent[0]!.text).toContain(`${ORIGIN}/lizard/settings#sync-token=`);
-    const t = tokenIn(sent[0]!.text);
-    const row = await env.DB.prepare("SELECT * FROM login_tokens").first<Record<string, unknown>>();
-    expect(JSON.stringify(row)).not.toContain(t);
-    expect(JSON.stringify(row).toLowerCase()).not.toContain("example");
+  it("goes to Google asking only which account this is, holding its proof in a short cookie", async () => {
+    const { to, held } = await toGoogle();
+    expect(to.origin + to.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+    const q = to.searchParams;
+    expect(q.get("scope")).toBe("openid");
+    expect(q.get("client_id")).toBe("the-client");
+    expect(q.get("redirect_uri")).toBe(`${ORIGIN}/lizard/api/auth/google/callback`);
+    expect(q.get("response_type")).toBe("code");
+    expect(q.get("code_challenge_method")).toBe("S256");
+    expect(q.get("state")!.length).toBeGreaterThan(40);
+    for (const x of ["HttpOnly", "Secure", "SameSite=Lax", "Path=/lizard/api/auth/google", "Max-Age=600"]) expect(held).toContain(x);
+    const [state, verifier] = held.split(";")[0]!.split("=")[1]!.split(".");
+    expect(state).toBe(q.get("state"));
+    expect(q.get("code_challenge")).toBe(url64(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)))));
+    expect(await count("users")).toBe(0);
   });
 
-  it("makes no account until the link is used, and an address finds the same one in any case", async () => {
-    await call("POST", "auth/start", { body: { email: "a@example.com" } });
-    expect((await env.DB.prepare("SELECT count(*) AS n FROM users").first<{ n: number }>())!.n).toBe(0);
-    const c1 = await signIn("a@example.com");
-    const c2 = await signIn("A@EXAMPLE.COM");
-    expect((await env.DB.prepare("SELECT count(*) AS n FROM users").first<{ n: number }>())!.n).toBe(1);
-    const row = await env.DB.prepare("SELECT * FROM users").first<Record<string, unknown>>();
-    expect(JSON.stringify(row)).not.toContain("example");
+  it("spends the code with its proof and the secret, and keeps only hashes", async () => {
+    const { to, cookie } = await toGoogle();
+    const res = await fromGoogle(`code=the-code&state=${to.searchParams.get("state")}`, cookie);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/lizard/settings`);
+    const sent = google.asked[0]!;
+    expect(sent.get("code")).toBe("the-code");
+    expect(sent.get("client_secret")).toBe("test-secret");
+    expect(sent.get("code_verifier")).toBe(cookie.split(".")[1]);
+    expect(sent.get("redirect_uri")).toBe(`${ORIGIN}/lizard/api/auth/google/callback`);
+    expect(cookieNamed(res, "lizard_google")).toContain("Max-Age=0");
+    const session = cookieNamed(res, "lizard_session")!;
+    const held = JSON.stringify(await env.DB.prepare("SELECT * FROM users").first()) + JSON.stringify(await env.DB.prepare("SELECT * FROM sessions").first());
+    expect(held).not.toContain("1001");
+    expect(held).not.toContain(session.split(";")[0]!.split("=")[1]);
+  });
+
+  it("finds the same account each time, and another Google account finds its own", async () => {
+    const c1 = await signIn("1001");
+    const c2 = await signIn("1001");
+    expect(await count("users")).toBe(1);
     expect(c1).not.toBe(c2);
+    await signIn("2002");
+    expect(await count("users")).toBe(2);
   });
 
   it("sets a session cookie scripts and other sites can't reach", async () => {
-    await call("POST", "auth/start", { body: { email: "a@example.com" } });
-    const res = await call("POST", "auth/finish", { body: { token: tokenIn(sent[0]!.text) } });
-    const set = res.headers.get("set-cookie")!;
+    const { to, cookie } = await toGoogle();
+    const set = cookieNamed(await fromGoogle(`code=c&state=${to.searchParams.get("state")}`, cookie), "lizard_session")!;
     for (const x of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/lizard/api"]) expect(set).toContain(x);
   });
 
-  it("spends a token once, and refuses an expired or made-up one", async () => {
-    await call("POST", "auth/start", { body: { email: "a@example.com" } });
-    const t = tokenIn(sent[0]!.text);
-    expect((await call("POST", "auth/finish", { body: { token: "nonsense" } })).status).toBe(401);
-    expect((await call("POST", "auth/finish", { body: { token: t }, now: NOW + TOKEN_MS } )).status).toBe(401);
-    expect((await call("POST", "auth/finish", { body: { token: t } })).status).toBe(200);
-    expect((await call("POST", "auth/finish", { body: { token: t } })).status).toBe(401);
+  it("says so when you cancel at Google, and asks Google nothing", async () => {
+    const { cookie } = await toGoogle();
+    const res = await fromGoogle("error=access_denied", cookie);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/lizard/settings#sync-error=cancelled`);
+    expect(cookieNamed(res, "lizard_google")).toContain("Max-Age=0");
+    expect(google.asked).toEqual([]);
   });
 
-  it("refuses a bad address and says plainly when the mail didn't go", async () => {
-    expect((await call("POST", "auth/start", { body: { email: "nope" } })).status).toBe(400);
-    expect((await call("POST", "auth/start", { body: { email: ["a@b.co"] } })).status).toBe(400);
-    expect((await call("POST", "auth/start", { body: "{not json" })).status).toBe(400);
-    mailOk = false;
-    expect((await call("POST", "auth/start", { body: { email: "a@example.com" } })).status).toBe(502);
+  it("takes no answer that isn't to this browser's own request", async () => {
+    const { to, cookie } = await toGoogle();
+    const state = to.searchParams.get("state");
+    for (const [query, held] of [
+      [`code=c&state=${state}`, undefined],
+      ["code=c&state=someone-elses", cookie],
+      ["code=c", cookie],
+      [`state=${state}`, cookie],
+      [`code=c&state=${state}`, "lizard_google=nonsense"],
+    ] as const) {
+      expect((await fromGoogle(query, held)).headers.get("location")).toBe(`${ORIGIN}/lizard/settings#sync-error=failed`);
+    }
+    expect(google.asked).toEqual([]);
+    expect(await count("sessions")).toBe(0);
   });
 
-  it("limits mail to an address and from an address, and the window passes", async () => {
-    for (let i = 0; i < 5; i++) expect((await call("POST", "auth/start", { body: { email: "a@example.com" } })).status).toBe(200);
-    expect((await call("POST", "auth/start", { body: { email: "a@example.com" } })).status).toBe(429);
-    expect(sent).toHaveLength(5);
-    expect((await call("POST", "auth/start", { body: { email: "a@example.com" }, now: NOW + 3_600_001 })).status).toBe(200);
-    for (let i = 0; i < 20; i++) expect((await call("POST", "auth/start", { body: { email: `u${i}@example.com` }, ip: "9.9.9.9" })).status).toBe(200);
-    expect((await call("POST", "auth/start", { body: { email: "z@example.com" }, ip: "9.9.9.9" })).status).toBe(429);
-    expect((await call("POST", "auth/start", { body: { email: "z@example.com" }, ip: "5.6.7.8" })).status).toBe(200);
+  it("takes no answer from Google that doesn't vouch for this client, now", async () => {
+    const good = google.claims;
+    const failing: (() => void)[] = [
+      () => (google.claims = { ...good, aud: "another-client" }),
+      () => (google.claims = { ...good, iss: "https://accounts.google.com.evil.example" }),
+      () => (google.claims = { ...good, exp: Math.floor(NOW / 1000) - 1 }),
+      () => (google.claims = { ...good, sub: "" }),
+      () => (google.claims = { ...good, sub: 1001 }),
+      () => (google.raw = "not a token"),
+      () => (google.raw = 7),
+      () => (google.status = 400),
+      () => (google.down = true),
+    ];
+    for (const fail of failing) {
+      fail();
+      const { to, cookie } = await toGoogle();
+      const res = await fromGoogle(`code=c&state=${to.searchParams.get("state")}`, cookie);
+      expect(res.headers.get("location")).toBe(`${ORIGIN}/lizard/settings#sync-error=failed`);
+      expect(cookieNamed(res, "lizard_session")).toBeUndefined();
+      Object.assign(google, { claims: good, raw: undefined, status: 200, down: false });
+    }
+    expect(await count("users")).toBe(0);
   });
 
-  it("limits tries at a token from one address", async () => {
-    for (let i = 0; i < 30; i++) expect((await call("POST", "auth/finish", { body: { token: "x" } })).status).toBe(401);
-    expect((await call("POST", "auth/finish", { body: { token: "x" } })).status).toBe(429);
+  it("takes Google's other spelling of itself", async () => {
+    google.claims = { ...google.claims, iss: "accounts.google.com" };
+    expect(await signIn()).toContain("lizard_session=");
+  });
+
+  it("limits sign-ins from one address, and the window passes", async () => {
+    for (let i = 0; i < 30; i++) await toGoogle(NOW, "9.9.9.9");
+    const res = await call("GET", "auth/google", { origin: null, ip: "9.9.9.9" });
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/lizard/settings#sync-error=busy`);
+    await toGoogle(NOW, "5.6.7.8");
+    await toGoogle(NOW + 3_600_001, "9.9.9.9");
+  });
+
+  it("goes back to Settings rather than showing a page of code when the database fails", async () => {
+    env.DB = { prepare: () => { throw new Error("secret detail"); }, batch: async () => {} };
+    expect((await call("GET", "auth/google", { origin: null })).headers.get("location")).toBe(`${ORIGIN}/lizard/settings#sync-error=failed`);
   });
 
   it("signs out, and an expired session is signed out", async () => {
@@ -127,6 +194,12 @@ describe("the origin", () => {
     expect((await call("DELETE", "account", { cookie: c, origin: "https://www.michael-han.com.evil.example" })).status).toBe(403);
   });
 
+  it("says it isn't there until Google's secret is, so no sign-in button shows that can't work", async () => {
+    expect((await call("GET", "health")).status).toBe(200);
+    env.GOOGLE_CLIENT_SECRET = "";
+    expect((await call("GET", "health")).status).toBe(503);
+  });
+
   it("opens no CORS and caches nothing", async () => {
     const res = await call("GET", "health", { origin: null });
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
@@ -137,7 +210,7 @@ describe("the origin", () => {
     expect((await call("GET", "nope")).status).toBe(404);
     expect((await call("GET", "account", { cookie: await signIn() })).status).toBe(405);
     env.DB = { prepare: () => { throw new Error("secret detail"); }, batch: async () => {} };
-    const res = await call("POST", "auth/start", { body: { email: "a@example.com" } });
+    const res = await call("GET", "me", { cookie: "lizard_session=x" });
     expect(res.status).toBe(500);
     expect(await res.text()).toBe('{"error":"failed"}');
   });
@@ -173,7 +246,7 @@ describe("records", () => {
   });
 
   it("keeps the same id in two stores apart, and one account from another", async () => {
-    const a = await signIn("a@example.com"), b = await signIn("b@example.com");
+    const a = await signIn("1001"), b = await signIn("2002");
     await put(a, [rec(1, "QUFB", 1), rec(1, "QkJC", 2)]);
     expect((await get(a)).records).toHaveLength(2);
     expect((await get(b)).records).toEqual([]);
@@ -248,19 +321,17 @@ describe("keys and the account", () => {
   });
 
   it("deletes an account and everything of it, leaving another's", async () => {
-    const a = await signIn("a@example.com"), b = await signIn("b@example.com");
+    const a = await signIn("1001"), b = await signIn("2002");
     for (const c of [a, b]) await call("POST", "records", { cookie: c, body: { records: [{ store: 1, id: id(1), body: "QUJD" }] } });
     expect((await call("DELETE", "account", { cookie: a })).status).toBe(200);
     expect(await (await call("GET", "me", { cookie: a })).json()).toEqual({ signedIn: false });
-    const count = async (t: string) => (await env.DB.prepare(`SELECT count(*) AS n FROM ${t}`).first<{ n: number }>())!.n;
     expect([await count("users"), await count("records"), await count("sessions")]).toEqual([1, 1, 1]);
   });
 
   it("sweeps out what's expired", async () => {
     await signIn();
-    await call("POST", "auth/start", { body: { email: "b@example.com" } });
     await sweep(env, NOW + 40 * 24 * 3600 * 1000);
-    for (const t of ["login_tokens", "sessions", "rate"]) expect((await env.DB.prepare(`SELECT count(*) AS n FROM ${t}`).first<{ n: number }>())!.n).toBe(0);
+    for (const t of ["sessions", "rate"]) expect((await env.DB.prepare(`SELECT count(*) AS n FROM ${t}`).first<{ n: number }>())!.n).toBe(0);
     expect((await env.DB.prepare("SELECT count(*) AS n FROM users").first<{ n: number }>())!.n).toBe(1);
   });
 });

@@ -7,7 +7,7 @@ routes = [{ pattern = "www.michael-han.com/lizard/api/*", zone_name = "michael-h
 
 [vars]
 SITE_ORIGIN = "https://www.michael-han.com"
-MAIL_FROM = "Lizard <lizard@michael-han.com>"
+GOOGLE_CLIENT_ID = "SET_WHEN_CREATED"
 
 [triggers]
 crons = ["17 * * * *"]

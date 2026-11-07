@@ -12,11 +12,11 @@ export interface Db {
 }
 export interface Env {
   DB: Db;
-  /** keys the hash an account is found by; a secret, so a copy of the table can't be tested against a list of addresses */
-  EMAIL_HMAC_KEY: string;
-  RESEND_API_KEY: string;
+  /** keys the hash an account is found by; a secret, so a copy of the table can't be tied to a Google account */
+  ACCOUNT_HMAC_KEY: string;
+  /** the OAuth client's id, which every visitor to Google's page can read */
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
   /** https://www.michael-han.com: requests from anywhere else are refused */
   SITE_ORIGIN: string;
-  /** Lizard <...@michael-han.com>, an address on the domain Resend has verified */
-  MAIL_FROM: string;
 }

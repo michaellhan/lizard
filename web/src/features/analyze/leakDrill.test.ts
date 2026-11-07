@@ -146,6 +146,12 @@ describe("leakDrill", () => {
     const s = toSession(l, { startedAt: 10, done: ["d1"], score }, 5, 20);
     expect(s).toMatchObject({ id: "leak-drill|pf:RFI", kind: "analysis", startedAt: 10, endedAt: 20, decisions: 1, meta: { drill: "leak", leak: "pf:RFI", total: 5, done: ["d1"] } });
     expect(fromSession(s)).toEqual({ startedAt: 10, done: ["d1"], score });
+    // its picks a way, kept beside the score: what a damaged way leaves out, History counts apart
+    const ways = { ev: { n: 1, ok: 1, loss: 0, lossPct: 0 } };
+    const kept = toSession(l, { startedAt: 10, done: ["d1"], score, ways }, 5, 20);
+    expect(kept.meta.ways).toEqual(ways);
+    expect(fromSession(kept)).toEqual({ startedAt: 10, done: ["d1"], score, ways });
+    expect(fromSession({ ...kept, meta: { ...kept.meta, ways: { ev: { n: "1" }, other: { n: 1, ok: 1 } } } })?.ways).toEqual({});
     expect([fromSession(undefined), fromSession({ ...s, meta: {} })]).toEqual([null, null]);
   });
 

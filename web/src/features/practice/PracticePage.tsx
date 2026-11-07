@@ -101,8 +101,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   const scenario = params.get("scenario");
   const linked = setupLinkKey(params);
   const [opened, setOpened] = useState<{ ok: boolean; text: string } | null>(null);
-  // a setup's link that came with a hand under way, until you've said what to do with it
-  const [asking, setAsking] = useState<ScenarioSetup | null>(null);
+  // a link's setup that came with a hand under way, and what it's called, until you've said what to do with it
+  const [asking, setAsking] = useState<{ setup: ScenarioSetup; name: string } | null>(null);
   // (as the page commits, before the Room starts: settings load after the first render, and each launch reads the latest)
   useLayoutEffect(() => {
     room.setSolver(getSolver);
@@ -129,9 +129,9 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
 
   // A saved scenario's link, or a setup's (setupLink.ts, the Plan page's): the setup starts at one table, as above one Spots
   // and Seat deal in its place, and the link goes from the address, so a reload doesn't start it again. A link can come from
-  // anywhere and a session you're in the middle of is yours, so a setup's link waits for the kept session to be read, and
-  // with a hand under way it asks first.
-  const waiting = linked !== null && !scenario && snap.holding;
+  // anywhere and a session you're in the middle of is yours, so either waits for the kept session to be read, and with a
+  // hand under way it asks first.
+  const waiting = (linked !== null || !!scenario) && snap.holding;
   useEffect(() => {
     if ((!scenario && linked === null) || waiting) return;
     let alive = true;
@@ -139,8 +139,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       const kept = scenario ? await getScenario(scenario).catch(() => undefined) : undefined;
       if (!alive) return;
       const s = scenario ? kept : readSetupLink(new URLSearchParams(linked!));
-      if (s && !scenario && room.snapshot().underWay) {
-        setAsking(s);
+      if (s && room.snapshot().underWay) {
+        setAsking({ setup: s, name: kept?.name ?? scenarioWords(s) });
       } else {
         if (s) {
           room.setTables(1);
@@ -182,13 +182,13 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     }
   }, [asking]);
   const answerLink = (replace: boolean) => {
-    const s = asking;
-    if (!s) return;
+    if (!asking) return;
+    const { setup: s, name } = asking;
     if (replace) {
       room.setTables(1);
       room.startSession(s.players, s.stack, s.opts);
     }
-    setOpened({ ok: true, text: replace ? `Started ${scenarioWords(s)}.` : `Kept this session. ${scenarioWords(s)} wasn't started.` });
+    setOpened({ ok: true, text: replace ? `Started ${name}.` : `Kept this session. ${name} wasn't started.` });
     setAsking(null);
   };
 
@@ -244,7 +244,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             A session is under way
           </h2>
           <p id="link-ask-words" className="text-muted">
-            This link starts {scenarioWords(asking)}, in place of what you&rsquo;re playing. Finished hands stay in History, and the hand in progress goes.
+            This link starts {asking.name}, in place of what you&rsquo;re playing. Finished hands stay in History, and the hand in progress goes.
           </p>
           <div className="flex flex-wrap gap-2">
             <button ref={keepRef} type="button" onClick={() => answerLink(false)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">

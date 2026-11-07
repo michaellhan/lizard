@@ -4319,3 +4319,19 @@ Tests before this commit: 3325 unit tests (2 skipped), typecheck and lint clean,
 Live check of `e58d362`: run 42202219060 green, `index-Czn0lyv6.js` 303,047 bytes is the local build's name and size, `/lizard/`, `/lizard/reports/`, `/lizard/settings/`, `/lizard/solver/manifest.json`, `/`, `/gto-solver/` and `/gto-solver-classic/` answer 200, and `/lizard/api/health` answers 404, as it should. In a browser on the live site, `srp_btn_bb` on Reports reads as before: Range adv BTN +9.0 over all flops, no Nut adv column, no request for `nuts.json`, none to `/lizard/api`. The console's only errors are the Cloudflare beacon the CSP blocks, which goes when the owner turns it off.
 
 With this, everything the owner decided that needs neither their keys nor the finished builds is done. Two things are left: the nut shares, which the launchd job runs by itself once the builds finish, and account sync going live, which needs the owner's Cloudflare and Resend setup (`docs/DEPLOYMENT.md` section 6).
+
+Live check of `fbec044`: run 42293060327 green with `LIZARD_SYNC=on`, `index-CZspHo9b.js` 295,563 bytes, the Account sync panel in Settings, `/lizard/api/health` 200 and `/`, `/gto-solver/`, `/gto-solver-classic/` 200. The owner signed in by a real mailed link on real D1: one user, one session and one record in the rows afterwards. That was one browser, so a second browser, a deletion crossing over and reading the rows for ciphertext alone had not been done.
+
+### 2026-11-07: Sign in with Google in place of the magic link, and the last of the unlike grades kept apart (Phase 7)
+
+The owner tried the magic link live and changed their mind: "why so complicated jsut do sign in with google instead". So it's Google, and the mail path is gone: the Resend call, `login_tokens`, the token in the address and the form.
+
+- **The flow** is a plain link and two redirects run by the Worker (OpenID Connect's code flow with PKCE). No Google script runs on the site, because the site's `script-src 'self'` and its isolation headers, which the engine's threads need, would have had to weaken for one.
+- **It asks only for `openid`**, so the service never receives an email or a name, which is less than the magic link needed. It keeps a keyed hash of the number Google gives the account. What it costs: Google knows you signed in to Lizard.
+- **Not in the way before it works:** `GET health` answers 503 until `GOOGLE_CLIENT_SECRET` is set, and the panel shows only once it answers, so the deployed site needs no second deploy when the secret goes in.
+- **Grades, from the owner's "split them":** Analyze's report tables give a row graded more than one way a figure a way under it, with no share or EV lost for the row as a whole. The Plan orders by EV lost to a solve of the spot, then by EV lost to the preflop solve, then by frequency, and never adds the two. A leak drill's score line splits, and keeps its picks a way for History. The EV-lost filter stands a hand at the larger kind rather than the sum. The JSON summary keeps the two EVs in separate fields.
+- **`?scenario=`** now waits for the kept session and asks first, as `?play=` does.
+
+A note on process. The subagent checking unverified features in a browser died when the Mac restarted overnight, and I went on waiting for its notice, so nothing ran for about sixteen hours. Its test file `web/e2e/checks.e2e.ts` is kept and is being run on its own; it isn't counted below until it has been.
+
+Tests before this commit: 3346 unit tests in 171 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, the Worker's 28 tests, and the two-browser sync check with Google stood in for, 12 of 12. The browser run gave 138 passed and 1 failed, step 7d, whose new line assumed a dialog that shows only when a hand was kept in time. It now takes either, and passed alone. Google itself hasn't been reached: that needs the owner's client.

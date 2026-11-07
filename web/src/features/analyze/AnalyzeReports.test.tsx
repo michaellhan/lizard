@@ -133,6 +133,65 @@ describe("the breakdowns", () => {
     expect(links[1]!.getAttribute("href")).toContain(`hand=${hs[2]!.id}`);
   });
 
+  const solved = (h: HandRecord, over: Partial<DecisionRecord> = {}) => dec(h, { source: "preflop-solve", label: "Preflop solve (class-level model)", verdict: "Mistake", evLossBb: 0.5, lossPct: 10, pot: 5, mix: [["fold", 0.8, 0], ["raise", 0.2, 0.5]], ...over });
+
+  it("reads as ever on a row graded one way, and has no line for a way", async () => {
+    const hs = [hand(T0, { hero: "BTN" }), hand(T0 + 1, { hero: "BTN" })];
+    await seed(hs, [cbet(hs[0]!), cbet(hs[1]!, { evLossBb: 0.2, lossPct: 3.6 })]);
+    open();
+    const table = await within(await screen.findByRole("group", { name: "Breakdowns" })).findByRole("table", { name: "Your seat" });
+    const btn = within(table).getByRole("row", { name: "BTN" });
+    expect(btn).toHaveTextContent("BTN20%");
+    expect(btn).toHaveTextContent("0.4bb (7.3%)");
+    expect(within(table).queryByRole("row", { name: /^BTN, / })).toBeNull();
+    expect(table).not.toHaveTextContent("A figure for each way");
+  });
+
+  it("reads a row graded only by the preflop solve as a row, with what it stands on", async () => {
+    const hs = [hand(T0, { hero: "BB" })];
+    await seed(hs, [solved(hs[0]!)]);
+    open();
+    const table = await within(await screen.findByRole("group", { name: "Breakdowns" })).findByRole("table", { name: "Your seat" });
+    const bb = within(table).getByRole("row", { name: "BB" });
+    expect(bb).toHaveTextContent("0.5bb (10%)");
+    expect(bb).toHaveTextContent("Preflop solve (class-level model, by EV, not a full solve) 1");
+    expect(within(table).queryByRole("row", { name: /^BB, / })).toBeNull();
+  });
+
+  it("gives a row graded more than one way a figure each, with none that adds them", async () => {
+    const hs = [hand(T0), hand(T0 + 1), hand(T0 + 2), hand(T0 + 3)];
+    await seed(hs, [solved(hs[0]!), dec(hs[1]!), cbet(hs[2]!, { evLossBb: 2, lossPct: 40, verdict: "Blunder" }), cbet(hs[3]!, { evLossBb: 1, lossPct: 20, verdict: "Blunder" })]);
+    open();
+    const table = await within(await screen.findByRole("group", { name: "Breakdowns" })).findByRole("table", { name: "Your seat" });
+    const row = within(table).getByRole("row", { name: "BTN" });
+    expect(row).toHaveTextContent("BTN4A figure for each way");
+    expect(row).toHaveTextContent("Charts, by frequency 1");
+    // (what one figure would say: 3.5bb over the 3 graded by an EV is 1.17bb a decision, and 1 of the 4 in the mix is 25%)
+    expect(table).not.toHaveTextContent(/1\.17bb|25%/);
+    const ev = within(table).getByRole("row", { name: "BTN, by EV" });
+    expect(ev).toHaveTextContent("By EV20%");
+    expect(ev).toHaveTextContent("1.5bb (30%)");
+    const pf = within(table).getByRole("row", { name: "BTN, by the preflop solve" });
+    expect(pf).toHaveTextContent("By the preflop solve10%");
+    expect(pf).toHaveTextContent("0.5bb (10%)");
+    const freq = within(table).getByRole("row", { name: "BTN, by frequency" });
+    expect(freq).toHaveTextContent("By frequency1100%");
+    expect(freq).toHaveTextContent("—");
+    // (the row's decisions are behind the row, and each way's row has no button of its own)
+    expect(within(table).getAllByRole("button", { name: /^Decisions/ })).toHaveLength(1);
+  });
+
+  it("splits a spot graded by EV and by frequency the same way", async () => {
+    const hs = [hand(T0), hand(T0 + 1)];
+    const stored = { source: "library-turn", label: "Stored turn", evLossBb: null, lossPct: null, verdict: "Correct", mix: [["check", 0.5, null], ["bet 33%", 0.5, null]] } as Partial<DecisionRecord>;
+    await seed(hs, [cbet(hs[0]!), cbet(hs[1]!, stored)]);
+    open();
+    const table = await screen.findByRole("table", { name: "After the flop, by spot" });
+    expect(within(table).getByRole("row", { name: "Flop · SRP · IP · checked to" })).toHaveTextContent("A figure for each way");
+    expect(within(table).getByRole("row", { name: "Flop · SRP · IP · checked to, by EV" })).toHaveTextContent("0.6bb (10.9%)");
+    expect(within(table).getByRole("row", { name: "Flop · SRP · IP · checked to, by frequency" })).toHaveTextContent("100%");
+  });
+
   it("reads a size from the history, and says what it leaves out and why", async () => {
     const [srp, pot] = await fixtures("stars_6max_srp.txt", "stars_3bet_pot.txt");
     await seed([srp!, pot!], [dec(srp!, { id: `${srp!.id}|preflop|3`, i: 3 }), dec(pot!, { id: `${pot!.id}|preflop|4`, i: 4 }), cbet(pot!, { id: `${pot!.id}|flop|2`, i: 2 })]);

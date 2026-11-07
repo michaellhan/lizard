@@ -134,6 +134,32 @@ describe("a leak drill on the turn", () => {
     await waitFor(async () => expect((await listMistakes()).list[0]).toMatchObject({ grade: { verdict: "Inaccuracy" } }));
   });
 
+  it("gives one way's score as a line, and names the preflop solve where that's what graded it", async () => {
+    drill([turn()]);
+    fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Drill score" })).toHaveTextContent(/^1 of 1 drilled: 0 in the mix \(0%\), 0\.5bb lost over 1 graded by EV\./));
+  });
+
+  it("gives a drill graded two ways a figure each, none added, and keeps them for History", async () => {
+    const stored = { id: decisionId("h1", "turn", 2), i: 2, source: "library-turn", label: "Stored turn", evLossBb: null, lossPct: null, byEv: false, verdict: "Correct", mix: [["check", 0.9, null], ["bet 75%", 0.1, null]] } as Partial<DecisionRecord>;
+    drill([turn(), turn(stored)]);
+    fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Next decision" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
+    const score = await screen.findByRole("group", { name: "Drill score" });
+    await waitFor(() => expect(score).toHaveTextContent(/^2 of 2 drilled: by EV: 0% of 1 · 0\.50bb lost · 5\.0% pot; by frequency: 100% of 1\./));
+    expect(score).not.toHaveTextContent(/in the mix|50%/);
+    await waitFor(async () => expect((await getSession(drillSessionId(LEAK)))?.meta.ways).toEqual({ ev: { n: 1, ok: 0, loss: 0.5, lossPct: 5 }, freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } }));
+  });
+
+  it("says the picks of a drill kept before ways, of two kinds, are in no figure", async () => {
+    const score = { n: 3, ok: 2, loss: 1, lossPct: 10, ne: 2, streak: 0, best: 2, recent: [1, 1, 0] };
+    await (await db())!.put("sessions", { id: drillSessionId(LEAK), kind: "analysis", startedAt: 1, decisions: 3, evLossBb: 1, meta: { drill: "leak", done: ["a", "b", "c"], score } });
+    drill([turn()]);
+    await waitFor(() => expect(screen.getByRole("group", { name: "Drill score" })).toHaveTextContent(/: 3 kept before grades were told apart by way, in none of these\./));
+    expect(screen.getByRole("group", { name: "Drill score" })).not.toHaveTextContent(/in the mix \(|bb lost/);
+  });
+
   it("says what it can't deal, with others to deal and with none", async () => {
     const some = drill([turn(), turn({ id: "h1|turn|2", i: 2, mix: undefined })]);
     expect(await screen.findByText(/1 of this leak's graded decisions isn't dealt here/)).toBeInTheDocument();

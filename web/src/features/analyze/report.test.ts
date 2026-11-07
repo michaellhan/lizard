@@ -99,6 +99,46 @@ describe("the versions behind a report", () => {
   });
 });
 
+describe("a row graded more than one way", () => {
+  const solved = (o: Partial<DecisionRecord> = {}) => open({ source: "preflop-solve", label: "Preflop solve (class-level model)", verdict: "Mistake", evLossBb: 0.5, lossPct: 10, ...o });
+
+  it("never adds the preflop solve's EV lost to a spot's", () => {
+    const t = tally([solved(), solved({ evLossBb: 0.25, lossPct: 5 }), cbet({ evLossBb: 2, lossPct: 40 })]);
+    expect([t.ev, t.lost, t.avg, t.avgPct]).toEqual([1, 2, 2, 40]);
+    expect([t.pfEv, t.pfLost, t.pfAvg, t.pfAvgPct]).toEqual([2, 0.75, 0.375, 7.5]);
+  });
+
+  it("keeps a figure a way, each its own share, only where there's more than one", () => {
+    const [row] = groupBy([solved(), open({ verdict: "Correct" }), cbet({ evLossBb: 2, lossPct: 40 }), cbet({ verdict: "Best", evLossBb: 0, lossPct: 0 }), d({ verdict: "Not graded", why: "no" })], (x) => x.pos);
+    expect(Object.keys(row!.ways!).sort()).toEqual(["ev", "freq", "solve"]);
+    expect(row!.ways!.ev).toMatchObject({ graded: 2, ok: 1, ev: 2, lost: 2, avg: 1, pfEv: 0 });
+    expect(row!.ways!.solve).toMatchObject({ graded: 1, ok: 0, ev: 0, lost: 0, pfEv: 1, pfLost: 0.5, pfAvg: 0.5 });
+    expect(row!.ways!.freq).toMatchObject({ graded: 1, ok: 1, ev: 0, pfEv: 0 });
+    // (a decision not graded goes in no way's count)
+    expect(row!.n).toBe(5);
+    expect(row!.graded).toBe(4);
+  });
+
+  it("has no ways on a row graded one way, whatever answered it", () => {
+    expect(groupBy([open(), open()], (x) => x.pos)[0]!.ways).toBeUndefined();
+    expect(groupBy([solved(), solved()], (x) => x.pos)[0]!.ways).toBeUndefined();
+    expect(groupBy([cbet(), cbet({ source: "live" })], (x) => x.pos)[0]!.ways).toBeUndefined();
+  });
+
+  it("orders rows with no order of their own by a spot's EV first, then the preflop solve's, never the sum", () => {
+    const rows = groupBy([solved({ pos: "BB", evLossBb: 9 }), cbet({ pos: "SB", evLossBb: 1 }), solved({ pos: "CO", evLossBb: 3 })], (x) => x.pos);
+    expect(rows.map((r) => r.key)).toEqual(["SB", "BB", "CO"]);
+  });
+
+  it("exports the two apart, and says what graded preflop without calling the charts a solve", () => {
+    const hands = new Map([["h1", { id: "h1", board: "" } as HandRecord]]);
+    const j = JSON.parse(toJSON([solved(), cbet({ evLossBb: 2, lossPct: 40 })], hands, 0)) as { summary: { ev: number; lost: number; pfEv: number; pfLost: number }; graded_against: string };
+    expect(j.summary).toMatchObject({ ev: 1, lost: 2, pfEv: 1, pfLost: 0.5 });
+    expect(j.graded_against).toMatch(/preflop solve by EV .*a class-level model/);
+    expect(j.graded_against).toMatch(/charts, by frequency \(not a solve\)/);
+  });
+});
+
 describe("report", () => {
   it("tallies the grades, the EV lost by EV only, and groups in order", () => {
     const ds = [open(), open({ verdict: "Mistake", action: "call", freq: 0 }), cbet(), cbet({ verdict: "Best", evLossBb: 0, lossPct: 0 }), d({ verdict: "Not graded", why: "not a flop-library spot", street: "flop" })];

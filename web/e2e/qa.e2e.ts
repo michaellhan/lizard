@@ -650,6 +650,12 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   await page.goto("/lizard/saved/");
   await page.getByRole("link", { name: "Start QA station" }).click();
   await expect(page).toHaveURL(/\/practice/);
+  // (a hand kept in time comes back with the page and the link asks first; one not yet kept doesn't, and it starts at once)
+  const asked = page.getByRole("alertdialog", { name: "A session is under way" });
+  const started = page.getByText("Started QA station.");
+  await expect(asked.or(started)).toBeVisible();
+  if (await asked.isVisible()) await asked.getByRole("button", { name: "Start the new one" }).click();
+  await expect(started).toBeVisible();
   await expect(page.getByLabel("Play", { exact: true })).toHaveValue("srp");
   await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
   await clean(page, problems);

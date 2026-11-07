@@ -194,6 +194,13 @@ describe("stats", () => {
       ["b", 0.5],
       ["d", 2],
     ]);
+    // the preflop solve's EV is of another model: a hand stands at the larger kind, never the two added
+    const pf = (handId: string, evLossBb: number) => ({ handId, evLossBb, source: "preflop-solve" }) as DecisionRecord;
+    expect([...lostByHand([d("a", 1), pf("a", 0.4), pf("a", 0.3), pf("b", 2), d("b", 0.5), pf("c", 3)])]).toEqual([
+      ["a", 1],
+      ["b", 2],
+      ["c", 3],
+    ]);
     const byLost = (q: string) => filterHands(hands, new URLSearchParams(q), lost).map((x) => x.id);
     expect(byLost("lost=0.5")).toEqual(["a", "b", "d"]);
     expect(byLost("lost=1")).toEqual(["a", "d"]);

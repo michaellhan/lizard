@@ -1,7 +1,7 @@
 // Lizard's account sync, on Cloudflare Workers + D1: see docs/SYNC_DESIGN.md. It sits at /lizard/api/ on the site's own
 // origin, so no CORS is opened: a request from any other origin is refused, and a write must carry a header that a
 // cross-site form can't set. Failures answer with a code, and nothing here logs a request's body.
-import { finish, signOut, start, userOf } from "./auth";
+import { finishGoogle, signOut, startGoogle, userOf } from "./auth";
 import type { Env } from "./env";
 import { json, Refused, refuse } from "./http";
 import { deleteAccount, me, pull, push, setKeys } from "./records";
@@ -14,12 +14,13 @@ async function route(req: Request, env: Env, now: number): Promise<Response> {
   const at = `${req.method} ${path}`;
   const origin = req.headers.get("origin");
   if (origin && origin !== env.SITE_ORIGIN) throw new Refused(403, "bad_origin");
-  if (at === "GET health") return json({ ok: true });
+  // (the panel shows only once this answers, so nobody meets a sign-in button that can't work)
+  if (at === "GET health") return env.GOOGLE_CLIENT_SECRET ? json({ ok: true }) : refuse(503, "not_ready");
   if (req.method !== "GET") {
     if (origin !== env.SITE_ORIGIN || req.headers.get("x-lizard") !== "1") throw new Refused(403, "bad_origin");
   }
-  if (at === "POST auth/start") return start(req, env, now);
-  if (at === "POST auth/finish") return finish(req, env, now);
+  if (at === "GET auth/google") return startGoogle(req, env, now);
+  if (at === "GET auth/google/callback") return finishGoogle(req, env, now);
   if (at === "POST auth/signout") return signOut(req, env);
   const user = await userOf(req, env, now);
   if (at === "GET me") return me(env, user);
@@ -43,10 +44,9 @@ export async function handle(req: Request, env: Env, now = Date.now()): Promise<
   }
 }
 
-/** Clears what's expired: a token or session past its time already does nothing, this only stops them piling up. */
+/** Clears what's expired: a session past its time already does nothing, this only stops them piling up. */
 export async function sweep(env: Env, now: number) {
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM login_tokens WHERE expires_at <= ?").bind(now),
     env.DB.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now),
     env.DB.prepare("DELETE FROM rate WHERE window_start <= ?").bind(now - 24 * 3600 * 1000),
   ]);

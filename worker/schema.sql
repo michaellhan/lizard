@@ -1,17 +1,12 @@
--- Account sync's tables. The server holds ciphertext, never a key or an email address: see docs/SYNC_DESIGN.md.
+-- Account sync's tables. The server holds ciphertext, never a key, an email address or a name: see docs/SYNC_DESIGN.md.
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email_hash TEXT NOT NULL UNIQUE,
+  account_hash TEXT NOT NULL UNIQUE,
   created_at INTEGER NOT NULL,
   salt TEXT,
   check_value TEXT,
   seq INTEGER NOT NULL DEFAULT 0,
   bytes INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS login_tokens (
-  token_hash TEXT PRIMARY KEY,
-  email_hash TEXT NOT NULL,
-  expires_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,

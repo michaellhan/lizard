@@ -1,11 +1,9 @@
-// Counts in fixed windows, in D1, as a Worker has no memory between requests. It's a brake on sign-in mail and on writes.
+// Counts in fixed windows, in D1, as a Worker has no memory between requests. It's a brake on sign-ins and on writes.
 import { Refused } from "./http";
 import type { Db } from "./env";
 
 export const LIMITS = {
-  mailAddress: { max: 5, ms: 3600_000 },
-  mailIp: { max: 20, ms: 3600_000 },
-  finishIp: { max: 30, ms: 3600_000 },
+  signInIp: { max: 30, ms: 3600_000 },
   writes: { max: 60, ms: 60_000 },
 } as const;
 

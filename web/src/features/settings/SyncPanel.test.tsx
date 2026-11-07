@@ -1,5 +1,5 @@
-// The panel, with the service stood in for and the encryption real: it shows nothing until the service answers, the link's
-// token goes from the address, a wrong passphrase unlocks nothing, and what can't be undone asks first.
+// The panel, with the service stood in for and the encryption real: it shows nothing until the service answers, what Google
+// sent back goes from the address, a wrong passphrase unlocks nothing, and what can't be undone asks first.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db, kvGet } from "@/data/db";
@@ -17,12 +17,6 @@ vi.mock("@/sync/api", async (real) => ({
   ...(await real<typeof import("@/sync/api")>()),
   syncAvailable: () => Promise.resolve(service.up),
   me: () => Promise.resolve({ signedIn: service.signedIn, salt: service.salt, check: service.check, bytes: 2 * 1024 * 1024, maxBytes: 250 * 1024 * 1024 }),
-  startSignIn: (email: string) => (service.calls.push(`start ${email}`), Promise.resolve({})),
-  finishSignIn: (token: string) => {
-    service.calls.push(`finish ${token}`);
-    service.signedIn = true;
-    return Promise.resolve({});
-  },
   signOut: () => {
     service.calls.push("signout");
     service.signedIn = false;
@@ -73,30 +67,23 @@ describe("the sync panel", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("sends a sign-in link and says what it can't know", async () => {
+  it("signs in by plain link to the service, which sends the browser on to Google", async () => {
     render(<SyncPanel />);
-    await userEvent.type(await screen.findByLabelText("Email"), "a@example.com");
-    await userEvent.click(screen.getByRole("button", { name: "Email me a sign-in link" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("If that address can sign in");
-    expect(service.calls).toEqual(["start a@example.com"]);
+    expect(await screen.findByRole("link", { name: "Sign in with Google" })).toHaveAttribute("href", "/lizard/api/auth/google");
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("spends the link's token and takes it from the address at once", async () => {
-    history.replaceState(null, "", "/lizard/settings#sync-token=abc");
+  it.each([
+    ["cancelled", "Sign-in was cancelled"],
+    ["busy", "Too many sign-ins"],
+    ["failed", "didn't finish"],
+    ["anything else", "didn't finish"],
+  ])("says what came back from Google (%s) and takes it from the address", async (why, words) => {
+    history.replaceState(null, "", `/lizard/settings#sync-error=${why}`);
     render(<SyncPanel />);
-    expect(await screen.findByRole("button", { name: "Start syncing" })).toBeDisabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(words);
     expect(location.hash).toBe("");
-    expect(service.calls).toEqual(["finish abc"]);
-  });
-
-  it("takes a link pasted into a tab already on the page, where no page loads to find it", async () => {
-    render(<SyncPanel />);
-    await screen.findByLabelText("Email");
-    history.replaceState(null, "", "/lizard/settings#sync-token=later");
-    fireEvent(window, new HashChangeEvent("hashchange"));
-    expect(await screen.findByRole("button", { name: "Start syncing" })).toBeDisabled();
-    expect(service.calls).toEqual(["finish later"]);
-    expect(location.hash).toBe("");
+    expect(location.pathname).toBe("/lizard/settings");
   });
 
   it("won't take a passphrase too short or typed differently, and says a lost one can't be got back", async () => {
@@ -158,7 +145,7 @@ describe("the sync panel", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Delete my account" }));
     expect(service.calls).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: "Delete the account and the synced copy" }));
-    expect(await screen.findByLabelText("Email")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Sign in with Google" })).toBeInTheDocument();
     expect(service.calls).toEqual(["delete"]);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Sync now" })).toBeNull());
   }, 30_000);

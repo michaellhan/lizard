@@ -235,52 +235,57 @@ npm run build && npm run preview
 Serves `web/dist` at http://localhost:4173/lizard/ with the COOP/COEP headers. The library paths are proxied to the
 live site.
 
-## 6. Account sync (service up, sign-in waiting on the mail key)
+## 6. Account sync (service up, sign-in waiting on the Google client)
 
-Done on 2026-11-06: the database, its schema, the Worker on its route and `EMAIL_HMAC_KEY`. Left: `RESEND_API_KEY`, then steps 5
-and 6.
+Done: the database, its schema, the Worker on its route, and the panel in the site (`LIZARD_SYNC=on`, a repo variable). The
+design and what it costs in privacy are in `docs/SYNC_DESIGN.md`. The service is a Cloudflare Worker with a D1 database at
+`www.michael-han.com/lizard/api/*`, which goes in front of Pages for that path only.
 
-The design and what it costs in privacy are in `docs/SYNC_DESIGN.md`. The service is a Cloudflare Worker with a D1 database at
-`www.michael-han.com/lizard/api/*`, which goes in front of Pages for that path only. Until these steps are done the site
-contains no sync panel and makes no request to it.
-
-What needs the owner's accounts, in order:
-
-1. Resend: confirm `michael-han.com` shows Verified, and create an API key with sending access to that domain only. As of
-   2026-11-06, public DNS already has Resend's records (`resend._domainkey`, and MX and SPF on `send`); they don't touch the
-   domain's IONOS mail on the root. The free plan allows 100 mails a day.
-2. Cloudflare: `npx wrangler@4 login`, once. No token is needed, as nothing in CI deploys the Worker. As of 2026-11-06 this Mac
-   is logged in with `workers_scripts`, `workers_routes` and `d1` write, and the account has no `lizard-sync` database.
-3. From `worker/`, deploying first so that the secret has a Worker to go on:
-
-```bash
-npx wrangler@4 d1 create lizard-sync
-```
-
-Put the id it prints in `wrangler.toml` as `database_id`. It's an identifier, not a secret.
-
-```bash
-npx wrangler@4 d1 execute lizard-sync --remote --file schema.sql
-```
+Wrangler is logged in on this Mac by `npx wrangler@4 login` (`workers_scripts`, `workers_routes`, `d1` write). No token is
+needed, as nothing in CI deploys the Worker, so a change to `worker/` is deployed by hand from `worker/`, alongside the site
+change that goes with it:
 
 ```bash
 npx wrangler@4 deploy
 ```
 
-```bash
-openssl rand -base64 32 | npx wrangler@4 secret put EMAIL_HMAC_KEY
-```
-
-The owner types this one, at its hidden prompt, in their own terminal:
+Moving from magic link to Google, on the live database, once (the old sign-in's table and column go; an account made by email
+can no longer be reached, as what found it was a hash of the address):
 
 ```bash
-npx wrangler@4 secret put RESEND_API_KEY
+npx wrangler@4 d1 execute lizard-sync --remote --command "ALTER TABLE users RENAME COLUMN email_hash TO account_hash; DROP TABLE login_tokens;"
 ```
 
-4. Check `https://www.michael-han.com/lizard/api/health` answers JSON, and that the site itself, `/gto-solver/` and the homepage
-   are as they were.
-5. Set the repo variable `LIZARD_SYNC` to `on` and redeploy, which builds the panel in.
-6. Check it for real, as nothing has yet: sign in from a mail, choose a passphrase, sync, unlock in a second browser, delete
-   something in one and see it go in the other, delete the account, and read the D1 rows to see only ciphertext.
+```bash
+openssl rand -base64 32 | npx wrangler@4 secret put ACCOUNT_HMAC_KEY
+```
+
+```bash
+npx wrangler@4 secret delete EMAIL_HMAC_KEY
+```
+
+```bash
+npx wrangler@4 secret delete RESEND_API_KEY
+```
+
+What needs the owner's Google account:
+
+1. [Google Cloud console](https://console.cloud.google.com/): a new project, say `Lizard`.
+2. Google Auth Platform, Get started: app name `Lizard`, a support address, Audience **External**, a contact address.
+3. Audience: **Publish app**. Without this only listed test users can sign in. It asks only for `openid`, which needs no review
+   by Google; a logo would need one, so leave that out.
+4. Clients, Create client: type **Web application**, with this exact Authorized redirect URI:
+
+   `https://www.michael-han.com/lizard/api/auth/google/callback`
+
+5. The client ID goes in `worker/wrangler.toml` as `GOOGLE_CLIENT_ID`. It isn't a secret. The client secret is, and goes in only
+   at this hidden prompt, from `worker/`:
+
+```bash
+npx wrangler@4 secret put GOOGLE_CLIENT_SECRET
+```
+
+6. Check it for real: sign in with Google, choose a passphrase, sync, unlock in a second browser, delete something in one and
+   see it go in the other, delete the account, and read the D1 rows to see only ciphertext.
 
 To take it down, set `LIZARD_SYNC` off and redeploy, then remove the route (`npx wrangler@4 delete` from `worker/` removes the Worker and its route, and leaves the database). Local data is untouched by either.

@@ -1,7 +1,6 @@
-// Account sync in two real browsers, against the Worker's real code on the real schema. SQLite stands in for D1 and a list
-// for Resend, as neither is reachable from here; everything else is real: WebCrypto, keys kept in IndexedDB, the cookie, the
-// service worker's reload on a link opened on a new device, and two browsers converging. It's run by hand, as the site is
-// built without sync until the service is deployed:
+// Account sync in two real browsers, against the Worker's real code on the real schema. SQLite stands in for D1 and two
+// stubs for Google, as neither is reachable from here; everything else is real: the redirects through the service worker,
+// the cookies, WebCrypto, keys kept in IndexedDB, and two browsers converging. It's run by hand:
 //
 //   node --experimental-transform-types --no-warnings scripts/sync_check.mjs
 //
@@ -34,14 +33,14 @@ const load = (file) => import(pathToFileURL(join(ROOT, file)).href);
 const { handle } = await load("worker/src/index.ts");
 const { testDb } = await load("worker/src/sqlite.test-helper.ts");
 
-const mail = [];
+// Google's token endpoint, as the Worker reaches it. Its page is stood in for in each browser: see signIn.
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
-  if (String(url) !== "https://api.resend.com/emails") return realFetch(url, init);
-  mail.push(JSON.parse(init.body).text);
-  return new Response("{}", { status: 200 });
+  if (String(url) !== "https://oauth2.googleapis.com/token") return realFetch(url, init);
+  const claims = { iss: "https://accounts.google.com", aud: "check-client", sub: "1001", exp: Math.floor(Date.now() / 1000) + 3600 };
+  return new Response(JSON.stringify({ id_token: `x.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.y` }), { status: 200 });
 };
-const env = { DB: testDb(), EMAIL_HMAC_KEY: "check-only", RESEND_API_KEY: "check-only", SITE_ORIGIN: ORIGIN, MAIL_FROM: "Lizard <l@example.com>" };
+const env = { DB: testDb(), ACCOUNT_HMAC_KEY: "check-only", GOOGLE_CLIENT_ID: "check-client", GOOGLE_CLIENT_SECRET: "check-only", SITE_ORIGIN: ORIGIN };
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".wasm": "application/wasm", ".svg": "image/svg+xml", ".webmanifest": "application/json" };
 
@@ -55,7 +54,11 @@ const server = createServer(async (req, res) => {
     for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers.set(k, v);
     headers.set("cf-connecting-ip", "127.0.0.1");
     const out = await handle(new Request(url, { method: req.method, headers, body: req.method === "GET" ? undefined : body }), env);
-    res.writeHead(out.status, Object.fromEntries(out.headers));
+    const sent = Object.fromEntries(out.headers);
+    delete sent["set-cookie"];
+    // (not "Secure" here: this is http://localhost, where the Worker's cookies would be thrown away)
+    const cookies = out.headers.getSetCookie().map((c) => c.replace("; Secure", ""));
+    res.writeHead(out.status, cookies.length ? { ...sent, "set-cookie": cookies } : sent);
     res.end(Buffer.from(await out.arrayBuffer()));
     return;
   }
@@ -75,16 +78,23 @@ const check = (name, ok, more = "") => {
 };
 
 const PHRASE = "a long enough phrase";
-const EMAIL = "someone@example.com";
 const settings = `${ORIGIN}/lizard/settings`;
 
-/** A sign-in from a mailed link, as a browser that's never been here opens it. */
+/** What Google's page does once you've picked an account, or pressed Cancel. */
+const googleAnswers = (page, answer) =>
+  page.context().route("https://accounts.google.com/**", (route) => {
+    const asked = new URL(route.request().url()).searchParams;
+    const back = new URL(asked.get("redirect_uri"));
+    back.search = new URLSearchParams(answer(asked)).toString();
+    return route.fulfill({ status: 302, headers: { location: back.href } });
+  });
+
+/** A sign-in with Google, as a browser that's never been here does it. */
 async function signIn(page) {
+  await googleAnswers(page, (asked) => ({ code: "the-code", state: asked.get("state") }));
   await page.goto(settings);
-  await page.getByLabel("Email").fill(EMAIL);
-  await page.getByRole("button", { name: "Email me a sign-in link" }).click();
-  await page.getByText("a link is on its way").waitFor();
-  return mail.at(-1).match(/https?:\S+/)[0];
+  await page.getByRole("link", { name: "Sign in with Google" }).click();
+  await page.waitForURL(settings);
 }
 
 const saved = (page, title) => page.getByRole("listitem", { name: title });
@@ -120,12 +130,17 @@ try {
   const errors = [];
   for (const p of [a, b]) p.on("pageerror", (e) => errors.push(String(e)));
 
-  const link = await signIn(a);
-  check("the mail carries the token in the fragment", link.startsWith(`${settings}#sync-token=`));
-  await a.goto(link);
+  await googleAnswers(a, () => ({ error: "access_denied" }));
+  await a.goto(settings);
+  await a.getByRole("link", { name: "Sign in with Google" }).click();
+  await a.getByText("Sign-in was cancelled").waitFor();
+  check("a cancel at Google comes back and says so, and leaves the address clean", new URL(a.url()).hash === "");
+  await a.context().unroute("https://accounts.google.com/**");
+
+  await signIn(a);
   await a.getByLabel(/^Passphrase/).fill(PHRASE);
   await a.getByLabel("The same again").fill(PHRASE);
-  check("the token has left the address", new URL(a.url()).hash === "");
+  check("the redirects run through the service worker and sign in", true);
   await a.getByRole("button", { name: "Start syncing" }).click();
   await a.getByText(/Last synced at/).waitFor();
   check("a passphrase chosen, and a first sync", true);
@@ -136,18 +151,11 @@ try {
   check("one record reached the server", held.length === 1, `${held.length}`);
   check("the server holds no name or id", !JSON.stringify(held).includes("Sealed flop") && !JSON.stringify(held).includes("sync-check-1"));
 
-  // a browser that's never been here, opening the link straight off: the service worker's reload comes with it
-  const link2 = await (async () => {
-    const other = await (await browser.newContext()).newPage();
-    const l = await signIn(other);
-    await other.context().close();
-    return l;
-  })();
-  await b.goto(link2);
+  await signIn(b);
   await b.getByLabel("Passphrase", { exact: true }).fill("not the right phrase at all");
   await b.getByRole("button", { name: "Unlock" }).click();
   await b.getByText("isn't the passphrase").waitFor();
-  check("a new device signs in from the link through the first-visit reload, and a wrong passphrase opens nothing", true);
+  check("a new device finds the same account, and a wrong passphrase opens nothing", true);
   await b.getByLabel("Passphrase", { exact: true }).fill(PHRASE);
   await b.getByRole("button", { name: "Unlock" }).click();
   await b.getByText(/1 changed here/).waitFor();
@@ -192,7 +200,7 @@ try {
 
   await a.getByRole("button", { name: "Delete my account" }).click();
   await a.getByRole("button", { name: "Delete the account and the synced copy" }).click();
-  await a.getByLabel("Email").waitFor();
+  await a.getByRole("link", { name: "Sign in with Google" }).waitFor();
   check("deleting the account leaves the server with nothing", (await rows()).length === 0);
   check("nothing threw in either page", errors.length === 0, errors.join(" | ").slice(0, 300));
 } catch (e) {

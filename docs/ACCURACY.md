@@ -959,10 +959,16 @@ The owner asked for EV and frequency to stay apart, and for preflop-solve bb nev
 | History, rows by kind, pot and session | A figure a way: by EV, by the preflop solve, by frequency |
 | Practice's score and its table rail | The same, once a session has been graded more than one way; one rate only where one way graded everything |
 | Analyze's summary, Winnings, the Plan's cost of a leak | EV lost by a solve of the spot, and by the preflop solve, each on its own |
+| Analyze's report tables, by seat, street, spot and the rest | One row where one way graded it; otherwise a figure a way under the row, and no share or EV lost for the row as a whole |
+| The JSON export's summary | The two EVs in separate fields |
+| A leak drill's score line, and its row in History | One line where one way graded it; otherwise a figure a way. Picks kept before this that mix ways are counted apart |
+| The Plan's order of leaks | By EV lost to a solve of the spot, then by EV lost to the preflop solve, then by frequency. The two are never added or weighed against each other |
+| Analyze's EV-lost filter | A hand passes if either kind alone reaches the step |
 
-Where it doesn't: Analyze's rows by position and by spot count both in a row, and the rows by basis are the ones to read for that. The
-Plan orders its steps by the two together, as an order and not a number on the page. A drill's score line stays one figure, as a
-drill stands on one spot, though a fallback inside one can mix.
+Practice's stored and live drills need no split: a stored drill's score covers one street, by EV on the flop and by mix on the
+turn, and a live drill refuses an answer without EVs. One place still puts the kinds side by side: "The most EV lost" ranks single
+decisions of both kinds, each labelled, with nothing added. A leak drill graded only by the preflop solve and kept before this
+still reads as plain EV.
 
 ## 19. Nut advantage on Reports (2026-11-06)
 

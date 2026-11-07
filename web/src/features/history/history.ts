@@ -84,8 +84,12 @@ const mergeWays = (a: Ways, b: Ways): Ways => GRADE_WAYS.reduce((w, way) => (b[w
 export const mergeSplit = (a: Split, b: Split): Split => ({ ways: mergeWays(a.ways, b.ways), apart: a.apart + b.apart });
 const waysCount = (w: Ways) => GRADE_WAYS.reduce((n, way) => n + (w[way]?.n ?? 0), 0);
 
+/** A grade added to its way, for a tally that keeps no cells (a leak drill's). */
+export const addGradeWay = (w: Ways | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">, source: string | undefined): Ways =>
+  addWay(w, wayOf(g.byEv, source), { n: 1, ok: g.ok ? 1 : 0, loss: g.byEv ? g.loss : 0, lossPct: g.byEv ? g.lossPct : 0 });
+
 /** Ways as kept, read defensively: one whose counts don't stand isn't one. */
-function readWays(x: unknown): Ways {
+export function readWays(x: unknown): Ways {
   const kept = obj(x);
   let out: Ways = {};
   for (const way of GRADE_WAYS) {
@@ -97,7 +101,7 @@ function readWays(x: unknown): Ways {
 
 /** A tally's split: what it kept a way. A tally kept before ways were still splits where every decision went one way, and
  * from before the preflop solve could grade, so its EV is a postflop answer's; otherwise what's left stands apart. */
-function tallySplit(x: Record<string, unknown>): Split {
+export function tallySplit(x: Record<string, unknown>): Split {
   const ways = readWays(x.ways);
   const n = num(x.n), ne = num(x.ne);
   const rest = n - waysCount(ways);

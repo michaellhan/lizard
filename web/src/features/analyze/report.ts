@@ -6,6 +6,7 @@
 // decision saying what that was: the library, a stored turn, a read at once, a Quick or a Fast solve (byBasis keeps them
 // apart).
 import type { DecisionRecord, HandRecord } from "@/data/db";
+import type { GradeWay } from "@/features/history/history";
 import { countVersions, versionNote, versionSpan, versionSummary } from "@/grading/version";
 import { STREETS } from "./analyze";
 import { handKind, type HandKind } from "./sessions";
@@ -31,35 +32,65 @@ export interface Tally {
   graded: number;
   /** of them Best or Correct */
   ok: number;
-  /** graded by EV, the EV they lost (bb) and its average per decision (bb, and % of the pot) */
+  /** graded by EV by a solve of the spot, the EV they lost (bb) and its average per decision (bb, and % of the pot) */
   ev: number;
   lost: number;
   avg: number | null;
   avgPct: number | null;
+  /** the same of those graded by the preflop solve, in none of the four above: never added to them */
+  pfEv: number;
+  pfLost: number;
+  pfAvg: number | null;
+  pfAvgPct: number | null;
   by: Record<(typeof VERDICTS)[number], number>;
 }
 
-export function tally(ds: readonly DecisionRecord[]): Tally {
-  const graded = ds.filter(isGraded);
-  const ev = graded.filter(hasEv);
-  const lost = r2(ev.reduce((t, d) => t + (d.evLossBb ?? 0), 0));
-  const pct = ev.reduce((t, d) => t + (d.lossPct ?? 0), 0);
-  const by = Object.fromEntries(VERDICTS.map((v) => [v, graded.filter((d) => d.verdict === v).length])) as Tally["by"];
-  return {
-    n: ds.length,
-    graded: graded.length,
-    ok: graded.filter(isOk).length,
-    ev: ev.length,
-    lost,
-    avg: ev.length ? Math.round((lost / ev.length) * 1000) / 1000 : null,
-    avgPct: ev.length ? Math.round((pct / ev.length) * 10) / 10 : null,
-    by,
-  };
+/** EV lost over `n` decisions: in all, and on average per decision (bb, and % of the pot). */
+function lossOf(n: number, bb: number, pct: number) {
+  const lost = r2(bb);
+  return { lost, avg: n ? Math.round((lost / n) * 1000) / 1000 : null, avgPct: n ? Math.round((pct / n) * 10) / 10 : null };
 }
 
-export type Group = Tally & { key: string };
+// (one pass: this runs for every row of every report, and for each way of a row)
+export function tally(ds: readonly DecisionRecord[]): Tally {
+  const by = Object.fromEntries(VERDICTS.map((v) => [v, 0])) as Tally["by"];
+  const [spot, pf] = [{ n: 0, bb: 0, pct: 0 }, { n: 0, bb: 0, pct: 0 }];
+  let [graded, ok] = [0, 0];
+  for (const d of ds) {
+    if (!isGraded(d)) continue;
+    graded++;
+    if (isOk(d)) ok++;
+    if (d.verdict in by) by[d.verdict as keyof Tally["by"]]++;
+    if (!hasEv(d)) continue;
+    const t = isPfSolve(d) ? pf : spot;
+    t.n++;
+    t.bb += d.evLossBb ?? 0;
+    t.pct += d.lossPct ?? 0;
+  }
+  const s = lossOf(spot.n, spot.bb, spot.pct);
+  const p = lossOf(pf.n, pf.bb, pf.pct);
+  return { n: ds.length, graded, ok, ev: spot.n, lost: s.lost, avg: s.avg, avgPct: s.avgPct, pfEv: pf.n, pfLost: p.lost, pfAvg: p.avg, pfAvgPct: p.avgPct, by };
+}
 
-/** The decisions grouped by a key: in `order` where given, else the most EV lost first, then the most decisions. */
+/** `ways`: a row's graded decisions a way, where more than one way graded them. Then no share or EV lost stands for the
+ * whole row, as History's rows have it (history.ts GradeWay: that module reads this one, so the way is told here). */
+export type Group = Tally & { key: string; ways?: Partial<Record<GradeWay, Tally>> };
+
+const wayIn = (d: DecisionRecord): GradeWay => (!hasEv(d) ? "freq" : isPfSolve(d) ? "solve" : "ev");
+
+function waysOf(ds: readonly DecisionRecord[]): Group["ways"] {
+  const by = new Map<GradeWay, DecisionRecord[]>();
+  for (const d of ds) {
+    if (!isGraded(d)) continue;
+    const w = wayIn(d);
+    if (!by.has(w)) by.set(w, []);
+    by.get(w)!.push(d);
+  }
+  return by.size > 1 ? Object.fromEntries([...by].map(([w, rs]) => [w, tally(rs)])) : undefined;
+}
+
+/** The decisions grouped by a key: in `order` where given, else the most EV lost to a solve of the spot first, then to the
+ * preflop solve (never the two added), then the most decisions. */
 export function groupBy(ds: readonly DecisionRecord[], key: (d: DecisionRecord) => string | null | undefined, order?: readonly string[]): Group[] {
   const m = new Map<string, DecisionRecord[]>();
   for (const d of ds) {
@@ -68,10 +99,13 @@ export function groupBy(ds: readonly DecisionRecord[], key: (d: DecisionRecord) 
     if (!m.has(k)) m.set(k, []);
     m.get(k)!.push(d);
   }
-  const out = [...m].map(([k, rs]) => ({ key: k, ...tally(rs) }));
+  const out = [...m].map(([k, rs]): Group => {
+    const ways = waysOf(rs);
+    return { key: k, ...tally(rs), ...(ways ? { ways } : {}) };
+  });
   return order
     ? out.sort((a, b) => (order.indexOf(a.key) + 1 || 99) - (order.indexOf(b.key) + 1 || 99))
-    : out.sort((a, b) => b.lost - a.lost || b.n - a.n);
+    : out.sort((a, b) => b.lost - a.lost || b.pfLost - a.pfLost || b.n - a.n);
 }
 
 export const PF_ORDER = ["RFI", "vs limp", "BB vs limp", "vs open", "vs open + call", "SB vs open", "BB defence", "limp vs raise", "vs 3bet", "cold vs 3bet", "vs 4bet+"];
@@ -435,7 +469,7 @@ export function toJSON(ds: readonly DecisionRecord[], hands: ReadonlyMap<string,
   return JSON.stringify(
     {
       exported: new Date(now).toISOString(),
-      graded_against: "preflop: the preflop charts, by frequency (not a solve); after the flop: what answered each decision (its source and basis), by EV where it has EVs",
+      graded_against: "preflop: the stored preflop solve by EV where it reads the spot (a class-level model, kept apart from the rest), else the preflop charts, by frequency (not a solve); after the flop: what answered each decision (its source and basis), by EV where it has EVs",
       summary: { ...rp.all, hands: rp.hands, byStreet: rp.byStreet, byPf: rp.byPf, bySpot: rp.bySpot, byBasis: rp.byBasis, versions: rp.versions, low: rp.low, agreementAtFast: rp.agree, freqs: rp.freqs.map(({ label, cls, n, k, you, range, gto }) => ({ label, cls, n, k, you, range, gto })), leaks: rp.leaks, tooFewToRead: rp.thin, mistakes: rp.mistakes.map(strip), offChart: rp.offChart.map(strip), offRead: rp.offRead.map(strip), notGraded: rp.notGraded },
       decisions: rowsOf(ds, hands),
     },
