@@ -19,7 +19,9 @@ import type { LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import type { LibraryFiles, LibraryReport } from "@/library/files";
 import type { TurnFile, TurnNode } from "@/library/turns";
+import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance, SolveMode } from "@/solver/types";
+import { cell, num } from "./reports";
 
 /** flops read at a time, and added by each "read more": see docs/ACCURACY.md section 17 for what that buys */
 export const TURN_SAMPLE = 40;
@@ -312,6 +314,9 @@ export function turnTable(flops: readonly FlopTurns[], path: readonly string[], 
   return { cols, rows: all ? [all, ...ORDER.flatMap((c) => row(c, CLASSES[c], (n) => (n[c] ? [n[c]] : [])) ?? [])] : [] };
 }
 
+/** a row's margin as the table has it, in points of frequency */
+export const marginText = (r: Pick<TurnRow, "margin">) => (r.margin == null ? "too few" : r.margin === 0 ? "none" : `±${(r.margin * 100).toFixed(1)}`);
+
 /** who decides: in full, and as a button has room for at phone width */
 export const whoText = (who: TurnWho, seats: readonly string[]) => (who === "first" ? `${seats[0]} first on the turn` : `${seats[1]} after ${seats[0]} checks the turn`);
 export const whoShort = (who: TurnWho, seats: readonly string[]) => (who === "first" ? `${seats[0]} first` : `${seats[1]} vs check`);
@@ -357,3 +362,64 @@ export function sampleText(s: SampleState, topMargin: number | null): string {
   const partial = s.partial ? (s.stopped ? " Stopped early: these are partial results." : " Still reading: these are partial results.") : "";
   return `${how}${margin}${bad}${partial}`;
 }
+
+/** How many flops the numbers stand on, in a line of its own for the chart: a sample and a stopped read alike say it. */
+export function standsOn(s: SampleState): string {
+  if (s.read >= s.of) return `This stands on every one of the ${s.of} flops of this texture with stored turns.`;
+  const count = `${s.read} of the ${s.of} flops of this texture with stored turns`;
+  if (!s.partial) return `A sample: this stands on ${count}.`;
+  return s.stopped ? `Stopped early: this stands on only ${count}.` : `Still reading: so far this stands on ${count}.`;
+}
+
+const sampleStatus = (s: SampleState) => (s.partial ? (s.stopped ? "partial, stopped" : "partial, still reading") : s.read >= s.of ? "every flop" : "sample");
+
+// ---- CSV of the table shown, as the flop report's: frequencies to 3 places, and on every row what it stands on, so a
+// row copied out of the file still says it's a sample, and a stopped one
+export interface TurnCsv {
+  spot: string;
+  /** the flop line and who decides, in words */
+  line: string;
+  decision: string;
+  table: TurnTable;
+  sample: SampleState;
+  /** flops read that store the line but can't weigh it (LineChoice.unread) */
+  unread: number;
+  provenance: Provenance;
+}
+
+export function turnCsv({ spot, line, decision, table, sample: s, unread, provenance }: TurnCsv): string {
+  const head = ["spot", "flop line", "decision", "turn card", "share of turns", ...table.cols, "margin (points of frequency, 95%)", "flops behind the row", "combos", "flops read", "flops with stored turns", "seed", "sample", "source"];
+  const src = [
+    describeProvenance(provenance),
+    sampleText(s, table.rows[0]?.margin ?? null),
+    unread ? `${unread} more flops store this line but are left out: a decision on the way to it is too rare for the flop's file to hold.` : "",
+    "Each flop's stored turn is its flop solve's own, with one bet size and mixes in 5% steps, not a solve of these turns. The margin is for reading a sample of the flops and says nothing of the solves' own error.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const lines = table.rows.map((r) =>
+    [
+      spot,
+      line,
+      decision,
+      r.label,
+      num(r.turns, 3),
+      ...table.cols.map((_, i) => num(r.mix[i], 3)),
+      marginText(r).replace("±", ""),
+      String(r.flops),
+      num(r.combos, 1),
+      String(s.read),
+      String(s.of),
+      String(s.seed),
+      sampleStatus(s),
+      src,
+    ]
+      .map(cell)
+      .join(","),
+  );
+  return [head.map(cell).join(","), ...lines].join("\n") + "\n";
+}
+
+/** the file's name: what it holds, and that it's partial where it is */
+export const turnCsvName = (spot: string, who: TurnWho, path: readonly string[], s: SampleState) =>
+  `lizard-turn-report-${spot}-${who}-${path.join("-").replace(/[^A-Za-z0-9-]+/g, "") || "line"}-${s.read}-of-${s.of}${s.partial ? "-partial" : ""}.csv`;

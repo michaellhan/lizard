@@ -118,6 +118,44 @@ test("Turn report: a finished 40-flop sample at desktop width, its margins and c
   const second = Number(margin.exec((await more.textContent()) ?? "")?.[1]);
   expect(second).toBeGreaterThan(0);
   expect(second).toBeLessThan(first);
+
+  // the chart stands on the same sample and rows, and the keys reach each column's numbers
+  const chart = panel.getByRole("figure", { name: "Turn report chart" });
+  await expect(chart.getByText(/A sample: this stands on 80 of the \d+ flops/)).toBeVisible();
+  const columns = chart.getByRole("button");
+  const classes = await table.getByRole("row").count();
+  await expect(columns).toHaveCount(classes - 1);
+  await expect(columns.first()).toHaveAccessibleName(new RegExp(`^All turns: .*margin ±${second.toFixed(1)} points; \\d+ flops; 100% of turns$`));
+  expect(await chart.locator("[data-margin]").count(), "columns drawn with a margin").toBeGreaterThan(0);
+  await columns.first().focus();
+  await expect(chart.getByRole("tooltip")).toContainText("All turns");
+  await page.keyboard.press("Tab");
+  await expect(columns.nth(1)).toBeFocused();
+  await expect(chart.getByRole("tooltip")).toBeVisible();
+  await page.screenshot({ path: "e2e-results/shots/desktop/turn-report-chart.png", fullPage: true });
+
+  // the CSV is the table, and says what it stands on
+  const saving = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Download turn CSV" }).click();
+  const file = await saving;
+  expect(file.suggestedFilename()).toMatch(/^lizard-turn-report-3bp_bb_btn-first-.*-80-of-\d+\.csv$/);
+  const csv = readFileSync(await file.path(), "utf8").trim().split("\n");
+  expect(csv).toHaveLength(classes);
+  for (const l of csv.slice(1)) expect(l).toMatch(/,80,\d+,1,sample,"?Stored turn from the flop library · 3bp_bb_btn · turn report over 80 of \d+ flops/);
+
+  // a phone: every column's tooltip stays on the page, and the table is the chart's text
+  await page.setViewportSize({ width: 375, height: 812 });
+  for (let i = 0; i < classes - 1; i++) {
+    await columns.nth(i).focus();
+    await expect(chart.getByRole("tooltip")).toBeVisible();
+    expect(await overflow(page), `sideways scroll with column ${i}'s tooltip, px`).toBeLessThanOrEqual(0);
+    const tip = (await chart.getByRole("tooltip").boundingBox())!;
+    expect(tip.x + tip.width, `column ${i}'s tooltip inside the screen`).toBeLessThanOrEqual(375);
+    expect(tip.x, `column ${i}'s tooltip inside the screen`).toBeGreaterThanOrEqual(0);
+  }
+  await chart.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "e2e-results/shots/desktop/turn-report-chart-375.png" });
+  await expect(panel.getByRole("region", { name: "Turn report table" })).toBeVisible();
   await clean(page, problems);
 });
 

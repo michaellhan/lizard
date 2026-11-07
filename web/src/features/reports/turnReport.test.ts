@@ -19,10 +19,13 @@ import {
   readFlops,
   readingOrder,
   sampleText,
+  standsOn,
   summarize,
   t95,
   textureCover,
   TURN_READ_AT_ONCE,
+  turnCsv,
+  turnCsvName,
   turnProvenance,
   turnTable,
   type ClassSum,
@@ -369,5 +372,63 @@ describe("what the numbers are", () => {
     expect(sampleText({ ...s, failed: 1 }, 0.03)).toContain("1 flop couldn't be read and is left out.");
     expect(sampleText({ ...s, partial: true, stopped: true }, 0.03)).toContain("Stopped early: these are partial results.");
     expect(sampleText({ ...s, partial: true }, 0.03)).toContain("Still reading: these are partial results.");
+  });
+});
+
+describe("the turn report's CSV and what the chart says it stands on", () => {
+  const flops = [flop("Ac4d3h", 24, 1, { over: cell(4, 0.5), pair: cell(9, 0.25) }), flop("Kc7d2h", 24, 1, { pair: cell(9, 0.75) })];
+  const table = turnTable(flops, ["check", "check"], "first", 7);
+  const whole = { read: 40, of: 40, seed: 1, failed: 0, partial: false, stopped: false };
+  const sample = { ...whole, read: 2, of: 7, seed: 3 };
+  const stopped = { ...sample, partial: true, stopped: true };
+  const reading = { ...sample, partial: true };
+  const csv = (s: typeof sample, unread = 0) => turnCsv({ spot: "srp_btn_bb", line: "BB and BTN check", decision: "BB first on the turn", table, sample: s, unread, provenance: turnProvenance("srp_btn_bb", s, "fast") });
+  /** the fields of a line, by the CSV's own quoting */
+  const fields = (l: string) => [...l.matchAll(/("(?:[^"]|"")*"|[^,]*)(?:,|$)/g)].map((m) => m[1]!.replace(/^"|"$/g, "").replace(/""/g, '"')).slice(0, -1);
+
+  it("says how many flops it stands on, each way a read can stand", () => {
+    expect(standsOn(whole)).toBe("This stands on every one of the 40 flops of this texture with stored turns.");
+    expect(standsOn(sample)).toBe("A sample: this stands on 2 of the 7 flops of this texture with stored turns.");
+    expect(standsOn(stopped)).toBe("Stopped early: this stands on only 2 of the 7 flops of this texture with stored turns.");
+    expect(standsOn(reading)).toBe("Still reading: so far this stands on 2 of the 7 flops of this texture with stored turns.");
+  });
+
+  it("writes the table shown, its numbers worked by hand, with the flops and the source on every row", () => {
+    const rows = csv(sample).trim().split("\n");
+    expect(rows[0]).toBe("spot,flop line,decision,turn card,share of turns,check,bet 75%,\"margin (points of frequency, 95%)\",flops behind the row,combos,flops read,flops with stored turns,seed,sample,source");
+    expect(rows).toHaveLength(1 + table.rows.length);
+    const all = fields(rows[1]!);
+    // (22 cards weighed: 4 at a half, 9 at a quarter, 9 at three quarters)
+    expect(all.slice(0, 7)).toEqual(["srp_btn_bb", "BB and BTN check", "BB first on the turn", "All turns", "1.000", "0.500", "0.500"]);
+    expect(all.slice(7, 14)).toEqual(["too few", "2", "10.0", "2", "7", "3", "sample"]);
+    expect(all[14]).toMatch(/^Stored turn from the flop library · srp_btn_bb · turn report over 2 of 7 flops with stored turns, seed 3, built in the page from their files · approximate Read 2 of 7 flops/);
+    expect(all[14]).toContain("not a solve of these turns");
+    expect(all[14]).toContain("says nothing of the solves' own error");
+    expect(fields(rows[2]!).slice(3, 7)).toEqual(["Overcards", "0.182", "0.500", "0.500"]);
+    expect(new Set(rows.slice(1).map((r) => fields(r)[14])).size).toBe(1);
+  });
+
+  it("says a stopped read and one still going on every row, and in the file's name", () => {
+    for (const r of csv(stopped).trim().split("\n").slice(1)) {
+      const f = fields(r);
+      expect(f[13]).toBe("partial, stopped");
+      expect(f[14]).toContain("partial, stopped before it finished");
+      expect(f[14]).toContain("Stopped early: these are partial results.");
+    }
+    const going = fields(csv(reading).trim().split("\n")[1]!);
+    expect(going[13]).toBe("partial, still reading");
+    expect(going[14]).toContain("in progress");
+    expect(going[14]).toContain("Still reading: these are partial results.");
+    expect(turnCsvName("srp_btn_bb", "after", ["check", "bet 75%", "call"], stopped)).toBe("lizard-turn-report-srp_btn_bb-after-check-bet75-call-2-of-7-partial.csv");
+    expect(turnCsvName("srp_btn_bb", "first", [], sample)).toBe("lizard-turn-report-srp_btn_bb-first-line-2-of-7.csv");
+  });
+
+  it("names flops left out of the line, and has no margin once every flop is read", () => {
+    expect(fields(csv(sample, 3).trim().split("\n")[1]!)[14]).toContain("3 more flops store this line but are left out");
+    expect(csv(sample)).not.toContain("left out");
+    const all = fields(turnCsv({ spot: "s", line: "l", decision: "d", table: turnTable(flops, ["check", "check"], "first", 2), sample: { ...whole, read: 2, of: 2 }, unread: 0, provenance: turnProvenance("s", { ...whole, read: 2, of: 2 }, "fast") }).trim().split("\n")[1]!);
+    expect(all[7]).toBe("none");
+    expect(all[13]).toBe("every flop");
+    expect(all[14]).toContain("Read all 2 flops of this texture with stored turns");
   });
 });

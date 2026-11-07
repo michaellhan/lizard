@@ -37,14 +37,7 @@ export function ReportChart({
   const tot = shown.reduce((a, r) => a + r.w, 0);
   return (
     <section aria-label="Chart" className="space-y-3 rounded-lg border border-border bg-surface p-3">
-      <ul aria-label="Actions" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-        {cols.map((c, i) => (
-          <li key={c} className="flex items-center gap-1.5">
-            <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
-            {label(c)}
-          </li>
-        ))}
-      </ul>
+      <ActionLegend cols={cols} colors={colors} />
       {gs.length > 0 && (
         <GroupColumns
           groups={gs}
@@ -69,8 +62,21 @@ export function ReportChart({
   );
 }
 
-/** an action mix in words, with the EVs */
-function Mix({ freqs, ev, cols, colors, seats }: { freqs: readonly number[]; ev: readonly number[]; cols: string[]; colors: string[]; seats: readonly string[] }) {
+export function ActionLegend({ cols, colors }: { cols: readonly string[]; colors: readonly string[] }) {
+  return (
+    <ul aria-label="Actions" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+      {cols.map((c, i) => (
+        <li key={c} className="flex items-center gap-1.5">
+          <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
+          {label(c)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** an action mix in words, with the EVs where it has them */
+export function Mix({ freqs, ev = [], cols, colors, seats = [] }: { freqs: readonly number[]; ev?: readonly number[]; cols: readonly string[]; colors: readonly string[]; seats?: readonly string[] }) {
   return (
     <>
       <ul className="mt-1 space-y-0.5">
@@ -91,14 +97,16 @@ function Mix({ freqs, ev, cols, colors, seats }: { freqs: readonly number[]; ev:
   );
 }
 
-function Tip({ at, children }: { at: number; children: ReactNode }) {
-  // (kept inside the plot: anchored by its left edge on the left half, its right edge on the right half)
+export function Tip({ at, children }: { at: number; children: ReactNode }) {
+  // (kept inside the plot: anchored by its left edge on the left half, its right edge on the right half, and no wider
+  // than the room on that side, which at phone width beside the middle column is less than its 14rem)
   const left = at < 0.5;
+  const room = `min(14rem, calc(${(left ? 1 - at : at) * 100}% - 8px))`;
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute top-1 z-20 w-max max-w-[14rem] rounded-md border border-border bg-surface-2 px-2 py-1.5 text-xs text-text shadow-lg"
-      style={left ? { left: `calc(${at * 100}% + 8px)` } : { right: `calc(${(1 - at) * 100}% + 8px)` }}
+      className="pointer-events-none absolute top-1 z-20 w-max rounded-md border border-border bg-surface-2 px-2 py-1.5 text-xs text-text shadow-lg"
+      style={{ maxWidth: room, ...(left ? { left: `calc(${at * 100}% + 8px)` } : { right: `calc(${(1 - at) * 100}% + 8px)` }) }}
     >
       {children}
     </div>
@@ -107,7 +115,7 @@ function Tip({ at, children }: { at: number; children: ReactNode }) {
 
 const Y_TICKS = [1, 0.5, 0] as const;
 
-function Axis() {
+export function Axis() {
   return (
     <div aria-hidden className="relative w-8 shrink-0 text-right text-[10px] text-muted">
       {Y_TICKS.map((y) => (
@@ -119,7 +127,7 @@ function Axis() {
   );
 }
 
-function Grid() {
+export function Grid() {
   return (
     <>
       {Y_TICKS.map((y) => (

@@ -1,7 +1,8 @@
 // The turn report on Reports: a sample of a spot's flops of the chosen texture, read from the library with no solve, as
-// a table by what the turn card does to the board (turnReport.ts). It reads nothing until asked, says how many flops it
-// read of how many and how it picked them, can be stopped, and can read further; what it read is kept for the page, so
-// choosing another line or decision, or coming back to a texture, reads nothing again.
+// a chart and a table by what the turn card does to the board (turnReport.ts, TurnChart.tsx), and a CSV of the table. It
+// reads nothing until asked, says how many flops it read of how many and how it picked them, can be stopped, and can read
+// further; what it read is kept for the page, so choosing another line or decision, or coming back to a texture, reads
+// nothing again.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -12,10 +13,13 @@ import { storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryFiles, LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
 import { MixBar } from "./MixBar";
+import { saveCsv } from "./reports";
+import { TurnChart } from "./TurnChart";
 import {
   eligibleFlops,
   FLOP_KB,
   lineChoices,
+  marginText,
   MIN_FLOPS_FOR_MARGIN,
   readFlops,
   readingOrder,
@@ -23,12 +27,13 @@ import {
   textureCover,
   TURN_SAMPLE,
   TURN_WHO,
+  turnCsv,
+  turnCsvName,
   turnProvenance,
   turnTable,
   whoShort,
   whoText,
   type FlopTurns,
-  type TurnRow,
   type TurnWho,
 } from "./turnReport";
 
@@ -42,8 +47,6 @@ function textureWords(filter: TextureFilter): string {
   const said = TEXTURE_GROUPS.flatMap((g) => (filter[g.key] ? [g.values[filter[g.key]!]!] : []));
   return said.length ? said.join(", ").toLowerCase() : "any texture";
 }
-
-const marginText = (r: TurnRow) => (r.margin == null ? "too few" : r.margin === 0 ? "none" : `±${(r.margin * 100).toFixed(1)}`);
 
 export function TurnReportPanel({
   files,
@@ -91,7 +94,7 @@ export function TurnReportPanel({
   useEffect(() => {
     if (!placeFocus.current) return;
     placeFocus.current = false;
-    (controls.current?.querySelector("button") ?? panel.current?.querySelector<HTMLElement>("[tabindex='0']"))?.focus();
+    (controls.current?.querySelector("button") ?? panel.current?.querySelector<HTMLElement>("[role='region'][tabindex='0']"))?.focus();
   }, [running]);
   useEffect(() => {
     if (!againRef?.current) return;
@@ -156,6 +159,10 @@ export function TurnReportPanel({
   const next = Math.min(sample, unasked);
   const firstBytes = (Math.min(sample, eligible.length) * FLOP_KB) / 1000;
   const fail = [...failed];
+  const download = () => {
+    if (!provenance || !line || !table) return;
+    saveCsv(turnCsv({ spot: spot.id, line: flopWords(rep, line.path), decision: whoText(who, seats), table, sample: state, unread: line.unread, provenance }), turnCsvName(spot.id, who, line.path, state));
+  };
 
   return (
     <section ref={panel} aria-label="Turn report" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
@@ -235,6 +242,11 @@ export function TurnReportPanel({
         <>
           <div className="flex flex-wrap items-center gap-2">
             <ProvenanceBadge p={provenance} />
+            {table.rows.length > 0 && (
+              <button type="button" onClick={download} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+                Download turn CSV
+              </button>
+            )}
           </div>
           <p>{sampleText(state, top?.margin ?? null)}</p>
           <form aria-label="Turn report's decision" className="flex flex-wrap items-center gap-2" onSubmit={(e) => e.preventDefault()}>
@@ -261,6 +273,7 @@ export function TurnReportPanel({
             {line.unread > 0 && `On ${line.unread} more it's stored but left out: a decision on the way to it is too rare for the flop's file to hold, so its hands can't be weighed. `}
             {table.rows.length === 0 && "No hands reach this decision on it."}
           </p>
+          {table.rows.length > 0 && <TurnChart table={table} who={who} seats={seats} sample={state} />}
           {table.rows.length > 0 && (
             <PhoneColumns hidden={["Strategy", "Flops", "Combos"]}>
               <div className="overflow-auto rounded-lg border border-border" tabIndex={0} role="region" aria-label="Turn report table">

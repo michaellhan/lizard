@@ -101,6 +101,96 @@ describe("the turn report", () => {
     expect(p.getByText(say("It says nothing of the solves' own error"))).toBeInTheDocument();
   });
 
+  it("draws the table's rows as a chart that says what it stands on, with every column's numbers by the keyboard", async () => {
+    const { fn } = stubFetch();
+    open("spot=srp_btn_bb", fn, 3);
+    await ask("Read 3 flops");
+    const t = await table();
+    const p = await panel();
+    const chart = within(p.getByRole("figure", { name: "Turn report chart" }));
+    await waitFor(() => expect(chart.getByText(/A sample: this stands on 3 of the 7 flops of this texture with stored turns\./)).toBeInTheDocument());
+    expect(chart.getByText(/^BB first on the turn: the mix by what the turn card does, All turns first\. Stored turn from the flop library, averaged in this page\./)).toBeInTheDocument();
+    expect(within(chart.getByRole("list", { name: "Actions" })).getAllByRole("listitem").map((l) => l.textContent)).toEqual(["Check", "Bet 75%"]);
+
+    // a column for each row, in its order, with the row's numbers in its name; the table's is the same mix
+    const rows = t.getAllByRole("row").slice(1);
+    const names = rows.map((r) => r.getAttribute("aria-label")!);
+    const columns = chart.getAllByRole("button");
+    expect(columns).toHaveLength(names.length);
+    columns.forEach((c, i) => expect(c.getAttribute("aria-label")!.startsWith(`${names[i]}: check `)).toBe(true));
+    const [check] = within(rows[0]!).getAllByRole("cell").slice(1).map((c) => c.textContent);
+    const all = columns[0]!;
+    expect(all).toHaveAccessibleName(new RegExp(`^All turns: check ${check}, bet 75% [\\d.]+%; too few flops for a margin; 3 flops; 100% of turns$`));
+
+    // too few flops for a margin: no bar, and it says so
+    expect(chart.getByText("* Fewer than 8 flops behind it: too few to put a margin on.")).toBeInTheDocument();
+    expect(p.getByRole("figure").querySelector("[data-margin]")).toBeNull();
+
+    // focus shows what hovering does, and leaving takes it away
+    expect(chart.queryByRole("tooltip")).toBeNull();
+    fireEvent.focus(all);
+    expect(chart.getByRole("tooltip")).toHaveTextContent(/All turns · 100% of turns/);
+    expect(chart.getByRole("tooltip")).toHaveTextContent(`Check ${check}`);
+    expect(chart.getByRole("tooltip")).toHaveTextContent(/3 flops, too few flops for a margin/);
+    fireEvent.blur(all);
+    expect(chart.queryByRole("tooltip")).toBeNull();
+    // a tap
+    fireEvent.click(columns[1]!);
+    expect(chart.getByRole("tooltip")).toHaveTextContent(names[1]!);
+  });
+
+  it("draws the margin on a column once there's one to draw, and no bar with every flop read", async () => {
+    const { fn } = stubFetch();
+    open("spot=srp_btn_bb", fn, 7);
+    await ask("Read 7 flops");
+    const p = await panel();
+    await waitFor(() => expect(p.getByText(/Read all 7 flops/)).toBeInTheDocument());
+    const figure = p.getByRole("figure", { name: "Turn report chart" });
+    expect(figure.querySelector("[data-margin]")).toBeNull();
+    expect(within(figure).getByText(/This stands on every one of the 7 flops/)).not.toHaveTextContent(/The bar on a column/);
+    expect(within(figure).getAllByRole("button")[0]).toHaveAccessibleName(/; no sampling margin; 7 flops; 100% of turns$/);
+  });
+
+  it("downloads the table shown as CSV, and a stopped read says so on every row and in the file's name", async () => {
+    const created: Blob[] = [];
+    const names: string[] = [];
+    URL.createObjectURL = vi.fn((b: Blob) => (created.push(b), "blob:x"));
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+    const hold: (() => void)[] = [];
+    const { fn } = stubFetch(async (path) => {
+      if (/\.(turn\.)?bin$/.test(path) && !/4c3c2d|3c2d2c/.test(path)) await new Promise<void>((r) => hold.push(r));
+      return null;
+    });
+    open("spot=srp_btn_bb", fn, 7);
+    await ask("Read 7 flops");
+    const p = await panel();
+    await waitFor(() => expect(p.getByRole("progressbar", { name: "Flops read" })).toHaveAttribute("aria-valuenow", "2"));
+    p.getByRole("button", { name: "Stop" }).focus();
+    fireEvent.click(p.getByRole("button", { name: "Stop" }));
+    await act(async () => {
+      hold.forEach((r) => r());
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await waitFor(() => expect(p.getByText(/Stopped early: this stands on only 2 of the 7 flops/)).toBeInTheDocument());
+
+    fireEvent.click(p.getByRole("button", { name: "Download turn CSV" }));
+    expect(click).toHaveBeenCalledOnce();
+    expect(names).toEqual(["lizard-turn-report-srp_btn_bb-first-check-check-2-of-7-partial.csv"]);
+    const lines = (await created[0]!.text()).trim().split("\n");
+    expect(lines[0]).toMatch(/^spot,flop line,decision,turn card,share of turns,check,bet 75%,/);
+    expect(lines).toHaveLength(p.getAllByRole("row").length);
+    expect(lines[1]).toMatch(/^srp_btn_bb,BB and BTN check,BB first on the turn,All turns,1\.000,/);
+    for (const l of lines.slice(1)) {
+      expect(l).toContain(",2,7,1,\"partial, stopped\",");
+      expect(l).toContain("partial, stopped before it finished");
+      expect(l).toContain("Stopped early: these are partial results.");
+    }
+    click.mockRestore();
+  });
+
   it("reads further without reading a flop again, and has no margin once it has them all", async () => {
     const { fn, turns } = stubFetch();
     open("spot=srp_btn_bb", fn, 4);

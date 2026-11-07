@@ -295,8 +295,21 @@ export function reportProvenance(rep: LibraryReport, mode: SolveMode, version?: 
 }
 
 // ---- CSV of the rows shown: the stored precision (frequencies and equities to 3 places, EVs to 2), no more
-const cell = (x: string) => (/[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x);
-const num = (x: number | null | undefined, d: number) => (x == null || Number.isNaN(x) ? "" : x.toFixed(d));
+export const cell = (x: string) => (/[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x);
+export const num = (x: number | null | undefined, d: number) => (x == null || Number.isNaN(x) ? "" : x.toFixed(d));
+
+/** the browser's save of a CSV the page wrote */
+export function saveCsv(csv: string, name: string) {
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function toCsv(rep: LibraryReport, view: ReportView, rs: readonly ReportRow[], p: Provenance): string {
   const cols = columns(rep, view);
   const [o, ip] = rep.seats;

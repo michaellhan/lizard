@@ -39,6 +39,7 @@ import {
   rows,
   sortRows,
   studyLink,
+  saveCsv,
   toCsv,
   viewLabel,
   viewsFor,
@@ -190,16 +191,7 @@ function SpotReport({
   const views = useMemo(() => (rep ? viewsOf(rep) : null), [rep]);
 
   const download = () => {
-    if (!rep || !provenance) return;
-    const blob = new Blob([toCsv(rep, view, shown, provenance)], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `lizard-report-${rep.id}-${view}.csv`;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (rep && provenance) saveCsv(toCsv(rep, view, shown, provenance), `lizard-report-${rep.id}-${view}.csv`);
   };
 
   return (
