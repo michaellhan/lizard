@@ -3,7 +3,8 @@
 // or drag over hands; keys 1-9 pick a brush, Ctrl/Cmd+Z undoes, Shift+Ctrl/Cmd+Z or Ctrl+Y redoes. The lock tool
 // keeps hands from being painted. A group of hands (a shape, or a made-hand or draw category where the answer has its
 // combos) takes the brush or the lock at once, and so do hands typed as range text. Where the answer has combos, a
-// hand opens to paint each of them (ComboPainter.tsx), and a paint with combos of its own is graded combo by combo.
+// hand opens to paint each of them (ComboPainter.tsx), and a paint with combos of its own is graded combo by combo. A
+// combo painted apart can be locked there too. Every lock, a hand's or a combo's, is an undo step; none changes a score.
 // Each scored range is kept in IndexedDB (sessions, kind "build").
 import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { classLabel, RANKS } from "@/engine/nlhe/cards";
@@ -25,7 +26,11 @@ import {
   clearCombo,
   comboSlots,
   grade,
+  heldClasses,
   historyOf,
+  isComboLocked,
+  lockClasses,
+  lockCombo,
   paintParsed,
   paintRange,
   paintRangeWeights,
@@ -39,6 +44,7 @@ import {
   setCombo,
   SHAPES,
   undo,
+  withSavedLocks,
   type BuildScore,
   type CellScore,
   type ComboPaint,
@@ -55,7 +61,8 @@ import { catsOf, classesIn } from "./filters";
 /** What a node's builder keeps while Study moves on and back (by the node's request). */
 export interface BuildSaved {
   h: History<RangePaint>;
-  locked: string[];
+  /** locks kept beside the paint, as a builder from before they were part of it has them */
+  locked?: string[];
   scored: boolean;
 }
 
@@ -68,14 +75,16 @@ interface Stroke {
   lockTo?: boolean;
 }
 
+const NO_LOCKS: NonNullable<RangePaint["comboLocks"]> = {};
+
 const segs = (f: readonly number[], colors: readonly string[]) =>
   f.map((x, a) => (x > 0.0005 ? <div key={a} style={{ width: `${x * 100}%`, background: colors[a] }} /> : null));
 
 /** A hand in the builder in words: your paint, and once scored the solver's and how far off. */
-const buildLabel = (cls: string, on: boolean, cell: GridCell | undefined, mine: number[] | undefined, names: readonly string[], locked: boolean, score?: CellScore, own = 0) =>
+const buildLabel = (cls: string, on: boolean, cell: GridCell | undefined, mine: number[] | undefined, names: readonly string[], locked: boolean, score?: CellScore, own = 0, ownLocked = 0) =>
   !on
     ? `${cls}: not in range`
-    : `${cls}: yours ${mixText(mine!, names)}${own ? `; ${own} combo${own === 1 ? "" : "s"} painted apart` : ""}${score ? `; solver ${mixText(cell!.f, names)}; ${pct(score.off, 0)} different` : ""}${locked ? "; locked" : ""}`;
+    : `${cls}: yours ${mixText(mine!, names)}${own ? `; ${own} combo${own === 1 ? "" : "s"} painted apart${ownLocked ? `, ${ownLocked} locked` : ""}` : ""}${score ? `; solver ${mixText(cell!.f, names)}; ${pct(score.off, 0)} different` : ""}${locked ? "; locked" : ""}`;
 
 const mixText = (f: readonly number[], names: readonly string[]) =>
   names
@@ -106,10 +115,8 @@ export function BuildMode({
   const g = res.grid;
   const names = g.actions;
   const d = passiveOf(names);
-  const [h, setH] = useState<History<RangePaint>>(() => stored?.h ?? historyOf(rangePaint(blankPaint(g))));
+  const [h, setH] = useState<History<RangePaint>>(() => (stored ? withSavedLocks(stored.h, stored.locked) : historyOf(rangePaint(blankPaint(g)))));
   const hRef = useRef(h);
-  const [locked, setLocked] = useState<ReadonlySet<string>>(() => new Set(stored?.locked ?? []));
-  const lockedRef = useRef(locked);
   const [tool, setTool] = useState<Tool>(0);
   const [amt, setAmt] = useState<number>(1);
   const [scored, setScored] = useState(stored?.scored ?? false);
@@ -131,14 +138,17 @@ export function BuildMode({
   const hasCombos = useMemo(() => scoreByCombo(res, {}) != null, [res]);
   // what the grid draws: a class's mix, over its live combos where some are painted apart
   const shown = useMemo(() => classMixes(h.now, res), [h.now, res]);
+  const locked = useMemo<ReadonlySet<string>>(() => new Set(h.now.locked), [h.now.locked]);
+  const held = useMemo(() => heldClasses(h.now, res), [h.now, res]);
+  const comboLocks = h.now.comboLocks ?? NO_LOCKS;
   const scores = useMemo<RangeScores | null>(() => (scored ? scoreRange(res, h.now) : null), [scored, res, h.now]);
   const now = useMemo(() => (scores ? scores.cls : scoreBuild(res, shown)), [scores, res, shown]);
 
   // keep what's painted for when Study comes back to this node
   const store = useEffectEvent((v: BuildSaved) => onStore(v));
   useEffect(() => {
-    store({ h, locked: [...locked], scored });
-  }, [h, locked, scored]);
+    store({ h, scored });
+  }, [h, scored]);
 
   useEffect(() => {
     let alive = true;
@@ -148,15 +158,11 @@ export function BuildMode({
     };
   }, [lineKey, saved]);
 
-  // the paint and the locks are read from refs in handlers: a drag paints faster than React renders
+  // the paint is read from a ref in handlers: a drag paints faster than React renders
   const commit = useCallback((next: History<RangePaint>) => {
     if (next === hRef.current) return;
     hRef.current = next;
     setH(next);
-  }, []);
-  const setLocks = useCallback((next: ReadonlySet<string>) => {
-    lockedRef.current = next;
-    setLocked(next);
   }, []);
 
   /** a hand under the brush: painted (one undo step a stroke), or with the lock tool locked or unlocked */
@@ -174,18 +180,12 @@ export function BuildMode({
         if (!s || s.done.size === 1) setSelected(cls);
         return;
       }
-      if (tool === "lock") {
-        const cur = lockedRef.current;
-        const to = s ? (s.lockTo ??= !cur.has(cls)) : !cur.has(cls);
-        if (cur.has(cls) === to) return;
-        const next = new Set(cur);
-        if (to) next.add(cls);
-        else next.delete(cls);
-        setLocks(next);
-        return;
-      }
       const cur = hRef.current;
-      const next = paintRange(cur.now, [cls], tool, amt, d, lockedRef.current);
+      let next: RangePaint;
+      if (tool === "lock") {
+        const was = cur.now.locked?.includes(cls) ?? false;
+        next = lockClasses(cur.now, [cls], s ? (s.lockTo ??= !was) : !was);
+      } else next = paintRange(cur.now, [cls], tool, amt, d, heldClasses(cur.now, res));
       if (s?.recorded) commit(amend(cur, next));
       else {
         const r = record(cur, next);
@@ -193,7 +193,7 @@ export function BuildMode({
         commit(r);
       }
     },
-    [g, scored, tool, amt, d, commit, setLocks],
+    [g, res, scored, tool, amt, d, commit],
   );
   const strokeStart = useCallback(
     (cls: string) => {
@@ -218,24 +218,17 @@ export function BuildMode({
 
   const fillAll = () => {
     if (typeof tool !== "number") return;
-    commit(record(hRef.current, paintRange(hRef.current.now, Object.keys(hRef.current.now.classes), tool, amt, d, lockedRef.current)));
+    const cur = hRef.current.now;
+    commit(record(hRef.current, paintRange(cur, Object.keys(cur.classes), tool, amt, d, heldClasses(cur, res))));
   };
   // the group: painted (but its locked hands) as one undo step, or with the lock tool all locked (all unlocked when
-  // they all are)
+  // they all are), one step too
   const groupLocked = inGroup.length > 0 && inGroup.every((cls) => locked.has(cls));
-  const groupFree = inGroup.filter((cls) => !locked.has(cls));
+  const groupFree = inGroup.filter((cls) => !held.has(cls));
   const paintGroup = () => {
-    if (typeof tool === "number") {
-      commit(record(hRef.current, paintRange(hRef.current.now, inGroup, tool, amt, d, lockedRef.current)));
-      return;
-    }
-    if (tool !== "lock") return;
-    const next = new Set(lockedRef.current);
-    for (const cls of inGroup) {
-      if (groupLocked) next.delete(cls);
-      else next.add(cls);
-    }
-    setLocks(next);
+    const cur = hRef.current.now;
+    if (typeof tool === "number") commit(record(hRef.current, paintRange(cur, inGroup, tool, amt, d, heldClasses(cur, res))));
+    else if (tool === "lock") commit(record(hRef.current, lockClasses(cur, inGroup, !groupLocked)));
   };
   const groupN = tool === "lock" ? inGroup.length : tool === "combos" ? 0 : groupFree.length;
 
@@ -246,7 +239,7 @@ export function BuildMode({
     if (typeof tool !== "number") return;
     const r = parseRange(text);
     const cur = hRef.current.now;
-    const lock = lockedRef.current;
+    const lock = heldClasses(cur, res);
     const many = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
     if (hasCombos) {
       const p = paintParsed(cur, r, tool, d, lock, res);
@@ -282,10 +275,7 @@ export function BuildMode({
         .join("; ") + ".",
     );
   };
-  const reset = () => {
-    commit(record(hRef.current, rangePaint(blankPaint(g))));
-    setLocks(new Set());
-  };
+  const reset = () => commit(record(hRef.current, rangePaint(blankPaint(g))));
 
   const check = () => {
     const { combo, head, byCombo } = scoreRange(res, hRef.current.now);
@@ -341,6 +331,7 @@ export function BuildMode({
   const spoken = scores ? sel : pressed;
   const slots = sel && hasCombos ? comboSlots(res, sel) : null;
   const ownOf = (cls: string) => h.now.combos[cls];
+  const lockCount = Object.values(comboLocks).reduce((n, c) => n + c.length, 0);
 
   return (
     <StudySplit>
@@ -355,6 +346,7 @@ export function BuildMode({
           grid={g}
           paint={shown}
           own={h.now.combos}
+          comboLocks={comboLocks}
           colors={colors}
           locked={locked}
           cells={scores?.head.cells}
@@ -368,7 +360,7 @@ export function BuildMode({
         />
         {/* (what the panel now shows of the hand picked, or the hand as painted) */}
         <p role="status" className="sr-only">
-          {spoken ? buildLabel(spoken, Boolean(shown[spoken]), g.cells[spoken], shown[spoken], names, locked.has(spoken), scores?.head.cells[spoken], Object.keys(ownOf(spoken) ?? {}).length) : ""}
+          {spoken ? buildLabel(spoken, Boolean(shown[spoken]), g.cells[spoken], shown[spoken], names, locked.has(spoken), scores?.head.cells[spoken], Object.keys(ownOf(spoken) ?? {}).length, comboLocks[spoken]?.length) : ""}
         </p>
       </section>
 
@@ -379,13 +371,15 @@ export function BuildMode({
             slots={slots}
             mixOf={(combo) => ownOf(sel)?.[combo] ?? h.now.classes[sel]!}
             own={(combo) => Boolean(ownOf(sel)?.[combo])}
+            comboLocked={(combo) => isComboLocked(h.now, sel, combo)}
             mean={shown[sel]!}
             names={names}
             colors={colors}
             provenance={provenance}
             locked={locked.has(sel)}
-            onSet={(combo, a, t) => commit(record(hRef.current, setCombo(hRef.current.now, sel, combo, a, t, d, lockedRef.current)))}
+            onSet={(combo, a, t) => commit(record(hRef.current, setCombo(hRef.current.now, sel, combo, a, t, d, heldClasses(hRef.current.now, res))))}
             onClear={(combo) => commit(record(hRef.current, clearCombo(hRef.current.now, sel, combo)))}
+            onLock={(combo, to) => commit(record(hRef.current, lockCombo(hRef.current.now, sel, combo, to)))}
             onClose={() => setSelected(null)}
           />
         )}
@@ -433,7 +427,7 @@ export function BuildMode({
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={fillAll} disabled={typeof tool !== "number"} title="Paint every hand (but the locked ones) with this brush" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
+              <button type="button" onClick={fillAll} disabled={typeof tool !== "number"} title="Paint every hand with this brush (but locked hands and locked combos)" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
                 Fill all
               </button>
               <button type="button" onClick={reset} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
@@ -543,6 +537,7 @@ export function BuildMode({
               <p role="note" aria-label="Your range">
                 Your range: {names.map((n, a) => `${n} ${pct(now.mine[a])}`).join(" · ")}
                 {locked.size > 0 && <span className="text-muted"> · {locked.size} locked</span>}
+                {lockCount > 0 && <span className="text-muted"> · {lockCount} combo{lockCount === 1 ? "" : "s"} locked</span>}
               </p>
               <div className="mt-1 flex h-2 gap-px overflow-hidden rounded-sm bg-surface-2" aria-hidden>
                 {segs(now.mine, colors)}
@@ -744,6 +739,7 @@ function BuildMatrix({
   grid,
   paint,
   own,
+  comboLocks,
   colors,
   locked,
   cells,
@@ -758,6 +754,7 @@ function BuildMatrix({
   grid: RangeGridData;
   paint: Record<string, number[]>;
   own: ComboPaint;
+  comboLocks: NonNullable<RangePaint["comboLocks"]>;
   colors: readonly string[];
   locked: ReadonlySet<string>;
   cells?: BuildScore["cells"];
@@ -826,6 +823,7 @@ function BuildMatrix({
                 cell={grid.cells[cls]}
                 mine={paint[cls]}
                 own={Object.keys(own[cls] ?? {}).length}
+                ownLocked={comboLocks[cls]?.length ?? 0}
                 names={grid.actions}
                 colors={colors}
                 locked={locked.has(cls)}
@@ -849,6 +847,7 @@ const BuildCell = memo(function BuildCell({
   cell,
   mine,
   own,
+  ownLocked,
   names,
   colors,
   locked,
@@ -864,6 +863,8 @@ const BuildCell = memo(function BuildCell({
   mine: number[] | undefined;
   /** how many of its combos are painted apart */
   own: number;
+  /** how many of those are locked */
+  ownLocked: number;
   names: readonly string[];
   colors: readonly string[];
   locked: boolean;
@@ -877,7 +878,7 @@ const BuildCell = memo(function BuildCell({
   const on = Boolean(cell && cell.w > 0 && mine);
   const w = on ? Math.min(1, cell!.w) : 0;
   const ring = score ? (score.off >= 0.5 ? "ring-2 ring-danger" : score.off >= 0.2 ? "ring-2 ring-warn" : "") : "";
-  const label = buildLabel(cls, on, cell, mine, names, locked, score, own);
+  const label = buildLabel(cls, on, cell, mine, names, locked, score, own, ownLocked);
   return (
     <button
       type="button"
@@ -921,6 +922,11 @@ const BuildCell = memo(function BuildCell({
       {own > 0 && (
         <span aria-hidden className="pointer-events-none absolute right-0.5 top-0 z-10 text-[clamp(6px,1.1vw,10px)] text-text">
           ◆
+        </span>
+      )}
+      {ownLocked > 0 && (
+        <span aria-hidden className="pointer-events-none absolute bottom-0 left-0.5 z-10 text-[clamp(6px,1.1vw,10px)] text-text drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]">
+          ◆L
         </span>
       )}
     </button>

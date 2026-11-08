@@ -851,3 +851,82 @@ test("14d. A single combo painted apart from its class, graded by combo, on a re
   await page.screenshot({ path: "e2e-results/shots/desktop/study-combo-graded.png", fullPage: true });
   await clean(page, problems);
 });
+
+test("14e. A combo locked apart from its class holds through Fill all and undo, by keyboard, at the panel's narrowest and at 375px", async ({ page, problems }) => {
+  await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
+  await expect(actions(page)).toBeVisible({ timeout: 120_000 });
+  await page.getByRole("button", { name: /Build/ }).first().click();
+  const hand = page.getByRole("gridcell", { name: /^(?:[AKQJT]9|9[2-8])s: yours / }).first();
+  await page.getByRole("button", { name: "Open combos" }).click();
+  await hand.click();
+  const panel = page.getByRole("region", { name: /^[2-9TJQKA]{2}s combos$/ });
+  await expect(panel).toBeVisible();
+
+  // the panel at its narrowest, 320px: a combo's row still fits, lock and all
+  const split = page.getByRole("separator", { name: "Resize the range and the panel beside it" });
+  await split.focus();
+  await page.keyboard.press("End");
+  await expect.poll(async () => Math.round((await page.locator("aside").first().boundingBox())!.width)).toBeLessThanOrEqual(321);
+
+  const rows = panel.getByRole("group");
+  const first = rows.first().getByRole("spinbutton").first();
+  const other = rows.nth(1).getByRole("spinbutton").first();
+  await first.fill("40");
+  await first.press("Enter");
+  const lock = panel.getByRole("button", { name: /^Lock / });
+  await expect(lock).toBeVisible();
+  const fits = (el: HTMLElement) => el.scrollWidth <= el.clientWidth;
+  expect(await panel.evaluate(fits), "the combo panel scrolls sideways at 320px").toBe(true);
+  await page.screenshot({ path: "e2e-results/shots/desktop/study-combo-lock-320.png", fullPage: true });
+
+  // reached with Tab alone, from the box just painted, and taken with a key
+  await first.focus();
+  for (let i = 0; i < 12 && !(await lock.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  await expect(lock).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+  await expect(lock).toBeFocused();
+  await expect(panel.getByRole("group", { name: /, locked$/ })).toContainText("Locked");
+  await expect(page.getByRole("gridcell", { name: /1 combo painted apart, 1 locked/ })).toHaveCount(1);
+
+  // Fill all goes round it, and undo takes one step at a time
+  await page.getByRole("group", { name: "Brush" }).getByRole("button").nth(1).click();
+  await expect(other).not.toHaveValue("0");
+  await page.getByRole("button", { name: "Fill all" }).click();
+  await expect(first).toHaveValue("40");
+  await expect(other).toHaveValue("0");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(other).not.toHaveValue("0");
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(lock).toHaveAttribute("aria-pressed", "false");
+  await expect(first).toHaveValue("40");
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+
+  // at phone width, one column: the lock on the hand and the combo, and nothing wider than the page
+  await page.setViewportSize({ width: 375, height: 812 });
+  await lock.scrollIntoViewIfNeeded();
+  await expect(lock).toBeInViewport();
+  await lock.click();
+  await expect(lock).toHaveAttribute("aria-pressed", "false");
+  await lock.click();
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+  expect(await panel.evaluate(fits), "the combo panel scrolls sideways at 375px").toBe(true);
+  await page.screenshot({ path: "e2e-results/shots/desktop/study-combo-lock-375.png", fullPage: true });
+  await page.getByRole("gridcell", { name: /1 combo painted apart, 1 locked/ }).screenshot({ path: "e2e-results/shots/desktop/study-combo-lock-cell-375.png" });
+
+  // a lock changes no score: the same range checked locked and unlocked
+  await page.getByRole("button", { name: "Check my range" }).click();
+  const score = page.getByRole("region", { name: "Your score" });
+  await expect(page.getByText(/Graded combo by combo over [\d.]+ live combos/)).toBeVisible();
+  const held = await score.textContent();
+  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("button", { name: "Open combos" }).click();
+  await hand.click();
+  await lock.click();
+  await expect(lock).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Check my range" }).click();
+  await expect(score).toHaveText(held ?? "");
+  await clean(page, problems);
+});

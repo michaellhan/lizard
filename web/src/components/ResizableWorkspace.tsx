@@ -5,7 +5,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 /** The width the panes sit side by side from: Tailwind's `lg`, in rem as Tailwind writes it. */
-const WIDE_QUERY = "(min-width: 64rem)";
+export const WIDE_QUERY = "(min-width: 64rem)";
 /** In px, what the width is read as until it's measured. */
 const WIDE_PX = 1024;
 /** In px, the separator's column: the 1rem of the `gap-4` it stands in for, so the panes keep the widths they'd have beside a gap. */

@@ -32,16 +32,19 @@ export function variantsOf(h: StudyHand): [string, StudyHand][] {
 /** A bet menu typed as "50, 100" or "50 100%": sorted, distinct. */
 export const menuOf = (t: string) => [...new Set(t.split(/[\s,;/]+/).filter(Boolean).map((x) => Number(x.replace(/%$/, ""))))].sort((x, y) => x - y);
 
+export const SAME_MENU = "the same menu as this spot's";
+
 /** The spot with another bet menu on `street` (null where it's the same menu or can't be solved), and what's wrong. */
 export function withMenu(h: StudyHand, street: SizeStreet, now: number[], typed: string): { b: StudyHand | null; problem: string | null } {
   const xs = menuOf(typed);
   if (!xs.length) return { b: null, problem: `type ${street} bet sizes, % of the pot` };
   if (xs.some((x) => !Number.isFinite(x))) return { b: null, problem: "sizes are numbers, % of the pot" };
+  // (first: a library's menu can be longer than a typed one may be, and what the field starts on isn't a mistake)
+  if (xs.join() === [...now].sort((x, y) => x - y).join()) return { b: null, problem: SAME_MENU };
   const s = h.setup ?? {};
   const next = { ...s, sizes: { ...s.sizes, [street]: xs } };
   const problem = setupProblems(h.players, next).find((p) => p.includes(`${street} bet sizes`));
   if (problem) return { b: null, problem };
-  if (xs.join() === [...now].sort((x, y) => x - y).join()) return { b: null, problem: "the same menu as this spot's" };
   return { b: withSetup(h, next), problem: null };
 }
 
@@ -127,7 +130,7 @@ function MenuLink({ hand, street, now }: { hand: StudyHand; street: SizeStreet; 
         aria-label={`Another ${street} bet menu`}
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
-        aria-invalid={!b}
+        aria-invalid={!b && problem !== SAME_MENU}
         title={`Up to ${LIMITS.sizes} sizes, ${LIMITS.sizePct[0]}–${LIMITS.sizePct[1]}% of the pot`}
         className="w-24 rounded border border-border bg-surface px-1.5 py-0.5 text-text"
       />

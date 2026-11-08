@@ -63,7 +63,7 @@ export function BreakdownPanel({
     <details open={open} onToggle={(e) => onOpen(e.currentTarget.open)} className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
       <summary className="cursor-pointer font-medium">Breakdown and equity</summary>
       {open && (
-        <div className="mt-2">
+        <div className="mt-2 @container">
           {run.kind === "asking" && (
             <p role="status" className="text-muted">
               Breaking down the ranges…
@@ -94,7 +94,8 @@ function Shown({
 }) {
   const curves = curvesOf(bd);
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+    // (from `lg` it's in Study's panel, as wide as the separator leaves it: by its own width there, not the window's)
+    <div className="grid gap-4 lg:@2xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
       <Categories bd={bd} res={res} provenance={provenance} evUnit={evUnit} onFilter={onFilter} />
       {curves.length > 1 ? (
         <Equity bd={bd} sides={curves} />

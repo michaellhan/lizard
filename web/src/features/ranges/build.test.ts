@@ -13,10 +13,15 @@ import {
   clearCombo,
   comboSlots,
   grade,
+  heldClasses,
   historyOf,
+  isComboLocked,
+  lockClasses,
+  lockCombo,
   paintClasses,
   paintParsed,
   paintRange,
+  paintRangeWeights,
   paintWeights,
   passiveOf,
   rangePaint,
@@ -29,6 +34,7 @@ import {
   SHAPES,
   solutionPaint,
   undo,
+  withSavedLocks,
 } from "./build";
 import { formatRange, parseRange } from "./rangeText";
 
@@ -369,6 +375,147 @@ describe("single combos", () => {
     const held = paintParsed(start, parseRange("AKs, AhKh"), 1, 0, new Set(["AKs"]), res);
     expect(held).toMatchObject({ hands: 0, combos: 0, held: 2 });
     expect(held.paint).toBe(start);
+  });
+
+  it("holds a locked combo under anything that paints its class, the class's other combos taking the brush", () => {
+    const apart = setCombo(setCombo(blank(), "AKs", "AhKh", 1, 0.75, 0), "AKs", "AdKd", 1, 0.25, 0);
+    const p = lockCombo(apart, "AKs", "AhKh", true);
+    expect(isComboLocked(p, "AKs", "AhKh")).toBe(true);
+    expect(isComboLocked(p, "AKs", "AdKd")).toBe(false);
+
+    // the class's brush, a fill or a group (each is paintRange), and weights: AdKd carried, AhKh not a hair
+    for (const q of [paintRange(p, ["AKs"], 1, 1, 0), paintRangeWeights(p, { AKs: 1 }, 1, 0)]) {
+      expect(q.classes.AKs).toEqual([0, 1]);
+      expect(q.combos.AKs).toEqual({ AhKh: [0.25, 0.75] });
+      expect(isComboLocked(q, "AKs", "AhKh")).toBe(true);
+    }
+    // what the paint keeps goes through every other way of painting too
+    expect(setCombo(p, "AKs", "AhKh", 1, 0.1, 0)).toBe(p);
+    expect(clearCombo(p, "AKs", "AhKh")).toBe(p);
+    expect(setCombo(p, "AKs", "AdKd", 1, 0.5, 0).combos.AKs!.AdKd).toEqual([0.5, 0.5]);
+
+    // unlocked again, the class's brush reaches it
+    expect(paintRange(lockCombo(p, "AKs", "AhKh", false), ["AKs"], 1, 1, 0).combos).toEqual({});
+  });
+
+  it("keeps a locked combo its own even on the class's mix, and locking changes nothing painted", () => {
+    const apart = setCombo(blank(), "AKs", "AhKh", 1, 0.75, 0);
+    const p = lockCombo(apart, "AKs", "AhKh", true);
+    expect(p.classes).toBe(apart.classes);
+    expect(p.combos).toBe(apart.combos);
+    // the class painted to the combo's very mix: still held, so still its own
+    const q = paintRange(p, ["AKs"], 1, 0.75, 0);
+    expect(q.classes.AKs).toEqual([0.25, 0.75]);
+    expect(q.combos.AKs).toEqual({ AhKh: [0.25, 0.75] });
+    // and unlocking leaves it as it is, until a brush carries it
+    const free = lockCombo(q, "AKs", "AhKh", false);
+    expect(free.combos).toBe(q.combos);
+    expect(paintRange(free, ["AKs"], 1, 1, 0).combos).toEqual({});
+  });
+
+  it("locks only a combo painted apart, and a lock that changes nothing is no step", () => {
+    const p0 = blank();
+    expect(lockCombo(p0, "AKs", "AhKh", true)).toBe(p0);
+    expect(lockCombo(p0, "AKs", "AhKh", false)).toBe(p0);
+    const p = lockCombo(setCombo(p0, "AKs", "AhKh", 1, 0.5, 0), "AKs", "AhKh", true);
+    expect(lockCombo(p, "AKs", "AhKh", true)).toBe(p);
+    expect(lockCombo(p, "AKs", "AdKd", false)).toBe(p);
+    expect(lockClasses(p, ["AKs"], false)).toBe(p);
+    const q = lockClasses(p, ["AKs"], true);
+    expect(lockClasses(q, ["AKs"], true)).toBe(q);
+  });
+
+  it("takes a class whose every live combo is locked out of the brush, so no step changes nothing to see", () => {
+    let p = setCombo(blank(), "AKs", "AhKh", 1, 0.5, 0);
+    p = lockCombo(p, "AKs", "AhKh", true);
+    expect([...heldClasses(p, RES)]).toEqual([]);
+    p = lockCombo(setCombo(p, "AKs", "AdKd", 1, 0.5, 0), "AKs", "AdKd", true);
+    expect([...heldClasses(p, RES)]).toEqual([]);
+    p = lockCombo(setCombo(p, "AKs", "AcKc", 1, 0.5, 0), "AKs", "AcKc", true);
+    // (AsKs, blocked by the board, isn't one of its combos here)
+    expect([...heldClasses(p, RES)]).toEqual(["AKs"]);
+    expect(paintRange(p, ["AKs"], 1, 1, 0, heldClasses(p, RES))).toBe(p);
+    // a class lock is held whole, as ever
+    expect([...heldClasses(lockClasses(blank(), ["AKs"], true), RES)]).toEqual(["AKs"]);
+  });
+
+  it("counts a locked combo typed as text as held, and a class typed around one as painted", () => {
+    const p = lockCombo(setCombo(blank(), "AKs", "AhKh", 1, 0.75, 0), "AKs", "AhKh", true);
+    const combo = paintParsed(p, parseRange("AhKh"), 1, 0, heldClasses(p, RES), RES);
+    expect(combo).toMatchObject({ hands: 0, combos: 0, held: 1 });
+    expect(combo.paint).toBe(p);
+    const whole = paintParsed(p, parseRange("AKs"), 1, 0, heldClasses(p, RES), RES);
+    expect(whole).toMatchObject({ hands: 1, combos: 0, held: 0 });
+    expect(whole.paint.classes.AKs).toEqual([0, 1]);
+    expect(whole.paint.combos.AKs).toEqual({ AhKh: [0.25, 0.75] });
+  });
+
+  it("lets a class lock hold a class over its combo locks, and leaves those as they were when it goes", () => {
+    const p = lockCombo(setCombo(setCombo(blank(), "AKs", "AhKh", 1, 0.75, 0), "AKs", "AdKd", 1, 0.25, 0), "AKs", "AhKh", true);
+    const whole = lockClasses(p, ["AKs"], true);
+    expect(isComboLocked(whole, "AKs", "AhKh")).toBe(true);
+    const held = heldClasses(whole, RES);
+    // the unlocked combo is held too, while the class is
+    expect(setCombo(whole, "AKs", "AdKd", 1, 0.5, 0, held)).toBe(whole);
+    expect(paintRange(whole, ["AKs"], 1, 1, 0, held)).toBe(whole);
+    // the class unlocked: AhKh keeps its own lock, AdKd is free
+    const after = lockClasses(whole, ["AKs"], false);
+    expect(isComboLocked(after, "AKs", "AhKh")).toBe(true);
+    expect(isComboLocked(after, "AKs", "AdKd")).toBe(false);
+    expect(paintRange(after, ["AKs"], 1, 1, 0, heldClasses(after, RES)).combos.AKs).toEqual({ AhKh: [0.25, 0.75] });
+  });
+
+  it("makes a lock one undo step, of a combo or of a class, and undo brings back the combo's lock with the paint", () => {
+    const start = setCombo(blank(), "AKs", "AhKh", 1, 0.75, 0);
+    let h = historyOf(start);
+    h = record(h, lockCombo(h.now, "AKs", "AhKh", true));
+    const locked = h.now;
+    h = record(h, paintRange(h.now, ["AKs"], 1, 1, 0));
+    h = record(h, lockClasses(h.now, ["AKs"], true));
+    expect(h.past).toHaveLength(3);
+    h = undo(h);
+    expect(h.now.locked ?? []).toEqual([]);
+    expect(isComboLocked(h.now, "AKs", "AhKh")).toBe(true);
+    h = undo(h);
+    expect(h.now).toBe(locked);
+    h = undo(h);
+    expect(h.now).toBe(start);
+    expect(isComboLocked(h.now, "AKs", "AhKh")).toBe(false);
+    h = redo(h);
+    expect(h.now).toBe(locked);
+    // a drag over hands: one step, however many it locks
+    let d = historyOf(blank());
+    d = record(d, lockClasses(d.now, ["AKs"], true));
+    d = amend(d, lockClasses(d.now, ["QQ"], true));
+    expect(d.now.locked).toEqual(["AKs", "QQ"]);
+    expect(undo(d).now.locked ?? []).toEqual([]);
+  });
+
+  it("grades a paint the same with or without its locks", () => {
+    const apart = setCombo(setCombo(blank(), "AKs", "AhKh", 1, 0.75, 0), "AKs", "AdKd", 1, 0.25, 0);
+    const locked = lockClasses(lockCombo(apart, "AKs", "AhKh", true), ["AKs"], true);
+    expect(scoreRange(RES, locked)).toEqual(scoreRange(RES, apart));
+    expect(scoreByCombo(RES, locked.classes, locked.combos)).toEqual(scoreByCombo(RES, apart.classes, apart.combos));
+    expect(classMixes(locked, RES)).toEqual(classMixes(apart, RES));
+    expect(actionHands(locked, 1, RES)).toEqual(actionHands(apart, 1, RES));
+    // and a lock doesn't turn a class score into a combo score: none can be set on a paint with no combos of its own
+    const plain = paintRange(blank(), ["AKs"], 1, 0.5, 0);
+    expect(scoreRange(RES, lockCombo(plain, "AKs", "AhKh", true)).byCombo).toBe(false);
+  });
+
+  it("reads a history saved with its locks beside it: each step keeps them, so undo doesn't unlock", () => {
+    const p0 = blank();
+    let h = historyOf(p0);
+    h = record(h, setCombo(h.now, "AKs", "AhKh", 1, 0.5, 0));
+    const r = withSavedLocks(h, ["AKs"]);
+    expect(r.now.locked).toEqual(["AKs"]);
+    expect(r.now.combos).toBe(h.now.combos);
+    expect(undo(r).now.locked).toEqual(["AKs"]);
+    expect(withSavedLocks(h, [])).toBe(h);
+    expect(withSavedLocks(h, undefined)).toBe(h);
+    // a paint that has its own locks keeps them
+    const own = historyOf(lockClasses(p0, ["QQ"], true));
+    expect(withSavedLocks(own, ["AKs"]).now.locked).toEqual(["QQ"]);
   });
 
   it("keeps the class paints' API and numbers as they were", () => {

@@ -69,7 +69,7 @@ export function BlockersPanel({
 
   if (plan.kind === "none")
     return (
-      <section aria-label="Blockers" className="min-w-0 text-xs text-muted lg:col-span-2">
+      <section aria-label="Blockers" className="min-w-0 text-xs text-muted lg:@2xl:col-span-2">
         {plan.why}
       </section>
     );
@@ -78,7 +78,7 @@ export function BlockersPanel({
   const rows = res.combos?.[cls] ?? [];
   const shownRun = run?.key === key ? run : null;
   return (
-    <section aria-label="Blockers" className="min-w-0 space-y-2 border-t border-border pt-3 lg:col-span-2">
+    <section aria-label="Blockers" className="min-w-0 space-y-2 border-t border-border pt-3 lg:@2xl:col-span-2">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <h3 className="text-sm font-medium">Blockers</h3>
         <label className="flex items-center gap-1 text-muted">
@@ -156,7 +156,7 @@ function Blocks({ range, name, actionName, whose, combos }: { range: OppRange; n
           Value it blocks: {r.value.removed.toFixed(1)} of the {r.value.of.toFixed(1)} combos of {who}'s with over {fair} equity against {whose === "reply" ? "the hands that take this action" : "this range"}.
         </p>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:@md:grid-cols-2">
         <BlockedTable title="Made hands it blocks" rows={r.made} />
         {r.draws.length > 0 && <BlockedTable title="Draws it blocks" rows={r.draws} />}
       </div>

@@ -1,6 +1,7 @@
 // The range builder's open hand: each combo of one class with its own mix. A combo blocked by the board or out of the
 // range can't be painted and isn't counted. Typing an action's share and leaving the box (or Enter) is one change,
-// one undo step; the rest of the combo's mix keeps its proportions (features/ranges/build.ts brush).
+// one undo step; the rest of the combo's mix keeps its proportions (features/ranges/build.ts brush). A combo painted
+// apart can be locked, one undo step too: then nothing that paints its class reaches it.
 import { useState } from "react";
 import { pct } from "@/components/actions";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -45,6 +46,7 @@ export function ComboPainter({
   slots,
   mixOf,
   own,
+  comboLocked,
   mean,
   names,
   colors,
@@ -52,6 +54,7 @@ export function ComboPainter({
   locked,
   onSet,
   onClear,
+  onLock,
   onClose,
 }: {
   cls: string;
@@ -59,6 +62,8 @@ export function ComboPainter({
   /** a combo's mix as painted */
   mixOf: (combo: string) => readonly number[];
   own: (combo: string) => boolean;
+  /** the combo's own lock, whatever the hand's (a lock on the hand holds every combo in it, and leaves this as it is) */
+  comboLocked: (combo: string) => boolean;
   /** the class's mix over its live combos */
   mean: readonly number[];
   names: readonly string[];
@@ -67,6 +72,7 @@ export function ComboPainter({
   locked: boolean;
   onSet: (combo: string, a: number, t: number) => void;
   onClear: (combo: string) => void;
+  onLock: (combo: string, to: boolean) => void;
   onClose: () => void;
 }) {
   const live = slots.filter((s) => s.state === "live").length;
@@ -87,36 +93,52 @@ export function ComboPainter({
       <p role="note" aria-label={`${cls} as painted`}>
         Over its {live} live combo{live === 1 ? "" : "s"}, by reach: {names.map((n, a) => `${n} ${pct(mean[a], 1)}`).join(" · ")}
       </p>
-      {locked ? <p className="text-warn">Locked: unlock the hand to paint its combos.</p> : <p className="text-muted">A combo's share of each action, in %: the rest of its mix keeps its proportions. Each change is one undo step.</p>}
+      {locked ? <p className="text-warn">Locked: unlock the hand to paint its combos.</p> : <p className="text-muted">A combo's share of each action, in %: the rest of its mix keeps its proportions. Each change is one undo step. Lock a combo painted apart to keep it when its hand is painted.</p>}
       <ul className="space-y-1.5">
-        {slots.map(({ combo, state, row }) => (
-          <li key={combo} className="border-t border-border/60 pt-1.5">
-            {state !== "live" ? (
-              <p className="text-muted">
-                <span className="font-mono">{combo}</span> {state === "blocked" ? "blocked by the board: not painted, not counted" : "not in this range: not painted, not counted"}
-              </p>
-            ) : (
-              <div role="group" aria-label={combo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="w-24 font-mono">
-                  {combo}
-                  {row![1] < 0.999 && <span className="text-faint"> ({pct(row![1], 0)})</span>}
-                </span>
-                {names.map((n, a) => (
-                  <label key={n} className="inline-flex items-center gap-1">
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[a] }} />
-                    {n}
-                    <ShareInput label={`${combo} ${n} %`} value={mixOf(combo)[a] ?? 0} disabled={locked} onCommit={(t) => onSet(combo, a, t)} />
-                  </label>
-                ))}
-                {own(combo) && (
-                  <button type="button" aria-label={`${combo} back to the class`} disabled={locked} onClick={() => onClear(combo)} className="rounded border border-border px-1.5 py-0.5 hover:bg-surface-2 disabled:opacity-40">
-                    Back to class
-                  </button>
-                )}
-              </div>
-            )}
-          </li>
-        ))}
+        {slots.map(({ combo, state, row }) => {
+          const held = comboLocked(combo);
+          return (
+            <li key={combo} className="border-t border-border/60 pt-1.5">
+              {state !== "live" ? (
+                <p className="text-muted">
+                  <span className="font-mono">{combo}</span> {state === "blocked" ? "blocked by the board: not painted, not counted" : "not in this range: not painted, not counted"}
+                </p>
+              ) : (
+                <div role="group" aria-label={held ? `${combo}, locked` : combo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="w-24 font-mono">
+                    {combo}
+                    {row![1] < 0.999 && <span className="text-faint"> ({pct(row![1], 0)})</span>}
+                  </span>
+                  {names.map((n, a) => (
+                    <label key={n} className="inline-flex items-center gap-1">
+                      <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: colors[a] }} />
+                      {n}
+                      <ShareInput label={`${combo} ${n} %`} value={mixOf(combo)[a] ?? 0} disabled={locked || held} onCommit={(t) => onSet(combo, a, t)} />
+                    </label>
+                  ))}
+                  {own(combo) && (
+                    <button type="button" aria-label={`${combo} back to the class`} disabled={locked || held} onClick={() => onClear(combo)} className="rounded border border-border px-1.5 py-0.5 hover:bg-surface-2 disabled:opacity-40">
+                      Back to class
+                    </button>
+                  )}
+                  {own(combo) && (
+                    <button
+                      type="button"
+                      aria-label={`Lock ${combo}`}
+                      aria-pressed={held}
+                      title="Keep this combo as it is when its hand is painted (a brush, Fill all, a group, range text). Again to unlock"
+                      onClick={() => onLock(combo, !held)}
+                      className={`rounded border px-1.5 py-0.5 ${held ? "border-dashed border-text/70" : "border-border hover:bg-surface-2"}`}
+                    >
+                      Lock
+                    </button>
+                  )}
+                  {held && <span className="font-medium">Locked</span>}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

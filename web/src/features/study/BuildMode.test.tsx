@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { actionColors } from "@/components/actions";
-import { recentSessions } from "@/data/db";
+import { putSession, recentSessions } from "@/data/db";
 import type { AdvisorResponse, RangeGridData } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
@@ -400,6 +400,188 @@ describe("BuildMode", () => {
     fireEvent.click(cell("AKs"));
     expect(combos()).toHaveTextContent("Locked: unlock the hand to paint its combos.");
     expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toBeDisabled();
+  });
+
+  it("locks a combo painted apart, by name and in words, and anything that paints its class leaves it", () => {
+    renderBuild({ res: COMBOS, lineKey: "combo-locks" });
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    // only a combo painted apart has anything of its own to hold
+    expect(screen.queryByRole("button", { name: "Lock AhKh" })).toBeNull();
+    share("AhKh bet %", "75");
+    share("AdKd bet %", "25");
+    const lock = screen.getByRole("button", { name: "Lock AhKh" });
+    expect(lock).toHaveAttribute("aria-pressed", "false");
+    lock.focus();
+    fireEvent.click(lock);
+
+    // the lock says so in words, in the row, on the hand and in the range's note, and focus stays on it
+    expect(lock).toHaveAttribute("aria-pressed", "true");
+    expect(lock).toHaveFocus();
+    const row = within(combos()).getByRole("group", { name: "AhKh, locked" });
+    expect(row).toHaveTextContent("Locked");
+    expect(within(combos()).getByRole("group", { name: "AdKd" })).not.toHaveTextContent("Locked");
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 56%, bet 44%; 2 combos painted apart, 1 locked");
+    expect(screen.getByLabelText("Your range")).toHaveTextContent("1 combo locked");
+    expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toBeDisabled();
+    expect(screen.getByRole("spinbutton", { name: "AdKd bet %" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "AhKh back to the class" })).toBeDisabled();
+
+    const ahkh = () => (screen.getByRole("spinbutton", { name: "AhKh bet %" }) as HTMLInputElement).value;
+    const adkd = () => (screen.getByRole("spinbutton", { name: "AdKd bet %" }) as HTMLInputElement).value;
+    const steps = () => {
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      expect(adkd()).toBe("25");
+      fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+      expect(adkd()).toBe("100");
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    };
+    // Fill all
+    fireEvent.click(within(brushes()).getByRole("button", { name: "bet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill all" }));
+    expect(ahkh()).toBe("75");
+    steps();
+    // a press on its hand
+    fireEvent.click(cell("AKs"));
+    expect(ahkh()).toBe("75");
+    steps();
+    // a shape: suited hands
+    fireEvent.change(screen.getByLabelText("Hands to paint at once"), { target: { value: "s:suited" } });
+    fireEvent.click(screen.getByRole("button", { name: "Paint 1 hand" }));
+    expect(ahkh()).toBe("75");
+    steps();
+    // range text: the class goes on around it, and the combo by name is held and counted
+    fireEvent.change(screen.getByLabelText(/^Hands that play bet/), { target: { value: "AhKh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Paint these" }));
+    expect(ahkh()).toBe("75");
+    expect(screen.getByText("Painted 0 hands bet; 1 locked, left as it was.")).toBeInTheDocument();
+  });
+
+  it("undoes and redoes a combo's lock as one step, from the button and the keys", () => {
+    renderBuild({ res: COMBOS, lineKey: "combo-lock-undo" });
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    share("AhKh bet %", "75");
+    fireEvent.click(screen.getByRole("button", { name: "Lock AhKh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByRole("button", { name: "Lock AhKh" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toHaveValue(75);
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(screen.getByRole("button", { name: "Lock AhKh" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.queryByRole("button", { name: "Lock AhKh" })).toBeNull();
+    // Reset takes the locks with it, in one step
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(screen.queryByRole("button", { name: "Lock AhKh" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByRole("button", { name: "Lock AhKh" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("makes a class's lock one undo step: a press, a group, or a drag over hands", () => {
+    renderBuild({ res: COMBOS, lineKey: "class-lock-undo" });
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    fireEvent.click(cell("AKs"));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%; locked");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%; locked");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    const grid = screen.getByRole("grid", { name: "BTN range, being painted" });
+    const qq = cell("QQ");
+    document.elementFromPoint = () => qq;
+    fireEvent.pointerDown(cell("AKs"), { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(grid, { clientX: 5, clientY: 0, pointerId: 1 });
+    fireEvent.pointerUp(grid, { pointerId: 1 });
+    expect(screen.getByLabelText("Your range")).toHaveTextContent("2 locked");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByLabelText("Your range")).not.toHaveTextContent("locked");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Hands to paint at once"), { target: { value: "s:pairs" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lock 1 hand" }));
+    expect(cell("QQ")).toHaveAccessibleName("QQ: yours check 100%; locked");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("QQ")).toHaveAccessibleName("QQ: yours check 100%");
+  });
+
+  it("holds the whole hand under a class lock, and a combo's own lock comes back through it", () => {
+    renderBuild({ res: COMBOS, lineKey: "both-locks" });
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    share("AhKh bet %", "75");
+    share("AdKd bet %", "25");
+    fireEvent.click(screen.getByRole("button", { name: "Lock AhKh" }));
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    fireEvent.click(cell("AKs"));
+    expect(cell("AKs")).toHaveAccessibleName(/; 2 combos painted apart, 1 locked; locked$/);
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    expect(combos()).toHaveTextContent("Locked: unlock the hand to paint its combos.");
+    expect(screen.getByRole("spinbutton", { name: "AdKd bet %" })).toBeDisabled();
+    expect(screen.getByRole("group", { name: "AhKh, locked" })).toBeInTheDocument();
+
+    // the brush reaches none of it
+    fireEvent.click(within(brushes()).getByRole("button", { name: "bet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill all" }));
+    expect(screen.getByRole("spinbutton", { name: "AdKd bet %" })).toHaveValue(25);
+
+    // unlocked: the class's paint reaches AdKd and not AhKh, whose own lock is as it was
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    fireEvent.click(cell("AKs"));
+    fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+    fireEvent.click(cell("AKs"));
+    expect(screen.getByRole("group", { name: "AhKh, locked" })).toBeInTheDocument();
+    fireEvent.click(within(brushes()).getByRole("button", { name: "bet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fill all" }));
+    expect(screen.getByRole("spinbutton", { name: "AhKh bet %" })).toHaveValue(75);
+    expect(screen.getByRole("spinbutton", { name: "AdKd bet %" })).toHaveValue(100);
+  });
+
+  it("scores and saves the same with a lock as without, and shows it on the scored hand", async () => {
+    const attempt = async (lineKey: string, lock: boolean) => {
+      const view = renderBuild({ res: COMBOS, lineKey });
+      fireEvent.click(screen.getByRole("button", { name: "Open combos" }));
+      fireEvent.click(cell("AKs"));
+      share("AhKh bet %", "75");
+      if (lock) {
+        fireEvent.click(screen.getByRole("button", { name: "Lock AhKh" }));
+        fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+        fireEvent.click(cell("AKs"));
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Check my range" }));
+      const shown = screen.getByRole("region", { name: "Your score" }).textContent;
+      await screen.findByRole("region", { name: "Past ranges here" });
+      const label = cell("AKs").getAttribute("aria-label");
+      view.unmount();
+      const { meta } = (await recentSessions("build", 50)).find((s) => s.meta.line === lineKey)!;
+      return { shown, label, meta: { ...meta, line: "" } };
+    };
+    const free = await attempt("score-free", false);
+    const held = await attempt("score-held", true);
+    expect(held.shown).toBe(free.shown);
+    expect(held.meta).toEqual(free.meta);
+    expect(held.shown).toContain("83.3% accurate");
+    expect(held.label).toMatch(/1 combo painted apart, 1 locked; solver /);
+  });
+
+  it("loads a builder saved before locks were part of the paint, and an attempt saved before them", async () => {
+    const saved = { h: { past: [{ classes: { AKs: [1, 0], QQ: [1, 0] }, combos: {} }], now: { classes: { AKs: [0.5, 0.5], QQ: [1, 0] }, combos: { AKs: { AhKh: [0, 1] } } }, future: [] }, locked: ["QQ"], scored: false } satisfies BuildSaved;
+    await putSession({ id: "build-old", kind: "build", startedAt: 1, endedAt: 1, decisions: 1, evLossBb: 0, meta: { line: "old-state", label: "L", actor: "BTN", street: "flop", acc: 0.75, evLossBb: 0.1, evLossPct: 1, comboAcc: null, source: "live", approximate: false } });
+    const onStore = vi.fn<(s: BuildSaved) => void>();
+    renderBuild({ res: COMBOS, lineKey: "old-state", stored: saved, onStore });
+    expect(cell("QQ")).toHaveAccessibleName("QQ: yours check 100%; locked");
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 25%, bet 75%; 1 combo painted apart");
+    expect(await screen.findByRole("region", { name: "Past ranges here" })).toHaveTextContent("75.0% accurate · 0.100bb a combo");
+    // as it was, the lock outlasts an undo of the paint it stood beside
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("QQ")).toHaveAccessibleName("QQ: yours check 100%; locked");
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
   });
 
   it("grades combo by combo once a combo is painted, by reach over the live combos, and keeps it saved so", async () => {

@@ -1,7 +1,8 @@
 // The range builder: the actor's strategy painted hand class by hand class, then scored against the answer's.
 // Ported from upstream study.js (passiveOf, blankPaint, brush, scoreBuild, grade); the undo history, the locks, single
 // combos and the combo-by-combo score are Lizard's. A paint maps each class in the range to a mix (one share per
-// action); a RangePaint adds the combos painted apart from their class.
+// action); a RangePaint adds the combos painted apart from their class, and what's locked: locks are part of the paint,
+// so each is an undo step like any stroke. No score reads them.
 import { classCombos, classOf, expandClass, parseCards, RANKS } from "@/engine/nlhe/cards";
 import type { ComboRow, RangeGridData } from "@/solver/protocol";
 import { comboName } from "./rangeText";
@@ -14,6 +15,11 @@ export type ComboPaint = Record<string, Record<string, number[]>>;
 export interface RangePaint {
   classes: Paint;
   combos: ComboPaint;
+  /** hands locked whole: no brush reaches any of their combos */
+  locked?: readonly string[];
+  /** combos painted apart and locked, by class. Independent of `locked`: a lock on the hand holds these with the rest
+   * of it, and leaves them locked when it goes (`lockClasses`). */
+  comboLocks?: Readonly<Record<string, readonly string[]>>;
 }
 
 export const rangePaint = (classes: Paint): RangePaint => ({ classes, combos: {} });
@@ -128,17 +134,44 @@ function withCombo(own: ComboPaint, cls: string, combo: string, mix: readonly nu
   return out;
 }
 
+export const isComboLocked = (p: RangePaint, cls: string, combo: string) => p.comboLocks?.[cls]?.includes(combo) ?? false;
+
+/** Hands locked or unlocked. The same paint when nothing changes, so no undo step. */
+export function lockClasses(p: RangePaint, classes: Iterable<string>, to: boolean): RangePaint {
+  const next = new Set(p.locked);
+  const had = next.size;
+  for (const cls of classes) {
+    if (to) next.add(cls);
+    else next.delete(cls);
+  }
+  return next.size === had ? p : { ...p, locked: [...next] };
+}
+
+/** A combo locked or unlocked, leaving what's painted as it is. Only a combo painted apart can be locked: one on its
+ * class's mix has no mix of its own to hold, and giving it one would turn a class score into a combo score. The same
+ * paint when nothing changes, so no undo step. */
+export function lockCombo(p: RangePaint, cls: string, combo: string, to: boolean): RangePaint {
+  if (isComboLocked(p, cls, combo) === to || (to && !p.combos[cls]?.[combo])) return p;
+  const mine = p.comboLocks?.[cls] ?? [];
+  const next = to ? [...mine, combo] : mine.filter((c) => c !== combo);
+  const comboLocks = { ...p.comboLocks };
+  if (next.length) comboLocks[cls] = next;
+  else delete comboLocks[cls];
+  return { ...p, comboLocks };
+}
+
 /** A class-wide brush's reach into a paint: each class's combos of their own take it too, keeping their differences
- * in the rest of the mix (`classes`: the classes after the brush; `weights`: its share of each class it touched). */
+ * in the rest of the mix, but for locked ones (`classes`: the classes after the brush; `weights`: its share of each
+ * class it touched). */
 function carry(p: RangePaint, classes: Paint, weights: Readonly<Record<string, number>>, a: number, d: number, locked: ReadonlySet<string>): RangePaint {
   if (classes === p.classes) return p;
   let combos = p.combos;
   for (const [cls, own] of Object.entries(p.combos)) {
     const t = weights[cls];
     if (!(t! > 0) || locked.has(cls) || !classes[cls]) continue;
-    for (const [combo, mix] of Object.entries(own)) combos = withCombo(combos, cls, combo, brush(mix, a, Math.min(1, t!), d), classes[cls]);
+    for (const [combo, mix] of Object.entries(own)) if (!isComboLocked(p, cls, combo)) combos = withCombo(combos, cls, combo, brush(mix, a, Math.min(1, t!), d), classes[cls]);
   }
-  return { classes, combos };
+  return { ...p, classes, combos };
 }
 
 /** `paintClasses` over a RangePaint. */
@@ -156,16 +189,16 @@ export function paintRangeWeights(p: RangePaint, weights: Readonly<Record<string
  * when nothing changes, so no undo step. */
 export function setCombo(p: RangePaint, cls: string, combo: string, a: number, t: number, d: number, locked: ReadonlySet<string> = NOTHING): RangePaint {
   const base = p.classes[cls];
-  if (!base || locked.has(cls)) return p;
+  if (!base || locked.has(cls) || isComboLocked(p, cls, combo)) return p;
   const mix = p.combos[cls]?.[combo] ?? base;
   const next = brush(mix, a, t, d);
   return sameMix(next, mix) ? p : { ...p, combos: withCombo(p.combos, cls, combo, next, base) };
 }
 
-/** One combo back on its class's mix. */
+/** One combo back on its class's mix (a locked one stays). */
 export function clearCombo(p: RangePaint, cls: string, combo: string): RangePaint {
   const base = p.classes[cls];
-  return base && p.combos[cls]?.[combo] ? { ...p, combos: withCombo(p.combos, cls, combo, null, base) } : p;
+  return base && p.combos[cls]?.[combo] && !isComboLocked(p, cls, combo) ? { ...p, combos: withCombo(p.combos, cls, combo, null, base) } : p;
 }
 
 const hasCombos = (p: RangePaint) => Object.keys(p.combos).length > 0;
@@ -184,6 +217,18 @@ const onBoard = (combo: string, dead: readonly string[]) => dead.includes(combo.
 /** A class's combos in the range: reach above nothing, and clear of the board. All the combo sums run over these. */
 function liveRows(res: ComboAnswer, cls: string, dead: readonly string[]): ComboRow[] {
   return (res.combos?.[cls] ?? []).filter((r) => r[1] > 0 && !onBoard(r[0], dead));
+}
+
+/** The classes a brush can't change: locked whole, or with every live combo locked (there a brush would change only the
+ * class's mix, which nothing plays, for an undo step with nothing to see). What the paint functions' `locked` takes. */
+export function heldClasses(p: RangePaint, res: ComboAnswer): ReadonlySet<string> {
+  const held = new Set(p.locked);
+  const dead = deadCards(res);
+  for (const cls of Object.keys(p.comboLocks ?? {})) {
+    const live = liveRows(res, cls, dead);
+    if (live.length && live.every((r) => isComboLocked(p, cls, comboName(r[0])))) held.add(cls);
+  }
+  return held;
 }
 
 export interface ComboSlot {
@@ -282,7 +327,7 @@ export function paintParsed(p: RangePaint, parsed: { classWeights: Record<string
     const state = comboSlots(res, cls).find((s) => s.combo === combo)?.state;
     if (state === "blocked") r.blocked++;
     else if (state !== "live" || !p.classes[cls]) r.out++;
-    else if (locked.has(cls)) r.held++;
+    else if (locked.has(cls) || isComboLocked(p, cls, combo)) r.held++;
     else {
       r.paint = setCombo(r.paint, cls, combo, a, Math.max(w, parsed.classWeights[cls] ?? 0), d, locked);
       r.combos++;
@@ -467,6 +512,14 @@ export interface History<T> {
   past: T[];
   now: T;
   future: T[];
+}
+
+/** A saved history whose locks stood beside it, from before they were part of the paint: every step keeps them, as an
+ * undo left them alone then. */
+export function withSavedLocks(h: History<RangePaint>, locked: readonly string[] | undefined): History<RangePaint> {
+  if (!locked?.length) return h;
+  const keep = (p: RangePaint): RangePaint => (p.locked ? p : { ...p, locked });
+  return { past: h.past.map(keep), now: keep(h.now), future: h.future.map(keep) };
 }
 
 const DEPTH = 200;

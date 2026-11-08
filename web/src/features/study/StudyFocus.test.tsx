@@ -2,7 +2,7 @@
 // and the page's keys.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { provenanceOf } from "@/solver/provenance";
 import { SolverError, type SolveResult } from "@/solver/types";
@@ -194,6 +194,50 @@ describe("Study's focus", () => {
     await waitFor(() => expect(heading()).toHaveTextContent("BB"));
     expect(screen.queryByRole("group", { name: "Fold to a seat" })).toBeNull();
     await waitFor(() => expect(heading()).toHaveFocus());
+  });
+});
+
+describe("Study's focus and keys with the actions in the panel", () => {
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is laid out that way here", async () => {
+    renderAt();
+    const fold = await firstAction();
+    expect(screen.getByRole("separator").nextElementSibling).toContainElement(fold);
+  });
+
+  it("holds the keyboard while the panes are gone with the answer, and hands it on to the next node's heading", async () => {
+    renderAt();
+    const fold = await firstAction();
+    stub.hold = true;
+    fold.focus();
+    fireEvent.click(fold);
+    await waitFor(() => expect(stub.asked).toHaveLength(2));
+    await waitFor(() => expect(answers()).toHaveFocus());
+    expect(screen.queryByRole("separator")).toBeNull();
+    await act(async () => stub.release());
+    await waitFor(() => expect(heading()).toHaveFocus());
+    expect(heading()).toHaveTextContent("HJ");
+  });
+
+  it("goes to the first action from the separator, and plays on from the heading focus lands on", async () => {
+    renderAt();
+    const fold = await firstAction();
+    const stops = [...document.querySelectorAll<HTMLElement>("button, select, [tabindex='0']")];
+    expect(stops[stops.indexOf(screen.getByRole("separator")) + 1]).toBe(fold);
+    fold.focus();
+    fireEvent.click(fold);
+    await waitFor(() => expect(heading()).toHaveFocus());
+    fireEvent.keyDown(heading(), { key: "2" });
+    await waitFor(() => expect(search().get("pre")).toBe("UTG:f,HJ:r2.5"));
+    await waitFor(() => expect(heading()).toHaveFocus());
+    fireEvent.keyDown(heading(), { key: "ArrowLeft" });
+    await waitFor(() => expect(search().get("pre")).toBe("UTG:f"));
   });
 });
 

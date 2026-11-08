@@ -43,7 +43,7 @@ import {
 import { encodePfSizes } from "./pfSizes";
 import { BreakdownPanel } from "./BreakdownPanel";
 import { BuildMode, type BuildSaved } from "./BuildMode";
-import { StudySplit } from "./StudySplit";
+import { StudySplit, useSplitWide } from "./StudySplit";
 import { FoldTo } from "./FoldTo";
 import { askNode, newRun, pfGame, runPf, type PfRun } from "./pfSolve";
 import { PfNote, PfPanel, PfProgress, PfSizesForm, PreflopSource } from "./PreflopSolve";
@@ -134,6 +134,7 @@ export function StudyPage() {
   const [paints] = useState(() => new Map<string, BuildSaved>());
   const evUnit = useSettings((s) => s.evUnit);
   const keys = useSettings((s) => s.studyKeys);
+  const wide = useSplitWide();
   // the keyboard stays with the answer as one node's buttons go and the next one's arrive
   const answerBox = useFocusHold<HTMLDivElement>();
   const newHandBox = useFocusHold<HTMLDivElement>();
@@ -336,6 +337,15 @@ export function StudyPage() {
     return () => window.removeEventListener("keydown", on);
   }, []);
 
+  const split = !(building && buildable) && res?.study === "node" && grid;
+  const nodeView = res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={selected} keys={keys} />;
+  // the plan's Study layout in two panes: the grid left, and to its right the actions, then the combos and the breakdown.
+  // Stacked, the actions stay above the grid; and in Build, whose split is its own, above that
+  const actionsInPane = wide && Boolean(split);
+  const breakdown = !(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && res.street !== "preflop" && (
+    <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={(o) => saveSettings({ breakdownOpen: o })} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -440,6 +450,7 @@ export function StudyPage() {
         {said}
       </p>
 
+      {/* (to the end of the page: the actions it hands the keyboard to can be in the panel) */}
       <div {...answerBox} role="group" aria-label="Answer" className="space-y-4">
         {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
         {phase.kind === "loading" && (
@@ -469,177 +480,179 @@ export function StudyPage() {
         {res && (res.study === "pf_unsolved" || res.study === "pf_none") ? (
           <PfPanel res={res} running={pfRunning} onSolve={startPf} onCharts={() => setHand(withPf(hand, "charts"))} />
         ) : (
-          res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={selected} keys={keys} />
+          !actionsInPane && nodeView
         )}
-      </div>
-      {res?.study === "node" && res.street === "preflop" && <PfNote res={res} running={pfRunning} onContinue={startPf} />}
-      {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
-        <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
-      ) : null}
-      {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={requestKey} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
+        {res?.study === "node" && res.street === "preflop" && <PfNote res={res} running={pfRunning} onContinue={startPf} />}
+        {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
+          <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
+        ) : null}
+        {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={requestKey} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
 
-      {building && buildable && (
-        <div className="flex items-center gap-2 text-sm">
-          {buildButton}
-          <span className="text-muted">Range builder: paint {raw?.actor}'s strategy, then check it against this answer.</span>
-        </div>
-      )}
-      {building && buildable && !buildRes && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
-      {building && buildRes && (
-        <BuildMode
-          key={requestKey}
-          res={buildRes}
-          provenance={shown!.provenance}
-          colors={actionFills(buildRes.grid.actions)}
-          lineKey={toSearch(hand)}
-          lineLabel={describeLine(hand).join(" ")}
-          stored={paints.get(requestKey)}
-          onStore={(v) => void paints.set(requestKey, v)}
-          onExit={() => setBuilding(false)}
-        />
-      )}
-      {!(building && buildable) && res?.study === "node" && grid && (
-        <StudySplit>
-          <section aria-label="Range" className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              {opps.length > 0 ? (
-                <div role="group" aria-label="Whose range" className="flex flex-wrap gap-1">
-                  {[res.actor, ...opps.map((o) => o.seat)].map((seat, i) => (
-                    <button
-                      key={`${seat}-${i}`}
-                      type="button"
-                      aria-pressed={who === i}
-                      onClick={() => setWho(i)}
-                      className={`rounded border border-border px-2 py-0.5 ${who === i ? "bg-surface-3 font-semibold" : "text-muted hover:bg-surface-2"}`}
-                    >
-                      {seat}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <strong>{res.actor}</strong>
-              )}
-              <span className="text-muted">
-                {opp
-                  ? `${opp.combos?.toFixed(1) ?? "–"} combos${opp.eq != null ? ` · equity ${pct(opp.eq)}` : ""}`
-                  : `${filtered ? `${filtered.label}: ` : ""}${res.range_combos?.toFixed(1)}${filtered?.of != null ? ` of ${filtered.of.toFixed(1)}` : ""} combos${
-                      res.range_eq != null ? ` · equity ${pct(res.range_eq)}` : ""
-                    }`}
-              </span>
-              <span className="flex-1" />
-              {!opp && cats.length + buckets.length > 0 && (
-                <select
-                  aria-label="Show only the hands of one category"
-                  title="Show only the hands of one category: the grid, the range's frequencies and the combos over them"
-                  className="rounded border border-border bg-surface-2 px-2 py-0.5"
-                  value={filtered?.key ?? ""}
-                  onChange={(e) => setFilterKey(e.target.value || null)}
-                >
-                  <option value="">All hands</option>
-                  {(["m", "d"] as const).map((part) => {
-                    const cs = cats.filter((c) => c.part === part);
-                    return cs.length ? (
-                      <optgroup key={part} label={part === "m" ? "Made hands" : "Draws"}>
-                        {cs.map((c) => (
-                          <option key={c.key} value={c.key}>
-                            {c.label} · {pct(c.combos / (raw?.range_combos || 1))}
+        {building && buildable && (
+          <div className="flex items-center gap-2 text-sm">
+            {buildButton}
+            <span className="text-muted">Range builder: paint {raw?.actor}'s strategy, then check it against this answer.</span>
+          </div>
+        )}
+        {building && buildable && !buildRes && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
+        {building && buildRes && (
+          <BuildMode
+            key={requestKey}
+            res={buildRes}
+            provenance={shown!.provenance}
+            colors={actionFills(buildRes.grid.actions)}
+            lineKey={toSearch(hand)}
+            lineLabel={describeLine(hand).join(" ")}
+            stored={paints.get(requestKey)}
+            onStore={(v) => void paints.set(requestKey, v)}
+            onExit={() => setBuilding(false)}
+          />
+        )}
+        {split && (
+          <StudySplit>
+            <section aria-label="Range" className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                {opps.length > 0 ? (
+                  <div role="group" aria-label="Whose range" className="flex flex-wrap gap-1">
+                    {[res.actor, ...opps.map((o) => o.seat)].map((seat, i) => (
+                      <button
+                        key={`${seat}-${i}`}
+                        type="button"
+                        aria-pressed={who === i}
+                        onClick={() => setWho(i)}
+                        className={`rounded border border-border px-2 py-0.5 ${who === i ? "bg-surface-3 font-semibold" : "text-muted hover:bg-surface-2"}`}
+                      >
+                        {seat}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <strong>{res.actor}</strong>
+                )}
+                <span className="text-muted">
+                  {opp
+                    ? `${opp.combos?.toFixed(1) ?? "–"} combos${opp.eq != null ? ` · equity ${pct(opp.eq)}` : ""}`
+                    : `${filtered ? `${filtered.label}: ` : ""}${res.range_combos?.toFixed(1)}${filtered?.of != null ? ` of ${filtered.of.toFixed(1)}` : ""} combos${
+                        res.range_eq != null ? ` · equity ${pct(res.range_eq)}` : ""
+                      }`}
+                </span>
+                <span className="flex-1" />
+                {!opp && cats.length + buckets.length > 0 && (
+                  <select
+                    aria-label="Show only the hands of one category"
+                    title="Show only the hands of one category: the grid, the range's frequencies and the combos over them"
+                    className="rounded border border-border bg-surface-2 px-2 py-0.5"
+                    value={filtered?.key ?? ""}
+                    onChange={(e) => setFilterKey(e.target.value || null)}
+                  >
+                    <option value="">All hands</option>
+                    {(["m", "d"] as const).map((part) => {
+                      const cs = cats.filter((c) => c.part === part);
+                      return cs.length ? (
+                        <optgroup key={part} label={part === "m" ? "Made hands" : "Draws"}>
+                          {cs.map((c) => (
+                            <option key={c.key} value={c.key}>
+                              {c.label} · {pct(c.combos / (raw?.range_combos || 1))}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null;
+                    })}
+                    {buckets.length > 0 && (
+                      <optgroup label="Equity against their whole range">
+                        {buckets.map((b) => (
+                          <option key={b.key} value={b.key}>
+                            {b.label} · {pct(b.combos / (raw?.range_combos || 1))}
                           </option>
                         ))}
                       </optgroup>
-                    ) : null;
-                  })}
-                  {buckets.length > 0 && (
-                    <optgroup label="Equity against their whole range">
-                      {buckets.map((b) => (
-                        <option key={b.key} value={b.key}>
-                          {b.label} · {pct(b.combos / (raw?.range_combos || 1))}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-              )}
-              {!opp &&
-                views.length > 1 &&
-                views.map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    aria-pressed={view === v}
-                    onClick={() => saveSettings({ studyView: v })}
-                    title={v === "eqr" ? "Equity realization: EV / (equity × pot)" : undefined}
-                    className={`rounded px-2 py-0.5 ${view === v ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}
-                  >
-                    {VIEW_LABELS[v]}
-                  </button>
-                ))}
-              {buildButton}
-            </div>
-            {!opp && (view === "mix" || view === "ev") && names.length > 1 && (
-              <div role="group" aria-label="Show one action" className="flex flex-wrap items-center gap-1 text-xs">
-                {names.map((nm, i) => (
-                  <button
-                    key={nm}
-                    type="button"
-                    aria-pressed={focusIdx === i}
-                    onClick={() => setFocus(focusIdx === i ? null : nm)}
-                    title={focusIdx === i ? "Show every action" : `Show only ${nm}${view === "ev" ? " and shade by its EV" : ""}`}
-                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
-                      focusIdx === i ? "border-accent" : focusIdx === null ? "border-border" : "border-border opacity-50"
-                    }`}
-                  >
-                    <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
-                    {nm}
-                  </button>
-                ))}
-                {focusIdx !== null && (
-                  <button type="button" onClick={() => setFocus(null)} className="rounded px-1.5 py-0.5 text-muted hover:bg-surface-2">
-                    All actions
-                  </button>
+                    )}
+                  </select>
                 )}
+                {!opp &&
+                  views.length > 1 &&
+                  views.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      aria-pressed={view === v}
+                      onClick={() => saveSettings({ studyView: v })}
+                      title={v === "eqr" ? "Equity realization: EV / (equity × pot)" : undefined}
+                      className={`rounded px-2 py-0.5 ${view === v ? "bg-surface-3" : "text-muted hover:bg-surface-2"}`}
+                    >
+                      {VIEW_LABELS[v]}
+                    </button>
+                  ))}
+                {buildButton}
               </div>
-            )}
-            <RangeMatrix
-              cells={grid.cells}
-              actions={opp ? [] : names}
-              colors={colors}
-              selected={selected}
-              onSelect={setSelected}
-              view={opp ? "weight" : view}
-              evRange={evRange}
-              evAction={view === "ev" ? focusIdx : null}
-              potBb={res.pot_bb}
-              hidden={view === "mix" ? hidden : undefined}
-              caption={`${opp ? opp.seat : res.actor} range${!opp && filtered ? ` (${filtered.label})` : ""}`}
-            />
-          </section>
-          <aside className="space-y-3">
-            {/* (what the panel now shows; not while a partial answer's numbers are still moving) */}
-            <p role="status" className="sr-only">
-              {selected && grid.cells[selected] && phase.kind !== "loading" ? `${cellLabel(selected, grid.cells[selected], opp ? [] : names)}. ${describe(shown!.provenance)}.` : ""}
-            </p>
-            {selected && grid.cells[selected] ? (
-              <ComboPanel cls={selected} res={res} colors={colors} opponent={opp ?? false} evUnit={evUnit} />
-            ) : (
-              <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-                Select a hand class to see its combos, mix, EV and equity.
-              </p>
-            )}
-          </aside>
-        </StudySplit>
-      )}
-      {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && res.street !== "preflop" && (
-        <BreakdownPanel key={`breakdown|${requestKey}`} hand={hand} mode={mode} open={breakdownOpen} onOpen={(o) => saveSettings({ breakdownOpen: o })} evUnit={evUnit} getSolver={getSolver} onFilter={setFilterKey} />
-      )}
-      {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
-        <div className="flex flex-wrap items-start gap-2">
-          <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
-          {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
-          {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
-          {raw && <NodeLockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
-          {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
-        </div>
-      )}
+              {!opp && (view === "mix" || view === "ev") && names.length > 1 && (
+                <div role="group" aria-label="Show one action" className="flex flex-wrap items-center gap-1 text-xs">
+                  {names.map((nm, i) => (
+                    <button
+                      key={nm}
+                      type="button"
+                      aria-pressed={focusIdx === i}
+                      onClick={() => setFocus(focusIdx === i ? null : nm)}
+                      title={focusIdx === i ? "Show every action" : `Show only ${nm}${view === "ev" ? " and shade by its EV" : ""}`}
+                      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
+                        focusIdx === i ? "border-accent" : focusIdx === null ? "border-border" : "border-border opacity-50"
+                      }`}
+                    >
+                      <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
+                      {nm}
+                    </button>
+                  ))}
+                  {focusIdx !== null && (
+                    <button type="button" onClick={() => setFocus(null)} className="rounded px-1.5 py-0.5 text-muted hover:bg-surface-2">
+                      All actions
+                    </button>
+                  )}
+                </div>
+              )}
+              <RangeMatrix
+                cells={grid.cells}
+                actions={opp ? [] : names}
+                colors={colors}
+                selected={selected}
+                onSelect={setSelected}
+                view={opp ? "weight" : view}
+                evRange={evRange}
+                evAction={view === "ev" ? focusIdx : null}
+                potBb={res.pot_bb}
+                hidden={view === "mix" ? hidden : undefined}
+                caption={`${opp ? opp.seat : res.actor} range${!opp && filtered ? ` (${filtered.label})` : ""}`}
+              />
+            </section>
+            <div className="space-y-4">
+              {actionsInPane && nodeView}
+              <aside className="space-y-3">
+                {/* (what the panel now shows; not while a partial answer's numbers are still moving) */}
+                <p role="status" className="sr-only">
+                  {selected && grid.cells[selected] && phase.kind !== "loading" ? `${cellLabel(selected, grid.cells[selected], opp ? [] : names)}. ${describe(shown!.provenance)}.` : ""}
+                </p>
+                {selected && grid.cells[selected] ? (
+                  <ComboPanel cls={selected} res={res} colors={colors} opponent={opp ?? false} evUnit={evUnit} />
+                ) : (
+                  <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
+                    Select a hand class to see its combos, mix, EV and equity.
+                  </p>
+                )}
+              </aside>
+              {breakdown}
+            </div>
+          </StudySplit>
+        )}
+        {!split && breakdown}
+        {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
+          <div className="flex flex-wrap items-start gap-2">
+            <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
+            {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
+            {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
+            {raw && <NodeLockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
+            {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

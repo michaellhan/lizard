@@ -160,6 +160,99 @@ test("Study: the folds to a seat in one step, and the split beside the grid that
   expect(problems.errors).toEqual([]);
 });
 
+test("Study: the actions and the breakdown sit in the panel, which the separator resizes, with nothing clipped at either limit", async ({ page, problems }, info) => {
+  test.setTimeout(150_000); // (a river solved live, its breakdown, and the next node)
+  await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
+  const panel = page.locator("details", { hasText: "Breakdown and equity" });
+  await expect(panel).toBeVisible({ timeout: 90_000 });
+  await panel.locator("summary").click();
+  await expect(panel.getByRole("region", { name: "Hand categories" }).getByRole("row").nth(1)).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("gridcell", { name: /^K6s:/ }).click();
+  const combos = page.getByRole("complementary").getByRole("table");
+  await expect(combos).toBeVisible();
+
+  const actions = page.getByRole("region", { name: "Actions" });
+  const range = page.getByRole("region", { name: "Range" });
+  const box = async (at: typeof actions) => (await at.boundingBox())!;
+  const split = page.getByRole("separator", { name: "Resize the range and the panel beside it" });
+  if (info.project.name === "phone") {
+    await expect(split).toHaveCount(0);
+    expect((await box(actions)).y, "the actions above the grid").toBeLessThan((await box(range)).y);
+    expect((await box(panel)).y, "the breakdown below it").toBeGreaterThan((await box(range)).y);
+  } else {
+    // what's in a pane stays in it, and what's beside each other in a table keeps apart, which a pane's edge can't show
+    const looked = async (name: string) => {
+      const spilled = await page.evaluate(() => {
+        const bar = document.querySelector('[role="separator"]')!;
+        return [bar.previousElementSibling!, bar.nextElementSibling!].flatMap((pane) => {
+          const { left, right } = pane.getBoundingClientRect();
+          return [...pane.querySelectorAll("*")].filter((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && !el.closest(".sr-only, .scroll-x, svg") && (r.left < left - 0.5 || r.right > right + 0.5);
+          }).map((el) => `${el.tagName} ${el.textContent?.slice(0, 40)}`);
+        });
+      });
+      expect(spilled, `outside its pane at ${name}`).toEqual([]);
+      const gaps = await combos.evaluate((t: HTMLTableElement) =>
+        [...t.rows].flatMap((row) => {
+          const text = [...row.cells].map((c) => {
+            const r = document.createRange();
+            r.selectNodeContents(c);
+            return r.getBoundingClientRect();
+          });
+          return text.slice(1).map((x, i) => x.left - text[i]!.right);
+        }),
+      );
+      expect(Math.min(...gaps), `the combo table's closest columns at ${name}, px`).toBeGreaterThanOrEqual(4);
+      expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+    };
+    expect((await box(actions)).x, "the actions right of the grid").toBeGreaterThan((await box(range)).x + (await box(range)).width);
+
+    await split.focus();
+    await page.keyboard.press("End");
+    await expect.poll(async () => Math.round((await box(actions)).width)).toBe(320);
+    expect((await box(panel)).width, "the breakdown as wide as the actions").toBe((await box(actions)).width);
+    await looked("the panel's narrowest");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-panel-narrowest.png`, fullPage: true });
+
+    await page.keyboard.press("Home");
+    await expect.poll(async () => Math.round((await box(range)).width)).toBe(420);
+    expect((await box(panel)).width).toBe((await box(actions)).width);
+    await looked("the grid's narrowest");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-grid-narrowest.png`, fullPage: true });
+
+    // a real drag moves them as well, and shows it before it's let go
+    const wideAt = (await box(actions)).width;
+    await split.scrollIntoViewIfNeeded();
+    const bar = (await split.boundingBox())!;
+    await page.mouse.move(bar.x + bar.width / 2, bar.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(bar.x + bar.width / 2 + 100, bar.y + 100, { steps: 4 });
+    await expect.poll(async () => Math.round(wideAt - (await box(actions)).width)).toBe(100);
+    expect((await box(panel)).width).toBe((await box(actions)).width);
+    await page.mouse.up();
+
+    // the next stop after the separator is the first action, and playing it leaves the keyboard on the node it reaches
+    await split.focus();
+    await page.keyboard.press("Tab");
+    const check = actions.getByRole("button", { name: /^check/ });
+    await expect(check).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/river=/);
+    await expect(actions.getByRole("heading")).toBeFocused({ timeout: 45_000 });
+    await expect(actions.getByRole("heading")).toContainText("SB");
+    await page.keyboard.press("ArrowLeft");
+    await expect(page).not.toHaveURL(/river=/);
+    await expect(actions.getByRole("heading")).toContainText("BB", { timeout: 45_000 });
+  }
+  await expect(actions.getByText(/Live solve|solve/i).first(), "the actions keep their source").toBeVisible();
+  await expect(panel.getByRole("region", { name: "Hand categories" }).getByText(/Live solve|solve/i).first(), "and so does the breakdown").toBeVisible({ timeout: 45_000 });
+  expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+  expect(problems.errors).toEqual([]);
+});
+
 test("The engine runs on files from this site alone: the page and its workers ask no other host", async ({ page, problems }, info) => {
   const elsewhere: string[] = [];
   page.on("request", (r) => {

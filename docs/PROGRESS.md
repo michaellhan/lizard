@@ -4367,6 +4367,16 @@ The salt had a second job: a browser used it to tell that the copy on the server
 
 Tests before this commit: 3355 unit tests in 170 files (2 skipped), typecheck and lint clean, `scripts/engine` OK, the Worker's 29, and 151 browser tests passed with 130 skipped. One failed: `/study` on desktop timed out at 60 s, because the machine guard paused the Playwright runner from 10:25 to 10:51 (memory tight, the runner at 2.5 GB, over the 1 GB this project keeps to). That test then passed 5 of 5 alone. The rest of the suite wasn't rerun.
 
+### 2026-11-07: Study's panes hold the Actions and the breakdown, and combos can be locked (Phases 3, 5)
+
+**Study.** From `lg` the Actions row, the combos and the Breakdown all sit in the right pane, so the separator resizes them. The plan names three regions and this is two panes: Actions took the top of the right pane, as the plan keeps the left for the matrix alone. The panels lay out by the pane's width now, not the window's. A screenshot found what an overflow check can't: at 320px the combo table's EV and Eq columns ran together, read as "3.0498.5%1.55". That's fixed, and the browser step asserts a gap. With the Breakdown open, the column under the matrix is empty.
+
+**Range builder.** A combo painted apart can be locked. Class locks turned out not to be undo steps, though this file's matrix row said a group's lock was: both kinds now live in the paint, so each is one step, and undoing Reset brings them back. A lock moves no score.
+
+**Compare.** A library river offering four sizes opened Compare's menu field in the error state, on the spot's own menu, because the limit on typed menus was checked first.
+
+Left open, not investigated: the same heads-up river link gave BB 415 combos in one run and about 308 in others, and one run's note said the narrowing solve stopped at 49 iterations.
+
 ### 2026-11-08: Analyze reads PokerNow's hands download (owner's request)
 
 **Import.** PokerNow's .json download is rewritten hand by hand as a PokerStars-like history (`web/src/hh/pokernow.ts`), so Analyze's replay, grading, stats, results and sessions read it unchanged; the site is "PokerNow", first in the parser's site list. The event codes come from the owner's 122-hand tournament download, as no schema is published: chips put in less any bet returned add up to the pots won in all 121 finished hands. Other codes, bomb pots, double boards and unfinished hands are refused, each saying why, and a refused hand is listed with its number. Names are rewritten so the parser can't take one for its own lines ("Dealt to", "Seat", "Winamax Poker", "Cashout"). A multi-table tournament repeats hand numbers (21 of the 122), so each hand's number carries a hash of its PokerNow id. Not confirmed: whether `cents` means the amounts are hundredths (taken so; bb results don't depend on it), and the codes for antes, straddles and run-it-twice beyond the second board being dropped.

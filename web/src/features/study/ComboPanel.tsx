@@ -33,7 +33,7 @@ export function ComboPanel({
   const noEqr = [...new Set([...eqrs.values()].flatMap((x) => (x.why ? [x.why] : [])))];
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <div className="@container space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-3">
         <strong className="text-lg">{cls}</strong>
         <span className="text-muted">
@@ -80,7 +80,7 @@ export function ComboPanel({
                   {row[1] < 0.999 && <span className="text-faint"> ({pct(row[1], 0)})</span>}
                 </td>
                 <td className="py-1">
-                  <span className="flex h-2.5 w-28 gap-px overflow-hidden rounded-sm bg-surface-3" role="img" aria-label={names.map((nm, a) => `${nm} ${pct(row[2][a])}`).join(", ")}>
+                  <span className="flex h-2.5 w-28 gap-px overflow-hidden rounded-sm bg-surface-3 lg:@max-sm:w-16" role="img" aria-label={names.map((nm, a) => `${nm} ${pct(row[2][a])}`).join(", ")}>
                     {row[2].map((f, a) => (f > 0.0005 ? <span key={a} style={{ width: `${f * 100}%`, background: colors[a] }} /> : null))}
                   </span>
                 </td>

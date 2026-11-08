@@ -472,6 +472,73 @@ describe("StudyPage", () => {
       expect(screen.queryByRole("separator")).toBeNull();
     });
 
+    // (`before(a, b)`: a comes first in the page, which is the order the keyboard goes in)
+    const before = (a: Element, b: Element) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING, `${a.tagName} before ${b.tagName}`).toBeTruthy();
+
+    it("puts the actions and the breakdown in the panel on a wide window, so the separator moves them too", async () => {
+      wide(true);
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      const bar = await screen.findByRole("separator");
+      const panel = bar.nextElementSibling as HTMLElement;
+      const actions = screen.getByRole("region", { name: "Actions" });
+      const breakdown = screen.getByText("Breakdown and equity").closest("details")!;
+      expect(panel).toContainElement(actions);
+      expect(panel).toContainElement(breakdown);
+      expect(bar.previousElementSibling).not.toContainElement(actions);
+      // the grid, the actions, the combos, the breakdown: left to right and top to bottom, as they're read
+      before(screen.getByRole("region", { name: "Range" }), actions);
+      before(actions, screen.getByRole("complementary"));
+      before(screen.getByRole("complementary"), breakdown);
+      // what those numbers came from goes with them
+      expect(within(actions).getByText(/^Live solve/)).toBeInTheDocument();
+      expect(within(actions).getByRole("button", { name: "How this was produced" })).toBeInTheDocument();
+    });
+
+    it("keeps them above and below the grid on a narrow window, as they were", async () => {
+      wide(false);
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      const actions = await screen.findByRole("region", { name: "Actions" });
+      const range = screen.getByRole("region", { name: "Range" });
+      expect(screen.getAllByRole("region", { name: "Actions" })).toHaveLength(1);
+      before(actions, range);
+      before(range, screen.getByRole("complementary"));
+      before(screen.getByRole("complementary"), screen.getByText("Breakdown and equity"));
+    });
+
+    it("leaves the actions above Build's own split on a wide window, without the numbers", async () => {
+      wide(true);
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      const build = await screen.findByRole("button", { name: "✎ Build" });
+      fireEvent.click(build);
+      const bar = await screen.findByRole("separator");
+      const actions = screen.getByRole("region", { name: "Actions" });
+      expect(bar.parentElement).not.toContainElement(actions);
+      before(actions, bar);
+      expect(within(actions).queryByText(/combos/)).toBeNull();
+      expect(screen.queryByText("Breakdown and equity")).toBeNull();
+    });
+
+    it("shows a node with no grid in full on a wide window, with no split to put it in", async () => {
+      wide(true);
+      stub.answer = { ...THREE_WAY, grid: undefined } as unknown as AdvisorResponse;
+      renderAt(search);
+      await screen.findByRole("region", { name: "Actions" });
+      expect(await screen.findByText("Breakdown and equity")).toBeInTheDocument();
+      expect(screen.queryByRole("separator")).toBeNull();
+    });
+
+    it("asks the same width as the workspace, so the actions move into the panel just as the panes open", async () => {
+      const asked = new Set<string>();
+      vi.stubGlobal("matchMedia", (q: string) => (asked.add(q), { matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
+      stub.answer = THREE_WAY;
+      renderAt(search);
+      await screen.findByRole("separator");
+      expect([...asked]).toEqual(["(min-width: 64rem)"]);
+    });
+
     it("takes the arrow keys without walking the line, and lasts from visit to visit", async () => {
       wide(true);
       stub.answer = THREE_WAY;
