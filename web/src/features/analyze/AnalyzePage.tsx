@@ -233,7 +233,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
     const all = [...(list ?? [])];
     const picked = hhFiles(all);
     if (!picked.length) {
-      setError(all.length ? `None of the ${all.length} files is a hand history (.txt, .xml, .log or .hh).` : "No files picked.");
+      setError(all.length ? `None of the ${all.length} files is a hand history (.txt, .xml, .log, .hh, or PokerNow's .json).` : "No files picked.");
       return;
     }
     const big = importTooBig(picked.reduce((n, f) => n + (f.size ?? 0), 0), "Import the files a few at a time.");
@@ -258,7 +258,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
   return (
     <section aria-label="Import" className="space-y-2 rounded-lg border border-border bg-surface p-3">
       <h2 className="text-lg font-semibold">Import hands</h2>
-      <p className="text-xs text-muted">Reads {HH_SITES.join(", ")} hand histories, as your poker client saves them; Hold'em only.</p>
+      <p className="text-xs text-muted">Reads {HH_SITES.join(", ")} hand histories, as your poker client saves them (PokerNow: its hands download, a .json file); Hold'em only.</p>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -290,7 +290,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
             <input
               type="file"
               multiple
-              accept=".txt,.xml,.log,.hh,text/plain"
+              accept=".txt,.xml,.log,.hh,.json,text/plain,application/json"
               aria-label="Choose hand-history files"
               className="sr-only"
               disabled={!!busy}

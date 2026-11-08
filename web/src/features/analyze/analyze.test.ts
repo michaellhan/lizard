@@ -111,7 +111,7 @@ describe("reading files", () => {
 
   it("picks the hand-history files, and names an import by its files", () => {
     const f = (name: string, type = "", webkitRelativePath = "") => ({ name, type, webkitRelativePath });
-    expect(hhFiles([f("a.txt"), f("b.png", "image/png"), f("c", "text/plain"), f("d.XML"), f("e.hh"), f("f.log")]).map((x) => x.name)).toEqual(["a.txt", "c", "d.XML", "e.hh", "f.log"]);
+    expect(hhFiles([f("a.txt"), f("b.png", "image/png"), f("c", "text/plain"), f("d.XML"), f("e.hh"), f("f.log"), f("g.json")]).map((x) => x.name)).toEqual(["a.txt", "c", "d.XML", "e.hh", "f.log", "g.json"]);
     expect(filesName([f("a.txt")])).toBe("a.txt");
     expect(filesName([f("a.txt", "", "Stars/2024/a.txt"), f("b.txt", "", "Stars/2024/b.txt")])).toBe("2024 (2 files)");
     expect(filesName([f("a.txt"), f("b.txt")])).toBe("2 files");

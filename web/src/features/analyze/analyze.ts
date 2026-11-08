@@ -3,6 +3,7 @@
 // POT_TYPE), each hand's summary for the hands table, and the Study line at one of your decisions.
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { HandHistoryError, splitHands } from "@/hh/parse";
+import { pokerNowHands } from "@/hh/pokernow";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
 import { gameSetup, setupProblems, tidySetup, type SpotSetup } from "@/features/solve/setup";
@@ -237,8 +238,13 @@ export async function prepare(
   pause: () => Promise<void> = () => new Promise((r) => setTimeout(r, 0)),
 ): Promise<Prepared> {
   const multi = files.length > 1;
-  const parts: [number, number, string][] = [];
-  files.forEach((f, fi) => splitHands(f.text).forEach((t, k) => parts.push([fi, k, t])));
+  // (a PokerNow download is rewritten as one history per hand, or why a hand can't be: pokernow.ts)
+  const parts: [fi: number, k: number, text: string, refused?: { error: string; number: string }][] = [];
+  files.forEach((f, fi) =>
+    (pokerNowHands(f.text) ?? splitHands(f.text).map((text) => ({ text }))).forEach((h, k) =>
+      parts.push([fi, k, h.text ?? "", "error" in h && h.error != null ? { error: h.error, number: h.number } : undefined]),
+    ),
+  );
   const per = files.map((f) => ({ name: f.name, total: 0, hands: 0 }));
   const skipped: Record<SkipKind, number> = { nonHoldem: 0, noHero: 0, noDecisions: 0, duplicate: 0, failed: 0 };
   const errors: Prepared["errors"] = [];
@@ -249,18 +255,19 @@ export async function prepare(
       progress?.(j, parts.length);
       await pause();
     }
-    const [fi, k, t] = parts[j]!;
+    const [fi, k, t, refused] = parts[j]!;
     const f = per[fi]!;
     f.total++;
     let r: ReplayedHand;
     try {
+      if (refused) throw new HandHistoryError(refused.error);
       r = importHand(t);
     } catch (e) {
       // (a HandHistoryError says why; anything else is the importer's own failure, kept as unreadable)
       const msg = e instanceof HandHistoryError ? e.message : `the importer failed: ${String(e)}`;
       const kind = skipKind(msg);
       skipped[kind]++;
-      if (kind === "failed") errors.push({ n: k + 1, number: handNumber(t), msg, ...(multi ? { file: f.name } : {}) });
+      if (kind === "failed") errors.push({ n: k + 1, number: refused?.number ?? handNumber(t), msg, ...(multi ? { file: f.name } : {}) });
       continue;
     }
     const rec = recordOf(t, r, imp);
@@ -280,8 +287,9 @@ export async function prepare(
   return { hands, skipped, errors, total: parts.length, ...(multi ? { files: per } : {}) };
 }
 
-/** The hand-history files among those picked or dropped (a folder's: its .txt, .xml, .log and .hh files). */
-export const HH_FILE = /\.(txt|xml|log|hh)$/i;
+/** The hand-history files among those picked or dropped (a folder's: its .txt, .xml, .log and .hh files, and .json
+ * for PokerNow's hands download). */
+export const HH_FILE = /\.(txt|xml|log|hh|json)$/i;
 export const hhFiles = <F extends { name: string; type?: string }>(list: Iterable<F>): F[] =>
   [...list].filter((f) => HH_FILE.test(f.name || "") || /^text\//.test(f.type || ""));
 

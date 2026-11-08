@@ -158,7 +158,7 @@ describe("AnalyzePage", () => {
     expect(prizes[0]).toHaveAttribute("href", `/tournaments?${q}`);
 
     fireEvent.change(screen.getByLabelText("Choose hand-history files"), { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("None of the 1 files is a hand history (.txt, .xml, .log or .hh).");
+    expect(await screen.findByRole("alert")).toHaveTextContent("None of the 1 files is a hand history (.txt, .xml, .log, .hh, or PokerNow's .json).");
   });
 
   it("grades your preflop and library flops, shows each grade on the hand and in the report, and forgets them", async () => {

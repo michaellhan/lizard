@@ -110,8 +110,10 @@ const header = (l: string) => {
   return close < 0 ? null : STREET(l.slice(open, close).trim().toUpperCase());
 };
 const START =
-  /^(PokerStars\b.*Hand #|Poker Hand #|Winamax Poker\b|(Game )?Hand #\d|(Ignition|Bovada|Bodog)\b.*Hand #|#Game No\b|\*{5}.*Hand History for Game|Game #\d+ starts)/i;
+  /^(PokerStars\b.*Hand #|PokerNow Hand #|Poker Hand #|Winamax Poker\b|(Game )?Hand #\d|(Ignition|Bovada|Bodog)\b.*Hand #|#Game No\b|\*{5}.*Hand History for Game|Game #\d+ starts)/i;
 const SITES: [string, RegExp][] = [
+  // (Lizard's own: the history pokernow.ts writes from PokerNow's hands download, first so no other site's test sees it)
+  ["PokerNow", /^PokerNow Hand #/m],
   ["PokerStars", /PokerStars/i],
   ["GGPoker", /^Poker Hand #/m],
   ["Winamax", /^Winamax/m],
