@@ -10,7 +10,7 @@ export default defineConfig({
   testMatch: "*.e2e.ts", // (not *.spec.ts, which Vitest would take for its own)
   outputDir: "e2e-results",
   workers: 1,
-  fullyParallel: false,
+  fullyParallel: true, // (one worker still runs one test at a time; this lets CI split the tests one by one over its machines, not file by file)
   retries: process.env.CI ? 1 : 0,
   timeout: 60_000,
   expect: { timeout: 15_000 },
@@ -22,8 +22,9 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
-    { name: "tablet", use: { viewport: { width: 1024, height: 768 } } },
-    { name: "phone", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    // (the other files run at one width and skip the rest: left out here, so CI's split counts only tests that run)
+    { name: "tablet", testMatch: ["routes.e2e.ts", "content.e2e.ts"], use: { viewport: { width: 1024, height: 768 } } },
+    { name: "phone", testMatch: ["routes.e2e.ts", "content.e2e.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
     command: `npx vite preview --port ${PORT} --strictPort`,
