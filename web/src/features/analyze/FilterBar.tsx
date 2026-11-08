@@ -1,6 +1,6 @@
 // The filters every Analyze report follows, in the page's URL: the days played, site, stakes, your seat, pot type, tag,
 // EV lost and a search, together. It says how much of what's kept they leave, and when they leave nothing.
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { HandRecord } from "@/data/db";
 import { SaveReport } from "@/features/saved/SaveReport";
 import { GAME_EQUILIBRIUM, GAME_WORDS, HAND_FILTERS, LOST_STEPS, POT_TYPES } from "./analyze";
@@ -73,37 +73,15 @@ export function FilterBar({
       />
     </label>
   );
+  // the controls fold away while none of them is set; the search and what the filters leave stay in view
+  const set1 = HAND_FILTERS.filter((k) => k !== "q" && k !== "sess" && params.get(k)).length;
+  const [open, setOpen] = useState(set1 > 0);
   return (
-    <section aria-label="Filters" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
-      <h2 ref={head} tabIndex={-1} className="text-lg font-semibold">
+    <section aria-label="Filters" className="space-y-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+      <h2 ref={head} tabIndex={-1} className="sr-only">
         Filters
       </h2>
-      <div className="flex flex-wrap items-center gap-3">
-        {date("From", "from")}
-        {date("To", "to")}
-        <Choice label="Site" value={params.get("site")} values={opts.sites} onChange={(v) => set({ site: v })} />
-        <Choice label="Stakes" value={params.get("bb")} values={opts.stakes} onChange={(v) => set({ bb: v })} />
-        <Choice label="Your seat" value={params.get("pos")} values={opts.seats} onChange={(v) => set({ pos: v })} />
-        <Choice label="Pot" value={params.get("pot")} values={opts.pots} onChange={(v) => set({ pot: v })} />
-        {opts.tags.length > 0 && <Choice label="Tag" value={params.get("tag")} values={opts.tags} onChange={(v) => set({ tag: v })} />}
-        <label className="flex items-center gap-1" title="The EV your graded decisions gave up in the hand, from the answers they were graded against (the preflop charts' grades have no EVs)">
-          <span className="text-muted">EV lost</span>
-          <select aria-label="EV lost" value={params.get("lost") ?? ""} onChange={(e) => set({ lost: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-            <option value="">Any</option>
-            {LOST_STEPS.map((x) => (
-              <option key={x} value={x}>
-                {x}bb or more
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-1" title="Leaves out tournament hands, Practice's and a site's, and the hands of Practice's exploit sessions: what the Plan page reads leaks from">
-          <span className="text-muted">Game</span>
-          <select aria-label="Game" value={params.get("game") ?? ""} onChange={(e) => set({ game: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-            <option value="">Any</option>
-            <option value={GAME_EQUILIBRIUM}>{GAME_WORDS}</option>
-          </select>
-        </label>
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"
           aria-label="Search hands"
@@ -112,6 +90,15 @@ export function FilterBar({
           placeholder="Search cards, number, tags, notes"
           className="w-56 max-w-full rounded border border-border bg-surface-2 px-2 py-0.5"
         />
+        <button
+          type="button"
+          aria-expanded={open || set1 > 0}
+          aria-controls="analyze-filters"
+          onClick={() => setOpen(!(open || set1 > 0))}
+          className="rounded border border-border px-2 py-0.5 hover:bg-surface-2"
+        >
+          Filters{set1 ? ` · ${set1} on` : ""} {open || set1 > 0 ? "▴" : "▾"}
+        </button>
         {on && (
           <button
             type="button"
@@ -124,20 +111,50 @@ export function FilterBar({
             Clear filters
           </button>
         )}
+        <span role="status" aria-label="Sample after filtering" className="text-xs text-muted">
+          {shown.length === hands.length
+            ? `Every report covers all your ${count(hands.length, "hand")} and ${count(graded, "graded decision")}.`
+            : `Every report covers ${count(shown.length, "hand")} of ${hands.length.toLocaleString()} and ${gradedShown.toLocaleString()} of ${count(graded, "graded decision")}.`}
+        </span>
+        <span className="flex-1" />
         <SaveReport params={params} />
       </div>
-      <p role="status" aria-label="Sample after filtering">
-        {shown.length === hands.length
-          ? `Every report covers all your ${count(hands.length, "hand")} and ${count(graded, "graded decision")}.`
-          : `Every report covers ${count(shown.length, "hand")} of ${hands.length.toLocaleString()} and ${gradedShown.toLocaleString()} of ${count(graded, "graded decision")}.`}
-      </p>
+      <div id="analyze-filters" hidden={!(open || set1 > 0)} className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {date("From", "from")}
+          {date("To", "to")}
+          <Choice label="Site" value={params.get("site")} values={opts.sites} onChange={(v) => set({ site: v })} />
+          <Choice label="Stakes" value={params.get("bb")} values={opts.stakes} onChange={(v) => set({ bb: v })} />
+          <Choice label="Your seat" value={params.get("pos")} values={opts.seats} onChange={(v) => set({ pos: v })} />
+          <Choice label="Pot" value={params.get("pot")} values={opts.pots} onChange={(v) => set({ pot: v })} />
+          {opts.tags.length > 0 && <Choice label="Tag" value={params.get("tag")} values={opts.tags} onChange={(v) => set({ tag: v })} />}
+          <label className="flex items-center gap-1" title="The EV your graded decisions gave up in the hand, from the answers they were graded against (the preflop charts' grades have no EVs)">
+            <span className="text-muted">EV lost</span>
+            <select aria-label="EV lost" value={params.get("lost") ?? ""} onChange={(e) => set({ lost: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+              <option value="">Any</option>
+              {LOST_STEPS.map((x) => (
+                <option key={x} value={x}>
+                  {x}bb or more
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1" title="Leaves out tournament hands, Practice's and a site's, and the hands of Practice's exploit sessions: what the Plan page reads leaks from">
+            <span className="text-muted">Game</span>
+            <select aria-label="Game" value={params.get("game") ?? ""} onChange={(e) => set({ game: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+              <option value="">Any</option>
+              <option value={GAME_EQUILIBRIUM}>{GAME_WORDS}</option>
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-muted">Every tab follows these. Stakes are the big blind as the history writes it, and days are by the site&rsquo;s own clock.</p>
+      </div>
       {shown.length === 0 && (
         <p role="group" aria-label="Nothing left" className="text-danger">
           {from && to && from > to ? "From is later than To, so no day can match." : "None of your hands matches all of these filters together."} Every report is empty until you change them.
         </p>
       )}
       {(from || to) && opts.undated > 0 && <p className="text-xs text-muted">{count(opts.undated, "hand")} with no date in the history {opts.undated === 1 ? "is" : "are"} left out while a date is set.</p>}
-      <p className="text-xs text-muted">Sessions, the report and its leaks, drills, your results and your stats all follow these. Stakes are the big blind as the history writes it, and days are by the site&rsquo;s own clock.</p>
     </section>
   );
 }

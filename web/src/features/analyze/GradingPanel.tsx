@@ -6,10 +6,12 @@
 // says what it stands on: the charts (by frequency, not a solve), the stored preflop solve (by EV, of a class-level model),
 // the library, a read or a solve.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { About } from "@/components/About";
 import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { clearDecisions, putDecisions } from "@/data/hands";
+import type { Verdict } from "@/grading/grade";
 import { VERSION_UNKNOWN } from "@/grading/version";
 import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
@@ -23,7 +25,7 @@ import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
 import { isEquilibriumHand } from "./sessions";
-import { basisOf, isGraded, isPfSolve, LEAK_RULE, leakTest, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { basisOf, isGraded, isOk, isPfSolve, LEAK_RULE, leakTest, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
@@ -145,7 +147,9 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   return (
     <section aria-label="Grading" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Grade your decisions</h2>
-      <p className="text-muted">{GRADED_ON}</p>
+      <About label="What grades your decisions">
+        <p>{GRADED_ON}</p>
+      </About>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">
           <span>Grade</span>
@@ -254,6 +258,10 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
   const basisKey = useCallback((d: DecisionRecord) => (isGraded(d) ? basisOf(d) : null), []);
   const freqTest = useMemo(() => (freq ? leakTest({ kind: "freq", key: freq }) : null), [freq]);
   const freqDs = useMemo(() => (freqTest ? ds.filter(freqTest) : []), [freqTest, ds]);
+  const misses = useMemo(
+    () => ds.filter((d) => isGraded(d) && !isOk(d)).sort((x, y) => VERDICTS.indexOf(y.verdict as Verdict) - VERDICTS.indexOf(x.verdict as Verdict) || (y.evLossBb ?? 0) - (x.evLossBb ?? 0)),
+    [ds],
+  );
   if (!ds.length)
     return of !== undefined && hands.length < of && decisions.length > 0 ? (
       <section aria-label="Report" className="space-y-1 text-sm">
@@ -303,12 +311,12 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
         </p>
         {rp.spotEv.n > 0 && (
           <p>
-            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} lost in all, {rp.spotEv.avgPct}% of the pot per decision on average. This is solver EV lost, measured over graded decisions: it isn't what you won, and no win rate is worked out from it.
+            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} of solver EV lost in all, {rp.spotEv.avgPct}% of the pot per decision on average (not what you won).
           </p>
         )}
         {rp.pfEv.n > 0 && (
           <p>
-            Graded by the preflop solve: {nDecisions(rp.pfEv.n)}, {bbs(rp.pfEv.lost)} lost in all, an {PF_MODEL}. Its EVs are of your hand&rsquo;s class against its own ranges, so they&rsquo;re kept apart from what a solve of your spot says after the flop, and the two are never added.
+            Graded by the preflop solve: {nDecisions(rp.pfEv.n)}, {bbs(rp.pfEv.lost)} lost in all, an {PF_MODEL}, kept apart from the EV after the flop and never added to it.
           </p>
         )}
         {rp.low.n > 0 && (
@@ -335,14 +343,26 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
             </ul>
           </details>
         )}
-        <p className="text-xs text-muted">{GRADED_ON}</p>
+        <About label="About these grades">
+          <p>{GRADED_ON}</p>
+          <p>
+            Solver EV lost is measured over graded decisions: it isn&rsquo;t what you won, and no win rate is worked out from it. The preflop solve&rsquo;s
+            EVs are of your hand&rsquo;s class against its own ranges.
+          </p>
+          {rp.versions && (
+            <p role="group" aria-label="Versions graded on">
+              {rp.versions} The preflop charts come with the solver build. A library version is its spot&rsquo;s ranges and bet tree. {rp.versions.includes("unknown") ? VERSION_UNKNOWN : ""}
+            </p>
+          )}
+        </About>
       </div>
 
-      {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ds={ds} keyOf={basisKey} byId={byId} ev noUngraded />}
-      {rp.versions && (
-        <p role="group" aria-label="Versions graded on" className="text-xs text-muted">
-          {rp.versions} The preflop charts come with the solver build. A library version is its spot&rsquo;s ranges and bet tree. {rp.versions.includes("unknown") ? VERSION_UNKNOWN : ""}
-        </p>
+      {misses.length > 0 ? (
+        <div id="analyze-misses" className="scroll-mt-16">
+          <DecisionList title="Your misses" ds={misses} byId={byId} />
+        </div>
+      ) : (
+        a.graded > 0 && <p>Every decision graded here is in the mix.</p>
       )}
 
       {rp.leaks.length > 0 && (
@@ -366,11 +386,14 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
           </ul>
         </div>
       )}
-      <p role="group" aria-label="What makes a leak" className="text-xs text-muted">
-        {rp.leaks.length === 0 ? "No clear leak yet. " : ""}
-        {LEAK_RULE}
-        {apart > 0 ? ` ${nDecisions(apart)} in tournament hands ${apart === 1 ? "is" : "are"} left out of the leaks: their chips aren't big blinds and they're graded with no ICM.` : ""}
-      </p>
+      {rp.leaks.length === 0 && <p className="text-muted">No clear leak yet.</p>}
+      <About label="What makes a leak">
+        <p role="group" aria-label="What makes a leak">
+          {rp.leaks.length === 0 ? "No clear leak yet. " : ""}
+          {LEAK_RULE}
+          {apart > 0 ? ` ${nDecisions(apart)} in tournament hands ${apart === 1 ? "is" : "are"} left out of the leaks: their chips aren't big blinds and they're graded with no ICM.` : ""}
+        </p>
+      </About>
       {rp.thin.length > 0 && (
         <details className="space-y-1">
           <summary className="cursor-pointer text-muted">
@@ -390,6 +413,10 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
       )}
       {leak && <DecisionList title={leak.key} ds={eq.filter(leakTest(leak))} byId={byId} />}
 
+      <details className="space-y-4">
+        <summary className="cursor-pointer font-semibold">Every breakdown: by seat, street, situation, spot and frequency, and the full lists</summary>
+      <div className="mt-2 space-y-4">
+      {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ds={ds} keyOf={basisKey} byId={byId} ev noUngraded />}
       <Breakdowns ds={ds} hands={hands} byId={byId} />
       <GroupTable title="By street" first="Street" rows={rp.byStreet} ds={ds} keyOf={streetOf} byId={byId} />
       {rp.byPf.length > 0 && <GroupTable title="Preflop, by situation (against the charts, by frequency)" first="Situation" rows={rp.byPf} ds={ds} keyOf={pfOf} byId={byId} />}
@@ -442,6 +469,8 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
       {rp.mistakes.length > 0 && <DecisionList title="The most EV lost" ds={rp.mistakes} byId={byId} />}
       {rp.offChart.length > 0 && <DecisionList title="Off the chart (the charts play it under 3% of the time)" ds={rp.offChart} byId={byId} />}
       {rp.offRead.length > 0 && <DecisionList title="Off the read (played under 3% of the time, no EV to weigh it)" ds={rp.offRead} byId={byId} />}
+      </div>
+      </details>
     </section>
   );
 }

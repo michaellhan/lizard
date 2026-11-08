@@ -71,7 +71,17 @@ const open = (q = "", rowLimit?: number) =>
     </MemoryRouter>,
   );
 const handRows = () => screen.queryAllByRole("row").filter((r) => /^Hand /.test(r.getAttribute("aria-label") ?? ""));
+// (the page's views are tabs, one's content at a time, once hands are kept; the filter bar's selects fold away until
+// "Filters" is pressed)
+const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }));
+const showFilters = () => {
+  const b = screen.getByRole("button", { name: /^Filters/ });
+  if (b.getAttribute("aria-expanded") !== "true") fireEvent.click(b);
+};
 const paste = async (text: string) => {
+  // (the paste box is the Import tab's once hands are kept)
+  const imp = screen.queryByRole("tab", { name: "Import" });
+  if (imp && imp.getAttribute("aria-selected") !== "true") fireEvent.click(imp);
   fireEvent.change(screen.getByRole("textbox", { name: "Paste hand histories" }), { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "Import pasted hands" }));
   return screen.findByRole("status", { name: "Import result" });
@@ -80,24 +90,29 @@ const paste = async (text: string) => {
 describe("AnalyzePage", () => {
   it("imports pasted hands, says what it skipped, and keeps a hand imported twice once", async () => {
     open();
-    expect(await screen.findByText(/No hands kept yet/)).toBeInTheDocument();
+    // nothing kept: the import box alone
+    expect(await screen.findByRole("region", { name: "Import" })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Analyze views" })).toBeNull();
     const res = await paste([HH("stars_6max_srp.txt"), HH("stars_3bet_pot.txt"), OMAHA].join("\n\n"));
     expect(res).toHaveTextContent("Pasted hands: 3 hands read, 2 to keep (2 new, 0 already kept from an earlier import).");
     expect(res).toHaveTextContent("Skipped: 1 not Hold'em.");
     await waitFor(() => expect(handRows()).toHaveLength(2));
     // newest played first
     expect(handRows().map((r) => r.getAttribute("aria-label"))).toEqual(["Hand 249876543210", "Hand 249012345678"]);
+    tab("Import");
     expect(within(screen.getByRole("region", { name: "Imports" })).getByText("Pasted hands")).toBeInTheDocument();
     expect(screen.getByText(/^2 hands kept, \d+ kB of history text/)).toBeInTheDocument();
 
     const again = await paste(HH("stars_6max_srp.txt"));
     expect(again).toHaveTextContent("1 hand read, 1 to keep (0 new, 1 already kept from an earlier import).");
+    tab("Hands");
     expect(handRows()).toHaveLength(2);
   });
 
   it("lists hands with filters in the URL, and replays one with a Study link at each of your decisions", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(2));
+    showFilters();
     fireEvent.change(screen.getByRole("combobox", { name: "Pot" }), { target: { value: "3bet pot" } });
     expect(handRows()).toHaveLength(1);
     expect(screen.getByTestId("where").textContent).toMatch(/pot=3bet\+pot/);
@@ -136,10 +151,12 @@ describe("AnalyzePage", () => {
       new File([HH("stars_9max_mtt_ante.txt")], "mtt.txt", { type: "text/plain" }),
       new File(["not a hand"], "notes.png", { type: "image/png" }),
     ];
+    tab("Import");
     fireEvent.change(screen.getByLabelText("Choose hand-history files"), { target: { files } });
     const res = await screen.findByRole("status", { name: "Import result" });
     expect(res).toHaveTextContent("2 files: 2 hands read, 2 to keep (2 new, 0 already kept from an earlier import).");
     expect(res).toHaveTextContent("gg.txt: 1 read, 1 to keep");
+    tab("Hands");
     await waitFor(() => expect(handRows()).toHaveLength(4));
     const mtt = handRows().find((r) => r.textContent?.includes("300 chips"))!;
     expect(mtt).toHaveTextContent("MTT");
@@ -157,6 +174,7 @@ describe("AnalyzePage", () => {
     expect(prizes).toHaveLength(4);
     expect(prizes[0]).toHaveAttribute("href", `/tournaments?${q}`);
 
+    tab("Import");
     fireEvent.change(screen.getByLabelText("Choose hand-history files"), { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
     expect(await screen.findByRole("alert")).toHaveTextContent("None of the 1 files is a hand history (.txt, .xml, .log, .hh, or PokerNow's .json).");
   });
@@ -164,7 +182,8 @@ describe("AnalyzePage", () => {
   it("grades your preflop and library flops, shows each grade on the hand and in the report, and forgets them", async () => {
     open("hand=PokerStars%7C249012345678%7CAhQd");
     await waitFor(() => expect(handRows()).toHaveLength(4));
-    const panel = screen.getByRole("region", { name: "Grading" });
+    tab("Grades & leaks");
+    let panel = screen.getByRole("region", { name: "Grading" });
     expect(panel).toHaveTextContent("the charts aren't a solve and have no EVs");
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
@@ -185,7 +204,7 @@ describe("AnalyzePage", () => {
     // (the report follows a moment after the grades: it's counted after what you're doing)
     const rep = await screen.findByRole("region", { name: "Report" });
     await waitFor(() => expect(within(rep).getByLabelText("Summary")).toHaveTextContent("5 of your decisions graded in 4 hands: 60% in the mix (Best or Correct)."));
-    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb lost in all, 2.2% of the pot per decision on average.");
+    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb of solver EV lost in all, 2.2% of the pot per decision on average (not what you won).");
     expect(within(rep).getByText("4 not graded")).toBeInTheDocument();
     // the mtt hand's call is one CO's chart leaves out: off the chart
     const off = within(rep).getByRole("list", { name: /^Off the chart/ });
@@ -195,7 +214,9 @@ describe("AnalyzePage", () => {
     expect(within(rep).getByRole("button", { name: "Export CSV" })).toBeInTheDocument();
 
     // the hands whose graded decisions gave up 0.1bb or more: the one with the flop mistake
+    showFilters();
     fireEvent.change(screen.getByRole("combobox", { name: "EV lost" }), { target: { value: "0.1" } });
+    tab("Hands");
     await waitFor(() => expect(handRows()).toHaveLength(1));
     expect(within(screen.getByRole("region", { name: "Hands" })).getByText("1 of 4")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "EV lost" }), { target: { value: "0.5" } });
@@ -205,6 +226,8 @@ describe("AnalyzePage", () => {
 
     // asked again: only what nothing answered, the flops the library didn't hold (it may hold them by now)
     stub.asked = [];
+    tab("Grades & leaks");
+    panel = screen.getByRole("region", { name: "Grading" });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 0 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
     expect(stub.asked.map((s) => s.board!.length)).toEqual([6, 6, 6, 6]);
@@ -218,6 +241,7 @@ describe("AnalyzePage", () => {
     open("hand=PokerStars%7C249012345678%7CAhQd");
     await waitFor(() => expect(handRows()).toHaveLength(4));
     stub.asked = [];
+    tab("Grades & leaks");
     const panel = screen.getByRole("region", { name: "Grading" });
     fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "triage" } });
     expect(await within(panel).findByText(/17 decisions to ask: about \d+ s in this browser \(an estimate/)).toBeInTheDocument();
@@ -262,6 +286,7 @@ describe("AnalyzePage", () => {
   it("drills a leak's decisions against the kept answer, and resumes the drill where it was left", async () => {
     const first = open();
     await waitFor(() => expect(handRows()).toHaveLength(4));
+    tab("Grades & leaks");
     const panel = screen.getByRole("region", { name: "Grading" });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
@@ -319,9 +344,10 @@ describe("AnalyzePage", () => {
   it("adds up your results over the hands the filters show, with the running total hand by hand", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(4));
+    tab("Results");
     const res = await screen.findByRole("region", { name: "Your results" });
     await waitFor(() => expect(within(res).queryByRole("status")).toBeNull());
-    expect(res).toHaveTextContent("What you won or lost in your 4 hands, as the histories say: what each pot paid you (after the rake) less what you put in");
+    expect(res).toHaveTextContent("What you won or lost in your 4 hands, in big blinds, as the histories say: nothing here is graded or solved.How this worksWon is what each pot paid you (after the rake) less what you put in");
     // the SRP hand's +10.5bb on the button, the 3-bet pot's -100bb and the straddled pot's -43.5bb in the big blind
     const cash = within(res).getByRole("region", { name: "Cash games" });
     // (the 3-bet pot went in on the turn drawing dead: its all-in EV is what it lost)
@@ -351,9 +377,11 @@ describe("AnalyzePage", () => {
   it("counts your stats over the hands the filters show, each over its chances, with the hands behind it", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(4));
-    const stats = await screen.findByRole("region", { name: "Your stats" });
-    expect(stats).toHaveTextContent("Counted from your 4 hands, as you played them: nothing here is graded or solved.");
-    const row = (name: string) => within(stats).getByRole("row", { name });
+    tab("Stats");
+    await screen.findByRole("region", { name: "Your stats" });
+    const stats = () => screen.getByRole("region", { name: "Your stats" });
+    expect(stats()).toHaveTextContent("Counted from your 4 hands, as you played them: nothing here is graded or solved.");
+    const row = (name: string) => within(stats()).getByRole("row", { name });
     await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%4 / 4"));
     // the SRP hand's open, the 3-bet pots' re-raises, the MTT hand's call; three c-bets, one turn barrel of three
     expect(row("PFR")).toHaveTextContent("75%3 / 4");
@@ -366,12 +394,12 @@ describe("AnalyzePage", () => {
     expect(row("Fold to flop c-bet")).toHaveTextContent("0%0 / 1");
     expect(row("Went to showdown")).toHaveTextContent("50%2 / 4");
     expect(row("Squeeze")).toHaveTextContent("none");
-    expect(within(stats).getByRole("row", { name: "30–45%" })).toHaveTextContent("30–45%3 100%1 50%0 0%");
-    expect(within(stats).getByRole("row", { name: "60–80%" })).toHaveTextContent("60–80%0 0%1 50%1 100%");
+    expect(within(stats()).getByRole("row", { name: "30–45%" })).toHaveTextContent("30–45%3 100%1 50%0 0%");
+    expect(within(stats()).getByRole("row", { name: "60–80%" })).toHaveTextContent("60–80%0 0%1 50%1 100%");
 
     // the hands behind a stat, each a link to it
     fireEvent.click(within(row("3-bet")).getByRole("button", { name: "Hands" }));
-    const list = within(stats).getByRole("region", { name: "Hands: 3-bet" });
+    const list = within(stats()).getByRole("region", { name: "Hands: 3-bet" });
     expect(list).toHaveTextContent("Took it (you re-raised) (2):");
     expect(list).toHaveTextContent("Didn't (1):");
     const mtt = within(list).getAllByRole("link").find((a) => a.textContent?.includes("AhTd"))!;
@@ -380,22 +408,29 @@ describe("AnalyzePage", () => {
     expect(screen.getByRole("region", { name: "Hand" })).toHaveTextContent("tournament 3712345678");
 
     // a filter: the report and the stats follow it
+    showFilters();
     fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "BB" } });
     await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%2 / 2"));
-    expect(stats).toHaveTextContent("Counted from the 2 hands the filters show");
+    expect(stats()).toHaveTextContent("Counted from the 2 hands the filters show");
     expect(row("3-bet")).toHaveTextContent("100%2 / 2");
+    tab("Grades & leaks");
     expect(within(screen.getByRole("region", { name: "Report" })).getByLabelText("Summary")).toHaveTextContent("Over the 2 hands the filters show, of 4 kept.");
     fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Stakes" }), { target: { value: "300 chips" } });
+    tab("Hands");
     expect(handRows()).toHaveLength(1);
+    tab("Stats");
     await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%1 / 1"));
     expect(screen.getByTestId("where").textContent).toMatch(/bb=300\+chips/);
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2030-01-01" } });
+    expect(screen.queryByRole("region", { name: "Your stats" })).toBeNull();
+    tab("Hands");
     expect(handRows()).toHaveLength(0);
     expect(screen.getByText("No hand kept matches these filters.")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Your stats" })).toBeNull();
+    tab("Grades & leaks");
     expect(screen.getByRole("region", { name: "Report" })).toHaveTextContent("None of your graded decisions is in the 0 hands the filters show.");
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    tab("Hands");
     expect(handRows()).toHaveLength(4);
     expect(screen.getByTestId("where").textContent).not.toMatch(/bb=|from=/);
   });
@@ -417,10 +452,13 @@ describe("AnalyzePage", () => {
     // kept: opened again, filtered by a tag, found by the note's words
     open();
     await waitFor(() => expect(handRows()).toHaveLength(4));
+    showFilters();
     fireEvent.change(screen.getByRole("combobox", { name: "Tag" }), { target: { value: "c-bet" } });
     expect(handRows().map((r) => r.getAttribute("aria-label"))).toEqual(["Hand 249012345678"]);
+    tab("Stats");
     expect(await screen.findByText(/Counted from the 1 hand the filters show/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    tab("Hands");
     fireEvent.change(screen.getByRole("searchbox", { name: "Search hands" }), { target: { value: "river SIZING" } });
     expect(handRows()).toHaveLength(1);
     expect(screen.getByTestId("where").textContent).toMatch(/q=river\+SIZING/);
@@ -434,11 +472,15 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(handRows()).toHaveLength(3));
     fireEvent.click(screen.getByRole("button", { name: "Show all 4 hands" }));
     expect(handRows()).toHaveLength(4);
+    tab("Import");
     const imports = screen.getByRole("region", { name: "Imports" });
     const pasted = within(imports).getByText("Pasted hands").closest("li")!;
     fireEvent.click(within(pasted).getByRole("button", { name: "Delete this import" }));
     fireEvent.click(within(pasted).getByRole("button", { name: "Delete 2 hands, 1 with your tags or note" }));
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Imports" })).getByText(/^2 hands kept/)).toBeInTheDocument());
+    tab("Hands");
     await waitFor(() => expect(handRows()).toHaveLength(2));
+    tab("Import");
     expect(within(screen.getByRole("region", { name: "Imports" })).queryByText("Pasted hands")).toBeNull();
   });
 
@@ -450,6 +492,7 @@ describe("AnalyzePage", () => {
   it("imports the classic app's My hands on request, read only, and says when it keeps none", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(2));
+    tab("Import");
     fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
     expect(await screen.findByText("The older gto-solver site keeps no hands in this browser.")).toBeInTheDocument();
     expect((await indexedDB.databases()).map((d) => d.name)).not.toContain("gto-store");
@@ -472,8 +515,9 @@ describe("AnalyzePage", () => {
     await classicDb("gto-store", [rec("c1", { state, source: "table", tags: ["classic"], note: "bet small" }), rec("c2", { state: { ...state, cards: [null, null, null, null, null, null, null] } })]);
     fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
     expect(await screen.findByText("From the older gto-solver site (IndexedDB): 2 hands read; 1 hand imported; left out: no hole cards (1).")).toBeInTheDocument();
+    expect(await within(screen.getByRole("region", { name: "Imports" })).findByText("Classic app, My hands")).toBeInTheDocument();
+    tab("Hands");
     await waitFor(() => expect(handRows()).toHaveLength(3));
-    expect(within(screen.getByRole("region", { name: "Imports" })).getByText("Classic app, My hands")).toBeInTheDocument();
     const row = handRows().find((r) => r.textContent?.includes("classic"))!;
     expect(row).toHaveTextContent("SRP");
     fireEvent.click(within(row).getByRole("button", { name: "Open" }));
@@ -484,6 +528,7 @@ describe("AnalyzePage", () => {
     expect(within(hand).getByRole("group", { name: "Your tags and note" })).toHaveTextContent("classicbet small");
 
     // again: nothing new; the classic database as it was
+    tab("Import");
     fireEvent.click(screen.getByRole("button", { name: "Import its My hands" }));
     expect(await screen.findByText("From the older gto-solver site (IndexedDB): 2 hands read; 0 hands imported, 1 hand already here; left out: no hole cards (1).")).toBeInTheDocument();
     const d = await new Promise<IDBDatabase>((resolve) => {
@@ -531,8 +576,9 @@ describe("AnalyzePage", () => {
     expect(within(handRows()[1]!).getByRole("button", { name: "Open" })).toHaveFocus();
   });
 
-  it("shows the focus on the file pickers through their labels", () => {
-    open();
+  it("shows the focus on the file pickers through their labels", async () => {
+    open("tab=import");
+    await screen.findByRole("region", { name: "Import" });
     const labels = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].map((i) => i.closest("label")!.className);
     expect(labels).toHaveLength(2);
     for (const c of labels) expect(c).toMatch(/focus-within:outline/);
@@ -541,6 +587,7 @@ describe("AnalyzePage", () => {
   it("reads a dropped folder through, subfolders and all", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(3));
+    tab("Import");
     const tree = dirEntry("hh", [
       fileEntry("hh/winamax.txt", HH("winamax_mtt_ante.txt")),
       dirEntry("hh/2024", [fileEntry("hh/2024/888.txt", HH("888_6max_srp.txt")), fileEntry("hh/2024/notes.png", "x")]),
@@ -550,14 +597,15 @@ describe("AnalyzePage", () => {
     const res = await screen.findByRole("status", { name: "Import result" });
     expect(res).toHaveTextContent("hh (2 files): 2 hands read, 2 to keep (2 new, 0 already kept from an earlier import).");
     expect(res).toHaveTextContent("hh/2024/888.txt: 1 read, 1 to keep");
+    tab("Hands");
     await waitFor(() => expect(handRows()).toHaveLength(5));
   });
 
   it("refuses files too big to read together, before reading them", async () => {
-    open();
+    open("tab=import");
     const text = vi.fn();
     const huge = (name: string) => ({ name, type: "text/plain", size: 150 * 1024 * 1024, text });
-    const drop = screen.getByRole("textbox", { name: "Paste hand histories" }).parentElement!;
+    const drop = (await screen.findByRole("textbox", { name: "Paste hand histories" })).parentElement!;
     fireEvent.drop(drop, { dataTransfer: { items: [], files: [huge("a.txt"), huge("b.txt")] } });
     expect(await screen.findByText(/^That's 300 MB, over the 256 MB one import can read\./)).toBeInTheDocument();
     expect(text).not.toHaveBeenCalled();
@@ -566,6 +614,7 @@ describe("AnalyzePage", () => {
   it("folds each file's count away past a few files", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(5));
+    tab("Import");
     const tree = dirEntry("many", Array.from({ length: 9 }, (_, i) => fileEntry(`many/s${i + 1}.txt`, HH("888_6max_srp.txt"))));
     const drop = screen.getByRole("textbox", { name: "Paste hand histories" }).parentElement!;
     fireEvent.drop(drop, { dataTransfer: { items: [{ webkitGetAsEntry: () => tree }], files: [] } });

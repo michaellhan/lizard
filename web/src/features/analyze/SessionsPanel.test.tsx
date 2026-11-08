@@ -41,6 +41,8 @@ const open = (q = "") =>
     </MemoryRouter>,
   );
 const panel = async () => screen.findByLabelText("Your sessions");
+// (the page's views are tabs: one's content shows at a time)
+const tab = async (name: string) => fireEvent.click(await screen.findByRole("tab", { name }));
 const search = () => new URLSearchParams(screen.getByTestId("where").textContent!.split("?")[1] ?? "");
 const seed = async (hands: HandRecord[], ds: DecisionRecord[] = []) => {
   await addHands(hands);
@@ -59,6 +61,7 @@ describe("Your sessions", () => {
     expect(texts).toHaveLength(2);
     await seed(texts);
     open();
+    await tab("Sessions");
     const rows = within(await screen.findByRole("list", { name: "Sessions" })).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent(/2024\/04\/18|2024-04-18/);
@@ -73,6 +76,7 @@ describe("Your sessions", () => {
   it("keeps a tournament's chips out of Won, and each kind to itself", async () => {
     await seed([hand(T0), hand(T0 + 60_000), hand(T0, { tournament: "Sunday 50", bb: "100 chips" })]);
     open();
+    await tab("Sessions");
     await panel();
     expect(within(await screen.findByRole("list", { name: "Sessions" })).getAllByRole("listitem")).toHaveLength(1);
     fireEvent.change(screen.getByRole("combobox", { name: "Games" }), { target: { value: "tour" } });
@@ -87,18 +91,22 @@ describe("Your sessions", () => {
     const [a, b] = [hand(T0), hand(T0 + DAY)];
     await seed([a, b], [dec(a, { verdict: "Mistake", freq: 0.1, mix: [["raise", 0.1, null], ["fold", 0.9, null]] }), dec(b)]);
     open();
-    const list = await screen.findByRole("list", { name: "Sessions" });
+    await tab("Grades & leaks");
     expect(await screen.findByRole("button", { name: "Grade 2 hands" })).toBeInTheDocument();
+    await tab("Sessions");
+    const list = await screen.findByRole("list", { name: "Sessions" });
     fireEvent.click(within(list).getByRole("button", { name: /^Session PokerStars cash, 2026-01-01 12:00$/ }));
     await waitFor(() => expect(search().get("sess")).toBe(sessionsOf([a, b])[0]!.key));
-    expect(await screen.findByRole("button", { name: "Grade 1 hand" })).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Sessions" })).getAllByRole("listitem")).toHaveLength(1);
     expect(screen.queryByRole("combobox", { name: "Games" })).toBeNull();
+    await tab("Grades & leaks");
+    expect(await screen.findByRole("button", { name: "Grade 1 hand" })).toBeInTheDocument();
     // a hand linked from the report stays in the session
     const report = screen.getByLabelText("Report");
     fireEvent.click(within(report).getAllByRole("link", { name: /^Hand / })[0]!);
     await waitFor(() => expect(search().get("hand")).toBe(a.id));
     expect(search().get("sess")).toBe(sessionsOf([a, b])[0]!.key);
+    await tab("Sessions");
     fireEvent.click(screen.getByRole("button", { name: "All sessions" }));
     await waitFor(() => expect(search().has("sess")).toBe(false));
     expect(within(screen.getByRole("list", { name: "Sessions" })).getAllByRole("listitem")).toHaveLength(2);
@@ -117,6 +125,7 @@ describe("Your sessions", () => {
     const a = hand(T0);
     await seed([a]);
     open(`sess=${encodeURIComponent(sessionsOf([a])[0]!.key)}&pos=BB`);
+    await tab("Sessions");
     const [row] = within(await screen.findByRole("list", { name: "Sessions" })).getAllByRole("listitem");
     expect(row).toHaveTextContent("0 of 1 hand");
   });
@@ -127,15 +136,20 @@ describe("Your sessions", () => {
     const stale = sessKey({ kind: "cash", site: "PokerStars", first: T0, last: T0 + 60_000 });
     const q = (s: string) => `sess=${encodeURIComponent(s)}`;
     open(q(stale));
+    await tab("Sessions");
     expect(await screen.findByRole("status", { name: "Session not found" })).toHaveTextContent("Changed: 1 hand kept in that time");
     cleanup();
     open(q(sessKey({ kind: "cash", site: "GGPoker", first: T0, last: T0 })));
+    await tab("Sessions");
     expect(await screen.findByRole("status", { name: "Session not found" })).toHaveTextContent("Not kept here: GGPoker cash, 2026-01-01 12:00");
     cleanup();
     open(q("nonsense"));
-    const st = await screen.findByRole("status", { name: "Session not found" });
-    expect(st).toHaveTextContent("That session can't be read");
+    await tab("Sessions");
+    expect(await screen.findByRole("status", { name: "Session not found" })).toHaveTextContent("That session can't be read");
+    await tab("Grades & leaks");
     expect(await screen.findByRole("button", { name: "Grade 0 hands" })).toBeDisabled();
+    await tab("Sessions");
+    const st = await screen.findByRole("status", { name: "Session not found" });
     fireEvent.click(within(st).getByRole("button", { name: "All sessions" }));
     await waitFor(() => expect(search().has("sess")).toBe(false));
   });
@@ -144,6 +158,7 @@ describe("Your sessions", () => {
     const ok = (await prepare([{ name: "a", text: HH("stars_6max_srp.txt") }], { id: "i", name: "i", at: 1 })).hands[0]!;
     await seed([ok, { ...ok, id: "unread", number: "1", text: "not a history" }]);
     open();
+    await tab("Sessions");
     const [row] = within(await screen.findByRole("list", { name: "Sessions" })).getAllByRole("listitem");
     await waitFor(() => expect(row).toHaveTextContent("(1 left out)"));
     expect(row).toHaveTextContent("2 hands");
@@ -153,6 +168,7 @@ describe("Your sessions", () => {
     const hs = Array.from({ length: 330 }, (_, k) => hand(T0 + k * DAY));
     await seed(hs, hs.map((h, k) => dec(h, { verdict: k < 220 ? (k % 2 ? "Best" : "Mistake") : k % 10 ? "Best" : "Mistake" })));
     open();
+    await tab("Sessions");
     const p = await panel();
     const fig = await within(p).findByRole("figure");
     expect(fig).toHaveTextContent(BASES[0]!);
@@ -177,6 +193,7 @@ describe("Your sessions", () => {
     const version = (k: number) => (k < 220 ? "build:aaaa/1111" : "build:bbbb/2222");
     await seed(hs, hs.map((h, k) => dec(h, { version: version(k), verdict: k < 220 ? (k % 2 ? "Best" : "Mistake") : k % 10 ? "Best" : "Mistake" })));
     open();
+    await tab("Sessions");
     const p = await panel();
     await within(p).findByRole("figure");
     expect(screen.getByLabelText("Versions compared")).toHaveTextContent("Graded on different versions: solver build aaaa/1111 before, bbbb/2222 latest.");
@@ -194,6 +211,7 @@ describe("Your sessions", () => {
     const graded = (over: Partial<DecisionRecord>) => hs.map((h, k) => dec(h, { ...over, verdict: k < 220 ? (k % 2 ? "Best" : "Mistake") : k % 10 ? "Best" : "Mistake" }));
     await seed(hs, graded({}));
     open();
+    await tab("Sessions");
     const p = await panel();
     const table = await within(p).findByRole("table", { name: "Changes against before" });
     expect(within(table).getAllByRole("row")[1]).toHaveTextContent(/Version unknown \(\d+ before, \d+ latest\)/);
@@ -201,6 +219,7 @@ describe("Your sessions", () => {
     cleanup();
     await putDecisions(graded({ version: "build:aaaa/1111" }));
     open();
+    await tab("Sessions");
     const same = await within(await panel()).findByRole("table", { name: "Changes against before" });
     expect(within(within(same).getAllByRole("row")[1]!).getAllByRole("cell").at(-1)).toHaveTextContent(/^Same$/);
     expect(screen.queryByLabelText("Versions compared")).toBeNull();
@@ -210,6 +229,7 @@ describe("Your sessions", () => {
     const hs = Array.from({ length: 330 }, (_, k) => hand(T0 + k * DAY));
     await seed(hs, hs.map((h) => dec(h)));
     open("q=PokerStars");
+    await tab("Sessions");
     const p = await panel();
     await within(p).findByRole("list", { name: "Sessions" });
     await waitFor(() => expect(p).toHaveTextContent("left out while"));
@@ -217,6 +237,7 @@ describe("Your sessions", () => {
     expect(screen.queryByLabelText("Latest sessions against before")).toBeNull();
     cleanup();
     open(`sess=${encodeURIComponent(sessionsOf(hs)[0]!.key)}`);
+    await tab("Sessions");
     await panel();
     expect(within(await panel()).queryByRole("figure")).toBeNull();
   });
@@ -225,6 +246,7 @@ describe("Your sessions", () => {
     const hs = Array.from({ length: 60 }, (_, k) => hand(T0 + k * DAY));
     await seed(hs, hs.map((h) => dec(h)));
     open();
+    await tab("Sessions");
     const p = await panel();
     await waitFor(() => expect(p).toHaveTextContent("240 more decisions for a line"));
     expect(within(await within(p).findByRole("list", { name: "Sessions" })).getAllByRole("listitem")).toHaveLength(50);
@@ -242,6 +264,7 @@ describe("Your sessions", () => {
     const opens = (h: HandRecord, you: boolean) => dec(h, { action: you ? "raise to 2.5" : "fold", mix: [["fold", 0.5, null], ["raise", 0.5, null]], freq: 0.5 });
     await seed(hs, hs.map((h, k) => opens(h, k < 300 ? k % 5 === 0 : k % 5 !== 0)));
     open();
+    await tab("Sessions");
     const p = await panel();
     const changes = await within(p).findByRole("table", { name: "Changes against before" });
     expect(changes).toHaveTextContent(/you 20%, the answer 50% \(300\)you 80%, the answer 50% \(150\)Now over the answer/);
@@ -254,6 +277,7 @@ describe("Your sessions", () => {
     const drill = await screen.findByLabelText("Leak drill");
     fireEvent.click((await within(drill).findAllByRole("button", { name: /raise|fold/i }))[0]!);
     expect(await within(drill).findByLabelText("Drill score")).toHaveTextContent("1 of 2 drilled");
+    await tab("Sessions");
     fireEvent.click(within(screen.getByRole("list", { name: "Sessions" })).getByRole("button", { name: `Session ${sessWords(sessionsOf(hs).find((s) => s.hands[0]!.id === hs[2]!.id)!.key)}` }));
     await waitFor(() => expect(screen.getByLabelText("Leak drill")).toHaveTextContent("None of this leak's graded decisions is in these hands."));
     expect(screen.getByLabelText("Leak drill")).not.toHaveTextContent("is graded with its mix");
@@ -307,6 +331,7 @@ describe("Your sessions", () => {
     const stored = await (await db())!.getAll("sessions");
     const dealt = stored.flatMap((s) => (s.meta as { done: string[] }).done)[0]!;
     const other = sessionsOf(hs).find((s) => !s.hands.some((h) => dealt.startsWith(h.id)))!;
+    await tab("Sessions");
     fireEvent.click(within(screen.getByRole("list", { name: "Sessions" })).getByRole("button", { name: `Session ${sessWords(other.key)}` }));
     await waitFor(() => expect(within(screen.getByLabelText("Leak drill")).getByLabelText("Drill score")).toHaveTextContent("0 of 1 drilled here; 1 of this leak in all"));
     expect(screen.queryByRole("button", { name: "Next decision" })).toBeNull();
@@ -324,6 +349,7 @@ describe("Your sessions", () => {
     const folds = [hand(T0), hand(T0 + DAY)];
     await seed(folds, folds.map((h) => dec(h, { action: "fold", freq: 1, mix: [["fold", 1, null]] })));
     open();
+    await tab("Sessions");
     const p = await panel();
     await waitFor(() => expect(p).toHaveTextContent("300 more decisions for a line (clear folds and undated hands left out)"));
     expect(p).not.toHaveTextContent("Nothing is graded here yet");
@@ -333,6 +359,7 @@ describe("Your sessions", () => {
     const undated = [hand(0)];
     await seed(undated, undated.map((h) => dec(h)));
     open();
+    await tab("Sessions");
     const row = within(await screen.findByRole("list", { name: "Sessions" })).getAllByRole("listitem")[0]!;
     await waitFor(() => expect(row).toHaveTextContent("1 of 1 in the mix"));
     expect(screen.getByRole("combobox", { name: "Graded on" })).toHaveTextContent(`${BASES[0]} · 0`);
@@ -342,6 +369,7 @@ describe("Your sessions", () => {
     const hs = [hand(T0, { hero: "BTN" }), hand(T0 + 60_000, { hero: "BB" }), hand(T0 + 120_000, { hero: "BTN" })];
     await seed(hs);
     open("pos=BTN");
+    await tab("Sessions");
     const p = await panel();
     await within(p).findByRole("list", { name: "Sessions" });
     expect(p).toHaveTextContent("Over the 2 hands the filters show, of 3 kept.");
@@ -355,6 +383,7 @@ describe("Your sessions", () => {
       const hs = [hand(T0), hand(T0 + DAY)];
       await seed(hs);
       open();
+      await tab("Sessions");
       const list = await screen.findByRole("list", { name: "Sessions" });
       scroll.mockClear();
       fireEvent.click(within(list).getAllByRole("button", { name: /^Session / })[0]!);
@@ -371,6 +400,7 @@ describe("Your sessions", () => {
     const hs = Array.from({ length: 400 }, (_, k) => hand(T0 + k * DAY));
     await seed(hs, hs.map((h) => dec(h)));
     open();
+    await tab("Sessions");
     const fig = await within(await panel()).findByRole("figure");
     const line = within(fig).getByRole("slider");
     vi.spyOn(line, "getBoundingClientRect").mockReturnValue({ left: 0, width: 400, top: 0, height: 100, right: 400, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });

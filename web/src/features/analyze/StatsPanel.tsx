@@ -1,6 +1,7 @@
 // Your stats as played (stats.ts) over the hands the filters show: each frequency over its own chances with a 95%
 // interval, the hands behind it, and your bet and raise sizes. Counted from the histories; nothing is graded.
 import { useEffect, useMemo, useState } from "react";
+import { About } from "@/components/About";
 import { Link, useSearchParams } from "react-router";
 import type { HandRecord } from "@/data/db";
 import { seatLabel } from "@/poker/seats";
@@ -39,11 +40,15 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
       <div>
         <h2 className="text-lg font-semibold">Your stats</h2>
         <p className="text-muted">
-          Counted from {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as you played
-          them: nothing here is graded or solved. Each rate is over its own chances, the hands where you could take it; the range is a 95% interval,
-          wide when there are few (&ldquo;few&rdquo; marks under {MIN_READ} chances).
+          Counted from {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as you played them: nothing here is graded or solved.
           {st && st.left > 0 && ` ${st.left.toLocaleString()} ${st.left === 1 ? "hand is" : "hands are"} left out: the replay stopped short of the history.`}
         </p>
+        <About>
+          <p>
+            Each rate is over its own chances, the hands where you could take it; the range is a 95% interval, wide when there are few (&ldquo;few&rdquo;
+            marks under {MIN_READ} chances).
+          </p>
+        </About>
       </div>
       {counting && (
         <p role="status" aria-label="Counting" className="text-muted">

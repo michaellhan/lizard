@@ -48,6 +48,9 @@ const sample = async (says: string) => {
   await waitFor(() => expect(el).toHaveTextContent(says));
 };
 const pick = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
+// (the page's views are tabs: one's content shows at a time; the filter bar's selects fold away until "Filters" is pressed)
+const tab = async (name: string) => fireEvent.click(await screen.findByRole("tab", { name }));
+const showFilters = () => fireEvent.click(screen.getByRole("button", { name: /^Filters/, expanded: false }));
 
 beforeEach(async () => {
   const d = await db();
@@ -66,6 +69,7 @@ describe("the filter bar", () => {
     await seed(hs, ds);
     open();
     await sample("Every report covers all your 5 hands and 4 graded decisions.");
+    showFilters();
     pick("Site", "PokerStars");
     pick("Stakes", "$1");
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-01-02" } });
@@ -73,6 +77,7 @@ describe("the filter bar", () => {
     expect(search().get("site")).toBe("PokerStars");
     expect(search().get("bb")).toBe("$1");
     await sample("Every report covers 1 hand of 5 and 1 of 4 graded decisions.");
+    await tab("Grades & leaks");
     await waitFor(() => expect(screen.getByRole("region", { name: "Report" })).toHaveTextContent("1 of your decisions graded in 1 hands"));
     expect(within(screen.getByRole("region", { name: "Filters" })).getByText(/left out while a date is set/)).toHaveTextContent("1 hand with no date in the history is left out");
   });
@@ -104,6 +109,7 @@ describe("the filter bar", () => {
     await seed([h], [dec(h), cbet(h, { verdict: "Not graded", why: "x", evLossBb: null, lossPct: null })]);
     open();
     await sample("all your 1 hand and 1 graded decision.");
+    showFilters();
     const bar = screen.getByRole("region", { name: "Filters" });
     for (const name of ["Site", "Stakes", "Your seat", "Pot", "EV lost"]) expect(within(bar).getByRole("combobox", { name })).toBeInTheDocument();
     expect(within(bar).getByRole("searchbox", { name: "Search hands" })).toBeInTheDocument();
@@ -115,6 +121,7 @@ describe("the breakdowns", () => {
     const hs = [hand(T0, { hero: "BTN" }), hand(T0 + 1, { hero: "CO" }), hand(T0 + 2, { hero: "CO" })];
     await seed(hs, [dec(hs[0]!), dec(hs[1]!, { verdict: "Mistake", freq: 0 }), dec(hs[2]!)]);
     open();
+    await tab("Grades & leaks");
     const group = await screen.findByRole("group", { name: "Breakdowns" });
     const table = await within(group).findByRole("table", { name: "Your seat" });
     expect(within(table).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Your seat", "Graded", "In the mix", "95% range", "Mistakes", "By EV", "EV lost per decision", "Stands on", "Decisions"]);
@@ -139,6 +146,7 @@ describe("the breakdowns", () => {
     const hs = [hand(T0, { hero: "BTN" }), hand(T0 + 1, { hero: "BTN" })];
     await seed(hs, [cbet(hs[0]!), cbet(hs[1]!, { evLossBb: 0.2, lossPct: 3.6 })]);
     open();
+    await tab("Grades & leaks");
     const table = await within(await screen.findByRole("group", { name: "Breakdowns" })).findByRole("table", { name: "Your seat" });
     const btn = within(table).getByRole("row", { name: "BTN" });
     expect(btn).toHaveTextContent("BTN20%");
@@ -151,6 +159,7 @@ describe("the breakdowns", () => {
     const hs = [hand(T0, { hero: "BB" })];
     await seed(hs, [solved(hs[0]!)]);
     open();
+    await tab("Grades & leaks");
     const table = await within(await screen.findByRole("group", { name: "Breakdowns" })).findByRole("table", { name: "Your seat" });
     const bb = within(table).getByRole("row", { name: "BB" });
     expect(bb).toHaveTextContent("0.5bb (10%)");
@@ -162,6 +171,7 @@ describe("the breakdowns", () => {
     const hs = [hand(T0), hand(T0 + 1), hand(T0 + 2), hand(T0 + 3)];
     await seed(hs, [solved(hs[0]!), dec(hs[1]!), cbet(hs[2]!, { evLossBb: 2, lossPct: 40, verdict: "Blunder" }), cbet(hs[3]!, { evLossBb: 1, lossPct: 20, verdict: "Blunder" })]);
     open();
+    await tab("Grades & leaks");
     const table = await within(await screen.findByRole("group", { name: "Breakdowns" })).findByRole("table", { name: "Your seat" });
     const row = within(table).getByRole("row", { name: "BTN" });
     expect(row).toHaveTextContent("BTN4A figure for each way");
@@ -186,6 +196,7 @@ describe("the breakdowns", () => {
     const stored = { source: "library-turn", label: "Stored turn", evLossBb: null, lossPct: null, verdict: "Correct", mix: [["check", 0.5, null], ["bet 33%", 0.5, null]] } as Partial<DecisionRecord>;
     await seed(hs, [cbet(hs[0]!), cbet(hs[1]!, stored)]);
     open();
+    await tab("Grades & leaks");
     const table = await screen.findByRole("table", { name: "After the flop, by spot" });
     expect(within(table).getByRole("row", { name: "Flop · SRP · IP · checked to" })).toHaveTextContent("A figure for each way");
     expect(within(table).getByRole("row", { name: "Flop · SRP · IP · checked to, by EV" })).toHaveTextContent("0.6bb (10.9%)");
@@ -196,6 +207,7 @@ describe("the breakdowns", () => {
     const [srp, pot] = await fixtures("stars_6max_srp.txt", "stars_3bet_pot.txt");
     await seed([srp!, pot!], [dec(srp!, { id: `${srp!.id}|preflop|3`, i: 3 }), dec(pot!, { id: `${pot!.id}|preflop|4`, i: 4 }), cbet(pot!, { id: `${pot!.id}|flop|2`, i: 2 })]);
     open();
+    await tab("Grades & leaks");
     const group = await screen.findByRole("group", { name: "Breakdowns" });
     pick("Break decisions down by", "faced");
     expect(within(group).getByText(/a decision stores only that it faced a bet/)).toBeInTheDocument();
@@ -212,6 +224,7 @@ describe("the breakdowns", () => {
     const hs = [hand(T0, { board: "Qs8d3c" }), hand(T0 + 1, { board: "Qs8s3s", site: "GGPoker" })];
     await seed(hs, [dec(hs[0]!), cbet(hs[0]!), cbet(hs[1]!)]);
     open("site=PokerStars");
+    await tab("Grades & leaks");
     const group = await screen.findByRole("group", { name: "Breakdowns" });
     pick("Break decisions down by", "suits");
     const table = await within(group).findByRole("table", { name: "Flop: suits" });
@@ -231,6 +244,7 @@ describe("the frequencies and leaks", () => {
     const { hs, ds } = opens(10);
     await seed(hs, ds);
     open();
+    await tab("Grades & leaks");
     const table = await screen.findByRole("table", { name: "Frequencies" });
     const row = within(table).getByRole("row", { name: "Open (RFI)" });
     expect(row).toHaveTextContent("10");
@@ -245,6 +259,7 @@ describe("the frequencies and leaks", () => {
     const { hs, ds } = opens(10);
     await seed(hs, ds);
     open();
+    await tab("Grades & leaks");
     const rep = await screen.findByRole("region", { name: "Report" });
     expect(within(rep).getByLabelText("What makes a leak")).toHaveTextContent("30");
     expect(within(rep).queryByRole("heading", { name: "Open (RFI)" })).toBeNull();
@@ -257,6 +272,7 @@ describe("the frequencies and leaks", () => {
     const { hs, ds } = opens(30);
     await seed(hs, ds);
     open();
+    await tab("Grades & leaks");
     const rep = await screen.findByRole("region", { name: "Report" });
     const leaks = within(rep).getByRole("list", { name: "Leaks" });
     expect(leaks).toHaveTextContent("Open (RFI)");
@@ -271,6 +287,7 @@ describe("the three measures", () => {
     const [srp, pot] = await fixtures("stars_6max_srp.txt", "stars_3bet_pot.txt");
     await seed([srp!, pot!], [cbet(srp!, { evLossBb: 0.6 }), dec(pot!)]);
     open();
+    await tab("Results");
     const res = await screen.findByRole("region", { name: "Your results" });
     const three = await within(res).findByRole("group", { name: "Three measures, kept apart" });
     const real = within(three).getByRole("group", { name: "Realized results" });
@@ -289,12 +306,14 @@ describe("the three measures", () => {
     const [srp, pot] = await fixtures("stars_6max_srp.txt", "stars_3bet_pot.txt");
     await seed([srp!, pot!], [cbet(srp!), cbet(pot!, { evLossBb: 2 })]);
     open(`pos=${pot!.hero}`);
+    await tab("Results");
     const res = await screen.findByRole("region", { name: "Your results" });
     const lost = await within(res).findByRole("group", { name: "Solver EV lost" });
     await waitFor(() => expect(lost).toHaveTextContent("Cash games: 2bb lost over 1 decision graded by EV, of 1 graded"));
     cleanup();
     await (await db())!.clear("decisions");
     open();
+    await tab("Results");
     const again = await screen.findByRole("region", { name: "Your results" });
     const none = await within(again).findByRole("group", { name: "Solver EV lost" });
     await waitFor(() => expect(none).toHaveTextContent("Nothing here is graded."));
@@ -304,6 +323,7 @@ describe("the three measures", () => {
     const [srp] = await fixtures("stars_6max_srp.txt");
     await seed([srp!]);
     open();
+    await tab("Results");
     const res = await screen.findByRole("region", { name: "Your results" });
     const link = await within(res).findByRole("link", { name: "Filter to your hands in BTN" });
     expect(link.getAttribute("href")).toContain("pos=BTN");
@@ -315,6 +335,7 @@ describe("your stats as played", () => {
     const hs = await fixtures("stars_6max_srp.txt", "stars_3bet_pot.txt", "gg_limped_multiway.txt");
     await seed(hs);
     open();
+    await tab("Stats");
     const st = await screen.findByRole("region", { name: "Your stats" });
     const raises = await within(st).findByRole("table", { name: "Raise sizes" });
     // the open's 2.5×, the 3-bet's 4.4× and the flop's check-raise, 5.25×

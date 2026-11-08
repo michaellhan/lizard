@@ -54,6 +54,7 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
   await page.goto("/lizard/analyze/");
   await page.getByLabel("Paste hand histories").fill(hands);
   await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 240_000 });
   await expect(page.getByRole("status", { name: "Grading progress" })).toBeHidden({ timeout: 240_000 });
@@ -81,12 +82,14 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
 
   // the hands behind it, one opened in Study at that decision
   await leaks.getByRole("button", { name: "Show its decisions" }).first().click();
+  await page.getByRole("tab", { name: "Hands" }).click();
   await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
   const hand = page.getByRole("region", { name: "Hand", exact: true });
   await hand.getByRole("link", { name: /^Study preflop decision/ }).first().click();
   await expect(page).toHaveURL(/\/study\?/);
   await expect(page.getByRole("region", { name: "Actions" })).toBeVisible({ timeout: 120_000 });
   await page.goBack();
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
 
   // drilled, and the drill saved and picked up again from the Saved page
   await leaks.getByRole("link", { name: "Drill this leak" }).first().click();

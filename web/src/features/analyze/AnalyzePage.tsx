@@ -5,7 +5,7 @@
 // stored preflop solve or else the charts, and the flop library, or by triage or a solve (GradingPanel.tsx), each grade shown
 // with what it stands on;
 // your sittings and how the grades moved across them (SessionsPanel.tsx).
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
 import { PhoneColumns } from "@/components/PhoneColumns";
@@ -39,6 +39,7 @@ import { LIMITS } from "@/features/solve/setup";
 import { handOut } from "@/features/review/fromAnalyze";
 import { ADD_RULE } from "@/features/review/schedule";
 import { AddToReview } from "./AddToReview";
+import { About } from "@/components/About";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
@@ -117,6 +118,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const losses = useMemo(() => lostByKind(later, countedById), [later, countedById]);
   const graded = useMemo(() => later.reduce((n, d) => n + Number(isGraded(d)), 0), [later]);
   const openDecisions = useMemo(() => (open ? decisions.filter((d) => d.handId === open.id) : []), [open, decisions]);
+  const [result, setResult] = useState<Result | null>(null);
   const set = (o: Record<string, string | null>) =>
     setParams(
       (p) => {
@@ -128,61 +130,183 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
       { replace: true },
     );
 
+  const tab = tabOf(params);
+  const total = useMemo(() => played?.reduce((n, h) => n + h.decisions, 0) ?? 0, [played]);
+  const missed = useMemo(() => later.reduce((n, d) => n + Number(countedById.has(d.handId) && isGraded(d) && !isOk(d)), 0), [later, countedById]);
+  const go = (t: Tab) => set({ tab: t === "hands" ? null : t });
+
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-4">
+      <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Analyze</h1>
-        <p className="text-sm text-muted">
-          Import your hand histories: they're read and kept in this browser only, nothing is uploaded. Each hand replays street by street, and each of
-          your decisions opens in Study at that point. Your decisions can be graded against the stored preflop solve where it reads the spot, else the preflop charts, and the flop library, or on every street by
-          a Quick triage or a Fast solve, each grade saying what it stands on, and your sessions show how those grades moved over time.
-        </p>
+        <p className="text-sm text-muted">Import your hand histories, replay them, and grade your decisions. Nothing leaves this browser.</p>
+        <About>
+          <p>
+            Your hand histories are read and kept in this browser only; nothing is uploaded. Each hand replays street by street, and each of your decisions
+            opens in Study at that point. Your decisions can be graded against the stored preflop solve where it reads the spot, else the preflop charts, and
+            the flop library, or on every street by a Quick triage or a Fast solve, each grade saying what it stands on, and your sessions show how those
+            grades moved over time.
+          </p>
+        </About>
       </div>
-      <ImportPanel onImported={reload} />
-      {hands && hands.length > 0 && <Imports hands={hands} onChange={reload} />}
-      {hands && shown && hands.length > 0 && (
-        <FilterBar hands={hands} shown={shown} graded={graded} gradedShown={lossesShown.reduce((n, k) => n + k.graded, 0)} params={params} set={set} />
-      )}
-      {played && counted && played.length > 0 && <GradePanel hands={params.get("sess") ? counted : played} decisions={decisions} onGraded={onGraded} />}
-      {played && played.length > 0 && <SessionsPanel hands={played} decisions={decisions} params={params} lost={lost} exploits={exploits} set={set} />}
-      {leakHands && counted && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={counted.filter((h) => isEquilibriumHand(h, exploits))} kept={leakHands} onClose={() => set({ drill: null })} />}
-      {played && counted && <GradeReport decisions={later} hands={counted} of={played.length} exploits={exploits} />}
-      {open && (
-        <HandDetail
-          hand={open}
-          decisions={openDecisions}
-          exploits={exploits}
-          onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
-          onClose={() => {
-            // (back to the Open that opened it, or, not listed now, the page's main)
-            const opener = [...document.querySelectorAll<HTMLElement>("[data-open-hand]")].find((b) => b.dataset.openHand === open.id);
-            (opener ?? document.getElementById("main"))?.focus();
-            set({ hand: null });
-          }}
-        />
-      )}
-      {id && hands && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
+      {result && <ImportBanner r={result} onClose={() => setResult(null)} />}
       {hands === null || shown === null ? (
         <p className="text-sm text-muted">Reading the hands kept here…</p>
+      ) : hands.length === 0 ? (
+        <ImportPanel onImported={reload} setResult={setResult} />
       ) : (
         <>
-          <HandsTable hands={hands} shown={shown} set={set} rowLimit={rowLimit} />
-          {counted && counted.length < shown.length && <p className="text-sm text-muted">{exploitsApartNote(shown.length - counted.length)}</p>}
-          {counted && counted.length > 0 && <WinningsPanel hands={counted} of={played?.length ?? hands.length} losses={losses} />}
-          {counted && counted.length > 0 && <StatsPanel hands={counted} of={played?.length ?? hands.length} />}
+          <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} />
+          <TabBar tab={tab} go={go} />
+          <div role="tabpanel" id={`analyze-${tab}`} aria-labelledby={`analyze-tab-${tab}`} className="space-y-4">
+            {tab !== "import" && (
+              <FilterBar hands={hands} shown={shown} graded={graded} gradedShown={lossesShown.reduce((n, k) => n + k.graded, 0)} params={params} set={set} />
+            )}
+            {leakHands && counted && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={counted.filter((h) => isEquilibriumHand(h, exploits))} kept={leakHands} onClose={() => set({ drill: null })} />}
+            {open && (
+              <HandDetail
+                hand={open}
+                decisions={openDecisions}
+                exploits={exploits}
+                onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
+                onClose={() => {
+                  // (back to the Open that opened it, or, not listed now, the page's main)
+                  const opener = [...document.querySelectorAll<HTMLElement>("[data-open-hand]")].find((b) => b.dataset.openHand === open.id);
+                  (opener ?? document.getElementById("main"))?.focus();
+                  set({ hand: null });
+                }}
+              />
+            )}
+            {id && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
+            {tab === "hands" && (
+              <>
+                <HandsTable hands={hands} shown={shown} set={set} rowLimit={rowLimit} />
+                {counted && counted.length < shown.length && <p className="text-sm text-muted">{exploitsApartNote(shown.length - counted.length)}</p>}
+              </>
+            )}
+            {tab === "grades" && played && counted && (
+              <>
+                {played.length > 0 && <GradePanel hands={params.get("sess") ? counted : played} decisions={decisions} onGraded={onGraded} />}
+                <GradeReport decisions={later} hands={counted} of={played.length} exploits={exploits} />
+              </>
+            )}
+            {tab === "results" && counted && (counted.length > 0 ? <WinningsPanel hands={counted} of={played?.length ?? hands.length} losses={losses} /> : <Nothing />)}
+            {tab === "stats" && counted && (counted.length > 0 ? <StatsPanel hands={counted} of={played?.length ?? hands.length} /> : <Nothing />)}
+            {tab === "sessions" && played && (played.length > 0 ? <SessionsPanel hands={played} decisions={decisions} params={params} lost={lost} exploits={exploits} set={set} /> : <Nothing />)}
+            {tab === "import" && (
+              <>
+                <ImportPanel onImported={reload} setResult={setResult} />
+                <Imports hands={hands} onChange={reload} />
+              </>
+            )}
+          </div>
         </>
       )}
     </div>
   );
 }
 
+// The page's views, one at a time, in the URL (`tab`; Hands when it's absent, the grades when a leak drill is open)
+const TABS = [
+  ["hands", "Hands"],
+  ["grades", "Grades & leaks"],
+  ["results", "Results"],
+  ["stats", "Stats"],
+  ["sessions", "Sessions"],
+  ["import", "Import"],
+] as const;
+export type Tab = (typeof TABS)[number][0];
+export const tabOf = (p: URLSearchParams): Tab => {
+  const t = p.get("tab");
+  return TABS.some(([k]) => k === t) ? (t as Tab) : p.get("drill") ? "grades" : "hands";
+};
+
+function TabBar({ tab, go }: { tab: Tab; go: (t: Tab) => void }) {
+  const at = TABS.findIndex(([k]) => k === tab);
+  const key = (e: KeyboardEvent) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    const to = e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : step ? (at + step + TABS.length) % TABS.length : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    go(TABS[to]![0]);
+    document.getElementById(`analyze-tab-${TABS[to]![0]}`)?.focus();
+  };
+  return (
+    <div role="tablist" aria-label="Analyze views" onKeyDown={key} className="scroll-x flex gap-1 border-b border-border">
+      {TABS.map(([k, label]) => (
+        <button
+          key={k}
+          id={`analyze-tab-${k}`}
+          type="button"
+          role="tab"
+          aria-selected={k === tab}
+          aria-controls={`analyze-${k}`}
+          tabIndex={k === tab ? 0 : -1}
+          onClick={() => go(k)}
+          className={`-mb-px whitespace-nowrap border-b-2 px-3 py-1.5 text-sm ${k === tab ? "border-accent font-medium text-text" : "border-transparent text-muted hover:text-text"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** What's here and the one thing to do next: grade, then review what the grades found. */
+function Overview({ hands, total, graded, missed, go }: { hands: number; total: number; graded: number; missed: number; go: (t: Tab) => void }) {
+  const tile = (label: string, value: string, sub?: string) => (
+    <div className="min-w-0 rounded-lg border border-border bg-surface px-2 py-2 sm:min-w-32 sm:px-3">
+      <div className="text-xs text-muted">{label}</div>
+      <div className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-xl">{value}</div>
+      {sub && <div className="hidden text-xs text-muted sm:block">{sub}</div>}
+    </div>
+  );
+  const next: [string, Tab] = !graded ? ["Grade your decisions", "grades"] : missed ? [`Review ${missed.toLocaleString()} ${missed === 1 ? "miss" : "misses"}`, "grades"] : ["Import more hands", "import"];
+  return (
+    <section aria-label="Overview" className="grid grid-cols-3 items-stretch gap-2 sm:flex sm:flex-wrap">
+      {tile("Hands kept", hands.toLocaleString())}
+      {tile("Decisions graded", `${graded.toLocaleString()} of ${total.toLocaleString()}`, graded ? undefined : "none yet")}
+      {graded > 0 && tile("Outside the mix", missed.toLocaleString(), "Inaccuracy, Mistake or Blunder")}
+      <div className="col-span-3 flex items-center">
+        <button type="button" onClick={() => (go(next[1]), graded > 0 && missed > 0 && reveal("analyze-misses"))} className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-bg">
+          {next[0]}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** Scrolls to an element once the tab that holds it has drawn it (grading a few thousand hands' report takes a moment). */
+function reveal(id: string, tries = 60) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView?.({ block: "start" }); // (jsdom has none)
+  else if (tries > 0) setTimeout(() => reveal(id, tries - 1), 50);
+}
+
+function Nothing() {
+  return <p className="text-sm text-muted">None of the hands the filters show counts here.</p>;
+}
+
+/** The last import's result, wherever the page is, until closed. */
+function ImportBanner({ r, onClose }: { r: Result; onClose: () => void }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-accent/40 bg-surface p-3">
+      <div className="min-w-0 flex-1">
+        <ImportResult r={r} />
+      </div>
+      <button type="button" onClick={onClose} aria-label="Close the import result" className="rounded px-1 text-muted hover:text-text">
+        ✕
+      </button>
+    </div>
+  );
+}
+
 type ClassicResult = { none: true } | { none?: undefined; from: string; read: number; imported: ClassicImport; kept: { added: number; existing: number } | null };
 
-function ImportPanel({ onImported }: { onImported: () => void }) {
+function ImportPanel({ onImported, setResult }: { onImported: () => void; setResult: (r: Result | null) => void }) {
   const [text, setText] = useState("");
   const [classic, setClassic] = useState<ClassicResult | null>(null);
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
-  const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const folder = useRef<HTMLInputElement>(null);
@@ -316,19 +440,19 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
           Reading hands{busy.total ? `: ${busy.done.toLocaleString()} of ${busy.total.toLocaleString()}` : "…"}
         </p>
       )}
-      <p className="text-xs text-muted">
-        Used the older gto-solver site in this browser?{" "}
-        <button type="button" disabled={!!busy} onClick={() => void fromClassic()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
-          Import its My hands
-        </button>{" "}
-        Read only: that site&rsquo;s data is left as it is. Your tags and notes come along; its grades don&rsquo;t (graded again here).
-      </p>
+      <About label="Used the older gto-solver site in this browser?">
+        <p>
+          <button type="button" disabled={!!busy} onClick={() => void fromClassic()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
+            Import its My hands
+          </button>{" "}
+          Read only: that site&rsquo;s data is left as it is. Your tags and notes come along; its grades don&rsquo;t (graded again here).
+        </p>
+      </About>
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}
-      {result && <ImportResult r={result} />}
       {classic && <ClassicResultLine r={classic} />}
     </section>
   );
@@ -473,7 +597,7 @@ function HandsTable({
   if (!hands.length)
     return (
       <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-        No hands kept yet. Paste a hand history above, or pick your client's hand-history files or folder.
+        No hands kept yet: import some in the Import tab.
       </p>
     );
   const listed = shown.slice(0, limit);

@@ -5,6 +5,7 @@
 // side by side and apart: realized results, all-in adjusted results and solver EV lost, each with its own sample. EV lost
 // is what graded decisions gave up against their answers: no win rate is worked out from it.
 import { useEffect, useMemo, useState } from "react";
+import { About } from "@/components/About";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import type { HandRecord } from "@/data/db";
 import { RESULT_WHY } from "@/hh/results";
@@ -47,13 +48,16 @@ export function WinningsPanel({ hands, of, losses = [] }: { hands: HandRecord[];
       <div>
         <h2 className="text-lg font-semibold">Your results</h2>
         <p className="text-muted">
-          What you won or lost in {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as the
-          histories say: what each pot paid you (after the rake) less what you put in, blinds and antes as posted, in big blinds. Nothing here is
-          graded or solved. The all-in EV counts each all-in heads-up with cards to come and both hands shown at your equity&rsquo;s
-          share of the pot (exact from the flop on; preflop from 20,000 sampled boards), every other hand as it went. Cash games, tournaments (their chips being no money) and the hands you played in Practice (or on the older gto-solver site) against its
-          opponents are kept apart.
+          What you won or lost in {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, in big blinds, as the histories say: nothing here is graded or solved.
           {w?.left.map((x) => ` ${x.n.toLocaleString()} ${x.n === 1 ? "hand is" : "hands are"} left out: ${RESULT_WHY[x.why]}.`).join("")}
         </p>
+        <About>
+          <p>
+          Won is what each pot paid you (after the rake) less what you put in, blinds and antes as posted. The all-in EV counts each all-in heads-up with cards to come and both hands shown at your equity&rsquo;s
+          share of the pot (exact from the flop on; preflop from 20,000 sampled boards), every other hand as it went. Cash games, tournaments (their chips being no money) and the hands you played in Practice (or on the older gto-solver site) against its
+          opponents are kept apart.
+          </p>
+        </About>
       </div>
       {counting && (
         <p role="status" aria-label="Reading results" className="text-muted">

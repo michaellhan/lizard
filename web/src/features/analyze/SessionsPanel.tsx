@@ -3,6 +3,7 @@
 // first. A session picked is a filter like the hands table's (`sess`): the report, the drill, the results and the
 // stats follow it, and grading takes its hands alone. Everything is read from the hands and grades kept.
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { About } from "@/components/About";
 import { bringIntoView } from "@/components/scroll";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
@@ -117,11 +118,14 @@ export function SessionsPanel({
         <h2 ref={head} tabIndex={-1} className="text-lg font-semibold">
           Your sessions
         </h2>
-        <p className="text-muted">
-          A session is a sitting by the site&rsquo;s own clock: one kind of game at one site, ended by a break over 30 minutes (8 hours in a tournament). Sessions are
-          read from the hands kept, so these numbers move as hands and grades change, and deleting an import removes its sessions. You choose what to grade, so
-          the sessions graded may not be typical. Pick one for its hands, report and results; grading then takes its hands alone.
-        </p>
+        <p className="text-muted">Each sitting, and how your grades moved across them. Pick one to see only its hands.</p>
+        <About>
+          <p>
+            A session is a sitting by the site&rsquo;s own clock: one kind of game at one site, ended by a break over 30 minutes (8 hours in a tournament). Sessions are
+            read from the hands kept, so these numbers move as hands and grades change, and deleting an import removes its sessions. You choose what to grade, so
+            the sessions graded may not be typical. Pick one for its hands, report and results; grading then takes its hands alone.
+          </p>
+        </About>
       </div>
       {sess && !picked && <Missing sess={sess} hands={hands} onClear={clear} />}
       {(kinds.length > 1 || bases.length > 0) && (
@@ -159,7 +163,7 @@ export function SessionsPanel({
       )}
       {!sess && narrow.length > 0 && <p className="text-xs text-muted">The line and the comparison are left out while the EV lost, tag or search filters pick hands by how they went.</p>}
       {trend && basis && <TrendView trend={trend} basis={basis} sits={ofKind} />}
-      {!sess && !answers.length && rows.length > 0 && <p className="text-muted">Nothing is graded here yet: grade some decisions above for a line.</p>}
+      {!sess && !answers.length && rows.length > 0 && <p className="text-muted">Nothing is graded here yet: grade some decisions (Grades & leaks) for a line.</p>}
       {listed.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs text-muted">

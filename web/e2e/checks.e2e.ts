@@ -239,6 +239,7 @@ async function playPassively(page: Page, done: () => Promise<boolean>, moves = 6
 
 /** Every street graded at Quick triage, to its end: "Forget the grades" comes back only with the run over. */
 async function gradeAtQuick(page: Page) {
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
   await page.locator("select").filter({ has: page.locator('option[value="triage"]') }).selectOption("triage");
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("status", { name: "Grading progress" }).or(page.getByRole("button", { name: "Forget the grades" }))).toBeVisible({ timeout: 60_000 });

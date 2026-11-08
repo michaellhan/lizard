@@ -30,8 +30,11 @@ test("Reduced motion stops transitions and keeps the scroll cue, which only foll
   await page.goto("/lizard/analyze/");
   await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("tab", { name: "Results" }).click();
   await expect(page.getByRole("region", { name: "Your results" })).toBeVisible();
-  expect(await page.getByRole("button", { name: "Import pasted hands" }).evaluate((n) => getComputedStyle(n).transitionDuration)).toMatch(/^0s/);
+  expect(await page.getByRole("tab", { name: "Results" }).evaluate((n) => getComputedStyle(n).transitionDuration)).toMatch(/^0s/);
+  // (the hands table, the widest)
+  await page.getByRole("tab", { name: "Hands" }).click();
 
   const box = page.locator(".scroll-x").filter({ has: page.locator("table") });
   await expect(box.first()).toBeVisible();

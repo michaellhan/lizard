@@ -145,6 +145,7 @@ Total pot $240 Main pot $120. Side pot $120. | Rake $0
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await expect(page.getByRole("row", { name: /^Hand / }).first()).toBeVisible();
   await expect(page.getByRole("row", { name: /^Hand / }).first()).toContainText("3bet pot120");
+  await page.getByRole("tab", { name: "Sessions" }).click();
   await expect(page.getByText("won +10.0bb").first()).toBeVisible();
   await clean(page, problems);
 });
@@ -205,6 +206,8 @@ test("9. PokerStars and GGPoker histories come in, and a malformed one is turned
   await box.fill(hh("stars_6max_srp.txt"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await expect(result).toContainText(/1|imported/);
+  // (with hands kept, the paste box is on the Import tab)
+  await page.getByRole("tab", { name: "Import" }).click();
   await box.fill(hh("gg_allin_preflop.txt"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await expect(result).toContainText(/1|imported/);
@@ -221,10 +224,11 @@ test("10. A session graded, and its biggest mistake opened in Study", async ({ p
   const bad = hh("stars_6max_srp.txt").replace("[Ah Qd]", "[7c 2d]");
   await box.fill([bad, hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   const report = page.getByRole("region", { name: "Report" });
   await expect(report).toBeVisible({ timeout: 180_000 });
-  const list = report.getByRole("list", { name: /most EV lost|Off the chart|Off the read/ }).first();
+  const list = report.getByRole("list", { name: /Your misses|most EV lost|Off the chart|Off the read/ }).first();
   await expect(list).toBeVisible({ timeout: 180_000 });
   await list.getByRole("link").first().click();
   await page.getByRole("link", { name: /^Study preflop decision/ }).first().click();
@@ -665,6 +669,7 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   await page.goto("/lizard/analyze/");
   await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   const report = page.getByRole("region", { name: "Report" });
   await expect(report).toBeVisible({ timeout: 180_000 });
@@ -683,6 +688,7 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   await open.click();
   await expect(open).toHaveAttribute("aria-expanded", "true");
 
+  await filters.getByRole("button", { name: /^Filters/ }).click();
   const pot = filters.getByLabel("Pot", { exact: true });
   const pots = (await pot.locator("option").allTextContents()).filter((t) => t !== "Any");
   expect(pots.length).toBeGreaterThan(1);
@@ -716,6 +722,7 @@ test("10c. The plan starts empty, reads what's graded, and its practice step ope
 
   await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
 
@@ -762,6 +769,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   await page.goto("/lizard/analyze/");
   await page.getByLabel("Paste hand histories").fill(hh("stars_6max_srp.txt"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
+  await page.getByRole("tab", { name: "Grades & leaks" }).click();
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
   // Marked as missed in the browser's own store, as the fixtures grade clean
