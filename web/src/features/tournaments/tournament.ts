@@ -65,12 +65,55 @@ export function paidCurve(playersLeft: number, share = 0.15): number[] | null {
   return w.map((x) => Math.round((x / tot) * 1000) / 10);
 }
 
-/** "50 30 20", "50/30/20", "50, 30, 20" -> [50, 30, 20] (a word that isn't a number stays, as NaN, for the check) */
+/** Money as people write it, made plain: no currency sign or percent sign, no thousands commas ("$1,000" -> "1000"). */
+const plainMoney = (t: string) => t.replace(/[$€£¥%]/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
+
+/** "50 30 20", "50/30/20", "50, 30, 20", "$10,000 $6,000" -> [50, 30, 20] / [10000, 6000] (a word that isn't a number
+ * stays, as NaN, for the check) */
 export const parsePayouts = (t: string): number[] =>
-  t
+  plainMoney(t)
     .split(/[\s,;/]+/)
     .filter(Boolean)
     .map((x) => Number(x));
+
+/** A line's place or places at its start: "1st", "4-6", "7th – 9th", "2nd place", "3:", "3)", "4. " or "1<tab>". */
+const PLACE = /^(\d+)\s*(st|nd|rd|th)?(?:\s*(?:-|–|—|to)\s*(\d+)\s*(?:st|nd|rd|th)?)?\s*(place\b)?\s*(:|\)|=|\.(?=\s))?/i;
+/** Far more places than a payout table has: a range past this isn't spelled out (the check refuses past 200). */
+const MOST_PLACES = 250;
+
+/** A payout table pasted from a site or a sheet, one place (or a range of places) a line, as the payouts box's text ("1st
+ * $10,000 / 2nd $6,000 / 4-6 $2,000" -> "10000 6000 2000 2000 2000"); a place left out is a gap ("?") the check names.
+ * Lines without a number ("Place Prize") and a "Total" line are skipped. null for text that isn't a table (one line with
+ * no place on it), which the box takes as it is. */
+export function pastedPayouts(text: string): string | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => /\d/.test(l) && !/^total\b/i.test(l));
+  if (!lines.length) return null;
+  const byPlace = new Map<number, number>();
+  let at = 0;
+  let placed = false;
+  for (const raw of lines) {
+    const line = plainMoney(raw);
+    const m = PLACE.exec(line);
+    const rest = m ? line.slice(m[0].length) : "";
+    const amount = /\d+(?:\.\d+)?/.exec(rest);
+    const tabbed = /^\d+\s*\t/.test(line);
+    if (m && amount && (m[2] || m[3] || m[4] || m[5] || tabbed)) {
+      placed = true;
+      const from = Number(m[1]);
+      const to = Math.min(m[3] ? Number(m[3]) : from, MOST_PLACES);
+      for (let k = from; k <= to; k++) if (!byPlace.has(k)) byPlace.set(k, Number(amount[0]));
+      at = Math.max(at, to);
+    } else {
+      for (const n of line.match(/\d+(?:\.\d+)?/g) ?? []) byPlace.set(++at, Number(n));
+    }
+  }
+  if (!placed && lines.length < 2) return null;
+  const last = Math.max(...byPlace.keys());
+  return Array.from({ length: last }, (_, k) => (byPlace.has(k + 1) ? String(byPlace.get(k + 1)) : "?")).join(" ");
+}
 
 const pos = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x > 0;
 

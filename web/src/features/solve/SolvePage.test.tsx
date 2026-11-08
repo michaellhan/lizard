@@ -117,6 +117,11 @@ describe("SolvePage", () => {
     // what can't be asked is refused first
     type("Payouts", "50 thirty 20");
     expect(within(problems()!).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["the payouts must be positive numbers, first place first (like 50, 30, 20)"]);
+    // a table pasted from a site is read place by place
+    const box = screen.getByRole("textbox", { name: "Payouts" });
+    fireEvent.paste(box, { clipboardData: { getData: () => "Place\tPrize\n1st\t$5,000\n2nd\t$3,000\n3rd\t$2,000" } });
+    expect(box).toHaveValue("5000 3000 2000");
+    expect(problems()).toBeNull();
     type("Payouts", "50/30/20");
     expect(problems()).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open in Study" }));

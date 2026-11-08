@@ -96,7 +96,17 @@ test("The web manifest is linked from a deep page and names the app under its ow
   expect(new URL(icon).pathname).toBe("/lizard/lizard.svg");
   const m = await (await request.get(href)).json();
   expect([m.start_url, m.scope, m.display]).toEqual(["/lizard/", "/lizard/", "standalone"]);
-  expect((await request.get(new URL(m.icons[0].src, href).href)).ok()).toBe(true);
+  // every icon is there and is what it says: PNGs at 192 and 512 for installing, a maskable one, and iOS's own
+  const icons = m.icons as { src: string; sizes: string; type: string; purpose: string }[];
+  expect(icons.map((i) => `${i.sizes} ${i.purpose}`)).toEqual(["any any", "192x192 any", "512x512 any", "512x512 maskable"]);
+  const apple = await page.locator('link[rel="apple-touch-icon"]').evaluate((l: HTMLLinkElement) => l.href);
+  for (const [src, size] of [...icons.map((i) => [new URL(i.src, href).href, i.sizes] as const), [apple, "180x180"] as const]) {
+    const res = await request.get(src);
+    expect(res.ok(), src).toBe(true);
+    if (!src.endsWith(".png")) continue;
+    const png = await res.body();
+    expect(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, src).toBe(size);
+  }
   expect(problems.errors).toEqual([]);
 });
 

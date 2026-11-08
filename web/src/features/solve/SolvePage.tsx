@@ -14,7 +14,7 @@ import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
 import { bubbleTableOf } from "@/features/tournaments/icm";
-import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
 import { LIMITS, numsOf, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
@@ -212,7 +212,19 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             <div className="space-y-1.5 text-sm">
               <label className="flex flex-wrap items-center gap-2">
                 Payouts
-                <input aria-label="Payouts" placeholder="e.g. 50 30 20" value={payouts} onChange={(e) => setPayouts(e.target.value)} {...flag("the payouts must", "places paid")} className={`${field} min-w-0 flex-1 basis-48`} />
+                <input
+                  aria-label="Payouts"
+                  placeholder="e.g. 50 30 20, or paste a payout table"
+                  title="Prizes first place first, in any unit. A table pasted from a site or a sheet (1st $10,000, 4-6 $2,000) is read place by place."
+                  value={payouts}
+                  onChange={(e) => setPayouts(e.target.value)}
+                  onPaste={(e) => {
+                    const t = pastedPayouts(e.clipboardData.getData("text"));
+                    if (t === null) return;
+                    e.preventDefault();
+                    setPayouts(t);
+                  }}
+                  {...flag("the payouts must", "places paid")} className={`${field} min-w-0 flex-1 basis-48`} />
               </label>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="text-muted">Shapes:</span>

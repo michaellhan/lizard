@@ -2,7 +2,7 @@
 // other tables. It's what the Tournaments page sets up, as far as Practice can play it: no bounties, as a session has no
 // answer for who holds one once a hand has been played.
 import { LIMITS } from "@/features/solve/setup";
-import { PAYOUT_PRESETS, parsePayouts, tournamentProblems } from "@/features/tournaments/tournament";
+import { PAYOUT_PRESETS, parsePayouts, pastedPayouts, tournamentProblems } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { PUSH_FOLD_MAX, type TournamentOptions } from "./practice";
 
@@ -77,9 +77,19 @@ export function TournamentFields({
       </label>
       {icm && (
         <>
-          <label className="flex items-center gap-1" title="The prizes still to be paid, first place first, in any unit">
+          <label className="flex items-center gap-1" title="The prizes still to be paid, first place first, in any unit. A pasted payout table (1st $10,000, 4-6 $2,000) is read place by place.">
             <span className="text-muted">Prizes left</span>
-            <input aria-label="Prizes left" value={draft.payouts} onChange={(e) => set({ payouts: e.target.value })} className={`w-44 ${INPUT}`} />
+            <input
+              aria-label="Prizes left"
+              value={draft.payouts}
+              onChange={(e) => set({ payouts: e.target.value })}
+              onPaste={(e) => {
+                const t = pastedPayouts(e.clipboardData.getData("text"));
+                if (t === null) return;
+                e.preventDefault();
+                set({ payouts: t });
+              }}
+              className={`w-44 ${INPUT}`} />
           </label>
           <select aria-label="Prize shapes" value="" onChange={(e) => e.target.value && set({ payouts: e.target.value })} className={INPUT}>
             <option value="">Or a shape</option>

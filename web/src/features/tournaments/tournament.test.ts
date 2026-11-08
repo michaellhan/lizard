@@ -3,9 +3,33 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { describeTournament, paidCurve, parsePayouts, PAYOUT_PRESETS, satellitePayouts, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { describeTournament, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
+
+describe("a pasted payout table", () => {
+  it("reads places, ranges and amounts, line by line", () => {
+    const site = "Place\tPrize\n1st\t$10,000\n2nd\t$6,000\n3rd\t$4,000\n4-6\t$2,000\n7th – 9th: $1,000.50\nTotal $28,003";
+    expect(pastedPayouts(site)).toBe("10000 6000 4000 2000 2000 2000 1000.5 1000.5 1000.5");
+    expect(pastedPayouts("1: 25%\n2: 15%\n3) 10%\n4. 8%")).toBe("25 15 10 8");
+    expect(pastedPayouts("1\t500\n2\t300")).toBe("500 300");
+    expect(pastedPayouts("1st place 40\n2nd place 25 (25%)")).toBe("40 25");
+    // one amount a line, in order
+    expect(pastedPayouts("50\n30\n20")).toBe("50 30 20");
+    expect(pastedPayouts("12.5\n7.5")).toBe("12.5 7.5");
+    expect(pastedPayouts("50 30\n20")).toBe("50 30 20");
+    // out of order is put in order; a place left out stays a gap, which the check names
+    expect(pastedPayouts("2nd $600\n1st $1,000")).toBe("1000 600");
+    expect(parsePayouts(pastedPayouts("1st 100\n3rd 50")!)).toEqual([100, NaN, 50]);
+    // a range too long to be a payout table isn't spelled out
+    expect(parsePayouts(pastedPayouts("1st 100\n2-100000 1")!).length).toBeLessThan(300);
+    // a plain one-line list is left to the box as it is
+    expect(pastedPayouts("50 30 20")).toBeNull();
+    expect(pastedPayouts("$1,000 $600")).toBeNull();
+    expect(pastedPayouts("1st $1,000")).toBe("1000");
+    expect(pastedPayouts("no numbers here")).toBeNull();
+  });
+});
 
 describe("a tournament's setup", () => {
   it("maps the payouts, the other tables and the bounties to the engine's keys", () => {
@@ -59,6 +83,10 @@ describe("a tournament's setup", () => {
     expect(parsePayouts("50/30/20")).toEqual([50, 30, 20]);
     expect(parsePayouts(" 50, 30; 20 ")).toEqual([50, 30, 20]);
     expect(parsePayouts("50 thirty")).toEqual([50, NaN]);
+    // money as people write it: a currency sign, thousands commas, a percent sign
+    expect(parsePayouts("$10,000 $6,000 $4,000")).toEqual([10000, 6000, 4000]);
+    expect(parsePayouts("€1,250.50, £600")).toEqual([1250.5, 600]);
+    expect(parsePayouts("50% 30% 20%")).toEqual([50, 30, 20]);
     for (const p of PAYOUT_PRESETS) expect(p.payouts.reduce((a, b) => a + b, 0), p.name).toBeCloseTo(100);
     // a satellite's bubble at this table: a seat each for all but one (heads-up, one seat is winner-takes-all)
     expect(satellitePayouts(6)).toEqual([1, 1, 1, 1, 1]);
