@@ -676,6 +676,8 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   const filters = page.getByRole("region", { name: "Filters" });
   await expect(filters).toBeVisible();
 
+  // (every breakdown is folded under one line beneath the misses)
+  await report.getByText(/^Every breakdown/).click();
   const breaks = page.getByRole("group", { name: "Breakdowns" });
   await expect(breaks).toBeVisible({ timeout: 120_000 });
   await page.screenshot({ path: "e2e-results/shots/desktop/analyze-reports.png", fullPage: true });
@@ -789,6 +791,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
       }),
   );
   await page.reload();
+  await page.getByRole("tab", { name: "Hands" }).click();
   await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
   const hand = page.getByRole("region", { name: "Hand", exact: true });
   await expect(hand.getByText(/Add to review keeps the one you choose/)).toBeVisible();
@@ -797,6 +800,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   await expect(hand.getByRole("status").filter({ hasText: /^Added, due tomorrow/ })).toBeVisible();
   // the same spot pressed again isn't a second entry
   await page.reload();
+  await page.getByRole("tab", { name: "Hands" }).click();
   await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
   await hand.getByRole("button", { name: /^Add to review: / }).first().click();
   await expect(hand.getByRole("status").filter({ hasText: /^Already kept/ })).toBeVisible();
