@@ -58,7 +58,7 @@ describe("MissCards", () => {
     expect(screen.getByRole("heading")).toHaveTextContent("Miss 2 of 2");
     expect(screen.getByRole("region", { name: "Your misses" })).toHaveTextContent("You played raise to 2.5");
     fireEvent.keyDown(window, { key: " " });
-    expect(screen.getByRole("group", { name: "The answer" })).toHaveTextContent("preflop charts, by frequency: not a solve");
+    expect(screen.getByRole("group", { name: "The answer" })).toHaveTextContent("Graded by the preflop charts (by frequency, not a solve)");
     fireEvent.click(screen.getByRole("button", { name: "← Previous" }));
     expect(last.setK).toHaveBeenLastCalledWith(0);
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));

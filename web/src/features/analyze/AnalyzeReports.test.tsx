@@ -45,7 +45,7 @@ const seed = async (hands: HandRecord[], ds: DecisionRecord[] = []) => {
 const fixtures = async (...files: string[]) => (await prepare([{ name: "a", text: files.map(HH).join("\n\n") }], { id: "i", name: "i", at: 1 })).hands;
 const sample = async (says: string) => {
   const el = await screen.findByRole("status", { name: "Sample after filtering" });
-  await waitFor(() => expect(el).toHaveTextContent(says));
+  await waitFor(() => (says ? expect(el).toHaveTextContent(says) : expect(el.textContent).toBe("")));
 };
 const pick = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
 // (the page's views are tabs: one's content shows at a time; the filter bar's selects fold away until "Filters" is pressed)
@@ -68,7 +68,7 @@ describe("the filter bar", () => {
     const { hs, ds } = mixed();
     await seed(hs, ds);
     open();
-    await sample("Every report covers all your 5 hands and 4 graded decisions.");
+    await sample(""); // (nothing to say while no filter is on)
     showFilters();
     pick("Site", "PokerStars");
     pick("Stakes", "$1");
@@ -76,7 +76,7 @@ describe("the filter bar", () => {
     await waitFor(() => expect(search().get("from")).toBe("2026-01-02"));
     expect(search().get("site")).toBe("PokerStars");
     expect(search().get("bb")).toBe("$1");
-    await sample("Every report covers 1 hand of 5 and 1 of 4 graded decisions.");
+    await sample("Showing 1 hand of 5 · 1 of 4 graded decisions");
     await tab("Grades & leaks");
     await waitFor(() => expect(screen.getByRole("region", { name: "Report" })).toHaveTextContent("1 of your decisions graded in 1 hands"));
     expect(within(screen.getByRole("region", { name: "Filters" })).getByText(/left out while a date is set/)).toHaveTextContent("1 hand with no date in the history is left out");
@@ -86,9 +86,9 @@ describe("the filter bar", () => {
     const { hs, ds } = mixed();
     await seed(hs, ds);
     open("site=GGPoker");
-    await sample("Every report covers 1 hand of 5 and 1 of 4 graded decisions.");
+    await sample("Showing 1 hand of 5 · 1 of 4 graded decisions");
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    await sample("all your 5 hands");
+    await sample("");
     expect(search().get("site")).toBeNull();
     expect(screen.getByRole("heading", { name: "Filters" })).toHaveFocus();
   });
@@ -98,7 +98,7 @@ describe("the filter bar", () => {
     await seed(hs, ds);
     open("site=GGPoker&bb=%242");
     expect(await screen.findByLabelText("Nothing left")).toHaveTextContent("None of your hands matches all of these filters together. Every report is empty until you change them.");
-    await sample("Every report covers 0 hands of 5 and 0 of 4 graded decisions.");
+    await sample("Showing 0 hands of 5 · 0 of 4 graded decisions");
     cleanup();
     open("from=2026-02-01&to=2026-01-01");
     expect(await screen.findByLabelText("Nothing left")).toHaveTextContent("From is later than To, so no day can match.");
@@ -108,7 +108,7 @@ describe("the filter bar", () => {
     const h = hand(T0);
     await seed([h], [dec(h), cbet(h, { verdict: "Not graded", why: "x", evLossBb: null, lossPct: null })]);
     open();
-    await sample("all your 1 hand and 1 graded decision.");
+    await waitFor(() => expect(screen.getByRole("region", { name: "Overview" })).toHaveTextContent("1 hand · 1 of 1 decisions graded"));
     showFilters();
     const bar = screen.getByRole("region", { name: "Filters" });
     for (const name of ["Site", "Stakes", "Your seat", "Pot", "EV lost"]) expect(within(bar).getByRole("combobox", { name })).toBeInTheDocument();

@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
-import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { describe } from "@/solver/provenance";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import type { Verdict } from "@/grading/grade";
@@ -95,6 +95,19 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
   );
 }
 
+/** What graded it, in a few words; the full line (how close to equilibrium, confidence) a click away, kept with the grade. */
+function GradedBy({ d }: { d: DecisionRecord }) {
+  const p = decisionProvenance(d);
+  const full = describe(p);
+  const short = d.source === "charts" ? "the preflop charts (by frequency, not a solve)" : full.split(" · ")[0];
+  return (
+    <details className="text-xs text-muted">
+      <summary className="cursor-pointer hover:text-text">Graded by {short}</summary>
+      <p className="mt-1">{full}. Kept with the grade: nothing is solved here.</p>
+    </details>
+  );
+}
+
 function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord | undefined; open: boolean; onTurn: () => void }) {
   const [params] = useSearchParams();
   const r = useMemo(() => (hand ? readHand(hand.text) : null), [hand]);
@@ -150,7 +163,7 @@ function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord |
           Show the answer
         </button>
       ) : (
-        <div role="group" aria-label="The answer" className="space-y-2 rounded border border-border bg-bg/40 p-3">
+        <div role="group" aria-label="The answer" className="space-y-2 border-t border-border pt-3">
           <p className="flex flex-wrap items-center gap-2">
             <VerdictTag v={d.verdict as Verdict} />
             <span>
@@ -158,8 +171,8 @@ function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord |
                 ? d.evLossBb > 0
                   ? `${d.roughEv ? "≈" : ""}${fmt(d.evLossBb)}bb lost${d.lossPct != null ? ` (${d.lossPct}% of the pot)` : ""}`
                   : "no EV lost"
-                : d.freq != null
-                  ? `with your hand the answer plays ${d.matched ?? d.action} ${pct(d.freq)} of the time`
+                : d.freq != null && !mix.length
+                  ?`with your hand the answer plays ${d.matched ?? d.action} ${pct(d.freq)} of the time`
                   : ""}
             </span>
           </p>
@@ -194,10 +207,7 @@ function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord |
             )
           )}
           {d.note && <p className="text-xs text-muted">{d.note}</p>}
-          <p className="text-xs text-muted">
-            Graded against <ProvenanceBadge p={decisionProvenance(d)} quiet />
-            {d.source === "charts" ? " (the preflop charts, by frequency: not a solve)" : ""}, kept with the grade: nothing is solved here.
-          </p>
+          <GradedBy d={d} />
           <p className="flex gap-3 text-xs">
             {study && (
               <Link to={study} className="underline">

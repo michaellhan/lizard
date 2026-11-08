@@ -112,12 +112,10 @@ export function FilterBar({
           </button>
         )}
         <span role="status" aria-label="Sample after filtering" className="text-xs text-muted">
-          {shown.length === hands.length
-            ? `Every report covers all your ${count(hands.length, "hand")} and ${count(graded, "graded decision")}.`
-            : `Every report covers ${count(shown.length, "hand")} of ${hands.length.toLocaleString()} and ${gradedShown.toLocaleString()} of ${count(graded, "graded decision")}.`}
+          {shown.length === hands.length ? "" : `Showing ${count(shown.length, "hand")} of ${hands.length.toLocaleString()} · ${gradedShown.toLocaleString()} of ${count(graded, "graded decision")}`}
         </span>
         <span className="flex-1" />
-        <SaveReport params={params} />
+        {on && <SaveReport params={params} />}
       </div>
       <div id="analyze-filters" hidden={!(open || set1 > 0)} className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">

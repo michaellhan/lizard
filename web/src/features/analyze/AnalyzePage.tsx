@@ -156,8 +156,14 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="text-2xl font-semibold">Analyze</h1>
+        {hands && hands.length > 0 && (
+          <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} reviewing={miss !== null} onReview={() => set({ miss: "1", hand: null })} />
+        )}
+      </div>
+      {(!hands?.length || (tab === "import" && miss === null)) && (
+      <div className="space-y-1">
         <p className="text-sm text-muted">Import your hand histories, replay them, and grade your decisions. Nothing leaves this browser.</p>
         <About>
           <p>
@@ -168,6 +174,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
           </p>
         </About>
       </div>
+      )}
       {result && <ImportBanner r={result} onClose={() => setResult(null)} />}
       {hands === null || shown === null ? (
         <p className="text-sm text-muted">Reading the hands kept here…</p>
@@ -175,7 +182,6 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <ImportPanel onImported={reload} setResult={setResult} />
       ) : (
         <>
-          <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} reviewing={miss !== null} onReview={() => set({ miss: "1", hand: null })} />
           {miss !== null ? (
             <>
               <MissCards misses={misses} byId={countedById} k={Number(miss) - 1 || 0} setK={(k) => set({ miss: String(k + 1) })} onClose={() => set({ miss: null, hand: null })} />
@@ -269,24 +275,25 @@ function TabBar({ tab, go }: { tab: Tab; go: (t: Tab) => void }) {
 
 /** What's here and the one thing to do next: grade, then review what the grades found. */
 function Overview({ hands, total, graded, missed, go, reviewing, onReview }: { hands: number; total: number; graded: number; missed: number; go: (t: Tab) => void; reviewing: boolean; onReview: () => void }) {
-  const tile = (label: string, value: string, sub?: string) => (
-    <div className="min-w-0 rounded-lg border border-border bg-surface px-2 py-2 sm:min-w-32 sm:px-3">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-xl">{value}</div>
-      {sub && <div className="hidden text-xs text-muted sm:block">{sub}</div>}
-    </div>
-  );
   const next: [string, Tab] = !graded ? ["Grade your decisions", "grades"] : missed ? [`Review ${missed.toLocaleString()} ${missed === 1 ? "miss" : "misses"}`, "grades"] : ["Import more hands", "import"];
   return (
-    <section aria-label="Overview" className="grid grid-cols-3 items-stretch gap-2 sm:flex sm:flex-wrap">
-      {tile("Hands kept", hands.toLocaleString())}
-      {tile("Decisions graded", `${graded.toLocaleString()} of ${total.toLocaleString()}`, graded ? undefined : "none yet")}
-      {graded > 0 && tile("Outside the mix", missed.toLocaleString(), "Inaccuracy, Mistake or Blunder")}
-      <div className={`col-span-3 flex items-center ${reviewing ? "hidden" : ""}`}>
-        <button type="button" onClick={() => (graded > 0 && missed > 0 ? onReview() : go(next[1]))} className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-bg">
+    <section aria-label="Overview" className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+      <span className="tabular-nums">
+        {hands.toLocaleString()} {hands === 1 ? "hand" : "hands"} · {graded ? `${graded.toLocaleString()} of ${total.toLocaleString()} decisions graded` : "none graded yet"}
+        {graded > 0 && (
+          <>
+            {" · "}
+            <span title="Inaccuracy, Mistake or Blunder">
+              {missed.toLocaleString()} outside the mix
+            </span>
+          </>
+        )}
+      </span>
+      {!reviewing && (
+        <button type="button" onClick={() => (graded > 0 && missed > 0 ? onReview() : go(next[1]))} className="ml-auto rounded bg-accent px-3 py-1 text-sm font-medium text-bg">
           {next[0]}
         </button>
-      </div>
+      )}
     </section>
   );
 }
