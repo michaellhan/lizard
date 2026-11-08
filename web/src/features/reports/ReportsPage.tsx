@@ -5,6 +5,7 @@
 // flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
 // the URL. A 3-way spot's report is built in the page from its stored flops' entries (strategies only). Below it, a turn report
 // over a sample of the spot's flops of the texture chosen (TurnReportPanel.tsx).
+import { About } from "@/components/About";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -114,10 +115,12 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
-        <p className="text-sm text-muted">
-          A precomputed spot&rsquo;s flop strategy across every flop it stores, read from the library with no solve: per flop and averaged by
-          texture, each flop weighted by how often it comes up. Only spots in the library have reports.
-        </p>
+        <p className="text-sm text-muted">How a precomputed spot plays every flop it stores, flop by flop and averaged by texture.</p>
+        <About>
+          <p>
+            Read from the library with no solve: each flop weighted by how often it comes up. Only spots in the library have reports.
+          </p>
+        </About>
       </div>
       {lib.st === "loading" && <p className="text-sm text-muted">Loading the library&rsquo;s index…</p>}
       {lib.st === "error" && (
@@ -303,7 +306,11 @@ function SpotReport({
           ) : (
             <ReportTable rep={rep} view={view} all={all} shown={shown} group={group} sort={sort} desc={desc} set={set} rowLimit={rowLimit} />
           )}
-          <p className="text-xs text-muted">
+          {isFacing(view) && (
+            <p className="text-xs text-muted">Facing a bet: flops where the bet is made under 5% of the time aren&rsquo;t stored, so they&rsquo;re left out.</p>
+          )}
+          <About label="What the columns mean">
+          <p>
             {rep.label}
             {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision
             {hasEv(rep)
@@ -322,6 +329,7 @@ function SpotReport({
             {isFacing(view) &&
               ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
           </p>
+          </About>
           {/* (a sample belongs to its texture and seed: a new one starts from the top, what's read kept in keptTurns) */}
           <TurnReportPanel key={`${filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={steadyFilter} params={params} set={set} kept={keptTurns} sample={turnSample} againRef={sampleAgainRef} />
         </>

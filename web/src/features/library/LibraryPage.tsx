@@ -1,5 +1,6 @@
 // Library coverage, read live from the published index: as the heads-up builds complete more flops and the library
 // is republished, this page (and the engine) pick them up without a redeploy.
+import { About } from "@/components/About";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
@@ -48,10 +49,12 @@ export function LibraryPage() {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Precomputed library</h1>
-          <p className="max-w-2xl text-sm text-muted">
-            Flops answered instantly from solutions computed offline (each entry within ~0.1-0.15% of the pot of equilibrium in its
-            abstraction). Anything not listed is solved live. Coverage is read from the published index each time.
-          </p>
+          <p className="max-w-2xl text-sm text-muted">Flops answered instantly from solutions computed offline. Anything not listed is solved live.</p>
+          <About>
+            <p>
+              Each entry is within ~0.1-0.15% of the pot of equilibrium in its abstraction. Coverage is read from the published index each time.
+            </p>
+          </About>
         </div>
         <button type="button" onClick={() => setTick((t) => t + 1)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
           Refresh

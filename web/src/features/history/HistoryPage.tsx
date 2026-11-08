@@ -1,6 +1,7 @@
 // History: every session kept in this browser, by day, newest first, with lifetime totals by kind, Practice's finished
 // hands by pot type (features/history/history.ts), and decisions by street, by seat, by pot and over time (progress.ts).
 // Each row says what graded it; nothing here is solved anew.
+import { About } from "@/components/About";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bb, pct } from "@/components/actions";
@@ -78,11 +79,14 @@ export function HistoryPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">History</h1>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted">Every session you&rsquo;ve played here, newest first, and how your grades add up.</p>
+        <About>
+        <p>
           Every session kept in this browser: Practice&rsquo;s full hands and drills, Analyze&rsquo;s leak drills and Study&rsquo;s range builds, newest first.
           Each one&rsquo;s grades are against the answers it was played with, said in its row; nothing here is solved again. The sittings in your imported hands
           are in <Link to="/analyze" className="underline">Analyze</Link>, under Your sessions, read from those hands.
         </p>
+        </About>
         {mistakes != null && mistakes.kept > 0 && (
           <p className="text-sm">
             <Link to="/review" className="underline">
@@ -221,7 +225,8 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted">
+      <About label="How these figures are counted">
+<p>
         Each way of grading has its own figures, Best or Correct and then EV lost per decision, and none is added to another: a share by EV says something else than a share by frequency, and the
         preflop solve&rsquo;s EV lost is on a simplified game, never added to a postflop solve&rsquo;s. The preflop charts grade by frequency only, so they have no EV. Net counts the hands played out, not those played preflop
         only. A range build is scored by its accuracy over the node&rsquo;s hand classes, or combo by combo where it says so; the average takes both.
@@ -231,6 +236,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
         {totals.some((t) => t.kind === "exploit") &&
           " Exploit sessions have their own row and go in no other totals here: their EVs are against a best response to an assumed profile, never an equilibrium, and they count no net, as the opponents at the table played the equilibrium."}
       </p>
+</About>
     </section>
   );
 }
@@ -271,13 +277,15 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
           </table>
         </div>
       )}
-      <p className="text-xs text-muted">
+      <About label="How these are counted">
+<p>
         Full hands and drills. Under {MIN_SHARE} decisions a share is written as a count. EV lost is what a decision gave up against the answer named, averaged over those graded by EV: it isn&rsquo;t a
         result or a win rate. Decisions graded by frequency count no EV.
         {t.apartDecisions > 0 &&
           ` ${many(t.apartDecisions, "decision")} in ${many(t.apartSessions, "earlier session")} ${t.apartDecisions === 1 ? "was" : "were"} played before streets were kept, and ${t.apartDecisions === 1 ? "isn't" : "aren't"} split.`}
         {t.leakDecisions > 0 && ` ${many(t.leakDecisions, "leak drill decision")} ${t.leakDecisions === 1 ? "isn't" : "aren't"} split: a leak drill keeps no street.`}
       </p>
+</About>
     </section>
   );
 }
@@ -328,9 +336,11 @@ function SplitBlock({ t }: { t: SplitTotals }) {
       {t.freq.length > 0 && <SplitTable t={t} basis="freq" />}
       {!t.ev.length && !t.freq.length && <p className="text-sm text-muted">No decision here keeps its {word}.</p>}
       {t.notKept > 0 && (
-        <p className="text-xs text-muted">
+        <About label={`${many(t.notKept, "decision")} left out`}>
+<p>
           {word[0]!.toUpperCase() + word.slice(1)} not kept: {many(t.notKept, "decision")} in {many(t.notKeptSessions, "session")}, played before it was kept or from a stored drill. They count in the totals above and are left out here.
         </p>
+</About>
       )}
     </div>
   );
@@ -352,12 +362,14 @@ function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTot
           <SplitBlock t={pot} />
         </>
       )}
-      <p className="text-xs text-muted">
+      <About label="How these rates are counted">
+<p>
         Full hands and live drills, each decision under the seat you held in that hand and the pot as it stood when you decided, before your own move: an open counts as Unopened, facing an open as SRP, facing a 3-bet as a 3bet pot, and
         from the flop on the pot the preflop made. So these won&rsquo;t match the finished hands by pot type above, which put all of a hand&rsquo;s decisions under the pot it ended as. A seat&rsquo;s rows take every table size together. Graded by EV and graded by frequency are never added together. Under {MIN_SHARE} decisions a share is
         written as a count. EV lost is what a decision gave up against the answer named: it isn&rsquo;t a result or a win rate. The preflop charts are approximate, never a solve. Tournaments and exploit sessions go in neither.
         {leak > 0 && ` ${many(leak, "leak drill decision")} ${leak === 1 ? "isn't" : "aren't"} split: a leak drill keeps no seat or pot.`}
       </p>
+</About>
     </section>
   );
 }
@@ -452,12 +464,14 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
           </table>
         </div>
       )}
-      <p className="text-xs text-muted">
+      <About label="How these are counted">
+<p>
         Finished hands only, each under its pot as the preflop went while you were in it (&ldquo;Unopened&rdquo;: nobody raised or called). Each way of grading has its own figures, Best or Correct and then EV lost per decision, as in the lifetime table.
         {apart > 0 && ` ${many(apart, "decision")} from before grades were kept apart ${apart === 1 ? "isn't" : "aren't"} in them.`}
         {pots.without > 0 &&
           ` ${pots.without} earlier session${pots.without === 1 ? "" : "s"} (${pots.withoutHands} hand${pots.withoutHands === 1 ? "" : "s"}) ${pots.without === 1 ? "was" : "were"} played before pot types were kept, and ${pots.without === 1 ? "isn't" : "aren't"} split.`}
       </p>
+</About>
     </section>
   );
 }

@@ -4,6 +4,7 @@
 // line is kept while the table's size stays. Node locks and automatic sizing aren't set up here: Study asks them a hand at a time.
 // Tournaments (ROADMAP Phase 7) is this page for a tournament: the prizes left, the other tables and the bounties
 // (features/tournaments/tournament.ts) in place of the rake, answered in prize equity.
+import { About } from "@/components/About";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import type { SavedRange } from "@/data/db";
@@ -145,6 +146,10 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
       <div>
         <h1 className="text-2xl font-semibold">{tour ? "Tournaments" : "Solve"}</h1>
         <p className="text-sm text-muted">
+          {tour ? "Set up a tournament spot and open it in Study, answered in prize equity (ICM)." : "Set up a spot of your own and open it in Study."}
+        </p>
+        <About>
+        <p>
           {tour ? (
             <>
               Set up a tournament spot (the prizes left, each seat's stack, the players at other tables, bounties) and open it in Study, which answers it in prize equity (ICM):
@@ -158,6 +163,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             </>
           )}
         </p>
+        </About>
       </div>
 
       <form
@@ -231,12 +237,14 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-muted">
+              <About label="About prizes">
+<p>
                 The prizes still to be paid, first place first, in any unit. Two or more: prize equity (ICM). One: winner takes all, where chips are prizes and Study answers in
                 chips. None, with bounties: chip EV, the prizes taken as the bounties in play. A satellite pays equal prizes (seats); preflop its answers are still the chip charts
                 with a risk premium, far from a satellite's real folding ranges, so read them as the badge says: approximate. 15% paid: the places a field of the players left
                 would pay, first place about a quarter (a curve of Lizard's own, with 10 or more players left).
               </p>
+</About>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span>Other tables</span>
@@ -289,10 +297,12 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
 
         <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
           <legend className="px-1 font-medium">Seats</legend>
-          <p className="text-xs text-muted">
+          <About label="How to fill these in">
+<p>
             A stack left blank is the table's. A range is the one the seat takes to the flop (PIO style: 22+, A2s+, KTo+, QJs:0.5, AhKh); blank, the preflop charts' range for the
             line played. Preflop is still answered by the charts.
           </p>
+</About>
           <div className="scroll-x">
             <table className="w-full text-sm">
               <thead>
@@ -419,8 +429,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </div>
       </form>
 
+      <About label="Node locks, bet sizing and more">
       {tour && (
-        <p className="text-sm text-muted">
+        <p>
           Not here yet: a satellite-aware preflop (its answers stay the chip charts with a risk premium). ICM and chip EV side by side: Study's "Compare with chip EV" under a
           tournament answer. A cash game:{" "}
           <Link to="/solve" className="underline hover:text-text">
@@ -429,13 +440,14 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           .
         </p>
       )}
-      <p className="text-sm text-muted">
+      <p>
         Node locks and automatic sizing are in Study, a hand at a time: &ldquo;Hold this node at a mix (true node lock)&rdquo;, &ldquo;Against a read (best response)&rdquo; and &ldquo;Choose bet sizes (automatic sizing)&rdquo;, and after the flop only heads-up. Saved ranges come from{" "}
         <Link to="/ranges" className="underline hover:text-text">
           Ranges
         </Link>
         .
       </p>
+      </About>
     </div>
   );
 }

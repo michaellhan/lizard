@@ -2,6 +2,7 @@
 // All of it comes from plan.ts, once, as what's kept is read: state holds the finished plan and not the hands, so nothing
 // recounts on a render. Everything is in this browser, with no account. It has a route of its own for that load: every
 // hand and decision kept, which Review has no need of, and it stands over Review, Analyze and Practice alike.
+import { About } from "@/components/About";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { allSessions } from "@/data/db";
@@ -53,10 +54,13 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Plan</h1>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted">What to do next, in order. Each step is a link that starts it.</p>
+        <About label="Where the plan comes from">
+        <p>
           What to do next, in order, from what&rsquo;s kept in this browser with no account: your <Link to="/review" className="underline">Review</Link> queue, the hands graded in{" "}
           <Link to="/analyze" className="underline">Analyze</Link> and your <Link to="/practice" className="underline">Practice</Link> sessions. Each step is a link that starts it.
         </p>
+        </About>
       </div>
 
       {failed ? (
@@ -72,7 +76,9 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
       )}
 
       <section aria-label="How this plan is made" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
-        <h2 className="font-medium">How this plan is made</h2>
+        <details>
+        <summary className="w-fit cursor-pointer font-medium">How this plan is made</summary>
+        <div className="mt-2 space-y-2">
         <ol className="list-decimal space-y-1 pl-5 text-muted">
           {PLAN_RULE.map((r) => (
             <li key={r}>{r}</li>
@@ -81,6 +87,8 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
         <p className="text-muted">{PLAN_SCOPE}</p>
         <p className="text-muted">{LEAK_RULE}</p>
         <p className="text-muted">{PLAN_DONE}</p>
+        </div>
+        </details>
       </section>
     </div>
   );
