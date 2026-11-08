@@ -11,7 +11,6 @@ import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { clearDecisions, putDecisions } from "@/data/hands";
-import type { Verdict } from "@/grading/grade";
 import { VERSION_UNKNOWN } from "@/grading/version";
 import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
@@ -25,7 +24,7 @@ import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
 import { isEquilibriumHand } from "./sessions";
-import { basisOf, isGraded, isOk, isPfSolve, LEAK_RULE, leakTest, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { basisOf, isGraded, isPfSolve, LEAK_RULE, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
@@ -259,7 +258,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
   const freqTest = useMemo(() => (freq ? leakTest({ kind: "freq", key: freq }) : null), [freq]);
   const freqDs = useMemo(() => (freqTest ? ds.filter(freqTest) : []), [freqTest, ds]);
   const misses = useMemo(
-    () => ds.filter((d) => isGraded(d) && !isOk(d)).sort((x, y) => VERDICTS.indexOf(y.verdict as Verdict) - VERDICTS.indexOf(x.verdict as Verdict) || (y.evLossBb ?? 0) - (x.evLossBb ?? 0)),
+    () => missesOf(ds),
     [ds],
   );
   if (!ds.length)

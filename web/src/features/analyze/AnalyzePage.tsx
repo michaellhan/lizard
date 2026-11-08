@@ -26,9 +26,10 @@ import { decisionNote } from "./DecisionTables";
 import { FilterBar } from "./FilterBar";
 import { GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
+import { MissCards } from "./MissCards";
 import { LeakDrill } from "./LeakDrillPanel";
 import { decisionId } from "./grading";
-import { isGraded, isOk, lostByKind } from "./report";
+import { isGraded, isOk, lostByKind, missesOf } from "./report";
 import { importTooBig } from "@/data/limits";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
 import { exploitImports, exploitsApartNote, isEquilibriumHand } from "./sessions";
@@ -132,8 +133,26 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
 
   const tab = tabOf(params);
   const total = useMemo(() => played?.reduce((n, h) => n + h.decisions, 0) ?? 0, [played]);
-  const missed = useMemo(() => later.reduce((n, d) => n + Number(countedById.has(d.handId) && isGraded(d) && !isOk(d)), 0), [later, countedById]);
+  // (worst first, the hands the filters show: what "Review your misses" deals, a card at a time)
+  const misses = useMemo(() => missesOf(later.filter((d) => countedById.has(d.handId))), [later, countedById]);
+  const missed = misses.length;
+  const miss = params.get("miss");
   const go = (t: Tab) => set({ tab: t === "hands" ? null : t });
+
+  const detail = open && (
+              <HandDetail
+                hand={open}
+                decisions={openDecisions}
+                exploits={exploits}
+                onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
+                onClose={() => {
+                  // (back to the Open that opened it, or, not listed now, the page's main)
+                  const opener = [...document.querySelectorAll<HTMLElement>("[data-open-hand]")].find((b) => b.dataset.openHand === open.id);
+                  (opener ?? document.getElementById("main"))?.focus();
+                  set({ hand: null });
+                }}
+              />
+  );
 
   return (
     <div className="space-y-4">
@@ -156,27 +175,21 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
         <ImportPanel onImported={reload} setResult={setResult} />
       ) : (
         <>
-          <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} />
+          <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} reviewing={miss !== null} onReview={() => set({ miss: "1", hand: null })} />
+          {miss !== null ? (
+            <>
+              <MissCards misses={misses} byId={countedById} k={Number(miss) - 1 || 0} setK={(k) => set({ miss: String(k + 1) })} onClose={() => set({ miss: null, hand: null })} />
+              {detail}
+            </>
+          ) : (
+          <>
           <TabBar tab={tab} go={go} />
           <div role="tabpanel" id={`analyze-${tab}`} aria-labelledby={`analyze-tab-${tab}`} className="space-y-4">
             {tab !== "import" && (
               <FilterBar hands={hands} shown={shown} graded={graded} gradedShown={lossesShown.reduce((n, k) => n + k.graded, 0)} params={params} set={set} />
             )}
             {leakHands && counted && drill && <LeakDrill key={leakParam(drill)} leak={drill} decisions={decisions} hands={counted.filter((h) => isEquilibriumHand(h, exploits))} kept={leakHands} onClose={() => set({ drill: null })} />}
-            {open && (
-              <HandDetail
-                hand={open}
-                decisions={openDecisions}
-                exploits={exploits}
-                onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
-                onClose={() => {
-                  // (back to the Open that opened it, or, not listed now, the page's main)
-                  const opener = [...document.querySelectorAll<HTMLElement>("[data-open-hand]")].find((b) => b.dataset.openHand === open.id);
-                  (opener ?? document.getElementById("main"))?.focus();
-                  set({ hand: null });
-                }}
-              />
-            )}
+            {detail}
             {id && !open && <p className="text-sm text-muted">That hand isn't kept in this browser (deleted, or imported in another).</p>}
             {tab === "hands" && (
               <>
@@ -200,6 +213,8 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
               </>
             )}
           </div>
+          </>
+          )}
         </>
       )}
     </div>
@@ -253,7 +268,7 @@ function TabBar({ tab, go }: { tab: Tab; go: (t: Tab) => void }) {
 }
 
 /** What's here and the one thing to do next: grade, then review what the grades found. */
-function Overview({ hands, total, graded, missed, go }: { hands: number; total: number; graded: number; missed: number; go: (t: Tab) => void }) {
+function Overview({ hands, total, graded, missed, go, reviewing, onReview }: { hands: number; total: number; graded: number; missed: number; go: (t: Tab) => void; reviewing: boolean; onReview: () => void }) {
   const tile = (label: string, value: string, sub?: string) => (
     <div className="min-w-0 rounded-lg border border-border bg-surface px-2 py-2 sm:min-w-32 sm:px-3">
       <div className="text-xs text-muted">{label}</div>
@@ -267,20 +282,13 @@ function Overview({ hands, total, graded, missed, go }: { hands: number; total: 
       {tile("Hands kept", hands.toLocaleString())}
       {tile("Decisions graded", `${graded.toLocaleString()} of ${total.toLocaleString()}`, graded ? undefined : "none yet")}
       {graded > 0 && tile("Outside the mix", missed.toLocaleString(), "Inaccuracy, Mistake or Blunder")}
-      <div className="col-span-3 flex items-center">
-        <button type="button" onClick={() => (go(next[1]), graded > 0 && missed > 0 && reveal("analyze-misses"))} className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-bg">
+      <div className={`col-span-3 flex items-center ${reviewing ? "hidden" : ""}`}>
+        <button type="button" onClick={() => (graded > 0 && missed > 0 ? onReview() : go(next[1]))} className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-bg">
           {next[0]}
         </button>
       </div>
     </section>
   );
-}
-
-/** Scrolls to an element once the tab that holds it has drawn it (grading a few thousand hands' report takes a moment). */
-function reveal(id: string, tries = 60) {
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView?.({ block: "start" }); // (jsdom has none)
-  else if (tries > 0) setTimeout(() => reveal(id, tries - 1), 50);
 }
 
 function Nothing() {
