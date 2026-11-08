@@ -31,6 +31,7 @@ import {
   liveMistake,
   liveMode,
   liveProblem,
+  liveDrillKey,
   liveRecord,
   liveRefusal,
   liveStudyLink,
@@ -451,6 +452,8 @@ describe("what's kept", () => {
     s = afterLive(s, pr, gradeLive(a, 1), a.provenance);
     const rec = liveRecord(s, rep, "BB");
     expect(rec).toMatchObject({ kind: "practice", decisions: 2 });
+    expect(rec.meta.liveDrill).toBeUndefined();
+    expect(liveRecord(s, rep, "BB", liveDrillKey("srp_btn_bb", "river", "oop")).meta.liveDrill).toBe("srp_btn_bb|river|oop");
     const row = rowOf(rec);
     expect(row.graded).toBe("Live solve 2");
     expect(row.what).toBe("6 players · 100bb · seat BB");

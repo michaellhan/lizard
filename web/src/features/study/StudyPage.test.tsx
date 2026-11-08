@@ -787,3 +787,135 @@ describe("a spot opened with its saved answer", () => {
     expect((await openAnswer("s", TURN))?.record.savedAt).toBe(was.savedAt);
   });
 });
+
+describe("both players' ranges side by side", () => {
+  const FLOP = "p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h";
+  // a heads-up node: the one opponent's range in opponent_grid (advisor.py _study_node)
+  const HEADS_UP: AdvisorResponse = {
+    ...THREE_WAY,
+    multiway: undefined,
+    opponents: undefined,
+    opponent: "BTN",
+    opponent_grid: { actions: ["in range"], cells: { QQ: { w: 1, f: [1], eq: 0.6 }, T9s: { w: 0.5, f: [1], eq: 0.3 } } },
+    opponent_combos: 140,
+    opponent_eq: 0.6,
+  };
+  const wide = (matches: boolean) => vi.stubGlobal("matchMedia", () => ({ matches, addEventListener: () => {}, removeEventListener: () => {} }));
+  const before = (a: Element, b: Element) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING, `${a.tagName} before ${b.tagName}`).toBeTruthy();
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("isn't on until asked: one grid, and a toggle named for what it does", async () => {
+    stub.answer = HEADS_UP;
+    renderAt("p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h");
+    const toggle = await screen.findByRole("button", { name: /^Side by side/ });
+    expect(toggle).toHaveAccessibleName("Side by side: BB's range and BTN's");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getAllByRole("grid")).toHaveLength(1);
+    expect(screen.getByRole("group", { name: "Whose range" })).toBeInTheDocument();
+  });
+
+  it("puts the heads-up opponent's range beside the actor's, each labelled with whose it is and its source, and goes back to one grid", async () => {
+    stub.answer = HEADS_UP;
+    renderAt("p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h");
+    fireEvent.click(await screen.findByRole("button", { name: /^Side by side/ }));
+    expect(screen.getByRole("button", { name: /^Side by side/ })).toHaveAttribute("aria-pressed", "true");
+    const mine = screen.getByRole("region", { name: "Range" });
+    const theirs = screen.getByRole("region", { name: "BTN's range" });
+    expect(within(mine).getByRole("grid", { name: "BB range" })).toBeInTheDocument();
+    expect(within(theirs).getByRole("grid", { name: "BTN range" })).toBeInTheDocument();
+    expect(within(mine).getByRole("heading", { name: "BB's range, to act" })).toBeInTheDocument();
+    expect(within(theirs).getByRole("heading", { name: "BTN's range, the opponent" })).toBeInTheDocument();
+    // each side's numbers, and where they came from
+    expect(within(mine).getByText(/12\.0 combos · equity 40\.0%/)).toBeInTheDocument();
+    expect(within(theirs).getByText(/140\.0 combos · equity 60\.0%/)).toBeInTheDocument();
+    expect(within(mine).getByText(/^Live solve/)).toBeInTheDocument();
+    expect(within(theirs).getByText(/^Live solve/)).toBeInTheDocument();
+    expect(within(theirs).getByRole("gridcell", { name: /^QQ: 100% in range/ })).toBeInTheDocument();
+    // (the one-at-a-time toggle has nothing to do here)
+    expect(screen.queryByRole("group", { name: "Whose range" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Side by side/ }));
+    expect(screen.getAllByRole("grid").map((g) => g.getAttribute("aria-label"))).toEqual(["BB range"]);
+    expect(screen.queryByRole("region", { name: "BTN's range" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Whose range" })).toBeInTheDocument();
+  });
+
+  it("in a 3-way pot lets you pick which opponent, and keeps the pick from node to node", async () => {
+    stub.answer = THREE_WAY;
+    renderAt(FLOP);
+    fireEvent.click(await screen.findByRole("button", { name: /^Side by side/ }));
+    expect(screen.getByRole("button", { name: /^Side by side/ })).toHaveAccessibleName("Side by side: BB's range and an opponent's");
+    const pick = screen.getByRole("group", { name: "Which opponent's range beside BB's" });
+    const seats = within(pick).getAllByRole("button");
+    expect(seats.map((b) => [b.textContent, b.getAttribute("aria-pressed")])).toEqual([["CO", "true"], ["BTN", "false"]]);
+    expect(screen.getByRole("grid", { name: "CO range" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "CO's range" })).getByText(/120\.0 combos · equity 30\.0%/)).toBeInTheDocument();
+    fireEvent.click(seats[1]!);
+    const btn = screen.getByRole("region", { name: "BTN's range" });
+    expect(within(btn).getByRole("grid", { name: "BTN range" })).toBeInTheDocument();
+    expect(within(btn).getByRole("gridcell", { name: /^JJ: 100% in range/ })).toBeInTheDocument();
+    expect(within(btn).getByText(/^Live solve/)).toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "BB range" })).toBeInTheDocument();
+    // an action played: the next node (here the same answer) still side by side, against BTN
+    const asked = stub.asked.length;
+    fireEvent.click(within(screen.getByRole("region", { name: "Actions" })).getByRole("button", { name: /^check/ }));
+    await waitFor(() => expect(stub.asked.length).toBeGreaterThan(asked));
+    expect(await screen.findByRole("grid", { name: "BTN range" })).toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "BB range" })).toBeInTheDocument();
+  });
+
+  it("opens side by side from a link, against the seat it names", async () => {
+    stub.answer = THREE_WAY;
+    renderAt(`${FLOP}&vs=BTN`);
+    expect(await screen.findByRole("grid", { name: "BTN range" })).toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "BB range" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Side by side/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows the picked class of the opponent's grid in the panel, under that player's name", async () => {
+    stub.answer = THREE_WAY;
+    renderAt(`${FLOP}&vs=1`);
+    const theirs = await screen.findByRole("region", { name: "CO's range" });
+    fireEvent.click(within(theirs).getByRole("gridcell", { name: /^QQ:/ }));
+    const panel = screen.getByRole("complementary");
+    expect(within(panel).getByText("CO's range")).toBeInTheDocument();
+    expect(within(panel).getByText("QQ")).toBeInTheDocument();
+    expect(within(panel).queryByRole("table")).toBeNull();
+    // and the actor's: the actor's combos
+    fireEvent.click(within(screen.getByRole("region", { name: "Range" })).getByRole("gridcell", { name: /^AA:/ }));
+    expect(within(panel).getByText("BB's range")).toBeInTheDocument();
+    expect(within(panel).getByRole("table")).toBeInTheDocument();
+  });
+
+  it("says so where the answer has no opponent's range to show (a preflop chart), and draws its one grid as ever", async () => {
+    stub.answer = CHART_ANSWER;
+    renderAt("p=6&s=100&vs=1");
+    expect(await screen.findByRole("grid", { name: "UTG range" })).toBeInTheDocument();
+    expect(screen.getAllByRole("grid")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /^Side by side/ })).toBeNull();
+    expect(screen.getByText(/no opponent's range to put beside it/)).toBeInTheDocument();
+  });
+
+  it("on a wide window puts the opponent's range at the top of the panel, beside the grid, with the actions under it", async () => {
+    wide(true);
+    stub.answer = THREE_WAY;
+    renderAt(`${FLOP}&vs=1`);
+    const bar = await screen.findByRole("separator");
+    const theirs = screen.getByRole("region", { name: "CO's range" });
+    expect(bar.previousElementSibling).toContainElement(screen.getByRole("region", { name: "Range" }));
+    expect(bar.nextElementSibling).toContainElement(theirs);
+    before(theirs, screen.getByRole("region", { name: "Actions" }));
+    before(screen.getByRole("region", { name: "Actions" }), screen.getByRole("complementary"));
+  });
+
+  it("on a narrow window stacks it under the actor's grid, the actions above both as ever", async () => {
+    wide(false);
+    stub.answer = THREE_WAY;
+    renderAt(`${FLOP}&vs=1`);
+    const theirs = await screen.findByRole("region", { name: "CO's range" });
+    const range = screen.getByRole("region", { name: "Range" });
+    before(screen.getByRole("region", { name: "Actions" }), range);
+    before(range, theirs);
+    before(theirs, screen.getByRole("complementary"));
+  });
+});

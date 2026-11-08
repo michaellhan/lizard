@@ -364,7 +364,10 @@ export const afterLive = (s: LiveSession, pr: Pick<LiveProblem, "street" | "hero
 });
 
 /** The session as History keeps it: a Practice session of no hands, its grades under what answered them. */
-export const liveRecord = (s: LiveSession, rep: LibraryReport, seat: string): SessionRecord => ({
+/** The key a live drill's sessions are kept under, to list the earlier ones of the same drill. */
+export const liveDrillKey = (spot: string, street: LiveStreet, view: LiveView) => `${spot}|${street}|${view}`;
+
+export const liveRecord = (s: LiveSession, rep: LibraryReport, seat: string, drill?: string): SessionRecord => ({
   id: s.id,
   kind: "practice",
   startedAt: s.startedAt,
@@ -384,6 +387,7 @@ export const liveRecord = (s: LiveSession, rep: LibraryReport, seat: string): Se
     byPot: {},
     sources: s.sources,
     cells: s.cells,
+    ...(drill ? { liveDrill: drill } : {}),
   },
 });
 

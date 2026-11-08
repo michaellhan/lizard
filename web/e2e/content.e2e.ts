@@ -253,6 +253,67 @@ test("Study: the actions and the breakdown sit in the panel, which the separator
   expect(problems.errors).toEqual([]);
 });
 
+test("Study: both players' ranges side by side, heads-up and 3-way, each named with its source", async ({ page, problems }, info) => {
+  test.setTimeout(360_000); // (a library flop, then a 3-way flop solved live)
+  const shot = (name: string) => page.screenshot({ path: `e2e-results/shots/${info.project.name}/${name}.png`, fullPage: true });
+  const source = /Precomputed|Live solve|Answer at once|Heuristic rules|Equity estimate/;
+  const mine = page.getByRole("region", { name: "Range", exact: true });
+  const toggle = page.getByRole("button", { name: /^Side by side/ });
+  // beside each other from the tablet's width, the panel's pane holding the opponent's; on a phone, one under the other
+  const placed = async (theirs: typeof mine) => {
+    const [a, b] = [(await mine.boundingBox())!, (await theirs.boundingBox())!];
+    if (info.project.name === "phone") expect(b.y, "the opponent's under the actor's").toBeGreaterThan(a.y + a.height - 1);
+    else expect(b.x, "the opponent's right of the actor's").toBeGreaterThan(a.x + a.width);
+    expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+  };
+
+  // heads-up, a library flop: turned on from the keyboard, and the link says so
+  await page.goto("/lizard/study/?p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Ac7s3d");
+  await expect(toggle).toBeVisible({ timeout: 120_000 });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("grid")).toHaveCount(1);
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/[?&]vs=1/);
+  const btn = page.getByRole("region", { name: "BTN's range" });
+  await expect(mine.getByRole("heading", { name: "BB's range, to act" })).toBeVisible();
+  await expect(btn.getByRole("heading", { name: "BTN's range, the opponent" })).toBeVisible();
+  await expect(mine.getByRole("grid", { name: "BB range" })).toBeVisible();
+  await expect(btn.getByRole("grid", { name: "BTN range" })).toBeVisible();
+  await expect(mine.getByText(/combos · equity/).first()).toBeVisible();
+  await expect(btn.getByText(/combos · equity/)).toBeVisible();
+  await expect(mine.locator("span[title]").filter({ hasText: source })).toBeVisible();
+  await expect(btn.locator("span[title]").filter({ hasText: source })).toBeVisible();
+  await placed(btn);
+  await shot("study-side-by-side-hu");
+
+  // 3-way, solved live: the opponent picked, each side still named and sourced
+  await page.goto("/lizard/study/?p=3&s=100&pre=BTN:c,SB:c,BB:x&b=Ks7d2c&vs=1");
+  const pick = page.getByRole("group", { name: /^Which opponent's range beside/ });
+  await expect(pick).toBeVisible({ timeout: 240_000 });
+  const seats = pick.getByRole("button");
+  await expect(seats).toHaveCount(2);
+  await expect(seats.first()).toHaveAttribute("aria-pressed", "true");
+  const second = (await seats.nth(1).textContent())!;
+  await seats.nth(1).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]vs=${second}`));
+  const theirs = page.getByRole("region", { name: `${second}'s range` });
+  await expect(theirs.getByRole("grid", { name: `${second} range` })).toBeVisible();
+  await expect(theirs.locator("span[title]").filter({ hasText: source })).toBeVisible({ timeout: 120_000 });
+  await expect(mine.locator("span[title]").filter({ hasText: source })).toBeVisible();
+  await expect(mine.getByRole("heading", { name: /'s range, to act$/ })).toBeVisible();
+  await placed(theirs);
+  await shot("study-side-by-side-3way");
+
+  // preflop: no opponent's range in the answer, which it says, and the one grid as ever
+  await page.goto("/lizard/study/?p=6&s=100&vs=1");
+  await expect(page.getByText(/no opponent's range to put beside it/)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByRole("grid")).toHaveCount(1);
+  await expect(page.getByText(/Preflop charts/).first()).toBeVisible();
+  await done(page, problems, info, "study-side-by-side-preflop");
+});
+
 test("The engine runs on files from this site alone: the page and its workers ask no other host", async ({ page, problems }, info) => {
   const elsewhere: string[] = [];
   page.on("request", (r) => {

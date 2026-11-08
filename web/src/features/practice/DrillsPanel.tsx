@@ -59,6 +59,7 @@ import { HAND_GROUPS, handLabel, isHandKey } from "./handFilter";
 import { drillHint, DRILL_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { LiveDrill } from "./LiveDrill";
+import { PastDrills } from "./PastDrills";
 import { isLiveTurnView, isRiverView, LIVE_TURN_VIEWS, liveViewLabel, RIVER_VIEWS, type LiveStreet, type LiveView } from "./liveDeal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -675,27 +676,7 @@ function SpotDrill({
         </p>
       </details>
 
-      {past.filter((p) => p.id !== session.id).length > 0 && (
-        <section aria-label="Past drills" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="font-medium">Earlier sessions of this drill</h2>
-            <Link to="/history?kind=drill" className="text-xs underline">
-              Every drill session
-            </Link>
-          </div>
-          <ul className="space-y-0.5">
-            {past
-              .filter((p) => p.id !== session.id)
-              .map((p) => (
-                <li key={p.id} className="text-muted">
-                  {new Date(p.startedAt).toLocaleString()} · {p.decisions} decisions
-                  {p.decisions ? ` · ${pct((Number(p.meta.ok) || 0) / p.decisions, 0)} correct` : ""}
-                  {p.decisions && Number(p.meta.graded) ? ` · ${bb(p.evLossBb / p.decisions)}bb lost per decision` : ""}
-                </li>
-              ))}
-          </ul>
-        </section>
-      )}
+      <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />
     </div>
   );
 }

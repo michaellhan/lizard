@@ -4,7 +4,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { recentSessions } from "@/data/db";
+import { putSession, recentSessions } from "@/data/db";
 import { listMistakes } from "@/data/mistakes";
 import { deleteDrill, listDrills } from "@/data/saved";
 import { LibraryFiles } from "@/library/files";
@@ -108,6 +108,19 @@ describe("a live drill", () => {
     fireEvent.keyDown(window, { key: "Enter" });
     await waitFor(() => expect(screen.queryByRole("region", { name: "Answer" })).toBeNull());
     await waitFor(() => expect(stub.asked).toHaveLength(2));
+  });
+
+  it("lists this drill's earlier sessions, and not another drill's", async () => {
+    const at = Date.now() - 3600_000;
+    const rec = (id: string, decisions: number, liveDrill: string) => ({ id, kind: "practice" as const, startedAt: at, endedAt: at + 1, decisions, evLossBb: decisions / 2, meta: { ok: decisions - 1, graded: decisions, liveDrill } });
+    await putSession(rec("earlier-river", 4, "srp_btn_bb|river|oop"));
+    await putSession(rec("other-turn", 9, "srp_btn_bb|turn|checkfaces"));
+    open("spot=srp_btn_bb&street=river&view=oop");
+    const past = await screen.findByRole("region", { name: "Past drills" }, { timeout: 5000 });
+    const items = within(past).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toContainEqual(expect.stringMatching(/ · 4 decisions · 75% correct · 0\.50?bb lost per decision$/));
+    expect(items.filter((t) => t?.includes("9 decisions"))).toEqual([]);
+    expect(within(past).getByRole("link", { name: "Every Practice session" })).toHaveAttribute("href", "/history?kind=practice");
   });
 
   it("faces a turn bet with the price from the table, a number key answering", async () => {

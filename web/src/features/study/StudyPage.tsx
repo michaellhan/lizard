@@ -71,6 +71,8 @@ import { TournamentPanel, type TournamentInfo } from "./TournamentPanel";
 import { ModePicker } from "./ModePicker";
 import { catsOf, equityBuckets, filterRes, filterWords, type FilteredResponse } from "./filters";
 import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
+import { keepVs, pickOpp, VS } from "./sideBySideLink";
+import { OpponentSide, oppTotals, RangeHeading } from "./SideBySide";
 
 type Phase =
   | { kind: "loading"; partial?: SolveResult }
@@ -105,7 +107,22 @@ export function oppsOf(res: AdvisorResponse | undefined): OpponentRange[] {
 export function StudyPage() {
   const [params, setParams] = useSearchParams();
   const hand = useMemo<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100), [params]);
-  const setHand = useCallback((h: StudyHand) => setParams(toSearch(h)), [setParams]);
+  // (a new node keeps the ranges side by side, where they were: `vs` is the view's, not the hand's)
+  const setHand = useCallback((h: StudyHand) => setParams((q) => keepVs(toSearch(h), q.get(VS))), [setParams]);
+  // both players' ranges side by side (sideBySideLink.ts): a view, so turned on, off or to another opponent in place
+  const setVs = useCallback(
+    (vs: string | null) =>
+      setParams(
+        (q) => {
+          const next = new URLSearchParams(q);
+          if (vs) next.set(VS, vs);
+          else next.delete(VS);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
   // the furthest node of the line being walked: Back keeps it, for Forward and the breadcrumb; off it, a new line
   const [trail, setTrail] = useState(hand);
   const tip = useMemo(() => (onLine(hand, trail) ? trail : hand), [hand, trail]);
@@ -125,6 +142,8 @@ export function StudyPage() {
   const saveSettings = useSettings((s) => s.set);
   // whose range the grid shows: 0 the player to act, i the i-th opponent
   const [who, setWho] = useState(0);
+  // side by side, which grid the class picked is in: the player to act's, or the opponent's beside it
+  const [pickedIn, setPickedIn] = useState<"actor" | "opponent">("actor");
   // a hand category ("m:<id>" / "d:<id>"), kept from node to node while the node has it
   const [filterKey, setFilterKey] = useState<string | null>(null);
   // one action picked in the legend: the others are drawn empty, and the EV view shades by its EV
@@ -263,7 +282,16 @@ export function StudyPage() {
   const names = useMemo(() => res?.grid?.actions ?? [], [res]);
   const colors = useMemo(() => actionFills(names), [names]);
   const opps = useMemo(() => oppsOf(raw), [raw]);
-  const opp = who > 0 ? (opps[who - 1] ?? null) : null;
+  const vsAsked = params.get(VS);
+  const vsAt = building && raw?.study === "node" && (raw.grid?.actions.length ?? 0) > 1 ? null : pickOpp(opps, vsAsked);
+  // the opponent beside the actor's range, when side by side: then the grid on the left is always the actor's
+  const vsOpp = vsAt === null ? null : opps[vsAt]!;
+  const opp = !vsOpp && who > 0 ? (opps[who - 1] ?? null) : null;
+  // whose class the combo panel shows: side by side, the grid it was picked in
+  const panelOpp = vsOpp ? (pickedIn === "opponent" ? vsOpp : null) : opp;
+  const panelGrid = panelOpp ? panelOpp.grid : res?.grid;
+  // (the panels that work on the actor's hands get none picked in the opponent's grid)
+  const myCls = vsOpp && pickedIn === "opponent" ? null : selected;
   const grid = opp ? opp.grid : res?.grid;
   const views = res ? viewsOf(res) : (["mix"] as GridView[]);
   const view = views.includes(chosenView) ? chosenView : "mix";
@@ -280,6 +308,14 @@ export function StudyPage() {
     return vals.length ? [Math.min(...vals), Math.max(...vals)] : [0, 1];
   }, [res, view, focusIdx]);
   const filtered = res?.filter;
+  // the actor's range in words: its combos (over a category, of how many) and its equity
+  const myTotals = `${filtered ? `${filtered.label}: ` : ""}${res?.range_combos?.toFixed(1)}${filtered?.of != null ? ` of ${filtered.of.toFixed(1)}` : ""} combos${
+    res?.range_eq != null ? ` · equity ${pct(res.range_eq)}` : ""
+  }`;
+  const pickMine = useCallback((c: string) => {
+    setSelected(c);
+    setPickedIn("actor");
+  }, []);
   // the builder paints the whole range (no filter) of a complete answer: a partial one would show its mix early
   const buildable = raw?.study === "node" && (raw.grid?.actions.length ?? 0) > 1;
   const buildRes = phase.kind === "done" && buildable ? (raw as AdvisorResponse & { grid: NonNullable<AdvisorResponse["grid"]> }) : null;
@@ -338,7 +374,7 @@ export function StudyPage() {
   }, []);
 
   const split = !(building && buildable) && res?.study === "node" && grid;
-  const nodeView = res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={selected} keys={keys} />;
+  const nodeView = res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={myCls} keys={keys} />;
   // the plan's Study layout in two panes: the grid left, and to its right the actions, then the combos and the breakdown.
   // Stacked, the actions stay above the grid; and in Build, whose split is its own, above that
   const actionsInPane = wide && Boolean(split);
@@ -512,7 +548,7 @@ export function StudyPage() {
           <StudySplit>
             <section aria-label="Range" className="space-y-2">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                {opps.length > 0 ? (
+                {vsOpp ? null : opps.length > 0 ? (
                   <div role="group" aria-label="Whose range" className="flex flex-wrap gap-1">
                     {[res.actor, ...opps.map((o) => o.seat)].map((seat, i) => (
                       <button
@@ -529,13 +565,7 @@ export function StudyPage() {
                 ) : (
                   <strong>{res.actor}</strong>
                 )}
-                <span className="text-muted">
-                  {opp
-                    ? `${opp.combos?.toFixed(1) ?? "–"} combos${opp.eq != null ? ` · equity ${pct(opp.eq)}` : ""}`
-                    : `${filtered ? `${filtered.label}: ` : ""}${res.range_combos?.toFixed(1)}${filtered?.of != null ? ` of ${filtered.of.toFixed(1)}` : ""} combos${
-                        res.range_eq != null ? ` · equity ${pct(res.range_eq)}` : ""
-                      }`}
-                </span>
+                {!vsOpp && <span className="text-muted">{opp ? oppTotals(opp) : myTotals}</span>}
                 <span className="flex-1" />
                 {!opp && cats.length + buckets.length > 0 && (
                   <select
@@ -583,8 +613,33 @@ export function StudyPage() {
                       {VIEW_LABELS[v]}
                     </button>
                   ))}
+                {opps.length > 0 && (
+                  <button
+                    type="button"
+                    aria-pressed={Boolean(vsOpp)}
+                    onClick={() => {
+                      setVs(vsOpp ? null : "1");
+                      setPickedIn("actor");
+                    }}
+                    title={vsOpp ? "Back to one range at a time" : `${res.actor}'s range and an opponent's, side by side`}
+                    className={`rounded border px-2 py-0.5 ${vsOpp ? "border-accent bg-surface-3" : "border-border text-muted hover:bg-surface-2"}`}
+                  >
+                    Side by side
+                    <span className="sr-only">
+                      : {res.actor}'s range and {opps.length === 1 ? `${opps[0]!.seat}'s` : "an opponent's"}
+                    </span>
+                  </button>
+                )}
                 {buildButton}
               </div>
+              {vsAsked && !opps.length && (
+                <p className="text-xs text-muted">
+                  Side by side: this answer has no opponent's range to put beside it (Study's preflop answers hold the player to act's range alone).{" "}
+                  <button type="button" onClick={() => setVs(null)} className="underline hover:text-text">
+                    Turn off
+                  </button>
+                </p>
+              )}
               {!opp && (view === "mix" || view === "ev") && names.length > 1 && (
                 <div role="group" aria-label="Show one action" className="flex flex-wrap items-center gap-1 text-xs">
                   {names.map((nm, i) => (
@@ -609,12 +664,13 @@ export function StudyPage() {
                   )}
                 </div>
               )}
+              {vsOpp && <RangeHeading seat={res.actor ?? ""} role="to act" totals={myTotals} provenance={shown!.provenance} />}
               <RangeMatrix
                 cells={grid.cells}
                 actions={opp ? [] : names}
                 colors={colors}
-                selected={selected}
-                onSelect={setSelected}
+                selected={vsOpp && pickedIn === "opponent" ? null : selected}
+                onSelect={pickMine}
                 view={opp ? "weight" : view}
                 evRange={evRange}
                 evAction={view === "ev" ? focusIdx : null}
@@ -624,14 +680,32 @@ export function StudyPage() {
               />
             </section>
             <div className="space-y-4">
+              {/* (side by side, the opponent's range is at the top of the panel, level with the actor's beside it; stacked, under it) */}
+              {vsOpp && (
+                <OpponentSide
+                  actor={res.actor ?? ""}
+                  opps={opps}
+                  index={vsAt!}
+                  onPick={(seat) => setVs(seat)}
+                  provenance={shown!.provenance}
+                  selected={pickedIn === "opponent" ? selected : null}
+                  onSelect={(c) => {
+                    setSelected(c);
+                    setPickedIn("opponent");
+                  }}
+                />
+              )}
               {actionsInPane && nodeView}
               <aside className="space-y-3">
                 {/* (what the panel now shows; not while a partial answer's numbers are still moving) */}
                 <p role="status" className="sr-only">
-                  {selected && grid.cells[selected] && phase.kind !== "loading" ? `${cellLabel(selected, grid.cells[selected], opp ? [] : names)}. ${describe(shown!.provenance)}.` : ""}
+                  {selected && panelGrid?.cells[selected] && phase.kind !== "loading"
+                    ? `${vsOpp ? `${panelOpp ? panelOpp.seat : res.actor}'s range: ` : ""}${cellLabel(selected, panelGrid.cells[selected], panelOpp ? [] : names)}. ${describe(shown!.provenance)}.`
+                    : ""}
                 </p>
-                {selected && grid.cells[selected] ? (
-                  <ComboPanel cls={selected} res={res} colors={colors} opponent={opp ?? false} evUnit={evUnit} />
+                {vsOpp && selected && panelGrid?.cells[selected] && <p className="text-xs font-medium text-muted">{panelOpp ? panelOpp.seat : res.actor}'s range</p>}
+                {selected && panelGrid?.cells[selected] ? (
+                  <ComboPanel cls={selected} res={res} colors={colors} opponent={panelOpp ?? false} evUnit={evUnit} />
                 ) : (
                   <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
                     Select a hand class to see its combos, mix, EV and equity.
@@ -647,9 +721,9 @@ export function StudyPage() {
           <div className="flex flex-wrap items-start gap-2">
             <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
             {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
-            {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
-            {raw && <NodeLockPanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
-            {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={selected} mode={mode} getSolver={getSolver} />}
+            {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+            {raw && <NodeLockPanel key={requestKey} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+            {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
           </div>
         )}
       </div>

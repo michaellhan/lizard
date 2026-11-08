@@ -4383,3 +4383,17 @@ Left open, not investigated: the same heads-up river link gave BB 415 combos in 
 
 Tests: `pokernow.test.ts` (6) and the `hh` and Analyze suites, 372 passed with 1 skipped; typecheck and lint clean. The full unit suite and browser suite weren't run. In the dev app, the real download picked through "Choose files…" gave 122 read, 115 kept, 6 with no decision and 1 unfinished, and hand 104's replay matches its raw events. The download was served from `web/public` for that check and then deleted; it isn't in the repo. The precompute builds were left alone.
 
+
+### 2026-11-08: rows close to done are finished or graded WORKING (owner's request; Phases 1, 3, 7)
+
+The owner asked for the PARTIAL rows to be fixed, and for a row to count as WORKING when its core works and only edges are left. An audit of every PARTIAL row against the code sorted them. 22 rows needed only a regrade: their gaps were edge cases, polish or environments not tried, and each note now says "WORKING by the owner's rule of 2026-11-08" with what is left. Stale claims were corrected on the way (a 4-way answer and Study's 3-way runout report are checked in browser tests; EV lost is kept apart by way of grading; saved drills keep street and hand filter; one drill can be exported; saved answers are browser-tested).
+
+**Fixed, then graded:**
+
+- **Payout structures.** A payout table pasted from a site or a sheet is read place by place into Solve's Payouts and Practice's Prizes left (`pastedPayouts`): ordinals, ranges, currency signs, thousands commas, percents; a place left out is a gap the check names. Typed lists take `$` and commas too.
+- **Mobile.** PNG icons at 192 and 512, a maskable 512 and an `apple-touch-icon`, rendered from `lizard.svg`; the manifest test fetches each and checks its size.
+- **Range comparison.** Study's "Side by side" puts the player to act's range and an opponent's next to each other, each named, totalled and badged with its source; `vs` in the link; 3-way picks the opponent; stacked below `lg`.
+- **Drills.** Live drills ran in a browser on the live site: a river first to act answered in 6–11 s (7.8 s for the first, with the engine starting), turn facing a bet answered and graded. A live drill lists its earlier sessions, as a stored one does (`PastDrills.tsx`).
+- **Postflop trainer** and **Automatic sizing** graded WORKING with their limits named (no 3-way drills, river facing a bet not dealt; sizes for the node on screen, heads-up, where the player can bet).
+
+Lizard's grades: 36 WORKING, 19 PARTIAL, 5 APPROXIMATE, 3 NOT IMPLEMENTED (was 8 / 47 / 5 / 3). What stays PARTIAL rests on the preflop charts (the Analysis rows, EV-loss scoring, the formats, chipEV, ICM and the tournament rows), on the engine (multiway past 3-way, a lock that re-solves the tree), on authored content (Study plans), or on the opponents (Exploit practice: the table still plays equilibrium).

@@ -8,7 +8,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
-import { putSession } from "@/data/db";
+import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { missedAgain } from "@/features/review/mistakes";
 import { CAPPED_WORDS, GRADE_RULES, summary, whoOf, whyText, type Grade } from "@/grading/grade";
@@ -21,10 +21,11 @@ import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
 import { liveDrillText } from "./copyForAi";
 import { pick, turnCandidates, type TextureFilter } from "./drills";
+import { PastDrills } from "./PastDrills";
 import { handLabel } from "./handFilter";
 import { liveHint, LIVE_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, MixTable, REVEAL_NOTE, RevealedMix } from "./HintReveal";
-import { afterLive, freshLiveSession, gradeLive, liveActionLabel, liveMistake, liveMode, liveProblem, liveRecord, liveStudyLink, readLive, type LiveAnswer, type LiveProblem, type LiveSession, type LiveStreet, type LiveView } from "./liveDeal";
+import { afterLive, freshLiveSession, gradeLive, liveActionLabel, liveMistake, liveMode, liveDrillKey, liveProblem, liveRecord, liveStudyLink, readLive, type LiveAnswer, type LiveProblem, type LiveSession, type LiveStreet, type LiveView } from "./liveDeal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** the flops a deal draws before it gives up: more where a hand filter may miss on most of them */
@@ -123,9 +124,22 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
   const answer = told?.st === "answer" ? told.answer : null;
   const graded = picked?.key === dealKey ? picked : null;
 
+  const drillKey = liveDrillKey(spot.id, street, view);
   useEffect(() => {
-    if (session.score.n && data.st === "ready") void putSession(liveRecord(session, data.report, spot.seats[view === "ip" || view === "ipfaces" ? 1 : 0]!)).catch(() => {});
-  }, [session, data, spot, view]);
+    if (session.score.n && data.st === "ready") void putSession(liveRecord(session, data.report, spot.seats[view === "ip" || view === "ipfaces" ? 1 : 0]!, drillKey)).catch(() => {});
+  }, [session, data, spot, view, drillKey]);
+
+  // this drill's earlier sessions, read once as it opens (this one's own is left out as it's kept)
+  const [past, setPast] = useState<SessionRecord[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void recentSessions("practice", 60)
+      .then((xs) => alive && setPast(xs.filter((x) => x.meta.liveDrill === drillKey).slice(0, 6)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [drillKey]);
 
   const choose = useCallback(
     (a: number) => {
@@ -348,6 +362,8 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
           Only a live solve of the spot with an EV for every action and a measured distance from equilibrium grades here. Betting rules, an equity estimate, a chart or a rough or cut-short solve is said in words and the spot is dealt again, with nothing scored.
         </p>
       </details>
+
+      <PastDrills past={past} current={session.id} history="/history?kind=practice" historyLabel="Every Practice session" />
     </div>
   );
 }
