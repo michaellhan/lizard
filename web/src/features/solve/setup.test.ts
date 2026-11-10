@@ -42,7 +42,7 @@ describe("the custom setup", () => {
     expect(setupProblems(6, { rake: 5, rakeCap: -1 })).toEqual(["the rake's cap must be a positive number of big blinds"]);
     expect(setupProblems(6, { ante: 2 })).toEqual(["the ante must be 0–1bb a seat"]);
     expect(setupProblems(2, { straddle: true })).toEqual(["a straddle needs 3 or more players"]);
-    expect(setupProblems(2, { stacks: { BTN: 40, BB: 0, SB: NaN } })).toEqual(["BTN isn't a seat at this table", "BB's stack must be 1–1000bb", "SB's stack must be 1–1000bb"]);
+    expect(setupProblems(2, { stacks: { BTN: 40, BB: 0, SB: NaN } })).toEqual(["BTN isn't a seat at this table", "BB's stack must be more than 0 and at most 1000bb", "SB's stack must be more than 0 and at most 1000bb"]);
     expect(setupProblems(6, { ranges: { BB: "22+,XYZ,AA:2", SB: "AhKh,QsQd:0.5,JJ:0.25", LJ: "AA" } })).toEqual([
       `BB's range: can't read "XYZ", "AA:2"`,
       "LJ isn't a seat at this table",

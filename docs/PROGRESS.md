@@ -4397,3 +4397,9 @@ The owner asked for the PARTIAL rows to be fixed, and for a row to count as WORK
 - **Postflop trainer** and **Automatic sizing** graded WORKING with their limits named (no 3-way drills, river facing a bet not dealt; sizes for the node on screen, heads-up, where the player can bet).
 
 Lizard's grades: 36 WORKING, 19 PARTIAL, 5 APPROXIMATE, 3 NOT IMPLEMENTED (was 8 / 47 / 5 / 3). What stays PARTIAL rests on the preflop charts (the Analysis rows, EV-loss scoring, the formats, chipEV, ICM and the tournament rows), on the engine (multiway past 3-way, a lock that re-solves the tree), on authored content (Study plans), or on the opponents (Exploit practice: the table still plays equilibrium).
+
+### 2026-11-08: a hand history's short stack opens in Study as it was (Phase 1)
+
+**Analyze → Study.** A tournament seat with less than 1bb (a small blind posted all-in) failed the setup's 1bb floor, so every seat's stack was dropped and Study refused the line ("an earlier street's betting is not finished"). A seat's stack now needs only to be above 0 (to 1000bb), typed or from a hand; the hand's line closes as it was played.
+
+Tests: `analyze.test.ts` (the 3bb all-in blind), `setup.test.ts`; full unit suite 3,400 passed with 2 skipped, typecheck and lint clean. Not checked in a browser.

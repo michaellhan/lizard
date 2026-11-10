@@ -167,6 +167,39 @@ describe("decisions", () => {
     expect(studyHandAt(r, "turn", 1)!.setup).toBeUndefined();
   });
 
+  it("keeps a seat's stack under 1bb (a blind posted all-in), so Study's line closes as the hand did", () => {
+    const short = importHand(
+      [
+        "PokerStars Hand #1: Tournament #2, Hold'em No Limit - Level I (10/20) - 2026/11/08 13:25:27 ET",
+        "Table '2 1' 4-max Seat #1 is the button",
+        "Seat 1: Ann (600 in chips)",
+        "Seat 2: Bob (3 in chips)",
+        "Seat 3: Cat (500 in chips)",
+        "Seat 4: Hero (1000 in chips)",
+        "Bob: posts small blind 3 and is all-in",
+        "Cat: posts big blind 20",
+        "*** HOLE CARDS ***",
+        "Dealt to Hero [9c 9d]",
+        "Hero: raises 60 to 80",
+        "Ann: calls 80",
+        "Cat: folds",
+        "*** FLOP *** [5d 2s 8h]",
+        "Ann: checks",
+        "Hero: checks",
+        "*** TURN *** [5d 2s 8h] [Jh]",
+        "Ann: bets 100",
+        "Hero: folds",
+        "Uncalled bet (100) returned to Ann",
+        "Ann collected 183 from pot",
+        "*** SUMMARY ***",
+        "Total pot 183 | Rake 0",
+      ].join("\n"),
+    );
+    const s = studyHandAt(short, "turn", 1)!;
+    expect(s.setup?.stacks).toMatchObject({ SB: 0.15 });
+    expect(s.preflop.map((m) => m.pos)).toEqual(["CO", "BTN", "BB"]); // (the small blind has nothing left to act with)
+  });
+
   it("carries what a Practice hand's record holds beyond its history, and an imported hand's link has none of it", () => {
     const r = importHand(HH("stars_6max_srp.txt"));
     const kept = { rake: 5, rakeCap: 3, sizes: { flop: [50] } };

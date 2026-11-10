@@ -35,7 +35,7 @@ export const LIMITS = {
   sizePct: [5, 500],
   /** the rake, % of the pot (the engine's cap) */
   rakePct: 25,
-  /** a seat's own stack, bb */
+  /** a stack typed for a seat, bb (a seat's own stack in a spot, from a hand history, can be any amount above 0, to 1000) */
   stack: [1, 1000],
   /** each seat's ante, bb */
   ante: 1,
@@ -87,7 +87,8 @@ export function setupProblems(players: number, s: SpotSetup | undefined): string
   const seats = seatsOf(players);
   for (const [p, v] of Object.entries(s.stacks ?? {})) {
     if (!seats.includes(p)) out.push(`${p} isn't a seat at this table`);
-    else if (!(v >= LIMITS.stack[0] && v <= LIMITS.stack[1])) out.push(`${p}'s stack must be ${LIMITS.stack[0]}–${LIMITS.stack[1]}bb`);
+    // (any stack above nothing: a tournament seat can have less than a blind, posted all-in, and the engine plays it so)
+    else if (!(v > 0 && v <= LIMITS.stack[1])) out.push(`${p}'s stack must be more than 0 and at most ${LIMITS.stack[1]}bb`);
   }
   for (const k of SIZE_STREETS) {
     const xs = s.sizes?.[k] ?? [];
