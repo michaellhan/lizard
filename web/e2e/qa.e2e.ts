@@ -494,7 +494,7 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
     await options(page).first().click();
     await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
     if (await solve.isVisible()) {
-      if (!bySolve) await expect(page.getByText(/not a full solve/).first()).toBeVisible();
+      if (!bySolve) await expect(page.getByRole("region", { name: "Last decision" }).getByText(/not a full solve/).first()).toBeVisible();
       bySolve += 1;
     }
     if (await chart.isVisible()) {
@@ -572,7 +572,7 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
     if (await solve.isVisible()) bySolve += 1;
   }
   expect(bySolve).toBeGreaterThan(0);
-  await expect(page.getByText(/not a full solve/).first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Last decision" }).getByText(/not a full solve/).first()).toBeVisible();
   // (that game's file and no other: never the 6-max one read as if it were this game)
   expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["4max_40bb.bin"]);
   await clean(page, problems);

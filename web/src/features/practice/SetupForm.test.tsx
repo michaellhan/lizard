@@ -183,6 +183,12 @@ describe("grading preflop by the preflop solve", () => {
   it("says what the solve is, and that the opponents stay the charts'", () => {
     open();
     const note = document.getElementById("pf-note")!;
+    // (ticked by default, but said once a box is changed: your move stays on the first screen)
+    expect(note).not.toBeVisible();
+    expect(box()).toHaveAccessibleDescription(/not a full solve/);
+    fireEvent.click(box()!);
+    expect(note).not.toBeVisible();
+    fireEvent.click(box()!);
     expect(note).toBeVisible();
     expect(note).toHaveTextContent("equilibrium of a simplified class-level preflop game, not a full solve");
     expect(note).toHaveTextContent("the opponents stay the charts");

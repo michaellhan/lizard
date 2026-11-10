@@ -4,7 +4,14 @@
 // holds what's typed until it's submitted, and keeps a setup that can start as a saved scenario.
 import { useState } from "react";
 import { SaveScenario } from "@/features/saved/SaveScenario";
-import { describeSetup, LIMITS, numsOf, setupProblems, SIZE_STREETS, type SizeStreet } from "@/features/solve/setup";
+import {
+  describeSetup,
+  LIMITS,
+  numsOf,
+  setupProblems,
+  SIZE_STREETS,
+  type SizeStreet,
+} from "@/features/solve/setup";
 import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import {
   ASSUMED,
@@ -20,21 +27,58 @@ import {
 import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
 import { PF_MODEL } from "./pfGrade";
 import { LEVEL_HANDS } from "./tournamentPlay";
-import { carries, drillTries, hardHand, handWorks, isPotDrill, MAX_STACK, MIN_STACK, pfBlocked, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
-import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
-import { draftOf, readDraft, stageDraft, TournamentFields } from "./TournamentFields";
+import {
+  carries,
+  drillTries,
+  hardHand,
+  handWorks,
+  isPotDrill,
+  MAX_STACK,
+  MIN_STACK,
+  pfBlocked,
+  POT_DRILLS,
+  PUSH_FOLD_MAX,
+  REBUY,
+  type SessionOptions,
+  type Sizes,
+} from "./practice";
+import {
+  flopsLike,
+  TEXTURE_GROUPS,
+  type TextureFilter,
+  type TextureKey,
+} from "./texture";
+import {
+  draftOf,
+  readDraft,
+  stageDraft,
+  TournamentFields,
+} from "./TournamentFields";
 
-const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter =>
+const setTexture = (
+  f: TextureFilter,
+  key: TextureKey,
+  v: string,
+): TextureFilter =>
   Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
 
-const ON_WORDS = { flop: "read on the flop dealt", cards: "read on your two cards" } as const;
+const ON_WORDS = {
+  flop: "read on the flop dealt",
+  cards: "read on your two cards",
+} as const;
 
 // (measured: docs/ACCURACY.md section 18)
-const PF_SIZES_COST = "With its sizes a blind\u2019s 3-bet of a 2.5bb open is 12bb, not the chart\u2019s 10bb, and those hands leave the flop library, kept by size, for live solves after the flop.";
+const PF_SIZES_COST =
+  "With its sizes a blind\u2019s 3-bet of a 2.5bb open is 12bb, not the chart\u2019s 10bb, and those hands leave the flop library, kept by size, for live solves after the flop.";
 const PF_SIZES_OFF = `Your options and the opponents stay the charts\u2019, so the decisions its tree can\u2019t answer, measured at about 30% and most of the blinds\u2019, keep the chart\u2019s grade and say why. Offering its raise sizes takes that to about 4% if you play the charts. ${PF_SIZES_COST}`;
 const PF_SIZES_ON = `The opponents stay the charts\u2019, and where it answers, your raise is at its size. About 4% of decisions if you play the charts, more if you go off its lines, it can\u2019t answer: those keep the chart\u2019s size and grade and say why. ${PF_SIZES_COST}`;
 
-const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
+const SIZE_LABEL: Record<SizeStreet, string> = {
+  flop: "Flop bets",
+  turn: "Turn bets",
+  river: "River bets",
+  raise: "Raises",
+};
 
 export function SetupForm({
   players,
@@ -57,9 +101,15 @@ export function SetupForm({
   const [s, setS] = useState(String(stack));
   const [seat, setSeat] = useState(opts.seat);
   const [play, setPlay] = useState<string>(
-    opts.pushFold ? "pushfold" : opts.tournament ? "tournament" : (opts.pot ?? (opts.preflopOnly ? "preflop" : "full")),
+    opts.pushFold
+      ? "pushfold"
+      : opts.tournament
+        ? "tournament"
+        : (opts.pot ?? (opts.preflopOnly ? "preflop" : "full")),
   );
-  const [profile, setProfile] = useState<ExploitProfile | "">(opts.exploit?.profile ?? "");
+  const [profile, setProfile] = useState<ExploitProfile | "">(
+    opts.exploit?.profile ?? "",
+  );
   const [draft, setDraft] = useState(() => draftOf(opts.tournament, stack));
   const [stop, setStop] = useState(!!opts.tournament && opts.preflopOnly);
   const [board, setBoard] = useState<TextureFilter>(opts.board ?? {});
@@ -70,20 +120,29 @@ export function SetupForm({
   // (on unless chosen off: the solve is preflop's default grade wherever the game is stored)
   const [pfSolve, setPfSolve] = useState(opts.pfSolve ?? true);
   const [pfSizes, setPfSizes] = useState(!!opts.pfSizes);
+  // (the note is said once a box is changed: ticked by default, it would put your move below the first screen)
+  const [pfSaid, setPfSaid] = useState(false);
   const [rake, setRake] = useState(opts.rake ? String(opts.rake) : "");
   const [cap, setCap] = useState(opts.rakeCap ? String(opts.rakeCap) : "");
   const [sizeText, setSizeText] = useState<Record<SizeStreet, string>>(
-    () => Object.fromEntries(SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>,
+    () =>
+      Object.fromEntries(
+        SIZE_STREETS.map((k) => [k, (opts.sizes?.[k] ?? []).join(", ")]),
+      ) as Record<SizeStreet, string>,
   );
   // (blank: the engine's own; preflop only has no use for them)
-  const parsed = SIZE_STREETS.flatMap((k) => (numsOf(sizeText[k]).length ? [[k, numsOf(sizeText[k])] as const] : []));
+  const parsed = SIZE_STREETS.flatMap((k) =>
+    numsOf(sizeText[k]).length ? [[k, numsOf(sizeText[k])] as const] : [],
+  );
   const isPF = play === "pushfold";
   const isT = play === "tournament";
   const noFlop = play === "preflop" || isPF || isT;
-  const sizes: Sizes | null = parsed.length && !noFlop ? Object.fromEntries(parsed) : null;
+  const sizes: Sizes | null =
+    parsed.length && !noFlop ? Object.fromEntries(parsed) : null;
   const sizeProblems = sizes ? setupProblems(p, { sizes }) : [];
   // (a seat the table size doesn't have moves)
-  const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
+  const seatOk =
+    seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
   // (a tournament carries its chips by being played out: knocked-out players, prizes paid, blinds rising)
   const canCarry = isT
     ? (seatOk ? seat : "moves") === "moves" && !stop
@@ -99,13 +158,19 @@ export function SetupForm({
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
   const rk = rake.trim() === "" ? 0 : Number(rake);
   const rc = cap.trim() === "" ? 0 : Number(cap);
-  const rakeOk = Number.isFinite(rk) && rk >= 0 && rk <= LIMITS.rakePct && Number.isFinite(rc) && rc >= 0;
+  const rakeOk =
+    Number.isFinite(rk) &&
+    rk >= 0 &&
+    rk <= LIMITS.rakePct &&
+    Number.isFinite(rc) &&
+    rc >= 0;
   // (a pot-type mode's board filter: the flops of the 22,100 it leaves, none being a filter no flop can meet)
   const boardOn = isPotDrill(play) && Object.values(board).some(Boolean);
   const fits = boardOn ? flopsLike(board).length : null;
   // (the hand filter, as this pot offers it, none being one these flops can't deal)
   const handOn = handWorks(play, hand);
-  const handOk = !handOn || fits === 0 || handFits(hand, boardOn ? board : null);
+  const handOk =
+    !handOn || fits === 0 || handFits(hand, boardOn ? board : null);
   const hard = handOn && isPotDrill(play) ? hardHand(play, hand) : null;
   const pfOk = !isPF || n <= PUSH_FOLD_MAX;
   const tournament = isT ? readDraft(draft, p, n, MAX_STACK) : null;
@@ -143,7 +208,12 @@ export function SetupForm({
   // (null with the form unfinished, as there's no game yet to say anything of)
   const pfNo = game && pfBlocked(p, n, game);
   // (chosen off is said, so the session keeps it off: an option left out is read as the default)
-  const setup = game && !pfNo ? (pfSolve ? { ...game, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : { ...game, pfSolve: false }) : game;
+  const setup =
+    game && !pfNo
+      ? pfSolve
+        ? { ...game, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) }
+        : { ...game, pfSolve: false }
+      : game;
   return (
     <form
       aria-label="New session"
@@ -163,7 +233,10 @@ export function SetupForm({
           onChange={(e) => setP(Number(e.target.value))}
           className="rounded border border-border bg-surface-2 px-1.5 py-1"
         >
-          {Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => i + MIN_PLAYERS).map((x) => (
+          {Array.from(
+            { length: MAX_PLAYERS - MIN_PLAYERS + 1 },
+            (_, i) => i + MIN_PLAYERS,
+          ).map((x) => (
             <option key={x} value={x}>
               {x === 2 ? "Heads-up" : `${x}-max`}
             </option>
@@ -209,7 +282,8 @@ export function SetupForm({
           onChange={(e) => {
             setPlay(e.target.value);
             // (the band is what the mode is, so the stack comes down to it)
-            if (e.target.value === "pushfold" && !(n <= PUSH_FOLD_MAX)) setS(String(PUSH_FOLD_MAX));
+            if (e.target.value === "pushfold" && !(n <= PUSH_FOLD_MAX))
+              setS(String(PUSH_FOLD_MAX));
           }}
           title={isPotDrill(play) ? POT_DRILLS[play].tip : undefined}
           className="rounded border border-border bg-surface-2 px-1.5 py-1"
@@ -221,10 +295,16 @@ export function SetupForm({
               {d.label}
             </option>
           ))}
-          <option value="pushfold" title={`All-in or fold at ${PUSH_FOLD_MAX}bb or less`}>
+          <option
+            value="pushfold"
+            title={`All-in or fold at ${PUSH_FOLD_MAX}bb or less`}
+          >
             Push/fold
           </option>
-          <option value="tournament" title="A payout and each seat's stack, answered in chip EV or prize equity">
+          <option
+            value="tournament"
+            title="A payout and each seat's stack, answered in chip EV or prize equity"
+          >
             Tournament
           </option>
         </select>
@@ -236,7 +316,9 @@ export function SetupForm({
           aria-describedby="exploit-note"
           value={isPotDrill(play) ? profile : ""}
           disabled={!isPotDrill(play)}
-          onChange={(e) => setProfile(isProfile(e.target.value) ? e.target.value : "")}
+          onChange={(e) =>
+            setProfile(isProfile(e.target.value) ? e.target.value : "")
+          }
           className="rounded border border-border bg-surface-2 px-1.5 py-1"
         >
           <option value="">No profile: equilibrium</option>
@@ -247,7 +329,10 @@ export function SetupForm({
           ))}
         </select>
       </label>
-      <p id="exploit-note" className={`text-xs text-muted ${isPotDrill(play) ? "basis-full" : ""}`}>
+      <p
+        id="exploit-note"
+        className={`text-xs text-muted ${isPotDrill(play) ? "basis-full" : ""}`}
+      >
         {exploit
           ? `${profileName(exploit.profile)}: ${exploitNumbers(exploit)}. ${ASSUMED} You're graded against the best response to these numbers, never against equilibrium, and the answers are solved live, so each takes a few seconds. ${EXPLOIT_SCOPE} ${EXPLOIT_TABLE}`
           : isPotDrill(play)
@@ -255,11 +340,19 @@ export function SetupForm({
             : "Needs a pot drill under Play."}
       </p>
       {isPF && (
-        <p role={pfOk ? undefined : "alert"} className={`basis-full text-xs ${pfOk ? "text-muted" : "text-danger"}`}>
-          {pfOk ? "" : `Push/fold is ${MIN_STACK} to ${PUSH_FOLD_MAX}bb: bring the stack down. `}
-          The engine jams or folds first in at {PUSH_FOLD_MAX}bb or less, and Practice&rsquo;s tables start at {MIN_STACK}bb. Facing a jam
-          you call or fold. The answers are the push/fold model, an equilibrium by hand class with no EVs, so a decision is graded by how
-          often it plays your hand. An all-in runs out. A stack under {MIN_STACK}bb is a seat&rsquo;s own, under Tournament.
+        <p
+          role={pfOk ? undefined : "alert"}
+          className={`basis-full text-xs ${pfOk ? "text-muted" : "text-danger"}`}
+        >
+          {pfOk
+            ? ""
+            : `Push/fold is ${MIN_STACK} to ${PUSH_FOLD_MAX}bb: bring the stack down. `}
+          The engine jams or folds first in at {PUSH_FOLD_MAX}bb or less, and
+          Practice&rsquo;s tables start at {MIN_STACK}bb. Facing a jam you call
+          or fold. The answers are the push/fold model, an equilibrium by hand
+          class with no EVs, so a decision is graded by how often it plays your
+          hand. An all-in runs out. A stack under {MIN_STACK}bb is a
+          seat&rsquo;s own, under Tournament.
         </p>
       )}
       {isT && (
@@ -283,7 +376,9 @@ export function SetupForm({
       )}
       {isPotDrill(play) && (
         <fieldset className="flex basis-full flex-wrap items-center gap-2">
-          <legend className="sr-only">Flop in {POT_DRILLS[play].label.toLowerCase()}</legend>
+          <legend className="sr-only">
+            Flop in {POT_DRILLS[play].label.toLowerCase()}
+          </legend>
           <span className="text-muted">Flop</span>
           {TEXTURE_GROUPS.map((g) => (
             <select
@@ -291,7 +386,9 @@ export function SetupForm({
               aria-label={`Flop: ${g.label}`}
               title={g.label}
               value={board[g.key] ?? ""}
-              onChange={(e) => setBoard(setTexture(board, g.key, e.target.value))}
+              onChange={(e) =>
+                setBoard(setTexture(board, g.key, e.target.value))
+              }
               className="rounded border border-border bg-surface-2 px-1.5 py-1"
             >
               <option value="">{`${g.label}: any`}</option>
@@ -303,8 +400,13 @@ export function SetupForm({
             </select>
           ))}
           {fits !== null && (
-            <span role={fits ? "status" : "alert"} className={`text-xs ${fits ? "text-muted" : "text-danger"}`}>
-              {fits ? `${fits.toLocaleString()} of 22,100 flops fit, at one table.` : "No flop fits these: widen them."}
+            <span
+              role={fits ? "status" : "alert"}
+              className={`text-xs ${fits ? "text-muted" : "text-danger"}`}
+            >
+              {fits
+                ? `${fits.toLocaleString()} of 22,100 flops fit, at one table.`
+                : "No flop fits these: widen them."}
             </span>
           )}
         </fieldset>
@@ -351,7 +453,10 @@ export function SetupForm({
           )}
         </div>
       )}
-      <label className="flex items-center gap-1" title={`Each seat's ante, 0–${LIMITS.ante}bb`}>
+      <label
+        className="flex items-center gap-1"
+        title={`Each seat's ante, 0–${LIMITS.ante}bb`}
+      >
         <span className="text-muted">Ante</span>
         <input
           aria-label="Ante"
@@ -445,38 +550,83 @@ export function SetupForm({
           disabled={!canCarry}
           onChange={(e) => setCarry(e.target.checked)}
         />
-        <span className="text-muted">{isT ? "Play it out" : "Carry chips"}</span>
+        <span className="text-muted">
+          {isT ? "Play it out" : "Carry chips"}
+        </span>
       </label>
       {game && !pfNo && (
         <>
-          <label className="flex items-center gap-1.5" title={`By EV against the stored solve, an ${PF_MODEL}`}>
-            <input type="checkbox" aria-label="Grade preflop by the preflop solve" aria-describedby="pf-note" checked={pfSolve} onChange={(e) => setPfSolve(e.target.checked)} />
-            <span className="text-muted">Grade preflop by the preflop solve</span>
+          <label
+            className="flex items-center gap-1.5"
+            title={`By EV against the stored solve, an ${PF_MODEL}`}
+          >
+            <input
+              type="checkbox"
+              aria-label="Grade preflop by the preflop solve"
+              aria-describedby="pf-note"
+              checked={pfSolve}
+              onChange={(e) => {
+                setPfSolve(e.target.checked);
+                setPfSaid(true);
+              }}
+            />
+            <span className="text-muted">
+              Grade preflop by the preflop solve
+            </span>
           </label>
-          {/* (the rest said once it's chosen: the form is above the table, and your move should stay on the first screen) */}
+          {/* (the rest said once a box is changed: the form is above the table, and your move should stay on the first screen) */}
           {pfSolve && (
-            <label className="flex basis-full items-center gap-1.5">
-              <input type="checkbox" aria-label="Offer the solve's raise sizes" aria-describedby="pf-note" checked={pfSizes} onChange={(e) => setPfSizes(e.target.checked)} />
-              <span className="text-muted">Offer the solve&rsquo;s raise sizes</span>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                aria-label="Offer the solve's raise sizes"
+                aria-describedby="pf-note"
+                checked={pfSizes}
+                onChange={(e) => {
+                  setPfSizes(e.target.checked);
+                  setPfSaid(true);
+                }}
+              />
+              <span className="text-muted">
+                Offer the solve&rsquo;s raise sizes
+              </span>
             </label>
           )}
-          <p id="pf-note" hidden={!pfSolve} className="basis-full text-xs text-muted">
-            By EV in place of the chart&rsquo;s frequency, from the stored solve: an {PF_MODEL}.{" "}
-            {pfSizes ? PF_SIZES_ON : PF_SIZES_OFF} The two are never added together.
+          <p
+            id="pf-note"
+            hidden={!pfSolve || !pfSaid}
+            className="basis-full text-xs text-muted"
+          >
+            By EV in place of the chart&rsquo;s frequency, from the stored
+            solve: an {PF_MODEL}. {pfSizes ? PF_SIZES_ON : PF_SIZES_OFF} The two
+            are never added together.
           </p>
         </>
       )}
-      {game && pfNo && <p className="basis-full text-xs text-muted">Preflop is graded by the charts here. {pfNo}</p>}
-      <button type="submit" disabled={!ok} className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40">
+      {game && pfNo && (
+        <p className="basis-full text-xs text-muted">
+          Preflop is graded by the charts here. {pfNo}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={!ok}
+        className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40"
+      >
         New session
       </button>
       <SaveScenario setup={setup && { players: p, stack: n, opts: setup }} />
       <details className="basis-full" open={!!opts.sizes}>
-        <summary className="cursor-pointer text-muted">Your own bet sizes{sizes ? `: ${describeSetup({ sizes }).join(", ")}` : ""}</summary>
+        <summary className="cursor-pointer text-muted">
+          Your own bet sizes
+          {sizes ? `: ${describeSetup({ sizes }).join(", ")}` : ""}
+        </summary>
         <p className="mt-1 text-xs text-muted">
-          Postflop, in % of the pot, up to {LIMITS.sizes} a street, as on the Solve page: the solver&rsquo;s tree, your options and the
-          opponents&rsquo; bets use them from the flop on. The flop library answers only where its tree has the same sizes; otherwise the
-          flop is solved live. Blank: the engine&rsquo;s own.
+          Postflop, in % of the pot, up to {LIMITS.sizes} a street, as on the
+          Solve page: the solver&rsquo;s tree, your options and the
+          opponents&rsquo; bets use them from the flop on. The flop library
+          answers only where its tree has the same sizes; otherwise the flop is
+          solved live. Blank: the engine&rsquo;s own.
         </p>
         <div className="mt-1 grid gap-2 sm:grid-cols-2">
           {SIZE_STREETS.map((k) => (
@@ -487,7 +637,9 @@ export function SetupForm({
                 placeholder="e.g. 33, 75"
                 value={sizeText[k]}
                 disabled={noFlop}
-                onChange={(e) => setSizeText({ ...sizeText, [k]: e.target.value })}
+                onChange={(e) =>
+                  setSizeText({ ...sizeText, [k]: e.target.value })
+                }
                 className="min-w-0 flex-1 rounded border border-border bg-surface-2 px-1.5 py-1"
               />
               <span className="text-muted">%</span>

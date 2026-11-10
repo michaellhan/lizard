@@ -4827,6 +4827,9 @@ Asked whether the preflop solve should be preflop's default grade wherever a gam
 - **Taken off stays off.** Unticking the box starts the session with `pfSolve: false`, so the session and the form keep
   it off. A saved scenario keeps what it was saved with, so one saved before today, without the option, is still graded by
   the charts. The raise-sizes box stays off by default.
+- **The first screen.** Ticked on load, the form's note and the sizes box first pushed "Your move" 103px below a 768px
+  tablet screen (CI's content check). The note now opens once you change a box, while the box still carries it as its
+  description, and the sizes box sits on the same line. Your move is on the first screen at all three widths again.
 - **Nothing about the grade changed.** It's the same class-level model and rule, and the same 30% of 6-max 100bb decisions
   it can't answer keep the chart's grade and say why. Analyze is unchanged.
 
