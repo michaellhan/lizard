@@ -21,7 +21,7 @@ import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
 import { PF_MODEL } from "./pfGrade";
 import { carries, drillTries, hardHand, handWorks, isPotDrill, MAX_STACK, MIN_STACK, pfBlocked, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
 import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
-import { draftOf, readDraft, TournamentFields } from "./TournamentFields";
+import { draftOf, readDraft, stageDraft, TournamentFields } from "./TournamentFields";
 
 const setTexture = (f: TextureFilter, key: TextureKey, v: string): TextureFilter =>
   Object.fromEntries(Object.entries({ ...f, [key]: v }).filter(([, x]) => x));
@@ -266,6 +266,13 @@ export function SetupForm({
           players={p}
           stack={s}
           problems={tournament?.problems ?? []}
+          onStage={(st) => {
+            const d = stageDraft(st);
+            setP(d.players);
+            setS(String(d.stack));
+            setAnte(String(d.ante));
+            setDraft(d.draft);
+          }}
         />
       )}
       {isPotDrill(play) && (

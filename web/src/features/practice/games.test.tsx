@@ -283,6 +283,23 @@ describe("the New session form", () => {
     expect(start).toHaveBeenCalledWith(3, 20, expect.objectContaining({ preflopOnly: true, rake: 0, straddle: false, tournament: { model: "icm", payouts: [50, 30, 20], field: { players: 6, avg: 20 }, stacks: { BTN: 25, SB: 8, BB: 20 } } }));
   });
 
+  it("sets up a stage of an MTT at once: the table, each seat's chips, the ante and the prizes", () => {
+    const start = open();
+    pick("Play", "tournament");
+    pick("Stage", "Final-table bubble");
+    expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("5");
+    expect(screen.getByRole("spinbutton", { name: "Stack in big blinds" })).toHaveValue(40);
+    go();
+    expect(start).toHaveBeenCalledWith(
+      5,
+      40,
+      expect.objectContaining({
+        ante: 0.2,
+        tournament: { model: "icm", payouts: [30, 20, 14, 10.5, 8, 6.5, 5, 3.5, 2.5], field: { players: 5, avg: 22 }, stacks: { HJ: 20, CO: 40, BTN: 8, SB: 28, BB: 14 } },
+      }),
+    );
+  });
+
   it("starts a chip EV tournament with no prizes to ask for", () => {
     const start = open();
     pick("Play", "tournament");

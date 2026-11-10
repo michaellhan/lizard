@@ -14,7 +14,7 @@ import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
 import { bubbleTableOf } from "@/features/tournaments/icm";
-import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, type BountyFormat, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
 import { LIMITS, numsOf, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
@@ -132,6 +132,23 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setEnvelope("");
     setPool("");
     setLeft("");
+    setStage(null);
+  };
+  // a stage of an MTT, set up at once: the table's stack is the biggest, the seats with fewer chips have their own
+  const [stage, setStage] = useState<StagePreset | null>(null);
+  const setUpStage = (st: StagePreset) => {
+    clear();
+    const top = Math.max(...st.stacks);
+    const order = seatsOf(st.players);
+    setPlayers(st.players);
+    setStack(String(top));
+    setStacks(Object.fromEntries(order.flatMap((p, i) => (st.stacks[i] !== top ? [[p, String(st.stacks[i])]] : []))));
+    setAnte(String(stageAnte(st.players)));
+    setPayouts(st.payouts.join(" "));
+    setFieldN(st.field ? String(st.field.players) : "");
+    setFieldAvg(st.field ? String(st.field.avg) : "");
+    setFromStart(true);
+    setStage(st);
   };
   const seatBounties = tour && (bFormat === "ko" || bFormat === "pko");
   // a field and the line in the list below that's about it
@@ -209,6 +226,21 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         {tour && (
           <fieldset className="min-w-0 space-y-3 rounded-lg border border-border bg-surface p-4">
             <legend className="px-1 font-medium">Tournament</legend>
+            <div className="space-y-1 text-sm">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Stages">
+                <span className="text-muted">Stages:</span>
+                {STAGE_PRESETS.map((st) => (
+                  <button key={st.name} type="button" title={st.about} aria-pressed={stage === st} onClick={() => setUpStage(st)} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 aria-pressed:bg-surface-2">
+                    {st.name}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted" aria-live="polite">
+                {stage
+                  ? `Set up: ${stage.name}. ${stage.about}; a 1bb big-blind ante, as ${stageAnte(stage.players)}bb a seat. Change anything below; the stage's numbers are Lizard's own, not any site's.`
+                  : "A stage sets the table, each seat's chips, the ante, the prizes left and the other tables at once, from the start of a hand."}
+              </p>
+            </div>
             <div className="space-y-1.5 text-sm">
               <label className="flex flex-wrap items-center gap-2">
                 Payouts

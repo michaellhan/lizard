@@ -2,7 +2,7 @@
 // other tables. It's what the Tournaments page sets up, as far as Practice can play it: no bounties, as a session has no
 // answer for who holds one once a hand has been played.
 import { LIMITS } from "@/features/solve/setup";
-import { PAYOUT_PRESETS, parsePayouts, pastedPayouts, tournamentProblems } from "@/features/tournaments/tournament";
+import { PAYOUT_PRESETS, parsePayouts, pastedPayouts, STAGE_PRESETS, stageAnte, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { PUSH_FOLD_MAX, type TournamentOptions } from "./practice";
 
@@ -42,6 +42,24 @@ export function readDraft(d: TournamentDraft, players: number, stack: number, ma
   return problems.length ? { value: null, problems } : { value: { model: "icm", stacks, payouts, ...(field ? { field } : {}) }, problems };
 }
 
+/** A stage of an MTT as a draft: the table's stack is the biggest, the seats with fewer chips have their own. */
+export function stageDraft(st: StagePreset): { players: number; stack: number; ante: number; draft: TournamentDraft } {
+  const top = Math.max(...st.stacks);
+  const seats = seatsOf(st.players);
+  return {
+    players: st.players,
+    stack: top,
+    ante: stageAnte(st.players),
+    draft: {
+      model: "icm",
+      payouts: st.payouts.join(", "),
+      stacks: Object.fromEntries(seats.flatMap((p, i) => (st.stacks[i] !== top ? [[p, String(st.stacks[i])]] : []))),
+      others: st.field ? String(st.field.players) : "",
+      avg: st.field ? String(st.field.avg) : "",
+    },
+  };
+}
+
 const INPUT = "rounded border border-border bg-surface-2 px-1.5 py-1";
 const PRESETS = PAYOUT_PRESETS.filter((p) => p.payouts.length > 1);
 
@@ -53,6 +71,7 @@ export function TournamentFields({
   players,
   stack,
   problems,
+  onStage,
 }: {
   draft: TournamentDraft;
   onDraft: (d: TournamentDraft) => void;
@@ -62,12 +81,33 @@ export function TournamentFields({
   players: number;
   stack: string;
   problems: string[];
+  /** set up a stage of an MTT: the table, the stacks, the ante and the prizes at once */
+  onStage?: (st: StagePreset) => void;
 }) {
   const icm = draft.model === "icm";
   const set = (o: Partial<TournamentDraft>) => onDraft({ ...draft, ...o });
   return (
     <fieldset className="flex basis-full flex-wrap items-center gap-2">
       <legend className="sr-only">Tournament</legend>
+      {onStage && (
+        <select
+          aria-label="Stage"
+          title="Sets the table, each seat's chips, a 1bb big-blind ante, the prizes left and the other tables at once (Lizard's own shapes, not any site's)"
+          value=""
+          onChange={(e) => {
+            const st = STAGE_PRESETS.find((x) => x.name === e.target.value);
+            if (st) onStage(st);
+          }}
+          className={INPUT}
+        >
+          <option value="">A stage…</option>
+          {STAGE_PRESETS.map((st) => (
+            <option key={st.name} value={st.name} title={st.about}>
+              {st.name}
+            </option>
+          ))}
+        </select>
+      )}
       <label className="flex items-center gap-1">
         <span className="text-muted">Answers in</span>
         <select aria-label="Answers in" value={draft.model} onChange={(e) => set({ model: e.target.value as TournamentDraft["model"] })} className={INPUT}>

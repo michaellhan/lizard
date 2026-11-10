@@ -4458,3 +4458,25 @@ The row is WORKING by the owner's rule of 2026-11-08 (38 of 63). Left: the profi
 Every area card on the home page read "Partial" except Library, with 38 of 63 rows WORKING, because each page's badge was a fixed `status` in `web/src/app/routes.ts`, set when the page was first built and never tied to `docs/FEATURE_MATRIX.md`. Now each page lists the matrix rows it delivers and its badge is worked out from their Lizard grades: "Working" when all are, else "N of M working" (one row: "Partial"), with the rows not yet working and their grades in its tooltip and label. `routes.test.tsx` reads the matrix and fails when a row is renamed, when a grade in `routes.ts` differs from the matrix's, or when a page has no rows. So a grade change has to be made in both places, and the badges can't drift again.
 
 Checked in a browser (dev server): Study 10 of 11 (Preflop approximate), Practice 8 of 10, Analyze 5 of 8, Solve 7 of 10, Tournaments 2 of 7; Reports, Ranges, History and Saved "Working"; Plan and Review "Partial" (Study plans). Library, Engine and Settings carry no matrix row and stay "Working".
+
+### 2026-11-10: stages of an MTT, set up at once (Phase 7)
+
+**Tournaments and Practice.** The MTT / final table row asked for stage and final-table presets, and Lizard had payout shapes only. `STAGE_PRESETS` in `web/src/features/tournaments/tournament.ts` holds six stages, Lizard's own generic shapes and not any site's:
+
+- Early: 1,000 left, 150 paid, 60bb.
+- Bubble: 116 left, 115 paid, 6–48bb.
+- Final-table bubble: two tables of 5, 9 paid.
+- Final table: 9 left, 6–62bb.
+- Three left.
+- Heads-up.
+
+Each one sets the table's size, every seat's chips (the table's stack is the biggest, the others their own), a 1bb big-blind ante as each seat's share, the prizes left and the other tables, from the first decision. They're on the Tournaments page as a row of buttons, with the stage said in a live line ("…the stage's numbers are Lizard's own, not any site's"), and in Practice's tournament session as a Stage list. A prize list over 12 places is now named by its first three, how many and the last ("payouts 11.8/6.8/4.9 … 115 places, the last 0.3"), not all 115.
+
+**Checked in a browser** (dev server, real worker):
+- Final table opened in Study under "Preflop charts · chip chart with a risk premium · approximate".
+- Bubble opened under "116 players modelled by 12", with UTG's bubble factor against each of the seven others (1.06 to 1.36).
+- A Practice session at Final table dealt hand 1 with each seat's own stack, a 0.11bb ante and the nine prizes.
+
+Tests: `tournament.test.ts` (every stage passes the setup and tournament checks, its players left and places paid), `SolvePage.test.tsx` (the Final table stage to a Study link with each seat's stack; the bubble's 108 others and 115 places; Clear), `games.test.tsx` (a Practice session from the Final-table bubble).
+
+The row is WORKING by the owner's rule of 2026-11-08 (39 of 63); the home page's Tournaments card now reads 3 of 7. Left: no tournament library, and Practice's tournament session is one table frozen in time.

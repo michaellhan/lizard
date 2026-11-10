@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { describeTournament, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { describeTournament, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
 
@@ -103,5 +103,32 @@ describe("a tournament's setup", () => {
     expect(paidCurve(5000)).toHaveLength(200);
     expect(satellitePayouts(2)).toBeNull();
     expect(describeTournament({ payouts: satellitePayouts(6)! })).toEqual(["a satellite, 5 equal seats"]);
+  });
+});
+
+describe("the stages of an MTT", () => {
+  it("each sets up a table the checks pass, with its seats, prizes adding to 100 and the right players left", () => {
+    for (const st of STAGE_PRESETS) {
+      expect(st.stacks, st.name).toHaveLength(st.players);
+      const t: TournamentSetup = { payouts: st.payouts, ...(st.field ? { field: st.field } : {}) };
+      expect(tournamentProblems(st.players, t), st.name).toEqual([]);
+      const setup = { stacks: Object.fromEntries(st.stacks.map((v, i) => [String(i), v])), ante: stageAnte(st.players), tournament: t };
+      expect(setupProblems(st.players, { ...setup, stacks: {} }), st.name).toEqual([]);
+      if (st.payouts.length > 3) expect(Math.abs(st.payouts.reduce((a, b) => a + b, 0) - 100), st.name).toBeLessThan(0.5);
+      expect(st.payouts.every((x, i) => i === 0 || x <= st.payouts[i - 1]!), st.name).toBe(true);
+    }
+    const left = (name: string) => {
+      const st = STAGE_PRESETS.find((x) => x.name === name)!;
+      return [st.players + (st.field?.players ?? 0), st.payouts.length];
+    };
+    expect(left("Early")).toEqual([1000, 150]);
+    expect(left("Bubble")).toEqual([116, 115]);
+    expect(left("Final-table bubble")).toEqual([10, 9]);
+    expect(left("Final table")).toEqual([9, 9]);
+    expect(left("Three left")).toEqual([3, 3]);
+    expect(left("Heads-up")).toEqual([2, 2]);
+    expect(describeTournament({ payouts: STAGE_PRESETS[1]!.payouts })).toEqual(["payouts 11.8/6.8/4.9 … 115 places, the last 0.3"]);
+    expect(stageAnte(8)).toBe(0.13);
+    expect(stageAnte(9)).toBe(0.11);
   });
 });

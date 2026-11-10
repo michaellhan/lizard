@@ -59,11 +59,81 @@ export const satellitePayouts = (players: number): number[] | null => (players >
  * null where that's fewer than 2 places (under 10 players left). */
 export function paidCurve(playersLeft: number, share = 0.15): number[] | null {
   const places = Math.min(T_LIMITS.places, Math.round(playersLeft * share));
-  if (!(places >= 2)) return null;
+  return places >= 2 ? curveOf(places) : null;
+}
+
+/** Lizard's curve over this many places: place k in proportion to k^-0.8, in % rounded to 0.1. */
+const curveOf = (places: number): number[] => {
   const w = Array.from({ length: places }, (_, k) => (k + 1) ** -0.8);
   const tot = w.reduce((a, b) => a + b, 0);
   return w.map((x) => Math.round((x / tot) * 1000) / 10);
+};
+
+/** A stage of an MTT, set up at once on the Tournaments page: this table's seats and chips, the prizes left and the
+ * other tables. Generic shapes of Lizard's own, not any site's or any real tournament's. */
+export interface StagePreset {
+  name: string;
+  /** what it sets up, in words (its button's title) */
+  about: string;
+  players: number;
+  /** each seat's chips, bb, in the table's seat order (seatsOf) */
+  stacks: number[];
+  payouts: number[];
+  field?: { players: number; avg: number };
 }
+
+const FINAL_TABLE = PAYOUT_PRESETS[2]!.payouts;
+
+export const STAGE_PRESETS: readonly StagePreset[] = [
+  {
+    name: "Early",
+    about: "1,000 players left and 150 paid, 60bb deep: far from the money, where prize equity is close to chips",
+    players: 8,
+    stacks: [60, 60, 60, 60, 60, 60, 60, 60],
+    payouts: curveOf(150),
+    field: { players: 992, avg: 60 },
+  },
+  {
+    name: "Bubble",
+    about: "116 players left and 115 paid, stacks from 6 to 48bb: one more bust and everyone left is paid",
+    players: 8,
+    stacks: [22, 48, 10, 35, 6, 28, 14, 18],
+    payouts: curveOf(115),
+    field: { players: 108, avg: 25 },
+  },
+  {
+    name: "Final-table bubble",
+    about: "10 players left over two tables of 5, 9 paid: one more bust makes the final table",
+    players: 5,
+    stacks: [20, 40, 8, 28, 14],
+    payouts: FINAL_TABLE,
+    field: { players: 5, avg: 22 },
+  },
+  {
+    name: "Final table",
+    about: "9 players left, all paid, stacks from 6 to 62bb",
+    players: 9,
+    stacks: [27, 9, 62, 16, 34, 6, 45, 12, 21],
+    payouts: FINAL_TABLE,
+  },
+  {
+    name: "Three left",
+    about: "The last three of a 9-paid final table, 15, 30 and 55bb",
+    players: 3,
+    stacks: [30, 55, 15],
+    payouts: FINAL_TABLE.slice(0, 3),
+  },
+  {
+    name: "Heads-up",
+    about: "The last two of a 9-paid final table, 40 and 60bb",
+    players: 2,
+    stacks: [40, 60],
+    payouts: FINAL_TABLE.slice(0, 2),
+  },
+];
+
+/** A stage's ante: a big-blind ante of 1bb, as each seat's share (rounded to 0.01bb). */
+export const stageAnte = (players: number): number => Math.round(100 / players) / 100;
 
 /** Money as people write it, made plain: no currency sign or percent sign, no thousands commas ("$1,000" -> "1000"). */
 const plainMoney = (t: string) => t.replace(/[$€£¥%]/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
@@ -247,12 +317,17 @@ export function tournamentFromParams(q: URLSearchParams): TournamentSetup | unde
 }
 
 /** The tournament in a few words each (empty where nothing is set). */
+/** Prizes in words: each one up to 12 places, else the first three, how many, and the last ("payouts 11.8/6.8/4.9 … 115
+ * places, the last 0.3"). */
+const payoutWords = (ps: number[]) =>
+  ps.length <= 12 ? `payouts ${ps.join("/")}` : `payouts ${ps.slice(0, 3).join("/")} … ${ps.length} places, the last ${ps.at(-1)}`;
+
 export function describeTournament(t: TournamentSetup | undefined): string[] {
   const s = tidyTournament(t);
   if (!s) return [];
   const out: string[] = [];
   const flat = s.payouts && s.payouts.length > 1 && s.payouts.every((x) => x === s.payouts![0]);
-  if (s.payouts) out.push(s.payouts.length === 1 ? "winner takes all (chips are prizes)" : flat ? `a satellite, ${s.payouts.length} equal seats` : `payouts ${s.payouts.join("/")}`);
+  if (s.payouts) out.push(s.payouts.length === 1 ? "winner takes all (chips are prizes)" : flat ? `a satellite, ${s.payouts.length} equal seats` : payoutWords(s.payouts));
   else out.push("no payouts (chip EV, the prizes taken as the bounties in play)");
   if (s.field) out.push(`${s.field.players} at other tables (average ${s.field.avg}bb)`);
   const b = s.bounty;

@@ -158,6 +158,34 @@ describe("SolvePage", () => {
     expect(screen.queryByRole("region", { name: "Bubble factors" })).toBeNull();
   });
 
+  it("sets up a stage of an MTT at once, and opens it in Study from the first decision with every number", () => {
+    open("p=6&s=100&pre=UTG:r2.5", "/tournaments");
+    fireEvent.click(screen.getByRole("button", { name: "Final table" }));
+    expect(screen.getByRole("button", { name: "Final table" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("9");
+    expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(62);
+    expect(screen.getByRole("spinbutton", { name: "Ante" })).toHaveValue(0.11);
+    expect(screen.getByRole("spinbutton", { name: "BB stack" })).toHaveValue(21);
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("30 20 14 10.5 8 6.5 5 3.5 2.5");
+    expect(screen.getByText(/^Set up: Final table\. 9 players left, all paid.*Lizard's own, not any site's\.$/)).toBeInTheDocument();
+    expect(problems()).toBeNull();
+    expect(screen.getByRole("region", { name: "Bubble factors" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Open in Study/ }));
+    const h = fromSearch(screen.getByTestId("where").textContent!.split("?")[1]!)!;
+    expect(h.players).toBe(9);
+    expect(h.preflop).toEqual([]);
+    expect(h.setup?.stacks).toEqual({ UTG: 27, UTG1: 9, LJ: 16, HJ: 34, CO: 6, BTN: 45, SB: 12, BB: 21 });
+    expect(h.setup?.tournament?.payouts).toHaveLength(9);
+    // the bubble: the other tables and the places paid make one more bust the money
+    open("p=6&s=100", "/tournaments");
+    fireEvent.click(screen.getAllByRole("button", { name: "Bubble" }).at(-1)!);
+    expect(screen.getAllByRole("spinbutton", { name: "Players at other tables" }).at(-1)).toHaveValue(108);
+    expect((screen.getAllByRole("textbox", { name: "Payouts" }).at(-1) as HTMLInputElement).value.split(" ")).toHaveLength(115);
+    // Clear forgets it
+    fireEvent.click(screen.getAllByRole("button", { name: /^Clear/ }).at(-1)!);
+    expect(screen.getAllByText(/^A stage sets the table/).at(-1)).toBeInTheDocument();
+  });
+
   it("opens a Study spot's tournament as it was set, mystery bounties too", () => {
     open("p=6&s=30&pay=100&bty=mystery&bty.pool=500&bty.left=40", "/tournaments");
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("100");
