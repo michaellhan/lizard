@@ -4700,3 +4700,19 @@ The row was APPROXIMATE because a knockout is valued at the average envelope lef
 Changes: the matrix row and counts (Lizard: 42 / 14 / 4 / 3), `routes.ts` `GRADES`, and ROADMAP Phase 7, where the spread is no longer listed as open.
 
 Tests: `src/app` and `src/features/home`, 23 passing (the routes test reads the grades from the matrix).
+
+### 2026-11-10: a condensed range view for PLO
+
+Four-card hands have no 13x13 grid, so the PLO page's decisions had only the combo table. "Hand classes at this decision" (`web/src/features/plo/classes.ts` `byClass`, `classOf`) puts the decision's reaching combos in classes by their best hand on the board, two cards from the hand and three from the board. On a turn, a flush draw is shown beside the made hand: two of a suit in the hand, with two of that suit on the board. Each class shows its combos, its share of the range, its mix and its EV, weighted by combo, and the caption says that's not by matchups. It's under every decision of a river or turn solve, and under the river after the turn.
+
+Tests:
+- `classes.test.ts`, 4 passing: four of a suit in the hand with one on the board is no flush; the draw shows on a turn only; the weighting and the missing EV.
+- `PloRiverPage.test.tsx`: the polarised river's straight bets 100% and its air 50%; the river after the turn has its classes.
+
+Checked in a browser on the dev server:
+- the default river: OOP's straights bet 19%;
+- AAxx against JT98 on Js9s4d2h at 75%: sets with a flush draw bet 61%, bare one pair 27%;
+- the river after the turn;
+- no sideways scroll at 375px.
+
+The PLO4 row stays PARTIAL.

@@ -66,6 +66,11 @@ test("A river solves in the worker, every table adds up, and a phone can read it
   }
   await expect(page.getByRole("table", { name: "Actions at this decision" })).toContainText("Call 10");
 
+  // the range condensed by what each combo holds on the board: shares add to 100%
+  const shares = await page.getByRole("table", { name: "Hand classes at this decision" }).locator("tbody td:nth-child(2)").allTextContents();
+  expect(shares.length).toBeGreaterThan(1);
+  expect(Math.abs(shares.reduce((t, x) => t + Number.parseFloat(x), 0) - 100)).toBeLessThan(0.3);
+
   // the combos at a decision, found by a card
   const combos = page.getByRole("table", { name: "Combos at this decision" }).locator("tbody tr");
   await expect(combos.first()).toBeVisible();

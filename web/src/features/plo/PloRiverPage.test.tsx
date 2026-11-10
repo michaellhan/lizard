@@ -50,6 +50,14 @@ describe("PloRiverPage", () => {
     expect(within(actions).getByText("Check")).toBeTruthy();
     expect(within(actions).getByText("Bet 10")).toBeTruthy();
 
+    // condensed by what each holds: the straight always bets, the air half the time
+    const classes = within(section).getByRole("table", { name: "Hand classes at this decision" });
+    const rows = within(classes).getAllByRole("row").slice(1).map((r) => [...r.querySelectorAll("td")].map((td) => td.textContent));
+    expect(rows.map((r) => r.slice(0, 4))).toEqual([
+      ["Straight (1)", "50.0%", "0%", "100%"],
+      ["High card (1)", "50.0%", "50%", "50%"],
+    ]);
+
     const combos = within(section).getByRole("table", { name: "Combos at this decision" });
     expect(within(combos).getAllByRole("row")).toHaveLength(3);
     expect(combos.textContent).toContain("Qh");
@@ -86,6 +94,7 @@ describe("PloRiverPage", () => {
     const evs = within(after).getByRole("table", { name: "Ranges on this line" }).querySelectorAll("tbody td:last-child");
     expect(Math.abs([...evs].reduce((t, td) => t + Number(td.textContent), 0) - 10)).toBeLessThan(0.02);
     expect(within(after).getByRole("table", { name: "Actions at this decision" }).textContent).toContain("Bet 10");
+    expect(within(after).getByRole("table", { name: "Hand classes at this decision" }).textContent).toContain("Straight (1)");
   }, 30000);
 
   it("goes to another decision, the other range's", async () => {

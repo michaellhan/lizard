@@ -11,6 +11,7 @@ import { RiverClient } from "@/engine/plo/river/client";
 import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
+import { byClass } from "./classes";
 
 const inputClass = "w-full min-w-0 rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
 const buttonClass = "rounded border border-border px-3 py-1 text-sm hover:bg-surface-2 disabled:opacity-40";
@@ -309,6 +310,7 @@ function Results({ result, onRiver }: { result: RiverResult; onRiver: (closing: 
       <RangeTable node={node} />
       <ActionTable node={node} />
       <EveryDecision nodes={result.nodes} />
+      <ClassTable hands={result.hands[node.player]!} board={result.board} node={node} />
       <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={turn} node={node} />
       {turn && <RiverAfter result={result} onRiver={onRiver} />}
       <p className="text-xs text-muted">
@@ -447,11 +449,56 @@ function RiverAfter({ result, onRiver }: { result: RiverResult; onRiver: (closin
           </label>
           <RangeTable node={node} />
           <ActionTable node={node} />
+          <ClassTable hands={view.hands[node.player]!} board={`${result.board}${view.card}`} node={node} />
           <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={false} node={node} />
           <p className="text-xs text-muted">River EVs are in bb of the river&apos;s pot of {view.pot}: chips won from it less chips bet on the river, so the two ranges&apos; EVs add to it.</p>
         </>
       )}
     </section>
+  );
+}
+
+/** The decision's range condensed: its combos by what they hold on the board, strongest first. */
+function ClassTable({ hands, board, node }: { hands: Int32Array; board: string; node: ResultNode }) {
+  const cards = parseIds(board);
+  const rows = cards ? byClass(hands, cards, node) : [];
+  if (!rows.length) return null;
+  return (
+    <div className="scroll-x">
+      <table aria-label="Hand classes at this decision" className="w-full text-xs">
+        <thead className="text-left align-bottom text-muted">
+          <tr>
+            <th className="py-1 pr-2 font-normal">{SEAT_NAMES[node.player]} holds</th>
+            <th className="py-1 pr-2 font-normal">Share</th>
+            {node.actions.map((a) => (
+              <th key={a.token} className="py-1 pr-2 font-normal">
+                {a.label}
+              </th>
+            ))}
+            <th className="py-1 font-normal">EV, bb</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.name} className="border-t border-border">
+              <td className="whitespace-nowrap py-1 pr-2">
+                {r.name} <span className="text-muted">({r.combos.toLocaleString("en-US")})</span>
+              </td>
+              <td className="py-1 pr-2 font-mono">{pct(r.share)}</td>
+              {r.frequency.map((f, k) => (
+                <td key={node.actions[k]!.token} className="py-1 pr-2 font-mono">
+                  {pct(f, 0)}
+                </td>
+              ))}
+              <td className="py-1 font-mono">{chips(r.ev)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <caption className="caption-bottom pt-1 text-left text-xs text-muted">
+          Each combo by its best hand on this board, two cards from the hand and three from the board{cards!.length === 4 ? ", and a flush draw where two of its suit are on the board" : ""}. Share and mix are by combo weight here, not by matchups, so they can differ a little from the actions above.
+        </caption>
+      </table>
+    </div>
   );
 }
 
