@@ -4446,7 +4446,9 @@ The row is graded WORKING by the owner's rule of 2026-11-08 (37 of 63). What's l
 
 **Checked in a browser** on the real worker (dev server): a Calling station hand, flop c-bet called, turn checked through, river bet: "All 4 of their moves after the flop were the profile's", Net against the profile +11.5bb over 1 hand, each opponent move under a second once the solve was cached. `qa.e2e.ts` 7d now plays an exploit hand to its end and checks the line.
 
-The row is WORKING by the owner's rule of 2026-11-08 (38 of 63). Left: the profiles are hand-set numbers, History shows no net for exploit sessions, and a read isn't played preflop or multiway.
+History's row for an exploit session shows the same net against the profile, with the hands left out; one kept before today says it has none (checked in the browser: "net +11.5bb against the profile over 1 hand").
+
+The row is WORKING by the owner's rule of 2026-11-08 (38 of 63). Left: the profiles are hand-set numbers, and a read isn't played preflop or multiway.
 
 
 **CI.** The deploys of e53e1b6, e460e2c and c2fd656 didn't publish: a browser test (`modes.e2e.ts`, reduced motion) measured the Hands table on its first frame, before its rows laid out, and failed twice; then a unit test (`DrillsPanel.test.tsx`) waited the default 1 s for a grade on a slow runner. Both now wait for the condition itself (15 s and 10 s). Both pass here, the browser test 3 of 3.

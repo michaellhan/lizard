@@ -36,6 +36,13 @@ function WayCells({ row, ways, unit }: { row: Split; ways: readonly GradeWay[]; 
 /** The kinds the seat and pot rates read, as the street table does; a leak drill's are counted beside them. */
 const SPLIT_KINDS: readonly SessionKind[] = ["practice", "drill", "analysis"];
 
+/** An exploit session's net over the hands the profile played, in its row. */
+function readNetText(r: SessionRow["readNet"]): string {
+  if (!r) return "no net (kept before the opponent played the profile)";
+  const off = r.off ? `, ${r.off} left out` : "";
+  return r.hands ? `net ${signed(r.net)}bb against the profile over ${many(r.hands, "hand")}${off}` : `no hand the profile played throughout${off}`;
+}
+
 export function HistoryPage() {
   const [sessions, setSessions] = useState<SessionRecord[] | null>(null);
   const [mistakes, setMistakes] = useState<{ kept: number; due: number } | null>(null);
@@ -161,6 +168,7 @@ function SessionItem({ r }: { r: SessionRow }) {
           ...GRADE_WAYS.flatMap((w) => (r.split.ways[w] ? [wayText(w, r.split.ways[w], kindUnit(r.kind))] : [])),
           r.split.apart ? `${r.split.apart} not told apart by how ${r.split.apart === 1 ? "it was" : "they were"} graded` : null,
           r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : null,
+          r.kind === "exploit" ? readNetText(r.readNet) : null,
         ];
   return (
     <li className="space-y-0.5 py-1.5 text-sm">
@@ -234,7 +242,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
         {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") &&
           " Tournaments each have their own row and go in no other totals here, by pot type, street or over time: a prize-equity EV is chips worth as much prize equity, never bb won, and a tournament's hands count no net."}
         {totals.some((t) => t.kind === "exploit") &&
-          " Exploit sessions have their own row and go in no other totals here: their EVs are against a best response to an assumed profile, never an equilibrium, and they count no net, as the opponents at the table played the equilibrium."}
+          " Exploit sessions have their own row and go in no other totals here: their EVs are against a best response to an assumed profile, never an equilibrium. Their net counts only the hands where every move of the opponent's after the flop was the profile's, and goes in no other net; a session from before 2026-11-10, when the opponent played the equilibrium, has none."}
       </p>
 </About>
     </section>

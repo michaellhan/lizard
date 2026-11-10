@@ -259,6 +259,9 @@ export interface SessionRow {
   /** full hands: hands played, and net over them (null preflop only) */
   hands?: number;
   net?: number | null;
+  /** exploit sessions: the net over the hands where every move of the opponent's after the flop was the profile's, and
+   * the hands left out; null for one kept before 2026-11-10, when the opponent played the equilibrium (exploit.ts) */
+  readNet?: { hands: number; net: number; off: number } | null;
   /** range builds: the range's accuracy by hand class, and its EV lost a combo (bb) */
   acc?: number | null;
   /** a range build scored combo by combo, not by hand class */
@@ -296,8 +299,9 @@ export function rowOf(s: SessionRecord): SessionRow {
     const read = obj(m.exploit);
     const numbers = read && obj(read.lock) ? describeLock(read.lock as Lock) : "";
     const what = [`${profileName(read?.profile)} (assumed${numbers ? `: ${numbers}` : ""})`, `${num(m.players) || "?"} players`, `${num(m.stack) || "?"}bb`, ...(isPotDrill(m.pot) ? [POT_DRILLS[m.pot].label.toLowerCase()] : [])].join(" · ");
-    // (no net: the opponents played the equilibrium, not the profile, so the chips say nothing of it)
-    return { ...base, what, hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
+    // (no plain net: only the hands the profile played count, apart; a session from before it did has none)
+    const r = obj(m.read);
+    return { ...base, what, hands: num(m.hands), readNet: r ? { hands: num(r.hands), net: num(r.net), off: num(r.off) } : null, graded: sourcesText(obj(m.sources)) };
   }
   if (s.kind === "practice") {
     const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? ` · preflop graded by the preflop solve${m.pfSizes ? ", at its raise sizes" : ""}` : ""}`;
