@@ -13,11 +13,17 @@
 // them measured 744 MB resident on that spot, in Node.
 import { cardsText, parseIds } from "../cards";
 import { parseRange, type PloRange } from "../ranges";
+import { compileTurn, type TurnGame, type TurnSpec } from "../turn/game";
+import { TurnSolver, turnMemoryBytes, turnWork } from "../turn/solver";
 import { compileGame, RiverError, type RiverGame, type RiverSpec } from "./game";
 import { memoryBytes, RiverSolver, type Exploitability, type NodeReport } from "./solver";
 import type { RiverAction, RiverSizes } from "./tree";
 
 export const MAX_WORK = 25e6;
+/** a turn's limit in the same units: a unit there cost 85 to 100 ns (the rivers are many small games, each mapped to the
+ * turn's combos), so 11.9 million units (AAxx,KKxx,QQxx against JT98,JT97,T987 on Js9s4d2h, a size a street) took 1.0 to
+ * 1.2 s an iteration and 165 MB in Node; AAxx against JT98 there reached 0.29% of the pot in 50 iterations, 15 s */
+export const MAX_TURN_WORK = 12e6;
 export const MAX_MEMORY_BYTES = 512e6;
 export const DEFAULT_TARGET_PCT = 0.1;
 export const MIN_TARGET_PCT = 0.001;
@@ -34,10 +40,14 @@ export interface RiverRequest {
   /** each seat's range, as parseRange reads them: out of position, then in position */
   oop: string;
   ip: string;
+  /** five cards for a river; four for a turn, every river card after it solved too (engine/plo/turn/) */
   board: string;
   pot: number;
   stacks: [number, number];
+  /** the first street's sizes: the river's, or the turn's */
   sizes: RiverSizes;
+  /** a turn's river sizes */
+  riverSizes?: RiverSizes;
   /** exploitability to stop at, % of the pot */
   targetPct?: number;
   /** seconds to stop at */
@@ -46,7 +56,7 @@ export interface RiverRequest {
 }
 
 export interface RiverJobSpec {
-  spec: RiverSpec;
+  spec: RiverSpec | (TurnSpec & { turn: true });
   targetPct: number;
   seconds: number;
   maxIterations: number;
@@ -54,8 +64,10 @@ export interface RiverJobSpec {
 
 /** The spec of a request, or what's wrong with it. */
 export function specOf(req: RiverRequest): RiverJobSpec | string {
-  const board = parseIds(req.board, 5);
-  if (!board) return "The board isn't five cards: Qs7d2c9h3s, for one.";
+  const board = parseIds(req.board);
+  if (!board || (board.length !== 5 && board.length !== 4)) return "The board is five cards for a river, four for a turn: Qs7d2c9h3s, for one.";
+  const turn = board.length === 4;
+  if (turn && !req.riverSizes) return "A turn needs the river's sizes too.";
   const ranges: PloRange[] = [];
   for (const [i, text] of [req.oop, req.ip].entries()) {
     const r = parseRange(text, board);
@@ -66,8 +78,11 @@ export function specOf(req: RiverRequest): RiverJobSpec | string {
   if (!(targetPct >= MIN_TARGET_PCT)) return `The target is at least ${MIN_TARGET_PCT}% of the pot.`;
   const seconds = req.seconds ?? DEFAULT_SECONDS;
   if (!(seconds > 0 && seconds <= MAX_SECONDS)) return `The time budget is over 0 seconds, up to ${MAX_SECONDS}.`;
+  const both: [PloRange, PloRange] = [ranges[0]!, ranges[1]!];
   return {
-    spec: { board, ranges: [ranges[0]!, ranges[1]!], pot: req.pot, stacks: req.stacks, sizes: req.sizes },
+    spec: turn
+      ? { turn: true, board, ranges: both, pot: req.pot, stacks: req.stacks, turnSizes: req.sizes, riverSizes: req.riverSizes! }
+      : { board, ranges: both, pot: req.pot, stacks: req.stacks, sizes: req.sizes },
     targetPct,
     seconds,
     maxIterations: req.maxIterations ?? DEFAULT_MAX_ITERATIONS,
@@ -90,6 +105,8 @@ export interface ResultNode extends NodeReport {
 }
 
 export interface RiverResult {
+  /** what was solved: a river, or a turn with every river after it */
+  street: "river" | "turn";
   stop: StopReason;
   iterations: number;
   seconds: number;
@@ -101,8 +118,12 @@ export interface RiverResult {
   /** the shorter stack, the one that plays */
   stack: number;
   board: string;
+  /** the first street's sizes */
   sizes: RiverSizes;
-  /** hand index of each seat's combos, weakest first */
+  /** a turn's: the river's sizes, and the river cards with a game (a card on which no matchup can be dealt has none) */
+  riverSizes?: RiverSizes;
+  rivers?: number;
+  /** hand index of each seat's combos (a river's weakest first) */
   hands: [Int32Array, Int32Array];
   /** each combo's weight at the start */
   weights: [Float32Array, Float32Array];
@@ -111,22 +132,31 @@ export interface RiverResult {
   nodes: ResultNode[];
 }
 
+type Game = RiverGame | TurnGame;
+const isTurn = (g: Game): g is TurnGame => "rivers" in g;
+
 /** Why a game is over the limits, in numbers, or null. */
-export function refusal(game: RiverGame): string | null {
+export function refusal(game: Game): string | null {
   const combos = game.sides[0].n + game.sides[1].n;
-  const terminals = game.tree.nodes.length - game.tree.actionNodes;
   const fit = "Nothing is sampled or grouped to fit: narrow a range or take out a size.";
-  const most = Math.floor(MAX_WORK / terminals);
-  if (combos * terminals > MAX_WORK)
-    return `${combos.toLocaleString("en-US")} combos in all, over the limit of ${most.toLocaleString("en-US")} for this tree of ${terminals} ways a hand can end. ${fit}`;
-  const bytes = memoryBytes(game);
+  if (isTurn(game)) {
+    const work = turnWork(game);
+    if (work > MAX_TURN_WORK)
+      return `This turn and its ${game.rivers.length} rivers come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, river by river), over the limit of ${MAX_TURN_WORK.toLocaleString("en-US")}. ${fit}`;
+  } else {
+    const terminals = game.tree.nodes.length - game.tree.actionNodes;
+    const most = Math.floor(MAX_WORK / terminals);
+    if (combos * terminals > MAX_WORK)
+      return `${combos.toLocaleString("en-US")} combos in all, over the limit of ${most.toLocaleString("en-US")} for this tree of ${terminals} ways a hand can end. ${fit}`;
+  }
+  const bytes = isTurn(game) ? turnMemoryBytes(game) : memoryBytes(game);
   if (bytes > MAX_MEMORY_BYTES) return `This spot needs about ${Math.ceil(bytes / 1e6)} MB, over the limit of ${MAX_MEMORY_BYTES / 1e6} MB. ${fit}`;
   return null;
 }
 
 export class RiverJob {
-  readonly game: RiverGame;
-  readonly solver: RiverSolver;
+  readonly game: Game;
+  readonly solver: RiverSolver | TurnSolver;
   stop: StopReason | null = null;
   private last: Exploitability | null = null;
   private lastAt = -1;
@@ -141,11 +171,13 @@ export class RiverJob {
   ) {
     this.now = now;
     this.start = now();
-    this.game = compileGame(job.spec);
-    const limit = refusal(this.game);
+    const spec = job.spec;
+    const game: Game = "turn" in spec ? compileTurn(spec) : compileGame(spec);
+    this.game = game;
+    const limit = refusal(game);
     if (limit) throw new RiverError(limit);
-    this.bytes = memoryBytes(this.game);
-    this.solver = new RiverSolver(this.game);
+    this.bytes = isTurn(game) ? turnMemoryBytes(game) : memoryBytes(game);
+    this.solver = isTurn(game) ? new TurnSolver(game) : new RiverSolver(game);
   }
 
   get done(): boolean {
@@ -197,14 +229,18 @@ export class RiverJob {
     const { tree, sides } = game;
     const words = new Map<number, string>();
     words.set(0, "");
-    const nodes: ResultNode[] = this.solver.report().map((report) => {
+    const reports: NodeReport[] = this.solver.report();
+    const nodes: ResultNode[] = reports.map((report) => {
       const node = tree.nodes[report.id]!;
       if (node.kind !== "action") throw new Error("a report of a terminal node");
       const line = words.get(report.id) ?? "";
       node.actions.forEach((a, k) => words.set(node.children[k]!, `${line ? `${line}, ` : ""}${SEAT_NAMES[node.player]} ${a.label}`));
       return { ...report, line, actions: node.actions };
     });
+    const turn = isTurn(game);
     return {
+      street: turn ? "turn" : "river",
+      ...(turn ? { riverSizes: game.riverSizes, rivers: game.rivers.length } : {}),
       stop: this.stop ?? "cancelled",
       iterations: this.solver.iterations,
       seconds: this.elapsed(),

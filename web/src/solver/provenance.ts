@@ -265,7 +265,7 @@ const LABELS: Record<ResultSource, string> = {
   "push-fold": "Push/fold model (not a solve)",
   "best-response": "Exploiting an assumed profile (best response, not a solve)",
   "node-lock": "Node-locked equilibrium of the restricted game, not the unlocked equilibrium",
-  "plo-river": "Heads-up PLO4 river solve of every combo, this river only: earlier streets aren't solved",
+  "plo-river": "Heads-up PLO4 solve of every combo from the street typed (a river, or a turn and every river after it): earlier streets aren't solved",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
   unknown: "Unlabelled",
@@ -315,6 +315,11 @@ export function describe(p: Provenance): string {
 /** A PLO4 river's provenance (engine/plo/river/): exact on the tree it's given, so it says that tree, how far the solve got
  * and that nothing before the river is solved; the ranges are the reader's own, no solve's. A solve stopped short of its
  * target is approximate, however close it got. The figure is measured by an exact best response on that tree. */
+const sizesWords = (s: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }) => {
+  const list = (xs: readonly number[]) => xs.map((x) => `${x}%`).join(", ") || "none";
+  return `bets ${list(s.bets)} of the pot, raises ${list(s.raises)}, up to ${s.raiseCap} raise${s.raiseCap === 1 ? "" : "s"}${s.allIn ? ", all-in where the limit allows" : ""}`;
+};
+
 export function ploRiverProvenance(r: {
   stop: "target" | "time" | "iterations" | "cancelled";
   iterations: number;
@@ -322,10 +327,11 @@ export function ploRiverProvenance(r: {
   exploitabilityPct: number;
   targetPct: number;
   sizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean };
+  /** a turn's: its river sizes and the river cards solved */
+  turn?: { riverSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; rivers: number };
   now?: number;
 }): Provenance {
   const short = r.stop !== "target";
-  const list = (xs: readonly number[]) => xs.map((x) => `${x}%`).join(", ") || "none";
   const label = { time: "the time budget ran out", iterations: "the iteration limit came first", cancelled: "cancelled", target: "" }[r.stop];
   return {
     source: "plo-river",
@@ -335,11 +341,13 @@ export function ploRiverProvenance(r: {
     band: bandOf(r.exploitabilityPct, short),
     iterations: r.iterations,
     seconds: r.seconds,
-    view: `from the ranges typed, at bets ${list(r.sizes.bets)} of the pot, raises ${list(r.sizes.raises)}, up to ${r.sizes.raiseCap} raise${r.sizes.raiseCap === 1 ? "" : "s"}${r.sizes.allIn ? ", all-in where the limit allows" : ""}, no rake`,
+    view: r.turn
+      ? `a turn and its ${r.turn.rivers} river cards from the ranges typed, the turn at ${sizesWords(r.sizes)}, every river at ${sizesWords(r.turn.riverSizes)}, no rake`
+      : `from the ranges typed, at ${sizesWords(r.sizes)}, no rake`,
     ...(short ? { approximateLabel: `short of its target: ${label}` } : {}),
     mode: "accurate",
     transport: "worker",
-    solverVersion: "Lizard PLO river, discounted CFR in TypeScript",
+    solverVersion: r.turn ? "Lizard PLO turn and river, discounted CFR in TypeScript" : "Lizard PLO river, discounted CFR in TypeScript",
     partial: false,
     receivedAt: r.now ?? Date.now(),
   };

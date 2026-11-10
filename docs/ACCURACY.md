@@ -724,6 +724,12 @@ these trees, and nothing about how close an abstracted answer is to the full gam
 
 **Not checked.** Large spots aren't cross-checked, the reference being a dense matrix. The ranges are typed, so nothing says they are the ranges a solved hand would reach the river with. Earlier streets, rake and node locks aren't there. Speed on a phone isn't measured.
 
+**The turn (2026-11-10).** `web/src/engine/plo/turn/` solves a heads-up PLO4 turn and every river card after it in one DCFR run: the turn's tree, and where its betting closes with chips behind, each river card as its own river game of the solver above (its combos mapped back to the turn's, each river counting 1/40 at the turn, as a matchup that can be dealt sees 40 cards). All-in on the turn, every river card is a showdown. Exploitability is an exact best response through the turn and all its rivers, in % of the turn's pot.
+
+**Measured [M] (`turn/solver.test.ts`).** On a 4 by 3 combo spot checked through, the turn solve's value equals the 48 rivers solved one at a time by the river solver, weighted by their matchups, within the two solves' exploitabilities; the river matchups sum to 40 times the turn's, to 9 places. A turn all-in called is worth each matchup's equity over the river, as `engine/plo/equity.ts` counts it exactly, to 9 places (a code path apart from the solver's showdowns). A spot with turn bets, a raise and an all-in closes to 0.05% of the pot. In a browser on the dev server: AAxx against JT98 on Js9s4d2h, 75% a street, 5,853 by 144 combos, reached 0.35% of the pot in 45 iterations, 5.3 s, 56 MB.
+
+**Not checked for the turn.** No reference of its own: the checks are the river solver (held to the Python reference above), its own decomposition and the equity calculator. A turn's limit is 12 million combo-terminals an iteration, so wide ranges with two sizes a street are refused.
+
 ## 16. Node lock
 
 `engine/nodelock.py` holds a mix at chosen nodes and re-solves everything else. It sits outside `solver/` and runs the engine's own tree and iteration, so the answer is an equilibrium of the restricted game: the game in which the locked hands must play that mix. It isn't an equilibrium of the unlocked game, and it isn't a best response, which is what `gto/exploit.py` gives.

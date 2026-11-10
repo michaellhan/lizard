@@ -1,14 +1,14 @@
-// One heads-up PLO4 river, solved exactly on the sizes listed, from ranges a person types (engine/plo/river/). That's all it
-// is: no street before the river is solved, the ranges aren't anyone's solution, there's no rake, and pot-limit poker's other
+// One heads-up PLO4 river, or a turn and every river after it, solved exactly on the sizes listed, from ranges a person
+// types (engine/plo/river/, engine/plo/turn/). That's all it is: no street before the one typed is solved, the ranges aren't anyone's solution, there's no rake, and pot-limit poker's other
 // sizes aren't in the tree. The page says so, and every number under it sits under the solve's provenance. Loaded with its
 // route, so no PLO code is in the first download; the work is done in a worker.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
-import { cardName } from "@/engine/plo/cards";
+import { cardName, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { RiverClient } from "@/engine/plo/river/client";
-import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type StopReason } from "@/engine/plo/river/run";
+import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type StopReason } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 
@@ -57,6 +57,12 @@ export function PloRiverPage() {
   const [raises, setRaises] = useState("100");
   const [raiseCap, setRaiseCap] = useState(2);
   const [allIn, setAllIn] = useState(true);
+  // (a turn solves every river too: one size a street to start, as two sizes and a raise are mostly over the limit)
+  const [riverBets, setRiverBets] = useState("75");
+  const [riverRaises, setRiverRaises] = useState("");
+  const [riverCap, setRiverCap] = useState(0);
+  const [riverAllIn, setRiverAllIn] = useState(true);
+  const isTurn = parseIds(board)?.length === 4;
   const [target, setTarget] = useState(String(DEFAULT_TARGET_PCT));
   const [seconds, setSeconds] = useState(String(DEFAULT_SECONDS));
   const [running, setRunning] = useState(false);
@@ -80,7 +86,9 @@ export function PloRiverPage() {
     setProgress(null);
     const betSizes = readSizes(bets);
     const raiseSizes = readSizes(raises);
-    if (!betSizes || !raiseSizes) {
+    const riverBetSizes = readSizes(riverBets);
+    const riverRaiseSizes = readSizes(riverRaises);
+    if (!betSizes || !raiseSizes || (isTurn && (!riverBetSizes || !riverRaiseSizes))) {
       setError("Sizes are percents, separated by commas: 50, 100.");
       return;
     }
@@ -91,6 +99,7 @@ export function PloRiverPage() {
       pot: Number(pot),
       stacks: [Number(stackOop), Number(stackIp)],
       sizes: { bets: betSizes, raises: raiseSizes, raiseCap, allIn },
+      ...(isTurn ? { riverSizes: { bets: riverBetSizes!, raises: riverRaiseSizes!, raiseCap: riverCap, allIn: riverAllIn } } : {}),
       targetPct: Number(target),
       seconds: Number(seconds),
     };
@@ -111,10 +120,10 @@ export function PloRiverPage() {
   return (
     <div className="max-w-3xl space-y-5">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Heads-up PLO4 river solve</h1>
+        <h1 className="text-2xl font-semibold">Heads-up PLO4 river and turn solve</h1>
         <p className="text-sm text-muted">
-          One river, solved exactly at the sizes you list, every combo of both ranges and every card they block. It covers this river only: the ranges are the ones you type, no earlier street is solved, it&apos;s heads-up, pot limit&apos;s other
-          sizes aren&apos;t in the tree, and there&apos;s no rake.
+          One river, or a turn and every river card after it, solved exactly at the sizes you list, every combo of both ranges and every card they block. It covers the street you type and after: the ranges are the ones you type, no earlier street
+          is solved, it&apos;s heads-up, pot limit&apos;s other sizes aren&apos;t in the tree, and there&apos;s no rake.
         </p>
       </header>
 
@@ -137,7 +146,7 @@ export function PloRiverPage() {
           A hand (AsKsQhJh) or a range, separated by commas: AAxx any two aces or more; JT98ds with a suit shape (ds double-suited, ss single-suited, r rainbow); random every hand; @25 a weight in percent.
         </p>
         <label className="block space-y-1 text-sm">
-          <span className="text-muted">Board, five cards</span>
+          <span className="text-muted">Board, five cards for a river, four for a turn</span>
           <input aria-label="Board" value={board} onChange={(e) => setBoard(e.target.value)} className={inputClass} spellCheck={false} />
         </label>
         <div className="grid grid-cols-3 gap-3 text-sm">
@@ -156,15 +165,15 @@ export function PloRiverPage() {
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <label className="min-w-0 space-y-1">
-            <span className="text-muted">Bets, % of pot</span>
+            <span className="text-muted">{isTurn ? "Turn bets" : "Bets"}, % of pot</span>
             <input aria-label="Bet sizes" value={bets} onChange={(e) => setBets(e.target.value)} className={inputClass} />
           </label>
           <label className="min-w-0 space-y-1">
-            <span className="text-muted">Raises, % of pot</span>
+            <span className="text-muted">{isTurn ? "Turn raises" : "Raises"}, % of pot</span>
             <input aria-label="Raise sizes" value={raises} onChange={(e) => setRaises(e.target.value)} className={inputClass} />
           </label>
           <label className="min-w-0 space-y-1">
-            <span className="text-muted">Raise cap</span>
+            <span className="text-muted">{isTurn ? "Turn raise cap" : "Raise cap"}</span>
             <select aria-label="Raise cap" value={raiseCap} onChange={(e) => setRaiseCap(Number(e.target.value))} className={inputClass}>
               {Array.from({ length: MAX_RAISE_CAP + 1 }, (_, n) => (
                 <option key={n} value={n}>
@@ -176,8 +185,40 @@ export function PloRiverPage() {
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={allIn} onChange={(e) => setAllIn(e.target.checked)} />
-          <span>All-in where pot limit allows the whole stack</span>
+          <span>All-in where pot limit allows the whole stack{isTurn ? ", on the turn" : ""}</span>
         </label>
+        {isTurn && (
+          <fieldset className="space-y-3">
+            <legend className="text-sm text-muted">Every river after it</legend>
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              <label className="min-w-0 space-y-1">
+                <span className="text-muted">River bets, % of pot</span>
+                <input aria-label="River bet sizes" value={riverBets} onChange={(e) => setRiverBets(e.target.value)} className={inputClass} />
+              </label>
+              <label className="min-w-0 space-y-1">
+                <span className="text-muted">River raises, % of pot</span>
+                <input aria-label="River raise sizes" value={riverRaises} onChange={(e) => setRiverRaises(e.target.value)} className={inputClass} />
+              </label>
+              <label className="min-w-0 space-y-1">
+                <span className="text-muted">River raise cap</span>
+                <select aria-label="River raise cap" value={riverCap} onChange={(e) => setRiverCap(Number(e.target.value))} className={inputClass}>
+                  {Array.from({ length: MAX_RAISE_CAP + 1 }, (_, n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={riverAllIn} onChange={(e) => setRiverAllIn(e.target.checked)} />
+              <span>All-in where pot limit allows the whole stack, on the river</span>
+            </label>
+            <p className="text-xs text-muted">
+              Where the turn&apos;s betting closes with chips behind, each of the river cards that can come is solved as its own river at these sizes, in one solve with the turn. All-in on the turn, every river card is a showdown.
+            </p>
+          </fieldset>
+        )}
         <p className="text-xs text-muted">
           Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises. A size is cut to the largest pot-limit bet, lifted to the smallest, and a raise&apos;s percent is of the pot after the call, so 100 is the pot-limit raise. The raise cap counts raises
           after the first bet. Chips one stack has over the other aren&apos;t in play.
@@ -194,11 +235,11 @@ export function PloRiverPage() {
         </div>
         <p className="text-xs text-muted">
           The target is at least {MIN_TARGET_PCT}%, the budget up to {MAX_SECONDS} s. A solve stops at whichever comes first and says which. A spot is refused, never sampled or grouped, over{" "}
-          {(MAX_WORK / 1e6).toFixed(0)} million combos times ways a hand can end, or about {(MAX_MEMORY_BYTES / 1e6).toFixed(0)} MB.
+          {(MAX_WORK / 1e6).toFixed(0)} million combos times ways a hand can end (a turn {(MAX_TURN_WORK / 1e6).toFixed(0)} million, counting every river&apos;s), or about {(MAX_MEMORY_BYTES / 1e6).toFixed(0)} MB.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" disabled={running} className={buttonClass}>
-            Solve this river
+            {isTurn ? "Solve this turn" : "Solve this river"}
           </button>
           {running && (
             <button type="button" className={buttonClass} onClick={() => client.current?.cancel()}>
@@ -228,18 +269,29 @@ function Results({ result }: { result: RiverResult }) {
   const [nodeId, setNodeId] = useState(0);
   const node = result.nodes.find((n) => n.id === nodeId) ?? result.nodes[0]!;
   const provenance = useMemo(
-    () => ploRiverProvenance({ stop: result.stop, iterations: result.iterations, seconds: result.seconds, exploitabilityPct: result.exploitability.pct, targetPct: result.targetPct, sizes: result.sizes }),
+    () =>
+      ploRiverProvenance({
+        stop: result.stop,
+        iterations: result.iterations,
+        seconds: result.seconds,
+        exploitabilityPct: result.exploitability.pct,
+        targetPct: result.targetPct,
+        sizes: result.sizes,
+        ...(result.street === "turn" ? { turn: { riverSizes: result.riverSizes!, rivers: result.rivers! } } : {}),
+      }),
     [result],
   );
+  const turn = result.street === "turn";
   const dropped = result.unmatched.flatMap((x, seat) => (x ? [`${x.toLocaleString("en-US")} ${SEAT_NAMES[seat]} combos left out: each shares a card with every hand on the other side.`] : []));
   return (
-    <section aria-label="River solution" className="min-w-0 space-y-3">
+    <section aria-label={turn ? "Turn solution" : "River solution"} className="min-w-0 space-y-3">
       <ProvenanceBadge p={provenance} />
       <p className="text-sm">
-        {stopWords(result)} Exploitability {result.exploitability.pct.toFixed(3)}% of the pot ({result.exploitability.chips.toFixed(3)}bb a matchup), the average of what each seat gains by an exact best response in this tree.
+        {stopWords(result)} Exploitability {result.exploitability.pct.toFixed(3)}% of the pot ({result.exploitability.chips.toFixed(3)}bb a matchup), the average of what each seat gains by an exact best response in this tree{turn ? `, through the turn and all ${result.rivers} rivers` : ""}.
       </p>
       <p className="text-xs text-muted">
-        Board {result.board}, pot {result.pot}, {result.stack} behind in play, {result.hands[0].length.toLocaleString("en-US")} OOP and {result.hands[1].length.toLocaleString("en-US")} IP combos, {result.iterations.toLocaleString("en-US")} iterations in{" "}
+        Board {result.board}
+        {turn ? ` and ${result.rivers} river cards` : ""}, pot {result.pot}, {result.stack} behind in play, {result.hands[0].length.toLocaleString("en-US")} OOP and {result.hands[1].length.toLocaleString("en-US")} IP combos, {result.iterations.toLocaleString("en-US")} iterations in{" "}
         {result.seconds.toFixed(1)} s, up to {Math.ceil(result.memoryBytes / 1e6)} MB. {dropped.join(" ")}
       </p>
 
@@ -258,8 +310,9 @@ function Results({ result }: { result: RiverResult }) {
       <ActionTable node={node} />
       <EveryDecision nodes={result.nodes} />
       <ComboTable key={node.id} result={result} node={node} />
+      {turn && <p className="text-xs text-muted">The turn&apos;s decisions are shown. Every river after them was solved with them, and isn&apos;t shown card by card.</p>}
       <p className="text-xs text-muted">
-        EV is in bb: chips won from the pot of {result.pot}, less chips bet on the river, so the two ranges&apos; EVs add to the pot on every line. A frequency counts the matchups that can be dealt, so a card a hand blocks is in it. No rake.
+        EV is in bb: chips won from the pot of {result.pot}, less chips bet {turn ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to the pot on every line. A frequency counts the matchups that can be dealt, so a card a hand blocks is in it. No rake.
       </p>
     </section>
   );
@@ -338,10 +391,11 @@ function ComboTable({ result, node }: { result: RiverResult; node: ResultNode })
   const n = hands.length;
   const reaching = useMemo(() => {
     const out: number[] = [];
-    // the game holds the weakest first: strongest first here
+    // a river's game holds the weakest first: strongest first here. A turn has no order of strength: highest EV first
     for (let i = n - 1; i >= 0; i--) if (node.weight[i]! > 0) out.push(i);
+    if (result.street === "turn") out.sort((a, b) => (Number.isNaN(node.ev[b]!) ? -Infinity : node.ev[b]!) - (Number.isNaN(node.ev[a]!) ? -Infinity : node.ev[a]!));
     return out;
-  }, [node, n]);
+  }, [node, n, result.street]);
   const wanted = find.trim().toLowerCase();
   const rows = useMemo(() => (wanted ? reaching.filter((i) => handText(hands[i]!).toLowerCase().includes(wanted)) : reaching), [reaching, wanted, hands]);
   const visible = rows.slice(0, shown);
@@ -352,7 +406,7 @@ function ComboTable({ result, node }: { result: RiverResult; node: ResultNode })
         <input aria-label="Find a hand" value={find} onChange={(e) => setFind(e.target.value)} className={inputClass} spellCheck={false} />
       </label>
       <p className="text-xs text-muted">
-        {SEAT_NAMES[node.player]}: {rows.length.toLocaleString("en-US")} of {n.toLocaleString("en-US")} combos reach this decision{wanted ? " and match" : ""}, strongest first. Showing {visible.length.toLocaleString("en-US")}.
+        {SEAT_NAMES[node.player]}: {rows.length.toLocaleString("en-US")} of {n.toLocaleString("en-US")} combos reach this decision{wanted ? " and match" : ""}, {result.street === "turn" ? "highest EV first" : "strongest first"}. Showing {visible.length.toLocaleString("en-US")}.
       </p>
       <PhoneColumns hidden={["Reach"]}>
         <div className="scroll-x">

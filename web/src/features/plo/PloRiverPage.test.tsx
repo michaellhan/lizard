@@ -23,8 +23,8 @@ function small() {
 describe("PloRiverPage", () => {
   it("says what it covers and what it doesn't, before anything is run", () => {
     render(<PloRiverPage />);
-    expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 river solve" })).toBeTruthy();
-    const words = screen.getByText(/One river, solved exactly/).textContent;
+    expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 river and turn solve" })).toBeTruthy();
+    const words = screen.getByText(/One river, or a turn and every river card after it, solved exactly/).textContent;
     expect(words).toMatch(/no earlier street is solved/);
     expect(words).toMatch(/heads-up/);
     expect(words).toMatch(/no rake/);
@@ -35,7 +35,7 @@ describe("PloRiverPage", () => {
     small();
     solve();
     const section = await screen.findByRole("region", { name: "River solution" });
-    const badge = within(section).getByRole("button", { name: /Heads-up PLO4 river solve of every combo/ });
+    const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
     expect(badge.textContent).toMatch(/earlier streets aren't solved/);
     expect(badge.textContent).toMatch(/iterations/);
     expect(badge.textContent).toMatch(/% pot from equilibrium in the solved game/);
@@ -54,6 +54,27 @@ describe("PloRiverPage", () => {
     expect(within(combos).getAllByRole("row")).toHaveLength(3);
     expect(combos.textContent).toContain("Qh");
   });
+
+  it("solves a turn and every river after it, from a board of four cards", async () => {
+    render(<PloRiverPage />);
+    small();
+    type("Board", "2c7d9hJs");
+    expect(screen.queryByLabelText("River bet sizes")).toBeTruthy();
+    type("River bet sizes", "100");
+    type("River raise sizes", "");
+    fireEvent.change(screen.getByLabelText("River raise cap"), { target: { value: "0" } });
+    fireEvent.click(screen.getByLabelText(/on the river$/));
+    type("Target exploitability", "0.5");
+    fireEvent.click(screen.getByRole("button", { name: "Solve this turn" }));
+    // (44 rivers: the four cards of IP's one hand leave it nothing)
+    const section = await screen.findByRole("region", { name: "Turn solution" }, { timeout: 20000 });
+    const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
+    expect(badge.textContent).toMatch(/a turn and its 44 river cards from the ranges typed/);
+    expect(badge.textContent).toMatch(/every river at bets 100% of the pot, raises none, up to 0 raises/);
+    expect(section.textContent).toMatch(/through the turn and all 44 rivers/);
+    expect(section.textContent).toMatch(/less chips bet on the turn and river/);
+    expect(section.textContent).toMatch(/highest EV first/);
+  }, 30000);
 
   it("goes to another decision, the other range's", async () => {
     render(<PloRiverPage />);

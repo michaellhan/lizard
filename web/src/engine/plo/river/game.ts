@@ -64,17 +64,10 @@ function pick<T extends Int32Array | Float64Array>(xs: T, keep: readonly number[
   return out;
 }
 
-/** The game of a spec, or a RiverError saying what's wrong with it. */
-export function compileGame(spec: RiverSpec): RiverGame {
-  const { board, pot, stacks, sizes } = spec;
-  if (board.length !== 5 || new Set(board).size !== 5) throw new RiverError("A river board is five different cards.");
-  if (!(pot >= 2)) throw new RiverError("The pot is at least 2bb: both seats have a blind in by the river.");
-  const stack = Math.min(stacks[0], stacks[1]);
-  if (!(stack > 0)) throw new RiverError("Both seats need chips behind.");
-  const wrong = checkSizes(sizes);
-  if (wrong) throw new RiverError(wrong);
-
-  const live = spec.ranges.map((r) => sideOf(withoutBlocked(r, board), board));
+/** Both sides of a river board: the ranges' hands left once the board's cards are out, in order of strength, less the
+ * combos that can't meet a single opposing hand; or a RiverError saying why no matchup can be dealt. */
+export function compileSides(ranges: readonly [PloRange, PloRange], board: readonly number[]): Pick<RiverGame, "sides" | "matchups" | "unmatched" | "setCount"> {
+  const live = ranges.map((r) => sideOf(withoutBlocked(r, board), board));
   const a = live[0]!;
   const b = live[1]!;
   if (!a.hands.length || !b.hands.length) throw new RiverError(`The ${a.hands.length ? "IP" : "OOP"} range has no hand left once the board's cards are out.`);
@@ -110,14 +103,19 @@ export function compileGame(spec: RiverSpec): RiverGame {
   }
   let matchups = 0;
   for (let i = 0; i < sides[0].n; i++) matchups += sides[0].weights[i]! * (total - blockedReach(sum, sides[0].sets, i * SUBSETS));
+  return { sides, matchups, unmatched: [a.hands.length - keepA.length, b.hands.length - keepB.length], setCount: count };
+}
 
-  return {
-    sides,
-    tree: buildTree(pot, stack, sizes),
-    matchups,
-    unmatched: [a.hands.length - keepA.length, b.hands.length - keepB.length],
-    setCount: count,
-  };
+/** The game of a spec, or a RiverError saying what's wrong with it. */
+export function compileGame(spec: RiverSpec): RiverGame {
+  const { board, pot, stacks, sizes } = spec;
+  if (board.length !== 5 || new Set(board).size !== 5) throw new RiverError("A river board is five different cards.");
+  if (!(pot >= 2)) throw new RiverError("The pot is at least 2bb: both seats have a blind in by the river.");
+  const stack = Math.min(stacks[0], stacks[1]);
+  if (!(stack > 0)) throw new RiverError("Both seats need chips behind.");
+  const wrong = checkSizes(sizes);
+  if (wrong) throw new RiverError(wrong);
+  return { ...compileSides([spec.ranges[0], spec.ranges[1]], board), tree: buildTree(pot, stack, sizes) };
 }
 
 /** The two sums, over the hands each hero hand can meet, for one reach of the other side. */
@@ -125,7 +123,7 @@ export class Terminals {
   private readonly sum: Float64Array;
   private readonly low: Float64Array;
 
-  constructor(private readonly game: RiverGame) {
+  constructor(private readonly game: Pick<RiverGame, "sides" | "setCount">) {
     this.sum = new Float64Array(game.setCount);
     this.low = new Float64Array(Math.max(game.sides[0].n, game.sides[1].n));
   }

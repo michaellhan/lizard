@@ -5,17 +5,42 @@ import { expect, overflow, test } from "./fixtures";
 
 test.skip(({ viewport }) => viewport?.width !== 1440, "this sets its own sizes");
 
+test("A turn solves in the worker with every river after it, and its tables add up", async ({ page, problems }) => {
+  await page.goto("/lizard/plo/");
+  await page.getByLabel("OOP range").fill("AAxx");
+  await page.getByLabel("IP range").fill("JT98");
+  await page.getByLabel("Board").fill("Js9s4d2h");
+  await page.getByLabel("Bet sizes", { exact: true }).fill("75");
+  await page.getByLabel("Raise sizes", { exact: true }).fill("");
+  await page.getByLabel("Raise cap", { exact: true }).selectOption("0");
+  await page.getByLabel("Target exploitability").fill("0.5");
+  await page.getByRole("button", { name: "Solve this turn" }).click();
+  const answer = page.getByRole("region", { name: "Turn solution" });
+  await expect(answer).toBeVisible({ timeout: 120_000 });
+  await expect(answer.getByRole("button", { name: /a turn and its 48 river cards from the ranges typed/ })).toBeVisible();
+  await expect(answer).toContainText("Reached the target of 0.5% of the pot.");
+  await expect(answer).toContainText("through the turn and all 48 rivers");
+  for (const line of ["OOP to start", "IP after OOP Check"]) {
+    await answer.getByLabel("Decision", { exact: true }).selectOption({ label: line });
+    const evs = await page.getByRole("table", { name: "Ranges on this line" }).locator("tbody td:last-child").allTextContents();
+    expect(Math.abs(evs.reduce((t, x) => t + Number(x), 0) - 20)).toBeLessThan(0.02);
+    const freqs = await page.getByRole("table", { name: "Actions at this decision" }).locator("tbody td:nth-child(2)").allTextContents();
+    expect(Math.abs(freqs.reduce((t, x) => t + Number.parseFloat(x), 0) - 100)).toBeLessThan(0.3);
+  }
+  expect(problems.errors).toEqual([]);
+});
+
 test("A river solves in the worker, every table adds up, and a phone can read it", async ({ page, problems }) => {
   const workers: string[] = [];
   page.on("worker", (w) => workers.push(w.url()));
   await page.goto("/lizard/plo/");
-  await expect(page.getByRole("heading", { name: "Heads-up PLO4 river solve" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Heads-up PLO4 river and turn solve" })).toBeVisible();
   await page.getByRole("button", { name: "Solve this river" }).click();
   const answer = page.getByRole("region", { name: "River solution" });
   await expect(answer).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole("status")).toBeHidden();
   expect(workers.filter((u) => u.includes("river.worker"))).toHaveLength(1);
-  await expect(answer.getByRole("button", { name: /Heads-up PLO4 river solve of every combo/ })).toBeVisible();
+  await expect(answer.getByRole("button", { name: /Heads-up PLO4 solve of every combo/ })).toBeVisible();
   await expect(answer).toContainText("Reached the target of 0.1% of the pot.");
 
   // the two ranges' EVs add to the pot on every line, and a decision's frequencies add to 100%
@@ -85,6 +110,6 @@ test("A spot over the limits and a bad board are refused in words, with nothing 
 
   await page.getByLabel("Board").fill("Js9s");
   await page.getByRole("button", { name: "Solve this river" }).click();
-  await expect(page.getByRole("alert")).toContainText("The board isn't five cards");
+  await expect(page.getByRole("alert")).toContainText("The board is five cards for a river, four for a turn");
   expect(problems.errors).toEqual([]);
 });

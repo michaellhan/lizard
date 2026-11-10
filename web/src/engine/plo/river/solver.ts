@@ -11,7 +11,7 @@
 // and a Float32 of average strategy, and scratch vectors per level of the tree.
 import { SUBSETS } from "./blockers";
 import { Terminals, type RiverGame } from "./game";
-import type { ActionNode, RiverNode, Seat } from "./tree";
+import type { ActionNode, RiverNode, RiverTree, Seat } from "./tree";
 import { OOP } from "./tree";
 
 // the DCFR constants
@@ -76,26 +76,43 @@ export class RiverSolver {
   private readonly levels: Level[];
   private readonly half: number;
 
-  constructor(readonly game: RiverGame) {
+  /** `shared`: a turn solve's (engine/plo/turn/), whose rivers are solved one at a time: the terminal sums of the river
+   * card's sides, and scratch vectors big enough for every river's tree. */
+  constructor(
+    readonly game: RiverGame,
+    shared: { terminals?: Terminals; levels?: Level[] } = {},
+  ) {
     const { sides, tree } = game;
-    this.terminals = new Terminals(game);
+    this.terminals = shared.terminals ?? new Terminals(game);
     this.regret = [new Float32Array(sides[0].n * tree.slots[0]), new Float32Array(sides[1].n * tree.slots[1])];
     this.average = [new Float32Array(sides[0].n * tree.slots[0]), new Float32Array(sides[1].n * tree.slots[1])];
-    const n = Math.max(sides[0].n, sides[1].n);
-    const widest = Math.max(...tree.nodes.map((x) => (x.kind === "action" ? x.actions.length : 0)));
-    this.levels = Array.from({ length: tree.depth + 1 }, () => new Level(n, widest));
+    this.levels = shared.levels ?? levelsFor(Math.max(sides[0].n, sides[1].n), widestOf(tree), tree.depth);
     this.half = tree.pot / 2;
   }
 
-  /** One pass for each seat. */
-  iterate(): void {
-    const t = ++this.iterations;
-    // the discounts on what was there before this pass
+  /** Sets the discounts for iteration `t` (1 first) on what was there before it. */
+  begin(t: number): void {
+    this.iterations = t;
     const last = t - 1;
     const tp = last ** ALPHA;
     this.keepGain = tp / (tp + 1);
     this.keepLoss = 0.5;
     this.keepAverage = (last / t) ** GAMMA;
+  }
+
+  /** One seat's pass from the root against the other's reach `reach`: its counterfactual values into `out`. */
+  pass(hero: Seat, reach: Float64Array, out: Float64Array): void {
+    this.solve(0, hero, reach, out, 0);
+  }
+
+  /** hero's values from the root against the other's average, best-responding if `best`, else at its own average. */
+  valueAt(hero: Seat, reach: Float64Array, out: Float64Array, best: boolean): void {
+    this.respond(0, hero, reach, out, 0, best);
+  }
+
+  /** One pass for each seat. */
+  iterate(): void {
+    this.begin(this.iterations + 1);
     for (const hero of [0, 1] as const) {
       const root = this.game.sides[(1 - hero) as Seat].weights;
       this.solve(0, hero, root, this.levels[0]!.value, 0);
@@ -359,8 +376,14 @@ export class RiverSolver {
 /** a reach this small is rounding, not a hand that can be met */
 const TINY = 1e-11;
 
+/** The widest node of a tree, in actions. */
+export const widestOf = (tree: RiverTree): number => Math.max(1, ...tree.nodes.map((x) => (x.kind === "action" ? x.actions.length : 0)));
+
+/** Scratch vectors for a tree `depth` deep, `widest` actions at most, `n` combos a side at most. */
+export const levelsFor = (n: number, widest: number, depth: number): Level[] => Array.from({ length: depth + 1 }, () => new Level(n, widest));
+
 /** A level of the tree's scratch vectors. */
-class Level {
+export class Level {
   value: Float64Array;
   reach: Float64Array;
   own: Float64Array;

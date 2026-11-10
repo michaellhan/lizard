@@ -206,7 +206,7 @@ describe("a PLO4 river", () => {
     const p = ploRiverProvenance({ ...river, stop: "target" });
     expect(p).toMatchObject({ source: "plo-river", approximate: false, band: "converged", iterations: 140, targetPct: 0.1 });
     const words = describeProvenance(p);
-    expect(words).toContain("Heads-up PLO4 river solve of every combo");
+    expect(words).toContain("Heads-up PLO4 solve of every combo");
     expect(words).toContain("earlier streets aren't solved");
     expect(words).toContain("bets 50%, 100% of the pot, raises 100%, up to 2 raises, all-in where the limit allows, no rake");
     expect(words).toContain("0.08% pot from equilibrium in the solved game");

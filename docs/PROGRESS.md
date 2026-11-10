@@ -4570,3 +4570,26 @@ Checked in a browser on the dev server: a 3-max PKO session at 10bb, 10 a seat, 
 KO / PKO stays PARTIAL, since preflop away from push/fold is a discount on the chart's risk premium. Counts unchanged at 42 / 13 / 5 / 3.
 
 Tests: `tournamentPlay.test.ts` 14 passed (4 new); all of `src/features/practice` 1226+ passed; tsc and eslint clean. The two heads-up precompute builds were left alone.
+
+### 2026-11-10: PLO4 turn solve
+
+The PLO page solved one river and nothing before it. A four-card board now solves the turn and every river card after it in one discounted-CFR run (`web/src/engine/plo/turn/`). The turn's tree uses the same pot-limit rules (`buildTree`). Where the turn's betting closes with chips behind, each river card is its own exact river game of the existing solver. Its combos map back to the turn's, and each river counts 1/40 at the turn: a matchup that can be dealt sees 40 river cards. All-in on the turn, every river card is a showdown.
+
+The river code gained four pieces, none of which changes it:
+- `compileSides`, factored out of `compileGame`;
+- `begin`, `pass` and `valueAt` on `RiverSolver`;
+- a way to share scratch vectors and terminal sums;
+- turn requests in `run.ts`, with their own limit of 12 million combo-terminals an iteration.
+
+The page shows river sizes when the board has four cards. Its badge says "a turn and its N river cards", and exploitability is an exact best response through the turn and every river. Only the turn's decisions are shown.
+
+Checks (`turn/solver.test.ts`, 6 tests):
+- Checked through, the turn's value equals the 48 rivers solved one by one, within their exploitabilities.
+- The river matchups sum to 40 times the turn's.
+- A called all-in is worth each matchup's exact equity from `equity.ts`, to 9 places.
+- A spot with bets, a raise and an all-in closes to 0.05%.
+- A request job runs and stops at its target.
+
+Measured in Node: AAxx,KKxx,QQxx against JT98,JT97,T987 on Js9s4d2h, at one size a street, came to 11.9M units, 1.0 to 1.2 s an iteration and 165 MB. AAxx against JT98 reached 0.29% in 50 iterations, 15 s. In the browser on the dev server, that spot reached 0.35% in 45 iterations, 5.3 s, 56 MB. `web/e2e/plo.e2e.ts` gained a turn test; all 4 passed on the build.
+
+The PLO4 row stays PARTIAL. Not done: the flop, river strategies after a turn shown card by card, a reference of the turn's own, and PLO in Study, Practice or Analyze. ACCURACY section 15 and ROADMAP Phase 10 are updated. The two heads-up precompute builds were left alone.
