@@ -4761,3 +4761,18 @@ Tests:
 Checked in a browser on the dev server, on the default river: 10 hands dealt and graded. A raise to 80 with KK, facing a bet from a range of straights, gives up 79.9bb with best play after it; an IP straight's bet mixes at equal EV. No sideways scroll at 375px.
 
 The PLO4 row stays PARTIAL.
+
+### 2026-11-10: a PLO hand you played, as the spots to solve (Phase 10)
+
+"Start from a hand you played" on the PLO page (`web/src/features/plo/fromHistory.ts`, `PloRiverPage.tsx` `FromHistory`) takes a pasted four-card pot-limit Omaha hand history. It lists each street two players saw with chips behind, with that street's board, the pot as it started and what each had behind, and puts the one chosen in the form. A note says which seats those are, which one you were and with what hand, and that the ranges are still yours to type: a history shows one hand, not a range.
+
+The hand-history parser has an Omaha mode for it (`hh/parse.ts`, `parseHandHistory(text, { omaha: true })`). It reads four hole cards and marks the hand `game: "plo4"`, and refuses Hold'em, hi-lo, five- and six-card Omaha and Courchevel in words. `replay` plays a PLO hand at pot limit. Without the option nothing changes: Analyze's import still refuses Omaha, and every golden file and import test passes unchanged. A street three players saw is named and left out (the solver is heads-up), and so is one that came with a player all-in.
+
+Tests:
+- `fromHistory.test.ts`, 3 passing: a PokerStars hand's flop, turn and river (pots 5.5, 9.1 and 21.3, BB against BTN); a three-way flop left out, with the small blind's call counted in the turn's pot of 11.1; a turn all-in leaving no river; the refusals; Analyze's parser still refusing the hand.
+- `PloRiverPage.test.tsx`: the hand read, the turn put in the form, the ranges left as typed, the note, and a Hold'em hand refused.
+- `src/hh` and `src/features/analyze`: 382 passing.
+
+Checked in a browser on the dev server: the same hand pasted, the river put in the form and solved (11,310 by 448 combos, 0.074% in 0.4 s). Its turn with the default ranges and sizes was refused over the limit, in words.
+
+The PLO4 row stays PARTIAL.

@@ -86,6 +86,31 @@ describe("PloRiverPage", () => {
     expect(within(drill).getByRole("button", { name: "Next hand" })).toBeTruthy();
   });
 
+  it("puts a street of a pasted PLO hand in the form, its board, pot and stacks, and leaves the ranges as typed", async () => {
+    render(<PloRiverPage />);
+    fireEvent.click(screen.getByText("Start from a hand you played"));
+    type("PLO hand history", (await import("./fromHistory.test.fixture")).PLO);
+    fireEvent.click(screen.getByRole("button", { name: "Read the hand" }));
+    const street = screen.getByLabelText("Street from the hand");
+    expect(within(street).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Flop Qs8d3c: pot 5.5, BB 97.5 and BTN 97.5 behind",
+      "Turn Qs8d3c7h: pot 9.1, BB 95.7 and BTN 95.7 behind",
+      "River Qs8d3c7h2s: pot 21.3, BB 89.6 and BTN 89.6 behind",
+    ]);
+    fireEvent.change(street, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use this street" }));
+    expect((screen.getByLabelText("Board") as HTMLInputElement).value).toBe("Qs8d3c7h");
+    expect((screen.getByLabelText("Pot") as HTMLInputElement).value).toBe("9.1");
+    expect((screen.getByLabelText("OOP stack") as HTMLInputElement).value).toBe("95.7");
+    expect((screen.getByLabelText("OOP range") as HTMLInputElement).value).toBe("AAxx,KKxx,QQxx");
+    expect(screen.getByLabelText("From your hand").textContent).toMatch(/^From your hand: the turn, BB \(OOP\) against BTN \(IP\), you BTN with AhQdJsTd\. .*the ranges are still yours to type/);
+    expect(screen.getByRole("button", { name: "Solve this turn" })).toBeTruthy();
+
+    type("PLO hand history", "PokerStars Hand #1: Hold'em No Limit ($1/$2)");
+    fireEvent.click(screen.getByRole("button", { name: "Read the hand" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/Not an Omaha hand/);
+  });
+
   it("solves a turn and every river after it, from a board of four cards", async () => {
     render(<PloRiverPage />);
     small();

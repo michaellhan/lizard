@@ -21,7 +21,7 @@ const EPS = 1e-9;
 export function replay(h: ParsedHand): ReplayedHand {
   const warnings = [...h.warnings];
   const stacks = { ...h.stacks };
-  const setup: TableSetup = { players: h.players, stacks, ante: h.ante, ...(h.straddle ? { straddle: true } : {}) };
+  const setup: TableSetup = { players: h.players, stacks, ante: h.ante, ...(h.straddle ? { straddle: true } : {}), ...(h.game === "plo4" ? { limit: "pot" as const } : {}) };
   let lines = noLines();
   let stopped: ReplayedHand["stopped"] = null;
   for (const a of h.actions) {

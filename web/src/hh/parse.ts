@@ -52,6 +52,8 @@ export interface ParsedHand {
   /** a 2bb straddle from the first seat */
   straddle: boolean;
   hole: string[];
+  /** a four-card pot-limit Omaha hand, read only when asked for (parseHandHistory's `omaha`); absent for Hold'em */
+  game?: "plo4";
   /** the board, up to five cards; empty when the history's cards don't add up */
   board: string[];
   seats: HhSeat[];
@@ -326,16 +328,26 @@ interface Act {
   allIn?: boolean;
 }
 
-/** One hand history (the first, when several are pasted) as the hand, or a HandHistoryError saying why not. */
-export function parseHandHistory(text: string): ParsedHand {
+/** One hand history (the first, when several are pasted) as the hand, or a HandHistoryError saying why not. `omaha`: read
+ * a four-card pot-limit Omaha hand instead, and only that (the PLO page's; Analyze's import stays Hold'em). */
+export function parseHandHistory(text: string, opts: { omaha?: boolean } = {}): ParsedHand {
   const warnings: string[] = [];
   const { lines, site, hint } = norm(text, warnings);
   const head = lines.find((l) => /Hold'?em|Omaha|Hand #/i.test(l)) ?? lines[0] ?? "";
   // a mixed game names this hand's game in brackets: "Mixed NLH/PLO (Hold'em No Limit, $0.10/$0.25)"
   const game = head.match(/\bMixed\b[^(]*\(([^)]*)\)/i)?.[1] ?? head;
-  if (/Omaha|PLO|Stud|Razz|Badugi|Courchevel|6\+|Short ?Deck/i.test(game) || (/\bDraw\b/i.test(game) && !/Hold'?em/i.test(game)))
-    throw new HandHistoryError("Only Hold'em hands can be imported.");
-  if (/\bLimit\b/i.test(game) && !/No ?Limit/i.test(game)) warnings.push("Not a no-limit hand: it's solved as no-limit.");
+  const omaha = !!opts.omaha;
+  if (omaha) {
+    if (!/Omaha|PLO/i.test(game)) throw new HandHistoryError("Not an Omaha hand: this reads four-card pot-limit Omaha.");
+    if (/Hi\s*[/-]?\s*Lo|\bH\/?L\b|\b8\b|5[- ]?Card|PLO-?[56]|\b[56][- ]?Card|Courchevel|Big ?O|6\+/i.test(game))
+      throw new HandHistoryError("Only four-card Omaha high is read: not hi-lo, five or six cards, or Courchevel.");
+    if (!/Pot ?Limit|PLO/i.test(game)) warnings.push("Not a pot-limit hand: it's read as pot limit.");
+  } else {
+    if (/Omaha|PLO|Stud|Razz|Badugi|Courchevel|6\+|Short ?Deck/i.test(game) || (/\bDraw\b/i.test(game) && !/Hold'?em/i.test(game)))
+      throw new HandHistoryError("Only Hold'em hands can be imported.");
+    if (/\bLimit\b/i.test(game) && !/No ?Limit/i.test(game)) warnings.push("Not a no-limit hand: it's solved as no-limit.");
+  }
+  const holeCount = omaha ? 4 : 2;
 
   const seats: { seat: number; name: string; chips: number }[] = [];
   const seated = new Set<number>();
@@ -378,10 +390,10 @@ export function parseHandHistory(text: string): ParsedHand {
       const n = m[1]!;
       dealt.add(n);
       const cs = m[2] ? cardsIn(m[2]) : [];
-      if (cs.length > 2) throw new HandHistoryError("Only Hold'em hands can be imported.");
+      if (cs.length > holeCount) throw new HandHistoryError(omaha ? "Only four-card Omaha high is read: not hi-lo, five or six cards, or Courchevel." : "Only Hold'em hands can be imported.");
       // GGPoker's own exports can show every player's cards, its hero is "Hero"; Ignition's is "… [ME]"
       const me = (x: string | null) => x === hint || x === "Hero" || /\[ME\]$/.test(x ?? "");
-      if (cs.length === 2 && cs.every(Boolean) && (!hole || (me(n) && !me(hero)))) {
+      if (cs.length === holeCount && cs.every(Boolean) && (!hole || (me(n) && !me(hero)))) {
         hero = n;
         hole = cs as string[];
       }
@@ -422,7 +434,7 @@ export function parseHandHistory(text: string): ParsedHand {
   const heroName: string = hero;
   if (!seats.some((s) => s.name === heroName))
     throw new HandHistoryError(`"${heroName}" has hole cards but no "Seat N: ${heroName} (…)" line: paste the whole hand history.`);
-  if (!board.every(Boolean) || new Set([...hole, ...board]).size < 2 + board.length) board = [];
+  if (!board.every(Boolean) || new Set([...hole, ...board]).size < holeCount + board.length) board = [];
 
   // who was dealt in: anyone who posted, acted or (GG) has a "Dealt to" line; sitting-out seats did none of these
   const inHand = new Set([...posts.map((p) => p.name), ...acts.map((a) => a.name), ...dealt, heroName]);
@@ -544,6 +556,7 @@ export function parseHandHistory(text: string): ParsedHand {
     ante,
     straddle,
     hole,
+    ...(omaha ? { game: "plo4" as const } : {}),
     board: (board as string[]).slice(0, 5),
     seats: order.map((s) => ({ seat: s.seat, name: s.name, pos: pos[s.name]!, stack: r2(s.chips / bb) })),
     actions,

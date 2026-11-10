@@ -12,6 +12,7 @@ import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_FLOP_WORK, MAX_MEMORY_BYTES, M
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 import { byClass } from "./classes";
+import { spotsFromHistory, type HistoryRead, type HistorySpot } from "./fromHistory";
 import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally } from "./drill";
 import type { Grade } from "@/grading/grade";
 
@@ -74,6 +75,7 @@ export function PloRiverPage() {
   const isTurn = cardCount === 4;
   const isFlop = cardCount === 3;
   const street = isFlop ? "Flop" : isTurn ? "Turn" : "";
+  const [fromHand, setFromHand] = useState<string | null>(null);
   const [target, setTarget] = useState(String(DEFAULT_TARGET_PCT));
   const [seconds, setSeconds] = useState(String(DEFAULT_SECONDS));
   const [running, setRunning] = useState(false);
@@ -140,6 +142,23 @@ export function PloRiverPage() {
           are the ones you type, no earlier street is solved, it&apos;s heads-up, pot limit&apos;s other sizes aren&apos;t in the tree, and there&apos;s no rake. A flop fits only narrow ranges: every turn and river after it is solved with it.
         </p>
       </header>
+
+      <FromHistory
+        onUse={(spot, read) => {
+          setBoard(spot.board);
+          setPot(String(spot.pot));
+          setStackOop(String(spot.stacks[0]));
+          setStackIp(String(spot.stacks[1]));
+          setFromHand(
+            `From your hand: the ${spot.street}, ${spot.seats[0]} (OOP) against ${spot.seats[1]} (IP)${spot.hero === null ? `, after you'd folded (you were ${read.heroPos} with ${read.hole})` : `, you ${spot.seats[spot.hero]} with ${read.hole}`}. Board, pot and stacks are the hand's; the ranges are still yours to type, as a hand history shows one hand, not a range.`,
+          );
+        }}
+      />
+      {fromHand && (
+        <p aria-label="From your hand" aria-live="polite" className="text-sm">
+          {fromHand}
+        </p>
+      )}
 
       <form
         className="space-y-3"
@@ -438,6 +457,61 @@ function EveryDecision({ nodes }: { nodes: readonly ResultNode[] }) {
           </li>
         ))}
       </ul>
+    </details>
+  );
+}
+
+/** A PLO hand you played (fromHistory.ts): pasted, read, and one of its heads-up streets put in the form. */
+function FromHistory({ onUse }: { onUse: (spot: HistorySpot, read: HistoryRead) => void }) {
+  const [text, setText] = useState("");
+  const [read, setRead] = useState<HistoryRead | string | null>(null);
+  const [pick, setPick] = useState(0);
+  const got = read && typeof read !== "string" ? read : null;
+  return (
+    <details className="rounded border border-border p-3 text-sm">
+      <summary className="cursor-pointer">Start from a hand you played</summary>
+      <div className="mt-2 space-y-2">
+        <p className="text-xs text-muted">Paste a four-card pot-limit Omaha hand history, as your poker client saved it. Each street two players saw with chips behind can go in the form, with the hand&apos;s board, pot and stacks. Nothing is kept.</p>
+        <textarea aria-label="PLO hand history" value={text} onChange={(e) => setText(e.target.value)} rows={5} className={`${inputClass} font-mono text-xs`} spellCheck={false} />
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={!text.trim()}
+          onClick={() => {
+            setRead(spotsFromHistory(text));
+            setPick(0);
+          }}
+        >
+          Read the hand
+        </button>
+        {typeof read === "string" && <p role="alert">{read}</p>}
+        {got && (
+          <div className="space-y-2">
+            <p>
+              You were {got.heroPos} with <span className="font-mono">{got.hole}</span>. {got.skipped.join(" ")} {got.warnings.join(" ")}
+            </p>
+            {got.spots.length === 0 ? (
+              <p>No street of this hand had two players with chips behind, so there&apos;s nothing here for the solver.</p>
+            ) : (
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="min-w-0 space-y-1">
+                  <span className="text-muted">Street</span>
+                  <select aria-label="Street from the hand" value={pick} onChange={(e) => setPick(Number(e.target.value))} className={inputClass}>
+                    {got.spots.map((x, k) => (
+                      <option key={x.street} value={k}>
+                        {`${x.street[0]!.toUpperCase()}${x.street.slice(1)} ${x.board}: pot ${x.pot}, ${x.seats[0]} ${x.stacks[0]} and ${x.seats[1]} ${x.stacks[1]} behind`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" className={buttonClass} onClick={() => onUse(got.spots[pick]!, got)}>
+                  Use this street
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </details>
   );
 }
