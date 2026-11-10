@@ -44,7 +44,7 @@ test("A river solves in the worker, every table adds up, and a phone can read it
   const workers: string[] = [];
   page.on("worker", (w) => workers.push(w.url()));
   await page.goto("/lizard/plo/");
-  await expect(page.getByRole("heading", { name: "Heads-up PLO4 river and turn solve" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Heads-up PLO4 flop, turn and river solve" })).toBeVisible();
   await page.getByRole("button", { name: "Solve this river" }).click();
   const answer = page.getByRole("region", { name: "River solution" });
   await expect(answer).toBeVisible({ timeout: 60_000 });

@@ -72,8 +72,8 @@ function pick<T extends Int32Array | Float32Array>(xs: T, keep: readonly number[
   return out;
 }
 
-/** The turn's sides: no strength, as the turn has no showdown of its own. */
-function turnSides(ranges: readonly [PloRange, PloRange], board: readonly number[]): Pick<TurnGame, "sides" | "matchups" | "unmatched" | "setCount"> {
+/** A street's sides before the river: no strength, as the street has no showdown of its own. */
+export function turnSides(ranges: readonly [PloRange, PloRange], board: readonly number[]): Pick<TurnGame, "sides" | "matchups" | "unmatched" | "setCount"> {
   const live = ranges.map((r) => withoutBlocked(r, board));
   const a = live[0]!;
   const b = live[1]!;
@@ -110,7 +110,52 @@ function turnSides(ranges: readonly [PloRange, PloRange], board: readonly number
   return { sides, matchups, unmatched: [a.hands.length - keepA.length, b.hands.length - keepB.length], setCount: count };
 }
 
-const asRange = (s: Side): PloRange => ({ hands: s.hands, weights: Float32Array.from(s.weights) });
+export const asRange = (s: Side): PloRange => ({ hands: s.hands, weights: Float32Array.from(s.weights) });
+
+/** What a turn is on its card, whatever was bet before it: its sides and every river card's game. */
+export type TurnCards = Pick<TurnGame, "board" | "sides" | "matchups" | "unmatched" | "setCount" | "rivers">;
+
+/** A turn's sides and rivers on a board of four, or a RiverError (no matchup can be dealt). */
+export function turnCards(ranges: readonly [PloRange, PloRange], board: readonly number[]): TurnCards {
+  const turn = turnSides(ranges, board);
+  const live: [PloRange, PloRange] = [asRange(turn.sides[0]), asRange(turn.sides[1])];
+  const index = turn.sides.map((s) => new Map(Array.from(s.hands, (h, i) => [h, i])));
+  const used = new Set(board);
+  const rivers: River[] = [];
+  for (let card = 0; card < NUM_CARDS; card++) {
+    if (used.has(card)) continue;
+    let game: River["game"];
+    try {
+      game = compileSides(live, [...board, card]);
+    } catch (e) {
+      if (e instanceof RiverError) continue; // (no matchup can be dealt with this card out)
+      throw e;
+    }
+    const back = game.sides.map((s, seat) => Int32Array.from(s.hands, (h) => index[seat]!.get(h)!)) as [Int32Array, Int32Array];
+    rivers.push({ card, game, back, terminals: new Terminals(game) });
+  }
+  return { board, ...turn, rivers };
+}
+
+/** Where a street's betting closes, by node id: the next street's pot and stack, and its tree at `sizes` (null all-in).
+ * `trees` shares a tree between closings with the same pot and stack. */
+export function closingsOf(tree: RiverTree, pot: number, stack: number, sizes: RiverSizes, trees = new Map<string, RiverTree>()): Map<number, Closing> {
+  const closings = new Map<number, Closing>();
+  for (const node of tree.nodes) {
+    if (node.kind !== "showdown") continue;
+    const bet = node.bets[0];
+    const nextPot = Math.round((pot + 2 * bet) * 100) / 100;
+    const behind = Math.round((stack - bet) * 100) / 100;
+    if (behind <= 0) {
+      closings.set(node.id, { id: node.id, pot: nextPot, stack: 0, tree: null });
+      continue;
+    }
+    const key = `${nextPot}:${behind}`;
+    if (!trees.has(key)) trees.set(key, buildTree(nextPot, behind, sizes));
+    closings.set(node.id, { id: node.id, pot: nextPot, stack: behind, tree: trees.get(key)! });
+  }
+  return closings;
+}
 
 /** The game of a spec, or a RiverError saying what's wrong with it. */
 export function compileTurn(spec: TurnSpec): TurnGame {
@@ -127,41 +172,9 @@ export function compileTurn(spec: TurnSpec): TurnGame {
     if (wrong) throw new RiverError(`The ${street}: ${wrong}`);
   }
 
-  const turn = turnSides(spec.ranges, board);
-  const ranges: [PloRange, PloRange] = [asRange(turn.sides[0]), asRange(turn.sides[1])];
-  const index = turn.sides.map((s) => new Map(Array.from(s.hands, (h, i) => [h, i])));
-  const used = new Set(board);
-  const rivers: River[] = [];
-  for (let card = 0; card < NUM_CARDS; card++) {
-    if (used.has(card)) continue;
-    let game: River["game"];
-    try {
-      game = compileSides(ranges, [...board, card]);
-    } catch (e) {
-      if (e instanceof RiverError) continue; // (no matchup can be dealt with this card out)
-      throw e;
-    }
-    const back = game.sides.map((s, seat) => Int32Array.from(s.hands, (h) => index[seat]!.get(h)!)) as [Int32Array, Int32Array];
-    rivers.push({ card, game, back, terminals: new Terminals(game) });
-  }
-
+  const cards = turnCards(spec.ranges, board);
   const tree = buildTree(pot, stack, spec.turnSizes);
-  const trees = new Map<string, RiverTree>();
-  const closings = new Map<number, Closing>();
-  for (const node of tree.nodes) {
-    if (node.kind !== "showdown") continue;
-    const bet = node.bets[0];
-    const riverPot = Math.round((pot + 2 * bet) * 100) / 100;
-    const behind = Math.round((stack - bet) * 100) / 100;
-    if (behind <= 0) {
-      closings.set(node.id, { id: node.id, pot: riverPot, stack: 0, tree: null });
-      continue;
-    }
-    const key = `${riverPot}:${behind}`;
-    if (!trees.has(key)) trees.set(key, buildTree(riverPot, behind, spec.riverSizes));
-    closings.set(node.id, { id: node.id, pot: riverPot, stack: behind, tree: trees.get(key)! });
-  }
-  return { board, ...turn, tree, rivers, closings, riverSizes: spec.riverSizes };
+  return { ...cards, tree, closings: closingsOf(tree, pot, stack, spec.riverSizes), riverSizes: spec.riverSizes };
 }
 
 /** A river card's game at one closing of the turn. */

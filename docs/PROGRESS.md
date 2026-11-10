@@ -4731,3 +4731,18 @@ The second test is a screen-reader check by accessible names, not a run with Voi
 - the brushes carry `aria-pressed`.
 
 Both pass (`slot.sh npx playwright test e2e/builder.e2e.ts --project=phone`). The Range-builder row was WORKING already; its note now says this.
+
+### 2026-11-10: the PLO flop, with every turn and river after it (Phase 10)
+
+A three-card board on the PLO page now solves the flop, and where its betting closes with chips behind, each of the turn cards as its own turn solve, every river after each, in one DCFR run (`web/src/engine/plo/flop/`). The river solve inside a turn and the turn solve inside a flop are one street solver (`web/src/engine/plo/turn/street.ts`), refactored out of the turn's with every turn and river test, the NumPy turn reference's included, passing unchanged. All-in on the flop, each turn card is a showdown over its rivers. Each street has its own sizes ("Every turn after it", "Every river after it"). Under the flop's decisions, "The turn after the flop" shows any closing line's turn on any card, asked of the job still in the worker, and "The river after the turn" sits inside it. The badge says "a flop and its N turn cards, every river after each" with the sizes of all three streets.
+
+The limit is 18 million units an iteration, counting every turn's and river's, set from `flop/measure.test.ts` (off by default): 51 to 57 ns a unit in Node, so AAKK against JT98 on Js9s4d at 75% a street (16.2 million) took 0.83 s an iteration and reached 0.10% in 145 iterations. Only narrow ranges fit.
+
+Tests:
+- `flop/solver.test.ts`, 7 passing: turn matchups sum to 41 times the flop's; checked down and all-in, exact equity from `equity.ts`, to 9 places; checked through, the 49 turns solved one by one; bets every street to 0.1% with the turn's and river's EVs adding to their pots; refusals; a flop as a job, with its turn and river views.
+- `run.test.ts`: a three-card board needs the turn's and river's sizes.
+- `PloRiverPage.test.tsx`, 14 passing: a flop, a turn on the king after a bet and call, and the river after it, EVs adding to 30.
+
+Checked in a browser on the dev server: AAKK against JT98 on Js9s4d at 75% a street, 172 iterations in 48.6 s to 0.083%, 233 MB; the turn on the 2h after a flop bet and call (EVs 5.02 and 19.98, pot 25), and the river 7c after a turn bet and call, where every JT98 has a straight (IP 62.50 of 62.5); no sideways scroll at 375px. The route's label is now "PLO flop, turn and river".
+
+No independent reference for the flop: the NumPy turn reference is dense and at its limit on the turn. The flop rests on the decomposition into turns, which are held to that reference, and on exact equity (ACCURACY section 15). The PLO4 row stays PARTIAL: no preflop, narrow ranges only on a flop, and no PLO in Study, Practice or Analyze.

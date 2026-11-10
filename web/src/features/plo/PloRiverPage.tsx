@@ -8,7 +8,7 @@ import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { cardName, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { RiverClient } from "@/engine/plo/river/client";
-import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason } from "@/engine/plo/river/run";
+import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_FLOP_WORK, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason, type ViewPath } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 import { byClass } from "./classes";
@@ -58,12 +58,20 @@ export function PloRiverPage() {
   const [raises, setRaises] = useState("100");
   const [raiseCap, setRaiseCap] = useState(2);
   const [allIn, setAllIn] = useState(true);
-  // (a turn solves every river too: one size a street to start, as two sizes and a raise are mostly over the limit)
+  // (a turn solves every river too, a flop every turn and river: one size a street to start, as two sizes and a raise
+  // are mostly over the limit)
+  const [turnBets, setTurnBets] = useState("75");
+  const [turnRaises, setTurnRaises] = useState("");
+  const [turnCap, setTurnCap] = useState(0);
+  const [turnAllIn, setTurnAllIn] = useState(true);
   const [riverBets, setRiverBets] = useState("75");
   const [riverRaises, setRiverRaises] = useState("");
   const [riverCap, setRiverCap] = useState(0);
   const [riverAllIn, setRiverAllIn] = useState(true);
-  const isTurn = parseIds(board)?.length === 4;
+  const cardCount = parseIds(board)?.length;
+  const isTurn = cardCount === 4;
+  const isFlop = cardCount === 3;
+  const street = isFlop ? "Flop" : isTurn ? "Turn" : "";
   const [target, setTarget] = useState(String(DEFAULT_TARGET_PCT));
   const [seconds, setSeconds] = useState(String(DEFAULT_SECONDS));
   const [running, setRunning] = useState(false);
@@ -87,9 +95,11 @@ export function PloRiverPage() {
     setProgress(null);
     const betSizes = readSizes(bets);
     const raiseSizes = readSizes(raises);
+    const turnBetSizes = readSizes(turnBets);
+    const turnRaiseSizes = readSizes(turnRaises);
     const riverBetSizes = readSizes(riverBets);
     const riverRaiseSizes = readSizes(riverRaises);
-    if (!betSizes || !raiseSizes || (isTurn && (!riverBetSizes || !riverRaiseSizes))) {
+    if (!betSizes || !raiseSizes || ((isTurn || isFlop) && (!riverBetSizes || !riverRaiseSizes)) || (isFlop && (!turnBetSizes || !turnRaiseSizes))) {
       setError("Sizes are percents, separated by commas: 50, 100.");
       return;
     }
@@ -100,7 +110,8 @@ export function PloRiverPage() {
       pot: Number(pot),
       stacks: [Number(stackOop), Number(stackIp)],
       sizes: { bets: betSizes, raises: raiseSizes, raiseCap, allIn },
-      ...(isTurn ? { riverSizes: { bets: riverBetSizes!, raises: riverRaiseSizes!, raiseCap: riverCap, allIn: riverAllIn } } : {}),
+      ...(isFlop ? { turnSizes: { bets: turnBetSizes!, raises: turnRaiseSizes!, raiseCap: turnCap, allIn: turnAllIn } } : {}),
+      ...(isTurn || isFlop ? { riverSizes: { bets: riverBetSizes!, raises: riverRaiseSizes!, raiseCap: riverCap, allIn: riverAllIn } } : {}),
       targetPct: Number(target),
       seconds: Number(seconds),
     };
@@ -121,10 +132,10 @@ export function PloRiverPage() {
   return (
     <div className="max-w-3xl space-y-5">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Heads-up PLO4 river and turn solve</h1>
+        <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
         <p className="text-sm text-muted">
-          One river, or a turn and every river card after it, solved exactly at the sizes you list, every combo of both ranges and every card they block. It covers the street you type and after: the ranges are the ones you type, no earlier street
-          is solved, it&apos;s heads-up, pot limit&apos;s other sizes aren&apos;t in the tree, and there&apos;s no rake.
+          One river, a turn and every river card after it, or a flop and every turn and river after it, solved exactly at the sizes you list, every combo of both ranges and every card they block. It covers the street you type and after: the ranges
+          are the ones you type, no earlier street is solved, it&apos;s heads-up, pot limit&apos;s other sizes aren&apos;t in the tree, and there&apos;s no rake. A flop fits only narrow ranges: every turn and river after it is solved with it.
         </p>
       </header>
 
@@ -147,7 +158,7 @@ export function PloRiverPage() {
           A hand (AsKsQhJh) or a range, separated by commas: AAxx any two aces or more; JT98ds with a suit shape (ds double-suited, ss single-suited, r rainbow); random every hand; @25 a weight in percent.
         </p>
         <label className="block space-y-1 text-sm">
-          <span className="text-muted">Board, five cards for a river, four for a turn</span>
+          <span className="text-muted">Board, five cards for a river, four for a turn, three for a flop</span>
           <input aria-label="Board" value={board} onChange={(e) => setBoard(e.target.value)} className={inputClass} spellCheck={false} />
         </label>
         <div className="grid grid-cols-3 gap-3 text-sm">
@@ -166,15 +177,15 @@ export function PloRiverPage() {
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <label className="min-w-0 space-y-1">
-            <span className="text-muted">{isTurn ? "Turn bets" : "Bets"}, % of pot</span>
+            <span className="text-muted">{street ? `${street} bets` : "Bets"}, % of pot</span>
             <input aria-label="Bet sizes" value={bets} onChange={(e) => setBets(e.target.value)} className={inputClass} />
           </label>
           <label className="min-w-0 space-y-1">
-            <span className="text-muted">{isTurn ? "Turn raises" : "Raises"}, % of pot</span>
+            <span className="text-muted">{street ? `${street} raises` : "Raises"}, % of pot</span>
             <input aria-label="Raise sizes" value={raises} onChange={(e) => setRaises(e.target.value)} className={inputClass} />
           </label>
           <label className="min-w-0 space-y-1">
-            <span className="text-muted">{isTurn ? "Turn raise cap" : "Raise cap"}</span>
+            <span className="text-muted">{street ? `${street} raise cap` : "Raise cap"}</span>
             <select aria-label="Raise cap" value={raiseCap} onChange={(e) => setRaiseCap(Number(e.target.value))} className={inputClass}>
               {Array.from({ length: MAX_RAISE_CAP + 1 }, (_, n) => (
                 <option key={n} value={n}>
@@ -186,39 +197,29 @@ export function PloRiverPage() {
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={allIn} onChange={(e) => setAllIn(e.target.checked)} />
-          <span>All-in where pot limit allows the whole stack{isTurn ? ", on the turn" : ""}</span>
+          <span>All-in where pot limit allows the whole stack{street ? `, on the ${street.toLowerCase()}` : ""}</span>
         </label>
-        {isTurn && (
-          <fieldset className="space-y-3">
-            <legend className="text-sm text-muted">Every river after it</legend>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-              <label className="min-w-0 space-y-1">
-                <span className="text-muted">River bets, % of pot</span>
-                <input aria-label="River bet sizes" value={riverBets} onChange={(e) => setRiverBets(e.target.value)} className={inputClass} />
-              </label>
-              <label className="min-w-0 space-y-1">
-                <span className="text-muted">River raises, % of pot</span>
-                <input aria-label="River raise sizes" value={riverRaises} onChange={(e) => setRiverRaises(e.target.value)} className={inputClass} />
-              </label>
-              <label className="min-w-0 space-y-1">
-                <span className="text-muted">River raise cap</span>
-                <select aria-label="River raise cap" value={riverCap} onChange={(e) => setRiverCap(Number(e.target.value))} className={inputClass}>
-                  {Array.from({ length: MAX_RAISE_CAP + 1 }, (_, n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={riverAllIn} onChange={(e) => setRiverAllIn(e.target.checked)} />
-              <span>All-in where pot limit allows the whole stack, on the river</span>
-            </label>
-            <p className="text-xs text-muted">
-              Where the turn&apos;s betting closes with chips behind, each of the river cards that can come is solved as its own river at these sizes, in one solve with the turn. All-in on the turn, every river card is a showdown.
-            </p>
-          </fieldset>
+        {isFlop && (
+          <StreetSizes
+            street="Turn"
+            legend="Every turn after it"
+            bets={[turnBets, setTurnBets]}
+            raises={[turnRaises, setTurnRaises]}
+            cap={[turnCap, setTurnCap]}
+            allIn={[turnAllIn, setTurnAllIn]}
+            note="Where the flop's betting closes with chips behind, each of the turn cards that can come is solved as its own turn at these sizes, every river after it too, in one solve with the flop. All-in on the flop, every turn and river is a showdown."
+          />
+        )}
+        {(isTurn || isFlop) && (
+          <StreetSizes
+            street="River"
+            legend="Every river after it"
+            bets={[riverBets, setRiverBets]}
+            raises={[riverRaises, setRiverRaises]}
+            cap={[riverCap, setRiverCap]}
+            allIn={[riverAllIn, setRiverAllIn]}
+            note={`Where the turn's betting closes with chips behind, each of the river cards that can come is solved as its own river at these sizes, in one solve with the ${isFlop ? "flop and turn" : "turn"}. All-in on the turn, every river card is a showdown.`}
+          />
         )}
         <p className="text-xs text-muted">
           Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises. A size is cut to the largest pot-limit bet, lifted to the smallest, and a raise&apos;s percent is of the pot after the call, so 100 is the pot-limit raise. The raise cap counts raises
@@ -236,11 +237,12 @@ export function PloRiverPage() {
         </div>
         <p className="text-xs text-muted">
           The target is at least {MIN_TARGET_PCT}%, the budget up to {MAX_SECONDS} s. A solve stops at whichever comes first and says which. A spot is refused, never sampled or grouped, over{" "}
-          {(MAX_WORK / 1e6).toFixed(0)} million combos times ways a hand can end (a turn {(MAX_TURN_WORK / 1e6).toFixed(0)} million, counting every river&apos;s), or about {(MAX_MEMORY_BYTES / 1e6).toFixed(0)} MB.
+          {(MAX_WORK / 1e6).toFixed(0)} million combos times ways a hand can end (a turn {(MAX_TURN_WORK / 1e6).toFixed(0)} million, counting every river&apos;s; a flop {(MAX_FLOP_WORK / 1e6).toFixed(0)} million, counting every turn&apos;s and river&apos;s), or about{" "}
+          {(MAX_MEMORY_BYTES / 1e6).toFixed(0)} MB.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" disabled={running} className={buttonClass}>
-            {isTurn ? "Solve this turn" : "Solve this river"}
+            {isFlop ? "Solve this flop" : isTurn ? "Solve this turn" : "Solve this river"}
           </button>
           {running && (
             <button type="button" className={buttonClass} onClick={() => client.current?.cancel()}>
@@ -261,12 +263,50 @@ export function PloRiverPage() {
         </p>
       )}
       {cancelledEmpty && <p className="text-sm text-muted">Cancelled before there was anything to show.</p>}
-      {result && <Results key={result.iterations} result={result} onRiver={(closing, card) => client.current?.river(closing, card) ?? Promise.resolve(null)} />}
+      {result && <Results key={result.iterations} result={result} onView={(path) => client.current?.river(path) ?? Promise.resolve(null)} />}
     </div>
   );
 }
 
-function Results({ result, onRiver }: { result: RiverResult; onRiver: (closing: number, card: string) => Promise<RiverView | null> }) {
+type Pair<T> = readonly [T, (v: T) => void];
+
+/** The sizes of a street after the first: its bets, raises, raise cap and all-in. */
+function StreetSizes({ street, legend, bets, raises, cap, allIn, note }: { street: "Turn" | "River"; legend: string; bets: Pair<string>; raises: Pair<string>; cap: Pair<number>; allIn: Pair<boolean>; note: string }) {
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-sm text-muted">{legend}</legend>
+      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+        <label className="min-w-0 space-y-1">
+          <span className="text-muted">{street} bets, % of pot</span>
+          <input aria-label={`${street} bet sizes`} value={bets[0]} onChange={(e) => bets[1](e.target.value)} className={inputClass} />
+        </label>
+        <label className="min-w-0 space-y-1">
+          <span className="text-muted">{street} raises, % of pot</span>
+          <input aria-label={`${street} raise sizes`} value={raises[0]} onChange={(e) => raises[1](e.target.value)} className={inputClass} />
+        </label>
+        <label className="min-w-0 space-y-1">
+          <span className="text-muted">{street} raise cap</span>
+          <select aria-label={`${street} raise cap`} value={cap[0]} onChange={(e) => cap[1](Number(e.target.value))} className={inputClass}>
+            {Array.from({ length: MAX_RAISE_CAP + 1 }, (_, n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={allIn[0]} onChange={(e) => allIn[1](e.target.checked)} />
+        <span>All-in where pot limit allows the whole stack, on the {street.toLowerCase()}</span>
+      </label>
+      <p className="text-xs text-muted">{note}</p>
+    </fieldset>
+  );
+}
+
+type AskView = (path: ViewPath) => Promise<RiverView | null>;
+
+function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
   const [nodeId, setNodeId] = useState(0);
   const node = result.nodes.find((n) => n.id === nodeId) ?? result.nodes[0]!;
   const provenance = useMemo(
@@ -279,20 +319,25 @@ function Results({ result, onRiver }: { result: RiverResult; onRiver: (closing: 
         targetPct: result.targetPct,
         sizes: result.sizes,
         ...(result.street === "turn" ? { turn: { riverSizes: result.riverSizes!, rivers: result.rivers! } } : {}),
+        ...(result.street === "flop" ? { flop: { turnSizes: result.turnSizes!, riverSizes: result.riverSizes!, turns: result.turns! } } : {}),
       }),
     [result],
   );
   const turn = result.street === "turn";
+  const flop = result.street === "flop";
+  const later = turn || flop;
   const dropped = result.unmatched.flatMap((x, seat) => (x ? [`${x.toLocaleString("en-US")} ${SEAT_NAMES[seat]} combos left out: each shares a card with every hand on the other side.`] : []));
   return (
-    <section aria-label={turn ? "Turn solution" : "River solution"} className="min-w-0 space-y-3">
+    <section aria-label={flop ? "Flop solution" : turn ? "Turn solution" : "River solution"} className="min-w-0 space-y-3">
       <ProvenanceBadge p={provenance} />
       <p className="text-sm">
-        {stopWords(result)} Exploitability {result.exploitability.pct.toFixed(3)}% of the pot ({result.exploitability.chips.toFixed(3)}bb a matchup), the average of what each seat gains by an exact best response in this tree{turn ? `, through the turn and all ${result.rivers} rivers` : ""}.
+        {stopWords(result)} Exploitability {result.exploitability.pct.toFixed(3)}% of the pot ({result.exploitability.chips.toFixed(3)}bb a matchup), the average of what each seat gains by an exact best response in this tree{turn ? `, through the turn and all ${result.rivers} rivers` : ""}
+        {flop ? `, through the flop, all ${result.turns} turns and every river after each` : ""}.
       </p>
       <p className="text-xs text-muted">
         Board {result.board}
-        {turn ? ` and ${result.rivers} river cards` : ""}, pot {result.pot}, {result.stack} behind in play, {result.hands[0].length.toLocaleString("en-US")} OOP and {result.hands[1].length.toLocaleString("en-US")} IP combos, {result.iterations.toLocaleString("en-US")} iterations in{" "}
+        {turn ? ` and ${result.rivers} river cards` : ""}
+        {flop ? ` and ${result.turns} turn cards` : ""}, pot {result.pot}, {result.stack} behind in play, {result.hands[0].length.toLocaleString("en-US")} OOP and {result.hands[1].length.toLocaleString("en-US")} IP combos, {result.iterations.toLocaleString("en-US")} iterations in{" "}
         {result.seconds.toFixed(1)} s, up to {Math.ceil(result.memoryBytes / 1e6)} MB. {dropped.join(" ")}
       </p>
 
@@ -311,10 +356,19 @@ function Results({ result, onRiver }: { result: RiverResult; onRiver: (closing: 
       <ActionTable node={node} />
       <EveryDecision nodes={result.nodes} />
       <ClassTable hands={result.hands[node.player]!} board={result.board} node={node} />
-      <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={turn} node={node} />
-      {turn && <RiverAfter result={result} onRiver={onRiver} />}
+      <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={later} node={node} />
+      {later && (
+        <After
+          next={flop ? "turn" : "river"}
+          board={result.board}
+          lines={result.closings ?? []}
+          cards={flop ? (result.turnCards ?? []) : (result.riverCards ?? [])}
+          ask={(closing, card) => onView({ closing, card })}
+          onView={onView}
+        />
+      )}
       <p className="text-xs text-muted">
-        EV is in bb: chips won from the pot of {result.pot}, less chips bet {turn ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to the pot on every line. A frequency counts the matchups that can be dealt, so a card a hand blocks is in it. No rake.
+        EV is in bb: chips won from the pot of {result.pot}, less chips bet {flop ? "on the flop, turn and river" : turn ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to the pot on every line. A frequency counts the matchups that can be dealt, so a card a hand blocks is in it. No rake.
       </p>
     </section>
   );
@@ -385,32 +439,34 @@ function EveryDecision({ nodes }: { nodes: readonly ResultNode[] }) {
   );
 }
 
-/** The river after one of a turn's closing lines, on one card: the turn solve's own river strategies, entered with the
- * line's reach, asked of the job that solved it (still in the worker). */
-function RiverAfter({ result, onRiver }: { result: RiverResult; onRiver: (closing: number, card: string) => Promise<RiverView | null> }) {
-  const closings = result.closings ?? [];
-  const cards = result.riverCards ?? [];
-  const [closing, setClosing] = useState(closings[0]?.id ?? -1);
+/** The street after one of the solve's closing lines, on one card: the solve's own strategies there, entered with the
+ * line's reach, asked of the job that solved it (still in the worker). A flop's turn has a river after it, the same way. */
+function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "river"; board: string; lines: readonly { id: number; line: string }[]; cards: readonly string[]; ask: (closing: number, card: string) => Promise<RiverView | null>; onView: AskView }) {
+  const [closing, setClosing] = useState(lines[0]?.id ?? -1);
   const [card, setCard] = useState(cards[0] ?? "");
   const [view, setView] = useState<RiverView | null>(null);
   const [missing, setMissing] = useState(false);
   const [nodeId, setNodeId] = useState(0);
-  if (!closings.length || !cards.length) return <p className="text-xs text-muted">Every line of this turn ends all-in or in a fold: each river is a showdown, with no decision to show.</p>;
+  const street = next === "turn" ? "turn" : "river";
+  const before = next === "turn" ? "flop" : "turn";
+  if (!lines.length || !cards.length) return <p className="text-xs text-muted">{`Every line of this ${before} ends all-in or in a fold: each ${street} is a showdown, with no decision to show.`}</p>;
   const show = async () => {
-    const v = await onRiver(closing, card);
+    const v = await ask(closing, card);
     setView(v);
     setMissing(!v);
     setNodeId(0);
   };
   const node = view ? (view.nodes.find((n) => n.id === nodeId) ?? view.nodes[0]!) : null;
+  const title = `The ${street} after the ${before}`;
+  const Street = street === "turn" ? "Turn" : "River";
   return (
-    <section aria-label="The river after the turn" className="min-w-0 space-y-3 border-t border-border pt-3">
-      <h2 className="text-sm font-semibold">The river after the turn</h2>
+    <section aria-label={title} className="min-w-0 space-y-3 border-t border-border pt-3">
+      <h2 className="text-sm font-semibold">{title}</h2>
       <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[1fr_8rem_auto] sm:items-end">
         <label className="min-w-0 space-y-1">
           <span className="text-muted">After</span>
-          <select aria-label="Turn line" value={closing} onChange={(e) => setClosing(Number(e.target.value))} className={inputClass}>
-            {closings.map((c) => (
+          <select aria-label={`${before === "flop" ? "Flop" : "Turn"} line`} value={closing} onChange={(e) => setClosing(Number(e.target.value))} className={inputClass}>
+            {lines.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.line}
               </option>
@@ -418,8 +474,8 @@ function RiverAfter({ result, onRiver }: { result: RiverResult; onRiver: (closin
           </select>
         </label>
         <label className="min-w-0 space-y-1">
-          <span className="text-muted">River card</span>
-          <select aria-label="River card" value={card} onChange={(e) => setCard(e.target.value)} className={inputClass}>
+          <span className="text-muted">{Street} card</span>
+          <select aria-label={`${Street} card`} value={card} onChange={(e) => setCard(e.target.value)} className={inputClass}>
             {cards.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -428,18 +484,18 @@ function RiverAfter({ result, onRiver }: { result: RiverResult; onRiver: (closin
           </select>
         </label>
         <button type="button" className={buttonClass} onClick={() => void show()}>
-          Show this river
+          Show this {street}
         </button>
       </div>
-      {missing && <p className="text-sm text-muted">That river isn&apos;t there to show: the solve that made it is gone from the worker. Solve again to look.</p>}
+      {missing && <p className="text-sm text-muted">That {street} isn&apos;t there to show: the solve that made it is gone from the worker. Solve again to look.</p>}
       {view && node && (
         <>
           <p className="text-xs text-muted">
-            Board {result.board} {view.card}: pot {view.pot}, {view.stack} behind, the turn solve&apos;s own river strategies, each hand reaching it as often as the turn&apos;s line lets it (Reach).
+            Board {board} {view.card}: pot {view.pot}, {view.stack} behind, the solve&apos;s own {street} strategies, each hand reaching it as often as the {before}&apos;s line lets it (Reach).
           </p>
           <label className="block space-y-1 text-sm">
-            <span className="text-muted">River decision</span>
-            <select aria-label="River decision" value={node.id} onChange={(e) => setNodeId(Number(e.target.value))} className={inputClass}>
+            <span className="text-muted">{Street} decision</span>
+            <select aria-label={`${Street} decision`} value={node.id} onChange={(e) => setNodeId(Number(e.target.value))} className={inputClass}>
               {view.nodes.map((n) => (
                 <option key={n.id} value={n.id}>
                   {decisionWords(n)}
@@ -449,9 +505,22 @@ function RiverAfter({ result, onRiver }: { result: RiverResult; onRiver: (closin
           </label>
           <RangeTable node={node} />
           <ActionTable node={node} />
-          <ClassTable hands={view.hands[node.player]!} board={`${result.board}${view.card}`} node={node} />
-          <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={false} node={node} />
-          <p className="text-xs text-muted">River EVs are in bb of the river&apos;s pot of {view.pot}: chips won from it less chips bet on the river, so the two ranges&apos; EVs add to it.</p>
+          <ClassTable hands={view.hands[node.player]!} board={`${board}${view.card}`} node={node} />
+          <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={street === "turn"} node={node} />
+          <p className="text-xs text-muted">
+            {Street} EVs are in bb of the {street}&apos;s pot of {view.pot}: chips won from it less chips bet {street === "turn" ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to it.
+          </p>
+          {view.street === "turn" && (
+            <After
+              key={`${view.closing}:${view.card}`}
+              next="river"
+              board={`${board} ${view.card}`}
+              lines={view.closings ?? []}
+              cards={view.riverCards ?? []}
+              ask={(turnClosing, river) => onView({ closing: view.closing, card: view.card, turnClosing, river })}
+              onView={onView}
+            />
+          )}
         </>
       )}
     </section>

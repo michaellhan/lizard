@@ -265,7 +265,7 @@ const LABELS: Record<ResultSource, string> = {
   "push-fold": "Push/fold model (not a solve)",
   "best-response": "Exploiting an assumed profile (best response, not a solve)",
   "node-lock": "Node-locked equilibrium of the restricted game, not the unlocked equilibrium",
-  "plo-river": "Heads-up PLO4 solve of every combo from the street typed (a river, or a turn and every river after it): earlier streets aren't solved",
+  "plo-river": "Heads-up PLO4 solve of every combo from the street typed (a river; a turn and every river after it; or a flop and every turn and river after it): earlier streets aren't solved",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
   unknown: "Unlabelled",
@@ -329,6 +329,8 @@ export function ploRiverProvenance(r: {
   sizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean };
   /** a turn's: its river sizes and the river cards solved */
   turn?: { riverSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; rivers: number };
+  /** a flop's: its turn and river sizes and the turn cards solved */
+  flop?: { turnSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; riverSizes: { bets: readonly number[]; raises: readonly number[]; raiseCap: number; allIn: boolean }; turns: number };
   now?: number;
 }): Provenance {
   const short = r.stop !== "target";
@@ -341,13 +343,15 @@ export function ploRiverProvenance(r: {
     band: bandOf(r.exploitabilityPct, short),
     iterations: r.iterations,
     seconds: r.seconds,
-    view: r.turn
-      ? `a turn and its ${r.turn.rivers} river cards from the ranges typed, the turn at ${sizesWords(r.sizes)}, every river at ${sizesWords(r.turn.riverSizes)}, no rake`
-      : `from the ranges typed, at ${sizesWords(r.sizes)}, no rake`,
+    view: r.flop
+      ? `a flop and its ${r.flop.turns} turn cards, every river after each, from the ranges typed, the flop at ${sizesWords(r.sizes)}, every turn at ${sizesWords(r.flop.turnSizes)}, every river at ${sizesWords(r.flop.riverSizes)}, no rake`
+      : r.turn
+        ? `a turn and its ${r.turn.rivers} river cards from the ranges typed, the turn at ${sizesWords(r.sizes)}, every river at ${sizesWords(r.turn.riverSizes)}, no rake`
+        : `from the ranges typed, at ${sizesWords(r.sizes)}, no rake`,
     ...(short ? { approximateLabel: `short of its target: ${label}` } : {}),
     mode: "accurate",
     transport: "worker",
-    solverVersion: r.turn ? "Lizard PLO turn and river, discounted CFR in TypeScript" : "Lizard PLO river, discounted CFR in TypeScript",
+    solverVersion: r.flop ? "Lizard PLO flop, turn and river, discounted CFR in TypeScript" : r.turn ? "Lizard PLO turn and river, discounted CFR in TypeScript" : "Lizard PLO river, discounted CFR in TypeScript",
     partial: false,
     receivedAt: r.now ?? Date.now(),
   };

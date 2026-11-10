@@ -22,7 +22,8 @@ const specFrom = (r: RiverRequest): RiverJobSpec => {
 
 describe("a request", () => {
   it("names what can't be read", () => {
-    expect(specOf(request({ board: "Qs7d2c" }))).toMatch(/five cards/);
+    expect(specOf(request({ board: "Qs7d" }))).toMatch(/five cards/);
+    expect(specOf(request({ board: "Qs7d2c" }))).toMatch(/A flop needs the turn's and the river's sizes too/);
     expect(specOf(request({ oop: "hello" }))).toMatch(/^OOP:/);
     expect(specOf(request({ ip: "hello" }))).toMatch(/^IP:/);
     expect(specOf(request({ targetPct: 0 }))).toMatch(/target/);

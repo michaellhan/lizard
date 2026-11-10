@@ -23,8 +23,8 @@ function small() {
 describe("PloRiverPage", () => {
   it("says what it covers and what it doesn't, before anything is run", () => {
     render(<PloRiverPage />);
-    expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 river and turn solve" })).toBeTruthy();
-    const words = screen.getByText(/One river, or a turn and every river card after it, solved exactly/).textContent;
+    expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 flop, turn and river solve" })).toBeTruthy();
+    const words = screen.getByText(/One river, a turn and every river card after it, or a flop and every turn and river after it, solved exactly/).textContent;
     expect(words).toMatch(/no earlier street is solved/);
     expect(words).toMatch(/heads-up/);
     expect(words).toMatch(/no rake/);
@@ -96,6 +96,42 @@ describe("PloRiverPage", () => {
     expect(within(after).getByRole("table", { name: "Actions at this decision" }).textContent).toContain("Bet 10");
     expect(within(after).getByRole("table", { name: "Hand classes at this decision" }).textContent).toContain("Straight (1)");
   }, 30000);
+
+  it("solves a flop and every turn and river after it, from a board of three cards, and shows a turn and a river after it", async () => {
+    render(<PloRiverPage />);
+    small();
+    type("OOP range", "QhTh4c3c,6s5s4h3d");
+    type("Board", "2c7d9h");
+    expect(screen.queryByLabelText("Turn bet sizes")).toBeTruthy();
+    for (const street of ["Turn", "River"]) {
+      type(`${street} bet sizes`, "100");
+      type(`${street} raise sizes`, "");
+      fireEvent.change(screen.getByLabelText(`${street} raise cap`), { target: { value: "0" } });
+      fireEvent.click(screen.getByLabelText(new RegExp(`on the ${street.toLowerCase()}$`)));
+    }
+    type("Target exploitability", "0.5");
+    fireEvent.click(screen.getByRole("button", { name: "Solve this flop" }));
+    const section = await screen.findByRole("region", { name: "Flop solution" }, { timeout: 30000 });
+    const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
+    expect(badge.textContent).toMatch(/a flop and its 45 turn cards, every river after each/);
+    expect(section.textContent).toMatch(/through the flop, all 45 turns and every river after each/);
+
+    // the turn after a bet and a call, on the king; then the river after that turn checks through
+    const after = within(section).getByRole("region", { name: "The turn after the flop" });
+    const line = within(after).getByLabelText("Flop line");
+    fireEvent.change(line, { target: { value: within(line).getAllByRole("option").find((o) => o.textContent === "OOP Bet 10, IP Call 10")!.getAttribute("value") } });
+    fireEvent.change(within(after).getByLabelText("Turn card"), { target: { value: "Kd" } });
+    fireEvent.click(within(after).getByRole("button", { name: "Show this turn" }));
+    await within(after).findByLabelText("Turn decision");
+    expect(after.textContent).toMatch(/Board 2c7d9h Kd: pot 30, 90 behind/);
+    const river = within(after).getByRole("region", { name: "The river after the turn" });
+    fireEvent.change(within(river).getByLabelText("River card"), { target: { value: "4s" } });
+    fireEvent.click(within(river).getByRole("button", { name: "Show this river" }));
+    await within(river).findByLabelText("River decision");
+    expect(river.textContent).toMatch(/Board 2c7d9h Kd 4s: pot 30, 90 behind/);
+    const evs = within(river).getAllByRole("table", { name: "Ranges on this line" })[0]!.querySelectorAll("tbody td:last-child");
+    expect(Math.abs([...evs].reduce((t, td) => t + Number(td.textContent), 0) - 30)).toBeLessThan(0.02);
+  }, 60000);
 
   it("goes to another decision, the other range's", async () => {
     render(<PloRiverPage />);

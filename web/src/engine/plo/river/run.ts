@@ -13,6 +13,8 @@
 // them measured 744 MB resident on that spot, in Node.
 import { cardsText, parseIds } from "../cards";
 import { parseRange, type PloRange } from "../ranges";
+import { compileFlop, type FlopGame, type FlopSpec } from "../flop/game";
+import { FlopSolver, flopMemoryBytes, flopWork } from "../flop/solver";
 import { compileTurn, type TurnGame, type TurnSpec } from "../turn/game";
 import { TurnSolver, turnMemoryBytes, turnWork } from "../turn/solver";
 import { compileGame, RiverError, type RiverGame, type RiverSpec } from "./game";
@@ -24,6 +26,10 @@ export const MAX_WORK = 25e6;
  * turn's combos), so 11.9 million units (AAxx,KKxx,QQxx against JT98,JT97,T987 on Js9s4d2h, a size a street) took 1.0 to
  * 1.2 s an iteration and 165 MB in Node; AAxx against JT98 there reached 0.29% of the pot in 50 iterations, 15 s */
 export const MAX_TURN_WORK = 12e6;
+/** a flop's, in the same units: a unit there cost 51 to 57 ns (flop/measure.test.ts), so AAKK against JT98 on Js9s4d, a
+ * size a street (16.2 million units, 49 turns) took 0.83 to 0.92 s an iteration, 233 MB by the bound and 700 MB resident in
+ * Node, and reached 0.10% of the pot in 145 iterations, two minutes */
+export const MAX_FLOP_WORK = 18e6;
 export const MAX_MEMORY_BYTES = 512e6;
 export const DEFAULT_TARGET_PCT = 0.1;
 export const MIN_TARGET_PCT = 0.001;
@@ -40,13 +46,16 @@ export interface RiverRequest {
   /** each seat's range, as parseRange reads them: out of position, then in position */
   oop: string;
   ip: string;
-  /** five cards for a river; four for a turn, every river card after it solved too (engine/plo/turn/) */
+  /** five cards for a river; four for a turn, every river card after it solved too (engine/plo/turn/); three for a flop,
+   * every turn and river after it (engine/plo/flop/) */
   board: string;
   pot: number;
   stacks: [number, number];
-  /** the first street's sizes: the river's, or the turn's */
+  /** the first street's sizes: the river's, the turn's or the flop's */
   sizes: RiverSizes;
-  /** a turn's river sizes */
+  /** a flop's turn sizes */
+  turnSizes?: RiverSizes;
+  /** a turn's or a flop's river sizes */
   riverSizes?: RiverSizes;
   /** exploitability to stop at, % of the pot */
   targetPct?: number;
@@ -56,7 +65,7 @@ export interface RiverRequest {
 }
 
 export interface RiverJobSpec {
-  spec: RiverSpec | (TurnSpec & { turn: true });
+  spec: RiverSpec | (TurnSpec & { turn: true }) | (FlopSpec & { flop: true });
   targetPct: number;
   seconds: number;
   maxIterations: number;
@@ -65,9 +74,11 @@ export interface RiverJobSpec {
 /** The spec of a request, or what's wrong with it. */
 export function specOf(req: RiverRequest): RiverJobSpec | string {
   const board = parseIds(req.board);
-  if (!board || (board.length !== 5 && board.length !== 4)) return "The board is five cards for a river, four for a turn: Qs7d2c9h3s, for one.";
+  if (!board || board.length < 3 || board.length > 5) return "The board is five cards for a river, four for a turn, three for a flop: Qs7d2c9h3s, for one.";
   const turn = board.length === 4;
+  const flop = board.length === 3;
   if (turn && !req.riverSizes) return "A turn needs the river's sizes too.";
+  if (flop && !(req.turnSizes && req.riverSizes)) return "A flop needs the turn's and the river's sizes too.";
   const ranges: PloRange[] = [];
   for (const [i, text] of [req.oop, req.ip].entries()) {
     const r = parseRange(text, board);
@@ -80,9 +91,11 @@ export function specOf(req: RiverRequest): RiverJobSpec | string {
   if (!(seconds > 0 && seconds <= MAX_SECONDS)) return `The time budget is over 0 seconds, up to ${MAX_SECONDS}.`;
   const both: [PloRange, PloRange] = [ranges[0]!, ranges[1]!];
   return {
-    spec: turn
-      ? { turn: true, board, ranges: both, pot: req.pot, stacks: req.stacks, turnSizes: req.sizes, riverSizes: req.riverSizes! }
-      : { board, ranges: both, pot: req.pot, stacks: req.stacks, sizes: req.sizes },
+    spec: flop
+      ? { flop: true, board, ranges: both, pot: req.pot, stacks: req.stacks, flopSizes: req.sizes, turnSizes: req.turnSizes!, riverSizes: req.riverSizes! }
+      : turn
+        ? { turn: true, board, ranges: both, pot: req.pot, stacks: req.stacks, turnSizes: req.sizes, riverSizes: req.riverSizes! }
+        : { board, ranges: both, pot: req.pot, stacks: req.stacks, sizes: req.sizes },
     targetPct,
     seconds,
     maxIterations: req.maxIterations ?? DEFAULT_MAX_ITERATIONS,
@@ -105,8 +118,8 @@ export interface ResultNode extends NodeReport {
 }
 
 export interface RiverResult {
-  /** what was solved: a river, or a turn with every river after it */
-  street: "river" | "turn";
+  /** what was solved: a river, a turn with every river after it, or a flop with every turn and river after it */
+  street: "river" | "turn" | "flop";
   stop: StopReason;
   iterations: number;
   seconds: number;
@@ -120,11 +133,16 @@ export interface RiverResult {
   board: string;
   /** the first street's sizes */
   sizes: RiverSizes;
-  /** a turn's: the river's sizes, and the river cards with a game (a card on which no matchup can be dealt has none) */
+  /** a flop's: the turn's sizes, and the turn cards with a game */
+  turnSizes?: RiverSizes;
+  turns?: number;
+  turnCards?: string[];
+  /** a turn's or a flop's: the river's sizes; a turn's: the river cards with a game (a card on which no matchup can be
+   * dealt has none) */
   riverSizes?: RiverSizes;
   rivers?: number;
-  /** a turn's: where its betting closes, each a line to look at the river after (`RiverJob.riverView`), and the river
-   * cards with a game */
+  /** a turn's or a flop's: where its betting closes, each a line to look at the street after (`RiverJob.riverView`); a
+   * turn's river cards with a game */
   closings?: { id: number; line: string; pot: number; stack: number }[];
   riverCards?: string[];
   /** hand index of each seat's combos (a river's weakest first) */
@@ -136,20 +154,38 @@ export interface RiverResult {
   nodes: ResultNode[];
 }
 
-type Game = RiverGame | TurnGame;
+type Game = RiverGame | TurnGame | FlopGame;
 const isTurn = (g: Game): g is TurnGame => "rivers" in g;
+const isFlop = (g: Game): g is FlopGame => "turns" in g;
 
-/** A river after a turn's line, at the turn solve's average strategies, entered with that line's reach. */
+/** The street after a line of the solve, at its average strategies, entered with that line's reach: a turn's river; a
+ * flop's turn; or a flop's river, after a turn card and a line of that turn. */
 export interface RiverView {
+  street: "turn" | "river";
   closing: number;
   card: string;
-  /** the river's pot and chips behind */
+  /** a flop's river: the turn card and the turn's closing before it */
+  turn?: string;
+  turnClosing?: number;
+  /** the street's pot and chips behind */
   pot: number;
   stack: number;
-  /** the river game's combos, weakest first, and their weights in the ranges */
+  /** the street's combos (a river's weakest first), and their weights in the ranges */
   hands: [Int32Array, Int32Array];
   weights: [Float32Array, Float32Array];
   nodes: ResultNode[];
+  /** a flop's turn: where its betting closes with chips behind, each a line to look at the river after, and the river cards */
+  closings?: { id: number; line: string; pot: number; stack: number }[];
+  riverCards?: string[];
+}
+
+/** Where to look after a line: closing `closing` of the solve on card `card`; for a flop, then closing `turnClosing` of
+ * that turn on river card `river`. */
+export interface ViewPath {
+  closing: number;
+  card: string;
+  turnClosing?: number;
+  river?: string;
 }
 
 /** A report's nodes with each line in words. */
@@ -167,7 +203,11 @@ function inWords(reports: NodeReport[], tree: { nodes: RiverNode[] }, words = ne
 export function refusal(game: Game): string | null {
   const combos = game.sides[0].n + game.sides[1].n;
   const fit = "Nothing is sampled or grouped to fit: narrow a range or take out a size.";
-  if (isTurn(game)) {
+  if (isFlop(game)) {
+    const work = flopWork(game);
+    if (work > MAX_FLOP_WORK)
+      return `This flop and its ${game.turns.length} turns, every river after each, come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, card by card), over the limit of ${MAX_FLOP_WORK.toLocaleString("en-US")}. ${fit}`;
+  } else if (isTurn(game)) {
     const work = turnWork(game);
     if (work > MAX_TURN_WORK)
       return `This turn and its ${game.rivers.length} rivers come to ${Math.round(work).toLocaleString("en-US")} units of work an iteration (combos times the ways a hand can end, river by river), over the limit of ${MAX_TURN_WORK.toLocaleString("en-US")}. ${fit}`;
@@ -177,14 +217,16 @@ export function refusal(game: Game): string | null {
     if (combos * terminals > MAX_WORK)
       return `${combos.toLocaleString("en-US")} combos in all, over the limit of ${most.toLocaleString("en-US")} for this tree of ${terminals} ways a hand can end. ${fit}`;
   }
-  const bytes = isTurn(game) ? turnMemoryBytes(game) : memoryBytes(game);
+  const bytes = bytesOf(game);
   if (bytes > MAX_MEMORY_BYTES) return `This spot needs about ${Math.ceil(bytes / 1e6)} MB, over the limit of ${MAX_MEMORY_BYTES / 1e6} MB. ${fit}`;
   return null;
 }
 
+const bytesOf = (game: Game) => (isFlop(game) ? flopMemoryBytes(game) : isTurn(game) ? turnMemoryBytes(game) : memoryBytes(game));
+
 export class RiverJob {
   readonly game: Game;
-  readonly solver: RiverSolver | TurnSolver;
+  readonly solver: RiverSolver | TurnSolver | FlopSolver;
   stop: StopReason | null = null;
   private last: Exploitability | null = null;
   private lastAt = -1;
@@ -200,12 +242,12 @@ export class RiverJob {
     this.now = now;
     this.start = now();
     const spec = job.spec;
-    const game: Game = "turn" in spec ? compileTurn(spec) : compileGame(spec);
+    const game: Game = "flop" in spec ? compileFlop(spec) : "turn" in spec ? compileTurn(spec) : compileGame(spec);
     this.game = game;
     const limit = refusal(game);
     if (limit) throw new RiverError(limit);
-    this.bytes = isTurn(game) ? turnMemoryBytes(game) : memoryBytes(game);
-    this.solver = isTurn(game) ? new TurnSolver(game) : new RiverSolver(game);
+    this.bytes = bytesOf(game);
+    this.solver = isFlop(game) ? new FlopSolver(game) : isTurn(game) ? new TurnSolver(game) : new RiverSolver(game);
   }
 
   get done(): boolean {
@@ -244,25 +286,49 @@ export class RiverJob {
     this.stop ??= "cancelled";
   }
 
-  /** A turn's river after closing `closing` on card `card` (as "Ah"), or null: not a turn, an all-in closing, a card with no
-   * game, or nothing solved yet. */
-  riverView(closing: number, card: string): RiverView | null {
-    if (!(this.solver instanceof TurnSolver) || !this.solver.iterations || !isTurn(this.game)) return null;
-    const id = parseIds(card, 1)?.[0];
+  /** The street after a line (`ViewPath`), or null: a river, an all-in closing, a card with no game, or nothing solved yet. */
+  riverView(path: ViewPath): RiverView | null {
+    const { solver, game } = this;
+    if (!solver.iterations) return null;
+    const id = parseIds(path.card, 1)?.[0];
     if (id === undefined) return null;
-    const got = this.solver.riverReport(closing, id);
-    const c = this.game.closings.get(closing);
-    if (!got || !c) return null;
-    const { sides } = got.game;
-    return {
-      closing,
-      card: cardsText([id]),
-      pot: c.pot,
-      stack: c.stack,
-      hands: [sides[0].hands, sides[1].hands],
-      weights: [Float32Array.from(sides[0].weights), Float32Array.from(sides[1].weights)],
-      nodes: inWords(got.nodes, got.game.tree),
-    };
+    const card = cardsText([id]);
+    const arrays = (sides: RiverGame["sides"]) => ({
+      hands: [sides[0].hands, sides[1].hands] as [Int32Array, Int32Array],
+      weights: [Float32Array.from(sides[0].weights), Float32Array.from(sides[1].weights)] as [Float32Array, Float32Array],
+    });
+    if (solver instanceof TurnSolver && isTurn(game)) {
+      const got = solver.riverReport(path.closing, id);
+      const c = game.closings.get(path.closing);
+      if (!got || !c) return null;
+      return { street: "river", closing: path.closing, card, pot: c.pot, stack: c.stack, ...arrays(got.game.sides), nodes: inWords(got.nodes, got.game.tree) };
+    }
+    if (!(solver instanceof FlopSolver) || !isFlop(game)) return null;
+    const c = game.closings.get(path.closing);
+    if (!c) return null;
+    if (path.turnClosing === undefined || path.river === undefined) {
+      const got = solver.turnReport(path.closing, id);
+      if (!got) return null;
+      const words = new Map<number, string>([[0, ""]]);
+      const nodes = inWords(got.nodes, got.game.tree, words);
+      return {
+        street: "turn",
+        closing: path.closing,
+        card,
+        pot: c.pot,
+        stack: c.stack,
+        ...arrays(got.game.sides),
+        nodes,
+        closings: [...got.game.closings.values()].filter((x) => x.tree).map((x) => ({ id: x.id, line: words.get(x.id) ?? "", pot: x.pot, stack: x.stack })),
+        riverCards: got.game.rivers.map((r) => cardsText([r.card])),
+      };
+    }
+    const river = parseIds(path.river, 1)?.[0];
+    const tc = c.turnClosings?.get(path.turnClosing);
+    if (river === undefined || !tc) return null;
+    const got = solver.riverReport(path.closing, id, path.turnClosing, river);
+    if (!got) return null;
+    return { street: "river", closing: path.closing, card: cardsText([river]), turn: card, turnClosing: path.turnClosing, pot: tc.pot, stack: tc.stack, ...arrays(got.game.sides), nodes: inWords(got.nodes, got.game.tree) };
   }
 
   progress(): RiverProgress {
@@ -279,17 +345,25 @@ export class RiverJob {
     const words = new Map<number, string>();
     words.set(0, "");
     const nodes = inWords(this.solver.report(), tree, words);
-    const turn = isTurn(game);
+    const closings = (game: TurnGame | FlopGame) => [...game.closings.values()].filter((c) => c.tree).map((c) => ({ id: c.id, line: words.get(c.id) ?? "", pot: c.pot, stack: c.stack }));
     return {
-      street: turn ? "turn" : "river",
-      ...(turn
+      street: isFlop(game) ? "flop" : isTurn(game) ? "turn" : "river",
+      ...(isFlop(game)
         ? {
+            turnSizes: game.turnSizes,
             riverSizes: game.riverSizes,
-            rivers: game.rivers.length,
-            closings: [...game.closings.values()].filter((c) => c.tree).map((c) => ({ id: c.id, line: words.get(c.id) ?? "", pot: c.pot, stack: c.stack })),
-            riverCards: game.rivers.map((r) => cardsText([r.card])),
+            turns: game.turns.length,
+            turnCards: game.turns.map((t) => cardsText([t.card])),
+            closings: closings(game),
           }
-        : {}),
+        : isTurn(game)
+          ? {
+              riverSizes: game.riverSizes,
+              rivers: game.rivers.length,
+              closings: closings(game),
+              riverCards: game.rivers.map((r) => cardsText([r.card])),
+            }
+          : {}),
       stop: this.stop ?? "cancelled",
       iterations: this.solver.iterations,
       seconds: this.elapsed(),
@@ -343,8 +417,8 @@ export async function runJob(job: RiverJob, opts: RunOptions = {}): Promise<{ ca
 export type RiverInbound =
   | { type: "run"; id: number; request: RiverRequest }
   | { type: "cancel"; id: number }
-  /** a finished turn's river (`ask` numbers the answer) */
-  | { type: "river"; id: number; ask: number; closing: number; card: string };
+  /** a finished turn's river, or a finished flop's turn or river (`ask` numbers the answer) */
+  | { type: "river"; id: number; ask: number; path: ViewPath };
 export type RiverOutbound =
   | { type: "progress"; id: number; progress: RiverProgress }
   | { type: "river"; id: number; ask: number; view: RiverView | null }
@@ -380,13 +454,14 @@ export interface RiverPort {
 const viewBuffers = (v: RiverView | null): ArrayBuffer[] =>
   v ? [...v.hands, ...v.weights, ...v.nodes.flatMap((n) => [n.strategy, n.weight, n.ev, n.actionEv])].map((a) => a.buffer as ArrayBuffer) : [];
 
-/** The worker's end: one job at a time, a new one replacing the last. A finished turn's job is kept, to look at its rivers. */
+/** The worker's end: one job at a time, a new one replacing the last. A finished turn's or flop's job is kept, to look at
+ * the streets after it. */
 export function serveRiver(port: RiverPort, options: RunOptions = {}): void {
   let current = 0;
   let kept: { id: number; job: RiverJob } | null = null;
   port.onmessage = ({ data }) => {
     if (data.type === "river") {
-      const view = kept && kept.id === data.id ? kept.job.riverView(data.closing, data.card) : null;
+      const view = kept && kept.id === data.id ? kept.job.riverView(data.path) : null;
       port.postMessage({ type: "river", id: data.id, ask: data.ask, view }, viewBuffers(view));
       return;
     }
@@ -406,7 +481,7 @@ export function serveRiver(port: RiverPort, options: RunOptions = {}): void {
         stopped: () => current !== id,
         onProgress: (progress) => port.postMessage({ type: "progress", id, progress }),
       });
-      if (result?.street === "turn") kept = { id, job };
+      if (result?.street === "turn" || result?.street === "flop") kept = { id, job };
       port.postMessage({ type: "done", id, cancelled, result }, buffersOf(result));
     } catch (e) {
       port.postMessage({ type: "error", id, message: failureText(e) });

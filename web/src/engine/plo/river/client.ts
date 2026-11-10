@@ -2,7 +2,7 @@
 // browser can't start one the same slices run on the page. A cancel asks the worker, which hands back the strategies as
 // they stood; a worker that doesn't answer within CANCEL_GRACE_MS (an iteration of a big spot on a slow phone) is ended,
 // and there's nothing to show.
-import { failureText, runJob, startJob, type RiverInbound, type RiverJob, type RiverOutbound, type RiverProgress, type RiverRequest, type RiverResult, type RiverView } from "./run";
+import { failureText, runJob, startJob, type RiverInbound, type RiverJob, type RiverOutbound, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type ViewPath } from "./run";
 
 export const CANCEL_GRACE_MS = 10_000;
 
@@ -65,16 +65,16 @@ export class RiverClient {
     });
   }
 
-  /** The last finished turn's river after closing `closing` on `card` (as "Ah"), or null if there's none to look at. */
-  river(closing: number, card: string): Promise<RiverView | null> {
+  /** The street after a line of the last finished turn or flop (`ViewPath`, cards as "Ah"), or null if there's none. */
+  river(path: ViewPath): Promise<RiverView | null> {
     const t = this.lastTurn;
     if (!t) return Promise.resolve(null);
-    if ("job" in t) return Promise.resolve(t.job.riverView(closing, card));
+    if ("job" in t) return Promise.resolve(t.job.riverView(path));
     if (!this.worker) return Promise.resolve(null);
     const ask = this.nextAsk++;
     return new Promise((resolve) => {
       this.asks.set(ask, resolve);
-      this.worker!.postMessage({ type: "river", id: t.id, ask, closing, card });
+      this.worker!.postMessage({ type: "river", id: t.id, ask, path });
     });
   }
 
@@ -139,7 +139,7 @@ export class RiverClient {
     if (!a || m.id !== a.id) return;
     if (m.type === "progress") a.onProgress?.(m.progress);
     else if (m.type === "done") {
-      if (m.result?.street === "turn") this.lastTurn = { id: m.id };
+      if (m.result?.street === "turn" || m.result?.street === "flop") this.lastTurn = { id: m.id };
       this.finish(a, () => a.resolve({ cancelled: m.cancelled, result: m.result }));
     }
     else this.finish(a, () => a.reject(new Error(m.message)));
@@ -154,7 +154,7 @@ export class RiverClient {
     try {
       const job = startJob(request);
       const out = await runJob(job, { stopped: () => stop, onProgress, sliceMs: 12 });
-      if (out.result?.street === "turn") this.lastTurn = { job };
+      if (out.result?.street === "turn" || out.result?.street === "flop") this.lastTurn = { job };
       return out;
     } catch (e) {
       throw new Error(failureText(e), { cause: e });
