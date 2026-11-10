@@ -20,6 +20,8 @@ import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
 import { reviewedText } from "./copyForAi";
 import { exploitNote, GRADED_BY_READ } from "./exploit";
+
+const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
 import { PF_GRADED, pfWords } from "./pfGrade";
 import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
@@ -126,10 +128,16 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       )}
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && !session.opts.tournament && !session.opts.exploit && item("Net", `${signed(session.net)}bb`)}
+      {session.opts.exploit && item("Net against the profile", session.read?.hands ? `${signed(session.read.net)}bb · ${many(session.read.hands, "hand")}` : "–")}
       {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
       {session.opts.pfSolve && pfWords(session.cells) && <p className="basis-full text-xs text-muted">{pfWords(session.cells)}</p>}
       {session.opts.tournament && <p className="basis-full text-xs text-muted">{tournamentNote(session.opts.tournament)}</p>}
       {session.opts.exploit && <p className="basis-full text-xs text-muted">{exploitNote(session.opts.exploit)}</p>}
+      {session.opts.exploit && !!session.read?.off && (
+        <p className="basis-full text-xs text-muted">
+          {many(session.read.off, "hand")} left out of Net against the profile: a move of theirs after the flop was the equilibrium's, or they made none.
+        </p>
+      )}
       {!!session.revealed && (
         <p className="basis-full text-xs text-muted">
           {session.revealed} decision{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. {REVEAL_CHIPS}

@@ -57,6 +57,7 @@ import { useRuntime } from "@/solver/runtime";
 import { SolverError, type SolveMode, type SolverTransport, type SolveResult, type StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { aheadJobs, ASK_AHEAD, habit, NO_METER, noteBad, onward, readHabits, saveHabits, type AheadMeter, type Habits, type Waiting } from "./ahead";
+import { tallyRead } from "./exploit";
 import { adviceKey, chartDraw, moveOf, needOf, type Need } from "./flow";
 import { gradedOn, type HeldAnswer, type PfAsked } from "./pfGrade";
 import { practiceRecord } from "./history";
@@ -984,7 +985,7 @@ export class Room {
         }
         this.usedAhead(t, need.key);
         if (!asked) this.charted += 1;
-        this.commit(t, withVillain(h, move, sim));
+        this.commit(t, withVillain(tallyRead(h, mv, need.street), move, sim));
       } else return;
     }
   }

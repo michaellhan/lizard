@@ -4435,3 +4435,16 @@ Tests: `grading.test.ts` (2 new), `report.test.ts` (1 new), the shapes test; ful
 **Browser suite.** 48 of 49 passed on desktop before the Stats keyboard change; the 49th passes on its own now. The History session-stats test still expected the next Tab after the seat tables to land on the pot tables. Since 2026-11-08 the note on decisions left out is a disclosure, its own stop in between, and the test now steps through it.
 
 The row is graded WORKING by the owner's rule of 2026-11-08 (37 of 63). What's left there: preflop the answer is the charts' or the class-level preflop solve's, and the size tables aren't compared with a solve.
+
+### 2026-11-10: Exploit practice's opponent plays the profile (Phase 1)
+
+**Practice.** Exploit practice graded you against the best response to an assumed profile while the opponent played the equilibrium, so a hand's chips said nothing of the read and no net was counted. `Advisor.play` reads the opponent's move off the solve's average strategy (`_actor_move`), and the engine's best response turns that strategy into the profile's with `TendencyLock` at each of their nodes. The new `engine/exploit_play.py` runs `Advisor.play` with `_actor_move` wrapped while the request runs: the mix is the node's strategy with the read on it, over the whole range (the read moves hands by strength), then the hand's column, drawn by play's own seed. Nothing in `solver/` changes; the worker gets one more build-time edit (`worker-edits.mjs`) sending a move with a read in its state there.
+
+- **Measured in the same solve** (BB facing BTN's flop c-bet on Kd7s2c, BB's whole range): equilibrium folds 46.7%, calls 38.1%, raises 15.2%; Calling station 26.7 / 65.7 / 7.6; Nit 61.7 / 27.7 / 10.6; Overfolds 61.7 / 23.1 / 15.2. A single hand moves by strength: Th9h's 97% fold becomes a call as a station. `scripts/engine/test_exploit_play.py` (6 tests) checks those shifts, that each move's mix is the locked one, the fallbacks, and that the class is put back even on an error.
+- **Fallbacks say so.** Their hand off their range for the line, or a line of yours the solve rarely takes: the equilibrium's move, with why. Preflop is the charts. A local server has no `engine/`, so it's sent no read (its `Advisor.play` would only reshape the ranges) and its moves are the equilibrium's.
+- **The chips.** Each hand says how many of their moves after the flop were the profile's. "Net against the profile" counts only the hands where all were, and says how many were left out; the session record keeps it (`meta.read`).
+
+**Checked in a browser** on the real worker (dev server): a Calling station hand, flop c-bet called, turn checked through, river bet: "All 4 of their moves after the flop were the profile's", Net against the profile +11.5bb over 1 hand, each opponent move under a second once the solve was cached. `qa.e2e.ts` 7d now plays an exploit hand to its end and checks the line.
+
+The row is WORKING by the owner's rule of 2026-11-08 (38 of 63). Left: the profiles are hand-set numbers, History shows no net for exploit sessions, and a read isn't played preflop or multiway.
+

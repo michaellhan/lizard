@@ -170,13 +170,17 @@ export class SolverClient {
   }
 
   /** A practice opponent's move (Advisor.play): `play.seat` holding `play.hole` draws one from its GTO mix; `state`
-   * is the hand from the player practising (hero and hole), as their own advice's. */
+   * is the hand from the player practising (hero and hole), as their own advice's. With a read in it (`locks`, Exploit
+   * practice) the worker draws it from the read (engine/exploit_play.py). A local server has no engine/, and its
+   * Advisor.play would only reshape the ranges by the read, neither the read nor the equilibrium, so it's sent none: its
+   * move is the equilibrium's, and comes back without `profile` (exploit.ts `NO_READ_PLAY`). */
   play(
     state: AdvisorState,
     play: PlayRequest,
     opts: { mode?: SolveMode; signal?: AbortSignal } = {},
   ): Promise<SolveResult<PlayMove>> {
-    return this.solve({ state, play, mode: opts.mode, signal: opts.signal }) as Promise<SolveResult<PlayMove>>;
+    const sent = this.transport.kind === "worker" || !state.locks ? state : withoutLocks(state);
+    return this.solve({ state: sent, play, mode: opts.mode, signal: opts.signal }) as Promise<SolveResult<PlayMove>>;
   }
 
   /** A true node lock: `state` is the Study state of the node on screen, so the lock lands on the node of the tree a
@@ -206,4 +210,11 @@ export class SolverClient {
     for (const q of this.queue.splice(0)) q.reject(new SolverError("cancelled", "solver disposed"));
     this.transport.dispose();
   }
+}
+
+/** The state with no read in it. */
+function withoutLocks(state: AdvisorState): AdvisorState {
+  const rest = { ...state };
+  delete rest.locks;
+  return rest;
 }

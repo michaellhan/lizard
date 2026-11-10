@@ -111,6 +111,7 @@ export function validSession(d: Record<string, unknown>): boolean {
     META_TEXT.every((k) => meta[k] === undefined || meta[k] === null || isWellFormed(meta[k])) &&
     (meta.done === undefined || isStrs(meta.done)) &&
     (meta.exploit === undefined || (isObj(meta.exploit) && isStr(meta.exploit.profile) && isObj(meta.exploit.lock) && Object.values(meta.exploit.lock).every(isNum))) &&
+    (meta.read === undefined || (isObj(meta.read) && [meta.read.hands, meta.read.net, meta.read.off].every(isNum))) &&
     (meta.score === undefined || isScore(meta.score)) &&
     (meta.cells === undefined || isSessionCells(meta.cells, d.decisions as number))
   );

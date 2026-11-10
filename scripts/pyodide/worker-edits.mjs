@@ -27,13 +27,18 @@ const EDITS = [
     to: 'py.globals.set("stop_now", stopNow);\n  py.globals.set("post_partial", (s) => postMessage({ id: CUR, partial: JSON.parse(s) }));',
   },
   {
-    // A Study request with state.nodelock (web/src/solver/client.ts nodeLock) goes to the node lock, not the advice.
+    // A Study request with state.nodelock (web/src/solver/client.ts nodeLock) goes to the node lock, not the advice; an
+    // opponent's move with a read in its state (Exploit practice, web/src/features/practice/flow.ts) goes to
+    // engine/exploit_play.py, which draws it from the read the player's answer best-responds to.
     // Imported on first use: nothing else in the worker loads engine/. A cancel stays the handler's below it.
     from: `+ "        return json.dumps(adv.play(st, pl['seat'], pl['hole'], pl.get('seed')) if pl else adv.advise(st))\\n"`,
     to:
       `+ "        if st.get('nodelock') and not pl:\\n"\n` +
       `             + "            from engine.study_lock import answer as locked\\n"\n` +
       `             + "            return json.dumps(locked(adv, st, lambda p: post_partial(json.dumps(p))))\\n"\n` +
+      `             + "        if pl and st.get('locks'):\\n"\n` +
+      `             + "            from engine.exploit_play import play as read_play\\n"\n` +
+      `             + "            return json.dumps(read_play(adv, st, pl['seat'], pl['hole'], pl.get('seed')))\\n"\n` +
       `             + "        return json.dumps(adv.play(st, pl['seat'], pl['hole'], pl.get('seed')) if pl else adv.advise(st))\\n"`,
   },
 ];

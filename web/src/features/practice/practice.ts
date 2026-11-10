@@ -35,7 +35,7 @@ import {
 } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeGridData } from "@/solver/protocol";
 import type { Provenance } from "@/solver/types";
-import { assumedWords, bestResponse, type Exploit } from "./exploit";
+import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./exploit";
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { flopsLike, type TextureFilter } from "./texture";
 
@@ -116,6 +116,8 @@ export interface PracticeHand {
   tournament?: HandTournament;
   /** an exploit session's read: your answers are the best response to it (exploit.ts) */
   exploit?: Exploit;
+  /** with `exploit`: how the opponent's moves after the flop were drawn, by the read or the equilibrium (`tallyRead`) */
+  read?: ReadTally;
   /** your preflop decisions are graded by the stored preflop solve where it can answer them (pfGrade.ts) */
   pfSolve?: true;
   /** with `pfSolve`: at a spot the solve grades, your raise is at the solve's own size in place of the chart's (pfGrade.ts) */
@@ -509,9 +511,8 @@ export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
   };
 }
 
-/** Your advice's request. In exploit practice, heads up after the flop, it carries the read on your opponent. Only your
- * advice does: `stateFor` stays the opponents' request, as `Advisor.play` has no locks and a lock left in its state
- * only reshapes the ranges its mix is drawn from (exploit.ts). */
+/** Your advice's request. In exploit practice, heads up after the flop, it carries the read on your opponent, and so does
+ * their move's (flow.ts `needOf`), which engine/exploit_play.py draws from the read (exploit.ts). */
 export function adviceState(h: PracticeHand, sim: Sim = simOf(h)): AdvisorState {
   const state = stateFor(h);
   if (!h.exploit || h.shown < 3) return state;

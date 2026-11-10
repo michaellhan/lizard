@@ -238,6 +238,10 @@ export type PlayMove = AdvisorResponse & {
   name: string;
   freq: number;
   to?: number;
+  /** with a read in the request (Exploit practice, engine/exploit_play.py): true where the move was drawn from the read's
+   * strategy, false where it was the equilibrium's, `profile_why` saying why; absent from Advisor.play itself */
+  profile?: boolean;
+  profile_why?: string;
 };
 
 export interface OpponentRange {

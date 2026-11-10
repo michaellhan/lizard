@@ -36,7 +36,7 @@ import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
-import { ASSUMED, assumedWords, EXPLOIT_SCOPE } from "./exploit";
+import { ASSUMED, assumedWords, EXPLOIT_SCOPE, readWords } from "./exploit";
 import { answering } from "./TableTile";
 
 export { optionLabel };
@@ -566,6 +566,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
               {hand.result.says && <span className="text-muted"> · {hand.result.says}</span>}
               <RunText hand={hand} sim={sim} />
             </p>
+            {readWords(hand) && <p className="basis-full text-xs text-muted">{readWords(hand)}</p>}
             {runKind(hand, sim) && (
               <button
                 type="button"

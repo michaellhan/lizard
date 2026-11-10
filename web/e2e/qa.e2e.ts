@@ -650,6 +650,21 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   const next = page.getByRole("button", { name: /next/i }).first();
   if (await next.isVisible().catch(() => false)) await next.click();
   await expect(options(page).first()).toBeEnabled({ timeout: 120_000 });
+  // Played to its end: every move of the opponent's after the flop is drawn from the read (engine/exploit_play.py), and
+  // the hand says how many were, so its chips count in Net against the profile only where all of them were.
+  const said = page.getByText(/^(Their move|All \d+ of their moves|\d+ of their \d+ moves) after the flop|^They made no move after the flop/);
+  for (let i = 0; i < 8 && !(await said.isVisible()); i++) {
+    const opt = options(page).first();
+    await expect(opt.or(said)).toBeVisible({ timeout: 120_000 });
+    if (await said.isVisible()) break;
+    await opt.click();
+    await expect(opt.or(said)).toBeVisible({ timeout: 120_000 });
+  }
+  await expect(said).toBeVisible();
+  // (a move the read can't draw, their hand off their range for the line, is the equilibrium's and says why; never "can't
+  // play a read", which is a solver with no engine/)
+  await expect(page.getByText(/can't play a read/)).toHaveCount(0);
+  await expect(page.getByText("Net against the profile")).toBeVisible();
 
   await page.goto("/lizard/saved/");
   await page.getByRole("link", { name: "Start QA station" }).click();

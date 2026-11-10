@@ -7,6 +7,7 @@ import { addCell, addHandToPot, addSource, handPot, type GradeCell, type PotTall
 import { addScore, emptyScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
 import { PRIZE_UNIT } from "@/solver/provenance";
+import { playedByRead } from "./exploit";
 import { carries, simOf, type Decision, type GameOptions, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
 import { reviewed, withReviewed, type Reviewed } from "./review";
 
@@ -34,6 +35,15 @@ export interface PracticeSession {
   review: Reviewed[];
   /** the decisions made after Reveal: none of them is in any total here */
   revealed?: number;
+  /** an exploit session's chips over the hands where every move of the opponent's after the flop was the read's (`hands`,
+   * `net` in bb), and the hands left out, where one wasn't (`off`): exploit.ts `playedByRead` */
+  read?: ReadNet;
+}
+
+export interface ReadNet {
+  hands: number;
+  net: number;
+  off: number;
 }
 
 const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
@@ -86,7 +96,13 @@ export function afterHand(s: PracticeSession, h: PracticeHand, result: HandResul
     hands: s.hands + 1,
     net: s.opts.preflopOnly ? s.net : Math.round((s.net + result.net) * 100) / 100,
     byPot: { ...s.byPot, [pot]: addHandToPot(s.byPot[pot], gradesOf(h), s.opts.preflopOnly ? null : result.net) },
+    ...(s.opts.exploit ? { read: readAfter(s.read, h, result.net) } : {}),
   };
+}
+
+/** An exploit session's read net after a hand: counted where the hand's chips test the read, else left out. */
+function readAfter(r: ReadNet = { hands: 0, net: 0, off: 0 }, h: PracticeHand, net: number): ReadNet {
+  return playedByRead(h) ? { ...r, hands: r.hands + 1, net: Math.round((r.net + net) * 100) / 100 } : { ...r, off: r.off + 1 };
 }
 
 /** What the session's EVs are in. A prize-equity session's graded EVs all are (`gradable`), and they're never bb won. */
@@ -119,7 +135,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.pot && s.opts.hand && tables <= 1 ? { hand: s.opts.hand } : {}),
     ...(s.opts.pushFold ? { pushFold: true } : {}),
     ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
-    ...(s.opts.exploit ? { exploit: s.opts.exploit } : {}),
+    ...(s.opts.exploit ? { exploit: s.opts.exploit, ...(s.read ? { read: s.read } : {}) } : {}),
     ...(s.opts.pfSolve ? { pfSolve: true, ...(s.opts.pfSizes ? { pfSizes: true } : {}) } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),

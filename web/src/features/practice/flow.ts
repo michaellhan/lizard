@@ -38,8 +38,9 @@ export function needOf(h: PracticeHand, mode: SolveMode, sim: Sim = simOf(h), ch
     if (h.pfSolve && ph.street === "preflop") return { kind: "you", key: pfKey(mode, state), state, pf: pfState(h), street: ph.street };
     return { kind: "you", key: adviceKey(mode, state), state, street: ph.street };
   }
-  // (a run-out after your fold: from the seat's own view, as the classic page asks it)
-  const state = h.run ? stateFor(h, ph.seat) : stateFor(h);
+  // (a run-out after your fold: from the seat's own view, as the classic page asks it; in exploit practice after the flop,
+  // with the read on the seat, which engine/exploit_play.py plays)
+  const state = h.run ? stateFor(h, ph.seat) : adviceState(h, sim);
   if (charts && charting(h) && !charts.has(chartKey(state))) return { kind: "chart", key: `chart|${chartKey(state)}`, ck: chartKey(state), state: chartState(state), street: "preflop" };
   const hole = h.hands[ph.seat]!.join("");
   return { kind: "opp", key: moveKey(mode, state, ph.seat, hole), state, play: { seat: ph.seat, hole }, street: ph.street };
