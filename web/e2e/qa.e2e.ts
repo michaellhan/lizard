@@ -479,7 +479,8 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   page.on("request", (r) => {
     if (/\/solver\/pf\//.test(r.url())) fetched.push(r.url());
   });
-  await session(page, "preflop", () => page.getByLabel("Grade preflop by the preflop solve").check());
+  // (ticked by default where the game is stored: nothing to tick)
+  await session(page, "preflop", () => expect(page.getByLabel("Grade preflop by the preflop solve")).toBeChecked());
   const next = page.getByRole("button", { name: "Next hand" });
   const solve = page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first();
   const chart = page.getByText(/^Not by the preflop solve here/).first();
@@ -517,11 +518,10 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
 });
 
 
-test("7h. The solve's raise sizes are offered once the first box is ticked, off by default, with what they cost said; a raise goes in at the solve's size", async ({ page, problems }) => {
+test("7h. The solve's raise sizes are offered with the first box, ticked by default, and are off by default, with what they cost said; a raise goes in at the solve's size", async ({ page, problems }) => {
   await session(page, "preflop", async () => {
     const sizes = page.getByLabel("Offer the solve's raise sizes");
-    await expect(sizes).toHaveCount(0);
-    await page.getByLabel("Grade preflop by the preflop solve").check();
+    await expect(page.getByLabel("Grade preflop by the preflop solve")).toBeChecked();
     await expect(sizes).not.toBeChecked();
     await expect(page.locator("#pf-note")).toContainText("leave the flop library");
     await sizes.check();

@@ -2,7 +2,7 @@
 // its settings and nothing need be stored until you save it. A link can come from anywhere, so it's read as a stored
 // setup is (data/scenarios.ts readSetup): one that makes no sense starts nothing.
 import { readSetup, type ScenarioSetup } from "@/data/scenarios";
-import { isPotDrill, type PotDrill } from "./practice";
+import { isPotDrill, pfByDefault, type PotDrill } from "./practice";
 
 export type PlayKind = "full" | "preflop" | PotDrill;
 export interface LinkSetup {
@@ -18,8 +18,11 @@ export interface LinkSetup {
 export const SETUP_PARAMS = ["play", "seat", "players", "stack", "hand"] as const;
 
 /** The setup a link stands for, whole and playable, else null. */
-export const linkSetup = ({ play, seat, players, stack, hand }: LinkSetup): ScenarioSetup | null =>
-  play === "full" || play === "preflop" || isPotDrill(play) ? readSetup({ players, stack, opts: { seat, preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, hand } }) : null;
+export function linkSetup({ play, seat, players, stack, hand }: LinkSetup): ScenarioSetup | null {
+  const s = play === "full" || play === "preflop" || isPotDrill(play) ? readSetup({ players, stack, opts: { seat, preflopOnly: play === "preflop", pot: isPotDrill(play) ? play : null, hand } }) : null;
+  // (a link says nothing of the grade, so preflop is graded by the solve where the game is stored, as a new session's is)
+  return s && { ...s, opts: pfByDefault(s.players, s.stack, s.opts) };
+}
 
 export const setupLink = ({ play, seat, players, stack, hand }: LinkSetup): string =>
   `/practice?${new URLSearchParams({ play, seat, players: String(players), stack: String(stack), ...(hand ? { hand } : {}) })}`;

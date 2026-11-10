@@ -87,8 +87,10 @@ describe("PracticePage", () => {
         <PracticePage pace={0} />
       </MemoryRouter>,
     );
-    // heads-up, the first hand from the button (the small blind): you act first
+    // heads-up, the first hand from the button (the small blind): you act first; preflop graded by the charts, chosen in
+    // place of the solve (pfRoom.test.ts plays the default)
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Grade preflop by the preflop solve" }));
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     const options = await screen.findByRole("group", { name: "Your options" });
     expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1fold", "2call", "3raise 2.5"]);
@@ -567,6 +569,8 @@ describe("PracticePage", () => {
       </MemoryRouter>,
     );
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    // (preflop by the charts, which these tests read: the solve's grade is pfRoom.test.ts's)
+    fireEvent.click(screen.getByRole("checkbox", { name: "Grade preflop by the preflop solve" }));
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     return screen.findByRole("group", { name: "Your options" });
   };

@@ -858,7 +858,7 @@ Over every row with a margin, 96.7% were within it at 40 flops. At 40 flops 1.8%
 
 ## 18. Practice's preflop graded by the preflop solve
 
-A New session option (off by default) grades a preflop decision by EV against the stored preflop solve, in place of the chart's frequency (`web/src/features/practice/pfGrade.ts`). It exists only for the two stored games, 6-max 100bb with no rake or with 5% capped at 3bb, with no ante, straddle, carried chips or own sizes. Practice never starts a solve. Your buttons and the opponents stay the charts', so turning it on changes no move, only the grade.
+A New session option (on by default since 2026-11-10 wherever a game is stored; it was off before) grades a preflop decision by EV against the stored preflop solve, in place of the chart's frequency (`web/src/features/practice/pfGrade.ts`). It first existed only for the two stored games, 6-max 100bb with no rake or with 5% capped at 3bb, with no ante, straddle, carried chips or own sizes; section 18.3 widens that to 110 games. Practice never starts a solve. Your buttons and the opponents stay the charts', so turning it on changes no move, only the grade.
 
 The solve's limits are section 6's: about 1.5 mbb/hand in its own abstract game, 2.4-3.0 points from published spots, and not consistent with the charts. Every grade from it is labelled `preflop-solve`, marked approximate, with the model named. An EV here is your hand's class's, against the solve's own ranges. The opponents at the table play the charts, so a Best means the model's best, not the best against that table.
 
@@ -918,7 +918,7 @@ So playing the charts exactly is called below Correct 8.9% of the time. That's t
 
 This supersedes "The other way, not built" above and the "Analyze's kept hands" row of the last table. Both stand as what was true on 2026-11-05.
 
-**The option.** A second tick box, off by default and shown only once the first is ticked: "Offer the solve's raise sizes" (`pfSizes`, `web/src/features/practice/pfGrade.ts` `pfReadAt` with `ownSizes`). Where the node answers and your options are the solve's in kind (raise, call, fold, whatever their sizes), your buttons are the solve's and the decision is graded by it. Anywhere the solve wouldn't grade the spot, the chart's size and the chart's grade stay, with why, so a button never carries a size nothing can grade. The rule is still settled before you choose, and it's the same rule on a retry, in Analyze and in the coverage script.
+**The option.** A second tick box, off by default and shown only while the first is ticked: "Offer the solve's raise sizes" (`pfSizes`, `web/src/features/practice/pfGrade.ts` `pfReadAt` with `ownSizes`). Where the node answers and your options are the solve's in kind (raise, call, fold, whatever their sizes), your buttons are the solve's and the decision is graded by it. Anywhere the solve wouldn't grade the spot, the chart's size and the chart's grade stay, with why, so a button never carries a size nothing can grade. The rule is still settled before you choose, and it's the same rule on a retry, in Analyze and in the coverage script.
 
 **Raises are kept to the cent.** Of the tree's raise sizes (opens 2.5, 3; 3-bets 7.5, 10, 12, 12.5, 14.5, 17; 4-bets 17.25, 23, 24.75, 27.6, 28.75, 33, 33.35, 39.1, 39.6), most 4-bets aren't on the table's half big blind. Rounded, a 17.25bb raise would be a size the solve has no EV for, and the line would leave its tree at the very decision graded. So a solve-sized raise is recorded as it stands (`practice.ts` `moveOfOption` with `exact`), which only happens with this option on; the table's half big blind still rounds everything else, a chart's answer at the same table included. These moves go through the kept hand and the hand history (`history.test.ts`, 17.25, 27.6 and 33.35bb).
 
@@ -1025,8 +1025,15 @@ version in a grade's stamp. The page's list (`web/src/solver/pfStored.ts`) is he
 - Analyze, for a hand of equal stacks at a stored game;
 - a saved setup that carries the option.
 
-Study's Solver source answers these at once rather than solving. The option stays off by default. The opponents still play
-the charts, and every grade is labelled the class-level model.
+Study's Solver source answers these at once rather than solving. The opponents still play the charts, and every grade is
+labelled the class-level model.
+
+**On by default, 2026-11-10 (owner's decision).** Practice's box starts ticked wherever the game is stored: the session the
+page deals on load (6-max 100bb), every New session form, and a setup link (which carries no grade of its own). A box taken off
+is kept off for that session (`pfSolve: false`). A saved scenario keeps what it was saved with, so one saved before this, without
+the option, is still graded by the charts. Nothing about the grade changed, only who sees it without asking: the same
+class-level model, the same rule, the same 30% of 6-max 100bb decisions it can't answer, which keep the chart's frequency grade
+and say why. Analyze is unchanged (its own box, `grading.ts`).
 
 **Coverage [M], 2026-11-10.** `scripts/pf_practice_coverage.py`, now with `--players` and `--stack`. Native, 5,000 hands a game
 on the section's seed, you playing the charts, unraked:

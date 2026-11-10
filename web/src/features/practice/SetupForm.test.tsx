@@ -166,21 +166,23 @@ describe("grading preflop by the preflop solve", () => {
   const box = () => screen.queryByRole("checkbox", { name: "Grade preflop by the preflop solve" }) as HTMLInputElement | null;
   const typed = (name: string, value: string) => fireEvent.change(screen.getByRole("spinbutton", { name }), { target: { value } });
 
-  it("is off by default, and starts the session with it once it's ticked", () => {
+  it("is on by default where the game is stored, and a session without it says so", () => {
     const start = open();
-    expect(box()!.checked).toBe(false);
+    expect(box()!.checked).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSolve");
+    expect(start.mock.calls[0]![2]).toMatchObject({ pfSolve: true });
     fireEvent.click(box()!);
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    expect(start.mock.calls[1]![2]).toMatchObject({ pfSolve: true });
+    // (said off, so the session keeps it off where an option left out would be read as the default)
+    expect(start.mock.calls[1]![2]).toMatchObject({ pfSolve: false });
+  });
+  it("comes back unticked with a session that had it off", () => {
+    open({ ...OPTS, pfSolve: false });
+    expect(box()!.checked).toBe(false);
   });
   it("says what the solve is, and that the opponents stay the charts'", () => {
     open();
     const note = document.getElementById("pf-note")!;
-    // (below the form's fold of words until it's chosen: your move stays on the first screen)
-    expect(note).not.toBeVisible();
-    fireEvent.click(box()!);
     expect(note).toBeVisible();
     expect(note).toHaveTextContent("equilibrium of a simplified class-level preflop game, not a full solve");
     expect(note).toHaveTextContent("the opponents stay the charts");
@@ -203,9 +205,8 @@ describe("grading preflop by the preflop solve", () => {
     expect(box()).toBeNull();
     expect(screen.getByText(/no preflop decision to grade/)).toBeInTheDocument();
   });
-  it("doesn't go on into a game that has no stored solve once it's been ticked", () => {
+  it("doesn't go on into a game that has no stored solve", () => {
     const start = open();
-    fireEvent.click(box()!);
     pick("Players", "7");
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSolve");
@@ -217,30 +218,29 @@ describe("grading preflop by the preflop solve", () => {
   describe("offering the solve's raise sizes", () => {
     const sizes = () => screen.queryByRole("checkbox", { name: "Offer the solve's raise sizes" }) as HTMLInputElement | null;
 
-    it("is there only once the first is ticked, and off by default", () => {
+    it("is there only while the first is ticked, and off by default", () => {
       const start = open();
+      expect(sizes()!.checked).toBe(false);
+      fireEvent.click(box()!);
       expect(sizes()).toBeNull();
       fireEvent.click(box()!);
-      expect(sizes()!.checked).toBe(false);
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
       expect(start.mock.calls[0]![2]).toMatchObject({ pfSolve: true });
       expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSizes");
     });
     it("starts the session with it once it's ticked, and never without the first", () => {
       const start = open();
-      fireEvent.click(box()!);
       fireEvent.click(sizes()!);
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
       expect(start.mock.calls[0]![2]).toMatchObject({ pfSolve: true, pfSizes: true });
       fireEvent.click(box()!);
       expect(sizes()).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
-      expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSolve");
+      expect(start.mock.calls[1]![2]).toMatchObject({ pfSolve: false });
       expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSizes");
     });
     it("says its cost in plain words before you tick it, and what it is once you have", () => {
       open();
-      fireEvent.click(box()!);
       const note = document.getElementById("pf-note")!;
       expect(sizes()).toHaveAccessibleDescription(/not a full solve/);
       expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
@@ -254,7 +254,6 @@ describe("grading preflop by the preflop solve", () => {
     });
     it("doesn't go on into a game with no stored solve", () => {
       const start = open();
-      fireEvent.click(box()!);
       fireEvent.click(sizes()!);
       pick("Players", "7");
       expect(sizes()).toBeNull();

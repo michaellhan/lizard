@@ -33,7 +33,7 @@ import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog
 import { gradedOn, optionsAt, PF_MODEL } from "./pfGrade";
 import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
-import { keyOf } from "./session";
+import { FIRST_OPTS, keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
 import { ASSUMED, assumedWords, EXPLOIT_SCOPE, readWords } from "./exploit";
@@ -97,7 +97,7 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
 /** `active`: its tab is the one shown (its keys work only then). */
 function FullHands({ pace, pause, guard, active }: { pace: number; pause?: number; guard?: number; active: boolean }) {
   const getSolver = useSolver();
-  const [room] = useState(() => new Room({ pace, pause, guard }));
+  const [room] = useState(() => new Room({ pace, pause, guard, first: FIRST_OPTS }));
   const [params, setParams] = useSearchParams();
   const scenario = params.get("scenario");
   const linked = setupLinkKey(params);

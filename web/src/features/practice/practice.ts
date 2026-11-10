@@ -314,6 +314,11 @@ export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "
   return null;
 }
 
+/** A session's options with the preflop solve as preflop's grade where the game is stored, unless it was chosen off
+ * (`pfSolve: false`): the default wherever Practice starts a session the setup didn't say. */
+export const pfByDefault = <O extends SessionOptions>(players: number, stack: number, o: O): O =>
+  o.pfSolve === undefined && !pfBlocked(players, stack, o) ? { ...o, pfSolve: true } : o;
+
 /** A seat under this share of the starting stack rebuys to it before a hand (the classic table's REBUY). */
 export const REBUY = 0.25;
 

@@ -165,6 +165,9 @@ export interface RoomOptions {
   seedOf?: (n: number) => number;
   /** no table deals again once this many hands have been dealt in all, so a run has an end (unset: they deal on) */
   maxHands?: number;
+  /** the first session's options, dealt before one is chosen (unset: 6-max 100bb by the charts; the page passes FIRST_OPTS,
+   * preflop graded by the preflop solve) */
+  first?: SessionOptions;
   /** the mode to play at (unset: Settings') */
   mode?: SolveMode;
   /** how many tables it starts with, whatever is kept (unset: one, or those the kept doc brings back) */
@@ -458,8 +461,8 @@ export class Room {
     this.habits = this.persist ? readHabits() : {};
     this.holding = this.persist;
     this.played = this.mode;
-    const hands = o.hands ?? [newHand(6, 100, 0, this.seed())];
-    this.session = atTables({ ...freshSession(6, 100), dealt: hands.length }, hands.length);
+    const hands = o.hands ?? [newHand(6, 100, 0, this.seed(), o.first)];
+    this.session = atTables({ ...freshSession(6, 100, o.first), dealt: hands.length }, hands.length);
     this.tables = hands.map((h) => this.table(h));
     this.snap = this.build();
     if (o.tables && !o.hands) this.setTables(o.tables);

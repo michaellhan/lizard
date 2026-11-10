@@ -35,7 +35,7 @@ const stub = vi.hoisted(() => {
   };
   const client = {
     solve: async ({ state, mode }: { state: AdvisorState; mode?: string }): Promise<SolveResult> => {
-      s.calls.push(`advise ${state.hero} ${mode}`);
+      s.calls.push(`advise ${state.hero} ${mode}${state.preflop_solve ? " (preflop solve)" : ""}`);
       return { data: s.advice!(), provenance: prov };
     },
     play: async (_: AdvisorState, p: PlayRequest): Promise<SolveResult<Partial<PlayMove>>> => {
@@ -79,7 +79,8 @@ describe("FullHands on a Room", () => {
     );
     // (the 6-max hand it deals on load: left to run, three folds and your spot)
     await screen.findByRole("group", { name: "Your options" });
-    await waitFor(() => expect(stub.calls).toEqual(["play UTG", "play HJ", "play CO", "advise BTN quick"]));
+    // (your spot asked once of each: the charts, and the preflop solve that grades it by default at 6-max 100bb)
+    await waitFor(() => expect(stub.calls).toEqual(["play UTG", "play HJ", "play CO", "advise BTN quick", "advise BTN quick (preflop solve)"]));
   });
 
   it("offers Try again and Play on where an opponent's move failed, and your own moves nowhere near it", async () => {
@@ -206,7 +207,7 @@ describe("FullHands on a Room", () => {
     heads();
     await screen.findByRole("group", { name: "Your options" });
     fireEvent.click(screen.getByRole("radio", { name: /Accurate/ }));
-    await waitFor(() => expect(stub.calls).toEqual(["advise SB quick", "advise SB accurate"]));
+    await waitFor(() => expect(stub.calls).toEqual(["advise SB quick", "advise SB quick (preflop solve)", "advise SB accurate", "advise SB accurate (preflop solve)"]));
   });
 });
 

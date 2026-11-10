@@ -4815,3 +4815,22 @@ badge's 1.03 mbb/hand is `4max_40bb.bin`'s. `qa.e2e.ts` 7j does the same in the 
 
 No grade in the matrix changed. The solve is still a class-level model and still opt-in, so the rows' notes say what's
 now covered, and the PARTIALs stay. The two heads-up precompute builds were left alone.
+
+### 2026-11-10: Practice grades preflop by the preflop solve by default (owner's decision)
+
+Asked whether the preflop solve should be preflop's default grade wherever a game is stored, the owner said yes.
+
+- **Where it's on.** The session the page deals on load (6-max 100bb, `session.ts` `FIRST_OPTS`, passed by the page as the
+  Room's `first`), the New session form wherever its game is stored, and a setup link, which carries no grade of its own
+  (`practice.ts` `pfByDefault`). Games with no stored solve, pot drills, tournaments, carried chips and own sizes are
+  graded by the charts as before, and the form still says why.
+- **Taken off stays off.** Unticking the box starts the session with `pfSolve: false`, so the session and the form keep
+  it off. A saved scenario keeps what it was saved with, so one saved before today, without the option, is still graded by
+  the charts. The raise-sizes box stays off by default.
+- **Nothing about the grade changed.** It's the same class-level model and rule, and the same 30% of 6-max 100bb decisions
+  it can't answer keep the chart's grade and say why. Analyze is unchanged.
+
+Tests: `SetupForm.test.tsx` checks the default and unticking; `setupLink.test.ts` checks links in stored and unstored games;
+`PracticeRoom.test.tsx` checks the page's first hand asks the solve once beside the charts. The chart-graded page tests now
+untick the box. The browser steps 7g, 7h and the tablet check expect it ticked. No grade in the matrix changed: the rows'
+notes say it's the default now, and the model is still a class-level one.

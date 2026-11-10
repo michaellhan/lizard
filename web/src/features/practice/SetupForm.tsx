@@ -67,7 +67,8 @@ export function SetupForm({
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
-  const [pfSolve, setPfSolve] = useState(!!opts.pfSolve);
+  // (on unless chosen off: the solve is preflop's default grade wherever the game is stored)
+  const [pfSolve, setPfSolve] = useState(opts.pfSolve ?? true);
   const [pfSizes, setPfSizes] = useState(!!opts.pfSizes);
   const [rake, setRake] = useState(opts.rake ? String(opts.rake) : "");
   const [cap, setCap] = useState(opts.rakeCap ? String(opts.rakeCap) : "");
@@ -141,7 +142,8 @@ export function SetupForm({
     : null;
   // (null with the form unfinished, as there's no game yet to say anything of)
   const pfNo = game && pfBlocked(p, n, game);
-  const setup = game && pfSolve && !pfNo ? { ...game, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : game;
+  // (chosen off is said, so the session keeps it off: an option left out is read as the default)
+  const setup = game && !pfNo ? (pfSolve ? { ...game, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : { ...game, pfSolve: false }) : game;
   return (
     <form
       aria-label="New session"

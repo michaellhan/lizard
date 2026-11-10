@@ -623,10 +623,15 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
   await page.getByLabel("Play", { exact: true }).selectOption("preflop");
 
-  // by the keyboard: space ticks each, and the second is offered only with the first
+  // by the keyboard: the first is ticked by default, space takes it off and puts it back, and the second is offered only
+  // with the first
   const solve = page.getByLabel("Grade preflop by the preflop solve");
   const sizes = page.getByLabel("Offer the solve's raise sizes");
+  await expect(solve).toBeChecked();
   await solve.focus();
+  await page.keyboard.press("Space");
+  await expect(solve).not.toBeChecked();
+  await expect(sizes).toHaveCount(0);
   await page.keyboard.press("Space");
   await expect(solve).toBeChecked();
   await sizes.focus();

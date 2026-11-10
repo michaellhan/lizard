@@ -48,6 +48,9 @@ export interface ReadNet {
 
 const DEFAULT_OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 
+/** The first session a room deals before one is chosen: 6-max 100bb, preflop graded by the preflop solve (stored there). */
+export const FIRST_OPTS: SessionOptions = { ...DEFAULT_OPTS, pfSolve: true };
+
 export const freshSession = (players: number, stack: number, opts: SessionOptions = DEFAULT_OPTS): PracticeSession => ({
   id: `practice-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
   startedAt: Date.now(),

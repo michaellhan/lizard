@@ -201,7 +201,8 @@ describe("starting one in Practice", () => {
 
   it("starts a setup link with what it says, in words, and takes it from the address, nothing saved", async () => {
     await practice("/practice?play=preflop&seat=CO&players=6&stack=100");
-    expect(await screen.findByText("Started 6-max 100bb · seat CO · preflop only.")).toHaveAttribute("role", "status");
+    // (preflop graded by the solve, stored at 6-max 100bb, as a new session is by default)
+    expect(await screen.findByText("Started 6-max 100bb · seat CO · preflop only · preflop graded by the preflop solve.")).toHaveAttribute("role", "status");
     expect(screen.getByRole("combobox", { name: "Your seat" })).toHaveValue("CO");
     await waitFor(() => expect(stub.states.at(-1)).toMatchObject({ stack: 100, players: 6 }));
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/practice"));
