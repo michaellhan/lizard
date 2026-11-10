@@ -276,3 +276,27 @@ describe("the push/fold model (advisor.py _push and _vs_jam, as the engine says 
     expect(tournamentModelOf).toBeTypeOf("function");
   });
 });
+
+describe("ranges an earlier street narrowed by the betting rules", () => {
+  // advisor.py's notes, as a heads-up river's Study answer gave them (2026-11-09)
+  const live = { street: "river", study: "node", solver: { iterations: 1000, exploitability_pct: 0.02, solve_seconds: 0.35 } } as AdvisorResponse;
+  it("marks a live solve approximate when an earlier street's narrowing solve hadn't settled, and says by how much", () => {
+    const r = { ...live, notes: ["flop: the solve that narrows ranges is 3.2% of the pot from equilibrium (55 iterations), so ranges follow it 40% and simple betting rules the rest"] };
+    const p = provenanceOf(r, ctx);
+    expect(p).toMatchObject({ source: "live", approximate: true });
+    expect(describeProvenance(p)).toContain("the flop's narrowing solve stopped 3.2% of the pot from equilibrium after 55 iterations on its time budget, so the ranges follow it 40% and the betting rules the rest, and can differ from run to run");
+    expect(describeProvenance(p)).toMatch(/· approximate$/);
+  });
+  it("says a street the rules narrowed alone, heads-up (Quick) or multiway", () => {
+    const quick = provenanceOf({ ...live, notes: ["turn: ranges narrowed by simple betting rules (a quick answer: the street isn't solved)"] }, ctx);
+    expect(quick.approximate).toBe(true);
+    expect(quick.approximateLabel).toBe("ranges through the turn from the betting rules, not a solve");
+    const mw = provenanceOf({ ...live, multiway: true, notes: ["flop, turn: multiway, ranges narrowed by simple betting rules rather than a solve"] }, ctx);
+    expect(mw.approximateLabel).toBe("ranges through the flop, turn from the betting rules, not a solve");
+  });
+  it("leaves an answer whose earlier streets settled as it was", () => {
+    const p = provenanceOf({ ...live, notes: ["turn: board pairs"] }, ctx);
+    expect(p.approximate).toBe(false);
+    expect(p.approximateLabel).toBeUndefined();
+  });
+});

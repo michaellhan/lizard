@@ -4403,3 +4403,11 @@ Lizard's grades: 36 WORKING, 19 PARTIAL, 5 APPROXIMATE, 3 NOT IMPLEMENTED (was 8
 **Analyze → Study.** A tournament seat with less than 1bb (a small blind posted all-in) failed the setup's 1bb floor, so every seat's stack was dropped and Study refused the line ("an earlier street's betting is not finished"). A seat's stack now needs only to be above 0 (to 1000bb), typed or from a hand; the hand's line closes as it was played.
 
 Tests: `analyze.test.ts` (the 3bb all-in blind), `setup.test.ts`; full unit suite 3,400 passed with 2 skipped, typecheck and lint clean. Not checked in a browser.
+
+### 2026-11-09: why one Study link gave different ranges, and the badge now says so (Phase 3)
+
+**Cause.** The Range builder note of 2026-11-07 (the same heads-up river link gave BB 415 combos once, about 308 other times, one run's note saying a narrowing solve stopped at 49 iterations) is the engine working as designed. An earlier street's narrowing solve runs on a wall-clock budget (Fast: 3 s in the browser), and a solve still unsettled when it ends is followed only partly (`PRIOR_TRUST`), the rest of each range from the betting rules, which err wide. On a busy machine the solve gets fewer iterations, so the ranges differ. Native, SB to act on a checked-down Ks7d2c5h9s river: SB 247 combos with a 0.5 s narrowing budget (flop at 55 iterations, followed 40%), 118-126 at 1-12 s.
+
+**Fixed in Lizard.** Study's answers carry only the engine's notes on this, and the badge said "Live solve" over ranges that were partly rules. `rangesOffOf` reads the three notes (an unsettled narrowing solve, a Quick street narrowed by rules, multiway streets narrowed by rules), and the answer is approximate with the reason in its label. Checked in a browser: a 3-way river now says the turn and river ranges are the rules'; the heads-up river settled in that run and stayed "Live solve".
+
+Not changed: the engine's budgets (`solver/` stays upstream's), so the ranges still vary with the device; making narrowing stop at a fixed iteration count would be an upstream change. Tests: `provenance.test.ts` (3 new), full unit suite 3,403 passed with 2 skipped, typecheck and lint clean.

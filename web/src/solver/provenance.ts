@@ -75,6 +75,27 @@ function borrowedOf(r: AdvisorResponse): string | null {
   return typeof text === "string" ? text : "";
 }
 
+/** advisor.py's notes on how an earlier street narrowed the ranges this answer starts from, when it wasn't (only) a
+ * settled solve. An earlier street's narrowing solve runs on a time budget, so on a slow or busy device it stops short and
+ * the ranges lean on the rules, by how short: the same spot then gives different ranges from one run to the next (a
+ * heads-up river's SB: 247 combos behind a flop narrowing at 55 iterations, 118-126 behind settled ones). */
+const UNSETTLED_NOTE = /^(\w+): the solve that narrows ranges is ([\d.]+)% of the pot from equilibrium \((\d+) iterations\), so ranges follow it (\d+)%/;
+const RULES_NOTE = /^(\w+): ranges narrowed by simple betting rules/;
+const MW_RULES_NOTE = /^([\w, ]+): multiway, ranges narrowed by simple betting rules/;
+
+/** The ranges behind an answer in words, where an earlier street narrowed them by the betting rules in part or whole;
+ * null where every earlier street was solved and settled (or there was none). */
+export function rangesOffOf(r: AdvisorResponse): string | null {
+  const out: string[] = [];
+  for (const n of r.notes ?? []) {
+    const u = UNSETTLED_NOTE.exec(n);
+    const rules = RULES_NOTE.exec(n) ?? MW_RULES_NOTE.exec(n);
+    if (u) out.push(`the ${u[1]}'s narrowing solve stopped ${u[2]}% of the pot from equilibrium after ${u[3]} iterations on its time budget, so the ranges follow it ${u[4]}% and the betting rules the rest, and can differ from run to run`);
+    else if (rules) out.push(`ranges through the ${rules[1]} from the betting rules, not a solve`);
+  }
+  return out.length ? out.join("; ") : null;
+}
+
 /** Band of a measured exploitability (% of the pot), as the classic app draws it (index.html convergence()). */
 export function bandOf(exploitabilityPct: number, solverApproximate = false): ConvergenceBand {
   if (solverApproximate) return "approximate";
@@ -126,6 +147,12 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (typeof approx?.label === "string") p.approximateLabel = approx.label;
   else if (borrowed !== null) p.approximateLabel = `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
   if (r.multiway) p.multiway = true;
+  // ranges entering this street that are partly or wholly the betting rules: the answer stands on them, so it's approximate
+  const off = rangesOffOf(r);
+  if (off && source !== "rules" && source !== "charts" && source !== "push-fold") {
+    p.approximate = true;
+    p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${off}` : off;
+  }
   // a true node lock (engine/study_lock.py): the lock in words and what the tree it's solved on abstracts
   if (r.node_lock) {
     p.lock = r.node_lock.words;
