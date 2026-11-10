@@ -4692,3 +4692,11 @@ Tests:
 - `web/src/engine/plo/turn/reference.test.ts`, 12 passing. The trees and river trees match path for path, and the hands and matchups match. The reference's strategy, put into the TypeScript on the turn and every river card, gives the same best responses and value to 5 places. The TypeScript's own solve lands inside the reference's bracket.
 
 The PLO4 row stays PARTIAL: no flop or preflop, and no PLO in Study, Practice or Analyze.
+
+### 2026-11-10: Mystery bounty regraded PARTIAL
+
+The row was APPROXIMATE because a knockout is valued at the average envelope left, with no spread. That isn't an approximation of the EV. The average is the exact expectation of a random draw, and prize equity is linear in money (ICM is risk-neutral, as every EV in Lizard is), so a spread would change no EV and no strategy. What remains is the same as KO / PKO: the proportional bounty model, and preflop away from push/fold as a discount on the chart's risk premium. So the row is PARTIAL like theirs.
+
+Changes: the matrix row and counts (Lizard: 42 / 14 / 4 / 3), `routes.ts` `GRADES`, and ROADMAP Phase 7, where the spread is no longer listed as open.
+
+Tests: `src/app` and `src/features/home`, 23 passing (the routes test reads the grades from the matrix).

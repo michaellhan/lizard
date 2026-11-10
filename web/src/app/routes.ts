@@ -64,7 +64,7 @@ export const GRADES: Record<string, Grade> = {
   "MTT / final table": "WORKING",
   Satellites: "APPROXIMATE",
   "KO / PKO": "PARTIAL",
-  "Mystery bounty": "APPROXIMATE",
+  "Mystery bounty": "PARTIAL",
   "Payout structures": "WORKING",
   "Bubble factors": "WORKING",
   PLO4: "PARTIAL",
