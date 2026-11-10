@@ -261,12 +261,14 @@ describe("turns and rivers", () => {
   it("every street is in the wider scopes, and each scope asks its own way", () => {
     const r = SRP();
     expect(decisionsIn(r, "library").map((d) => d.street)).toEqual(["preflop", "flop"]);
-    for (const scope of ["triage", "all"] as const) expect(decisionsIn(r, scope)).toEqual([{ street: "preflop", i: 3 }, { street: "flop", i: 1 }, { street: "turn", i: 1 }, { street: "river", i: 1 }]);
+    for (const scope of ["triage", "all", "accurate"] as const) expect(decisionsIn(r, scope)).toEqual([{ street: "preflop", i: 3 }, { street: "flop", i: 1 }, { street: "turn", i: 1 }, { street: "river", i: 1 }]);
     for (const [street, i] of [["preflop", 3], ["flop", 1], ["turn", 1], ["river", 1]] as const) {
       expect(adviceStateAt(r, street, i, "triage")).toMatchObject({ triage: true });
       expect(adviceStateAt(r, street, i, "triage").library_only).toBeUndefined();
       expect(adviceStateAt(r, street, i, "all").triage).toBeUndefined();
       expect(adviceStateAt(r, street, i, "all").library_only).toBeUndefined();
+      expect(adviceStateAt(r, street, i, "accurate")).not.toHaveProperty("library_only");
+      expect(adviceStateAt(r, street, i, "accurate")).not.toHaveProperty("triage");
     }
     expect(adviceStateAt(r, "turn", 1).board).toBe("Qs8d3c7h");
   });

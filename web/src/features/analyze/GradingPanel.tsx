@@ -42,7 +42,12 @@ const SCOPE_NOTES: Record<GradeScope, string> = {
   triage:
     "What's in hand first (the charts, the library, its stored turns, nearby solutions), else a Quick solve. Each read says how far to trust it, and the doubtful ones can then be checked at Fast.",
   all: "The charts and the library where they answer, else a solve at Fast: closer to equilibrium, and much slower. Triage reads already kept aren't asked again: check them at Fast below.",
+  accurate:
+    "The charts and the library where they answer, else a solve at Accurate: Study's tightest setting, closer to equilibrium than Fast and many times slower. Decisions already graded aren't asked again, so it grades what no other run has; the clock is a guess until two answers of a street are timed.",
 };
+
+/** The solver's setting a scope's solves run at. */
+const modeOf = (sc: GradeScope) => (sc === "accurate" ? "accurate" : "fast");
 
 const nDecisions = (n: number) => `${n.toLocaleString()} ${n === 1 ? "decision" : "decisions"}`;
 
@@ -61,9 +66,8 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   // (leaving the page stops the queue: what's graded is kept, and the rest is graded when asked again)
   useEffect(() => () => ac.current?.abort(), []);
   const running = prog !== null;
-  const budgets = MODE_BUDGETS[transport].fast;
   const threads = transport === "worker" ? solverThreads() : 1;
-  const secs = (left: Record<Street, number>, sc: GradeScope, timing: Timing = {}) => secondsLeft(left, timing, sc, budgets, threads);
+  const secs = (left: Record<Street, number>, sc: GradeScope, timing: Timing = {}) => secondsLeft(left, timing, sc, MODE_BUDGETS[transport][modeOf(sc)], threads);
 
   useEffect(() => {
     if (running) return;
@@ -98,7 +102,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
         const pf = !!state.preflop_solve;
         const timed = !pf && useRuntime.getState().status.phase === "ready";
         const t0 = performance.now();
-        const ans = await client.solve({ state, mode: "fast", signal: ctl.signal, ...(pf ? { untimed: true } : {}) });
+        const ans = await client.solve({ state, mode: modeOf(sc), signal: ctl.signal, ...(pf ? { untimed: true } : {}) });
         const s = STREETS[[0, 6, 8, 10].indexOf(state.board?.length ?? 0)];
         if (timed && s) {
           const m = (timing[s] ??= [0, 0]);

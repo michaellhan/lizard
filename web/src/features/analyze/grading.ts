@@ -1,8 +1,8 @@
 // Your imported decisions graded against the Advisor's answer for your hand, as the classic analyzer does it
 // (solver/gto/static/session.js classify / processItem, index.html payload / gradeWith / gradedMove / jamOffTree), at
-// four scopes. Two solve nothing: preflop, and flops from the precomputed library ("library_only": a flop the library
+// five scopes. Two solve nothing: preflop, and flops from the precomputed library ("library_only": a flop the library
 // doesn't hold is skipped, never solved). Two reach every street: Quick triage ("triage": what's in hand first, else a
-// Quick solve; each read says how far to trust it, and triage.ts checks the doubtful ones at Fast) and Fast. The betting
+// Quick solve; each read says how far to trust it, and triage.ts checks the doubtful ones at Fast), Fast and Accurate. The betting
 // rules and equity guesses are never graded against, at any scope. The grade is Lizard's one scale (grading/grade.ts): by
 // EV where the answer has EVs for every action, by frequency where it hasn't (the charts; a read at once).
 // Preflop at every scope: in a game the preflop solve is stored for, by EV against that solve wherever it holds the spot
@@ -28,20 +28,21 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 const fmt = (x: number) => String(r2(x));
 const AGGRESSIVE: ReadonlySet<string> = new Set(["bet", "raise", "all-in"]);
 
-export type GradeScope = "preflop" | "library" | "triage" | "all";
+export type GradeScope = "preflop" | "library" | "triage" | "all" | "accurate";
 export const SCOPES: Record<GradeScope, string> = {
   preflop: "Preflop: the stored solve, else the charts",
   library: "Preflop and the flops the library holds",
   triage: "Every street, Quick triage",
   all: "Every street, at Fast",
+  accurate: "Every street, at Accurate",
 };
 /** The streets each scope grades. */
-const SCOPE_STREETS: Record<GradeScope, readonly Street[]> = { preflop: ["preflop"], library: ["preflop", "flop"], triage: STREETS, all: STREETS };
+const SCOPE_STREETS: Record<GradeScope, readonly Street[]> = { preflop: ["preflop"], library: ["preflop", "flop"], triage: STREETS, all: STREETS, accurate: STREETS };
 /** The answers a grade may stand on: without a solve the charts and the library, with one a stored turn, a read at
  * once or the solve too. Never the betting rules or an equity guess. */
 const NOTHING_SOLVED: readonly ResultSource[] = ["charts", "push-fold", "library", "preflop-solve"];
 const SOLVING: readonly ResultSource[] = [...NOTHING_SOLVED, "library-turn", "instant", "live"];
-const GRADED_SOURCES: Record<GradeScope, readonly ResultSource[]> = { preflop: NOTHING_SOLVED, library: NOTHING_SOLVED, triage: SOLVING, all: SOLVING };
+const GRADED_SOURCES: Record<GradeScope, readonly ResultSource[]> = { preflop: NOTHING_SOLVED, library: NOTHING_SOLVED, triage: SOLVING, all: SOLVING, accurate: SOLVING };
 
 export type DecisionVerdict = Verdict | "Not graded";
 
@@ -91,7 +92,7 @@ export function adviceStateAt(r: ReplayedHand, street: Street, i: number, scope:
     flop: conv(lines.flop),
     turn: conv(lines.turn),
     river: conv(lines.river),
-    ...(scope === "triage" ? { triage: true } : scope !== "all" && street === "flop" ? { library_only: true } : {}),
+    ...(scope === "triage" ? { triage: true } : scope !== "all" && scope !== "accurate" && street === "flop" ? { library_only: true } : {}),
   };
 }
 

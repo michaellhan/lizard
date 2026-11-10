@@ -21,10 +21,11 @@ import { AnalyzePage } from "./AnalyzePage";
 // the solver stubbed: preflop the charts' answer (CO's chart never calls), the SRP hand's flop (Qs8d3c) the library's,
 // any other flop skipped
 const stub = vi.hoisted(() => {
-  const s = { asked: [] as AdvisorState[], getSolver: null as unknown as () => Promise<unknown> };
+  const s = { asked: [] as AdvisorState[], modes: [] as string[], getSolver: null as unknown as () => Promise<unknown> };
   s.getSolver = async () => ({
-    solve: async ({ state }: { state: AdvisorState }) => {
+    solve: async ({ state, mode }: { state: AdvisorState; mode: string }) => {
       s.asked.push(state);
+      s.modes.push(mode);
       const { provenanceOf } = await import("@/solver/provenance");
       // (triage: a flop read at once with no EVs, the turn a settled Quick solve, the river an unsettled one; a check at
       // Fast, a solve that plays the read's action less)
@@ -278,6 +279,26 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(within(rep).getByLabelText("Checked at Fast")).toHaveTextContent(new RegExp(`^${n} reads? checked at Fast: `)));
     expect(within(panel).queryByRole("button", { name: /^Check \d+ at Fast/ })).toBeNull();
 
+    fireEvent.click(within(panel).getByRole("button", { name: "Forget the grades" }));
+    fireEvent.click(within(panel).getByRole("button", { name: /^Forget 17 grades$/ }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Report" })).toBeNull());
+  });
+
+  it("grades every street at Accurate where asked, with no library-only flop, saying so", async () => {
+    open("hand=PokerStars%7C249012345678%7CAhQd");
+    await waitFor(() => expect(handRows()).toHaveLength(4));
+    stub.asked = [];
+    stub.modes = [];
+    tab("Grades & leaks");
+    const panel = screen.getByRole("region", { name: "Grading" });
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "accurate" } });
+    expect(panel).toHaveTextContent("else a solve at Accurate: Study's tightest setting");
+    expect(await within(panel).findByText(/17 decisions to ask: about .+ in this browser \(an estimate/)).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
+    expect(await within(panel).findByText(/^Done: 17 decisions graded in this run\.$/)).toBeInTheDocument();
+    expect(stub.modes.length).toBeGreaterThan(0);
+    expect(stub.modes.every((m) => m === "accurate")).toBe(true);
+    expect(stub.asked.every((s) => !s.triage && !s.library_only)).toBe(true);
     fireEvent.click(within(panel).getByRole("button", { name: "Forget the grades" }));
     fireEvent.click(within(panel).getByRole("button", { name: /^Forget 17 grades$/ }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Report" })).toBeNull());

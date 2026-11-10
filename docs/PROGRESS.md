@@ -4507,3 +4507,15 @@ The lessons only ask. Every number is the library's, under its badge.
 - `qa.e2e.ts` 10–10d pass on the build.
 
 The row is WORKING by the owner's rule of 2026-11-08 (40 of 63); Plan and Review on the home page now read Working. Left: flop decisions only (no preflop, turn or river lesson), fixed text, and no cap on the review queue.
+
+### 2026-11-10: Analyze grades at Accurate where asked (Phase 3)
+
+**Analyze.** The Decision grading row listed "no Accurate pass". The scope list now has "Every street, at Accurate" (`grading.ts` `GradeScope`, `GradingPanel.tsx` `modeOf`):
+
+- It asks as Fast's scope does: no library-only flop and no triage.
+- Its solves run at Accurate.
+- Its clock starts from Accurate's budgets and follows the measured pace once two answers of a street are timed.
+
+It grades only what no run has graded, as Fast does, and the page says so.
+
+**Checked in a browser** (real worker): a heads-up 3-bet pot imported fresh had its four postflop decisions graded by live solves at 1000 iterations, converged, in a few seconds. Tests: `AnalyzePage.test.tsx` (every ask at Accurate, none library-only or triage, then the grades forgotten) and `grading.test.ts`. A long session at Accurate is unmeasured. The row stays PARTIAL: preflop outside the stored solve's game is graded by the charts, spots left to the rules aren't graded, and tournament hands are graded in chips.
