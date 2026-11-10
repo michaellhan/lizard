@@ -94,6 +94,11 @@ test("4. A heads-up postflop solve from the Solve page, and a 3-way one", async 
   await page.goto("/lizard/study/?p=3&s=100&pre=BTN:c,SB:c,BB:x&b=Ks7d2c");
   await expect(actions(page).getByText(/to act on the flop/)).toBeVisible({ timeout: 180_000 });
   await expect(actions(page).getByText(/solve/i).first()).toBeVisible();
+  // a 3-way pot of your own, solved live by the 3-player solver, saying how and how far from settled each seat is
+  await page.goto("/lizard/study/?p=3&s=100&pre=BTN:r2.5,SB:c,BB:c&b=Qh8c3d");
+  await expect(actions(page)).toContainText(/Live solve · [\d.]+% pot mean best-response gain in the solved game/, { timeout: 180_000 });
+  await expect(actions(page)).toContainText(/3-way pot solved by 3-player CFR \(\d+ iterations\)/);
+  await expect(actions(page)).toContainText(/best-response gains \(% pot\): SB [\d.]+, BB [\d.]+, BTN [\d.]+/);
   await clean(page, problems);
 });
 

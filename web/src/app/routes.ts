@@ -53,7 +53,7 @@ export const GRADES: Record<string, Grade> = {
   "Preflop solves": "APPROXIMATE",
   "Postflop solves": "WORKING",
   "Heads-up": "WORKING",
-  Multiway: "PARTIAL",
+  Multiway: "WORKING",
   "Custom ranges": "WORKING",
   "Stacks & bet sizes": "WORKING",
   "Node locking": "WORKING",

@@ -4552,3 +4552,11 @@ The new browser test, on the wasm core: BB's flop check is held at 100% and kept
 The row is WORKING by the owner's rule of 2026-11-08. That makes 41 of 63, and Custom solving now reads 8 / 1 / 1 / 0. Left: earlier streets don't react to a lock (each street is its own solve), a turn class or combo lock is APPROXIMATE, an Accurate flop lock's memory is estimated, and it's heads-up and cash only.
 
 ROADMAP's summary line still read the 2026-11-05 counts (8 WORKING) and now reads 41 / 14 / 5 / 3. The two heads-up precompute builds were left alone.
+
+### 2026-11-10: Multiway graded by what was checked
+
+The Multiway row said only "3-way solved, 4-way reduced, 5+ on betting rules". `qa.e2e.ts` 4 now holds a 3-way pot of your own to what the badge says, on the real worker: BTN opens, SB and BB call, Qh8c3d. The badge reads "Live solve · 0.08% pot mean best-response gain in the solved game (converged) · 400 iterations". The note under it reads "3-way pot solved by 3-player CFR (400 iterations) …", with every seat's best-response gain. Before, the test asked only for the word "solve".
+
+The 3-player solver's exactness is already benchmarked against a reference on 3-way rivers (ACCURACY section 14). So the row is WORKING by the owner's rule of 2026-11-08: 42 of 63, and Custom solving reads 9 / 0 / 1 / 0. Left: 4-way pots are the engine's reduced game, 5+ players are its betting rules, the 3-way solve's later streets play by bucket, and 3-way spots aren't drilled.
+
+Tests: `qa.e2e.ts` 4 passed on the build.
