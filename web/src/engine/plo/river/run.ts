@@ -115,6 +115,8 @@ export interface ResultNode extends NodeReport {
   /** the line in words: "" at the root */
   line: string;
   actions: RiverAction[];
+  /** chips each seat has put in on this street so far, so the pot here is the street's pot and these */
+  bets: [number, number];
 }
 
 export interface RiverResult {
@@ -195,7 +197,7 @@ function inWords(reports: NodeReport[], tree: { nodes: RiverNode[] }, words = ne
     if (node.kind !== "action") throw new Error("a report of a terminal node");
     const line = words.get(report.id) ?? "";
     node.actions.forEach((a, k) => words.set(node.children[k]!, `${line ? `${line}, ` : ""}${SEAT_NAMES[node.player]} ${a.label}`));
-    return { ...report, line, actions: node.actions };
+    return { ...report, line, actions: node.actions, bets: node.bets };
   });
 }
 
@@ -441,7 +443,7 @@ export function startJob(request: RiverRequest): RiverJob {
 /** A result's arrays, to move to the page and not copy: a copy would hold two of each while it crosses. */
 function buffersOf(r: RiverResult | null): ArrayBuffer[] {
   if (!r) return [];
-  const arrays = [...r.hands, ...r.weights, ...r.nodes.flatMap((n) => [n.strategy, n.weight, n.ev, n.actionEv])];
+  const arrays = [...r.hands, ...r.weights, ...r.nodes.flatMap((n) => [n.strategy, n.weight, n.ev, n.actionEv, n.bestEv])];
   return arrays.map((a) => a.buffer as ArrayBuffer);
 }
 
@@ -452,7 +454,7 @@ export interface RiverPort {
 
 /** A view's arrays, to move and not copy. */
 const viewBuffers = (v: RiverView | null): ArrayBuffer[] =>
-  v ? [...v.hands, ...v.weights, ...v.nodes.flatMap((n) => [n.strategy, n.weight, n.ev, n.actionEv])].map((a) => a.buffer as ArrayBuffer) : [];
+  v ? [...v.hands, ...v.weights, ...v.nodes.flatMap((n) => [n.strategy, n.weight, n.ev, n.actionEv, n.bestEv])].map((a) => a.buffer as ArrayBuffer) : [];
 
 /** The worker's end: one job at a time, a new one replacing the last. A finished turn's or flop's job is kept, to look at
  * the streets after it. */

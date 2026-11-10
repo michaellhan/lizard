@@ -12,6 +12,8 @@ import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_FLOP_WORK, MAX_MEMORY_BYTES, M
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 import { byClass } from "./classes";
+import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally } from "./drill";
+import type { Grade } from "@/grading/grade";
 
 const inputClass = "w-full min-w-0 rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
 const buttonClass = "rounded border border-border px-3 py-1 text-sm hover:bg-surface-2 disabled:opacity-40";
@@ -357,6 +359,7 @@ function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
       <EveryDecision nodes={result.nodes} />
       <ClassTable hands={result.hands[node.player]!} board={result.board} node={node} />
       <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={later} node={node} />
+      <Drill result={result} band={provenance.band} />
       {later && (
         <After
           next={flop ? "turn" : "river"}
@@ -436,6 +439,101 @@ function EveryDecision({ nodes }: { nodes: readonly ResultNode[] }) {
         ))}
       </ul>
     </details>
+  );
+}
+
+/** Practice on the solve (drill.ts): a hand dealt as play brings it, at a decision of the street solved first, your action
+ * graded against this combo's mix and EVs in the solve, with a running tally. Every number is the solve's, under its badge. */
+function Drill({ result, band }: { result: RiverResult; band: string | undefined }) {
+  const [spot, setSpot] = useState<DrillSpot | null>(null);
+  const [answer, setAnswer] = useState<Grade | null>(null);
+  const [tally, setTally] = useState<DrillTally>(EMPTY_TALLY);
+  const [dealt, setDealt] = useState(false);
+  // (a new solve starts the practice afresh)
+  const [owner, setOwner] = useState(result);
+  if (owner !== result) {
+    setOwner(result);
+    setSpot(null);
+    setAnswer(null);
+    setTally(EMPTY_TALLY);
+    setDealt(false);
+  }
+  const node = spot ? result.nodes.find((n) => n.id === spot.node) : undefined;
+  const first = result.street === "flop" ? "flop" : result.street === "turn" ? "turn" : "river";
+  const next = () => {
+    setSpot(deal(result.nodes));
+    setAnswer(null);
+    setDealt(true);
+  };
+  const choose = (a: number) => {
+    if (!node || !spot || answer) return;
+    const g = gradeAt(node, spot.combo, a, result.pot, band);
+    setAnswer(g);
+    setTally((t) => tallied(t, g));
+  };
+  const pot = node ? potAt(node, result.pot) : 0;
+  const call = node ? toCall(node) : 0;
+  const mix = node && spot ? mixAt(node, spot.combo) : [];
+  return (
+    <section aria-label="Practice this solve" className="space-y-2 rounded border border-border p-3 text-sm">
+      <h2 className="font-semibold">Practice this solve</h2>
+      <p className="text-xs text-muted">
+        A hand dealt as this solve plays: a {first} decision drawn by how often its line comes up, then a combo of the player to act by how often it gets there. Your action is graded against that combo&apos;s mix in this solve and each action&apos;s EV with the best play after it against the other range&apos;s strategy, by the EV it gives up in % of the pot at the decision, the scale every
+        trainer here uses{band === "rough" || band === "approximate" ? "; this solve is short of converged, so no verdict goes past an Inaccuracy" : ""}.
+      </p>
+      <button type="button" className={buttonClass} onClick={next}>
+        {spot ? "Next hand" : "Deal a hand"}
+      </button>
+      {dealt && spot === null && <p>No decision in this solve is reached by a hand that can be graded.</p>}
+      {node && spot && (
+        <div className="space-y-2">
+          <p aria-label="Your spot">
+            You&apos;re {SEAT_NAMES[node.player]} with <span className="font-mono">{handText(result.hands[node.player]![spot.combo]!)}</span> on <span className="font-mono">{result.board}</span>. {node.line ? `${node.line}.` : `First to act on the ${first}.`} Pot {chips(pot)}
+            {call > 0 ? `, ${chips(call)} to call` : ""}, {chips(result.stack - node.bets[node.player])} behind.
+          </p>
+          <div role="group" aria-label="Your action" className="flex flex-wrap gap-2">
+            {node.actions.map((a, k) => (
+              <button key={a.token} type="button" className={buttonClass} disabled={answer !== null} aria-pressed={answer?.a === k} onClick={() => choose(k)}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+          {answer && (
+            <div role="status" className="space-y-1">
+              <p>
+                <span className="font-semibold">{answer.verdict}</span>
+                {answer.loss > 0 ? `: ${chips(answer.loss)}bb given up, ${answer.lossPct.toFixed(1)}% of the pot` : ""}
+                {answer.capped ? " (capped: the solve is short of converged)" : ""}. The solve&apos;s best here is {node.actions[answer.best]!.label}
+                {answer.mixed ? ", and this hand mixes" : ""}.
+              </p>
+              <table aria-label="This hand in the solve" className="w-full text-sm">
+                <thead className="text-left text-muted">
+                  <tr>
+                    <th className="py-1 pr-4 font-normal">Action</th>
+                    <th className="py-1 pr-4 font-normal">Frequency</th>
+                    <th className="py-1 font-normal">EV, best play after, bb</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {node.actions.map((a, k) => (
+                    <tr key={a.token} className="border-t border-border">
+                      <td className="py-1 pr-4">{a.label}</td>
+                      <td className="py-1 pr-4 font-mono">{pct(mix[k]!.freq)}</td>
+                      <td className="py-1 font-mono">{chips(mix[k]!.ev)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      {tally.hands > 0 && (
+        <p aria-label="Your tally" className="text-xs text-muted">
+          {tally.hands} hand{tally.hands === 1 ? "" : "s"}: {tally.ok} Best or Correct, {chips(tally.loss)}bb given up in all. Kept on this page only, for this solve.
+        </p>
+      )}
+    </section>
   );
 }
 

@@ -167,6 +167,26 @@ describe("zero sum, every node", () => {
       expect(t).toBeCloseTo(root.ev[i]!, 3);
     }
   });
+  it("each action's EV with best play after it: never under its EV played on at the average, the same where nothing is left to decide", () => {
+    let checked = 0;
+    for (const n of nodes) {
+      const node = g.tree.nodes[n.id]!;
+      if (node.kind !== "action") continue;
+      const size = n.weight.length;
+      const last = node.children.every((c) => g.tree.nodes[c]!.kind !== "action");
+      for (let k = 0; k < node.actions.length; k++)
+        for (let i = 0; i < size; i++) {
+          const avg = n.actionEv[k * size + i]!;
+          const best = n.bestEv[k * size + i]!;
+          expect(Number.isNaN(avg)).toBe(Number.isNaN(best));
+          if (Number.isNaN(avg)) continue;
+          expect(best, n.path).toBeGreaterThanOrEqual(avg - 1e-4);
+          if (last) expect(best, n.path).toBeCloseTo(avg, 4);
+          checked++;
+        }
+    }
+    expect(checked).toBeGreaterThan(1000);
+  });
   it("the solver's own memory bound covers what it holds", () => {
     const held = g.sides[0].n * g.tree.slots[0] * 8 + g.sides[1].n * g.tree.slots[1] * 8;
     expect(memoryBytes(g)).toBeGreaterThan(held);

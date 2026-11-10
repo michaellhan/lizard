@@ -11,7 +11,7 @@
 // Exploitability is the river's: an exact best response to each side's average, through this street and everything
 // after it, the average of what each seat gains, in chips per matchup and as a percent of this street's pot.
 import { Terminals, type Side } from "../river/game";
-import { levelsFor, widestOf, type Exploitability, type Level } from "../river/solver";
+import { bestScratch, levelsFor, widestOf, type Exploitability, type Level } from "../river/solver";
 import type { ActionNode, RiverNode, RiverTree, Seat } from "../river/tree";
 import { OOP } from "../river/tree";
 
@@ -59,6 +59,9 @@ export interface StreetNodeReport {
   /** each combo's EV, NaN where it can't meet a hand here */
   ev: Float32Array;
   actionEv: Float32Array;
+  /** each combo's EV by action with its best play after that action, against the other seat's average (a best response
+   * below the action, so an action the strategy never takes isn't valued at a strategy never trained there), NaN likewise */
+  bestEv: Float32Array;
 }
 
 /** Scratch a street's solve can share with others of its kind, walked one at a time. */
@@ -306,19 +309,28 @@ export class StreetSolver implements Sub {
         weight: new Float32Array(n),
         ev: new Float32Array(n).fill(NaN),
         actionEv: new Float32Array(a * n).fill(NaN),
+        bestEv: new Float32Array(a * n).fill(NaN),
       });
     }
     const start = roots ?? [this.game.sides[0].weights, this.game.sides[1].weights];
+    const scratch = bestScratch(this.game.tree, Math.max(this.game.sides[0].n, this.game.sides[1].n));
     for (const hero of [0, 1] as const) {
       const own = Float64Array.from(start[hero]);
-      this.record(0, hero, Float64Array.from(start[(1 - hero) as Seat]), own, this.levels[0]!.value, 0, out);
+      this.record(0, hero, Float64Array.from(start[(1 - hero) as Seat]), own, this.levels[0]!.value, scratch.top, 0, out, scratch.levels);
     }
     return [...out.values()];
   }
 
-  private record(id: number, hero: Seat, reach: Float64Array, own: Float64Array, out: Float64Array, depth: number, reports: Map<number, StreetNodeReport>): void {
+  /** As `walk` at the average, with `own` the hero's reach, writing each node down on the way back; `best` gets hero's
+   * values best-responding from here on (through every card after), in the same walk. */
+  private record(id: number, hero: Seat, reach: Float64Array, own: Float64Array, out: Float64Array, best: Float64Array, depth: number, reports: Map<number, StreetNodeReport>, scratch: Float64Array[][]): void {
     const node = this.game.tree.nodes[id]!;
-    if (node.kind !== "action") return this.leaf(node, hero, reach, out, "average");
+    if (node.kind !== "action") {
+      this.leaf(node, hero, reach, out, "average");
+      if (node.kind === "fold" || !this.subs.get(node.id)) best.set(out.subarray(0, this.game.sides[hero].n));
+      else this.leaf(node, hero, reach, best, "best");
+      return;
+    }
     const level = this.levels[depth]!;
     const report = reports.get(id)!;
     const a = node.actions.length;
@@ -339,11 +351,15 @@ export class StreetSolver implements Sub {
       const frequency = new Array<number>(a).fill(0);
       for (let k = 0; k < a; k++) {
         const v = level.values[k]!;
+        const b = scratch[depth]![k]!;
         for (let i = 0; i < n; i++) next[i] = own[i]! * sigma[k * n + i]!;
-        this.record(node.children[k]!, hero, reach, next, v, depth + 1, reports);
+        this.record(node.children[k]!, hero, reach, next, v, b, depth + 1, reports, scratch);
         let won = 0;
         for (let i = 0; i < n; i++) {
-          if (meet[i]! > TINY) report.actionEv[k * n + i] = v[i]! / meet[i]! + half;
+          if (meet[i]! > TINY) {
+            report.actionEv[k * n + i] = v[i]! / meet[i]! + half;
+            report.bestEv[k * n + i] = b[i]! / meet[i]! + half;
+          }
           frequency[k]! += next[i]! * Math.max(meet[i]!, 0);
           won += next[i]! * v[i]!;
         }
@@ -351,8 +367,13 @@ export class StreetSolver implements Sub {
       }
       for (let i = 0; i < n; i++) {
         let t = 0;
-        for (let k = 0; k < a; k++) t += sigma[k * n + i]! * level.values[k]![i]!;
+        let top = -Infinity;
+        for (let k = 0; k < a; k++) {
+          t += sigma[k * n + i]! * level.values[k]![i]!;
+          top = Math.max(top, scratch[depth]![k]![i]!);
+        }
         out[i] = t;
+        best[i] = top;
         report.weight[i] = own[i]!;
         if (meet[i]! > TINY) report.ev[i] = t / meet[i]! + half;
         joint += own[i]! * Math.max(meet[i]!, 0);
@@ -360,13 +381,18 @@ export class StreetSolver implements Sub {
       if (joint > 0) report.frequency = frequency.map((f) => f / joint);
     } else {
       out.fill(0, 0, heroN);
+      best.fill(0, 0, heroN);
       for (let i = 0; i < heroN; i++) joint += own[i]! * Math.max(meet[i]!, 0);
       const next = level.reach;
       const child = level.values[0]!;
+      const childBest = scratch[depth]![0]!;
       for (let k = 0; k < a; k++) {
         for (let i = 0; i < n; i++) next[i] = reach[i]! * sigma[k * n + i]!;
-        this.record(node.children[k]!, hero, next, own, child, depth + 1, reports);
-        for (let i = 0; i < heroN; i++) out[i]! += child[i]!;
+        this.record(node.children[k]!, hero, next, own, child, childBest, depth + 1, reports, scratch);
+        for (let i = 0; i < heroN; i++) {
+          out[i]! += child[i]!;
+          best[i]! += childBest[i]!;
+        }
       }
     }
     let total = 0;

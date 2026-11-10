@@ -112,6 +112,11 @@ describe("a heads-up PLO turn", () => {
     expect(root.frequency.reduce<number>((t, f) => t + (f ?? 0), 0)).toBeCloseTo(1, 6);
     // (zero-sum: the two seats' EVs at the root make the pot)
     expect(root.rangeEv[0]! + root.rangeEv[1]!).toBeCloseTo(10, 6);
+    // each action's EV with best play after it, through every river, is never under its EV played on at the average
+    for (const n of nodes)
+      n.bestEv.forEach((best, j) => {
+        if (!Number.isNaN(best)) expect(best, n.path).toBeGreaterThanOrEqual(n.actionEv[j]! - 1e-4);
+      });
   });
 
   it("refuses a board that isn't four cards, and sizes that aren't the table's", () => {

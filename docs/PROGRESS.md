@@ -4746,3 +4746,18 @@ Tests:
 Checked in a browser on the dev server: AAKK against JT98 on Js9s4d at 75% a street, 172 iterations in 48.6 s to 0.083%, 233 MB; the turn on the 2h after a flop bet and call (EVs 5.02 and 19.98, pot 25), and the river 7c after a turn bet and call, where every JT98 has a straight (IP 62.50 of 62.5); no sideways scroll at 375px. The route's label is now "PLO flop, turn and river".
 
 No independent reference for the flop: the NumPy turn reference is dense and at its limit on the turn. The flop rests on the decomposition into turns, which are held to that reference, and on exact equity (ACCURACY section 15). The PLO4 row stays PARTIAL: no preflop, narrow ranges only on a flop, and no PLO in Study, Practice or Analyze.
+
+### 2026-11-10: practice on a PLO solve (Phase 10)
+
+"Practice this solve" sits under every PLO solution (`web/src/features/plo/drill.ts`, `PloRiverPage.tsx` `Drill`). A hand is dealt as the solve plays: a decision of the street solved first is drawn by how often its line comes up (its reach), then a combo of the player to act by how often it gets there (its weight at the node). The spot says the seat, hand, board, line, pot at the decision, the call and what's behind. The action taken is graded on Lizard's one scale (`grading/grade.ts`: EV lost in % of the pot at the decision; Correct when the hand plays the action 10% or more; capped at an Inaccuracy on a solve short of converged). Then the hand's mix and EVs are shown, with a running tally for that solve, kept on the page only.
+
+The grading uses each action's EV with the best play after it against the other range's average, a new field (`bestEv`) beside the existing EV played on at the average. The first browser try showed why: below an action a strategy never takes, DCFR's average is the early iterations' near-uniform play, so a one-pair hand's never-taken pot bet on the default river read 53bb lost. With best play after it, the same bet reads 10.4bb lost. The river solver's and the street solver's report walks (`river/solver.ts`, `turn/street.ts`) compute both in one walk; at a closing with streets to come, the best-play value is the next streets' best response (`valueAt(…, true)`), so a turn or flop report costs about one extra pass.
+
+Tests:
+- `drill.test.ts`, 5 passing: a decision by reach and a combo by weight; nothing dealt that can't be graded; the pot, the call and the mix; grading and its cap; the tally.
+- `PloRiverPage.test.tsx`: a hand dealt at the root, Check graded Best as the air mixes at equal EV, the buttons locked after, the tally.
+- `river/solver.test.ts`: on every node, combo and action, the best-play EV is never under the average's and equals it where nothing is left to decide. `turn/solver.test.ts`: the same inequality through every river.
+
+Checked in a browser on the dev server, on the default river: 10 hands dealt and graded. A raise to 80 with KK, facing a bet from a range of straights, gives up 79.9bb with best play after it; an IP straight's bet mixes at equal EV. No sideways scroll at 375px.
+
+The PLO4 row stays PARTIAL.

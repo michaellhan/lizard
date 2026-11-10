@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PloRiverPage } from "./PloRiverPage";
 
 // jsdom has no Worker, so the page runs its slices on the page: the same job (engine/plo/river/run.test.ts has the worker)
@@ -61,6 +61,29 @@ describe("PloRiverPage", () => {
     const combos = within(section).getByRole("table", { name: "Combos at this decision" });
     expect(within(combos).getAllByRole("row")).toHaveLength(3);
     expect(combos.textContent).toContain("Qh");
+  });
+
+  it("deals a hand from the solve and grades the action taken against that combo's mix and EVs", async () => {
+    render(<PloRiverPage />);
+    small();
+    solve();
+    const section = await screen.findByRole("region", { name: "River solution" });
+    const drill = within(section).getByRole("region", { name: "Practice this solve" });
+    // (the first draw is the root, OOP's, and the first combo there: the air, weakest first, which mixes at equal EV)
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    fireEvent.click(within(drill).getByRole("button", { name: "Deal a hand" }));
+    random.mockRestore();
+    expect(within(drill).getByLabelText("Your spot").textContent).toMatch(/^You're OOP with \S+ on 2c7d9hJsKd\. First to act on the river\. Pot 10\.00, 100\.00 behind\.$/);
+    const choices = within(drill).getByRole("group", { name: "Your action" });
+    expect(within(choices).getAllByRole("button").map((b) => b.textContent)).toEqual(["Check", "Bet 10"]);
+    fireEvent.click(within(choices).getByRole("button", { name: "Check" }));
+    const said = within(drill).getByRole("status");
+    expect(said.querySelector("p")!.textContent).toMatch(/^Best\. The solve's best here is (Check|Bet 10), and this hand mixes\.$/);
+    const freqs = [...within(said).getByRole("table", { name: "This hand in the solve" }).querySelectorAll("tbody td:nth-child(2)")].map((td) => Number.parseFloat(td.textContent!));
+    expect(freqs.reduce((t, x) => t + x, 0)).toBeCloseTo(100, 0);
+    expect(within(choices).getByRole("button", { name: "Bet 10" }).hasAttribute("disabled")).toBe(true);
+    expect(within(drill).getByLabelText("Your tally").textContent).toMatch(/^1 hand: 1 Best or Correct, 0\.00bb given up in all\./);
+    expect(within(drill).getByRole("button", { name: "Next hand" })).toBeTruthy();
   });
 
   it("solves a turn and every river after it, from a board of four cards", async () => {
