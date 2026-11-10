@@ -4677,3 +4677,18 @@ Tests:
 Checked in a browser: the sit & go bubble opened in Study answered in prize equity ("CO 31.4% of what's left to pay", bubble factors up to 1.69).
 
 The MTT row stays PARTIAL, for the preflop chart with a risk premium.
+
+### 2026-11-10: an independent reference for the PLO turn
+
+The PLO turn solve was checked only through the river solver, its own decomposition and the equity calculator; ACCURACY §15 said it had "no reference of its own". `scripts/engine/plo_turn_reference.py` is a NumPy CFR+ that shares no code with `web/src/engine/plo/turn/`. It asks every pair of hands, and every river card, whether they can be dealt, and solves the 48 river cards side by side as one axis of dense tensors. It writes `web/src/engine/plo/vectors/turn.json` (288 KB, 34 s under `slot.sh`). It has three spots:
+- one bet a street, 3x2: value in [-5.000071, -4.999879];
+- a raise all-in on the turn, 3x2: [-4.866766, -4.866567];
+- weighted ranges with two sizes, 6x5: [-2.342322, -2.342089].
+
+Each was solved to 0.001% of the pot.
+
+Tests:
+- `scripts/engine/test_plo_turn_reference.py`, 5 passing. Checked down, the value is the exact equity over the 40 rivers. Best responses bracket any strategy. Swapping the seats negates the value, and a solve closes the bracket.
+- `web/src/engine/plo/turn/reference.test.ts`, 12 passing. The trees and river trees match path for path, and the hands and matchups match. The reference's strategy, put into the TypeScript on the turn and every river card, gives the same best responses and value to 5 places. The TypeScript's own solve lands inside the reference's bracket.
+
+The PLO4 row stays PARTIAL: no flop or preflop, and no PLO in Study, Practice or Analyze.
