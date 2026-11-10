@@ -92,7 +92,8 @@ describe("DrillsPanel", () => {
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled());
     expect(screen.queryByRole("group", { name: "Revealed answer" })).toBeNull();
     fireEvent.keyDown(window, { key: "1" });
-    expect(within(await screen.findByRole("region", { name: "Answer" })).getByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/)).toBeInTheDocument();
+    // (graded off the main path: a slow runner can take longer than findBy's 1 s, as CI did on 2026-11-10)
+    expect(within(await screen.findByRole("region", { name: "Answer" }, { timeout: 10_000 })).getByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/)).toBeInTheDocument();
     expect(score.getByText("Decisions").nextSibling).toHaveTextContent(/^1$/);
   });
 

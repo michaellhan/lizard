@@ -4448,3 +4448,5 @@ The row is graded WORKING by the owner's rule of 2026-11-08 (37 of 63). What's l
 
 The row is WORKING by the owner's rule of 2026-11-08 (38 of 63). Left: the profiles are hand-set numbers, History shows no net for exploit sessions, and a read isn't played preflop or multiway.
 
+
+**CI.** The deploys of e53e1b6, e460e2c and c2fd656 didn't publish: a browser test (`modes.e2e.ts`, reduced motion) measured the Hands table on its first frame, before its rows laid out, and failed twice; then a unit test (`DrillsPanel.test.tsx`) waited the default 1 s for a grade on a slow runner. Both now wait for the condition itself (15 s and 10 s). Both pass here, the browser test 3 of 3.

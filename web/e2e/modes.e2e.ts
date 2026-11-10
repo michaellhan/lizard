@@ -38,6 +38,8 @@ test("Reduced motion stops transitions and keeps the scroll cue, which only foll
 
   const box = page.locator(".scroll-x").filter({ has: page.locator("table") });
   await expect(box.first()).toBeVisible();
+  // (the rows lay out after the box shows: wait for one wider than its box rather than measuring the first frame)
+  await expect.poll(() => box.evaluateAll((els) => els.some((e) => e.scrollWidth > e.clientWidth + 4)), { timeout: 15_000 }).toBe(true);
   const cue = await box.evaluateAll(async (els) => {
     const el = els.find((e) => e.scrollWidth > e.clientWidth + 4);
     if (!el) return null;
