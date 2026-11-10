@@ -162,11 +162,17 @@ export interface HandTournament {
   news?: string[];
 }
 export interface PracticeBounty {
-  format: "ko" | "pko";
+  format: "ko" | "pko" | "mystery";
+  /** KO, PKO: each seat's bounty (mystery: none) */
   seats: Record<string, number>;
-  /** the other tables' average bounty, which a player from another table brings */
+  /** KO, PKO: the other tables' average bounty, which a player from another table brings (mystery: 0) */
   field: number;
+  /** mystery: the envelopes not yet drawn, in the prizes' units: each knockout, here or at the other tables, draws one */
+  envelopes?: number[];
 }
+
+/** The bounty's name in words. */
+export const bountyName = (b: Pick<PracticeBounty, "format">) => ({ ko: "KO", pko: "PKO", mystery: "mystery" })[b.format];
 
 /** A tournament session's setup: its game and each seat's chips, bb, which every hand starts from. Unless it's played
  * out (`playsOn`), the tournament doesn't move on: nobody's knocked out, and no chips go from hand to hand. */
@@ -176,7 +182,7 @@ export interface TournamentOptions extends HandTournament {
 
 /** The game in words. */
 export const gameLabel = (t: HandTournament) =>
-  t.model === "icm" ? `tournament in prize equity, prizes ${(t.payouts ?? []).join("/")}${t.bounty ? `, ${t.bounty.format === "ko" ? "KO" : "PKO"} bounties` : ""}` : "tournament in chip EV";
+  t.model === "icm" ? `tournament in prize equity, prizes ${(t.payouts ?? []).join("/")}${t.bounty ? `, ${bountyName(t.bounty)} bounties` : ""}` : "tournament in chip EV";
 
 /** What marks a chip EV session's answers, as the engine's own carry nothing of a tournament. */
 export const CHIP_MODEL = "chip EV: these stacks with no prizes";
@@ -426,7 +432,8 @@ export function following(h: PracticeHand, seed: number, opts: DealOptions, rese
   if (playsOn(opts) && opts.tournament) {
     // (a tournament played out: from where this hand left it, or over and started again; `reset` starts it again)
     const setup = opts.tournament;
-    const m = h.tournament && !reset ? moveOn({ ...h, tournament: h.tournament }, chipsAfter(h)) : { table: null, news: [] };
+    // (a mystery envelope's draw from its own stream of the next hand's seed)
+    const m = h.tournament && !reset ? moveOn({ ...h, tournament: h.tournament }, chipsAfter(h), seeded(seed * 31 + 7)) : { table: null, news: [] };
     if (m.table) return newHand(m.table.players, h.stack, n, seed, opts, { stacks: m.table.stacks, rebuys: [], hero: m.table.hero, tournament: m.table.tournament });
     const players = Object.keys(setup.stacks).length;
     return newHand(players, h.stack, n, seed, opts, { stacks: setup.stacks, rebuys: [], tournament: restarted(setup, m.news) });
@@ -495,7 +502,17 @@ export const rakeSetup = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.
 const prizesOf = (h: Pick<PracticeHand, "tournament">): TournamentSetup | undefined => {
   const t = h.tournament;
   if (t?.model !== "icm") return undefined;
-  return { payouts: t.payouts, field: t.field, ...(t.bounty ? { bounty: { format: t.bounty.format, seats: t.bounty.seats, field: t.bounty.field } } : {}) };
+  const b = t.bounty;
+  // (mystery: the money in the envelopes left and how many, which the engine values a knockout by; none left, no bounty)
+  const env = b?.envelopes ?? [];
+  const bounty = !b
+    ? undefined
+    : b.format === "mystery"
+      ? env.length
+        ? { format: b.format, pool: Math.round(env.reduce((x, y) => x + y, 0) * 100) / 100, left: env.length }
+        : undefined
+      : { format: b.format, seats: b.seats, field: b.field };
+  return { payouts: t.payouts, field: t.field, ...(bounty ? { bounty } : {}) };
 };
 
 /** The seats whose chips aren't the starting stack (chips carried, a tournament's), bb; none where every seat has it. */

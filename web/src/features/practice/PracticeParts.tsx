@@ -400,11 +400,23 @@ export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: S
               → <span className="font-mono text-text">{fmt(chipsAfter(hand, sim)[hand.hero]!)}bb</span>
             </>
           )}
-          {t.bounty && (
+          {t.bounty?.format === "mystery" ? (
             <>
-              {" "}· your bounty <span className="font-mono text-text">{fmt(t.bounty.seats[hand.hero] ?? 0)}</span>, bounties collected{" "}
-              <span className="font-mono text-text">{fmt(t.won ?? 0)}</span>
+              {" "}· mystery envelopes left <span className="font-mono text-text">{t.bounty.envelopes?.length ?? 0}</span>
+              {t.bounty.envelopes?.length ? (
+                <>
+                  {" "}(average <span className="font-mono text-text">{fmt(t.bounty.envelopes.reduce((x, y) => x + y, 0) / t.bounty.envelopes.length)}</span>)
+                </>
+              ) : null}
+              , drawn by you <span className="font-mono text-text">{fmt(t.won ?? 0)}</span>
             </>
+          ) : (
+            t.bounty && (
+              <>
+                {" "}· your bounty <span className="font-mono text-text">{fmt(t.bounty.seats[hand.hero] ?? 0)}</span>, bounties collected{" "}
+                <span className="font-mono text-text">{fmt(t.won ?? 0)}</span>
+              </>
+            )
           )}
           {hand.result?.folded && sim.active.size > 1 && !sim.handOver && " · the others' chips go as if they checked it down"}
         </span>
@@ -423,7 +435,10 @@ export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: S
         lowest prize left once all left are paid, the tables are balanced after every hand (players come from the other tables at
         their average stack, or the one due the big blind moves away, never you; the last tables merge into a final table), the
         other tables are only a count and an average stack, and they lose {FIELD_RATE * 100}% of their players a level.
-        {t.bounty && " A bounty goes to whoever won the most chips in the hand that knocked its player out, and a player from another table brings the other tables' average bounty."}
+        {t.bounty &&
+          (t.bounty.format === "mystery"
+            ? " Each knockout, here or at the other tables, draws a mystery envelope at random from those left, from the first hand (many real events start the draws later), whoever won the most chips in the hand drawing it; the answers value a knockout at the average envelope left."
+            : " A bounty goes to whoever won the most chips in the hand that knocked its player out, and a player from another table brings the other tables' average bounty.")}
       </p>
     </div>
   );

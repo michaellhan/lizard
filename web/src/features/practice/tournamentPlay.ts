@@ -15,7 +15,9 @@
 // count and an average stack, not tables of their own, a bust's place comes from the stacks the hand started with, and
 // the other tables' pace is a fixed share a level. A bounty goes to whoever won the most chips in the hand that
 // knocked its player out (a side pot's winner may not be the one who covered them), and a player from another table
-// brings the other tables' average bounty as the setup set it, which doesn't grow as a PKO's would.
+// brings the other tables' average bounty as the setup set it, which doesn't grow as a PKO's would. Mystery bounties:
+// each knockout, here or at the other tables, draws an envelope at random from those left, from the first hand (many
+// real events start the draws later, in the money), and whoever won the most chips in the hand draws it.
 import { seatsOf } from "@/poker/seats";
 import type { HandTournament, PracticeHand, TournamentOptions } from "./practice";
 
@@ -62,7 +64,12 @@ export function balancedSize(here: number, elsewhere: number, seats: number): nu
 export const levelOf = (t: Pick<HandTournament, "played">) => Math.floor((t.played ?? 0) / LEVEL_HANDS);
 
 /** Where a tournament goes after hand `h`, its chips as it ended `chips` (chipsAfter). */
-export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { tournament: HandTournament }, chips: Record<string, number>): MoveOn {
+export function moveOn(
+  h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { tournament: HandTournament },
+  chips: Record<string, number>,
+  /** draws a mystery envelope */
+  rand: () => number = Math.random,
+): MoveOn {
   const t = h.tournament;
   const pos = seatsOf(h.players);
   const start = h.stacks ?? {};
@@ -87,7 +94,18 @@ export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { 
   let won = t.won ?? 0;
   const live = pos.filter((p) => !out.includes(p));
   const taker = live.reduce<string | undefined>((best, q) => ((chips[q] ?? 0) - (start[q] ?? 0) > (best ? (chips[best] ?? 0) - (start[best] ?? 0) : 0.005) ? q : best), undefined);
+  // mystery: each knockout draws an envelope at random from those left (none left, nothing drawn)
+  const mystery = bty?.format === "mystery";
+  const envelopes = [...(bty?.envelopes ?? [])];
+  const draw = () => (envelopes.length ? envelopes.splice(Math.min(envelopes.length - 1, Math.floor(rand() * envelopes.length)), 1)[0]! : undefined);
   const collect = (p: string) => {
+    if (mystery) {
+      const v = taker ? draw() : undefined;
+      if (v === undefined) return;
+      if (taker === h.hero) won += v;
+      news.push(p === h.hero ? `${taker} draws a mystery envelope for knocking you out: ${fmt(v)}.` : `${name(taker!)} ${taker === h.hero ? "draw" : "draws"} a mystery envelope for ${p}: ${fmt(v)}.`);
+      return;
+    }
     const v = bty?.seats[p] ?? 0;
     if (!bty || !taker || !(v > 0)) return;
     const money = bty.format === "pko" ? v / 2 : v;
@@ -140,7 +158,9 @@ export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { 
       const total = field.players * field.avg;
       field = { players: field.players - gone, avg: r2(total / (field.players - gone) / LEVEL_RISE) };
       left -= gone;
-      if (gone) news.push(`${gone} ${gone === 1 ? "player is" : "players are"} out at the other tables.`);
+      let drawn = 0;
+      if (mystery) for (let i = 0; i < gone; i++) if (draw() !== undefined) drawn++;
+      if (gone) news.push(`${gone} ${gone === 1 ? "player is" : "players are"} out at the other tables${drawn ? `, drawing ${drawn} mystery ${drawn === 1 ? "envelope" : "envelopes"}` : ""}.`);
     }
     rise = `The blinds go up (level ${played / LEVEL_HANDS + 1}): every stack is ${LEVEL_RISE}× fewer big blinds.`;
   }
@@ -199,7 +219,7 @@ export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { 
     ...(field || t.seats ? { seats } : {}),
     ...(t.model === "icm" ? { payouts } : {}),
     ...(field ? { field } : {}),
-    ...(bty ? { bounty: { format: bty.format, seats: bounties, field: bty.field } } : {}),
+    ...(bty ? { bounty: mystery ? { format: bty.format, seats: {}, field: 0, envelopes } : { format: bty.format, seats: bounties, field: bty.field } } : {}),
     played,
     ...(won ? { won: r2(won) } : {}),
     ...(news.length ? { news } : {}),

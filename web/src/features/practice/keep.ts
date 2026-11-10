@@ -88,7 +88,16 @@ const isGame = (x: unknown): x is HandTournament =>
   (x.model === "chips" || (x.model === "icm" && isList(x.payouts, isNum) && (x.payouts as number[]).length > 1)) &&
   opt(x.payouts, (p) => isList(p, isNum)) &&
   opt(x.field, (f) => isObj(f) && isCount(f.players) && isNum(f.avg)) &&
-  opt(x.bounty, (b) => isObj(b) && (b.format === "ko" || b.format === "pko") && isObj(b.seats) && Object.values(b.seats).every(isNum) && isNum(b.field)) &&
+  opt(
+    x.bounty,
+    (b) =>
+      isObj(b) &&
+      (b.format === "ko" || b.format === "pko" || b.format === "mystery") &&
+      isObj(b.seats) &&
+      Object.values(b.seats).every(isNum) &&
+      isNum(b.field) &&
+      opt(b.envelopes, (e) => Array.isArray(e) && e.every(isNum)),
+  ) &&
   opt(x.played, isCount) &&
   opt(x.seats, isCount) &&
   opt(x.won, isNum) &&

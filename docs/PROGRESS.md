@@ -4628,3 +4628,20 @@ Tests (`tournamentPlay.test.ts`, 17 in all):
 Checked in a browser: a 6-max session with 2 players at the other tables (8 left) moved UTG's and HJ's players away after the first hand, and the table went 4-handed with every stack where the chips left it.
 
 Also, ROADMAP Phase 4 no longer lists single combos as open: they were painted and locked from 2026-11-05. What's open there now is category paint by combo.
+
+### 2026-11-10: mystery bounties in Practice's tournaments
+
+Practice's tournament form now has "Mystery" under Bounties. It takes the envelopes one by one, in the prizes' units, with a count after an x: "500, 100x4, 25x20" (`TournamentFields.tsx` `parseEnvelopes` and `envelopesText`; at most 10,000).
+- Every answer is asked with the pool and the count of the envelopes left (`practice.ts` `prizesOf`). With none left, no bounty is sent.
+- Played out (`tournamentPlay.ts`), each knockout at this table draws an envelope at random from those left, and whoever won the most chips in the hand draws it: "You draw a mystery envelope for CO: 100." Knockouts at the other tables each draw one too, unseen. The draw comes from its own stream of the next hand's seed.
+- The table shows the envelopes left, their average and what you've drawn. The page's note says the draws start from the first hand, where many real events start them later.
+- A kept session's envelopes are validated on restore (`keep.ts`).
+
+Tests (`tournamentPlay.test.ts`, 20 in all):
+- a draw for your knockout, and one for the player who knocked you out;
+- the other tables' draws, and nothing drawn and nothing sent once the envelopes are gone;
+- the envelopes parsed, written back on the form, and sent as pool 130 with 4 left.
+
+Checked in a browser: a 6-max session with 25 envelopes showed "mystery envelopes left 25 (average 56)". Its preflop answer was badged "Preflop charts · chip chart with a risk premium, mystery bounties at the average envelope · approximate".
+
+The Mystery bounty row stays APPROXIMATE: a knockout is valued at the average envelope left, not as a spread.

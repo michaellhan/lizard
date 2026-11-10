@@ -1,7 +1,7 @@
 // A tournament session's setup on the New session form: what the answers are in, the prizes left, each seat's chips and the
-// other tables, and KO or PKO bounties. It's what the Tournaments page sets up, as far as Practice can play it: every seat
-// starts with the same bounty (played out, a bounty follows its player, and a PKO's grows), and no mystery bounties, whose
-// envelopes a session has no draw for.
+// other tables, and KO, PKO or mystery bounties. It's what the Tournaments page sets up, as far as Practice can play it:
+// every seat starts with the same KO or PKO bounty (played out, a bounty follows its player, and a PKO's grows), and a
+// mystery's envelopes are typed one by one ("500, 100x4, 25x20"), as played out each knockout draws one.
 import { LIMITS } from "@/features/solve/setup";
 import { PAYOUT_PRESETS, parsePayouts, pastedPayouts, STAGE_PRESETS, stageAnte, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -19,10 +19,40 @@ export interface TournamentDraft {
   others: string;
   avg: string;
   /** "" for none */
-  bounty: "" | "ko" | "pko";
+  bounty: "" | "ko" | "pko" | "mystery";
   /** every seat's bounty to start, and the other tables' average (blank: the same) */
   each: string;
   bountyField: string;
+  /** mystery: the envelopes, "500, 100x4, 25x20" */
+  envelopes: string;
+}
+
+/** most envelopes a mystery session holds */
+export const MAX_ENVELOPES = 10000;
+
+/** Envelopes typed as values, each with a count after an x ("500, 100x4, 25x20"), or what's wrong with them. */
+export function parseEnvelopes(text: string): number[] | string {
+  const out: number[] = [];
+  for (const part of text.split(/[\s,;]+/).filter(Boolean)) {
+    const m = /^(\d+(?:\.\d+)?|\.\d+)(?:[x×*](\d+))?$/i.exec(part);
+    if (!m) return `"${part}" isn't an envelope: a value, with a count after an x (100x4)`;
+    const v = Number(m[1]);
+    const k = m[2] === undefined ? 1 : Number(m[2]);
+    if (!(v > 0) || !(k >= 1)) return `"${part}": an envelope is worth more than 0, and its count is 1 or more`;
+    if (out.length + k > MAX_ENVELOPES) return `at most ${MAX_ENVELOPES} envelopes`;
+    for (let i = 0; i < k; i++) out.push(v);
+  }
+  return out.length ? out : "type the envelopes, in the prizes' units: 500, 100x4, 25x20";
+}
+
+/** Envelopes as typed, the biggest first, each value once with its count. */
+export function envelopesText(env: readonly number[]): string {
+  const counts = new Map<number, number>();
+  for (const v of env) counts.set(v, (counts.get(v) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([v, k]) => (k > 1 ? `${v}x${k}` : String(v)))
+    .join(", ");
 }
 
 export const draftOf = (t: TournamentOptions | undefined, stack: number): TournamentDraft => ({
@@ -32,8 +62,9 @@ export const draftOf = (t: TournamentOptions | undefined, stack: number): Tourna
   others: t?.field ? String(t.field.players) : "",
   avg: t?.field ? String(t.field.avg) : "",
   bounty: t?.bounty?.format ?? "",
-  each: t?.bounty ? String(Math.max(...Object.values(t.bounty.seats))) : "",
-  bountyField: t?.bounty ? String(t.bounty.field) : "",
+  each: t?.bounty && t.bounty.format !== "mystery" ? String(Math.max(...Object.values(t.bounty.seats))) : "",
+  bountyField: t?.bounty && t.bounty.format !== "mystery" ? String(t.bounty.field) : "",
+  envelopes: t?.bounty?.format === "mystery" ? envelopesText(t.bounty.envelopes ?? []) : "",
 });
 
 /** The draft as a session's options at this table, or what's wrong with it, in words. */
@@ -49,7 +80,11 @@ export function readDraft(d: TournamentDraft, players: number, stack: number, ma
   if (payouts.length < 2) problems.push("ICM needs two or more prizes. With one prize chips are prizes, which is Chip EV");
   problems.push(...tournamentProblems(players, { payouts, ...(field ? { field } : {}) }));
   let bounty: TournamentOptions["bounty"];
-  if (d.bounty) {
+  if (d.bounty === "mystery") {
+    const env = parseEnvelopes(d.envelopes);
+    if (typeof env === "string") problems.push(`mystery bounties: ${env}`);
+    else bounty = { format: "mystery", seats: {}, field: 0, envelopes: env };
+  } else if (d.bounty) {
     const each = Number(d.each);
     const avg = d.bountyField.trim() === "" ? each : Number(d.bountyField);
     if (!(d.each.trim() !== "" && Number.isFinite(each) && each > 0)) problems.push("each seat's bounty must be more than 0, in the prizes' units");
@@ -76,6 +111,7 @@ export function stageDraft(st: StagePreset): { players: number; stack: number; a
       bounty: "",
       each: "",
       bountyField: "",
+      envelopes: "",
     },
   };
 }
@@ -173,15 +209,22 @@ export function TournamentFields({
               <span className="text-muted">bb</span>
             </label>
           )}
-          <label className="flex items-center gap-1" title="KO: a player out pays their whole bounty to whoever knocked them out. PKO: half of it, the other half onto the taker's own bounty.">
+          <label className="flex items-center gap-1" title="KO: a player out pays their whole bounty to whoever knocked them out. PKO: half of it, the other half onto the taker's own bounty. Mystery: each knockout draws an envelope at random.">
             <span className="text-muted">Bounties</span>
             <select aria-label="Bounties" value={draft.bounty} onChange={(e) => set({ bounty: e.target.value as TournamentDraft["bounty"] })} className={INPUT}>
               <option value="">None</option>
               <option value="ko">KO</option>
               <option value="pko">PKO</option>
+              <option value="mystery">Mystery</option>
             </select>
           </label>
-          {draft.bounty && (
+          {draft.bounty === "mystery" && (
+            <label className="flex items-center gap-1" title="Every envelope, in the prizes' units, a count after an x: each knockout here or at the other tables draws one at random">
+              <span className="text-muted">Envelopes</span>
+              <input aria-label="Mystery envelopes" type="text" placeholder="500, 100x4, 25x20" value={draft.envelopes} onChange={(e) => set({ envelopes: e.target.value })} className={`w-44 ${INPUT}`} />
+            </label>
+          )}
+          {(draft.bounty === "ko" || draft.bounty === "pko") && (
             <>
               <label className="flex items-center gap-1" title="Every seat's bounty to start, in the prizes' units">
                 <span className="text-muted">Each</span>
@@ -229,7 +272,7 @@ export function TournamentFields({
           ? "The first hand starts from these stacks and prizes, and the tournament moves on from there: players knocked out, prizes paid, the blinds rising. Out, or with every chip, and it starts over."
           : "Every hand starts from these stacks and prizes, so the tournament doesn\u2019t move on and nobody\u2019s knocked out (Play it out moves it on)."}{" "}
         {icm
-          ? `Answers are in prize equity by Malmuth-Harville. At ${PUSH_FOLD_MAX}bb or less your own all-in is the push/fold equilibrium in prize equity, and a call of a jam is priced in prize equity. Every other preflop spot is a chip chart with a risk premium, a heuristic. After the flop a solve pays prize equity, and betting rules play chips, so those are graded by frequency. The badge on each answer says which.${draft.bounty ? " Bounties are priced by a proportional model: solved for push/fold and after the flop, and a discount on the risk premium in other preflop spots. Mystery bounties are on the Tournaments page." : ""}`
+          ? `Answers are in prize equity by Malmuth-Harville. At ${PUSH_FOLD_MAX}bb or less your own all-in is the push/fold equilibrium in prize equity, and a call of a jam is priced in prize equity. Every other preflop spot is a chip chart with a risk premium, a heuristic. After the flop a solve pays prize equity, and betting rules play chips, so those are graded by frequency. The badge on each answer says which.${draft.bounty ? " Bounties are priced by a proportional model: solved for push/fold and after the flop, and a discount on the risk premium in other preflop spots." : ""}${draft.bounty === "mystery" ? " A mystery knockout is valued at the average envelope left: no spread of envelopes, so approximate." : ""}`
           : "Chip EV means no prizes: the answers are what the engine gives these stacks in a cash game, in bb."}{" "}
         These sessions stay apart from your other numbers in History and Review.
       </p>

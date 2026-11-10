@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { following, gameLabel, newHand, nextTable, stateFor, type DealOptions, type HandTournament } from "./practice";
-import { draftOf, readDraft } from "./TournamentFields";
+import { draftOf, envelopesText, parseEnvelopes, readDraft } from "./TournamentFields";
 import { LEVEL_HANDS, moveOn, ordinal } from "./tournamentPlay";
 
 const hand = (players: number, hero: string, stacks: Record<string, number>, tournament: HandTournament) => ({ players, hero, stacks, tournament });
@@ -136,6 +136,49 @@ describe("a tournament played out", () => {
     // (BTN's player is the big blind now, 3-handed)
     expect(m.table!.tournament.bounty!.seats).toEqual({ BTN: 10, SB: 10, BB: 14 });
     expect(m.table!.tournament.won).toBe(3);
+  });
+
+  it("draws a mystery envelope for each knockout here, whoever won the chips drawing it", () => {
+    const mb = { format: "mystery" as const, seats: {}, field: 0, envelopes: [100, 20, 10] };
+    const t: HandTournament = { model: "icm", payouts: [50, 30, 20], bounty: mb };
+    // (the draw picks the first envelope left, then the last)
+    const m = moveOn(hand(4, "BTN", { CO: 10, BTN: 20, SB: 30, BB: 30 }, t), { CO: 0, BTN: 30, SB: 30, BB: 30 }, () => 0);
+    expect(m.news).toEqual(["CO is out in 4th.", "You draw a mystery envelope for CO: 100.", "The table is 3-handed now.", "The bubble bursts: 3 left, all paid."]);
+    expect(m.table!.tournament.bounty).toEqual({ format: "mystery", seats: {}, field: 0, envelopes: [20, 10] });
+    expect(m.table!.tournament.won).toBe(100);
+    // (you're in the big blind now, and the small blind takes your chips)
+    expect(m.table!.hero).toBe("BB");
+    const out = moveOn({ ...m.table!, tournament: m.table!.tournament }, { BTN: 30, SB: 60, BB: 0 }, () => 0.99);
+    expect(out.news).toEqual(["SB draws a mystery envelope for knocking you out: 10.", "You're out in 3rd, paid 20. You collected 100 in bounties. A new tournament starts from the setup."]);
+  });
+
+  it("draws envelopes for the other tables' knockouts too, and none once they're gone", () => {
+    const mb = { format: "mystery" as const, seats: {}, field: 0, envelopes: [50, 5] };
+    const m = moveOn(hand(2, "SB", { SB: 50, BB: 50 }, { model: "icm", payouts: [50, 30, 20], seats: 2, field: { players: 20, avg: 25 }, bounty: mb, played: LEVEL_HANDS - 1 }), { SB: 60, BB: 40 }, () => 0);
+    expect(m.news[0]).toBe("2 players are out at the other tables, drawing 2 mystery envelopes.");
+    expect(m.table!.tournament.bounty!.envelopes).toEqual([]);
+    expect(m.table!.tournament.won).toBeUndefined();
+    // (with none left, a knockout draws nothing, and the answers get no bounty to price)
+    const next = moveOn(hand(3, "BTN", { BTN: 20, SB: 10, BB: 30 }, { model: "icm", payouts: [50, 30, 20], bounty: m.table!.tournament.bounty }), { BTN: 30, SB: 0, BB: 30 }, () => 0);
+    expect(next.news).toEqual(["SB is out in 3rd, paid 20.", "The table is heads-up now."]);
+    expect(stateFor(newHand(3, 40, 0, 1, { carry: true, tournament: { model: "icm", payouts: [50, 30, 20], stacks: { BTN: 40, SB: 40, BB: 40 }, bounty: m.table!.tournament.bounty } })).bounties).toBeUndefined();
+  });
+
+  it("sends the mystery envelopes left with every answer, as their pool and count, and sets them up on the form", () => {
+    expect(parseEnvelopes("500, 100x4 25×2")).toEqual([500, 100, 100, 100, 100, 25, 25]);
+    expect(parseEnvelopes("")).toMatch(/type the envelopes/);
+    expect(parseEnvelopes("100xx")).toMatch(/isn't an envelope/);
+    expect(parseEnvelopes("0x3")).toMatch(/worth more than 0/);
+    expect(envelopesText([25, 100, 500, 100, 25])).toBe("500, 100x2, 25x2");
+    const d = { ...draftOf(undefined, 40), bounty: "mystery" as const, envelopes: "100, 10x3" };
+    const { value, problems } = readDraft(d, 3, 40, 250);
+    expect(problems).toEqual([]);
+    expect(value!.bounty).toEqual({ format: "mystery", seats: {}, field: 0, envelopes: [100, 10, 10, 10] });
+    expect(readDraft({ ...d, envelopes: "lots" }, 3, 40, 250).problems).toEqual([`mystery bounties: "lots" isn't an envelope: a value, with a count after an x (100x4)`]);
+    const h = newHand(3, 40, 0, 1, { carry: true, tournament: value! });
+    expect(stateFor(h).bounties).toEqual({ format: "mystery", pool: 130, left: 4 });
+    expect(gameLabel(h.tournament!)).toBe("tournament in prize equity, prizes 50/30/20, mystery bounties");
+    expect(draftOf(value!, 40)).toMatchObject({ bounty: "mystery", envelopes: "100, 10x3", each: "" });
   });
 
   it("says the bounties you collected when it's over, a winner's own bounty theirs too", () => {
