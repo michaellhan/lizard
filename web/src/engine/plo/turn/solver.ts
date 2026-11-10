@@ -8,7 +8,7 @@
 // Exploitability is the river's: an exact best response to each side's average, through the turn and every river, the
 // average of what each seat gains, in chips per matchup and as a percent of the turn's pot.
 import { RiverSolver, levelsFor, widestOf, Level, type Exploitability } from "../river/solver";
-import { Terminals } from "../river/game";
+import { Terminals, type RiverGame } from "../river/game";
 import type { ActionNode, RiverNode, Seat } from "../river/tree";
 import { OOP } from "../river/tree";
 import { other, RIVERS_PER_MATCHUP, riverGame, type TurnGame } from "./game";
@@ -250,6 +250,45 @@ export class TurnSolver {
     const gain: [number, number] = [best[0] - here, best[1] + here];
     const chips = (best[0] + best[1]) / 2;
     return { best, gain, chips, pct: (100 * chips) / tree.pot, value: here };
+  }
+
+  /** Each seat's reach where turn node `id` is reached, playing the turn's average strategies, by turn combo. */
+  reachAt(id: number): [Float64Array, Float64Array] {
+    const { tree, sides } = this.game;
+    const reach: [Float64Array, Float64Array] = [Float64Array.from(sides[0].weights), Float64Array.from(sides[1].weights)];
+    const path: [ActionNode, number][] = [];
+    const find = (at: number): boolean => {
+      if (at === id) return true;
+      const node = tree.nodes[at]!;
+      if (node.kind !== "action") return false;
+      for (let k = 0; k < node.actions.length; k++) {
+        path.push([node, k]);
+        if (find(node.children[k]!)) return true;
+        path.pop();
+      }
+      return false;
+    };
+    if (!find(0)) throw new Error(`no turn node ${id}`);
+    for (const [node, k] of path) {
+      const n = sides[node.player].n;
+      const sigma = new Float32Array(node.actions.length * n);
+      this.current(node, node.player, sigma, true);
+      const r = reach[node.player];
+      for (let i = 0; i < n; i++) r[i]! *= sigma[k * n + i]!;
+    }
+    return reach;
+  }
+
+  /** The river after turn closing `closing` on card `card`, node by node at the average strategies, entered with the
+   * turn line's reach; null for an all-in closing (no decisions) or a card with no game. The river game's combos. */
+  riverReport(closing: number, card: number): { nodes: TurnNodeReport[]; game: RiverGame } | null {
+    const subs = this.subs.get(closing);
+    const k = this.game.rivers.findIndex((r) => r.card === card);
+    if (!subs || k < 0) return null;
+    const r = this.game.rivers[k]!;
+    const [a, b] = this.reachAt(closing);
+    const roots: [Float64Array, Float64Array] = [Float64Array.from(r.back[0], (i) => a[i]!), Float64Array.from(r.back[1], (i) => b[i]!)];
+    return { nodes: subs[k]!.report(roots), game: subs[k]!.game };
   }
 
   /** The turn's average strategies node by node, with reach and EV (EV: chips won from the pot less chips bet on the turn

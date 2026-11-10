@@ -27,6 +27,16 @@ test("A turn solves in the worker with every river after it, and its tables add 
     const freqs = await page.getByRole("table", { name: "Actions at this decision" }).locator("tbody td:nth-child(2)").allTextContents();
     expect(Math.abs(freqs.reduce((t, x) => t + Number.parseFloat(x), 0) - 100)).toBeLessThan(0.3);
   }
+
+  // the river after the turn is bet and called, asked of the job still in the worker
+  const after = answer.getByRole("region", { name: "The river after the turn" });
+  await after.getByLabel("Turn line").selectOption({ label: "OOP Bet 15, IP Call 15" });
+  await after.getByLabel("River card").selectOption("Ah");
+  await after.getByRole("button", { name: "Show this river" }).click();
+  await expect(after).toContainText("Board Js9s4d2h Ah: pot 50, 85 behind");
+  const evs = await after.getByRole("table", { name: "Ranges on this line" }).locator("tbody td:last-child").allTextContents();
+  expect(Math.abs(evs.reduce((t, x) => t + Number(x), 0) - 50)).toBeLessThan(0.02);
+  await expect(after.getByRole("table", { name: "Combos at this decision" }).locator("tbody tr").first()).toBeVisible();
   expect(problems.errors).toEqual([]);
 });
 

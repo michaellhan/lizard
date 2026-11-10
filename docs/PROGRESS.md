@@ -4593,3 +4593,18 @@ Checks (`turn/solver.test.ts`, 6 tests):
 Measured in Node: AAxx,KKxx,QQxx against JT98,JT97,T987 on Js9s4d2h, at one size a street, came to 11.9M units, 1.0 to 1.2 s an iteration and 165 MB. AAxx against JT98 reached 0.29% in 50 iterations, 15 s. In the browser on the dev server, that spot reached 0.35% in 45 iterations, 5.3 s, 56 MB. `web/e2e/plo.e2e.ts` gained a turn test; all 4 passed on the build.
 
 The PLO4 row stays PARTIAL. Not done: the flop, river strategies after a turn shown card by card, a reference of the turn's own, and PLO in Study, Practice or Analyze. ACCURACY section 15 and ROADMAP Phase 10 are updated. The two heads-up precompute builds were left alone.
+
+### 2026-11-10: the river after a PLO turn, card by card
+
+The turn solve's rivers were solved but not shown. Under a turn's decisions, "The river after the turn" now takes any line where the turn's betting closes with chips behind and any river card, and shows that river's own strategies from the same solve: decisions, ranges, actions and combos, each hand's reach as the turn's line lets it. The worker keeps a finished turn's job and answers a `river` message from it. On the page, without a worker, the client keeps the job. A new solve drops it, and if it's gone the page says so.
+
+Pieces:
+- `RiverSolver.report` takes the reaches the river starts with;
+- `TurnSolver.reachAt` and `riverReport`;
+- `RiverJob.riverView`;
+- the result carries the closing lines and the river cards.
+
+Tests:
+- The page test opens the river after check-check on the K♦; its two EVs add to the river's pot of 10.
+- `plo.e2e.ts` opens it after a turn bet and call on the A♥, on the worker, with the EVs adding to 50.
+- All PLO unit tests and the 4 PLO e2e tests passed. The two heads-up precompute builds were left alone.

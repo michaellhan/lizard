@@ -74,6 +74,18 @@ describe("PloRiverPage", () => {
     expect(section.textContent).toMatch(/through the turn and all 44 rivers/);
     expect(section.textContent).toMatch(/less chips bet on the turn and river/);
     expect(section.textContent).toMatch(/highest EV first/);
+
+    // the river after the turn checks through, on a card: the solve's own river, its two EVs adding to the river's pot
+    const after = within(section).getByRole("region", { name: "The river after the turn" });
+    expect(within(after).getByLabelText("Turn line").textContent).toContain("OOP Check, IP Check");
+    fireEvent.change(within(after).getByLabelText("Turn line"), { target: { value: within(after).getAllByRole("option").find((o) => o.textContent === "OOP Check, IP Check")!.getAttribute("value") } });
+    fireEvent.change(within(after).getByLabelText("River card"), { target: { value: "Kd" } });
+    fireEvent.click(within(after).getByRole("button", { name: "Show this river" }));
+    await within(after).findByLabelText("River decision");
+    expect(after.textContent).toMatch(/Board 2c7d9hJs Kd: pot 10, 100 behind/);
+    const evs = within(after).getByRole("table", { name: "Ranges on this line" }).querySelectorAll("tbody td:last-child");
+    expect(Math.abs([...evs].reduce((t, td) => t + Number(td.textContent), 0) - 10)).toBeLessThan(0.02);
+    expect(within(after).getByRole("table", { name: "Actions at this decision" }).textContent).toContain("Bet 10");
   }, 30000);
 
   it("goes to another decision, the other range's", async () => {

@@ -8,7 +8,7 @@ import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { cardName, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { RiverClient } from "@/engine/plo/river/client";
-import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type StopReason } from "@/engine/plo/river/run";
+import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 
@@ -260,12 +260,12 @@ export function PloRiverPage() {
         </p>
       )}
       {cancelledEmpty && <p className="text-sm text-muted">Cancelled before there was anything to show.</p>}
-      {result && <Results key={result.iterations} result={result} />}
+      {result && <Results key={result.iterations} result={result} onRiver={(closing, card) => client.current?.river(closing, card) ?? Promise.resolve(null)} />}
     </div>
   );
 }
 
-function Results({ result }: { result: RiverResult }) {
+function Results({ result, onRiver }: { result: RiverResult; onRiver: (closing: number, card: string) => Promise<RiverView | null> }) {
   const [nodeId, setNodeId] = useState(0);
   const node = result.nodes.find((n) => n.id === nodeId) ?? result.nodes[0]!;
   const provenance = useMemo(
@@ -309,8 +309,8 @@ function Results({ result }: { result: RiverResult }) {
       <RangeTable node={node} />
       <ActionTable node={node} />
       <EveryDecision nodes={result.nodes} />
-      <ComboTable key={node.id} result={result} node={node} />
-      {turn && <p className="text-xs text-muted">The turn&apos;s decisions are shown. Every river after them was solved with them, and isn&apos;t shown card by card.</p>}
+      <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={turn} node={node} />
+      {turn && <RiverAfter result={result} onRiver={onRiver} />}
       <p className="text-xs text-muted">
         EV is in bb: chips won from the pot of {result.pot}, less chips bet {turn ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to the pot on every line. A frequency counts the matchups that can be dealt, so a card a hand blocks is in it. No rake.
       </p>
@@ -383,19 +383,89 @@ function EveryDecision({ nodes }: { nodes: readonly ResultNode[] }) {
   );
 }
 
-function ComboTable({ result, node }: { result: RiverResult; node: ResultNode }) {
+/** The river after one of a turn's closing lines, on one card: the turn solve's own river strategies, entered with the
+ * line's reach, asked of the job that solved it (still in the worker). */
+function RiverAfter({ result, onRiver }: { result: RiverResult; onRiver: (closing: number, card: string) => Promise<RiverView | null> }) {
+  const closings = result.closings ?? [];
+  const cards = result.riverCards ?? [];
+  const [closing, setClosing] = useState(closings[0]?.id ?? -1);
+  const [card, setCard] = useState(cards[0] ?? "");
+  const [view, setView] = useState<RiverView | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [nodeId, setNodeId] = useState(0);
+  if (!closings.length || !cards.length) return <p className="text-xs text-muted">Every line of this turn ends all-in or in a fold: each river is a showdown, with no decision to show.</p>;
+  const show = async () => {
+    const v = await onRiver(closing, card);
+    setView(v);
+    setMissing(!v);
+    setNodeId(0);
+  };
+  const node = view ? (view.nodes.find((n) => n.id === nodeId) ?? view.nodes[0]!) : null;
+  return (
+    <section aria-label="The river after the turn" className="min-w-0 space-y-3 border-t border-border pt-3">
+      <h2 className="text-sm font-semibold">The river after the turn</h2>
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+        <label className="min-w-0 space-y-1">
+          <span className="text-muted">After</span>
+          <select aria-label="Turn line" value={closing} onChange={(e) => setClosing(Number(e.target.value))} className={inputClass}>
+            {closings.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.line}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-0 space-y-1">
+          <span className="text-muted">River card</span>
+          <select aria-label="River card" value={card} onChange={(e) => setCard(e.target.value)} className={inputClass}>
+            {cards.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className={buttonClass} onClick={() => void show()}>
+          Show this river
+        </button>
+      </div>
+      {missing && <p className="text-sm text-muted">That river isn&apos;t there to show: the solve that made it is gone from the worker. Solve again to look.</p>}
+      {view && node && (
+        <>
+          <p className="text-xs text-muted">
+            Board {result.board} {view.card}: pot {view.pot}, {view.stack} behind, the turn solve&apos;s own river strategies, each hand reaching it as often as the turn&apos;s line lets it (Reach).
+          </p>
+          <label className="block space-y-1 text-sm">
+            <span className="text-muted">River decision</span>
+            <select aria-label="River decision" value={node.id} onChange={(e) => setNodeId(Number(e.target.value))} className={inputClass}>
+              {view.nodes.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {decisionWords(n)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <RangeTable node={node} />
+          <ActionTable node={node} />
+          <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={false} node={node} />
+          <p className="text-xs text-muted">River EVs are in bb of the river&apos;s pot of {view.pot}: chips won from it less chips bet on the river, so the two ranges&apos; EVs add to it.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ComboTable({ hands, start, byEv, node }: { hands: Int32Array; start: Float32Array; byEv: boolean; node: ResultNode }) {
   const [find, setFind] = useState("");
   const [shown, setShown] = useState(PAGE_ROWS);
-  const hands = result.hands[node.player]!;
-  const start = result.weights[node.player]!;
   const n = hands.length;
   const reaching = useMemo(() => {
     const out: number[] = [];
     // a river's game holds the weakest first: strongest first here. A turn has no order of strength: highest EV first
     for (let i = n - 1; i >= 0; i--) if (node.weight[i]! > 0) out.push(i);
-    if (result.street === "turn") out.sort((a, b) => (Number.isNaN(node.ev[b]!) ? -Infinity : node.ev[b]!) - (Number.isNaN(node.ev[a]!) ? -Infinity : node.ev[a]!));
+    if (byEv) out.sort((a, b) => (Number.isNaN(node.ev[b]!) ? -Infinity : node.ev[b]!) - (Number.isNaN(node.ev[a]!) ? -Infinity : node.ev[a]!));
     return out;
-  }, [node, n, result.street]);
+  }, [node, n, byEv]);
   const wanted = find.trim().toLowerCase();
   const rows = useMemo(() => (wanted ? reaching.filter((i) => handText(hands[i]!).toLowerCase().includes(wanted)) : reaching), [reaching, wanted, hands]);
   const visible = rows.slice(0, shown);
@@ -406,7 +476,7 @@ function ComboTable({ result, node }: { result: RiverResult; node: ResultNode })
         <input aria-label="Find a hand" value={find} onChange={(e) => setFind(e.target.value)} className={inputClass} spellCheck={false} />
       </label>
       <p className="text-xs text-muted">
-        {SEAT_NAMES[node.player]}: {rows.length.toLocaleString("en-US")} of {n.toLocaleString("en-US")} combos reach this decision{wanted ? " and match" : ""}, {result.street === "turn" ? "highest EV first" : "strongest first"}. Showing {visible.length.toLocaleString("en-US")}.
+        {SEAT_NAMES[node.player]}: {rows.length.toLocaleString("en-US")} of {n.toLocaleString("en-US")} combos reach this decision{wanted ? " and match" : ""}, {byEv ? "highest EV first" : "strongest first"}. Showing {visible.length.toLocaleString("en-US")}.
       </p>
       <PhoneColumns hidden={["Reach"]}>
         <div className="scroll-x">

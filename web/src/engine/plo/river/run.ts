@@ -17,7 +17,7 @@ import { compileTurn, type TurnGame, type TurnSpec } from "../turn/game";
 import { TurnSolver, turnMemoryBytes, turnWork } from "../turn/solver";
 import { compileGame, RiverError, type RiverGame, type RiverSpec } from "./game";
 import { memoryBytes, RiverSolver, type Exploitability, type NodeReport } from "./solver";
-import type { RiverAction, RiverSizes } from "./tree";
+import type { RiverAction, RiverNode, RiverSizes } from "./tree";
 
 export const MAX_WORK = 25e6;
 /** a turn's limit in the same units: a unit there cost 85 to 100 ns (the rivers are many small games, each mapped to the
@@ -123,6 +123,10 @@ export interface RiverResult {
   /** a turn's: the river's sizes, and the river cards with a game (a card on which no matchup can be dealt has none) */
   riverSizes?: RiverSizes;
   rivers?: number;
+  /** a turn's: where its betting closes, each a line to look at the river after (`RiverJob.riverView`), and the river
+   * cards with a game */
+  closings?: { id: number; line: string; pot: number; stack: number }[];
+  riverCards?: string[];
   /** hand index of each seat's combos (a river's weakest first) */
   hands: [Int32Array, Int32Array];
   /** each combo's weight at the start */
@@ -134,6 +138,30 @@ export interface RiverResult {
 
 type Game = RiverGame | TurnGame;
 const isTurn = (g: Game): g is TurnGame => "rivers" in g;
+
+/** A river after a turn's line, at the turn solve's average strategies, entered with that line's reach. */
+export interface RiverView {
+  closing: number;
+  card: string;
+  /** the river's pot and chips behind */
+  pot: number;
+  stack: number;
+  /** the river game's combos, weakest first, and their weights in the ranges */
+  hands: [Int32Array, Int32Array];
+  weights: [Float32Array, Float32Array];
+  nodes: ResultNode[];
+}
+
+/** A report's nodes with each line in words. */
+function inWords(reports: NodeReport[], tree: { nodes: RiverNode[] }, words = new Map<number, string>([[0, ""]])): ResultNode[] {
+  return reports.map((report) => {
+    const node = tree.nodes[report.id]!;
+    if (node.kind !== "action") throw new Error("a report of a terminal node");
+    const line = words.get(report.id) ?? "";
+    node.actions.forEach((a, k) => words.set(node.children[k]!, `${line ? `${line}, ` : ""}${SEAT_NAMES[node.player]} ${a.label}`));
+    return { ...report, line, actions: node.actions };
+  });
+}
 
 /** Why a game is over the limits, in numbers, or null. */
 export function refusal(game: Game): string | null {
@@ -216,6 +244,27 @@ export class RiverJob {
     this.stop ??= "cancelled";
   }
 
+  /** A turn's river after closing `closing` on card `card` (as "Ah"), or null: not a turn, an all-in closing, a card with no
+   * game, or nothing solved yet. */
+  riverView(closing: number, card: string): RiverView | null {
+    if (!(this.solver instanceof TurnSolver) || !this.solver.iterations || !isTurn(this.game)) return null;
+    const id = parseIds(card, 1)?.[0];
+    if (id === undefined) return null;
+    const got = this.solver.riverReport(closing, id);
+    const c = this.game.closings.get(closing);
+    if (!got || !c) return null;
+    const { sides } = got.game;
+    return {
+      closing,
+      card: cardsText([id]),
+      pot: c.pot,
+      stack: c.stack,
+      hands: [sides[0].hands, sides[1].hands],
+      weights: [Float32Array.from(sides[0].weights), Float32Array.from(sides[1].weights)],
+      nodes: inWords(got.nodes, got.game.tree),
+    };
+  }
+
   progress(): RiverProgress {
     return { iterations: this.solver.iterations, seconds: this.elapsed(), exploitabilityPct: this.lastAt < 0 ? null : this.last!.pct };
   }
@@ -229,18 +278,18 @@ export class RiverJob {
     const { tree, sides } = game;
     const words = new Map<number, string>();
     words.set(0, "");
-    const reports: NodeReport[] = this.solver.report();
-    const nodes: ResultNode[] = reports.map((report) => {
-      const node = tree.nodes[report.id]!;
-      if (node.kind !== "action") throw new Error("a report of a terminal node");
-      const line = words.get(report.id) ?? "";
-      node.actions.forEach((a, k) => words.set(node.children[k]!, `${line ? `${line}, ` : ""}${SEAT_NAMES[node.player]} ${a.label}`));
-      return { ...report, line, actions: node.actions };
-    });
+    const nodes = inWords(this.solver.report(), tree, words);
     const turn = isTurn(game);
     return {
       street: turn ? "turn" : "river",
-      ...(turn ? { riverSizes: game.riverSizes, rivers: game.rivers.length } : {}),
+      ...(turn
+        ? {
+            riverSizes: game.riverSizes,
+            rivers: game.rivers.length,
+            closings: [...game.closings.values()].filter((c) => c.tree).map((c) => ({ id: c.id, line: words.get(c.id) ?? "", pot: c.pot, stack: c.stack })),
+            riverCards: game.rivers.map((r) => cardsText([r.card])),
+          }
+        : {}),
       stop: this.stop ?? "cancelled",
       iterations: this.solver.iterations,
       seconds: this.elapsed(),
@@ -291,9 +340,14 @@ export async function runJob(job: RiverJob, opts: RunOptions = {}): Promise<{ ca
   return { cancelled, result: job.result() };
 }
 
-export type RiverInbound = { type: "run"; id: number; request: RiverRequest } | { type: "cancel"; id: number };
+export type RiverInbound =
+  | { type: "run"; id: number; request: RiverRequest }
+  | { type: "cancel"; id: number }
+  /** a finished turn's river (`ask` numbers the answer) */
+  | { type: "river"; id: number; ask: number; closing: number; card: string };
 export type RiverOutbound =
   | { type: "progress"; id: number; progress: RiverProgress }
+  | { type: "river"; id: number; ask: number; view: RiverView | null }
   | { type: "done"; id: number; cancelled: boolean; result: RiverResult | null }
   | { type: "error"; id: number; message: string };
 
@@ -322,24 +376,37 @@ export interface RiverPort {
   onmessage: ((e: { data: RiverInbound }) => void) | null;
 }
 
-/** The worker's end: one job at a time, a new one replacing the last. */
+/** A view's arrays, to move and not copy. */
+const viewBuffers = (v: RiverView | null): ArrayBuffer[] =>
+  v ? [...v.hands, ...v.weights, ...v.nodes.flatMap((n) => [n.strategy, n.weight, n.ev, n.actionEv])].map((a) => a.buffer as ArrayBuffer) : [];
+
+/** The worker's end: one job at a time, a new one replacing the last. A finished turn's job is kept, to look at its rivers. */
 export function serveRiver(port: RiverPort, options: RunOptions = {}): void {
   let current = 0;
+  let kept: { id: number; job: RiverJob } | null = null;
   port.onmessage = ({ data }) => {
+    if (data.type === "river") {
+      const view = kept && kept.id === data.id ? kept.job.riverView(data.closing, data.card) : null;
+      port.postMessage({ type: "river", id: data.id, ask: data.ask, view }, viewBuffers(view));
+      return;
+    }
     if (data.type === "cancel") {
       if (data.id === current) current = 0;
       return;
     }
     const id = (current = data.id);
+    kept = null;
     void run(id, data.request);
   };
   async function run(id: number, request: RiverRequest) {
     try {
-      const { cancelled, result } = await runJob(startJob(request), {
+      const job = startJob(request);
+      const { cancelled, result } = await runJob(job, {
         ...options,
         stopped: () => current !== id,
         onProgress: (progress) => port.postMessage({ type: "progress", id, progress }),
       });
+      if (result?.street === "turn") kept = { id, job };
       port.postMessage({ type: "done", id, cancelled, result }, buffersOf(result));
     } catch (e) {
       port.postMessage({ type: "error", id, message: failureText(e) });

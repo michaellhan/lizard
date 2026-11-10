@@ -285,8 +285,9 @@ export class RiverSolver {
     return { best, gain, chips, pct: (100 * chips) / tree.pot, value: here };
   }
 
-  /** The average strategies node by node, with reach and EV. Costs about a pass, and the result's memory. */
-  report(): NodeReport[] {
+  /** The average strategies node by node, with reach and EV. Costs about a pass, and the result's memory. `roots`: each
+   * seat's reach as the river starts, in place of the ranges' weights (a turn's line, engine/plo/turn/). */
+  report(roots: readonly [Float64Array, Float64Array] = [this.game.sides[0].weights, this.game.sides[1].weights]): NodeReport[] {
     const { nodes } = this.game.tree;
     const out = new Map<number, NodeReport>();
     for (const node of nodes) {
@@ -308,8 +309,8 @@ export class RiverSolver {
       });
     }
     for (const hero of [0, 1] as const) {
-      const own = Float64Array.from(this.game.sides[hero].weights);
-      this.record(0, hero, this.game.sides[(1 - hero) as Seat].weights, own, this.levels[0]!.value, 0, out);
+      const own = Float64Array.from(roots[hero]);
+      this.record(0, hero, roots[(1 - hero) as Seat], own, this.levels[0]!.value, 0, out);
     }
     return [...out.values()];
   }

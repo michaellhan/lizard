@@ -2,7 +2,7 @@
 // browser can't start one the same slices run on the page. A cancel asks the worker, which hands back the strategies as
 // they stood; a worker that doesn't answer within CANCEL_GRACE_MS (an iteration of a big spot on a slow phone) is ended,
 // and there's nothing to show.
-import { failureText, runJob, startJob, type RiverInbound, type RiverOutbound, type RiverProgress, type RiverRequest, type RiverResult } from "./run";
+import { failureText, runJob, startJob, type RiverInbound, type RiverJob, type RiverOutbound, type RiverProgress, type RiverRequest, type RiverResult, type RiverView } from "./run";
 
 export const CANCEL_GRACE_MS = 10_000;
 
@@ -37,6 +37,10 @@ export class RiverClient {
   private active: Active | null = null;
   private nextId = 1;
   private inlineStop: (() => void) | null = null;
+  /** the last finished turn: its id on the worker, or its job where it ran on the page */
+  private lastTurn: { id: number } | { job: RiverJob } | null = null;
+  private asks = new Map<number, (v: RiverView | null) => void>();
+  private nextAsk = 1;
 
   constructor(private readonly factory: WorkerFactory = startWorker) {}
 
@@ -49,6 +53,7 @@ export class RiverClient {
       this.finish(prior, () => prior.resolve({ cancelled: true, result: null }));
     }
     const id = this.nextId++;
+    this.lastTurn = null;
     return new Promise((resolve, reject) => {
       const worker = this.ensureWorker();
       if (!worker) {
@@ -57,6 +62,19 @@ export class RiverClient {
       }
       this.active = { id, resolve, reject, onProgress };
       worker.postMessage({ type: "run", id, request });
+    });
+  }
+
+  /** The last finished turn's river after closing `closing` on `card` (as "Ah"), or null if there's none to look at. */
+  river(closing: number, card: string): Promise<RiverView | null> {
+    const t = this.lastTurn;
+    if (!t) return Promise.resolve(null);
+    if ("job" in t) return Promise.resolve(t.job.riverView(closing, card));
+    if (!this.worker) return Promise.resolve(null);
+    const ask = this.nextAsk++;
+    return new Promise((resolve) => {
+      this.asks.set(ask, resolve);
+      this.worker!.postMessage({ type: "river", id: t.id, ask, closing, card });
     });
   }
 
@@ -88,6 +106,9 @@ export class RiverClient {
   private discardWorker() {
     this.worker?.terminate();
     this.worker = null;
+    this.lastTurn = null;
+    for (const resolve of this.asks.values()) resolve(null);
+    this.asks.clear();
   }
 
   private ensureWorker(): WorkerLike | null {
@@ -109,10 +130,18 @@ export class RiverClient {
   }
 
   private receive(m: RiverOutbound) {
+    if (m.type === "river") {
+      this.asks.get(m.ask)?.(m.view);
+      this.asks.delete(m.ask);
+      return;
+    }
     const a = this.active;
     if (!a || m.id !== a.id) return;
     if (m.type === "progress") a.onProgress?.(m.progress);
-    else if (m.type === "done") this.finish(a, () => a.resolve({ cancelled: m.cancelled, result: m.result }));
+    else if (m.type === "done") {
+      if (m.result?.street === "turn") this.lastTurn = { id: m.id };
+      this.finish(a, () => a.resolve({ cancelled: m.cancelled, result: m.result }));
+    }
     else this.finish(a, () => a.reject(new Error(m.message)));
   }
 
@@ -123,7 +152,10 @@ export class RiverClient {
     };
     this.inlineStop = halt;
     try {
-      return await runJob(startJob(request), { stopped: () => stop, onProgress, sliceMs: 12 });
+      const job = startJob(request);
+      const out = await runJob(job, { stopped: () => stop, onProgress, sliceMs: 12 });
+      if (out.result?.street === "turn") this.lastTurn = { job };
+      return out;
     } catch (e) {
       throw new Error(failureText(e), { cause: e });
     } finally {
