@@ -18,20 +18,70 @@ describe("a tournament played out", () => {
     expect(m.table!.stacks).toEqual(ring.stacks);
     expect(m.table!.hero).toBe("HJ");
     expect(m.table!.players).toBe(6);
-    expect(m.table!.tournament).toEqual({ model: "icm", payouts: [50, 30, 20], field: { players: 30, avg: 40 }, played: 1 });
+    expect(m.table!.tournament).toEqual({ model: "icm", seats: 6, payouts: [50, 30, 20], field: { players: 30, avg: 40 }, played: 1 });
     expect(m.news).toEqual([]);
   });
 
-  it("replaces a player out from the other tables, unpaid before the money", () => {
-    const m = moveOn(hand(3, "BTN", { BTN: 20, SB: 10, BB: 30 }, { model: "icm", payouts: [50, 30, 20], field: { players: 2, avg: 20 } }), { BTN: 30, SB: 0, BB: 30 });
-    expect(m.news).toEqual(["SB is out in 5th.", "A player from another table takes SB's seat with 20bb."]);
+  it("replaces a player out from the other tables, unpaid before the money, when the tables need it", () => {
+    // (six left at three-handed tables: two tables of three)
+    const m = moveOn(hand(3, "BTN", { BTN: 20, SB: 10, BB: 30 }, { model: "icm", payouts: [50, 30, 20], field: { players: 4, avg: 20 } }), { BTN: 30, SB: 0, BB: 30 });
+    expect(m.news).toEqual(["SB is out in 7th.", "A player from another table takes SB's seat with 20bb."]);
     // (the button goes to the newcomer in the small blind's place, the big blind's player to the small blind, you to the big blind)
     expect(m.table).toEqual({
       players: 3,
       hero: "BB",
       stacks: { BTN: 20, SB: 30, BB: 30 },
-      tournament: { model: "icm", payouts: [50, 30, 20], field: { players: 1, avg: 20 }, played: 1, news: m.news },
+      tournament: { model: "icm", seats: 3, payouts: [50, 30, 20], field: { players: 3, avg: 20 }, played: 1, news: m.news },
     });
+  });
+
+  it("balances the tables: short-handed while the others are as short, a player in when it falls behind", () => {
+    const six = { UTG: 30, HJ: 30, CO: 30, BTN: 30, SB: 30, BB: 30 };
+    const t: HandTournament = { model: "icm", payouts: [50, 30, 20], field: { players: 6, avg: 30 } };
+    // (11 left at six-handed tables: 6 and 5, so this one plays on five-handed)
+    const one = moveOn(hand(6, "CO", six, t), { ...six, UTG: 0, BTN: 60 });
+    expect(one.news).toEqual(["UTG is out in 12th.", "The table is 5-handed now."]);
+    expect(one.table).toMatchObject({ players: 5, tournament: { seats: 6, field: { players: 6, avg: 30 } } });
+    // (10 left: 5 and 5, still) then 9: 5 and 4
+    const two = moveOn(hand(6, "CO", six, t), { ...six, UTG: 0, HJ: 0, BTN: 90 });
+    expect(two.news.slice(2)).toEqual(["A player from another table takes UTG's seat with 30bb.", "The table is 5-handed now."]);
+    expect(two.table).toMatchObject({ players: 5, tournament: { field: { players: 5, avg: 30 } } });
+    expect(Object.values(two.table!.stacks).sort((a, b) => a - b)).toEqual([30, 30, 30, 30, 90]);
+  });
+
+  it("moves the player due the big blind to another table when this one is long, never you", () => {
+    // (7 left at six-handed tables: 4 and 3. The button goes to SB's player, so HJ's would be the big blind next)
+    const five = { HJ: 25, CO: 30, BTN: 30, SB: 30, BB: 30 };
+    const t: HandTournament = { model: "icm", payouts: [50, 30, 20], seats: 6, field: { players: 2, avg: 20 } };
+    const m = moveOn(hand(5, "CO", five, t), five);
+    expect(m.news).toEqual(["HJ moves to another table with 25bb, to balance the tables.", "The table is 4-handed now."]);
+    expect(m.table!.players).toBe(4);
+    expect(m.table!.tournament.field).toEqual({ players: 3, avg: 21.67 });
+    expect(Object.values(m.table!.stacks)).toEqual([30, 30, 30, 30]);
+    // (you are never the one moved: the next player goes instead)
+    const you = moveOn(hand(5, "HJ", five, t), five);
+    expect(you.news[0]).toBe("CO moves to another table with 30bb, to balance the tables.");
+    expect(Object.values(you.table!.stacks).sort((a, b) => a - b)).toEqual([25, 30, 30, 30]);
+    expect(you.table!.hero).not.toBe("");
+  });
+
+  it("merges the last tables into a final table", () => {
+    // (6 left at six-handed tables: one table, everyone at it)
+    const four = { CO: 30, BTN: 30, SB: 30, BB: 30 };
+    const m = moveOn(hand(4, "SB", four, { model: "icm", payouts: [50, 30, 20], seats: 6, field: { players: 3, avg: 40 } }), { CO: 0, BTN: 60, SB: 30, BB: 30 });
+    expect(m.news).toEqual([
+      "CO is out in 7th.",
+      "A player from another table takes CO's seat with 40bb.",
+      "A player from another table joins with 40bb.",
+      "A player from another table joins with 40bb.",
+      "The last tables merge: a final table of 6.",
+    ]);
+    expect(m.table!.players).toBe(6);
+    expect(m.table!.tournament.field).toBeUndefined();
+    expect(m.table!.tournament.seats).toBe(6);
+    // (from there on it's one table: nobody comes or goes but the busted)
+    const next = moveOn({ ...m.table!, tournament: m.table!.tournament }, { ...m.table!.stacks, [Object.keys(m.table!.stacks).find((p) => p !== m.table!.hero)!]: 0 });
+    expect(next.table!.players).toBe(5);
   });
 
   it("shortens the table with nobody left elsewhere, and bursts the bubble", () => {
@@ -72,8 +122,8 @@ describe("a tournament played out", () => {
 
   it("pays a KO bounty to whoever won the chips, and it follows its player round the table", () => {
     const ko = { format: "ko" as const, seats: { BTN: 10, SB: 10, BB: 12 }, field: 10 };
-    const m = moveOn(hand(3, "BTN", { BTN: 20, SB: 10, BB: 30 }, { model: "icm", payouts: [50, 30, 20], field: { players: 2, avg: 20 }, bounty: ko }), { BTN: 30, SB: 0, BB: 30 });
-    expect(m.news).toEqual(["SB is out in 5th.", "You take SB's bounty, 10.", "A player from another table takes SB's seat with 20bb."]);
+    const m = moveOn(hand(3, "BTN", { BTN: 20, SB: 10, BB: 30 }, { model: "icm", payouts: [50, 30, 20], field: { players: 4, avg: 20 }, bounty: ko }), { BTN: 30, SB: 0, BB: 30 });
+    expect(m.news).toEqual(["SB is out in 7th.", "You take SB's bounty, 10.", "A player from another table takes SB's seat with 20bb."]);
     // (you to the big blind with your 10, BB's player to the small blind with 12, the newcomer on the button with 10)
     expect(m.table!.tournament.bounty).toEqual({ format: "ko", seats: { BTN: 10, SB: 12, BB: 10 }, field: 10 });
     expect(m.table!.tournament.won).toBe(10);
@@ -113,7 +163,7 @@ describe("Practice's tournament session played out", () => {
     const h1 = following(h0, 2, opts);
     expect(h1.hero).toBe("BB");
     expect(h1.stacks).toEqual({ BTN: 20, SB: 40, BB: 30 });
-    expect(h1.tournament).toEqual({ model: "icm", payouts: [50, 30, 20], field: { players: 6, avg: 30 }, played: 1 });
+    expect(h1.tournament).toEqual({ model: "icm", seats: 3, payouts: [50, 30, 20], field: { players: 6, avg: 30 }, played: 1 });
     const again = following(h1, 3, opts, true);
     expect(again.stacks).toEqual({ BTN: 30, SB: 20, BB: 40 });
     expect(again.tournament).toEqual({ model: "icm", payouts: [50, 30, 20], field: { players: 6, avg: 30 }, played: 0 });

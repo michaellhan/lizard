@@ -1,16 +1,21 @@
 // A tournament session played out (Practice's "Play it out"): each hand starts from where the last one left the chips,
 // the button moving on. A player with no chips is out: paid the lowest prize left if the players left are all paid (the
-// prizes left then lose their last place), and replaced from the other tables at their average stack while any are
-// left, else the table gets shorter. Every LEVEL_HANDS hands the blinds go up by LEVEL_RISE (every stack, and the other
-// tables' average, worth that many fewer big blinds; the ante is a share of the big blind, so it rises with it), and
-// the other tables lose FIELD_RATE of their players (whose chips stay among them). You out, or alone with every chip,
+// prizes left then lose their last place), and the tables are balanced (below). Every LEVEL_HANDS hands the blinds go
+// up by LEVEL_RISE (every stack, and the other tables' average, worth that many fewer big blinds; the ante is a share
+// of the big blind, so it rises with it), and the other tables lose FIELD_RATE of their players (whose chips stay
+// among them). You out, or alone with every chip,
 // and the next hand starts the setup over, with what happened in words.
 //
-// All of this is Lizard's own simplification of a tournament, said where the session shows it: no table balancing or
-// merging (the other tables only ever feed this one), a bust's place from the stacks the hand started with, and the
-// other tables' pace a fixed share a level. A bounty goes to whoever won the most chips in the hand that knocked its
-// player out (a side pot's winner may not be the one who covered them), and a player from another table brings the
-// other tables' average bounty as the setup set it, which doesn't grow as a PKO's would.
+// The tables are balanced after every hand (`balancedSize`): the fewest tables that seat everyone left, each within one
+// player of the others. This table takes players from the others at their average stack when it's short, a busted seat
+// first, and when it's long the player due the big blind next moves to another table with their chips (never you: your
+// moving would only change who you face). With one table's worth left, they all sit at this one: the final table.
+//
+// All of this is Lizard's own simplification of a tournament, said where the session shows it: the other tables are a
+// count and an average stack, not tables of their own, a bust's place comes from the stacks the hand started with, and
+// the other tables' pace is a fixed share a level. A bounty goes to whoever won the most chips in the hand that
+// knocked its player out (a side pot's winner may not be the one who covered them), and a player from another table
+// brings the other tables' average bounty as the setup set it, which doesn't grow as a PKO's would.
 import { seatsOf } from "@/poker/seats";
 import type { HandTournament, PracticeHand, TournamentOptions } from "./practice";
 
@@ -42,6 +47,17 @@ const buttonIndex = (n: number) => (n >= 3 ? n - 3 : 0);
 /** The players left in all, at this table and the others. */
 export const leftOf = (players: number, t: Pick<HandTournament, "field">) => players + (t.field?.players ?? 0);
 
+/**
+ * How many players this table seats with `here` at it and `elsewhere` at the other tables, each seating up to `seats`:
+ * the fewest tables that hold everyone, each within one player of the others (as a tournament director balances them),
+ * this one changing as little as it can. One table left holds everyone: the final table.
+ */
+export function balancedSize(here: number, elsewhere: number, seats: number): number {
+  const all = here + elsewhere;
+  const tables = Math.ceil(all / seats);
+  return Math.min(Math.ceil(all / tables), Math.max(Math.floor(all / tables), here));
+}
+
 /** The hands a level lasts and the level a hand is in (0 first). */
 export const levelOf = (t: Pick<HandTournament, "played">) => Math.floor((t.played ?? 0) / LEVEL_HANDS);
 
@@ -53,6 +69,8 @@ export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { 
   const news: string[] = [];
   const paid = t.model === "icm" ? [...(t.payouts ?? [])] : [];
   let field = t.field && t.field.players > 0 ? { ...t.field } : undefined;
+  // (a table seats what the first hand dealt: it starts full)
+  const seats = t.seats ?? h.players;
   const before = leftOf(h.players, { field });
 
   // who's out: places from the bottom, the smaller starting stack first (lower)
@@ -105,37 +123,18 @@ export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { 
     return { table: null, news };
   }
 
-  // the button moves on: the seats in turn from the next button's, the busted ones replaced or gone
+  // the button moves on: the seats in turn from the next button's, the busted ones' seats empty for now
   const b = buttonIndex(h.players);
   const turn = pos.map((_, k) => pos[(b + 1 + k) % pos.length]!);
-  const seated: { from: string; chips: number; bounty: number }[] = [];
-  for (const p of turn) {
-    if (!out.includes(p)) seated.push({ from: p, chips: chips[p]!, bounty: bty?.seats[p] ?? 0 });
-    else if (field && field.players > 0) {
-      seated.push({ from: "", chips: field.avg, bounty: bty?.field ?? 0 });
-      news.push(`A player from another table takes ${p}'s seat with ${fmt(field.avg)}bb.`);
-      field = field.players > 1 ? { players: field.players - 1, avg: field.avg } : undefined;
-    }
-  }
-  if (seated.length < h.players && out.length) news.push(`The table is ${seated.length === 2 ? "heads-up" : `${seated.length}-handed`} now.`);
-  const n = seated.length;
-  const next = seatsOf(n);
-  const nb = buttonIndex(n);
-  const stacks: Record<string, number> = {};
-  const bounties: Record<string, number> = {};
-  let hero = "";
-  seated.forEach((s, k) => {
-    const seat = next[(nb + k) % n]!;
-    stacks[seat] = s.chips;
-    bounties[seat] = s.bounty;
-    if (s.from === h.hero) hero = seat;
-  });
+  type Seat = { from: string; chips: number; bounty: number } | { empty: string };
+  let seated: Seat[] = turn.map((p) => (out.includes(p) ? { empty: p } : { from: p, chips: chips[p]!, bounty: bty?.seats[p] ?? 0 }));
 
-  // the blinds: a new level every LEVEL_HANDS hands
+  // the blinds: a new level every LEVEL_HANDS hands, and the other tables lose players
   const played = (t.played ?? 0) + 1;
   let left = after;
+  let rise = "";
   if (played % LEVEL_HANDS === 0) {
-    for (const p of next) stacks[p] = r2(stacks[p]! / LEVEL_RISE);
+    seated = seated.map((s) => ("from" in s ? { ...s, chips: r2(s.chips / LEVEL_RISE) } : s));
     if (field) {
       const gone = field.players >= 2 ? Math.min(field.players - 1, Math.max(1, Math.round(field.players * FIELD_RATE))) : 0;
       const total = field.players * field.avg;
@@ -143,12 +142,61 @@ export function moveOn(h: Pick<PracticeHand, "players" | "hero" | "stacks"> & { 
       left -= gone;
       if (gone) news.push(`${gone} ${gone === 1 ? "player is" : "players are"} out at the other tables.`);
     }
-    news.push(`The blinds go up (level ${played / LEVEL_HANDS + 1}): every stack is ${LEVEL_RISE}× fewer big blinds.`);
+    rise = `The blinds go up (level ${played / LEVEL_HANDS + 1}): every stack is ${LEVEL_RISE}× fewer big blinds.`;
   }
+
+  // the tables balanced: this one seats what its share of the players left is
+  const here = seated.filter((s) => "from" in s).length;
+  const want = balancedSize(here, field?.players ?? 0, seats);
+  const merging = field && field.players > 0 && want === here + field.players;
+  let joining = Math.max(0, want - here);
+  seated = seated.flatMap((s) => {
+    if ("from" in s) return [s];
+    if (!joining || !field) return [];
+    joining--;
+    news.push(`A player from another table takes ${s.empty}'s seat with ${fmt(field.avg)}bb.`);
+    const s2 = { from: "", chips: field.avg, bounty: bty?.field ?? 0 };
+    field = field.players > 1 ? { players: field.players - 1, avg: field.avg } : undefined;
+    return [s2];
+  });
+  while (joining > 0 && field) {
+    joining--;
+    news.push(`A player from another table joins with ${fmt(field.avg)}bb.`);
+    seated.push({ from: "", chips: field.avg, bounty: bty?.field ?? 0 });
+    field = field.players > 1 ? { players: field.players - 1, avg: field.avg } : undefined;
+  }
+  const sat = seated as { from: string; chips: number; bounty: number }[];
+  while (sat.length > want) {
+    // (the player due the big blind next moves, never you: your moving would only change who you face)
+    let k = sat.length >= 3 ? 2 : 1;
+    if (sat[k]!.from === h.hero) k = (k + 1) % sat.length;
+    const [mover] = sat.splice(k, 1);
+    const f: { players: number; avg: number } = field ?? { players: 0, avg: 0 };
+    field = { players: f.players + 1, avg: r2((f.players * f.avg + mover!.chips) / (f.players + 1)) };
+    news.push(`${mover!.from} moves to another table with ${fmt(mover!.chips)}bb, to balance the tables.`);
+  }
+  if (merging) news.push(`The last tables merge: a final table of ${sat.length}.`);
+  else if (sat.length !== h.players) news.push(`The table is ${sat.length === 2 ? "heads-up" : `${sat.length}-handed`} now.`);
+  if (rise) news.push(rise);
+
+  const n = sat.length;
+  const next = seatsOf(n);
+  const nb = buttonIndex(n);
+  const stacks: Record<string, number> = {};
+  const bounties: Record<string, number> = {};
+  let hero = "";
+  sat.forEach((s, k) => {
+    const seat = next[(nb + k) % n]!;
+    stacks[seat] = s.chips;
+    bounties[seat] = s.bounty;
+    if (s.from === h.hero) hero = seat;
+  });
+
   const payouts = paid.slice(0, left);
   if (paid.length < before && paid.length >= left) news.push(`The bubble bursts: ${left} left, all paid.`);
   const tournament: HandTournament = {
     model: t.model,
+    ...(field || t.seats ? { seats } : {}),
     ...(t.model === "icm" ? { payouts } : {}),
     ...(field ? { field } : {}),
     ...(bty ? { bounty: { format: bty.format, seats: bounties, field: bty.field } } : {}),

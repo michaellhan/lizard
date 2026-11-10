@@ -4608,3 +4608,23 @@ Tests:
 - The page test opens the river after check-check on the K♦; its two EVs add to the river's pot of 10.
 - `plo.e2e.ts` opens it after a turn bet and call on the A♥, on the worker, with the EVs adding to 50.
 - All PLO unit tests and the 4 PLO e2e tests passed. The two heads-up precompute builds were left alone.
+
+### 2026-11-10: table balancing in Practice's tournaments
+
+Before this, a tournament played out in Practice kept your table full while anyone was left at the other tables. That runs too full: with 11 left at six-handed tables, a real tournament plays 6 and 5. Now, after every hand, the tables are balanced. `tournamentPlay.ts` `balancedSize` picks the fewest tables that seat everyone left, each within one player of the others, and changes your table as little as it can.
+- When your table is short, players come from the other tables at their average stack, filling a busted seat first.
+- When it's long, the player due the big blind next moves away with their chips, never you (your moving would only change who you face). Their chips join the other tables' average.
+- With one table's worth left, everyone sits at yours: "The last tables merge: a final table of N."
+- A table seats what the first hand dealt (`HandTournament.seats`, validated on restore in `keep.ts`).
+
+The other tables are still a count and an average stack, which the page's note and the Play it out tip now say.
+
+Tests (`tournamentPlay.test.ts`, 17 in all):
+- five-handed with 11 left, and a player in when 10 are left;
+- the player due the big blind moved, and the next one when that's you;
+- the last tables merging into a final table;
+- the earlier replacement tests moved to spots where the tables need a player.
+
+Checked in a browser: a 6-max session with 2 players at the other tables (8 left) moved UTG's and HJ's players away after the first hand, and the table went 4-handed with every stack where the chips left it.
+
+Also, ROADMAP Phase 4 no longer lists single combos as open: they were painted and locked from 2026-11-05. What's open there now is category paint by combo.

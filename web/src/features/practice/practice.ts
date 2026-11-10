@@ -152,6 +152,8 @@ export interface HandTournament {
   /** KO or PKO bounties ("icm" only), in the prizes' units: each seat's, and the other tables' average. Played out, a
    * bounty follows its player round the table, and a PKO's grows by half of each one its player collects. */
   bounty?: PracticeBounty;
+  /** played out: the players a table seats (the first hand's), which the tables are balanced to */
+  seats?: number;
   /** played out (`playsOn`): hands played in this tournament before this one */
   played?: number;
   /** played out: the bounty money you've collected in this tournament, in the prizes' units */

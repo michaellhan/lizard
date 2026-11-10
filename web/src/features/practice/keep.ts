@@ -90,6 +90,7 @@ const isGame = (x: unknown): x is HandTournament =>
   opt(x.field, (f) => isObj(f) && isCount(f.players) && isNum(f.avg)) &&
   opt(x.bounty, (b) => isObj(b) && (b.format === "ko" || b.format === "pko") && isObj(b.seats) && Object.values(b.seats).every(isNum) && isNum(b.field)) &&
   opt(x.played, isCount) &&
+  opt(x.seats, isCount) &&
   opt(x.won, isNum) &&
   opt(x.news, (n) => isList(n, isStr));
 

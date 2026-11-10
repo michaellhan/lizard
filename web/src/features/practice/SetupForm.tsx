@@ -429,7 +429,7 @@ export function SetupForm({
         title={
           isT
             ? canCarry
-              ? `The tournament moves on: chips carry, a player with none is out (paid if in the money) and replaced from the other tables while any are left, and the blinds go up every ${LEVEL_HANDS} hands. Lizard's own simplification`
+              ? `The tournament moves on: chips carry, a player with none is out (paid if in the money), the tables are balanced after every hand down to a final table, and the blinds go up every ${LEVEL_HANDS} hands. Lizard's own simplification`
               : "A tournament is played out in full hands with your seat moving each hand"
             : canCarry
               ? `A ring game: each player's chips carry to the next hand, a seat under ${REBUY * 100}% of the stack rebuying to it`

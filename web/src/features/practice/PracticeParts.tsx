@@ -420,8 +420,9 @@ export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: S
       </div>
       <p>
         Played out by Lizard&rsquo;s own simplification: the blinds go up {LEVEL_RISE}× every {LEVEL_HANDS} hands, a player out is paid the
-        lowest prize left once all left are paid and is replaced from the other tables while any are left, and the other tables lose
-        {" "}{FIELD_RATE * 100}% of their players a level.
+        lowest prize left once all left are paid, the tables are balanced after every hand (players come from the other tables at
+        their average stack, or the one due the big blind moves away, never you; the last tables merge into a final table), the
+        other tables are only a count and an average stack, and they lose {FIELD_RATE * 100}% of their players a level.
         {t.bounty && " A bounty goes to whoever won the most chips in the hand that knocked its player out, and a player from another table brings the other tables' average bounty."}
       </p>
     </div>

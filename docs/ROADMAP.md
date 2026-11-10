@@ -297,8 +297,9 @@ Moves matrix rows: Aggregate reports, and part of Equity & EQR.
   locked at once, by shape at any node or by made-hand or draw category where the answer has its combos (a class
   whole when at least half its combos are in it); range text in the solver's syntax, single combos read as their
   share of the class (`rangeText.ts`); hands typed as range text painted with the brush at their weights, and an
-  action's hands given back as text. **Still open in Phase 4:** painting single combos (the builder grades classes;
-  its combo-by-combo score says what that costs).
+  action's hands given back as text. Single combos are painted and locked one by one in "Open combos" (2026-11-05 and
+  2026-11-07, `ComboPainter.tsx`), scored combo by combo once any is painted apart. **Still open in Phase 4:** painting
+  a made-hand or draw category by combo (a category paints whole classes).
 - **Scoring, `web/src/features/ranges/`.** Port `blankPaint`, `brush` and `scoreBuild` from `solver/gto/static/study.js:420-458`, with the grade labels at 90, 80 and 65% (`:458`). Painting stays at hand-class level.
 - **Pick a node.** Choose any Study node (via the Study URL) or a library spot. The target strategy comes from the same `study` answer.
 - **Results.**
@@ -452,9 +453,9 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   and ante; a hand history has no prizes left, so they're typed there); its own Study links and grades stay in chips.
   ICM against chips per hand class: "Compare with chip EV" links to the Compare page (tournament A, chips B, each class's
   change), and a chip answer's push/fold all-in is named on its badge ("push/fold equilibrium in chips").
-  Tournaments in Practice played out (2026-11-10, `tournamentPlay.ts`): "Play it out" moves a tournament session on, with chips carried, knockouts paid and replaced from the other tables, the table shortening when none are left, and blinds rising every 10 hands; Lizard's own simplification, said on the page.
+  Tournaments in Practice played out (2026-11-10, `tournamentPlay.ts`): "Play it out" moves a tournament session on, with chips carried, knockouts paid, the tables balanced after every hand down to a final table (2026-11-10: players in from the other tables when this one is short, the one due the big blind moved away when it's long), and blinds rising every 10 hands; Lizard's own simplification, said on the page.
 
-  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins); no table balancing in Practice's tournaments, and no mystery bounties there (KO and PKO bounties came to Practice's tournament sessions on 2026-11-10: set up on the form, sent with every answer, and played out, paid to whoever won the chips, PKO half onto the taker's own).
+  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins); no mystery bounties in Practice's tournaments (KO and PKO bounties came to Practice's tournament sessions on 2026-11-10: set up on the form, sent with every answer, and played out, paid to whoever won the chips, PKO half onto the taker's own).
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).
