@@ -16,6 +16,7 @@ can grade whose options are its in kind, your raise is at the solve's own size, 
 the table's half big blind). Anywhere else your raise stays the chart's, and that decision the chart's.
 
     .venv/bin/python scripts/pf_practice_coverage.py --hands 30000 --policy chart,uniform,solve [--rake] [--own-sizes]
+        [--players 2..6] [--stack 20..200]   (a game of engine/pf_stored.py's grid; 6 players at 100bb by default)
 """
 import argparse
 import collections
@@ -27,8 +28,11 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "solver"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from gto.advisor import Advisor          # noqa: E402
 from gto import pf_study                 # noqa: E402
+from gto.preflop import SEATS as TABLES  # noqa: E402
+import engine.pf_stored                  # noqa: E402,F401  (Lizard's stored games, as the worker has them)
 
 SEATS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]
 RANKS = "23456789TJQKA"
@@ -63,7 +67,7 @@ class Table:
         if not need or len([p for p in self.active if p not in self.allin]) == 0:
             return None
         for k in range(6):
-            p = SEATS[(self.at + k) % 6]
+            p = SEATS[(self.at + k) % len(SEATS)]
             if p in need:
                 return p
         return None
@@ -89,7 +93,7 @@ class Table:
         p, a = m["pos"], m["action"]
         self.line.append(m)
         self.acted.add(p)
-        self.at = (SEATS.index(p) + 1) % 6
+        self.at = (SEATS.index(p) + 1) % len(SEATS)
         if a == "fold":
             self.active.remove(p)
         elif a == "call":
@@ -114,7 +118,7 @@ class Table:
 
 
 def request(t, rake):
-    return dict(players=6, stack=STACK, board="", preflop=[dict(m) for m in t.line], flop=[], turn=[], river=[], **rake)
+    return dict(players=len(SEATS), stack=STACK, board="", preflop=[dict(m) for m in t.line], flop=[], turn=[], river=[], **rake)
 
 
 def read(solve, t, hero, hole, opts, own_sizes):
@@ -166,7 +170,7 @@ def run(policy, hands, seed, rake, own_sizes):
     rnd = random.Random(seed)
     adv = Advisor()
     extra = {"rake": 0.05, "rake_cap": 3} if rake else {}
-    solve = pf_study.held(pf_study.Spec(6, STACK, 0.0, False, (0.05, 3.0) if rake else None))
+    solve = pf_study.held(pf_study.Spec(len(SEATS), STACK, 0.0, False, (0.05, 3.0) if rake else None))
     if solve is None or not solve.stored:
         raise SystemExit("no stored solve")
     seen, why, by = collections.Counter(), collections.Counter(), collections.defaultdict(collections.Counter)
@@ -175,7 +179,7 @@ def run(policy, hands, seed, rake, own_sizes):
         deck = DECK[:]
         rnd.shuffle(deck)
         holes = {p: deck[2 * i] + deck[2 * i + 1] for i, p in enumerate(SEATS)}
-        hero = SEATS[(3 - h) % 6]
+        hero = SEATS[(3 - h) % len(SEATS)]
         t = Table()
         kinds_here = set()
         while True:
@@ -237,12 +241,16 @@ def main():
     ap.add_argument("--seed", type=int, default=20261105)
     ap.add_argument("--rake", action="store_true", help="the 5% capped at 3bb game")
     ap.add_argument("--own-sizes", action="store_true")
+    ap.add_argument("--players", type=int, default=6, help="2 to 6: a stored game of engine/pf_stored.py")
+    ap.add_argument("--stack", type=float, default=100.0)
     a = ap.parse_args()
+    global SEATS, STACK
+    SEATS, STACK = list(TABLES[a.players]), a.stack
     for pol in a.policy.split(","):
         t0 = time.time()
         o = run(pol, a.hands, a.seed, a.rake, a.own_sizes)
         n = sum(o["seen"].values())
-        print(f"== {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
+        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
         for k, v in o["seen"].most_common():
             print(f"  {k:12s} {v:7d} {v / n:6.1%}")
         for pot in ("first in", "facing an open", "facing a 3-bet", "facing a 4-bet", "facing a 5-bet+"):

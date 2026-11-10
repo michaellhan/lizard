@@ -488,7 +488,7 @@ describe("preflop by the stored solve", () => {
     expect(g.pfWhy).toMatch(/no such move here.*raise 9bb.*raise 7\.5bb/);
   });
   it("changes nothing for a hand that isn't one of the stored games: one question, the chart's answer, no word of the solve", async () => {
-    const heads = hu({ SB: 100, BB: 100 }, [{ pos: "SB", action: "raise", to: 2.5 }, { pos: "BB", action: "fold" }] as never);
+    const heads = hu({ SB: 90, BB: 90 }, [{ pos: "SB", action: "raise", to: 2.5 }, { pos: "BB", action: "fold" }] as never);
     const { ask, asked } = pair({ ...CHART, pot_bb: 3 }, NODES.opened);
     const g = await gradeDecision({ id: "x", site: "PokerStars" }, heads, "preflop", 1, ask);
     expect(asked).toHaveLength(1);

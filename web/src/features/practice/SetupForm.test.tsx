@@ -188,11 +188,14 @@ describe("grading preflop by the preflop solve", () => {
   });
   it("isn't there where no solve is stored, and says why", () => {
     open();
-    pick("Players", "2");
+    pick("Players", "8");
     expect(box()).toBeNull();
-    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for 6-max at 100bb only/)).toBeInTheDocument();
+    expect(screen.getByText(/Preflop is graded by the charts here\. The preflop solve is stored for 2 to 6 players only/)).toBeInTheDocument();
+    pick("Players", "2");
+    expect(box()).not.toBeNull();
     pick("Players", "6");
-    typed("Stack in big blinds", "60");
+    typed("Stack in big blinds", "70");
+    expect(screen.getByText(/stored for stacks of 20, 25, .* or 200bb only; the nearest is 60bb/)).toBeInTheDocument();
     expect(box()).toBeNull();
     typed("Stack in big blinds", "100");
     expect(box()).not.toBeNull();
@@ -203,7 +206,7 @@ describe("grading preflop by the preflop solve", () => {
   it("doesn't go on into a game that has no stored solve once it's been ticked", () => {
     const start = open();
     fireEvent.click(box()!);
-    pick("Players", "2");
+    pick("Players", "7");
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSolve");
   });
@@ -253,7 +256,7 @@ describe("grading preflop by the preflop solve", () => {
       const start = open();
       fireEvent.click(box()!);
       fireEvent.click(sizes()!);
-      pick("Players", "2");
+      pick("Players", "7");
       expect(sizes()).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
       expect(start.mock.calls[0]![2]).not.toHaveProperty("pfSizes");

@@ -41,6 +41,13 @@ const EDITS = [
       `             + "            return json.dumps(read_play(adv, st, pl['seat'], pl['hole'], pl.get('seed')))\\n"\n` +
       `             + "        return json.dumps(adv.play(st, pl['seat'], pl['hole'], pl.get('seed')) if pl else adv.advise(st))\\n"`,
   },
+  {
+    // Lizard's stored preflop games (engine/pf_stored.py, in solver.zip beside gto/): importing it adds them to
+    // pf_study.STORED, so the worker answers them from the site's pf/<key>.bin as it does upstream's two. Once, at start,
+    // before any request is answered.
+    from: "sys.path.insert(0, '/app'); from gto.advisor import Advisor;",
+    to: "sys.path.insert(0, '/app'); import engine.pf_stored; from gto.advisor import Advisor;",
+  },
 ];
 
 export function editWorker(source) {

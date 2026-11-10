@@ -27,13 +27,15 @@ import { isEquilibriumHand } from "./sessions";
 import { basisOf, isGraded, isPfSolve, LEAK_RULE, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
+import { PF_DEPTHS_WORDS } from "@/solver/pfStored";
+
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const pair = ([a, b]: readonly [number, number]) => `${pct(a)} to ${pct(b)}`;
 const bbs = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100) / 100}bb`);
 
 /** What the grades stand on, said wherever they are shown. */
 export const GRADED_ON =
-  `In a game the preflop solve is stored for (6-max at 100bb each, with no ante or straddle, and no rake or 5% capped at 3bb), a preflop decision is graded by EV against that solve wherever its tree holds the spot: an ${PF_MODEL}, and its EVs are against its own ranges. Anywhere else it's graded against the preflop charts by how often your hand takes the action: the charts aren't a solve and have no EVs, so no EV lost is counted. Each says which graded it, and the two are never added together. A hand played in Practice is read as its table read it; a site's history says no rake, so it's read as the game with none. After the flop a decision is graded against what answered it, which it names: the precomputed flop library, a stored turn, a read at once, or a Quick or Fast solve; by EV where that answer has EVs, by frequency where it hasn't. A rough or cut-short solve can't condemn a line: its grade stops at Inaccuracy. The betting rules and equity guesses are never graded against. Tournament hands are graded in chips, with no ICM or bounties.`;
+  `In a game the preflop solve is stored for (2 to 6 players at equal stacks of ${PF_DEPTHS_WORDS}, with no ante or straddle, and no rake or 5% capped at 3bb), a preflop decision is graded by EV against that solve wherever its tree holds the spot: an ${PF_MODEL}, and its EVs are against its own ranges. Anywhere else it's graded against the preflop charts by how often your hand takes the action: the charts aren't a solve and have no EVs, so no EV lost is counted. Each says which graded it, and the two are never added together. A hand played in Practice is read as its table read it; a site's history says no rake, so it's read as the game with none. After the flop a decision is graded against what answered it, which it names: the precomputed flop library, a stored turn, a read at once, or a Quick or Fast solve; by EV where that answer has EVs, by frequency where it hasn't. A rough or cut-short solve can't condemn a line: its grade stops at Inaccuracy. The betting rules and equity guesses are never graded against. Tournament hands are graded in chips, with no ICM or bounties.`;
 
 /** What each scope asks of the solver. */
 const SCOPE_NOTES: Record<GradeScope, string> = {

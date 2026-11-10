@@ -173,6 +173,18 @@ describe("a stored answer's version", () => {
     expect((await ask(near, async () => stamp)).provenance.libraryVersion).toBe("library:srp_co_bb:11112222:undefined:abc");
   });
 
+  it("is the whole library's for a read at once off the library, and none for one off a solve", async () => {
+    const read = (kind: string) => ({ actions: [], approximate: { source: kind, label: "x" } }) as AdvisorResponse;
+    for (const kind of ["near", "unraked", "off_tree"]) expect((await ask(read(kind), async () => stamp)).provenance).toMatchObject({ source: "instant", libraryVersion: "library:*:ffff" });
+    for (const kind of ["prev"]) {
+      const stamps = vi.fn(async () => stamp);
+      const p = (await ask(read(kind), stamps)).provenance;
+      expect(p.source).toBe("instant");
+      expect(p.libraryVersion).toBeUndefined();
+      expect(stamps).not.toHaveBeenCalled();
+    }
+  });
+
   it("isn't asked for on a live answer", async () => {
     const stamps = vi.fn(async () => stamp);
     expect((await ask(LIVE, stamps)).provenance.libraryVersion).toBeUndefined();

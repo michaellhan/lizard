@@ -19,12 +19,13 @@ import type { Street } from "@/poker/table";
 import type { Provenance } from "@/solver/types";
 import { betAmount, gameWords, gradeOf } from "./mistakes";
 import { dueAfter } from "./schedule";
+import { stampParts } from "@/grading/version";
 
 /** The provenance a kept decision can tell. It keeps its source, its line in words, its version, its band and confidence,
  * so a badge says what it said; the rest isn't guessed: with a build stamp the backend was the page's solver, without one
  * it isn't known. The line is the one written then. */
 export function decisionProvenance(d: Pick<DecisionRecord, "source" | "label" | "version" | "approximate" | "band" | "confidence" | "triageSource" | "gradedAt">): Provenance {
-  const build = d.version?.startsWith("build:") ? d.version.slice("build:".length) : "";
+  const { build = "", library } = stampParts(d.version);
   const said = d.confidence && !d.label.includes("confidence");
   return {
     source: isSource(d.source) ? d.source : "unknown",
@@ -37,7 +38,7 @@ export function decisionProvenance(d: Pick<DecisionRecord, "source" | "label" | 
     keptLabel: said ? `${d.label} · ${d.confidence} confidence` : d.label,
     ...(d.band ? { band: d.band } : {}),
     ...(d.confidence ? { confidence: d.confidence } : {}),
-    ...(d.version?.startsWith("library:") ? { libraryVersion: d.version } : {}),
+    ...(library ? { libraryVersion: library } : {}),
   };
 }
 

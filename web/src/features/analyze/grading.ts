@@ -227,7 +227,7 @@ export function pfOut(hand: Pick<HandRecord, "tournament" | "setup">, r: Pick<Re
   const h = r.hand;
   if (hand.tournament !== undefined) return "A tournament's stacks and prizes aren't the game the preflop solve is stored for.";
   if (r.setup.limit === "pot" || h.hole.length !== 2) return "The preflop solve is of no-limit hold'em.";
-  if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks of 100bb only.";
+  if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks only.";
   const { sizes, rake = 0, rakeCap = 0 } = hand.setup ?? {};
   return pfBlocked(h.players, h.stack, { ante: h.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
 }

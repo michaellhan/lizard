@@ -548,6 +548,36 @@ test("7h. The solve's raise sizes are offered once the first box is ticked, off 
   await clean(page, problems);
 });
 
+test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the preflop solve from that game's own file", async ({ page, problems }) => {
+  const fetched: string[] = [];
+  page.on("request", (r) => {
+    if (/\/solver\/pf\//.test(r.url())) fetched.push(r.url());
+  });
+  await session(page, "preflop", async () => {
+    await page.getByLabel("Players", { exact: true }).selectOption("4");
+    await page.getByLabel("Stack in big blinds").fill("40");
+    await page.getByLabel("Grade preflop by the preflop solve").check();
+  });
+  const next = page.getByRole("button", { name: "Next hand" });
+  const solve = page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first();
+  let bySolve = 0;
+  for (let i = 0; i < 60 && !bySolve; i += 1) {
+    await expect(options(page).first().or(next)).toBeVisible({ timeout: 90_000 });
+    if (await next.isVisible()) {
+      await next.click();
+      continue;
+    }
+    await options(page).first().click();
+    await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
+    if (await solve.isVisible()) bySolve += 1;
+  }
+  expect(bySolve).toBeGreaterThan(0);
+  await expect(page.getByText(/not a full solve/).first()).toBeVisible();
+  // (that game's file and no other: never the 6-max one read as if it were this game)
+  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["4max_40bb.bin"]);
+  await clean(page, problems);
+});
+
 test("7i. A link that lands on a hand under way asks first, with keeping it the focused answer", async ({ page, problems }) => {
   await session(page, "preflop", async () => {});
   await options(page).first().or(page.getByRole("button", { name: "Next hand" })).waitFor({ timeout: 90_000 });

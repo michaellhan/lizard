@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHART, LIVE, STORED } from "@/test/mistake";
-import { countVersions, keptCounts, spotVersion, storedMoved, versionNote, versionOf, versionSpan, versionSummary, versionWords } from "./version";
+import { countVersions, keptCounts, spotVersion, stampParts, storedMoved, versionNote, versionOf, versionSpan, versionSummary, versionWords } from "./version";
 
 const A = "build:1a14605e/aaaaaaaaaa";
 const B = "build:2b25716f/bbbbbbbbbb";
@@ -28,7 +28,7 @@ describe("a grade's version", () => {
     expect(versionWords(A)).toBe("solver build 1a14605e/aaaaaaaaaa");
     expect(versionWords(SPOT)).toBe("library srp_btn_bb 11112222");
     expect(versionWords(`${SPOT}:Ac4d3h:d749b47d1b`)).toBe("library srp_btn_bb 11112222");
-    expect(versionWords("library:*:abcd")).toBe("library for stored turns abcd");
+    expect(versionWords("library:*:abcd")).toBe("library as a whole abcd");
     expect(versionWords(undefined)).toBe("unknown");
     expect(versionWords("something else")).toBe("unknown");
   });
@@ -36,6 +36,22 @@ describe("a grade's version", () => {
   it("drops its flop's entry for a session's counts", () => {
     expect(spotVersion(`${SPOT}:Ac4d3h:d749b47d1b`)).toBe(SPOT);
     expect(spotVersion(A)).toBe(A);
+    expect(spotVersion(`${A}+${SPOT}:Ac4d3h:d749b47d1b`)).toBe(`${A}+${SPOT}`);
+  });
+
+  it("is the build and the library for a read at once off the library, as either moving moves the answer", () => {
+    const instant = { ...LIVE, source: "instant" as const };
+    expect(versionOf(instant)).toBe("build:1.0");
+    expect(versionOf({ ...instant, libraryVersion: "library:*:ab" })).toBe("build:1.0+library:*:ab");
+    expect(versionOf({ ...instant, libraryVersion: "library:*:ab", solverVersion: "dev" })).toBeUndefined();
+    expect(versionWords(`${A}+library:*:abcd`)).toBe("solver build 1a14605e/aaaaaaaaaa and library as a whole abcd");
+    expect(versionWords(`${A}+nonsense`)).toBe("unknown");
+    expect(stampParts(`${A}+library:*:abcd`)).toEqual({ build: "1a14605e/aaaaaaaaaa", library: "library:*:abcd" });
+    expect(stampParts(SPOT)).toEqual({ library: SPOT });
+    expect(stampParts(undefined)).toEqual({});
+    // (the library moving under the same build is a change, and so is the build under the same library)
+    expect(span([`${A}+library:*:aa`], [`${A}+library:*:bb`]).changed.map((c) => c.what)).toEqual(["library as a whole"]);
+    expect(span([`${A}+library:*:aa`], [`${B}+library:*:aa`]).changed.map((c) => c.what)).toEqual(["solver build"]);
   });
 });
 

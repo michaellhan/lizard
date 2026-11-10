@@ -4776,3 +4776,42 @@ Tests:
 Checked in a browser on the dev server: the same hand pasted, the river put in the form and solved (11,310 by 448 combos, 0.074% in 0.4 s). Its turn with the default ranges and sizes was refused over the limit, in words.
 
 The PLO4 row stays PARTIAL.
+
+### 2026-11-10: the preflop solve stored for 2 to 6 players at 20 to 200bb, and Instant grades stamped with the library
+
+The owner asked why so many rows are PARTIAL. Most of their notes say the same thing: preflop is the charts. So the stored
+preflop solve now covers far more of what Practice and Analyze play. Before, Practice's "Grade preflop by the preflop solve" and
+Analyze's preflop grading covered only upstream's two stored games, 6-max 100bb with no rake or 5% capped at 3bb.
+
+- **The grid.** 108 more games are stored: 2 to 6 players at 20, 25, 30, 40, 50, 60, 80, 100, 125, 150 and 200bb, unraked
+  and 5% capped at 3bb (`engine/pf_stored.py`, `engine/pf/*.bin`, built by `scripts/pf/build_stored.py`). It's the same
+  model and 1,500 iterations as upstream's two, each 0.05 to 1.34 mbb/hand a seat from equilibrium in its own game. The
+  build took 49 minutes through `slot.sh`, and the files total 1.1 MB.
+- **solver/ is untouched.** The worker imports `engine.pf_stored` at start (a build-time edit, declared in
+  `solver/UPSTREAM.json`), and the asset build copies the files beside upstream's. The bundle's version now hashes the stored
+  files too.
+- **The gate.** `pfBlocked` takes any stored game and names the nearest stored depth when refusing. Analyze's message no
+  longer says 100bb. The page's list is `web/src/solver/pfStored.ts`.
+- **Coverage, measured on seven grid games** (ACCURACY section 18.3). With the solve's sizes, deep 6-max is answered
+  about 96% of the time, as at 100bb. At 25 to 60bb, the chart's jams against the tree's 12bb raise leave much of
+  facing-an-open and facing-a-3-bet on the charts. That's stated, not hidden.
+- **Instant stamps.** A read at once off the library (the engine's `near`, `unraked`, `off_tree`) keeps the build and the
+  whole library's stamp together (`build:<v>+library:*:<id>`), so a library change under the same build shows in Leak
+  finding and Reports. Reads of a stopped solve or the street before keep the build alone. The `library:*` stamp now reads
+  "library as a whole".
+- **Also fixed this session.** A drill's number keys now read the hand on screen through a ref set as it commits, so a
+  key pressed right after the next deal showed is no longer lost. That was the DrillsPanel test CI failed on.
+
+Tests:
+- `scripts/engine/test_pf_stored.py`, 4 passing: the grid installed beside upstream; every file unpacks to its own game's
+  tree and is under 1.5 mbb; the Advisor answers grid games stored and done; a game off the grid is `pf_unsolved`.
+- `pfStored.test.ts`, 4 passing.
+- `pfGrade.test.ts`, `SetupForm.test.tsx` and `grading.test.ts` moved their unstored examples to 7 players or 90bb.
+- `version.test.ts` and `client.test.ts` cover the compound stamp.
+- The full unit suite passed.
+
+Checked in a browser on the dev server: a 4-max 40bb Practice table graded two preflop decisions by the solve. The
+badge's 1.03 mbb/hand is `4max_40bb.bin`'s. `qa.e2e.ts` 7j does the same in the gate.
+
+No grade in the matrix changed. The solve is still a class-level model and still opt-in, so the rows' notes say what's
+now covered, and the PARTIALs stay. The two heads-up precompute builds were left alone.

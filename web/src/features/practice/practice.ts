@@ -39,6 +39,7 @@ import type { Provenance } from "@/solver/types";
 import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./exploit";
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { flopsLike, type TextureFilter } from "./texture";
+import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE } from "@/solver/pfStored";
 
 export interface Decision {
   street: Street;
@@ -294,19 +295,21 @@ export const carries = (o: HandOptions & GameOptions) => !!o.carry && (o.seat ??
  * the button. */
 export const playsOn = (o: HandOptions & GameOptions) => !!o.tournament && !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly;
 
-/** The rake of the one raked game the preflop solve is stored for (web/public/solver/pf/6max_100bb_r5c3.bin). */
-export const PF_STORED_RAKE = { pct: 5, cap: 3 };
+export { PF_STORED_RAKE } from "@/solver/pfStored";
 
 /** Why a session can't be graded by the preflop solve, in words; null where it can. It can only where the worker already
- * holds a stored solve of this very game (pf_study.STORED), as Practice never starts one. */
+ * holds a stored solve of this very game (pf_study.STORED and Lizard's grid, `@/solver/pfStored`), as Practice never
+ * starts one. */
 export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "pot" | "ante" | "straddle" | "carry" | "seat" | "preflopOnly" | "sizes" | "rake" | "rakeCap"> & GameOptions): string | null {
   const stored = "The preflop solve is stored for";
+  const solveFirst = "This game would need a solve first, and Practice doesn't start one: Study can.";
   if (o.pot) return "One kind of pot plays your preflop for you, so there's no preflop decision to grade.";
   if (o.tournament) return "A tournament's stacks and prizes aren't the game the preflop solve is stored for.";
-  if (players !== 6 || stack !== 100) return `${stored} 6-max at 100bb only. This game would need a solve first, and Practice doesn't start one: Study can.`;
-  if (o.ante || o.straddle) return `${stored} no ante and no straddle only. This game would need a solve first, and Practice doesn't start one: Study can.`;
-  if (o.rake && !(o.rake === PF_STORED_RAKE.pct && o.rakeCap === PF_STORED_RAKE.cap)) return `${stored} no rake, or ${PF_STORED_RAKE.pct}% capped at ${PF_STORED_RAKE.cap}bb. This game would need a solve first, and Practice doesn't start one: Study can.`;
-  if (carries(o)) return "Carried chips leave stacks other than the solve's 100bb each.";
+  if (!(PF_PLAYERS as readonly number[]).includes(players)) return `${stored} 2 to ${PF_PLAYERS.at(-1)} players only. ${solveFirst}`;
+  if (!(PF_DEPTHS as readonly number[]).includes(stack)) return `${stored} stacks of ${PF_DEPTHS_WORDS} only; the nearest is ${nearestDepth(stack)}bb. ${solveFirst}`;
+  if (o.ante || o.straddle) return `${stored} no ante and no straddle only. ${solveFirst}`;
+  if (o.rake && !(o.rake === PF_STORED_RAKE.pct && o.rakeCap === PF_STORED_RAKE.cap)) return `${stored} no rake, or ${PF_STORED_RAKE.pct}% capped at ${PF_STORED_RAKE.cap}bb. ${solveFirst}`;
+  if (carries(o)) return `Carried chips leave stacks other than the solve's ${stack}bb each.`;
   if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
   return null;
 }

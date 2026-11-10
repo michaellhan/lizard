@@ -232,7 +232,7 @@ the honest one for flops.
 | 6-max 100bb charts (`gto/preflop.py`) | Hand-written ranges "approximations of solver outputs" (`preflop.py:3`), tuned to published aggregate frequencies (gtopreflop.com, the GTO Wizard blog, Poker Academy and others; `tests/preflop_refs.py:1-20`) [V] | 0.96 points mean over 26 spots (`README.md:4547-4551`) [M]. Squeezes, 4-bet responses and cold calls vs 3-bets have one published figure each; 5-bets and limped pots have none and are judgement [M] |
 | Other formats (`pf_formats.py`) | The 100bb charts shifted by deltas from solves of the abstract preflop game | Approximate. About a point of noise per decision; antes solved only at 20/40/100bb; straddle 6-handed only (`README.md:4566-4577`) [M] |
 | Push/fold (≤ 12 bb raising first in; under 20 bb generally) | Fictitious play over 169 classes (`pf_classes.py:65`) [V] | An equilibrium of a jam-or-fold model; callers treated alike and independently [V] |
-| Preflop solve (Study, and Practice's preflop by choice, section 18) | DCFR over the abstract preflop game (`pf_game.py`) | About 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from published spots; opens tighter in places (UTG 14.8% vs the charts' 18.7%) [M] |
+| Preflop solve (Study, and Practice's and Analyze's preflop by choice, sections 18-18.3; stored for 110 games) | DCFR over the abstract preflop game (`pf_game.py`) | About 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from published spots; opens tighter in places (UTG 14.8% vs the charts' 18.7%) [M] |
 | Rake, pool (exploit) adjustments | Rules on top of the charts | Fitted to one published raked solve, or to public population data plus judgement (`README.md:4578-4579; pool: `README.md:1529``) [M] |
 
 Five `@expectedFailure` tests (`tests/test_gto.py:2797-2932`) document that the equity-realization models disagree
@@ -985,6 +985,78 @@ Practice's stored and live drills need no split: a stored drill's score covers o
 turn, and a live drill refuses an answer without EVs. One place still puts the kinds side by side: "The most EV lost" ranks single
 decisions of both kinds, each labelled, with nothing added. A leak drill graded only by the preflop solve and kept before this
 still reads as plain EV.
+
+### 18.3 The stored grid: 2 to 6 players, 20 to 200bb (2026-11-10)
+
+Upstream stores two games (6-max 100bb, unraked and 5% capped at 3bb). Lizard now stores 108 more beside them: 2 to 6 players
+at 20, 25, 30, 40, 50, 60, 80, 100, 125, 150 and 200bb, equal stacks, no ante or straddle, the engine's sizes, unraked and
+5% capped at 3bb (`engine/pf_stored.py`). Wherever section 18 says "the stored game", it now means any of the 110.
+
+**What they are.** The same model and the same solve as upstream's two: `pf_study.Spec(players, stack, rake)`, pf_game's
+DCFR over the 169 classes for `STORED_ITERS` (1,500) iterations, packed by `pf_study.pack` with the stored (quantized)
+strategy's exploitability in the header. Built by `scripts/pf/build_stored.py` into `engine/pf/`, one thread, through the
+shared CPU slot, in 49 minutes in all (heads-up under 1 s a game, 6-max up to 212 s). 1.1 MB in all, 0.7 KB to 83 KB a
+file. Each game's line is in `engine/pf/built.jsonl`.
+
+| Players | Games | Stored strategy from equilibrium, mbb/hand a seat | Longest build |
+|---|---:|---|---:|
+| 2 | 22 | 0.05 to 0.22 | 0.8 s |
+| 3 | 22 | 0.05 to 0.70 | 2.1 s |
+| 4 | 22 | 0.09 to 1.10 | 12 s |
+| 5 | 22 | 0.13 to 1.34 | 92 s |
+| 6 | 20 | 0.12 to 1.26 | 212 s |
+
+Every one is under the 1.5 mbb a live solve stops at (`TARGET_MBB`), as `scripts/engine/test_pf_stored.py` checks, with
+each file unpacked against its own game's tree. That is distance from equilibrium **in the model's own game**. Nothing here
+measures the model against a fuller solve at these depths and table sizes. Section 6's 2.4 to 3.0 points from published
+spots was measured at 6-max 100bb only, and the realization model's depth factors (`pf_study.DEPTH_SCALE`) were fitted at
+20, 40, 100 and 200bb. 25 to 150bb are interpolated between those.
+
+**How the worker gets them.** `solver/` is untouched. `engine/pf_stored.py` adds the keys to `pf_study.STORED` and, natively,
+reads the files from `engine/pf/`. The worker imports it once at start (a build-time edit declared in `solver/UPSTREAM.json`),
+and `scripts/build-solver-assets.mjs` copies the files to the site's `pf/`, where the worker already fetched upstream's two.
+They come down only when a game is asked for. The bundle's version now hashes every stored file, so a rebuilt solve is a new
+version in a grade's stamp. The page's list (`web/src/solver/pfStored.ts`) is held to the Python grid and to the files by
+`pfStored.test.ts`, so the page never offers a game the worker would answer `pf_unsolved`.
+
+**Where it's used.** The same three places, through the same gate (`practice.ts` `pfBlocked`):
+- Practice's "Grade preflop by the preflop solve", now offered at any stored game, and refused elsewhere naming the nearest
+  stored depth;
+- Analyze, for a hand of equal stacks at a stored game;
+- a saved setup that carries the option.
+
+Study's Solver source answers these at once rather than solving. The option stays off by default. The opponents still play
+the charts, and every grade is labelled the class-level model.
+
+**Coverage [M], 2026-11-10.** `scripts/pf_practice_coverage.py`, now with `--players` and `--stack`. Native, 5,000 hands a game
+on the section's seed, you playing the charts, unraked:
+
+| Game | Answered | First in | Facing an open | Facing a 3-bet | With the solve's sizes | EV lost a decision (sizes on) |
+|---|---:|---:|---:|---:|---:|---:|
+| Heads-up 100bb | 82.2% | 78.4% | 89.8% | 79.7% | 95.8% | 0.055bb |
+| 3 players 50bb | 64.5% | 100% | 24.3% | 18.3% | 92.3% | 0.047bb |
+| 4 players 40bb | 67.0% | 100% | 31.5% | 44.7% | 67.0% | 0.024bb |
+| 5 players 25bb | 83.9% | 100% | 67.4% | 60.1% | 83.9% | 0.021bb |
+| 6 players 60bb | 69.7% | 100% | 48.4% | 0.0% | 90.7% | 0.021bb |
+| 6 players 150bb | 71.0% | 100% | 48.1% | 3.5% | 96.0% | 0.031bb |
+| 6 players 200bb | 70.7% | 100% | 48.4% | 3.9% | 95.6% | 0.031bb |
+
+The deep 6-max games behave as 100bb did: the blinds' 3-bet size is most of what's refused, and the solve's sizes take it to
+about 96%.
+
+**At 25 to 60bb the sizes don't help.** Most refusals there are your options differing in kind. Facing an open, the chart's
+table offers all-in, call or fold, and the solve's tree offers a raise to 12bb (or 14.5bb), call or fold. At 4 players 40bb that
+is 68.5% of the decisions facing an open, and at 5 players 25bb 32.6%. The rule doesn't score a jam against a raise, so these
+stay on the charts by frequency and say why. Facing a 3-bet at 6 players 60bb nothing is answered: the 4-bet is a raise to
+17.25bb in the tree and an all-in at the table. A tree with a jam in the 3-bet's place at those depths would be another model,
+and it isn't built.
+
+Heads-up first in is 78.4% without the sizes because the small blind's chart open is not the tree's 3bb open.
+
+**Not established.** A browser checked one game: Practice at 4 players 40bb, two preflop decisions graded by the solve, the
+badge's 1.03 mbb/hand matching `4max_40bb.bin`'s and not the 6-max file's (`web/e2e/qa.e2e.ts` 7j). The other 106 are checked
+natively, by the file test and the coverage runs above. Raked games' coverage wasn't measured separately (at 6-max 100bb it
+matched the unraked game's to the decimal).
 
 ## 19. Nut advantage on Reports (2026-11-06)
 

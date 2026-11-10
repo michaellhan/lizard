@@ -73,6 +73,9 @@ export class NodeLockError extends SolverError {
   }
 }
 
+/** The reads at once that read the flop library (solver/gto/advisor.py instant_from_near, _unraked, _off_tree). */
+const LIBRARY_READS: ReadonlySet<string> = new Set(["near", "unraked", "off_tree"]);
+
 export class SolverClient {
   private queue: Queued[] = [];
   private running = false;
@@ -89,9 +92,14 @@ export class SolverClient {
   }
 
   /** A stored answer's version: the entry the engine names, or for a stored turn, which names none, the whole library's
-   * (or the nearest spot's, where it read another). None where the library's index can't be read. */
+   * (or the nearest spot's, where it read another). A read at once off the library gets the whole library's. None where the library's index can't be read. */
   private async stamped(data: AdvisorResponse, p: Provenance): Promise<Provenance> {
-    if ((p.source !== "library" && p.source !== "library-turn") || !this.libraryStamp) return p;
+    // (a read at once off the library, Advisor.instant's "near", "unraked" and "off_tree", is the library read by this
+    // build: its stamp has both, grading/version.ts. It names no spot, so the library's is the whole one's. A read of
+    // a solve stopped part way or of the street before isn't the library's.)
+    const kind = (data.approximate as { source?: unknown } | null | undefined)?.source;
+    const readsLibrary = p.source === "instant" && typeof kind === "string" && LIBRARY_READS.has(kind);
+    if ((p.source !== "library" && p.source !== "library-turn" && !readsLibrary) || !this.libraryStamp) return p;
     const stamp = await this.libraryStamp().catch(() => null);
     const near = (data.approximate as { near_spot?: unknown } | null | undefined)?.near_spot;
     const spot = data.precomputed?.spot ?? (typeof near === "string" ? near : undefined);

@@ -5,6 +5,8 @@
 //   library:<spot>:<id>[:<flop>:<entry>]     a stored spot (library/version.ts): its solves' ranges and tree, and where
 //                                            the answer names its flop, that entry's hash
 //   library:*:<id>                           the whole library, for a stored turn: the engine's answer names no spot
+//   build:<solver build>+library:...         a read at once (Instant): the build that read it and the library spot it
+//                                            read, as either moving changes the answer
 // A grade with no stamp was made before stamps were kept, on a local server (whose build the page can't see) or on a
 // development build: its version is unknown, and is said so. Nothing here works one out from when a grade was made.
 import type { Provenance } from "@/solver/types";
@@ -14,11 +16,26 @@ export function versionOf(p: Provenance | null | undefined): string | undefined 
   if (!p) return undefined;
   if (p.source === "library" || p.source === "library-turn") return p.libraryVersion;
   if (p.transport !== "worker" || !p.solverVersion || p.solverVersion === "dev") return undefined;
-  return `build:${p.solverVersion}`;
+  const build = `build:${p.solverVersion}`;
+  return p.source === "instant" && p.libraryVersion?.startsWith("library:") ? `${build}+${p.libraryVersion}` : build;
+}
+
+/** A stamp's build and library parts (a read at once has both). */
+export function stampParts(v: string | null | undefined): { build?: string; library?: string } {
+  const out: { build?: string; library?: string } = {};
+  for (const x of v?.split("+") ?? []) {
+    if (x.startsWith("build:") && x.length > 6) out.build = x.slice(6);
+    else if (x.startsWith("library:")) out.library = x;
+  }
+  return out;
 }
 
 /** A library stamp without its flop's entry: what a session's counts keep, as a session holds many flops. */
-export const spotVersion = (v: string): string => (v.startsWith("library:") ? v.split(":").slice(0, 3).join(":") : v);
+export const spotVersion = (v: string): string =>
+  v
+    .split("+")
+    .map((x) => (x.startsWith("library:") ? x.split(":").slice(0, 3).join(":") : x))
+    .join("+");
 
 interface Part {
   /** what's at a version: the same `key` at two `id`s is a change */
@@ -29,18 +46,27 @@ interface Part {
 
 /** What a stamp says; null for one this page can't read, which counts as unknown. */
 function partsOf(v: string): Part[] | null {
+  if (v.includes("+")) {
+    const each = v.split("+").map(partsOf);
+    return each.length === 2 && each.every(Boolean) ? each.flatMap((x) => x!) : null;
+  }
   if (v.startsWith("build:") && v.length > 6) return [{ key: "build", what: "solver build", id: v.slice(6) }];
   const [kind, spot, id, flop, entry] = v.split(":");
   if (kind !== "library" || !spot || !id) return null;
-  if (spot === "*") return [{ key: "library", what: "library for stored turns", id }];
+  if (spot === "*") return [{ key: "library", what: "library as a whole", id }];
   const parts = [{ key: `library:${spot}`, what: `library ${spot}`, id }];
   return flop && entry ? [...parts, { key: `entry:${spot}:${flop}`, what: `library ${spot} on ${flop}`, id: entry }] : parts;
 }
 
 /** A stamp in words, "unknown" where there's none. */
 export function versionWords(v: string | null | undefined): string {
-  const p = v ? partsOf(v) : null;
-  return p ? `${p[0]!.what} ${p[0]!.id}` : "unknown";
+  if (!v || !partsOf(v)) return "unknown";
+  // (each part's first: a library stamp's flop entry stays out of the words; a read at once says its build and spot)
+  return v
+    .split("+")
+    .map((x) => partsOf(x)![0]!)
+    .map((p) => `${p.what} ${p.id}`)
+    .join(" and ");
 }
 
 /** How many grades stand on each stamp; null: none, or none that can be read. */
@@ -71,7 +97,7 @@ export function keptCounts(kept: Readonly<Record<string, number>> | undefined, n
 /** Whether a stored answer's own spot or entry stands at another version. The id for stored turns moves whenever a spot
  * joins the library, so it can't say that of one answer. */
 export function storedMoved(a: string | undefined, b: string | undefined): boolean {
-  return versionSpan(countVersions(a ? [a] : []), countVersions(b ? [b] : [])).changed.some((c) => !c.what.startsWith("library for"));
+  return versionSpan(countVersions(a ? [a] : []), countVersions(b ? [b] : [])).changed.some((c) => c.what !== "library as a whole");
 }
 
 const total = (c: VersionCounts) => [...c.values()].reduce((a, b) => a + b, 0);

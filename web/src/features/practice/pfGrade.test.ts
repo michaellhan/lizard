@@ -47,13 +47,21 @@ const bb = () => spot("BB", ["Ah", "Kd"], toBb);
 describe("where it can be set", () => {
   const plain = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 
-  it("is the two stored games and nothing else", () => {
+  it("is the stored games and nothing else", () => {
     expect(pfBlocked(6, 100, plain)).toBeNull();
     expect(pfBlocked(6, 100, { ...plain, preflopOnly: true })).toBeNull();
     expect(pfBlocked(6, 100, { ...plain, rake: 5, rakeCap: 3 })).toBeNull();
+    // (Lizard's grid: 2 to 6 players at the stored depths, raked or not)
+    for (const [p, s] of [[2, 100], [3, 20], [4, 40], [5, 200], [6, 60], [6, 125]] as const) {
+      expect(pfBlocked(p, s, plain)).toBeNull();
+      expect(pfBlocked(p, s, { ...plain, rake: 5, rakeCap: 3 })).toBeNull();
+    }
     for (const [p, s, o] of [
-      [2, 100, plain],
-      [6, 60, plain],
+      [7, 100, plain],
+      [9, 100, plain],
+      [6, 65, plain],
+      [2, 250, plain],
+      [6, 12, plain],
       [6, 100, { ...plain, ante: 0.1 }],
       [6, 100, { ...plain, straddle: true }],
       [6, 100, { ...plain, rake: 5, rakeCap: 0 }],
@@ -66,13 +74,16 @@ describe("where it can be set", () => {
     ] as const) expect(pfBlocked(p, s, o as never)).toMatch(/\w+ \w+/);
   });
   it("is said in words that send you to Study, not into a solve", () => {
-    expect(pfBlocked(2, 100, plain)).toMatch(/would need a solve first, and Practice doesn't start one/);
+    expect(pfBlocked(7, 100, plain)).toMatch(/^The preflop solve is stored for 2 to 6 players only\. This game would need a solve first, and Practice doesn't start one: Study can\.$/);
+    expect(pfBlocked(6, 65, plain)).toMatch(/^The preflop solve is stored for stacks of 20, 25, 30, 40, 50, 60, 80, 100, 125, 150 or 200bb only; the nearest is 60bb\. This game would need/);
   });
   it("marks a hand only where the session can have it", () => {
     expect(newHand(6, 100, 0, 7, { pfSolve: true }).pfSolve).toBe(true);
     expect(newHand(6, 100, 0, 7, {}).pfSolve).toBeUndefined();
     expect(newHand(6, 100, 0, 7, { pfSolve: true, pot: "srp" }).pfSolve).toBeUndefined();
-    expect(newHand(3, 100, 0, 7, { pfSolve: true }).pfSolve).toBeUndefined();
+    expect(newHand(3, 100, 0, 7, { pfSolve: true }).pfSolve).toBe(true);
+    expect(newHand(7, 100, 0, 7, { pfSolve: true }).pfSolve).toBeUndefined();
+    expect(newHand(6, 90, 0, 7, { pfSolve: true }).pfSolve).toBeUndefined();
   });
 });
 
@@ -432,7 +443,8 @@ describe("kept apart", () => {
     expect(s.opts.pfSolve).toBe(true);
     expect(scenarioWords(s)).toContain("preflop graded by the preflop solve");
     expect(readSetup({ players: 6, stack: 100, opts: {} })!.opts).not.toHaveProperty("pfSolve");
-    expect(readSetup({ players: 2, stack: 100, opts })).toBeNull();
+    expect(readSetup({ players: 7, stack: 100, opts })).toBeNull();
+    expect(readSetup({ players: 6, stack: 90, opts })).toBeNull();
     expect(readSetup({ players: 6, stack: 100, opts: { pfSolve: true, pot: "srp" } })).toBeNull();
     expect(readSetup({ players: 6, stack: 100, opts: { pfSolve: 1 } })).toBeNull();
   });

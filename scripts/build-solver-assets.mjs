@@ -4,10 +4,11 @@
 //               web/src/solver/protocol.ts
 //   solver.zip  every solver/gto/*.py + the wasm cores + treys, from solver/scripts/build_bundle.py, then Lizard's own
 //               engine/*.py (pyodide/bundle_engine.py); both deterministic
-//   pf/*.bin    stored preflop solves the worker reads synchronously (siteFetch "pf/<key>.bin")
+//   pf/*.bin    stored preflop solves the worker reads synchronously (siteFetch "pf/<key>.bin"): upstream's two and
+//               Lizard's grid from engine/pf/ (engine/pf_stored.py)
 //   pyodide/*   the Python runtime and numpy, each checked against its pinned SHA-256 (pyodide/stage.mjs); kept across
 //               runs, so only the first needs the network
-//   manifest.json  { version, upstream, pyodide, builtAt, files }: version = sha1(worker.js + solver.zip + the pins)[:10],
+//   manifest.json  { version, upstream, pyodide, builtAt, files }: version = sha1(worker.js + solver.zip + the pins + pf/*.bin)[:10],
 //               which the worker needs (10 hex digits) to keep its bundle in the Cache API, and which busts caches on
 //               every change (its cached bytecode is for one Python).
 import { createHash } from "node:crypto";
@@ -54,14 +55,25 @@ const bundleSha = execFileSync(python(), [join(ROOT, "scripts", "pyodide", "bund
   encoding: "utf8",
 }).trim();
 
-const pfDir = join(SOLVER, "gto", "static", "pf");
-const pf = readdirSync(pfDir).filter((f) => f.endsWith(".bin"));
-for (const f of pf) cpSync(join(pfDir, f), join(OUT, "pf", f));
+// upstream's two stored games, then Lizard's grid (engine/pf_stored.py, built by scripts/pf/build_stored.py); a name in
+// both would be two solves of one game, so that fails the build
+const pfFrom = new Map();
+for (const dir of [join(SOLVER, "gto", "static", "pf"), join(ROOT, "engine", "pf")]) {
+  if (!existsSync(dir)) continue;
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".bin"))) {
+    if (pfFrom.has(f)) throw new Error(`pf/${f} is stored twice: ${pfFrom.get(f)} and ${dir}`);
+    pfFrom.set(f, dir);
+  }
+}
+const pf = [...pfFrom.keys()].sort();
+for (const f of pf) cpSync(join(pfFrom.get(f), f), join(OUT, "pf", f));
 
 const h = createHash("sha1");
 h.update(readFileSync(join(OUT, "worker.js")));
 h.update(readFileSync(join(OUT, "solver.zip")));
 h.update(readFileSync(FILES_JSON));
+// (a stored solve rebuilt is a new version, so a grade's stamp says which strategy graded it)
+for (const f of pf) h.update(readFileSync(join(OUT, "pf", f)));
 const version = h.digest("hex").slice(0, 10);
 
 const manifest = {
