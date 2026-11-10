@@ -8,7 +8,7 @@
 // pick after it has no grade: it adds nothing to the score and keeps no mistake, and the session only counts how many
 // there were. What no file stores, a river and a turn facing a bet, is a live drill's (LiveDrill.tsx): the same page and
 // settings, each hand answered by a solve.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -454,8 +454,15 @@ function SpotDrill({
     if (graded) nextRef.current?.focus();
   }, [graded]);
 
+  // The keys read the hand on the screen through a ref set as it commits: an effect re-bound after paint left a key pressed
+  // straight after the next deal showed with the last hand's handler, which took it as nothing (CI caught it on 2026-11-10).
+  const keyState = useRef({ pr, graded, choose, next });
+  useLayoutEffect(() => {
+    keyState.current = { pr, graded, choose, next };
+  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const { pr, graded, choose, next } = keyState.current;
       const tag = (e.target as HTMLElement | null)?.tagName ?? "";
       if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
       if (pr && !graded && /^[1-9]$/.test(e.key) && Number(e.key) <= pr.names.length) choose(Number(e.key) - 1);
@@ -467,7 +474,7 @@ function SpotDrill({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pr, graded, choose, next]);
+  }, []);
 
   if (data.st === "loading") return <p className="text-sm text-muted">Loading {spot.label}…</p>;
   if (data.st === "error")
