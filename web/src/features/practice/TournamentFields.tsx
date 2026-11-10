@@ -3,7 +3,7 @@
 // every seat starts with the same KO or PKO bounty (played out, a bounty follows its player, and a PKO's grows), and a
 // mystery's envelopes are typed one by one ("500, 100x4, 25x20"), as played out each knockout draws one.
 import { LIMITS } from "@/features/solve/setup";
-import { PAYOUT_PRESETS, parsePayouts, pastedPayouts, STAGE_PRESETS, stageAnte, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
+import { FORMAT_PRESETS, PAYOUT_PRESETS, parsePayouts, pastedPayouts, presetAnte, STAGE_PRESETS, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { PUSH_FOLD_MAX, type TournamentOptions } from "./practice";
 
@@ -101,9 +101,10 @@ export function stageDraft(st: StagePreset): { players: number; stack: number; a
   return {
     players: st.players,
     stack: top,
-    ante: stageAnte(st.players),
+    ante: presetAnte(st),
     draft: {
-      model: "icm",
+      // (one prize: chips are prizes, which is chip EV)
+      model: st.payouts.length >= 2 ? "icm" : "chips",
       payouts: st.payouts.join(", "),
       stacks: Object.fromEntries(seats.flatMap((p, i) => (st.stacks[i] !== top ? [[p, String(st.stacks[i])]] : []))),
       others: st.field ? String(st.field.players) : "",
@@ -151,20 +152,29 @@ export function TournamentFields({
       {onStage && (
         <select
           aria-label="Stage"
-          title="Sets the table, each seat's chips, a 1bb big-blind ante, the prizes left and the other tables at once (Lizard's own shapes, not any site's)"
+          title="Sets the table, each seat's chips, the ante (a 1bb big-blind ante at an MTT's stages, none at a sit & go's start), the prizes left and the other tables at once (Lizard's own shapes, not any site's)"
           value=""
           onChange={(e) => {
-            const st = STAGE_PRESETS.find((x) => x.name === e.target.value);
+            const st = [...STAGE_PRESETS, ...FORMAT_PRESETS].find((x) => x.name === e.target.value);
             if (st) onStage(st);
           }}
           className={INPUT}
         >
-          <option value="">A stage…</option>
-          {STAGE_PRESETS.map((st) => (
-            <option key={st.name} value={st.name} title={st.about}>
-              {st.name}
-            </option>
-          ))}
+          <option value="">A stage or format…</option>
+          <optgroup label="Stages of an MTT">
+            {STAGE_PRESETS.map((st) => (
+              <option key={st.name} value={st.name} title={st.about}>
+                {st.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Sit & go and spin">
+            {FORMAT_PRESETS.map((st) => (
+              <option key={st.name} value={st.name} title={st.about}>
+                {st.name}
+              </option>
+            ))}
+          </optgroup>
         </select>
       )}
       <label className="flex items-center gap-1">

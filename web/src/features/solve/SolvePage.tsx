@@ -14,7 +14,7 @@ import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
 import { bubbleTableOf } from "@/features/tournaments/icm";
-import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
 import { LIMITS, numsOf, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
@@ -143,7 +143,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setPlayers(st.players);
     setStack(String(top));
     setStacks(Object.fromEntries(order.flatMap((p, i) => (st.stacks[i] !== top ? [[p, String(st.stacks[i])]] : []))));
-    setAnte(String(stageAnte(st.players)));
+    setAnte(presetAnte(st) ? String(presetAnte(st)) : "");
     setPayouts(st.payouts.join(" "));
     setFieldN(st.field ? String(st.field.players) : "");
     setFieldAvg(st.field ? String(st.field.avg) : "");
@@ -235,10 +235,18 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   </button>
                 ))}
               </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Formats">
+                <span className="text-muted">Formats:</span>
+                {FORMAT_PRESETS.map((st) => (
+                  <button key={st.name} type="button" title={st.about} aria-pressed={stage === st} onClick={() => setUpStage(st)} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 aria-pressed:bg-surface-2">
+                    {st.name}
+                  </button>
+                ))}
+              </div>
               <p className="text-xs text-muted" aria-live="polite">
                 {stage
-                  ? `Set up: ${stage.name}. ${stage.about}; a 1bb big-blind ante, as ${stageAnte(stage.players)}bb a seat. Change anything below; the stage's numbers are Lizard's own, not any site's.`
-                  : "A stage sets the table, each seat's chips, the ante, the prizes left and the other tables at once, from the start of a hand."}
+                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}. Change anything below; the numbers are Lizard's own, not any site's.`
+                  : "A stage or a format sets the table, each seat's chips, the ante, the prizes left and the other tables at once, from the start of a hand."}
               </p>
             </div>
             <div className="space-y-1.5 text-sm">

@@ -80,6 +80,8 @@ export interface StagePreset {
   stacks: number[];
   payouts: number[];
   field?: { players: number; avg: number };
+  /** each seat's ante, bb: 0 for none (unset: a 1bb big-blind ante, `stageAnte`) */
+  ante?: number;
 }
 
 const FINAL_TABLE = PAYOUT_PRESETS[2]!.payouts;
@@ -134,6 +136,63 @@ export const STAGE_PRESETS: readonly StagePreset[] = [
 
 /** A stage's ante: a big-blind ante of 1bb, as each seat's share (rounded to 0.01bb). */
 export const stageAnte = (players: number): number => Math.round(100 / players) / 100;
+
+/** A preset's ante a seat, bb: its own, else a 1bb big-blind ante. */
+export const presetAnte = (st: Pick<StagePreset, "ante" | "players">): number => st.ante ?? stageAnte(st.players);
+
+/** The ante in words, for a preset's note. */
+export const anteWords = (st: Pick<StagePreset, "ante" | "players">): string => {
+  const a = presetAnte(st);
+  return !a ? "no ante" : st.ante === undefined ? `a 1bb big-blind ante, as ${a}bb a seat` : `an ante of ${a}bb a seat`;
+};
+
+/**
+ * Sit & go and spin formats, set up at once as the stages are: a table, each seat's chips, the ante and the prizes.
+ * Generic shapes of Lizard's own, not any site's: the usual payouts of each format (a 9-player sit & go pays 3, a 6-player
+ * one 2, a double or nothing half the table the same, a spin winner takes all) at round starting stacks. A spin pays one
+ * prize, so its chips are its prizes: it's answered in chip EV.
+ */
+export const FORMAT_PRESETS: readonly StagePreset[] = [
+  {
+    name: "Sit & go, 9 players",
+    about: "The start of a 9-player sit & go paying 50/30/20, everyone 75bb, no ante",
+    players: 9,
+    stacks: [75, 75, 75, 75, 75, 75, 75, 75, 75],
+    payouts: [50, 30, 20],
+    ante: 0,
+  },
+  {
+    name: "Sit & go bubble",
+    about: "Four left of a 9-player sit & go paying 50/30/20, stacks from 9 to 24bb: one more bust and everyone left is paid",
+    players: 4,
+    stacks: [24, 16, 9, 18],
+    payouts: [50, 30, 20],
+  },
+  {
+    name: "Sit & go, 6 players",
+    about: "The start of a 6-player sit & go paying 65/35, everyone 75bb, no ante",
+    players: 6,
+    stacks: [75, 75, 75, 75, 75, 75],
+    payouts: [65, 35],
+    ante: 0,
+  },
+  {
+    name: "Double or nothing",
+    about: "A 6-player double or nothing, the last 3 paid the same, everyone 50bb, no ante",
+    players: 6,
+    stacks: [50, 50, 50, 50, 50, 50],
+    payouts: [1, 1, 1],
+    ante: 0,
+  },
+  {
+    name: "Spin, 3 players",
+    about: "A 3-player spin, winner takes all, everyone 25bb, no ante: one prize, so chips are prizes and it's chip EV",
+    players: 3,
+    stacks: [25, 25, 25],
+    payouts: [100],
+    ante: 0,
+  },
+];
 
 /** Money as people write it, made plain: no currency sign or percent sign, no thousands commas ("$1,000" -> "1000"). */
 const plainMoney = (t: string) => t.replace(/[$€£¥%]/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");

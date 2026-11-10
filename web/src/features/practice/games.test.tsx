@@ -283,6 +283,20 @@ describe("the New session form", () => {
     expect(start).toHaveBeenCalledWith(3, 20, expect.objectContaining({ preflopOnly: true, rake: 0, straddle: false, tournament: { model: "icm", payouts: [50, 30, 20], field: { players: 6, avg: 20 }, stacks: { BTN: 25, SB: 8, BB: 20 } } }));
   });
 
+  it("sets up a sit & go or a spin at once, a spin's one prize in chip EV", () => {
+    const start = open();
+    pick("Play", "tournament");
+    pick("Stage", "Sit & go, 6 players");
+    expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("6");
+    go();
+    expect(start).toHaveBeenLastCalledWith(6, 75, expect.objectContaining({ tournament: expect.objectContaining({ model: "icm", payouts: [65, 35] }) }));
+    expect(start.mock.lastCall![2].ante ?? 0).toBe(0);
+    pick("Stage", "Spin, 3 players");
+    expect(screen.getByRole("combobox", { name: "Answers in" })).toHaveValue("chips");
+    go();
+    expect(start).toHaveBeenLastCalledWith(3, 25, expect.objectContaining({ tournament: expect.objectContaining({ model: "chips" }) }));
+  });
+
   it("sets up a stage of an MTT at once: the table, each seat's chips, the ante and the prizes", () => {
     const start = open();
     pick("Play", "tournament");

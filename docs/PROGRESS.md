@@ -4657,3 +4657,23 @@ Tests:
 Checked in a browser on QA 14d's river solve (Ks7d2c5h9d): Two pair went from 18 hands by class to 86 combos by combo. Painted at bet 75%, the grid marked them "N combos painted apart", and the score read "Graded combo by combo over 313.0 live combos".
 
 This also closes Phase 4's last open item in ROADMAP. The Range-builder row stays WORKING; only a screen reader and touch device check of it are left.
+
+### 2026-11-10: sit & go and spin formats
+
+The Tournaments page had stages of an MTT and no formats, which the MTT row noted. A "Formats" group now sits beside the stages, and the same presets are in Practice's tournament form under "Sit & go and spin" (`tournament.ts` `FORMAT_PRESETS`). They're Lizard's own generic shapes, not any site's:
+- a 9-player sit & go, 75bb, paying 50/30/20;
+- its bubble: 4 left, 9–24bb, a 1bb big-blind ante;
+- a 6-player sit & go paying 65/35;
+- a 6-player double or nothing paying 3 the same;
+- a 3-player spin, winner takes all, at 25bb. One prize makes chips the prizes, so Practice sets it to chip EV.
+
+A preset can now carry its own ante (`StagePreset.ante`, `presetAnte`, `anteWords`). A format's start has none, and the page says so.
+
+Tests:
+- `tournament.test.ts`: every format passes the checks, with its ante.
+- `SolvePage.test.tsx`: the buttons set the table, the ante and the prizes.
+- `games.test.tsx`: Practice's form, a spin in chip EV.
+
+Checked in a browser: the sit & go bubble opened in Study answered in prize equity ("CO 31.4% of what's left to pay", bubble factors up to 1.69).
+
+The MTT row stays PARTIAL, for the preflop chart with a risk premium.

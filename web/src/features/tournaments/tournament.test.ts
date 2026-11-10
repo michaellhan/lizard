@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { describeTournament, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { anteWords, describeTournament, FORMAT_PRESETS, paidCurve, presetAnte, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
 
@@ -130,5 +130,26 @@ describe("the stages of an MTT", () => {
     expect(describeTournament({ payouts: STAGE_PRESETS[1]!.payouts })).toEqual(["payouts 11.8/6.8/4.9 … 115 places, the last 0.3"]);
     expect(stageAnte(8)).toBe(0.13);
     expect(stageAnte(9)).toBe(0.11);
+  });
+});
+
+describe("the sit & go and spin formats", () => {
+  it("each sets up a table the checks pass, with its own ante", () => {
+    for (const st of FORMAT_PRESETS) {
+      expect(st.stacks, st.name).toHaveLength(st.players);
+      const t: TournamentSetup = { payouts: st.payouts };
+      expect(tournamentProblems(st.players, t), st.name).toEqual([]);
+      expect(setupProblems(st.players, { stacks: {}, ante: presetAnte(st), tournament: t }), st.name).toEqual([]);
+      // (fewer paid than players: someone goes home with nothing)
+      expect(st.payouts.length, st.name).toBeLessThan(st.players);
+    }
+    const by = (name: string) => FORMAT_PRESETS.find((x) => x.name === name)!;
+    expect(presetAnte(by("Sit & go, 9 players"))).toBe(0);
+    expect(anteWords(by("Sit & go, 9 players"))).toBe("no ante");
+    expect(presetAnte(by("Sit & go bubble"))).toBe(0.25);
+    expect(anteWords(by("Sit & go bubble"))).toBe("a 1bb big-blind ante, as 0.25bb a seat");
+    expect(anteWords({ players: 6, ante: 0.1 })).toBe("an ante of 0.1bb a seat");
+    expect(describeTournament({ payouts: by("Double or nothing").payouts })).toEqual(["a satellite, 3 equal seats"]);
+    expect(by("Spin, 3 players").payouts).toEqual([100]);
   });
 });

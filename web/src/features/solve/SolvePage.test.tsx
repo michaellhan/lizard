@@ -183,7 +183,29 @@ describe("SolvePage", () => {
     expect((screen.getAllByRole("textbox", { name: "Payouts" }).at(-1) as HTMLInputElement).value.split(" ")).toHaveLength(115);
     // Clear forgets it
     fireEvent.click(screen.getAllByRole("button", { name: /^Clear/ }).at(-1)!);
-    expect(screen.getAllByText(/^A stage sets the table/).at(-1)).toBeInTheDocument();
+    expect(screen.getAllByText(/^A stage or a format sets the table/).at(-1)).toBeInTheDocument();
+  });
+
+  it("sets up a sit & go or spin format at once, with no ante at its start", () => {
+    open("p=6&s=100", "/tournaments");
+    const formats = screen.getByRole("group", { name: "Formats" });
+    fireEvent.click(within(formats).getByRole("button", { name: "Sit & go, 9 players" }));
+    expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("9");
+    expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(75);
+    expect(screen.getByRole("spinbutton", { name: "Ante" })).toHaveValue(null);
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("50 30 20");
+    expect(screen.getByText(/^Set up: Sit & go, 9 players\..*; no ante\. Change anything below/)).toBeInTheDocument();
+    expect(problems()).toBeNull();
+    // its bubble has the stages' big-blind ante
+    fireEvent.click(within(formats).getByRole("button", { name: "Sit & go bubble" }));
+    expect(screen.getByRole("spinbutton", { name: "Ante" })).toHaveValue(0.25);
+    expect(screen.getByText(/a 1bb big-blind ante, as 0\.25bb a seat\./)).toBeInTheDocument();
+    // a spin's one prize: winner takes all, no bubble factors
+    fireEvent.click(within(formats).getByRole("button", { name: "Spin, 3 players" }));
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("100");
+    expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(25);
+    expect(screen.queryByRole("region", { name: "Bubble factors" })).toBeNull();
+    expect(problems()).toBeNull();
   });
 
   it("opens a Study spot's tournament as it was set, mystery bounties too", () => {
