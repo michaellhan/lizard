@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ROUTES, type RouteStatus } from "@/app/routes";
+import { routeGrade, ROUTES, type RouteDef, type RouteStatus } from "@/app/routes";
 
 const BADGE: Record<RouteStatus, { text: string; cls: string }> = {
   working: { text: "Working", cls: "bg-accent/15 text-accent" },
@@ -31,7 +31,7 @@ export function HomePage() {
           <Link key={r.path} to={`/${r.path}`} className="rounded-lg border border-border bg-surface p-4 hover:border-accent/50">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-semibold">{r.label}</h2>
-              <span className={`rounded px-2 py-0.5 text-xs ${BADGE[r.status].cls}`}>{BADGE[r.status].text}</span>
+              <Badge r={r} />
             </div>
             <p className="mt-1 text-sm text-muted">{r.summary}</p>
           </Link>
@@ -51,3 +51,18 @@ export function HomePage() {
     </div>
   );
 }
+
+/** A page's badge from the feature matrix's rows it delivers: "Working" only where all are, else how many are, the
+ * others named with their grades in its label (docs/FEATURE_MATRIX.md). */
+function Badge({ r }: { r: RouteDef }) {
+  const g = routeGrade(r);
+  const b = BADGE[g.status];
+  if (g.status !== "partial" || !g.total) return <span className={`rounded px-2 py-0.5 text-xs ${b.cls}`}>{b.text}</span>;
+  const rest = g.others.map(([n, grade]) => `${n}: ${grade.toLowerCase()}`).join("; ");
+  return (
+    <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${b.cls}`} title={`Not yet working: ${rest}`} aria-label={`${g.working} of ${g.total} features working; not yet: ${rest}`}>
+      {g.total === 1 ? b.text : `${g.working} of ${g.total} working`}
+    </span>
+  );
+}
+

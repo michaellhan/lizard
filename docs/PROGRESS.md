@@ -4452,3 +4452,9 @@ The row is WORKING by the owner's rule of 2026-11-08 (38 of 63). Left: the profi
 
 
 **CI.** The deploys of e53e1b6, e460e2c and c2fd656 didn't publish: a browser test (`modes.e2e.ts`, reduced motion) measured the Hands table on its first frame, before its rows laid out, and failed twice; then a unit test (`DrillsPanel.test.tsx`) waited the default 1 s for a grade on a slow runner. Both now wait for the condition itself (15 s and 10 s). Both pass here, the browser test 3 of 3.
+
+### 2026-11-10: the home page's badges follow the feature matrix
+
+Every area card on the home page read "Partial" except Library, with 38 of 63 rows WORKING, because each page's badge was a fixed `status` in `web/src/app/routes.ts`, set when the page was first built and never tied to `docs/FEATURE_MATRIX.md`. Now each page lists the matrix rows it delivers and its badge is worked out from their Lizard grades: "Working" when all are, else "N of M working" (one row: "Partial"), with the rows not yet working and their grades in its tooltip and label. `routes.test.tsx` reads the matrix and fails when a row is renamed, when a grade in `routes.ts` differs from the matrix's, or when a page has no rows. So a grade change has to be made in both places, and the badges can't drift again.
+
+Checked in a browser (dev server): Study 10 of 11 (Preflop approximate), Practice 8 of 10, Analyze 5 of 8, Solve 7 of 10, Tournaments 2 of 7; Reports, Ranges, History and Saved "Working"; Plan and Review "Partial" (Study plans). Library, Engine and Settings carry no matrix row and stay "Working".
