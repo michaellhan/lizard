@@ -3,6 +3,7 @@
 // [cards, reach, mix, EVs, equity, made, draw]; the last two index into the answer's `categories` (breakdown.py
 // MADE / DRAWS). A filter's key is "m:<id>" or "d:<id>", or "q:<lowest %>" for an equity bucket over the same rows.
 import { classCombos } from "@/engine/nlhe/cards";
+import { comboName } from "@/features/ranges/rangeText";
 import type { AdvisorActionStat, AdvisorResponse, ComboRow, GridCell } from "@/solver/protocol";
 
 /** The equity buckets' bounds, as shares: a hand's equity against the opponent's whole range at the node. */
@@ -80,6 +81,17 @@ export function classesIn(res: AdvisorResponse, key: string): string[] {
     }
     if (w > 0 && inCat >= w / 2 - 1e-9) out.push(cls);
   }
+  return out;
+}
+
+/** The combos in a category, each by its class and name (`comboName`): every combo of the range (reach above nothing)
+ * whose own row is in it, whatever its class's other combos are. What the range builder paints for a category by combo. */
+export function combosIn(res: AdvisorResponse, key: string): { cls: string; combo: string }[] {
+  const cat = catsOf(res).find((c) => c.key === key);
+  if (!cat) return [];
+  const col = cat.part === "m" ? 5 : 6;
+  const out: { cls: string; combo: string }[] = [];
+  for (const [cls, rows] of Object.entries(res.combos ?? {})) for (const x of rows) if (x[1] > 0 && x[col] === cat.i) out.push({ cls, combo: comboName(x[0]) });
   return out;
 }
 

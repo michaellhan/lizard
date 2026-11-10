@@ -2,7 +2,8 @@
 // the answer's own (features/ranges/build.ts). Painting: pick a brush (an action, at a share of the hand) and click
 // or drag over hands; keys 1-9 pick a brush, Ctrl/Cmd+Z undoes, Shift+Ctrl/Cmd+Z or Ctrl+Y redoes. The lock tool
 // keeps hands from being painted. A group of hands (a shape, or a made-hand or draw category where the answer has its
-// combos) takes the brush or the lock at once, and so do hands typed as range text. Where the answer has combos, a
+// combos) takes the brush or the lock at once, and so do hands typed as range text; a category can take the brush by
+// combo instead, only its own combos each painted apart. Where the answer has combos, a
 // hand opens to paint each of them (ComboPainter.tsx), and a paint with combos of its own is graded combo by combo. A
 // combo painted apart can be locked there too. Every lock, a hand's or a combo's, is an undo step; none changes a score.
 // Each scored range is kept in IndexedDB (sessions, kind "build").
@@ -31,6 +32,7 @@ import {
   isComboLocked,
   lockClasses,
   lockCombo,
+  paintCombos,
   paintParsed,
   paintRange,
   paintRangeWeights,
@@ -56,7 +58,7 @@ import {
 import { formatRange, parseRange } from "@/features/ranges/rangeText";
 import { ComboPainter } from "./ComboPainter";
 import { StudySplit } from "./StudySplit";
-import { catsOf, classesIn } from "./filters";
+import { catsOf, classesIn, combosIn } from "./filters";
 
 /** What a node's builder keeps while Study moves on and back (by the node's request). */
 export interface BuildSaved {
@@ -133,6 +135,8 @@ export function BuildMode({
     const classes = shape ? Object.keys(g.cells).filter(shape.has) : classesIn(res, group);
     return classes.filter((cls) => (g.cells[cls]?.w ?? 0) > 0);
   }, [g, res, group]);
+  // a category painted by combo: only the combos whose own row is in it, each apart from its class
+  const [byCombo, setByCombo] = useState(false);
 
   // (combos can be painted only where they can be graded: every class in the range has its rows)
   const hasCombos = useMemo(() => scoreByCombo(res, {}) != null, [res]);
@@ -227,10 +231,14 @@ export function BuildMode({
   const groupFree = inGroup.filter((cls) => !held.has(cls));
   const paintGroup = () => {
     const cur = hRef.current.now;
-    if (typeof tool === "number") commit(record(hRef.current, paintRange(cur, inGroup, tool, amt, d, heldClasses(cur, res))));
+    if (typeof tool === "number" && comboGroup) commit(record(hRef.current, paintCombos(cur, groupCombos, tool, amt, d, heldClasses(cur, res))));
+    else if (typeof tool === "number") commit(record(hRef.current, paintRange(cur, inGroup, tool, amt, d, heldClasses(cur, res))));
     else if (tool === "lock") commit(record(hRef.current, lockClasses(cur, inGroup, !groupLocked)));
   };
-  const groupN = tool === "lock" ? inGroup.length : tool === "combos" ? 0 : groupFree.length;
+  // (by combo: the brush only; a lock still goes by hand, as a combo on its class's mix has nothing of its own to hold)
+  const comboGroup = byCombo && hasCombos && group[1] === ":" && group[0] !== "s" && typeof tool === "number";
+  const groupCombos = comboGroup ? combosIn(res, group).filter(({ cls, combo }) => h.now.classes[cls] && !held.has(cls) && !isComboLocked(h.now, cls, combo)) : [];
+  const groupN = tool === "lock" ? inGroup.length : tool === "combos" ? 0 : comboGroup ? groupCombos.length : groupFree.length;
 
   // hands typed as range text: the brush's action at each one's weight (none: all of it), as one undo step
   const [text, setText] = useState("");
@@ -488,11 +496,21 @@ export function BuildMode({
                 type="button"
                 onClick={paintGroup}
                 disabled={!groupN}
-                title={inGroup.join(" ")}
+                title={comboGroup ? groupCombos.map((c) => c.combo).join(" ") : inGroup.join(" ")}
                 className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
               >
-                {tool === "lock" ? (groupLocked ? "Unlock" : "Lock") : "Paint"} {groupN} hand{groupN === 1 ? "" : "s"}
+                {tool === "lock" ? (groupLocked ? "Unlock" : "Lock") : "Paint"} {groupN} {comboGroup ? "combo" : "hand"}
+                {groupN === 1 ? "" : "s"}
               </button>
+              {hasCombos && group[0] !== "s" && (
+                <label
+                  className="flex items-center gap-1 text-xs"
+                  title="Paint only the combos in the category, each apart from its class, rather than the classes mostly in it. Then the score goes combo by combo. A lock still goes by hand"
+                >
+                  <input type="checkbox" aria-label="By combo" checked={byCombo} onChange={(e) => setByCombo(e.target.checked)} />
+                  <span className="text-muted">By combo</span>
+                </label>
+              )}
             </div>
             <details className="rounded border border-border px-2 py-1">
               <summary className="cursor-pointer text-xs text-muted">As range text</summary>

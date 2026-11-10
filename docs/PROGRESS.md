@@ -4645,3 +4645,15 @@ Tests (`tournamentPlay.test.ts`, 20 in all):
 Checked in a browser: a 6-max session with 25 envelopes showed "mystery envelopes left 25 (average 56)". Its preflop answer was badged "Preflop charts · chip chart with a risk premium, mystery bounties at the average envelope · approximate".
 
 The Mystery bounty row stays APPROXIMATE: a knockout is valued at the average envelope left, not as a spread.
+
+### 2026-11-10: a category painted by combo in the range builder
+
+A made-hand or draw category painted whole classes: those with at least half their combos in it. Now a "By combo" box beside the category paints only the combos whose own row is in it, each apart from its class, as one undo step (`study/filters.ts` `combosIn`, `ranges/build.ts` `paintCombos`). The box shows only where the answer has combos. The button counts combos ("Paint 86 combos"), and its title lists them. A lock still goes by hand, since a combo on its class's mix has nothing of its own to hold. Once combos are painted apart, the score goes combo by combo, as it already did for single combos.
+
+Tests:
+- `filters.test.ts`: a category's combos, apart from their class's other combos, and none with no reach.
+- `BuildMode.test.tsx`: a flush draw by class (AKs whole) and by combo (AhKh alone), undo, the lock by hand, and no box for a shape.
+
+Checked in a browser on QA 14d's river solve (Ks7d2c5h9d): Two pair went from 18 hands by class to 86 combos by combo. Painted at bet 75%, the grid marked them "N combos painted apart", and the score read "Graded combo by combo over 313.0 live combos".
+
+This also closes Phase 4's last open item in ROADMAP. The Range-builder row stays WORKING; only a screen reader and touch device check of it are left.

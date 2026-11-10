@@ -298,8 +298,9 @@ Moves matrix rows: Aggregate reports, and part of Equity & EQR.
   whole when at least half its combos are in it); range text in the solver's syntax, single combos read as their
   share of the class (`rangeText.ts`); hands typed as range text painted with the brush at their weights, and an
   action's hands given back as text. Single combos are painted and locked one by one in "Open combos" (2026-11-05 and
-  2026-11-07, `ComboPainter.tsx`), scored combo by combo once any is painted apart. **Still open in Phase 4:** painting
-  a made-hand or draw category by combo (a category paints whole classes).
+  2026-11-07, `ComboPainter.tsx`), scored combo by combo once any is painted apart. A made-hand or draw category can take the brush
+  by combo, only its own combos (2026-11-10, "By combo"). Phase 4 has nothing open but a screen reader and touch
+  device check of the builder.
 - **Scoring, `web/src/features/ranges/`.** Port `blankPaint`, `brush` and `scoreBuild` from `solver/gto/static/study.js:420-458`, with the grade labels at 90, 80 and 65% (`:458`). Painting stays at hand-class level.
 - **Pick a node.** Choose any Study node (via the Study URL) or a library spot. The target strategy comes from the same `study` answer.
 - **Results.**

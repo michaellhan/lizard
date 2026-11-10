@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { actionColors } from "@/components/actions";
 import { putSession, recentSessions } from "@/data/db";
-import type { AdvisorResponse, RangeGridData } from "@/solver/protocol";
+import type { AdvisorResponse, ComboRow, RangeGridData } from "@/solver/protocol";
 import { describe as describeProvenance } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 
@@ -582,6 +582,33 @@ describe("BuildMode", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(cell("QQ")).toHaveAccessibleName("QQ: yours check 100%; locked");
     expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+  });
+
+  it("paints a category by combo: only its own combos, each apart from its class, as one undo step", () => {
+    // AhKh a flush draw, the other two not: by class AKs goes whole (half its reach is in it), by combo only AhKh
+    const fd = (row: ComboRow, draw: number): ComboRow => [row[0], row[1], row[2], row[3], row[4], 0, draw];
+    const res: BuildRes = {
+      ...COMBOS,
+      categories: { made: [["top", "Top pair"]], draws: [["fd", "Flush draw"], ["none", "No draw"]] },
+      combos: { AKs: COMBOS.combos!.AKs!.map((r, i) => fd(r, i === 0 ? 0 : 1)), QQ: [fd(COMBOS.combos!.QQ![0]!, 1)] },
+    };
+    renderBuild({ res, lineKey: "cat-combo" });
+    fireEvent.change(screen.getByLabelText("Hands to paint at once"), { target: { value: "d:fd" } });
+    expect(screen.getByRole("button", { name: "Paint 1 hand" })).toHaveAttribute("title", "AKs");
+    fireEvent.click(screen.getByRole("checkbox", { name: "By combo" }));
+    fireEvent.keyDown(window, { key: "2" });
+    const paint = screen.getByRole("button", { name: "Paint 1 combo" });
+    expect(paint).toHaveAttribute("title", "AhKh");
+    fireEvent.click(paint);
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 50%, bet 50%; 1 combo painted apart");
+    expect(cell("QQ")).toHaveAccessibleName("QQ: yours check 100%");
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(cell("AKs")).toHaveAccessibleName("AKs: yours check 100%");
+    // a lock still goes by hand; a shape has no by-combo box
+    fireEvent.click(within(brushes()).getByRole("button", { name: "Lock" }));
+    expect(screen.getByRole("button", { name: "Lock 1 hand" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Hands to paint at once"), { target: { value: "s:pairs" } });
+    expect(screen.queryByRole("checkbox", { name: "By combo" })).toBeNull();
   });
 
   it("grades combo by combo once a combo is painted, by reach over the live combos, and keeps it saved so", async () => {

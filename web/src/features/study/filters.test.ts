@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdvisorResponse, ComboRow } from "@/solver/protocol";
-import { catsOf, classesIn, equityBuckets, filterRes } from "./filters";
+import { comboName } from "@/features/ranges/rangeText";
+import { catsOf, classesIn, combosIn, equityBuckets, filterRes } from "./filters";
 
 // the fixture of solver/tests/js/study.test.js ("the filter: ..."), on its NODE
 const NODE: AdvisorResponse = {
@@ -97,6 +98,17 @@ describe("hand-category filter", () => {
     expect(classesIn(reach, "m:overpair")).toEqual(["AA"]);
     expect(classesIn(node, "d:none")).toEqual([]);
     expect(classesIn(NODE, "m:set")).toEqual([]);
+  });
+
+  it("names the combos in a category one by one, for the range builder by combo, whatever their class's others are", () => {
+    // AA: only its flush-draw combo, though the class is a flush draw by half
+    expect(combosIn(node, "d:fd")).toEqual([{ cls: "AA", combo: comboName(combos.AA![1]![0]) }]);
+    expect(combosIn(node, "m:overpair").map((c) => c.cls)).toEqual(["AA", "AA"]);
+    // (a combo with no reach isn't in the range)
+    const reach = { ...node, combos: { ...combos, AA: [combos.AA![0]!, [combos.AA![1]![0], 0, ...combos.AA![1]!.slice(2)] as ComboRow] } };
+    expect(combosIn(reach, "d:fd")).toEqual([]);
+    expect(combosIn(node, "d:none")).toEqual([]);
+    expect(combosIn(NODE, "m:set")).toEqual([]);
   });
 
   it("returns the answer itself for a key not of this node, or none", () => {

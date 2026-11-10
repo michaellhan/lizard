@@ -195,6 +195,11 @@ export function setCombo(p: RangePaint, cls: string, combo: string, a: number, t
   return sameMix(next, mix) ? p : { ...p, combos: withCombo(p.combos, cls, combo, next, base) };
 }
 
+/** `setCombo` over some combos, as one paint (one undo step): a group painted combo by combo. */
+export function paintCombos(p: RangePaint, list: readonly { cls: string; combo: string }[], a: number, t: number, d: number, locked: ReadonlySet<string> = NOTHING): RangePaint {
+  return list.reduce((q, { cls, combo }) => setCombo(q, cls, combo, a, t, d, locked), p);
+}
+
 /** One combo back on its class's mix (a locked one stays). */
 export function clearCombo(p: RangePaint, cls: string, combo: string): RangePaint {
   const base = p.classes[cls];
