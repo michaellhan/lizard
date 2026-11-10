@@ -1,6 +1,7 @@
 // A tournament session's setup on the New session form: what the answers are in, the prizes left, each seat's chips and the
-// other tables. It's what the Tournaments page sets up, as far as Practice can play it: no bounties, as a session has no
-// answer for who holds one once a hand has been played.
+// other tables, and KO or PKO bounties. It's what the Tournaments page sets up, as far as Practice can play it: every seat
+// starts with the same bounty (played out, a bounty follows its player, and a PKO's grows), and no mystery bounties, whose
+// envelopes a session has no draw for.
 import { LIMITS } from "@/features/solve/setup";
 import { PAYOUT_PRESETS, parsePayouts, pastedPayouts, STAGE_PRESETS, stageAnte, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -17,6 +18,11 @@ export interface TournamentDraft {
   stacks: Record<string, string>;
   others: string;
   avg: string;
+  /** "" for none */
+  bounty: "" | "ko" | "pko";
+  /** every seat's bounty to start, and the other tables' average (blank: the same) */
+  each: string;
+  bountyField: string;
 }
 
 export const draftOf = (t: TournamentOptions | undefined, stack: number): TournamentDraft => ({
@@ -25,6 +31,9 @@ export const draftOf = (t: TournamentOptions | undefined, stack: number): Tourna
   stacks: Object.fromEntries(Object.entries(t?.stacks ?? {}).filter(([, v]) => v !== stack).map(([p, v]) => [p, String(v)])),
   others: t?.field ? String(t.field.players) : "",
   avg: t?.field ? String(t.field.avg) : "",
+  bounty: t?.bounty?.format ?? "",
+  each: t?.bounty ? String(Math.max(...Object.values(t.bounty.seats))) : "",
+  bountyField: t?.bounty ? String(t.bounty.field) : "",
 });
 
 /** The draft as a session's options at this table, or what's wrong with it, in words. */
@@ -39,7 +48,15 @@ export function readDraft(d: TournamentDraft, players: number, stack: number, ma
   const field = others > 0 ? { players: others, avg: Number(d.avg) } : undefined;
   if (payouts.length < 2) problems.push("ICM needs two or more prizes. With one prize chips are prizes, which is Chip EV");
   problems.push(...tournamentProblems(players, { payouts, ...(field ? { field } : {}) }));
-  return problems.length ? { value: null, problems } : { value: { model: "icm", stacks, payouts, ...(field ? { field } : {}) }, problems };
+  let bounty: TournamentOptions["bounty"];
+  if (d.bounty) {
+    const each = Number(d.each);
+    const avg = d.bountyField.trim() === "" ? each : Number(d.bountyField);
+    if (!(d.each.trim() !== "" && Number.isFinite(each) && each > 0)) problems.push("each seat's bounty must be more than 0, in the prizes' units");
+    else if (!(Number.isFinite(avg) && avg >= 0)) problems.push("the other tables' average bounty must be 0 or more");
+    else bounty = { format: d.bounty, seats: Object.fromEntries(seats.map((p) => [p, each])), field: avg };
+  }
+  return problems.length ? { value: null, problems } : { value: { model: "icm", stacks, payouts, ...(field ? { field } : {}), ...(bounty ? { bounty } : {}) }, problems };
 }
 
 /** A stage of an MTT as a draft: the table's stack is the biggest, the seats with fewer chips have their own. */
@@ -56,6 +73,9 @@ export function stageDraft(st: StagePreset): { players: number; stack: number; a
       stacks: Object.fromEntries(seats.flatMap((p, i) => (st.stacks[i] !== top ? [[p, String(st.stacks[i])]] : []))),
       others: st.field ? String(st.field.players) : "",
       avg: st.field ? String(st.field.avg) : "",
+      bounty: "",
+      each: "",
+      bountyField: "",
     },
   };
 }
@@ -153,6 +173,26 @@ export function TournamentFields({
               <span className="text-muted">bb</span>
             </label>
           )}
+          <label className="flex items-center gap-1" title="KO: a player out pays their whole bounty to whoever knocked them out. PKO: half of it, the other half onto the taker's own bounty.">
+            <span className="text-muted">Bounties</span>
+            <select aria-label="Bounties" value={draft.bounty} onChange={(e) => set({ bounty: e.target.value as TournamentDraft["bounty"] })} className={INPUT}>
+              <option value="">None</option>
+              <option value="ko">KO</option>
+              <option value="pko">PKO</option>
+            </select>
+          </label>
+          {draft.bounty && (
+            <>
+              <label className="flex items-center gap-1" title="Every seat's bounty to start, in the prizes' units">
+                <span className="text-muted">Each</span>
+                <input aria-label="Each seat's bounty" type="number" min={0} step="any" value={draft.each} onChange={(e) => set({ each: e.target.value })} className={`w-16 ${INPUT}`} />
+              </label>
+              <label className="flex items-center gap-1" title="The other tables' average bounty, which a player from another table brings: blank for the same">
+                <span className="text-muted">Others&rsquo; bounty</span>
+                <input aria-label="The other tables' average bounty" type="number" min={0} step="any" placeholder={draft.each} value={draft.bountyField} onChange={(e) => set({ bountyField: e.target.value })} className={`w-16 ${INPUT}`} />
+              </label>
+            </>
+          )}
         </>
       )}
       <label className="flex items-center gap-1.5" title="Each hand stops as the preflop closes">
@@ -189,7 +229,7 @@ export function TournamentFields({
           ? "The first hand starts from these stacks and prizes, and the tournament moves on from there: players knocked out, prizes paid, the blinds rising. Out, or with every chip, and it starts over."
           : "Every hand starts from these stacks and prizes, so the tournament doesn\u2019t move on and nobody\u2019s knocked out (Play it out moves it on)."}{" "}
         {icm
-          ? `Answers are in prize equity by Malmuth-Harville. At ${PUSH_FOLD_MAX}bb or less your own all-in is the push/fold equilibrium in prize equity, and a call of a jam is priced in prize equity. Every other preflop spot is a chip chart with a risk premium, a heuristic. After the flop a solve pays prize equity, and betting rules play chips, so those are graded by frequency. The badge on each answer says which. Bounties aren't offered here: they're on the Tournaments page.`
+          ? `Answers are in prize equity by Malmuth-Harville. At ${PUSH_FOLD_MAX}bb or less your own all-in is the push/fold equilibrium in prize equity, and a call of a jam is priced in prize equity. Every other preflop spot is a chip chart with a risk premium, a heuristic. After the flop a solve pays prize equity, and betting rules play chips, so those are graded by frequency. The badge on each answer says which.${draft.bounty ? " Bounties are priced by a proportional model: solved for push/fold and after the flop, and a discount on the risk premium in other preflop spots. Mystery bounties are on the Tournaments page." : ""}`
           : "Chip EV means no prizes: the answers are what the engine gives these stacks in a cash game, in bb."}{" "}
         These sessions stay apart from your other numbers in History and Review.
       </p>

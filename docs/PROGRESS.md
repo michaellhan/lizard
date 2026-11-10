@@ -4560,3 +4560,13 @@ The Multiway row said only "3-way solved, 4-way reduced, 5+ on betting rules". `
 The 3-player solver's exactness is already benchmarked against a reference on 3-way rivers (ACCURACY section 14). So the row is WORKING by the owner's rule of 2026-11-08: 42 of 63, and Custom solving reads 9 / 0 / 1 / 0. Left: 4-way pots are the engine's reduced game, 5+ players are its betting rules, the 3-way solve's later streets play by bucket, and 3-way spots aren't drilled.
 
 Tests: `qa.e2e.ts` 4 passed on the build.
+
+### 2026-11-10: KO and PKO bounties in Practice's tournaments
+
+Practice's tournament session had no bounties ("they stay on the Tournaments page"). Its form now has Bounties (None, KO, PKO), each seat's bounty and the other tables' average (`TournamentFields.tsx`). Every answer sends each seat's bounty as the engine's `bounties`, as the Tournaments page does, so the badge names the bounty model. Played out (`tournamentPlay.ts` `moveOn`), a player out pays their bounty to whoever won the most chips in that hand: KO all of it as money, PKO half as money and half onto the taker's own bounty. A bounty follows its player round the table, a player from another table brings the other tables' average, and the end of a tournament says what you collected (a winner's own bounty included). The played-out panel shows your bounty and the bounties collected, and its note names the simplifications. Mystery bounties stay on the Tournaments page, with no envelope draw in a session.
+
+Checked in a browser on the dev server: a 3-max PKO session at 10bb, 10 a seat, answered under "push/fold equilibrium in prize equity, PKO bounties, proportional model · approximate". Played out, it read "You take BTN's bounty, 10: 5 paid, 5 onto yours." and "You won the tournament: first place, 50, and your own bounty, 20. You collected 30 in bounties."
+
+KO / PKO stays PARTIAL, since preflop away from push/fold is a discount on the chart's risk premium. Counts unchanged at 42 / 13 / 5 / 3.
+
+Tests: `tournamentPlay.test.ts` 14 passed (4 new); all of `src/features/practice` 1226+ passed; tsc and eslint clean. The two heads-up precompute builds were left alone.

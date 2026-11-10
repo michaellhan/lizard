@@ -88,7 +88,9 @@ const isGame = (x: unknown): x is HandTournament =>
   (x.model === "chips" || (x.model === "icm" && isList(x.payouts, isNum) && (x.payouts as number[]).length > 1)) &&
   opt(x.payouts, (p) => isList(p, isNum)) &&
   opt(x.field, (f) => isObj(f) && isCount(f.players) && isNum(f.avg)) &&
+  opt(x.bounty, (b) => isObj(b) && (b.format === "ko" || b.format === "pko") && isObj(b.seats) && Object.values(b.seats).every(isNum) && isNum(b.field)) &&
   opt(x.played, isCount) &&
+  opt(x.won, isNum) &&
   opt(x.news, (n) => isList(n, isStr));
 
 /** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. One made

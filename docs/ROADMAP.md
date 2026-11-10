@@ -454,7 +454,7 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   change), and a chip answer's push/fold all-in is named on its badge ("push/fold equilibrium in chips").
   Tournaments in Practice played out (2026-11-10, `tournamentPlay.ts`): "Play it out" moves a tournament session on, with chips carried, knockouts paid and replaced from the other tables, the table shortening when none are left, and blinds rising every 10 hands; Lizard's own simplification, said on the page.
 
-  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins); no table balancing or bounties in Practice's tournaments.
+  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins); no table balancing in Practice's tournaments, and no mystery bounties there (KO and PKO bounties came to Practice's tournament sessions on 2026-11-10: set up on the form, sent with every answer, and played out, paid to whoever won the chips, PKO half onto the taker's own).
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).

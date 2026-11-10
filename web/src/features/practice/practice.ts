@@ -149,11 +149,23 @@ export interface HandTournament {
   payouts?: number[];
   /** the players at other tables and their average stack, bb */
   field?: NonNullable<TournamentSetup["field"]>;
+  /** KO or PKO bounties ("icm" only), in the prizes' units: each seat's, and the other tables' average. Played out, a
+   * bounty follows its player round the table, and a PKO's grows by half of each one its player collects. */
+  bounty?: PracticeBounty;
   /** played out (`playsOn`): hands played in this tournament before this one */
   played?: number;
+  /** played out: the bounty money you've collected in this tournament, in the prizes' units */
+  won?: number;
   /** played out: what happened between the last hand and this one, in words (tournamentPlay.ts) */
   news?: string[];
 }
+export interface PracticeBounty {
+  format: "ko" | "pko";
+  seats: Record<string, number>;
+  /** the other tables' average bounty, which a player from another table brings */
+  field: number;
+}
+
 /** A tournament session's setup: its game and each seat's chips, bb, which every hand starts from. Unless it's played
  * out (`playsOn`), the tournament doesn't move on: nobody's knocked out, and no chips go from hand to hand. */
 export interface TournamentOptions extends HandTournament {
@@ -161,7 +173,8 @@ export interface TournamentOptions extends HandTournament {
 }
 
 /** The game in words. */
-export const gameLabel = (t: HandTournament) => (t.model === "icm" ? `tournament in prize equity, prizes ${(t.payouts ?? []).join("/")}` : "tournament in chip EV");
+export const gameLabel = (t: HandTournament) =>
+  t.model === "icm" ? `tournament in prize equity, prizes ${(t.payouts ?? []).join("/")}${t.bounty ? `, ${t.bounty.format === "ko" ? "KO" : "PKO"} bounties` : ""}` : "tournament in chip EV";
 
 /** What marks a chip EV session's answers, as the engine's own carry nothing of a tournament. */
 export const CHIP_MODEL = "chip EV: these stacks with no prizes";
@@ -477,7 +490,11 @@ const rakeOf = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: Math.round(h
 export const rakeSetup = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.rake.pct, ...(h.rake.cap ? { rakeCap: h.rake.cap } : {}) } : {});
 
 /** The hand's prizes, in the engine's keys and in Study's setup. A chip EV session has none to send. */
-const prizesOf = (h: Pick<PracticeHand, "tournament">): TournamentSetup | undefined => (h.tournament?.model === "icm" ? { payouts: h.tournament.payouts, field: h.tournament.field } : undefined);
+const prizesOf = (h: Pick<PracticeHand, "tournament">): TournamentSetup | undefined => {
+  const t = h.tournament;
+  if (t?.model !== "icm") return undefined;
+  return { payouts: t.payouts, field: t.field, ...(t.bounty ? { bounty: { format: t.bounty.format, seats: t.bounty.seats, field: t.bounty.field } } : {}) };
+};
 
 /** The seats whose chips aren't the starting stack (chips carried, a tournament's), bb; none where every seat has it. */
 const ownStacks = (h: Pick<PracticeHand, "stack" | "stacks">) => {

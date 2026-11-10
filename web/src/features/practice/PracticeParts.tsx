@@ -400,6 +400,12 @@ export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: S
               → <span className="font-mono text-text">{fmt(chipsAfter(hand, sim)[hand.hero]!)}bb</span>
             </>
           )}
+          {t.bounty && (
+            <>
+              {" "}· your bounty <span className="font-mono text-text">{fmt(t.bounty.seats[hand.hero] ?? 0)}</span>, bounties collected{" "}
+              <span className="font-mono text-text">{fmt(t.won ?? 0)}</span>
+            </>
+          )}
           {hand.result?.folded && sim.active.size > 1 && !sim.handOver && " · the others' chips go as if they checked it down"}
         </span>
         <button
@@ -416,6 +422,7 @@ export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: S
         Played out by Lizard&rsquo;s own simplification: the blinds go up {LEVEL_RISE}× every {LEVEL_HANDS} hands, a player out is paid the
         lowest prize left once all left are paid and is replaced from the other tables while any are left, and the other tables lose
         {" "}{FIELD_RATE * 100}% of their players a level.
+        {t.bounty && " A bounty goes to whoever won the most chips in the hand that knocked its player out, and a player from another table brings the other tables' average bounty."}
       </p>
     </div>
   );

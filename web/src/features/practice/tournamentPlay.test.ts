@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { following, newHand, nextTable, type DealOptions, type HandTournament } from "./practice";
+import { following, gameLabel, newHand, nextTable, stateFor, type DealOptions, type HandTournament } from "./practice";
+import { draftOf, readDraft } from "./TournamentFields";
 import { LEVEL_HANDS, moveOn, ordinal } from "./tournamentPlay";
 
 const hand = (players: number, hero: string, stacks: Record<string, number>, tournament: HandTournament) => ({ players, hero, stacks, tournament });
@@ -68,6 +69,37 @@ describe("a tournament played out", () => {
     expect(m.table!.tournament).toMatchObject({ played: LEVEL_HANDS, field: { players: 18, avg: 22.22 }, payouts: [50, 30, 20] });
     expect(m.news).toEqual(["2 players are out at the other tables.", "The blinds go up (level 2): every stack is 1.25× fewer big blinds."]);
   });
+
+  it("pays a KO bounty to whoever won the chips, and it follows its player round the table", () => {
+    const ko = { format: "ko" as const, seats: { BTN: 10, SB: 10, BB: 12 }, field: 10 };
+    const m = moveOn(hand(3, "BTN", { BTN: 20, SB: 10, BB: 30 }, { model: "icm", payouts: [50, 30, 20], field: { players: 2, avg: 20 }, bounty: ko }), { BTN: 30, SB: 0, BB: 30 });
+    expect(m.news).toEqual(["SB is out in 5th.", "You take SB's bounty, 10.", "A player from another table takes SB's seat with 20bb."]);
+    // (you to the big blind with your 10, BB's player to the small blind with 12, the newcomer on the button with 10)
+    expect(m.table!.tournament.bounty).toEqual({ format: "ko", seats: { BTN: 10, SB: 12, BB: 10 }, field: 10 });
+    expect(m.table!.tournament.won).toBe(10);
+  });
+
+  it("splits a PKO bounty: half paid, half onto the taker's own", () => {
+    const pko = { format: "pko" as const, seats: { CO: 8, BTN: 10, SB: 10, BB: 10 }, field: 10 };
+    const m = moveOn(hand(4, "BB", { CO: 12, BTN: 30, SB: 30, BB: 28 }, { model: "icm", payouts: [50, 30, 20], bounty: pko, won: 3 }), { CO: 0, BTN: 42, SB: 30, BB: 28 });
+    expect(m.news.slice(0, 2)).toEqual(["CO is out in 4th.", "BTN takes CO's bounty, 8: 4 paid, 4 onto theirs."]);
+    // (BTN's player is the big blind now, 3-handed)
+    expect(m.table!.tournament.bounty!.seats).toEqual({ BTN: 10, SB: 10, BB: 14 });
+    expect(m.table!.tournament.won).toBe(3);
+  });
+
+  it("says the bounties you collected when it's over, a winner's own bounty theirs too", () => {
+    const pko = { format: "pko" as const, seats: { SB: 15, BB: 20 }, field: 10 };
+    expect(moveOn(hand(2, "SB", { SB: 20, BB: 30 }, { model: "icm", payouts: [65, 35], bounty: pko, won: 5 }), { SB: 50, BB: 0 }).news).toEqual([
+      "BB is out in 2nd, paid 35.",
+      "You take BB's bounty, 20: 10 paid, 10 onto yours.",
+      "You won the tournament: first place, 65, and your own bounty, 25. You collected 40 in bounties. A new tournament starts from the setup.",
+    ]);
+    expect(moveOn(hand(2, "SB", { SB: 20, BB: 30 }, { model: "icm", payouts: [65, 35], bounty: pko }), { SB: 0, BB: 50 }).news).toEqual([
+      "BB takes your bounty, 15: 7.5 paid, 7.5 onto theirs.",
+      "You're out in 2nd, paid 35. You collected 0 in bounties. A new tournament starts from the setup.",
+    ]);
+  });
 });
 
 describe("Practice's tournament session played out", () => {
@@ -92,5 +124,18 @@ describe("Practice's tournament session played out", () => {
     const h1 = following(newHand(3, 40, 0, 1, frozen), 2, frozen);
     expect(h1.stacks).toEqual({ BTN: 30, SB: 20, BB: 40 });
     expect(h1.tournament!.played).toBeUndefined();
+  });
+
+  it("sends each seat's bounty with every answer, and sets them up on the form", () => {
+    const d = { ...draftOf(undefined, 40), bounty: "pko" as const, each: "10", bountyField: "" };
+    const { value, problems } = readDraft(d, 3, 40, 250);
+    expect(problems).toEqual([]);
+    expect(value!.bounty).toEqual({ format: "pko", seats: { BTN: 10, SB: 10, BB: 10 }, field: 10 });
+    expect(readDraft({ ...d, each: "" }, 3, 40, 250).problems).toEqual(["each seat's bounty must be more than 0, in the prizes' units"]);
+    const o: DealOptions = { carry: true, tournament: value! };
+    const h = newHand(3, 40, 0, 1, o);
+    expect(stateFor(h).bounties).toEqual({ format: "pko", seats: { BTN: 10, SB: 10, BB: 10 }, field: 10 });
+    expect(gameLabel(h.tournament!)).toBe("tournament in prize equity, prizes 50/30/20, PKO bounties");
+    expect(draftOf(value!, 40)).toMatchObject({ bounty: "pko", each: "10", bountyField: "10" });
   });
 });
