@@ -383,6 +383,11 @@ test("Session stats: every seat and pot at 375px stays within the page, and the 
   expect(await groups.count()).toBe(4); // seat and pot, each by EV and by frequency
   for (let i = 1; i < 4; i++) {
     await page.keyboard.press("Tab");
+    if (i === 2) {
+      // the note on the decisions left out of the seat tables is its own stop, between seat and pot
+      await expect(rates.getByText("7 decisions left out").first()).toBeFocused();
+      await page.keyboard.press("Tab");
+    }
     await expect(groups.nth(i)).toBeFocused();
   }
   const unreachable = await page.evaluate(() =>

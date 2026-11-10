@@ -4421,3 +4421,17 @@ Not changed: the engine's budgets (`solver/` stays upstream's), so the ranges st
 **Matrix.** The Decision grading row said Practice's preflop-solve grading wasn't checked in a browser; `qa.e2e.ts` and `checks.e2e.ts` do check it.
 
 Tests: `grading.test.ts` (2 new), `report.test.ts` (1 new), the shapes test; full unit suite 3,405 passed with 2 skipped and one Practice test timing out at load 26, which passed twice alone; typecheck and lint clean. The browser suite wasn't run.
+
+### 2026-11-10: squeezes from the blinds, stats by seat, ranges on the size tables (Phase 6)
+
+**Analyze.** The last three gaps on the Frequency comparison row:
+
+- **Squeezes from the blinds.** A blind's decision reads "BB defence" or "SB vs open" whether or not someone called the open, so the squeeze row left the blinds out. A decision now keeps how many called the one raise before it (`earlierAt` `callers`), and older grades get it from their histories when Analyze opens, as yesterday's facts do. The row is "Squeeze (any seat)"; links and saved drills under its old name still open it.
+- **Stats by seat.** Your stats have a By seat table: VPIP, PFR, 3-bet, fold to 3-bet, c-bet, fold to c-bet and went to showdown, each over its chances at that seat with its 95% range. It follows the filters, as the rest of the panel does.
+- **Size tables.** Each bet- and raise-size share has its 95% range under it, "few" under 30, each bet counted on its own.
+
+**Checked in a browser** (dev server, the 4 sample hands): older decisions got `callers` from their histories, VPIP, PFR, flop check-raise and river barrel show with the answer's share, and the By seat table and the size ranges render. At 375px the Stats tables are each a stop for the keys that the arrows scroll (they weren't before), and the seat column stays put. The samples hold no squeeze, so that row is checked by the unit tests only.
+
+**Browser suite.** 48 of 49 passed on desktop before the Stats keyboard change; the 49th passes on its own now. The History session-stats test still expected the next Tab after the seat tables to land on the pot tables. Since 2026-11-08 the note on decisions left out is a disclosure, its own stop in between, and the test now steps through it.
+
+The row is graded WORKING by the owner's rule of 2026-11-08 (37 of 63). What's left there: preflop the answer is the charts' or the class-level preflop solve's, and the size tables aren't compared with a solve.

@@ -349,15 +349,19 @@ describe("report", () => {
       d({ situation: "vs open", action: "call", mix }),
       d({ situation: "vs open + call", pos: "BTN", action: "raise to 12", mix }),
       d({ situation: "BB defence", pos: "BB", action: "call", mix }),
+      d({ situation: "BB defence", pos: "BB", callers: 1, action: "raise to 14", mix }),
+      d({ situation: "SB vs open", pos: "SB", callers: 0, action: "raise to 11", mix }),
       d({ street: "flop", ip: false, facing: true, multi: false, action: "raise to 8", mix }),
       d({ street: "flop", ip: true, facing: true, multi: false, action: "raise to 8", mix }),
       d({ street: "river", facing: true, action: "call", mix }),
       d({ street: "river", facing: true, action: "fold", mix }),
     ];
     const at = (label: string) => freqs(ds).find((f) => f.label === label);
-    expect(at("3-bet (any seat)")).toMatchObject({ n: 4, k: 2, gto: 0.25 });
-    // (a decision says "BB defence" in the blinds with or without a caller, so the blinds count under the 3-bet row)
-    expect(at("Squeeze (not from the blinds)")).toMatchObject({ n: 1, k: 1 });
+    expect(at("3-bet (any seat)")).toMatchObject({ n: 6, k: 4, gto: 0.25 });
+    // (a blind says "BB defence" with or without a caller: the callers kept with it say it was a squeeze; one kept
+    // without them, by its situation alone)
+    expect(at("Squeeze (any seat)")).toMatchObject({ n: 2, k: 2 });
+    expect(ds.filter(leakTest({ kind: "freq", key: "Squeeze (not from the blinds)" }))).toHaveLength(2);
     expect(at("Flop out of position vs bet: raise")).toMatchObject({ n: 1, k: 1, gto: 0.25 });
     expect(at("River vs bet: call (bluff-catching)")).toMatchObject({ n: 2, k: 1, gto: 0.5 });
   });

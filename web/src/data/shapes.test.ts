@@ -82,6 +82,7 @@ const DECISION: DecisionRecord = {
   flopAggr: false,
   turnAggr: true,
   firstIn: true,
+  callers: 1,
   ownCheck: false,
   confidence: "high",
   triageSource: "t",
@@ -121,7 +122,7 @@ describe("records that blanked a page", () => {
     ["savedDrills", { ...DRILL }, []],
     ["sessions", { ...SESSION }, ["endedAt"]],
     ["hands", { ...HAND }, ["playedFor", "revealed", "setup", "tournament", "tags", "note", "updatedAt"]],
-    ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "roughEvs", "off", "flopAggr", "turnAggr", "firstIn", "ownCheck", "confidence", "triageSource", "read", "notChecked"]],
+    ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "roughEvs", "off", "flopAggr", "turnAggr", "firstIn", "callers", "ownCheck", "confidence", "triageSource", "read", "notChecked"]],
   ];
 
   it.each([[{ rake: "5" }], [{ rakeCap: Infinity }], [{ sizes: "33" }], [{ sizes: { flop: 33 } }], [{ sizes: { flop: ["33"] } }]])("refuses a hand's setup of %j", async (setup) => {

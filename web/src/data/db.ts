@@ -222,6 +222,8 @@ export interface DecisionRecord {
   turnAggr?: boolean;
   /** preflop: this was your first decision of the hand (since 2026-11-09; an older grade has none) */
   firstIn?: boolean;
+  /** preflop: how many called the one raise before you, 0 where there were more raises or none (since 2026-11-10) */
+  callers?: number;
   /** on the flop: your first move on it, before this one, was a check (since 2026-11-09; an older grade has none) */
   ownCheck?: boolean;
   /** on the flop: you'd already bet or raised on it, so what you face is a raise of yours */

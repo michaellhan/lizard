@@ -156,7 +156,7 @@ export function validDecision(d: Record<string, unknown>): boolean {
     isNumOrNull(d.evLossBb) &&
     isNumOrNull(d.lossPct) &&
     isNumOrNull(d.pot) &&
-    [d.freq, d.bestFreq].every(isOptNum) &&
+    [d.freq, d.bestFreq, d.callers].every(isOptNum) &&
     [d.byEv, d.facing, d.ip, d.multi, d.flopAggr, d.turnAggr, d.firstIn, d.ownCheck, d.ownBet, d.approximate, d.capped, d.roughEv].every(isOptBool) &&
     // (a grade from before versions were kept has none)
     [d.situation, d.potType, d.role, d.matched, d.best, d.note, d.why, d.version, d.band, d.off, d.confidence, d.triageSource, d.notChecked].every(isOptStr) &&

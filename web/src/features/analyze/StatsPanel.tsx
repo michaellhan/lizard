@@ -8,7 +8,7 @@ import { seatLabel } from "@/poker/seats";
 import { STREETS } from "./analyze";
 import { withParams } from "./leakDrill";
 import { MIN_READ } from "./report";
-import { RAISE_SIZES, SIZES, STATS, statsOf, wilson, type Count, type Stats } from "./stats";
+import { RAISE_SIZES, SIZES, STATS, statsOf, wilson, type Count, type StatKey, type Stats } from "./stats";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const nHands = (n: number) => `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"}`;
@@ -57,7 +57,7 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
       )}
       {st && (
         <>
-          <div className="relative scroll-x rounded-lg border border-border">
+          <div className="relative scroll-x rounded-lg border border-border" role="group" aria-label="Frequencies as played, scrolls sideways" tabIndex={0}>
             <table aria-label="Frequencies as played" className="w-full text-left">
               <thead className="bg-surface-2 text-xs text-muted">
                 <tr>
@@ -113,11 +113,60 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
           <p className="text-xs text-muted">
             The history can&rsquo;t say whether a hand was only beating bluffs, so bluff-catching is read as every call of a river bet, and River call won as how those hands came out.
           </p>
+          <BySeat seats={st.seats} />
           <BetSizes sizes={st.sizes} />
           <RaiseSizes raises={st.raises} />
         </>
       )}
     </section>
+  );
+}
+
+/** The stats most read by seat, each seat's over its own chances. */
+const SEAT_STATS: readonly StatKey[] = ["vpip", "pfr", "threebet", "fold3bet", "cbet", "foldcbet", "wtsd"];
+
+function BySeat({ seats }: { seats: Stats["seats"] }) {
+  if (seats.length < 2) return null;
+  const label = (k: StatKey) => STATS.find((x) => x.key === k)!.label;
+  return (
+    <div className="space-y-1">
+      <h3 className="font-semibold">By seat</h3>
+      <div className="relative scroll-x rounded-lg border border-border" role="group" aria-label="Stats by seat, scrolls sideways" tabIndex={0}>
+        <table aria-label="Stats by seat" className="w-full text-left">
+          <thead className="bg-surface-2 text-xs text-muted">
+            <tr>
+              <th className="sticky left-0 bg-surface-2 px-2 py-1 font-normal">Your seat</th>
+              <th className="px-2 py-1 text-right font-normal">Hands</th>
+              {SEAT_STATS.map((k) => (
+                <th key={k} className="px-2 py-1 text-right font-normal">
+                  {label(k)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {seats.map((s) => (
+              <tr key={s.pos} aria-label={s.pos} className="border-t border-border">
+                <td className="sticky left-0 bg-bg px-2 py-1">{s.pos}</td>
+                <td className="px-2 py-1 text-right tabular-nums">{s.hands.toLocaleString()}</td>
+                {SEAT_STATS.map((k) => {
+                  const c = s.by[k];
+                  const [lo, hi] = wilson(c.k, c.n);
+                  return (
+                    <td key={k} className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
+                      {c.n ? pct(c.k / c.n) : "–"}
+                      {c.n > 0 && <span className="ml-1 text-xs text-muted">{c.n < MIN_READ ? `of ${c.n}, few` : `of ${c.n.toLocaleString()}`}</span>}
+                      {c.n > 0 && <span className="block text-xs text-muted">{`${pct(lo)}–${pct(hi)}`}</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted">Each over its own chances at that seat, as in the table above, with its 95% range under it.</p>
+    </div>
   );
 }
 
@@ -155,6 +204,20 @@ function StatHands({ label, took, c, byId }: { label: string; took?: string; c: 
   );
 }
 
+/** A size's count, its share of the street's and that share's 95% range ("few" under MIN_READ), each bet counted on its own. */
+function Share({ k, n }: { k: number; n: number }) {
+  const [lo, hi] = wilson(k, n);
+  return (
+    <>
+      {k.toLocaleString()} <span className="text-xs text-muted">{pct(k / n)}</span>
+      <span className="block text-xs text-muted">
+        {pct(lo)}–{pct(hi)}
+        {n < MIN_READ ? ", few" : ""}
+      </span>
+    </>
+  );
+}
+
 function BetSizes({ sizes }: { sizes: Stats["sizes"] }) {
   const streets = ["flop", "turn", "river"] as const;
   const tot = Object.fromEntries(streets.map((s) => [s, sizes[s].reduce((a, b) => a + b, 0)])) as Record<(typeof streets)[number], number>;
@@ -162,8 +225,8 @@ function BetSizes({ sizes }: { sizes: Stats["sizes"] }) {
   return (
     <div className="space-y-1">
       <h3 className="font-medium">Your bets after the flop, by size</h3>
-      <p className="text-xs text-muted">Bets only (not raises), in % of the pot before the bet; an all-in counts at its size.</p>
-      <div className="relative scroll-x">
+      <p className="text-xs text-muted">Bets only (not raises), in % of the pot before the bet; an all-in counts at its size. Under each share, its 95% range, each bet counted on its own.</p>
+      <div className="relative scroll-x" role="group" aria-label="Bet sizes, scrolls sideways" tabIndex={0}>
         <table aria-label="Bet sizes" className="text-left">
           <thead className="text-xs text-muted">
             <tr>
@@ -181,13 +244,7 @@ function BetSizes({ sizes }: { sizes: Stats["sizes"] }) {
                 <td className="pr-4">{b.label}</td>
                 {streets.map((s) => (
                   <td key={s} className="pr-4 text-right tabular-nums">
-                    {tot[s] ? (
-                      <>
-                        {sizes[s][k]} <span className="text-xs text-muted">{pct(sizes[s][k]! / tot[s])}</span>
-                      </>
-                    ) : (
-                      "–"
-                    )}
+                    {tot[s] ? <Share k={sizes[s][k]!} n={tot[s]} /> : "–"}
                   </td>
                 ))}
               </tr>
@@ -205,8 +262,8 @@ function RaiseSizes({ raises }: { raises: Stats["raises"] }) {
   return (
     <div className="space-y-1">
       <h3 className="font-medium">Your raises, by size</h3>
-      <p className="text-xs text-muted">In multiples of the bet raised, the big blind&rsquo;s for an open; an all-in counts at its size.</p>
-      <div className="relative scroll-x">
+      <p className="text-xs text-muted">In multiples of the bet raised, the big blind&rsquo;s for an open; an all-in counts at its size. Under each share, its 95% range, each raise counted on its own.</p>
+      <div className="relative scroll-x" role="group" aria-label="Raise sizes, scrolls sideways" tabIndex={0}>
         <table aria-label="Raise sizes" className="text-left">
           <thead className="text-xs text-muted">
             <tr>
@@ -224,13 +281,7 @@ function RaiseSizes({ raises }: { raises: Stats["raises"] }) {
                 <th scope="row" className="pr-4 font-normal">{b.label}</th>
                 {STREETS.map((s) => (
                   <td key={s} className="pr-4 text-right tabular-nums">
-                    {tot[s] ? (
-                      <>
-                        {raises[s][k]!.toLocaleString()} <span className="text-xs text-muted">{pct(raises[s][k]! / tot[s]!)}</span>
-                      </>
-                    ) : (
-                      "–"
-                    )}
+                    {tot[s] ? <Share k={raises[s][k]!} n={tot[s]!} /> : "–"}
                   </td>
                 ))}
               </tr>

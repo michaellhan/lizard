@@ -394,8 +394,12 @@ describe("AnalyzePage", () => {
     expect(row("Fold to flop c-bet")).toHaveTextContent("0%0 / 1");
     expect(row("Went to showdown")).toHaveTextContent("50%2 / 4");
     expect(row("Squeeze")).toHaveTextContent("none");
-    expect(within(stats()).getByRole("row", { name: "30–45%" })).toHaveTextContent("30–45%3 100%1 50%0 0%");
-    expect(within(stats()).getByRole("row", { name: "60–80%" })).toHaveTextContent("60–80%0 0%1 50%1 100%");
+    // by seat: the big blind's two hands, VPIP 2 of 2 there
+    const seats = within(stats()).getByRole("table", { name: "Stats by seat" });
+    expect(within(seats).getByRole("row", { name: "BB" })).toHaveTextContent(/^BB2100%of 2, few34%–100%/);
+    // (each share with its 95% range under it, few under 30 bets)
+    expect(within(stats()).getByRole("row", { name: "30–45%" })).toHaveTextContent(/^30–45%3 100%\d+%–100%, few1 50%\d+%–\d+%, few0 0%0%–\d+%, few$/);
+    expect(within(stats()).getByRole("row", { name: "60–80%" })).toHaveTextContent(/^60–80%0 0%0%–\d+%, few1 50%\d+%–\d+%, few1 100%\d+%–100%, few$/);
 
     // the hands behind a stat, each a link to it
     fireEvent.click(within(row("3-bet")).getByRole("button", { name: "Hands" }));

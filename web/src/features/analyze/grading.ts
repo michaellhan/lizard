@@ -247,25 +247,30 @@ async function askPf({ triage: _t, library_only: _l, ...state }: AdvisorState, a
   }
 }
 
-type Earlier = Pick<DecisionRecord, "ownBet" | "flopAggr" | "turnAggr" | "firstIn" | "ownCheck">;
+type Earlier = Pick<DecisionRecord, "ownBet" | "flopAggr" | "turnAggr" | "firstIn" | "callers" | "ownCheck">;
 
 /** What you'd done earlier in the hand, kept with a decision for the rows that need it (report.ts FREQS): a decision is
  * graded alone. On the flop, whether you'd bet or raised it already (a bet faced is then a raise of yours) and whether
  * your first move on it was a check (the check-raise); on the turn and river, whether you bet or raised the flop, and on
- * the river the turn (the barrels); preflop, whether this was your first decision (VPIP and PFR against the answer). */
+ * the river the turn (the barrels); preflop, whether this was your first decision (VPIP and PFR against the answer) and
+ * how many called the one raise before you (a squeeze, the blinds' too: their situation says "BB defence" either way). */
 export function earlierAt(r: ReplayedHand, street: Street, i: number): Earlier {
   const pos = r.lines[street][i]?.pos;
   if (!pos) return {};
   const aggr = (s: Street, upTo?: number) => r.lines[s].slice(0, upTo).some((a) => a.pos === pos && AGGRESSIVE.has(a.action));
-  if (street === "preflop") return { firstIn: !r.lines.preflop.slice(0, i).some((a) => a.pos === pos) };
+  if (street === "preflop") {
+    const before = r.lines.preflop.slice(0, i);
+    const { raises, callers } = preflopRaises(before);
+    return { firstIn: !before.some((a) => a.pos === pos), callers: raises.length === 1 ? callers : 0 };
+  }
   if (street === "flop") return { ...(aggr("flop", i) ? { ownBet: true } : {}), ownCheck: r.lines.flop.slice(0, i).find((a) => a.pos === pos)?.action === "check" };
   if (street === "turn") return { flopAggr: aggr("flop") };
   return { flopAggr: aggr("flop"), turnAggr: aggr("turn") };
 }
 
 /** A grade kept before earlierAt's facts were (2026-11-09): it lacks its street's. */
-export const lacksEarlier = (d: Pick<DecisionRecord, "street" | "firstIn" | "ownCheck" | "turnAggr">) =>
-  d.street === "preflop" ? d.firstIn === undefined : d.street === "flop" ? d.ownCheck === undefined : d.street === "river" ? d.turnAggr === undefined : false;
+export const lacksEarlier = (d: Pick<DecisionRecord, "street" | "firstIn" | "callers" | "ownCheck" | "turnAggr">) =>
+  d.street === "preflop" ? d.firstIn === undefined || d.callers === undefined : d.street === "flop" ? d.ownCheck === undefined : d.street === "river" ? d.turnAggr === undefined : false;
 
 /** Grades kept before earlierAt's facts were, given them from their hands' histories (nothing is asked of the solver), a
  * chunk of hands at a time so a large database doesn't hold the page. Returns the grades it changed; a hand that no

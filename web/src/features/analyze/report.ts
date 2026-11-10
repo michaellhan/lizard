@@ -123,8 +123,9 @@ export function mixByClass(d: DecisionRecord): Record<Exclude<Cls, "vpip">, numb
   return m;
 }
 
-/** The preflop situations facing one raise. A decision stores no more of them than this: a blind's squeeze reads as
- * its BB defence or SB vs open, so the squeeze row is the other seats'. */
+/** The preflop situations facing one raise. A blind's reads as its BB defence or SB vs open with or without a caller, so
+ * a squeeze is told by the callers kept with the decision (grading.ts earlierAt); one kept without them, its hand gone,
+ * by its situation, which can only say it of the other seats. */
 const THREE_BET = new Set(["vs open", "vs open + call", "SB vs open", "BB defence"]);
 
 /** the answer's share of a kind of action for your hand */
@@ -142,7 +143,7 @@ export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
   ["BB defence: fold", "fold", (d) => d.situation === "BB defence"],
   ["BB defence: 3bet", "aggr", (d) => d.situation === "BB defence"],
   ["3-bet (any seat)", "aggr", (d) => THREE_BET.has(d.situation ?? "")],
-  ["Squeeze (not from the blinds)", "aggr", (d) => d.situation === "vs open + call"],
+  ["Squeeze (any seat)", "aggr", (d) => THREE_BET.has(d.situation ?? "") && (d.callers ?? (d.situation === "vs open + call" ? 1 : 0)) > 0],
   ["SB vs open: fold", "fold", (d) => d.situation === "SB vs open"],
   ["vs 3bet: fold", "fold", (d) => d.situation === "vs 3bet"],
   ["vs 3bet: 4bet", "aggr", (d) => d.situation === "vs 3bet"],
@@ -298,11 +299,15 @@ export function readLeaks(ds: readonly DecisionRecord[]): { leaks: Leak[]; thin:
 
 export const leaks = (ds: readonly DecisionRecord[]): Leak[] => readLeaks(ds).leaks;
 
+/** Rows renamed, by their old names, which links and saved drills may still carry. */
+const RENAMED: Record<string, string> = { "Squeeze (not from the blinds)": "Squeeze (any seat)" };
+
 /** A leak's decisions. */
 export function leakTest(l: Pick<Leak, "kind" | "key">): (d: DecisionRecord) => boolean {
   if (l.kind === "freq") {
     const solve = l.key.endsWith(PF_ROW);
-    const f = FREQS.find((x) => x[0] === (solve ? l.key.slice(0, -PF_ROW.length) : l.key));
+    const name = solve ? l.key.slice(0, -PF_ROW.length) : l.key;
+    const f = FREQS.find((x) => x[0] === (RENAMED[name] ?? name));
     return f ? (d) => isGraded(d) && !!d.mix && f[2](d) && isPfSolve(d) === solve : () => false;
   }
   if (l.kind === "pf") return (d) => d.street === "preflop" && pfKey(d) === l.key;

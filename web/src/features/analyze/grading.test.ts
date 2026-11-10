@@ -558,10 +558,39 @@ describe("what you'd done earlier in the hand", () => {
   it("keeps your first preflop decision, a check before a flop raise, and your flop and turn bets before the river", () => {
     const r = importHand(TEXT);
     const at = (street: "preflop" | "flop" | "turn" | "river") => r.lines[street].flatMap((m, i) => (m.pos === r.hand.hero ? [earlierAt(r, street, i)] : []));
-    expect(at("preflop")).toEqual([{ firstIn: true }, { firstIn: false }]);
+    expect(at("preflop")).toEqual([{ firstIn: true, callers: 0 }, { firstIn: false, callers: 0 }]);
     expect(at("flop")).toEqual([{ ownCheck: false }, { ownCheck: true }]);
     expect(at("turn")).toEqual([{ flopAggr: true }]);
     expect(at("river")).toEqual([{ flopAggr: true, turnAggr: true }]);
+  });
+
+  it("counts the calls of the open before a blind's decision, so its squeeze is one", () => {
+    const r = importHand(
+      [
+        "PokerStars Hand #10: Hold'em No Limit ($0.50/$1.00 USD) - 2026/11/10 10:00:00 ET",
+        "Table 'T' 4-max Seat #2 is the button",
+        "Seat 1: Ann ($100 in chips)",
+        "Seat 2: Bob ($100 in chips)",
+        "Seat 3: Cat ($100 in chips)",
+        "Seat 4: Hero ($100 in chips)",
+        "Cat: posts small blind $0.50",
+        "Hero: posts big blind $1",
+        "*** HOLE CARDS ***",
+        "Dealt to Hero [Qs Qd]",
+        "Ann: folds",
+        "Bob: raises $1.50 to $2.50",
+        "Cat: calls $2",
+        "Hero: raises $10.50 to $13",
+        "Bob: folds",
+        "Cat: folds",
+        "Uncalled bet ($10.50) returned to Hero",
+        "Hero collected $6 from pot",
+        "*** SUMMARY ***",
+        "Total pot $6 | Rake $0",
+      ].join("\n"),
+    );
+    expect(situationAt(r, "preflop", 3).situation).toBe("BB defence");
+    expect(earlierAt(r, "preflop", 3)).toEqual({ firstIn: true, callers: 1 });
   });
 
   it("gives a grade kept before then its facts from the hand's history, and leaves one that has them", async () => {

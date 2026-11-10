@@ -74,6 +74,8 @@ export interface HandStats {
   at: Partial<Record<StatKey, boolean>>;
   /** your seat where it was folded to you */
   rfiPos?: string;
+  /** your seat in the hand */
+  pos?: string;
   /** your bets after the flop (not raises): street and % of the pot */
   bets: { street: Street; pct: number }[];
   /** your raises: street and multiple of the bet raised */
@@ -165,7 +167,7 @@ export function handStats(r: ReplayedHand, playedFor?: HandRecord["playedFor"], 
   const all = steps(r);
   const mine = (s: Street) => all.filter((x) => x.street === s && x.m.pos === hero);
   const at: HandStats["at"] = {};
-  const out: HandStats = { at, bets: [], raises: [], moves: all.filter((x) => x.m.pos === hero).map(factOf), eff: r.hand.effective };
+  const out: HandStats = { at, pos: hero, bets: [], raises: [], moves: all.filter((x) => x.m.pos === hero).map(factOf), eff: r.hand.effective };
   const once = (k: StatKey, took: boolean) => {
     if (!(k in at)) at[k] = took;
   };
@@ -278,6 +280,8 @@ export interface Stats {
   by: Record<StatKey, Count>;
   /** RFI by your seat, in seat order */
   rfi: { pos: string; c: Count }[];
+  /** every stat by your seat, in seat order, with the hands counted there */
+  seats: { pos: string; hands: number; by: Record<StatKey, Count> }[];
   /** your bets after the flop by size, per street */
   sizes: Record<"flop" | "turn" | "river", number[]>;
   /** your raises by size, per street */
@@ -293,6 +297,7 @@ const seatRank = (p: string) => {
 export function tallyStats(list: readonly { id: string; s: HandStats | null }[]): Stats {
   const by = Object.fromEntries(STATS.map((x) => [x.key, count()])) as Record<StatKey, Count>;
   const rfi = new Map<string, Count>();
+  const seats = new Map<string, { pos: string; hands: number; by: Record<StatKey, Count> }>();
   const sizes = { flop: SIZES.map(() => 0), turn: SIZES.map(() => 0), river: SIZES.map(() => 0) };
   const raises = Object.fromEntries(STREETS.map((s) => [s, RAISE_SIZES.map(() => 0)])) as Stats["raises"];
   let left = 0;
@@ -302,6 +307,12 @@ export function tallyStats(list: readonly { id: string; s: HandStats | null }[])
       continue;
     }
     for (const [k, took] of Object.entries(s.at) as [StatKey, boolean][]) add(by[k], id, took);
+    if (s.pos) {
+      if (!seats.has(s.pos)) seats.set(s.pos, { pos: s.pos, hands: 0, by: Object.fromEntries(STATS.map((x) => [x.key, count()])) as Record<StatKey, Count> });
+      const seat = seats.get(s.pos)!;
+      seat.hands++;
+      for (const [k, took] of Object.entries(s.at) as [StatKey, boolean][]) add(seat.by[k], id, took);
+    }
     if (s.rfiPos && s.at.rfi !== undefined) {
       if (!rfi.has(s.rfiPos)) rfi.set(s.rfiPos, count());
       add(rfi.get(s.rfiPos)!, id, s.at.rfi);
@@ -314,6 +325,7 @@ export function tallyStats(list: readonly { id: string; s: HandStats | null }[])
     left,
     by,
     rfi: [...rfi.entries()].sort((a, b) => seatRank(a[0]) - seatRank(b[0]) || a[0].localeCompare(b[0])).map(([pos, c]) => ({ pos, c })),
+    seats: [...seats.values()].sort((a, b) => seatRank(a.pos) - seatRank(b.pos) || a.pos.localeCompare(b.pos)),
     sizes,
     raises,
   };

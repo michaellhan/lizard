@@ -67,6 +67,11 @@ describe("stats", () => {
     expect([t.by.vpip.k, t.by.vpip.n, t.by.rfi.k, t.by.rfi.n, t.by.cbet.k, t.by.cbet.n]).toEqual([4, 4, 3, 3, 3, 3]);
     expect(t.rfi.map((r) => [r.pos, r.c.n])).toEqual([["UTG", 1], ["BTN", 1], ["SB", 1]]);
     expect(t.by.threebet.yes).toEqual(["stars_3bet_pot.txt"]);
+    // every stat by your seat, in seat order, each seat's over its own chances
+    expect(t.seats.map((s) => s.pos)).toEqual(t.seats.map((s) => s.pos).sort((a, b) => ["UTG", "UTG1", "UTG2", "LJ", "HJ", "CO", "BTN", "SB", "BB"].indexOf(a) - ["UTG", "UTG1", "UTG2", "LJ", "HJ", "CO", "BTN", "SB", "BB"].indexOf(b)));
+    expect(t.seats.reduce((n, s) => n + s.hands, 0)).toBe(4);
+    expect(t.seats.reduce((n, s) => n + s.by.vpip.n, 0)).toBe(t.by.vpip.n);
+    expect(t.seats.find((s) => s.pos === "UTG")?.by.rfi).toMatchObject({ n: 1 });
     // (UTG in the zoom hand checks the flop: three flop bets, each about a third of the pot)
     expect(t.sizes.flop).toEqual([0, 3, 0, 0, 0, 0]);
     expect([sizeBucket(29.9), sizeBucket(30), sizeBucket(110), sizeBucket(400)]).toEqual([0, 1, 5, 5]);
