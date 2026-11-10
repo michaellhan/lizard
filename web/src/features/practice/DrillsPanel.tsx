@@ -56,6 +56,7 @@ import {
 } from "./drills";
 import { drillText } from "./copyForAi";
 import { HAND_GROUPS, handLabel, isHandKey } from "./handFilter";
+import { dealtFrom } from "./texture";
 import { drillHint, DRILL_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { LiveDrill } from "./LiveDrill";
@@ -253,6 +254,9 @@ interface DrillSession {
   versions: Record<string, number>;
   /** picks made after Reveal: none of them is in the score */
   revealed?: number;
+  /** the graded decisions by what was dealt: the texture filter's key, and "|" and the hand where one was asked for
+   * (dealtFrom; "" for every flop and hand), each with how many were Best or Correct. Lessons count by it. */
+  byDeal?: Record<string, { n: number; ok: number }>;
 }
 
 const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, view: DrillView): SessionRecord => ({
@@ -262,7 +266,7 @@ const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, 
   endedAt: Date.now(),
   decisions: s.score.n,
   evLossBb: s.score.loss,
-  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions, ...(s.revealed ? { revealed: s.revealed } : {}) },
+  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions, ...(s.revealed ? { revealed: s.revealed } : {}), ...(s.byDeal ? { byDeal: s.byDeal } : {}) },
 });
 
 type SpotData = { st: "loading" } | { st: "ready"; report: LibraryReport; ranges: LibraryRanges } | { st: "error"; message: string };
@@ -431,13 +435,17 @@ function SpotDrill({
       const g = gradeDrill(pr, a);
       setAnswer({ key: dealKey, a, g });
       const version = spotStamp(spot, tree, pr.flop);
-      setSession((s) => ({ ...s, score: addScore(s.score, g), versions: addVersion(s.versions, version) }));
+      const dk = dealtFrom(filter, hand);
+      setSession((s) => {
+        const was = s.byDeal?.[dk] ?? { n: 0, ok: 0 };
+        return { ...s, score: addScore(s.score, g), versions: addVersion(s.versions, version), byDeal: { ...s.byDeal, [dk]: { n: was.n + 1, ok: was.ok + (g.ok ? 1 : 0) } } };
+      });
       if (deal.st === "ready" && data.st === "ready") {
         const m = drillMistake(session.id, data.report, pr, g, drillProvenance(deal.entry, mode, pr, version), studyLink(data.report, pr), spot.flops[pr.flop], Date.now());
         if (m) void keepMistake(m, missedAgain).catch(() => {});
       }
     },
-    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree],
+    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree, filter, hand],
   );
   const next = useCallback(() => setN((x) => x + 1), []);
 

@@ -53,6 +53,9 @@ describe("DrillsPanel", () => {
     await waitFor(async () => expect((await recentSessions("drill")).some((s) => s.decisions === 1 && s.meta.spot === "srp_btn_bb")).toBe(true));
     const kept = (await recentSessions("drill")).find((s) => s.decisions === 1)!;
     expect(Object.entries(kept.meta.versions as Record<string, number>)).toEqual([[expect.stringMatching(/^library:srp_btn_bb:[0-9a-f]{8}$/), 1]]);
+    // what it was dealt from (every flop and hand), for the lessons
+    const ok = within(answer).queryByText(/^(Best|Correct)$/) ? 1 : 0;
+    expect(kept.meta.byDeal).toEqual({ "": { n: 1, ok } });
 
     // Enter: the next hand; a number key answers it
     fireEvent.keyDown(window, { key: "Enter" });

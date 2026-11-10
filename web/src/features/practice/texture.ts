@@ -41,6 +41,14 @@ export const TEXTURE_GROUPS: readonly { key: TextureKey; label: string; values: 
   { key: "conn", label: "Connectedness", values: { conn: "Connected", semi: "Semi-connected", dry: "Disconnected" } },
 ];
 
+/** A filter as one string, its groups in order ("hi:A,pair:paired"; "" for none): how a drill session counts its decisions
+ * by the flops they were dealt from (meta.byDeal). */
+export const textureKey = (filter: TextureFilter): string =>
+  TEXTURE_GROUPS.flatMap((g) => (filter[g.key] ? [`${g.key}:${filter[g.key]}`] : [])).join(",");
+
+/** What a drill dealt from, as a session counts it: the texture filter's key, then "|" and the hand asked for, if any. */
+export const dealtFrom = (filter: TextureFilter, hand: string | null): string => `${textureKey(filter)}${hand ? `|${hand}` : ""}`;
+
 export const fitsTexture = (t: Texture, filter: TextureFilter): boolean => Object.entries(filter).every(([k, v]) => !v || t[k as TextureKey] === v);
 
 /** A filter as a hand or a kept session holds it: known groups and values only (an empty one is no filter). */

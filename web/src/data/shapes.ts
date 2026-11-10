@@ -113,6 +113,7 @@ export function validSession(d: Record<string, unknown>): boolean {
     (meta.exploit === undefined || (isObj(meta.exploit) && isStr(meta.exploit.profile) && isObj(meta.exploit.lock) && Object.values(meta.exploit.lock).every(isNum))) &&
     (meta.read === undefined || (isObj(meta.read) && [meta.read.hands, meta.read.net, meta.read.off].every(isNum))) &&
     (meta.score === undefined || isScore(meta.score)) &&
+    (meta.byDeal === undefined || (isObj(meta.byDeal) && Object.values(meta.byDeal).every((c) => isObj(c) && isCount(c.n) && isCount(c.ok) && c.ok <= c.n))) &&
     (meta.cells === undefined || isSessionCells(meta.cells, d.decisions as number))
   );
 }

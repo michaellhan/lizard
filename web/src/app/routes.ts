@@ -69,7 +69,7 @@ export const GRADES: Record<string, Grade> = {
   "Bubble factors": "WORKING",
   PLO4: "PARTIAL",
   "Saved solutions": "WORKING",
-  "Study plans": "PARTIAL",
+  "Study plans": "WORKING",
   "Preferences / progress": "WORKING",
   "Solution comparisons": "WORKING",
 };
@@ -96,7 +96,7 @@ export const ROUTES: RouteDef[] = [
   { path: "plo", label: "PLO river", nav: false, status: "partial", summary: "One heads-up PLO4 river solved exactly at the sizes you list, from ranges you type. No earlier street is solved, and there's no rake.", rows: ["PLO4"] },
   { path: "library", label: "Library", nav: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
   { path: "history", label: "History", nav: true, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions.", rows: ["Session stats", "Preferences / progress"] },
-  { path: "plan", label: "Plan", nav: true, status: "partial", summary: "What to do next, in order, from what you've kept: reviews due, leaks that can be read, spots with too few hands to read, and a Practice drill, by a plain rule stated on the page.", rows: ["Study plans"] },
+  { path: "plan", label: "Plan", nav: true, status: "partial", summary: "What to do next, in order, from what you've kept (reviews due, leaks, a Practice drill, by a plain rule stated on the page), and 12 lessons, each a report to read and a drill.", rows: ["Study plans"] },
   { path: "review", label: "Review", nav: true, status: "partial", summary: "Your mistakes kept across sessions, what's due to retry on a spaced schedule, each graded again under the current answer's provenance.", rows: ["Study plans"] },
   { path: "saved", label: "Saved", nav: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore.", rows: ["Saved solutions", "Saved hands"] },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },

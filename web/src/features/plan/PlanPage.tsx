@@ -12,6 +12,7 @@ import { SaveDrill } from "@/features/saved/SaveDrill";
 import { SaveScenario } from "@/features/saved/SaveScenario";
 import { libraryFiles } from "@/features/review/retry";
 import type { LibraryFiles } from "@/library/files";
+import { Lessons } from "./LessonsPanel";
 import { buildPlan, LEAK_RULE, PLAN_DONE, PLAN_RULE, PLAN_SCOPE, THIN_SHOWN, withLibrary, type DrillStep, type Plan, type PlanStep } from "./plan";
 
 const START = "rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong";
@@ -74,6 +75,8 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
       ) : (
         <Steps plan={plan} more={more} onMore={() => setMore(true)} />
       )}
+
+      <Lessons />
 
       <section aria-label="How this plan is made" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
         <details>

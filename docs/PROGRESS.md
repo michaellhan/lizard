@@ -4480,3 +4480,30 @@ Each one sets the table's size, every seat's chips (the table's stack is the big
 Tests: `tournament.test.ts` (every stage passes the setup and tournament checks, its players left and places paid), `SolvePage.test.tsx` (the Final table stage to a Study link with each seat's stack; the bubble's 108 others and 115 places; Clear), `games.test.tsx` (a Practice session from the Final-table bubble).
 
 The row is WORKING by the owner's rule of 2026-11-08 (39 of 63); the home page's Tournaments card now reads 3 of 7. Left: no tournament library, and Practice's tournament session is one table frozen in time.
+
+### 2026-11-10: lessons on the Plan page (Phase 9)
+
+**Plan.** The Study plans row asked for structured lessons with drills, and Lizard had a rule-made plan and a review queue only. The Plan page now has 12 lessons of Lizard's own (`web/src/features/plan/lessons.ts`, `LessonsPanel.tsx`) in four units:
+
+- single-raised pots in position;
+- defending the big blind;
+- seats and ranges;
+- 3-bet pots.
+
+Each lesson is one decision of a flop-library spot that both libraries hold, and has three parts:
+
+- **A report to read.** Reports opens grouped by a texture. The group being compared is left unfiltered, so a lesson on monotone flops reads every suit's row.
+- **A question to answer from the report,** and another to ask yourself while drilling.
+- **A drill of that decision** at the lesson's flops.
+
+The lessons only ask. Every number is the library's, under its badge.
+
+**Progress.** A lesson is done at 20 decisions drilled at its spot, decision and flops with no hand filter, over any sessions. For that, a drill session now keeps its graded decisions by what it dealt from: `meta.byDeal`, keyed by `dealtFrom` in `texture.ts` as the texture filter's key plus the hand asked for. It's checked on restore, in `shapes.ts`. Drills kept before today don't count, and the panel says so. The first lesson not done is opened and named.
+
+**Checked in a browser** (dev server):
+- Lesson 3's report opened grouped by suits, with its provenance line.
+- Its drill dealt Q♥J♥3♥, and a check was graded Best under "Precomputed solution · srp_btn_bb …".
+- The Plan page then read "1 of 20 · 100% Best or Correct" for that lesson and 0 for lesson 1.
+- `qa.e2e.ts` 10–10d pass on the build.
+
+The row is WORKING by the owner's rule of 2026-11-08 (40 of 63); Plan and Review on the home page now read Working. Left: flop decisions only (no preflop, turn or river lesson), fixed text, and no cap on the review queue.
