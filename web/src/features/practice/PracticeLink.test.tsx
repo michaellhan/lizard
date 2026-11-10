@@ -99,7 +99,7 @@ describe("a setup's link", () => {
     await underWay();
     clickLink();
     const ask = await screen.findByRole("alertdialog", { name: "A session is under way" });
-    expect(keep()).toHaveFocus();
+    await waitFor(() => expect(keep()).toHaveFocus());
     expect(within(ask).getAllByRole("button").map((b) => b.textContent)).toEqual(["Keep this session", "Start the new one"]);
     expect(ask).toHaveAccessibleDescription(/This link starts .*, in place of what you.re playing\. Finished hands stay in History, and the hand in progress goes\./);
     // (the address is clear, so a reload doesn't ask again)
@@ -191,7 +191,8 @@ describe("a saved scenario's link", () => {
     await underWay();
     clickLink("a saved link");
     const ask = await screen.findByRole("alertdialog", { name: "A session is under way" });
-    expect(keep()).toHaveFocus();
+    // (the dialog takes the focus in an effect after it shows: a loaded runner can look before it)
+    await waitFor(() => expect(keep()).toHaveFocus());
     expect(ask).toHaveAccessibleDescription(/^This link starts Short ones, in place of what you.re playing\./);
     await waitFor(() => expect(screen.getByLabelText("address").textContent).toBe(""));
   });
