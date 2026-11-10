@@ -4716,3 +4716,18 @@ Checked in a browser on the dev server:
 - no sideways scroll at 375px.
 
 The PLO4 row stays PARTIAL.
+
+### 2026-11-10: the range builder on a touch phone and to a screen reader
+
+Phase 4's last item. `web/e2e/builder.e2e.ts` runs on the phone project only (390px, touch; `playwright.config.ts`: desktop ignores it). Study's build mode at 6-max 100bb on the built page:
+- a tap paints AA;
+- a finger dragged along a row, sent as CDP touch events, paints all four hands it crosses, and the page doesn't scroll (the grid is `touch-action: none` with pointer capture);
+- a tap on "Check my range" scores the range.
+
+The second test is a screen-reader check by accessible names, not a run with VoiceOver or TalkBack:
+- the grid and all 169 hands are named, each starting with the hand;
+- one tab stop, and the arrows move;
+- Space paints, and the status line says the hand as it's painted now;
+- the brushes carry `aria-pressed`.
+
+Both pass (`slot.sh npx playwright test e2e/builder.e2e.ts --project=phone`). The Range-builder row was WORKING already; its note now says this.

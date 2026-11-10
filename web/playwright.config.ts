@@ -21,10 +21,10 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    { name: "desktop", testIgnore: ["builder.e2e.ts"], use: { viewport: { width: 1440, height: 900 } } },
     // (the other files run at one width and skip the rest: left out here, so CI's split counts only tests that run)
     { name: "tablet", testMatch: ["routes.e2e.ts", "content.e2e.ts"], use: { viewport: { width: 1024, height: 768 } } },
-    { name: "phone", testMatch: ["routes.e2e.ts", "content.e2e.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "phone", testMatch: ["routes.e2e.ts", "content.e2e.ts", "builder.e2e.ts"], use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
     command: `npx vite preview --port ${PORT} --strictPort`,
