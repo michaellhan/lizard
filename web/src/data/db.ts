@@ -216,8 +216,14 @@ export interface DecisionRecord {
   roughEvs?: string[];
   /** the ranges behind the answer aren't all the solve's: how */
   off?: string;
-  /** on the turn: you bet or raised the flop */
+  /** on the turn and river: you bet or raised the flop (on the river since 2026-11-09) */
   flopAggr?: boolean;
+  /** on the river: you bet or raised the turn (since 2026-11-09; an older grade has none) */
+  turnAggr?: boolean;
+  /** preflop: this was your first decision of the hand (since 2026-11-09; an older grade has none) */
+  firstIn?: boolean;
+  /** on the flop: your first move on it, before this one, was a check (since 2026-11-09; an older grade has none) */
+  ownCheck?: boolean;
   /** on the flop: you'd already bet or raised on it, so what you face is a raise of yours */
   ownBet?: boolean;
   /** a Quick triage read: how far to trust it and what the Advisor read it from (Advisor.triage) */

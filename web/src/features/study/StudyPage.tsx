@@ -520,9 +520,9 @@ export function StudyPage() {
         )}
         {res?.study === "node" && res.street === "preflop" && <PfNote res={res} running={pfRunning} onContinue={startPf} />}
         {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
-          <ChipCompare key={requestKey} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
+          <ChipCompare key={`chips|${requestKey}`} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
         ) : null}
-        {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={requestKey} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
+        {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
 
         {building && buildable && (
           <div className="flex items-center gap-2 text-sm">
@@ -533,7 +533,7 @@ export function StudyPage() {
         {building && buildable && !buildRes && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
         {building && buildRes && (
           <BuildMode
-            key={requestKey}
+            key={`build|${requestKey}`}
             res={buildRes}
             provenance={shown!.provenance}
             colors={actionFills(buildRes.grid.actions)}
@@ -720,10 +720,10 @@ export function StudyPage() {
         {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
           <div className="flex flex-wrap items-start gap-2">
             <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
-            {raw && offersOneSize(raw) && <OneSizePanel key={requestKey} hand={hand} res={raw} getSolver={getSolver} />}
-            {raw && offersLock(raw) && <LockPanel key={requestKey} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
-            {raw && <NodeLockPanel key={requestKey} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
-            {raw && offersAutoSize(raw) && <AutoSizePanel key={requestKey} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+            {raw && offersOneSize(raw) && <OneSizePanel key={`one-size|${requestKey}`} hand={hand} res={raw} getSolver={getSolver} />}
+            {raw && offersLock(raw) && <LockPanel key={`lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+            {raw && <NodeLockPanel key={`node-lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+            {raw && offersAutoSize(raw) && <AutoSizePanel key={`auto-size|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
           </div>
         )}
       </div>

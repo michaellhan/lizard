@@ -12,7 +12,7 @@ import { PhoneColumns } from "@/components/PhoneColumns";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { recentSessions, type DecisionRecord, type HandRecord } from "@/data/db";
-import { addHands, deleteImport, importsOf, listDecisions, listHands, putHandNotes, PRACTICE_SITE, type ImportSummary } from "@/data/hands";
+import { addHands, deleteImport, importsOf, listDecisions, listHands, putDecisions, putHandNotes, PRACTICE_SITE, type ImportSummary } from "@/data/hands";
 import { readTags } from "@/data/saved";
 import type { Verdict } from "@/grading/grade";
 import { newId } from "@/data/saved";
@@ -28,7 +28,7 @@ import { GradePanel, GradeReport } from "./GradingPanel";
 import { leakParam, parseLeakParam } from "./leakDrill";
 import { MissCards } from "./MissCards";
 import { LeakDrill } from "./LeakDrillPanel";
-import { decisionId } from "./grading";
+import { decisionId, fillEarlier, lacksEarlier } from "./grading";
 import { isGraded, isOk, lostByKind, missesOf } from "./report";
 import { importTooBig } from "@/data/limits";
 import { droppedFiles, entriesOf, type PickedFile } from "./dropped";
@@ -77,14 +77,25 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
   const reload = () => setN((x) => x + 1);
   useEffect(() => {
     let alive = true;
+    const ctl = new AbortController();
     void Promise.all([listHands(), listDecisions(), recentSessions("exploit", Infinity)]).then(([h, d, s]) => {
       if (!alive) return;
       setHands(h);
       setDecisions(d);
       setExploits(exploitImports(s));
+      // grades kept before they carried what you'd done earlier in the hand get it from their histories, once, and are
+      // saved so: the rows that need it (VPIP, PFR, the check-raise, the river barrel against the answer) count them too
+      if (d.some(lacksEarlier))
+        void fillEarlier(d, new Map(h.map((x) => [x.id, x])), { signal: ctl.signal }).then((filled) => {
+          if (!alive || !filled.length) return;
+          void putDecisions(filled);
+          const by = new Map(filled.map((x) => [x.id, x]));
+          setDecisions((prev) => prev.map((x) => by.get(x.id) ?? x));
+        });
     });
     return () => {
       alive = false;
+      ctl.abort();
     };
   }, [n]);
   // graded decisions as they come (null: all forgotten)

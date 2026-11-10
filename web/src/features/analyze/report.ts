@@ -110,11 +110,15 @@ export function groupBy(ds: readonly DecisionRecord[], key: (d: DecisionRecord) 
 
 export const PF_ORDER = ["RFI", "vs limp", "BB vs limp", "vs open", "vs open + call", "SB vs open", "BB defence", "limp vs raise", "vs 3bet", "cold vs 3bet", "vs 4bet+"];
 
-type Cls = "fold" | "passive" | "aggr";
-const clsOf = (action: string): Cls => (/^fold/.test(action) ? "fold" : /^(check|call)/.test(action) ? "passive" : "aggr");
+/** a kind of action: fold, check or call, bet or raise; and "vpip", money put in by choice (a call, bet or raise) */
+type Cls = "fold" | "passive" | "aggr" | "vpip";
+const clsOf = (action: string): Exclude<Cls, "vpip"> => (/^fold/.test(action) ? "fold" : /^(check|call)/.test(action) ? "passive" : "aggr");
+const isVpip = (action: string) => !/^(fold|check)/.test(action);
+/** whether an action is of the kind */
+const took = (action: string, cls: Cls) => (cls === "vpip" ? isVpip(action) : clsOf(action) === cls);
 /** the answer's mix for your hand by kind of action */
-export function mixByClass(d: DecisionRecord): Record<Cls, number> {
-  const m: Record<Cls, number> = { fold: 0, passive: 0, aggr: 0 };
+export function mixByClass(d: DecisionRecord): Record<Exclude<Cls, "vpip">, number> {
+  const m: Record<Exclude<Cls, "vpip">, number> = { fold: 0, passive: 0, aggr: 0 };
   for (const [a, f] of d.mix ?? []) m[clsOf(a)] += f;
   return m;
 }
@@ -123,10 +127,17 @@ export function mixByClass(d: DecisionRecord): Record<Cls, number> {
  * its BB defence or SB vs open, so the squeeze row is the other seats'. */
 const THREE_BET = new Set(["vs open", "vs open + call", "SB vs open", "BB defence"]);
 
+/** the answer's share of a kind of action for your hand */
+const shareOf = (d: DecisionRecord, cls: Cls) => (Array.isArray(d.mix) ? d.mix : []).reduce((s, [a, f]) => s + (took(a, cls) ? f : 0), 0);
+
 /** Your frequency of a kind of action against the answer's for the same hands at the same decisions (the classic
- * FREQS, and the rows a decision can answer of the plan's list: VPIP, PFR and the river barrel stay with the stats as
- * played, as a decision doesn't store that it was your first, or what you did on the turn). */
+ * FREQS and the plan's list). VPIP and PFR are at your first preflop decision of each hand, where the answer's mix is
+ * for the same choice (as played they count any preflop decision: Your stats); the check-raise and the river barrel need
+ * what you did earlier in the hand, kept with a decision since 2026-11-09 (grading.ts `earlierAt`; an older grade is
+ * given it from its history when Analyze opens, `fillEarlier`). */
 export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
+  ["VPIP (your first preflop decision)", "vpip", (d) => d.street === "preflop" && d.firstIn === true],
+  ["PFR (your first preflop decision)", "aggr", (d) => d.street === "preflop" && d.firstIn === true],
   ["Open (RFI)", "aggr", (d) => d.situation === "RFI"],
   ["BB defence: fold", "fold", (d) => d.situation === "BB defence"],
   ["BB defence: 3bet", "aggr", (d) => d.situation === "BB defence"],
@@ -140,8 +151,10 @@ export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
   ["Flop vs c-bet: fold", "fold", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi && !d.ownBet],
   ["Flop vs c-bet: raise", "aggr", (d) => d.street === "flop" && d.role === "caller" && !!d.facing && !d.multi && !d.ownBet],
   ["Flop out of position vs bet: raise", "aggr", (d) => d.street === "flop" && d.ip === false && !!d.facing && !d.multi],
+  ["Flop check-raise", "aggr", (d) => d.street === "flop" && d.ownCheck === true && !!d.facing && !d.multi],
   ["Turn barrel", "aggr", (d) => d.street === "turn" && d.role === "PFR" && !!d.flopAggr && !d.facing && !d.multi],
   ["Turn vs bet: fold", "fold", (d) => d.street === "turn" && !!d.facing],
+  ["River barrel", "aggr", (d) => d.street === "river" && d.role === "PFR" && !!d.flopAggr && !!d.turnAggr && !d.facing && !d.multi],
   ["River bet", "aggr", (d) => d.street === "river" && !d.facing],
   ["River vs bet: fold", "fold", (d) => d.street === "river" && !!d.facing],
   ["River vs bet: call (bluff-catching)", "passive", (d) => d.street === "river" && !!d.facing],
@@ -204,7 +217,7 @@ export function freqs(ds: readonly DecisionRecord[]): FreqRow[] {
     if (!rs.length) return;
     let [you, gto, sq] = [0, 0, 0];
     for (const d of rs) {
-      const [y, m] = [Number(clsOf(d.action) === cls), mixByClass(d)[cls]];
+      const [y, m] = [Number(took(d.action, cls)), shareOf(d, cls)];
       you += y;
       gto += m;
       sq += (y - m) ** 2;

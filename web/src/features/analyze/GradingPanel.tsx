@@ -460,7 +460,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
           </div>
           <p className="text-xs text-muted">
             The answer's: the same hands at the same decisions, from what graded each (preflop the charts, which aren't a solve, or on a row of its own the preflop solve, a class-level model; after the flop the library, a read or a solve). The range is a 95% interval on your rate. The
-            squeeze row leaves out the blinds, whose decisions don't store a caller. VPIP, PFR, check-raise and the river barrel as such are in Your stats, counted from the histories: a decision doesn't store what you did before it.
+            squeeze row leaves out the blinds, whose decisions don't store a caller. VPIP and PFR here are at your first preflop decision of each hand; as played, over every preflop decision, they're in Your stats. VPIP, PFR, the check-raise and the river barrel need what you did earlier in the hand, which a grade kept before 9 November 2026 is given from its history when this page opens.
           </p>
           {freq && freqDs.length > 0 && <DecisionList title={freq} ds={freqDs} byId={byId} />}
         </div>

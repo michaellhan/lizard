@@ -247,6 +247,58 @@ async function askPf({ triage: _t, library_only: _l, ...state }: AdvisorState, a
   }
 }
 
+type Earlier = Pick<DecisionRecord, "ownBet" | "flopAggr" | "turnAggr" | "firstIn" | "ownCheck">;
+
+/** What you'd done earlier in the hand, kept with a decision for the rows that need it (report.ts FREQS): a decision is
+ * graded alone. On the flop, whether you'd bet or raised it already (a bet faced is then a raise of yours) and whether
+ * your first move on it was a check (the check-raise); on the turn and river, whether you bet or raised the flop, and on
+ * the river the turn (the barrels); preflop, whether this was your first decision (VPIP and PFR against the answer). */
+export function earlierAt(r: ReplayedHand, street: Street, i: number): Earlier {
+  const pos = r.lines[street][i]?.pos;
+  if (!pos) return {};
+  const aggr = (s: Street, upTo?: number) => r.lines[s].slice(0, upTo).some((a) => a.pos === pos && AGGRESSIVE.has(a.action));
+  if (street === "preflop") return { firstIn: !r.lines.preflop.slice(0, i).some((a) => a.pos === pos) };
+  if (street === "flop") return { ...(aggr("flop", i) ? { ownBet: true } : {}), ownCheck: r.lines.flop.slice(0, i).find((a) => a.pos === pos)?.action === "check" };
+  if (street === "turn") return { flopAggr: aggr("flop") };
+  return { flopAggr: aggr("flop"), turnAggr: aggr("turn") };
+}
+
+/** A grade kept before earlierAt's facts were (2026-11-09): it lacks its street's. */
+export const lacksEarlier = (d: Pick<DecisionRecord, "street" | "firstIn" | "ownCheck" | "turnAggr">) =>
+  d.street === "preflop" ? d.firstIn === undefined : d.street === "flop" ? d.ownCheck === undefined : d.street === "river" ? d.turnAggr === undefined : false;
+
+/** Grades kept before earlierAt's facts were, given them from their hands' histories (nothing is asked of the solver), a
+ * chunk of hands at a time so a large database doesn't hold the page. Returns the grades it changed; a hand that no
+ * longer reads, or a move not in it, is left as it was. */
+export async function fillEarlier(
+  ds: readonly DecisionRecord[],
+  hands: ReadonlyMap<string, Pick<HandRecord, "text">>,
+  opts: { signal?: AbortSignal; chunk?: number } = {},
+): Promise<DecisionRecord[]> {
+  const byHand = new Map<string, DecisionRecord[]>();
+  for (const d of ds) if (lacksEarlier(d) && hands.has(d.handId)) byHand.set(d.handId, [...(byHand.get(d.handId) ?? []), d]);
+  const out: DecisionRecord[] = [];
+  let k = 0;
+  for (const [id, its] of byHand) {
+    if (opts.signal?.aborted) break;
+    let r: ReplayedHand | null;
+    try {
+      r = importHand(hands.get(id)!.text);
+    } catch {
+      r = null;
+    }
+    for (const d of r ? its : []) {
+      // (the move's index on its street: its own, or, kept before that was, its id's last part)
+      const i = d.i ?? Number(d.id.slice(d.id.lastIndexOf("|") + 1));
+      const m = Number.isInteger(i) ? r!.lines[d.street as Street]?.[i] : undefined;
+      if (!m || m.pos !== d.pos) continue;
+      out.push({ ...d, ...earlierAt(r!, d.street as Street, i) });
+    }
+    if (++k % (opts.chunk ?? 200) === 0) await new Promise((res) => setTimeout(res, 0));
+  }
+  return out;
+}
+
 /** One of your decisions graded, as kept: the grade and what it stands on, or why it isn't graded. */
 export async function gradeDecision(
   hand: Pick<HandRecord, "id" | "setup"> & Partial<Pick<HandRecord, "site" | "tournament">>,
@@ -271,8 +323,7 @@ export async function gradeDecision(
     potType: sit.potType,
     facing: sit.facing,
     ...(street === "preflop" ? {} : { ip: sit.ip, multi: sit.multi, role: roleOf(r) }),
-    ...(street === "flop" && r.lines.flop.slice(0, i).some((a) => a.pos === played.pos && AGGRESSIVE.has(a.action)) ? { ownBet: true } : {}),
-    ...(street === "turn" ? { flopAggr: r.lines.flop.some((a) => a.pos === played.pos && AGGRESSIVE.has(a.action)) } : {}),
+    ...earlierAt(r, street, i),
     pot: potBefore(r, street, i),
     gradedAt: now,
   };

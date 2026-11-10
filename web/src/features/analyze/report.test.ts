@@ -214,6 +214,27 @@ describe("report", () => {
     ]);
   });
 
+  it("VPIP and PFR at your first preflop decision, the flop check-raise and the river barrel, each on what you did before", () => {
+    const pre: DecisionRecord["mix"] = [["fold", 0.5, null], ["call", 0.2, null], ["raise 2.5bb", 0.3, null]];
+    const post: DecisionRecord["mix"] = [["fold", 0.2, 0], ["check", 0.4, 0], ["call", 0.1, 1], ["bet 75%", 0.3, 1.1]];
+    const ds = [
+      d({ street: "preflop", situation: "RFI", firstIn: true, action: "raise to 2.5", mix: pre }),
+      d({ street: "preflop", situation: "vs open", firstIn: true, action: "call", mix: pre }),
+      d({ street: "preflop", situation: "vs 3bet", firstIn: false, action: "call", mix: pre }),
+      d({ street: "preflop", situation: "RFI", action: "fold", mix: pre }), // (kept before firstIn was: in neither row)
+      d({ street: "flop", ownCheck: true, facing: true, multi: false, action: "raise to 9", mix: post }),
+      d({ street: "flop", ownCheck: false, facing: true, multi: false, action: "fold", mix: post }),
+      d({ street: "river", role: "PFR", flopAggr: true, turnAggr: true, facing: false, multi: false, action: "bet 20", mix: post }),
+      d({ street: "river", role: "PFR", flopAggr: true, turnAggr: false, facing: false, multi: false, action: "check", mix: post }),
+    ];
+    const row = (label: string) => freqs(ds).find((f) => f.label === label);
+    // VPIP: a call or raise, against the answer's 0.2 + 0.3; PFR the raise alone
+    expect(row("VPIP (your first preflop decision)")).toMatchObject({ n: 2, k: 2, you: 1, gto: 0.5 });
+    expect(row("PFR (your first preflop decision)")).toMatchObject({ n: 2, k: 1, you: 0.5, gto: 0.3 });
+    expect(row("Flop check-raise")).toMatchObject({ n: 1, k: 1, gto: 0.3 });
+    expect(row("River barrel")).toMatchObject({ n: 1, k: 1, gto: 0.3 });
+  });
+
   it("says what the grades stand on, and never adds a low read to a solid one unsaid", () => {
     const quick = (o: Partial<DecisionRecord>) => cbet({ source: "live", street: "turn", confidence: "medium", label: "Quick", ...o });
     const ds = [

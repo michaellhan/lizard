@@ -4411,3 +4411,13 @@ Tests: `analyze.test.ts` (the 3bb all-in blind), `setup.test.ts`; full unit suit
 **Fixed in Lizard.** Study's answers carry only the engine's notes on this, and the badge said "Live solve" over ranges that were partly rules. `rangesOffOf` reads the three notes (an unsettled narrowing solve, a Quick street narrowed by rules, multiway streets narrowed by rules), and the answer is approximate with the reason in its label. Checked in a browser: a 3-way river now says the turn and river ranges are the rules'; the heads-up river settled in that run and stayed "Live solve".
 
 Not changed: the engine's budgets (`solver/` stays upstream's), so the ranges still vary with the device; making narrowing stop at a fixed iteration count would be an upstream change. Tests: `provenance.test.ts` (3 new), full unit suite 3,403 passed with 2 skipped, typecheck and lint clean.
+
+### 2026-11-09: VPIP, PFR, the check-raise and the river barrel against the answer (Phase 6)
+
+**Analyze.** The frequency table compared your play with the answer's on 17 rows, but not VPIP, PFR, the check-raise or the river barrel, because a decision is graded alone and didn't keep what you had done earlier in the hand. It does now (`earlierAt`: your first preflop decision; on the flop, whether your first move was a check; on the river, whether you bet the flop and the turn). VPIP and PFR are at your first preflop decision, where the answer's mix is for the same choice. Grades kept before this get the facts from their hands' histories when Analyze opens and are saved (`fillEarlier`), so nothing has to be graded again. In the browser: 4 sample hands at Quick triage filled all four rows; with the facts stripped from the kept grades, a reload filled all 14 back.
+
+**Study.** Four panels under a node (one size, the read lock, the true node lock, automatic sizing) and two others shared one React key, which React warns about and which can mix up their state when the spot changes. Each has its own now. The heads-up river also showed the unsettled-narrowing badge in a real run this time: "the turn's narrowing solve stopped 2.5% of the pot from equilibrium after 59 iterations… · approximate".
+
+**Matrix.** The Decision grading row said Practice's preflop-solve grading wasn't checked in a browser; `qa.e2e.ts` and `checks.e2e.ts` do check it.
+
+Tests: `grading.test.ts` (2 new), `report.test.ts` (1 new), the shapes test; full unit suite 3,405 passed with 2 skipped and one Practice test timing out at load 26, which passed twice alone; typecheck and lint clean. The browser suite wasn't run.

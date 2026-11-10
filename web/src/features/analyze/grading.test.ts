@@ -21,6 +21,9 @@ import {
   answeredIds,
   decisionsIn,
   deepened,
+  earlierAt,
+  fillEarlier,
+  lacksEarlier,
   gradeAgainst,
   gradedMove,
   gradeDecision,
@@ -514,5 +517,70 @@ describe("preflop by the stored solve", () => {
     expect([ds[1]!, ds[2]!, ds[3]!].every((x) => ids.has(x.id))).toBe(true);
     // (without the hands, as ever)
     expect(answeredIds(ds).has(ds[0]!.id)).toBe(true);
+  });
+});
+
+describe("what you'd done earlier in the hand", () => {
+  // Hero opens the cutoff, calls the button's 3-bet, checks the flop and raises its bet, then bets the turn and river
+  const TEXT = [
+    "PokerStars Hand #9: Hold'em No Limit ($0.50/$1.00 USD) - 2026/11/09 10:00:00 ET",
+    "Table 'T' 4-max Seat #2 is the button",
+    "Seat 1: Hero ($100 in chips)",
+    "Seat 2: Ann ($100 in chips)",
+    "Seat 3: Bob ($100 in chips)",
+    "Seat 4: Cat ($100 in chips)",
+    "Bob: posts small blind $0.50",
+    "Cat: posts big blind $1",
+    "*** HOLE CARDS ***",
+    "Dealt to Hero [Ah Kh]",
+    "Hero: raises $1.50 to $2.50",
+    "Ann: raises $5.50 to $8",
+    "Bob: folds",
+    "Cat: folds",
+    "Hero: calls $5.50",
+    "*** FLOP *** [Kd 7s 2c]",
+    "Hero: checks",
+    "Ann: bets $5",
+    "Hero: raises $10 to $15",
+    "Ann: calls $10",
+    "*** TURN *** [Kd 7s 2c] [5h]",
+    "Hero: bets $20",
+    "Ann: calls $20",
+    "*** RIVER *** [Kd 7s 2c 5h] [9s]",
+    "Hero: bets $30",
+    "Ann: folds",
+    "Uncalled bet ($30) returned to Hero",
+    "Hero collected $87.50 from pot",
+    "*** SUMMARY ***",
+    "Total pot $87.50 | Rake $0",
+  ].join("\n");
+
+  it("keeps your first preflop decision, a check before a flop raise, and your flop and turn bets before the river", () => {
+    const r = importHand(TEXT);
+    const at = (street: "preflop" | "flop" | "turn" | "river") => r.lines[street].flatMap((m, i) => (m.pos === r.hand.hero ? [earlierAt(r, street, i)] : []));
+    expect(at("preflop")).toEqual([{ firstIn: true }, { firstIn: false }]);
+    expect(at("flop")).toEqual([{ ownCheck: false }, { ownCheck: true }]);
+    expect(at("turn")).toEqual([{ flopAggr: true }]);
+    expect(at("river")).toEqual([{ flopAggr: true, turnAggr: true }]);
+  });
+
+  it("gives a grade kept before then its facts from the hand's history, and leaves one that has them", async () => {
+    const r = importHand(TEXT);
+    const kept = (street: string, i: number, o: Partial<DecisionRecord> = {}): DecisionRecord =>
+      ({ id: `h9|${street}|${i}`, handId: "h9", street, i, pos: r.lines[street as "flop"][i]!.pos, action: "x", verdict: "Best", evLossBb: 0, lossPct: 0, source: "live", label: "", gradedAt: 0, ...o }) as DecisionRecord;
+    const old = [kept("preflop", 4), kept("flop", 2), kept("river", 0), kept("turn", 0), kept("flop", 0, { ownCheck: false })];
+    // (an id from before `i` was kept: its last part)
+    const noI = { ...kept("preflop", 0), i: undefined };
+    const filled = await fillEarlier([...old, noI], new Map([["h9", { text: TEXT }]]));
+    expect(filled.map((d) => [d.street, d.i, d.firstIn, d.ownCheck, d.flopAggr, d.turnAggr])).toEqual([
+      ["preflop", 4, false, undefined, undefined, undefined],
+      ["flop", 2, undefined, true, undefined, undefined],
+      ["river", 0, undefined, undefined, true, true],
+      ["preflop", undefined, true, undefined, undefined, undefined],
+    ]);
+    expect(filled.every((d) => !lacksEarlier(d))).toBe(true);
+    // a hand not kept, or one that no longer reads, is left as it was
+    expect(await fillEarlier(old, new Map())).toEqual([]);
+    expect(await fillEarlier(old, new Map([["h9", { text: "not a hand" }]]))).toEqual([]);
   });
 });

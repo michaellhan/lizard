@@ -80,6 +80,9 @@ const DECISION: DecisionRecord = {
   roughEv: false,
   off: "o",
   flopAggr: false,
+  turnAggr: true,
+  firstIn: true,
+  ownCheck: false,
   confidence: "high",
   triageSource: "t",
   read: { verdict: "Best", source: "live", label: "Live", version: "v2", confidence: "low", triageSource: "t", evLossBb: null, freq: 0.1, mix: [["check", 1, null]] },
@@ -118,7 +121,7 @@ describe("records that blanked a page", () => {
     ["savedDrills", { ...DRILL }, []],
     ["sessions", { ...SESSION }, ["endedAt"]],
     ["hands", { ...HAND }, ["playedFor", "revealed", "setup", "tournament", "tags", "note", "updatedAt"]],
-    ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "roughEvs", "off", "flopAggr", "confidence", "triageSource", "read", "notChecked"]],
+    ["decisions", { ...DECISION }, ["i", "evLossBb", "lossPct", "byEv", "situation", "potType", "facing", "ip", "multi", "role", "pot", "matched", "freq", "best", "bestFreq", "mix", "note", "why", "version", "approximate", "band", "capped", "roughEv", "roughEvs", "off", "flopAggr", "turnAggr", "firstIn", "ownCheck", "confidence", "triageSource", "read", "notChecked"]],
   ];
 
   it.each([[{ rake: "5" }], [{ rakeCap: Infinity }], [{ sizes: "33" }], [{ sizes: { flop: 33 } }], [{ sizes: { flop: ["33"] } }]])("refuses a hand's setup of %j", async (setup) => {
