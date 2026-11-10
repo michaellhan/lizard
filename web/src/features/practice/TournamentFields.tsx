@@ -72,6 +72,7 @@ export function TournamentFields({
   stack,
   problems,
   onStage,
+  playOut = false,
 }: {
   draft: TournamentDraft;
   onDraft: (d: TournamentDraft) => void;
@@ -83,6 +84,8 @@ export function TournamentFields({
   problems: string[];
   /** set up a stage of an MTT: the table, the stacks, the ante and the prizes at once */
   onStage?: (st: StagePreset) => void;
+  /** the tournament is played out (Play it out) */
+  playOut?: boolean;
 }) {
   const icm = draft.model === "icm";
   const set = (o: Partial<TournamentDraft>) => onDraft({ ...draft, ...o });
@@ -182,7 +185,9 @@ export function TournamentFields({
         </p>
       )}
       <p className="basis-full text-xs text-muted">
-        Every hand starts from these stacks and prizes, so the tournament doesn&rsquo;t move on and nobody&rsquo;s knocked out.{" "}
+        {playOut
+          ? "The first hand starts from these stacks and prizes, and the tournament moves on from there: players knocked out, prizes paid, the blinds rising. Out, or with every chip, and it starts over."
+          : "Every hand starts from these stacks and prizes, so the tournament doesn\u2019t move on and nobody\u2019s knocked out (Play it out moves it on)."}{" "}
         {icm
           ? `Answers are in prize equity by Malmuth-Harville. At ${PUSH_FOLD_MAX}bb or less your own all-in is the push/fold equilibrium in prize equity, and a call of a jam is priced in prize equity. Every other preflop spot is a chip chart with a risk premium, a heuristic. After the flop a solve pays prize equity, and betting rules play chips, so those are graded by frequency. The badge on each answer says which. Bounties aren't offered here: they're on the Tournaments page.`
           : "Chip EV means no prizes: the answers are what the engine gives these stacks in a cash game, in bb."}{" "}

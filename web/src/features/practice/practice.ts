@@ -15,6 +15,7 @@ import { grade, type Grade } from "@/grading/grade";
 import { lineToken } from "@/library/flops";
 import { cmp, handName } from "@/poker/evaluate";
 import { seatLabel, seatsOf } from "@/poker/seats";
+import { moveOn, restarted } from "./tournamentPlay";
 import {
   deal,
   DECK,
@@ -148,9 +149,13 @@ export interface HandTournament {
   payouts?: number[];
   /** the players at other tables and their average stack, bb */
   field?: NonNullable<TournamentSetup["field"]>;
+  /** played out (`playsOn`): hands played in this tournament before this one */
+  played?: number;
+  /** played out: what happened between the last hand and this one, in words (tournamentPlay.ts) */
+  news?: string[];
 }
-/** A tournament session's setup: its game and each seat's chips, bb, which every hand starts from. The tournament doesn't
- * move on: nobody's knocked out, and no chips go from hand to hand. */
+/** A tournament session's setup: its game and each seat's chips, bb, which every hand starts from. Unless it's played
+ * out (`playsOn`), the tournament doesn't move on: nobody's knocked out, and no chips go from hand to hand. */
 export interface TournamentOptions extends HandTournament {
   stacks: Record<string, number>;
 }
@@ -264,6 +269,10 @@ export const anyHandOnly = (o: Pick<HandOptions, "preflopOnly"> & GameOptions) =
  * so each player keeps a seat and its chips follow it. */
 export const carries = (o: HandOptions & GameOptions) => !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly && !o.pot && !o.pushFold && !o.tournament;
 
+/** Whether a tournament session is played out (tournamentPlay.ts): its `carry` set, full hands, your seat moving with
+ * the button. */
+export const playsOn = (o: HandOptions & GameOptions) => !!o.tournament && !!o.carry && (o.seat ?? "moves") === "moves" && !o.preflopOnly;
+
 /** The rake of the one raked game the preflop solve is stored for (web/public/solver/pf/6max_100bb_r5c3.bin). */
 export const PF_STORED_RAKE = { pct: 5, cap: 3 };
 
@@ -324,7 +333,7 @@ function dealAround(players: number, rnd: () => number, flop: readonly string[],
  * starts at `stack`. */
 export function newHand(players: number, stack: number, n: number, seed: number, opts: DealOptions = {}, table?: Table): PracticeHand {
   const flops = flopsFor(opts);
-  const hero = seatFor(opts.seat, n, players, seed, opts.pot);
+  const hero = table?.hero ?? seatFor(opts.seat, n, players, seed, opts.pot);
   const rnd = seeded(seed);
   // (the filter's search, ahead of the preflop, as a mode deals until it reaches its pot and each of those deals would use up
   // its turn on a hand that couldn't count)
@@ -350,7 +359,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.rake && opts.rake > 0 ? { rake: { pct: opts.rake, ...(opts.rakeCap && opts.rakeCap > 0 ? { cap: opts.rakeCap } : {}) } } : {}),
     ...(carries(opts) ? { stacks: table?.stacks ?? Object.fromEntries(seatsOf(players).map((p) => [p, stack])), ...(table?.rebuys.length ? { rebuys: table.rebuys } : {}) } : {}),
     ...(opts.pushFold ? { pushFold: true as const } : {}),
-    ...(opts.tournament ? tournamentHand(opts.tournament) : {}),
+    ...(opts.tournament ? (table?.tournament ? { tournament: table.tournament, stacks: table.stacks } : tournamentHand(opts.tournament)) : {}),
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
     ...(opts.pfSolve && !pfBlocked(players, stack, opts) ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}) } : {}),
   };
@@ -361,6 +370,9 @@ const tournamentHand = ({ stacks, ...game }: TournamentOptions) => ({ tournament
 export interface Table {
   stacks: Record<string, number>;
   rebuys: string[];
+  /** a tournament played out: your seat, and the game as it stands */
+  hero?: string;
+  tournament?: HandTournament;
 }
 
 /** Each seat's chips as the hand ends, bb: its stack, less what it put in, plus what it won. After your fold with
@@ -395,8 +407,17 @@ export function nextTable(h: PracticeHand, chips: Record<string, number> = chips
 
 /** The session's next hand, number `n`: with chips carried, from where this one left them (or, `reset`, every seat
  * back at the starting stack). */
-export const following = (h: PracticeHand, seed: number, opts: DealOptions, reset = false, n = h.n + 1): PracticeHand =>
-  newHand(h.players, h.stack, n, seed, opts, carries(opts) && !reset ? nextTable(h) : undefined);
+export function following(h: PracticeHand, seed: number, opts: DealOptions, reset = false, n = h.n + 1): PracticeHand {
+  if (playsOn(opts) && opts.tournament) {
+    // (a tournament played out: from where this hand left it, or over and started again; `reset` starts it again)
+    const setup = opts.tournament;
+    const m = h.tournament && !reset ? moveOn({ ...h, tournament: h.tournament }, chipsAfter(h)) : { table: null, news: [] };
+    if (m.table) return newHand(m.table.players, h.stack, n, seed, opts, { stacks: m.table.stacks, rebuys: [], hero: m.table.hero, tournament: m.table.tournament });
+    const players = Object.keys(setup.stacks).length;
+    return newHand(players, h.stack, n, seed, opts, { stacks: setup.stacks, rebuys: [], tournament: restarted(setup, m.news) });
+  }
+  return newHand(h.players, h.stack, n, seed, opts, carries(opts) && !reset ? nextTable(h) : undefined);
+}
 
 /** A drill hand that went another way, dealt again (the same hand number: your seat stays where it moves). */
 export const redeal = (h: PracticeHand, seed: number, opts: DealOptions): PracticeHand => ({ ...newHand(h.players, h.stack, h.n, seed, opts), tries: (h.tries ?? 0) + 1 });

@@ -19,6 +19,7 @@ import {
 } from "./exploit";
 import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
 import { PF_MODEL } from "./pfGrade";
+import { LEVEL_HANDS } from "./tournamentPlay";
 import { carries, drillTries, hardHand, handWorks, isPotDrill, MAX_STACK, MIN_STACK, pfBlocked, POT_DRILLS, PUSH_FOLD_MAX, REBUY, type SessionOptions, type Sizes } from "./practice";
 import { flopsLike, TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "./texture";
 import { draftOf, readDraft, stageDraft, TournamentFields } from "./TournamentFields";
@@ -82,14 +83,16 @@ export function SetupForm({
   const sizeProblems = sizes ? setupProblems(p, { sizes }) : [];
   // (a seat the table size doesn't have moves)
   const seatOk = seat === "moves" || seat === "random" || seatsOf(p).includes(seat);
-  const canCarry =
-    carries({
-      carry: true,
-      seat: seatOk ? seat : "moves",
-      preflopOnly: play === "preflop",
-      pot: isPotDrill(play) ? play : null,
-      pushFold: isPF,
-    }) && !isT;
+  // (a tournament carries its chips by being played out: knocked-out players, prizes paid, blinds rising)
+  const canCarry = isT
+    ? (seatOk ? seat : "moves") === "moves" && !stop
+    : carries({
+        carry: true,
+        seat: seatOk ? seat : "moves",
+        preflopOnly: play === "preflop",
+        pot: isPotDrill(play) ? play : null,
+        pushFold: isPF,
+      });
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
   const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
@@ -266,6 +269,7 @@ export function SetupForm({
           players={p}
           stack={s}
           problems={tournament?.problems ?? []}
+          playOut={carry && canCarry}
           onStage={(st) => {
             const d = stageDraft(st);
             setP(d.players);
@@ -423,19 +427,23 @@ export function SetupForm({
       <label
         className="flex items-center gap-1.5"
         title={
-          canCarry
-            ? `A ring game: each player's chips carry to the next hand, a seat under ${REBUY * 100}% of the stack rebuying to it`
-            : "Chips carry in full hands with your seat moving each hand"
+          isT
+            ? canCarry
+              ? `The tournament moves on: chips carry, a player with none is out (paid if in the money) and replaced from the other tables while any are left, and the blinds go up every ${LEVEL_HANDS} hands. Lizard's own simplification`
+              : "A tournament is played out in full hands with your seat moving each hand"
+            : canCarry
+              ? `A ring game: each player's chips carry to the next hand, a seat under ${REBUY * 100}% of the stack rebuying to it`
+              : "Chips carry in full hands with your seat moving each hand"
         }
       >
         <input
           type="checkbox"
-          aria-label="Carry chips"
+          aria-label={isT ? "Play it out" : "Carry chips"}
           checked={carry && canCarry}
           disabled={!canCarry}
           onChange={(e) => setCarry(e.target.checked)}
         />
-        <span className="text-muted">Carry chips</span>
+        <span className="text-muted">{isT ? "Play it out" : "Carry chips"}</span>
       </label>
       {game && !pfNo && (
         <>

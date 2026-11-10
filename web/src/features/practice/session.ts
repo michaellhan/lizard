@@ -8,7 +8,7 @@ import { addScore, emptyScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
 import { PRIZE_UNIT } from "@/solver/provenance";
 import { playedByRead } from "./exploit";
-import { carries, simOf, type Decision, type GameOptions, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
+import { carries, playsOn, simOf, type Decision, type GameOptions, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
 import { reviewed, withReviewed, type Reviewed } from "./review";
 
 export interface PracticeSession {
@@ -139,7 +139,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.pfSolve ? { pfSolve: true, ...(s.opts.pfSizes ? { pfSizes: true } : {}) } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
-    ...(carries(s.opts) && tables <= 1 ? { carry: true } : {}),
+    ...((carries(s.opts) || playsOn(s.opts)) && tables <= 1 ? { carry: true } : {}),
     ...(s.opts.sizes ? { sizes: s.opts.sizes } : {}),
     ...(s.opts.rake ? { rake: s.opts.rake, ...(s.opts.rakeCap ? { rakeCap: s.opts.rakeCap } : {}) } : {}),
     ...(s.revealed ? { revealed: s.revealed } : {}),

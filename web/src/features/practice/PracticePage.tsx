@@ -29,9 +29,9 @@ import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
-import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
+import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
 import { gradedOn, optionsAt, PF_MODEL } from "./pfGrade";
-import { boardShown, gameLabel, mixOf, modelled, phaseOf, potLabel, runKind, seeking, simOf } from "./practice";
+import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
@@ -460,6 +460,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
           ))}
         </ul>
         {hand.stacks && !hand.tournament && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
+        {hand.tournament && playsOn(session.opts) && <PlayedOut hand={hand} sim={sim} onRestart={() => room.nextHand(true)} />}
       </section>
 
       <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">

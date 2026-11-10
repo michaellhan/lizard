@@ -87,7 +87,9 @@ const isGame = (x: unknown): x is HandTournament =>
   isObj(x) &&
   (x.model === "chips" || (x.model === "icm" && isList(x.payouts, isNum) && (x.payouts as number[]).length > 1)) &&
   opt(x.payouts, (p) => isList(p, isNum)) &&
-  opt(x.field, (f) => isObj(f) && isCount(f.players) && isNum(f.avg));
+  opt(x.field, (f) => isObj(f) && isCount(f.players) && isNum(f.avg)) &&
+  opt(x.played, isCount) &&
+  opt(x.news, (n) => isList(n, isStr));
 
 /** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. One made
  * after Reveal has no grade, and keeps the answer that was seen with that answer's source. */

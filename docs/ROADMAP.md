@@ -452,7 +452,9 @@ Moves matrix rows: Custom ranges, Stacks & bet sizes, Rake, Node locking, Automa
   and ante; a hand history has no prizes left, so they're typed there); its own Study links and grades stay in chips.
   ICM against chips per hand class: "Compare with chip EV" links to the Compare page (tournament A, chips B, each class's
   change), and a chip answer's push/fold all-in is named on its badge ("push/fold equilibrium in chips").
-  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins), and tournaments in Practice.
+  Tournaments in Practice played out (2026-11-10, `tournamentPlay.ts`): "Play it out" moves a tournament session on, with chips carried, knockouts paid and replaced from the other tables, the table shortening when none are left, and blinds rising every 10 hands; Lizard's own simplification, said on the page.
+
+  **Still open in Phase 7:** a satellite-aware preflop (push/fold covers only all-ins); no table balancing or bounties in Practice's tournaments.
 - **Tournament setup, `web/src/features/tournaments/`.**
   - A payout editor (prizes left, up to 200 places; parsing as `parsePayouts`, `index.html:875`).
   - The field: other tables' stacks, or players and total chips (`advisor.py:448-481`).

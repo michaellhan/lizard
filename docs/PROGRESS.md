@@ -4519,3 +4519,17 @@ The row is WORKING by the owner's rule of 2026-11-08 (40 of 63); Plan and Review
 It grades only what no run has graded, as Fast does, and the page says so.
 
 **Checked in a browser** (real worker): a heads-up 3-bet pot imported fresh had its four postflop decisions graded by live solves at 1000 iterations, converged, in a few seconds. Tests: `AnalyzePage.test.tsx` (every ask at Accurate, none library-only or triage, then the grades forgotten) and `grading.test.ts`. A long session at Accurate is unmeasured. The row stays PARTIAL: preflop outside the stored solve's game is graded by the charts, spots left to the rules aren't graded, and tournament hands are graded in chips.
+
+### 2026-11-10: Practice's tournaments played out (Phase 7)
+
+**Practice.** The MTT row said Practice's tournament session was "one table frozen in time". A tournament session now has "Play it out" (the Carry chips box, renamed for a tournament; full hands with your seat moving only). With it, `following` deals each hand from `moveOn` (`tournamentPlay.ts`):
+
+- Chips carry, and the button moves on as a ring game's do (a test holds it to `nextTable`).
+- A player with no chips is out. Two out in one hand are placed by the chips they started it with. One out once every player left is paid gets the lowest prize left, and the prizes lose that place.
+- A seat that's out is taken by a player from the other tables at their average stack while any are left. Otherwise the table gets shorter, down to heads-up.
+- Every 10 hands the blinds rise 1.25×: every stack, and the other tables' average, is that many fewer big blinds, and the other tables lose 10% of their players, whose chips stay among them.
+- When you're out, or have every chip, the next hand starts the setup over. What happened is said: the place, the prize, or out of the money with how many were paid.
+
+The hand carries the game as it stands (`HandTournament.played`, `news`, validated on restore in `keep.ts`). So the requests price the prizes left and the other tables as they are now. The table shows the level, players left and paid, your chips before and after, what happened since the last hand, and Start over. The rules are said on the page as Lizard's own simplification: no table balancing or merging, and a fixed pace at the other tables. History's row for such a session says "played out".
+
+**Checked in a browser** (dev server): Three left, played out, folded through 11 hands to "The blinds go up (level 2)", with every stack 1.25× fewer big blinds. Tests: `tournamentPlay.test.ts` (10), `games.test.tsx` (the box, disabled with Stop at the flop). Full unit suite: 3434 passed, 2 skipped. The MTT row stays WORKING; its "frozen in time" line is replaced. The two heads-up precompute builds were left alone.

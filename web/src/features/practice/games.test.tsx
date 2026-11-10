@@ -300,6 +300,19 @@ describe("the New session form", () => {
     );
   });
 
+  it("plays a tournament out where asked, in full hands with your seat moving", () => {
+    const start = open();
+    pick("Play", "tournament");
+    const box = screen.getByRole("checkbox", { name: "Play it out" });
+    expect(screen.queryByRole("checkbox", { name: "Carry chips" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Stop at the flop" }));
+    expect(box).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Stop at the flop" }));
+    fireEvent.click(box);
+    go();
+    expect(start.mock.calls[0]![2]).toMatchObject({ carry: true, preflopOnly: false });
+  });
+
   it("starts a chip EV tournament with no prizes to ask for", () => {
     const start = open();
     pick("Play", "tournament");

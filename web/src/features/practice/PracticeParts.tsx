@@ -26,6 +26,7 @@ import { PF_GRADED, pfWords } from "./pfGrade";
 import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
+import { FIELD_RATE, LEVEL_HANDS, LEVEL_RISE, leftOf, levelOf } from "./tournamentPlay";
 import { sessionUnit, type Kept, type PracticeSession } from "./session";
 import { retrySpot, SessionRetry } from "./SessionRetry";
 
@@ -369,6 +370,53 @@ export function Carried({ hand, sim, onReset }: { hand: PracticeHand; sim: Sim; 
       >
         Reset stacks
       </button>
+    </div>
+  );
+}
+
+/** A tournament played out: the level, the players left and the prizes, your chips, what happened since the last
+ * hand, and a way to start it over. */
+export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: Sim; onRestart: () => void }) {
+  const t = hand.tournament!;
+  const left = leftOf(hand.players, t);
+  const paid = t.model === "icm" ? (t.payouts?.length ?? 0) : 0;
+  const into = (t.played ?? 0) % LEVEL_HANDS;
+  return (
+    <div className="space-y-1 text-xs text-muted" aria-label="The tournament">
+      {!!t.news?.length && (
+        <ul aria-live="polite" className="space-y-0.5 text-text">
+          {t.news.map((x, i) => (
+            <li key={i}>{x}</li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>
+          Level {levelOf(t) + 1}, hand {into + 1} of {LEVEL_HANDS} · {left} left{paid ? (paid >= left ? ", all paid" : `, ${paid} paid`) : ""} · your stack{" "}
+          <span className="font-mono text-text">{fmt(hand.stacks![hand.hero]!)}bb</span>
+          {hand.result && (
+            <>
+              {" "}
+              → <span className="font-mono text-text">{fmt(chipsAfter(hand, sim)[hand.hero]!)}bb</span>
+            </>
+          )}
+          {hand.result?.folded && sim.active.size > 1 && !sim.handOver && " · the others' chips go as if they checked it down"}
+        </span>
+        <button
+          type="button"
+          onClick={onRestart}
+          disabled={!hand.result}
+          title="The next hand starts the tournament over from the setup"
+          className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
+        >
+          Start over
+        </button>
+      </div>
+      <p>
+        Played out by Lizard&rsquo;s own simplification: the blinds go up {LEVEL_RISE}× every {LEVEL_HANDS} hands, a player out is paid the
+        lowest prize left once all left are paid and is replaced from the other tables while any are left, and the other tables lose
+        {" "}{FIELD_RATE * 100}% of their players a level.
+      </p>
     </div>
   );
 }
