@@ -170,6 +170,39 @@ class TheTree(Shared):
         self.assertIn("solve starts at this node", r["node_lock"]["scope"])
 
 
+class KeptLocks(Shared):
+    def test_a_lock_kept_from_another_node_of_the_solve_is_held_too(self):
+        """Hold BB's first flop decision, then BTN's after the check with the first kept: both mixes are played."""
+        first = self.answer(ON_FLOP, {"check": 0.3, "bet 33%": 0.7})
+        n1 = first["node_lock"]
+        self.assertEqual((n1["line"], n1["player"], n1["also"]), ([], 0, []))
+        kept = dict(root=n1["root"], line=n1["line"], player=n1["player"], mix={"check": 0.3, "bet 33%": 0.7})
+        r = self.answer(SECOND, {"check": 0.5, "bet 33%": 0.5}, also=[kept])
+        self.assertNotIn("error", r, r)
+        n = r["node_lock"]
+        self.assertEqual(n["root"], n1["root"])
+        self.assertEqual([(x["line"], x["seat"], x["player"]) for x in n["also"]], [([], "BB", 0)])
+        self.assertIn("BB", n["also"][0]["words"])
+        before = n["changes"][0]
+        self.assertEqual((before["at"], before["seat"]), ("before", "BB"))
+        self.assertAlmostEqual(before["locked"][0], 0.3, places=5)
+        self.assertAlmostEqual(before["locked"][1], 0.7, places=5)
+        held = next(c for c in n["changes"] if c["at"] == "locked")
+        self.assertAlmostEqual(held["locked"][0], 0.5, places=5)
+
+    def test_a_kept_lock_from_another_solve_is_refused(self):
+        r = self.answer(SECOND, {"check": 1.0}, also=[dict(root="0" * 16, line=[], player=0, mix={"check": 1.0})])
+        self.assertEqual(r["lock_error"], "refused")
+        self.assertIn("another solve", r["error"])
+
+    def test_a_kept_lock_on_this_node_or_off_the_tree(self):
+        first = self.answer(ON_FLOP, {"check": 1.0})["node_lock"]
+        same = dict(root=first["root"], line=[], player=0, mix={"check": 1.0})
+        self.assertIn("held already", self.answer(ON_FLOP, {"check": 0.5, "bet 33%": 0.5}, also=[same])["error"])
+        off = dict(root=first["root"], line=["bet 999%"], player=1, mix={"fold": 1.0})
+        self.assertEqual(self.answer(ON_FLOP, {"check": 1.0}, also=[off])["lock_error"], "invalid")
+
+
 def name(c):
     return "23456789TJQKA"[c // 4] + "cdhs"[c % 4]
 

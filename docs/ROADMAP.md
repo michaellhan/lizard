@@ -5,7 +5,7 @@ Status as of 2026-11-05. This plans the path from today's state to broad parity 
 ## Where we start
 
 - **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`, with a frozen full copy at `/gto-solver-classic/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
-- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 63 matrix rows, Lizard is WORKING on 8, PARTIAL on 47, APPROXIMATE on 5 and NOT IMPLEMENTED on 3 (2026-11-05). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
+- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 63 matrix rows, Lizard is WORKING on 41, PARTIAL on 14, APPROXIMATE on 5 and NOT IMPLEMENTED on 3 (2026-11-10; WORKING by the owner's rule of 2026-11-08, the core working with only edges left). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
 - **Much of the plumbing is ready but unused.** That includes:
   - the `SolverClient` queue with worker and HTTP backends;
   - provenance on every answer;
@@ -544,7 +544,7 @@ Moves matrix rows: Solution comparisons, Range comparison.
   - Extend the class-level preflop solve to unequal stacks, 7–9 players in the browser, antes and the straddle. Measure against published solves, as `docs/research/03` §4 did (today 2.4–3.0 points).
   - Offer it as the default source only where it beats the charts on that measure.
 - **ICM preflop solve.** Prize-equity payoffs in the preflop game (using `icm.Model`), replacing the chip chart plus risk premium.
-- **True node-lock re-solve.** Hold a locked strategy fixed inside CFR and solve the rest to equilibrium, instead of a best response to a tendency.
+- **True node-lock re-solve.** Hold a locked strategy fixed inside CFR and solve the rest to equilibrium, instead of a best response to a tendency. Done: `engine/nodelock.py` (checked against an LP, ACCURACY section 16) in Study since 2026-11-05, on several nodes of a street since 2026-11-10 (kept locks, `study_lock.py` `also`). Open: earlier streets reacting to a later street's lock.
 - **Bigger trees.** More sizes and raises per street where memory allows, with per-device caps.
 - **Library breadth.** More depths, 2-max and 3-way spots, and turn files for the older-tree spots. These are built offline in the separate library pipeline (`library-build/`), never on a machine that is also serving development.
 

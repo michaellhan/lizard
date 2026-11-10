@@ -4533,3 +4533,22 @@ It grades only what no run has graded, as Fast does, and the page says so.
 The hand carries the game as it stands (`HandTournament.played`, `news`, validated on restore in `keep.ts`). So the requests price the prizes left and the other tables as they are now. The table shows the level, players left and paid, your chips before and after, what happened since the last hand, and Start over. The rules are said on the page as Lizard's own simplification: no table balancing or merging, and a fixed pace at the other tables. History's row for such a session says "played out".
 
 **Checked in a browser** (dev server): Three left, played out, folded through 11 hands to "The blinds go up (level 2)", with every stack 1.25× fewer big blinds. Tests: `tournamentPlay.test.ts` (10), `games.test.tsx` (the box, disabled with Stop at the flop). Full unit suite: 3434 passed, 2 skipped. The MTT row stays WORKING; its "frozen in time" line is replaced. The two heads-up precompute builds were left alone.
+
+### 2026-11-10: Node locks on several nodes of a street (Phase 9)
+
+**Study.** The Node locking row was PARTIAL for "only the node on screen", though `engine/nodelock.py` takes a list of locks and its LP benchmark already locks both players and every node of one. Now:
+
+- An answer has "Keep this lock". A kept lock is sent with every lock asked afterwards on the same street and board (`keptLocks.ts`, in memory for the tab) until it's dropped from the list above Run.
+- `engine/study_lock.py` lays a kept lock (`also`) only on the very solve it was made on. Each answer carries `root_key`, a digest of the board, both ranges, pot, stack, bets, who acts, raises and the tree. A kept lock from another solve, or at the node being locked, is refused in words, and a line the tree doesn't have is invalid.
+- The answer says "Held with it: …", and the badge's lock lists every lock held.
+
+**Tests:**
+- `scripts/engine/test_study_lock.py`: 28 passed (3 new in `KeptLocks`).
+- `NodeLockPanel.test.tsx`: 20 passed.
+- `web/e2e/nodelock.e2e.ts`: 4 passed, on the build.
+
+The new browser test, on the wasm core: BB's flop check is held at 100% and kept; SB's node after the check is held at a bet; BB's first decision plays 100% check in that locked solve.
+
+The row is WORKING by the owner's rule of 2026-11-08. That makes 41 of 63, and Custom solving now reads 8 / 1 / 1 / 0. Left: earlier streets don't react to a lock (each street is its own solve), a turn class or combo lock is APPROXIMATE, an Accurate flop lock's memory is estimated, and it's heads-up and cash only.
+
+ROADMAP's summary line still read the 2026-11-05 counts (8 WORKING) and now reads 41 / 14 / 5 / 3. The two heads-up precompute builds were left alone.

@@ -56,7 +56,7 @@ export const GRADES: Record<string, Grade> = {
   Multiway: "PARTIAL",
   "Custom ranges": "WORKING",
   "Stacks & bet sizes": "WORKING",
-  "Node locking": "PARTIAL",
+  "Node locking": "WORKING",
   Rake: "WORKING",
   "Automatic sizing": "WORKING",
   "Convergence display": "WORKING",

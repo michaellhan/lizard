@@ -4,7 +4,13 @@ The worker's `answer` comes here for a request with state["nodelock"]; everythin
 state of the node on screen, so which node is meant is never a second thing to keep in step:
 
     state["nodelock"] = {"mix": {action name: frequency}, "hands": "all" | {"classes": [...], "combos": [...]},
-                         "expect": {"actor": seat, "actions": [names]}}
+                         "expect": {"actor": seat, "actions": [names]},
+                         "also": [{"root": key, "line": [...], "player": 0 | 1, "mix": {...}, "hands": ...}]}
+
+`also`: locks held at other nodes of the same solve, as earlier answers gave them back (node_lock's "root", "line" and
+"player"). `root` is a digest of everything the solve was asked and its tree (`root_key`), so an earlier lock is only
+ever laid on the very solve it was made on: another hand, street, line before the street or mode gives another key, and
+the lock is refused in words rather than laid on whatever node its tokens happen to name.
 
 How the tree is the tree on screen. Nothing here rebuilds the spot. Advisor.study runs as it would for the page, with
 its narrowing, its ranges and its config, and two of its own steps are watched: _solve_cached says what each solve was
@@ -28,6 +34,7 @@ left them, since the earlier streets aren't in this solve.
 """
 from __future__ import annotations
 
+import hashlib
 import time
 from typing import List, Optional, Sequence
 
@@ -155,6 +162,40 @@ def _lock_of(state: dict, found: dict, line: Sequence[str]) -> Lock:
         e.actions = names
         raise e
     return Lock(tuple(line), int(found["hero_p"]), {k: float(v) for k, v in mix.items()}, req.get("hands") or "all")
+
+
+ALSO_ELSEWHERE = ("A lock kept from another node was made on another solve (another hand, street or line before "
+                  "this street, or another mode), so it can't be held here. Drop it, or go back to where it was made.")
+
+
+def root_key(asked: dict, root) -> str:
+    """A digest of what a solve was asked (board, both ranges, pot, stack, bets, who acts, raises) and its tree's shape:
+    two Study nodes with one key are in one solve, so a line from its root names the same decision for both."""
+    h = hashlib.sha1()
+    h.update(repr((list(asked["board"]), round(float(asked["pot"]), 6), round(float(asked["stack"]), 6),
+                   [round(float(x), 6) for x in asked["bets"]], int(asked["to_act"]), int(asked["n_raises"]))).encode())
+    for r in (asked["r0"], asked["r1"]):
+        h.update(np.round(np.asarray(r, dtype=float), 9).tobytes())
+    h.update(tree_shape(root).encode())
+    return h.hexdigest()[:16]
+
+
+def _also_of(state: dict, key: str, line: Sequence[str]) -> List[Lock]:
+    """The locks kept from other nodes of this solve (the module's docstring); the tree checks their lines and players."""
+    out = []
+    for x in state["nodelock"].get("also") or []:
+        if not isinstance(x, dict) or not isinstance(x.get("line"), list) or x.get("player") not in (0, 1):
+            raise LockError("A kept lock needs its line and player, as its answer gave them.")
+        if x.get("root") != key:
+            raise LockRefused(ALSO_ELSEWHERE)
+        if tuple(x["line"]) == tuple(line):
+            raise LockRefused("This node is held already by a kept lock: drop that one to hold it at another mix.")
+        mix = x.get("mix")
+        if not isinstance(mix, dict) or not mix:
+            raise LockError("A kept lock needs its mix.")
+        out.append(Lock(tuple(str(t) for t in x["line"]), int(x["player"]), {k: float(v) for k, v in mix.items()},
+                        x.get("hands") or "all"))
+    return out
 
 
 def _walked(root, line: Sequence[str], r0, r1) -> list:
@@ -316,16 +357,18 @@ def locked_study(adv, state: dict, post=None) -> dict:
         raise LockRefused("The tree expected the other player to act here, so the node on screen isn't one it has.")
     line = line_to(sol.root, node)
     lock = _lock_of(state, found, line)
+    a = found["asked"]
+    key = root_key(a, sol.root)
+    also = _also_of(state, key, line)
     seats = [found["hero"], found["villain"]] if found["hero_p"] == 0 else [found["villain"], found["hero"]]
     unlocked = measure_plain(sol)
     budget = max(0.5, min(120.0, float(state.get("budget") or adv.time_budget)))
     target = adv.hu_settled
     street = cur.name
     first = max(adv.hu_settled_from.get(street, HU_CHECKS[0]), HU_CHECKS[0])
-    a = found["asked"]
     t1 = time.time()
     try:
-        held = solve_locked(a["board"], a["r0"], a["r1"], a["pot"], a["stack"], [lock], bets=a["bets"],
+        held = solve_locked(a["board"], a["r0"], a["r1"], a["pot"], a["stack"], [lock, *also], bets=a["bets"],
                             to_act=a["to_act"], n_raises=a["n_raises"], cfg=cfg, time_budget=budget,
                             max_iters=min(c for c in HU_CHECKS if c >= first), should_stop=adv.should_stop,
                             reserve=HU_RESERVE, horizon=ITERATIONS, same_tree=tree_shape(sol.root))
@@ -335,7 +378,7 @@ def locked_study(adv, state: dict, post=None) -> dict:
     m = held.measure()
     applied = held.applied[0]
     hand_scoped = lock.hands != "all"
-    notes = list(applied.notes)
+    notes = list(applied.notes) + [n for x in held.applied[1:] for n in x.notes]
     if hand_scoped and applied.ignored:
         notes.append(f"{applied.ignored} of the hands named aren't in {found['hero']}'s range here: "
                      f"{', '.join(applied.ignored_hands)}.")
@@ -351,8 +394,9 @@ def locked_study(adv, state: dict, post=None) -> dict:
     if short:
         notes.append(f"The solve stopped {m['exploitability_pct']:.2f}% of the pot from the restricted game's "
                      f"equilibrium, more than {OVER_TARGET} times this mode's aim of {aim}%.")
-    pin = next(iter(held.solver._pins.values()))
-    reached = _walked(held.root, line, held.r0, held.r1)[-1][2][lock.player]
+    at = _walked(held.root, line, held.r0, held.r1)[-1]
+    pin = held.solver._pins[id(at[0])]
+    reached = at[2][lock.player]
     in_lock = float(reached[pin.mask[0]].sum())
     out = {
         "study": "nodelock", "street": street, "actor": found["hero"], "opponent": found["villain"],
@@ -371,6 +415,10 @@ def locked_study(adv, state: dict, post=None) -> dict:
             "changes": _changes(sol, held, line, seats),
             "abstraction": abstraction_words(street, held.root, hand_scoped),
             "scope": SCOPE_NODE if node is sol.root and cur.actions else SCOPE_STREET,
+            "root": key,
+            "also": [{"line": list(x.lock.line), "player": x.lock.player, "seat": seats[x.lock.player],
+                      "actions": x.names, "mix": x.mix, "hands": x.lock.hands, "cells": x.cells, "ignored": x.ignored,
+                      "words": _words(seats[x.lock.player], x.names, x.mix, x.lock.hands)} for x in held.applied[1:]],
         },
         "solver": {"iterations": int(held.iters), "solve_seconds": round(held.seconds, 2), "nodes": held.n_nodes,
                    "active_combos": held.ctx.n, "exploitability_pct": round(max(m["exploitability_pct"], 0.0), 4),

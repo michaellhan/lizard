@@ -89,3 +89,38 @@ test("Where a node can't be locked the panel says so before any solve", async ({
   await expect(three.getByRole("button", { name: "Run", exact: true })).toHaveCount(0);
   expect(problems.errors).toEqual([]);
 });
+
+test("A lock kept at one node is held too when the next node of the street is locked", async ({ page, problems }) => {
+  const panel = await openPanel(page, FLOP);
+  await mix(panel, { check: "100", "bet 33%": "0", "bet 75%": "0" });
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  const result = panel.getByRole("region", { name: "Node-locked result" });
+  await expect(result).toBeVisible({ timeout: 90_000 });
+  await result.getByRole("button", { name: "Keep this lock" }).click();
+  await expect(result.getByRole("button", { name: "Kept" })).toBeDisabled();
+
+  // (in the page, not a reload: kept locks live in this tab)
+  await page.getByRole("region", { name: "Actions" }).getByRole("button", { name: /^check/ }).first().click();
+  const summary = page.getByText("Hold this node at a mix (true node lock)");
+  await expect(page.getByRole("region", { name: "Actions" })).toContainText(/bet/, { timeout: 120_000 });
+  await summary.click();
+  const next = page.locator("details", { has: summary });
+  const kept = next.getByLabel("Kept locks");
+  await expect(kept).toContainText("BB holds check 100.0% (whole range) (first to act)");
+  const actions = await next.getByRole("form", { name: "The lock" }).locator("label span.w-32").allTextContents();
+  await next.getByLabel(`${actions[0]} %`).fill("0");
+  for (const a of actions.slice(1)) await next.getByLabel(`${a} %`).fill("");
+  await next.getByLabel(`${actions.find((a) => a.startsWith("bet"))} %`).fill("100");
+  await next.getByRole("button", { name: "Run", exact: true }).click();
+  const both = next.getByRole("region", { name: "Node-locked result" });
+  await expect(both).toBeVisible({ timeout: 90_000 });
+  await expect(both).toContainText("Held with it: BB holds check 100.0% (whole range) (first to act).");
+  // BB's first decision, before this node, plays the kept mix in the locked solve
+  await both.getByText("The decisions around it").click();
+  const before = both.locator("div", { hasText: /^BB first \(before the lock\)/ }).locator("table tbody tr");
+  await expect(before.nth(0)).toContainText(/check\s*[\d.]+%\s*100\.0%/);
+
+  await kept.getByRole("button", { name: "Drop" }).click();
+  await expect(next.getByLabel("Kept locks")).toHaveCount(0);
+  expect(problems.errors).toEqual([]);
+});

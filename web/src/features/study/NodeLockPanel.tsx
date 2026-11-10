@@ -8,6 +8,7 @@ import { pct } from "@/components/actions";
 import { NodeLockError, type SolverClient } from "@/solver/client";
 import type { AdvisorResponse, NodeLockChange, NodeLockAnswer, NodeLockProgress } from "@/solver/protocol";
 import { SolverError, type SolveMode, type SolveResult } from "@/solver/types";
+import { asKept, keptFor, keptOf, sameLock, useKeptLocks } from "./keptLocks";
 import { holesOf } from "./LockPanel";
 import { actionRows, combosNamed, costWords, exploitWords, handsOf, memoryNote, mixOf, nodeActions, nodeLockRefusal, scopeNote, startingMix, unlockedProvenance, valueRows, type LockScope } from "./nodeLock";
 import { studyRequest, type StudyHand } from "./studyState";
@@ -73,6 +74,10 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
   const heavy = memoryNote(res.street, mode);
   const named = combosNamed(scope, hand.board);
   const [run, setRun] = useState<Run>({ kind: "idle" });
+  const allKept = useKeptLocks((k) => k.kept);
+  const drop = useKeptLocks((k) => k.drop);
+  const street = res.street ?? "";
+  const kept = keptFor(allKept, street, hand.board);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -86,7 +91,7 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
       const client = await getSolver();
       const result = await client.nodeLock(
         studyRequest(hand),
-        { mix, hands, expect: { actor, actions } },
+        { mix, hands, expect: { actor, actions }, ...(kept.length ? { also: kept.map(asKept) } : {}) },
         { mode, signal: ac.signal, onProgress: (progress) => setRun({ kind: "running", progress }) },
       );
       setRun({ kind: "done", result });
@@ -156,6 +161,24 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
             {problems.join("; ")}.
           </p>
         )}
+        {kept.length > 0 && (
+          <div aria-label="Kept locks" className="space-y-1 text-xs">
+            <p className="text-muted">Held too, kept from other nodes of this street (each on the solve it was made on):</p>
+            <ul className="space-y-0.5">
+              {kept.map((k) => (
+                <li key={`${k.root}|${k.line.join(">")}`} className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {k.words}
+                    {k.line.length ? ` (after ${k.line.join(", ")})` : " (first to act)"}
+                  </span>
+                  <button type="button" onClick={() => drop(k)} disabled={running} className="rounded border border-border px-1.5 hover:bg-surface-2 disabled:opacity-50">
+                    Drop
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" disabled={!mix || !hands || running} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-50">
             Run
@@ -179,7 +202,7 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
           {run.message}
         </p>
       )}
-      {run.kind === "done" && <LockResult result={run.result} stored={Boolean(res.precomputed)} />}
+      {run.kind === "done" && <LockResult result={run.result} stored={Boolean(res.precomputed)} street={street} board={hand.board} />}
     </div>
   );
 }
@@ -215,10 +238,13 @@ function reachedWords(c: NodeLockChange): string {
   return `Reached ${pct(c.reach.unlocked)} of the time unlocked, ${pct(c.reach.locked)} locked.`;
 }
 
-function LockResult({ result, stored }: { result: SolveResult<NodeLockAnswer>; stored: boolean }) {
+function LockResult({ result, stored, street, board }: { result: SolveResult<NodeLockAnswer>; stored: boolean; street: string; board: string }) {
   const n = result.data.node_lock;
   const held = n.changes.find((c) => c.at === "locked");
   const others = n.changes.filter((c) => c.at !== "locked");
+  const mine = keptOf(n, street, board);
+  const keep = useKeptLocks((k) => k.keep);
+  const isKept = useKeptLocks((k) => !!mine && k.kept.some((x) => sameLock(x, mine) && x.words === mine.words));
   return (
     <section aria-label="Node-locked result" className="space-y-2">
       <ProvenanceBadge p={result.provenance} />
@@ -226,6 +252,19 @@ function LockResult({ result, stored }: { result: SolveResult<NodeLockAnswer>; s
         {n.words}
         {n.hands !== "all" ? `: ${pct(n.share_held)} of the range at this node.` : "."}
       </p>
+      {!!n.also?.length && (
+        <p className="text-xs">
+          Held with it: {n.also.map((x) => `${x.words}${x.line.length ? ` (after ${x.line.join(", ")})` : " (first to act)"}`).join("; ")}.
+        </p>
+      )}
+      {mine && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button type="button" onClick={() => keep(mine)} disabled={isKept} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-50">
+            {isKept ? "Kept" : "Keep this lock"}
+          </button>
+          <span className="text-muted">Kept, it&rsquo;s held too when you lock another node of this street, until you drop it.</span>
+        </div>
+      )}
       <div className="text-xs text-muted">
         Unlocked column: <ProvenanceBadge p={unlockedProvenance(result.provenance, n)} quiet />
       </div>

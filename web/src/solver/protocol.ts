@@ -157,6 +157,17 @@ export interface NodeLockRequest {
   mix: Record<string, number>;
   hands: "all" | { classes?: string[]; combos?: string[] };
   expect?: { actor?: string; actions?: string[] };
+  /** locks kept from other nodes of the same solve, as their answers gave them (engine/study_lock.py `also`) */
+  also?: KeptLock[];
+}
+
+/** A lock held at another node of a solve: `root` the solve's digest, `line` from its root, `player` 0 OOP, 1 IP. */
+export interface KeptLock {
+  root: string;
+  line: string[];
+  player: 0 | 1;
+  mix: Record<string, number>;
+  hands: NodeLockRequest["hands"];
 }
 
 /** One solve's numbers, bb per dealt pair of hands from the solve's root, indexed [OOP, IP]. `value`: what each player
@@ -217,6 +228,11 @@ export interface NodeLockBlock {
   abstraction: string;
   /** what the restricted game covers, in words */
   scope: string;
+  /** the solve's digest (engine/study_lock.py `root_key`): a kept lock is held only on this very solve. Absent from a
+   * worker built before locks could be kept */
+  root?: string;
+  /** the kept locks held with this one */
+  also?: { line: string[]; player: 0 | 1; seat: string; actions: string[]; mix: number[]; hands: NodeLockRequest["hands"]; cells: number; ignored: number; words: string }[];
 }
 
 export type NodeLockAnswer = AdvisorResponse & { study: "nodelock"; node_lock: NodeLockBlock };

@@ -155,7 +155,7 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   }
   // a true node lock (engine/study_lock.py): the lock in words and what the tree it's solved on abstracts
   if (r.node_lock) {
-    p.lock = r.node_lock.words;
+    p.lock = [r.node_lock.words, ...(r.node_lock.also ?? []).map((x) => x.words)].join("; ");
     p.view = `${r.node_lock.abstraction} ${r.node_lock.scope}`;
   }
   // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})

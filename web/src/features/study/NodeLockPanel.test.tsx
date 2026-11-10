@@ -1,11 +1,12 @@
 // The true node lock's panel: what it asks, what it says before a solve, and the result beside the unlocked answer.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { NodeLockError, type SolverClient } from "@/solver/client";
 import { provenanceOf } from "@/solver/provenance";
 import type { AdvisorResponse, NodeLockProgress, NodeLockRequest } from "@/solver/protocol";
 import { ANSWER, BLOCK } from "@/solver/nodeLock.fixture";
 import { SolverError, type SolveResult } from "@/solver/types";
+import { useKeptLocks } from "./keptLocks";
 import { NodeLockPanel } from "./NodeLockPanel";
 import { actionRows, combosNamed, costWords, exploitWords, handsOf, memoryNote, mixOf, nodeLockRefusal, scopeNote, startingMix, valueRows } from "./nodeLock";
 import { freshHand, type StudyHand } from "./studyState";
@@ -176,6 +177,39 @@ describe("NodeLockPanel", () => {
     fireEvent.click(within(result).getByText("The decisions around it"));
     expect(result).toHaveTextContent("BB first (before the lock). Reached 100.0% of the time unlocked, 100.0% locked.");
     expect(result).toHaveTextContent("BB after check, bet 75% (after the lock). No longer reached with the lock on.");
+  });
+
+  it("keeps a lock to hold beside the next one on this street, sends it, and drops it", async () => {
+    useKeptLocks.getState().clear();
+    const rooted = { ...ANSWER, node_lock: { ...BLOCK, root: "abc", also: [] } };
+    const first = clientAnswering(() => ({ data: rooted, provenance: provenanceOf(rooted, ctx) }) as unknown as SolveResult<never>);
+    const form = open(NODE, "AQo", first.client)!;
+    fireEvent.click(within(form).getByRole("button", { name: "Run" }));
+    const result = await screen.findByRole("region", { name: "Node-locked result" });
+    fireEvent.click(within(result).getByRole("button", { name: "Keep this lock" }));
+    expect(within(result).getByRole("button", { name: "Kept" })).toBeDisabled();
+    cleanup();
+
+    // (another node of the street: the kept lock is listed and goes with the lock asked)
+    const both = { ...ANSWER, node_lock: { ...BLOCK, line: ["check", "bet 33%"], root: "abc", also: [{ line: ["check"], player: 1 as const, seat: "BTN", actions: ["check", "bet 33%", "bet 75%"], mix: [0.5, 0.5, 0], hands: "all" as const, cells: 1, ignored: 0, words: BLOCK.words }] } };
+    const second = clientAnswering(() => ({ data: both, provenance: provenanceOf(both, ctx) }) as unknown as SolveResult<never>);
+    const form2 = open(NODE, "AQo", second.client)!;
+    const kept = within(form2).getByLabelText("Kept locks");
+    expect(kept).toHaveTextContent(`${BLOCK.words} (after check)`);
+    fireEvent.click(within(form2).getByRole("button", { name: "Run" }));
+    const result2 = await screen.findByRole("region", { name: "Node-locked result" });
+    expect(second.asked[0]!.lock.also).toEqual([{ root: "abc", line: ["check"], player: 1, mix: { check: 0.5, "bet 33%": 0.5 }, hands: "all" }]);
+    expect(result2).toHaveTextContent(`Held with it: ${BLOCK.words} (after check).`);
+    expect(provenanceOf(both, ctx).lock).toBe(`${BLOCK.words}; ${BLOCK.words}`);
+    fireEvent.click(within(kept).getByRole("button", { name: "Drop" }));
+    expect(screen.queryByLabelText("Kept locks")).toBeNull();
+    cleanup();
+
+    // (another board: not offered)
+    useKeptLocks.getState().keep({ root: "abc", line: [], player: 0, mix: { check: 1 }, hands: "all", seat: "BB", words: "BB holds check", street: "river", board: "Kd7c2h5s9d" });
+    open(NODE, "AQo", second.client, { ...HAND, board: "Ad7c2h5s9d" });
+    expect(screen.queryByLabelText("Kept locks")).toBeNull();
+    useKeptLocks.getState().clear();
   });
 
   it("stops a mix that doesn't add up, in words, before a solve", () => {
