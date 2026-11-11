@@ -123,10 +123,19 @@ jobs:
         with:
           name: site
           path: web/dist
-      - name: Browser tests, a quarter of them (every route at three widths, and the flows on the real worker)
+      # (the system packages come from Ubuntu's mirrors, which a runner sometimes can't reach for a while: tried four times
+      # over about 4 minutes, then Chromium alone, as the runner image already carries what it needs to start)
+      - name: Install Chromium for the browser tests
         run: |
-          npx -w web playwright install --with-deps chromium
-          npm -w web run test:e2e -- --shard=${{ matrix.shard }}/4
+          for wait in 0 30 60 120; do
+            sleep "$wait"
+            if npx -w web playwright install --with-deps chromium; then exit 0; fi
+            echo "::warning::Installing Chromium and its system packages failed; trying again"
+          done
+          echo "::warning::Ubuntu's mirrors stayed out of reach: Chromium installed without its system packages"
+          npx -w web playwright install chromium
+      - name: Browser tests, a quarter of them (every route at three widths, and the flows on the real worker)
+        run: npm -w web run test:e2e -- --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
