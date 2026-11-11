@@ -2,6 +2,7 @@
 // from the drill sessions kept in this browser.
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { About } from "@/components/About";
 import { allSessions, type SessionRecord } from "@/data/db";
 import { course, LESSON_TARGET, LESSONS, lessonDrill, lessonReport, type Lesson, type LessonProgress } from "./lessons";
 
@@ -31,11 +32,16 @@ export function Lessons({ sessions: given }: { sessions?: readonly SessionRecord
           Lessons
         </h2>
         <p className="text-muted">
+          {LESSONS.length} lessons in {units.length} units: read a library report, answer its question, then drill the decision ({LESSON_TARGET} to finish one).
+        </p>
+        <About label="About the lessons">
+        <p>
           {LESSONS.length} lessons of Lizard&rsquo;s own, in {units.length} units. Each is one decision of a flop-library spot: a report to read across its flops, a question to
           answer from it, and a drill of that decision, answered at once from the stored solves and graded by EV. The lessons ask; every number is the library&rsquo;s, under its
           badge on those pages. A lesson is done at {LESSON_TARGET} decisions drilled in it, over any sessions, dealt from its flops with no hand filter; drills kept before
           2026-11-10 don&rsquo;t count, as they didn&rsquo;t keep what they dealt.
         </p>
+        </About>
       </div>
       {failed ? (
         <p role="alert" className="text-danger">
@@ -63,7 +69,7 @@ export function Lessons({ sessions: given }: { sessions?: readonly SessionRecord
           {units.map((u) => (
             <div key={u} className="space-y-2">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted">{u}</h3>
-              <ol className="space-y-2">
+              <ol className="grid items-start gap-2 md:grid-cols-2">
                 {LESSONS.filter((l) => l.unit === u).map((l) => (
                   <LessonRow key={l.id} l={l} at={LESSONS.indexOf(l) + 1} p={c.progress[l.id]!} next={c.next === l} />
                 ))}

@@ -188,11 +188,18 @@ function Steps({ plan, more, onMore }: { plan: Plan; more: boolean; onMore: () =
   );
 }
 
+/** A part of the plan. One with nothing in it is a line, its note beside its name, so the steps there are stay together. */
 function Part({ label, empty, children }: { label: string; empty: string | false | null; children: React.ReactNode }) {
+  if (empty)
+    return (
+      <section aria-label={label} className="text-sm">
+        <h2 className="inline font-medium">{label}:</h2> <span className="text-muted">{empty}</span>
+      </section>
+    );
   return (
     <section aria-label={label} className="space-y-2">
       <h2 className="text-lg font-semibold">{label}</h2>
-      {empty ? <p className="text-sm text-muted">{empty}</p> : children}
+      {children}
     </section>
   );
 }
@@ -200,29 +207,33 @@ function Part({ label, empty, children }: { label: string; empty: string | false
 function Row({ step, at, next }: { step: PlanStep; at: number; next: PlanStep | null }) {
   const isNext = next?.id === step.id;
   return (
-    <li aria-label={step.what} aria-current={isNext ? "step" : undefined} className="list-none space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li aria-label={step.what} aria-current={isNext ? "step" : undefined} className="list-none space-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted">{at}.</span>
         <span className="font-medium">{step.what}</span>
         {step.done && <span className="rounded border border-border px-1.5 py-0.5 text-xs">Done</span>}
-      </div>
-      {step.says.map((x) => (
-        <p key={x} className="text-muted">
-          {x}
-        </p>
-      ))}
-      {step.progress && <p>{step.progress}</p>}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Link to={step.to} className={isNext ? START : QUIET}>
-          {step.title}
-        </Link>
-        {step.kind === "thin" && (
-          <Link to={step.also.to} className={QUIET}>
-            {step.also.label}
+        <span className="flex-1" />
+        <span className="flex flex-wrap items-center gap-2">
+          <Link to={step.to} className={isNext ? START : QUIET}>
+            {step.title}
           </Link>
-        )}
-        {step.kind === "drill" && <KeepDrill step={step} />}
+          {step.kind === "thin" && (
+            <Link to={step.also.to} className={QUIET}>
+              {step.also.label}
+            </Link>
+          )}
+          {step.kind === "drill" && <KeepDrill step={step} />}
+        </span>
       </div>
+      {step.says[0] && <p className="text-muted">{step.says[0]}</p>}
+      {step.progress && <p>{step.progress}</p>}
+      {step.says.length > 1 && (
+        <About label="Counted from, and what graded it">
+          {step.says.slice(1).map((x) => (
+            <p key={x}>{x}</p>
+          ))}
+        </About>
+      )}
     </li>
   );
 }

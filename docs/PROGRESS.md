@@ -4920,3 +4920,15 @@ holds the full badge, version and last retry as before. The tally's parenthetica
 With three kept mistakes at 1280×800 all three are on the first screen (the first started at about 520px, now 200px).
 UI only: tsc, eslint, `vitest run src/features/review src/features/plan src/features/history src/features/analyze`
 553 passed; checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.
+
+## 2026-11-11: Plan decluttered
+
+The second page under More. A part with nothing in it ("Leaks: No leak passes the read rule…", "Too few to read: Nothing
+is waiting…") is one line with its note beside its name, not a heading and a paragraph. A step is its name with its
+link (and Save drill, Import more hands) on the right, its first line under it, its progress, and the rest (what it's
+counted from, what graded it, the drill's settings) under "Counted from, and what graded it" (`PlanPage.tsx` `Row`,
+the `About` fold). Lessons opens on one line saying what a lesson is; the long paragraph is under "About the lessons",
+and the lessons sit two to a row on a wide screen. At 1280×800 the page went from 1876px to 1532px with three reviews
+due and a drill, and Lessons now starts on the first screen. UI only: tsc, eslint, `vitest run src/features/plan
+src/features/review src/app src/features/home` passed; checked in the browser at 1280×800 and 375×812 (no sideways
+scroll). Builds left alone.
