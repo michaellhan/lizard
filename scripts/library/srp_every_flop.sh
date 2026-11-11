@@ -62,10 +62,10 @@ stop)
 status)
   if running; then echo "running (pid $(cat "$PID"))"; else echo "not running"; fi
   for sid in $SPOTS; do
-    n=$(ls "$OUT/$sid" 2>/dev/null | grep -c '^[^.]*\.bin$' || true)
+    n=$({ find "$OUT/$sid" -maxdepth 1 -name '*.bin' ! -name '*.turn.bin' 2>/dev/null || true; } | wc -l | tr -d ' ')
     echo "  $sid: $n of 1755 entries on disk"
   done
-  if [ -f "$OUT/index.json" ]; then "$PY" -c 'import json,sys; i=json.load(open(sys.argv[1])); print("  index:", ", ".join(f"{s[\"id\"]} {len(s[\"flops\"])}" for s in i["spots"]))' "$OUT/index.json"; fi
+  if [ -f "$OUT/index.json" ]; then "$PY" -c 'import json,sys; i=json.load(open(sys.argv[1])); print("  index:", ", ".join("%s %d" % (s["id"], len(s["flops"])) for s in i["spots"]))' "$OUT/index.json"; fi
   if [ -f "$LOG" ]; then tail -n 5 "$LOG"; fi
   ;;
 *) echo "usage: $0 start|stop|status" >&2; exit 2 ;;

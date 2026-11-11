@@ -4981,3 +4981,29 @@ unchanged; Tournaments shares Solve's change. PLO's form was long: its two range
 solver's target and time budget share the Solve button's row (their limits are the fields' titles), so the button is
 at about 580px rather than at the fold. UI only: tsc, eslint, `vitest run src/features/plo` 24 passed; checked in the
 browser (no sideways scroll). Builds left alone.
+
+## 2026-11-11: the five 552-flop single-raised spots building on to every flop
+
+Owner's request (one of four library builds, each in its own session). `srp_hj_co`, `srp_btn_sb`, `srp_utg_hj`,
+`srp_co_sb` and `srp_utg_btn` stop at 552 flops in the base. Their 552 entries are on the solver's older tree (the river
+bet blind on the turn's boards, no turn files); `build_flop_library.py` solves only the current dealt-river tree, about
+7x the CPU. So `scripts/library/build_srp_every_flop.py` (outside `solver/`, which is unchanged) solves the 1,203
+missing flops per spot the way the 552 were: `old_tree()`, 0.15% of the pot, 200-1,000 iterations, no turn files,
+written by the build script's own `write_entry`, with its `write_index` writing a whole-spot index and report (the
+source is seeded with the base's 552, each checked against its hash). The 876 flops that make the 552 a 1,656
+systematic sample go first, then the other 327.
+
+- Running detached into `library-build/sources/srp-every-flop/` (main checkout, gitignored), one `heavy` job per
+  spot with 2 workers: `scripts/library/srp_every_flop.sh status` (or `stop`, `start` to resume; checked: a stop
+  kept every entry and a start went on with 1,177 of 1,203 left). Log: `build.log` there.
+- Measured on the first 26 entries (`srp_utg_hj`, efficiency cores, 2 processes): 6-18 s per entry, peak 180-300 MB
+  per worker, the base build's speed. From the base entries' own times (mean 12-92 s by spot) that's about 27.5 hours
+  of slot time: `srp_utg_hj` ~2 h, `srp_utg_btn` ~2.5, `srp_hj_co` ~3, `srp_co_sb` ~5, `srp_btn_sb` ~15 (its peak
+  memory not measured yet; the log prints `peak_mb` per entry). Plus the waits for a `heavy` slot (both were held by
+  other projects' jobs at the start). Earliest finish about 2026-11-12 evening.
+- `assemble.py --extend` (default that folder) takes a source's spot only when it is the same spot (ranges, pot,
+  stack, tree, old tree) holding every base flop with the same hash and more of them; anything else, or a copy that
+  fails a hash, leaves the base's. `BUILD_PLANS` targets the five at 1,755. `test_assemble.py` 16 passed. A real
+  assemble into a scratch stage with the source at 572 flops: `srp_utg_hj` 572 (all hashes checked, report 572
+  flops), 43,283 files, 298.1 MB. Not published from here: the main checkout's 6-hourly job picks it up once this
+  branch is merged.
