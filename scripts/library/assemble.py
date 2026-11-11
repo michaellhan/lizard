@@ -5,6 +5,11 @@ The solver worker reads one library base, so Lizard's library is one directory: 
 snapshot (solver/gto/static/flop_library, a verified copy of the published /gto-solver-library/) plus the heads-up
 spots the offline builds have finished so far (.work/hu-lib, .work/hu-lp-lib), under one merged index.json.
 
+Extension sources (--extend; by default library-build/sources/srp-every-flop, scripts/library/build_srp_every_flop.py)
+are builds of base spots on more flops: a source's spot replaces the base's only when it is the same spot (ranges, pot,
+stack, tree and old tree) holding every base flop with the same entry hash (and the same turn files), and more of them,
+so a stale or partial source never loses or changes a base flop.
+
 Safety (the heads-up builds are still running and own their directories):
   - sources are only read: nothing there is written, moved, deleted or locked;
   - only entries a source's index.json lists are copied (never .tmp files, never entries newer than the index);
@@ -37,6 +42,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "solver" / "gto" / "static" / "flop_library"
 WORK = Path("/Users/mhan/Desktop/projects/gtosolver/.work")
 HU_SOURCES = [WORK / "hu-lib", WORK / "hu-lp-lib"]
+EXTEND_SOURCES = [ROOT / "library-build" / "sources" / "srp-every-flop"]
 PROTECTED = Path("/Users/mhan/Desktop/projects/gtosolver")
 STAGE_MARK = ".lizard-stage"
 NUTS = ROOT / "library-build" / "nuts"
@@ -53,7 +59,10 @@ MAX_FILES = 60_000
 # Build plans that differ from the snapshot's SPOT_FLOPS (solver/gto/flop_library.py): the heads-up SRP build goes on
 # to every flop after its 552 (IMPLEMENTATION_PLAN.md, "Two concurrent heads-up SB-vs-BB library builds"; approved in
 # the build's schedule, quoted in docs/research/05-deployment.md). Drop an entry once a re-import's SPOT_FLOPS has it.
-BUILD_PLANS = {"srp_sb_bb_2max": 1755}
+# The five 6-max single-raised spots at 552 go on to every flop too (scripts/library/build_srp_every_flop.py, the
+# owner's request of 2026-11-11), merged from EXTEND_SOURCES.
+BUILD_PLANS = {"srp_sb_bb_2max": 1755, "srp_hj_co": 1755, "srp_btn_sb": 1755, "srp_utg_hj": 1755, "srp_co_sb": 1755,
+               "srp_utg_btn": 1755}
 
 
 def planned_flops() -> dict[str, int]:
@@ -216,19 +225,80 @@ def spot_key(s: dict) -> tuple:
     return (s["fp"][0], s["fp"][1], round(float(s["pot"]), 2), round(float(s["stack"]), 2))
 
 
+def extends(new: dict, cur: dict) -> str | None:
+    """Why `new` (an extension source's spot) can't stand for `cur` (the spot so far), or None when it can: the same
+    spot (id, ranges, pot, stack, game, tree, old tree), every flop of cur with the same entry hash, on the same tree
+    (old or not), with its turn file if cur has one, and more flops than cur."""
+    if new.get("id") != cur["id"] or spot_key(new) != spot_key(cur) or new.get("game") != cur.get("game"):
+        return "another spot (ranges, pot, stack or game)"
+    if new.get("tree") != cur.get("tree") or (cur.get("old") and new.get("old_tree") != cur.get("old_tree")):
+        return "another tree"
+    nf, cf = new.get("flops", {}), cur["flops"]
+    if any(nf.get(f) != h for f, h in cf.items()):
+        return f"{sum(nf.get(f) != h for f, h in cf.items())} base flop(s) missing or with another entry"
+    n_old, c_old = set(new.get("old", ())), set(cur.get("old", ()))
+    if any((f in n_old) != (f in c_old) for f in cf):
+        return "a base flop on another tree"
+    nt, ct = turns_set(new), turns_set(cur)
+    if ct and nt is not True and any(f not in nt for f in (cf if ct is True else ct)):
+        return "a base flop's turn file missing"
+    if len(nf) <= len(cf):
+        return "no flops beyond the base's"
+    return None
+
+
+def extend_spots(src: Path, out: Path, spots: list[dict], base_root: Path, log: list[str]) -> dict[str, int] | None:
+    """Replace each spot of `spots` (staged from base_root) that the extension source `src` builds on more flops by
+    the source's, copied and validated (copy_spot); a spot whose copy fails or no longer holds the base's flops is
+    staged from the base again. Returns {id: flops} taken from the source, or None if it has no usable index."""
+    ip = src / "index.json"
+    if not ip.exists():
+        log.append(f"{src}: no index.json yet")
+        return None
+    idx = json.loads(ip.read_bytes())  # written by os.replace: never torn
+    got: dict[str, int] = {}
+    pos = {s["id"]: i for i, s in enumerate(spots)}
+    for s in idx.get("spots", []):
+        if s["id"] not in pos:
+            log.append(f"{src}: {s['id']} is not a base spot, left out (an extension source only adds flops)")
+            continue
+        cur = spots[pos[s["id"]]]
+        why = extends(s, cur)
+        if why:
+            log.append(f"{s['id']}: extension left out ({why})")
+            continue
+        shutil.rmtree(out / s["id"])
+        staged = copy_spot(src, out, s, link=False, log=log)
+        why = extends(staged, cur) if staged else "report.json does not match its index"
+        if why:
+            log.append(f"{s['id']}: extension left out after copying ({why}); the base's kept")
+            if (out / s["id"]).exists():
+                shutil.rmtree(out / s["id"])
+            staged = copy_spot(base_root, out, cur, link=True, log=log)
+            if staged is None:
+                sys.exit(f"{s['id']}: the base failed validation on a second copy")
+        else:
+            got[s["id"]] = len(staged["flops"])
+        spots[pos[s["id"]]] = staged
+    return got
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--base", type=Path, default=BASE)
     ap.add_argument("--hu", type=Path, action="append", help="a heads-up build directory (repeatable)")
+    ap.add_argument("--extend", type=Path, action="append", help="a build of base spots on more flops (repeatable; "
+                    "default: library-build/sources/srp-every-flop)")
     ap.add_argument("--previous", type=Path, help="the last published release (to keep spots that fail or shrink)")
     ap.add_argument("--allow-shrink", action="store_true")
     ap.add_argument("--nuts", type=Path, default=NUTS, help="where nuts.py wrote each spot's nut shares")
     a = ap.parse_args()
     hu_sources = a.hu if a.hu else HU_SOURCES
+    ext_sources = a.extend if a.extend else EXTEND_SOURCES
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources]:
+    for p in [a.base, *hu_sources, *ext_sources]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -255,6 +325,12 @@ def main() -> int:
             spots.append(staged)
     sources.append({"path": str(a.base), "kind": "base", "spots": {s["id"]: len(s["flops"]) for s in spots}})
     mw = copy_mw(a.base, out, link=True, log=log)
+
+    for src in ext_sources:
+        got = extend_spots(src, out, spots, a.base, log)
+        if got is not None:
+            sources.append({"path": str(src), "kind": "extension build", "indexMtime": (src / "index.json").stat().st_mtime,
+                            "spots": got})
 
     for src in hu_sources:
         ip = src / "index.json"
