@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from "react-router";
 import { describe, expect, it } from "vitest";
 import { routeTitle } from "./routes";
@@ -87,12 +87,23 @@ describe("Route changes", () => {
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
   });
 
-  it("keeps the nav's ring inside its scroller, its fade until every item fits, and a mark on the current page", () => {
+  it("shows the four main pages, the rest under More, and a mark on the current page", () => {
     show("/study");
     const nav = screen.getByRole("navigation", { name: "Primary" });
-    expect(nav).toHaveClass("segmented", "overflow-x-auto");
-    expect(nav.className).toContain("xl:[mask-image:none]");
-    expect(nav.className).not.toContain("lg:");
+    expect(nav).toHaveClass("segmented");
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Study", "Practice", "Analyze", "Solve"]);
     expect(screen.getByRole("link", { name: "Study" })).toHaveClass("underline", "decoration-accent");
+    const more = within(nav).getByRole("button", { name: /More/ });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(within(nav).getByRole("link", { name: /^Review/ })).toHaveAttribute("href", "/review");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("marks More while you're on one of its pages", () => {
+    show("/library");
+    expect(screen.getByRole("button", { name: /More/ })).toHaveClass("underline", "decoration-accent");
   });
 });

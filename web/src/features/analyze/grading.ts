@@ -30,11 +30,11 @@ const AGGRESSIVE: ReadonlySet<string> = new Set(["bet", "raise", "all-in"]);
 
 export type GradeScope = "preflop" | "library" | "triage" | "all" | "accurate";
 export const SCOPES: Record<GradeScope, string> = {
-  preflop: "Preflop: the stored solve, else the charts",
-  library: "Preflop and the flops the library holds",
-  triage: "Every street, Quick triage",
-  all: "Every street, at Fast",
-  accurate: "Every street, at Accurate",
+  preflop: "Preflop only",
+  library: "Preflop and stored flops (instant)",
+  triage: "Every street, quick (recommended)",
+  all: "Every street, Fast solves (slower)",
+  accurate: "Every street, Accurate solves (slowest)",
 };
 /** The streets each scope grades. */
 const SCOPE_STREETS: Record<GradeScope, readonly Street[]> = { preflop: ["preflop"], library: ["preflop", "flop"], triage: STREETS, all: STREETS, accurate: STREETS };

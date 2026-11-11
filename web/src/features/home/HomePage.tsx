@@ -1,12 +1,13 @@
 import { Link } from "react-router";
-import { routeGrade, ROUTES, type RouteDef, type RouteStatus } from "@/app/routes";
+import { MORE } from "@/app/routes";
 
-const BADGE: Record<RouteStatus, { text: string; cls: string }> = {
-  working: { text: "Working", cls: "bg-accent/15 text-accent" },
-  partial: { text: "Partial", cls: "bg-act-bet1/15 text-act-bet1" },
-  classic: { text: "Engine ready · page on the older gto-solver site", cls: "bg-surface-3 text-muted" },
-  planned: { text: "Planned", cls: "bg-surface-3 text-faint" },
-};
+/** The four main pages, each with what it's for in a line. */
+const MAIN: { path: string; label: string; blurb: string; cta: string }[] = [
+  { path: "study", label: "Study", blurb: "Look up the equilibrium strategy for any spot, hand by hand, preflop to river.", cta: "Open Study" },
+  { path: "practice", label: "Practice", blurb: "Play hands against equilibrium opponents. Every decision you make is graded.", cta: "Play a hand" },
+  { path: "analyze", label: "Analyze", blurb: "Paste or drop your hand histories and see where you lost EV.", cta: "Import hands" },
+  { path: "solve", label: "Solve", blurb: "Set up your own spot (stacks, ranges, bet sizes, rake) and solve it.", cta: "Set up a spot" },
+];
 
 export function HomePage() {
   return (
@@ -14,55 +15,32 @@ export function HomePage() {
       <section className="space-y-3 pt-2">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Study poker at equilibrium.</h1>
         <p className="max-w-2xl text-muted">
-          Lizard solves No-Limit Hold'em in your browser — preflop charts, a precomputed flop library, live turn and river solves — and
-          labels every number with what produced it and how close to equilibrium it is. No account needed; your data stays on this device unless you sign in to sync it.
+          A No-Limit Hold&rsquo;em solver and trainer that runs in your browser. Every number says where it came from. No account
+          needed, and your data stays on this device.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/study" className="rounded-md bg-accent px-4 py-2 font-medium text-bg hover:bg-accent-strong">
-            Open Study
-          </Link>
-          <Link to="/library" className="rounded-md border border-border px-4 py-2 hover:bg-surface-2">
-            What's precomputed
-          </Link>
-        </div>
       </section>
-      <section aria-label="Areas" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {ROUTES.filter((r) => r.nav).map((r) => (
-          <Link key={r.path} to={`/${r.path}`} className="rounded-lg border border-border bg-surface p-4 hover:border-accent/50">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold">{r.label}</h2>
-              <Badge r={r} />
-            </div>
-            <p className="mt-1 text-sm text-muted">{r.summary}</p>
+      <section aria-label="Main pages" className="grid gap-3 sm:grid-cols-2">
+        {MAIN.map((m) => (
+          <Link key={m.path} to={`/${m.path}`} className="group rounded-lg border border-border bg-surface p-5 hover:border-accent/50">
+            <h2 className="text-lg font-semibold">{m.label}</h2>
+            <p className="mt-1 text-sm text-muted">{m.blurb}</p>
+            <span className="mt-3 inline-block text-sm text-accent group-hover:underline">{m.cta} →</span>
           </Link>
         ))}
       </section>
-      <p className="text-sm text-muted">
-        Lizard solves no-limit Hold&rsquo;em. For Omaha there&rsquo;s a{" "}
-        <Link to="/equity" className="underline">
-          PLO4 equity calculator
-        </Link>{" "}
-        and an{" "}
-        <Link to="/plo" className="underline">
-          exact heads-up river solve
-        </Link>{" "}
-        at listed sizes. No earlier PLO street is solved.
-      </p>
+      <section aria-label="More tools" className="space-y-2">
+        <h2 className="text-sm font-semibold text-muted">More</h2>
+        <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {MORE.map((m) => (
+            <li key={m.path} className="text-sm">
+              <Link to={`/${m.path}`} className="underline decoration-border underline-offset-2 hover:decoration-accent">
+                {m.label}
+              </Link>{" "}
+              <span className="text-faint">· {m.blurb}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
-
-/** A page's badge from the feature matrix's rows it delivers: "Working" only where all are, else how many are, the
- * others named with their grades in its label (docs/FEATURE_MATRIX.md). */
-function Badge({ r }: { r: RouteDef }) {
-  const g = routeGrade(r);
-  const b = BADGE[g.status];
-  if (g.status !== "partial" || !g.total) return <span className={`rounded px-2 py-0.5 text-xs ${b.cls}`}>{b.text}</span>;
-  const rest = g.others.map(([n, grade]) => `${n}: ${grade.toLowerCase()}`).join("; ");
-  return (
-    <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${b.cls}`} title={`Not yet working: ${rest}`} aria-label={`${g.working} of ${g.total} features working; not yet: ${rest}`}>
-      {g.total === 1 ? b.text : `${g.working} of ${g.total} working`}
-    </span>
-  );
-}
-

@@ -41,6 +41,7 @@ import { handOut } from "@/features/review/fromAnalyze";
 import { ADD_RULE } from "@/features/review/schedule";
 import { AddToReview } from "./AddToReview";
 import { About } from "@/components/About";
+import { SAMPLE_NAME, sampleFiles } from "./samples";
 
 /** hands listed before "Show all" */
 export const ROW_LIMIT = 200;
@@ -459,6 +460,14 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
               onChange={(e) => void readFiles(e.target.files).then(() => (e.target.value = ""))}
             />
           </label>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => void sampleFiles().then((f) => run(f, SAMPLE_NAME))}
+            className="rounded border border-border px-3 py-1 hover:bg-surface-2 disabled:opacity-40"
+          >
+            Try sample hands
+          </button>
         </div>
       </div>
       {busy && (

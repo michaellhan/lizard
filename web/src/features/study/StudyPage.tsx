@@ -387,7 +387,7 @@ export function StudyPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Study</h1>
-          <p className="text-sm text-muted">Every hand of the player to act. The badge says where each answer comes from: a solve, the library, or the preflop charts. Click an action to play it.</p>
+          <p className="text-sm text-muted">Click an action to play it. The badge on each answer says where it came from: a solve, the library or the preflop charts.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}

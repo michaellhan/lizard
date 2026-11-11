@@ -230,6 +230,7 @@ test("10. A session graded, and its biggest mistake opened in Study", async ({ p
   await box.fill([bad, hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await page.getByRole("tab", { name: "Grades & leaks" }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="library"]') }).selectOption("library");
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   const report = page.getByRole("region", { name: "Report" });
   await expect(report).toBeVisible({ timeout: 180_000 });
@@ -320,7 +321,7 @@ test("14. A solve stopped halfway, and a solver that fails, leave the page worki
   );
   await page.goto("/lizard/study/?p=6&s=100");
   await expect(page.getByText(/broken on purpose|engine|couldn.t|failed/i).first()).toBeVisible({ timeout: 90_000 });
-  await page.getByRole("link", { name: "Ranges" }).click();
+  await page.getByRole("link", { name: "Practice" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   problems.errors.length = 0; // (the page said what threw, on purpose here)
 });
@@ -720,6 +721,7 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await page.getByRole("tab", { name: "Grades & leaks" }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="library"]') }).selectOption("library");
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   const report = page.getByRole("region", { name: "Report" });
   await expect(report).toBeVisible({ timeout: 180_000 });
@@ -775,6 +777,7 @@ test("10c. The plan starts empty, reads what's graded, and its practice step ope
   await page.getByLabel("Paste hand histories").fill([hh("stars_6max_srp.txt"), hh("stars_3bet_pot.txt"), hh("gg_limped_multiway.txt")].join("\n\n\n"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await page.getByRole("tab", { name: "Grades & leaks" }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="library"]') }).selectOption("library");
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
 
@@ -822,6 +825,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   await page.getByLabel("Paste hand histories").fill(hh("stars_6max_srp.txt"));
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await page.getByRole("tab", { name: "Grades & leaks" }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="library"]') }).selectOption("library");
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
   // Marked as missed in the browser's own store, as the fixtures grade clean

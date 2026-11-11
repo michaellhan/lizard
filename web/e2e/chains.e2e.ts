@@ -55,6 +55,7 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
   await page.getByLabel("Paste hand histories").fill(hands);
   await page.getByRole("button", { name: "Import pasted hands" }).click();
   await page.getByRole("tab", { name: "Grades & leaks" }).click();
+  await page.locator("select").filter({ has: page.locator('option[value="library"]') }).selectOption("library");
   await page.getByRole("button", { name: /^Grade \d/ }).click();
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 240_000 });
   await expect(page.getByRole("status", { name: "Grading progress" })).toBeHidden({ timeout: 240_000 });

@@ -45,7 +45,9 @@ describe("the pages' badges", () => {
         <HomePage />
       </MemoryRouter>,
     );
-    expect(screen.getByLabelText(/^\d+ of 11 features working; not yet: Preflop: approximate/)).toHaveTextContent(/^\d+ of 11 working$/);
-    expect(screen.getByRole("link", { name: /^Reports/ })).toHaveTextContent(/Working/);
+    // the home page is for players: the four main pages and the rest in a list, no build grades
+    expect(screen.getByRole("link", { name: /^Study/ })).toHaveAttribute("href", "/study");
+    expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
+    expect(screen.queryByText(/of \d+ working/)).toBeNull();
   });
 });

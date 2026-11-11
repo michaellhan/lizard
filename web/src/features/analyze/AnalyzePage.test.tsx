@@ -186,6 +186,7 @@ describe("AnalyzePage", () => {
     tab("Grades & leaks");
     let panel = screen.getByRole("region", { name: "Grading" });
     expect(panel).toHaveTextContent("the charts aren't a solve and have no EVs");
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "library" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
     // 4 preflop decisions and 5 flop ones asked; the flops of the library only, nothing past the flop
@@ -229,6 +230,7 @@ describe("AnalyzePage", () => {
     stub.asked = [];
     tab("Grades & leaks");
     panel = screen.getByRole("region", { name: "Grading" });
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "library" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 0 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
     expect(stub.asked.map((s) => s.board!.length)).toEqual([6, 6, 6, 6]);
@@ -309,6 +311,7 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(handRows()).toHaveLength(4));
     tab("Grades & leaks");
     const panel = screen.getByRole("region", { name: "Grading" });
+    fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "library" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
     first.unmount();

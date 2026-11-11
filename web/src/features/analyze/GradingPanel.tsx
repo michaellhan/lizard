@@ -58,7 +58,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   const status = useRuntime((s) => s.status);
   // (the setting, not the status: nothing has started the solver until a run does)
   const transport = useSettings((s) => s.transport);
-  const [scope, setScope] = useState<GradeScope>("library");
+  const [scope, setScope] = useState<GradeScope>("triage");
   const [prog, setProg] = useState<{ k: number; n: number; graded: number; eta: number | null; checking: boolean } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

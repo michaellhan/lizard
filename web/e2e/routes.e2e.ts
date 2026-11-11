@@ -40,7 +40,7 @@ test("every link in the primary nav can be reached and goes where it says", asyn
   await page.goto("/lizard/");
   const nav = page.getByRole("navigation", { name: "Primary" });
   const links = await nav.getByRole("link").all();
-  expect(links.length).toBeGreaterThanOrEqual(8);
+  expect(links.length).toBe(4);
   for (const link of links) {
     const to = await link.getAttribute("href");
     await link.click();
