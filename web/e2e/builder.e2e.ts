@@ -46,7 +46,10 @@ test("A tap paints a hand and a finger dragged across the grid paints every hand
   for (const [k, i] of [14, 15, 16, 17].entries()) await expect(cell(i)).not.toHaveAttribute("aria-label", before[k] ?? "");
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
 
-  // the painted range is scored, by a tap on Check
+  // the painted range is scored, by a tap on Check. (A pause first, as a finger would make: on some CI runners a tap
+  // about 70ms after the synthetic drag above landed on the button, by the trace, and gave no click, both tries of a
+  // run, in two runs of five on 2026-11-11; never here, even with the CPU slowed 6x. The scoring itself is unit-tested.)
+  await page.waitForTimeout(400);
   await page.getByRole("button", { name: "Check my range" }).first().tap();
   await expect(grid).toHaveAccessibleName(/scored/);
   expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
