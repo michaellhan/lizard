@@ -579,6 +579,71 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
   await clean(page, problems);
 });
 
+// One table of each format (FEATURE_MATRIX's Formats rows), full hands on the real worker: the hand plays through, preflop
+// is graded by the stored solve of that very game where one is stored and by the charts where none is (each under its own
+// name), a decision after the flop is graded too, and only that game's preflop file is read.
+const FORMATS = [
+  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "6max_100bb_r5c3.bin" },
+  { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
+  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "3max_25bb.bin" },
+  { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
+  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "2max_200bb.bin" },
+  { name: "deep, 6 players at 250bb, past the stored depths", players: "6", stack: "250", file: null },
+] as const;
+for (const f of FORMATS) {
+  test(`7k. A format plays through and grades every street under its own name: ${f.name}`, async ({ page, problems }) => {
+    test.slow();
+    const fetched: string[] = [];
+    page.on("request", (r) => {
+      if (/\/solver\/pf\//.test(r.url())) fetched.push(r.url().split("/").pop()!);
+    });
+    await session(page, "full", async () => {
+      await page.getByLabel("Players", { exact: true }).selectOption(f.players);
+      await page.getByLabel("Stack in big blinds").fill(f.stack);
+      if ("rake" in f) {
+        await page.getByLabel("Rake", { exact: true }).fill(f.rake[0]);
+        await page.getByLabel("Rake cap").fill(f.rake[1]);
+      }
+      const box = page.getByLabel("Grade preflop by the preflop solve");
+      if (f.file) await expect(box).toBeChecked();
+      else await expect(box).toHaveCount(0);
+    });
+    const next = page.getByRole("button", { name: "Next hand" });
+    const last = page.getByRole("region", { name: "Last decision" });
+    const seen = { solve: 0, charts: 0, later: 0 };
+    for (let i = 0; i < 80 && !(seen.later && (f.file ? seen.solve : seen.charts)); i += 1) {
+      await expect(options(page).first().or(next)).toBeVisible({ timeout: 120_000 });
+      if (await next.isVisible()) {
+        await next.click();
+        continue;
+      }
+      // (a call or check where there's one, so hands reach the flop rather than ending in a jam; else the first)
+      const keep = options(page).filter({ hasText: /^\d?(call|check)/ });
+      await ((await keep.count()) ? keep.first() : options(page).first()).click();
+      await expect(next.or(options(page).first())).toBeVisible({ timeout: 120_000 });
+      const said = await last.innerText();
+      if (/^Not graded/m.test(said)) continue;
+      // (every graded decision names its source on its badge, under the street, "≈" first where it's approximate)
+      const source = said.match(/^(?:preflop|flop|turn|river): you [^\n]*\n(?:≈\n)?([^\n]+)/m)?.[1] ?? "";
+      expect(source, said.slice(0, 200)).toMatch(/^(Preflop solve \(class-level model\)|Preflop charts|Push\/fold model \(not a solve\)|Live solve|Precomputed solution|Stored turn from the flop library|Answer at once|Heuristic rules \(not a solve\)|Equity estimate \(not a solve\))/);
+      if (/^preflop: you /m.test(said)) {
+        if (source.startsWith("Preflop solve (class-level model)")) seen.solve += 1;
+        else if (source.startsWith("Preflop charts")) seen.charts += 1;
+      } else if (/^(flop|turn|river): you /m.test(said)) seen.later += 1;
+    }
+    expect(seen.later, "a decision after the flop graded").toBeGreaterThan(0);
+    if (f.file) {
+      expect(seen.solve, "preflop graded by that game's stored solve").toBeGreaterThan(0);
+      expect([...new Set(fetched)]).toEqual([f.file]);
+    } else {
+      expect(seen.solve).toBe(0);
+      expect(seen.charts, "preflop graded by the charts, named so").toBeGreaterThan(0);
+      expect(fetched).toEqual([]);
+    }
+    await clean(page, problems);
+  });
+}
+
 test("7i. A link that lands on a hand under way asks first, with keeping it the focused answer", async ({ page, problems }) => {
   await session(page, "preflop", async () => {});
   await options(page).first().or(page.getByRole("button", { name: "Next hand" })).waitFor({ timeout: 90_000 });

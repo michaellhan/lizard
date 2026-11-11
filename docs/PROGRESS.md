@@ -4837,3 +4837,27 @@ Tests: `SetupForm.test.tsx` checks the default and unticking; `setupLink.test.ts
 `PracticeRoom.test.tsx` checks the page's first hand asks the solve once beside the charts. The chart-graded page tests now
 untick the box. The browser steps 7g, 7h and the tablet check expect it ticked. No grade in the matrix changed: the rows'
 notes say it's the default now, and the model is still a class-level one.
+
+### 2026-11-10: the format rows reviewed: 2–9 handed, Cash, Short stack and Deep stack are WORKING
+
+Reviewed at the owner's request, with preflop counted as an edge, as MTT / final table and Multiway already are.
+
+- **Checked first, in the gate.** `web/e2e/qa.e2e.ts` 7k plays one full-hand table per format on the real worker:
+  - cash at 5% capped at 3bb, 6 players at 100bb;
+  - 9 players at 100bb;
+  - 3 players at 25bb;
+  - 6 players at 15bb;
+  - heads-up at 200bb;
+  - 6 players at 250bb.
+
+  Each plays until a preflop decision and a decision after the flop are graded. Every graded decision must name a known source on its badge. Preflop is graded by the stored solve of that very game where one is stored (and only that file is read), and by the charts, named so, where none is. All six passed in 56 s.
+- **Moved to WORKING** by the owner's rule of 2026-11-08: 2–9 handed NLHE, Cash, Short stack, Deep stack. Each deals, plays and grades every street end to end with tests, each number under its source. Each row now says what's left:
+  - 7 to 9 players and 13 to 19bb have no stored preflop solve;
+  - above 200bb, preflop is the charts re-priced by rules;
+  - other rakes have no stored preflop solve;
+  - there are no stakes presets;
+  - flops of 5 or more players go to betting rules;
+  - the postflop tree allows at most 2 raises a street.
+
+  The charts' quality stays graded in the Preflop rows (APPROXIMATE).
+- **Left PARTIAL:** MTT, whose preflop is a chip chart with a risk premium, where ICM matters most; and PLO4. Counts: Formats 4 / 2 / 0 / 0, Lizard total 46 / 10 / 4 / 3.
