@@ -1,6 +1,7 @@
-// History: every session kept in this browser, by day, newest first, with lifetime totals by kind, Practice's finished
-// hands by pot type (features/history/history.ts), and decisions by street, by seat, by pot and over time (progress.ts).
-// Each row says what graded it; nothing here is solved anew.
+// History: lifetime totals by kind and every session kept in this browser, by day, newest first; under a closed Breakdown,
+// Practice's finished hands by pot type (features/history/history.ts), and decisions by street, by seat, by pot and over
+// time (progress.ts). Each table or list says once what graded it, and a row graded otherwise says its own; nothing here
+// is solved anew.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bb, pct } from "@/components/actions";
@@ -8,7 +9,6 @@ import { allSessions, type SessionRecord } from "@/data/db";
 import { listMistakes } from "@/data/mistakes";
 import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
-import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
 import { byDay, GRADE_WAYS, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, WAY_HEADS, WAY_WORDS, type GradeWay, type SessionKind, type SessionRow, type Split, type WayTally } from "./history";
 import { BASIS_WORDS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, type Basis, type BasisTrend, type SplitTotals } from "./progress";
 
@@ -32,6 +32,31 @@ function WayCells({ row, ways, unit }: { row: Split; ways: readonly GradeWay[]; 
     );
   });
 }
+/** The provenance most of these rows share (by its sources' names), said once for the table or list. */
+function commonOf<T>(rows: readonly T[], key: (r: T) => string): string | null {
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(key(r), (counts.get(key(r)) ?? 0) + 1);
+  let best: string | null = null;
+  let most = 0;
+  for (const [k, n] of counts) if (n > most) [best, most] = [k, n];
+  return best;
+}
+/** A totals row's sources, named without their counts: what `commonOf` compares. */
+const namesOf = (r: { sources: Record<string, number> }) => sourcesText(r.sources, false);
+/** A table's one provenance line, under it: the common source, and that a row graded otherwise names its own. */
+function AgainstCaption({ common, mixed }: { common: string | null; mixed: boolean }) {
+  if (common == null) return null;
+  return (
+    <caption className="caption-bottom pt-1 text-left text-xs text-muted">
+      Graded against: {common}.{mixed ? " A row graded otherwise names its own." : ""}
+    </caption>
+  );
+}
+/** A row's own provenance, beside its name, only where it isn't the table's. */
+function RowAgainst({ r, common }: { r: { sources: Record<string, number> }; common: string | null }) {
+  return namesOf(r) === common ? null : <span className="block text-xs normal-case text-muted">Graded against: {sourcesText(r.sources)}</span>;
+}
+
 /** The kinds the seat and pot rates read, as the street table does; a leak drill's are counted beside them. */
 const SPLIT_KINDS: readonly SessionKind[] = ["practice", "drill", "analysis"];
 
@@ -69,6 +94,7 @@ export function HistoryPage() {
   const seats = useMemo(() => splitTotals(shown, "seat"), [shown]);
   const potSplit = useMemo(() => splitTotals(shown, "pot"), [shown]);
   const days = useMemo(() => byDay(shown.map(rowOf)), [shown]);
+  const against = useMemo(() => commonOf(days.flatMap((d) => d.rows), (r) => r.against), [days]);
 
   const setKind = (k: string) =>
     setParams(
@@ -102,25 +128,36 @@ export function HistoryPage() {
         </p>
       ) : (
         <>
-          <div className="grid items-start gap-6 *:min-w-0 lg:grid-cols-2">
-            <Lifetime totals={totals} />
-            <PotTypes pots={pots} />
-          </div>
-          <Streets t={streets} />
-          {sessions.some((s) => SPLIT_KINDS.includes(s.kind)) && <Splits seat={seats} pot={potSplit} kind={kind} setKind={setKind} />}
-          <Trends lines={lines} />
+          <Lifetime totals={totals} />
+          {/* (the rest of the figures, folded: closed until asked for) */}
+          <details className="space-y-4">
+            <summary className="cursor-pointer">
+              <h2 className="inline text-lg font-semibold">Breakdown</h2>
+            </summary>
+            <div className="mt-3 space-y-6">
+              <PotTypes pots={pots} />
+              <Streets t={streets} />
+              {sessions.some((s) => SPLIT_KINDS.includes(s.kind)) && <Splits seat={seats} pot={potSplit} kind={kind} setKind={setKind} />}
+              <Trends lines={lines} />
+            </div>
+          </details>
           <section aria-label="Sessions" className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">Sessions</h2>
               <KindSelect label="Show" kind={kind} setKind={setKind} />
             </div>
+            {against != null && (
+              <p className="text-xs text-muted">
+                Graded against: {against}.{days.some((d) => d.rows.some((r) => r.against !== against)) ? " A session graded otherwise names its own." : ""}
+              </p>
+            )}
             {!days.length && <p className="text-sm text-muted">No {kind ? kindLabel(kind).toLowerCase() : "session"} kept yet.</p>}
             {days.map((d) => (
               <section key={d.key} aria-label={d.label} className="space-y-1 panel p-3">
                 <h3 className="text-sm font-medium">{d.label}</h3>
                 <ul className="divide-y divide-border">
                   {d.rows.map((r) => (
-                    <SessionItem key={r.id} r={r} />
+                    <SessionItem key={r.id} r={r} common={against} />
                   ))}
                 </ul>
               </section>
@@ -149,7 +186,8 @@ function KindSelect({ label, kind, setKind }: { label: string; kind: SessionKind
   );
 }
 
-function SessionItem({ r }: { r: SessionRow }) {
+/** `common`: the list's provenance; a session graded otherwise says its own. */
+function SessionItem({ r, common }: { r: SessionRow; common: string | null }) {
   const time = new Date(r.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const parts =
     r.kind === "build"
@@ -165,7 +203,7 @@ function SessionItem({ r }: { r: SessionRow }) {
   return (
     <li className="space-y-0.5 py-1.5 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="font-mono text-xs text-muted">{time}</span>
+        <span className="text-xs tabular-nums text-muted">{time}</span>
         <span className="rounded bg-surface-2 px-1.5 text-xs">{kindLabel(r.kind)}</span>
         <span>{r.what}</span>
         {r.to && (
@@ -176,7 +214,7 @@ function SessionItem({ r }: { r: SessionRow }) {
       </div>
       <p className="text-muted">
         {parts.filter(Boolean).join(" · ")}
-        <span className="text-xs"> · Graded against: {r.graded}</span>
+        {r.against !== common && <span className="text-xs"> · Graded against: {r.graded}</span>}
       </p>
     </li>
   );
@@ -236,12 +274,14 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
 
 function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
   if (!t.rows.length && !t.apartDecisions && !t.leakDecisions) return null;
+  const common = commonOf(t.rows, namesOf);
   return (
     <section aria-label="Decisions by street" className="space-y-1">
-      <h2 className="text-lg font-semibold">Decisions by street</h2>
+      <h3 className="text-base font-semibold">Decisions by street</h3>
       {t.rows.length > 0 && (
         <div className="scroll-x" role="group" aria-label="Totals by street, scrolls sideways" tabIndex={0}>
           <table className="text-left text-sm" aria-label="Totals by street">
+            <AgainstCaption common={common} mixed={t.rows.some((r) => namesOf(r) !== common)} />
             <thead className="text-xs text-muted">
               <tr>
                 <th className="py-0.5 pr-4 font-normal">Street</th>
@@ -249,7 +289,6 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
                 <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
                 <th className="py-0.5 pr-4 font-normal">Graded by EV</th>
                 <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>
-                <th className="py-0.5 pr-4 font-normal">Graded against</th>
               </tr>
             </thead>
             <tbody>
@@ -258,12 +297,12 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
                   <td className="py-0.5 pr-4 font-sans capitalize">
                     {r.street}
                     {r.basis && <span className="normal-case text-muted"> {r.basis === "ev" ? "by EV" : "by frequency"}</span>}
+                    <RowAgainst r={r} common={common} />
                   </td>
                   <td className="py-0.5 pr-4">{r.n}</td>
                   <td className="py-0.5 pr-4">{shareText(r.ok, r.n)}</td>
                   <td className="py-0.5 pr-4">{r.ne}</td>
                   <td className="py-0.5 pr-4">{r.ne ? lossText(r.loss / r.ne, r.lossPct / r.ne) : "none: by frequency"}</td>
-                  <td className="py-0.5 pr-4 font-sans text-xs text-muted">{sourcesText(r.sources)}</td>
                 </tr>
               ))}
             </tbody>
@@ -285,29 +324,32 @@ const SPLITS = { seat: { title: "By seat", head: "Seat", word: "seat" }, pot: { 
 function SplitTable({ t, basis }: { t: SplitTotals; basis: Basis }) {
   const { title, head } = SPLITS[t.by];
   const name = `${title}: ${BASIS_WORDS[basis]}`;
+  const common = commonOf(t[basis], namesOf);
   return (
     <div className="space-y-0.5">
-      <h4 className="text-xs font-medium text-muted">{BASIS_WORDS[basis]}</h4>
+      <h5 className="text-xs font-medium text-muted">{BASIS_WORDS[basis]}</h5>
       {/* (focusable, so the keys scroll what doesn't fit a phone) */}
       <div className="scroll-x" role="group" aria-label={`${name}, scrolls sideways`} tabIndex={0}>
         <table className="text-left text-sm" aria-label={name}>
+          <AgainstCaption common={common} mixed={t[basis].some((r) => namesOf(r) !== common)} />
           <thead className="text-xs text-muted">
             <tr>
               <th className="py-0.5 pr-4 font-normal">{head}</th>
               <th className="py-0.5 pr-4 font-normal">Decisions</th>
               <th className="py-0.5 pr-4 font-normal">Best or Correct</th>
               {basis === "ev" && <th className="py-0.5 pr-4 font-normal">EV lost per decision</th>}
-              <th className="py-0.5 pr-4 font-normal">Graded against</th>
             </tr>
           </thead>
           <tbody>
             {t[basis].map((r) => (
               <tr key={r.name}>
-                <td className="py-0.5 pr-4 font-sans">{r.name}</td>
+                <td className="py-0.5 pr-4 font-sans">
+                  {r.name}
+                  <RowAgainst r={r} common={common} />
+                </td>
                 <td className="py-0.5 pr-4">{r.n}</td>
                 <td className="py-0.5 pr-4">{shareText(r.ok, r.n)}</td>
                 {basis === "ev" && <td className="py-0.5 pr-4">{lossText(r.loss / r.ne, r.lossPct / r.ne)}</td>}
-                <td className="py-0.5 pr-4 font-sans text-xs text-muted">{sourcesText(r.sources)}</td>
               </tr>
             ))}
           </tbody>
@@ -321,7 +363,7 @@ function SplitBlock({ t }: { t: SplitTotals }) {
   const { title, word } = SPLITS[t.by];
   return (
     <div className="space-y-1">
-      <h3 className="text-sm font-medium">{title}</h3>
+      <h4 className="text-sm font-medium">{title}</h4>
       {t.ev.length > 0 && <SplitTable t={t} basis="ev" />}
       {t.freq.length > 0 && <SplitTable t={t} basis="freq" />}
       {!t.ev.length && !t.freq.length && <p className="text-sm text-muted">No decision here keeps its {word}.</p>}
@@ -338,7 +380,7 @@ function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTot
   return (
     <section aria-label="Rates by seat and pot type" className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Rates by seat and pot type</h2>
+        <h3 className="text-base font-semibold">Rates by seat and pot type</h3>
         <KindSelect label="Rates from" kind={kind} setKind={setKind} />
       </div>
       {kind && kind !== "practice" && kind !== "drill" ? (
@@ -364,7 +406,7 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
   };
   return (
     <section aria-label="Over time" className="space-y-3">
-      <h2 className="text-lg font-semibold">Over time</h2>
+      <h3 className="text-base font-semibold">Over time</h3>
       {lines.map((t) => (
         <div key={t.basis} className="space-y-1 text-sm">
           {t.line ? (
@@ -375,7 +417,7 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
             />
           ) : (
             <>
-              <h3 className="font-medium">{BASIS_WORDS[t.basis]}</h3>
+              <h4 className="font-medium">{BASIS_WORDS[t.basis]}</h4>
               <p className="text-muted">
                 No line yet. {t.why} {shareText(t.blocks.reduce((a, b) => a + b.ok, 0), t.n)} Best or Correct over those.
               </p>
@@ -390,12 +432,6 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           <p className="text-xs text-muted">
             {many(t.n, "decision")} in {many(t.sessions, "session")}. Graded against: {sourcesText(t.sources)}.
           </p>
-          {versionNote(t.versions) && (
-            <p role="group" aria-label="Versions compared" className="text-xs text-muted">
-              {versionNote(t.versions)}
-              {t.versions.unknown[0] + t.versions.unknown[1] > 0 ? ` ${VERSION_UNKNOWN}` : ""}
-            </p>
-          )}
         </div>
       ))}
     </section>
@@ -408,7 +444,7 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
   const apart = pots.rows.reduce((a, t) => a + t.apart, 0);
   return (
     <section aria-label="Full hands by pot type" className="space-y-1">
-      <h2 className="text-lg font-semibold">Full hands by pot type</h2>
+      <h3 className="text-base font-semibold">Full hands by pot type</h3>
       {pots.rows.length > 0 && (
         <div className="scroll-x">
           <table className="text-left text-sm" aria-label="Totals by pot type">

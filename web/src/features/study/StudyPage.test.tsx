@@ -101,15 +101,16 @@ describe("StudyPage", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     stub.answer = THREE_WAY;
     renderAt("p=3&s=100");
-    const actions = await screen.findByRole("region", { name: "Actions" });
-    fireEvent.click(await within(actions).findByRole("button", { name: "Copy for AI" }));
+    // (under More tools, with the other tools that aren't needed every time)
+    await screen.findByRole("region", { name: "Actions" });
+    fireEvent.click(await screen.findByRole("button", { name: "Copy for AI" }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     const text = writeText.mock.calls[0]![0];
     expect(text).toContain("no hand picked, so this is the whole range's mix");
     expect(text).toContain("- check: 50.0%, EV 2.00bb");
     expect(text).toContain("A chatbot might reason about them wrongly");
     fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
-    expect(within(screen.getByRole("region", { name: "Actions" })).queryByRole("button", { name: "Copy for AI" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy for AI" })).toBeNull();
     Reflect.deleteProperty(navigator, "clipboard");
   });
 
@@ -191,7 +192,8 @@ describe("StudyPage", () => {
     fireEvent.change(stack, { target: { value: "37.5" } });
     fireEvent.change(players, { target: { value: "9" } });
     fireEvent.click(within(form).getByRole("button", { name: "New hand" }));
-    expect(await screen.findByText("9-max 37.5bb")).toBeInTheDocument();
+    await waitFor(() => expect(within(form).getByRole("combobox", { name: "Players" })).toHaveValue("9"));
+    expect(within(screen.getByRole("form", { name: "New hand" })).getByRole("spinbutton", { name: "Stack in big blinds" })).toHaveValue(37.5);
   });
 
   it("opens the range builder on the node's whole range, and back to the solution", async () => {
@@ -280,12 +282,9 @@ describe("StudyPage", () => {
     expect(stub.asked.length).toBe(asked);
   });
 
-  it("offers a setup of your own on a standard spot", () => {
+  it("says nothing of the setup on a standard spot (Solve and Tournaments are in the nav)", () => {
     renderAt("p=6&s=100");
-    const setup = screen.getByLabelText("Setup");
-    expect(setup).toHaveTextContent("Standard setup.");
-    expect(within(setup).getByRole("link", { name: "Set up your own" })).toHaveAttribute("href", "/solve?p=6&s=100");
-    expect(within(setup).getByRole("link", { name: "a tournament" })).toHaveAttribute("href", "/tournaments?p=6&s=100");
+    expect(screen.queryByLabelText("Setup")).toBeNull();
   });
 
   it("asks a tournament's spot with its payouts and bounties, and shows its prize equity, bubble factors and bounties", async () => {

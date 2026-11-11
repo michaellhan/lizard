@@ -29,7 +29,8 @@ export interface Settings {
   /** Study: the matrix column's share of the width beside its panel (null: not moved, read as the layout's default, which a
    * saved number would hide when it changes). Any saved value is clamped where it's read, by ResizableWorkspace */
   studySplit: number | null;
-  /** Study: the keys that walk the line, play an action and open the range builder (off: none of them) */
+  /** Study: the keys that walk the line, play an action and open the range builder (off: none of them). Always on since
+   * 2026-11-11, when Settings stopped offering the switch: a saved value isn't read (tests still turn it off) */
   studyKeys: boolean;
   /** patterns over the action colours, wherever a mix is drawn (off, the default: colour alone). Saved under a new name
    * since 2026-11-11, when the default went to off: the older `patterns`, saved on by everyone, is dropped */
@@ -78,7 +79,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
   },
   load: async () => {
     const saved = await kvGet<Partial<Settings>>(KEY).catch(() => undefined);
-    set({ ...DEFAULT_SETTINGS, ...(saved ?? {}), loaded: true });
+    // (Settings no longer offers these, so a value saved before can't be changed back: each is the default again)
+    const { studyKeys: _k, transport: _t, localSolverUrl: _u, librarySource: _l, ...kept } = saved ?? {};
+    void [_k, _t, _u, _l];
+    set({ ...DEFAULT_SETTINGS, ...kept, loaded: true });
   },
   reset: () => {
     set({ ...DEFAULT_SETTINGS });

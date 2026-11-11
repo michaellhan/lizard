@@ -20,7 +20,6 @@ import { splitHands } from "@/hh/parse";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
 import { noLines, NEED, STREETS, type Move, type TableSetup } from "@/poker/table";
-import type { SolveMode } from "@/solver/types";
 import { recordOf } from "./analyze";
 
 export const CLASSIC_DB = "gto-store";
@@ -80,15 +79,6 @@ function readAll(d: IDBDatabase, store: string): Promise<unknown[]> {
   });
 }
 
-function readOne(d: IDBDatabase, store: string, key: string): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const t = d.transaction(store, "readonly");
-    const q = t.objectStore(store).get(key);
-    t.oncomplete = () => resolve(q.result);
-    t.onerror = t.onabort = () => reject(t.error ?? new Error("the classic database couldn't be read"));
-  });
-}
-
 const safe = <T>(f: () => T): T | null => {
   try {
     return f();
@@ -115,28 +105,6 @@ export async function readClassicHands(
   const raw = safe(() => storage?.getItem(`${name}:hands`) ?? null);
   const m = raw ? safe(() => JSON.parse(raw) as unknown) : null;
   return obj(m) ? { from: "localStorage", recs: live(Object.values(m)) } : null;
-}
-
-const SPEEDS: readonly SolveMode[] = ["quick", "fast", "accurate"];
-
-/** The classic app's speed as it saved it (its kv record "gto-speed", also kept in localStorage); null where none is. */
-export async function readClassicSpeed(
-  factory: IDBFactory | null = safe(() => globalThis.indexedDB ?? null),
-  storage: Pick<Storage, "getItem"> | null = safe(() => globalThis.localStorage ?? null),
-  name: string = CLASSIC_DB,
-): Promise<SolveMode | null> {
-  let raw: unknown = null;
-  const d = factory ? await openExisting(factory, name) : null;
-  if (d) {
-    try {
-      const r = d.objectStoreNames.contains("kv") ? await readOne(d, "kv", "gto-speed") : null;
-      if (obj(r) && !r.deleted && obj(r.data)) raw = r.data.raw;
-    } finally {
-      d.close();
-    }
-  }
-  raw ??= safe(() => storage?.getItem("gto-speed") ?? null);
-  return SPEEDS.find((m) => m === raw) ?? null;
 }
 
 const CARD = /^[AKQJT98765432][shdc]$/;

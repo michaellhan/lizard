@@ -175,17 +175,19 @@ describe("sessions history", () => {
       </MemoryRouter>,
     );
     const split = await screen.findByRole("region", { name: "Decisions by street" });
-    const rows = within(within(split).getByRole("table", { name: "Totals by street" })).getAllByRole("row");
-    expect(rows[1]).toHaveTextContent(/preflop\s*4\s*3 of 4\s*0\s*none: by frequency/i);
-    expect(rows[1]).toHaveTextContent(/Preflop charts \(approximate\)/);
-    expect(rows[2]).toHaveTextContent(/flop\s*2\s*1 of 2\s*2\s*0\.20bb · 3\.0% pot/i);
+    const table = within(split).getByRole("table", { name: "Totals by street" });
+    const rows = within(table).getAllByRole("row");
+    // (what graded the table said once, under it; the row graded otherwise names its own)
+    expect(table.querySelector("caption")).toHaveTextContent("Graded against: Preflop charts (approximate). A row graded otherwise names its own.");
+    expect(rows[1]).toHaveTextContent(/^preflop\s*4\s*3 of 4\s*0\s*none: by frequency$/i);
+    expect(rows[2]).toHaveTextContent(/^flopGraded against: Live solve 2\s*2\s*1 of 2\s*2\s*0\.20bb · 3\.0% pot$/i);
     expect(split).toHaveTextContent("4 decisions in 1 earlier session");
     const trend = screen.getByRole("region", { name: "Over time" });
     expect(within(trend).getAllByText(/^No line yet\./)).toHaveLength(2);
     expect(within(trend).queryByRole("img")).toBeNull();
-    const notes = within(trend).getAllByLabelText("Versions compared").map((p) => p.textContent);
-    expect(notes[0]).toMatch(/^Graded on different versions: solver build aaa\/111 and bbb\/222\.$/);
-    expect(notes[1]).toMatch(/^Version unknown\. Unknown: graded before versions were kept/);
+    // (no line on solver versions: what graded each stretch is said, and that's all)
+    expect(trend).not.toHaveTextContent(/different versions|Version unknown/);
+    expect(within(trend).queryByLabelText("Versions compared")).toBeNull();
     expect(screen.getByRole("link", { name: /2 mistakes kept for review, 1 due/ })).toHaveAttribute("href", "/review");
     cleanup();
     await d.clear("sessions");
@@ -261,6 +263,45 @@ describe("sessions history", () => {
     });
   });
 
+  it("keeps the lifetime totals and the sessions in view and folds the rest into a closed Breakdown", async () => {
+    const d = (await db())!;
+    await d.clear("sessions");
+    await putSession(NEW);
+    await putSession(OLD);
+    render(
+      <MemoryRouter initialEntries={["/history"]}>
+        <HistoryPage />
+      </MemoryRouter>,
+    );
+    const lifetime = await screen.findByRole("region", { name: "Lifetime totals" });
+    const fold = screen.getByRole("heading", { name: "Breakdown" }).closest("details")!;
+    expect(fold).not.toHaveAttribute("open");
+    for (const name of ["Full hands by pot type", "Decisions by street"]) expect(fold).toContainElement(screen.getByRole("region", { name }));
+    expect(fold).not.toContainElement(lifetime);
+    expect(fold).not.toContainElement(screen.getByRole("region", { name: "Sessions" }));
+    cleanup();
+    await d.clear("sessions");
+  });
+
+  it("says once what graded sessions graded alike, with no tail on each row", async () => {
+    const d = (await db())!;
+    await d.clear("sessions");
+    const pf = { ...PREFLOP, meta: { ...PREFLOP.meta, sources: { "preflop-solve": 1 } } };
+    await putSession({ ...pf, id: "a" });
+    await putSession({ ...pf, id: "b", startedAt: at(3, 10), meta: { ...pf.meta, sources: { "preflop-solve": 3 } } });
+    render(
+      <MemoryRouter initialEntries={["/history"]}>
+        <HistoryPage />
+      </MemoryRouter>,
+    );
+    const sessions = await screen.findByRole("region", { name: "Sessions" });
+    expect(within(sessions).getAllByText(/Graded against/)).toHaveLength(1);
+    expect(within(sessions).getByText(/^Graded against: /)).toHaveTextContent(/^Graded against: [^.]+\.$/);
+    for (const item of within(sessions).getAllByRole("listitem")) expect(item).not.toHaveTextContent("Graded against");
+    cleanup();
+    await d.clear("sessions");
+  });
+
   it("names a library line's pot as a hand's would be", () => {
     const m = (action: string) => ({ pos: "X", action });
     expect(linePot([m("fold"), m("raise"), m("call")])).toBe("SRP");
@@ -303,10 +344,16 @@ describe("sessions history", () => {
       const box = await page(CELLS);
       const ev = rows(box, "By seat: Graded by EV");
       expect(ev).toHaveLength(1);
-      expect(ev[0]).toHaveTextContent(/BTN\s*30\s*80%\s*0\.10bb · 2\.0% pot\s*Live solve 30/);
+      expect(ev[0]).toHaveTextContent(/^BTN\s*30\s*80%\s*0\.10bb · 2\.0% pot$/);
+      // one provenance line a table, the source its rows share; a row only where its own differs
+      const evTable = within(box).getByRole("table", { name: "By seat: Graded by EV" });
+      expect(within(evTable).getAllByText(/Graded against/)).toHaveLength(1);
+      expect(evTable.querySelector("caption")).toHaveTextContent(/^Graded against: Live solve\.$/);
+      expect(within(evTable).queryByRole("columnheader", { name: "Graded against" })).toBeNull();
       const freq = rows(box, "By seat: Graded by frequency (no EV)");
-      expect(freq[0]).toHaveTextContent(/BTN\s*6\s*5 of 6\s*Preflop charts \(approximate\) 6/);
-      expect(freq[1]).toHaveTextContent(/BB\s*4\s*1 of 4/);
+      expect(within(box).getByRole("table", { name: "By seat: Graded by frequency (no EV)" }).querySelector("caption")).toHaveTextContent("Graded against: Preflop charts (approximate). A row graded otherwise names its own.");
+      expect(freq[0]).toHaveTextContent(/^BTN\s*6\s*5 of 6$/);
+      expect(freq[1]).toHaveTextContent(/^BBGraded against: .+ 4\s*4\s*1 of 4$/);
       expect(rows(box, "By pot type: Graded by frequency (no EV)").map((r) => r.textContent)).toEqual([expect.stringMatching(/^Unopened/), expect.stringMatching(/^SRP/)]);
       expect(rows(box, "By pot type: Graded by EV")[0]).toHaveTextContent(/SRP\s*30\s*80%/);
       expect(within(box).getAllByRole("columnheader", { name: "EV lost per decision" })).toHaveLength(2);
@@ -319,7 +366,7 @@ describe("sessions history", () => {
       expect(box).toHaveTextContent("Seat not kept: 4 decisions in 1 session");
       expect(box).toHaveTextContent("Pot type not kept: 4 decisions in 1 session");
       expect(box).toHaveTextContent("7 leak drill decisions: not split.");
-      expect(within(screen.getByRole("region", { name: "Decisions by street" })).getByRole("table")).toHaveTextContent(/flop\s*30/i);
+      expect(within(screen.getByRole("region", { name: "Decisions by street" })).getByRole("table")).toHaveTextContent(/flopGraded against: Live solve 30\s*30/i);
       expect(screen.getByRole("region", { name: "Decisions by street" })).toHaveTextContent("4 decisions in 1 earlier session");
       cleanup();
       const none = await page(OLDER);
@@ -418,7 +465,11 @@ describe("sessions history", () => {
     expect(items).toHaveLength(4);
     expect(items[0]).toHaveTextContent("Full hands2 players · 100bb");
     expect(items[0]).toHaveTextContent("2 hands · 3 decisions · 3 not told apart by how they were graded · net +4.5bb");
-    expect(items[0]).toHaveTextContent("Graded against: Live solve 2, Preflop charts (approximate) 1");
+    // (the list's provenance once, over it; the sessions graded otherwise name their own)
+    expect(within(sessions).getAllByText(/^Graded against: Live solve, Preflop charts \(approximate\)\. A session graded otherwise names its own\.$/)).toHaveLength(1);
+    expect(items[0]).not.toHaveTextContent("Graded against");
+    expect(items[2]).toHaveTextContent("Graded against: Precomputed solution (the flop library)");
+    expect(items[3]).toHaveTextContent("Graded against: Preflop charts (approximate) 1");
     expect(items[1]).toHaveTextContent("82.0% accurate · 0.040bb a combo");
     expect(within(items[1]!).getByRole("link", { name: "Open the node in Study" })).toHaveAttribute("href", `/study?${BUILD.meta.line as string}`);
     expect(within(items[2]!).getByRole("link", { name: "Drill it again" })).toHaveAttribute("href", "/practice?tab=drills&spot=srp_btn_bb&view=vsbet");

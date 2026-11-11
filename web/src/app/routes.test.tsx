@@ -45,9 +45,9 @@ describe("the pages' badges", () => {
         <HomePage />
       </MemoryRouter>,
     );
-    // the home page is for players: the four main pages and the rest in a list, no build grades
+    // the home page is for players: the four main pages (the rest are under the nav's More), no build grades
     expect(screen.getByRole("link", { name: /^Study/ })).toHaveAttribute("href", "/study");
-    expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
+    expect(screen.getAllByRole("link")).toHaveLength(4);
     expect(screen.queryByText(/of \d+ working/)).toBeNull();
   });
 });

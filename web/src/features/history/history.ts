@@ -269,20 +269,27 @@ export interface SessionRow {
   buildLoss?: number | null;
   /** what the grades are against */
   graded: string;
+  /** the same without the counts: alike for every row graded alike, so a list can say it once */
+  against: string;
   /** where it opens again */
   to?: { href: string; label: string };
 }
 
-/** What graded a Practice session's decisions: the count by source where the session kept it. */
-export function sourcesText(sources: Record<string, unknown> | null): string {
+/** What graded a Practice session's decisions: the count by source where the session kept it (`counts` false: the
+ * sources alone, most first). */
+export function sourcesText(sources: Record<string, unknown> | null, counts = true): string {
   if (!sources) return "Not kept: played before Lizard kept what graded each decision";
   const xs = Object.entries(sources).filter(([, n]) => num(n) > 0);
   if (!xs.length) return "No decision graded";
   return xs
     .sort((a, b) => num(b[1]) - num(a[1]))
-    .map(([s, n]) => `${sourceWords(s)} ${num(n)}`)
+    .map(([s, n]) => (counts ? `${sourceWords(s)} ${num(n)}` : sourceWords(s)))
     .join(", ");
 }
+/** A row's provenance from its kept sources: with the counts, and without. */
+const gradedBy = (sources: Record<string, unknown> | null) => ({ graded: sourcesText(sources), against: sourcesText(sources, false) });
+/** A row's provenance that has no counts. */
+const said = (text: string) => ({ graded: text, against: text });
 
 /** A kept session as a row of the history. */
 export function rowOf(s: SessionRecord): SessionRow {
@@ -293,7 +300,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     const game = t && s.kind === "tournament" ? describeTournament({ payouts: Array.isArray(t.payouts) ? t.payouts.filter((x): x is number => typeof x === "number") : [], ...(obj(t.field) ? { field: t.field as { players: number; avg: number } } : {}) }) : [];
     const stacks = Object.entries(obj(t?.stacks) ?? {}).map(([p, v]) => `${p} ${num(v)}`).join(", ");
     const what = [`${num(m.players) || "?"} players`, ...(stacks ? [`stacks ${stacks}`] : []), ...game, ...(num(m.ante) ? [`ante ${num(m.ante)}`] : []), ...(m.preflopOnly ? ["stops at the flop"] : []), ...(m.carry ? ["played out"] : []), ...(m.seat && m.seat !== "moves" ? [`seat ${str(m.seat)}`] : [])].join(" · ");
-    return { ...base, what, hands: num(m.hands), graded: sourcesText(obj(m.sources)) };
+    return { ...base, what, hands: num(m.hands), ...gradedBy(obj(m.sources)) };
   }
   if (s.kind === "exploit") {
     const read = obj(m.exploit);
@@ -301,7 +308,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     const what = [`${profileName(read?.profile)} (assumed${numbers ? `: ${numbers}` : ""})`, `${num(m.players) || "?"} players`, `${num(m.stack) || "?"}bb`, ...(isPotDrill(m.pot) ? [POT_DRILLS[m.pot].label.toLowerCase()] : [])].join(" · ");
     // (no plain net: only the hands the profile played count, apart; a session from before it did has none)
     const r = obj(m.read);
-    return { ...base, what, hands: num(m.hands), readNet: r ? { hands: num(r.hands), net: num(r.net), off: num(r.off) } : null, graded: sourcesText(obj(m.sources)) };
+    return { ...base, what, hands: num(m.hands), readNet: r ? { hands: num(r.hands), net: num(r.net), off: num(r.off) } : null, ...gradedBy(obj(m.sources)) };
   }
   if (s.kind === "practice") {
     const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? ` · preflop graded by the preflop solve${m.pfSizes ? ", at its raise sizes" : ""}` : ""}`;
@@ -314,7 +321,7 @@ export function rowOf(s: SessionRecord): SessionRow {
       what,
       hands: num(m.hands),
       net: m.preflopOnly ? null : num(m.net),
-      graded: sourcesText(obj(m.sources)),
+      ...gradedBy(obj(m.sources)),
     };
   }
   if (s.kind === "drill") {
@@ -322,7 +329,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     return {
       ...base,
       what: `${str(m.label) || spot || "A library spot"}${VIEW_WORDS[view] ? `, ${VIEW_WORDS[view]}` : ""}${m.street === "turn" ? " on the turn" : ""}`,
-      graded: m.street === "turn" ? "Stored turn from the flop library (by how often, in 5% steps)" : "Precomputed solution (the flop library)",
+      ...said(m.street === "turn" ? "Stored turn from the flop library (by how often, in 5% steps)" : "Precomputed solution (the flop library)"),
       ...(spot ? { to: { href: `/practice?tab=drills&spot=${encodeURIComponent(spot)}${m.street === "turn" ? "&street=turn" : ""}${view ? `&view=${encodeURIComponent(view)}` : ""}`, label: "Drill it again" } } : {}),
     };
   }
@@ -334,7 +341,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     return {
       ...base,
       what: `Leak: ${str(m.label) || leak || "?"}${num(m.total) ? ` · ${done} of ${num(m.total)} done when last drilled${last}` : ""}`,
-      graded: "Analyze's answers to your own decisions: the preflop charts by frequency (not a solve) preflop, after the flop what answered each one, said in the drill",
+      ...said("Analyze's answers to your own decisions: the preflop charts by frequency (not a solve) preflop, after the flop what answered each one, said in the drill"),
       ...(leak ? { to: { href: `/analyze?drill=${encodeURIComponent(leak)}`, label: "Open the drill" } } : {}),
     };
   }
@@ -350,7 +357,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     acc: typeof m.acc === "number" ? m.acc : null,
     byCombo: m.graded === "combo",
     buildLoss: typeof m.evLossBb === "number" ? m.evLossBb : null,
-    graded: src ? `${sourceWords(src)}${m.approximate && src !== "charts" && src !== "library-turn" ? " (approximate)" : ""}` : "Not kept",
+    ...said(src ? `${sourceWords(src)}${m.approximate && src !== "charts" && src !== "library-turn" ? " (approximate)" : ""}` : "Not kept"),
     ...(line ? { to: { href: `/study?${line}`, label: "Open the node in Study" } } : {}),
   };
 }

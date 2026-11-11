@@ -22,7 +22,6 @@ import {
   forward,
   freshHand,
   fromSearch,
-  lineOf,
   lineSteps,
   onLine,
   play,
@@ -384,7 +383,7 @@ export function StudyPage() {
   }, []);
 
   const split = !(building && buildable) && res?.study === "node" && grid;
-  const nodeView = res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} whole={phase.kind === "done" ? raw : undefined} cls={myCls} keys={keys} />;
+  const nodeView = res && <NodeView hand={hand} res={res} shown={shown!} setHand={setHand} evUnit={evUnit} building={building} keys={keys} />;
   // the plan's Study layout in two panes: the grid left, and to its right the actions, then the combos and the breakdown.
   // Stacked, the actions stay above the grid; and in Build, whose split is its own, above that
   const actionsInPane = wide && Boolean(split);
@@ -409,15 +408,6 @@ export function StudyPage() {
       </div>
 
       <nav aria-label="Line" className="flex flex-wrap items-center gap-1.5 panel p-2 text-sm">
-        <button
-          type="button"
-          aria-current={prevNode ? undefined : "step"}
-          title="The start of the hand"
-          onClick={() => setHand(lineOf(tip)[0] ?? hand)}
-          className={`rounded bg-surface-3 px-2 py-0.5 hover:text-text ${prevNode ? "text-muted" : "ring-1 ring-accent"}`}
-        >
-          {hand.players === 2 ? "HU" : `${hand.players}-max`} {hand.stack}bb
-        </button>
         {steps.map((s, i) => (
           <button
             key={i}
@@ -477,27 +467,14 @@ export function StudyPage() {
         {/* (one line: the folds to a seat, and what game this is) */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
-          <p role="group" aria-label="Setup" className="text-xs text-muted">
-            {hand.setup ? (
-              <>
-                Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
-                <Link to={`/${hand.setup.tournament ? "tournaments" : "solve"}?${toSearch(hand)}`} className="underline hover:text-text">
-                  Edit setup
-                </Link>
-              </>
-            ) : (
-              <>
-                Standard setup.{" "}
-                <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
-                  Set up your own
-                </Link>{" "}
-                or{" "}
-                <Link to={`/tournaments?${toSearch(hand)}`} className="underline hover:text-text">
-                  a tournament
-                </Link>
-              </>
-            )}
-          </p>
+          {hand.setup && (
+            <p role="group" aria-label="Setup" className="text-xs text-muted">
+              Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
+              <Link to={`/${hand.setup.tournament ? "tournaments" : "solve"}?${toSearch(hand)}`} className="underline hover:text-text">
+                Edit setup
+              </Link>
+            </p>
+          )}
         </div>
         {phase.kind === "loading" && (
           <div className="flex items-center gap-3 panel px-3 py-2 text-sm">
@@ -725,15 +702,23 @@ export function StudyPage() {
           </StudySplit>
         )}
         {!split && breakdown}
-        {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
-        {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
-          <div className="flex flex-wrap items-start gap-2">
-            <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
-            {raw && offersOneSize(raw) && <OneSizePanel key={`one-size|${requestKey}`} hand={hand} res={raw} getSolver={getSolver} />}
-            {raw && offersLock(raw) && <LockPanel key={`lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
-            {raw && <NodeLockPanel key={`node-lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
-            {raw && offersAutoSize(raw) && <AutoSizePanel key={`auto-size|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
-          </div>
+        {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />}
+        {phase.kind === "done" && raw?.study === "node" && !(building && buildable) && (
+          <details key={`tools|${requestKey}`} className="text-sm">
+            <summary className="cursor-pointer text-muted hover:text-text">More tools</summary>
+            <div className="mt-2 space-y-3">
+              {!building && !raw.tournament && !!raw.actions?.length && <CopyForAi key={`${phase.result.provenance.source}|${myCls}`} text={() => studyText(hand, raw, phase.result.provenance, myCls)} />}
+              <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />
+              {!opp && res?.study === "node" && (
+                <div className="flex flex-wrap items-start gap-2">
+                  {offersOneSize(raw) && <OneSizePanel key={`one-size|${requestKey}`} hand={hand} res={raw} getSolver={getSolver} />}
+                  {offersLock(raw) && <LockPanel key={`lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+                  <NodeLockPanel key={`node-lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />
+                  {offersAutoSize(raw) && <AutoSizePanel key={`auto-size|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
+                </div>
+              )}
+            </div>
+          </details>
         )}
       </div>
     </div>
@@ -747,8 +732,6 @@ function NodeView({
   setHand,
   evUnit,
   building = false,
-  whole,
-  cls = null,
   keys,
 }: {
   hand: StudyHand;
@@ -758,10 +741,6 @@ function NodeView({
   evUnit: EvUnit;
   /** the range builder is open: the actions without their frequencies and EVs (they'd give the answer away) */
   building?: boolean;
-  /** the complete answer, unfiltered, for Copy for AI: none while it's still coming in */
-  whole?: AdvisorResponse;
-  /** the hand class picked in the grid */
-  cls?: string | null;
   /** the page's keys are on (Settings) */
   keys: boolean;
 }) {
@@ -885,8 +864,6 @@ function NodeView({
           </button>
         ))}
       </div>
-      {/* (under the actions, so the first button here is an action; not in a tournament, whose EVs aren't in bb) */}
-      {whole && !building && !whole.tournament && !!whole.actions?.length && <CopyForAi key={`${shown.provenance.source}|${cls}`} text={() => studyText(hand, whole, shown.provenance, cls)} />}
       {res.tournament && typeof res.tournament === "object" ? (
         <TournamentPanel
           t={res.tournament as TournamentInfo}

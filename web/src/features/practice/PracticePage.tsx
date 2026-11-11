@@ -14,21 +14,17 @@ import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
 import { rowKeys } from "@/components/rowKeys";
 import { PlayingCard } from "@/components/PlayingCard";
-import { bb, pct } from "@/components/actions";
-import { recentSessions, type SessionRecord } from "@/data/db";
 import { getScenario, scenarioWords, type ScenarioSetup } from "@/data/scenarios";
 import { summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
-import { rowOf } from "@/features/history/history";
 import { describeSetup } from "@/features/solve/setup";
-import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
-import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
+import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, useHandKeys } from "./PracticeParts";
 import { gradedOn, optionsAt } from "./pfGrade";
 import { isNextKey, optionFromKey } from "./keys";
 import { KeysHelp } from "./KeysHelp";
@@ -147,17 +143,6 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   const snap = useSyncExternalStore(room.subscribe, room.snapshot);
   const { session, tables } = snap;
   const many = tables.length > 1;
-  const [past, setPast] = useState<SessionRecord[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    void recentSessions("practice", 6)
-      .then((xs) => alive && setPast(xs))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   // A saved scenario's link, or a setup's (setupLink.ts, the Plan page's): the setup starts at one table, as above one Spots
   // and Seat deal in its place, and the link goes from the address, so a reload doesn't start it again. A link can come from
@@ -244,7 +229,6 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   });
 
   const sum = summary(session.score);
-  const others = past.filter((p) => p.id !== session.id);
   const setup = (
     <SetupForm
       key={`${session.players}/${session.stack}/${JSON.stringify(session.opts)}`}
@@ -310,7 +294,6 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       {/* (one row of controls, the game a line under it, the score a line: the table, your options and your last decision
           on the first screen, and what explains them below it) */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <ModePicker modes={["quick", "accurate"]} />
         <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
         <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
       {!many && (
@@ -350,28 +333,12 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} side={score} /> : <OneTable room={room} snap={snap} active={active && !asking} side={score} />}
       </div>
 
-      {others.length > 0 && (
-        <section aria-label="Past sessions" className="space-y-1.5 px-1 pt-2 text-xs">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="text-sm font-medium">Past sessions</h2>
-            <Link to="/history?kind=practice" className="text-muted underline hover:text-text">
-              All sessions
-            </Link>
-          </div>
-          <ul className="space-y-1">
-            {others.map((s) => (
-              <li key={s.id} className="text-muted">
-                {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
-                {s.decisions ? ` · ${pct((Number(s.meta.ok) || 0) / s.decisions, 0)} best or correct` : ""}
-                {Number(s.meta.graded) ? ` · ${bb(s.evLossBb / Number(s.meta.graded))}bb lost per decision` : ""}
-                {s.meta.pushFold ? " · push/fold" : ""}
-                {s.meta.preflopOnly ? " · preflop only" : ` · net ${signed(Number(s.meta.net) || 0)}bb`}
-                {s.decisions ? ` · Graded against: ${rowOf(s).graded}` : ""}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* (past sessions are History's: one link there, not a second list) */}
+      <p className="px-1 text-xs">
+        <Link to="/history" className="text-muted underline hover:text-text">
+          All sessions →
+        </Link>
+      </p>
     </div>
   );
 }
@@ -598,9 +565,8 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
           )}
         </section>
 
-        {/* (the hand and your recent decisions under the table, in the room the move leaves, so the right column's
-            last decision isn't followed by a scroll) */}
-        <HandLog hand={hand} />
+        {/* (your recent decisions under the table, in the room the move leaves, so the right column's last decision
+            isn't followed by a scroll) */}
         {session.review.length > 0 && <ReviewMistakes review={session.review} retry={retry} />}
       </div>
 

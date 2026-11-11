@@ -6,6 +6,12 @@ import { expect, overflow, test, type Page, openGame } from "./fixtures";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
+/** History's breakdown tables are under a closed Breakdown fold: opened if it's closed. */
+async function openBreakdown(page: Page): Promise<void> {
+  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^Breakdown$/ }) }).first();
+  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
+}
+
 test.skip(({ viewport }) => viewport?.width !== 1440, "one width: these are long flows");
 test.describe.configure({ timeout: 300_000 });
 
@@ -86,7 +92,7 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
   // the hands behind it, one opened in Study at that decision
   await leaks.getByRole("button", { name: "Show its decisions" }).first().click();
   await page.getByRole("tab", { name: "Hands" }).click();
-  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
+  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: /^Open the hand/ }).first().click();
   const hand = page.getByRole("region", { name: "Hand", exact: true });
   await hand.getByRole("link", { name: /^Study preflop decision/ }).first().click();
   await expect(page).toHaveURL(/\/study\?/);
@@ -132,6 +138,7 @@ test("Practice's rates by seat and pot come back in History", async ({ page, pro
   await expect(graded.or(page.getByText("Decisions graded")).first()).toBeVisible();
 
   await page.goto("/lizard/history/");
+  await openBreakdown(page);
   const rates = page.getByRole("region", { name: "Rates by seat and pot type" });
   await expect(rates).toBeVisible();
   await expect(rates.getByRole("table", { name: /seat/i }).first()).toContainText(/BTN|SB|BB/);

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ComponentType } from "react";
-import { BrowserRouter, Outlet, Route, Routes } from "react-router";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import { BASE_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { Shell } from "./Shell";
@@ -13,6 +13,12 @@ import { freshChunk } from "./freshChunk";
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(() => freshChunk(load).then((m) => ({ default: m[name] })));
 
+/** Plan is part of Review now: an old /plan link (its query too) lands there. */
+function PlanToReview() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/review", search }} replace />;
+}
+
 const StudyPage = page(() => import("@/features/study/StudyPage"), "StudyPage");
 const PracticePage = page(() => import("@/features/practice/PracticePage"), "PracticePage");
 const LibraryPage = page(() => import("@/features/library/LibraryPage"), "LibraryPage");
@@ -21,7 +27,6 @@ const SettingsPage = page(() => import("@/features/settings/SettingsPage"), "Set
 const RangesPage = page(() => import("@/features/ranges/RangesPage"), "RangesPage");
 const SavedPage = page(() => import("@/features/saved/SavedPage"), "SavedPage");
 const HistoryPage = page(() => import("@/features/history/HistoryPage"), "HistoryPage");
-const PlanPage = page(() => import("@/features/plan/PlanPage"), "PlanPage");
 const ReviewPage = page(() => import("@/features/review/ReviewPage"), "ReviewPage");
 const AnalyzePage = page(() => import("@/features/analyze/AnalyzePage"), "AnalyzePage");
 const ReportsPage = page(() => import("@/features/reports/ReportsPage"), "ReportsPage");
@@ -60,7 +65,7 @@ export function App() {
             <Route path="ranges" element={<RangesPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="history" element={<HistoryPage />} />
-            <Route path="plan" element={<PlanPage />} />
+            <Route path="plan" element={<PlanToReview />} />
             <Route path="review" element={<ReviewPage />} />
             <Route path="saved" element={<SavedPage />} />
             <Route path="engine" element={<EnginePage />} />

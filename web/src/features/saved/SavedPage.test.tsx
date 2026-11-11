@@ -165,7 +165,7 @@ describe("SavedPage", () => {
     await putDrill({ id: "x", name: "Odd one", kind: "library", to: "/settings", about: "?", ...at, updatedAt: 1 });
     renderAt("/saved");
     const section = await screen.findByRole("region", { name: "Saved drills" });
-    await within(section).findByText("3 saved");
+    await within(section).findByText("3");
     expect(within(section).getAllByRole("listitem").map((l) => l.getAttribute("aria-label"))).toEqual(["BTN opens", "Monotone defence", "Odd one"]);
     const leak = within(section).getByRole("listitem", { name: "BTN opens" });
     expect(leak).toHaveTextContent("leak drill");
@@ -252,10 +252,10 @@ describe("SavedPage", () => {
     press(await inRow("Third", "Delete spot"));
     await waitFor(() => expect(within(list).getByRole("listitem", { name: "First" })).toHaveFocus());
 
-    // none left: the section
+    // none left: the section goes, and the page's heading takes focus
     press(await inRow("First", "Delete"));
     press(await inRow("First", "Delete spot"));
-    await waitFor(() => expect(screen.getByRole("region", { name: "Saved spots" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Saved" })).toHaveFocus());
   });
 
   it("shows the focus on the backup's file input through its label", async () => {
@@ -266,9 +266,11 @@ describe("SavedPage", () => {
 
   it("says where saved things come from when there are none", async () => {
     renderAt("/saved");
-    expect(await within(await screen.findByRole("region", { name: "Saved spots" })).findByText(/None yet/)).toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Saved drills" })).getByText(/None yet/)).toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Saved ranges" })).getByText(/None yet/)).toBeInTheDocument();
+    // (one line, not an empty section for each kind, and no search over nothing)
+    expect(await screen.findByText(/^Nothing saved yet\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Study" })).toHaveAttribute("href", "/study");
+    expect(screen.queryByRole("region", { name: "Saved spots" })).toBeNull();
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 });
 

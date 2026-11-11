@@ -102,12 +102,11 @@ describe("FullHands on a Room", () => {
     await waitFor(() => expect(stub.calls).toEqual(["play SB"]));
     const again = await screen.findByRole("alert");
 
-    // played on: the small blind's call, in the hand's line, labelled, and no decision of yours
+    // played on: the small blind's call, and no decision of yours
     stub.advice = () => CHART;
     fireEvent.click(within(again).getByRole("button", { name: "Play on: BTN/SB checks or calls (not a solve)" }));
     await screen.findByRole("group", { name: "Your options" });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent("preflop: BTN/SB calls");
     expect(screen.queryByRole("region", { name: "Last decision" })).toBeNull();
   });
 
@@ -197,7 +196,7 @@ describe("FullHands on a Room", () => {
     }
   });
 
-  it("asks again when the mode changes", async () => {
+  it("asks again when the mode changes in Settings (the page has no picker of its own)", async () => {
     stub.advice = () => CHART;
     render(
       <MemoryRouter>
@@ -206,7 +205,8 @@ describe("FullHands on a Room", () => {
     );
     heads();
     await screen.findByRole("group", { name: "Your options" });
-    fireEvent.click(screen.getByRole("radio", { name: /Accurate/ }));
+    expect(screen.queryByRole("radiogroup", { name: "Solve accuracy" })).toBeNull();
+    act(() => useSettings.getState().set({ mode: "accurate" }));
     await waitFor(() => expect(stub.calls).toEqual(["advise SB quick", "advise SB quick (preflop solve)", "advise SB accurate", "advise SB accurate (preflop solve)"]));
   });
 });

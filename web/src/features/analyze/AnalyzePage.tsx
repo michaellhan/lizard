@@ -8,7 +8,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
-import { PhoneColumns } from "@/components/PhoneColumns";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
 import { recentSessions, type DecisionRecord, type HandRecord } from "@/data/db";
@@ -158,7 +157,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
                 exploits={exploits}
                 onSaved={(h) => setHands((prev) => prev && prev.map((x) => (x.id === h.id ? h : x)))}
                 onClose={() => {
-                  // (back to the Open that opened it, or, not listed now, the page's main)
+                  // (back to the row's button that opened it, or, not listed now, the page's main)
                   const opener = [...document.querySelectorAll<HTMLElement>("[data-open-hand]")].find((b) => b.dataset.openHand === open.id);
                   (opener ?? document.getElementById("main"))?.focus();
                   set({ hand: null });
@@ -632,11 +631,11 @@ function HandsTable({
           {shown.length.toLocaleString()} of {hands.length.toLocaleString()}
         </span>
       </div>
-      {/* (relative: the sr-only header's absolute box stays inside the scrolling box, not widening the page) */}
-      <PhoneColumns hidden={["Site", "Big blind"]}>
-      <div className="relative scroll-x rounded-lg border border-border">
+      {/* (a row opens its hand: a click anywhere on it, or its Played button from the keyboard, whose press reaches the
+          row too) */}
+      <div className="scroll-x rounded-lg border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-surface-2 text-left text-xs text-muted">
+          <thead className="bg-surface-2 text-left">
             <tr>
               <th className="px-2 py-1">Played</th>
               <th className="px-2 py-1">Your seat</th>
@@ -644,18 +643,31 @@ function HandsTable({
               <th className="px-2 py-1">Board</th>
               <th className="px-2 py-1">Pot type</th>
               <th className="px-2 py-1 text-right">Pot (bb)</th>
-              <th className="px-2 py-1">End</th>
-              <th className="phone-col px-2 py-1">Site</th>
-              <th className="phone-col px-2 py-1">Big blind</th>
-              <th className="px-2 py-1">
-                <span className="sr-only">Open</span>
-              </th>
             </tr>
           </thead>
           <tbody>
             {listed.map((h) => (
-              <tr key={h.id} aria-label={`Hand ${h.number || h.id}`} className="border-t border-border">
-                <td className="whitespace-nowrap px-2 py-1 text-xs">{h.played || "–"}</td>
+              <tr key={h.id} aria-label={`Hand ${h.number || h.id}`} onClick={() => set({ hand: h.id })} className="cursor-pointer">
+                <td className="px-2 py-1 text-xs">
+                  <button
+                    type="button"
+                    data-open-hand={h.id}
+                    aria-label={h.played ? `Open the hand played ${h.played}` : "Open the hand"}
+                    className="whitespace-nowrap text-left underline decoration-border underline-offset-2 hover:decoration-current"
+                  >
+                    {h.played || "–"}
+                  </button>
+                  {(h.tags?.length || h.note) && (
+                    <span className="mt-0.5 flex flex-wrap gap-1">
+                      {h.tags?.map((t) => (
+                        <span key={t} className="rounded bg-surface-2 px-1 text-xs">
+                          {t}
+                        </span>
+                      ))}
+                      {h.note && <span className="text-xs text-muted" title={h.note}>note</span>}
+                    </span>
+                  )}
+                </td>
                 <td className="px-2 py-1">
                   {seatLabel(h.hero, h.players)} <span className="text-xs text-muted">of {h.players}</span>
                 </td>
@@ -675,35 +687,11 @@ function HandsTable({
                 </td>
                 <td className="whitespace-nowrap px-2 py-1">{h.potType}</td>
                 <td className="px-2 py-1 text-right tabular-nums">{fmt(h.pot)}</td>
-                <td className="px-2 py-1">
-                  <span className="whitespace-nowrap">{h.end}</span>
-                  {(h.tags?.length || h.note) && (
-                    <span className="mt-0.5 flex flex-wrap gap-1">
-                      {h.tags?.map((t) => (
-                        <span key={t} className="rounded bg-surface-2 px-1 text-xs">
-                          {t}
-                        </span>
-                      ))}
-                      {h.note && <span className="text-xs text-muted" title={h.note}>note</span>}
-                    </span>
-                  )}
-                </td>
-                <td className="phone-col px-2 py-1">{h.site}</td>
-                <td className="phone-col whitespace-nowrap px-2 py-1">
-                  {h.bb}
-                  {h.tournament ? <span className="text-xs text-muted"> MTT</span> : null}
-                </td>
-                <td className="px-2 py-1">
-                  <button type="button" data-open-hand={h.id} onClick={() => set({ hand: h.id })} className="underline">
-                    Open
-                  </button>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      </PhoneColumns>
       {!shown.length && <p className="text-sm text-muted">No hand kept matches these filters.</p>}
       {rest > 0 && (
         <p className="text-sm text-muted">
@@ -720,7 +708,7 @@ function HandsTable({
 function HandDetail({ hand, decisions, exploits, onSaved, onClose }: { hand: HandRecord; decisions: DecisionRecord[]; exploits: ReadonlySet<string>; onSaved: (h: HandRecord) => void; onClose: () => void }) {
   const graded = useMemo(() => new Map(decisions.map((d) => [d.id, d])), [decisions]);
   const box = useRef<HTMLElement>(null);
-  // (opened from the table below it: brought into view, with the keyboard where its Open had it, and not on a link's first load)
+  // (opened from the table below it: brought into view, with the keyboard where its row's button had it, and not on a link's first load)
   useEffect(() => {
     bringIntoView(box.current);
     if (document.activeElement?.closest("[data-open-hand]")) box.current?.focus({ preventScroll: true });

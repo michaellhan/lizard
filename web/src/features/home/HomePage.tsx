@@ -1,5 +1,4 @@
 import { Link } from "react-router";
-import { MORE } from "@/app/routes";
 
 /** The four main pages, each with what it's for in a line. */
 const MAIN: { path: string; label: string; blurb: string; cta: string }[] = [
@@ -26,19 +25,6 @@ export function HomePage() {
             <span className="mt-3 inline-block text-sm text-accent group-hover:underline">{m.cta} →</span>
           </Link>
         ))}
-      </section>
-      <section aria-label="More tools" className="space-y-2">
-        <h2 className="text-sm font-semibold text-muted">More</h2>
-        <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-          {MORE.map((m) => (
-            <li key={m.path} className="text-sm">
-              <Link to={`/${m.path}`} className="underline decoration-border underline-offset-2 hover:decoration-accent">
-                {m.label}
-              </Link>{" "}
-              <span className="text-faint">· {m.blurb}</span>
-            </li>
-          ))}
-        </ul>
       </section>
     </div>
   );

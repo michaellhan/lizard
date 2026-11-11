@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from "react-router";
 import { describe, expect, it } from "vitest";
 import { routeTitle } from "./routes";
-import { fitCount, Shell } from "./Shell";
+import { Shell } from "./Shell";
 
 function Query() {
   const [, setParams] = useSearchParams();
@@ -103,24 +103,7 @@ describe("Route changes", () => {
   });
 
   it("marks More while you're on one of its pages", () => {
-    show("/library");
+    show("/history");
     expect(screen.getByRole("button", { name: /More/ })).toHaveClass("underline", "decoration-accent");
-  });
-});
-
-describe("fitCount", () => {
-  const widths = [60, 80, 75, 60, 70, 50, 70, 60, 75, 70, 100, 50, 90, 70];
-  const all = widths.reduce((a, w) => a + w, 0) + 4 * (widths.length - 1);
-
-  it("puts every page in the bar, with no More, where they all fit", () => {
-    expect(fitCount(widths, 65, 4, all)).toBe(widths.length);
-  });
-
-  it("keeps room for More where they don't, and never drops a main page", () => {
-    expect(fitCount(widths, 65, 4, all - 1)).toBeLessThan(widths.length);
-    // 60 + 80 + 75 + 60 + 70 and the gaps between them is 361, and More takes 65 + 4 more
-    expect(fitCount(widths, 65, 4, 430)).toBe(5);
-    expect(fitCount(widths, 65, 4, 429)).toBe(4);
-    expect(fitCount(widths, 65, 4, 100)).toBe(4);
   });
 });
