@@ -8,7 +8,7 @@ import { ANSWER, BLOCK } from "@/solver/nodeLock.fixture";
 import { SolverError, type SolveResult } from "@/solver/types";
 import { useKeptLocks } from "./keptLocks";
 import { NodeLockPanel } from "./NodeLockPanel";
-import { actionRows, combosNamed, costWords, exploitWords, handsOf, memoryNote, mixOf, nodeLockRefusal, scopeNote, startingMix, valueRows } from "./nodeLock";
+import { actionRows, combosNamed, costWords, exploitWords, handsOf, memoryNote, mixOf, nodeLockRefusal, reachBack, scopeNote, startingMix, valueRows } from "./nodeLock";
 import { freshHand, type StudyHand } from "./studyState";
 
 const ctx = { mode: "fast" as const, transport: "worker" as const, solverVersion: "t", partial: false, now: 1 };
@@ -119,6 +119,14 @@ describe("nodeLock.ts", () => {
     expect(actionRows(BLOCK.changes[3]!)[0]).toEqual({ action: "fold", unlocked: 0.514, locked: null, change: null });
   });
 
+  it("offers the street before on a turn or river, whole range only and with no kept locks", () => {
+    expect(reachBack("flop", { kind: "range" }, 0)).toBeNull();
+    expect(reachBack("turn", { kind: "range" }, 0)).toEqual({ from: "flop", blocked: null });
+    expect(reachBack("river", { kind: "range" }, 0)).toEqual({ from: "turn", blocked: null });
+    expect(reachBack("river", { kind: "classes", text: "AKs" }, 0)!.blocked).toMatch(/only the whole range/);
+    expect(reachBack("turn", { kind: "range" }, 1)!.blocked).toMatch(/Kept locks/);
+  });
+
   it("says what lock_cost is and isn't", () => {
     const w = costWords(BLOCK);
     expect(w).toContain("Dropping the lock would win BTN 15.67 bb more against BB as BB now plays.");
@@ -209,6 +217,53 @@ describe("NodeLockPanel", () => {
     open(NODE, "AQo", second.client, { ...HAND, board: "Ad7c2h5s9d" });
     expect(screen.queryByLabelText("Kept locks")).toBeNull();
     useKeptLocks.getState().clear();
+  });
+
+  it("holds a river lock from the turn: sends reach back, shows the turn's moves, and labels it approximate", async () => {
+    useKeptLocks.getState().clear();
+    const row = (line: string[], seat: string, player: 0 | 1, actions: string[], unlocked: number[], locked: number[], moved: number, share: [number, number]) =>
+      ({ line, seat, player, actions, unlocked, locked, moved, share });
+    const back = {
+      ...ANSWER,
+      street: "river" as const,
+      node_lock: {
+        ...BLOCK,
+        line: ["check", "check", "9s", "check"],
+        root: "turn-root",
+        reach: "turn" as const,
+        changes: [],
+        words: `${BLOCK.words}, held from the turn`,
+        earlier: {
+          street: "turn" as const,
+          on_line: [row([], "BB", 0, ["check", "bet 33%"], [0.9, 0.1], [0.97, 0.03], 7, [1, 1]), row(["check"], "BTN", 1, ["check", "bet 33%"], [0.4, 0.6], [0.55, 0.45], 15, [1, 1])],
+          moved: [row(["bet 33%"], "BTN", 1, ["fold", "call"], [0.3, 0.7], [0.2, 0.8], 10, [0.1, 0.03])],
+        },
+      },
+    };
+    const { client, asked } = clientAnswering(() => ({ data: back, provenance: provenanceOf(back, ctx) }) as unknown as SolveResult<never>);
+    const form = open(NODE, "AQo", client)!;
+    const box = within(form).getByRole("checkbox", { name: /Hold it from the turn/ });
+    // (a hand scope can't be held from the turn)
+    fireEvent.click(within(form).getByRole("radio", { name: "Hand classes" }));
+    expect(box).toBeDisabled();
+    expect(form).toHaveTextContent("From the turn, only the whole range can be held");
+    fireEvent.click(within(form).getByRole("radio", { name: "Whole range" }));
+    fireEvent.click(box);
+    expect(box).toBeChecked();
+    fireEvent.click(within(form).getByRole("button", { name: "Run" }));
+    const result = await screen.findByRole("region", { name: "Node-locked result" });
+    expect(asked[0]!.lock.reach).toBe("back");
+    expect(asked[0]!.lock.also).toBeUndefined();
+    expect(result).toHaveTextContent("The turn with the lock on, on this hand's line (held after check, check, 9s, check):");
+    expect(result).toHaveTextContent("BTN after check");
+    expect(within(result).getAllByRole("table").length).toBe(4); // the value, the turn's two decisions on the line, the one that moved
+    fireEvent.click(within(result).getByText("Elsewhere on the turn, what moved most"));
+    expect(result).toHaveTextContent("BTN after bet 33%: 10.0 points (reached by 10.0% of BTN's range unlocked, 3.0% locked)");
+    // a lock on the turn's solve can't be kept for this street's
+    expect(within(result).queryByRole("button", { name: "Keep this lock" })).toBeNull();
+    const p = provenanceOf(back, ctx);
+    expect(p.approximate).toBe(true);
+    expect(p.approximateLabel).toMatch(/held in the turn's solve, which plays this street more coarsely/);
   });
 
   it("stops a mix that doesn't add up, in words, before a solve", () => {

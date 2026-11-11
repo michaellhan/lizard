@@ -165,6 +165,10 @@ export interface NodeLockRequest {
   expect?: { actor?: string; actions?: string[] };
   /** locks kept from other nodes of the same solve, as their answers gave them (engine/study_lock.py `also`) */
   also?: KeptLock[];
+  /** "back": hold the lock in the solve of the street before (a turn node in the flop's tree, a river node in the
+   * turn's), which re-solves around it so that street's play reacts; whole range only, no kept locks. Absent: this
+   * street's own solve */
+  reach?: "here" | "back";
 }
 
 /** A lock held at another node of a solve: `root` the solve's digest, `line` from its root, `player` 0 OOP, 1 IP. */
@@ -239,6 +243,25 @@ export interface NodeLockBlock {
   root?: string;
   /** the kept locks held with this one */
   also?: { line: string[]; player: 0 | 1; seat: string; actions: string[]; mix: number[]; hands: NodeLockRequest["hands"]; cells: number; ignored: number; words: string }[];
+  /** with reach "back": the street the lock was held from; `line` then runs from that street's root, cards included */
+  reach?: "flop" | "turn";
+  /** with reach "back": that street's decisions on the hand's line, and the others whose mix moved most (each reached
+   * by at least 2% of its player's range in both solves) */
+  earlier?: { street: "flop" | "turn"; on_line: NodeLockEarlier[]; moved: NodeLockEarlier[] };
+}
+
+/** A decision of the street before in both solves (engine/nodelock.py `street_moves`): its mix over the range that gets
+ * there, `moved` the largest change of any action in points, `share` of the player's range that gets there [unlocked,
+ * locked]. */
+export interface NodeLockEarlier {
+  line: string[];
+  seat: string;
+  player: 0 | 1;
+  actions: string[];
+  unlocked: number[] | null;
+  locked: number[] | null;
+  moved: number | null;
+  share: [number, number];
 }
 
 export type NodeLockAnswer = AdvisorResponse & { study: "nodelock"; node_lock: NodeLockBlock };

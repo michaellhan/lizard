@@ -96,6 +96,20 @@ export const memoryNote = (street: AdvisorResponse["street"], mode: SolveMode): 
     ? "Accurate on a flop needs about 1.2 GB; a phone may not cope. Fast uses less."
     : null;
 
+/** The street a lock on this street's node can be held from instead (engine/study_lock.py reach "back"), or why
+ * not, said before a solve; null on the flop, whose street before is preflop. */
+export function reachBack(street: AdvisorResponse["street"], scope: LockScope, kept: number): { from: "flop" | "turn"; blocked: string | null } | null {
+  const from = street === "turn" ? "flop" : street === "river" ? "turn" : null;
+  if (!from) return null;
+  const blocked =
+    scope.kind !== "range"
+      ? `From the ${from}, only the whole range can be held: that tree plays the ${street} by buckets or card classes.`
+      : kept > 0
+        ? "Kept locks are on this street's solve: drop them to hold a lock from the street before."
+        : null;
+  return { from, blocked };
+}
+
 /** Each seat's value in both solves, the player acting first. */
 export function valueRows(n: NodeLockBlock): { seat: string; unlocked: number; locked: number; change: number }[] {
   return [n.player, 1 - n.player].map((p) => ({
@@ -107,7 +121,7 @@ export function valueRows(n: NodeLockBlock): { seat: string; unlocked: number; l
 }
 
 /** A decision's mix in both solves, per action. */
-export function actionRows(c: NodeLockChange): { action: string; unlocked: number | null; locked: number | null; change: number | null }[] {
+export function actionRows(c: Pick<NodeLockChange, "actions" | "unlocked" | "locked">): { action: string; unlocked: number | null; locked: number | null; change: number | null }[] {
   return c.actions.map((action, i) => {
     const unlocked = c.unlocked?.[i] ?? null;
     const locked = c.locked?.[i] ?? null;

@@ -158,6 +158,12 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (r.node_lock) {
     p.lock = [r.node_lock.words, ...(r.node_lock.also ?? []).map((x) => x.words)].join("; ");
     p.view = `${r.node_lock.abstraction} ${r.node_lock.scope}`;
+    // held from the street before: that street's tree plays this one more coarsely (engine/study_lock.py reach_back)
+    if (r.node_lock.reach) {
+      const held = `held in the ${r.node_lock.reach}'s solve, which plays this street more coarsely than its own`;
+      p.approximate = true;
+      p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${held}` : held;
+    }
   }
   // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})
   const locked = r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];

@@ -318,6 +318,77 @@ class Refused(Shared):
             sl.solve_locked = run
 
 
+class ReachBack(Shared):
+    """reach "back": the lock on the node on screen held in the street before's solve, which re-solves around it, so
+    that street's ranges react (engine/nodelock.py's OneStreetBack has the exact-game checks)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.turn = sl.answer(cls.adv, request(ON_TURN, {"check": 0.0, "bet 75%": 1.0}, reach="back"))
+
+    def test_a_turn_lock_moves_the_flop_on_the_hands_line(self):
+        r = self.turn
+        self.assertNotIn("error", r)
+        n = r["node_lock"]
+        self.assertEqual(n["reach"], "flop")
+        self.assertEqual(n["line"][:3], ["check", "bet 33%", "call"])
+        self.assertEqual(len(n["line"]), 4)             # and the turn card, or its class's played card
+        self.assertTrue(n["words"].endswith("held from the flop"), n["words"])
+        on = n["earlier"]["on_line"]
+        self.assertEqual([x["line"] for x in on], [[], ["check"], ["check", "bet 33%"]])
+        self.assertEqual([x["seat"] for x in on], ["BB", "BTN", "BB"])
+        for x in on + n["earlier"]["moved"]:
+            for mix in (x["unlocked"], x["locked"]):
+                self.assertAlmostEqual(sum(mix), 1.0, delta=1e-4)
+        # the lock makes BB's turn stab a sure thing after check, bet, call: BB's flop check moves by a point or more
+        self.assertGreater(on[0]["moved"], 1.0, on[0])
+        self.assertTrue(all(min(x["share"]) >= sl.MOVED_SHARE for x in n["earlier"]["moved"]))
+
+    def test_it_is_labelled_that_trees_numbers_and_approximate(self):
+        r = self.turn
+        self.assertTrue(r["solver"]["approximate"])
+        self.assertIn("flop's solve", r["node_lock"]["scope"])
+        self.assertIn("approximate", r["node_lock"]["scope"])
+        self.assertLess(r["node_lock"]["locked"]["exploitability_pct"], 1.0)
+        # (a whole-range lock can cost only its player, up to the solve's distance from equilibrium)
+        self.assertGreater(r["node_lock"]["locked"]["lock_cost"][0] + 0.01 * r["node_lock"]["root_pot"], 0)
+
+    def test_a_river_lock_is_held_in_the_turns_tree_with_its_card_class(self):
+        r = self.answer(RIVER, {"check": 0.0, "bet 75%": 1.0}, reach="back")
+        self.assertNotIn("error", r)
+        n = r["node_lock"]
+        self.assertEqual((n["reach"], r["street"]), ("turn", "river"))
+        self.assertEqual(n["line"][:2], ["check", "check"])
+        if n["line"][2] != "9d":
+            self.assertTrue([x for x in r["notes"] if x.startswith("9d is played as")], r["notes"])
+        self.assertEqual(len([x for x in r["notes"] if "is played as" in x or "stands for its class" in x]), 1, r["notes"])
+
+    def test_refused_on_the_flop(self):
+        r = self.answer(ON_FLOP, {"check": 1.0}, reach="back")
+        self.assertEqual(r["lock_error"], "refused")
+        self.assertIn("preflop", r["error"])
+
+    def test_refused_for_hands_and_kept_locks(self):
+        r = self.answer(ON_TURN, {"check": 1.0}, hands={"classes": ["AA"]}, reach="back")
+        self.assertEqual(r["lock_error"], "refused")
+        self.assertIn("whole range", r["error"])
+        r = self.answer(ON_TURN, {"check": 1.0}, reach="back", also=[{"line": [], "mix": {"check": 1.0}}])
+        self.assertEqual(r["lock_error"], "refused")
+        self.assertIn("Kept locks", r["error"])
+
+    def test_actions_the_earlier_tree_doesnt_have(self):
+        r = self.answer(ON_TURN, {"check": 0.5, "bet 125%": 0.5}, reach="back")
+        self.assertEqual(r["lock_error"], "refused", r)
+        self.assertIn("the flop's tree plays this node", r["error"].lower())
+        self.assertIn("check", r["live_actions"])
+        self.assertNotIn("bet 125%", r["live_actions"])
+
+    def test_an_unknown_reach_is_invalid(self):
+        r = self.answer(ON_TURN, {"check": 1.0}, reach="forward")
+        self.assertEqual(r["lock_error"], "invalid")
+
+
 class TheLibrary(unittest.TestCase):
     """A stand-in for the flop library: on the flop it mustn't be asked, on a later street it stays."""
 

@@ -33,7 +33,8 @@ export const useKeptLocks = create<KeptState>((set) => ({
 
 /** An answer's own lock, to keep. Null for an answer with no solve digest (a worker from before locks were kept). */
 export function keptOf(n: NodeLockBlock, street: string, board: string): Kept | null {
-  if (!n.root) return null;
+  // (a lock held from the street before is on that street's solve: it can't be held on this one's)
+  if (!n.root || n.reach) return null;
   return {
     root: n.root,
     line: n.line,
