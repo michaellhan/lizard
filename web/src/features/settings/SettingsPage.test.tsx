@@ -24,15 +24,15 @@ describe("SettingsPage", () => {
     expect(accuracy.querySelector('[aria-checked="true"]')).toHaveTextContent("Accurate");
   });
 
-  it("keeps the patterns on by default, and takes them off the whole page on request", () => {
+  it("draws plain colours by default, and puts the patterns on the whole page on request", () => {
     useSettings.getState().reset();
     render(<SettingsPage />, { wrapper: MemoryRouter });
     const box = screen.getByRole("checkbox", { name: "Patterns on action colours" });
-    expect(box).toBeChecked();
+    expect(box).not.toBeChecked();
     expect(document.documentElement.dataset.patterns).toBeUndefined();
     fireEvent.click(box);
-    expect(useSettings.getState().patterns).toBe(false);
-    expect(document.documentElement.dataset.patterns).toBe("off");
+    expect(useSettings.getState().actionPatterns).toBe(true);
+    expect(document.documentElement.dataset.patterns).toBe("on");
     fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
     expect(document.documentElement.dataset.patterns).toBeUndefined();
   });

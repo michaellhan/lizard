@@ -398,7 +398,7 @@ function RangeTable({ node }: { node: ResultNode }) {
         {SEAT_NAMES.map((name, seat) => (
           <tr key={name} className="border-t border-border">
             <td className="py-1 pr-4">{name}</td>
-            <td className="py-1 font-mono">{chips(node.rangeEv[seat]!)}</td>
+            <td className="py-1">{chips(node.rangeEv[seat]!)}</td>
           </tr>
         ))}
       </tbody>
@@ -422,8 +422,8 @@ function ActionTable({ node }: { node: ResultNode }) {
           {node.actions.map((a, k) => (
             <tr key={a.token} className="border-t border-border">
               <td className="py-1 pr-4">{a.label}</td>
-              <td className="py-1 pr-4 font-mono">{pct(node.frequency[k]!)}</td>
-              <td className="py-1 font-mono">{chips(node.actionRangeEv[k]!)}</td>
+              <td className="py-1 pr-4">{pct(node.frequency[k]!)}</td>
+              <td className="py-1">{chips(node.actionRangeEv[k]!)}</td>
             </tr>
           ))}
         </tbody>
@@ -578,8 +578,8 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
                   {node.actions.map((a, k) => (
                     <tr key={a.token} className="border-t border-border">
                       <td className="py-1 pr-4">{a.label}</td>
-                      <td className="py-1 pr-4 font-mono">{pct(mix[k]!.freq)}</td>
-                      <td className="py-1 font-mono">{chips(mix[k]!.ev)}</td>
+                      <td className="py-1 pr-4">{pct(mix[k]!.freq)}</td>
+                      <td className="py-1">{chips(mix[k]!.ev)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -711,13 +711,13 @@ function ClassTable({ hands, board, node }: { hands: Int32Array; board: string; 
               <td className="whitespace-nowrap py-1 pr-2">
                 {r.name} <span className="text-muted">({r.combos.toLocaleString("en-US")})</span>
               </td>
-              <td className="py-1 pr-2 font-mono">{pct(r.share)}</td>
+              <td className="py-1 pr-2">{pct(r.share)}</td>
               {r.frequency.map((f, k) => (
-                <td key={node.actions[k]!.token} className="py-1 pr-2 font-mono">
+                <td key={node.actions[k]!.token} className="py-1 pr-2">
                   {pct(f, 0)}
                 </td>
               ))}
-              <td className="py-1 font-mono">{chips(r.ev)}</td>
+              <td className="py-1">{chips(r.ev)}</td>
             </tr>
           ))}
         </tbody>
@@ -767,7 +767,7 @@ function ComboTable({ hands, start, byEv, node }: { hands: Int32Array; start: Fl
                 <th className="py-1 font-normal">EV, bb</th>
               </tr>
             </thead>
-            <tbody className="font-mono">
+            <tbody>
               {visible.map((i) => (
                 <tr key={i} className="border-t border-border">
                   <td className="whitespace-nowrap py-1 pr-2">{handText(hands[i]!)}</td>

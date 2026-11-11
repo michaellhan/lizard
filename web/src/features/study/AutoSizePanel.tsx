@@ -114,7 +114,7 @@ function AutoSizeAnswer({ result, hole, actor, hand, bets }: { result: SolveResu
                   <th className="py-1 font-normal">Kept</th>
                 </tr>
               </thead>
-              <tbody className="font-mono">
+              <tbody>
                 {u.check !== null && (
                   <tr className="border-t border-border">
                     <td className="py-1 pr-3 font-sans">check</td>
@@ -146,7 +146,7 @@ function AutoSizeAnswer({ result, hole, actor, hand, bets }: { result: SolveResu
               <th className="py-1 font-normal">Range</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
+          <tbody>
             {(R.actions ?? []).map((a) => (
               <tr key={a.action} className="border-t border-border">
                 <td className="py-1 pr-3 font-sans font-medium">{a.action}</td>

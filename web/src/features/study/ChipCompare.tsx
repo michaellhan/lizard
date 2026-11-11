@@ -100,7 +100,7 @@ export function ChipCompare({
               <th className="py-1 font-normal">Chip EV</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
+          <tbody>
             {names.map((n) => (
               <tr key={n} className="border-t border-border">
                 <td className="py-1 pr-3 font-sans font-medium">{n}</td>

@@ -70,8 +70,10 @@ describe("contrast", () => {
 
 describe("an action mix", () => {
   const ACTIONS = ["fold", "check", "bet1", "bet2", "bet3", "bet4", "allin"];
+  // (the patterned fills, Settings' "on" block; by default every fill is its colour alone)
+  const on = css.match(/:root\[data-patterns="on"\] \{([^}]*)\}/)![1]!;
   const fill = (a: string) => {
-    const m = css.match(new RegExp(`--fill-act-${a}: ([^;]+);`));
+    const m = on.match(new RegExp(`--fill-act-${a}: ([^;]+);`));
     if (!m) throw new Error(`no fill for ${a}`);
     return m[1]!;
   };
@@ -84,7 +86,7 @@ describe("an action mix", () => {
 
   it("can't rest on colour: seven can't stand 3:1 apart on the surface, so most pairs don't", () => {
     expect(pairs).toHaveLength(21);
-    expect(tooClose).toHaveLength(18);
+    expect(tooClose).toHaveLength(15);
     // the most colours 3:1 from each other and from the surface: each step takes 3:1 of what's left up to white
     const steps = Math.floor(Math.log(ratio([255, 255, 255], rgb(token("surface-2")))) / Math.log(3));
     expect(steps).toBeLessThan(ACTIONS.length);
@@ -114,9 +116,9 @@ describe("an action mix", () => {
     }
   });
 
-  it("has every patterned fill fall back to its plain colour when Settings takes patterns off", () => {
-    const off = css.match(/:root\[data-patterns="off"\] \{([^}]*)\}/)![1]!;
-    for (const a of ACTIONS.filter((x) => pattern(x))) expect(off, a).toContain(`--fill-act-${a}: var(--color-act-${a});`);
+  it("draws every fill as its plain colour by default, the patterns only when Settings put them on", () => {
+    const base = css.slice(0, css.indexOf(':root[data-patterns="on"]'));
+    for (const a of ACTIONS) expect(base, a).toContain(`--fill-act-${a}: var(--color-act-${a});`);
   });
 
   it("gives a grid cell's label 4.5:1 on its plate over any colour or ink of a mix", () => {

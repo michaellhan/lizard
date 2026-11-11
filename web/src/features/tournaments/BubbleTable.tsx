@@ -41,7 +41,7 @@ export function BubbleTable({ table, actor }: { table: Table; actor?: string }) 
         ))}
       </div>
       <div className="scroll-x">
-        <table aria-label="Bubble factors, every pair" className="border-collapse font-mono">
+        <table aria-label="Bubble factors, every pair" className="border-collapse">
           <thead>
             <tr>
               <th scope="col" className="px-1.5 py-0.5 text-left font-sans font-normal text-muted">

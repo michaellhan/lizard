@@ -169,7 +169,7 @@ function EquityTable({ done, result }: { done: Done; result: EquityResult }) {
               <th className="py-1 font-normal">Ties</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
+          <tbody>
             {result.players.map((p, i) => (
               <tr key={i} className="border-t border-border">
                 <td className="py-1 pr-4 font-sans">{i + 1}</td>

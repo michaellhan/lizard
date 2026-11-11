@@ -75,7 +75,7 @@ export function ModeTimes() {
             ))}
           </tr>
         </thead>
-        <tbody className="font-mono">
+        <tbody>
           {rows.map(({ m, mw, cells }) => (
             <tr key={`${m.id}${mw}`} className="border-t border-border">
               <td className="py-0.5 pr-4 font-sans">

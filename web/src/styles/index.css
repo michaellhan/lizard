@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Lizard design tokens. The app has one theme, this dark one. Action colors are Lizard's own palette (passive = teal,
-   aggressive = warm ramp by size, all-in = crimson, fold = slate), each with a fill below that adds a pattern.
+/* Lizard design tokens. The app has one theme, this dark one. Action colors are Lizard's own palette: fold a quiet slate
+   that recedes so the hands played stand out, check and call teal, bets one red from light (small) to deep (large),
+   all-in the deepest; each has a fill below, plain unless Settings put the patterns on.
    styles/contrast.test.ts holds the contrast floors, the fills' included. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -22,15 +23,15 @@
   --color-danger: #f26d6d;
   --color-danger-soft: #ff9c9c; /* danger as text on a danger tint */
 
-  --color-act-fold: #5d7590;
+  --color-act-fold: #313d48;
   --color-act-check: #2bb39a;
   --color-act-call: #2bb39a;
-  --color-act-bet1: #f2c14e;
-  --color-act-bet2: #f29146;
-  --color-act-bet3: #e8613c;
-  --color-act-bet4: #d23c4b;
-  --color-act-allin: #9b1d48;
-  --color-act-raise: #e8613c;
+  --color-act-bet1: #f5ab93;
+  --color-act-bet2: #ee8066;
+  --color-act-bet3: #e05a48;
+  --color-act-bet4: #c63f3c;
+  --color-act-allin: #962640;
+  --color-act-raise: #e05a48;
 
   --color-suit-s: #e6ede9;
   --color-suit-h: #ff6b6b;
@@ -41,28 +42,28 @@
 :root {
   color-scheme: dark;
 
-  /* An action's fill: its colour under its pattern, as a `background`. Seven colours can't all stand 3:1 apart (the
-     surface leaves room for two), so the pattern tells them apart where the colour can't: wherever a mix is drawn,
-     from a phone's 24px cell up. A fill follows the action as its colour does (actions.ts). Lines run at 45 or 135 degrees
-     only, so none reads as a gridline, and check and call stay plain. Dark ink, but on the all-in, which is too dark for it. */
-  --fill-act-fold: radial-gradient(circle, var(--color-bg) 0.8px, transparent 1.1px) 0 0 / 5px 5px, var(--color-act-fold);
+  /* An action's fill, as a `background`: its colour alone, by default. Close colours are told apart by the gap between
+     shares, the legend's names and the order of the mix (actions.ts); Settings can add the patterns below. */
+  --fill-act-fold: var(--color-act-fold);
+  --fill-act-check: var(--color-act-check);
+  --fill-act-bet1: var(--color-act-bet1);
+  --fill-act-bet2: var(--color-act-bet2);
+  --fill-act-bet3: var(--color-act-bet3);
+  --fill-act-bet4: var(--color-act-bet4);
+  --fill-act-allin: var(--color-act-allin);
+}
+
+/* Patterns on (Settings): its colour under a pattern. Seven colours can't all stand 3:1 apart (the surface leaves room for
+   two), so the pattern tells them apart where the colour can't, from a phone's 24px cell up. Lines run at 45 or 135
+   degrees only, so none reads as a gridline, and check and call stay plain. Dark ink, but on the two darkest. */
+:root[data-patterns="on"] {
+  --fill-act-fold: radial-gradient(circle, var(--color-muted) 0.8px, transparent 1.1px) 0 0 / 5px 5px, var(--color-act-fold);
   --fill-act-check: var(--color-act-check);
   --fill-act-bet1: repeating-linear-gradient(45deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), var(--color-act-bet1);
   --fill-act-bet2: repeating-linear-gradient(135deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), var(--color-act-bet2);
   --fill-act-bet3: repeating-linear-gradient(45deg, var(--color-bg) 0 1.25px, transparent 1.25px 3.5px), var(--color-act-bet3);
   --fill-act-bet4: repeating-linear-gradient(45deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), repeating-linear-gradient(135deg, var(--color-bg) 0 1.25px, transparent 1.25px 6px), var(--color-act-bet4);
   --fill-act-allin: repeating-linear-gradient(135deg, var(--color-text) 0 2.5px, transparent 2.5px 6px), var(--color-act-allin);
-}
-
-/* Settings can take the patterns off: an action's fill is then its colour alone, and the gap between shares and the
-   names in the legend are all that's left to tell the closest two apart. */
-:root[data-patterns="off"] {
-  --fill-act-fold: var(--color-act-fold);
-  --fill-act-bet1: var(--color-act-bet1);
-  --fill-act-bet2: var(--color-act-bet2);
-  --fill-act-bet3: var(--color-act-bet3);
-  --fill-act-bet4: var(--color-act-bet4);
-  --fill-act-allin: var(--color-act-allin);
 }
 
 html,
@@ -92,6 +93,33 @@ body,
 }
 
 /* A panel's legend sits inside it as its heading, not cut into its top edge. */
+/* Tables: one quiet look, which a table's own classes still override (these are plain element rules, under every
+   utility). Small muted headings, a hairline between rows, digits of one width so a column of numbers lines up, and the
+   row under the pointer lit, to keep your place along a wide row. */
+table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+thead th {
+  padding-bottom: 0.375rem;
+  vertical-align: bottom;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+tbody td,
+tbody th {
+  padding-top: 0.3125rem;
+  padding-bottom: 0.3125rem;
+}
+tbody tr {
+  border-top: 1px solid var(--color-border);
+}
+tbody tr:hover {
+  background: color-mix(in srgb, var(--color-surface-3) 45%, transparent);
+}
+
 fieldset.panel > legend:not(.sr-only) {
   float: left;
   width: 100%;

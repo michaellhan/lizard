@@ -612,7 +612,7 @@ export function BuildMode({
                   <th className="text-right font-normal">Solver</th>
                 </tr>
               </thead>
-              <tbody className="font-mono">
+              <tbody>
                 {names.map((n, a) => (
                   <tr key={n}>
                     <td className="font-sans">
@@ -739,7 +739,7 @@ function HandDetail({
           <tbody>
             {live.map(({ combo, row }) => (
               <tr key={combo} className="border-t border-border/60">
-                <td className="font-mono">{combo}</td>
+                <td>{combo}</td>
                 <td>{mixText(mixOf(combo), names)}</td>
                 <td>{mixText(row![2], names)}</td>
               </tr>

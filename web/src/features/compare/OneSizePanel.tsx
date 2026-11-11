@@ -108,7 +108,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
                 </th>
               </tr>
             </thead>
-            <tbody className="font-mono">
+            <tbody>
               {full && (
                 <tr className={`border-t border-border text-muted ${shown === "full" ? "bg-surface-2" : ""}`}>
                   <td className="py-1 pr-2 font-sans">

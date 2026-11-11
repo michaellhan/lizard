@@ -264,7 +264,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
               <th className="py-1 font-normal">B − A</th>
             </tr>
           </thead>
-          <tbody className="font-mono text-xs">
+          <tbody className="text-xs">
             {actions.map((d) => (
               <tr key={d.action} className="border-t border-border">
                 <td className="py-1 pr-3 font-sans font-medium">{d.action}</td>

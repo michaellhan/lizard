@@ -220,7 +220,7 @@ function LockAnswer({ gto, br, hole, actor, preflop }: { gto: SolveResult; br: S
               <th className="py-1 font-normal">Range: {base}</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
+          <tbody>
             {(B.actions ?? []).map((a) => (
               <tr key={a.action} className="border-t border-border">
                 <td className="py-1 pr-3 font-sans font-medium">{a.action}</td>

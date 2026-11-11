@@ -68,7 +68,7 @@ export function ComboPanel({
         </div>
       )}
       {rows.length > 0 && (
-        <table className="w-full text-left font-mono text-xs">
+        <table className="w-full text-left text-xs">
           <thead className="text-muted">
             <tr>
               <th scope="col" className="py-1 font-normal">Combo</th>

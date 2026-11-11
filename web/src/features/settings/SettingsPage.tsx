@@ -119,10 +119,10 @@ export function SettingsPage() {
         </label>
         <p className="text-xs text-muted">In Study; the EV grid stays in bb.</p>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={s.patterns} onChange={(e) => s.set({ patterns: e.target.checked })} />
+          <input type="checkbox" checked={s.actionPatterns} onChange={(e) => s.set({ actionPatterns: e.target.checked })} />
           Patterns on action colours
         </label>
-        <p className="text-xs text-muted">Tells close colours apart.</p>
+        <p className="text-xs text-muted">Dots and stripes that tell close colours apart without colour.</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={s.studyKeys} onChange={(e) => s.set({ studyKeys: e.target.checked })} />
           Keyboard shortcuts in Study

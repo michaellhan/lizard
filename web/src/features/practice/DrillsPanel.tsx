@@ -632,7 +632,7 @@ function SpotDrill({
               {REVEAL_NOTE}
             </p>
           )}
-          <table className="w-full max-w-md text-left font-mono text-xs">
+          <table className="w-full max-w-md text-left text-xs">
             <thead className="text-muted">
               <tr>
                 <th className="py-0.5 font-normal">Action</th>

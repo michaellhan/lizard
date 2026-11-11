@@ -19,7 +19,7 @@ export const REVEAL_TIP = "Show the answer (then not graded)";
 /** Your hand's mix: each action, how often it's played, and its EV where `hasEv`. `chose`: your action, marked. */
 export function MixTable({ mix, hasEv, labelOf, chose, unit = "bb" }: { mix: Mix; hasEv: boolean; labelOf: (a: Mix[number]) => string; chose?: string; unit?: string }) {
   return (
-    <table className="w-full max-w-md text-left font-mono text-xs">
+    <table className="w-full max-w-md text-left text-xs">
       <thead className="text-muted">
         <tr>
           <th className="py-0.5 font-normal">Action</th>

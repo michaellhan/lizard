@@ -1,6 +1,7 @@
-// The 13x13 hand-class matrix. Each cell shows its class's action mix as bars side by side, filling the cell; a class only
-// partly in the range here (some combos folded earlier or blocked by the board) is faded to match, as a half-full bar read
-// as a mix that didn't add up. The weight view alone draws a class's weight as its height. `colors` are the
+// The 13x13 hand-class matrix. Each cell shows its class's action mix as bars side by side, filling the cell, as a bar filled
+// only to the class's weight read as a mix that didn't add up. A class barely in the range here (under half its combos:
+// folded earlier, or blocked by the board) is faded, down to a quarter at none; above half it's drawn in full, as most of a
+// postflop range is short a few combos to the board alone. The weight view alone draws a class's weight as its height. `colors` are the
 // actions' fills (actionFills), whose patterns and the gap between shares keep a mix readable without its colours.
 // Rendered as a DOM grid (169 cells) — cheap enough, and accessible: every cell is a labelled button, one tab stop in all.
 import { memo } from "react";
@@ -94,7 +95,7 @@ const Cell = memo(function Cell({
   if (cell && w > 0) {
     if (view === "mix") {
       fill = (
-        <div className="absolute inset-0 flex gap-px" style={w < 0.995 ? { opacity: 0.1 + 0.9 * w } : undefined}>
+        <div className="absolute inset-0 flex gap-px" style={w < 0.5 ? { opacity: 0.25 + 1.5 * w } : undefined}>
           {cell.f.map((f, i) =>
             f > 0 ? (
               <div
@@ -135,7 +136,7 @@ const Cell = memo(function Cell({
     >
       {fill}
       {/* (on a plate: the mix's colours and patterns run under it, and the lightest would take the label with them) */}
-      <span className="cell-label pointer-events-none absolute left-0 top-0 z-10 rounded-br-[3px] bg-bg/70 px-px font-mono text-[clamp(7px,1.4vw,12px)] font-medium leading-tight text-text">
+      <span className="cell-label pointer-events-none absolute left-0 top-0 z-10 rounded-br-[3px] bg-bg/60 px-[3px] py-px text-[clamp(7px,1.15vw,11px)] font-semibold leading-none tracking-tight text-text">
         {cls}
       </span>
     </button>

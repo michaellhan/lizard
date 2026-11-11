@@ -655,7 +655,7 @@ function HandsTable({
           <tbody>
             {listed.map((h) => (
               <tr key={h.id} aria-label={`Hand ${h.number || h.id}`} className="border-t border-border">
-                <td className="whitespace-nowrap px-2 py-1 font-mono text-xs">{h.played || "–"}</td>
+                <td className="whitespace-nowrap px-2 py-1 text-xs">{h.played || "–"}</td>
                 <td className="px-2 py-1">
                   {seatLabel(h.hero, h.players)} <span className="text-xs text-muted">of {h.players}</span>
                 </td>

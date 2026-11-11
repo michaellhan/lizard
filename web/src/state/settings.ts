@@ -31,8 +31,9 @@ export interface Settings {
   studySplit: number | null;
   /** Study: the keys that walk the line, play an action and open the range builder (off: none of them) */
   studyKeys: boolean;
-  /** the patterns over the action colours, wherever a mix is drawn (off: colour alone) */
-  patterns: boolean;
+  /** patterns over the action colours, wherever a mix is drawn (off, the default: colour alone). Saved under a new name
+   * since 2026-11-11, when the default went to off: the older `patterns`, saved on by everyone, is dropped */
+  actionPatterns: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -50,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
   breakdownPart: "made",
   studySplit: null,
   studyKeys: true,
-  patterns: true,
+  actionPatterns: false,
 };
 
 const KEY = "settings.v1";
@@ -64,8 +65,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, patterns } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, patterns };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
@@ -87,6 +88,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
 
 // The fills are CSS (index.css), so the switch is an attribute on the page: every mix drawn, now or later, follows it.
 useSettings.subscribe((s) => {
-  if (s.patterns) delete document.documentElement.dataset.patterns;
-  else document.documentElement.dataset.patterns = "off";
+  if (s.actionPatterns) document.documentElement.dataset.patterns = "on";
+  else delete document.documentElement.dataset.patterns;
 });

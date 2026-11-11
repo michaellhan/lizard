@@ -203,7 +203,7 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
               <th className="py-0.5 pr-4 font-normal">Hands · net</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
+          <tbody>
             {totals.map((t) =>
               t.kind === "build" ? (
                 <tr key={t.kind}>
@@ -252,7 +252,7 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
                 <th className="py-0.5 pr-4 font-normal">Graded against</th>
               </tr>
             </thead>
-            <tbody className="font-mono">
+            <tbody>
               {t.rows.map((r) => (
                 <tr key={`${r.street}|${r.basis ?? ""}`}>
                   <td className="py-0.5 pr-4 font-sans capitalize">
@@ -300,7 +300,7 @@ function SplitTable({ t, basis }: { t: SplitTotals; basis: Basis }) {
               <th className="py-0.5 pr-4 font-normal">Graded against</th>
             </tr>
           </thead>
-          <tbody className="font-mono">
+          <tbody>
             {t[basis].map((r) => (
               <tr key={r.name}>
                 <td className="py-0.5 pr-4 font-sans">{r.name}</td>
@@ -425,7 +425,7 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
                 <th className="py-0.5 pr-4 font-normal">Net</th>
               </tr>
             </thead>
-            <tbody className="font-mono">
+            <tbody>
               {pots.rows.map((t) => (
                 <tr key={t.pot}>
                   <td className="py-0.5 pr-4 font-sans">{t.pot}</td>
