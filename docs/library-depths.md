@@ -33,35 +33,53 @@ pot and stack.
 
 ## The first batch, and why
 
-| Batch | Spots | Flops |
-|---|---|---|
-| 40bb | `srp_btn_bb_40bb`, `srp_co_bb_40bb`, `srp_sb_bb_40bb`, `3bp_bb_btn_40bb` | 184 each |
-| 200bb | `srp_btn_bb_200bb`, `srp_co_bb_200bb`, `srp_sb_bb_200bb`, `3bp_bb_btn_200bb` | 184 each |
+Memory decides most of the order. A worker's peak grows with its tree's cells. The solver's README measured heads-up
+100bb trees of 63–73M cells at 2.1–3.0 GB, about 41 bytes a cell. While gtosolver's builds run, a process here stays
+under about 1 GB (CLAUDE.md). Tree sizes (`solver.tree_cells`, rainbow to two-tone flops):
+
+| Spot | 40bb | 100bb | 200bb |
+|---|---|---|---|
+| BTN/CO/SB vs BB, single-raised | 20–38M cells | 33–62M | 38–70M |
+| BB 3bet vs BTN | 3.7–6.9M | 13–25M | 24–44M |
+
+So the batches (`scripts/library/depths_build.py` `BATCHES`) are:
+
+| Batch | Spots | Flops | Est. peak a process | Runs |
+|---|---|---|---|---|
+| `40bb-3bp` | `3bp_bb_btn_40bb` | 184 | ~0.3 GB | now |
+| `40bb-srp-small` | `srp_btn_bb_40bb`, `srp_co_bb_40bb`, `srp_sb_bb_40bb` | the 73 of the 184 with at most 24M cells (rainbow) | ~1 GB | now, under a watchdog |
+| `40bb-srp` | the same three | the rest of the 184 (two-tone, monotone) | ~1.6 GB | `start --batch 40bb-srp --max-mb 1700`, once 1 GB is no longer the rule |
+| `200bb` | `3bp_bb_btn_200bb`, `srp_btn_bb_200bb`, `srp_co_bb_200bb`, `srp_sb_bb_200bb` | 184 | ~1.8–2.9 GB | `start --batch 200bb --max-mb 3000`, likewise |
+
+A 40bb single-raised hand on a two-tone or monotone flop is solved live until `40bb-srp` runs.
 
 - **Spots:** the four most-played heads-up pots, the top of `SPOTS` by frequency: BTN, CO and SB opens the big blind
   calls, and the big blind's 3bet against the button.
 - **40bb first:** it is the most common short depth and a stored Practice depth. Its ranges come from solved moves,
   the best chart data any non-100bb depth has. It is also the cheapest to solve, since a shallow stack makes a small
   tree.
-- **200bb second:** it is the common deep depth and a stored Practice depth. Its ranges are rule-priced, so they are
-  less faithful, and its trees are the largest.
+- **200bb next:** it is the common deep depth and a stored Practice depth. Its ranges are rule-priced, so they are
+  less faithful, and its trees are the largest. None of them fits in 1 GB.
 - **184 flops:** the representative set (`representative_flops(184)`) first, as every spot started. 552 and every
   flop come later, by use.
-- **Left out:** HJ and UTG opens, which `FORMAT_SPOTS` also lists. They are less played heads-up to the flop, and
-  they are the next batch.
+- **Left out:** HJ and UTG opens, which `FORMAT_SPOTS` also lists. They are less played heads-up to the flop.
 - **Not built:** 20bb and 60bb. They have charts but no `FORMAT_SPOTS` entry, and 20bb sits beside push/fold. 150bb
   has charts only through rules. Antes have no format spots. Adding any of these needs a `FORMAT_SPOTS` entry, which
   is an upstream change; see "Next batches".
 
-Size: about 30 KB a flop with turn files (as `srp_sb_bb_2max`), so the batch adds about 45 MB to a ~390 MB stage.
-`assemble.py` caps the stage at 900 MB.
+Size: up to about 30 KB a flop with turn files (as `srp_sb_bb_2max`). The two batches running now (403 entries) add
+about 12 MB to a ~390 MB stage; all four batches add about 45 MB. `assemble.py` caps the stage at 900 MB.
 
 ## Running it
 
-`scripts/library/depths_build.py` runs the batches one at a time, each as one `heavy -x` job (one machine-wide slot,
-efficiency cores, nice 10) with 2 worker processes and a fresh process per entry. It runs from a frozen copy of
-`solver/` and writes to `library-build/sources/depths/` in the main checkout. Its pid, log and state are in
-`library-build/runs/depths/`.
+`scripts/library/depths_build.py` runs the batches one after another inside one `heavy -x` job. That job holds one
+machine-wide slot (efficiency cores, nice 10) until its last batch ends, with 2 worker processes and a fresh process
+per entry. A watchdog stops a batch if any of its processes passes `--max-mb` × 1.15; that batch is marked, and the
+next one goes on.
+
+It runs from a frozen copy of `solver/`, and the supervisor runs from a copy of the script, both in
+`library-build/runs/depths/` with its pid, log and state. A removed worktree or a re-imported `solver/` can't break a
+running build. It writes to `library-build/sources/depths/` in the main checkout.
 
 ```bash
 .venv/bin/python scripts/library/depths_build.py status
@@ -76,8 +94,8 @@ efficiency cores, nice 10) with 2 worker processes and a fresh process per entry
 ```
 
 - `status` shows entries on disk per spot, seconds per entry, peak RAM and the projected hours left.
-- `start` resumes after a stop or a reboot: entries already on disk are kept.
-- `start --measure` solves 2 entries of each spot only, which is what the projection uses.
+- `start` resumes after a stop or a reboot: entries already on disk are kept. It runs the batches within `--max-mb`
+  (default 1000).
 
 `assemble.py` takes `library-build/sources/depths` by default (`FORMAT_SOURCES`, `--formats DIR`), the way it takes
 the heads-up builds:
@@ -95,8 +113,10 @@ The 6-hourly publish picks the spots up once this is on `main`.
 
 In order:
 
-1. HJ and UTG vs BB at 40bb and 200bb, 184 flops. They are already in `FORMAT_SPOTS`.
-2. The first batch to 552 flops, starting with 40bb BTN vs BB and SB vs BB.
-3. 25bb and 60bb (stored Practice depths). These need `FORMAT_SPOTS` entries and so an upstream change in
+1. `40bb-srp` and `200bb`, once a process may use 1.6–3 GB.
+2. `3bp_bb_btn_40bb` to every flop: at ~0.3 GB a process it fits now, and it is cheap.
+3. HJ and UTG vs BB at 40bb, on the rainbow flops first. They are already in `FORMAT_SPOTS`.
+4. The 40bb spots to 552 flops.
+5. 25bb and 60bb (stored Practice depths). These need `FORMAT_SPOTS` entries and so an upstream change in
    gto-solver, then a re-import.
-4. Heads-up 40bb (`2max_40bb`), which has charts (`pf_formats.HU_DEPTHS`). This also needs an upstream entry.
+6. Heads-up 40bb (`2max_40bb`), which has charts (`pf_formats.HU_DEPTHS`). This also needs an upstream entry.
