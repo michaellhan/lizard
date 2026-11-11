@@ -299,7 +299,7 @@ test("13. PLO4 equity, labelled as equity, with Monte Carlo seeded", async ({ pa
   await page.getByRole("button", { name: /^(Run|Calculate|Work)/ }).click();
   const equity = page.getByRole("region", { name: "Equity" });
   await expect(equity.getByText(/\d\d\.\d+%/).first()).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText(/isn.t a strategy/)).toBeVisible();
+  await expect(page.getByText(/not a strategy/)).toBeVisible();
   await clean(page, problems);
 });
 

@@ -79,7 +79,7 @@ test("An answer changed by hand can't call itself solved, and a missing one is a
       }),
   );
   const row = await openSaved(page, "Kd flop");
-  await expect(row).toContainText(/can.t be read/);
+  await expect(row).toContainText("Saved answer unreadable");
   expect(problems.errors).toEqual([]);
 });
 
