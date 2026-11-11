@@ -1,5 +1,6 @@
-// The 13x13 hand-class matrix. Each cell shows its class's action mix as stacked bars, filled to the class's
-// weight in the range (a class half in the range is half full), as the upstream Study panel draws it. `colors` are the
+// The 13x13 hand-class matrix. Each cell shows its class's action mix as bars side by side, filling the cell; a class only
+// partly in the range here (some combos folded earlier or blocked by the board) is faded to match, as a half-full bar read
+// as a mix that didn't add up. The weight view alone draws a class's weight as its height. `colors` are the
 // actions' fills (actionFills), whose patterns and the gap between shares keep a mix readable without its colours.
 // Rendered as a DOM grid (169 cells) — cheap enough, and accessible: every cell is a labelled button, one tab stop in all.
 import { memo } from "react";
@@ -93,7 +94,7 @@ const Cell = memo(function Cell({
   if (cell && w > 0) {
     if (view === "mix") {
       fill = (
-        <div className="absolute inset-x-0 bottom-0 flex gap-px" style={{ height: `${w * 100}%` }}>
+        <div className="absolute inset-0 flex gap-px" style={w < 0.995 ? { opacity: 0.1 + 0.9 * w } : undefined}>
           {cell.f.map((f, i) =>
             f > 0 ? (
               <div
@@ -113,9 +114,9 @@ const Cell = memo(function Cell({
       // (no value: the class's weight in a neutral fill, not the colour of the scale's bottom)
       fill =
         v == null ? (
-          <div className="keep-colour absolute inset-x-0 bottom-0 bg-surface-3" style={{ height: `${w * 100}%` }} />
+          <div className="keep-colour absolute inset-0 bg-surface-3" />
         ) : (
-          <div className="keep-colour absolute inset-x-0 bottom-0" style={{ height: `${w * 100}%`, background: heat((v - lo) / (hi - lo || 1)) }} />
+          <div className="keep-colour absolute inset-0" style={{ background: heat((v - lo) / (hi - lo || 1)) }} />
         );
     }
   }
