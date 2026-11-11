@@ -4941,3 +4941,12 @@ lines: what was played, then its figures with "Graded against: …" on the end. 
 is under "How the line is drawn"; each line's decision count, sources and versions stay out. At 1280×800 the page went
 from 1430px to 1248px with three sessions kept. UI only: tsc, eslint, `vitest run src/features/history` 75 passed;
 checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.
+
+## 2026-11-11: Saved decluttered
+
+The fourth page under More. A kind with nothing saved is one line: its name, "0 saved" and where to save one, not a
+heading over a boxed paragraph. The intro is one line. Backup and restore opens on one line ("Everything kept in this
+browser, in one file, except settings. A restore merges, and what you deleted stays deleted.") with the buttons; what's
+in the file and how a restore merges are under "What's in it, and how a restore merges". With nothing saved the page
+fits 1280×800 (1006px before). Saved rows are unchanged. UI only: tsc, eslint, `vitest run src/features/saved src/app`
+78 passed; checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.

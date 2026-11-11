@@ -3,6 +3,7 @@
 // rename, delete, one item to a file, and a backup to one JSON file and back (data/backup.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { About } from "@/components/About";
 import { DeleteButton } from "@/components/DeleteButton";
 import { useFocusHold } from "@/components/useFocusHold";
 import type { SavedDrill, SavedRange, SavedReport, SavedScenario, SavedSpot } from "@/data/db";
@@ -134,8 +135,7 @@ export function SavedPage() {
       <div>
         <h1 className="text-2xl font-semibold">Saved</h1>
         <p className="text-sm text-muted">
-          Spots saved from Study, drills saved from Practice and Analyze, and ranges saved from Ranges. They're kept in this browser only: back them
-          up to a file to keep them safe or to move them to another browser.
+          The spots, drills, scenarios, reports and ranges you&rsquo;ve saved, kept in this browser only: a backup file below keeps them safe or moves them to another browser.
         </p>
       </div>
       <p role="status" className="sr-only">
@@ -163,15 +163,15 @@ export function SavedPage() {
       </div>
 
       <section aria-label="Saved spots" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-lg font-semibold">Spots</h2>
           <span className="text-sm text-muted">{spots ? `${spots.length} saved` : "Reading…"}</span>
+          {spots && spots.length === 0 && (
+            <p className="text-sm text-muted">
+              No saved spots yet. In <Link to="/study" className="underline">Study</Link>, "☆ Save spot" keeps the line you're on.
+            </p>
+          )}
         </div>
-        {spots && spots.length === 0 && (
-          <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-            No saved spots yet. In <Link to="/study" className="underline">Study</Link>, "☆ Save spot" keeps the line you're on.
-          </p>
-        )}
         {spots && spots.length > 0 && shown.length === 0 && <p className="text-sm text-muted">No saved spot matches “{query}”.</p>}
         <ul className="space-y-2">
           {shown.map((s) => (
@@ -181,16 +181,16 @@ export function SavedPage() {
       </section>
 
       <section aria-label="Saved drills" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-lg font-semibold">Drills</h2>
           <span className="text-sm text-muted">{drills ? `${drills.length} saved` : "Reading…"}</span>
+          {drills && drills.length === 0 && (
+            <p className="text-sm text-muted">
+              No saved drills yet. "☆ Save drill" keeps a drill as it's set: in <Link to="/practice?tab=drills" className="underline">Practice&rsquo;s drills</Link>{" "}
+              (spot, decision, texture), or a leak drill in <Link to="/analyze" className="underline">Analyze</Link> (the leak, over the hands its filters keep).
+            </p>
+          )}
         </div>
-        {drills && drills.length === 0 && (
-          <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-            No saved drills yet. "☆ Save drill" keeps a drill as it's set: in <Link to="/practice?tab=drills" className="underline">Practice&rsquo;s drills</Link>{" "}
-            (spot, decision, texture), or a leak drill in <Link to="/analyze" className="underline">Analyze</Link> (the leak, over the hands its filters keep).
-          </p>
-        )}
         {!!drills?.length && !shownDrills.length && <p className="text-sm text-muted">No saved drill matches “{query}”.</p>}
         <ul className="space-y-2">
           {shownDrills.map((d) => (
@@ -200,15 +200,15 @@ export function SavedPage() {
       </section>
 
       <section aria-label="Saved scenarios" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-lg font-semibold">Scenarios</h2>
           <span className="text-sm text-muted">{scenarios ? `${scenarios.list.length} saved` : "Reading…"}</span>
+          {scenarios && scenarios.list.length === 0 && (
+            <p className="text-sm text-muted">
+              No saved scenarios yet. Save scenario, beside the setup in <Link to="/practice" className="underline">Practice</Link>, keeps a table as it&rsquo;s set to start again from here.
+            </p>
+          )}
         </div>
-        {scenarios && scenarios.list.length === 0 && (
-          <p className="text-sm text-muted">
-            No saved scenarios yet. Save scenario, beside the setup in <Link to="/practice" className="underline">Practice</Link>, keeps a table as it&rsquo;s set to start again from here.
-          </p>
-        )}
         {!!scenarios?.damaged && (
           <p role="status" className="text-sm text-warn">
             {scenarios.damaged} saved scenario{scenarios.damaged === 1 ? " is" : "s are"} damaged and can&rsquo;t be read, so {scenarios.damaged === 1 ? "it's" : "they're"} left out here.
@@ -223,19 +223,19 @@ export function SavedPage() {
       </section>
 
       <section aria-label="Saved reports" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-lg font-semibold">Reports</h2>
           <span className="text-sm text-muted">{reports ? `${reports.list.length} saved` : "Loading"}</span>
+          {reports && reports.list.length === 0 && (
+            <p className="text-sm text-muted">
+              No saved reports yet. Save this report, under the filters in{" "}
+              <Link to="/analyze" className="underline">
+                Analyze
+              </Link>
+              , keeps them here.
+            </p>
+          )}
         </div>
-        {reports && reports.list.length === 0 && (
-          <p className="text-sm text-muted">
-            No saved reports yet. Save this report, under the filters in{" "}
-            <Link to="/analyze" className="underline">
-              Analyze
-            </Link>
-            , keeps them here.
-          </p>
-        )}
         {!!reports?.damaged && (
           <p role="status" className="text-sm text-warn">
             {reports.damaged} saved report{reports.damaged === 1 ? " is" : "s are"} damaged and can&rsquo;t be read, so {reports.damaged === 1 ? "it isn" : "they aren"}
@@ -251,15 +251,15 @@ export function SavedPage() {
       </section>
 
       <section aria-label="Saved ranges" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2">
           <h2 className="text-lg font-semibold">Ranges</h2>
           <span className="text-sm text-muted">{ranges ? `${ranges.length} saved` : "Reading…"}</span>
+          {ranges && ranges.length === 0 && (
+            <p className="text-sm text-muted">
+              No saved ranges yet. The <Link to="/ranges" className="underline">Ranges</Link> editor saves one under a name.
+            </p>
+          )}
         </div>
-        {ranges && ranges.length === 0 && (
-          <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-            No saved ranges yet. The <Link to="/ranges" className="underline">Ranges</Link> editor saves one under a name.
-          </p>
-        )}
         {!!ranges?.length && !shownRanges.length && <p className="text-sm text-muted">No saved range matches “{query}”.</p>}
         <ul className="space-y-2">
           {shownRanges.map((r) => (
@@ -747,13 +747,18 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
   return (
     <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
-      <p className="text-muted">
+      <p className="text-muted">Everything kept in this browser, in one file, except settings. A restore merges, and what you deleted stays deleted.</p>
+      <About label="What's in it, and how a restore merges">
+      <p>
         One file with your saved spots and the answers kept with them, saved drills, saved scenarios, saved ranges, saved reports, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
         imported into Analyze with your tags, notes and grades, and the mistakes kept for review with their schedule; settings are not in it.
         Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
+      </p>
+      <p>
         What you delete stays deleted: this browser remembers your deletes, up to the latest {MAX_TOMBSTONES.toLocaleString("en-US")} of each kind, and a backup takes them to another browser, so a restore leaves those records out and says how many.
         A copy changed after its delete still comes back, a delete made before this version wasn&rsquo;t remembered, and a restore won&rsquo;t remove a copy kept here that another browser deleted.
       </p>
+      </About>
       {count && (
         <p role="group" aria-label="Last backup">
           {count.lastBackupAt ? `Last backup made here ${day(count.lastBackupAt)}` : "No backup made in this browser yet"}
