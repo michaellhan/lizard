@@ -7,6 +7,7 @@ import { pokerNowHands } from "@/hh/pokernow";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Move, type Street } from "@/poker/table";
 import { gameSetup, setupProblems, tidySetup, type SpotSetup } from "@/features/solve/setup";
+import { classOf } from "@/engine/nlhe/cards";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
 import { isPfSolve } from "./report";
 import { inSess, isEquilibriumHand } from "./sessions";
@@ -343,3 +344,16 @@ export const studyLinkAt = (r: ReplayedHand, street: Street, i: number, kept?: H
   const s = studyHandAt(r, street, i, kept);
   return s ? `/study?${toSearch(s)}` : null;
 };
+
+/** A Study link that opens on your own hand: `hand` names the two cards you held, and Study picks their class in the grid
+ * and marks the combo. Kept apart from studyLinkAt, whose search is a spot's key (Review's ids); none for a hand that
+ * isn't two cards. */
+export function withMyHand(link: string, hole: string | undefined): string {
+  if (!hole || hole.length !== 4) return link;
+  try {
+    classOf(hole);
+  } catch {
+    return link;
+  }
+  return `${link}&hand=${hole}`;
+}

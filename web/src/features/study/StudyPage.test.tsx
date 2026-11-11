@@ -170,6 +170,15 @@ describe("StudyPage", () => {
     expect(screen.getByRole("columnheader", { name: "EV % pot" })).toBeInTheDocument();
   });
 
+  it("opens on your own hand from a link (`hand=`, as Analyze's misses give): its class picked and the combo marked", async () => {
+    stub.answer = { ...THREE_WAY, opponents: undefined };
+    renderAt("p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h&hand=KhKs");
+    const row = (await screen.findByText("you")).closest("tr");
+    expect(row).toHaveTextContent(/^KsKh you/);
+    expect(row).toHaveClass("font-semibold");
+    expect(screen.getByRole("gridcell", { name: /^KK:/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("starts a new hand at any table size from 2 to 9 and any stack from 10 to 250bb", async () => {
     stub.answer = { study: "node", street: "preflop", actor: "UTG", actions: [], grid: { actions: [], cells: {} } };
     renderAt("p=6&s=100");

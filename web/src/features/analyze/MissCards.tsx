@@ -1,8 +1,8 @@
-// "Review your misses": the graded decisions outside the mix (missesOf, worst first) one card at a time, like a flashcard.
-// The front is the spot as you faced it (your seat and cards, the board, the action before) and what you played; turned
-// over, the answer for your hand, what it cost and what graded it (the grade's own provenance: nothing is solved here).
-// Arrow keys move, Space turns the card, Escape closes; the card you're on is in the URL (`miss`), so a reload keeps it.
-import { useEffect, useMemo, useRef, useState } from "react";
+// "Review your misses": the graded decisions outside the mix (missesOf, worst first), one at a time. Each shows the spot as
+// you faced it (your seat and cards, the board, the action before), what you played and how bad it was, the answer for your
+// hand with why in a line, and what graded it (the grade's own provenance: nothing is solved here). One click opens the
+// spot in Study on your own hand. Arrow keys move, Escape closes; the miss you're on is in the URL (`miss`).
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { describe } from "@/solver/provenance";
@@ -13,7 +13,7 @@ import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
 import { decisionProvenance } from "@/features/review/fromAnalyze";
-import { studyLinkAt } from "./analyze";
+import { studyLinkAt, withMyHand } from "./analyze";
 import { decisionIndex, lineBefore, roughActions, withParams } from "./leakDrill";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -33,8 +33,6 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
   const at = Math.min(Math.max(k, 0), Math.max(n - 1, 0));
   const d = misses[at];
   const hand = d ? byId.get(d.handId) : undefined;
-  const [shown, setShown] = useState<string | null>(null);
-  const open = !!d && shown === d.id;
   const box = useRef<HTMLElement>(null);
 
   // (focus comes to the card as it opens, so the keys work at once)
@@ -46,13 +44,12 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
       if (e.key === "ArrowRight" && at < n - 1) setK(at + 1);
       else if (e.key === "ArrowLeft" && at > 0) setK(at - 1);
       else if (e.key === "Escape") onClose();
-      else if ((e.key === " " || e.key === "Enter") && d && !(t && /^(BUTTON|A|SUMMARY)$/.test(t.tagName))) setShown(open ? null : d.id);
       else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [at, n, d, open, setK, onClose]);
+  }, [at, n, setK, onClose]);
 
   return (
     <section ref={box} tabIndex={-1} aria-label="Your misses" className="mx-auto max-w-2xl space-y-3 panel p-4 text-sm outline-none">
@@ -70,7 +67,7 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
       {!d ? (
         <p className="text-muted">No misses here.</p>
       ) : (
-        <Card key={d.id} d={d} hand={hand} open={open} onTurn={() => setShown(open ? null : d.id)} />
+        <Card key={d.id} d={d} hand={hand} />
       )}
       {n > 0 && (
         <div className="flex items-center gap-2 border-t border-border pt-3">
@@ -78,7 +75,7 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
             ← Previous
           </button>
           <span className="flex-1 text-center text-xs text-muted">
-            <span className="hidden sm:inline">← → to move · Space to turn over · Esc to close</span>
+            <span className="hidden sm:inline">← → to move · Esc to close</span>
           </span>
           {at < n - 1 ? (
             <button type="button" onClick={() => setK(at + 1)} className="rounded bg-accent px-3 py-1 font-medium text-bg">
@@ -108,17 +105,47 @@ function GradedBy({ d }: { d: DecisionRecord }) {
   );
 }
 
-function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord | undefined; open: boolean; onTurn: () => void }) {
+/** Why the answer differs, in a line, from the answer's own numbers: by EV, what the best action is worth and what yours
+ * gave up; by frequency (the charts), how often each is played. */
+export function whyLine(d: DecisionRecord): string | null {
+  const mix = d.mix ?? [];
+  const you = d.matched ?? d.action;
+  const mine = mix.find((x) => x[0] === you);
+  if (!mix.length) return d.best ? `The answer most often ${d.best}${d.bestFreq != null ? ` (${pct(d.bestFreq)})` : ""}.` : null;
+  const byEv = mix.every((x) => x[2] !== null);
+  const top = [...mix].sort((a, b) => (byEv ? b[2]! - a[2]! : b[1] - a[1]))[0]!;
+  const often = (f: number) => (f < 0.005 ? "never played" : `played ${pct(f)} of the time`);
+  if (byEv && mine && top[0] !== mine[0]) {
+    const gap = top[2]! - mine[2]!;
+    return `${cap(top[0])} is worth ${fmt(top[2]!)}bb with this hand, ${fmt(gap)}bb more than ${mine[0]}, which is ${often(mine[1])}.`;
+  }
+  if (mine && top[0] !== mine[0]) return `With this hand ${top[0]} is ${often(top[1])} and ${mine[0]} is ${often(mine[1])}.`;
+  if (!mine) return `With this hand ${top[0]} is ${often(top[1])}; ${you} isn't one of the answer's actions here.`;
+  return null;
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function Card({ d, hand }: { d: DecisionRecord; hand: HandRecord | undefined }) {
   const [params] = useSearchParams();
   const r = useMemo(() => (hand ? readHand(hand.text) : null), [hand]);
   const street = d.street as Street;
   const i = decisionIndex(d);
   const line = r ? lineBefore(r, street, i) : null;
-  const study = r && hand ? studyLinkAt(r, street, i, hand.setup) : null;
+  const spot = r && hand ? studyLinkAt(r, street, i, hand.setup) : null;
+  const study = spot ? withMyHand(spot, hand?.hole) : null;
   const mix = d.mix ?? [];
   const byEv = mix.length > 0 && mix.every((x) => x[2] !== null);
   const rough = roughActions(d);
   const said = line?.streets.filter((s) => s.says.length) ?? [];
+  const you = d.matched ?? d.action;
+  const best = mix.length ? [...mix].sort((a, b) => (byEv ? b[2]! - a[2]! : b[1] - a[1]))[0]![0] : null;
+  const why = whyLine(d);
+  const lost =
+    d.evLossBb != null
+      ? d.evLossBb > 0
+        ? `−${d.roughEv ? "≈" : ""}${fmt(d.evLossBb)}bb${d.lossPct != null ? ` · ${d.lossPct}% of the pot` : ""}`
+        : "no EV lost"
+      : "";
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted">
@@ -154,72 +181,52 @@ function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord |
         </ul>
       )}
       {!line && street !== "preflop" && <p className="text-xs text-warn">History unreadable: board not shown.</p>}
-      <p className="text-base">
-        You played <b>{d.action}</b>
-      </p>
 
-      {!open ? (
-        <button type="button" onClick={onTurn} className="w-full rounded border border-dashed border-border py-3 text-muted hover:bg-surface-2 hover:text-text">
-          Show the answer
-        </button>
-      ) : (
-        <div role="group" aria-label="The answer" className="space-y-2 border-t border-border pt-3">
-          <p className="flex flex-wrap items-center gap-2">
-            <VerdictTag v={d.verdict as Verdict} />
-            <span>
-              {d.evLossBb != null
-                ? d.evLossBb > 0
-                  ? `${d.roughEv ? "≈" : ""}${fmt(d.evLossBb)}bb lost${d.lossPct != null ? ` (${d.lossPct}% of the pot)` : ""}`
-                  : "no EV lost"
-                : d.freq != null && !mix.length
-                  ?`with your hand the answer plays ${d.matched ?? d.action} ${pct(d.freq)} of the time`
-                  : ""}
-            </span>
-          </p>
-          {mix.length > 0 ? (
-            <table aria-label="The answer for your hand" className="w-full max-w-sm text-left">
-              <thead className="text-xs text-muted">
-                <tr>
-                  <th className="pr-4 font-normal">Action</th>
-                  <th className="pr-4 text-right font-normal">Frequency</th>
-                  {byEv && <th className="text-right font-normal">EV</th>}
+      <div role="group" aria-label="The answer" className="space-y-2 border-t border-border pt-3">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base">
+          <span>
+            You played <b>{d.action}</b>
+          </span>
+          <VerdictTag v={d.verdict as Verdict} />
+          {lost && <span className="text-sm text-muted">{lost}</span>}
+        </p>
+        {why && <p>{why}</p>}
+        {mix.length > 0 && (
+          <table aria-label="The answer for your hand" className="w-full max-w-sm text-left">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="pr-4 font-normal">Action</th>
+                <th className="pr-4 text-right font-normal">Frequency</th>
+                {byEv && <th className="text-right font-normal">EV</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {mix.map(([name, f, ev]) => (
+                <tr key={name} className={`border-t border-border ${name === best ? "text-accent" : ""} ${name === you ? "font-semibold" : ""}`}>
+                  <td className="pr-4">
+                    {name}
+                    {name === you && <span className="ml-1 text-xs font-normal text-muted">(you)</span>}
+                  </td>
+                  <td className="pr-4 text-right tabular-nums">{pct(f)}</td>
+                  {byEv && <td className="text-right tabular-nums">{ev == null ? "—" : `${rough.has(name) ? "≈" : ""}${fmt(ev)}bb`}</td>}
                 </tr>
-              </thead>
-              <tbody>
-                {mix.map(([name, f, ev]) => (
-                  <tr key={name} className={`border-t border-border ${name === (d.matched ?? d.action) ? "font-semibold" : ""}`}>
-                    <td className="pr-4">
-                      {name}
-                      {name === (d.matched ?? d.action) && <span className="ml-1 text-xs font-normal text-muted">(you)</span>}
-                    </td>
-                    <td className="pr-4 text-right tabular-nums">{pct(f)}</td>
-                    {byEv && <td className="text-right tabular-nums">{ev == null ? "—" : `${rough.has(name) ? "≈" : ""}${fmt(ev)}bb`}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            d.best && (
-              <p>
-                The answer most often {d.best}
-                {d.bestFreq != null ? ` (${pct(d.bestFreq)})` : ""}.
-              </p>
-            )
-          )}
-          {d.note && <p className="text-xs text-muted">{d.note}</p>}
-          <GradedBy d={d} />
-          <p className="flex gap-3 text-xs">
-            {study && (
-              <Link to={study} className="underline">
-                Open in Study
-              </Link>
-            )}
-            <Link to={withParams(params, { hand: d.handId })} className="underline">
-              Open the hand
-            </Link>
-          </p>
-        </div>
-      )}
+              ))}
+            </tbody>
+          </table>
+        )}
+        {d.note && <p className="text-xs text-muted">{d.note}</p>}
+        <GradedBy d={d} />
+      </div>
+      <p className="flex flex-wrap items-center gap-3 text-sm">
+        {study && (
+          <Link to={study} className="rounded bg-surface-3 px-3 py-1.5 font-medium hover:bg-surface-2">
+            Study this spot with your hand →
+          </Link>
+        )}
+        <Link to={withParams(params, { hand: d.handId })} className="text-xs text-muted underline hover:text-text">
+          Open the hand
+        </Link>
+      </p>
     </div>
   );
 }

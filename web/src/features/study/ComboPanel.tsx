@@ -3,20 +3,25 @@ import { classCombos } from "@/engine/nlhe/cards";
 import type { AdvisorResponse, ComboRow, OpponentRange } from "@/solver/protocol";
 import { comboEqr, comboEv, eqr } from "./views";
 
+/** two cards in either order, as one key ("Kd Ah" and "AhKd" alike) */
+const cardsKey = (s: string) => (s.replace(/\s+/g, "").match(/../g) ?? []).sort().join("");
+
 /** One hand class: its combos, mix, EV, equity and EQR. `opponent`: show an opponent's range instead (true: the
- * heads-up opponent; a 3-way answer's opponent by its entry in `opponents`). */
+ * heads-up opponent; a 3-way answer's opponent by its entry in `opponents`). `mark`: the combo you held, marked. */
 export function ComboPanel({
   cls,
   res,
   colors,
   opponent,
   evUnit = "bb",
+  mark,
 }: {
   cls: string;
   res: AdvisorResponse;
   colors: string[];
   opponent: boolean | OpponentRange;
   evUnit?: EvUnit;
+  mark?: string;
 }) {
   const grid = opponent === true ? res.opponent_grid : opponent ? opponent.grid : res.grid;
   const ev = (x: number | null | undefined) => evIn(x, evUnit, res.pot_bb);
@@ -30,6 +35,7 @@ export function ComboPanel({
   rows.sort(hasEv ? (a, b) => (comboEv(b) ?? 0) - (comboEv(a) ?? 0) : (a, b) => b[1] - a[1]);
   const r = eqr(cell.evm, cell.eq, res.pot_bb);
   const eqrs = new Map(rows.map((row) => [row[0], comboEqr(row, res.pot_bb)]));
+  const mine = mark ? cardsKey(mark) : null;
   const noEqr = [...new Set([...eqrs.values()].flatMap((x) => (x.why ? [x.why] : [])))];
 
   return (
@@ -74,9 +80,10 @@ export function ComboPanel({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row[0]} className="border-t border-border/60">
+              <tr key={row[0]} className={`border-t border-border/60 ${mine === cardsKey(row[0]) ? "bg-surface-3 font-semibold" : ""}`}>
                 <td className="py-1">
                   {row[0]}
+                  {mine === cardsKey(row[0]) && <span className="font-sans font-normal text-accent"> you</span>}
                   {row[1] < 0.999 && <span className="text-faint"> ({pct(row[1], 0)})</span>}
                 </td>
                 <td className="py-1">

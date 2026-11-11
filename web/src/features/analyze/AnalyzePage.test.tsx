@@ -137,8 +137,9 @@ describe("AnalyzePage", () => {
     const links = within(hand).getAllByRole("link", { name: /^Study / });
     expect(links).toHaveLength(4);
     // (the small blind, still to act, has its own 62.4bb; the folded seats' stacks don't come along)
-    expect(links[0]).toHaveAttribute("href", "/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af&stacks=SB%3A62.4");
-    expect(links[1]!.getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax$/);
+    // (and each opens on your own hand, its class picked in Study's grid)
+    expect(links[0]).toHaveAttribute("href", "/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af&stacks=SB%3A62.4&hand=AhQd");
+    expect(links[1]!.getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax&hand=AhQd$/);
     expect(screen.getByTestId("where").textContent).toMatch(/hand=PokerStars%7C249012345678%7CAhQd/);
     fireEvent.click(within(hand).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("region", { name: "Hand" })).toBeNull();

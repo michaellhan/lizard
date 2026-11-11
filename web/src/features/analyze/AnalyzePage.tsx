@@ -20,7 +20,7 @@ import { HH_SITES } from "@/hh/parse";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { Move, Street } from "@/poker/table";
-import { filesName, filterHands, filterKey, hhFiles, lostByHand, prepare, SKIP_TEXT, STREETS, studyLinkAt, type Prepared, type SkipKind } from "./analyze";
+import { filesName, filterHands, filterKey, hhFiles, lostByHand, prepare, SKIP_TEXT, STREETS, studyLinkAt, withMyHand, type Prepared, type SkipKind } from "./analyze";
 import { CLASSIC_SITE, classicRecords, readClassicHands, type ClassicImport } from "./classic";
 import { decisionNote } from "./DecisionTables";
 import { FilterBar } from "./FilterBar";
@@ -877,7 +877,8 @@ function StreetRow({ r, street, graded, hand }: { r: ReplayedHand; street: Stree
         <ul className="flex flex-wrap gap-x-3 gap-y-1 pl-16">
           {moves.map((m, i) => {
             const you = m.pos === h.hero;
-            const link = you ? studyLinkAt(r, street, i, hand?.setup) : null;
+            const spot = you ? studyLinkAt(r, street, i, hand?.setup) : null;
+            const link = spot ? withMyHand(spot, hand?.hole) : null;
             const d = you ? graded(i) : undefined;
             return (
               <li key={i} className={you ? "font-semibold" : "text-muted"}>

@@ -59,6 +59,7 @@ import { LockPanel } from "./LockPanel";
 import { ChangeCards } from "./ChangeCards";
 import { NodeLockPanel } from "./NodeLockPanel";
 import { ComboPanel } from "./ComboPanel";
+import { classOf } from "@/engine/nlhe/cards";
 import { studyText } from "@/features/practice/copyForAi";
 import { CopyForAi } from "@/features/practice/HintReveal";
 import { offersReport } from "./runouts";
@@ -135,7 +136,16 @@ export function StudyPage() {
   const [answer, setAnswer] = useState<{ key: string; phase: Phase }>({ key: "", phase: { kind: "loading" } });
   // Try again: the same request, asked afresh
   const [attempt, setAttempt] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
+  // a link from your own hand (Analyze's misses, `hand=AhKd`): its class picked from the start, the combo marked in its panel
+  const [mine] = useState(() => {
+    const h = params.get("hand");
+    try {
+      return h ? { combo: h, cls: classOf(h) } : null;
+    } catch {
+      return null;
+    }
+  });
+  const [selected, setSelected] = useState<string | null>(mine?.cls ?? null);
   // (what the grid shows and the breakdown's state are Settings, so they last from visit to visit, as StudySplit's split does)
   const chosenView = useSettings((s) => s.studyView);
   const breakdownOpen = useSettings((s) => s.breakdownOpen);
@@ -703,7 +713,7 @@ export function StudyPage() {
                 </p>
                 {vsOpp && selected && panelGrid?.cells[selected] && <p className="text-xs font-medium text-muted">{panelOpp ? panelOpp.seat : res.actor}'s range</p>}
                 {selected && panelGrid?.cells[selected] ? (
-                  <ComboPanel cls={selected} res={res} colors={colors} opponent={panelOpp ?? false} evUnit={evUnit} />
+                  <ComboPanel cls={selected} res={res} colors={colors} opponent={panelOpp ?? false} evUnit={evUnit} mark={!panelOpp && mine?.cls === selected ? mine.combo : undefined} />
                 ) : (
                   <p className="panel p-3 text-sm text-muted">
                     Select a hand class to see its combos, mix, EV and equity.
