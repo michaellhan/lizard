@@ -40,18 +40,12 @@ test("every link in the primary nav can be reached and goes where it says", asyn
   await page.goto("/lizard/");
   const nav = page.getByRole("navigation", { name: "Primary" });
   const links = await nav.getByRole("link").all();
-  // every page is in the bar where the bar has room for it, and the rest under More, which shows only then (and on a
-  // phone, for Settings): the main four always, all fourteen at desktop width
-  expect(links.length).toBeGreaterThanOrEqual(4);
-  if (info.project.name === "desktop") expect(links.length).toBe(14);
+  // the four main pages in the bar at every width, and the other eight under More (on a phone, Settings too)
+  expect(links.length).toBe(4);
   const more = nav.getByRole("button", { name: /More/ });
-  if (links.length < 14) {
-    await more.click();
-    await expect(nav.getByRole("list", { name: "More pages" }).getByRole("link")).toHaveCount(14 - links.length + (info.project.name === "phone" ? 1 : 0));
-    await more.click();
-  } else {
-    await expect(more).toBeHidden();
-  }
+  await more.click();
+  await expect(nav.getByRole("list", { name: "More pages" }).getByRole("link")).toHaveCount(8 + (info.project.name === "phone" ? 1 : 0));
+  await more.click();
   for (const link of links) {
     const to = await link.getAttribute("href");
     await link.click();

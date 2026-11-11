@@ -817,7 +817,7 @@ test("A 4-way flop answer in Study says what answered it, and calls nothing solv
 
 test("The Saved page: sort kept across a reload, tags edited and searched, and one item exported and restored", async ({ page, problems }) => {
   await page.goto("/lizard/saved");
-  await expect(page.getByRole("region", { name: "Saved spots" })).toContainText("0 saved");
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
   const spot = (id: string, title: string, createdAt: number, updatedAt: number) => ({ id, title, line: "p=2&s=100&pre=SB%3Ar2.5%2CBB%3Ac&b=Kd7c2h", state: {}, tags: [], note: "", createdAt, updatedAt });
   await putStore(page, "savedSpots", [spot("a", "Bravo", 1000, 9000), spot("b", "Alpha", 3000, 3000), spot("c", "Charlie", 2000, 5000)]);
   await page.reload();
@@ -869,7 +869,7 @@ test("The Saved page: sort kept across a reload, tags edited and searched, and o
       }),
   );
   await page.reload();
-  await expect(page.getByRole("region", { name: "Saved spots" })).toContainText("0 saved");
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
   await page.getByLabel("Backup file to restore").setInputFiles(path);
   await expect(page.getByRole("listitem", { name: "Charlie" })).toContainText("bluff");
   await expect(list).toHaveCount(1);

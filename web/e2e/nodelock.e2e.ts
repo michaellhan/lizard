@@ -2,7 +2,7 @@
 // is held at a mix, the street re-solved, and the answer stands beside the unlocked one under its own label. The
 // numbers themselves are benchmarked against an LP (docs/ACCURACY.md section 16); this is that they arrive, say what
 // they are, and can be stopped.
-import { expect, overflow, test, type Page } from "./fixtures";
+import { expect, openStudyTools, overflow, test, type Page } from "./fixtures";
 
 test.skip(({ viewport }) => viewport?.width !== 1440, "this sets its own sizes");
 test.describe.configure({ timeout: 240_000 });
@@ -11,10 +11,12 @@ const FLOP = "/lizard/study/?p=2&s=100&pre=SB:r2.5,BB:c&b=Kd7c2h";
 
 async function openPanel(page: Page, url: string) {
   await page.goto(url);
+  await openStudyTools(page, 120_000);
   const summary = page.getByText("Hold this node at a mix (true node lock)");
-  await expect(summary).toBeVisible({ timeout: 120_000 });
+  await expect(summary).toBeVisible();
   await summary.click();
-  return page.locator("details", { has: summary });
+  // (the panel's own fold, inside More tools': the innermost)
+  return page.locator("details", { has: summary }).last();
 }
 
 const mix = async (form: ReturnType<Page["locator"]>, values: Record<string, string>) => {
@@ -102,8 +104,9 @@ test("A lock kept at one node is held too when the next node of the street is lo
   await page.getByRole("region", { name: "Actions" }).getByRole("button", { name: /^check/ }).first().click();
   const summary = page.getByText("Hold this node at a mix (true node lock)");
   await expect(page.getByRole("region", { name: "Actions" })).toContainText(/bet/, { timeout: 120_000 });
+  await openStudyTools(page, 120_000);
   await summary.click();
-  const next = page.locator("details", { has: summary });
+  const next = page.locator("details", { has: summary }).last();
   const kept = next.getByLabel("Kept locks");
   await expect(kept).toContainText("BB holds check 100.0% (whole range) (first to act)");
   const actions = await next.getByRole("form", { name: "The lock" }).locator("label span.w-32").allTextContents();

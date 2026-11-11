@@ -1,7 +1,7 @@
 // What the system's own settings ask of the page, in a real browser: forced colours, reduced motion, and the first Tab
 // from Study's heading, with a table's scroll cue, which only a real layout can show.
 import { readFileSync } from "node:fs";
-import { expect, test } from "./fixtures";
+import { expect, openStudyTools, test } from "./fixtures";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
@@ -80,8 +80,9 @@ test("From Study's heading the first Tab goes on to the page, and one Tab crosse
 test("Copy for AI puts the spot and its source on the real clipboard", async ({ page, context, problems }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/lizard/study/?p=6&s=100");
+  await openStudyTools(page, 45_000);
   const copy = page.getByRole("button", { name: "Copy for AI" });
-  await expect(copy).toBeVisible({ timeout: 45_000 });
+  await expect(copy).toBeVisible();
   await copy.click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toMatch(/UTG/);
   const text = await page.evaluate(() => navigator.clipboard.readText());

@@ -1,7 +1,7 @@
 // Pages with something on them, on the real worker: what the route sweep's empty pages can't show. Each ends on the
 // same checks: nothing scrolls sideways, nothing was logged as an error, and a screenshot for a person to look at.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Problems } from "./fixtures";
+import { expect, openStudyTools, overflow, test, type Problems } from "./fixtures";
 import type { Page, TestInfo } from "@playwright/test";
 
 const HANDS = readFileSync(new URL("../../solver/tests/data/hh/gg_allin_preflop.txt", import.meta.url), "utf8");
@@ -78,6 +78,7 @@ test("Study: a river's breakdown, with its categories, its equity chart and a ca
   const chart = panel.getByRole("region", { name: "Equity distribution" });
   await expect(chart.getByText(/range advantage/)).toBeVisible();
   await expect(chart.getByText("on the river, no cards to come", { exact: false })).toBeVisible();
+  await openStudyTools(page);
   await expect(page.getByRole("navigation", { name: "Compare this spot" })).toHaveCount(1);
   await chart.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-breakdown.png`, fullPage: false });
