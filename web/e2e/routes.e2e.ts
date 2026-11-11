@@ -36,11 +36,22 @@ for (const [route, heading] of ROUTES) {
   });
 }
 
-test("every link in the primary nav can be reached and goes where it says", async ({ page, problems }) => {
+test("every link in the primary nav can be reached and goes where it says", async ({ page, problems }, info) => {
   await page.goto("/lizard/");
   const nav = page.getByRole("navigation", { name: "Primary" });
   const links = await nav.getByRole("link").all();
-  expect(links.length).toBe(4);
+  // every page is in the bar where the bar has room for it, and the rest under More, which shows only then (and on a
+  // phone, for Settings): the main four always, all fourteen at desktop width
+  expect(links.length).toBeGreaterThanOrEqual(4);
+  if (info.project.name === "desktop") expect(links.length).toBe(14);
+  const more = nav.getByRole("button", { name: /More/ });
+  if (links.length < 14) {
+    await more.click();
+    await expect(nav.getByRole("list", { name: "More pages" }).getByRole("link")).toHaveCount(14 - links.length + (info.project.name === "phone" ? 1 : 0));
+    await more.click();
+  } else {
+    await expect(more).toBeHidden();
+  }
   for (const link of links) {
     const to = await link.getAttribute("href");
     await link.click();
