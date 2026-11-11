@@ -112,8 +112,10 @@ export function HistoryPage() {
         </p>
       ) : (
         <>
-          <Lifetime totals={totals} />
-          <PotTypes pots={pots} />
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            <Lifetime totals={totals} />
+            <PotTypes pots={pots} />
+          </div>
           <Streets t={streets} />
           {sessions.some((s) => SPLIT_KINDS.includes(s.kind)) && <Splits seat={seats} pot={potSplit} kind={kind} setKind={setKind} />}
           <Trends lines={lines} />
@@ -182,8 +184,10 @@ function SessionItem({ r }: { r: SessionRow }) {
           </Link>
         )}
       </div>
-      <p className="text-muted">{parts.filter(Boolean).join(" · ")}</p>
-      <p className="text-xs text-muted">Graded against: {r.graded}</p>
+      <p className="text-muted">
+        {parts.filter(Boolean).join(" · ")}
+        <span className="text-xs"> · Graded against: {r.graded}</span>
+      </p>
     </li>
   );
 }
@@ -365,10 +369,10 @@ function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTot
       {kind && kind !== "practice" && kind !== "drill" ? (
         <p className="text-sm text-muted">{kindLabel(kind)}: not split by seat or pot. These rates read full hands and drills only.</p>
       ) : (
-        <>
+        <div className="grid items-start gap-4 2xl:grid-cols-2">
           <SplitBlock t={seat} />
           <SplitBlock t={pot} />
-        </>
+        </div>
       )}
       <About label="How these rates are counted">
 <p>
@@ -427,10 +431,12 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           )}
         </div>
       ))}
-      <p className="text-xs text-muted">
-        A line takes {MIN_BLOCKS} stretches of {BLOCK} decisions or more. The two kinds of grade are kept apart, as how many of each you played would otherwise move the line. Retries aren&rsquo;t counted: they&rsquo;re
-        spots you&rsquo;ve already missed. Full hands from before the split was kept aren&rsquo;t in either.
-      </p>
+      <About label="How the line is drawn">
+        <p>
+          A line takes {MIN_BLOCKS} stretches of {BLOCK} decisions or more. The two kinds of grade are kept apart, as how many of each you played would otherwise move the line. Retries aren&rsquo;t counted: they&rsquo;re
+          spots you&rsquo;ve already missed. Full hands from before the split was kept aren&rsquo;t in either.
+        </p>
+      </About>
     </section>
   );
 }

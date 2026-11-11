@@ -4932,3 +4932,12 @@ and the lessons sit two to a row on a wide screen. At 1280×800 the page went fr
 due and a drill, and Lessons now starts on the first screen. UI only: tsc, eslint, `vitest run src/features/plan
 src/features/review src/app src/features/home` passed; checked in the browser at 1280×800 and 375×812 (no sideways
 scroll). Builds left alone.
+
+## 2026-11-11: History decluttered
+
+The third page under More; it was already mostly folded. Lifetime and Full hands by pot type share a row on a wide
+screen, and By seat and By pot type do at 1536px and up (at 1280 the pot table's cells would wrap). A session is two
+lines: what was played, then its figures with "Graded against: …" on the end. Over time's note on how a line is drawn
+is under "How the line is drawn"; each line's decision count, sources and versions stay out. At 1280×800 the page went
+from 1430px to 1248px with three sessions kept. UI only: tsc, eslint, `vitest run src/features/history` 75 passed;
+checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.
