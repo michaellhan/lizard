@@ -157,12 +157,9 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
           <div className="space-y-0.5">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={fromBack} disabled={!!back.blocked} onChange={(e) => setBack(e.target.checked)} />
-              Hold it from the {back.from}: the {back.from} re-solves around it
+              Hold it from the {back.from}, so the {back.from} reacts
             </label>
-            <p className="text-xs text-muted">
-              {back.blocked ??
-                `The ${back.from}'s solve plays this ${street} more coarsely (its own sizes and card classes), so the answer is approximate; it shows how the ${back.from} changes.`}
-            </p>
+            <p className="text-xs text-muted">{back.blocked ?? `Approximate: that tree plays the ${street} more coarsely.`}</p>
           </div>
         )}
         {note && <p className="text-xs text-muted">{note}</p>}

@@ -124,7 +124,7 @@ describe("nodeLock.ts", () => {
     expect(reachBack("turn", { kind: "range" }, 0)).toEqual({ from: "flop", blocked: null });
     expect(reachBack("river", { kind: "range" }, 0)).toEqual({ from: "turn", blocked: null });
     expect(reachBack("river", { kind: "classes", text: "AKs" }, 0)!.blocked).toMatch(/only the whole range/);
-    expect(reachBack("turn", { kind: "range" }, 1)!.blocked).toMatch(/Kept locks/);
+    expect(reachBack("turn", { kind: "range" }, 1)!.blocked).toMatch(/Drop the kept locks/);
   });
 
   it("says what lock_cost is and isn't", () => {

@@ -23,14 +23,14 @@ function TreeNote() {
   const cap = useSettings((s) => s.treeCap);
   const transport = useSettings((s) => s.transport);
   if (transport !== "worker")
-    return <p className="text-xs text-muted">A local server runs the engine without Lizard&rsquo;s additions: it keeps a raise cap of {ENGINE_RAISES} and its own 24M-cell trees.</p>;
+    return <p className="text-xs text-muted">A local server keeps a raise cap of {ENGINE_RAISES} and 24M-cell trees.</p>;
   return (
     <p className="text-xs text-muted">
-      More sizes and raises make a bigger tree (a turn with 5 bets and 3 raises: 7M cells at a cap of 1, 39M at 2). This device builds up to {capWords(cap)} ({TREE_CAPS[cap].label},{" "}
+      Trees up to {capWords(cap)} here (
       <Link to="/settings" className="underline hover:text-text">
-        Settings
+        {TREE_CAPS[cap].label}
       </Link>
-      ); past that the tree is cut to fit and the answer says how.
+      ); a bigger one is cut to fit.
     </p>
   );
 }
@@ -442,7 +442,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                 </option>
               ))}
             </select>
-            <span className="text-muted">{raisesWords(raises)} (heads-up pots: 3- and 4-way solves keep their own)</span>
+            <span className="text-muted" title="Heads-up pots: 3- and 4-way solves keep their own">
+              {raisesWords(raises)}, heads-up
+            </span>
           </label>
           <TreeNote />
         </fieldset>

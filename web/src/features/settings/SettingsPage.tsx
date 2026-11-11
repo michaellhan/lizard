@@ -65,7 +65,7 @@ export function SettingsPage() {
             ))}
           </select>
         </label>
-        <p className="text-xs text-muted">The biggest tree a solve in this browser builds; a bigger one is cut to fit. Phone for little memory; Large for a desktop with memory to spare.</p>
+        <p className="text-xs text-muted">A bigger tree is cut to fit.</p>
       </fieldset>
 
       <fieldset className="space-y-2 panel p-4">

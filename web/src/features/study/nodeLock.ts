@@ -103,9 +103,9 @@ export function reachBack(street: AdvisorResponse["street"], scope: LockScope, k
   if (!from) return null;
   const blocked =
     scope.kind !== "range"
-      ? `From the ${from}, only the whole range can be held: that tree plays the ${street} by buckets or card classes.`
+      ? `From the ${from}, only the whole range can be held.`
       : kept > 0
-        ? "Kept locks are on this street's solve: drop them to hold a lock from the street before."
+        ? "Drop the kept locks to hold it from the street before."
         : null;
   return { from, blocked };
 }
