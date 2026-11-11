@@ -55,6 +55,13 @@ The owner allowed up to 3 GB a process for this build on 2026-11-11, so all four
 `start --max-mb 3000`. `start` alone (1000 MB) runs only the first two. 200bb runs one worker, so the job holds
 about 3 GB of the shared 16 GB rather than 6.
 
+Measured on 2026-11-11 (one entry, nice 10, outside `heavy`): a `3bp_bb_btn_40bb` flop (5c4d2h) took 9 s at a
+463 MB peak and reached 0.018% exploitability in 200 iterations, so the 3bet batch should take about 15 minutes with
+2 workers. The other peaks and times in the table are estimates from tree sizes until `status` reports real ones.
+The same entry, assembled into a stage with `--formats`, answered a 40bb hand in the native advisor
+(`precomputed.spot` `3bp_bb_btn_40bb`, label "BB 3bet vs BTN, 40bb"), while the same hand at 100bb still read
+`3bp_bb_btn`.
+
 - **Spots:** the four most-played heads-up pots, the top of `SPOTS` by frequency: BTN, CO and SB opens the big blind
   calls, and the big blind's 3bet against the button.
 - **40bb first:** it is the most common short depth and a stored Practice depth. Its ranges come from solved moves,
