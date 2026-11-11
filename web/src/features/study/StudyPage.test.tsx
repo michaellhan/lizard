@@ -553,12 +553,14 @@ describe("StudyPage", () => {
       stub.answer = THREE_WAY;
       renderAt(search);
       const bar = await screen.findByRole("separator");
+      // (a slow runner may show the bar a moment before its default, which the keys move from)
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "58"));
       const asked = stub.asked.length;
       fireEvent.keyDown(bar, { key: "ArrowLeft" });
-      expect(bar).toHaveAttribute("aria-valuenow", "56");
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "56"));
       fireEvent.keyDown(bar, { key: "ArrowRight" });
       fireEvent.keyDown(bar, { key: "ArrowRight" });
-      expect(bar).toHaveAttribute("aria-valuenow", "60");
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "60"));
       await screen.findByRole("region", { name: "Range" });
       expect(stub.asked).toHaveLength(asked);
       const saved = useSettings.getState().studySplit!;

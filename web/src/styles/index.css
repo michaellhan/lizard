@@ -142,8 +142,12 @@ body {
   outline-offset: 2px;
 }
 
-/* Skip link and route changes land here: the region is a target, not a control, so it takes no ring. */
-#main:focus-visible {
+/* Skip link and route changes land on #main, and a panel that opens takes focus so its keys work at once (the miss cards,
+   a hand, a retry, a Saved section): each is a target, not a control, so it takes no ring, which would come and go with
+   how the browser judged the last focus. Unlayered, as the rule above beats an outline-none utility. Controls with a
+   roving tabindex (buttons, cells, tabs) aren't these elements and keep theirs. */
+#main:focus-visible,
+:is(section, article, h1, h2, h3, p, li, [role="group"])[tabindex="-1"]:focus-visible {
   outline: none;
 }
 

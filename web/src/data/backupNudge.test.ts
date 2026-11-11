@@ -24,28 +24,39 @@ describe("the backup reminder's count", () => {
     expect((await nudgeState()).saves).toBe(7);
   });
 
-  it("says it past the first count, again after more once put off, and starts again with a backup", async () => {
+  it("says it only past many saves and two weeks, a month later once put off, and starts again with a backup", async () => {
+    const DAY = 86_400_000;
+    const t0 = 1_000 * DAY;
     const heard: number[] = [];
     const off = onNudgeState(() => heard.push(1));
-    await noteSaved(NUDGE.first - 1);
-    expect(nudgeDue(await nudgeState())).toBe(false);
-    await noteSaved();
-    expect(nudgeDue(await nudgeState())).toBe(true);
-    await snoozeNudge();
-    expect(await nudgeState()).toEqual({ saves: NUDGE.first, snoozedAt: NUDGE.first });
-    await noteSaved(NUDGE.again - 1);
-    expect(nudgeDue(await nudgeState())).toBe(false);
-    await noteSaved();
-    expect(nudgeDue(await nudgeState())).toBe(true);
+    await noteSaved(NUDGE.saves - 1, t0);
+    expect(await nudgeState()).toEqual({ saves: NUDGE.saves - 1, since: t0 });
+    expect(nudgeDue(await nudgeState(), t0 + 60 * DAY)).toBe(false); // too few saves, however long
+    await noteSaved(1, t0 + DAY);
+    expect((await nudgeState()).since).toBe(t0); // (the days count from the first save)
+    expect(nudgeDue(await nudgeState(), t0 + (NUDGE.days - 1) * DAY)).toBe(false); // too soon
+    const due = t0 + NUDGE.days * DAY;
+    expect(nudgeDue(await nudgeState(), due)).toBe(true);
+    await snoozeNudge(due);
+    expect(nudgeDue(await nudgeState(), due + (NUDGE.snoozeDays - 1) * DAY)).toBe(false);
+    expect(nudgeDue(await nudgeState(), due + NUDGE.snoozeDays * DAY)).toBe(true);
     await noteBackedUp(1234);
     expect(await nudgeState()).toEqual({ saves: 0, lastBackupAt: 1234 });
-    expect(nudgeDue(await nudgeState())).toBe(false);
+    expect(nudgeDue(await nudgeState(), due + 365 * DAY)).toBe(false);
     await noteSaved(0);
-    expect(heard).toHaveLength(6);
+    expect(heard).toHaveLength(4);
     off();
     // (saves at once all count)
     await Promise.all([noteSaved(), noteSaved(), noteSaved()]);
     expect((await nudgeState()).saves).toBe(3);
-    expect(heard).toHaveLength(6);
+    expect(heard).toHaveLength(4);
+  });
+
+  it("starts the days of a count kept before they were (not said to someone at once after this change)", async () => {
+    await (await db())!.put("kv", { saves: 115, snoozedAt: 110 }, "backupNudge");
+    expect(await nudgeState()).toEqual({ saves: 115 });
+    expect(nudgeDue(await nudgeState())).toBe(false);
+    await noteSaved(1, 5);
+    expect(await nudgeState()).toEqual({ saves: 116, since: 5 });
   });
 });
