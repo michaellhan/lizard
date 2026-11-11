@@ -522,6 +522,70 @@ def lines(root) -> Iterator[Tuple[Tuple[str, ...], int, List[str]]]:
             stack.extend((c, line + (n,)) for n, c in zip(node.names, node.children))
 
 
+def street_strategy(solution: Solution, player: int) -> Dict[Tuple[str, ...], Tuple[List[str], np.ndarray]]:
+    """Every decision of `player` on the root street of a solve, combo for combo: {line: (action names, (A, N_FULL)
+    average strategy)}, the columns in gto.cards' full combo order, 0 outside the solve's combos. The root street is
+    never bucketed (buckets start under its chance nodes), so this is the same object in any of the engine's flop
+    models: what `hold_strategy` lays on another solve of the spot, abstracted differently."""
+    active = np.asarray(solution.ctx.active)
+    out: Dict[Tuple[str, ...], Tuple[List[str], np.ndarray]] = {}
+    stack = [(solution.root, ())]
+    while stack:
+        node, line = stack.pop()
+        if not isinstance(node, Decision):
+            continue                     # a chance node, a bucket entry or a terminal: the street is over there
+        if node.B != 1 or node.bucketed:
+            raise LockError(f"line {line}: not a root-street decision of one board")
+        if node.player == player:
+            full = np.zeros((len(node.names), len(ALL_COMBOS)), dtype=np.float32)
+            full[:, active] = node.avg_strategy()[0]
+            out[line] = (list(node.names), full)
+        stack.extend((c, line + (n,)) for n, c in zip(node.names, node.children))
+    return out
+
+
+def hold_strategy(solver: "LockedSolver", held: Mapping[Tuple[str, ...], Tuple[Sequence[str], np.ndarray]],
+                  player: int) -> int:
+    """Pin `player`'s root-street decisions to `held` (street_strategy's form), each combo its own mix: the restricted
+    game in which that player's whole strategy on the street is given and everything after it, theirs included, is
+    re-solved. Every root-street decision of the player must be in `held` with the same actions, and nothing may
+    already be pinned there. Returns the cells pinned. Call before the first iteration (solve_locked's `seed`)."""
+    support = solver._support(*solver.ctx.root_reach)[player]
+    active = np.asarray(solver.ctx.active)
+    cells, seen = 0, set()
+    stack = [(solver.root, ())]
+    while stack:
+        node, line = stack.pop()
+        if not isinstance(node, Decision):
+            continue
+        stack.extend((c, line + (n,)) for n, c in zip(node.names, node.children))
+        if node.player != player:
+            continue
+        if line not in held:
+            raise LockError(f"line {line}: no strategy given for this decision of player {player}")
+        names, full = held[line]
+        if list(names) != list(node.names):
+            raise LockError(f"line {line}: the strategy's actions {list(names)} aren't the tree's {node.names}")
+        if node.B != 1 or node.bucketed:
+            raise LockRefused(f"line {line}: not a root-street decision of one board")
+        if id(node) in solver._pins:
+            raise LockError(f"line {line}: already locked")
+        mix = np.asarray(full, dtype=np.float64)[:, active]                     # (A, W)
+        tot = mix.sum(axis=0)
+        cols = np.flatnonzero(support & (tot > 0))
+        pin = solver._pins[id(node)] = _Pin(node)
+        pin.mask[0, cols] = True
+        for j in cols:
+            pin.mix[0, :, j] = _float32_mix(mix[:, j] / tot[j])
+        pin.seal()
+        cells += len(cols)
+        seen.add(line)
+    extra = set(held) - seen
+    if extra:
+        raise LockError(f"line {sorted(extra)[0]}: not a decision of player {player} in this tree")
+    return cells
+
+
 def solve_locked(board: Sequence[int], r_oop: np.ndarray, r_ip: np.ndarray, pot: float, stack: float,
                  locks: Sequence[Lock], bets=(0.0, 0.0), to_act: int = 0, n_raises: int = 0,
                  cfg: Optional[Config] = None, time_budget: float = 3.0, max_iters: int = 1000,
