@@ -31,8 +31,9 @@ test("Phase 5: a drill set up, played, graded with numbers, kept, opened in Stud
   await expect(graded).toBeVisible();
   await expect(missed).toBeVisible();
 
-  // the feedback stands on numbers and names its source, and the charts aren't called solved
-  await expect(page.getByText(/≈? ?Preflop charts/).first()).toBeVisible();
+  // the feedback stands on numbers and names its source, approximate (≈): the preflop solve where a game is stored, else the
+  // charts, neither called solved (what graded the session is on a closed fold under the score: only what's shown counts)
+  await expect(page.getByText(/^≈ ?Preflop (solve|charts)/).filter({ visible: true }).first()).toBeVisible();
   const study = page.getByRole("link", { name: "Open this spot in Study →" }).first();
   await expect(study).toBeVisible();
   await study.click();
