@@ -3,7 +3,10 @@
 
 The solver worker reads one library base, so Lizard's library is one directory: the 6-max library of the solver
 snapshot (solver/gto/static/flop_library, a verified copy of the published /gto-solver-library/) plus the heads-up
-spots the offline builds have finished so far (.work/hu-lib, .work/hu-lp-lib), under one merged index.json.
+spots the offline builds have finished so far (.work/hu-lib, .work/hu-lp-lib), and Lizard's own builds of other games'
+spots (library-build/sources/depths: 6-max at other stack depths, scripts/library/depths_build.py), under one merged
+index.json. A spot of another game carries it from its build's index (`game`: players, stack, ante, straddle), so the
+worker finds it by its own ranges, pot and stack and the page labels it with its game.
 
 Safety (the heads-up builds are still running and own their directories):
   - sources are only read: nothing there is written, moved, deleted or locked;
@@ -15,6 +18,7 @@ Safety (the heads-up builds are still running and own their directories):
   - a spot that fails or shrinks keeps its previous release (--previous), so a publish never loses flops.
 
 Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...]
+       [--formats DIR ...]
 Exit status 0 when the stage is complete and consistent; the summary goes to stdout and the stage's
 lizard-library.json.
 """
@@ -37,6 +41,9 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "solver" / "gto" / "static" / "flop_library"
 WORK = Path("/Users/mhan/Desktop/projects/gtosolver/.work")
 HU_SOURCES = [WORK / "hu-lib", WORK / "hu-lp-lib"]
+SOURCES = ROOT / "library-build" / "sources"  # Lizard's own library builds (gitignored), one folder each
+# builds of other games' spots (flop_library.FORMAT_SPOTS, ids like srp_btn_bb_40bb), taken as the heads-up builds are
+FORMAT_SOURCES = [SOURCES / "depths"]
 PROTECTED = Path("/Users/mhan/Desktop/projects/gtosolver")
 STAGE_MARK = ".lizard-stage"
 NUTS = ROOT / "library-build" / "nuts"
@@ -56,12 +63,23 @@ MAX_FILES = 60_000
 BUILD_PLANS = {"srp_sb_bb_2max": 1755}
 
 
+def depth_plans() -> dict[str, int]:
+    """The flops each spot of the depth builds is being built to (depths_build.BATCHES; format spots have no
+    SPOT_FLOPS)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        from depths_build import BATCHES
+    finally:
+        sys.path.pop(0)
+    return {sid: flops for _name, spots, flops in BATCHES for sid in spots}
+
+
 def planned_flops() -> dict[str, int]:
-    """The flop count each spot is being built to: gto/flop_library.py SPOT_FLOPS (read without importing the solver),
-    overridden by BUILD_PLANS."""
+    """The flop count each spot is being built to: gto/flop_library.py SPOT_FLOPS (read without importing the solver)
+    and the depth builds' batches, overridden by BUILD_PLANS."""
     src = (ROOT / "solver" / "gto" / "flop_library.py").read_text()
     m = re.search(r"^SPOT_FLOPS = (\{.*?\})\n", src, re.S | re.M)
-    return {**(ast.literal_eval(m.group(1)) if m else {}), **BUILD_PLANS}
+    return {**(ast.literal_eval(m.group(1)) if m else {}), **depth_plans(), **BUILD_PLANS}
 
 
 def target_of(sid: str, n: int, planned: dict[str, int]) -> int | None:
@@ -224,11 +242,15 @@ def main() -> int:
     ap.add_argument("--previous", type=Path, help="the last published release (to keep spots that fail or shrink)")
     ap.add_argument("--allow-shrink", action="store_true")
     ap.add_argument("--nuts", type=Path, default=NUTS, help="where nuts.py wrote each spot's nut shares")
+    ap.add_argument("--formats", type=Path, action="append",
+                    help="a build directory of other games' spots, e.g. other depths (repeatable; default FORMAT_SOURCES)")
     a = ap.parse_args()
     hu_sources = a.hu if a.hu else HU_SOURCES
+    format_sources = a.formats if a.formats else FORMAT_SOURCES
+    builds = [(p, "heads-up build") for p in hu_sources] + [(p, "format build") for p in format_sources]
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources]:
+    for p in [a.base, *hu_sources, *format_sources]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -256,7 +278,8 @@ def main() -> int:
     sources.append({"path": str(a.base), "kind": "base", "spots": {s["id"]: len(s["flops"]) for s in spots}})
     mw = copy_mw(a.base, out, link=True, log=log)
 
-    for src in hu_sources:
+    taken = {s["id"] for s in spots}
+    for src, kind in builds:
         ip = src / "index.json"
         if not ip.exists():
             log.append(f"{src}: no index.json yet")
@@ -268,6 +291,11 @@ def main() -> int:
             continue
         got = {}
         for s in idx.get("spots", []):
+            if kind == "format build" and (not s.get("game") or s["id"] in taken):
+                # (a format build holds other games' spots only: one of the default game's, or an id an earlier source
+                # has, would be staged over that source's files)
+                log.append(f"{src}: {s['id']} is not another game's spot of its own, left out")
+                continue
             staged = copy_spot(src, out, s, link=False, log=log)
             if staged is None:
                 # (a report rewrite raced the read) one retry after the index settles
@@ -277,8 +305,9 @@ def main() -> int:
                 staged = copy_spot(src, out, s2, link=False, log=log) if s2 else None
             if staged:
                 spots.append(staged)
+                taken.add(staged["id"])
                 got[staged["id"]] = len(staged["flops"])
-        sources.append({"path": str(src), "kind": "heads-up build", "indexMtime": ip.stat().st_mtime, "spots": got})
+        sources.append({"path": str(src), "kind": kind, "indexMtime": ip.stat().st_mtime, "spots": got})
 
     # one spot per id and per lookup key (FlopLibrary keys spots by fingerprints, pot and stack): keep the larger
     by_key: dict[tuple, dict] = {}
@@ -376,7 +405,9 @@ def main() -> int:
     (out / "lizard-library.json").write_text(json.dumps(summary, indent=1))
     for s in merged:
         g = s.get("game")
-        print(f"  {s['id']:<18} {len(s['flops']):>5} flops  {'heads-up' if g and g.get('players') == 2 else '6-max'}")
+        game = "6-max" if not g else ("heads-up" if g.get("players") == 2 else f"{g.get('players')}-max") + \
+            (f" {g['stack']:g}bb" if g.get("stack", 100.0) != 100.0 else "")
+        print(f"  {s['id']:<18} {len(s['flops']):>5} flops  {game}")
     for note in log:
         print(f"  note: {note}")
     print(f"stage: {n} files, {total / 2**20:.1f} MB, {time.time() - t0:.1f} s -> {out}")

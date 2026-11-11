@@ -4,6 +4,7 @@ Run: .venv/bin/python -m unittest discover -s scripts/library
 """
 import hashlib
 import json
+import re
 import struct
 import subprocess
 import sys
@@ -50,8 +51,14 @@ def make_lib(root: Path, sid: str, fp: list, flops: dict, turns=True, game=None,
     return spot
 
 
+NO_FORMATS = Path(tempfile.mkdtemp()) / "none"  # (never the real library-build/sources/depths)
+G40 = {"players": 6, "stack": 40.0, "ante": 0.0, "straddle": False}
+
+
 def run(*args) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True)
+    extra = [] if "--formats" in args else ["--formats", NO_FORMATS]
+    return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args), *map(str, extra)],
+                          capture_output=True, text=True)
 
 
 class AssembleTest(unittest.TestCase):
@@ -119,7 +126,7 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(target_of("srp_sb_bb_2max", 378, plan), 552)
         self.assertEqual(target_of("srp_sb_bb_2max", 600, plan), 1755)  # extended past its plan to every flop
         real = planned_flops()  # the snapshot's SPOT_FLOPS, parsed from source, plus BUILD_PLANS
-        self.assertEqual(len([k for k in real if not k.startswith("mw_")]), 20)
+        self.assertEqual(len([k for k in real if not k.startswith("mw_") and not re.search(r"_\d+bb$", k)]), 20)
         self.assertEqual(target_of("srp_sb_bb_2max", 378, real), 1755)
         self.assertEqual(target_of("lp_sb_bb_2max", 168, real), 552)
         self.assertEqual(target_of("srp_hj_co", 552, real), 552)
@@ -180,6 +187,63 @@ class AssembleTest(unittest.TestCase):
         self.assertTrue((foreign / "keep.txt").exists())
         self.assertNotEqual(run("--out", "/Users/mhan/Desktop/projects/gtosolver/.work/x", "--base", self.base,
                                 "--hu", self.hu).returncode, 0)
+
+    def test_a_depth_build_is_taken_hash_checked_with_its_game(self):
+        depths = self.tmp / "depths"
+        make_lib(depths, "srp_btn_bb_40bb", ["e", "f"], {"Ks7d2c": b"d40-1", "AhKd5s": b"d40-2", "Qc9d8h": b"d40-3"},
+                 game=G40, extra={"Td6c3h.bin": b"solved after the index"})
+        (depths / "srp_btn_bb_40bb" / "Qc9d8h.bin").write_bytes(b"tampered")
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--formats", depths)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        spots = {s["id"]: s for s in self.index()["spots"]}
+        s = spots["srp_btn_bb_40bb"]
+        self.assertEqual(s["game"], G40)
+        self.assertEqual(sorted(s["flops"]), ["AhKd5s", "Ks7d2c"])  # the tampered one left out
+        self.assertFalse((self.out / "srp_btn_bb_40bb" / "Td6c3h.bin").exists())  # not in the index
+        self.assertEqual(s["fp"], ["e", "f"])
+        self.assertEqual(set(spots), {"srp_btn_bb", "srp_sb_bb_2max", "srp_btn_bb_40bb"})
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["spots"]["srp_btn_bb_40bb"], {"flops": 2, "target": 184, "game": G40, "nuts": 0})
+        self.assertEqual([x["kind"] for x in summary["sources"]], ["base", "heads-up build", "format build"])
+        self.assertIn("srp_btn_bb_40bb", r.stdout)
+        self.assertIn("6-max 40bb", r.stdout)
+
+    def test_a_depth_build_never_replaces_another_sources_spot_or_the_default_games(self):
+        depths = self.tmp / "depths"
+        make_lib(depths, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"other-1", "AhKd5s": b"other-2", "2h2d2c": b"x"})
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--formats", depths)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = next(s for s in self.index()["spots"] if s["id"] == "srp_btn_bb")
+        self.assertEqual(sorted(s["flops"]), ["AhKd5s", "Ks7d2c"])
+        self.assertEqual((self.out / "srp_btn_bb" / "Ks7d2c.bin").read_bytes(), b"entry-1")
+        self.assertIn("not another game's spot of its own", r.stdout)
+
+    def test_a_depth_spot_never_shrinks_below_the_previous_release(self):
+        depths, prev = self.tmp / "depths", self.tmp / "prev"
+        make_lib(depths, "3bp_bb_btn_40bb", ["g", "h"], {"Ks7d2c": b"3b-1", "AhKd5s": b"3b-2"}, game=G40)
+        self.assertEqual(run("--out", prev, "--base", self.base, "--hu", self.hu, "--formats", depths).returncode, 0)
+        (depths / "3bp_bb_btn_40bb" / "AhKd5s.bin").unlink()  # (a rebuild under way)
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--formats", depths, "--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = next(s for s in self.index()["spots"] if s["id"] == "3bp_bb_btn_40bb")
+        self.assertEqual(sorted(s["flops"]), ["AhKd5s", "Ks7d2c"])
+        self.assertEqual(s["game"], G40)
+        self.assertIn("3bp_bb_btn_40bb: kept the previous release", r.stdout)
+
+    def test_the_depth_builds_are_a_default_source_with_planned_targets(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+            from depths_build import BATCHES
+        finally:
+            sys.path.remove(str(HERE))
+        self.assertIn(assemble.SOURCES / "depths", assemble.FORMAT_SOURCES)
+        plan = assemble.planned_flops()
+        for _name, spots, flops in BATCHES:
+            for sid in spots:
+                self.assertEqual(plan[sid], flops)
+                self.assertEqual(assemble.target_of(sid, 3, plan), flops)
+        self.assertEqual(plan["srp_btn_bb"], 1755)  # the default game's still from SPOT_FLOPS
 
     def test_sources_are_not_modified(self):
         before = {p: p.read_bytes() for p in self.hu.rglob("*") if p.is_file()}
