@@ -328,11 +328,11 @@ describe("Tables (multitable.test.js:68)", () => {
     page();
     await ready();
     expect(screen.queryByText(/GTO opponents/)).toBeNull();
-    expect(screen.getByText(/from the charts preflop, then the solver.s mix, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
+    expect(screen.getByText(/Opponents play the charts preflop, then the solver.s mix, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "2" }));
     await screen.findByRole("region", { name: "Table 2" });
     expect(screen.queryByText(/GTO opponents/)).toBeNull();
-    expect(screen.getByText(/Opponents play the charts preflop, then the solver, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
+    expect(screen.getByText(/Opponents play the charts preflop, then the solver.s mix, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
   });
 
   it("says at one table what will answer your spot, not that a chart is being solved", async () => {
@@ -452,7 +452,7 @@ describe("the view (multitable.test.js:366)", () => {
     expect(screen.getByRole("tab", { name: "Table 3: Your turn" })).toBeInTheDocument();
     expect(within(tile(1)).getByTitle("Your place in the queue")).toHaveTextContent("1");
     expect(within(tile(2)).getByTitle("Your place in the queue")).toHaveTextContent("2");
-    expect(dock()).toHaveTextContent("2 more waiting · S next table · F fold · C or X check or call · 1–3 your options");
+    expect(dock()).toHaveTextContent("2 more waiting · S next table");
     expect(dock()).not.toHaveTextContent("is waiting for you");
     // a tab's number, its dot, and its place
     const tab = screen.getByRole("tab", { name: "Table 3: Your turn" });
@@ -647,15 +647,16 @@ describe("the dock", () => {
     expect(document.querySelector('p.sr-only[role="status"]')).toHaveTextContent(/^Table 1: No answer to grade this spot against: no such node$/);
   });
 
-  it("holds its hint to a line below `sm`: what's waiting, and the keys only where there are keys", async () => {
+  it("holds its hint to a line below `sm`: what's waiting, and S only where there are keys (the rest is the key list's, ?)", async () => {
     stub.advice = byHand([betInto(1), facing("fold", "call")], [betInto(2), facing("fold", "call")]);
     await open(doc([betInto(1), betInto(2)]));
     await ready();
-    const keys = within(dock()).getByText(/F fold/);
+    const keys = await within(dock()).findByText(/S next table/);
     expect(keys.tagName).toBe("SPAN");
     expect(keys.className).toBe("hidden sm:inline");
     expect(keys.parentElement!.className).toMatch(/min-h-4/);
-    await waitFor(() => expect(keys.parentElement).toHaveTextContent(/^1 more waiting · S next table · F fold/));
+    expect(keys.parentElement).toHaveTextContent(/^1 more waiting · S next table$/);
+    expect(dock()).not.toHaveTextContent("F fold");
   });
 
   it("answers for the table it names", async () => {
@@ -715,7 +716,6 @@ describe("the dock", () => {
     expect(buttons).toHaveLength(10);
     expect(buttons[8]!.textContent).toMatch(/^9/);
     expect(buttons[9]!.textContent).toMatch(/^bet/);
-    expect(dock()).toHaveTextContent("1–9 your options");
   });
 });
 
@@ -1388,7 +1388,8 @@ describe("Asking ahead", () => {
     await open(doc([checkedTo(1), checkedTo(2)]));
     const line = await screen.findByText(METER);
     expect(line.textContent).toMatch(/^Asking ahead, measured in this browser since this page opened: 0 of \d postflop look-aheads used · about 0 s saved with no other table waiting, for \d+ s of solver time$/);
-    expect(line.compareDocumentPosition(screen.getByRole("region", { name: "Your move" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // (with the score, beside the tables)
+    expect(screen.getByRole("complementary", { name: "Your results" })).toContainElement(line);
 
     // (your bet, its reply in hand)
     await waitFor(() => expect(stub.calls.filter((c) => c === "play BB").length).toBeGreaterThan(1));

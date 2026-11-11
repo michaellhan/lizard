@@ -8,7 +8,7 @@
 // (OneTable), two to four in MultiTables.tsx, whichever the Room has, as a session above one table comes back on a reload.
 // What a hand needs next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and
 // SetupForm.tsx.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
@@ -28,9 +28,11 @@ import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
-import { HintReveal, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { HintReveal, Kbd, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
 import { gradedOn, optionsAt, PF_MODEL } from "./pfGrade";
+import { isNextKey, optionFromKey } from "./keys";
+import { KeysHelp } from "./KeysHelp";
 import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { FIRST_OPTS, keyOf } from "./session";
@@ -40,6 +42,9 @@ import { ASSUMED, assumedWords, EXPLOIT_SCOPE, readWords } from "./exploit";
 import { answering } from "./TableTile";
 
 export { optionLabel };
+
+/** What the other seats play by: never a solve preflop, nor on a multiway flop or turn. */
+const OPPONENTS = "Opponents play the charts preflop, then the solver\u2019s mix, or betting rules on a flop or turn with five or more still in.";
 
 type Tab = "hands" | "drills";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -58,6 +63,26 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
     if (t === "hands") setHandsOpened(true);
     setParams(t === "hands" ? {} : { tab: "drills" });
   };
+  const [help, setHelp] = useState(false);
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
+  // the page's keys (keys.ts): D the other tab, ? the key list; Esc leaves a field, so the table's keys work again, or
+  // closes the list
+  useHandKeys(true, (e) => {
+    if (e.key === "?") setHelp((h) => !h);
+    else if (e.key.toLowerCase() === "d") {
+      const t: Tab = tab === "hands" ? "drills" : "hands";
+      open(t);
+      tabRefs.current[t]?.focus({ preventScroll: true });
+    } else if (e.key === "Escape" && help) setHelp(false);
+  });
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.key === "Escape" && el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) el.blur();
+    };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, []);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -69,6 +94,9 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
               type="button"
               role="tab"
               id={`practice-tab-${t.id}`}
+              ref={(el) => {
+                tabRefs.current[t.id] = el;
+              }}
               aria-selected={tab === t.id}
               tabIndex={tab === t.id ? 0 : -1}
               aria-controls={`practice-panel-${t.id}`}
@@ -79,7 +107,11 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
             </button>
           ))}
         </div>
+        <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className="ml-auto hidden rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 sm:inline-block">
+          Keyboard<Kbd>?</Kbd>
+        </button>
       </div>
+      {help && <KeysHelp onClose={() => setHelp(false)} />}
       {(handsOpened || tab === "hands") && (
         <div role="tabpanel" id="practice-panel-hands" aria-labelledby="practice-tab-hands" hidden={tab !== "hands"}>
           <FullHands pace={pace} pause={pause} guard={guard} active={tab === "hands"} />
@@ -203,6 +235,14 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   });
   const place = useCallback((at: HTMLElement | null) => void at?.append(home), [home]);
   const tableRef = useRef<HTMLDivElement>(null);
+  // E opens the game's setup and takes you to its first field (Esc leaves it, and the table's keys are back)
+  const gameRef = useRef<HTMLDetailsElement>(null);
+  useHandKeys(active && !asking, (e) => {
+    if (e.key.toLowerCase() !== "e" || !gameRef.current) return;
+    e.preventDefault();
+    gameRef.current.open = true;
+    gameRef.current.querySelector<HTMLElement>("input, select, textarea, button:not([disabled])")?.focus();
+  });
 
   const sum = summary(session.score);
   const others = past.filter((p) => p.id !== session.id);
@@ -217,10 +257,20 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       onStart={(p, n, o) => {
         pressRef.current = many;
         room.startSession(p, n, o);
-        // (at one table: with the form open on a tablet or laptop, the hand starts below the fold. MultiTables has its own.)
-        if (!many) bringIntoView(tableRef.current);
+        // (at one table: with the form open on a tablet or laptop, the hand starts below the fold, and the field Enter
+        // started it from would keep the table's keys. MultiTables has its own.)
+        if (!many) {
+          if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
+          bringIntoView(tableRef.current);
+        }
       }}
     />
+  );
+
+  const score = (
+    <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct}>
+      <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
+    </ScoreStrip>
   );
 
   return (
@@ -264,9 +314,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <ModePicker modes={["quick", "accurate"]} />
         <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
         <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
-      </div>
       {!many && (
-        <details className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+        <details ref={gameRef} className="min-w-0 flex-1 basis-72 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">
             Game · {session.players}-max · {session.stack}bb
             {session.opts.pushFold ? " · push/fold" : ""}
@@ -275,14 +324,16 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
+          <p className="mt-2 text-xs text-muted">{OPPONENTS}</p>
         </details>
       )}
 
       {many && (
-        <details className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+        <details ref={gameRef} className="min-w-0 flex-1 basis-72 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
             <p className="text-xs text-muted">
+              {OPPONENTS}{" "}
               {session.opts.exploit
                 ? "Above one table Seat decides where you sit, and the board filter here waits until you're back at one table. An exploit session keeps its pot and its profile at every table."
                 : "Above one table Spots and Seat decide what's dealt, so Your seat, Play's kinds of pot and Carry chips here wait until you're back at one table. Preflop only still counts."}
@@ -291,13 +342,9 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           </div>
         </details>
       )}
+      </div>
       {createPortal(setup, home)}
 
-      <div className="order-last md:order-none">
-        <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct}>
-          <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
-        </ScoreStrip>
-      </div>
       {snap.keptRead && (
         <p role="status" className="text-sm text-warn">
           {keptNote(snap.keptRead)}
@@ -306,36 +353,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
 
       {/* (while a link is being asked about, a key answers that, not the table) */}
       <div ref={tableRef} className="scroll-mt-14">
-        {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active && !asking} />}
+        {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} side={score} /> : <OneTable room={room} snap={snap} active={active && !asking} side={score} />}
       </div>
 
-      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-        <summary className="cursor-pointer">How this table works</summary>
-        <div className="mt-1">
-          {many ? (
-            <p className="text-sm text-muted">
-              Several tables, one score across them all. Opponents play the charts preflop, then the solver, or betting rules on a flop or turn with five or more still in. The table that needs
-              you comes to the front and the solver answers one table at a time. Your options are the solver&rsquo;s actions at your spot; the grade and what answered show on the table and beside it once you&rsquo;ve acted. Keys: 1&ndash;9 your options, F, C or X fold, check or
-              call, S the next waiting table, Enter or Space deal finished tables now (each deals by itself otherwise), K keeps the last finished hand in Analyze. Hint, Reveal, Previous and
-              retrying a decision are at one table only, as each belongs to one spot and this page shows several.
-            </p>
-          ) : (
-            <p className="text-sm text-muted">
-              Each opponent plays its actual cards: from the charts preflop, then the solver&rsquo;s mix, or betting rules on a flop or turn with five or more still in. Your options are the
-              solver&rsquo;s actions at your spot;
-              the grade and the answer show once you&rsquo;ve acted. Your seat moves one place each hand, unless you pick one; preflop only, a hand stops as the
-              preflop closes; one kind of pot (single-raised, 3-bet, blind vs blind), your preflop is played for you from the charts, the hand dealt again until
-              it reaches the flop heads-up as that pot, and you play from the flop. Push/fold deals 10 to 12bb, where you jam or fold, or call or fold a jam, against the push/fold model, and an all-in runs out.
-              Tournament sets the prizes and each seat&rsquo;s stack, every hand starts from them, and the answers are in chip EV or prize equity, kept apart in History and Review. In one kind of pot, Exploit grades you against the best response to an assumed profile, kept apart too. With an ante or a straddle, preflop is answered from the engine&rsquo;s chart
-              for that game (the 100bb chart moved by its solves of the game: still the charts, approximate). With chips carried (a ring game), each player&rsquo;s
-              chips go on to the next hand, a seat under a quarter of the stack rebuying to it; after your fold, the others&rsquo; go as if they checked it down. Up to
-              four tables at once: pick how many under Tables. Keys: 1&ndash;9 answer, Enter or Space for the next hand, K keeps it in Analyze. Hint says what the spot is and what a call
-              costs. Reveal shows the answer for your hand, and what you do after it isn&rsquo;t graded. Under Recent decisions, Previous steps back through this session&rsquo;s graded
-              decisions, and a retry is graded and shown but changes nothing.
-            </p>
-          )}
-        </div>
-      </details>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
         <ul className="mt-2 space-y-1">
@@ -382,12 +403,13 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           </ul>
         </section>
       )}
+      </div>
     </div>
   );
 }
 
 /** Today's page, one table: the seats and board, your move, your last decision, the hand's log and your decisions. */
-function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; active: boolean }) {
+function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot; active: boolean; side: ReactNode }) {
   const { session, tables, kept } = snap;
   const { hand, answer, failed, error, last, lastRange } = tables[0]!;
   const shown = answer && gradedOn(hand, answer);
@@ -405,18 +427,24 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
   // (one spot of one hand: a hint or a Reveal's table goes as the hand moves on)
   const spotKey = `${hand.seed}|${hand.n}|${hand.shown}|${hand.decisions.length}`;
 
-  // keys: 1–9 take your options, Enter or Space the next hand, K keeps the hand in Analyze; none under an open retry,
-  // whose options look the same and whose press must not play a move here
-  useHandKeys(active && !retrying, (e, tag) => {
-    if (phase.kind === "hero" && answer && /^[1-9]$/.test(e.key)) {
-      const i = Number(e.key) - 1;
-      if (i < optionsAt(hand, answer, sim).length) room.choose(i);
-    } else if (phase.kind === "over" && hand.result) {
+  // keys (keys.ts): 1–9, F, C/X, R/B, A your options; Enter, Space or N the next hand, O runs it out, K keeps the hand in
+  // Analyze; G the last decision's range; H and Shift+H are HintReveal's. None under an open retry, whose options look
+  // the same and whose press must not play a move here
+  const keyable = active && !retrying;
+  useHandKeys(keyable, (e, tag) => {
+    const k = e.key.toLowerCase();
+    if (k === "g" && lastRange) return setRangeOpen((o) => !o);
+    if (phase.kind === "hero" && answer) {
+      const i = optionFromKey(e.key, optionsAt(hand, answer, sim).map((a) => a.action));
+      if (i >= 0) room.choose(i);
+    } else if (hand.result && (phase.kind === "over" || hand.run)) {
       // (Enter or Space on a focused button or link is that control's own)
-      if ((e.key === "Enter" || e.key === " ") && !/^(BUTTON|A|SUMMARY)$/.test(tag)) {
+      if (isNextKey(e.key)) {
+        if (k !== "n" && /^(BUTTON|A|SUMMARY)$/.test(tag)) return;
         e.preventDefault();
         room.nextHand();
-      } else if (e.key.toLowerCase() === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) room.keep();
+      } else if (k === "o" && runKind(hand, sim)) room.runOut();
+      else if (k === "k" && (kept?.key !== keyOf(session, hand) || kept.st === "error")) room.keep();
     }
   });
   // once the hand is over, the next one is a key away
@@ -425,188 +453,198 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
     if (hand.result && active) nextRef.current?.focus({ preventScroll: true });
   }, [hand.result, active]);
 
+  // (wide: the table and your move on the left, what you've done on the right; narrow: one under the other)
   return (
-    <>
-      <section aria-label="Table" className="space-y-3 rounded-lg border border-border bg-surface p-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div role="group" aria-label="Board" className="flex gap-1">
-            {hand.board.map((c, i) =>
-              i < boardShown(hand) ? (
-                <PlayingCard key={i} card={c} />
-              ) : (
-                <span key={i} aria-hidden className="inline-block h-11 w-8 rounded border border-dashed border-border" />
-              ),
-            )}
+    <div className="space-y-3 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-4 lg:space-y-0">
+      <div className="min-w-0 space-y-3">
+        <section aria-label="Table" className="space-y-3 rounded-lg border border-border bg-surface p-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div role="group" aria-label="Board" className="flex gap-1">
+              {hand.board.map((c, i) =>
+                i < boardShown(hand) ? (
+                  <PlayingCard key={i} card={c} />
+                ) : (
+                  <span key={i} aria-hidden className="inline-block h-11 w-8 rounded border border-dashed border-border" />
+                ),
+              )}
+            </div>
+            <div className="text-sm">
+              <span className="text-muted">Pot </span>
+              <span className="font-mono">{fmt(sim.pot)}bb</span>
+            </div>
+            <span className="flex-1" />
+            <span className="text-xs text-muted">
+              Hand {hand.n + 1} · {hand.players === 2 ? "heads-up" : `${hand.players}-max`} · {hand.stack}bb
+              {hand.ante ? ` · ante ${hand.ante}` : ""}
+              {hand.straddle ? " · straddle" : ""}
+              {hand.pushFold ? " · push/fold" : ""}
+              {hand.tournament ? ` · ${gameLabel(hand.tournament)}` : ""}
+              {hand.exploit ? ` · exploiting ${assumedWords(hand.exploit)}` : ""}
+              {hand.rake ? ` · rake ${hand.rake.pct}%${hand.rake.cap ? ` (cap ${hand.rake.cap}bb)` : ""}` : ""}
+              {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
+            </span>
           </div>
-          <div className="text-sm">
-            <span className="text-muted">Pot </span>
-            <span className="font-mono">{fmt(sim.pot)}bb</span>
-          </div>
-          <span className="flex-1" />
-          <span className="text-xs text-muted">
-            Hand {hand.n + 1} · {hand.players === 2 ? "heads-up" : `${hand.players}-max`} · {hand.stack}bb
-            {hand.ante ? ` · ante ${hand.ante}` : ""}
-            {hand.straddle ? " · straddle" : ""}
-            {hand.pushFold ? " · push/fold" : ""}
-            {hand.tournament ? ` · ${gameLabel(hand.tournament)}` : ""}
-            {hand.exploit ? ` · exploiting ${assumedWords(hand.exploit)}` : ""}
-            {hand.rake ? ` · rake ${hand.rake.pct}%${hand.rake.cap ? ` (cap ${hand.rake.cap}bb)` : ""}` : ""}
-            {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
-          </span>
-        </div>
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
-          {seatsOf(hand.players).map((p) => (
-            <SeatView key={p} hand={hand} sim={sim} p={p} />
-          ))}
-        </ul>
-        {hand.stacks && !hand.tournament && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
-        {hand.tournament && playsOn(session.opts) && <PlayedOut hand={hand} sim={sim} onRestart={() => room.nextHand(true)} />}
-      </section>
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
+            {seatsOf(hand.players).map((p) => (
+              <SeatView key={p} hand={hand} sim={sim} p={p} />
+            ))}
+          </ul>
+          {hand.stacks && !hand.tournament && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
+          {hand.tournament && playsOn(session.opts) && <PlayedOut hand={hand} sim={sim} onRestart={() => room.nextHand(true)} />}
+        </section>
 
-      <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">
-        {alert && (
-          <div role="alert" className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger">
-            {alert}{" "}
-            {moving && (
-              <button type="button" className="underline" onClick={() => room.retry()}>
-                Try again
-              </button>
-            )}
-            {moving && failed && (
-              // (their move, not yours: it goes in the hand's line and never in your decisions)
-              <button type="button" className="ml-3 underline" onClick={() => room.playOn()}>
-                Play on: {seatLabel(moving.seat, hand.players)} checks or calls (not a solve)
-              </button>
-            )}
-          </div>
-        )}
-        {seeking(hand) && !alert && (
-          <p role="status" className="flex items-center gap-2 text-sm text-muted">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            Dealing {potLabel(hand.pot!)}: the preflop is played for you
-            {hand.tries ? ` (deal ${hand.tries + 1})` : ""}…
-          </p>
-        )}
-        {phase.kind === "villain" && !alert && !seeking(hand) && (
-          <p role="status" className="flex items-center gap-2 text-sm text-muted">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            {seatLabel(phase.seat, hand.players)} is thinking…
-          </p>
-        )}
-        {phase.kind === "deal" && <p className="text-sm text-muted">Dealing the {phase.street}…</p>}
-        {phase.kind === "hero" && !answer && !failed && (
-          <p role="status" className="flex items-center gap-2 text-sm">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            {answering(sim, hand)} so your move can be graded…
-            <span className="text-muted">(the first answer starts the engine)</span>
-          </p>
-        )}
-        {phase.kind === "hero" && answer && (
-          <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
-            {optionsAt(hand, answer, sim).map((a, i) => (
-              <button
-                key={a.action}
-                type="button"
-                onClick={() => room.choose(i)}
-                className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:bg-surface-3"
-              >
-                {i < 9 && (
-                  <span aria-hidden className="mr-1.5 text-xs text-faint">
-                    {i + 1}
+        <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">
+          {alert && (
+            <div role="alert" className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger">
+              {alert}{" "}
+              {moving && (
+                <button type="button" className="underline" onClick={() => room.retry()}>
+                  Try again
+                </button>
+              )}
+              {moving && failed && (
+                // (their move, not yours: it goes in the hand's line and never in your decisions)
+                <button type="button" className="ml-3 underline" onClick={() => room.playOn()}>
+                  Play on: {seatLabel(moving.seat, hand.players)} checks or calls (not a solve)
+                </button>
+              )}
+            </div>
+          )}
+          {seeking(hand) && !alert && (
+            <p role="status" className="flex items-center gap-2 text-sm text-muted">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+              Dealing {potLabel(hand.pot!)}: the preflop is played for you
+              {hand.tries ? ` (deal ${hand.tries + 1})` : ""}…
+            </p>
+          )}
+          {phase.kind === "villain" && !alert && !seeking(hand) && (
+            <p role="status" className="flex items-center gap-2 text-sm text-muted">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+              {seatLabel(phase.seat, hand.players)} is thinking…
+            </p>
+          )}
+          {phase.kind === "deal" && <p className="text-sm text-muted">Dealing the {phase.street}…</p>}
+          {phase.kind === "hero" && !answer && !failed && (
+            <p role="status" className="flex items-center gap-2 text-sm">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+              {answering(sim, hand)} so your move can be graded…
+              <span className="text-muted">(the first answer starts the engine)</span>
+            </p>
+          )}
+          {phase.kind === "hero" && answer && (
+            <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
+              {optionsAt(hand, answer, sim).map((a, i) => (
+                <button
+                  key={a.action}
+                  type="button"
+                  onClick={() => room.choose(i)}
+                  className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:bg-surface-3"
+                >
+                  {i < 9 && (
+                    <span aria-hidden className="mr-1.5 text-xs text-faint">
+                      {i + 1}
+                    </span>
+                  )}
+                  {optionLabel(a.action, a.amount_bb)}
+                </button>
+              ))}
+            </div>
+          )}
+          {phase.kind === "hero" && (
+            <HintReveal
+              key={spotKey}
+              keys={keyable}
+              hint={() => handHint(hand, sim)}
+              source={HINT_SOURCE}
+              onReveal={answer ? () => room.reveal() : null}
+              revealed={
+                hand.revealed && answer ? (
+                  <RevealedMix mix={mixOf(shown!.data)} provenance={modelled(hand, shown!.provenance) ?? shown!.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${shown!.pfWhy ? `Not by the preflop solve here: ${shown!.pfWhy} ` : ""}${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
+                ) : null
+              }
+            />
+          )}
+          {phase.kind === "hero" && failed && (
+            <div className="space-y-2 text-sm">
+              <p role="alert" className="text-danger">
+                No answer to grade this spot against: {failed}{" "}
+                <button type="button" className="underline" onClick={() => room.retry()}>
+                  Ask again
+                </button>
+              </p>
+              <FallbackMoves hand={hand} onMove={(a) => room.ungraded(a)} />
+            </div>
+          )}
+          {hand.result && (phase.kind === "over" || hand.run) && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p role="status" className="text-sm">
+                {hand.result.folded
+                  ? "You folded"
+                  : hand.result.cut
+                    ? hand.pushFold
+                      ? "You see the flop: a push/fold hand stops here"
+                      : "You see the flop: preflop only, the hand stops here"
+                    : hand.result.net > 0
+                      ? "You won"
+                      : hand.result.net < 0
+                        ? "You lost"
+                        : "You broke even"}
+                {hand.result.net !== 0 && (
+                  <span className="font-mono">
+                    {hand.result.folded ? " · −" : " "}
+                    {fmt(Math.abs(hand.result.net))}bb
                   </span>
                 )}
-                {optionLabel(a.action, a.amount_bb)}
-              </button>
-            ))}
-          </div>
-        )}
-        {phase.kind === "hero" && (
-          <HintReveal
-            key={spotKey}
-            hint={() => handHint(hand, sim)}
-            source={HINT_SOURCE}
-            onReveal={answer ? () => room.reveal() : null}
-            revealed={
-              hand.revealed && answer ? (
-                <RevealedMix mix={mixOf(shown!.data)} provenance={modelled(hand, shown!.provenance) ?? shown!.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${shown!.pfWhy ? `Not by the preflop solve here: ${shown!.pfWhy} ` : ""}${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
-              ) : null
-            }
-          />
-        )}
-        {phase.kind === "hero" && failed && (
-          <div className="space-y-2 text-sm">
-            <p role="alert" className="text-danger">
-              No answer to grade this spot against: {failed}{" "}
-              <button type="button" className="underline" onClick={() => room.retry()}>
-                Ask again
-              </button>
-            </p>
-            <FallbackMoves hand={hand} onMove={(a) => room.ungraded(a)} />
-          </div>
-        )}
-        {hand.result && (phase.kind === "over" || hand.run) && (
-          <div className="flex flex-wrap items-center gap-3">
-            <p role="status" className="text-sm">
-              {hand.result.folded
-                ? "You folded"
-                : hand.result.cut
-                  ? hand.pushFold
-                    ? "You see the flop: a push/fold hand stops here"
-                    : "You see the flop: preflop only, the hand stops here"
-                  : hand.result.net > 0
-                    ? "You won"
-                    : hand.result.net < 0
-                      ? "You lost"
-                      : "You broke even"}
-              {hand.result.net !== 0 && (
-                <span className="font-mono">
-                  {hand.result.folded ? " · −" : " "}
-                  {fmt(Math.abs(hand.result.net))}bb
-                </span>
+                {hand.result.says && <span className="text-muted"> · {hand.result.says}</span>}
+                <RunText hand={hand} sim={sim} />
+              </p>
+              {readWords(hand) && <p className="basis-full text-xs text-muted">{readWords(hand)}</p>}
+              {runKind(hand, sim) && (
+                <button
+                  type="button"
+                  onClick={() => room.runOut()}
+                  title={
+                    runKind(hand, sim) === "played"
+                      ? "The others play the hand on by their strategies to its end; your result stays as at your fold"
+                      : "Everyone's cards and the rest of the board"
+                  }
+                  className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
+                >
+                  {runKind(hand, sim) === "played" ? "Run it out" : "Show hands"}
+                  <Kbd>O</Kbd>
+                </button>
               )}
-              {hand.result.says && <span className="text-muted"> · {hand.result.says}</span>}
-              <RunText hand={hand} sim={sim} />
-            </p>
-            {readWords(hand) && <p className="basis-full text-xs text-muted">{readWords(hand)}</p>}
-            {runKind(hand, sim) && (
-              <button
-                type="button"
-                onClick={() => room.runOut()}
-                title={
-                  runKind(hand, sim) === "played"
-                    ? "The others play the hand on by their strategies to its end; your result stays as at your fold"
-                    : "Everyone's cards and the rest of the board"
-                }
-                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
-              >
-                {runKind(hand, sim) === "played" ? "Run it out" : "Show hands"}
+              <button ref={nextRef} type="button" onClick={() => room.nextHand()} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
+                Next hand
+                <Kbd>N</Kbd>
               </button>
-            )}
-            <button ref={nextRef} type="button" onClick={() => room.nextHand()} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
-              Next hand
-            </button>
-            <KeepHand
-              kept={kept?.key === keyOf(session, hand) ? kept : null}
-              all={keepAll}
-              onKeep={() => room.keep()}
-              onAll={(all) => {
-                setSettings({ keepHands: all });
-                if (all && kept?.key !== keyOf(session, hand)) room.keep();
-              }}
-            />
-          </div>
+              <KeepHand
+                kept={kept?.key === keyOf(session, hand) ? kept : null}
+                all={keepAll}
+                onKeep={() => room.keep()}
+                onAll={(all) => {
+                  setSettings({ keepHands: all });
+                  if (all && kept?.key !== keyOf(session, hand)) room.keep();
+                }}
+              />
+            </div>
+          )}
+        </section>
+
+        {/* (the hand and your recent decisions under the table, in the room the move leaves, so the right column's
+            last decision isn't followed by a scroll) */}
+        <HandLog hand={hand} />
+        {session.review.length > 0 && <ReviewMistakes review={session.review} retry={retry} />}
+      </div>
+
+      <aside aria-label="Your results" className="min-w-0 space-y-3">
+        {side}
+        {last && (
+          <DecisionView d={last} players={hand.players} spot={session.review.find((e) => e.d === last)}>
+            {lastRange && <RangeView key={`${last.study}|${lastRange.cls}`} r={lastRange} open={rangeOpen} onToggle={setRangeOpen} />}
+          </DecisionView>
         )}
-      </section>
-
-      {last && (
-        <DecisionView d={last} players={hand.players} spot={session.review.find((e) => e.d === last)}>
-          {lastRange && <RangeView key={`${last.study}|${lastRange.cls}`} r={lastRange} open={rangeOpen} onToggle={setRangeOpen} />}
-        </DecisionView>
-      )}
-
-      <HandLog hand={hand} />
-
-      {session.review.length > 0 && <ReviewMistakes review={session.review} retry={retry} />}
-    </>
+      </aside>
+    </div>
   );
 }

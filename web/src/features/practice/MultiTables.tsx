@@ -6,14 +6,15 @@
 // they sit directly in the wrapper that holds both, with the dock stuck to the bottom. There's no pace and no Run it out
 // here, and a finished table deals again by itself. How many tables there are is simply how many the Room has (the kept doc
 // brings them back), so no setting can say otherwise.
-import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref, type RefObject } from "react";
 import { rowKeys } from "@/components/rowKeys";
-import { bb, kindOf, pct } from "@/components/actions";
+import { bb, pct } from "@/components/actions";
 import { GRADE_WAYS, sourcesText, WAY_WORDS, wayFigures } from "@/features/history/history";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSettings } from "@/state/settings";
 import { MAX_TABLES } from "./keep";
 import { DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, RangeView, ReviewMistakes, signed, useHandKeys } from "./PracticeParts";
+import { isNextKey, optionFromKey } from "./keys";
 import { PRIZE_UNIT } from "@/solver/provenance";
 import { anyHandOnly, INSTANT_FLOPS, isPotDrill, phaseOf, POT_DRILLS, simOf } from "./practice";
 import { optionsAt } from "./pfGrade";
@@ -246,7 +247,7 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
             <p className="min-h-4 text-xs text-muted">
               {more > 0 && `${more} more waiting`}
               <span className="hidden sm:inline">
-                {more > 0 ? " · S next table · " : ""}F fold · C or X check or call · 1&ndash;{Math.min(options.length, 9)} your options
+                {more > 0 ? " · S next table" : ""}
               </span>
             </p>
           </>
@@ -323,7 +324,7 @@ function TableRow({ i, t, front }: { i: number; t: RoomTable; front: boolean }) 
 
 /** The tables, the dock and the rail (`snap`: the Room's, which the page holds). `active`: its tab is the one shown (its
  * keys work only then). `pressRef`: set by a press above that brings tables up, as what had focus may have gone with it. */
-export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap: RoomSnapshot; active: boolean; pressRef: RefObject<boolean> }) {
+export function MultiTables({ room, snap, active, pressRef, side }: { room: Room; snap: RoomSnapshot; active: boolean; pressRef: RefObject<boolean>; side?: ReactNode }) {
   const { session, tables, kept, focus, queue, ended } = snap;
   const keepAll = useSettings((s) => s.keepHands);
   const setSettings = useSettings((s) => s.set);
@@ -364,26 +365,29 @@ export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap
     top.current?.scrollIntoView?.({ block: "start" });
   }, [session.id, tables.length, pressRef]);
 
-  // F, C and X go by what the option is, so they stay put when the order flips; 1–9 by its place; S the next waiting
-  // table; Enter or Space deal finished tables now (on a focused control, it's that control's own, and with nothing
-  // finished Space still doesn't scroll the page out from under the tiles); K the last finished hand
+  // keys.ts: F, C/X, R/B and A go by what the option is, so they stay put when the order flips; 1–9 by its place; S the
+  // next waiting table; Enter, Space or N deal finished tables now (Enter or Space on a focused control is that control's
+  // own, and with nothing finished Space still doesn't scroll the page out from under the tiles); K the last finished
+  // hand; G the last decision's range
   useHandKeys(active, (e, tag) => {
     const k = e.key.toLowerCase();
     if (k === "s") return room.skip();
+    if (k === "g") {
+      if (range) setRangeOpen((o) => !o);
+      return;
+    }
     if (k === "k") {
       if (ended && (!keptEnded || keptEnded.st === "error")) room.keep();
       return;
     }
-    if (e.key === "Enter" || e.key === " ") {
-      if (/^(BUTTON|A|SUMMARY)$/.test(tag)) return;
+    if (isNextKey(e.key)) {
+      if (k !== "n" && /^(BUTTON|A|SUMMARY)$/.test(tag)) return;
       e.preventDefault();
       return room.dealFinished();
     }
     if (!front.turnKey) return;
-    const options = optionsAt(front.hand, front.answer);
-    const kinds = options.map((a) => kindOf(a.action));
-    const i = /^[1-9]$/.test(e.key) ? Number(e.key) - 1 : k === "f" ? kinds.indexOf("fold") : k === "c" || k === "x" ? kinds.findIndex((a) => a === "call" || a === "check") : -1;
-    if (i >= 0 && i < options.length) room.choose(focus, front.turnKey, i);
+    const i = optionFromKey(e.key, optionsAt(front.hand, front.answer).map((a) => a.action));
+    if (i >= 0) room.choose(focus, front.turnKey, i);
   });
 
   return (
@@ -431,6 +435,7 @@ export function MultiTables({ room, snap, active, pressRef }: { room: Room; snap
         </div>
 
         <aside aria-label="Your results" className="min-w-0 space-y-3">
+          {side}
           {/* (the phone's opens under its tabs) */}
           {view ? (
             <div className={`hidden sm:block ${queue.includes(focus) ? "opacity-60" : ""}`}>{view}</div>

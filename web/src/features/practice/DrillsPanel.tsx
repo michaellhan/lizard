@@ -58,7 +58,8 @@ import { drillText } from "./copyForAi";
 import { HAND_GROUPS, handLabel, isHandKey } from "./handFilter";
 import { dealtFrom } from "./texture";
 import { drillHint, DRILL_HINT_SOURCE } from "./hint";
-import { CopyForAi, HintReveal, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { CopyForAi, HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { isNextKey, optionFromKey } from "./keys";
 import { LiveDrill } from "./LiveDrill";
 import { PastDrills } from "./PastDrills";
 import { isLiveTurnView, isRiverView, LIVE_TURN_VIEWS, liveViewLabel, RIVER_VIEWS, type LiveStreet, type LiveView } from "./liveDeal";
@@ -151,8 +152,7 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        {live ? "One decision, dealt again and again from the library's stored lines and answered by a live solve while you wait." : "One decision, dealt again and again from the precomputed library: answered at once, with no solve."} The flop is drawn by how often it comes up, your
-        hand by how often you&rsquo;d hold it here, among the hands you ask for. Keys: 1&ndash;9 answer, Enter or Space for the next hand.
+        {live ? "One decision, dealt again and again from the library's stored lines, answered by a live solve while you wait." : "One decision, dealt again and again from the precomputed library, answered at once."}
       </p>
       <div className="flex flex-wrap items-start gap-2">
         <form aria-label="Drill" className="flex flex-1 flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
@@ -465,9 +465,12 @@ function SpotDrill({
       const { pr, graded, choose, next } = keyState.current;
       const tag = (e.target as HTMLElement | null)?.tagName ?? "";
       if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
-      if (pr && !graded && /^[1-9]$/.test(e.key) && Number(e.key) <= pr.names.length) choose(Number(e.key) - 1);
+      if (e.repeat) return;
+      // (keys.ts: by place or by what the option is)
+      const i = pr && !graded ? optionFromKey(e.key, pr.names) : -1;
+      if (i >= 0) choose(i);
       // (Enter or Space on a focused button or link is that control's own)
-      else if (graded && (e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
+      else if (graded && isNextKey(e.key) && (e.key.toLowerCase() === "n" || !/^(BUTTON|A)$/.test(tag))) {
         e.preventDefault();
         next();
       }
@@ -528,6 +531,8 @@ function SpotDrill({
         )}
       </section>
 
+      {/* (wide: the hand on the left, its answer on the right once you've picked) */}
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
       <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
         {screening ? (
           <p className="text-sm text-muted">Looking for flops that can hold {handLabel(hand!)}…</p>
@@ -584,6 +589,7 @@ function SpotDrill({
             {!graded && (
               <HintReveal
                 key={dealKey}
+                keys
                 hint={() => drillHint(shown.pr)}
                 source={DRILL_HINT_SOURCE}
                 onReveal={() => setPeeked(dealKey)}
@@ -665,6 +671,7 @@ function SpotDrill({
           <div className="flex flex-wrap items-center gap-3">
             <button ref={nextRef} type="button" onClick={next} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
+              <Kbd>N</Kbd>
             </button>
             {link && (
               <Link to={link} className="text-accent hover:underline">
@@ -674,7 +681,9 @@ function SpotDrill({
           </div>
         </section>
       )}
+      </div>
 
+      <div className="grid items-start gap-4 lg:grid-cols-2">
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
         <ul className="mt-2 space-y-1">
@@ -692,6 +701,7 @@ function SpotDrill({
       </details>
 
       <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />
+      </div>
     </div>
   );
 }

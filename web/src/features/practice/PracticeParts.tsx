@@ -23,7 +23,7 @@ import { exploitNote, GRADED_BY_READ } from "./exploit";
 
 const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
 import { PF_GRADED, pfWords } from "./pfGrade";
-import { CopyForAi, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
+import { CopyForAi, Kbd, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
 import { FIELD_RATE, LEVEL_HANDS, LEVEL_RISE, leftOf, levelOf } from "./tournamentPlay";
@@ -74,6 +74,7 @@ export function KeepHand({ kept, all, onKeep, onAll }: { kept: Kept | null; all:
           className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50"
         >
           {kept?.st === "saving" ? "Keeping…" : "Keep in Analyze"}
+          <Kbd>K</Kbd>
         </button>
       )}
       {kept?.st === "error" && (

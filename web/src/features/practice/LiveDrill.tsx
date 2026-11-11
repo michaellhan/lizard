@@ -24,7 +24,8 @@ import { pick, turnCandidates, type TextureFilter } from "./drills";
 import { PastDrills } from "./PastDrills";
 import { handLabel } from "./handFilter";
 import { liveHint, LIVE_HINT_SOURCE } from "./hint";
-import { CopyForAi, HintReveal, MixTable, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { CopyForAi, HintReveal, Kbd, MixTable, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { isNextKey, optionFromKey } from "./keys";
 import { afterLive, freshLiveSession, gradeLive, liveActionLabel, liveMistake, liveMode, liveDrillKey, liveProblem, liveRecord, liveStudyLink, readLive, type LiveAnswer, type LiveProblem, type LiveSession, type LiveStreet, type LiveView } from "./liveDeal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -167,8 +168,11 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName ?? "";
       if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
-      if (answer && !graded && /^[1-9]$/.test(e.key) && Number(e.key) <= answer.mix.length) choose(Number(e.key) - 1);
-      else if ((graded || told?.st === "refused") && (e.key === "Enter" || e.key === " ") && !/^(BUTTON|A)$/.test(tag)) {
+      if (e.repeat) return;
+      // (keys.ts: by place or by what the option is)
+      const i = answer && !graded ? optionFromKey(e.key, answer.mix.map((a) => a.action)) : -1;
+      if (i >= 0) choose(i);
+      else if ((graded || told?.st === "refused") && isNextKey(e.key) && (e.key.toLowerCase() === "n" || !/^(BUTTON|A)$/.test(tag))) {
         e.preventDefault();
         next();
       }
@@ -218,6 +222,8 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
         )}
       </section>
 
+      {/* (wide: the hand on the left, its answer on the right once you've picked) */}
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
       <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
         {noDraws ? (
           <p role="status" className="text-sm text-muted">
@@ -285,6 +291,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
             {!graded && told?.st !== "refused" && (
               <HintReveal
                 key={dealKey}
+                keys
                 hint={() => liveHint(shown.pr)}
                 source={LIVE_HINT_SOURCE}
                 onReveal={answer ? () => setPeeked(dealKey) : null}
@@ -339,6 +346,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
           <div className="flex flex-wrap items-center gap-3">
             <button ref={nextRef} type="button" onClick={next} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
               Next hand
+              <Kbd>N</Kbd>
             </button>
             {link && (
               <Link to={link} className="text-accent hover:underline">
@@ -348,7 +356,9 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
           </div>
         </section>
       )}
+      </div>
 
+      <div className="grid items-start gap-4 lg:grid-cols-2">
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
         <ul className="mt-2 space-y-1">
@@ -364,6 +374,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
       </details>
 
       <PastDrills past={past} current={session.id} history="/history?kind=practice" historyLabel="Every Practice session" />
+      </div>
     </div>
   );
 }

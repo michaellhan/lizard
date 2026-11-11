@@ -1,6 +1,6 @@
 // Hint, Reveal and Copy for AI: what a decision offers beside the options. Each draws what it's given, for full hands
 // and the drills alike. Reveal's rule is kept by whoever holds the decision (room.ts, DrillsPanel.tsx); this says it.
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { bb, pct } from "@/components/actions";
 import { whoOf } from "@/grading/grade";
@@ -13,6 +13,8 @@ type Mix = Decision["mix"];
 
 /** What's said once the answer is shown, and after the move. */
 export const REVEAL_NOTE = "You saw the answer first, so this decision isn't graded. It doesn't count toward your score, your streak, History or Review.";
+/** Reveal's rule, on its button. */
+export const REVEAL_TIP = "Shows the answer for your hand; what you do after it isn't graded.";
 /** A hand's chips are what happened at the table: only the decision is left out. */
 export const REVEAL_CHIPS = "The hand still counts in Hands and Net.";
 
@@ -61,20 +63,36 @@ export function RevealedMix({ mix, provenance, labelOf, note }: { mix: Mix; prov
 
 /** Hint and Reveal at a decision. `hint`: the words, made as it's asked for. `onReveal`: null until there's an answer in
  * hand to show. `revealed`: what's shown once it's been pressed. Mounted afresh for each spot. */
-export function HintReveal({ hint, source, onReveal, revealed }: { hint: () => string; source: string; onReveal: (() => void) | null; revealed: ReactNode }) {
+export function HintReveal({ hint, source, onReveal, revealed, keys = false }: { hint: () => string; source: string; onReveal: (() => void) | null; revealed: ReactNode; keys?: boolean }) {
   const [said, setSaid] = useState<string | null>(null);
+  // `keys`: H the hint, Shift+H Reveal (keys.ts), while the decision is the one in front (not in a field, or under a retry)
+  const now = useRef({ said, hint, onReveal, revealed });
+  useEffect(() => {
+    now.current = { said, hint, onReveal, revealed };
+  });
+  useEffect(() => {
+    if (!keys) return;
+    const on = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return;
+      const c = now.current;
+      if (e.key === "h") setSaid(c.said === null ? c.hint() : null);
+      else if (e.key === "H" && !c.revealed) c.onReveal?.();
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [keys]);
   return (
     <div className="space-y-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" aria-expanded={said !== null} onClick={() => setSaid(said === null ? hint() : null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
-          Hint
+          Hint{keys && <Kbd>H</Kbd>}
         </button>
         {!revealed && (
           <>
-            <button type="button" disabled={!onReveal} onClick={() => onReveal?.()} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
-              Reveal
+            <button type="button" disabled={!onReveal} onClick={() => onReveal?.()} title={REVEAL_TIP} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
+              Reveal{keys && <Kbd>Shift+H</Kbd>}
             </button>
-            <span className="text-xs text-muted">Reveal shows the answer for your hand, and what you do after it isn&rsquo;t graded.</span>
           </>
         )}
       </div>
@@ -124,5 +142,14 @@ export function CopyForAi({ text }: { text: () => string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** A key's name beside a control, for the eye only (the control's name stays its label). */
+export function Kbd({ children }: { children: ReactNode }) {
+  return (
+    <kbd aria-hidden className="ml-1.5 hidden rounded border border-current/30 px-1 font-mono text-[0.65rem] opacity-70 sm:inline">
+      {children}
+    </kbd>
   );
 }

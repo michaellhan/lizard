@@ -441,6 +441,52 @@ describe("PracticePage", () => {
     await deleteImport(kept[0]!.importId);
   });
 
+  it("plays a whole hand from the keyboard: R raises, H the hint, G the range, N the next hand, D and ? the page, E the setup", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    await screen.findByRole("group", { name: "Your options" });
+    expect(screen.getByRole("button", { name: "Keyboard" })).toBeInTheDocument();
+
+    // ? the key list, and again to close it; H the hint, and again to close it
+    fireEvent.keyDown(window, { key: "?" });
+    expect(screen.getByRole("region", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "?" });
+    expect(screen.queryByRole("region", { name: "Keyboard shortcuts" })).toBeNull();
+    fireEvent.keyDown(window, { key: "h" });
+    expect(screen.getByRole("button", { name: "Hint" })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(window, { key: "h" });
+    expect(screen.getByRole("button", { name: "Hint" })).toHaveAttribute("aria-expanded", "false");
+
+    // R: the smallest raise (raise 2.5, the chart's best); on the flop B bets
+    fireEvent.keyDown(window, { key: "r" });
+    expect(within(await screen.findByRole("region", { name: "Last decision" })).getByText("Best")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "bet 33% (1.6bb)" });
+    fireEvent.keyDown(window, { key: "b" });
+    expect(await screen.findByText("You won")).toBeInTheDocument();
+
+    // N the next hand, even with focus on a button
+    fireEvent.keyDown(screen.getByRole("button", { name: "Next hand" }), { key: "n" });
+    expect(await screen.findByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+
+    // E opens the setup at its first field; Esc leaves it and the keys are back
+    fireEvent.keyDown(window, { key: "e" });
+    const field = document.activeElement as HTMLElement;
+    expect(field.closest("details")).toHaveAttribute("open");
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(document.activeElement).not.toBe(field);
+
+    // D: Drills, and back
+    fireEvent.keyDown(window, { key: "d" });
+    expect(screen.getByRole("tab", { name: "Drills" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(window, { key: "d" });
+    expect(screen.getByRole("tab", { name: "Full hands" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("keeps a finished hand in Analyze, and every hand once asked to", async () => {
     render(
       <MemoryRouter>
@@ -593,7 +639,7 @@ describe("PracticePage", () => {
   it("Reveal shows the mix for your hand from the answer in hand; the decision after it isn't graded, and the page says so", async () => {
     await headsUp();
     const before = askedSoFar().length;
-    expect(within(screen.getByRole("button", { name: "Reveal" }).parentElement!).getByText(/Reveal shows the answer for your hand, and what you do after it isn.t graded\./)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reveal" })).toHaveAttribute("title", "Shows the answer for your hand; what you do after it isn't graded.");
     fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
     const shown = screen.getByRole("group", { name: "Revealed answer" });
     expect(within(shown).getByRole("row", { name: /raise 2\.5 70\.0%/ })).toBeInTheDocument();
@@ -691,7 +737,7 @@ describe("PracticePage", () => {
     Reflect.deleteProperty(navigator, "clipboard");
   });
 
-  it("says Hint, Reveal and Previous are at one table only, and offers none above it", async () => {
+  it("offers no Hint or Reveal above one table", async () => {
     render(
       <MemoryRouter>
         <PracticePage pace={0} />
@@ -701,7 +747,6 @@ describe("PracticePage", () => {
     await screen.findByRole("tablist", { name: "Tables" });
     expect(screen.queryByRole("button", { name: "Reveal" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Hint" })).toBeNull();
-    expect(screen.getByText(/Hint, Reveal, Previous and retrying a decision are at one table only/)).toBeInTheDocument();
   });
 
   it("labels a size the solver's name doesn't say", () => {
