@@ -102,7 +102,7 @@ export function HistoryPage() {
         </p>
       ) : (
         <>
-          <div className="grid items-start gap-6 lg:grid-cols-2">
+          <div className="grid items-start gap-6 *:min-w-0 lg:grid-cols-2">
             <Lifetime totals={totals} />
             <PotTypes pots={pots} />
           </div>
@@ -344,7 +344,7 @@ function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTot
       {kind && kind !== "practice" && kind !== "drill" ? (
         <p className="text-sm text-muted">{kindLabel(kind)}: not split by seat or pot.</p>
       ) : (
-        <div className="grid items-start gap-4 2xl:grid-cols-2">
+        <div className="grid items-start gap-4 *:min-w-0 2xl:grid-cols-2">
           <SplitBlock t={seat} />
           <SplitBlock t={pot} />
         </div>

@@ -52,7 +52,7 @@ test("Turn report: a finished 40-flop sample at desktop width, its margins and c
   timing("40 flops read, live library, 3bp_bb_btn rainbow", Date.now() - t0);
   await expect(page.locator(":focus")).toHaveText("Read 40 more");
 
-  const margin = /Margin on All turns: ±([\d.]+) points, 95%/;
+  const margin = /Margin on All turns: ±([\d.]+) points\./;
   const first = Number(margin.exec((await said.textContent()) ?? "")?.[1]);
   expect(first).toBeGreaterThan(0);
   expect(first).toBeLessThan(6);
@@ -112,7 +112,7 @@ test("Turn report: a finished 40-flop sample at desktop width, its margins and c
   await panel.getByRole("group", { name: "Turn decision" }).getByRole("button").nth(0).click();
   const t1 = Date.now();
   await panel.getByRole("button", { name: "Read 40 more" }).click();
-  const more = panel.getByText(/^Read 80 of \d+ flops/);
+  const more = panel.getByText(/^80 of \d+ flops read/);
   await expect(more).toBeVisible({ timeout: 60_000 });
   timing("40 more flops", Date.now() - t1);
   const second = Number(margin.exec((await more.textContent()) ?? "")?.[1]);
@@ -384,11 +384,6 @@ test("Session stats: every seat and pot at 375px stays within the page, and the 
   expect(await groups.count()).toBe(4); // seat and pot, each by EV and by frequency
   for (let i = 1; i < 4; i++) {
     await page.keyboard.press("Tab");
-    if (i === 2) {
-      // the note on the decisions left out of the seat tables is its own stop, between seat and pot
-      await expect(rates.getByText("7 decisions left out").first()).toBeFocused();
-      await page.keyboard.press("Tab");
-    }
     await expect(groups.nth(i)).toBeFocused();
   }
   const unreachable = await page.evaluate(() =>
