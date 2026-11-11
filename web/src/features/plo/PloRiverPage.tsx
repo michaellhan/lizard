@@ -3,6 +3,7 @@
 // sizes aren't in the tree. The page says so, and every number under it sits under the solve's provenance. Loaded with its
 // route, so no PLO code is in the first download; the work is done in a worker.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { About } from "@/components/About";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { cardName, parseIds } from "@/engine/plo/cards";
@@ -137,10 +138,13 @@ export function PloRiverPage() {
     <div className="max-w-3xl space-y-5">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted">One street and every street after it, solved exactly at the sizes you list from the ranges you type: heads-up, nothing earlier solved, no rake.</p>
+        <About label="What it covers">
+        <p>
           One river, a turn and every river card after it, or a flop and every turn and river after it, solved exactly at the sizes you list, every combo of both ranges and every card they block. It covers the street you type and after: the ranges
           are the ones you type, no earlier street is solved, it&apos;s heads-up, pot limit&apos;s other sizes aren&apos;t in the tree, and there&apos;s no rake. A flop fits only narrow ranges: every turn and river after it is solved with it.
         </p>
+        </About>
       </header>
 
       <FromHistory
@@ -175,9 +179,9 @@ export function PloRiverPage() {
           <span className="text-muted">IP range, acts last</span>
           <input aria-label="IP range" value={ip} onChange={(e) => setIp(e.target.value)} className={inputClass} spellCheck={false} />
         </label>
-        <p className="text-xs text-muted">
-          A hand (AsKsQhJh) or a range, separated by commas: AAxx any two aces or more; JT98ds with a suit shape (ds double-suited, ss single-suited, r rainbow); random every hand; @25 a weight in percent.
-        </p>
+        <About label="How to write a range">
+          <p>A hand (AsKsQhJh) or a range, separated by commas: AAxx any two aces or more; JT98ds with a suit shape (ds double-suited, ss single-suited, r rainbow); random every hand; @25 a weight in percent.</p>
+        </About>
         <label className="block space-y-1 text-sm">
           <span className="text-muted">Board, five cards for a river, four for a turn, three for a flop</span>
           <input aria-label="Board" value={board} onChange={(e) => setBoard(e.target.value)} className={inputClass} spellCheck={false} />
@@ -242,10 +246,12 @@ export function PloRiverPage() {
             note={`Where the turn's betting closes with chips behind, each of the river cards that can come is solved as its own river at these sizes, in one solve with the ${isFlop ? "flop and turn" : "turn"}. All-in on the turn, every river card is a showdown.`}
           />
         )}
-        <p className="text-xs text-muted">
+        <About label="How sizes are read">
+        <p>
           Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises. A size is cut to the largest pot-limit bet, lifted to the smallest, and a raise&apos;s percent is of the pot after the call, so 100 is the pot-limit raise. The raise cap counts raises
           after the first bet. Chips one stack has over the other aren&apos;t in play.
         </p>
+        </About>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <label className="min-w-0 space-y-1">
             <span className="text-muted">Target, % of pot</span>
@@ -256,11 +262,13 @@ export function PloRiverPage() {
             <input aria-label="Time budget" inputMode="decimal" value={seconds} onChange={(e) => setSeconds(e.target.value)} className={inputClass} />
           </label>
         </div>
-        <p className="text-xs text-muted">
+        <About label="Limits">
+        <p>
           The target is at least {MIN_TARGET_PCT}%, the budget up to {MAX_SECONDS} s. A solve stops at whichever comes first and says which. A spot is refused, never sampled or grouped, over{" "}
           {(MAX_WORK / 1e6).toFixed(0)} million combos times ways a hand can end (a turn {(MAX_TURN_WORK / 1e6).toFixed(0)} million, counting every river&apos;s; a flop {(MAX_FLOP_WORK / 1e6).toFixed(0)} million, counting every turn&apos;s and river&apos;s), or about{" "}
           {(MAX_MEMORY_BYTES / 1e6).toFixed(0)} MB.
         </p>
+        </About>
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" disabled={running} className={buttonClass}>
             {isFlop ? "Solve this flop" : isTurn ? "Solve this turn" : "Solve this river"}

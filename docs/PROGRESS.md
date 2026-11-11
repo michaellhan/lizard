@@ -4950,3 +4950,12 @@ browser, in one file, except settings. A restore merges, and what you deleted st
 in the file and how a restore merges are under "What's in it, and how a restore merges". With nothing saved the page
 fits 1280×800 (1006px before). Saved rows are unchanged. UI only: tsc, eslint, `vitest run src/features/saved src/app`
 78 passed; checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.
+
+## 2026-11-11: PLO decluttered, and the rest of More looked at
+
+PLO flop, turn and river: the intro is one line that keeps what it leaves out ("heads-up, nothing earlier solved, no
+rake"); the full paragraph is under "What it covers". The range syntax, how sizes are read and the solve's limits are
+folds ("How to write a range", "How sizes are read", "Limits") rather than paragraphs between the fields, so Solve is
+on the first screen at 1280×800 (743px; the page was 930px). UI only: tsc, eslint, `vitest run src/features/plo` 24
+passed; checked in the browser. Reports, Ranges, Tournaments (Solve's form, already decluttered), PLO equity and
+Library were looked at in the browser and left alone: each already opens on its controls or its data.
