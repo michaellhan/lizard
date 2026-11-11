@@ -114,6 +114,10 @@ One merged format-2 library, because the solver worker reads a single base URL:
   `/gto-solver-library/`): 18 spots and 4 three-way spots;
 - the heads-up spots from the offline builds in `/Users/mhan/Desktop/projects/gtosolver/.work/hu-lib` and
   `.work/hu-lp-lib`, as far as they have got. Whether or not a build is running, its output is only ever read.
+- new spots from Lizard's breadth build in `library-build/sources/breadth` (`scripts/library/breadth.sh`,
+  `build_breadth.py`: 6-max flats, 3bet and 4bet pots the base lacks, and 8-max spots, which also answer 9-max).
+  They go in last, in the build's value order, each only while the stage stays 200 files under the file cap, so the
+  build can't make a publish fail. Their targets come from the source's `plan.json`.
 
 `lizard-library.json` at the site root records what each publish contained: per-spot flop counts, file count, and any
 flops left out by validation. Each spot also has a `target`, the flop count it is being built to, which the app's
