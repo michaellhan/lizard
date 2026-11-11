@@ -71,7 +71,11 @@ def depth_plans() -> dict[str, int]:
         from depths_build import BATCHES
     finally:
         sys.path.pop(0)
-    return {sid: flops for _name, spots, flops in BATCHES for sid in spots}
+    plans: dict[str, int] = {}
+    for b in BATCHES:
+        for sid in b.spots:
+            plans[sid] = max(plans.get(sid, 0), b.flops)
+    return plans
 
 
 def planned_flops() -> dict[str, int]:

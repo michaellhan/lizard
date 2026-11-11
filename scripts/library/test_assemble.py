@@ -239,10 +239,10 @@ class AssembleTest(unittest.TestCase):
             sys.path.remove(str(HERE))
         self.assertIn(assemble.SOURCES / "depths", assemble.FORMAT_SOURCES)
         plan = assemble.planned_flops()
-        for _name, spots, flops in BATCHES:
-            for sid in spots:
-                self.assertEqual(plan[sid], flops)
-                self.assertEqual(assemble.target_of(sid, 3, plan), flops)
+        for b in BATCHES:
+            for sid in b.spots:
+                self.assertEqual(plan[sid], b.flops)
+                self.assertEqual(assemble.target_of(sid, 3, plan), b.flops)
         self.assertEqual(plan["srp_btn_bb"], 1755)  # the default game's still from SPOT_FLOPS
 
     def test_sources_are_not_modified(self):
