@@ -12,11 +12,13 @@ const BASE = process.env.LIZARD_BASE ?? "/lizard/";
 // same-origin except the optional local Python solver, and the solver worker's Pyodide is same-origin too
 // (solver/pyodide/, scripts/pyodide/stage.mjs). This policy doesn't reach that worker, whose script has its own (none):
 // a <meta> tag binds only its page. frame-ancestors can't be set by <meta>; public/sw.js sends it as a header.
+// PostHog pageviews (index.html's /ph.js, michael-han.com's shared analytics script) load PostHog's script from
+// us-assets.i.posthog.com and send to us.i.posthog.com: those two hosts only.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://us-assets.i.posthog.com",
   "worker-src 'self' blob:",
-  "connect-src 'self' http://127.0.0.1:* http://localhost:*",
+  "connect-src 'self' http://127.0.0.1:* http://localhost:* https://us.i.posthog.com https://us-assets.i.posthog.com",
   "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",

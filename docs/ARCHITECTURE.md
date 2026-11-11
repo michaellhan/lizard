@@ -219,8 +219,9 @@ app redeploy.
   the words saying so in front of them (`docs/SYNC_DESIGN.md`). Records coming down are shape-checked and rendered by React. The
   service's own keys are Worker secrets, in neither the bundle nor the repo. A request from any other origin is refused, and every write
   must carry a header a cross-site form can't set.
-- The built pages carry a `<meta>` Content-Security-Policy: `default-src 'self'`; scripts from self only; workers
-  from self and `blob:`; connections to self and the local solver. `sw.js` adds `frame-ancestors 'self'` and
+- The built pages carry a `<meta>` Content-Security-Policy: `default-src 'self'`; scripts from self and PostHog's
+  asset host; workers from self and `blob:`; connections to self, the local solver and PostHog (pageviews only,
+  through michael-han.com's shared `/ph.js`: no autocapture or recording, URL hashes dropped). `sw.js` adds `frame-ancestors 'self'` and
   `nosniff` to navigations once installed.
 - `main.tsx` moves plain-http visits to https before anything else runs. The host does not redirect, and the service
   worker, isolation and threads need a secure context.
