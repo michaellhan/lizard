@@ -113,7 +113,7 @@ describe("ReviewPage", () => {
     expect(within(own).getByText("2.00bb lost · 36.0% pot")).toBeInTheDocument();
     expect(within(own).getByText(/Exploiting Nit \(assumed\) ·/)).toBeInTheDocument();
     expect(within(own).getByText(/never an equilibrium/)).toBeInTheDocument();
-    expect(within(own).getByText(/Exploiting an assumed profile \(best response, not a solve\)/)).toBeInTheDocument();
+    expect(within(own).getAllByText(/Exploiting an assumed profile \(best response, not a solve\)/).length).toBeGreaterThan(0);
     const past = screen.getByRole("region", { name: "Past mistakes" });
     expect(within(past).queryByText(/2\.00bb lost/)).toBeNull();
     expect(within(past).getByText("0.40bb lost · 7.3% pot")).toBeInTheDocument();

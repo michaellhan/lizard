@@ -70,7 +70,7 @@ describe("ReviewPage", () => {
     const list = await screen.findByRole("region", { name: "Past mistakes" });
     expect(within(list).getByText("Mistake")).toBeInTheDocument();
     expect(within(list).getByText("0.40bb lost · 7.3% pot")).toBeInTheDocument();
-    expect(within(list).getByText(/Live/)).toBeInTheDocument();
+    expect(within(list).getAllByText(/Live/).length).toBeGreaterThan(0);
     expect(within(list).getByText(/^Due in \d days$/)).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "Open in Study →" })).toHaveAttribute("href", "/study?p=6&s=100");
     expect(within(list).getByRole("button", { name: /^Retry early/ })).toBeInTheDocument();
@@ -85,6 +85,7 @@ describe("ReviewPage", () => {
     expect(within(list).getByText("by frequency, no EV: the chart plays it 3.0%")).toBeInTheDocument();
     expect(within(list).queryByText(/bb lost/)).toBeNull();
     expect(within(list).getAllByText(/Preflop charts/i).length).toBeGreaterThan(0);
+    expect(within(list).getByText(/^Graded against (≈ )?Preflop charts \(not a solve\)/)).toBeInTheDocument();
     expect(within(list).getByText(/0 graded by EV, 1 by frequency with no EV/)).toBeInTheDocument();
   });
 

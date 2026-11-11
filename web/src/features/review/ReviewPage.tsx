@@ -4,7 +4,7 @@
 // of answer the first grade stood on, the page says so and doesn't set the two side by side (mistakes.ts answerChange).
 // A decision from Analyze is retried against the answer kept with it, with no solve. All of it is kept in this browser,
 // and goes in the backup; an entry can be deleted, after a second press, as on the Saved page.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { DeleteButton } from "@/components/DeleteButton";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -19,7 +19,8 @@ import { ModePicker } from "@/features/study/ModePicker";
 import { CAPPED_WORDS } from "@/grading/grade";
 import { versionOf, versionWords } from "@/grading/version";
 import { seatLabel } from "@/poker/seats";
-import { evUnit } from "@/solver/provenance";
+import { evUnit, sourceLabel } from "@/solver/provenance";
+import type { Provenance } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError } from "@/solver/types";
 import { Compare } from "./Compare";
@@ -158,17 +159,9 @@ export function ReviewPage() {
       <div>
         <h1 className="text-2xl font-semibold">Review</h1>
         <p className="text-sm text-muted">
-          The decisions you got wrong in <Link to="/practice" className="underline">Practice</Link> and in <Link to="/analyze" className="underline">Analyze</Link>&rsquo;s leak drills, and those you add from a graded hand, one entry a spot, across sessions. They&rsquo;re kept in this browser with no account, and they go in your <Link to="/saved" className="underline">backup</Link>. Your numbers by street and over time are in{" "}
-          <Link to="/history" className="underline">History</Link>, and what to do next, in order, in your <Link to="/plan" className="underline">Plan</Link>.
+          Your misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link>, one entry a spot, retried on a spaced schedule; kept in this browser with no account, and in your <Link to="/saved" className="underline">backup</Link>. What&rsquo;s next is in your <Link to="/plan" className="underline">Plan</Link>.
         </p>
       </div>
-
-      <section aria-label="How the queue works" className="rounded-lg border border-border bg-surface p-3 text-sm">
-        <h2 className="font-medium">How the queue works</h2>
-        <p className="text-muted">{QUEUE_RULE}</p>
-        <p className="text-muted">{SCHEDULE_WORDS}</p>
-        <p className="text-muted">{DELETE_WORDS}</p>
-      </section>
       <p role="status" className="sr-only">
         {said}
       </p>
@@ -185,9 +178,12 @@ export function ReviewPage() {
             </p>
           )}
           {!list.length ? (
+            <>
             <p className="text-sm text-muted">
               No mistake kept yet. Play hands or drills in <Link to="/practice" className="underline">Practice</Link>: anything graded below Correct comes here, and is due the next day. So does a miss in a leak drill in <Link to="/analyze" className="underline">Analyze</Link>, or a graded decision you add there.
             </p>
+            <QueueRule />
+            </>
           ) : (
             <>
               <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />
@@ -292,12 +288,27 @@ function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecor
         {list.some((m) => m.ask.via === "solver") && <ModePicker modes={["quick", "accurate"]} />}
       </div>
       {!queue.length && <p className="text-muted">Nothing is due today.{soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}</p>}
-      <p className="text-xs text-muted">
+      <QueueRule>
         The longest overdue come first, then the worst grades. {list.some((m) => m.ask.via === "solver") ? "A full hand\u2019s spot is asked of the solver at the mode above; a drill\u2019s is read from the library." : "A drill\u2019s spot is read from the library, with no solve."}
         {list.some((m) => m.ask.via === "solver" && m.ask.live) ? " A live drill\u2019s spot is solved at Fast or above whichever mode is picked, and can be refused as the drill refuses it." : ""}
         {list.some((m) => m.ask.via === "kept") ? " A decision from Analyze is graded against the answer kept with it, with no solve." : ""}
-      </p>
+      </QueueRule>
     </section>
+  );
+}
+
+/** What comes to the queue, when it's due, what a delete does, and (`children`) the order and what answers a retry: a fold. */
+function QueueRule({ children }: { children?: ReactNode }) {
+  return (
+    <details className="text-xs text-muted">
+      <summary className="cursor-pointer hover:text-text">How the queue works</summary>
+      <div className="mt-1 space-y-1">
+        {children && <p>{children}</p>}
+        <p>{QUEUE_RULE}</p>
+        <p>{SCHEDULE_WORDS}</p>
+        <p>{DELETE_WORDS}</p>
+      </div>
+    </details>
   );
 }
 
@@ -309,8 +320,8 @@ function Tally({ list }: { list: MistakeRecord[] }) {
   const unlike = tries.filter((t) => !t.like).length;
   const done = list.filter((m) => m.due === null).length;
   return (
-    <p className="text-xs text-muted">
-      {many(list.length, "spot")}: {byEv} graded by EV, {list.length - byEv} by frequency with no EV (the preflop charts, the push/fold model, stored turns and reads at once keep none). {done} finished.{" "}
+    <p className="text-xs text-muted" title="By frequency with no EV: the preflop charts, the push/fold model, stored turns and reads at once keep none.">
+      {many(list.length, "spot")}: {byEv} graded by EV, {list.length - byEv} by frequency with no EV. {done} finished.{" "}
       {tries.length ? `Over the last retries kept, ${shareText(ok, tries.length)} Best or Correct${unlike ? `, ${unlike} of them against another kind of answer than the first` : ""}.` : "No retries yet."}
     </p>
   );
@@ -339,10 +350,19 @@ function Spot({ m }: { m: Pick<MistakeRecord, "hole" | "board" | "players" | "se
   );
 }
 
+/** What graded a mistake, in short: the source's name (≈ where approximate; the charts and rules say they aren't a solve),
+ * whether its grade was capped, and the last retry's verdict. The fold it heads holds the whole label. */
+export function gradedBrief(m: Pick<MistakeRecord, "provenance" | "grade" | "tries">): string {
+  const p: Provenance | undefined = m.provenance ?? undefined;
+  const name = !p ? "an answer not kept" : p.source === "charts" ? "Preflop charts (not a solve)" : p.source === "live" && p.mode === "quick" ? `${sourceLabel("live")} (Quick)` : sourceLabel(p.source);
+  const last = m.tries.at(-1);
+  return `${p?.approximate ? "\u2248 " : ""}${name}${m.grade.capped ? " · capped at Inaccuracy" : ""}${last ? ` · last retry ${last.verdict}` : ""}`;
+}
+
 function MistakeRow({ m, now, active, onRetry, onDelete }: { m: MistakeRecord; now: number; active: boolean; onRetry: () => void; onDelete: (from: HTMLElement) => void }) {
   const last = m.tries.at(-1);
   return (
-    <li tabIndex={-1} className={`space-y-1 rounded-lg border bg-surface p-2 text-sm outline-none ${active ? "border-accent" : "border-border"}`}>
+    <li tabIndex={-1} className={`space-y-0.5 rounded-lg border bg-surface px-2 py-1.5 text-sm outline-none ${active ? "border-accent" : "border-border"}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-mono text-xs text-muted">
           {day(m.lastAt)} · {m.street}
@@ -353,38 +373,46 @@ function MistakeRow({ m, now, active, onRetry, onDelete }: { m: MistakeRecord; n
         </span>
         <VerdictTag v={m.grade.verdict} />
         <span className="font-mono text-xs">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
+        <span className="flex-1" />
+        <span className="flex flex-wrap items-center gap-3 text-xs">
+          <span>{dueWords(m, now)}</span>
+          <button type="button" onClick={onRetry} aria-label={`${isDue(m, now) ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+            {isDue(m, now) ? "Retry" : "Retry early"}
+          </button>
+          {m.study ? (
+            <Link to={`/study?${m.study}`} className="text-accent hover:underline">
+              Open in Study →
+            </Link>
+          ) : (
+            <span className="text-muted">Study can&rsquo;t set up this game</span>
+          )}
+          {m.ask.via === "kept" && (
+            <Link to={`/analyze?${new URLSearchParams({ hand: m.ask.hand })}`} className="text-accent hover:underline">
+              Open the hand →
+            </Link>
+          )}
+          <DeleteButton what="this entry" name={`Delete: ${m.hole.join(" ")}, ${m.street}`} onDelete={onDelete} />
+        </span>
       </div>
-      <p className="text-xs text-muted">
-        {m.tournament ? "Tournament · " : ""}
-        {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
-        {ORIGIN_WORDS[m.from] ? `${ORIGIN_WORDS[m.from]} · ` : ""}
-        {m.game} · {m.line}
-        {m.times > 1 ? ` · missed ${m.times} times` : ""}
-      </p>
-      {m.grade.capped && <p className="text-xs text-muted">{CAPPED_WORDS}</p>}
-      <p className="text-xs text-muted">
-        Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} quiet /> : "an answer not kept"}
-        {` · version ${versionWords(versionOf(m.provenance))}`}
-        {last ? ` · last retry ${day(last.at)}: ${last.verdict}, against ${last.label}, version ${versionWords(last.version)}` : ""}
-      </p>
-      <div className="flex flex-wrap items-center gap-3 text-xs">
-        <span>{dueWords(m, now)}</span>
-        <button type="button" onClick={onRetry} aria-label={`${isDue(m, now) ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
-          {isDue(m, now) ? "Retry" : "Retry early"}
-        </button>
-        {m.study ? (
-          <Link to={`/study?${m.study}`} className="text-accent hover:underline">
-            Open in Study →
-          </Link>
-        ) : (
-          <span className="text-muted">Study can&rsquo;t set up this game</span>
-        )}
-        {m.ask.via === "kept" && (
-          <Link to={`/analyze?${new URLSearchParams({ hand: m.ask.hand })}`} className="text-accent hover:underline">
-            Open the hand →
-          </Link>
-        )}
-        <DeleteButton what="this entry" name={`Delete: ${m.hole.join(" ")}, ${m.street}`} onDelete={onDelete} />
+      <div className="flex flex-wrap items-start gap-x-2 text-xs text-muted">
+        <span>
+          {m.tournament ? "Tournament · " : ""}
+          {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
+          {ORIGIN_WORDS[m.from] ? `${ORIGIN_WORDS[m.from]} · ` : ""}
+          {m.game} · {m.line}
+          {m.times > 1 ? ` · missed ${m.times} times` : ""}
+        </span>
+        <details className="min-w-0">
+          <summary className="cursor-pointer hover:text-text">Graded against {gradedBrief(m)}</summary>
+          <div className="mt-1 space-y-1">
+            {m.grade.capped && <p>{CAPPED_WORDS}</p>}
+            <p>
+              Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} quiet /> : "an answer not kept"}
+              {` · version ${versionWords(versionOf(m.provenance))}`}
+              {last ? ` · last retry ${day(last.at)}: ${last.verdict}, against ${last.label}, version ${versionWords(last.version)}` : ""}
+            </p>
+          </div>
+        </details>
       </div>
     </li>
   );

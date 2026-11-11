@@ -4907,3 +4907,16 @@ problem. Bet sizes and Rake share a row on a wide screen, the sizes' note shorte
 title). At 1280×800 Open in Study is now at about 570px rather than below the fold. Browser step 5 opens Seats before
 filling two stacks. UI only: tsc, eslint, `vitest run src/features/solve src/features/tournaments` 28 passed;
 checked in the browser (no sideways scroll). Builds left alone.
+
+## 2026-11-11: Review decluttered
+
+The first page under More, after the four main ones. The intro is one line, not three. "How the queue works" was an
+open box above everything; it's now a fold inside the Due now box, together with the queue's note on order and what
+answers a retry (`ReviewPage.tsx` `QueueRule`; with nothing kept it sits under the empty note). A kept mistake is two
+lines: date, spot, your action, verdict and EV lost with its due date, Retry, Open in Study and Delete on the right;
+under it the game and line, and "Graded against" plus the source in short (≈ where approximate, the charts and rules
+say they aren't a solve, "capped at Inaccuracy", the last retry's verdict: `gradedBrief`) as the line of a fold that
+holds the full badge, version and last retry as before. The tally's parenthetical on what keeps no EV is its title.
+With three kept mistakes at 1280×800 all three are on the first screen (the first started at about 520px, now 200px).
+UI only: tsc, eslint, `vitest run src/features/review src/features/plan src/features/history src/features/analyze`
+553 passed; checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.
