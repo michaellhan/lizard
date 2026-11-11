@@ -385,10 +385,7 @@ export function StudyPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Study</h1>
-          <p className="text-sm text-muted">Click an action to play it. The badge on each answer says where it came from: a solve, the library or the preflop charts.</p>
-        </div>
+        <h1 className="text-2xl font-semibold">Study</h1>
         <div className="flex flex-wrap items-center gap-2">
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
           {streetOf(hand) === "preflop" && hand.pf === "solver" && (
@@ -460,27 +457,6 @@ export function StudyPage() {
           setHand(hand);
         }}
       />
-      <p role="group" aria-label="Setup" className="-mt-2 text-xs text-muted">
-        {hand.setup ? (
-          <>
-            Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
-            <Link to={`/${hand.setup.tournament ? "tournaments" : "solve"}?${toSearch(hand)}`} className="underline hover:text-text">
-              Edit setup
-            </Link>
-          </>
-        ) : (
-          <>
-            Standard setup (a cash game at the engine's sizes, no rake or ante, the charts' ranges).{" "}
-            <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
-              Set up your own
-            </Link>{" "}
-            or{" "}
-            <Link to={`/tournaments?${toSearch(hand)}`} className="underline hover:text-text">
-              a tournament
-            </Link>
-          </>
-        )}
-      </p>
       {/* (always here, so a reader is told each answer as it lands, and that it stopped or failed; a setup that can't be asked is an alert) */}
       <p role="status" className="sr-only">
         {said}
@@ -488,7 +464,31 @@ export function StudyPage() {
 
       {/* (to the end of the page: the actions it hands the keyboard to can be in the panel) */}
       <div {...answerBox} role="group" aria-label="Answer" className="space-y-4">
-        {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
+        {/* (one line: the folds to a seat, and what game this is) */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
+          <p role="group" aria-label="Setup" className="text-xs text-muted">
+            {hand.setup ? (
+              <>
+                Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}
+                <Link to={`/${hand.setup.tournament ? "tournaments" : "solve"}?${toSearch(hand)}`} className="underline hover:text-text">
+                  Edit setup
+                </Link>
+              </>
+            ) : (
+              <>
+                Standard setup (a cash game at the engine's sizes, no rake or ante, the charts' ranges).{" "}
+                <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
+                  Set up your own
+                </Link>{" "}
+                or{" "}
+                <Link to={`/tournaments?${toSearch(hand)}`} className="underline hover:text-text">
+                  a tournament
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
         {phase.kind === "loading" && (
           <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
@@ -522,7 +522,6 @@ export function StudyPage() {
         {hand.setup?.tournament && phase.kind === "done" && raw?.tournament ? (
           <ChipCompare key={`chips|${requestKey}`} hand={hand} mode={mode} getSolver={getSolver} prize={phase.result} evUnit={evUnit} />
         ) : null}
-        {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
 
         {building && buildable && (
           <div className="flex items-center gap-2 text-sm">
@@ -571,7 +570,7 @@ export function StudyPage() {
                   <select
                     aria-label="Show only the hands of one category"
                     title="Show only the hands of one category: the grid, the range's frequencies and the combos over them"
-                    className="rounded border border-border bg-surface-2 px-2 py-0.5"
+                    className="rounded border border-border bg-surface-2 max-w-44 px-2 py-0.5"
                     value={filtered?.key ?? ""}
                     onChange={(e) => setFilterKey(e.target.value || null)}
                   >
@@ -717,6 +716,7 @@ export function StudyPage() {
           </StudySplit>
         )}
         {!split && breakdown}
+        {phase.kind === "done" && raw?.study === "node" && <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />}
         {!(building && buildable) && !opp && res?.study === "node" && phase.kind === "done" && (
           <div className="flex flex-wrap items-start gap-2">
             <EvGapPanel res={res} provenance={phase.result.provenance} evUnit={evUnit} />
@@ -887,11 +887,14 @@ function NodeView({
         />
       ) : null}
       {(res.notes ?? []).length > 0 && (
-        <ul className="list-disc pl-5 text-xs text-muted">
-          {res.notes!.map((n, i) => (
-            <li key={i}>{n}</li>
-          ))}
-        </ul>
+        <details className="text-xs text-muted">
+          <summary className="cursor-pointer hover:text-text">Notes on this answer ({res.notes!.length})</summary>
+          <ul className="mt-1 list-disc pl-5">
+            {res.notes!.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+        </details>
       )}
       <ProvenanceDetail ps={[shown.provenance]} />
     </section>

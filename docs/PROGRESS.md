@@ -4876,3 +4876,13 @@ The owner found the page bloated. Nothing about play or grading changed. What mo
 At 1280×800 the table now starts at 301px rather than 533px, and your options at 486px rather than 718px, so Last decision is on the first screen. On a phone your options are at 584px of 812, rather than 718px.
 
 Browser tests open the Game box before filling it (`e2e/fixtures.ts` `openGame`).
+
+## 2026-11-10: Study decluttered
+
+Owner: "improve one page at a time" (after Practice). Study's grid and actions now start on the first screen:
+the subtitle is gone (the badge on each answer says where it came from); "Fold to" and the setup line share one line;
+"Compare this spot" moved below the grid with the other tools; the preflop solve's long paragraph folds under "About
+this preflop solve" (its Not finished / rough warnings stay out); an answer's notes fold under "Notes on this answer
+(n)"; the category select is narrower so the range toolbar fits one line more often. At 1280×800 the grid starts
+about 90px higher preflop and 190px higher on a flop. UI only: tsc, eslint, `vitest run src/features/study
+src/features/compare` 458 passed; checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.

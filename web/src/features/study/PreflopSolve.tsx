@@ -176,7 +176,9 @@ export function PfNote({ res, running, onContinue }: { res: AdvisorResponse; run
   if (!p) return null;
   return (
     <div role="group" aria-label="About the preflop solve" className="space-y-1 text-xs text-muted">
-      <p>
+      <details>
+        <summary className="cursor-pointer hover:text-text">About this preflop solve</summary>
+        <p className="mt-1">
         Preflop solve of this game ({p.label}): {p.cached ? "solved earlier in this browser, " : p.stored ? "precomputed, " : ""}
         {p.iterations} iterations{p.mbb != null ? `, ${num(p.mbb)} mbb/hand from equilibrium (a seat's average)` : ""}
         {pfStalled(p)
@@ -184,7 +186,8 @@ export function PfNote({ res, running, onContinue }: { res: AdvisorResponse; run
           : ""}
         . The solve's own equilibrium of a class-level model (its flops valued by the flop library's realization), not the charts: the advice plays the charts, which
         fit published solves better.
-      </p>
+        </p>
+      </details>
       {!p.done && (
         <p className="text-warn">
           Not finished: the numbers can still move.{" "}
