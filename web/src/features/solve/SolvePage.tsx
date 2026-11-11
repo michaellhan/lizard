@@ -35,6 +35,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   const [stacks, setStacks] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(s0?.stacks ?? {}).map(([p, v]) => [p, String(v)])));
   const [sizes, setSizes] = useState<Record<SizeStreet, string>>(() => Object.fromEntries(SIZE_STREETS.map((k) => [k, (s0?.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>);
   const [rake, setRake] = useState(str(s0?.rake));
+  // (the Seats fold as the user left it; null until they open or close it)
+  const [seatsShown, setSeatsShown] = useState<boolean | null>(null);
   const [cap, setCap] = useState(str(s0?.rakeCap));
   const [ante, setAnte] = useState(str(s0?.ante));
   const [straddle, setStraddle] = useState(!!s0?.straddle);
@@ -157,6 +159,10 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     return i < 0 ? {} : { "aria-invalid": true, "aria-describedby": `setup-problem-${i}` };
   };
   const field = "rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-sm";
+  // the seats, folded until wanted: open in a tournament (its stacks are the spot), where a seat's been set, or where one has a problem
+  const seatsSet = seats.filter((p) => stacks[p]?.trim() || ranges[p]?.trim() || bSeats[p]?.trim()).length;
+  const seatProblem = seats.some((p) => problems.some((q) => q.includes(`${p}'s`)));
+  const seatsOpen = seatsShown ?? (tour || seatsSet > 0);
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -347,8 +353,17 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           </fieldset>
         )}
 
-        <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
-          <legend className="px-1 font-medium">Seats</legend>
+        <details
+          open={seatsOpen || seatProblem}
+          onToggle={(e) => setSeatsShown(e.currentTarget.open)}
+          className="min-w-0 space-y-2 rounded-lg border border-border bg-surface px-4 py-3"
+        >
+          <summary className="cursor-pointer font-medium">
+            Seats
+            <span className="text-sm font-normal text-muted">
+              {seatsSet ? `: ${seatsSet} set by you, the rest the table's stack and the charts' range` : ": each the table's stack and the charts' range"}
+            </span>
+          </summary>
           <About label="How to fill these in">
 <p>
             A stack left blank is the table's. A range is the one the seat takes to the flop (PIO style: 22+, A2s+, KTo+, QJs:0.5, AhKh); blank, the preflop charts' range for the
@@ -407,7 +422,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               </tbody>
             </table>
           </div>
-        </fieldset>
+        </details>
 
         {pairs && (
           <section aria-label="Bubble factors" className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
@@ -416,13 +431,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           </section>
         )}
 
+        <div className={`grid gap-4 ${tour ? "" : "md:grid-cols-[3fr_2fr]"}`}>
         <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
           <legend className="px-1 font-medium">Bet sizes</legend>
-          <p className="text-xs text-muted">
-            Postflop, in % of the pot, up to {LIMITS.sizes} a street ({LIMITS.sizePct[0]}–{LIMITS.sizePct[1]}%; each size multiplies the game tree your browser solves). Blank: the
-            engine's own.
+          <p className="text-xs text-muted" title="Each size multiplies the game tree your browser solves">
+            After the flop, % of the pot, up to {LIMITS.sizes} a street ({LIMITS.sizePct[0]}–{LIMITS.sizePct[1]}%). Blank: the engine's own.
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className={`grid gap-2 sm:grid-cols-2 ${tour ? "" : "md:grid-cols-1 lg:grid-cols-2"}`}>
             {SIZE_STREETS.map((k) => (
               <label key={k} className="flex items-center gap-2 text-sm">
                 <span className="w-20 shrink-0">{SIZE_LABEL[k]}</span>
@@ -452,6 +467,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             </p>
           </fieldset>
         )}
+        </div>
 
         {problems.length > 0 && (
           <ul role="alert" aria-label="Setup problems" className="list-disc space-y-0.5 rounded-lg border border-danger/40 bg-danger/10 py-2 pl-7 pr-3 text-sm text-danger">

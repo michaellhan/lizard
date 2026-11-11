@@ -108,6 +108,7 @@ test("5. Rake, a straddle, an ante and separate stacks reach Study, and say so",
   await page.getByLabel("Straddle").check();
   await page.getByLabel("Rake %").or(page.getByLabel("Rake", { exact: true })).first().fill("5");
   await page.getByLabel("Rake cap").fill("3");
+  await page.locator("summary", { hasText: /^Seats/ }).click(); // (folded until a seat's set)
   await page.getByLabel("UTG stack").fill("30");
   await page.getByLabel("BTN stack").fill("60");
   await page.getByRole("button", { name: "Open in Study" }).click();

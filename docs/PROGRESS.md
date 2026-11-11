@@ -4897,3 +4897,13 @@ frequency, the answer's best, the hand. Under it, what graded it in short (≈ w
 of grading moved into "What grades your decisions"; the estimate stays. With the nine sample hands graded, the misses
 went from about three screens to half of one at 1280×800. UI only: tsc, eslint, `vitest run src/features/analyze
 src/features/history src/features/review` 482 passed; checked in the browser. Builds left alone.
+
+## 2026-11-10: Solve decluttered
+
+Owner: "Yes, Solve". "Open in Study" was under the six-row seat table. Seats is now a fold whose line says what's set
+("each the table's stack and the charts' range", or how many seats you set); it starts open on Tournaments (the
+stacks are the spot there), where a seat's been set (a link back from Study), and wherever a seat's field has a
+problem. Bet sizes and Rake share a row on a wide screen, the sizes' note shorter (the game-tree warning is its
+title). At 1280×800 Open in Study is now at about 570px rather than below the fold. Browser step 5 opens Seats before
+filling two stacks. UI only: tsc, eslint, `vitest run src/features/solve src/features/tournaments` 28 passed;
+checked in the browser (no sideways scroll). Builds left alone.
