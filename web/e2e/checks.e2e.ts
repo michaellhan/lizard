@@ -3,7 +3,7 @@
 // through to the published library; everything else stands on the page's own play. Timings go to the test's output as
 // `timing: ...` lines, for the matrix.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Page, type Problems, openGame } from "./fixtures";
+import { expect, overflow, test, type Page, type Problems, openGame, openScoreNotes } from "./fixtures";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
@@ -661,6 +661,9 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   // the form changed its mind: with the first box off the second goes too, and is off again
   // (about 4% of decisions fall to the charts, so a run can end with none: History's columns follow what the page counted)
   const both = page.getByText(/Preflop so far: [1-9]\d* by the preflop solve.*; [1-9]\d* by the charts/);
+  // (the count is on the score's fold, which stays open from hand to hand once opened)
+  await expect(options(page).first().or(nextHand(page))).toBeVisible({ timeout: 120_000 });
+  await openScoreNotes(page);
   await playPassively(page, () => both.isVisible(), 80);
   await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
   const charts = await both.isVisible();
