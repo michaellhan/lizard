@@ -185,7 +185,7 @@ function StatHands({ label, took, c, byId }: { label: string; took?: string; c: 
       </div>
     );
   return (
-    <div role="region" aria-label={`Hands: ${label}`} className="space-y-1 rounded-lg border border-border bg-surface p-3">
+    <div role="region" aria-label={`Hands: ${label}`} className="space-y-1 panel p-3">
       <p className="font-medium">{label}</p>
       {list(c.yes, took ? `Took it (${took})` : "Took it")}
       {list(c.no, "Didn't")}

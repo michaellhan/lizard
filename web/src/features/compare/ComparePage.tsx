@@ -336,7 +336,7 @@ function MenuSummary({ m, actor, pot }: { m: Menus; actor: string; pot: number |
     </li>
   );
   return (
-    <section aria-label="Size menus" className="space-y-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+    <section aria-label="Size menus" className="space-y-1.5 panel px-3 py-2 text-sm">
       <h2 className="font-medium">Two size menus, {actor} to act</h2>
       <ul className="space-y-0.5">
         {side("A", m.a)}

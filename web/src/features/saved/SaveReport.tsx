@@ -54,7 +54,7 @@ export function SaveReport({ params }: { params: URLSearchParams }) {
       {open && (
         <form
           aria-label="Save this report"
-          className="z-20 mt-1 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg max-sm:fixed max-sm:inset-x-4 sm:absolute sm:w-80"
+          className="z-20 mt-1 space-y-2 popover p-3 text-sm shadow-lg max-sm:fixed max-sm:inset-x-4 sm:absolute sm:w-80"
           onSubmit={(e) => {
             e.preventDefault();
             void save();

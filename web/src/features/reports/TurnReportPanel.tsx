@@ -138,7 +138,7 @@ export function TurnReportPanel({
 
   if (!stored.length) {
     return (
-      <section aria-label="Turn report" className="rounded-lg border border-border bg-surface p-3 text-sm">
+      <section aria-label="Turn report" className="panel p-3 text-sm">
         <h2 className="font-medium">Turn report</h2>
         <p className="mt-1 text-muted">{spot.label} stores no turns.</p>
       </section>
@@ -163,7 +163,7 @@ export function TurnReportPanel({
   };
 
   return (
-    <section ref={panel} aria-label="Turn report" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section ref={panel} aria-label="Turn report" className="space-y-2 panel p-3 text-sm">
       <h2 className="font-medium">Turn report</h2>
       {!eligible.length ? (
         <p className="text-muted">No flop of this texture ({textureWords(filter)}) has stored turns in {spot.label}.</p>

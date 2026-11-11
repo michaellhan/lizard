@@ -33,7 +33,7 @@ export function ComboPanel({
   const noEqr = [...new Set([...eqrs.values()].flatMap((x) => (x.why ? [x.why] : [])))];
 
   return (
-    <div className="@container space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <div className="@container space-y-2 panel p-3 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-3">
         <strong className="text-lg">{cls}</strong>
         <span className="text-muted">

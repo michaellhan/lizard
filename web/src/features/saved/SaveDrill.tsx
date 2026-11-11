@@ -78,7 +78,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
       {open && (
         <form
           aria-label="Save drill"
-          className="z-20 mt-1 space-y-2 max-sm:fixed max-sm:inset-x-4 sm:absolute sm:right-0 sm:top-full sm:w-72 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg"
+          className="z-20 mt-1 space-y-2 max-sm:fixed max-sm:inset-x-4 sm:absolute sm:right-0 sm:top-full sm:w-72 popover p-3 text-sm shadow-lg"
           onSubmit={(e) => {
             e.preventDefault();
             void save();

@@ -524,7 +524,7 @@ function SpotDrill({
 
       {/* (wide: the hand on the left, its answer on the right once you've picked) */}
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-      <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
+      <section aria-label="Your hand" className="space-y-3 panel p-3">
         {screening ? (
           <p className="text-sm text-muted">Looking for flops that can hold {handLabel(hand!)}…</p>
         ) : !cands.length ? (
@@ -596,7 +596,7 @@ function SpotDrill({
       </section>
 
       {pr && graded && shown.st === "ready" && (
-        <section aria-label="Answer" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+        <section aria-label="Answer" className="space-y-2 panel p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: revealed</span>}
             <span>

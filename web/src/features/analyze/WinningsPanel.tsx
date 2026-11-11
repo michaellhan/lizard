@@ -69,7 +69,7 @@ export function WinningsPanel({ hands, of, losses = [] }: { hands: HandRecord[];
 function Measures({ w, losses }: { w: Winnings; losses: readonly KindLoss[] }) {
   const groups = (["cash", "tour", "practice"] as const).flatMap((k) => (w[k] ? [{ k, g: w[k] }] : []));
   const card = (title: string, says: string, lines: string[], none: string) => (
-    <div role="group" aria-label={title} className="space-y-1 rounded-lg border border-border bg-surface px-3 py-2">
+    <div role="group" aria-label={title} className="space-y-1 panel px-3 py-2">
       <h3 className="font-medium">{title}</h3>
       {lines.length ? (
         <ul className="tabular-nums">
@@ -109,7 +109,7 @@ function Measures({ w, losses }: { w: Winnings; losses: readonly KindLoss[] }) {
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+    <div className="panel px-3 py-2">
       <p className="text-xs text-muted">{label}</p>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
       {sub && <p className="text-xs text-muted">{sub}</p>}

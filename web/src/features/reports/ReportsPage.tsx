@@ -513,7 +513,7 @@ function ReportTable({
 function Coverage({ spots, mw, source }: { spots: LibrarySpotIndex[]; mw: LibrarySpotIndex[]; source: string }) {
   const two = spots.filter((s) => s.seats.length === 2);
   return (
-    <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+    <details className="panel p-3 text-sm">
       <summary className="cursor-pointer">
         Which spots have reports ({two.filter(reportable).length + mw.length} in {source})
       </summary>

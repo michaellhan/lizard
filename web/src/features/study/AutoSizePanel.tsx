@@ -44,7 +44,7 @@ export function AutoSizePanel({ hand, res, cls, mode, getSolver }: { hand: Study
   };
 
   return (
-    <details className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
+    <details className="w-full panel p-3 text-sm">
       <summary className="cursor-pointer font-medium">Choose bet sizes (automatic sizing)</summary>
       <div className="mt-2 space-y-3">
         <form

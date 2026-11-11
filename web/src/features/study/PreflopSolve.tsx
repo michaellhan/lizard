@@ -49,7 +49,7 @@ export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; on
       <summary className="cursor-pointer rounded-md border border-border bg-surface-2 px-2.5 py-1 text-muted hover:text-text">Sizes{custom ? `: ${custom}` : ""}</summary>
       <form
         aria-label="Preflop solve sizes"
-        className="mt-2 space-y-2 rounded-lg border border-border bg-surface p-3"
+        className="mt-2 space-y-2 panel p-3"
         onSubmit={(e) => {
           e.preventDefault();
           if (!problems.length) onApply(sizes);
@@ -113,7 +113,7 @@ export function PfProgress({ run, onStop }: { run: PfRun; onStop: () => void }) 
     );
   const frac = pfFraction(run);
   return (
-    <div role="status" aria-label="Preflop solve" className="space-y-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+    <div role="status" aria-label="Preflop solve" className="space-y-1.5 panel px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
         <span>
@@ -140,7 +140,7 @@ export function PfProgress({ run, onStop }: { run: PfRun; onStop: () => void }) 
 export function PfPanel({ res, running, onSolve, onCharts }: { res: AdvisorResponse; running: boolean; onSolve: () => void; onCharts: () => void }) {
   if (res.study === "pf_none")
     return (
-      <div className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+      <div className="space-y-2 panel p-3 text-sm">
         <p>The preflop solve doesn't take this game: {String(res.reason ?? "")}.</p>
         <button type="button" onClick={onCharts} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
           Use the charts
@@ -149,7 +149,7 @@ export function PfPanel({ res, running, onSolve, onCharts }: { res: AdvisorRespo
     );
   const est = typeof res.estimate_s === "number" ? res.estimate_s : 60;
   return (
-    <section aria-label="Solve this game's preflop" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Solve this game's preflop" className="space-y-2 panel p-3 text-sm">
       <p>
         <b>Solve this game's preflop</b>: {String(res.game ?? "")}.
       </p>

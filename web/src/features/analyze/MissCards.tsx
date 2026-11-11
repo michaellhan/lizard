@@ -55,7 +55,7 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
   }, [at, n, d, open, setK, onClose]);
 
   return (
-    <section ref={box} tabIndex={-1} aria-label="Your misses" className="mx-auto max-w-2xl space-y-3 rounded-lg border border-border bg-surface p-4 text-sm outline-none">
+    <section ref={box} tabIndex={-1} aria-label="Your misses" className="mx-auto max-w-2xl space-y-3 panel p-4 text-sm outline-none">
       <div className="flex items-center gap-3">
         <h2 className="font-semibold">{n ? `Miss ${at + 1} of ${n}` : "Your misses"}</h2>
         {n > 1 && (

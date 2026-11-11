@@ -126,7 +126,7 @@ export function ScoreStrip({ session, acc, loss, lossPct, children }: { session:
     !!session.revealed && `${session.revealed} revealed decision${session.revealed === 1 ? "" : "s"} not graded.`,
   ].filter((x): x is string => !!x);
   return (
-    <section aria-label="Score" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+    <section aria-label="Score" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 panel px-3 py-2 text-sm">
       {item("Hands", String(session.hands))}
       {item("Decisions graded", String(s.n))}
       {split.length > 1 ? (
@@ -256,7 +256,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
     </div>
   );
   return (
-    <section aria-label="Your decisions" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Your decisions" className="space-y-2 panel p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-medium">
           {open ? (
@@ -501,7 +501,7 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
   // (a stored turn keeps no hand's EV, so there's no column of dashes to read as if one had been left out)
   const hasEv = d.provenance?.source !== "library-turn" && d.provenance?.source !== "push-fold" && d.provenance?.evIn !== "chips" && d.mix.some((a) => a.ev != null);
   return (
-    <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label={title === "Your last decision" ? "Last decision" : title} className="space-y-2 panel p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-medium">{title}</h2>
         {g ? <VerdictTag v={g.verdict} /> : <span className="text-xs text-muted">Not graded{d.revealed ? ": you revealed the answer first" : d.offProfile ? ": no best response came back here" : ""}</span>}
@@ -606,7 +606,7 @@ export function HandLog({ hand }: { hand: PracticeHand }) {
     moves: hand.lines[st].filter((m, k) => st !== "preflop" || keep(m, k)).map(say),
   }));
   return (
-    <section aria-label="Hand history" className="rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Hand history" className="panel p-3 text-sm">
       <h2 className="mb-1 font-medium">This hand</h2>
       <ol className="space-y-0.5">
         {rows.map((r) => (

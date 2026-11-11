@@ -64,7 +64,7 @@ export function SaveScenario({ setup }: { setup: ScenarioSetup | null }) {
         <div
           role="form"
           aria-label="Save scenario"
-          className="z-20 mt-1 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm shadow-lg max-sm:fixed max-sm:inset-x-4 sm:absolute sm:left-0 sm:top-full sm:w-80"
+          className="z-20 mt-1 space-y-2 popover p-3 text-sm shadow-lg max-sm:fixed max-sm:inset-x-4 sm:absolute sm:left-0 sm:top-full sm:w-80"
           onKeyDown={(e) => {
             if (e.key !== "Enter" || e.target instanceof HTMLTextAreaElement) return;
             e.preventDefault();

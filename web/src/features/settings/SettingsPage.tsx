@@ -48,16 +48,16 @@ export function SettingsPage() {
       <h1 className="text-2xl font-semibold">Settings</h1>
       <p className="text-sm text-muted">Saved in this browser only.</p>
 
-      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 font-medium">Solve accuracy</legend>
+      <fieldset className="space-y-2 panel p-4">
+        <legend className="font-medium">Solve accuracy</legend>
         <ModePicker />
         <p className="text-xs text-muted">Study runs Quick at Fast. Library flops are instant.</p>
         <ModeTimes />
         <ClassicSpeed />
       </fieldset>
 
-      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 font-medium">Solver backend</legend>
+      <fieldset className="space-y-2 panel p-4">
+        <legend className="font-medium">Solver backend</legend>
         <p className="text-xs text-muted">
           <Link to="/engine" className="underline">
             Engine status
@@ -87,8 +87,8 @@ export function SettingsPage() {
         )}
       </fieldset>
 
-      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 font-medium">Precomputed library</legend>
+      <fieldset className="space-y-2 panel p-4">
+        <legend className="font-medium">Precomputed library</legend>
         <select
           aria-label="Library source"
           className="rounded border border-border bg-surface-2 px-2 py-1 text-sm"
@@ -108,8 +108,8 @@ export function SettingsPage() {
         </p>
       </fieldset>
 
-      <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 font-medium">Display</legend>
+      <fieldset className="space-y-2 panel p-4">
+        <legend className="font-medium">Display</legend>
         <label className="flex items-center gap-2 text-sm">
           EV in
           <select className="rounded border border-border bg-surface-2 px-2 py-1" value={s.evUnit} onChange={(e) => s.set({ evUnit: e.target.value as "bb" | "pot" })}>

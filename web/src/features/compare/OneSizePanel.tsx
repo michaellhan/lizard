@@ -71,7 +71,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
   const rows = [...(full ? [full] : []), ...sum.rows];
   const prov = rows.length ? oneSizeProvenance(rows, run.prov, { total: totalOf(run), done: run.status === "done", targetPct: m.target_pct, seconds: run.secs.length ? run.secs.reduce((a, b) => a + b, 0) : undefined }) : null;
   return (
-    <section aria-label={`One ${raise ? "raise" : "bet"} size`} className="w-full space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label={`One ${raise ? "raise" : "bet"} size`} className="w-full space-y-3 panel p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <strong>One {raise ? "raise" : "bet"} size</strong>
         <span className="text-muted">

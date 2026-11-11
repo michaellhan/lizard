@@ -46,7 +46,7 @@ function MoreMenu() {
         More ▾
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-border bg-surface p-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1 w-48 popover p-1 shadow-lg">
           <ul aria-label="More pages">
             {MORE.map((m) => (
               <li key={m.path}>
@@ -143,10 +143,10 @@ export function Shell() {
       <DbNotice />
       <DbRecovery />
       <BackupNudge />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 scroll-mt-16 px-4 py-6 [&_h1]:scroll-mt-20">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 scroll-mt-16 px-4 py-8 [&_h1]:scroll-mt-20">
         <Page />
       </main>
-      <footer className="border-t border-border px-4 py-4 text-center text-xs text-faint">
+      <footer className="px-4 pb-6 pt-10 text-center text-xs text-faint">
         Lizard · solver engine from gto-solver · every number is labelled with what produced it
       </footer>
     </div>

@@ -8,7 +8,7 @@ export function PastDrills({ past, current, history, historyLabel }: { past: Ses
   const shown = past.filter((p) => p.id !== current);
   if (!shown.length) return null;
   return (
-    <section aria-label="Past drills" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Past drills" className="space-y-1 panel p-3 text-sm">
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="font-medium">Earlier sessions of this drill</h2>
         <Link to={history} className="text-xs underline">

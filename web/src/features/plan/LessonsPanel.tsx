@@ -25,7 +25,7 @@ export function Lessons({ sessions: given }: { sessions?: readonly SessionRecord
   const c = sessions ? course(sessions) : null;
   const units = [...new Set(LESSONS.map((l) => l.unit))];
   return (
-    <section aria-labelledby="lessons-h" className="space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-labelledby="lessons-h" className="space-y-3 panel p-3 text-sm">
       <div>
         <h2 id="lessons-h" className="font-medium">
           Lessons

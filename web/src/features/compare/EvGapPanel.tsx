@@ -62,7 +62,7 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse;
   const select = (i: 0 | 1, value: string) => setPicked((p) => (i === 0 ? [value, p[1]] : [p[0], value]));
 
   return (
-    <section aria-label="Two actions' EV" className="w-full space-y-3 rounded-lg border border-border bg-surface p-3">
+    <section aria-label="Two actions' EV" className="w-full space-y-3 panel p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>EV of</span>
         <select aria-label="First action" value={x} onChange={(e) => select(0, e.target.value)} className="rounded border border-border bg-surface-2 px-2 py-0.5">

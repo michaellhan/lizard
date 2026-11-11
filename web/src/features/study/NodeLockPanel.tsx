@@ -41,14 +41,14 @@ export function NodeLockPanel({ hand, res, cls, mode, getSolver }: NodeLockPanel
   if (res.study !== "node") return null;
   if (refusal) {
     return (
-      <details className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
+      <details className="w-full panel p-3 text-sm">
         <summary className="cursor-pointer font-medium">{title}</summary>
         <p className="mt-2 text-xs text-muted">{refusal}</p>
       </details>
     );
   }
   return (
-    <details className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
+    <details className="w-full panel p-3 text-sm">
       <summary className="cursor-pointer font-medium">{title}</summary>
       <LockForm hand={hand} res={res} cls={cls} mode={mode} getSolver={getSolver} />
     </details>

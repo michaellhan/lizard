@@ -271,7 +271,7 @@ export function EnginePage() {
   return (
     <div className="max-w-3xl space-y-5">
       <h1 className="text-2xl font-semibold">Engine</h1>
-      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 rounded-lg border border-border bg-surface p-4 text-sm">
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 panel p-4 text-sm">
         <dt className="text-muted">Backend</dt>
         <dd>{status.transport === "worker" ? "In-browser (Python via Pyodide in a Web Worker)" : "Local Python server"}</dd>
         {status.transport === "worker" && (

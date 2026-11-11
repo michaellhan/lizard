@@ -392,7 +392,7 @@ export function BuildMode({
           />
         )}
         {!scores ? (
-          <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
+          <div className="space-y-3 panel p-3">
             <p>
               Pick an action, then paint hands. Unpainted hands {names[d]}.
             </p>
@@ -571,7 +571,7 @@ export function BuildMode({
             </div>
           </div>
         ) : (
-          <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
+          <div className="space-y-3 panel p-3">
             <section aria-label="Your score" className="space-y-1">
               <p className="text-base">
                 <b>{pct(scores.head.acc)}</b> accurate · {grade(scores.head.acc)}
@@ -667,7 +667,7 @@ export function BuildMode({
           </div>
         )}
         {past.length > 0 && (
-          <section aria-label="Past ranges here" className="rounded-lg border border-border bg-surface p-3">
+          <section aria-label="Past ranges here" className="panel p-3">
             <p className="mb-1 text-xs text-muted">Your ranges at this node</p>
             <ul className="space-y-0.5 font-mono text-xs">
               {past.map((s) => (

@@ -394,7 +394,7 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
   };
 
   return (
-    <section aria-label="Import" className="space-y-2 rounded-lg border border-border bg-surface p-3">
+    <section aria-label="Import" className="space-y-2 panel p-3">
       <h2 className="text-lg font-semibold">Import hands</h2>
       <p className="text-xs text-muted">{HH_SITES.join(", ")} hand histories; Hold'em only.</p>
       <div
@@ -618,7 +618,7 @@ function HandsTable({
   const [limit, setLimit] = useState(rowLimit);
   if (!hands.length)
     return (
-      <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
+      <p className="panel p-3 text-sm text-muted">
         No hands kept yet: import some in the Import tab.
       </p>
     );
@@ -734,7 +734,7 @@ function HandDetail({ hand, decisions, exploits, onSaved, onClose }: { hand: Han
   }, [hand.text]);
   if (typeof r === "string")
     return (
-      <section ref={box} tabIndex={-1} aria-label="Hand" className="rounded-lg border border-border bg-surface p-3 text-sm">
+      <section ref={box} tabIndex={-1} aria-label="Hand" className="panel p-3 text-sm">
         <p role="alert">This hand can't be read again: {r}</p>
       </section>
     );
@@ -745,7 +745,7 @@ function HandDetail({ hand, decisions, exploits, onSaved, onClose }: { hand: Han
   const stacks = Object.entries(r.setup.stacks);
   const even = stacks.every(([, v]) => v === stacks[0]![1]);
   return (
-    <section ref={box} tabIndex={-1} aria-label="Hand" className="scroll-mt-16 space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section ref={box} tabIndex={-1} aria-label="Hand" className="scroll-mt-16 space-y-3 panel p-3 text-sm">
       <div className="flex flex-wrap items-start gap-2">
         <div className="space-y-0.5">
           <h2 className="text-lg font-semibold">

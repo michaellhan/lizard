@@ -116,7 +116,7 @@ export function HistoryPage() {
             </div>
             {!days.length && <p className="text-sm text-muted">No {kind ? kindLabel(kind).toLowerCase() : "session"} kept yet.</p>}
             {days.map((d) => (
-              <section key={d.key} aria-label={d.label} className="space-y-1 rounded-lg border border-border bg-surface p-3">
+              <section key={d.key} aria-label={d.label} className="space-y-1 panel p-3">
                 <h3 className="text-sm font-medium">{d.label}</h3>
                 <ul className="divide-y divide-border">
                   {d.rows.map((r) => (

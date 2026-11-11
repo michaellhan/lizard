@@ -3,7 +3,7 @@ import { KEY_HELP } from "./keys";
 
 export function KeysHelp({ onClose }: { onClose: () => void }) {
   return (
-    <section aria-label="Keyboard shortcuts" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Keyboard shortcuts" className="space-y-2 panel p-3 text-sm">
       <div className="flex items-center gap-2">
         <h2 className="font-medium">Keyboard</h2>
         <button type="button" onClick={onClose} className="ml-auto text-xs underline">

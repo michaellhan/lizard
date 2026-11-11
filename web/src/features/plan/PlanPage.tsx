@@ -86,7 +86,7 @@ function Steps({ plan, more, onMore }: { plan: Plan; more: boolean; onMore: () =
   return (
     <>
       {first ? (
-        <section aria-label="Start here" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+        <section aria-label="Start here" className="space-y-2 panel p-3 text-sm">
           <h2 className="font-medium">Start here</h2>
           <p>{first.text}</p>
           <div className="flex flex-wrap gap-2">
@@ -184,7 +184,7 @@ function Part({ label, empty, children }: { label: string; empty: string | false
 function Row({ step, at, next }: { step: PlanStep; at: number; next: PlanStep | null }) {
   const isNext = next?.id === step.id;
   return (
-    <li aria-label={step.what} aria-current={isNext ? "step" : undefined} className="list-none space-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+    <li aria-label={step.what} aria-current={isNext ? "step" : undefined} className="list-none space-y-1 panel px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted">{at}.</span>
         <span className="font-medium">{step.what}</span>

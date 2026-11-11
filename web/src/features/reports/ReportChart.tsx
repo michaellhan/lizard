@@ -36,7 +36,7 @@ export function ReportChart({
   const gs = group ? groups(shown, group).filter((g) => g.freqs) : [];
   const tot = shown.reduce((a, r) => a + r.w, 0);
   return (
-    <section aria-label="Chart" className="space-y-3 rounded-lg border border-border bg-surface p-3">
+    <section aria-label="Chart" className="space-y-3 panel p-3">
       <ActionLegend cols={cols} colors={colors} />
       {gs.length > 0 && (
         <GroupColumns

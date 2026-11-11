@@ -291,7 +291,7 @@ function SpotRow({ spot, answer, current, onChange, onGone }: { spot: SavedSpot;
     onChange();
   };
   return (
-    <li {...hold} aria-label={spot.title} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={spot.title} className="space-y-1 panel p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${spot.title}`}
@@ -380,7 +380,7 @@ function DrillRow({ drill, onChange, onGone }: { drill: SavedDrill; onChange: ()
     onChange();
   };
   return (
-    <li {...hold} aria-label={drill.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={drill.name} className="space-y-1 panel p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${drill.name}`}
@@ -467,7 +467,7 @@ function ScenarioRow({ scenario, onChange, onGone }: { scenario: SavedScenario; 
   };
   const about = scenarioWords(scenario);
   return (
-    <li {...hold} aria-label={scenario.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={scenario.name} className="space-y-1 panel p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${scenario.name}`}
@@ -551,7 +551,7 @@ function ReportRow({ report, onChange, onGone }: { report: SavedReport; onChange
   };
   const about = reportWords(report.filters);
   return (
-    <li {...hold} aria-label={report.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={report.name} className="space-y-1 panel p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${report.name}`}
@@ -634,7 +634,7 @@ function RangeRow({ range, onChange, onGone }: { range: SavedRange; onChange: ()
     onChange();
   };
   return (
-    <li {...hold} aria-label={range.name} className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+    <li {...hold} aria-label={range.name} className="space-y-1 panel p-3 text-sm">
       {editing ? (
         <form
           aria-label={`Edit ${range.name}`}
@@ -739,7 +739,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
   };
 
   return (
-    <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Backup" className="space-y-2 panel p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
       <p className="text-muted">Everything but settings. A restore merges.</p>
       {count && (

@@ -177,8 +177,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           if (!problems.length) void navigate(`/study?${toSearch(hand)}`);
         }}
       >
-        <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
-          <legend className="px-1 font-medium">Table</legend>
+        <fieldset className="min-w-0 space-y-2 panel p-4">
+          <legend className="font-medium">Table</legend>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-1.5">
               Players
@@ -210,8 +210,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </fieldset>
 
         {tour && (
-          <fieldset className="min-w-0 space-y-3 rounded-lg border border-border bg-surface p-4">
-            <legend className="px-1 font-medium">Tournament</legend>
+          <fieldset className="min-w-0 space-y-3 panel p-4">
+            <legend className="font-medium">Tournament</legend>
             <div className="space-y-1 text-sm">
               <div className="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Stages">
                 <span className="text-muted">Stages:</span>
@@ -326,7 +326,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         <details
           open={seatsOpen || seatProblem}
           onToggle={(e) => setSeatsShown(e.currentTarget.open)}
-          className="min-w-0 space-y-2 rounded-lg border border-border bg-surface px-4 py-3"
+          className="min-w-0 space-y-2 panel px-4 py-3"
         >
           <summary className="cursor-pointer font-medium">
             Seats
@@ -390,15 +390,15 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </details>
 
         {pairs && (
-          <section aria-label="Bubble factors" className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
+          <section aria-label="Bubble factors" className="min-w-0 space-y-2 panel p-4">
             <h2 className="font-medium">Bubble factors, every pair</h2>
             <BubbleTable table={pairs} />
           </section>
         )}
 
         <div className={`grid gap-4 ${tour ? "" : "md:grid-cols-[3fr_2fr]"}`}>
-        <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
-          <legend className="px-1 font-medium">Bet sizes</legend>
+        <fieldset className="min-w-0 space-y-2 panel p-4">
+          <legend className="font-medium">Bet sizes</legend>
           <p className="text-xs text-muted">
             % of the pot, up to {LIMITS.sizes} a street. Blank: the engine&rsquo;s.
           </p>
@@ -414,8 +414,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </fieldset>
 
         {!tour && (
-          <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
-            <legend className="px-1 font-medium">Rake</legend>
+          <fieldset className="min-w-0 space-y-2 panel p-4">
+            <legend className="font-medium">Rake</legend>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <label className="flex items-center gap-1.5">
                 <input aria-label="Rake" type="number" inputMode="decimal" step="any" min={0} max={LIMITS.rakePct} placeholder="0" value={rake} onChange={(e) => setRake(e.target.value)} {...flag("the rake must")} className={`${field} w-20`} />

@@ -314,7 +314,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
         <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
       {!many && (
-        <details ref={gameRef} className="min-w-0 flex-1 basis-72 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm open:basis-full">
+        <details ref={gameRef} className="min-w-0 flex-1 basis-72 panel px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">
             Game · {session.players}-max · {session.stack}bb
             {session.opts.pushFold ? " · push/fold" : ""}
@@ -328,7 +328,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
       )}
 
       {many && (
-        <details ref={gameRef} className="min-w-0 flex-1 basis-72 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm open:basis-full">
+        <details ref={gameRef} className="min-w-0 flex-1 basis-72 panel px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
             <p className="text-xs text-muted">{OPPONENTS} Some fields apply at one table only.</p>
@@ -350,16 +350,15 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} side={score} /> : <OneTable room={room} snap={snap} active={active && !asking} side={score} />}
       </div>
 
-
       {others.length > 0 && (
-        <section aria-label="Past sessions" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
+        <section aria-label="Past sessions" className="space-y-1.5 px-1 pt-2 text-xs">
           <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="font-medium">Past sessions</h2>
-            <Link to="/history?kind=practice" className="text-xs underline">
+            <h2 className="text-sm font-medium">Past sessions</h2>
+            <Link to="/history?kind=practice" className="text-muted underline hover:text-text">
               All sessions
             </Link>
           </div>
-          <ul className="space-y-0.5">
+          <ul className="space-y-1">
             {others.map((s) => (
               <li key={s.id} className="text-muted">
                 {new Date(s.startedAt).toLocaleString()} · {Number(s.meta.hands) || 0} hand{Number(s.meta.hands) === 1 ? "" : "s"} · {s.decisions} decision{s.decisions === 1 ? "" : "s"}
@@ -426,7 +425,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
   return (
     <div className="space-y-3 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-4 lg:space-y-0">
       <div className="min-w-0 space-y-3">
-        <section aria-label="Table" className="space-y-3 rounded-lg border border-border bg-surface p-3">
+        <section aria-label="Table" className="space-y-3 panel p-3">
           <div className="flex flex-wrap items-center gap-3">
             <div role="group" aria-label="Board" className="flex gap-1">
               {hand.board.map((c, i) =>
@@ -462,7 +461,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
           {hand.tournament && playsOn(session.opts) && <PlayedOut hand={hand} sim={sim} onRestart={() => room.nextHand(true)} />}
         </section>
 
-        <section aria-label="Your move" className="space-y-2 rounded-lg border border-border bg-surface p-3">
+        <section aria-label="Your move" className="space-y-2 panel p-3">
           {alert && (
             <div role="alert" className="rounded border border-danger/40 bg-danger/10 px-2 py-1 text-sm text-danger">
               {alert}{" "}

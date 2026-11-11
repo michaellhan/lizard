@@ -78,7 +78,7 @@ export function ComboPainter({
   const live = slots.filter((s) => s.state === "live").length;
   const blocked = slots.filter((s) => s.state === "blocked").length;
   return (
-    <section aria-label={`${cls} combos`} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-xs">
+    <section aria-label={`${cls} combos`} className="space-y-2 panel p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <b className="font-mono text-sm">{cls}</b>
         <span className="text-muted">

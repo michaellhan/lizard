@@ -398,7 +398,7 @@ export function StudyPage() {
         </div>
       </div>
 
-      <nav aria-label="Line" className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-surface p-2 text-sm">
+      <nav aria-label="Line" className="flex flex-wrap items-center gap-1.5 panel p-2 text-sm">
         <button
           type="button"
           aria-current={prevNode ? undefined : "step"}
@@ -490,7 +490,7 @@ export function StudyPage() {
           </p>
         </div>
         {phase.kind === "loading" && (
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+          <div className="flex items-center gap-3 panel px-3 py-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             <span>{phase.partial ? "Refining…" : "Finding the answer…"}</span>
             <span className="flex-1" />
@@ -528,7 +528,7 @@ export function StudyPage() {
             <span className="text-muted">Paint {raw?.actor}&rsquo;s strategy, then check it.</span>
           </div>
         )}
-        {building && buildable && !buildRes && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
+        {building && buildable && !buildRes && <p className="panel p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
         {building && buildRes && (
           <BuildMode
             key={`build|${requestKey}`}
@@ -705,7 +705,7 @@ export function StudyPage() {
                 {selected && panelGrid?.cells[selected] ? (
                   <ComboPanel cls={selected} res={res} colors={colors} opponent={panelOpp ?? false} evUnit={evUnit} />
                 ) : (
-                  <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
+                  <p className="panel p-3 text-sm text-muted">
                     Select a hand class to see its combos, mix, EV and equity.
                   </p>
                 )}
@@ -773,7 +773,7 @@ function NodeView({
     };
     const form = (
       <form
-        className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3"
+        className="flex flex-wrap items-center gap-2 panel p-3"
         onSubmit={(e) => {
           e.preventDefault();
           const r = readCards(hand, typed, n);
@@ -818,7 +818,7 @@ function NodeView({
     );
   }
   if (res.study === "over") {
-    return <p className="rounded-lg border border-border bg-surface p-3 text-sm">The hand is over. Step back to study another branch.</p>;
+    return <p className="panel p-3 text-sm">The hand is over. Step back to study another branch.</p>;
   }
   if (res.study !== "node") {
     return (
@@ -829,7 +829,7 @@ function NodeView({
   }
   const odds = potOdds(hand, res);
   return (
-    <section aria-label="Actions" className="space-y-2 rounded-lg border border-border bg-surface p-3">
+    <section aria-label="Actions" className="space-y-2 panel p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {/* (where the keyboard lands on a new node: the first Tab from here is the first action, and a stray Enter plays nothing) */}
         <h2 tabIndex={-1} data-focus-first className="flex flex-wrap items-center gap-2">

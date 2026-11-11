@@ -119,8 +119,8 @@ export default function SyncPanel() {
 
   if (!there) return null;
   return (
-    <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
-      <legend className="px-1 font-medium">Account sync</legend>
+    <fieldset className="space-y-2 panel p-4">
+      <legend className="font-medium">Account sync</legend>
       <p className="text-xs text-muted">{ABOUT_SYNC}</p>
       {st && !st.signedIn && <SignIn />}
       {st?.signedIn && <Syncing st={st} busy={busy} act={act} reload={reload} />}

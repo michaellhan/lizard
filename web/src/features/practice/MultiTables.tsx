@@ -218,7 +218,7 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
       <p role="status" aria-atomic="true" className="sr-only">
         {said}
       </p>
-      <section aria-label="Your move" className="sticky bottom-0 z-20 min-h-32 space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+      <section aria-label="Your move" className="sticky bottom-0 z-20 min-h-32 space-y-2 panel p-3 text-sm">
         {/* (focus only rests here, nothing happens on it: a ring would read as a field to type in) */}
         <h2 ref={head} tabIndex={-1} className="font-medium outline-none!">
           Table {focus + 1} · {ready ? `your turn · ${seat} · ${sim.current} · pot ${fmt(sim.pot)}bb` : state.text}
@@ -440,9 +440,9 @@ export function MultiTables({ room, snap, active, pressRef, side }: { room: Room
           {view ? (
             <div className={`hidden sm:block ${queue.includes(focus) ? "opacity-60" : ""}`}>{view}</div>
           ) : (
-            <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">No decision graded yet.</p>
+            <p className="panel p-3 text-sm text-muted">No decision graded yet.</p>
           )}
-          <section aria-label="Tables' results" className="rounded-lg border border-border bg-surface p-3 text-sm">
+          <section aria-label="Tables' results" className="panel p-3 text-sm">
             <h2 className="mb-1 font-medium">Tables</h2>
             <ul className="space-y-1.5">
               {tables.map((t, i) => (
@@ -451,7 +451,7 @@ export function MultiTables({ room, snap, active, pressRef, side }: { room: Room
             </ul>
           </section>
           {ended && (
-            <section aria-label="Last finished hand" className="space-y-1.5 rounded-lg border border-border bg-surface p-3 text-sm">
+            <section aria-label="Last finished hand" className="space-y-1.5 panel p-3 text-sm">
               <p>
                 Last finished: Table {ended.table + 1} · #{ended.hand.n + 1} · {resultLine(ended.hand.result!)}
               </p>

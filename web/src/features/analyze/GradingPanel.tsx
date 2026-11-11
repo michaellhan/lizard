@@ -130,7 +130,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   const asks = plan ? STREETS.reduce((t, s) => t + plan[s], 0) : 0;
 
   return (
-    <section aria-label="Grading" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Grading" className="space-y-2 panel p-3 text-sm">
       <h2 className="text-lg font-semibold">Grade your decisions</h2>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">

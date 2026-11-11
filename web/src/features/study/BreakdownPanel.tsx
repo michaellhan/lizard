@@ -60,7 +60,7 @@ export function BreakdownPanel({
   }, [open, hand, mode, getSolver]);
 
   return (
-    <details open={open} onToggle={(e) => onOpen(e.currentTarget.open)} className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
+    <details open={open} onToggle={(e) => onOpen(e.currentTarget.open)} className="w-full panel p-3 text-sm">
       <summary className="cursor-pointer font-medium">Breakdown and equity</summary>
       {open && (
         <div className="mt-2 @container">

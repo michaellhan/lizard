@@ -270,7 +270,7 @@ export function ReviewPage() {
 function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecord[]; queue: MistakeRecord[]; now: number; current: MistakeRecord | null; next: MistakeRecord | null; onOpen: (m: MistakeRecord) => void }) {
   const soon = list.filter((m) => m.due !== null && !isDue(m, now)).sort((a, b) => a.due! - b.due!)[0];
   return (
-    <section aria-label="Review queue" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Review queue" className="space-y-2 panel p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Due now</h2>
         <span className="font-mono">{queue.length}</span>

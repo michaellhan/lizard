@@ -110,7 +110,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
   };
 
   return (
-    <section ref={box} aria-label="Leak drill" className="scroll-mt-16 space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section ref={box} aria-label="Leak drill" className="scroll-mt-16 space-y-3 panel p-3 text-sm">
       <div className="flex flex-wrap items-start gap-2">
         <div>
           <h2 className="text-lg font-semibold">Drill: {leak.key}</h2>

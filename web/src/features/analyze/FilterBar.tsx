@@ -77,7 +77,7 @@ export function FilterBar({
   const set1 = HAND_FILTERS.filter((k) => k !== "q" && k !== "sess" && params.get(k)).length;
   const [open, setOpen] = useState(set1 > 0);
   return (
-    <section aria-label="Filters" className="space-y-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+    <section aria-label="Filters" className="space-y-2 panel px-3 py-2 text-sm">
       <h2 ref={head} tabIndex={-1} className="sr-only">
         Filters
       </h2>

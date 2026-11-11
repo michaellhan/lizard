@@ -59,7 +59,7 @@ export function SpotPicker({ a, b, onPick }: { a: string | null; b: string | nul
   const ready = Boolean(fromSearch(draft.a) && fromSearch(draft.b));
 
   return (
-    <section aria-label="Pick the spots" className="space-y-3 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label="Pick the spots" className="space-y-3 panel p-3 text-sm">
       {(["a", "b"] as const).map((side) => {
         const name = side.toUpperCase();
         const cur = draft[side];

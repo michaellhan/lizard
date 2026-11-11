@@ -138,7 +138,7 @@ export function RunoutPanel({ hand, street, setHand }: { hand: StudyHand; street
   );
 
   return (
-    <section aria-label={`${label(street)} report`} className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
+    <section aria-label={`${label(street)} report`} className="space-y-2 panel p-3 text-sm">
       {st.kind === "idle" || st.kind === "error" ? (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => ask(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
