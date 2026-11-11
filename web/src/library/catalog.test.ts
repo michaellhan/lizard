@@ -27,6 +27,8 @@ describe("library catalog", () => {
       ["mw_co_btn_bb", "multiway", 0, null, "6-max 100bb", 3],
     ]);
     expect(rows[1]).toMatchObject({ tablePlayers: 2, tableStack: 100 });
+    // a 3-way spot's own build plan (lizard-library.json multiwayTargets)
+    expect(summarize(INDEX, MW, { ...PLAN, multiwayTargets: { mw_co_btn_bb: 1755 } })[2]?.target).toBe(1755);
   });
 
   it("does not guess a target when the library does not publish one", () => {

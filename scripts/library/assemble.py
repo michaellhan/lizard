@@ -3,7 +3,9 @@
 
 The solver worker reads one library base, so Lizard's library is one directory: the 6-max library of the solver
 snapshot (solver/gto/static/flop_library, a verified copy of the published /gto-solver-library/) plus the heads-up
-spots the offline builds have finished so far (.work/hu-lib, .work/hu-lp-lib), under one merged index.json.
+spots the offline builds have finished so far (.work/hu-lib, .work/hu-lp-lib), under one merged index.json, and the
+3-way spots (mw_index.json) with the flops their own build has finished since (library-build/sources/mw-every-flop,
+scripts/library/build_mw_every_flop.py) added to them.
 
 Safety (the heads-up builds are still running and own their directories):
   - sources are only read: nothing there is written, moved, deleted or locked;
@@ -12,9 +14,13 @@ Safety (the heads-up builds are still running and own their directories):
     header, report.json by the index's report hash; a file that fails is left out and that flop is solved live;
   - each spot's nuts.json comes from library-build/nuts (scripts/library/nuts.py), only for the ranges and flops the
     index lists, with its hash in the index as `nuts`; a spot with none just has no Nut adv column;
-  - a spot that fails or shrinks keeps its previous release (--previous), so a publish never loses flops.
+  - a 3-way source's flops go into a published 3-way spot only on the same tree and the same ranges, pot and stack
+    (the base's entry wins a flop both hold); each 3-way spot gets heads.json, its entries' stored mixes in one file
+    (named in mw_index.json by hash as `heads`), so the Reports page reads one file, not one per flop;
+  - a spot (heads-up or 3-way) that fails or shrinks keeps its previous release (--previous), so a publish never
+    loses flops.
 
-Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...]
+Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...] [--mw DIR ...]
 Exit status 0 when the stage is complete and consistent; the summary goes to stdout and the stage's
 lizard-library.json.
 """
@@ -37,6 +43,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "solver" / "gto" / "static" / "flop_library"
 WORK = Path("/Users/mhan/Desktop/projects/gtosolver/.work")
 HU_SOURCES = [WORK / "hu-lib", WORK / "hu-lp-lib"]
+MW_SOURCES = [ROOT / "library-build" / "sources" / "mw-every-flop"]  # scripts/library/mw_every_flop.sh
 PROTECTED = Path("/Users/mhan/Desktop/projects/gtosolver")
 STAGE_MARK = ".lizard-stage"
 NUTS = ROOT / "library-build" / "nuts"
@@ -45,6 +52,8 @@ NUTS_FORMAT = 1  # scripts/library/nuts.py FORMAT
 FORMAT = 2  # gto/flop_library.py FORMAT
 MW_FORMAT = 1  # gto/mw_library.py
 TURN_MAGIC = b"GTOTN1"  # gto/flop_library.py TURN_MAGIC
+ENTRY_MAGIC = b"GTOFL3"  # gto/flop_library.py MAGIC
+HEADS_FORMAT = 1  # <mw spot>/heads.json (web/src/library/mwReport.ts reads it)
 MAX_FILE = 50 * 2**20
 MAX_TOTAL = 900 * 2**20
 MAX_FILES = 60_000
@@ -54,6 +63,8 @@ MAX_FILES = 60_000
 # to every flop after its 552 (IMPLEMENTATION_PLAN.md, "Two concurrent heads-up SB-vs-BB library builds"; approved in
 # the build's schedule, quoted in docs/research/05-deployment.md). Drop an entry once a re-import's SPOT_FLOPS has it.
 BUILD_PLANS = {"srp_sb_bb_2max": 1755}
+# The 3-way spots' build to every flop (scripts/library/build_mw_every_flop.py, from the 185 of mw_library's build).
+MW_BUILD_PLANS = {sid: 1755 for sid in ("mw_co_btn_bb", "mw_btn_sb_bb", "mw_hj_ip_bb", "mw_utg_btn_bb")}
 
 
 def planned_flops() -> dict[str, int]:
@@ -76,13 +87,14 @@ def sha(b: bytes, n: int) -> str:
     return hashlib.sha1(b).hexdigest()[:n]
 
 
-def turn_entry(data: bytes) -> str | None:
-    """The entry hash a turn file's header names (gto/flop_library.turns_head), decompressing only the header."""
-    if data[: len(TURN_MAGIC)] != TURN_MAGIC:
+def read_head(data: bytes, magic: bytes) -> dict | None:
+    """The JSON header after `magic` (a zlib stream of a u32 length, the header, then the body), decompressing only
+    the header: a turn file's (gto/flop_library.turns_head) or an entry's (gto/flop_library.pack)."""
+    if data[: len(magic)] != magic:
         return None
     d = zlib.decompressobj()
     raw = b""
-    pos = len(TURN_MAGIC)
+    pos = len(magic)
     try:
         while len(raw) < 4 and pos < len(data):
             raw += d.decompress(data[pos : pos + 4096])
@@ -91,9 +103,16 @@ def turn_entry(data: bytes) -> str | None:
         while len(raw) < 4 + hl and pos < len(data):
             raw += d.decompress(data[pos : pos + 65536])
             pos += 65536
-        return json.loads(raw[4 : 4 + hl].decode()).get("entry")
+        head = json.loads(raw[4 : 4 + hl].decode())
+        return head if isinstance(head, dict) else None
     except (zlib.error, struct.error, ValueError, UnicodeDecodeError):
         return None
+
+
+def turn_entry(data: bytes) -> str | None:
+    """The entry hash a turn file's header names."""
+    head = read_head(data, TURN_MAGIC)
+    return head.get("entry") if head else None
 
 
 def place(src: Path, dst: Path, link: bool) -> bytes:
@@ -189,6 +208,121 @@ def copy_mw(src_root: Path, stage: Path, link: bool, log: list[str]) -> dict | N
     return idx
 
 
+def mw_same_spot(a: dict, b: dict) -> bool:
+    """Whether two 3-way index spots are one game: the same ranges, pot and stack (MWLibrary.spot's key)."""
+    return list(a["fp"]) == list(b["fp"]) and round(float(a["pot"]), 2) == round(float(b["pot"]), 2) and \
+        round(float(a["stack"]), 2) == round(float(b["stack"]), 2)
+
+
+def merge_mw(src: Path, stage: Path, mw: dict | None, log: list[str]) -> dict | None:
+    """Add a 3-way build's finished flops to the staged 3-way spots (in place); returns {spot: flops added}, or
+    None when the source is left out. Only a spot the base publishes takes flops, on the same tree and game; each
+    copied entry is checked by its sha1 in the source's index, and the base's entry wins a flop both hold."""
+    p = src / "mw_index.json"
+    if not p.exists():
+        log.append(f"{src}: no mw_index.json yet")
+        return None
+    if mw is None:
+        log.append(f"{src}: the base has no 3-way spots to add flops to, left out")
+        return None
+    try:
+        idx = json.loads(p.read_bytes())  # written by os.replace: never torn
+    except ValueError:
+        log.append(f"{src}: mw_index.json won't read, left out")
+        return None
+    if idx.get("format") != MW_FORMAT or idx.get("tree") != mw.get("tree"):
+        log.append(f"{src}: 3-way index format or tree differs from the base, left out")
+        return None
+    now = {s["id"]: s for s in mw.get("spots", [])}
+    added: dict[str, int] = {}
+    for s in idx.get("spots", []):
+        cur = now.get(s["id"])
+        if cur is None:
+            log.append(f"{src}: {s['id']} is not a published 3-way spot, left out")
+            continue
+        if not mw_same_spot(cur, s):
+            log.append(f"{src}: {s['id']} has other ranges, pot or stack than the published spot, left out")
+            continue
+        n = bad = 0
+        for flop, h in s.get("flops", {}).items():
+            if flop in cur["flops"]:
+                continue
+            sp = src / s["id"] / f"{flop}.bin"
+            if not sp.exists():
+                bad += 1
+                continue
+            dst = stage / s["id"] / f"{flop}.bin"
+            if sha(place(sp, dst, link=False), 10) != h:
+                dst.unlink()
+                bad += 1
+                continue
+            cur["flops"][flop] = h
+            n += 1
+        if bad:
+            log.append(f"{s['id']}: {bad} 3-way flop(s) from {src} missing or failing their hash, left out")
+        cur["flops"] = dict(sorted(cur["flops"].items()))
+        added[s["id"]] = n
+    return added
+
+
+def keep_previous_mw(prev: Path, stage: Path, mw: dict, allow_shrink: bool, log: list[str]) -> None:
+    """Never publish a 3-way spot with fewer flops than the previous release: carry the previous spot over."""
+    p = prev / "mw_index.json"
+    if not p.exists():
+        return
+    old = json.loads(p.read_bytes())
+    if old.get("format") != MW_FORMAT or old.get("tree") != mw.get("tree"):
+        return
+    now = {s["id"]: s for s in mw.get("spots", [])}
+    for ps in old.get("spots", []):
+        cur = now.get(ps["id"])
+        if cur is not None and len(cur["flops"]) >= len(ps["flops"]):
+            continue
+        if allow_shrink:
+            log.append(f"{ps['id']}: shrinks from {len(ps['flops'])} flops (allowed)")
+            continue
+        if (stage / ps["id"]).exists():
+            shutil.rmtree(stage / ps["id"])
+        kept = dict(ps, flops={})
+        for flop, h in ps["flops"].items():
+            src = prev / ps["id"] / f"{flop}.bin"
+            if not src.exists() or sha(place(src, stage / ps["id"] / f"{flop}.bin", link=True), 10) != h:
+                sys.exit(f"{ps['id']}: shrank and the previous release failed validation; not publishing")
+            kept["flops"][flop] = h
+        kept.pop("heads", None)
+        log.append(f"{ps['id']}: kept the previous release ({len(kept['flops'])} flops)")
+        if cur is None:
+            mw["spots"].append(kept)
+        else:
+            mw["spots"] = [kept if s["id"] == ps["id"] else s for s in mw["spots"]]
+
+
+def write_mw_heads(stage: Path, spot: dict, log: list[str]) -> None:
+    """<spot>/heads.json: every staged entry's stored mixes (its header's nodes), for the Reports page:
+    {format, nodes {path ('|'-joined): action names}, flops {flop: {path: range frequencies, in the names' order}}}.
+    Named in the index by hash as `heads`; left out (the page then reads the entries) where a header won't read or
+    a node's actions differ between flops."""
+    spot.pop("heads", None)
+    nodes: dict[str, list] = {}
+    flops: dict[str, dict] = {}
+    for flop in sorted(spot["flops"]):
+        head = read_head((stage / spot["id"] / f"{flop}.bin").read_bytes(), ENTRY_MAGIC)
+        if head is None or head.get("board") != flop:
+            log.append(f"{spot['id']}: {flop}'s header won't read, no heads.json")
+            return
+        row = {}
+        for nd in head.get("nodes", []):
+            k = "|".join(nd["path"])
+            if nodes.setdefault(k, list(nd["names"])) != list(nd["names"]):
+                log.append(f"{spot['id']}: node '{k}' has other actions on {flop}, no heads.json")
+                return
+            row[k] = nd["freqs"]
+        flops[flop] = row
+    data = json.dumps({"format": HEADS_FORMAT, "nodes": nodes, "flops": flops}, separators=(",", ":")).encode()
+    (stage / spot["id"] / "heads.json").write_bytes(data)
+    spot["heads"] = sha(data, 10)
+
+
 def attach_nuts(src: Path, out: Path, spot: dict, log: list[str]) -> int:
     """Put a spot's nut shares in the stage, as far as they go, and name them in its index entry; returns the flops."""
     spot.pop("nuts", None)  # (a spot carried from the previous release)
@@ -221,14 +355,16 @@ def main() -> int:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--base", type=Path, default=BASE)
     ap.add_argument("--hu", type=Path, action="append", help="a heads-up build directory (repeatable)")
+    ap.add_argument("--mw", type=Path, action="append", help="a 3-way build directory (repeatable)")
     ap.add_argument("--previous", type=Path, help="the last published release (to keep spots that fail or shrink)")
     ap.add_argument("--allow-shrink", action="store_true")
     ap.add_argument("--nuts", type=Path, default=NUTS, help="where nuts.py wrote each spot's nut shares")
     a = ap.parse_args()
     hu_sources = a.hu if a.hu else HU_SOURCES
+    mw_sources = a.mw if a.mw else MW_SOURCES
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources]:
+    for p in [a.base, *hu_sources, *mw_sources]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -255,6 +391,11 @@ def main() -> int:
             spots.append(staged)
     sources.append({"path": str(a.base), "kind": "base", "spots": {s["id"]: len(s["flops"]) for s in spots}})
     mw = copy_mw(a.base, out, link=True, log=log)
+    for src in mw_sources:
+        added = merge_mw(src, out, mw, log)
+        if added is not None:
+            mp = src / "mw_index.json"
+            sources.append({"path": str(src), "kind": "3-way build", "indexMtime": mp.stat().st_mtime, "spots": added})
 
     for src in hu_sources:
         ip = src / "index.json"
@@ -310,6 +451,12 @@ def main() -> int:
                 if cur is None:
                     merged.append(kept)
 
+    if mw is not None:
+        if a.previous:
+            keep_previous_mw(a.previous, out, mw, a.allow_shrink, log)
+        for s in mw.get("spots", []):
+            write_mw_heads(out, s, log)
+
     nut_flops = {s["id"]: attach_nuts(a.nuts, out, s, log) for s in merged}
 
     index = {"format": FORMAT, "tree": tree, "spots": merged}
@@ -335,6 +482,11 @@ def main() -> int:
                 sys.exit(f"{s['id']}/{f}.bin listed but missing")
     for s in (mw or {}).get("spots", []):
         listed |= {f"{s['id']}/{f}.bin" for f in s["flops"]}
+        if s.get("heads"):
+            listed.add(f"{s['id']}/heads.json")
+        for f in s["flops"]:
+            if not (out / s["id"] / f"{f}.bin").exists():
+                sys.exit(f"{s['id']}/{f}.bin listed but missing")
     total = n = 0
     for p in out.rglob("*"):
         if not p.is_file():
@@ -359,6 +511,7 @@ def main() -> int:
             for s in merged
         },
         "multiway": {s["id"]: len(s["flops"]) for s in (mw or {}).get("spots", [])},
+        "multiwayTargets": {s["id"]: MW_BUILD_PLANS.get(s["id"]) for s in (mw or {}).get("spots", [])},
         "files": n,
         "bytes": total,
         "notes": log,

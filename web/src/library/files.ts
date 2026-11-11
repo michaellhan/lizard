@@ -3,7 +3,7 @@
 // index gives it, so a republished file is fetched again and an unchanged one comes from the HTTP cache.
 import type { LibraryIndex, LibrarySpotIndex } from "./catalog";
 import { decodeEntry, decodeHead, type Entry, type EntryHead, type LibraryRanges } from "./entry";
-import { reportFromHeads } from "./mwReport";
+import { reportFromHeads, reportFromHeadsFile, type MwHeads } from "./mwReport";
 import { decodeTurns, type TurnFile } from "./turns";
 
 /** <spot>/report.json (scripts/build_flop_library.py): the spot's flop strategy on each stored flop */
@@ -90,11 +90,25 @@ export class LibraryFiles {
     return r.ok ? ((await r.json()) as LibraryIndex) : null;
   }
 
-  /** a 3-way spot's report, built from every stored flop's entry header (mwReport.ts): each file is read, eight at a
-   * time, `onProgress` told how many are in; kept once whole */
+  /** a 3-way spot's report, built from every stored flop's entry header (mwReport.ts): from the spot's heads.json
+   * where the index names one (one file), else each entry read, eight at a time, `onProgress` told how many are in;
+   * kept once whole */
   async mwReport(sp: LibrarySpotIndex, opts: { signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {}): Promise<LibraryReport> {
     const kept = this.mw.get(sp.id);
     if (kept) return kept;
+    if (sp.heads) {
+      try {
+        const r = await this.get(`${sp.id}/heads.json?v=${sp.heads}`, { signal: opts.signal });
+        const rep = reportFromHeadsFile(sp, (await r.json()) as MwHeads);
+        if (rep) {
+          this.mw.set(sp.id, rep);
+          return rep;
+        }
+      } catch (e) {
+        if (opts.signal?.aborted) throw e;
+        /* the entries, as before */
+      }
+    }
     const flops = Object.keys(sp.flops).sort();
     const heads: EntryHead[] = new Array(flops.length);
     let next = 0;

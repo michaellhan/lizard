@@ -50,6 +50,37 @@ def make_lib(root: Path, sid: str, fp: list, flops: dict, turns=True, game=None,
     return spot
 
 
+MW_TREE = {"bet": {"flop": [0.33, 0.75]}, "version": 1}
+MW_NAMES = ["check", "bet 33%", "bet 75%"]
+
+
+def mw_entry(flop: str, tag: float = 0.5) -> bytes:
+    """A 3-way entry as gto/flop_library.pack frames it: GTOFL3, then zlib(u32 header length, header, body)."""
+    nodes = [{"path": p, "player": i, "names": MW_NAMES, "fold0": False, "freqs": [tag, 1 - tag, 0.0], "combos": 9.0}
+             for i, p in enumerate([[], ["check"], ["check", "check"]])]
+    hb = json.dumps({"board": flop, "format": 2, "players": 3, "nodes": nodes}).encode()
+    return b"GTOFL3" + zlib.compress(struct.pack("<I", len(hb)) + hb + b"\1" * 32)
+
+
+def make_mw(root: Path, spots: dict, tree=None, fp=None) -> dict:
+    """A 3-way library (mw_index.json, format 1): `spots` maps id -> {flop: entry bytes (None: listed, missing)}."""
+    idx = {"format": 1, "tree": tree or MW_TREE, "spots": []}
+    for sid, flops in spots.items():
+        listed = {}
+        for f, b in flops.items():
+            if b is None:
+                listed[f] = "0" * 10
+                continue
+            (root / sid).mkdir(parents=True, exist_ok=True)
+            (root / sid / f"{f}.bin").write_bytes(b)
+            listed[f] = h(b, 10)
+        idx["spots"].append({"id": sid, "label": sid, "line": "BTN:r2.5,SB:c,BB:c", "seats": ["SB", "BB", "BTN"],
+                             "fp": fp or ["x", "y", "z"], "pot": 7.5, "stack": 97.5, "flops": listed})
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "mw_index.json").write_text(json.dumps(idx))
+    return idx
+
+
 def run(*args) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True)
 
@@ -186,6 +217,124 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(run("--out", self.out, "--base", self.base, "--hu", self.hu).returncode, 0)
         after = {p: p.read_bytes() for p in self.hu.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
+
+
+
+class MultiwayTest(unittest.TestCase):
+    """The 3-way spots: the base's mw_index.json plus a 3-way build's finished flops (--mw)."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.mw, self.out = (self.tmp / n for n in ("base", "hu", "mw", "stage"))
+        make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Ks7d2c": b"entry-1"})
+        make_mw(self.base, {"mw_btn_sb_bb": {"Kc7d2h": mw_entry("Kc7d2h"), "4c3c2c": mw_entry("4c3c2c")},
+                            "mw_co_btn_bb": {"Kc7d2h": mw_entry("Kc7d2h")}})
+        self.hu.mkdir()
+
+    def stage(self, *extra) -> subprocess.CompletedProcess:
+        return run("--out", self.out, "--base", self.base, "--hu", self.hu, "--mw", self.mw, *extra)
+
+    def mw_index(self, root=None) -> dict:
+        return {s["id"]: s for s in json.loads(((root or self.out) / "mw_index.json").read_text())["spots"]}
+
+    def test_a_builds_finished_flops_join_the_published_spot_checked_by_hash(self):
+        make_mw(self.mw, {"mw_btn_sb_bb": {"Kc7d2h": mw_entry("Kc7d2h", 0.9), "9c8d7h": mw_entry("9c8d7h", 0.2),
+                                           "Qc9d8h": mw_entry("Qc9d8h"), "Td6c3h": None}})
+        (self.mw / "mw_btn_sb_bb" / "Qc9d8h.bin").write_bytes(b"tampered")
+        (self.mw / "mw_btn_sb_bb" / "Jc5d2h.bin.tmp").write_bytes(b"partial")
+        (self.mw / "mw_btn_sb_bb" / "8c7c6c.bin").write_bytes(mw_entry("8c7c6c"))  # not in its index yet
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        spots = self.mw_index()
+        btn = spots["mw_btn_sb_bb"]
+        self.assertEqual(sorted(btn["flops"]), ["4c3c2c", "9c8d7h", "Kc7d2h"])
+        self.assertEqual(btn["flops"]["Kc7d2h"], h(mw_entry("Kc7d2h"), 10))  # the base's entry wins a flop both hold
+        self.assertEqual((self.out / "mw_btn_sb_bb" / "Kc7d2h.bin").read_bytes(), mw_entry("Kc7d2h"))
+        for f in ("Qc9d8h", "Td6c3h", "8c7c6c", "Jc5d2h"):
+            self.assertFalse(any((self.out / "mw_btn_sb_bb").glob(f + "*")), f)
+        self.assertEqual(len(spots["mw_co_btn_bb"]["flops"]), 1)
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["multiway"], {"mw_btn_sb_bb": 3, "mw_co_btn_bb": 1})
+        self.assertEqual(summary["multiwayTargets"], {"mw_btn_sb_bb": 1755, "mw_co_btn_bb": 1755})
+        src = next(x for x in summary["sources"] if x["kind"] == "3-way build")
+        self.assertEqual(src["spots"], {"mw_btn_sb_bb": 1})
+        self.assertIn("2 3-way flop(s)", r.stdout)
+
+    def test_each_spot_gets_its_entries_mixes_in_one_file_named_by_hash(self):
+        make_mw(self.mw, {"mw_btn_sb_bb": {"9c8d7h": mw_entry("9c8d7h", 0.2)}})
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        btn = self.mw_index()["mw_btn_sb_bb"]
+        data = (self.out / "mw_btn_sb_bb" / "heads.json").read_bytes()
+        self.assertEqual(btn["heads"], h(data, 10))
+        heads = json.loads(data)
+        self.assertEqual(heads["format"], 1)
+        self.assertEqual(heads["nodes"], {"": MW_NAMES, "check": MW_NAMES, "check|check": MW_NAMES})
+        self.assertEqual(sorted(heads["flops"]), sorted(btn["flops"]))
+        self.assertEqual(heads["flops"]["9c8d7h"]["check"], [0.2, 0.8, 0.0])
+
+    def test_a_header_that_wont_read_means_no_heads_file_not_a_failed_publish(self):
+        make_mw(self.mw, {"mw_btn_sb_bb": {"9c8d7h": b"GTOFL3 not zlib"}})
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        btn = self.mw_index()["mw_btn_sb_bb"]
+        self.assertNotIn("heads", btn)
+        self.assertFalse((self.out / "mw_btn_sb_bb" / "heads.json").exists())
+        self.assertIn("no heads.json", r.stdout)
+        self.assertTrue(self.mw_index()["mw_co_btn_bb"].get("heads"))
+
+    def test_a_source_on_another_tree_or_game_or_spot_is_left_out(self):
+        for kw, note in (({"tree": {"bet": {"flop": [0.5]}, "version": 1}}, "tree differs"),
+                         ({"fp": ["x", "y", "other"]}, "other ranges"),):
+            mw = self.tmp / f"mw-{note[:5]}"
+            make_mw(mw, {"mw_btn_sb_bb": {"9c8d7h": mw_entry("9c8d7h")}}, **kw)
+            r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--mw", mw)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(len(self.mw_index()["mw_btn_sb_bb"]["flops"]), 2)
+            self.assertIn(note, r.stdout)
+        make_mw(self.mw, {"mw_new_spot": {"9c8d7h": mw_entry("9c8d7h")}})
+        r = self.stage()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("mw_new_spot", self.mw_index())
+        self.assertFalse((self.out / "mw_new_spot").exists())
+
+    def test_a_spot_never_shrinks_below_the_previous_release(self):
+        make_mw(self.mw, {"mw_btn_sb_bb": {"9c8d7h": mw_entry("9c8d7h"), "Qc9d8h": mw_entry("Qc9d8h")}})
+        prev = self.tmp / "prev"
+        self.assertEqual(run("--out", prev, "--base", self.base, "--hu", self.hu, "--mw", self.mw).returncode, 0)
+        self.assertEqual(len(self.mw_index(prev)["mw_btn_sb_bb"]["flops"]), 4)
+        (self.mw / "mw_index.json").unlink()  # the build's output gone
+        r = self.stage("--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        btn = self.mw_index()["mw_btn_sb_bb"]
+        self.assertEqual(len(btn["flops"]), 4)
+        self.assertIn("mw_btn_sb_bb: kept the previous release (4 flops)", r.stdout)
+        self.assertEqual(btn["heads"], self.mw_index(prev)["mw_btn_sb_bb"]["heads"])
+        r = self.stage("--previous", prev, "--allow-shrink")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.mw_index()["mw_btn_sb_bb"]["flops"]), 2)
+
+    def test_the_source_is_not_modified_and_an_unchanged_run_keeps_the_summary_time(self):
+        make_mw(self.mw, {"mw_btn_sb_bb": {"9c8d7h": mw_entry("9c8d7h")}})
+        before = {p: p.read_bytes() for p in self.mw.rglob("*") if p.is_file()}
+        prev = self.tmp / "prev"
+        self.assertEqual(run("--out", prev, "--base", self.base, "--hu", self.hu, "--mw", self.mw).returncode, 0)
+        self.assertEqual(before, {p: p.read_bytes() for p in self.mw.rglob("*") if p.is_file()})
+        r = self.stage("--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.out / "lizard-library.json").read_bytes(), (prev / "lizard-library.json").read_bytes())
+        self.assertNotEqual(run("--out", self.mw / "x", "--base", self.base, "--hu", self.hu, "--mw", self.mw).returncode, 0)
+
+    def test_the_build_order_spreads_each_group_of_flops(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            from build_mw_every_flop import spread
+        finally:
+            sys.path.remove(str(HERE))
+        self.assertEqual(sorted(spread(1203)), list(range(1203)))
+        self.assertEqual(spread(8), [0, 4, 2, 6, 1, 5, 3, 7])
+        first = spread(1000)[:10]  # an early stop leaves an even sample, not one corner
+        self.assertTrue(max(first) > 800 and min(first) < 100)
 
 
 if __name__ == "__main__":
