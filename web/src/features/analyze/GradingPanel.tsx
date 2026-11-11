@@ -154,6 +154,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
       <h2 className="text-lg font-semibold">Grade your decisions</h2>
       <About label="What grades your decisions">
         <p>{GRADED_ON}</p>
+        <p>{SCOPE_NOTES[scope]}</p>
       </About>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">
@@ -204,8 +205,7 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
           ))}
       </div>
       <p className="text-muted">
-        {SCOPE_NOTES[scope]}
-        {plan && !running && (asks ? ` ${nDecisions(asks)} to ask: about ${fmtDur(secs(plan, scope))} ${transport === "worker" ? "in this browser" : "on your solver"} (an estimate; the clock follows the real pace once it runs).` : " Every decision here has its answer.")}
+        {plan && !running && (asks ? `${nDecisions(asks)} to ask: about ${fmtDur(secs(plan, scope))} ${transport === "worker" ? "in this browser" : "on your solver"} (an estimate; the clock follows the real pace once it runs).` : "Every decision here has its answer.")}
       </p>
       {running && (
         <p role="status" aria-label="Grading progress">

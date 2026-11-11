@@ -4886,3 +4886,14 @@ this preflop solve" (its Not finished / rough warnings stay out); an answer's no
 (n)"; the category select is narrower so the range toolbar fits one line more often. At 1280×800 the grid starts
 about 90px higher preflop and 190px higher on a flop. UI only: tsc, eslint, `vitest run src/features/study
 src/features/compare` 458 passed; checked in the browser at 1280×800 and 375×812 (no sideways scroll). Builds left alone.
+
+## 2026-11-10: Analyze decluttered
+
+Owner: "Yes, Analyze" (the next page after Practice and Study). A graded decision in the report's lists (Your misses,
+the most EV lost, off the chart, a leak's decisions) is one line: verdict, the spot, the EV it lost or the answer's
+frequency, the answer's best, the hand. Under it, what graded it in short (≈ where approximate, "checked at Fast",
+"flagged") is the line of a fold that holds the whole note as before (`DecisionTables.tsx` `decisionBrief`,
+`sourceBrief`; `decisionNote` unchanged, still the hand view's title). The grading panel's long note on the chosen way
+of grading moved into "What grades your decisions"; the estimate stays. With the nine sample hands graded, the misses
+went from about three screens to half of one at 1280×800. UI only: tsc, eslint, `vitest run src/features/analyze
+src/features/history src/features/review` 482 passed; checked in the browser. Builds left alone.

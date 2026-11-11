@@ -168,18 +168,23 @@ export function DecisionList({ title, ds, byId }: { title: string; ds: readonly 
         {ds.slice(0, LIST_MAX).map((d) => {
           const h = byId.get(d.handId);
           return (
-            <li key={d.id} className="flex flex-wrap items-center gap-x-2">
-              {isGraded(d) && <VerdictTag v={d.verdict as Verdict} />}
-              <span>
-                {d.pos} {h?.hole ?? ""} {d.street}: {d.action}
-                {d.situation ? ` (${d.situation})` : ""}
-              </span>
-              <span className="text-muted" title={d.label}>
-                {decisionNote(d)}
-              </span>
-              <Link to={withParams(params, { hand: d.handId })} className="text-xs underline">
-                Hand {h?.number || ""}
-              </Link>
+            <li key={d.id}>
+              <div className="flex flex-wrap items-center gap-x-2">
+                {isGraded(d) && <VerdictTag v={d.verdict as Verdict} />}
+                <span>
+                  {d.pos} {h?.hole ?? ""} {d.street}: {d.action}
+                  {d.situation ? ` (${d.situation})` : ""}
+                </span>
+                <span className="text-muted">{decisionBrief(d)}</span>
+                <Link to={withParams(params, { hand: d.handId })} className="text-xs underline">
+                  Hand {h?.number || ""}
+                </Link>
+              </div>
+              {/* (what graded it named on the fold's line; the whole note, its caveats and its solve's figures, inside) */}
+              <details className="text-xs text-muted">
+                <summary className="cursor-pointer hover:text-text">{sourceBrief(d)}</summary>
+                <p className="mt-0.5">{decisionNote(d)}</p>
+              </details>
             </li>
           );
         })}
@@ -187,6 +192,21 @@ export function DecisionList({ title, ds, byId }: { title: string; ds: readonly 
       {ds.length > LIST_MAX && <p className="text-xs text-muted">The first {LIST_MAX} of {ds.length.toLocaleString()}.</p>}
     </div>
   );
+}
+
+/** A decision on one line: the EV it lost (or the answer's frequency where nothing weighs EV) and the answer's best. */
+export function decisionBrief(d: DecisionRecord): string {
+  if (!isGraded(d)) return `not graded: ${d.why ?? ""}`;
+  const best = d.best && d.best !== d.matched ? `, best ${d.best} ${pct(d.bestFreq)}` : "";
+  if (d.evLossBb != null && d.evLossBb > 0) return `${d.roughEv ? "≈" : ""}${bbs(d.evLossBb)} lost (${d.lossPct}% of the pot)${best}`;
+  return `the answer ${d.matched ?? d.action} ${pct(d.freq)}${best}`;
+}
+
+/** What graded a decision, in short (its first part, ≈ where approximate), and whether it's flagged: the fold's line. */
+export function sourceBrief(d: DecisionRecord): string {
+  if (!isGraded(d)) return "Why";
+  const label = d.source === "charts" ? "≈ Preflop charts, by frequency (not a solve)" : `${/approximate/.test(d.label ?? "") ? "≈ " : ""}${(d.label ?? "").split(" · ")[0]}`;
+  return `${label}${d.read ? " · checked at Fast" : ""}${flagged(d) ? " · flagged" : ""}`;
 }
 
 /** A graded decision in brief: what the answer does with your hand, and what it stands on. */
