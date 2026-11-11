@@ -108,10 +108,6 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
   const running = run.kind === "running";
   return (
     <div className="mt-2 space-y-3">
-      <p className="text-xs text-muted">
-        Holds {actor} here and solves this street and below again, both players adjusting, {actor}'s other decisions included. What comes back is an equilibrium of that restricted game, not the unlocked
-        equilibrium, and not a best response: that's the read above. Each hand held plays this mix itself, so a whole-range lock isn't the range's own frequencies played out, whatever the numbers.
-      </p>
       <form
         aria-label="The lock"
         className="space-y-2"
@@ -151,7 +147,7 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
               ))}
             </select>
           )}
-          {kind === "combo" && !cls && <span className="text-xs text-muted">(select a class in the grid for its hands)</span>}
+          {kind === "combo" && !cls && <span className="text-xs text-muted">(select a class)</span>}
           {named !== null && <span className="text-xs text-muted">{named === 1 ? "1 combo" : `${named} combos`} named; the rest of the range stays free</span>}
         </fieldset>
         {note && <p className="text-xs text-muted">{note}</p>}
@@ -163,7 +159,7 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
         )}
         {kept.length > 0 && (
           <div aria-label="Kept locks" className="space-y-1 text-xs">
-            <p className="text-muted">Held too, kept from other nodes of this street (each on the solve it was made on):</p>
+            <p className="text-muted">Also held:</p>
             <ul className="space-y-0.5">
               {kept.map((k) => (
                 <li key={`${k.root}|${k.line.join(">")}`} className="flex flex-wrap items-center gap-2">
@@ -262,15 +258,15 @@ function LockResult({ result, stored, street, board }: { result: SolveResult<Nod
           <button type="button" onClick={() => keep(mine)} disabled={isKept} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-50">
             {isKept ? "Kept" : "Keep this lock"}
           </button>
-          <span className="text-muted">Kept, it&rsquo;s held too when you lock another node of this street, until you drop it.</span>
+          <span className="text-muted">Held when you lock other nodes of this street.</span>
         </div>
       )}
       <div className="text-xs text-muted">
         Unlocked column: <ProvenanceBadge p={unlockedProvenance(result.provenance, n)} quiet />
       </div>
-      {stored && <p className="text-xs text-muted">The flop on screen is the library's stored answer: stored flops can't be re-solved, so the unlocked column here is a live solve of this flop and can differ from it.</p>}
+      {stored && <p className="text-xs text-muted">Stored flop: the unlocked column is a live solve and can differ.</p>}
       <table className="text-xs">
-        <caption className="text-left text-muted">Value, bb a hand from the start of this solve, half the {n.root_pot.toFixed(1)} bb pot there counting as each player's own</caption>
+        <caption className="text-left text-muted">Value, bb a hand (half the {n.root_pot.toFixed(1)} bb pot each)</caption>
         <thead>
           <tr className="text-left text-muted">
             <th className="pr-3 font-normal">Seat</th>

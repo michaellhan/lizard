@@ -95,7 +95,7 @@ describe("the Compare page", () => {
     expect(rows[3]).toHaveTextContent("The range400.0 combos · EV 3.30bb");
     expect(rows[3]).toHaveTextContent("EV +0.10bb");
     // EV changes within the two answers' distance from equilibrium (0.6% of 10bb) are noise
-    expect(screen.getByText(/EV changes under 0\.06bb .* are marked \(noise\)/)).toBeInTheDocument();
+    expect(screen.getByText("EV changes under 0.06bb: noise.")).toBeInTheDocument();
     expect(rows[1]).toHaveTextContent("EV +0.00bb (noise)");
     const grid = screen.getByRole("grid", { name: "Change in check" });
     expect(within(grid).getByRole("gridcell", { name: "AA: check 20.0% → 10.0% (−10.0 points), EV +0.10bb" })).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("the Compare page", () => {
     stub.provenanceFor = (st) => (st.stack === 100 ? { source: "library", exploitabilityPct: 0.2 } : {});
     renderAt(compareLink(B, { ...B, stack: 50 }));
     expect(await screen.findByLabelText("Warning")).toHaveTextContent(
-      "The two sides come from different sources (A: Precomputed solution; B: Live solve), so a difference can be the source's, not the spot's.",
+      "Different sources (A: Precomputed solution; B: Live solve): a difference may be the source's.",
     );
     expect(screen.getByLabelText("What differs")).toHaveTextContent("stack 100bb → 50bb");
   });
@@ -132,7 +132,7 @@ describe("the Compare page", () => {
     const items = within(menus).getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual(["A: bet 33% · BB bets or raises 30.0% of the range · the range's EV 3.30bb", "B: bet 75% · BB bets or raises 20.0% of the range · the range's EV 3.50bb"]);
     expect(menus).toHaveTextContent(
-      "B's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), beyond the two answers' distance from equilibrium combined (0.06bb). B bets or raises 10.0 points less of the range.",
+      "B's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), beyond noise (0.06bb). B bets or raises 10.0 points less of the range.",
     );
     // the grid: any bet or raise, the two menus' bets as one
     const grid = screen.getByRole("grid", { name: "Change in any bet or raise" });

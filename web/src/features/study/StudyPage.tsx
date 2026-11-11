@@ -329,7 +329,7 @@ export function StudyPage() {
       type="button"
       aria-pressed={building}
       onClick={toggleBuild}
-      title="Paint the strategy yourself, then score it against this answer"
+      title="Paint your strategy and score it"
       className={`rounded border px-2 py-0.5 ${building ? "border-accent bg-surface-3" : "border-border text-muted hover:bg-surface-2"}`}
     >
       {building ? "✎ Building" : "✎ Build"}
@@ -477,7 +477,7 @@ export function StudyPage() {
               </>
             ) : (
               <>
-                Standard setup (a cash game at the engine's sizes, no rake or ante, the charts' ranges).{" "}
+                Standard setup.{" "}
                 <Link to={`/solve?${toSearch(hand)}`} className="underline hover:text-text">
                   Set up your own
                 </Link>{" "}
@@ -493,7 +493,6 @@ export function StudyPage() {
           <div className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             <span>{phase.partial ? "Refining…" : "Finding the answer…"}</span>
-            <span className="text-muted">The first answer starts the engine (Python in your browser, cached after the first visit).</span>
             <span className="flex-1" />
             <button type="button" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2" onClick={() => abortRef.current?.abort()}>
               Stop
@@ -526,7 +525,7 @@ export function StudyPage() {
         {building && buildable && (
           <div className="flex items-center gap-2 text-sm">
             {buildButton}
-            <span className="text-muted">Range builder: paint {raw?.actor}'s strategy, then check it against this answer.</span>
+            <span className="text-muted">Paint {raw?.actor}&rsquo;s strategy, then check it.</span>
           </div>
         )}
         {building && buildable && !buildRes && <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">The builder opens once the answer is complete.</p>}
@@ -841,7 +840,7 @@ function NodeView({
             {res.pot_bb !== undefined ? ` · pot ${res.pot_bb}bb` : ""}
             {res.to_call_bb ? ` · to call ${res.to_call_bb}bb` : ""}
             {odds !== null && (
-              <span title="What a call costs as a share of the pot it makes. Plain arithmetic in chips, before rake, not a solve."> · pot odds {pctOdds(odds)}</span>
+              <span title="Call ÷ final pot, before rake"> · pot odds {pctOdds(odds)}</span>
             )}
           </span>
         </h2>

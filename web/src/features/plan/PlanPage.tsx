@@ -13,7 +13,7 @@ import { SaveScenario } from "@/features/saved/SaveScenario";
 import { libraryFiles } from "@/features/review/retry";
 import type { LibraryFiles } from "@/library/files";
 import { Lessons } from "./LessonsPanel";
-import { buildPlan, LEAK_RULE, PLAN_DONE, PLAN_RULE, PLAN_SCOPE, THIN_SHOWN, withLibrary, type DrillStep, type Plan, type PlanStep } from "./plan";
+import { buildPlan, THIN_SHOWN, withLibrary, type DrillStep, type Plan, type PlanStep } from "./plan";
 
 const START = "rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong";
 const QUIET = "rounded border border-border px-2 py-1 hover:bg-surface-2";
@@ -55,18 +55,11 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Plan</h1>
-        <p className="text-sm text-muted">What to do next, in order. Each step is a link that starts it.</p>
-        <About label="Where the plan comes from">
-        <p>
-          What to do next, in order, from what&rsquo;s kept in this browser with no account: your <Link to="/review" className="underline">Review</Link> queue, the hands graded in{" "}
-          <Link to="/analyze" className="underline">Analyze</Link> and your <Link to="/practice" className="underline">Practice</Link> sessions. Each step is a link that starts it.
-        </p>
-        </About>
       </div>
 
       {failed ? (
         <p role="alert" className="text-danger">
-          This browser&rsquo;s store couldn&rsquo;t be read, so there&rsquo;s no plan to show. Nothing has been changed.
+          Couldn&rsquo;t read this browser&rsquo;s store.
         </p>
       ) : !plan ? (
         <p role="status" className="text-sm text-muted">
@@ -77,22 +70,6 @@ export function PlanPage({ files }: { files?: LibraryFiles } = {}) {
       )}
 
       <Lessons />
-
-      <section aria-label="How this plan is made" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
-        <details>
-        <summary className="w-fit cursor-pointer font-medium">How this plan is made</summary>
-        <div className="mt-2 space-y-2">
-        <ol className="list-decimal space-y-1 pl-5 text-muted">
-          {PLAN_RULE.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ol>
-        <p className="text-muted">{PLAN_SCOPE}</p>
-        <p className="text-muted">{LEAK_RULE}</p>
-        <p className="text-muted">{PLAN_DONE}</p>
-        </div>
-        </details>
-      </section>
     </div>
   );
 }
@@ -130,9 +107,9 @@ function Steps({ plan, more, onMore }: { plan: Plan; more: boolean; onMore: () =
               </Link>
             </>
           ) : stuck ? (
-            `Nothing here can be started: ${stuck === 1 ? "the leak not done has" : `the ${stuck.toLocaleString()} leaks not done have`} no decision that keeps its mix, so its drill has nothing to deal. Forget the grades and grade again to keep them.`
+            `Nothing to start: ${stuck === 1 ? "the open leak keeps" : `the ${stuck.toLocaleString()} open leaks keep`} no mix. Forget the grades and grade again.`
           ) : (
-            "Every step here is marked done by what's kept today."
+            "Every step is done."
           )}
         </p>
       )}
@@ -158,7 +135,7 @@ function Steps({ plan, more, onMore }: { plan: Plan; more: boolean; onMore: () =
           <Part label="Too few to read" empty={!thin.length && notes.thin}>
             {thin.length > 0 && (
               <>
-                <p className="text-sm text-muted">Places to collect more hands. None of these is a leak: there aren&rsquo;t enough decisions to say.</p>
+                <p className="text-sm text-muted">Not leaks: too few decisions yet.</p>
                 <ol className="space-y-2">
                   {shown.map((s, i) => (
                     <Row key={s.id} step={s} at={thinFrom + i} next={next} />
@@ -228,7 +205,7 @@ function Row({ step, at, next }: { step: PlanStep; at: number; next: PlanStep | 
       {step.says[0] && <p className="text-muted">{step.says[0]}</p>}
       {step.progress && <p>{step.progress}</p>}
       {step.says.length > 1 && (
-        <About label="Counted from, and what graded it">
+        <About label="Details">
           {step.says.slice(1).map((x) => (
             <p key={x}>{x}</p>
           ))}

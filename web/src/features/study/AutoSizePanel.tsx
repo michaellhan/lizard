@@ -12,7 +12,7 @@ import type { SizeStreet } from "@/features/solve/setup";
 import type { AdvisorResponse } from "@/solver/protocol";
 import type { SolverClient } from "@/solver/client";
 import { SolverError, type SolveMode, type SolveResult } from "@/solver/types";
-import { autoSizeRequest, keptMenu, OPT_KEEP, usageOf } from "./autoSize";
+import { autoSizeRequest, keptMenu, usageOf } from "./autoSize";
 import { betMenuOf, withMenu } from "./CompareLinks";
 import { holesOf } from "./LockPanel";
 import { studyRequest, type StudyHand } from "./studyState";
@@ -47,11 +47,6 @@ export function AutoSizePanel({ hand, res, cls, mode, getSolver }: { hand: Study
     <details className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
       <summary className="cursor-pointer font-medium">Choose bet sizes (automatic sizing)</summary>
       <div className="mt-2 space-y-3">
-        <p className="text-xs text-muted">
-          The engine solves this street once over a wide menu (25% to 200% of the pot, with this spot's own sizes for the street), one street deep with one raise; keeps the sizes
-          either player's first bet uses with {pct(OPT_KEEP, 0)} or more of their range, at most 3; and solves again with them. The two solves share one solve's time. Asked for one
-          hand (Study's range view keeps this spot's menu); "One bet size" beside it gives what each single size gives up.
-        </p>
         <form
           aria-label="Automatic sizing"
           className="flex flex-wrap items-center gap-2"
@@ -81,7 +76,7 @@ export function AutoSizePanel({ hand, res, cls, mode, getSolver }: { hand: Study
               </button>
             </>
           )}
-          <span className="text-xs text-muted">{cls ? "" : "(select a class in the grid for its hands)"}</span>
+          <span className="text-xs text-muted">{cls ? "" : "(select a class)"}</span>
         </form>
         {run.kind === "error" && (
           <p role="alert" className="text-xs text-danger">
@@ -137,10 +132,7 @@ function AutoSizeAnswer({ result, hole, actor, hand, bets }: { result: SolveResu
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted">
-            The first solve's mix for {actor}'s whole range at their first bet this street (a size can be kept for the other player's bets). Its distance from equilibrium isn't
-            reported; it's one street deep, so later streets are cut short there.
-          </p>
+          <p className="text-xs text-muted">First solve: one street deep, distance from equilibrium not measured.</p>
         </>
       ) : (
         <p className="text-xs">The engine kept this spot's menu: {(R.notes ?? []).find((n) => n.includes("optimized only")) ?? "it chose no sizes here"}.</p>
@@ -173,7 +165,7 @@ function AutoSizeAnswer({ result, hole, actor, hand, bets }: { result: SolveResu
           {vs?.b ? (
             <>
               The range's EV with each menu:{" "}
-              <Link to={compareLink(hand, vs.b)} className="underline hover:text-text" title="This spot with its menu as A, the kept sizes as B">
+              <Link to={compareLink(hand, vs.b)} className="underline hover:text-text" title="A: this menu, B: kept sizes">
                 compare the kept sizes with this spot's
               </Link>
               .

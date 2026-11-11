@@ -6,15 +6,12 @@
 // says what it stands on: the charts (by frequency, not a solve), the stored preflop solve (by EV, of a class-level model),
 // the library, a read or a solve.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { About } from "@/components/About";
 import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { clearDecisions, putDecisions } from "@/data/hands";
-import { VERSION_UNKNOWN } from "@/grading/version";
 import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
-import { PF_MODEL } from "@/features/practice/pfGrade";
 import { useRuntime } from "@/solver/runtime";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
@@ -24,29 +21,12 @@ import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
 import { isEquilibriumHand } from "./sessions";
-import { basisOf, isGraded, isPfSolve, LEAK_RULE, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { basisOf, isGraded, isPfSolve, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
-
-import { PF_DEPTHS_WORDS } from "@/solver/pfStored";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const pair = ([a, b]: readonly [number, number]) => `${pct(a)} to ${pct(b)}`;
 const bbs = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100) / 100}bb`);
-
-/** What the grades stand on, said wherever they are shown. */
-export const GRADED_ON =
-  `In a game the preflop solve is stored for (2 to 6 players at equal stacks of ${PF_DEPTHS_WORDS}, with no ante or straddle, and no rake or 5% capped at 3bb), a preflop decision is graded by EV against that solve wherever its tree holds the spot: an ${PF_MODEL}, and its EVs are against its own ranges. Anywhere else it's graded against the preflop charts by how often your hand takes the action: the charts aren't a solve and have no EVs, so no EV lost is counted. Each says which graded it, and the two are never added together. A hand played in Practice is read as its table read it; a site's history says no rake, so it's read as the game with none. After the flop a decision is graded against what answered it, which it names: the precomputed flop library, a stored turn, a read at once, or a Quick or Fast solve; by EV where that answer has EVs, by frequency where it hasn't. A rough or cut-short solve can't condemn a line: its grade stops at Inaccuracy. The betting rules and equity guesses are never graded against. Tournament hands are graded in chips, with no ICM or bounties.`;
-
-/** What each scope asks of the solver. */
-const SCOPE_NOTES: Record<GradeScope, string> = {
-  preflop: "Nothing is solved: the charts and the stored preflop solve are read as they stand.",
-  library: "Nothing is solved; a flop the library doesn't hold isn't graded.",
-  triage:
-    "What's in hand first (the charts, the library, its stored turns, nearby solutions), else a Quick solve. Each read says how far to trust it, and the doubtful ones can then be checked at Fast.",
-  all: "The charts and the library where they answer, else a solve at Fast: closer to equilibrium, and much slower. Triage reads already kept aren't asked again: check them at Fast below.",
-  accurate:
-    "The charts and the library where they answer, else a solve at Accurate: Study's tightest setting, closer to equilibrium than Fast and many times slower. Decisions already graded aren't asked again, so it grades what no other run has; the clock is a guess until two answers of a street are timed.",
-};
 
 /** The solver's setting a scope's solves run at. */
 const modeOf = (sc: GradeScope) => (sc === "accurate" ? "accurate" : "fast");
@@ -152,10 +132,6 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   return (
     <section aria-label="Grading" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Grade your decisions</h2>
-      <About label="What grades your decisions">
-        <p>{GRADED_ON}</p>
-        <p>{SCOPE_NOTES[scope]}</p>
-      </About>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">
           <span>Grade</span>
@@ -205,19 +181,19 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
           ))}
       </div>
       <p className="text-muted">
-        {plan && !running && (asks ? `${nDecisions(asks)} to ask: about ${fmtDur(secs(plan, scope))} ${transport === "worker" ? "in this browser" : "on your solver"} (an estimate; the clock follows the real pace once it runs).` : "Every decision here has its answer.")}
+        {plan && !running && (asks ? `${nDecisions(asks)} to ask: about ${fmtDur(secs(plan, scope))} ${transport === "worker" ? "in this browser" : "on your solver"}.` : "Every decision here has its answer.")}
       </p>
       {running && (
         <p role="status" aria-label="Grading progress">
           {status.phase === "booting" ? `Starting the solver in this browser${status.message ? `: ${status.message}` : ""}. ` : ""}
-          Hand {prog.k.toLocaleString()} of {prog.n.toLocaleString()}: {nDecisions(prog.graded)} {prog.checking ? "checked" : "graded"}{prog.eta != null && prog.eta > 0 ? `, about ${fmtDur(prog.eta)} left` : ""}.{prog.checking ? "" : " A decision already graded isn't asked again."}
+          Hand {prog.k.toLocaleString()} of {prog.n.toLocaleString()}: {nDecisions(prog.graded)} {prog.checking ? "checked" : "graded"}{prog.eta != null && prog.eta > 0 ? `, about ${fmtDur(prog.eta)} left` : ""}.
         </p>
       )}
       {toCheck && toCheck.every.reads.size > 0 && (
         <div role="group" aria-label="Check at Fast" className="flex flex-wrap items-center gap-2">
           <span>
             {toCheck.flagged.reads.size
-              ? `${nDecisions(toCheck.flagged.reads.size)} flagged: a low-confidence read, one off the mix or losing 2% of the pot or more, or one that couldn't be graded.`
+              ? `${nDecisions(toCheck.flagged.reads.size)} flagged.`
               : "No read is flagged."}
           </span>
           {toCheck.flagged.reads.size > 0 && (
@@ -316,17 +292,17 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
         </p>
         {rp.spotEv.n > 0 && (
           <p>
-            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} of solver EV lost in all, {rp.spotEv.avgPct}% of the pot per decision on average (not what you won).
+            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} of solver EV lost in all, {rp.spotEv.avgPct}% of the pot per decision.
           </p>
         )}
         {rp.pfEv.n > 0 && (
           <p>
-            Graded by the preflop solve: {nDecisions(rp.pfEv.n)}, {bbs(rp.pfEv.lost)} lost in all, an {PF_MODEL}, kept apart from the EV after the flop and never added to it.
+            Graded by the preflop solve (class-level model): {nDecisions(rp.pfEv.n)}, {bbs(rp.pfEv.lost)} lost, kept apart.
           </p>
         )}
         {rp.low.n > 0 && (
           <p>
-            {nDecisions(rp.low.n)} graded on a low-confidence read{rp.low.lost > 0 ? `, ${bbs(rp.low.lost)} of that EV` : ""}: a guide, not a solve's verdict, until it's checked at Fast.
+            {nDecisions(rp.low.n)} graded on a low-confidence read{rp.low.lost > 0 ? `, ${bbs(rp.low.lost)} of that EV` : ""}.
           </p>
         )}
         {rp.agree.n > 0 && (
@@ -348,18 +324,11 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
             </ul>
           </details>
         )}
-        <About label="About these grades">
-          <p>{GRADED_ON}</p>
-          <p>
-            Solver EV lost is measured over graded decisions: it isn&rsquo;t what you won, and no win rate is worked out from it. The preflop solve&rsquo;s
-            EVs are of your hand&rsquo;s class against its own ranges.
+        {rp.versions && (
+          <p role="group" aria-label="Versions graded on" className="text-xs text-muted">
+            {rp.versions}
           </p>
-          {rp.versions && (
-            <p role="group" aria-label="Versions graded on">
-              {rp.versions} The preflop charts come with the solver build. A library version is its spot&rsquo;s ranges and bet tree. {rp.versions.includes("unknown") ? VERSION_UNKNOWN : ""}
-            </p>
-          )}
-        </About>
+        )}
       </div>
 
       {misses.length > 0 ? (
@@ -392,13 +361,11 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
         </div>
       )}
       {rp.leaks.length === 0 && <p className="text-muted">No clear leak yet.</p>}
-      <About label="What makes a leak">
-        <p role="group" aria-label="What makes a leak">
-          {rp.leaks.length === 0 ? "No clear leak yet. " : ""}
-          {LEAK_RULE}
-          {apart > 0 ? ` ${nDecisions(apart)} in tournament hands ${apart === 1 ? "is" : "are"} left out of the leaks: their chips aren't big blinds and they're graded with no ICM.` : ""}
+      {apart > 0 && (
+        <p role="group" aria-label="Left out of the leaks" className="text-xs text-muted">
+          {nDecisions(apart)} in tournament hands left out of the leaks.
         </p>
-      </About>
+      )}
       {rp.thin.length > 0 && (
         <details className="space-y-1">
           <summary className="cursor-pointer text-muted">
@@ -419,13 +386,13 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
       {leak && <DecisionList title={leak.key} ds={eq.filter(leakTest(leak))} byId={byId} />}
 
       <details className="space-y-4">
-        <summary className="cursor-pointer font-semibold">Every breakdown: by seat, street, situation, spot and frequency, and the full lists</summary>
+        <summary className="cursor-pointer font-semibold">Every breakdown</summary>
       <div className="mt-2 space-y-4">
       {rp.byBasis.length > 0 && <GroupTable title="What the grades stand on" first="Answer" rows={rp.byBasis} ds={ds} keyOf={basisKey} byId={byId} ev noUngraded />}
       <Breakdowns ds={ds} hands={hands} byId={byId} />
       <GroupTable title="By street" first="Street" rows={rp.byStreet} ds={ds} keyOf={streetOf} byId={byId} />
-      {rp.byPf.length > 0 && <GroupTable title="Preflop, by situation (against the charts, by frequency)" first="Situation" rows={rp.byPf} ds={ds} keyOf={pfOf} byId={byId} />}
-      {rp.byPfSolve.length > 0 && <GroupTable title="Preflop, by situation (against the preflop solve, by EV: a class-level model, not a full solve)" first="Situation" rows={rp.byPfSolve} ds={ds} keyOf={pfSolveOf} byId={byId} ev />}
+      {rp.byPf.length > 0 && <GroupTable title="Preflop, by situation (charts, not a solve)" first="Situation" rows={rp.byPf} ds={ds} keyOf={pfOf} byId={byId} />}
+      {rp.byPfSolve.length > 0 && <GroupTable title="Preflop, by situation (preflop solve, class-level model)" first="Situation" rows={rp.byPfSolve} ds={ds} keyOf={pfSolveOf} byId={byId} ev />}
       {rp.bySpot.length > 0 && <GroupTable title="After the flop, by spot" first="Spot" rows={rp.bySpot} ds={ds} keyOf={spotOf} byId={byId} ev />}
       {rp.freqs.length > 0 && (
         <div className="space-y-1">
@@ -464,10 +431,6 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-muted">
-            The answer's: the same hands at the same decisions, from what graded each (preflop the charts, which aren't a solve, or on a row of its own the preflop solve, a class-level model; after the flop the library, a read or a solve). The range is a 95% interval on your rate. The
-            squeeze row counts every seat, the blinds too, from the calls of the open kept with each decision. VPIP and PFR here are at your first preflop decision of each hand; as played, over every preflop decision, they're in Your stats. VPIP, PFR, the check-raise and the river barrel need what you did earlier in the hand, which a grade kept before 9 November 2026 is given from its history when this page opens.
-          </p>
           {freq && freqDs.length > 0 && <DecisionList title={freq} ds={freqDs} byId={byId} />}
         </div>
       )}

@@ -97,7 +97,7 @@ describe("nodeLock.ts", () => {
     expect(combosNamed({ kind: "classes", text: "AQo KK" })).toBe(18);
     expect(combosNamed({ kind: "classes", text: "K9s" }, "Kd7c2h")).toBe(3);
     expect(combosNamed({ kind: "classes", text: "AQo KK" }, "Kd7c2h")).toBe(15);
-    expect(memoryNote("flop", "accurate")).toMatch(/estimated 1\.2 GB, not measured/);
+    expect(memoryNote("flop", "accurate")).toMatch(/about 1\.2 GB/);
     expect(memoryNote("turn", "accurate")).toBeNull();
     expect(memoryNote("flop", "fast")).toBeNull();
     expect(combosNamed({ kind: "combo", combo: "AhQd" })).toBe(1);
@@ -122,11 +122,10 @@ describe("nodeLock.ts", () => {
   it("says what lock_cost is and isn't", () => {
     const w = costWords(BLOCK);
     expect(w).toContain("Dropping the lock would win BTN 15.67 bb more against BB as BB now plays.");
-    expect(w).toContain("says nothing about how far the solve got");
     expect(w).toContain("never trained an answer");
     expect(costWords({ ...BLOCK, untrained: false })).not.toContain("never trained");
     expect(costWords({ ...BLOCK, locked: { ...BLOCK.locked, lock_cost: [0, 0] } })).toContain("wins BTN nothing");
-    expect(exploitWords(BLOCK)).toBe("0.070% of the pot in the restricted game: each player's best response keeps their own locks. The unlocked solve measures 0.090% on the same definition.");
+    expect(exploitWords(BLOCK)).toBe("0.070% of the pot in the restricted game (unlocked: 0.090%).");
   });
 });
 
@@ -169,7 +168,7 @@ describe("NodeLockPanel", () => {
     const mix = within(tables[1]!).getAllByRole("row");
     expect(mix[1]).toHaveTextContent("check28.3%50.0%+21.7");
     expect(mix[3]).toHaveTextContent("bet 75%14.6%0.0%-14.6");
-    expect(result).toHaveTextContent("0.070% of the pot in the restricted game: each player's best response keeps their own locks.");
+    expect(result).toHaveTextContent("0.070% of the pot in the restricted game (unlocked: 0.090%).");
     expect(result).toHaveTextContent("Dropping the lock would win BTN 15.67 bb more against BB as BB now plays.");
     expect(result).toHaveTextContent("The lock is on this street's solve.");
     expect(result).toHaveTextContent("Below it the turn is played as one card per class.");
@@ -243,7 +242,7 @@ describe("NodeLockPanel", () => {
     const combo = within(form).getByLabelText("Combo");
     expect(within(combo).getAllByRole("option").map((o) => o.textContent)).toEqual(["AhQd", "AsQc"]);
     fireEvent.change(combo, { target: { value: "AsQc" } });
-    expect(form).toHaveTextContent("this answer is marked approximate");
+    expect(form).toHaveTextContent("Rivers by card class: marked approximate.");
     fireEvent.click(within(form).getByRole("button", { name: "Run" }));
     await screen.findByRole("region", { name: "Node-locked result" });
     expect(asked[0]!.lock.hands).toEqual({ combos: ["AsQc"] });
@@ -283,7 +282,7 @@ describe("NodeLockPanel", () => {
     const form = open({ ...NODE, street: "flop", precomputed: { spot: "srp_btn_bb" } }, null)!;
     fireEvent.click(within(form).getByRole("button", { name: "Run" }));
     const result = await screen.findByRole("region", { name: "Node-locked result" });
-    expect(result).toHaveTextContent("The flop on screen is the library's stored answer");
+    expect(result).toHaveTextContent("Stored flop: the unlocked column is a live");
   });
 
   it("stops the solve when the panel goes (another node)", async () => {

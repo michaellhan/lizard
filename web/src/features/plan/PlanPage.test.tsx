@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db, putSession, type DecisionRecord, type HandRecord, type MistakeRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import type { LibraryFiles } from "@/library/files";
-import { LEAK_RULE } from "@/features/analyze/report";
 import { mistake } from "@/test/mistake";
 
 const count = vi.hoisted(() => ({ n: 0 }));
@@ -66,16 +65,13 @@ beforeEach(async () => {
 });
 
 describe("PlanPage", () => {
-  it("says what to do first with nothing kept, and states the rule", async () => {
+  it("says what to do first with nothing kept", async () => {
     page();
     const start = await screen.findByRole("region", { name: "Start here" });
-    expect(within(start).getByText(/Nothing is kept in this browser/)).toBeInTheDocument();
+    expect(within(start).getByText(/Nothing kept yet/)).toBeInTheDocument();
     expect(within(start).getByRole("link", { name: "Play hands in Practice" })).toHaveAttribute("href", "/practice");
     expect(within(start).getByRole("link", { name: "Import hands in Analyze" })).toHaveAttribute("href", "/analyze");
-    const how = screen.getByRole("region", { name: "How this plan is made" });
-    expect(within(how).getByText(/rule, not a coach/)).toBeInTheDocument();
-    expect(within(how).getByText(/marked done only by what's kept/)).toBeInTheDocument();
-    expect(within(how).getByText(LEAK_RULE)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "How this plan is made" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Leaks" })).toBeNull();
   });
 
@@ -99,7 +95,7 @@ describe("PlanPage", () => {
     await seed([hand("h1")], Array.from({ length: 40 }, () => decision({ mix: undefined, verdict: "Correct" })));
     page();
     const said = await screen.findByRole("status", { name: "Next step" });
-    expect(said).toHaveTextContent(/Nothing here can be started: the leak not done has no decision that keeps its mix/);
+    expect(said).toHaveTextContent(/Nothing to start: the open leak keeps no mix/);
     expect(said).not.toHaveTextContent(/marked done/);
   });
 
@@ -118,7 +114,7 @@ describe("PlanPage", () => {
     page();
     const row = await screen.findByRole("listitem", { name: "Practice preflop from BTN" });
     expect(within(row).getByText("Done")).toBeInTheDocument();
-    expect(within(row).getByText("20 of 20 decisions in this drill in sessions started today.")).toBeInTheDocument();
+    expect(within(row).getByText("20 of 20 decisions today.")).toBeInTheDocument();
   });
 
   it("says a preflop leak is by frequency against the charts, not a solve", async () => {
@@ -136,7 +132,7 @@ describe("PlanPage", () => {
     await seed([hand("h1")], sits.flatMap((situation) => Array.from({ length: 12 }, () => decision({ situation }))));
     page();
     const thin = await screen.findByRole("region", { name: "Too few to read" });
-    expect(within(thin).getByText(/None of these is a leak/)).toBeInTheDocument();
+    expect(within(thin).getByText(/Not leaks: too few decisions yet/)).toBeInTheDocument();
     expect(within(thin).getAllByRole("listitem").length).toBe(6);
     fireEvent.click(within(thin).getByRole("button", { name: /^Show \d+ more$/ }));
     expect(within(thin).getAllByRole("listitem").length).toBeGreaterThan(6);

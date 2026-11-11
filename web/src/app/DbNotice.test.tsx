@@ -10,7 +10,7 @@ describe("the database with other Lizard tabs open", () => {
     render(<DbNotice />);
     const opened = db();
     await vi.waitFor(() => expect(dbState()).toBe("waiting"));
-    expect(screen.getByRole("alert")).toHaveTextContent("Another Lizard tab (most likely one open since before an update) is holding this browser's saved data.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Another Lizard tab is holding your saved data.");
     act(() => old.close());
     const d = await opened;
     expect(d?.version).toBe(DB_VERSION);

@@ -14,7 +14,7 @@ describe("PhoneColumns", () => {
     expect(screen.getByText(/^Hidden at this width: Site, Big blind\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show them" }));
     expect(box).toHaveAttribute("data-all");
-    expect(screen.getByText(/scroll the table sideways/)).toBeInTheDocument();
+    expect(screen.getByText(/Scroll sideways/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hide them" }));
     expect(box).not.toHaveAttribute("data-all");
   });

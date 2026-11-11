@@ -93,18 +93,7 @@ export function LockPanel({ hand, res, cls, mode, getSolver }: { hand: StudyHand
     <details className="w-full rounded-lg border border-border bg-surface p-3 text-sm">
       <summary className="cursor-pointer font-medium">Against a read (best response)</summary>
       <div className="mt-2 space-y-3">
-        {preflop ? (
-          <p className="text-xs text-muted">
-            How a seat plays, laid on the preflop charts (hand-written, not a solve, so approximate): {actor}'s best response to it, with the charts' mix beside it. A best response,
-            not a re-solve: the seat doesn't adjust back. Asked for one hand, and the range's answer comes with it. The engine's preflop read is on the charts even where Study shows
-            the preflop solve.
-          </p>
-        ) : (
-          <p className="text-xs text-muted">
-            How {opponent} plays, laid on the solve: {actor}'s best response to it, with the equilibrium beside it. A best response, not an equilibrium re-solve: {opponent}{" "}
-            doesn't adjust back. Asked for one hand (Study's range view stays at equilibrium), and the range's best response comes with it.
-          </p>
-        )}
+        {preflop && <p className="text-xs text-muted">Laid on the preflop charts, not a solve.</p>}
         <form
           aria-label="The read"
           className="space-y-2"
@@ -248,16 +237,9 @@ function LockAnswer({ gto, br, hole, actor, preflop }: { gto: SolveResult; br: S
         </table>
       </div>
       {preflop ? (
-        <p className="text-xs text-muted">
-          The charts' mix is hand-written, with no EVs. Against the read the engine re-draws {actor}'s raises and calls by equity against the locked seat's range (its notes say how);
-          the range's columns are read off each answer's grid.
-        </p>
+        <p className="text-xs text-muted">Charts: no EVs.</p>
       ) : (
-        <p className="text-xs text-muted">
-          EVs are against the read, assuming {actor} keeps best-responding on later streets. The hand's GTO is the equilibrium of the solve the read is laid on; the range's, the
-          same hand's advice without the read{G.range_action_freq ? "" : " (not returned)"}. Each hand takes its best-paying action, and hands within the solve's noise of it keep the
-          equilibrium's mix.
-        </p>
+        <p className="text-xs text-muted">EVs against the read.{G.range_action_freq ? "" : " Range mix not returned."}</p>
       )}
       {G.grid && B.grid && (
         <div className="space-y-2">

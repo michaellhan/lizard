@@ -90,16 +90,15 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse;
       {res.filter && <p className="text-xs text-muted">{filterWords(res.filter)}</p>}
       {rough.length > 0 && (
         <p className="rounded border border-warn/40 bg-warn/10 px-2 py-1 text-xs">
-          ≈ {rough.join(" and ")} {rough.length > 1 ? "are" : "is"} taken by almost none of the range here, so {rough.length > 1 ? "their" : "its"} EVs
-          are rough (usually too low), and so are these gaps.
+          ≈ {rough.join(" and ")} {rough.length > 1 ? "are" : "is"} almost never taken: rough EVs, rough gaps.
         </p>
       )}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="space-y-2">
           <DeltaMatrix name={`EV of ${x} minus ${y}`} cellOf={cellOf} full={max} min={noise ?? 0.005} selected={selected} onSelect={setSelected} />
           <p className="text-xs text-muted">
-            Blue: {x} is worth more; red: {y} is; the stronger, the bigger (strongest {u(max)}).
-            {noise !== null ? ` Gaps under ${plain(noise)} (the answer's distance from equilibrium) aren't coloured: noise.` : ""}
+            Blue: {x} worth more; red: {y} (strongest {u(max)}).
+            {noise !== null ? ` Under ${plain(noise)}: noise, uncoloured.` : ""}
           </p>
           <p role="status" className="text-sm">
             {selected ? label(selected, by.get(selected)) : ""}
@@ -116,8 +115,8 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse;
           </div>
           <p className="text-xs text-muted">
             {mix.n
-              ? `${mix.n} ${mix.n > 1 ? "classes take" : "class takes"} both at least 5% of the time; ${mix.n > 1 ? "their gaps average" : "its gap is"} ${plain(mix.meanAbs!)} in size. At equilibrium a class mixes only actions worth the same, so this should be near zero.`
-              : "No class takes both at least 5% of the time."}
+              ? `${mix.n} ${mix.n > 1 ? "classes take" : "class takes"} both 5%+ of the time; ${mix.n > 1 ? "mean gap" : "gap"} ${plain(mix.meanAbs!)} (near zero at equilibrium).`
+              : "No class takes both 5%+ of the time."}
           </p>
         </div>
       </div>

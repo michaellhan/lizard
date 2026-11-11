@@ -33,10 +33,6 @@ export type HeldAnswer = SolveResult & { pf?: PfAsked };
 /** What every grade from the solve is labelled with: it's no full solve, and it's said at the table and at a retry alike. */
 export const PF_MODEL = "equilibrium of a simplified class-level preflop game, not a full solve";
 
-/** Said with a decision graded by the solve. */
-export const PF_GRADED =
-  "Graded by EV against the preflop solve, for your hand's class: an equilibrium of a simplified class-level game, not a full solve. Its EVs are against the ranges of its own equilibrium, while the opponents here play the charts, and the two disagree in places, so this says what that model thinks of the move, not what it won or lost at this table.";
-
 /** the size the engine calls one (pf_study.Solve.walk), and a chip's width in the pot */
 const SIZE_EPS = 0.051;
 const CHIP_EPS = 0.011;
@@ -169,5 +165,5 @@ export function pfWords(cells: Record<string, GradeCell> | undefined): string | 
   if (!solve.n && !charts.n) return null;
   const a = `${solve.n} by the preflop solve, by EV${solve.n ? ` (${shareText(solve.ok, solve.n)} Best or Correct, ${bb(solve.loss / solve.n)}bb lost a decision)` : ""}`;
   const b = `${charts.n} by the charts, by frequency, no EV${charts.n ? ` (${shareText(charts.ok, charts.n)} Best or Correct)` : ""}`;
-  return `Preflop so far: ${a}; ${b}. The two are never added together.`;
+  return `Preflop so far: ${a}; ${b}.`;
 }

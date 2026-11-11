@@ -1,4 +1,4 @@
-// What of Analyze comes to the review queue (schedule.ts QUEUE_RULE): a pick missed in a leak drill by itself, a graded
+// What of Analyze comes to the review queue: a pick missed in a leak drill by itself, a graded
 // decision when you add it, as a bulk import can grade hundreds below Correct. Neither from a tournament hand or an
 // exploit session, as sessions.ts isEquilibriumHand has it. Such an entry keeps the mix it was graded against, so a retry
 // deals the spot from the record and grades it against that same answer: nothing is asked, it stands if the hand is
@@ -45,7 +45,7 @@ export function decisionProvenance(d: Pick<DecisionRecord, "source" | "label" | 
 /** Why no decision of this hand can go in the queue, in words; null where one can. */
 export function handOut(hand: Pick<HandRecord, "tournament" | "importId">, exploits: ReadonlySet<string>): string | null {
   if (isEquilibriumHand(hand, exploits)) return null;
-  return hand.tournament !== undefined ? "A tournament hand stays out of the review queue: its chips aren't bb won, and it's graded with no ICM." : "A hand from an exploit session stays out of the review queue: it was graded against a best response to an assumed profile, not an equilibrium.";
+  return hand.tournament !== undefined ? "A tournament hand stays out of Review." : "A hand from an exploit session stays out of Review.";
 }
 
 /** Why this graded decision can't be dealt again, in words; null where it can. */

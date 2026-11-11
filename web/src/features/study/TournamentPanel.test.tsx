@@ -12,7 +12,7 @@ describe("the tournament panel", () => {
     expect(panel).toHaveTextContent("Prize equity: CO 8.2% of what's left to pay.");
     expect(panel).toHaveTextContent("BTN 1.18 · BB (a chip won gains nothing)");
     expect(panel).toHaveTextContent("Bounties CO covers nobody still in the hand who carries a bounty. Covered by BTN, BB.");
-    expect(panel).toHaveTextContent("they're in prize equity");
+    expect(panel).toHaveTextContent("EVs in chips of prize equity.");
   });
 
   it("leaves out bubble factors when the winner takes all, and says chips when no payouts were given", () => {
@@ -21,7 +21,7 @@ describe("the tournament panel", () => {
     expect(screen.queryByText(/Bubble factors/)).toBeNull();
     unmount();
     render(<TournamentPanel actor={undefined} t={{ note: "tournament: no payouts given, the prizes taken as the bounties in play" }} />);
-    expect(screen.getByLabelText("Tournament")).toHaveTextContent("Where EVs show, they're chips, the bounties priced in chips.");
+    expect(screen.getByLabelText("Tournament")).toHaveTextContent("EVs in chips, bounties included.");
   });
 
   it("has every pair's bubble factor behind \"Every pair\", the actor's row its own numbers", () => {
@@ -35,11 +35,11 @@ describe("the tournament panel", () => {
     // the same pairs as the equity a call of the all-in needs (CO against SB: 3.43 -> 77.4%)
     fireEvent.click(screen.getByRole("radio", { name: "Equity to call" }));
     expect(within(table).getByRole("row", { name: /^CO / })).toHaveTextContent("CO—53.7%77.4%52.4%31.6%");
-    expect(screen.getByLabelText("Tournament")).toHaveTextContent("so the risk premium is the rest");
+    expect(screen.getByLabelText("Tournament")).toHaveTextContent("nothing else in the pot (chips: 50%)");
   });
 
   it("says so once when no chip won gains anything (every player left paid)", () => {
     render(<TournamentPanel actor="UTG" t={{ equity_share: 1 / 6, bubble_factors: { HJ: null, BB: null }, note: "tournament: ICM, UTG's prize equity 16.7%" }} />);
-    expect(screen.getByLabelText("Tournament")).toHaveTextContent("chips won): none: a chip won from anyone gains nothing.");
+    expect(screen.getByLabelText("Tournament")).toHaveTextContent("Bubble factors: none: a chip won from anyone gains nothing.");
   });
 });

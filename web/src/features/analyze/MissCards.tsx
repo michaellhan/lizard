@@ -68,7 +68,7 @@ export function MissCards({ misses, byId, k, setK, onClose }: { misses: readonly
         </button>
       </div>
       {!d ? (
-        <p className="text-muted">No misses among the hands the filters show: every graded decision here is in the mix.</p>
+        <p className="text-muted">No misses here.</p>
       ) : (
         <Card key={d.id} d={d} hand={hand} open={open} onTurn={() => setShown(open ? null : d.id)} />
       )}
@@ -103,7 +103,7 @@ function GradedBy({ d }: { d: DecisionRecord }) {
   return (
     <details className="text-xs text-muted">
       <summary className="cursor-pointer hover:text-text">Graded by {short}</summary>
-      <p className="mt-1">{full}. Kept with the grade: nothing is solved here.</p>
+      <p className="mt-1">{full}</p>
     </details>
   );
 }
@@ -153,7 +153,7 @@ function Card({ d, hand, open, onTurn }: { d: DecisionRecord; hand: HandRecord |
           ))}
         </ul>
       )}
-      {!line && street !== "preflop" && <p className="text-xs text-warn">This hand&rsquo;s history can&rsquo;t be read again, so its board and the action before aren&rsquo;t shown.</p>}
+      {!line && street !== "preflop" && <p className="text-xs text-warn">History unreadable: board not shown.</p>}
       <p className="text-base">
         You played <b>{d.action}</b>
       </p>

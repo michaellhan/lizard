@@ -126,7 +126,7 @@ export function FilterBar({
           <Choice label="Your seat" value={params.get("pos")} values={opts.seats} onChange={(v) => set({ pos: v })} />
           <Choice label="Pot" value={params.get("pot")} values={opts.pots} onChange={(v) => set({ pot: v })} />
           {opts.tags.length > 0 && <Choice label="Tag" value={params.get("tag")} values={opts.tags} onChange={(v) => set({ tag: v })} />}
-          <label className="flex items-center gap-1" title="The EV your graded decisions gave up in the hand, from the answers they were graded against (the preflop charts' grades have no EVs)">
+          <label className="flex items-center gap-1" title="EV given up in the hand">
             <span className="text-muted">EV lost</span>
             <select aria-label="EV lost" value={params.get("lost") ?? ""} onChange={(e) => set({ lost: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
               <option value="">Any</option>
@@ -137,7 +137,7 @@ export function FilterBar({
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-1" title="Leaves out tournament hands, Practice's and a site's, and the hands of Practice's exploit sessions: what the Plan page reads leaks from">
+          <label className="flex items-center gap-1" title="Leaves out tournaments and exploit sessions">
             <span className="text-muted">Game</span>
             <select aria-label="Game" value={params.get("game") ?? ""} onChange={(e) => set({ game: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1 py-0.5">
               <option value="">Any</option>
@@ -145,14 +145,13 @@ export function FilterBar({
             </select>
           </label>
         </div>
-        <p className="text-xs text-muted">Every tab follows these. Stakes are the big blind as the history writes it, and days are by the site&rsquo;s own clock.</p>
       </div>
       {shown.length === 0 && (
         <p role="group" aria-label="Nothing left" className="text-danger">
-          {from && to && from > to ? "From is later than To, so no day can match." : "None of your hands matches all of these filters together."} Every report is empty until you change them.
+          {from && to && from > to ? "From is later than To, so no day can match." : "No hand matches these filters."}
         </p>
       )}
-      {(from || to) && opts.undated > 0 && <p className="text-xs text-muted">{count(opts.undated, "hand")} with no date in the history {opts.undated === 1 ? "is" : "are"} left out while a date is set.</p>}
+      {(from || to) && opts.undated > 0 && <p className="text-xs text-muted">{count(opts.undated, "undated hand")} left out.</p>}
     </section>
   );
 }

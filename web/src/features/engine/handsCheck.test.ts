@@ -770,8 +770,8 @@ describe("a timed run", () => {
   it("says a run wasn't cold, in a line, only where it wasn't", () => {
     const r = { earlier: 0 } as HandsCheckReport;
     expect(warmLine(r)).toBeNull();
-    expect(warmLine({ ...r, earlier: 1 })).toBe("Not a cold run: this solver had played a run already and keeps its answers, so reload before timing one.");
-    expect(warmLine({ ...r, earlier: 3 })).toBe("Not a cold run: this solver had played 3 runs already and keeps its answers, so reload before timing one.");
+    expect(warmLine({ ...r, earlier: 1 })).toBe("Not a cold run: this solver had played a run already: reload before timing.");
+    expect(warmLine({ ...r, earlier: 3 })).toBe("Not a cold run: this solver had played 3 runs already: reload before timing.");
   });
 });
 

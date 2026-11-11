@@ -1,7 +1,6 @@
 // Your stats as played (stats.ts) over the hands the filters show: each frequency over its own chances with a 95%
 // interval, the hands behind it, and your bet and raise sizes. Counted from the histories; nothing is graded.
 import { useEffect, useMemo, useState } from "react";
-import { About } from "@/components/About";
 import { Link, useSearchParams } from "react-router";
 import type { HandRecord } from "@/data/db";
 import { seatLabel } from "@/poker/seats";
@@ -40,15 +39,9 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
       <div>
         <h2 className="text-lg font-semibold">Your stats</h2>
         <p className="text-muted">
-          Counted from {hands.length < of ? `the ${nHands(hands.length)} the filters show` : `your ${nHands(hands.length)}`}, as you played them: nothing here is graded or solved.
-          {st && st.left > 0 && ` ${st.left.toLocaleString()} ${st.left === 1 ? "hand is" : "hands are"} left out: the replay stopped short of the history.`}
+          {hands.length < of ? `${nHands(hands.length)} the filters show` : nHands(hands.length)}, as played (not graded).
+          {st && st.left > 0 && ` ${st.left.toLocaleString()} left out: the replay stopped short.`}
         </p>
-        <About>
-          <p>
-            Each rate is over its own chances, the hands where you could take it; the range is a 95% interval, wide when there are few (&ldquo;few&rdquo;
-            marks under {MIN_READ} chances).
-          </p>
-        </About>
       </div>
       {counting && (
         <p role="status" aria-label="Counting" className="text-muted">
@@ -110,9 +103,6 @@ export function StatsPanel({ hands, of }: { hands: HandRecord[]; of: number }) {
             </table>
           </div>
           {sel && <StatHands label={sel.label} took={sel.took} c={sel.c} byId={byId} />}
-          <p className="text-xs text-muted">
-            The history can&rsquo;t say whether a hand was only beating bluffs, so bluff-catching is read as every call of a river bet, and River call won as how those hands came out.
-          </p>
           <BySeat seats={st.seats} />
           <BetSizes sizes={st.sizes} />
           <RaiseSizes raises={st.raises} />
@@ -165,7 +155,6 @@ function BySeat({ seats }: { seats: Stats["seats"] }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted">Each over its own chances at that seat, as in the table above, with its 95% range under it.</p>
     </div>
   );
 }
@@ -225,7 +214,7 @@ function BetSizes({ sizes }: { sizes: Stats["sizes"] }) {
   return (
     <div className="space-y-1">
       <h3 className="font-medium">Your bets after the flop, by size</h3>
-      <p className="text-xs text-muted">Bets only (not raises), in % of the pot before the bet; an all-in counts at its size. Under each share, its 95% range, each bet counted on its own.</p>
+      <p className="text-xs text-muted">Bets only, in % of the pot.</p>
       <div className="relative scroll-x" role="group" aria-label="Bet sizes, scrolls sideways" tabIndex={0}>
         <table aria-label="Bet sizes" className="text-left">
           <thead className="text-xs text-muted">
@@ -262,7 +251,7 @@ function RaiseSizes({ raises }: { raises: Stats["raises"] }) {
   return (
     <div className="space-y-1">
       <h3 className="font-medium">Your raises, by size</h3>
-      <p className="text-xs text-muted">In multiples of the bet raised, the big blind&rsquo;s for an open; an all-in counts at its size. Under each share, its 95% range, each raise counted on its own.</p>
+      <p className="text-xs text-muted">In multiples of the bet raised.</p>
       <div className="relative scroll-x" role="group" aria-label="Raise sizes, scrolls sideways" tabIndex={0}>
         <table aria-label="Raise sizes" className="text-left">
           <thead className="text-xs text-muted">

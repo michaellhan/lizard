@@ -52,7 +52,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title={`The street solved from here once per ${one} and once with every ${one} mixed: the best single ${one}, and what each gives up`}
+        title={`The best single ${one}, and what each gives up`}
         className="rounded border border-border px-2 py-0.5 text-sm text-muted hover:bg-surface-2"
       >
         One {raise ? "raise" : "bet"} size
@@ -89,7 +89,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
         <p>
           {all ? `Best single ${one}` : "Best so far"}: <b>{sizeName(best.size)}</b>
           {raiseTo(best.size)}
-          {sum.tied.length > 0 && <span className="text-muted"> (as good within the solves' precision: {sum.tied.map(sizeName).join(", ")})</span>} · gives up{" "}
+          {sum.tied.length > 0 && <span className="text-muted"> (tied: {sum.tied.map(sizeName).join(", ")})</span>} · gives up{" "}
           <b>{Math.max(0, best.loss_pct ?? 0).toFixed(2)}%</b> of the pot against every {one} mixed
         </p>
       )}
@@ -103,7 +103,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
                 <th className="py-1 pr-2 text-right font-normal" title="The range's EV from here, bb">
                   EV
                 </th>
-                <th className="py-1 text-right font-normal" title={`EV given up: the range's EV with every ${one} to mix freely less its EV with this size alone, % of the pot`}>
+                <th className="py-1 text-right font-normal" title={`EV lost against every ${one} mixed, % of the pot`}>
                   Gives up
                 </th>
               </tr>
@@ -137,7 +137,7 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
                     {row.loss_pct === null ? (
                       "–"
                     ) : row.cut ? (
-                      <span title={`Stopped once clearly behind the best: within ${row.exploitability_pct}% of the pot`}>≈{Math.max(0, row.loss_pct).toFixed(1)}%</span>
+                      <span title={`Stopped early: within ${row.exploitability_pct}% of the pot`}>≈{Math.max(0, row.loss_pct).toFixed(1)}%</span>
                     ) : (
                       `${row.loss_pct < 0 ? "0.00" : row.loss_pct.toFixed(2)}%`
                     )}
@@ -168,15 +168,14 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
           </div>
         </div>
       )}
-      <p className="text-xs text-muted">
-        Each size is a solve of the {m.street ?? run.street ?? "street"} from this decision with the same ranges, the opponent adapting to it; only this decision's{" "}
-        {raise ? "raise" : "bet"} changes (the rest of the tree is Study's). {raise ? "Sizes are multiples of the bet faced (3x: a raise to three times it). " : ""}
-        Best: the {one} that keeps the most EV for the player {raise ? "facing the bet" : "betting"}. Gives up: the range's EV with every {one} to mix freely less with that size
-        alone, in % of the pot
-        {m.target_pct != null ? `; each solve is within ${m.target_pct}% of the pot of equilibrium, so sizes closer than that are a tie` : ""}
-        {sum.rows.some((x) => x.cut) ? "; ≈: a size whose solve stopped early, once it was clearly behind the best" : ""}.
-        {m.tournament?.length ? ` In a tournament every solve pays prize equity (ICM), so EVs are chips worth as much prize equity. ${m.tournament.join(" ")}` : ""}
-      </p>
+      {(raise || m.target_pct != null || sum.rows.some((x) => x.cut) || m.tournament?.length) && (
+        <p className="text-xs text-muted">
+          {raise ? "Sizes: multiples of the bet faced. " : ""}
+          {m.target_pct != null ? `Within ${m.target_pct}% of the pot: a tie. ` : ""}
+          {sum.rows.some((x) => x.cut) ? "≈: stopped early, clearly behind. " : ""}
+          {m.tournament?.length ? `EVs in chips of prize equity (ICM). ${m.tournament.join(" ")}` : ""}
+        </p>
+      )}
     </section>
   );
 }
@@ -188,7 +187,7 @@ function Progress({ run, onGo, onStop }: { run: Run; onGo: () => void; onStop: (
     return (
       <div className="flex flex-wrap items-center gap-2 text-muted">
         <span>
-          A flop solve per size: {n} solves of the flop (every size alone and all of them mixed), about {eta} s in all.
+          {n} flop solves (each size alone, then all mixed), about {eta} s.
         </span>
         <button type="button" onClick={onGo} className={`${btn} text-text`}>
           Find the best size

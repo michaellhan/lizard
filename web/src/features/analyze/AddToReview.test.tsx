@@ -57,7 +57,7 @@ describe("Add to review", () => {
     await putDecisions([miss("h|A")]);
     open("h|A");
     const hand = await screen.findByRole("region", { name: "Hand" });
-    expect(await within(hand).findByText(/Grades below Correct don.t go to Review by themselves/)).toBeInTheDocument();
+    expect(await within(hand).findByText(/Misses reach Review only through Add to review/)).toBeInTheDocument();
     fireEvent.click(await within(hand).findByRole("button", { name: "Add to review: flop decision 2" }));
     const said = await within(hand).findByText(/Added, due tomorrow/);
     expect(within(said).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
@@ -125,8 +125,8 @@ describe("Add to review", () => {
   });
 
   it.each([
-    ["a tournament hand", "T", { tournament: "T" }, /A tournament hand stays out of the review queue/],
-    ["a hand from an exploit session", "E", {}, /A hand from an exploit session stays out of the review queue/],
+    ["a tournament hand", "T", { tournament: "T" }, /A tournament hand stays out of Review/],
+    ["a hand from an exploit session", "E", {}, /A hand from an exploit session stays out of Review/],
   ])("keeps out %s, and says so", async (_, n, over, words) => {
     await putSession({ id: "x", kind: "exploit", startedAt: 1, endedAt: 2, data: {} } as never);
     await addHands([rec(n, n === "E" ? sessionImport("x") : "imp", over)]);

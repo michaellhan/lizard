@@ -27,12 +27,12 @@ const CONTROL = "rounded border border-border bg-surface-2 px-1.5 py-1";
 /** What a spot deals, above the tiles. (Heads-up, a pot drill or Instant flops has no betting rules in it; any hand may.) */
 const spotNote = (spot: Spot, preflopOnly: boolean) =>
   preflopOnly
-    ? "Each table plays its preflop and stops as the flop comes. The charts answer it, not a solve."
+    ? "Preflop only: charts, not a solve."
     : spot === "any"
-      ? "Each table plays a whole hand. Preflop is answered from the charts, not solved; later streets are read from the library or solved while you play the other tables, and a flop or turn with five or more players still in is answered by betting rules, not solved."
+      ? "Whole hands. Preflop: charts, not solved; 5+ way flops and turns: betting rules, not solved."
       : spot === "lib"
-        ? "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others."
-        : `Preflop is played for you from the charts, not solved. Each table is dealt until ${POT_DRILLS[spot].one}; later streets are read from the library or solved while you play the other tables.`;
+        ? "Library flops. Preflop played from the charts, not solved."
+        : `Deals ${POT_DRILLS[spot].one}. Preflop played from the charts, not solved.`;
 
 /** ms from a key to the change it makes, and from that change to giving focus back if nothing else has changed: longer
  * than a browser's type-ahead holds a word, so B, T, N gets to BTN */
@@ -113,7 +113,7 @@ export function TablesBar({
                 role="radio"
                 aria-checked={n === count}
                 tabIndex={n === count ? 0 : -1}
-                title={n === 1 ? "One table: Table 1's hand goes on here" : `${n} tables at once, one score across them`}
+                title={n === 1 ? undefined : "One score across tables"}
                 onClick={() => {
                   pressRef.current = n > 1 && n !== count;
                   room.setTables(n);
@@ -179,12 +179,12 @@ export function TablesBar({
       {count > 1 && (
         <p className="text-xs text-muted">
           {exploit && isPotDrill(pot)
-            ? `Each table deals ${POT_DRILLS[pot].one}, as an exploit session stays in its pot. Seat applies from each table\u2019s next hand.`
+            ? `Deals ${POT_DRILLS[pot].one}.`
             : fixedGame
-              ? "Each table deals any hand of this game. Seat applies from each table\u2019s next hand."
-              : `${spotNote(spot, preflopOnly)} Spots and Seat apply from each table\u2019s next hand.`}
+              ? "Any hand of this game."
+              : spotNote(spot, preflopOnly)}
           {flops.off && !fixedGame && ` ${flopsNote(flops, spot)}`}
-          {stopCost === "kills" && " This browser can't stop a solve: tables wait for it to finish."}
+          {stopCost === "kills" && " This browser can't stop a solve: tables wait."}
         </p>
       )}
     </div>
@@ -440,7 +440,7 @@ export function MultiTables({ room, snap, active, pressRef, side }: { room: Room
           {view ? (
             <div className={`hidden sm:block ${queue.includes(focus) ? "opacity-60" : ""}`}>{view}</div>
           ) : (
-            <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">Each decision is graded here once you act: the verdict, the EV it gave up and the solver&rsquo;s mix, whichever table it was at.</p>
+            <p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">No decision graded yet.</p>
           )}
           <section aria-label="Tables' results" className="rounded-lg border border-border bg-surface p-3 text-sm">
             <h2 className="mb-1 font-medium">Tables</h2>

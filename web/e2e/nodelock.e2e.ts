@@ -31,9 +31,8 @@ test("A node held at a mix comes back beside the unlocked answer, labelled as a 
   await expect(result.getByRole("button", { name: /Node-locked equilibrium of the restricted game, not the unlocked equilibrium/ })).toBeVisible();
   await expect(result).toContainText("BB holds check 50.0%, bet 33% 50.0% (whole range).");
   await expect(result.getByText(/^Live solve/)).toBeVisible();
-  await expect(result).toContainText("in the restricted game: each player's best response keeps their own locks");
-  await expect(result).toContainText("The lock leaves an action unplayed");
-  await expect(result).toContainText("the earlier streets don't react to it");
+  await expect(result).toContainText("% of the pot in the restricted game (unlocked: ");
+  await expect(result).toContainText("An action is left unplayed");
 
   // the mix is what was asked for, and the two seats' values still cancel out
   const held = result.getByRole("table").nth(1).locator("tbody tr");

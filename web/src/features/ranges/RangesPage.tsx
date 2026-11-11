@@ -83,7 +83,7 @@ export function RangesPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Ranges</h1>
-        <p className="text-sm text-muted">Click classes to paint them at the brush weight (click again to clear). Text uses the common solver format.</p>
+        <p className="text-sm text-muted">Click to paint at the brush weight; again to clear.</p>
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="space-y-2">
@@ -158,9 +158,7 @@ export function RangesPage() {
           {combosRead.length > 0 && (
             <p className="text-xs text-muted">
               Single combos ({combosRead.slice(0, 4).join(", ")}
-              {combosRead.length > 4 ? "…" : ""}) are kept as their share of the class: this editor holds whole classes, so it
-              can't say which combos (one of AKs's four is AKs at 0.25). A range sent to the solver from the Solve page keeps
-              its combos.
+              {combosRead.length > 4 ? "…" : ""}) are kept as their share of the class.
             </p>
           )}
           <form

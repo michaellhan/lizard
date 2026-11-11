@@ -99,7 +99,7 @@ describe("the controls", () => {
     expect(screen.getByLabelText("Tables")).toHaveValue("4");
     expect(screen.getByLabelText("Time to think")).toHaveValue("0");
     expect(screen.getByLabelText("Ask ahead")).toBeChecked();
-    expect(screen.getByText("A few minutes of CPU. Nothing is saved to History or Analyze.")).toBeInTheDocument();
+    expect(screen.getByText("A few minutes of CPU; nothing saved. Reload first for a cold run.")).toBeInTheDocument();
     const self = screen.getByRole("button", { name: "Run self-test" });
     expect(self.compareDocumentPosition(screen.getByRole("button", { name: "Play 20 hands" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -144,7 +144,7 @@ describe("the controls", () => {
     show();
     expect(screen.getByLabelText("Ask ahead")).toBeDisabled();
     expect(screen.getByLabelText("Ask ahead")).not.toBeChecked();
-    expect(screen.getByText(/this browser can.t stop a solve, so a wrong guess would hold up your next answer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Off: this browser can.t stop a solve\./i)).toBeInTheDocument();
     play();
     await end(REPORT);
     expect(seen[0]).toMatchObject({ askAhead: false });
@@ -248,7 +248,7 @@ describe("a run", () => {
     const fail = () => Promise.reject(new SolverError("unreachable", "no server"));
     solver.get.mockResolvedValue({ solve: fail, play: fail, transport: { kind: "http" } });
     show();
-    expect(screen.getByText(/Reload this page before a timed run/)).toBeInTheDocument();
+    expect(screen.getByText(/Reload first for a cold run/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Tables"), { target: { value: "1" } });
     play();
     const first = await screen.findByRole("region", { name: "Last report" }, { timeout: 30_000 });
@@ -297,14 +297,13 @@ describe("the report", () => {
     expect(r).toHaveTextContent("131, 12 of them stopped");
     expect(r).toHaveTextContent("31 of 52 postflop look-aheads used · about 44 s saved with no other table waiting, for 96 s of solver time");
     expect(r).toHaveTextContent("flop: estimated 2.00 s, took 2.50 s (30)");
-    expect(r).toHaveTextContent("measured in this browser");
+    expect(r).toHaveTextContent("Times from this browser, this run.");
   });
 
   it("says what its wait is: from your turn arriving, without the pace or an opponent's own move", async () => {
     const r = await shown(REPORT);
     expect(r).toHaveTextContent("Answer after your turn arrives, postflop");
     expect(r).not.toHaveTextContent("Wait for your options");
-    expect(r).toHaveTextContent("it leaves out the pace and an opponent’s own move");
   });
 
   it("names what answered each verdict, the rules and the unlabelled in their own words, and never as solved", async () => {
@@ -325,7 +324,7 @@ describe("the report", () => {
 
   it("says why asking ahead asked nothing", async () => {
     const r = await shown({ ...REPORT, ahead: { asked: 0, used: 0, savedS: 0, spentS: 0 }, stopCost: "kills" });
-    expect(within(r).getByText("Nothing asked: this browser can't stop a solve, so a wrong guess would hold up the next answer.")).toBeInTheDocument();
+    expect(within(r).getByText("Nothing asked: this browser can't stop a solve.")).toBeInTheDocument();
   });
 
   it("lists each failure, with a link to Study where it has a spot", async () => {
@@ -415,13 +414,11 @@ describe("the report", () => {
 
   it("says the deals match only at the same number of tables", async () => {
     const r = await shown(REPORT);
-    expect(r).toHaveTextContent("Runs at the same number of tables deal these same hands");
     expect(r).not.toHaveTextContent("Every run deals");
   });
 
   it("doesn't claim more than it can see", async () => {
     const r = await shown(REPORT);
-    expect(r).toHaveTextContent("It can’t prove any grade right, or say anything about Accurate, phones or other machines.");
     expect(r).not.toHaveTextContent(/grades? (are|is|were) (right|correct)|verified|accurate grades/i);
   });
 

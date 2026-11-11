@@ -57,7 +57,7 @@ describe("ReportsPage", () => {
     const sum = REP.flops.reduce((a, f) => a + f.w, 0);
     const mean = [0, 1].map((i) => REP.flops.reduce((a, f) => a + f.w * f.eq![i]!, 0) / sum) as [number, number];
     expect(within(avg).getAllByRole("cell").at(-2)).toHaveTextContent(lead(mean));
-    expect(screen.getByText(/Range adv is the side with the higher range equity, and by how many points of equity\..*every 8th turn and river runout.*There's no nut advantage column: the library stores a range's equity with no equity by hand/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nut adv/)).toBeNull();
     // one row's EQR: EV over equity times the pot
     const fl = REP.flops[0]!;
     const row = screen.getByRole("row", { name: fl.f });
@@ -83,8 +83,7 @@ describe("ReportsPage", () => {
     const seat = REP.seats[1];
     expect(screen.getByRole("row", { name: REP.flops[0]!.f })).toHaveTextContent(`${seat} +15.0`);
     expect(screen.getByRole("row", { name: "Average" })).toHaveTextContent(`${seat} +15.0`);
-    expect(screen.getByText(/Nut adv is the side with more of its range at 80% equity or more/)).toHaveTextContent(`on 1 of these ${REP.flops.length} flops so far`);
-    expect(screen.getByText(/Nut adv is the side/)).toHaveTextContent("not solved");
+    expect(screen.getByText(/^Nut adv: from the stored ranges, not solved/)).toHaveTextContent(`1 of ${REP.flops.length} flops so far`);
     fireEvent.click(screen.getByRole("button", { name: "Nut adv" }));
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("sort=nut"));
     expect(flopRows()[0]).toBe(REP.flops[0]!.f);
@@ -110,10 +109,9 @@ describe("ReportsPage", () => {
     expect(within(row).getByRole("link", { name: "Study" }).getAttribute("href")).toBe(
       "/study?p=6&s=100&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Ac%2CBB%3Ac&b=5c4d2h&flop=SB%3Ax%2CBB%3Ax",
     );
-    expect(screen.getByText(/this report has strategies only; it is built here from the 6 flops' files.*each counts the same; Kc7d2h, solved besides the sample, is listed but not averaged\./)).toBeInTheDocument();
     // the spot picker groups heads-up and 3-way spots; the coverage lists the 3-way one
     expect(within(screen.getByRole("combobox", { name: "Spot" })).getAllByRole("group").map((g) => g.getAttribute("label"))).toEqual(["Heads-up", "3-way"]);
-    expect(screen.getByText("BTN open, SB and BB call (3-way): 6 flops stored, the report built in the page")).toBeInTheDocument();
+    expect(screen.getByText("BTN open, SB and BB call (3-way): 6 flops stored")).toBeInTheDocument();
     // a heads-up decision isn't one of a 3-way spot's: the first decision instead
     fireEvent.click(screen.getByRole("button", { name: "SB first" }));
     expect(screen.getByRole("button", { name: "SB first" })).toHaveAttribute("aria-pressed", "true");
@@ -140,7 +138,7 @@ describe("ReportsPage", () => {
     const r = screen.getAllByRole("row").find((x) => x.textContent?.includes("vs "))!;
     expect(within(r).getByRole("link", { name: "Study" }).getAttribute("href")).toMatch(/&flop=BB%3Ax%2CBTN%3Ab\d/);
     expect(r).toHaveTextContent(/vs (33|75)%made \d+%/);
-    expect(screen.getByText(/the library stores the response only where the bet is made at least 5% of the time/)).toBeInTheDocument();
+    expect(screen.getByText(/Facing a bet: flops with the bet under 5% left out/)).toBeInTheDocument();
     // the fixture's flops don't store in position's response to a first bet: that view can't be picked
     expect(screen.getByRole("button", { name: "BTN vs bet" })).toBeDisabled();
 

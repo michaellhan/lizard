@@ -107,15 +107,15 @@ describe("comparing two answers", () => {
   it("warns first when the sources differ or either side is approximate", () => {
     expect(sourceWarning(prov({}), prov({}))).toBeNull();
     expect(sourceWarning(prov({ source: "library" }), prov({}))).toBe(
-      "The two sides come from different sources (A: Precomputed solution; B: Live solve), so a difference can be the source's, not the spot's.",
+      "Different sources (A: Precomputed solution; B: Live solve): a difference may be the source's.",
     );
     expect(sourceWarning(prov({ source: "charts", approximate: true }), prov({ source: "charts", approximate: true }))).toBe(
-      "A and B are approximate (Preflop charts): read small differences as noise.",
+      "A and B are approximate (Preflop charts): small differences are noise.",
     );
-    expect(sourceWarning(prov({}), prov({ approximate: true }))).toBe("B is approximate (Live solve): read small differences as noise.");
+    expect(sourceWarning(prov({}), prov({ approximate: true }))).toBe("B is approximate (Live solve): small differences are noise.");
     expect(nodeWarning(A, B)).toBeNull();
     expect(nodeWarning(A, { ...B, actor: "BTN", street: "turn" })).toBe(
-      "The two answers are for different spots (A: BB on the flop; B: BTN on the turn); their hand classes are compared all the same.",
+      "Different spots (A: BB on the flop; B: BTN on the turn): classes compared anyway.",
     );
   });
 
@@ -163,19 +163,19 @@ describe("two size menus", () => {
   it("say which menu is worth more only beyond the two answers' distance from equilibrium, and close to a tie under twice it", () => {
     const at = (pa: number | undefined, pb: number | undefined) => menuWords(menusOf(A, B, prov({ exploitabilityPct: pa }), prov({ exploitabilityPct: pb })), "BB", 10);
     expect(at(0.3, 0.3)).toBe(
-      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), beyond the two answers' distance from equilibrium combined (0.06bb). B bets or raises 5.0 points less of the range.",
+      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), beyond noise (0.06bb). B bets or raises 5.0 points less of the range.",
     );
     expect(at(0.7, 0.8)).toBe(
-      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), under twice the two answers' distance from equilibrium combined (0.15bb): close to a tie. B bets or raises 5.0 points less of the range.",
+      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), under twice noise (0.15bb): close to a tie. B bets or raises 5.0 points less of the range.",
     );
     expect(at(1, 2)).toBe(
-      "B − A: −0.20bb, within the two answers' distance from equilibrium combined (0.30bb): neither menu is measurably worth more to BB here. B bets or raises 5.0 points less of the range.",
+      "B − A: −0.20bb, within noise (0.30bb): no measurable difference. B bets or raises 5.0 points less of the range.",
     );
     expect(at(undefined, 2)).toBe(
-      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), though no distance from equilibrium is measured on both sides to tell that from noise. B bets or raises 5.0 points less of the range.",
+      "A's menu is worth 0.20bb more to BB here (2.0% of the 10.0bb pot), noise not measured. B bets or raises 5.0 points less of the range.",
     );
     expect(menuWords(menusOf(A, { ...B, range_ev_bb: undefined }, prov({}), prov({})), "BB", 10)).toBe(
-      "No EV on both sides, so neither menu can be said to be worth more. B bets or raises 5.0 points less of the range.",
+      "No EV on both sides. B bets or raises 5.0 points less of the range.",
     );
   });
 });

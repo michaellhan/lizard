@@ -17,7 +17,7 @@ describe("EquityPage", () => {
   it("says it's a calculator, not a solver", () => {
     render(<EquityPage />);
     expect(screen.getByRole("heading", { name: "PLO4 equity" })).toBeTruthy();
-    expect(screen.getByText(/only a calculator/).textContent).toMatch(/isn't a strategy.*one heads-up river/);
+    expect(screen.getByText(/A calculator, not a strategy/).textContent).toMatch(/one heads-up river/);
   });
 
   it("gives an exact count, labelled as one, with no ± to it", async () => {
@@ -83,7 +83,7 @@ describe("EquityPage", () => {
     fireEvent.change(screen.getByLabelText("Method"), { target: { value: "exact" } });
     calculate();
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
-    expect(await screen.findByText(/no result until every board is in/)).toBeTruthy();
+    expect(await screen.findByText(/an exact count needs every board/)).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
   });
 });

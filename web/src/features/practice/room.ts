@@ -138,14 +138,13 @@ export type KeptRead = "waiting" | "passed" | "replaced";
 
 /** What that means for you, in words. */
 export function keptNote(k: KeptRead): string {
-  if (k === "waiting") return "Any session kept in this browser couldn't be read in time, so this is a new one. Nothing here is kept until it has been read.";
-  const late = "The session kept in this browser was read too late to bring back, as you'd already moved on from it.";
-  return `${late} ${k === "passed" ? "Playing above one table replaces it" : "It's no longer kept"}, though History keeps its record.`;
+  if (k === "waiting") return "Saved session couldn't be read in time: new session.";
+  return `Saved session read too late to bring back${k === "passed" ? "; more tables will replace it" : ""}. It's in History.`;
 }
 
 /** Why Instant flops isn't on offer, in words, as a phone has no tooltip. `spot`: what's being played. */
 export function flopsNote(f: RoomFlops, spot: Spot): string | null {
-  if (f.off === "preflop") return "Instant flops plays no preflop, so a preflop-only session stays on Any hand. Nor can a pot drill: each plays your preflop for you.";
+  if (f.off === "preflop") return "Instant flops: not with preflop only or pot drills.";
   if (f.off === "failed") return `The flop library didn't load, so ${spot === "any" ? "this is Any hand" : "Instant flops is off"}.`;
   if (f.off === "game") return `Instant flops needs a game the flop library holds (${f.holds.join(", ")}). This is ${f.game}${spot === "any" ? ", so you're playing Any hand" : ""}.`;
   return null;

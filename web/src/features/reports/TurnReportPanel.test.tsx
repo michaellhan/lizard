@@ -49,7 +49,7 @@ describe("the turn report", () => {
     const { fn, turns } = stubFetch();
     open("spot=srp_co_bb", fn);
     const p = await panel();
-    expect(p.getByText(say("stores no turn files, so there's no turn report for it"))).toBeInTheDocument();
+    expect(p.getByText(say("stores no turns\\."))).toBeInTheDocument();
     expect(p.queryByRole("button")).toBeNull();
     expect(turns()).toEqual([]);
   });
@@ -57,7 +57,7 @@ describe("the turn report", () => {
   it("says so on a 3-way spot too", async () => {
     const { fn } = stubFetch();
     open("spot=mw_btn_sb_bb", fn);
-    expect((await panel()).getByText(/stores no turn files/)).toBeInTheDocument();
+    expect((await panel()).getByText(/stores no turns/)).toBeInTheDocument();
   });
 
   it("says when the texture has no stored turns", async () => {
@@ -70,7 +70,7 @@ describe("the turn report", () => {
     const { fn, turns } = stubFetch();
     open("spot=srp_btn_bb", fn, 3);
     const p = await panel();
-    expect(p.getByText(new RegExp(`7 of 7 such flops have stored turns\\. Reading 3 of them takes two files a flop, up to about ${((3 * FLOP_KB) / 1000).toFixed(1)} MB\\.`))).toBeInTheDocument();
+    expect(p.getByText(new RegExp(`7 of 7 flops of .* have stored turns\\. Reading 3: about ${((3 * FLOP_KB) / 1000).toFixed(1)} MB\\.`))).toBeInTheDocument();
     expect(p.getByRole("button", { name: "Read 3 flops" })).toBeInTheDocument();
     expect(p.queryByRole("table")).toBeNull();
     expect(turns()).toEqual([]);
@@ -83,7 +83,7 @@ describe("the turn report", () => {
     const t = await table();
     expect(t.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Turn card", "Strategy", "Check", "Bet 75%", "Margin", "Flops", "Combos"]);
     const p = await panel();
-    await waitFor(() => expect(p.getByText(/Read 3 of 7 flops of this texture with stored turns, drawn evenly over them in an order set by seed 1, each flop counted by how many of the 22,100 it stands for\. Too few flops to put a margin on it yet\./)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/^3 of 7 flops read \(seed 1\)\. Too few flops for a margin\.$/)).toBeInTheDocument());
     expect(p.getByText(/^Stored turn from the flop library · srp_btn_bb · turn report over 3 of 7 flops with stored turns, seed 1, built in the page from their files · approximate$/)).toBeInTheDocument();
     const all = t.getByRole("row", { name: "All turns" });
     const cells = within(all).getAllByRole("cell").map((c) => c.textContent);
@@ -97,8 +97,6 @@ describe("the turn report", () => {
     expect(p.getByText(/Hidden at this width: Strategy, Flops, Combos/)).toBeInTheDocument();
     expect(within(t.getByRole("row", { name: "All turns" })).getByRole("rowheader")).toHaveTextContent(/3 flops, \d+ combos/);
     expect(p.getByRole("region", { name: "Turn report table" })).toHaveAttribute("tabindex", "0");
-    expect(p.getByText(say("Precomputed solutions, the library's"))).toBeInTheDocument();
-    expect(p.getByText(say("It says nothing of the solves' own error"))).toBeInTheDocument();
   });
 
   it("draws the table's rows as a chart that says what it stands on, with every column's numbers by the keyboard", async () => {
@@ -108,8 +106,8 @@ describe("the turn report", () => {
     const t = await table();
     const p = await panel();
     const chart = within(p.getByRole("figure", { name: "Turn report chart" }));
-    await waitFor(() => expect(chart.getByText(/A sample: this stands on 3 of the 7 flops of this texture with stored turns\./)).toBeInTheDocument());
-    expect(chart.getByText(/^BB first on the turn: the mix by what the turn card does, All turns first\. Stored turn from the flop library, averaged in this page\./)).toBeInTheDocument();
+    await waitFor(() => expect(chart.getByText(/Sample: 3 of 7 flops\./)).toBeInTheDocument());
+    expect(chart.getByText(/^BB first on the turn: Stored turn from the flop library, averaged here\./)).toBeInTheDocument();
     expect(within(chart.getByRole("list", { name: "Actions" })).getAllByRole("listitem").map((l) => l.textContent)).toEqual(["Check", "Bet 75%"]);
 
     // a column for each row, in its order, with the row's numbers in its name; the table's is the same mix
@@ -123,7 +121,7 @@ describe("the turn report", () => {
     expect(all).toHaveAccessibleName(new RegExp(`^All turns: check ${check}, bet 75% [\\d.]+%; too few flops for a margin; 3 flops; 100% of turns$`));
 
     // too few flops for a margin: no bar, and it says so
-    expect(chart.getByText("* Fewer than 8 flops behind it: too few to put a margin on.")).toBeInTheDocument();
+    expect(chart.getByText("* Under 8 flops: no margin.")).toBeInTheDocument();
     expect(p.getByRole("figure").querySelector("[data-margin]")).toBeNull();
 
     // focus shows what hovering does, and leaving takes it away
@@ -144,10 +142,10 @@ describe("the turn report", () => {
     open("spot=srp_btn_bb", fn, 7);
     await ask("Read 7 flops");
     const p = await panel();
-    await waitFor(() => expect(p.getByText(/Read all 7 flops/)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/All 7 flops read/)).toBeInTheDocument());
     const figure = p.getByRole("figure", { name: "Turn report chart" });
     expect(figure.querySelector("[data-margin]")).toBeNull();
-    expect(within(figure).getByText(/This stands on every one of the 7 flops/)).not.toHaveTextContent(/The bar on a column/);
+    expect(within(figure).getByText(/All 7 flops\.$/)).not.toHaveTextContent(/margin/);
     expect(within(figure).getAllByRole("button")[0]).toHaveAccessibleName(/; no sampling margin; 7 flops; 100% of turns$/);
   });
 
@@ -174,7 +172,7 @@ describe("the turn report", () => {
       hold.forEach((r) => r());
       await new Promise((r) => setTimeout(r, 0));
     });
-    await waitFor(() => expect(p.getByText(/Stopped early: this stands on only 2 of the 7 flops/)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/Stopped early: 2 of 7 flops\./)).toBeInTheDocument());
 
     fireEvent.click(p.getByRole("button", { name: "Download turn CSV" }));
     expect(click).toHaveBeenCalledOnce();
@@ -186,7 +184,7 @@ describe("the turn report", () => {
     for (const l of lines.slice(1)) {
       expect(l).toContain(",2,7,1,\"partial, stopped\",");
       expect(l).toContain("partial, stopped before it finished");
-      expect(l).toContain("Stopped early: these are partial results.");
+      expect(l).toContain("Stopped early: partial.");
     }
     click.mockRestore();
   });
@@ -199,7 +197,7 @@ describe("the turn report", () => {
     expect(turns()).toHaveLength(4);
     await ask("Read 3 more");
     const p = await panel();
-    await waitFor(() => expect(p.getByText(/Read all 7 flops of this texture with stored turns, so there's no sampling margin\./)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/All 7 flops read; no sampling margin\./)).toBeInTheDocument());
     expect(turns()).toHaveLength(7);
     expect(new Set(turns()).size).toBe(7);
     expect(p.queryByRole("button", { name: /more/ })).toBeNull();
@@ -214,22 +212,22 @@ describe("the turn report", () => {
     const turnFiles = vi.spyOn(files, "turns");
     open("spot=srp_btn_bb&suits=mono", fn, 2, files);
     await ask("Read 2 flops");
-    await waitFor(() => expect(screen.getByText(/Read all 2 flops/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/All 2 flops read/)).toBeInTheDocument());
     expect(turnFiles).toHaveBeenCalledTimes(2);
     fireEvent.change(screen.getByRole("combobox", { name: "Suits" }), { target: { value: "" } });
     await waitFor(() => expect(screen.getByTestId("where").textContent).not.toContain("suits"));
     fireEvent.change(screen.getByRole("combobox", { name: "Suits" }), { target: { value: "mono" } });
     await ask("Read 2 flops");
-    await waitFor(() => expect(screen.getByText(/Read all 2 flops/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/All 2 flops read/)).toBeInTheDocument());
     expect(turnFiles).toHaveBeenCalledTimes(2);
   });
 
   it("takes only the chosen texture's flops", async () => {
     const { fn, turns } = stubFetch();
     open("spot=srp_btn_bb&suits=mono", fn, 40);
-    expect((await panel()).getByText(/2 of 2 such flops have stored turns/)).toBeInTheDocument();
+    expect((await panel()).getByText(/2 of 2 flops of .* have stored turns/)).toBeInTheDocument();
     await ask("Read 2 flops");
-    await waitFor(() => expect(screen.getByText(/Read all 2 flops/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/All 2 flops read/)).toBeInTheDocument());
     expect(turns().sort()).toEqual(["srp_btn_bb/9c8c7c.turn.bin", "srp_btn_bb/Ac8c6c.turn.bin"]);
     // (a monotone flop's turns: no flush-completing card is missing, and no pairing line is lost)
     expect((await table()).getByRole("row", { name: "Completes a flush" })).toBeInTheDocument();
@@ -238,7 +236,7 @@ describe("the turn report", () => {
   it("says where a spot's stored turns cover part of the texture, and that the report is over those alone", async () => {
     const { fn } = stubFetch();
     open("spot=3bp_bb_btn", fn, 2);
-    expect((await panel()).getByText(/2 of 3 such flops have stored turns, standing for \d+% of them by how often they come up, and the report is over those alone\./)).toBeInTheDocument();
+    expect((await panel()).getByText(/2 of 3 flops of .* have stored turns \(\d+% by frequency; the report covers those\)\./)).toBeInTheDocument();
   });
 
   it("counts a flop that fails, says it, goes on, and can try again", async () => {
@@ -248,10 +246,10 @@ describe("the turn report", () => {
     await ask("Read 7 flops");
     const p = await panel();
     expect(await p.findByRole("alert")).toHaveTextContent("1 of 7 flops couldn’t be read and are left out: Ac4d3h (couldn't load srp_btn_bb/Ac4d3h.turn.bin (503)).");
-    await waitFor(() => expect(p.getByText(/Read 6 of 7 flops.*1 flop couldn't be read and is left out\./)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/6 of 7 flops read.*1 couldn't be read\./)).toBeInTheDocument());
     broken = false;
     await ask("Read the 1 left");
-    await waitFor(() => expect(p.getByText(/Read all 7 flops/)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/All 7 flops read/)).toBeInTheDocument());
     expect(p.queryByRole("alert")).toBeNull();
   });
 
@@ -268,7 +266,7 @@ describe("the turn report", () => {
     expect(bar).toHaveAttribute("aria-valuemax", "7");
     await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "2"));
     expect(p.getByText("Read 2 of 7 flops…")).toBeInTheDocument();
-    expect(p.getByText(/Still reading: these are partial results\./)).toBeInTheDocument();
+    expect(p.getByText(/Still reading: partial\./)).toBeInTheDocument();
     expect(p.getByText(/· in progress$/)).toBeInTheDocument();
     const before = turns().length;
     p.getByRole("button", { name: "Stop" }).focus();
@@ -277,7 +275,7 @@ describe("the turn report", () => {
       hold.forEach((r) => r());
       await new Promise((r) => setTimeout(r, 0));
     });
-    await waitFor(() => expect(p.getByText(/Stopped early: these are partial results\./)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/Stopped early: partial\./)).toBeInTheDocument());
     expect(p.getByRole("button", { name: "Read the 5 left" })).toHaveFocus();
     expect(p.getByText(/· partial, stopped before it finished$/)).toBeInTheDocument();
     expect(p.queryByRole("progressbar")).toBeNull();
@@ -302,7 +300,7 @@ describe("the turn report", () => {
       hold.forEach((r) => r());
       await new Promise((r) => setTimeout(r, 0));
     });
-    await waitFor(() => expect(p.getByText(say("Stopped before a flop came back, so there's nothing to show yet\\."))).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(say("Stopped before any flop came back\\."))).toBeInTheDocument());
     expect(p.getByRole("button", { name: "Read 7 flops" })).toHaveFocus();
     expect(p.queryByRole("button", { name: /left$|more$/ })).toBeNull();
     expect(p.queryByRole("table")).toBeNull();
@@ -381,7 +379,7 @@ describe("the turn report", () => {
     const { fn, seen } = stubFetch();
     open("spot=srp_btn_bb", fn, 7);
     await ask("Read 7 flops");
-    await waitFor(async () => expect((await panel()).getByText(/Read all 7 flops/)).toBeInTheDocument());
+    await waitFor(async () => expect((await panel()).getByText(/All 7 flops read/)).toBeInTheDocument());
     const p = await panel();
     const asked = seen.length;
     const line = p.getByRole("combobox", { name: "Flop line" }) as HTMLSelectElement;
@@ -404,7 +402,7 @@ describe("the turn report", () => {
     open("spot=srp_btn_bb&tline=check%7Cbet+75%25%7Ccall&twho=after&tseed=5", fn, 3);
     await ask("Read 3 flops");
     const p = await panel();
-    await waitFor(() => expect(p.getByText(/an order set by seed 5/)).toBeInTheDocument());
+    await waitFor(() => expect(p.getByText(/\(seed 5\)/)).toBeInTheDocument());
     expect((p.getByRole("combobox", { name: "Flop line" }) as HTMLSelectElement).value).toBe("check|bet 75%|call");
     expect(p.getByRole("button", { name: "BTN vs check" })).toHaveAttribute("aria-pressed", "true");
     // (the seed is said from the first flop in; the button comes when the read is over)
@@ -413,7 +411,7 @@ describe("the turn report", () => {
     await ask("Another sample");
     await waitFor(() => expect(screen.getByTestId("where").textContent).toContain("tseed=6"));
     await ask("Read 3 flops");
-    await waitFor(async () => expect((await panel()).getByText(/an order set by seed 6/)).toBeInTheDocument());
+    await waitFor(async () => expect((await panel()).getByText(/\(seed 6\)/)).toBeInTheDocument());
     // (a flop both samples hold isn't read again)
     expect(new Set(turns()).size).toBe(turns().length);
     expect(turns().length).toBeGreaterThanOrEqual(read);

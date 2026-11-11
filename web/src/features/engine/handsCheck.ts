@@ -561,11 +561,11 @@ export function whenLine(r: HandsCheckReport, current: string | null): string {
 }
 
 /** Why its times aren't a cold solver's, if they aren't. */
-export const warmLine = (r: HandsCheckReport) => (r.earlier > 0 ? `Not a cold run: this solver had played ${r.earlier === 1 ? "a run" : `${r.earlier} runs`} already and keeps its answers, so reload before timing one.` : null);
+export const warmLine = (r: HandsCheckReport) => (r.earlier > 0 ? `Not a cold run: this solver had played ${r.earlier === 1 ? "a run" : `${r.earlier} runs`} already: reload before timing.` : null);
 
 /** The meter's figures in words, or why there are none. */
 export function aheadLine(r: HandsCheckReport): string | null {
   if (!r.ahead) return null;
   if (r.ahead.asked) return meterLine(r.ahead);
-  return r.stopCost === "kills" ? "Nothing asked: this browser can't stop a solve, so a wrong guess would hold up the next answer." : "No postflop look-aheads asked.";
+  return r.stopCost === "kills" ? "Nothing asked: this browser can't stop a solve." : "No postflop look-aheads asked.";
 }

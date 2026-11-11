@@ -5,7 +5,7 @@
 import { LIMITS } from "@/features/solve/setup";
 import { FORMAT_PRESETS, PAYOUT_PRESETS, parsePayouts, pastedPayouts, presetAnte, STAGE_PRESETS, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
-import { PUSH_FOLD_MAX, type TournamentOptions } from "./practice";
+import type { TournamentOptions } from "./practice";
 
 /** A seat's fewest chips: the blinds and something behind. The engine answers to 1bb, but a hand with a seat all-in for its
  * blind has little to practise. */
@@ -152,7 +152,7 @@ export function TournamentFields({
       {onStage && (
         <select
           aria-label="Stage"
-          title="Sets the table, each seat's chips, the ante (a 1bb big-blind ante at an MTT's stages, none at a sit & go's start), the prizes left and the other tables at once (Lizard's own shapes, not any site's)"
+          title="Table, stacks, ante and prizes at once"
           value=""
           onChange={(e) => {
             const st = [...STAGE_PRESETS, ...FORMAT_PRESETS].find((x) => x.name === e.target.value);
@@ -186,7 +186,7 @@ export function TournamentFields({
       </label>
       {icm && (
         <>
-          <label className="flex items-center gap-1" title="The prizes still to be paid, first place first, in any unit. A pasted payout table (1st $10,000, 4-6 $2,000) is read place by place.">
+          <label className="flex items-center gap-1" title="First place first; a pasted payout table works">
             <span className="text-muted">Prizes left</span>
             <input
               aria-label="Prizes left"
@@ -208,7 +208,7 @@ export function TournamentFields({
               </option>
             ))}
           </select>
-          <label className="flex items-center gap-1" title="The players at other tables: blank for none">
+          <label className="flex items-center gap-1" title="Blank: none">
             <span className="text-muted">Others</span>
             <input aria-label="Players at other tables" type="number" min={0} step={1} placeholder="0" value={draft.others} onChange={(e) => set({ others: e.target.value })} className={`w-16 ${INPUT}`} />
           </label>
@@ -219,7 +219,7 @@ export function TournamentFields({
               <span className="text-muted">bb</span>
             </label>
           )}
-          <label className="flex items-center gap-1" title="KO: a player out pays their whole bounty to whoever knocked them out. PKO: half of it, the other half onto the taker's own bounty. Mystery: each knockout draws an envelope at random.">
+          <label className="flex items-center gap-1" title="KO pays all; PKO half; Mystery draws an envelope">
             <span className="text-muted">Bounties</span>
             <select aria-label="Bounties" value={draft.bounty} onChange={(e) => set({ bounty: e.target.value as TournamentDraft["bounty"] })} className={INPUT}>
               <option value="">None</option>
@@ -229,18 +229,18 @@ export function TournamentFields({
             </select>
           </label>
           {draft.bounty === "mystery" && (
-            <label className="flex items-center gap-1" title="Every envelope, in the prizes' units, a count after an x: each knockout here or at the other tables draws one at random">
+            <label className="flex items-center gap-1" title="Prize units, count after x">
               <span className="text-muted">Envelopes</span>
               <input aria-label="Mystery envelopes" type="text" placeholder="500, 100x4, 25x20" value={draft.envelopes} onChange={(e) => set({ envelopes: e.target.value })} className={`w-44 ${INPUT}`} />
             </label>
           )}
           {(draft.bounty === "ko" || draft.bounty === "pko") && (
             <>
-              <label className="flex items-center gap-1" title="Every seat's bounty to start, in the prizes' units">
+              <label className="flex items-center gap-1" title="Starting bounty, in prize units">
                 <span className="text-muted">Each</span>
                 <input aria-label="Each seat's bounty" type="number" min={0} step="any" value={draft.each} onChange={(e) => set({ each: e.target.value })} className={`w-16 ${INPUT}`} />
               </label>
-              <label className="flex items-center gap-1" title="The other tables' average bounty, which a player from another table brings: blank for the same">
+              <label className="flex items-center gap-1" title="Blank: same">
                 <span className="text-muted">Others&rsquo; bounty</span>
                 <input aria-label="The other tables' average bounty" type="number" min={0} step="any" placeholder={draft.each} value={draft.bountyField} onChange={(e) => set({ bountyField: e.target.value })} className={`w-16 ${INPUT}`} />
               </label>
@@ -248,7 +248,7 @@ export function TournamentFields({
           )}
         </>
       )}
-      <label className="flex items-center gap-1.5" title="Each hand stops as the preflop closes">
+      <label className="flex items-center gap-1.5">
         <input type="checkbox" aria-label="Stop at the flop" checked={stop} onChange={(e) => onStop(e.target.checked)} />
         <span className="text-muted">Stop at the flop</span>
       </label>
@@ -270,7 +270,7 @@ export function TournamentFields({
             />
           </label>
         ))}
-        <span className="text-muted">bb, blank for the Stack above</span>
+        <span className="text-muted">bb (blank: Stack)</span>
       </div>
       {problems.length > 0 && (
         <p role="alert" className="basis-full text-xs text-danger">
@@ -278,13 +278,8 @@ export function TournamentFields({
         </p>
       )}
       <p className="basis-full text-xs text-muted">
-        {playOut
-          ? "The first hand starts from these stacks and prizes, and the tournament moves on from there: players knocked out, prizes paid, the blinds rising. Out, or with every chip, and it starts over."
-          : "Every hand starts from these stacks and prizes, so the tournament doesn\u2019t move on and nobody\u2019s knocked out (Play it out moves it on)."}{" "}
-        {icm
-          ? `Answers are in prize equity by Malmuth-Harville. At ${PUSH_FOLD_MAX}bb or less your own all-in is the push/fold equilibrium in prize equity, and a call of a jam is priced in prize equity. Every other preflop spot is a chip chart with a risk premium, a heuristic. After the flop a solve pays prize equity, and betting rules play chips, so those are graded by frequency. The badge on each answer says which.${draft.bounty ? " Bounties are priced by a proportional model: solved for push/fold and after the flop, and a discount on the risk premium in other preflop spots." : ""}${draft.bounty === "mystery" ? " A mystery knockout is valued at the average envelope left: no spread of envelopes, so approximate." : ""}`
-          : "Chip EV means no prizes: the answers are what the engine gives these stacks in a cash game, in bb."}{" "}
-        These sessions stay apart from your other numbers in History and Review.
+        {playOut ? "" : "Each hand restarts from these stacks. "}
+        {icm ? "ICM (Malmuth-Harville); non-jam preflop spots are heuristic charts." : "Chip EV: cash-game answers in bb."}
       </p>
     </fieldset>
   );

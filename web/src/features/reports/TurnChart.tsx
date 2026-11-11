@@ -39,8 +39,7 @@ export function TurnChart({ table, who, seats, sample }: { table: TurnTable; who
   return (
     <figure aria-label="Turn report chart" className="space-y-2 rounded-lg border border-border p-2">
       <figcaption className="text-xs text-muted">
-        {whoText(who, seats)}: the mix by what the turn card does, All turns first. {sourceLabel("library-turn")}, averaged in this page. {standsOn(sample)}
-        {cols.length > 1 && !rows.every((r) => !r.margin) ? ` The bar on a column is its margin around ${cols[0]}, the row’s widest.` : ""} Point at, tab to or tap a column for its numbers; the table below has them all.
+        {whoText(who, seats)}: {sourceLabel("library-turn")}, averaged here. {standsOn(sample)}
       </figcaption>
       <ActionLegend cols={cols} colors={colors} />
       <div className="flex h-36">
@@ -94,7 +93,7 @@ export function TurnChart({ table, who, seats, sample }: { table: TurnTable; who
           ))}
         </div>
       </div>
-      {few && <p className="text-xs text-muted">* Fewer than {MIN_FLOPS_FOR_MARGIN} flops behind it: too few to put a margin on.</p>}
+      {few && <p className="text-xs text-muted">* Under {MIN_FLOPS_FOR_MARGIN} flops: no margin.</p>}
     </figure>
   );
 }

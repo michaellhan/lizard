@@ -8,8 +8,8 @@ import { lastSync, onLastSync, runSync, startAuto } from "@/sync/auto";
 import { deleteEverything, leave, status, type SyncStatus } from "@/sync/session";
 
 export const ABOUT_SYNC =
-  "Optional, and Lizard is whole without it. Signing in starts it: your saved spots, session history, imported hands and kept mistakes are copied to this site's service, and kept the same on your devices. They aren't encrypted end to end, so the site's owner can read them, imported hands and the player names in them included, and so could Cloudflare, which hosts it. If you'd rather that didn't happen, stay signed out and use Download backup. You sign in with Google, which tells the service only which account it is, as a number it keeps a keyed hash of: it never sees your email or name. Google can see that you signed in here. Saved answers, grades, ranges, drills and settings stay in each browser.";
-export const DELETE_WORDS = "Delete my account takes the account and the synced copy off the service straight away. The database's own restore points can hold a copy for up to 30 days after that.";
+  "Optional. Signing in starts it: saved spots, session history, imported hands and kept mistakes are copied to this site's service and kept the same on your devices. They aren't encrypted end to end, so the site's owner can read them (player names included), and so could Cloudflare, the host. Rather not? Stay signed out and use Download backup. Google tells the service only an account number (kept as a keyed hash), never your email or name, and Google sees that you signed in. Answers, grades, ranges, drills and settings stay in each browser.";
+export const DELETE_WORDS = "Deletes the account and synced copy at once; restore points can hold a copy for up to 30 days.";
 
 const ERROR = "#sync-error=";
 const SIGN_IN_WORDS: Record<string, string> = {
@@ -50,7 +50,7 @@ function Syncing({ st, busy, act, reload }: { st: SyncStatus; busy: boolean; act
         {last ? `${last.ok ? "Last synced" : "Last try failed"} at ${new Date(last.at).toLocaleTimeString()}: ${last.words}.` : "Syncing…"}
       </p>
       <p className="text-xs text-muted">
-        {megabytes(st.bytes)} MB of {megabytes(st.maxBytes)} MB used. A deletion here reaches your other devices too, unless a copy there was changed after it.
+        {megabytes(st.bytes)} MB of {megabytes(st.maxBytes)} MB used. Deletions reach your other devices too.
       </p>
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={BUTTON} onClick={() => act(() => runSync())}>

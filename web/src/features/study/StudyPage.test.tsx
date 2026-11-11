@@ -274,7 +274,7 @@ describe("StudyPage", () => {
   it("offers a setup of your own on a standard spot", () => {
     renderAt("p=6&s=100");
     const setup = screen.getByLabelText("Setup");
-    expect(setup).toHaveTextContent("Standard setup (a cash game at the engine's sizes, no rake or ante, the charts' ranges).");
+    expect(setup).toHaveTextContent("Standard setup.");
     expect(within(setup).getByRole("link", { name: "Set up your own" })).toHaveAttribute("href", "/solve?p=6&s=100");
     expect(within(setup).getByRole("link", { name: "a tournament" })).toHaveAttribute("href", "/tournaments?p=6&s=100");
   });
@@ -304,7 +304,7 @@ describe("StudyPage", () => {
     expect(panel).toHaveTextContent("Prize equity: CO 7.2% of what's left to pay.");
     expect(panel).toHaveTextContent("BTN 1.15 · BB 1.20");
     expect(panel).toHaveTextContent("(busting them, for CO): BTN 6.4bb (pays 5). Covered by BTN.");
-    expect(panel).toHaveTextContent("Where EVs show, they're in prize equity, as chips worth as much.");
+    expect(panel).toHaveTextContent("EVs in chips of prize equity.");
     const setup = screen.getByLabelText("Setup");
     expect(setup).toHaveTextContent("Your setup: stacks CO 8bb · payouts 50/30/20 · KO bounties 5.");
     expect(within(setup).getByRole("link", { name: "Edit setup" })).toHaveAttribute("href", `/tournaments?${toSearch(fromSearch(q)!)}`);
@@ -382,7 +382,7 @@ describe("StudyPage", () => {
     expect(stub.asked.at(-1)).toMatchObject({ runouts: true, study: true });
     expect(avg).toHaveTextContent("All 49 cards");
     expect(within(panel).getAllByRole("button", { name: /^Deal / })).toHaveLength(49);
-    expect(within(panel).getByText(/^Live solve/)).toBeInTheDocument();
+    expect(within(panel).getAllByText(/^Live solve/).length).toBeGreaterThan(0);
     // BB's mix on a 7 (it pairs the board) and on an ace; then BTN's after a check
     expect(within(panel).getByRole("row", { name: "7s" })).toHaveTextContent(/90%10%2\.503\.00/);
     expect(within(panel).getByRole("row", { name: "As" })).toHaveTextContent(/100%0%1\.504\.00/);

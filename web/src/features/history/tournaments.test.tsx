@@ -44,7 +44,7 @@ describe("an exploit session", () => {
         <HistoryPage />
       </MemoryRouter>,
     );
-    expect(await screen.findByText(/Exploit sessions have their own row and go in no other totals here/)).toBeInTheDocument();
+    expect(await screen.findByText(/Exploit sessions have their own row, in no other totals/)).toBeInTheDocument();
     expect(screen.getAllByText("Exploiting an assumed profile").length).toBeGreaterThan(0);
     expect(screen.getByText(/Nit \(assumed: folds \+15 pts to a first bet, bluffs 60% less\) · 3 players · 20bb · single-raised pots/)).toBeInTheDocument();
     expect(screen.queryByText(/net \+9/)).toBeNull();

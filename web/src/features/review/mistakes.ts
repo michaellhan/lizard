@@ -240,7 +240,7 @@ export function withTry(m: MistakeRecord, t: Omit<MistakeTry, "moved">): Mistake
 }
 
 /** Said at a retry from the answer kept with a decision. */
-export const KEPT_RETRY_WORDS = "Graded against the answer kept with this decision in Analyze, nothing solved: the same answer as your first grade, named below.";
+export const KEPT_RETRY_WORDS = "Against the answer kept in Analyze; nothing solved.";
 
 /** Where a kept mistake came from, in words; nothing for Practice's own. */
 export const ORIGIN_WORDS: Partial<Record<MistakeRecord["from"], string>> = { analyze: "Added from Analyze", leak: "From a leak drill" };

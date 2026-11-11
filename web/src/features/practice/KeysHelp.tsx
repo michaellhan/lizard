@@ -6,7 +6,6 @@ export function KeysHelp({ onClose }: { onClose: () => void }) {
     <section aria-label="Keyboard shortcuts" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <div className="flex items-center gap-2">
         <h2 className="font-medium">Keyboard</h2>
-        <span className="text-xs text-muted">A whole session plays from the keys. They do nothing while you type in a field.</span>
         <button type="button" onClick={onClose} className="ml-auto text-xs underline">
           Close (?)
         </button>

@@ -1,6 +1,6 @@
 // "Drill this leak": the leak's decisions dealt again one by one (leakDrill.ts), on any street whose decision kept its
 // mix, your pick graded against that mix and carrying that grade's provenance and confidence, the progress kept as a
-// session so leaving and coming back resumes it, and a pick below Correct kept for Review (schedule.ts QUEUE_RULE).
+// session so leaving and coming back resumes it, and a pick below Correct kept for Review.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
@@ -115,8 +115,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
         <div>
           <h2 className="text-lg font-semibold">Drill: {leak.key}</h2>
           <p className="text-muted">
-            Your decisions behind this leak, dealt again, your misses first, on every street. Each is graded against the answer kept with its grade, which it names: the
-            preflop charts by frequency (not a solve), or what answered it after the flop (the library, a stored turn, a read at once, a Quick or Fast solve), by EV where that has EVs. Nothing is solved. A pick below Correct goes to your{" "}
+            Misses first. A pick below Correct goes to{" "}
             <Link to="/review" className="underline">
               Review
             </Link>{" "}
@@ -133,7 +132,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
         <p className="text-muted">Reading your progress on this leak…</p>
       ) : !items.length ? (
         <>
-          <p>{whole.length ? "None of this leak's graded decisions is in these hands." : "None of this leak's decisions is graded with its mix in this browser."}</p>
+          <p>{whole.length ? "None of this leak's graded decisions is in these hands." : "None of this leak's decisions is graded with its mix."}</p>
           {left_out && <p className="text-muted">{left_out}</p>}
         </>
       ) : (
@@ -256,7 +255,7 @@ function Problem({
           </>
         )}
       </div>
-      {!line && street !== "preflop" && <p className="text-warn">This hand&rsquo;s history can&rsquo;t be read again, so its board and the action before aren&rsquo;t shown.</p>}
+      {!line && street !== "preflop" && <p className="text-warn">History unreadable: board not shown.</p>}
       {line && (
         <ul aria-label="The action before" className="space-y-0.5">
           {line.streets
@@ -326,12 +325,12 @@ function Problem({
             . {d.source === "charts" ? "From the preflop charts, by frequency (not a solve)." : `From ${d.label}.`}
           </p>
           <p role="group" aria-label="What graded it" className="text-xs text-muted">
-            Graded against <ProvenanceBadge p={decisionProvenance(d)} quiet />, kept with the grade: nothing is solved here. {carriedWords(d, answer.g).join(" ")}
+            Graded against <ProvenanceBadge p={decisionProvenance(d)} quiet />. {carriedWords(d, answer.g).join(" ")}
           </p>
           {!answer.g.ok && queued && (
             <p role="status" className="text-xs">
               {queued.due === null ? (
-                "This miss wasn't kept for Review: this browser isn't keeping anything here (a private window?)."
+                "Not kept for Review: this browser isn't saving data."
               ) : (
                 <>
                   Kept for{" "}

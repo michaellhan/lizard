@@ -3,13 +3,12 @@
 // rename, delete, one item to a file, and a backup to one JSON file and back (data/backup.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { About } from "@/components/About";
 import { DeleteButton } from "@/components/DeleteButton";
 import { useFocusHold } from "@/components/useFocusHold";
 import type { SavedDrill, SavedRange, SavedReport, SavedScenario, SavedSpot } from "@/data/db";
 import { answerWords, kb, listAnswers, seenWords, type KeptAnswer } from "@/data/answers";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
-import { kvGet, kvSet, MAX_TOMBSTONES } from "@/data/db";
+import { kvGet, kvSet } from "@/data/db";
 import { NOT_SAVED, SAVED_SORTS, deleteDrill, deleteRange, deleteSpot, isDrillLink, isSavedSort, listDrills, listRanges, listSpots, putDrill, putRange, putSpot, readTags, sortSaved, spotMatches, stored, textMatches, type SavedSort } from "@/data/saved";
 import { deleteReport, listReports, putReport, reportLink, reportWords } from "@/data/reports";
 import { deleteScenario, listScenarios, putScenario, scenarioWords } from "@/data/scenarios";
@@ -52,7 +51,7 @@ function ExportButton({ name, item }: { name: string; item: Parameters<typeof do
   };
   return (
     <>
-      <button type="button" aria-label={`Export ${name}`} title="Download this one item as a file a restore takes" onClick={() => void save()} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+      <button type="button" aria-label={`Export ${name}`} title="Download as a file" onClick={() => void save()} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
         Export
       </button>
       {failed && (
@@ -134,9 +133,6 @@ export function SavedPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Saved</h1>
-        <p className="text-sm text-muted">
-          The spots, drills, scenarios, reports and ranges you&rsquo;ve saved, kept in this browser only: a backup file below keeps them safe or moves them to another browser.
-        </p>
       </div>
       <p role="status" className="sr-only">
         {said}
@@ -168,7 +164,7 @@ export function SavedPage() {
           <span className="text-sm text-muted">{spots ? `${spots.length} saved` : "Reading…"}</span>
           {spots && spots.length === 0 && (
             <p className="text-sm text-muted">
-              No saved spots yet. In <Link to="/study" className="underline">Study</Link>, "☆ Save spot" keeps the line you're on.
+              None yet. Save one in <Link to="/study" className="underline">Study</Link>.
             </p>
           )}
         </div>
@@ -186,8 +182,7 @@ export function SavedPage() {
           <span className="text-sm text-muted">{drills ? `${drills.length} saved` : "Reading…"}</span>
           {drills && drills.length === 0 && (
             <p className="text-sm text-muted">
-              No saved drills yet. "☆ Save drill" keeps a drill as it's set: in <Link to="/practice?tab=drills" className="underline">Practice&rsquo;s drills</Link>{" "}
-              (spot, decision, texture), or a leak drill in <Link to="/analyze" className="underline">Analyze</Link> (the leak, over the hands its filters keep).
+              None yet. Save one in <Link to="/practice?tab=drills" className="underline">Practice</Link> or <Link to="/analyze" className="underline">Analyze</Link>.
             </p>
           )}
         </div>
@@ -205,13 +200,13 @@ export function SavedPage() {
           <span className="text-sm text-muted">{scenarios ? `${scenarios.list.length} saved` : "Reading…"}</span>
           {scenarios && scenarios.list.length === 0 && (
             <p className="text-sm text-muted">
-              No saved scenarios yet. Save scenario, beside the setup in <Link to="/practice" className="underline">Practice</Link>, keeps a table as it&rsquo;s set to start again from here.
+              None yet. Save one in <Link to="/practice" className="underline">Practice</Link>.
             </p>
           )}
         </div>
         {!!scenarios?.damaged && (
           <p role="status" className="text-sm text-warn">
-            {scenarios.damaged} saved scenario{scenarios.damaged === 1 ? " is" : "s are"} damaged and can&rsquo;t be read, so {scenarios.damaged === 1 ? "it's" : "they're"} left out here.
+            {scenarios.damaged} saved scenario{scenarios.damaged === 1 ? "" : "s"} can&rsquo;t be read.
           </p>
         )}
         {!!scenarios?.list.length && !shownScenarios.length && <p className="text-sm text-muted">No saved scenario matches “{query}”.</p>}
@@ -228,18 +223,17 @@ export function SavedPage() {
           <span className="text-sm text-muted">{reports ? `${reports.list.length} saved` : "Loading"}</span>
           {reports && reports.list.length === 0 && (
             <p className="text-sm text-muted">
-              No saved reports yet. Save this report, under the filters in{" "}
+              None yet. Save one in{" "}
               <Link to="/analyze" className="underline">
                 Analyze
               </Link>
-              , keeps them here.
+              .
             </p>
           )}
         </div>
         {!!reports?.damaged && (
           <p role="status" className="text-sm text-warn">
-            {reports.damaged} saved report{reports.damaged === 1 ? " is" : "s are"} damaged and can&rsquo;t be read, so {reports.damaged === 1 ? "it isn" : "they aren"}
-            &rsquo;t listed.
+            {reports.damaged} saved report{reports.damaged === 1 ? "" : "s"} can&rsquo;t be read.
           </p>
         )}
         {!!reports?.list.length && !shownReports.length && <p className="text-sm text-muted">No saved report matches “{query}”.</p>}
@@ -256,7 +250,7 @@ export function SavedPage() {
           <span className="text-sm text-muted">{ranges ? `${ranges.length} saved` : "Reading…"}</span>
           {ranges && ranges.length === 0 && (
             <p className="text-sm text-muted">
-              No saved ranges yet. The <Link to="/ranges" className="underline">Ranges</Link> editor saves one under a name.
+              None yet. Save one in <Link to="/ranges" className="underline">Ranges</Link>.
             </p>
           )}
         </div>
@@ -357,7 +351,7 @@ function SpotRow({ spot, answer, current, onChange, onGone }: { spot: SavedSpot;
               Answer kept: {answer.label} ({kb(answer.bytes)}). {answerWords(answer, current)}
             </p>
           )}
-          {answer === null && <p className="text-xs text-warn">The answer saved with this spot can&rsquo;t be read, so opening it asks the engine again.</p>}
+          {answer === null && <p className="text-xs text-warn">Saved answer unreadable: opening it solves again.</p>}
         </>
       )}
     </li>
@@ -747,18 +741,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
   return (
     <section aria-label="Backup" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
       <h2 className="text-lg font-semibold">Backup and restore</h2>
-      <p className="text-muted">Everything kept in this browser, in one file, except settings. A restore merges, and what you deleted stays deleted.</p>
-      <About label="What's in it, and how a restore merges">
-      <p>
-        One file with your saved spots and the answers kept with them, saved drills, saved scenarios, saved ranges, saved reports, session history (Practice hands, drills, leak drills, range-builder scores), and the hands
-        imported into Analyze with your tags, notes and grades, and the mistakes kept for review with their schedule; settings are not in it.
-        Restoring merges: a record missing here comes back, of two copies the later one stays, and nothing here is deleted.
-      </p>
-      <p>
-        What you delete stays deleted: this browser remembers your deletes, up to the latest {MAX_TOMBSTONES.toLocaleString("en-US")} of each kind, and a backup takes them to another browser, so a restore leaves those records out and says how many.
-        A copy changed after its delete still comes back, a delete made before this version wasn&rsquo;t remembered, and a restore won&rsquo;t remove a copy kept here that another browser deleted.
-      </p>
-      </About>
+      <p className="text-muted">Everything but settings. A restore merges.</p>
       {count && (
         <p role="group" aria-label="Last backup">
           {count.lastBackupAt ? `Last backup made here ${day(count.lastBackupAt)}` : "No backup made in this browser yet"}

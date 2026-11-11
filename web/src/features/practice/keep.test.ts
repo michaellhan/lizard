@@ -1626,8 +1626,8 @@ describe("Room's kept doc", () => {
       });
 
       it("says so in words: what's still to come, then what's happened", () => {
-        expect(keptNote("passed")).toBe("The session kept in this browser was read too late to bring back, as you'd already moved on from it. Playing above one table replaces it, though History keeps its record.");
-        expect(keptNote("replaced")).toBe("The session kept in this browser was read too late to bring back, as you'd already moved on from it. It's no longer kept, though History keeps its record.");
+        expect(keptNote("passed")).toBe("Saved session read too late to bring back; more tables will replace it. It's in History.");
+        expect(keptNote("replaced")).toBe("Saved session read too late to bring back. It's in History.");
       });
 
       it("goes back to one table without giving up a doc it hasn't seen", async () => {

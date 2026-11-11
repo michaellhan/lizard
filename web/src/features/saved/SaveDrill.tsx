@@ -70,7 +70,7 @@ export function SaveDrill({ kind, to, about }: { kind: SavedDrill["kind"]; to: s
         onClick={start}
         aria-expanded={open}
         disabled={saved === undefined}
-        title={saved ? "This drill is saved: edit its name or note" : "Keep this drill, as it's set, in this browser under a name"}
+        title={saved ? "Edit its name or note" : "Save this drill"}
         className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
       >
         {saved ? "★ Saved drill" : "☆ Save drill"}

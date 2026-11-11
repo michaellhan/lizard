@@ -1,7 +1,6 @@
 // History: every session kept in this browser, by day, newest first, with lifetime totals by kind, Practice's finished
 // hands by pot type (features/history/history.ts), and decisions by street, by seat, by pot and over time (progress.ts).
 // Each row says what graded it; nothing here is solved anew.
-import { About } from "@/components/About";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { bb, pct } from "@/components/actions";
@@ -11,7 +10,7 @@ import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
 import { byDay, GRADE_WAYS, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, WAY_HEADS, WAY_WORDS, type GradeWay, type SessionKind, type SessionRow, type Split, type WayTally } from "./history";
-import { BASIS_WORDS, BLOCK, MIN_BLOCKS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, type Basis, type BasisTrend, type SplitTotals } from "./progress";
+import { BASIS_WORDS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, type Basis, type BasisTrend, type SplitTotals } from "./progress";
 
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x * 100) / 100)}`;
@@ -86,14 +85,6 @@ export function HistoryPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">History</h1>
-        <p className="text-sm text-muted">Every session you&rsquo;ve played here, newest first, and how your grades add up.</p>
-        <About>
-        <p>
-          Every session kept in this browser: Practice&rsquo;s full hands and drills, Analyze&rsquo;s leak drills and Study&rsquo;s range builds, newest first.
-          Each one&rsquo;s grades are against the answers it was played with, said in its row; nothing here is solved again. The sittings in your imported hands
-          are in <Link to="/analyze" className="underline">Analyze</Link>, under Your sessions, read from those hands.
-        </p>
-        </About>
         {mistakes != null && mistakes.kept > 0 && (
           <p className="text-sm">
             <Link to="/review" className="underline">
@@ -107,8 +98,7 @@ export function HistoryPage() {
         <p className="text-sm text-muted">Reading the sessions kept here…</p>
       ) : !sessions.length ? (
         <p className="text-sm text-muted">
-          No session kept yet. Play hands or drills in <Link to="/practice" className="underline">Practice</Link>, drill a leak in{" "}
-          <Link to="/analyze" className="underline">Analyze</Link> or build a range in <Link to="/study" className="underline">Study</Link>: each is kept here as you go.
+          No sessions yet. Play some in <Link to="/practice" className="underline">Practice</Link>.
         </p>
       ) : (
         <>
@@ -237,18 +227,9 @@ function Lifetime({ totals }: { totals: ReturnType<typeof kindTotals> }) {
           </tbody>
         </table>
       </div>
-      <About label="How these figures are counted">
-<p>
-        Each way of grading has its own figures, Best or Correct and then EV lost per decision, and none is added to another: a share by EV says something else than a share by frequency, and the
-        preflop solve&rsquo;s EV lost is on a simplified game, never added to a postflop solve&rsquo;s. The preflop charts grade by frequency only, so they have no EV. Net counts the hands played out, not those played preflop
-        only. A range build is scored by its accuracy over the node&rsquo;s hand classes, or combo by combo where it says so; the average takes both.
-        {apart > 0 && ` ${many(apart, "decision")} ${apart === 1 ? "isn't" : "aren't"} in these figures: played before Lizard kept how each one was graded, ${apart === 1 ? "it was" : "they were"} added up across both ways and can't be told apart now.`}
-        {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") &&
-          " Tournaments each have their own row and go in no other totals here, by pot type, street or over time: a prize-equity EV is chips worth as much prize equity, never bb won, and a tournament's hands count no net."}
-        {totals.some((t) => t.kind === "exploit") &&
-          " Exploit sessions have their own row and go in no other totals here: their EVs are against a best response to an assumed profile, never an equilibrium. Their net counts only the hands where every move of the opponent's after the flop was the profile's, and goes in no other net; a session from before 2026-11-10, when the opponent played the equilibrium, has none."}
-      </p>
-</About>
+      {apart > 0 && <p className="text-xs text-muted">{many(apart, "decision")} from before grades were kept apart: not in these figures.</p>}
+      {totals.some((t) => t.kind === "tournament" || t.kind === "tournament-chips") && <p className="text-xs text-muted">Tournaments each have their own row, in no other totals.</p>}
+      {totals.some((t) => t.kind === "exploit") && <p className="text-xs text-muted">Exploit sessions have their own row, in no other totals.</p>}
     </section>
   );
 }
@@ -289,15 +270,12 @@ function Streets({ t }: { t: ReturnType<typeof streetTotals> }) {
           </table>
         </div>
       )}
-      <About label="How these are counted">
-<p>
-        Full hands and drills. Under {MIN_SHARE} decisions a share is written as a count. EV lost is what a decision gave up against the answer named, averaged over those graded by EV: it isn&rsquo;t a
-        result or a win rate. Decisions graded by frequency count no EV.
-        {t.apartDecisions > 0 &&
-          ` ${many(t.apartDecisions, "decision")} in ${many(t.apartSessions, "earlier session")} ${t.apartDecisions === 1 ? "was" : "were"} played before streets were kept, and ${t.apartDecisions === 1 ? "isn't" : "aren't"} split.`}
-        {t.leakDecisions > 0 && ` ${many(t.leakDecisions, "leak drill decision")} ${t.leakDecisions === 1 ? "isn't" : "aren't"} split: a leak drill keeps no street.`}
-      </p>
-</About>
+      {t.apartDecisions > 0 && (
+        <p className="text-xs text-muted">
+          {many(t.apartDecisions, "decision")} in {many(t.apartSessions, "earlier session")}: not split.
+        </p>
+      )}
+      {t.leakDecisions > 0 && <p className="text-xs text-muted">{many(t.leakDecisions, "leak drill decision")}: not split.</p>}
     </section>
   );
 }
@@ -348,18 +326,15 @@ function SplitBlock({ t }: { t: SplitTotals }) {
       {t.freq.length > 0 && <SplitTable t={t} basis="freq" />}
       {!t.ev.length && !t.freq.length && <p className="text-sm text-muted">No decision here keeps its {word}.</p>}
       {t.notKept > 0 && (
-        <About label={`${many(t.notKept, "decision")} left out`}>
-<p>
-          {word[0]!.toUpperCase() + word.slice(1)} not kept: {many(t.notKept, "decision")} in {many(t.notKeptSessions, "session")}, played before it was kept or from a stored drill. They count in the totals above and are left out here.
+        <p className="text-xs text-muted">
+          {word[0]!.toUpperCase() + word.slice(1)} not kept: {many(t.notKept, "decision")} in {many(t.notKeptSessions, "session")}.
         </p>
-</About>
       )}
     </div>
   );
 }
 
 function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTotals; kind: SessionKind | null; setKind: (k: string) => void }) {
-  const leak = seat.leakDecisions;
   return (
     <section aria-label="Rates by seat and pot type" className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -367,21 +342,14 @@ function Splits({ seat, pot, kind, setKind }: { seat: SplitTotals; pot: SplitTot
         <KindSelect label="Rates from" kind={kind} setKind={setKind} />
       </div>
       {kind && kind !== "practice" && kind !== "drill" ? (
-        <p className="text-sm text-muted">{kindLabel(kind)}: not split by seat or pot. These rates read full hands and drills only.</p>
+        <p className="text-sm text-muted">{kindLabel(kind)}: not split by seat or pot.</p>
       ) : (
         <div className="grid items-start gap-4 2xl:grid-cols-2">
           <SplitBlock t={seat} />
           <SplitBlock t={pot} />
         </div>
       )}
-      <About label="How these rates are counted">
-<p>
-        Full hands and live drills, each decision under the seat you held in that hand and the pot as it stood when you decided, before your own move: an open counts as Unopened, facing an open as SRP, facing a 3-bet as a 3bet pot, and
-        from the flop on the pot the preflop made. So these won&rsquo;t match the finished hands by pot type above, which put all of a hand&rsquo;s decisions under the pot it ended as. A seat&rsquo;s rows take every table size together. Graded by EV and graded by frequency are never added together. Under {MIN_SHARE} decisions a share is
-        written as a count. EV lost is what a decision gave up against the answer named: it isn&rsquo;t a result or a win rate. The preflop charts are approximate, never a solve. Tournaments and exploit sessions go in neither.
-        {leak > 0 && ` ${many(leak, "leak drill decision")} ${leak === 1 ? "isn't" : "aren't"} split: a leak drill keeps no seat or pot.`}
-      </p>
-</About>
+      {(!kind || kind === "practice" || kind === "drill") && seat.leakDecisions > 0 && <p className="text-xs text-muted">{many(seat.leakDecisions, "leak drill decision")}: not split.</p>}
     </section>
   );
 }
@@ -392,7 +360,7 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
     if (!t.line) return null;
     const last = t.blocks.at(-1)!;
     const before = t.blocks.slice(0, -1).reduce((a, b) => ({ n: a.n + b.n, ok: a.ok + b.ok }), { n: 0, ok: 0 });
-    return `Your last stretch: ${shareText(last.ok, last.n)} of ${last.n}, against ${shareText(before.ok, before.n)} of ${before.n} before it. ${t.change ? `${t.change}: beyond what chance explains.` : "No clear change: what's moved is within chance."}`;
+    return `Last stretch: ${shareText(last.ok, last.n)} of ${last.n}, against ${shareText(before.ok, before.n)} of ${before.n} before. ${t.change ? `${t.change}.` : "No clear change."}`;
   };
   return (
     <section aria-label="Over time" className="space-y-3">
@@ -403,7 +371,7 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
             <TrendChart
               basis={BASIS_WORDS[t.basis]}
               points={t.blocks}
-              about={`share of decisions in the mix (Best or Correct), in stretches of ${BLOCK} decisions or more, whole sessions, the band its 95% range.`}
+              about="share in the mix, 95% band"
             />
           ) : (
             <>
@@ -416,7 +384,7 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           {end(t) && <p>{end(t)}</p>}
           {t.basis === "ev" && t.line && (
             <p className="text-xs text-muted">
-              EV lost per decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot, against the answers named. It isn&rsquo;t a result or a win rate.
+              EV lost per decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot.
             </p>
           )}
           <p className="text-xs text-muted">
@@ -425,18 +393,11 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           {versionNote(t.versions) && (
             <p role="group" aria-label="Versions compared" className="text-xs text-muted">
               {versionNote(t.versions)}
-              {t.versions.changed.length > 0 ? " Part of a change here can be the answer's." : ""}
               {t.versions.unknown[0] + t.versions.unknown[1] > 0 ? ` ${VERSION_UNKNOWN}` : ""}
             </p>
           )}
         </div>
       ))}
-      <About label="How the line is drawn">
-        <p>
-          A line takes {MIN_BLOCKS} stretches of {BLOCK} decisions or more. The two kinds of grade are kept apart, as how many of each you played would otherwise move the line. Retries aren&rsquo;t counted: they&rsquo;re
-          spots you&rsquo;ve already missed. Full hands from before the split was kept aren&rsquo;t in either.
-        </p>
-      </About>
     </section>
   );
 }
@@ -478,14 +439,12 @@ function PotTypes({ pots }: { pots: ReturnType<typeof potTotals> }) {
           </table>
         </div>
       )}
-      <About label="How these are counted">
-<p>
-        Finished hands only, each under its pot as the preflop went while you were in it (&ldquo;Unopened&rdquo;: nobody raised or called). Each way of grading has its own figures, Best or Correct and then EV lost per decision, as in the lifetime table.
-        {apart > 0 && ` ${many(apart, "decision")} from before grades were kept apart ${apart === 1 ? "isn't" : "aren't"} in them.`}
-        {pots.without > 0 &&
-          ` ${pots.without} earlier session${pots.without === 1 ? "" : "s"} (${pots.withoutHands} hand${pots.withoutHands === 1 ? "" : "s"}) ${pots.without === 1 ? "was" : "were"} played before pot types were kept, and ${pots.without === 1 ? "isn't" : "aren't"} split.`}
-      </p>
-</About>
+      {apart > 0 && <p className="text-xs text-muted">{many(apart, "decision")} from before grades were kept apart: not in these.</p>}
+      {pots.without > 0 && (
+        <p className="text-xs text-muted">
+          {many(pots.without, "earlier session")} ({many(pots.withoutHands, "hand")}): not split.
+        </p>
+      )}
     </section>
   );
 }

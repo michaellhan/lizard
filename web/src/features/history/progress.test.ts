@@ -105,7 +105,7 @@ describe("the trend", () => {
     const t = basisTrend(run(2, 10, 5), "ev");
     expect(t.line).toBe(false);
     expect(t.n).toBe(20);
-    expect(t.why).toMatch(/20/);
+    expect(t.why).toMatch(/280 more decisions/);
     expect(t.change).toBeNull();
   });
 

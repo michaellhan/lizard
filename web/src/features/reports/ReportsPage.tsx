@@ -5,7 +5,6 @@
 // flop opens in Study at the decision. A chart view draws the same rows (ReportChart.tsx). Everything chosen is in
 // the URL. A 3-way spot's report is built in the page from its stored flops' entries (strategies only). Below it, a turn report
 // over a sample of the spot's flops of the texture chosen (TurnReportPanel.tsx).
-import { About } from "@/components/About";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -16,7 +15,7 @@ import { LIBRARY_SOURCES } from "@/config";
 import { TEXTURE_GROUPS, type TextureFilter, type TextureKey } from "@/features/practice/drills";
 import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import { flopCards } from "@/library/entry";
-import { LibraryFiles, NUT_EQUITY, type LibraryReport } from "@/library/files";
+import { LibraryFiles, type LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
 import { MixBar } from "./MixBar";
 import { ReportChart } from "./ReportChart";
@@ -115,12 +114,6 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
-        <p className="text-sm text-muted">How a precomputed spot plays every flop it stores, flop by flop and averaged by texture.</p>
-        <About>
-          <p>
-            Read from the library with no solve: each flop weighted by how often it comes up. Only spots in the library have reports.
-          </p>
-        </About>
       </div>
       {lib.st === "loading" && <p className="text-sm text-muted">Loading the library&rsquo;s index…</p>}
       {lib.st === "error" && (
@@ -224,7 +217,7 @@ function SpotReport({
               type="button"
               aria-pressed={v === view}
               disabled={views != null && !views.includes(v) && v !== view}
-              title={views != null && !views.includes(v) ? "No flop this report stores has this decision" : undefined}
+              title={views != null && !views.includes(v) ? "In no stored flop" : undefined}
               onClick={() => set({ view: v === "oop" ? null : v })}
               className={`px-2.5 py-1 disabled:opacity-40 ${v === view ? "bg-surface-3 text-text" : "text-muted enabled:hover:bg-surface-2"}`}
             >
@@ -307,29 +300,13 @@ function SpotReport({
             <ReportTable rep={rep} view={view} all={all} shown={shown} group={group} sort={sort} desc={desc} set={set} rowLimit={rowLimit} />
           )}
           {isFacing(view) && (
-            <p className="text-xs text-muted">Facing a bet: flops where the bet is made under 5% of the time aren&rsquo;t stored, so they&rsquo;re left out.</p>
+            <p className="text-xs text-muted">Facing a bet: flops with the bet under 5% left out.</p>
           )}
-          <About label="What the columns mean">
-          <p>
-            {rep.label}
-            {rep.game ? `, ${gameLabel({ game: rep.game, seats: rep.seats })}` : ", 6-max 100bb"}. Frequencies are the range&rsquo;s at the decision
-            {hasEv(rep)
-              ? `; EV in bb at the start of the flop (pot ${rep.pot}bb); equity is range against range; EQR is EV over equity times the pot. A group's EQR is that of its averages. Range adv is the side with the higher range equity, and by how many points of equity. It's worked out from the stored equities, which run over every 8th turn and river runout (about 135 of the 1,081), so it can differ a little from Study's breakdown, which samples its own. A group's is that of its averaged equities, each flop weighted by how many of the ${ALL_FLOPS} it stands for. There's no nut advantage column: the library stores a range's equity with no equity by hand, so how much of a range is near the nuts can't be read from it. Study's breakdown works that out for one flop.`
-              : ` (pot ${rep.pot}bb). The 3-way library stores each flop's strategies but no range EVs or equities, so this report has strategies only; it is built here from the ${rep.flops.length} flops' files, read once. Its flops are a sample spread over the flop space by how often each comes up, so each counts the same${rep.flops.some((f) => f.w === 0) ? `; ${rep.flops.filter((f) => f.w === 0).map((f) => f.f).join(", ")}, solved besides the sample, is listed but not averaged` : ""}.`}{" "}
-            {nutFlops(rep) > 0 && (
-              <>
-                {" "}
-                Nut adv is the side with more of its range at {pct(NUT_EQUITY, 0)} equity or more against the other range, and by how many points of range
-                {nutFlops(rep) < rep.flops.length ? `, on ${nutFlops(rep)} of these ${rep.flops.length} flops so far; an average takes those` : ""}. It&rsquo;s
-                calculated from the stored ranges, not solved, the way Study&rsquo;s breakdown reads it, over a sample of the runouts: on 20 flops checked
-                against every runout a share was off by about half a point on average and 4.1 points at most, so a small lead may be no lead.
-              </>
-            )}{" "}
-            Each flop is its own stored solve: open one in Study to see how close it is to equilibrium.
-            {isFacing(view) &&
-              ` Facing a bet, each flop shows its most common size (“vs 75%”: three quarters of the pot) and how often it's made; the library stores the response only where the bet is made at least 5% of the time, so other flops are left out.`}
-          </p>
-          </About>
+          {nutFlops(rep) > 0 && (
+            <p className="text-xs text-muted">
+              Nut adv: from the stored ranges, not solved{nutFlops(rep) < rep.flops.length ? `; ${nutFlops(rep)} of ${rep.flops.length} flops so far` : ""}.
+            </p>
+          )}
           {/* (a sample belongs to its texture and seed: a new one starts from the top, what's read kept in keptTurns) */}
           <TurnReportPanel key={`${filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={steadyFilter} params={params} set={set} kept={keptTurns} sample={turnSample} againRef={sampleAgainRef} />
         </>
@@ -354,7 +331,7 @@ function orderText(sort: string, desc: boolean, cols: string[], seats: readonly 
 function Partial({ a }: { a: Pick<Average, "w" | "wf" | "freqs"> }) {
   if (!a.freqs || a.wf >= a.w * 0.9999) return null;
   return (
-    <small className="block whitespace-nowrap font-normal text-faint" title="The strategy averages the flops that store this decision; the EVs and equities, every flop">
+    <small className="block whitespace-nowrap font-normal text-faint" title="EVs and equities: every flop">
       strategy from {pct(a.wf / a.w, 0)} of them
     </small>
   );
@@ -549,15 +526,10 @@ function Coverage({ spots, mw, source }: { spots: LibrarySpotIndex[]; mw: Librar
         ))}
         {mw.map((s) => (
           <li key={s.id}>
-            {s.label} (3-way): {Object.keys(s.flops).length} flops stored, the report built in the page
+            {s.label} (3-way): {Object.keys(s.flops).length} flops stored
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-muted">
-        A 3-way spot&rsquo;s report is built here from its stored flops&rsquo; files (each read once, about 1.3 MB for 185 flops), with
-        strategies only. Spots still being built get more flops as new library builds publish; any other spot or flop is solved live in Study,
-        one at a time.
-      </p>
     </details>
   );
 }

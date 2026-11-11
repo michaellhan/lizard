@@ -363,9 +363,8 @@ test("11d. A spot with nut shares has a Nut adv column, defined on the page, and
     return r.fulfill({ response: await r.fetch({ url: `https://www.michael-han.com${u.pathname}${u.search}` }) });
   });
   await page.goto("/lizard/reports/?spot=srp_btn_bb");
-  const words = page.getByText(/Nut adv is the side with more of its range at 80% equity or more/);
-  await expect(words).toContainText("not solved", { timeout: 60_000 });
-  await expect(words).toContainText("on 2 of these 1755 flops so far");
+  const words = page.getByText(/^Nut adv: from the stored ranges, not solved/);
+  await expect(words).toContainText("2 of 1755 flops so far", { timeout: 60_000 });
   await expect(page.getByRole("row", { name: "Average" }).first()).toContainText("BTN +");
   await expect(page.getByRole("button", { name: "Nut adv" })).toBeVisible();
   await clean(page, problems);
@@ -418,8 +417,8 @@ test("11c. A turn report read from a sample of stored flops says what it stands 
   await page.goto("/lizard/reports/?spot=3bp_bb_btn&suits=rainbow");
   const panel = page.getByRole("region", { name: "Turn report", exact: true });
   await panel.getByRole("button", { name: "Read 40 flops" }).click();
-  await expect(panel).toContainText(/Read 40 of \d+ flops of this texture with stored turns, drawn evenly/, { timeout: 60_000 });
-  await expect(panel).toContainText(/Margin on All turns: ±[\d.]+ points, 95%/);
+  await expect(panel).toContainText(/40 of \d+ flops read/, { timeout: 60_000 });
+  await expect(panel).toContainText(/Margin on All turns: ±[\d.]+ points/);
   await expect(panel.getByRole("button", { name: /^Stored turn from the flop library · 3bp_bb_btn · turn report over 40 of \d+ flops/ })).toBeVisible();
   await expect(panel.getByRole("row", { name: /^All turns/ })).toBeVisible();
   await clean(page, problems);
@@ -464,7 +463,7 @@ test("7e. A 4-bet pot drill plays from the flop, with the preflop said to come f
 test("7f. A 4-bet pot dealt to a hand category finds one on the worker in time, or stops in words", async ({ page, problems }) => {
   await session(page, "4bet", async () => {
     await page.getByLabel("Hands", { exact: true }).selectOption("Quads or better");
-    await expect(page.locator("#hands-note")).toContainText("This only picks what you're dealt");
+    await expect(page.locator("#hands-note")).toContainText("Quads or better: ");
   });
   const began = Date.now();
   const stopped = page.getByRole("button", { name: "Try again" });
@@ -486,7 +485,7 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   await session(page, "preflop", () => expect(page.getByLabel("Grade preflop by the preflop solve")).toBeChecked());
   const next = page.getByRole("button", { name: "Next hand" });
   const solve = page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first();
-  const chart = page.getByText(/^Not by the preflop solve here/).first();
+  const chart = page.getByText(/^Chart\u2019s grade, not the solve\u2019s/).first();
   let [bySolve, byChart] = [0, 0];
   for (let i = 0; i < 80 && !(bySolve && byChart); i += 1) {
     await expect(options(page).first().or(next)).toBeVisible({ timeout: 90_000 });
@@ -748,9 +747,6 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit.png" });
   await options(page).first().click();
   await expect(page.getByText(/^Graded against: Exploiting an assumed profile \(best response, not a solve\)/)).toBeVisible({ timeout: 60_000 });
-  // (the decision's note on how it was graded is on its own fold)
-  await page.getByRole("region", { name: "Last decision" }).locator("summary", { hasText: "How this was graded" }).click();
-  await expect(page.getByText(/^Graded against the best response to the assumed profile/)).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit-graded.png", fullPage: true });
   // The next decision is its own live solve at Quick.
   const next = page.getByRole("button", { name: /next/i }).first();
@@ -758,7 +754,7 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   await expect(options(page).first()).toBeEnabled({ timeout: 120_000 });
   // Played to its end: every move of the opponent's after the flop is drawn from the read (engine/exploit_play.py), and
   // the hand says how many were, so its chips count in Net against the profile only where all of them were.
-  const said = page.getByText(/^(Their move|All \d+ of their moves|\d+ of their \d+ moves) after the flop|^They made no move after the flop/);
+  const said = page.getByText(/^(Their move|All \d+ of their moves|\d+ of their \d+ moves) after the flop|^No move of theirs after the flop/);
   for (let i = 0; i < 8 && !(await said.isVisible()); i++) {
     const opt = options(page).first();
     await expect(opt.or(said)).toBeVisible({ timeout: 120_000 });
@@ -838,7 +834,6 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
 test("10c. The plan starts empty, reads what's graded, and its practice step opens a started session", async ({ page, problems }) => {
   await page.goto("/lizard/plan/");
   await expect(page.getByRole("heading", { level: 1, name: "Plan" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "How this plan is made" })).toBeVisible();
   const start = page.getByRole("region", { name: "Start here" });
   await expect(start.getByRole("link", { name: "Play hands in Practice" })).toBeVisible();
   await start.getByRole("link", { name: "Import hands in Analyze" }).click();
@@ -853,7 +848,7 @@ test("10c. The plan starts empty, reads what's graded, and its practice step ope
 
   // Graded and clean, there's nothing to do yet, and the page says so
   await page.goto("/lizard/plan/");
-  await expect(page.getByRole("region", { name: "Start here" })).toContainText(/leave no step to take/);
+  await expect(page.getByRole("region", { name: "Start here" })).toContainText(/Nothing to do yet over/);
 
   // Marked as missed in the browser's own store, as a worse player's grades would be
   await page.evaluate(
@@ -918,7 +913,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   await page.getByRole("tab", { name: "Hands" }).click();
   await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
   const hand = page.getByRole("region", { name: "Hand", exact: true });
-  await expect(hand.getByText(/Add to review keeps the one you choose/)).toBeVisible();
+  await expect(hand.getByText(/Misses reach Review only through Add to review/)).toBeVisible();
   const add = hand.getByRole("button", { name: /^Add to review: / }).first();
   await add.click();
   await expect(hand.getByRole("status").filter({ hasText: /^Added, due tomorrow/ })).toBeVisible();
@@ -936,7 +931,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   await page.screenshot({ path: "e2e-results/shots/desktop/review-from-analyze.png", fullPage: true });
   await page.getByRole("button", { name: /^Retry early: / }).first().click();
   const retry = page.getByRole("region", { name: "Retry" });
-  await expect(retry.getByText(/nothing solved: the same answer as your first grade/)).toBeVisible();
+  await expect(retry.getByText(/Against the answer kept in Analyze; nothing solved/)).toBeVisible();
   await retry.getByRole("group", { name: "Your options" }).getByRole("button").first().click();
   await expect(retry.getByText(/The same answer both times/)).toBeVisible();
   await page.getByRole("button", { name: /^Delete: / }).first().click();

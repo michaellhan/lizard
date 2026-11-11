@@ -151,7 +151,7 @@ describe("SavedPage", () => {
     const b = await makeBackup();
     await deleteSpot("b");
     renderAt("/saved");
-    expect(await screen.findByText(/What you delete stays deleted: this browser remembers your deletes, up to the latest 100,000 of each kind/)).toBeInTheDocument();
+    expect(await screen.findByText(/A restore merges/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [new File([JSON.stringify(b)], "backup.json")] } });
     expect(await screen.findByText("Restored: 0 added, 0 updated, 1 kept (as new or newer here), 1 left out because it was deleted after that copy. Nothing here was deleted.")).toBeInTheDocument();
     expect(screen.queryByRole("listitem", { name: "Deleted" })).toBeNull();
@@ -266,9 +266,9 @@ describe("SavedPage", () => {
 
   it("says where saved things come from when there are none", async () => {
     renderAt("/saved");
-    expect(await screen.findByText(/No saved spots yet/)).toBeInTheDocument();
-    expect(screen.getByText(/No saved drills yet/)).toBeInTheDocument();
-    expect(screen.getByText(/No saved ranges yet/)).toBeInTheDocument();
+    expect(await within(await screen.findByRole("region", { name: "Saved spots" })).findByText(/None yet/)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Saved drills" })).getByText(/None yet/)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Saved ranges" })).getByText(/None yet/)).toBeInTheDocument();
   });
 });
 
@@ -430,7 +430,7 @@ describe("every kind on the Saved page", () => {
     await putSpot(spot("a", "Hurt"), "answer" in k ? { ...k.answer, json: "{not json" } : undefined);
     renderAt("/saved");
     const row = await screen.findByRole("listitem", { name: "Hurt" });
-    await waitFor(() => expect(row).toHaveTextContent("The answer saved with this spot can’t be read, so opening it asks the engine again."));
+    await waitFor(() => expect(row).toHaveTextContent("Saved answer unreadable: opening it solves again."));
     expect(within(row).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", `/study?${LINE}`);
   });
 

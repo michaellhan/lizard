@@ -17,10 +17,10 @@ export const BREAKDOWNS: readonly { by: BreakBy; label: string; first: string; h
   { by: "pos", label: "Your seat", first: "Your seat" },
   { by: "street", label: "Street", first: "Street" },
   { by: "pot", label: "Pot type", first: "Pot type" },
-  { by: "faced", label: "Bet size faced", first: "Faced", history: true, note: "The size is read from the hand's history, as a decision stores only that it faced a bet. Preflop it's the raise to, in big blinds; after the flop the bet's share of the pot it went into." },
-  { by: "chosen", label: "Bet size chosen", first: "Chose", history: true, note: "The size is read from the hand's history. A bet is in % of the pot before it; a raise in multiples of the bet raised, the big blind's for an open. An all-in counts at its size." },
-  { by: "stack", label: "Effective stack", first: "Effective stack", history: true, note: "Read from the hand's history, as a decision stores no stack: yours at the start of the hand against the deepest opponent who stayed in." },
-  ...TEXTURE_GROUPS.map((g) => ({ by: g.key, label: `Flop: ${g.label.toLowerCase()}`, first: g.label, note: "The flop's texture, for your decisions on the flop and the streets after it." })),
+  { by: "faced", label: "Bet size faced", first: "Faced", history: true, note: "Preflop: the raise to, in bb; after: % of the pot." },
+  { by: "chosen", label: "Bet size chosen", first: "Chose", history: true, note: "Bets in % of the pot; raises in multiples of the bet." },
+  { by: "stack", label: "Effective stack", first: "Effective stack", history: true, note: "At the start, against the deepest opponent left in." },
+  ...TEXTURE_GROUPS.map((g) => ({ by: g.key, label: `Flop: ${g.label.toLowerCase()}`, first: g.label })),
 ];
 
 /** Under `max`, each. */

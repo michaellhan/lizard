@@ -93,7 +93,7 @@ export function ComboPainter({
       <p role="note" aria-label={`${cls} as painted`}>
         Over its {live} live combo{live === 1 ? "" : "s"}, by reach: {names.map((n, a) => `${n} ${pct(mean[a], 1)}`).join(" · ")}
       </p>
-      {locked ? <p className="text-warn">Locked: unlock the hand to paint its combos.</p> : <p className="text-muted">A combo's share of each action, in %: the rest of its mix keeps its proportions. Each change is one undo step. Lock a combo painted apart to keep it when its hand is painted.</p>}
+      {locked ? <p className="text-warn">Locked: unlock the hand to paint its combos.</p> : null}
       <ul className="space-y-1.5">
         {slots.map(({ combo, state, row }) => {
           const held = comboLocked(combo);
@@ -101,7 +101,7 @@ export function ComboPainter({
             <li key={combo} className="border-t border-border/60 pt-1.5">
               {state !== "live" ? (
                 <p className="text-muted">
-                  <span className="font-mono">{combo}</span> {state === "blocked" ? "blocked by the board: not painted, not counted" : "not in this range: not painted, not counted"}
+                  <span className="font-mono">{combo}</span> {state === "blocked" ? "blocked by the board" : "not in this range"}
                 </p>
               ) : (
                 <div role="group" aria-label={held ? `${combo}, locked` : combo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -126,7 +126,7 @@ export function ComboPainter({
                       type="button"
                       aria-label={`Lock ${combo}`}
                       aria-pressed={held}
-                      title="Keep this combo as it is when its hand is painted (a brush, Fill all, a group, range text). Again to unlock"
+                      title="Keep when its hand is painted"
                       onClick={() => onLock(combo, !held)}
                       className={`rounded border px-1.5 py-0.5 ${held ? "border-dashed border-text/70" : "border-border hover:bg-surface-2"}`}
                     >

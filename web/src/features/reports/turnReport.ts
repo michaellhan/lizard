@@ -355,20 +355,20 @@ export function turnProvenance(spot: string, s: SampleState, mode: SolveMode, ve
 export function sampleText(s: SampleState, topMargin: number | null): string {
   const all = s.read >= s.of;
   const how = all
-    ? `Read all ${s.of} flops of this texture with stored turns, so there's no sampling margin.`
-    : `Read ${s.read} of ${s.of} flops of this texture with stored turns, drawn evenly over them in an order set by seed ${s.seed}, each flop counted by how many of the 22,100 it stands for.`;
-  const margin = all ? "" : topMargin == null ? " Too few flops to put a margin on it yet." : ` Margin on All turns: ±${(topMargin * 100).toFixed(1)} points, 95%.`;
-  const bad = s.failed ? ` ${s.failed} ${s.failed === 1 ? "flop" : "flops"} couldn't be read and ${s.failed === 1 ? "is" : "are"} left out.` : "";
-  const partial = s.partial ? (s.stopped ? " Stopped early: these are partial results." : " Still reading: these are partial results.") : "";
+    ? `All ${s.of} flops read; no sampling margin.`
+    : `${s.read} of ${s.of} flops read (seed ${s.seed}).`;
+  const margin = all ? "" : topMargin == null ? " Too few flops for a margin." : ` Margin on All turns: ±${(topMargin * 100).toFixed(1)} points.`;
+  const bad = s.failed ? ` ${s.failed} couldn't be read.` : "";
+  const partial = s.partial ? (s.stopped ? " Stopped early: partial." : " Still reading: partial.") : "";
   return `${how}${margin}${bad}${partial}`;
 }
 
 /** How many flops the numbers stand on, in a line of its own for the chart: a sample and a stopped read alike say it. */
 export function standsOn(s: SampleState): string {
-  if (s.read >= s.of) return `This stands on every one of the ${s.of} flops of this texture with stored turns.`;
-  const count = `${s.read} of the ${s.of} flops of this texture with stored turns`;
-  if (!s.partial) return `A sample: this stands on ${count}.`;
-  return s.stopped ? `Stopped early: this stands on only ${count}.` : `Still reading: so far this stands on ${count}.`;
+  if (s.read >= s.of) return `All ${s.of} flops.`;
+  const count = `${s.read} of ${s.of} flops`;
+  if (!s.partial) return `Sample: ${count}.`;
+  return s.stopped ? `Stopped early: ${count}.` : `Still reading: ${count}.`;
 }
 
 const sampleStatus = (s: SampleState) => (s.partial ? (s.stopped ? "partial, stopped" : "partial, still reading") : s.read >= s.of ? "every flop" : "sample");

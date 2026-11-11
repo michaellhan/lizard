@@ -25,7 +25,7 @@ export const isEquilibriumHand = (h: Pick<HandRecord, "tournament" | "importId">
 
 /** The words for hands an exploit session kept, which stay listed but count nowhere. */
 export const exploitsApartNote = (n: number) =>
-  `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"} from exploit sessions ${n === 1 ? "is" : "are"} listed here and left out of your results, stats and report: the table played the charts, not the assumed profile, so the chips don't test the read, and the answer was the profile's best response, not equilibrium.`;
+  `${n.toLocaleString()} ${n === 1 ? "hand" : "hands"} from exploit sessions ${n === 1 ? "is" : "are"} left out of your results, stats and report.`;
 
 /** in the order played: the history's clock, then the site's hand number */
 export const byPlayed = (a: HandRecord, b: HandRecord) =>

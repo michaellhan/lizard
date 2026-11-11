@@ -46,7 +46,7 @@ test("Turn report: a finished 40-flop sample at desktop width, its margins and c
   await read.focus();
   const t0 = Date.now();
   await page.keyboard.press("Enter");
-  const said = panel.getByText(/^Read 40 of \d+ flops of this texture with stored turns, drawn evenly over them in an order set by seed 1/);
+  const said = panel.getByText(/^40 of \d+ flops read \(seed 1\)/);
   await expect(said).toBeVisible({ timeout: 60_000 });
   await expect(panel.getByRole("button", { name: "Stop", exact: true })).toBeHidden();
   timing("40 flops read, live library, 3bp_bb_btn rainbow", Date.now() - t0);
@@ -104,7 +104,7 @@ test("Turn report: a finished 40-flop sample at desktop width, its margins and c
   expect(choices).toBeGreaterThan(1);
   await lines.selectOption({ index: 1 });
   await expect(page).toHaveURL(/tline=/);
-  await expect(panel.getByText(/This line is stored on \d+ of the 40 flops read/)).toBeVisible();
+  await expect(panel.getByText(/Stored on \d+ of 40 flops read/)).toBeVisible();
   expect(fetched, "files read for another decision or line").toBe(0);
 
   // 40 more, and the margin comes in
@@ -121,7 +121,7 @@ test("Turn report: a finished 40-flop sample at desktop width, its margins and c
 
   // the chart stands on the same sample and rows, and the keys reach each column's numbers
   const chart = panel.getByRole("figure", { name: "Turn report chart" });
-  await expect(chart.getByText(/A sample: this stands on 80 of the \d+ flops/)).toBeVisible();
+  await expect(chart.getByText(/Sample: 80 of \d+ flops/)).toBeVisible();
   const columns = chart.getByRole("button");
   const classes = await table.getByRole("row").count();
   await expect(columns).toHaveCount(classes - 1);
@@ -184,7 +184,7 @@ test("Turn report: a read stopped before any flop came back, and one stopped par
   await expect(stop).toBeFocused();
   await expect(panel.getByRole("progressbar", { name: "Flops read" })).toHaveAttribute("aria-valuenow", "0");
   await page.keyboard.press("Enter");
-  await expect(panel.getByText("Stopped before a flop came back, so there’s nothing to show yet.")).toBeVisible();
+  await expect(panel.getByText("Stopped before any flop came back.")).toBeVisible();
   await expect(read).toBeVisible();
   await expect(read).toBeFocused();
   await expect(panel.getByRole("button")).toHaveCount(1);
@@ -198,9 +198,9 @@ test("Turn report: a read stopped before any flop came back, and one stopped par
   await expect(stop).toBeFocused();
   const bar = panel.getByRole("progressbar", { name: "Flops read" });
   await expect.poll(async () => Number(await bar.getAttribute("aria-valuenow")), { timeout: 60_000 }).toBeGreaterThan(5);
-  await expect(panel.getByText(/Still reading: these are partial results\./)).toBeVisible();
+  await expect(panel.getByText(/Still reading: partial\./)).toBeVisible();
   await page.keyboard.press("Enter");
-  await expect(panel.getByText(/Stopped early: these are partial results\./)).toBeVisible();
+  await expect(panel.getByText(/Stopped early: partial\./)).toBeVisible();
   const left = panel.getByRole("button", { name: /^Read the \d+ left$/ });
   await expect(left).toBeFocused();
   await expect(stop).toBeHidden();
@@ -210,8 +210,8 @@ test("Turn report: a read stopped before any flop came back, and one stopped par
 
   release();
   await page.keyboard.press("Enter");
-  await expect(panel.getByText(/^Read 40 of \d+ flops of this texture/)).toBeVisible({ timeout: 60_000 });
-  await expect(panel.getByText(/partial results/)).toBeHidden();
+  await expect(panel.getByText(/^40 of \d+ flops read/)).toBeVisible({ timeout: 60_000 });
+  await expect(panel.getByText(/: partial\./)).toBeHidden();
   await clean(page, problems);
 });
 
@@ -339,7 +339,7 @@ test("Session stats: a real session's figures in History, each way of grading ap
 test("Session stats: every seat and pot at 375px stays within the page, and the keys reach and scroll each table", async ({ page, problems }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/lizard/history/");
-  await expect(page.getByText("No session kept yet.")).toBeVisible();
+  await expect(page.getByText(/^No sessions yet\./)).toBeVisible();
   const seats = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
   const pots = ["Unopened", "Limped", "SRP", "3bet pot", "4bet+ pot"];
   const cells = seats.flatMap((seat, i) =>
@@ -358,7 +358,7 @@ test("Session stats: every seat and pot at 375px stays within the page, and the 
   const rates = page.getByRole("region", { name: "Rates by seat and pot type" });
   await expect(rates).toBeVisible();
   await expect(rates).toContainText("Seat not kept: 7 decisions in 1 session");
-  await expect(rates).toContainText("2 leak drill decisions aren't split");
+  await expect(rates).toContainText("2 leak drill decisions: not split.");
   expect(await overflow(page), "sideways scroll at 375px, px").toBeLessThanOrEqual(0);
   await page.screenshot({ path: "e2e-results/shots/phone/history-rates.png", fullPage: true });
 
@@ -527,7 +527,6 @@ test("Leak drills on every street: turn and river decisions dealt from what Quic
   await expect(decision.getByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/).first()).toBeVisible();
   await expect(decision.getByRole("table", { name: "The answer for your hand" }).getByRole("row")).toHaveCount(turn.mix!.length + 1);
   const graded = decision.getByRole("group", { name: "What graded it" });
-  await expect(graded).toContainText("kept with the grade: nothing is solved here");
   await expect(graded).toContainText("Version:");
   await expect(graded).toContainText(/Live solve|Stored turn|Answer at once/);
   expect(engine, "the engine, loaded for a drill").toEqual([]);
@@ -546,7 +545,7 @@ test("Leak drills on every street: turn and river decisions dealt from what Quic
   await expect(decision).toContainText(/Decision 1 of 1 · River · /);
   await expect(decision.getByRole("img", { name: "2 of spades" })).toBeVisible();
   await picks.first().click();
-  await expect(decision.getByRole("group", { name: "What graded it" })).toContainText("nothing is solved here");
+  await expect(decision.getByRole("group", { name: "What graded it" })).toContainText("Version:");
   expect(engine, "the engine, loaded for a drill").toEqual([]);
 
   // a rough solve stops at Inaccuracy, what's kept with no mix or no pot is counted and not dealt
@@ -570,7 +569,7 @@ test("Leak drills on every street: turn and river decisions dealt from what Quic
   const theirs = decisions.find((d) => d.handId === tour.id && d.street !== "preflop" && d.mix?.length);
   if (theirs) {
     await page.goto(`/lizard/analyze/?drill=${encodeURIComponent(`spot:${theirs.street[0]!.toUpperCase()}${theirs.street.slice(1)} · ${theirs.situation}`)}`);
-    await expect(drill).toContainText(/None of this leak's decisions is graded with its mix in this browser/);
+    await expect(drill).toContainText(/None of this leak's decisions is graded with its mix\./);
   }
   await page.goto("/lizard/history/");
   const rows = page.getByRole("region", { name: "Sessions" }).getByRole("listitem").filter({ hasText: "Leak:" });
@@ -639,7 +638,7 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   await sizes.focus();
   await page.keyboard.press("Space");
   await expect(sizes).toBeChecked();
-  await expect(page.locator("#pf-note")).toContainText("About 4% of decisions");
+  await expect(page.locator("#pf-note")).toContainText("Your raise uses its size where it answers");
   await page.screenshot({ path: "e2e-results/shots/tablet/pf-both-boxes-form.png" });
   expect(await overflow(page), "sideways scroll with both boxes, px").toBeLessThanOrEqual(0);
   const start = await page.getByRole("button", { name: "New session" }).boundingBox();

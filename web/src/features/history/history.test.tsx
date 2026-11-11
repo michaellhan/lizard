@@ -180,13 +180,12 @@ describe("sessions history", () => {
     expect(rows[1]).toHaveTextContent(/Preflop charts \(approximate\)/);
     expect(rows[2]).toHaveTextContent(/flop\s*2\s*1 of 2\s*2\s*0\.20bb · 3\.0% pot/i);
     expect(split).toHaveTextContent("4 decisions in 1 earlier session");
-    expect(split).toHaveTextContent(/isn.t a result or a win rate/);
     const trend = screen.getByRole("region", { name: "Over time" });
     expect(within(trend).getAllByText(/^No line yet\./)).toHaveLength(2);
     expect(within(trend).queryByRole("img")).toBeNull();
     const notes = within(trend).getAllByLabelText("Versions compared").map((p) => p.textContent);
-    expect(notes[0]).toMatch(/^Graded on different versions: solver build aaa\/111 and bbb\/222\. Part of a change here can be the answer's\.$/);
-    expect(notes[1]).toMatch(/^Version unknown\. A version is unknown where a grade was made before versions were kept/);
+    expect(notes[0]).toMatch(/^Graded on different versions: solver build aaa\/111 and bbb\/222\.$/);
+    expect(notes[1]).toMatch(/^Version unknown\. Unknown: graded before versions were kept/);
     expect(screen.getByRole("link", { name: /2 mistakes kept for review, 1 due/ })).toHaveAttribute("href", "/review");
     cleanup();
     await d.clear("sessions");
@@ -311,9 +310,6 @@ describe("sessions history", () => {
       expect(rows(box, "By pot type: Graded by frequency (no EV)").map((r) => r.textContent)).toEqual([expect.stringMatching(/^Unopened/), expect.stringMatching(/^SRP/)]);
       expect(rows(box, "By pot type: Graded by EV")[0]).toHaveTextContent(/SRP\s*30\s*80%/);
       expect(within(box).getAllByRole("columnheader", { name: "EV lost per decision" })).toHaveLength(2);
-      expect(box).toHaveTextContent("the pot as it stood when you decided, before your own move");
-      expect(box).toHaveTextContent(/isn.t a result or a win rate/);
-      expect(box).toHaveTextContent("Graded by EV and graded by frequency are never added together");
       expect(box.textContent).not.toMatch(/(?<!never a )solved/i);
       cleanup();
     });
@@ -322,7 +318,7 @@ describe("sessions history", () => {
       const box = await page(CELLS, OLDER, LEAK);
       expect(box).toHaveTextContent("Seat not kept: 4 decisions in 1 session");
       expect(box).toHaveTextContent("Pot type not kept: 4 decisions in 1 session");
-      expect(box).toHaveTextContent("7 leak drill decisions aren't split");
+      expect(box).toHaveTextContent("7 leak drill decisions: not split.");
       expect(within(screen.getByRole("region", { name: "Decisions by street" })).getByRole("table")).toHaveTextContent(/flop\s*30/i);
       expect(screen.getByRole("region", { name: "Decisions by street" })).toHaveTextContent("4 decisions in 1 earlier session");
       cleanup();
@@ -397,7 +393,7 @@ describe("sessions history", () => {
         </MemoryRouter>,
       );
     const empty = page();
-    expect(await screen.findByText(/No session kept yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No sessions yet/)).toBeInTheDocument();
     empty.unmount();
 
     for (const s of [OLD, NEW, PREFLOP, DRILL, LEAK, BUILD]) await putSession(s);
@@ -407,13 +403,13 @@ describe("sessions history", () => {
     expect(totals[1]).toHaveTextContent("Full hands38–1 of 16 · +2.5bb over 5");
     expect(totals[2]).toHaveTextContent("Drills143 of 4 · 0.05bb · 1.0% pot––");
     expect(totals[3]).toHaveTextContent("Leak drills12–1 of 2–");
-    expect(screen.getByRole("region", { name: "Lifetime totals" })).toHaveTextContent(/7 decisions aren't in these figures: played before Lizard kept how each one was graded/);
+    expect(screen.getByRole("region", { name: "Lifetime totals" })).toHaveTextContent("7 decisions from before grades were kept apart: not in these figures.");
     expect(totals[4]).toHaveTextContent("Range builds182.0% accurate on average · 0.040bb a combo lost on average");
     const pots = screen.getByRole("region", { name: "Full hands by pot type" });
     const rows = within(within(pots).getByRole("table", { name: "Totals by pot type" })).getAllByRole("row");
     expect(rows[1]).toHaveTextContent("SRP231 of 1 · 0.00bb · 0.0% pot2 of 2+2.5bb over 1");
     expect(rows[2]).toHaveTextContent("3bet pot110 of 1 · 0.30bb · 3.0% pot–+2bb over 1");
-    expect(pots).toHaveTextContent("1 earlier session (3 hands) was played before pot types were kept, and isn't split.");
+    expect(pots).toHaveTextContent("1 earlier session (3 hands): not split.");
 
     const label = (d: number) => new Date(at(d, 12)).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
     const sessions = screen.getByRole("region", { name: "Sessions" });

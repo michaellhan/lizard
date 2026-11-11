@@ -132,10 +132,7 @@ function CheckReport({ r }: { r: HandsCheckReport }) {
           </ul>
         </div>
       )}
-      <p className="text-xs text-muted">
-        Times are measured in this browser, on this run. The answer&rsquo;s time starts as your spot reaches you, so it leaves out the pace and an opponent&rsquo;s own move. A pass says the hands held together and each verdict said what answered it. It can&rsquo;t prove any grade right, or say anything about Accurate,
-        phones or other machines. Runs at the same number of tables deal these same hands, but what&rsquo;s played on them differs, so between runs only the deals compare hand for hand.
-      </p>
+      <p className="text-xs text-muted">Times from this browser, this run.</p>
     </section>
   );
 }
@@ -227,10 +224,9 @@ function HandsCheck() {
           <input type="checkbox" checked={askAhead} disabled={running || kills} onChange={(e) => setAhead(e.target.checked)} />
           <span className="text-muted">Ask ahead</span>
         </label>
-        {kills && <span className="text-xs text-muted">Off: this browser can&rsquo;t stop a solve, so a wrong guess would hold up your next answer.</span>}
+        {kills && <span className="text-xs text-muted">Off: this browser can&rsquo;t stop a solve.</span>}
       </div>
-      <p className="text-sm text-muted">A few minutes of CPU. Nothing is saved to History or Analyze.</p>
-      <p className="text-sm text-muted">Reload this page before a timed run: a solver keeps its answers, so a second run is quicker on the same deals for that alone.</p>
+      <p className="text-sm text-muted">A few minutes of CPU; nothing saved. Reload first for a cold run.</p>
       {running && (
         <p aria-hidden className="text-sm">
           {line}

@@ -19,7 +19,7 @@ import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { addVersion } from "@/features/history/history";
 import { drillMistake, drillMix, missedAgain } from "@/features/review/mistakes";
-import { addScore, emptyScore, GRADE_RULES, summary, whyText, type Grade, type Score } from "@/grading/grade";
+import { addScore, emptyScore, summary, whyText, type Grade, type Score } from "@/grading/grade";
 import { gameLabel, isDrillable, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
@@ -151,9 +151,6 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">
-        {live ? "One decision, dealt again and again from the library's stored lines, answered by a live solve while you wait." : "One decision, dealt again and again from the precomputed library, answered at once."}
-      </p>
       <div className="flex flex-wrap items-start gap-2">
         <form aria-label="Drill" className="flex flex-1 flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
           <label className="flex items-center gap-1">
@@ -241,7 +238,7 @@ function DealsLeft({ hand, of, count }: { hand: string; of: number; count: Count
     <p role={few ? "status" : undefined} className={`text-xs ${few ? "text-warn" : "text-muted"}`}>
       {label}: {c.match.toLocaleString()} of {c.deals.toLocaleString()} deals match {where}
       {c.deals ? ` (${pct(c.match / c.deals, 1)})` : ""}.
-      {c.match === 0 ? " None to deal here: widen a filter." : few ? " Too few: the same hands will keep coming back. Widen a filter for more." : ""}
+      {c.match === 0 ? " None: widen a filter." : few ? " Few: hands will repeat." : ""}
     </p>
   );
 }
@@ -378,7 +375,7 @@ function SpotDrill({
             return;
           }
         }
-        setDeal({ key: dealKey, st: "none", message: hand ? `No hand of this kind reached this decision on the ${tries} flops drawn: widen a filter, or deal again.` : "No hand was found at the drawn spots: deal again." });
+        setDeal({ key: dealKey, st: "none", message: hand ? `None of these hands on ${tries} flops drawn: widen a filter.` : "No hand found: deal again." });
       } catch (e) {
         if (alive) setDeal({ key: dealKey, st: "none", message: `Couldn't deal: ${message(e)}` });
       }
@@ -512,12 +509,6 @@ function SpotDrill({
         {screens && !screening ? `, and ${able.toLocaleString()} of them can hold ${handLabel(hand!)}` : ""}.
       </p>
       {hand && cands.length > 0 && <DealsLeft hand={hand} of={able} count={count} />}
-      {street === "turn" && (
-        <p className="text-xs text-muted">
-          Only the turn cards the stored flop solve played are dealt, on the flop lines it stored. A turn file stores a mix for your hand, in 5% steps, but no EV for it, so a turn is graded by that
-          mix alone and no EV lost is counted. A bet to face on the turn and the river are live drills.
-        </p>
-      )}
 
       <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
         {item("Decisions", String(s.n))}
@@ -526,7 +517,7 @@ function SpotDrill({
         {item("Streak", `${s.streak} (best ${s.best})`)}
         {!!session.revealed && (
           <p className="basis-full text-xs text-muted">
-            {session.revealed} pick{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers.
+            {session.revealed} revealed pick{session.revealed === 1 ? "" : "s"} not graded.
           </p>
         )}
       </section>
@@ -607,7 +598,7 @@ function SpotDrill({
       {pr && graded && shown.st === "ready" && (
         <section aria-label="Answer" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: you revealed the answer first</span>}
+            {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: revealed</span>}
             <span>
               you took <span className="font-mono">{drillActionLabel(pr, pr.names[graded.a]!)}</span>
               {graded.g && graded.g.a !== graded.g.best && (
@@ -629,7 +620,7 @@ function SpotDrill({
               </p>
               <p className="text-muted">
                 {!graded.g.byEv
-                  ? "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost."
+                  ? "Graded by frequency: no EV stored."
                   : graded.g.loss > 0
                     ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.`
                     : "No EV given up."}
@@ -663,9 +654,8 @@ function SpotDrill({
             </tbody>
           </table>
           <p className="text-xs text-muted">
-            {pr.turn
-              ? `Your hand's frequencies at this node, as stored for the flop ${pr.flop} and the turn ${pr.turn.card} (shown in other suits).${pr.turn.rangeEvs ? " The range's EV is what the hands of your range that take the action make on average, against folding now: not your hand's, and not what's graded." : ""}`
-              : `Your hand's frequencies and EVs at this node, as stored for the flop ${pr.flop} (shown in other suits).`}
+            Stored for {pr.flop}
+            {pr.turn ? ` ${pr.turn.card}` : ""}, shown in other suits.
           </p>
           {graded.g && <CopyForAi key={dealKey} text={() => drillText(rep, pr, graded.g!, drillProvenance(shown.entry, mode, pr, spotStamp(spot, tree, pr.flop)))} />}
           <div className="flex flex-wrap items-center gap-3">
@@ -683,25 +673,8 @@ function SpotDrill({
       )}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-        <summary className="cursor-pointer">How decisions are graded</summary>
-        <ul className="mt-2 space-y-1">
-          {GRADE_RULES.map((r) => (
-            <li key={r.verdict}>
-              <VerdictTag v={r.verdict} /> {r.rule}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-muted">
-          {street === "turn"
-            ? "A turn is graded by the rules' \"without EVs\" parts: no EV is stored for your hand there."
-            : "The EVs are the stored solve\u2019s, kept in steps of 1% of the pot (coarser for actions far below the best)."}
-        </p>
-      </details>
 
       <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />
-      </div>
     </div>
   );
 }

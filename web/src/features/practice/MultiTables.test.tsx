@@ -234,7 +234,7 @@ describe("Tables (multitable.test.js:68)", () => {
     await atTables(3);
     fireEvent.change(screen.getByRole("combobox", { name: "Play" }), { target: { value: "srp" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Hands" }), { target: { value: "m:set" } });
-    expect(screen.getByText("3 tables are set, and hands are filtered at one table only: above it they aren't.")).toBeInTheDocument();
+    expect(screen.getByText("Hand filter works at one table only.")).toBeInTheDocument();
   });
 
   it("takes focus off a button that's done to the dock: a change of Tables, New session, a tile, a tab", async () => {
@@ -328,11 +328,11 @@ describe("Tables (multitable.test.js:68)", () => {
     page();
     await ready();
     expect(screen.queryByText(/GTO opponents/)).toBeNull();
-    expect(screen.getByText(/Opponents play the charts preflop, then the solver.s mix, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Opponents: charts preflop, then the solver.s mix \(rules with 5\+ in\)\./)[0]).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "2" }));
     await screen.findByRole("region", { name: "Table 2" });
     expect(screen.queryByText(/GTO opponents/)).toBeNull();
-    expect(screen.getByText(/Opponents play the charts preflop, then the solver.s mix, or betting rules on a flop or turn with five or more still in/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Opponents: charts preflop, then the solver.s mix \(rules with 5\+ in\)\./)[0]).toBeInTheDocument();
   });
 
   it("says at one table what will answer your spot, not that a chart is being solved", async () => {
@@ -340,7 +340,7 @@ describe("Tables (multitable.test.js:68)", () => {
     page();
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    expect(await screen.findByText(/^Reading the chart so your move can be graded…/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Reading the chart…/)).toBeInTheDocument();
     expect(screen.queryByText(/Solving your spot/)).toBeNull();
   });
 
@@ -358,11 +358,11 @@ describe("Tables (multitable.test.js:68)", () => {
   it("says what Game's settings do above one table, and only there", async () => {
     page();
     await ready();
-    expect(screen.queryByText(/Above one table Spots and Seat decide/)).toBeNull();
+    expect(screen.queryByText(/Some fields apply at one table only/)).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: "2" }));
     await screen.findByRole("region", { name: "Table 2" });
     const game = screen.getByRole("form", { name: "New session" }).closest("details")!;
-    expect(within(game).getByText(/Above one table Spots and Seat decide what.s dealt, so Your seat, Play.s kinds of pot and Carry chips here wait until you.re back at one table\. Preflop only still counts\./)).toBeInTheDocument();
+    expect(within(game).getByText(/Some fields apply at one table only\./)).toBeInTheDocument();
   });
 });
 
@@ -432,7 +432,7 @@ describe("the view (multitable.test.js:366)", () => {
 
     expect(screen.getByRole("combobox", { name: "Spots" })).toHaveValue("any");
     expect(screen.getByRole("combobox", { name: "Seat" })).toHaveValue("random");
-    expect(screen.getByText(/Preflop is answered from the charts, not solved/)).toHaveTextContent("later streets are read from the library or solved while you play the other tables");
+    expect(screen.getByText(/Preflop: charts, not solved/)).toBeInTheDocument();
 
     const row = tablesRow(1);
     expect(row).toHaveTextContent("3 hands");
@@ -443,7 +443,7 @@ describe("the view (multitable.test.js:366)", () => {
     expect(row).toHaveAttribute("aria-current", "true");
     expect(tablesRow(2)).not.toHaveTextContent("Graded against");
     expect(tablesRow(2)).not.toHaveTextContent(/best or correct|lost per decision|net|NaN/);
-    expect(screen.getByText(/Each decision is graded here once you act/)).toBeInTheDocument();
+    expect(screen.getByText(/No decision graded yet/)).toBeInTheDocument();
   });
 
   it("shows a queue's places, and a table you've picked says who's waiting (Go, S)", async () => {
@@ -892,7 +892,7 @@ describe("what graded the figures", () => {
     await open(doc([hand, theirMove(2)]));
     const score = screen.getByRole("region", { name: "Score" });
     // (the line is there before anything's graded, so nothing under it moves when the first grade comes in)
-    expect(score.querySelector("summary")).toHaveTextContent("Where these numbers come from");
+    expect(score.querySelector("summary")).toHaveTextContent("Nothing graded yet");
 
     // (mid-hand: your decision's in the score, and not yet in the table's row, which counts finished hands)
     fireEvent.click(within(await ready()).getByRole("button", { name: /call/i }));
@@ -905,7 +905,7 @@ describe("what graded the figures", () => {
     page();
     await ready();
     const score = screen.getByRole("region", { name: "Score" });
-    expect(score.querySelector("summary")).toHaveTextContent("Where these numbers come from");
+    expect(score.querySelector("summary")).toHaveTextContent("Nothing graded yet");
     fireEvent.click(within(await ready()).getAllByRole("button")[0]!);
     await waitFor(() => expect(score.querySelector("summary")).toHaveTextContent("Graded against: Live solve 1"));
   });
@@ -1149,8 +1149,7 @@ describe("Spots and Seat", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Spots" }), { target: { value: "srp" } });
     expect(useSettings.getState()).toMatchObject({ practiceSeat: "CO", practiceSpot: "srp" });
     expect(cards()).toEqual(before);
-    expect(screen.getByText(/Each table is dealt until a single-raised pot/)).toHaveTextContent("Preflop is played for you from the charts, not solved.");
-    expect(screen.getByText(/Spots and Seat apply from each table/)).toBeInTheDocument();
+    expect(screen.getByText(/Deals a single-raised pot/)).toHaveTextContent("Preflop played from the charts, not solved.");
 
     // (held, or the stub's folds would see the new table through 400 deals of its drill)
     hold();
@@ -1233,13 +1232,13 @@ describe("Spots and Seat", () => {
   it("say what a table's later streets are, the betting rules among them, at Any hand", async () => {
     hold();
     await open(doc([youFirst(1), youFirst(2)]));
-    expect(screen.getByText(/Preflop is answered from the charts, not solved/)).toHaveTextContent("a flop or turn with five or more players still in is answered by betting rules, not solved");
+    expect(screen.getByText(/Preflop: charts, not solved/)).toHaveTextContent("5+ way flops and turns: betting rules, not solved");
   });
 
   it("say a preflop-only session's table stops at the flop and the charts answer it, with no later street to speak of", async () => {
     hold();
     await open(doc([{ ...youFirst(1), preflopOnly: true }, { ...youFirst(2), preflopOnly: true }], { session: { opts: { ...OPTS, preflopOnly: true } } }));
-    const note = screen.getByText(/Each table plays its preflop and stops as the flop comes\. The charts answer it, not a solve\./);
+    const note = screen.getByText(/Preflop only: charts, not a solve\./);
     expect(note).not.toHaveTextContent(/later streets/);
   });
 
@@ -1252,7 +1251,7 @@ describe("Spots and Seat", () => {
     expect(within(spots).getByRole("option", { name: "Any hand" })).toBeEnabled();
     expect(within(spots).getByRole("option", { name: /single-raised/i })).toBeDisabled();
     expect(within(spots).getByRole("option", { name: "Instant flops" })).toBeDisabled();
-    expect(screen.getByText(/Instant flops plays no preflop, so a preflop-only session stays on Any hand\. Nor can a pot drill: each plays your preflop for you\./)).toBeInTheDocument();
+    expect(screen.getByText(/Instant flops: not with preflop only or pot drills\./)).toBeInTheDocument();
   });
 
   it("start at nothing chosen, read as Instant flops where it can be dealt, and Random", () => {
@@ -1273,21 +1272,21 @@ describe("where a stop can't be cheap", () => {
     stub.stop = "kills";
     hold();
     await open(doc([youFirst(1), youFirst(2)]));
-    expect(await screen.findByText(/This browser can't stop a solve: tables wait for it to finish\./)).toBeInTheDocument();
+    expect(await screen.findByText(/This browser can't stop a solve: tables wait\./)).toBeInTheDocument();
   });
 
   it("says nothing where a stop is cheap, or at one table", async () => {
     hold();
     await open(doc([youFirst(1), youFirst(2)]));
-    expect(await screen.findByText(/Spots and Seat apply/)).toBeInTheDocument();
+    expect(await screen.findByText(/Some fields apply at one table only/)).toBeInTheDocument();
     expect(screen.queryByText(/can't stop a solve/)).toBeNull();
   });
 });
 
 describe("Asking ahead", () => {
   const box = () => screen.getByRole("checkbox", { name: "Ask ahead" });
-  const WHY = /this browser can.t stop a solve, so a wrong guess would hold up your next answer/i;
-  const METER = /measured in this browser/;
+  const WHY = /Off: this browser can.t stop a solve\./i;
+  const METER = /^Asking ahead: /;
 
   it("starts at nothing chosen, read as the measured default", () => {
     expect(DEFAULT_SETTINGS.askAhead).toBeNull();
@@ -1305,7 +1304,7 @@ describe("Asking ahead", () => {
     page();
     await ready();
     const title = box().closest("label")!.title;
-    expect(title).toMatch(/Only what should be quick is asked ahead, though a rare one can run on until you move/);
+    expect(title).toBe("Solve likely next spots while you think");
     expect(title).not.toMatch(/Nothing long/);
   });
 
@@ -1318,7 +1317,7 @@ describe("Asking ahead", () => {
     };
     useSettings.setState({ askAhead: true });
     await open(doc([checkedTo(1), checkedTo(2)]));
-    expect(await screen.findByText(/Off on this page: the solver didn.t answer a stop and had to restart/)).toBeInTheDocument();
+    expect(await screen.findByText("Off: the solver had to restart.")).toBeInTheDocument();
     expect(box()).toBeChecked();
     await ready();
     expect(stub.calls).not.toContain("play BB");
@@ -1387,7 +1386,7 @@ describe("Asking ahead", () => {
     useSettings.setState({ askAhead: true });
     await open(doc([checkedTo(1), checkedTo(2)]));
     const line = await screen.findByText(METER);
-    expect(line.textContent).toMatch(/^Asking ahead, measured in this browser since this page opened: 0 of \d postflop look-aheads used · about 0 s saved with no other table waiting, for \d+ s of solver time$/);
+    expect(line.textContent).toMatch(/^Asking ahead: 0 of \d postflop look-aheads used · about 0 s saved with no other table waiting, for \d+ s of solver time$/);
     // (with the score, beside the tables)
     expect(screen.getByRole("complementary", { name: "Your results" })).toContainElement(line);
 
@@ -1484,9 +1483,7 @@ describe("Instant flops", () => {
     expect(within(select()).getAllByRole("option").map((o) => o.textContent)).toEqual(["Instant flops", "Any hand", "Single-raised pots", "3-bet pots", "4-bet pots", "Blind vs blind"]);
     expect(select()).toHaveValue("lib");
     await waitFor(() => expect(option()).toBeEnabled());
-    expect(screen.getByText(/^Preflop is played for you from the charts, not solved\./)).toHaveTextContent(
-      "Preflop is played for you from the charts, not solved. Each table is dealt until a heads-up flop the library holds. Flops answer at once; later streets are solved while you play the others. Spots and Seat apply from each table’s next hand.",
-    );
+    expect(screen.getByText(/^Library flops\./)).toHaveTextContent("Library flops. Preflop played from the charts, not solved.");
     fireEvent.change(select(), { target: { value: "any" } });
     expect(useSettings.getState().practiceSpot).toBe("any");
     expect(select()).toHaveValue("any");
@@ -1541,7 +1538,7 @@ describe("Instant flops", () => {
     await open(doc([betInto(1), betInto(2)]));
     await waitFor(() => expect(option()).toBeDisabled());
     expect(select()).toHaveValue("any");
-    expect(screen.getByText(/Each table plays a whole hand/)).toHaveTextContent("Instant flops needs a game the flop library holds (Heads-up 100bb). This is 6-max 100bb, so you're playing Any hand.");
+    expect(screen.getByText(/^Whole hands\./)).toHaveTextContent("Instant flops needs a game the flop library holds (Heads-up 100bb). This is 6-max 100bb, so you're playing Any hand.");
   });
 
   it("leaves a drill you've chosen on, and says Instant flops is off", async () => {

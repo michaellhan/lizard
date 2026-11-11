@@ -113,9 +113,9 @@ describe("runout reports", () => {
   it("stored turns: EVs where the file holds them, each action's for the hands that take it; the notes say what's what", () => {
     const ST: RunoutReport = { ...RO, source: "store", cards: RO.cards!.map((c) => ({ ...c, ev: null })), solver: { iterations: 300, exploitability_pct: 0.139, by: "the flop library" } };
     expect(average(rows(ST, "first", "Kd7c2h")).ev).toBeNull();
-    expect(noteText(ST)).toMatch(/stored turns hold strategies only, so there are no EVs/);
-    expect(noteText(RO)).toMatch(/live solve of the flop .*the turn by hand buckets/);
-    expect(noteText({ ...RO, street: "river", solver: { by: "every hand" } })).toMatch(/live solve of the turn/);
+    expect(noteText(ST)).toMatch(/stored turns .*; no EVs/);
+    expect(noteText(RO)).toMatch(/Live solve of the flop .*the turn by hand buckets/);
+    expect(noteText({ ...RO, street: "river", solver: { by: "every hand" } })).toMatch(/Live solve of the turn/);
     const evPart = (actor: string) => ({
       ...part(actor, [0.9, 0.1], [1, 0]),
       cards: [
@@ -126,7 +126,7 @@ describe("runout reports", () => {
     const SE: RunoutReport = { ...ST, cards: RO.cards, first: evPart("BB"), after_check: evPart("BTN") };
     expect(rows(SE, "first", "Kd7c2h").find((r) => r.card === "Qh")!.fe).toEqual([4.4, null]);
     expect(rows(RO, "first", "Kd7c2h").find((r) => r.card === "Qh")!.fe).toBeNull();
-    expect(noteText(SE)).toMatch(/EV in bb: each range's share of the pot \(9.50bb pot\) on the flop solve's strategies, by turn class .*the EV of each action for the hands that take it/);
+    expect(noteText(SE)).toMatch(/EV in bb \(9.50bb pot\)/);
     expect(noteText(SE)).not.toMatch(/no EVs/);
     expect(lineLabel({ flop: [{ pos: "BB", action: "check" }, { pos: "BTN", action: "bet", to: 7.13 }, { pos: "BB", action: "call" }] })).toBe("check, bet 7.13, call");
   });
@@ -147,9 +147,9 @@ describe("runout reports", () => {
     expect(partOf(RO3, "after").actor).toBe("SB");
     expect(rows(RO3, "first", "Kd7c2h").find((r) => r.card === "7s")!.f).toEqual([0.7, 0.3]);
     expect(noteText(RO3)).toMatch(
-      /^Read off a live 3-way solve of the flop \(270 iterations, 0.4% of the pot from equilibrium\), which plays the turn \(7.50bb pot\) by hand buckets at one bet size.*The first decision's strategy only: no EVs or equities 3-way, nor the decisions after it/,
+      /^Live 3-way solve of the flop \(270 iterations, 0.4% of the pot from equilibrium\), the turn \(7.50bb pot\) by hand buckets; first decision only, no EVs or equities\.$/,
     );
-    expect(noteText({ ...RO3, street: "river", after_check: part("BB", [0.8, 0.2], [0.75, 0.25]) })).toMatch(/Strategies only: no EVs or equities 3-way\. Each card's chance/);
+    expect(noteText({ ...RO3, street: "river", after_check: part("BB", [0.8, 0.2], [0.75, 0.25]) })).toMatch(/strategies only, no EVs or equities/);
   });
 
   it("the solve's seconds, as classic measured them: unthreaded, threaded, on the local server", () => {

@@ -10,7 +10,7 @@ export function PhoneColumns({ hidden, children }: { hidden: readonly string[]; 
     <div className="phone-cols space-y-1" data-all={all || undefined}>
       {hidden.length > 0 && (
         <p className="text-xs text-muted sm:hidden">
-          {all ? "Every column is shown: scroll the table sideways." : `Hidden at this width: ${hidden.join(", ")}.`}{" "}
+          {all ? "Scroll sideways." : `Hidden at this width: ${hidden.join(", ")}.`}{" "}
           <button type="button" onClick={() => setAll(!all)} className="rounded border border-border px-1.5 py-0.5 text-text hover:bg-surface-2">
             {all ? "Hide them" : "Show them"}
           </button>

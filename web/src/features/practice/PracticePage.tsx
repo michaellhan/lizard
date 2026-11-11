@@ -14,11 +14,10 @@ import { Link, useSearchParams } from "react-router";
 import { bringIntoView } from "@/components/scroll";
 import { rowKeys } from "@/components/rowKeys";
 import { PlayingCard } from "@/components/PlayingCard";
-import { VerdictTag } from "@/components/VerdictTag";
 import { bb, pct } from "@/components/actions";
 import { recentSessions, type SessionRecord } from "@/data/db";
 import { getScenario, scenarioWords, type ScenarioSetup } from "@/data/scenarios";
-import { GRADE_RULES, summary } from "@/grading/grade";
+import { summary } from "@/grading/grade";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
@@ -28,9 +27,9 @@ import { ModePicker } from "@/features/study/ModePicker";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
-import { HintReveal, Kbd, REVEAL_CHIPS, REVEAL_NOTE, RevealedMix } from "./HintReveal";
+import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLog, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, signed, useHandKeys } from "./PracticeParts";
-import { gradedOn, optionsAt, PF_MODEL } from "./pfGrade";
+import { gradedOn, optionsAt } from "./pfGrade";
 import { isNextKey, optionFromKey } from "./keys";
 import { KeysHelp } from "./KeysHelp";
 import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, runKind, seeking, simOf } from "./practice";
@@ -38,13 +37,13 @@ import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { FIRST_OPTS, keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
-import { ASSUMED, assumedWords, EXPLOIT_SCOPE, readWords } from "./exploit";
+import { assumedWords, readWords } from "./exploit";
 import { answering } from "./TableTile";
 
 export { optionLabel };
 
 /** What the other seats play by: never a solve preflop, nor on a multiway flop or turn. */
-const OPPONENTS = "Opponents play the charts preflop, then the solver\u2019s mix, or betting rules on a flop or turn with five or more still in.";
+const OPPONENTS = "Opponents: charts preflop, then the solver\u2019s mix (rules with 5+ in).";
 
 type Tab = "hands" | "drills";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -179,7 +178,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           room.setTables(1);
           room.startSession(s.players, s.stack, s.opts);
         }
-        setOpened(s ? { ok: true, text: `Started ${kept?.name ?? scenarioWords(s)}.` } : { ok: false, text: scenario ? "That saved scenario is gone or can't be read, so nothing was started." : "That link's setup can't be played, so nothing was started." });
+        setOpened(s ? { ok: true, text: `Started ${kept?.name ?? scenarioWords(s)}.` } : { ok: false, text: scenario ? "Saved scenario not found." : "That link's setup can't be played." });
       }
       setParams(
         (p) => {
@@ -296,7 +295,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             A session is under way
           </h2>
           <p id="link-ask-words" className="text-muted">
-            This link starts {asking.name}, in place of what you&rsquo;re playing. Finished hands stay in History, and the hand in progress goes.
+            Start {asking.name}? The hand in progress is lost.
           </p>
           <div className="flex flex-wrap gap-2">
             <button ref={keepRef} type="button" onClick={() => answerLink(false)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">
@@ -332,12 +331,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <details ref={gameRef} className="min-w-0 flex-1 basis-72 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-muted">
-              {OPPONENTS}{" "}
-              {session.opts.exploit
-                ? "Above one table Seat decides where you sit, and the board filter here waits until you're back at one table. An exploit session keeps its pot and its profile at every table."
-                : "Above one table Spots and Seat decide what's dealt, so Your seat, Play's kinds of pot and Carry chips here wait until you're back at one table. Preflop only still counts."}
-            </p>
+            <p className="text-xs text-muted">{OPPONENTS} Some fields apply at one table only.</p>
             <div ref={place} />
           </div>
         </details>
@@ -356,37 +350,13 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} side={score} /> : <OneTable room={room} snap={snap} active={active && !asking} side={score} />}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-        <summary className="cursor-pointer">How decisions are graded</summary>
-        <ul className="mt-2 space-y-1">
-          {GRADE_RULES.map((r) => (
-            <li key={r.verdict}>
-              <VerdictTag v={r.verdict} /> {r.rule}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-muted">
-          Preflop the answer is the preflop charts (frequencies, no EVs): a preflop move is graded by how often the chart plays it, and no EV is counted as lost.
-          {session.opts.pfSolve &&
-            ` In this session a preflop decision is graded by EV against the stored preflop solve where its tree holds this very spot: an ${PF_MODEL}. ${session.opts.pfSizes ? "The opponents stay the charts', and your raise is offered at the solve's size where it can grade the spot, so that raise isn't the chart's and the hand leaves the flop library for live solves. Where the chips or the options aren't the solve's" : "Your options and the opponents stay the charts', so where the chips, the sizes or the options aren't the solve's"}, or it has folded your hand's class by then, the decision keeps the chart's frequency grade under the chart's label, and says why. The two are never added together.`}
-        </p>
-        <p className="mt-2 text-muted">
-          At 12bb or less the answer is the push/fold model: first in, an equilibrium of a game with only all-in or fold, worked out by hand class; facing a jam, a call priced by equity against that range. It has no EVs and isn&rsquo;t a
-          solve, so it&rsquo;s graded by frequency too. In a tournament the badge says what each answer is in: a prize-equity EV is chips worth as much prize equity, and a fallback&rsquo;s chips are graded by frequency there.
-        </p>
-        <p className="mt-2 text-muted">
-          With an exploit profile the answer is the best response to it, by EV, on a live solve with the profile&rsquo;s numbers locked on your opponent. It&rsquo;s a best response to an assumption, never an equilibrium: a hand&rsquo;s EV holds only if the
-          opponent plays those numbers. The badge says so. {ASSUMED} {EXPLOIT_SCOPE} An answer that comes back without the profile isn&rsquo;t graded.
-        </p>
-      </details>
 
       {others.length > 0 && (
         <section aria-label="Past sessions" className="space-y-1 rounded-lg border border-border bg-surface p-3 text-sm">
           <div className="flex flex-wrap items-baseline gap-2">
             <h2 className="font-medium">Past sessions</h2>
             <Link to="/history?kind=practice" className="text-xs underline">
-              All sessions, and totals by pot type
+              All sessions
             </Link>
           </div>
           <ul className="space-y-0.5">
@@ -403,7 +373,6 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           </ul>
         </section>
       )}
-      </div>
     </div>
   );
 }
@@ -527,8 +496,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
           {phase.kind === "hero" && !answer && !failed && (
             <p role="status" className="flex items-center gap-2 text-sm">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              {answering(sim, hand)} so your move can be graded…
-              <span className="text-muted">(the first answer starts the engine)</span>
+              {answering(sim, hand)}…
             </p>
           )}
           {phase.kind === "hero" && answer && (
@@ -559,7 +527,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
               onReveal={answer ? () => room.reveal() : null}
               revealed={
                 hand.revealed && answer ? (
-                  <RevealedMix mix={mixOf(shown!.data)} provenance={modelled(hand, shown!.provenance) ?? shown!.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${shown!.pfWhy ? `Not by the preflop solve here: ${shown!.pfWhy} ` : ""}${REVEAL_NOTE} ${REVEAL_CHIPS}`} />
+                  <RevealedMix mix={mixOf(shown!.data)} provenance={modelled(hand, shown!.provenance) ?? shown!.provenance} labelOf={(a) => optionLabel(a.action, a.amount)} note={`${shown!.pfWhy ? `Chart's answer, not the solve's: ${shown!.pfWhy} ` : ""}${REVEAL_NOTE}`} />
                 ) : null
               }
             />
@@ -605,8 +573,8 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
                   onClick={() => room.runOut()}
                   title={
                     runKind(hand, sim) === "played"
-                      ? "The others play the hand on by their strategies to its end; your result stays as at your fold"
-                      : "Everyone's cards and the rest of the board"
+                      ? "Others play on; your result stays"
+                      : "Show all cards"
                   }
                   className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2"
                 >

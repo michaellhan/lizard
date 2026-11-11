@@ -64,8 +64,7 @@ export function EquityPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">PLO4 equity</h1>
         <p className="text-sm text-muted">
-          Each hand&apos;s share of the pot if every card is dealt with no more betting, two cards from the hand and three from the board. This is only a calculator, and equity isn&apos;t a strategy. Lizard doesn&apos;t solve PLO
-          hands from the start: the only solve is of{" "}
+          Pot share with no more betting. A calculator, not a strategy: the only PLO solve is{" "}
           <Link to="/plo" className="underline">
             one heads-up river
           </Link>
@@ -95,7 +94,7 @@ export function EquityPage() {
           </button>
         </div>
         <p className="text-xs text-muted">
-          A hand (AsKsQhJh) or a range, separated by commas: AAxx any two aces or more; JT98ds with a suit shape (ds double-suited, ss single-suited, r rainbow); random every hand; @25 a weight in percent.
+          A hand (AsKsQhJh) or a range: AAxx, JT98ds (ds/ss/r), random, @25 weight; commas between.
         </p>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2">
@@ -147,7 +146,7 @@ export function EquityPage() {
           {error}
         </p>
       )}
-      {done?.cancelled && !done.result && <p className="text-sm text-muted">Cancelled. An exact count has no result until every board is in.</p>}
+      {done?.cancelled && !done.result && <p className="text-sm text-muted">Cancelled: an exact count needs every board.</p>}
       {done?.result && <EquityTable done={done} result={done.result} />}
     </div>
   );
@@ -186,7 +185,7 @@ function EquityTable({ done, result }: { done: Done; result: EquityResult }) {
       </div>
       <p className="text-xs text-muted">
         Board {done.board || "none"}
-        {done.dead ? `, dead ${done.dead}` : ""}. Equity is a share of the pot, a tie counted as a split; it says nothing of how a hand should be played.
+        {done.dead ? `, dead ${done.dead}` : ""}. Ties count as splits.
       </p>
     </section>
   );

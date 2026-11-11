@@ -123,21 +123,21 @@ export function sourceWarning(pa: Provenance, pb: Provenance, bySource = false):
   if (pa.source !== pb.source && bySource) {
     // (the charts against the preflop solve: the sources are what's compared)
     const approx = ([["A", pa], ["B", pb]] as const).filter(([, p]) => p.approximate).map(([n, p]) => `${n} (${sourceLabel(p.source)})`);
-    return `The two sides are two sources of the same spot (A: ${sourceLabel(pa.source)}; B: ${sourceLabel(pb.source)}): the differences are theirs, not the spot's.${
-      approx.length ? ` ${approx.join(" and ")} ${approx.length > 1 ? "are" : "is"} approximate: read small differences as noise.` : ""
+    return `Two sources of one spot (A: ${sourceLabel(pa.source)}; B: ${sourceLabel(pb.source)}): the differences are theirs.${
+      approx.length ? ` ${approx.join(" and ")} ${approx.length > 1 ? "are" : "is"} approximate: small differences are noise.` : ""
     }`;
   }
   if (pa.source !== pb.source)
-    return `The two sides come from different sources (A: ${sourceLabel(pa.source)}; B: ${sourceLabel(pb.source)}), so a difference can be the source's, not the spot's.`;
+    return `Different sources (A: ${sourceLabel(pa.source)}; B: ${sourceLabel(pb.source)}): a difference may be the source's.`;
   const approx = [pa.approximate && "A", pb.approximate && "B"].filter(Boolean);
-  if (approx.length) return `${approx.join(" and ")} ${approx.length > 1 ? "are" : "is"} approximate (${sourceLabel(pa.source)}): read small differences as noise.`;
+  if (approx.length) return `${approx.join(" and ")} ${approx.length > 1 ? "are" : "is"} approximate (${sourceLabel(pa.source)}): small differences are noise.`;
   return null;
 }
 
 /** The two answers aren't the same player at the same street: said, and compared all the same. */
 export function nodeWarning(a: AdvisorResponse, b: AdvisorResponse): string | null {
   if (a.actor === b.actor && a.street === b.street) return null;
-  return `The two answers are for different spots (A: ${a.actor ?? "?"} on the ${a.street ?? "?"}; B: ${b.actor ?? "?"} on the ${b.street ?? "?"}); their hand classes are compared all the same.`;
+  return `Different spots (A: ${a.actor ?? "?"} on the ${a.street ?? "?"}; B: ${b.actor ?? "?"} on the ${b.street ?? "?"}): classes compared anyway.`;
 }
 
 /** Preflop's source for a preflop spot ("the charts", "the preflop solve"); null after the flop, where it isn't asked. */
@@ -210,11 +210,11 @@ const bbOf = (x: number) => `${x.toFixed(Math.abs(x) < 0.01 ? 3 : 2)}bb`;
  * neither; under twice it, close to a tie; unmeasured, said. Then how much more or less of the range bets. */
 export function menuWords(m: Menus, actor: string, pot: number | undefined): string {
   const raise = `B bets or raises ${Math.abs(m.dRaise * 100).toFixed(1)} points ${m.dRaise >= 0 ? "more" : "less"} of the range.`;
-  if (m.dEv === null) return `No EV on both sides, so neither menu can be said to be worth more. ${raise}`;
+  if (m.dEv === null) return `No EV on both sides. ${raise}`;
   const d = m.dEv;
-  if (m.noise) return `B − A: ${d >= 0 ? "+" : "−"}${bbOf(Math.abs(d))}, within the two answers' distance from equilibrium combined (${bbOf(m.band!)}): neither menu is measurably worth more to ${actor} here. ${raise}`;
+  if (m.noise) return `B − A: ${d >= 0 ? "+" : "−"}${bbOf(Math.abs(d))}, within noise (${bbOf(m.band!)}): no measurable difference. ${raise}`;
   const worth = `${d >= 0 ? "B's" : "A's"} menu is worth ${bbOf(Math.abs(d))} more to ${actor} here${m.dPot !== null && pot ? ` (${(Math.abs(m.dPot) * 100).toFixed(1)}% of the ${pot.toFixed(1)}bb pot)` : ""}`;
-  if (m.band === null) return `${worth}, though no distance from equilibrium is measured on both sides to tell that from noise. ${raise}`;
-  if (Math.abs(d) < 2 * m.band) return `${worth}, under twice the two answers' distance from equilibrium combined (${bbOf(m.band)}): close to a tie. ${raise}`;
-  return `${worth}, beyond the two answers' distance from equilibrium combined (${bbOf(m.band)}). ${raise}`;
+  if (m.band === null) return `${worth}, noise not measured. ${raise}`;
+  if (Math.abs(d) < 2 * m.band) return `${worth}, under twice noise (${bbOf(m.band)}): close to a tie. ${raise}`;
+  return `${worth}, beyond noise (${bbOf(m.band)}). ${raise}`;
 }

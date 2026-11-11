@@ -140,7 +140,7 @@ test("Study: the folds to a seat in one step, and the split beside the grid that
     await page.getByRole("button", { name: "✎ Build" }).click();
     await expect(page.getByRole("region", { name: "Build" })).toBeVisible();
     await expect(split).toHaveAttribute("aria-valuenow", at ?? "");
-    await expect(split).toHaveAccessibleDescription(/Press Enter or double-click to reset/);
+    await expect(split).toHaveAccessibleDescription(/Enter or double-click resets/);
     const bar = (await split.boundingBox())!;
     await page.mouse.move(bar.x + bar.width / 2, bar.y + 100);
     await page.mouse.down();

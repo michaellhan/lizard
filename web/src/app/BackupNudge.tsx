@@ -23,8 +23,7 @@ export function BackupNudge() {
   if (!s || !nudgeDue(s) || pathname === "/saved") return null;
   return (
     <div role="region" aria-label="Backup reminder" className="border-b border-border bg-surface-2 px-4 py-2 text-center text-sm">
-      {s.saves} saves since {s.lastBackupAt ? `your last backup (${new Date(s.lastBackupAt).toLocaleDateString()})` : "Lizard started counting, and no backup yet"}: they&rsquo;re kept in this
-      browser only, and a browser can clear a site&rsquo;s data (a phone short of space, Safari after weeks away).{" "}
+      {s.saves} saves since {s.lastBackupAt ? `your last backup (${new Date(s.lastBackupAt).toLocaleDateString()})` : "Lizard started counting, and no backup yet"}: kept in this browser only.{" "}
       <button
         type="button"
         onClick={() => {

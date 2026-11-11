@@ -123,7 +123,7 @@ export function SpotPicker({ a, b, onPick }: { a: string | null; b: string | nul
         <button type="button" onClick={() => setDraft((d) => ({ a: d.b, b: d.a }))} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
           Swap A and B
         </button>
-        <span className="text-xs text-muted">Save spots in Study (☆ Save spot) or pin one there to list it here.</span>
+        <span className="text-xs text-muted">Saved or pinned spots in Study list here.</span>
       </div>
     </section>
   );

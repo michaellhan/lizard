@@ -75,17 +75,17 @@ describe("DrillsPanel", () => {
     const shown = screen.getByRole("group", { name: "Revealed answer" });
     expect(within(shown).getByRole("row", { name: /^check / })).toBeInTheDocument();
     expect(within(shown).getByText(/^Precomputed solution · srp_btn_bb/)).toBeInTheDocument();
-    expect(within(shown).getByRole("status")).toHaveTextContent(/isn.t graded/);
+    expect(within(shown).getByRole("status")).toHaveTextContent("Answer seen first: not graded.");
     const sessions = (await recentSessions("drill")).length;
 
     fireEvent.click(within(options).getByRole("button", { name: "check" }));
     const answer = screen.getByRole("region", { name: "Answer" });
-    expect(within(answer).getByText("Not graded: you revealed the answer first")).toBeInTheDocument();
+    expect(within(answer).getByText("Not graded: revealed")).toBeInTheDocument();
     expect(within(answer).queryByRole("button", { name: "Copy for AI" })).toBeNull();
     expect(within(answer).queryByText(/^(Best|Correct|Inaccuracy|Mistake|Blunder)$/)).toBeNull();
     const score = within(screen.getByRole("region", { name: "Score" }));
     expect(score.getByText("Decisions").nextSibling).toHaveTextContent(/^0$/);
-    expect(score.getByText("1 pick made after Reveal, not in these numbers.")).toBeInTheDocument();
+    expect(score.getByText("1 revealed pick not graded.")).toBeInTheDocument();
     // nothing to record yet
     expect((await recentSessions("drill")).length).toBe(sessions);
 
@@ -177,7 +177,7 @@ describe("DrillsPanel", () => {
     const answer = screen.getByRole("region", { name: "Answer" });
     expect(within(answer).getByText(/^(Best|Correct|Inaccuracy|Mistake)$/)).toBeInTheDocument();
     expect(within(answer).getByText(/^Stored turn from the flop library · srp_btn_bb · the precomputed flop solve's view of this turn, in 5% steps \(one bet size, 75%\) · approximate$/)).toBeInTheDocument();
-    expect(within(answer).getByText(/Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost\./)).toBeInTheDocument();
+    expect(within(answer).getByText("Graded by frequency: no EV stored.")).toBeInTheDocument();
     // no EV column: a format-1 file holds none
     expect(within(answer).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Action", "Played"]);
     expect(within(answer).getByRole("link", { name: "Open in Study →" }).getAttribute("href")).toMatch(/&b=([2-9TJQKA][shdc]){4}/);
@@ -191,7 +191,6 @@ describe("DrillsPanel", () => {
     fireEvent.click(within(options).getAllByRole("button")[0]!);
     const answer = screen.getByRole("region", { name: "Answer" });
     expect(within(answer).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Action", "Played", "Range’s EV bb"]);
-    expect(within(answer).getByText(/not your hand's, and not what's graded/)).toBeInTheDocument();
   });
 
   it("says a spot with no stored turns has none, and doesn't deal one", async () => {
@@ -221,7 +220,7 @@ describe("DrillsPanel", () => {
     expect(await screen.findByText("No flop here can hold Flush with that texture: widen a filter.", undefined, { timeout: 5000 })).toBeInTheDocument();
     cleanup();
     open("spot=srp_btn_bb&view=oop&pair=trips&hand=m:quads");
-    expect(await screen.findByText(/Quads or better: \d+ of \d+ deals match on the 1 flop.*Too few: the same hands will keep coming back\./, undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Quads or better: \d+ of \d+ deals match on the 1 flop.*Few: hands will repeat\./, undefined, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it("a turn drill with its hand filter is saved in the URL, opens as it was set, and comes back to the same drill", async () => {

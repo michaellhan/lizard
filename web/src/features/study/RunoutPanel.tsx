@@ -365,7 +365,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
       </PhoneColumns>
       <p className="text-xs text-muted">
         {noteText(ro)} Click a card to deal it.
-        {ro.tournament ? " A tournament: the solve pays prize equity (ICM), so EVs are chips worth as much prize equity." : ""}
+        {ro.tournament ? " EVs in chips of prize equity (ICM)." : ""}
       </p>
     </div>
   );

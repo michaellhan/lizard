@@ -285,7 +285,7 @@ describe("ResizableWorkspace", () => {
   it("says in its accessible description how to resize and how to reset", () => {
     stubWindow(true);
     render(<Harness />);
-    expect(separator()).toHaveAccessibleDescription("Drag or use the arrow keys to resize, Home and End for the limits. Press Enter or double-click to reset.");
+    expect(separator()).toHaveAccessibleDescription("Drag or arrow keys to resize; Enter or double-click resets.");
   });
 
   it.each([

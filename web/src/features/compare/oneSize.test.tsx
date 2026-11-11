@@ -180,7 +180,7 @@ describe("Study's one-size panel", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Every size, mixed" }));
     expect(within(panel).getByText(/: check 40% · bet 33% 20% · bet 75% 40%/)).toBeInTheDocument();
     expect(within(panel).getByRole("grid", { name: /BTN range, every size/ })).toBeInTheDocument();
-    expect(panel).toHaveTextContent("each solve is within 0.1% of the pot of equilibrium, so sizes closer than that are a tie");
+    expect(panel).toHaveTextContent("Within 0.1% of the pot: a tie.");
     expect(within(panel).getByText(/^Live solve · one-size view, 4 of 4 solves at Fast \(the widest's distance shown\) · 0\.05% pot from equilibrium/)).toBeInTheDocument();
   });
 
@@ -199,7 +199,7 @@ describe("Study's one-size panel", () => {
     render(<OneSizePanel hand={flop} res={{ ...NODE, street: "flop" }} getSolver={async () => clientOf(ask, asked)} />);
     fireEvent.click(screen.getByRole("button", { name: "One bet size" }));
     const panel = screen.getByRole("region", { name: "One bet size" });
-    expect(panel).toHaveTextContent(`A flop solve per size: 8 solves of the flop (every size alone and all of them mixed), about ${Math.round(8 * EST.wasm.flop!)} s in all.`);
+    expect(panel).toHaveTextContent(`8 flop solves (each size alone, then all mixed), about ${Math.round(8 * EST.wasm.flop!)} s.`);
     expect(asked).toEqual([]);
     fireEvent.click(within(panel).getByRole("button", { name: "Find the best size" }));
     await within(panel).findByText(/Solving 75% · 2 of 4 done/);
@@ -241,10 +241,9 @@ describe("Study's one-size panel", () => {
     const panel = screen.getByRole("region", { name: "One raise size" });
     expect(panel).toHaveTextContent("Best single raise size: 3x to 20.3 · gives up 0.10% of the pot against every raise size mixed");
     expect(within(within(panel).getByRole("table")).getAllByRole("row").map((r) => r.textContent)).toEqual(["RaiseRaisesEVGives up", "Every size, mixed20%+2.00–", "2.5x to 16.820%+1.901.00%", "3x to 20.3best20%+1.990.10%"]);
-    expect(panel).toHaveTextContent("Sizes are multiples of the bet faced");
-    expect(panel).toHaveTextContent("Best: the raise size that keeps the most EV for the player facing the bet");
+    expect(panel).toHaveTextContent("Sizes: multiples of the bet faced.");
     expect(panel).toHaveTextContent("3x: fold 30% · call 50% · raise to 20.3 20%");
-    expect(panel).toHaveTextContent("In a tournament every solve pays prize equity (ICM), so EVs are chips worth as much prize equity. tournament: ICM, your prize equity 16.7%");
+    expect(panel).toHaveTextContent("EVs in chips of prize equity (ICM). tournament: ICM, your prize equity 16.7%");
   });
 
   it("marks a size stopped early, once clearly behind the best, as approximate", () => {
@@ -255,7 +254,7 @@ describe("Study's one-size panel", () => {
     render(<OneSizePanel hand={HAND} res={NODE} getSolver={async () => clientOf(solver().ask, [])} />);
     fireEvent.click(screen.getByRole("button", { name: "One bet size" }));
     const panel = screen.getByRole("region", { name: "One bet size" });
-    expect(within(panel).getByTitle("Stopped once clearly behind the best: within 0.42% of the pot")).toHaveTextContent("≈2.3%");
-    expect(panel).toHaveTextContent("; ≈: a size whose solve stopped early, once it was clearly behind the best.");
+    expect(within(panel).getByTitle("Stopped early: within 0.42% of the pot")).toHaveTextContent("≈2.3%");
+    expect(panel).toHaveTextContent("≈: stopped early, clearly behind.");
   });
 });

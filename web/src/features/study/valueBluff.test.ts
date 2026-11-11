@@ -99,11 +99,9 @@ describe("valueBluff", () => {
 describe("valueBluffText", () => {
   it("says the definition in words, with what the answer doesn't hold", () => {
     const t = valueBluffText(split(), bd(), res());
-    expect(t).toContain("over 50% equity against BTN's whole range at this node");
-    expect(t).toContain("earns more than checking even if BTN calls with everything");
-    expect(t).toContain("Bluff: 50% or less, so it needs folds.");
+    expect(t).toContain("over 50% equity against BTN's whole range;");
+    expect(t).toContain("bluff: 50% or less.");
     expect(t).toContain("on the river, no cards to come");
-    expect(t).toContain("doesn't hold which hands would continue");
     expect(t).not.toContain("tournament");
   });
 
@@ -111,8 +109,7 @@ describe("valueBluffText", () => {
     const three = bd({ villains: [side("BTN"), side("SB")] });
     const t = valueBluffText(split(res(), three), three, res({ to_call_bb: 3, tournament: { note: "x" } }));
     expect(t).toContain("over 33.3% equity against both other ranges");
-    expect(t).toContain("earns more than calling even if everyone calls");
-    expect(t).toContain("in chips, not prizes");
+    expect(t).toContain("In chips, not prizes");
     const four = bd({ villains: [side("BTN"), side("SB"), side("CO")] });
     expect(valueBluffText(split(res(), four), four, res())).toContain("over 25.0% equity against the other ranges");
   });

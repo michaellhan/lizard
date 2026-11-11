@@ -79,7 +79,7 @@ describe("the filter bar", () => {
     await sample("Showing 1 hand of 5 · 1 of 4 graded decisions");
     await tab("Grades & leaks");
     await waitFor(() => expect(screen.getByRole("region", { name: "Report" })).toHaveTextContent("1 of your decisions graded in 1 hands"));
-    expect(within(screen.getByRole("region", { name: "Filters" })).getByText(/left out while a date is set/)).toHaveTextContent("1 hand with no date in the history is left out");
+    expect(within(screen.getByRole("region", { name: "Filters" })).getByText("1 undated hand left out.")).toBeInTheDocument();
   });
 
   it("opens with the filters a link carries, and clearing them keeps the keyboard's place", async () => {
@@ -97,7 +97,7 @@ describe("the filter bar", () => {
     const { hs, ds } = mixed();
     await seed(hs, ds);
     open("site=GGPoker&bb=%242");
-    expect(await screen.findByLabelText("Nothing left")).toHaveTextContent("None of your hands matches all of these filters together. Every report is empty until you change them.");
+    expect(await screen.findByLabelText("Nothing left")).toHaveTextContent("No hand matches these filters.");
     await sample("Showing 0 hands of 5 · 0 of 4 graded decisions");
     cleanup();
     open("from=2026-02-01&to=2026-01-01");
@@ -210,14 +210,14 @@ describe("the breakdowns", () => {
     await tab("Grades & leaks");
     const group = await screen.findByRole("group", { name: "Breakdowns" });
     pick("Break decisions down by", "faced");
-    expect(within(group).getByText(/a decision stores only that it faced a bet/)).toBeInTheDocument();
+    expect(within(group).getByText(/Preflop: the raise to, in bb/)).toBeInTheDocument();
     const table = await within(group).findByRole("table", { name: "Bet size faced" });
     expect(within(table).getByRole("row", { name: "Preflop: a raise to 2.5–3.5bb" })).toHaveTextContent("1");
     expect(within(table).getByRole("row", { name: "After the flop: a bet of 60–80% of the pot" })).toBeInTheDocument();
     expect(within(group).getByLabelText("Left out of this breakdown")).toHaveTextContent("Left out, of 3 decisions graded: 1 because no bet or raise to answer.");
     pick("Break decisions down by", "stack");
     expect(await within(group).findByRole("table", { name: "Effective stack" })).toHaveTextContent("75–125bb");
-    expect(within(group).getByText(/a decision stores no stack/)).toBeInTheDocument();
+    expect(within(group).getByText(/against the deepest opponent left in/)).toBeInTheDocument();
   });
 
   it("follows the filters, and groups by the flop's texture with the preflop left out", async () => {
@@ -255,13 +255,12 @@ describe("the frequencies and leaks", () => {
     expect(within(screen.getByRole("region", { name: "Report" })).getAllByRole("link").filter((l) => l.getAttribute("href")?.includes("hand=")).length).toBeGreaterThanOrEqual(10);
   });
 
-  it("holds back what looks off on too few decisions, and says the rule", async () => {
+  it("holds back what looks off on too few decisions", async () => {
     const { hs, ds } = opens(10);
     await seed(hs, ds);
     open();
     await tab("Grades & leaks");
     const rep = await screen.findByRole("region", { name: "Report" });
-    expect(within(rep).getByLabelText("What makes a leak")).toHaveTextContent("30");
     expect(within(rep).queryByRole("heading", { name: "Open (RFI)" })).toBeNull();
     const thin = within(rep).getByRole("list", { name: "Too few to read", hidden: true });
     expect(thin).toHaveTextContent("Open (RFI)");
@@ -297,7 +296,7 @@ describe("the three measures", () => {
     expect(real).toHaveTextContent("Cash games: −89.5bb over 2 hands");
     expect(adj).toHaveTextContent("Cash games: −89.5bb (1 all-in adjusted)");
     await waitFor(() => expect(lost).toHaveTextContent("Cash games: 0.6bb lost over 1 decision graded by EV, of 2 graded"));
-    expect(lost).toHaveTextContent("It isn't a win rate, and none is worked out from it.");
+    expect(lost).toHaveTextContent("not a win rate.");
     expect(lost).not.toHaveTextContent("bb/100");
     expect(real).not.toHaveTextContent("lost over");
   });

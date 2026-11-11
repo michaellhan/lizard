@@ -55,7 +55,7 @@ export function ReportChart({
       )}
       {stored.length < shown.length && (
         <p className="text-xs text-muted">
-          {shown.length - stored.length} of the {shown.length} flops shown don&rsquo;t store this decision and are left out.
+          {shown.length - stored.length} of {shown.length} flops don&rsquo;t store this decision.
         </p>
       )}
     </section>
@@ -156,7 +156,7 @@ function GroupColumns({
   const h = hover != null ? gs[hover] : undefined;
   return (
     <figure className="space-y-1">
-      <figcaption className="text-xs text-muted">Each group&rsquo;s average, its flops weighted by how often they come up. Click one to show only its flops.</figcaption>
+      <figcaption className="text-xs text-muted">Click a group to show its flops.</figcaption>
       <div className="flex h-36">
         <Axis />
         <div className="relative flex flex-1 items-stretch" onPointerLeave={() => setHover(null)}>
@@ -245,8 +245,7 @@ function FlopStrip({
   return (
     <figure className="space-y-1">
       <figcaption className="text-xs text-muted">
-        Every flop shown, one column each, {order}. Columns aren&rsquo;t weighted: the averages are. Point at a flop for its numbers (on a touch screen the Table view has them), click or tap it to open it in
-        Study.
+        Every flop shown, {order}. Click one to open it in Study.
       </figcaption>
       <div className="flex h-40">
         <Axis />

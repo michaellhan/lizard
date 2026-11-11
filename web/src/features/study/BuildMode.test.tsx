@@ -172,7 +172,7 @@ describe("BuildMode", () => {
     expect(within(score).getByText(describeProvenance(LIVE))).toBeInTheDocument();
     // one combo a class, each playing its class's mix: the class mixes score 100% combo by combo
     expect(score).toHaveTextContent("Combo by combo: 60.0% accurate, 0.500bb a combo given up.");
-    expect(score).toHaveTextContent("score 100.0% and give up 0.000bb this way.");
+    expect(score).toHaveTextContent("Solver’s class mixes: 100.0%, 0.000bb.");
     expect(within(screen.getByRole("table")).getAllByRole("row")[1]).toHaveTextContent("check100.0%55.0%");
 
     const misses = screen.getByRole("group", { name: "Biggest differences" });
@@ -210,7 +210,7 @@ describe("BuildMode", () => {
     expect(score).toHaveTextContent("66.7% accurate · Fair");
     expect(score).not.toHaveTextContent("EV given up");
     expect(score).not.toHaveTextContent("Combo by combo");
-    expect(score).toHaveTextContent("Graded against the preflop charts: an approximation, not a solve.");
+    expect(score).toHaveTextContent("Against the preflop charts, not a solve.");
     await act(async () => {});
   });
 
@@ -305,7 +305,7 @@ describe("BuildMode", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
     expect(combos()).toHaveTextContent("3 of 3 legal combos in the range · 1 blocked by the board");
     expect(within(combos()).getByText(describeProvenance(LIVE))).toBeInTheDocument();
-    expect(within(combos()).getByText(/^AsKs$/).parentElement).toHaveTextContent("AsKs blocked by the board: not painted, not counted");
+    expect(within(combos()).getByText(/^AsKs$/).parentElement).toHaveTextContent("AsKs blocked by the board");
     expect(screen.queryByRole("spinbutton", { name: "AsKs bet %" })).toBeNull();
     expect(within(combos()).getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["AhKh", "AdKd", "AcKc"]);
 
@@ -651,7 +651,7 @@ describe("BuildMode", () => {
     expect(cell("AKs")).toHaveAccessibleName("AKs: yours fold 75%, raise 25%");
     expect(screen.getByText("Painted 1 hand raise; single combos as their share of the class.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Check my range" }));
-    expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("Combos can't be graded: this answer gives hand classes only, so this score is by class.");
+    expect(screen.getByRole("region", { name: "Your score" })).toHaveTextContent("Graded by class only.");
     await act(async () => {});
   });
 

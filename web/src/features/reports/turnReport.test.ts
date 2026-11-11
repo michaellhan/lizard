@@ -365,13 +365,13 @@ describe("what the numbers are", () => {
   });
 
   it("says how many, of how many, how picked, the margin, what failed, and when it's partial", () => {
-    expect(sampleText(s, 0.0214)).toBe("Read 40 of 412 flops of this texture with stored turns, drawn evenly over them in an order set by seed 7, each flop counted by how many of the 22,100 it stands for. Margin on All turns: ±2.1 points, 95%.");
-    expect(sampleText({ ...s, read: 412 }, 0)).toBe("Read all 412 flops of this texture with stored turns, so there's no sampling margin.");
-    expect(sampleText({ ...s, read: 3 }, null)).toContain("Too few flops to put a margin on it yet.");
-    expect(sampleText({ ...s, failed: 2 }, 0.03)).toContain("2 flops couldn't be read and are left out.");
-    expect(sampleText({ ...s, failed: 1 }, 0.03)).toContain("1 flop couldn't be read and is left out.");
-    expect(sampleText({ ...s, partial: true, stopped: true }, 0.03)).toContain("Stopped early: these are partial results.");
-    expect(sampleText({ ...s, partial: true }, 0.03)).toContain("Still reading: these are partial results.");
+    expect(sampleText(s, 0.0214)).toBe("40 of 412 flops read (seed 7). Margin on All turns: ±2.1 points.");
+    expect(sampleText({ ...s, read: 412 }, 0)).toBe("All 412 flops read; no sampling margin.");
+    expect(sampleText({ ...s, read: 3 }, null)).toContain("Too few flops for a margin.");
+    expect(sampleText({ ...s, failed: 2 }, 0.03)).toContain("2 couldn't be read.");
+    expect(sampleText({ ...s, failed: 1 }, 0.03)).toContain("1 couldn't be read.");
+    expect(sampleText({ ...s, partial: true, stopped: true }, 0.03)).toContain("Stopped early: partial.");
+    expect(sampleText({ ...s, partial: true }, 0.03)).toContain("Still reading: partial.");
   });
 });
 
@@ -387,10 +387,10 @@ describe("the turn report's CSV and what the chart says it stands on", () => {
   const fields = (l: string) => [...l.matchAll(/("(?:[^"]|"")*"|[^,]*)(?:,|$)/g)].map((m) => m[1]!.replace(/^"|"$/g, "").replace(/""/g, '"')).slice(0, -1);
 
   it("says how many flops it stands on, each way a read can stand", () => {
-    expect(standsOn(whole)).toBe("This stands on every one of the 40 flops of this texture with stored turns.");
-    expect(standsOn(sample)).toBe("A sample: this stands on 2 of the 7 flops of this texture with stored turns.");
-    expect(standsOn(stopped)).toBe("Stopped early: this stands on only 2 of the 7 flops of this texture with stored turns.");
-    expect(standsOn(reading)).toBe("Still reading: so far this stands on 2 of the 7 flops of this texture with stored turns.");
+    expect(standsOn(whole)).toBe("All 40 flops.");
+    expect(standsOn(sample)).toBe("Sample: 2 of 7 flops.");
+    expect(standsOn(stopped)).toBe("Stopped early: 2 of 7 flops.");
+    expect(standsOn(reading)).toBe("Still reading: 2 of 7 flops.");
   });
 
   it("writes the table shown, its numbers worked by hand, with the flops and the source on every row", () => {
@@ -401,7 +401,7 @@ describe("the turn report's CSV and what the chart says it stands on", () => {
     // (22 cards weighed: 4 at a half, 9 at a quarter, 9 at three quarters)
     expect(all.slice(0, 7)).toEqual(["srp_btn_bb", "BB and BTN check", "BB first on the turn", "All turns", "1.000", "0.500", "0.500"]);
     expect(all.slice(7, 14)).toEqual(["too few", "2", "10.0", "2", "7", "3", "sample"]);
-    expect(all[14]).toMatch(/^Stored turn from the flop library · srp_btn_bb · turn report over 2 of 7 flops with stored turns, seed 3, built in the page from their files · approximate Read 2 of 7 flops/);
+    expect(all[14]).toMatch(/^Stored turn from the flop library · srp_btn_bb · turn report over 2 of 7 flops with stored turns, seed 3, built in the page from their files · approximate 2 of 7 flops read \(seed 3\)/);
     expect(all[14]).toContain("not a solve of these turns");
     expect(all[14]).toContain("says nothing of the solves' own error");
     expect(fields(rows[2]!).slice(3, 7)).toEqual(["Overcards", "0.182", "0.500", "0.500"]);
@@ -413,12 +413,12 @@ describe("the turn report's CSV and what the chart says it stands on", () => {
       const f = fields(r);
       expect(f[13]).toBe("partial, stopped");
       expect(f[14]).toContain("partial, stopped before it finished");
-      expect(f[14]).toContain("Stopped early: these are partial results.");
+      expect(f[14]).toContain("Stopped early: partial.");
     }
     const going = fields(csv(reading).trim().split("\n")[1]!);
     expect(going[13]).toBe("partial, still reading");
     expect(going[14]).toContain("in progress");
-    expect(going[14]).toContain("Still reading: these are partial results.");
+    expect(going[14]).toContain("Still reading: partial.");
     expect(turnCsvName("srp_btn_bb", "after", ["check", "bet 75%", "call"], stopped)).toBe("lizard-turn-report-srp_btn_bb-after-check-bet75-call-2-of-7-partial.csv");
     expect(turnCsvName("srp_btn_bb", "first", [], sample)).toBe("lizard-turn-report-srp_btn_bb-first-line-2-of-7.csv");
   });
@@ -429,6 +429,6 @@ describe("the turn report's CSV and what the chart says it stands on", () => {
     const all = fields(turnCsv({ spot: "s", line: "l", decision: "d", table: turnTable(flops, ["check", "check"], "first", 2), sample: { ...whole, read: 2, of: 2 }, unread: 0, provenance: turnProvenance("s", { ...whole, read: 2, of: 2 }, "fast") }).trim().split("\n")[1]!);
     expect(all[7]).toBe("none");
     expect(all[13]).toBe("every flop");
-    expect(all[14]).toContain("Read all 2 flops of this texture with stored turns");
+    expect(all[14]).toContain("All 2 flops read; no sampling margin.");
   });
 });

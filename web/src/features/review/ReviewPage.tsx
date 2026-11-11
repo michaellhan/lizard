@@ -4,7 +4,7 @@
 // of answer the first grade stood on, the page says so and doesn't set the two side by side (mistakes.ts answerChange).
 // A decision from Analyze is retried against the answer kept with it, with no solve. All of it is kept in this browser,
 // and goes in the backup; an entry can be deleted, after a second press, as on the Saved page.
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { DeleteButton } from "@/components/DeleteButton";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -26,7 +26,7 @@ import { SolverError } from "@/solver/types";
 import { Compare } from "./Compare";
 import { costWords, KEPT_RETRY_WORDS, ORIGIN_WORDS, retried, spotWords, withTry, type RetryAnswer, type Retried } from "./mistakes";
 import { askAgain } from "./retry";
-import { DELETE_WORDS, dueQueue, dueWords, isDue, QUEUE_RULE, SCHEDULE_WORDS } from "./schedule";
+import { dueQueue, dueWords, isDue } from "./schedule";
 
 /** the mistakes listed at a time */
 export const LIST_PAGE = 30;
@@ -158,9 +158,6 @@ export function ReviewPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Review</h1>
-        <p className="text-sm text-muted">
-          Your misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link>, one entry a spot, retried on a spaced schedule; kept in this browser with no account, and in your <Link to="/saved" className="underline">backup</Link>. What&rsquo;s next is in your <Link to="/plan" className="underline">Plan</Link>.
-        </p>
       </div>
       <p role="status" className="sr-only">
         {said}
@@ -178,12 +175,9 @@ export function ReviewPage() {
             </p>
           )}
           {!list.length ? (
-            <>
             <p className="text-sm text-muted">
-              No mistake kept yet. Play hands or drills in <Link to="/practice" className="underline">Practice</Link>: anything graded below Correct comes here, and is due the next day. So does a miss in a leak drill in <Link to="/analyze" className="underline">Analyze</Link>, or a graded decision you add there.
+              No mistakes yet. Misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link> land here.
             </p>
-            <QueueRule />
-            </>
           ) : (
             <>
               <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />
@@ -222,7 +216,7 @@ export function ReviewPage() {
                 <section aria-label="Exploit mistakes" className="space-y-2">
                   <h2 className="text-lg font-semibold">Exploit mistakes</h2>
                   <p className="text-xs text-muted">
-                    From exploit sessions, kept apart from the lists here: these are graded against the best response to an assumed profile, never an equilibrium. The badge says which profile, and its numbers are assumptions, not population data.
+                    Graded against an assumed profile, not equilibrium.
                   </p>
                   <Tally list={onStreet(exploited)} />
                   {!onStreet(exploited).length && <p className="text-sm text-muted">None on the {street}.</p>}
@@ -245,7 +239,7 @@ export function ReviewPage() {
                 <section aria-label="Tournament mistakes" className="space-y-2">
                   <h2 className="text-lg font-semibold">Tournament mistakes</h2>
                   <p className="text-xs text-muted">
-                    From tournament sessions, kept apart from the list above: a prize-equity EV is chips worth as much prize equity, never bb won. Each says what it&rsquo;s in, and the badge says what answered it.
+                    EV in prize-equity chips, not bb.
                   </p>
                   <Tally list={onStreet(tourney)} />
                   {!onStreet(tourney).length && <p className="text-sm text-muted">None on the {street}.</p>}
@@ -288,27 +282,7 @@ function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecor
         {list.some((m) => m.ask.via === "solver") && <ModePicker modes={["quick", "accurate"]} />}
       </div>
       {!queue.length && <p className="text-muted">Nothing is due today.{soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}</p>}
-      <QueueRule>
-        The longest overdue come first, then the worst grades. {list.some((m) => m.ask.via === "solver") ? "A full hand\u2019s spot is asked of the solver at the mode above; a drill\u2019s is read from the library." : "A drill\u2019s spot is read from the library, with no solve."}
-        {list.some((m) => m.ask.via === "solver" && m.ask.live) ? " A live drill\u2019s spot is solved at Fast or above whichever mode is picked, and can be refused as the drill refuses it." : ""}
-        {list.some((m) => m.ask.via === "kept") ? " A decision from Analyze is graded against the answer kept with it, with no solve." : ""}
-      </QueueRule>
     </section>
-  );
-}
-
-/** What comes to the queue, when it's due, what a delete does, and (`children`) the order and what answers a retry: a fold. */
-function QueueRule({ children }: { children?: ReactNode }) {
-  return (
-    <details className="text-xs text-muted">
-      <summary className="cursor-pointer hover:text-text">How the queue works</summary>
-      <div className="mt-1 space-y-1">
-        {children && <p>{children}</p>}
-        <p>{QUEUE_RULE}</p>
-        <p>{SCHEDULE_WORDS}</p>
-        <p>{DELETE_WORDS}</p>
-      </div>
-    </details>
   );
 }
 
@@ -320,7 +294,7 @@ function Tally({ list }: { list: MistakeRecord[] }) {
   const unlike = tries.filter((t) => !t.like).length;
   const done = list.filter((m) => m.due === null).length;
   return (
-    <p className="text-xs text-muted" title="By frequency with no EV: the preflop charts, the push/fold model, stored turns and reads at once keep none.">
+    <p className="text-xs text-muted">
       {many(list.length, "spot")}: {byEv} graded by EV, {list.length - byEv} by frequency with no EV. {done} finished.{" "}
       {tries.length ? `Over the last retries kept, ${shareText(ok, tries.length)} Best or Correct${unlike ? `, ${unlike} of them against another kind of answer than the first` : ""}.` : "No retries yet."}
     </p>
@@ -494,7 +468,7 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
         <p role="status" className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
           {m.ask.via === "kept" ? "Reading the answer kept with it…" : m.ask.via === "library" ? "Reading the library…" : "Asking the solver…"}
-          {m.ask.via !== "kept" && <span className="text-muted">(a live solve can take a while; the first answer starts the engine)</span>}
+          {m.ask.via !== "kept" && <span className="text-muted">(can take a while)</span>}
         </p>
       )}
       {asked.st === "failed" && (

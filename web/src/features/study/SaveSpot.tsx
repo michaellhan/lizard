@@ -85,7 +85,7 @@ export function SaveSpot({ hand, provenance, answer }: { hand: StudyHand; proven
         onClick={start}
         aria-expanded={open}
         disabled={saved === undefined}
-        title={saved ? "This line is saved: edit its name, tags or note" : "Keep this line in this browser, with a name, tags and a note"}
+        title={saved ? "Edit name, tags or note" : "Save this line in this browser"}
         className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
       >
         {saved ? "★ Saved" : "☆ Save spot"}

@@ -68,7 +68,7 @@ export function SaveReport({ params }: { params: URLSearchParams }) {
             <span className="text-xs text-muted">Note</span>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="mt-0.5 w-full rounded border border-border bg-surface-2 px-2 py-1" />
           </label>
-          <p className="text-xs text-muted">{about}. This keeps the filters, not the numbers: opening it counts what&rsquo;s kept by then.</p>
+          <p className="text-xs text-muted">{about}. Keeps the filters, not the numbers.</p>
           <div className="flex flex-wrap items-center gap-2">
             <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
               Save

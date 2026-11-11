@@ -244,8 +244,6 @@ const MIN_THIN = 10;
  * sample) and with its 95% interval clear of the line (leakIsRead). */
 export const LEAK = { freq: [0.1, MIN_READ], pf: [0.8, MIN_READ], spot: [0.5, MIN_READ] } as const;
 
-/** What a leak is, said beside them. */
-export const LEAK_RULE = `A leak is a frequency ${Math.round(LEAK.freq[0] * 100)} points off the answer's, a preflop situation under ${Math.round(LEAK.pf[0] * 100)}% in the mix, or a spot after the flop losing ${LEAK.spot[0]}bb per decision. Each needs at least ${MIN_READ} decisions and a 95% interval clear of that line; anything short of that is too few to read, and isn't marked.`;
 
 /** (`low`: how many of its decisions stand on a low-confidence read, which the leak may not survive a check of;
  * `versions`: where its decisions don't stand on one known version, in words; `range`: your rate's 95% interval, a

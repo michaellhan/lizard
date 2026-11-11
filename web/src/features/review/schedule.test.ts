@@ -1,15 +1,14 @@
 // The review schedule: the steps and their edges, on the local calendar.
 import { describe, expect, it } from "vitest";
 import { chartMistake, DAY_ONE, mistake } from "@/test/mistake";
-import { afterRetry, dueAfter, dueQueue, dueWords, FINISHED, isDue, REVIEW_DAYS, SCHEDULE_WORDS, stepAfter } from "./schedule";
+import { afterRetry, dueAfter, dueQueue, dueWords, FINISHED, isDue, REVIEW_DAYS, stepAfter } from "./schedule";
 
 const date = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo, d, h, mi).getTime();
 
 describe("the schedule", () => {
-  it("is 1, 3, 7 and 21 days, and says so", () => {
+  it("is 1, 3, 7 and 21 days", () => {
     expect(REVIEW_DAYS).toEqual([1, 3, 7, 21]);
     expect(FINISHED).toBe(4);
-    for (const d of ["1 day", "3 days", "7", "21"]) expect(SCHEDULE_WORDS).toContain(d);
   });
 
   it("counts calendar days: a mistake late at night is due from the next midnight, not 24 hours on", () => {

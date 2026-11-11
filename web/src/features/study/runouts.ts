@@ -239,35 +239,14 @@ export function noteText(ro: RunoutReport): string {
   const s = ro.solver ?? {};
   const river = ro.street === "river";
   const pot = ro.pot_bb != null ? ` (${ro.pot_bb.toFixed(2)}bb pot)` : "";
-  const eq = `equity range against range${river ? "" : " (every river dealt)"}, each card's chance given both ranges`;
   const its = `${s.iterations} iterations, ${s.exploitability_pct}% of the pot from equilibrium`;
   if (ro.source === "store") {
     const evs = (ro.cards ?? []).some((c) => c.ev);
-    return (
-      `From the flop library's stored turns: the precomputed flop solve's turn strategy (${its}), its turn sizes and each turn class's cards alike ` +
-      `(a rank's cards, a flush suit's apart), mixes in 5% steps. ` +
-      (evs
-        ? `EV in bb: each range's share of the pot${pot} on the flop solve's strategies, by turn class (the two add up to it), and with each mix the EV of each action for the hands that take it; `
-        : `These stored turns hold strategies only, so there are no EVs (–); `) +
-      `${eq}. Groups average the mix by the acting range on each card${evs ? ", EV and equity by the cards' chances" : ""}. A turn you deal is solved on its own, with more sizes.`
-    );
+    return `Flop library's stored turns (${its}), mixes in 5% steps; ${evs ? `EV in bb${pot}` : "no EVs"}.`;
   }
   if (ro.multiway) {
     const n = ro.seats.length;
-    return (
-      `Read off a live ${n}-way solve of the ${river ? "turn" : "flop"} (${its}), which plays the ${ro.street}${pot} by hand buckets at one bet size, each ` +
-      `${ro.street} card's class alike (a rank's cards, a flush suit's apart): a ${ro.street} you deal is solved on its own, with more sizes. ` +
-      (ro.after_check
-        ? `Strategies only: no EVs or equities ${n}-way. `
-        : `The first decision's strategy only: no EVs or equities ${n}-way, nor the decisions after it (the buckets' were far from each ${ro.street}'s own solve). `) +
-      `Each card's chance is given the ${n} ranges; groups average the mix by the acting range on each card.`
-    );
+    return `Live ${n}-way solve of the ${river ? "turn" : "flop"} (${its}), the ${ro.street}${pot} by hand buckets; ${ro.after_check ? "strategies only" : "first decision only"}, no EVs or equities.`;
   }
-  return (
-    `Read off a live solve of the ${river ? "turn" : "flop"} (${its}${s.by === "hand buckets" ? `, the ${ro.street} by hand buckets` : ""}), ` +
-    (river
-      ? "which plays the river with its own few sizes: a river you deal is solved on its own, with its own menu of sizes. "
-      : "which plays one turn bet size and each turn card's class alike (a rank's cards, a flush suit's apart): a turn you deal is solved on its own, with more sizes. ") +
-    `EV in bb: each range's share of the pot${pot} on the solve's strategies (the two add up to it); ${eq}. Groups average the mix by the acting range on each card, EV and equity by the cards' chances.`
-  );
+  return `Live solve of the ${river ? "turn" : "flop"} (${its}${s.by === "hand buckets" ? `, the ${ro.street} by hand buckets` : ""}). EV in bb${pot}.`;
 }

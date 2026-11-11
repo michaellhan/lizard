@@ -4596,7 +4596,7 @@ describe("Instant flops", () => {
     expect(flopsNote(f({ off: "game" }), "srp")).toBe("Instant flops needs a game the flop library holds (6-max 100bb). This is 9-max 40bb.");
     expect(flopsNote(f({ off: "failed" }), "any")).toBe("The flop library didn't load, so this is Any hand.");
     expect(flopsNote(f({ off: "failed" }), "3bet")).toBe("The flop library didn't load, so Instant flops is off.");
-    expect(flopsNote(f({ off: "preflop" }), "any")).toBe("Instant flops plays no preflop, so a preflop-only session stays on Any hand. Nor can a pot drill: each plays your preflop for you.");
+    expect(flopsNote(f({ off: "preflop" }), "any")).toBe("Instant flops: not with preflop only or pot drills.");
     expect(flopsNote(f({}), "lib")).toBeNull();
   });
 

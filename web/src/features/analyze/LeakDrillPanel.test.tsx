@@ -81,8 +81,7 @@ describe("a leak drill on the turn", () => {
   it("deals the turn from what the grade kept, and says nothing is solved", async () => {
     drill([turn()]);
     expect(await screen.findByRole("button", { name: /^check/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Leak drill" })).toHaveTextContent(/on every street/);
-    expect(screen.getByRole("region", { name: "Leak drill" })).toHaveTextContent(/Nothing is solved/);
+    expect(screen.getByRole("region", { name: "Leak drill" })).toHaveTextContent(/Misses first/);
     expect(mocks.solve).not.toHaveBeenCalled();
   });
 
@@ -91,7 +90,6 @@ describe("a leak drill on the turn", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
     const group = await screen.findByRole("group", { name: "What graded it" });
     expect(group).toHaveTextContent(/medium confidence/);
-    expect(group).toHaveTextContent(/nothing is solved here/);
     expect(group).toHaveTextContent(/A Quick triage read at medium confidence/);
     const said = await screen.findByText(/due tomorrow/);
     expect(said).toHaveTextContent("Kept for Review, due tomorrow.");
@@ -165,7 +163,7 @@ describe("a leak drill on the turn", () => {
     expect(await screen.findByText(/1 of this leak's graded decisions isn't dealt here/)).toBeInTheDocument();
     some.unmount();
     drill([turn({ mix: undefined })]);
-    expect(await screen.findByText(/None of this leak's decisions is graded with its mix in this browser/)).toBeInTheDocument();
+    expect(await screen.findByText(/None of this leak's decisions is graded with its mix\./)).toBeInTheDocument();
     expect(screen.getByText(/1 kept no mix with the grade/)).toBeInTheDocument();
   });
 });

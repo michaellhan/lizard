@@ -112,7 +112,7 @@ describe("ReviewPage", () => {
     const own = await screen.findByRole("region", { name: "Exploit mistakes" });
     expect(within(own).getByText("2.00bb lost · 36.0% pot")).toBeInTheDocument();
     expect(within(own).getByText(/Exploiting Nit \(assumed\) ·/)).toBeInTheDocument();
-    expect(within(own).getByText(/never an equilibrium/)).toBeInTheDocument();
+    expect(within(own).getByText(/Graded against an assumed profile, not equilibrium/)).toBeInTheDocument();
     expect(within(own).getAllByText(/Exploiting an assumed profile \(best response, not a solve\)/).length).toBeGreaterThan(0);
     const past = screen.getByRole("region", { name: "Past mistakes" });
     expect(within(past).queryByText(/2\.00bb lost/)).toBeNull();

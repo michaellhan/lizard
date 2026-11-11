@@ -12,13 +12,13 @@ import { heldDecisions } from "@/data/mistakes";
 import { scenarioWords, type ScenarioSetup } from "@/data/scenarios";
 import { GAME_EQUILIBRIUM } from "@/features/analyze/analyze";
 import { canDrill, drillSessionId, fromSession, leakDrillLink, leakParam, type LeakRef } from "@/features/analyze/leakDrill";
-import { BASES, basisOf, isGraded, isOk, isPfSolve, LEAK_RULE, leakTest, MIN_READ, readLeaks, type Leak } from "@/features/analyze/report";
+import { BASES, basisOf, isGraded, isOk, isPfSolve, leakTest, MIN_READ, readLeaks, type Leak } from "@/features/analyze/report";
 import { exploitImports, isEquilibriumHand } from "@/features/analyze/sessions";
 import { STREET_ORDER } from "@/features/history/progress";
 import type { DrillStreet, DrillView } from "@/features/practice/drills";
 import { turnViewLabel, viewLabel } from "@/features/practice/drills";
 import { linkSetup, setupLink, type LinkSetup, type PlayKind } from "@/features/practice/setupLink";
-import { dueQueue, dueWords, isDue, midnight, REVIEW_DAYS } from "@/features/review/schedule";
+import { dueQueue, dueWords, isDue, midnight } from "@/features/review/schedule";
 import { gameLabel, isDrillable, storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
 import { SEATS, seatLabel } from "@/poker/seats";
 import { sourceLabel } from "@/solver/provenance";
@@ -42,18 +42,6 @@ const bbs = (x: number) => `${(Math.round(x * 100) / 100).toFixed(2)}bb`;
 const many = (n: number, one: string, more = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : more}`;
 const CHARTS = BASES[0]!;
 
-export const PLAN_RULE: readonly string[] = [
-  "Reviews due today, from the review queue: the longest overdue first, then the worst grades.",
-  "The leaks that pass the read rule: those with EV given up to a solve of the spot first, the most first; then those with EV given up to the preflop solve, the most first, as its EVs are of a simplified model and are neither added to a spot's nor weighed against them. A leak graded by frequency has no EV to weigh, so those come last, by the report's score: how far off, by the square root of the decisions.",
-  "The rows too few to read, the most decisions first, as the nearest to being read: places to collect more hands, not leaks.",
-  `One Practice drill, on the street with the most decisions missed and from the seat with the most missed on it. Misses are counted, not weighed: a miss by frequency counts as one by EV, and it's a count, so what you play most can top it. A missed decision is one graded below Correct in hands you imported, or a cash mistake kept in the review queue, as many times as it was missed. An entry added from Analyze or a leak drill isn't counted again where its own decision already is.`,
-];
-
-export const PLAN_SCOPE = `This is a rule, not a coach: it counts what's kept in this browser, the same way every time, and can't say why you miss a spot. Tournament hands and exploit sessions stay out of the leaks and the count of misses: a tournament's EVs aren't bb won, and an exploit session answers an assumed profile, never an equilibrium. EV given up is solver EV over graded decisions, not what you won or lost at the table.`;
-
-export const PLAN_DONE = `A step is marked done only by what's kept: reviews when none is left due and one has moved on today, a leak when every decision of it that can be dealt has been answered in its drill, and the Practice drill at ${DRILL_TARGET} decisions in sessions started today. Rows too few to read have no mark: each leaves the plan when its decisions can be read.`;
-
-export { LEAK_RULE };
 
 export type PlanHand = Pick<HandRecord, "id" | "site" | "tournament" | "importId">;
 
@@ -161,8 +149,6 @@ function reviewStep(mistakes: readonly MistakeRecord[], now: number): ReviewStep
   });
   if (!queue.length && !moved.length) return null;
   const byEv = queue.filter((m) => m.grade.byEv).length;
-  const held = queue.filter((m) => m.ask.via === "kept").length;
-  const retry = !held ? "A retry is graded against the answer there is now." : held === queue.length ? "A retry is graded against the answer kept with its decision, nothing solved." : `A retry is graded against the answer there is now, or, for the ${held.toLocaleString()} from Analyze or a leak drill, against the answer kept with its decision.`;
   const bases = new Map<string, number>();
   for (const m of queue) add(bases, mistakeBasis(m));
   const tour = queue.filter((m) => m.tournament).length;
@@ -170,12 +156,12 @@ function reviewStep(mistakes: readonly MistakeRecord[], now: number): ReviewStep
   const says = [
     ...(queue.length
       ? [
-          `${many(queue.length, "mistake")} due from the review queue (${REVIEW_DAYS.join(", ")} days apart): ${byEv.toLocaleString()} first graded by EV, ${(queue.length - byEv).toLocaleString()} by frequency with no EV. ${retry}`,
+          `${many(queue.length, "mistake")} due: ${byEv.toLocaleString()} graded by EV, ${(queue.length - byEv).toLocaleString()} by frequency.`,
           basisWords(bases),
         ]
       : []),
     ...(tour || exploit
-      ? [`The queue is dates and takes every kind: ${[tour ? `${tour.toLocaleString()} from tournament sessions` : "", exploit ? `${exploit.toLocaleString()} from exploit sessions` : ""].filter(Boolean).join(" and ")} are in this count, and their grades stay in their own lists in Review.`]
+      ? [`Includes ${[tour ? `${tour.toLocaleString()} from tournaments` : "", exploit ? `${exploit.toLocaleString()} from exploit sessions` : ""].filter(Boolean).join(" and ")}.`]
       : []),
   ];
   return {
@@ -260,10 +246,10 @@ function readingOf(l: Leak, t: RowTally): string {
 }
 
 function costOf(t: RowTally): string {
-  if (!t.ev && !t.pfEv) return `No EV to weigh: all ${many(t.n, "decision")} graded by frequency, so it's ranked after the leaks with an EV.`;
+  if (!t.ev && !t.pfEv) return `No EV: all ${many(t.n, "decision")} graded by frequency.`;
   const rest = t.n - t.ev - t.pfEv;
   const parts = [t.ev ? `${bbs(t.lost)} of solver EV given up over ${many(t.ev, "decision")} graded by EV` : "", t.pfEv ? `${bbs(t.pfLost)} given up by the preflop solve's EV over ${many(t.pfEv, "decision")}` : ""].filter(Boolean);
-  return `${parts.join("; apart from that, ")}${rest ? `; the other ${rest.toLocaleString()} were graded by frequency and count none` : ""}.`;
+  return `${parts.join("; apart from that, ")}${rest ? `; ${rest.toLocaleString()} more by frequency` : ""}.`;
 }
 
 /** What it stands on: the grades' bases, and what they're worth where that's less than the rest. */
@@ -280,7 +266,7 @@ function leakStep(l: Leak, t: RowTally): LeakStep {
     title: `Drill this leak: ${l.key}`,
     to: leakDrillLink(leak, new URLSearchParams({ game: GAME_EQUILIBRIUM })),
     done: t.dealt > 0 && t.left === 0,
-    progress: t.dealt ? `${answered.toLocaleString()} of ${many(t.dealt, "decision")} answered in its drill${t.unread ? `, ${t.unread.toLocaleString()} of them graded by frequency and dealt though the read above can't use them` : ""}.` : "None of its decisions keeps its mix, so its drill has nothing to deal.",
+    progress: t.dealt ? `${answered.toLocaleString()} of ${many(t.dealt, "decision")} answered in its drill${t.unread ? `, ${t.unread.toLocaleString()} of them by frequency` : ""}.` : "No decision keeps its mix: nothing to deal.",
     says: [readingOf(l, t), costOf(t), standsOn(l, t)],
     leak,
     lost: t.lost > 0 ? Math.round(t.lost * 100) / 100 : null,
@@ -342,10 +328,10 @@ function thinStep(l: Leak, t: RowTally, game: PlanGame): ThinStep {
     progress: null,
     says: [
       short > 0
-        ? `Too few to read, and not a leak: ${many(l.n, "graded decision")}, ${short.toLocaleString()} short of the ${MIN_READ} it takes.`
-        : `Too few to read, and not a leak: ${many(l.n, "graded decision")}, and its 95% interval still reaches the leak's line.`,
+        ? `${many(l.n, "graded decision")}, ${short.toLocaleString()} short of ${MIN_READ}.`
+        : `${many(l.n, "graded decision")}; its 95% interval still reaches the line.`,
       standsOn(l, t),
-      `The link plays ${target.about}. A hand there counts here once it's kept and graded in Analyze.`,
+      `The link plays ${target.about}.`,
     ],
     leak: { kind: l.kind, key: l.key },
     n: l.n,
@@ -422,10 +408,10 @@ const drilledToday = (target: DrillTarget, today: readonly SessionRecord[]): num
 
 const answeredBy = (t: DrillTarget, street: string) =>
   t.kind === "library"
-    ? "Dealt from the flop library, each answered at once with no solve."
+    ? "From the flop library, no solve."
     : street === "preflop"
-      ? "Each decision is graded against the preflop charts, by frequency, not a solve."
-      : "These are hands in that pot, and each decision shows what answered it as you play.";
+      ? "Graded against the preflop charts (not a solve)."
+      : "Each decision shows what answered it.";
 
 interface DrillFacts {
   street: string;
@@ -439,8 +425,8 @@ interface DrillFacts {
 const gameWords = (t: DrillTarget, g: PlanGame) => {
   if (t.kind !== "setup") return "";
   const moved = t.setup.players !== g.players;
-  if (g.yours) return moved ? ` The stack is your last Practice session's, at ${t.setup.players} players, the smallest table with this seat.` : " The table and stack are your last Practice session's.";
-  return moved ? ` No Practice session is kept, so that's 100bb, at ${t.setup.players} players, the smallest table with this seat.` : " No Practice session is kept, so that's 6-max at 100bb.";
+  if (g.yours) return moved ? ` Stack from your last Practice session, ${t.setup.players} players.` : " Table and stack from your last Practice session.";
+  return moved ? ` 100bb, ${t.setup.players} players.` : " 6-max, 100bb.";
 };
 
 function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRecord[], game: PlanGame): DrillStep {
@@ -455,7 +441,7 @@ function drillStep(f: DrillFacts, target: DrillTarget, today: readonly SessionRe
     title: `Practice ${where}`,
     to: target.to,
     done: count >= DRILL_TARGET,
-    progress: `${Math.min(count, DRILL_TARGET).toLocaleString()} of ${DRILL_TARGET} decisions in this drill in sessions started today.`,
+    progress: `${Math.min(count, DRILL_TARGET).toLocaleString()} of ${DRILL_TARGET} decisions today.`,
     says: [
       `The most misses are on ${STREET_WORD[street]}: ${f.streetMisses.toLocaleString()} of the ${many(f.total, "miss", "misses")} counted, ${m.n.toLocaleString()} of them from ${name}.`,
       `Those ${m.n.toLocaleString()}: ${m.graded.toLocaleString()} in hands graded in Analyze, ${m.kept.toLocaleString()} kept in the review queue; ${m.byEv.toLocaleString()} by EV, ${(m.n - m.byEv).toLocaleString()} by frequency. ${basisWords(m.bases)}`,
@@ -555,15 +541,15 @@ export function buildPlan({ now, mistakes, damaged = 0, hands, decisions, sessio
   const steps = { reviews, leaks, thin, drill };
   const soon = mistakes.filter((m) => m.due !== null && !isDue(m, now)).sort((a, b) => a.due! - b.due!)[0];
   const notes = {
-    reviews: !mistakes.length ? "No mistake kept yet, so nothing can come due." : `Nothing is due today.${soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}`,
+    reviews: !mistakes.length ? "No mistakes kept yet." : `Nothing is due today.${soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}`,
     leaks: !hands.length
-      ? "No hands imported, so there's no leak to read."
+      ? "No hands imported."
       : !gradedAll
-        ? `${many(hands.length, "hand")} kept and none graded: leaks are read from graded decisions.`
+        ? `${many(hands.length, "hand")} kept, none graded.`
         : !graded
-          ? "No graded decision left to read a leak from: every one is in a tournament hand or an exploit session."
-          : `No leak passes the read rule over your ${many(graded, "graded decision")}.`,
-    thin: graded ? "Nothing is waiting on more hands." : "Nothing to collect yet: this needs graded decisions.",
+          ? "Every graded decision is from a tournament or exploit session."
+          : `No leak in ${many(graded, "graded decision")}.`,
+    thin: graded ? "Nothing is waiting on more hands." : "Nothing graded yet.",
     drill: "No missed decision counted yet.",
   };
 
@@ -571,11 +557,11 @@ export function buildPlan({ now, mistakes, damaged = 0, hands, decisions, sessio
     if (reviews || leaks.length || thin.length || drill) return null;
     const practice = { to: "/practice", label: "Play hands in Practice" };
     const analyze = { to: "/analyze", label: "Import hands in Analyze" };
-    if (!hands.length && mistakes.length) return { text: `Nothing is due, and what's kept here (${many(mistakes.length, "mistake")}) is from tournament or exploit sessions, which stay out of the leaks. Play hands in Practice, or import cash hands in Analyze, to read one.`, links: [practice, analyze] };
-    if (!hands.length) return { text: "Nothing is kept in this browser to make a plan from. Start with either: a hand played in Practice is graded as you go, and anything below Correct comes to Review; hands you import in Analyze are graded there, and leaks are read from them.", links: [practice, analyze] };
-    if (!gradedAll) return { text: `You have ${many(hands.length, "hand")} kept and none graded. Grade them in Analyze: the charts and the flop library answer most of them with no solve.`, links: [{ to: "/analyze", label: "Grade your hands in Analyze" }] };
-    if (!graded) return { text: "Every graded decision kept here is in a tournament hand or an exploit session, and those stay out of the leaks. Play hands in Practice, or import cash hands in Analyze, to read one.", links: [practice, analyze] };
-    return { text: `Your ${many(graded, "graded decision")} leave no step to take: nothing due, no leak to read, and no miss counted. Play more, and this fills in.`, links: [practice] };
+    if (!hands.length && mistakes.length) return { text: `Nothing due; ${many(mistakes.length, "mistake")} kept, all from tournament or exploit sessions.`, links: [practice, analyze] };
+    if (!hands.length) return { text: "Nothing kept yet. Play hands or import some.", links: [practice, analyze] };
+    if (!gradedAll) return { text: `${many(hands.length, "hand")} kept, none graded.`, links: [{ to: "/analyze", label: "Grade your hands in Analyze" }] };
+    if (!graded) return { text: "Every graded decision is from a tournament or exploit session, which stay out of leaks.", links: [practice, analyze] };
+    return { text: `Nothing to do yet over ${many(graded, "graded decision")}. Play more.`, links: [practice] };
   })();
 
   return { ...steps, next: nextOf(steps), first, notes, apart: apartWords(tour, exploit), damaged, today: recent, facts, game };

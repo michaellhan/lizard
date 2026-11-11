@@ -10,17 +10,17 @@ export function DbNotice() {
   return (
     <div role="alert" className="border-b border-warn/50 bg-warn/10 px-4 py-2 text-center text-sm">
       {state === "waiting" ? (
-        "Another Lizard tab (most likely one open since before an update) is holding this browser's saved data. Close or reload the other Lizard tabs and this page carries on; until then, nothing saved here can load."
+        "Another Lizard tab is holding your saved data. Close or reload the other Lizard tabs."
       ) : state === "failed" ? (
         <>
-          This browser won&rsquo;t open Lizard&rsquo;s saved data, so nothing you do here is being kept. A private window can do this.{" "}
+          This browser won&rsquo;t open Lizard&rsquo;s saved data: nothing is being kept.{" "}
           <button type="button" onClick={() => location.reload()} className="underline">
             Reload this page
           </button>
         </>
       ) : (
         <>
-          Lizard was updated in another tab, so nothing you do in this tab is saved until it&rsquo;s reloaded.{" "}
+          Lizard was updated in another tab: reload to keep saving.{" "}
           <button type="button" onClick={() => location.reload()} className="underline">
             Reload this page
           </button>

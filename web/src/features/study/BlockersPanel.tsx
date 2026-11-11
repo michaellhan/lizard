@@ -160,10 +160,6 @@ function Blocks({ range, name, actionName, whose, combos }: { range: OppRange; n
         <BlockedTable title="Made hands it blocks" rows={r.made} />
         {r.draws.length > 0 && <BlockedTable title="Draws it blocks" rows={r.draws} />}
       </div>
-      <p className="text-muted">
-        Every {who} combo sharing a card with {name} comes out, at its own weight in the next node's answer{whole && ", across the combos of the class by how much of each your range holds"}. The hands left keep their mix: the solve doesn't change its strategy for one hand of yours.
-        {whose === "last" ? ` With no bet or raise to make here, this is ${who}'s range as they just played, and there's no reply to read.` : ""}
-      </p>
     </div>
   );
 }

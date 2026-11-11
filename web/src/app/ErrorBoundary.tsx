@@ -20,7 +20,7 @@ function Trouble() {
   return (
     <section role="alert" aria-label="This page stopped" className="mx-auto max-w-xl space-y-3 rounded-lg border border-warn/50 bg-surface p-4 text-sm">
       <h1 className="text-lg font-semibold">This page stopped working</h1>
-      <p>Something on it couldn&rsquo;t be drawn. Reloading may fix it. If it doesn&rsquo;t, download a backup so what&rsquo;s kept in this browser is safe.</p>
+      <p>Try reloading. If that fails, download a backup.</p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => location.reload()} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg">
           Reload this page

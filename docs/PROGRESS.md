@@ -4959,3 +4959,16 @@ folds ("How to write a range", "How sizes are read", "Limits") rather than parag
 on the first screen at 1280×800 (743px; the page was 930px). UI only: tsc, eslint, `vitest run src/features/plo` 24
 passed; checked in the browser. Reports, Ranges, Tournaments (Solve's form, already decluttered), PLO equity and
 Library were looked at in the browser and left alone: each already opens on its controls or its data.
+
+## 2026-11-11 — Explanation text cut app-wide; styled dropdowns
+
+- Owner: "as little info as possible, just key bits." Intro paragraphs, "How this works" / "About…" / "How this was
+  graded" / "How decisions are graded" folds, method and limit notes, column legends and long tooltips cut on every page
+  (about 155 files, −1,555/+925 lines). Kept: headings, numbers, controls, provenance badges and short "charts, not a
+  solve" markers, empty states, errors and warnings (now a few words each). Unit and e2e checks updated to the new text.
+- Dropdowns: `components/SelectMenu.tsx`, mounted once at the root, opens a styled list for every `<select>` on a
+  mouse press or an opening key (arrows, type-ahead, Escape; the select keeps its value, name and change events, so
+  forms and tests are unchanged). A touch keeps the phone's own picker. The closed select draws its own chevron.
+- Other default-looking controls in `styles/index.css`: checkboxes, radios and sliders in the accent colour; no spin
+  arrows on number fields; the file picker's button and the date field's calendar mark match the theme; folds use a
+  turning chevron in place of the system triangle.

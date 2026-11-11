@@ -51,8 +51,8 @@ export function collected(text: string, name: string): number | null {
 
 export type ResultWhy = "unread" | "cashout";
 export const RESULT_WHY: Record<ResultWhy, string> = {
-  unread: "no winnings line read here (a format not read, or a hand not played out)",
-  cashout: "an EV Cashout pays on equity, not on the board",
+  unread: "no winnings line read",
+  cashout: "EV Cashout",
 };
 export interface HandResult {
   /** won (or lost, below 0) in big blinds; null where it can't be told */

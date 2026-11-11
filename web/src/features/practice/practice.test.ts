@@ -157,7 +157,7 @@ describe("seats and dealing", () => {
     expect(dealsLeft({ pot: "3bet", tries: DRILL_TRIES - 2 })).toBe(true);
     expect(dealsLeft({ pot: "3bet", tries: DRILL_TRIES - 1 })).toBe(false);
     expect(dealsLeft({ pot: "4bet" })).toBe(true);
-    expect(POT_DRILLS["4bet"].tip).toMatch(/from the charts and the library stores no such pot, so every decision is a live solve/);
+    expect(POT_DRILLS["4bet"].tip).toMatch(/Live solves only/);
     // dealt again: the same hand number and seat, another deal, the tries counted
     const again = redeal(redeal(h, 77, { seat: "BTN", pot: "3bet" }), 78, { seat: "BTN", pot: "3bet" });
     expect(again).toMatchObject({ n: 0, hero: "BTN", pot: "3bet", tries: 2, seed: 78 });

@@ -172,9 +172,9 @@ describe("a live drill", () => {
     const shown = screen.getByRole("group", { name: "Revealed answer" });
     expect(within(shown).getByText("Live solve · 0.63% pot from equilibrium in the solved game (converged) · 111 iterations")).toBeInTheDocument();
     fireEvent.click(within(opts).getByRole("button", { name: /check/ }));
-    expect(screen.getByText(/^Not graded: you revealed the answer first$/)).toBeInTheDocument();
+    expect(screen.getByText("Not graded: revealed")).toBeInTheDocument();
     expect(decisions()).toHaveTextContent(/^0$/);
-    expect(screen.getByText(/1 pick made after Reveal/)).toBeInTheDocument();
+    expect(screen.getByText("1 revealed pick not graded.")).toBeInTheDocument();
   });
 
   it("caps a grade on an answer off the solve, and says so", async () => {
@@ -189,13 +189,13 @@ describe("a live drill", () => {
 
   it("says a draw deals nothing on a river, and asks nothing of the solver", async () => {
     open("spot=srp_btn_bb&street=river&view=oop&hand=d:gutshot");
-    expect(await screen.findByText(/No card is left to come on the river, so Gutshot deals nothing/, undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("No river draws: pick a made hand or class.", undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(stub.asked).toEqual([]);
   });
 
   it("says a spot with no stored turns can't deal a river", async () => {
     open("spot=srp_co_bb&street=river");
-    expect(await screen.findByText(/stores no turn in this library, so nothing can be dealt here/, undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText(/stores no turn: pick another spot\./, undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(within(screen.getByRole("combobox", { name: "Street" })).getByRole("option", { name: "River (needs this spot's stored turns)" })).toBeDisabled();
     expect(stub.asked).toEqual([]);
   });
@@ -223,7 +223,6 @@ describe("a live drill", () => {
     open("spot=srp_btn_bb&street=turn&view=vsbet");
     expect(await options()).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB first to act on the turn");
-    expect(screen.getByText(/A bet to face on the turn and the river are live drills\./)).toBeInTheDocument();
     expect(stub.asked).toEqual([]);
     cleanup();
     open("spot=srp_btn_bb");

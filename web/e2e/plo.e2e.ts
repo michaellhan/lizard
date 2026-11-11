@@ -19,7 +19,7 @@ test("A turn solves in the worker with every river after it, and its tables add 
   await expect(answer).toBeVisible({ timeout: 120_000 });
   await expect(answer.getByRole("button", { name: /a turn and its 48 river cards from the ranges typed/ })).toBeVisible();
   await expect(answer).toContainText("Reached the target of 0.5% of the pot.");
-  await expect(answer).toContainText("through the turn and all 48 rivers");
+  await expect(answer).toContainText("and 48 river cards");
   for (const line of ["OOP to start", "IP after OOP Check"]) {
     await answer.getByLabel("Decision", { exact: true }).selectOption({ label: line });
     const evs = await page.getByRole("table", { name: "Ranges on this line" }).locator("tbody td:last-child").allTextContents();

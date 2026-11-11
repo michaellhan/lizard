@@ -24,10 +24,7 @@ describe("PloRiverPage", () => {
   it("says what it covers and what it doesn't, before anything is run", () => {
     render(<PloRiverPage />);
     expect(screen.getByRole("heading", { level: 1, name: "Heads-up PLO4 flop, turn and river solve" })).toBeTruthy();
-    const words = screen.getByText(/One river, a turn and every river card after it, or a flop and every turn and river after it, solved exactly/).textContent;
-    expect(words).toMatch(/no earlier street is solved/);
-    expect(words).toMatch(/heads-up/);
-    expect(words).toMatch(/no rake/);
+    expect(screen.getByText(/^No rake; earlier streets aren.t solved\.$/)).toBeTruthy();
   });
 
   it("solves a polarised river, with its provenance, frequencies and combos", async () => {
@@ -82,7 +79,7 @@ describe("PloRiverPage", () => {
     const freqs = [...within(said).getByRole("table", { name: "This hand in the solve" }).querySelectorAll("tbody td:nth-child(2)")].map((td) => Number.parseFloat(td.textContent!));
     expect(freqs.reduce((t, x) => t + x, 0)).toBeCloseTo(100, 0);
     expect(within(choices).getByRole("button", { name: "Bet 10" }).hasAttribute("disabled")).toBe(true);
-    expect(within(drill).getByLabelText("Your tally").textContent).toMatch(/^1 hand: 1 Best or Correct, 0\.00bb given up in all\./);
+    expect(within(drill).getByLabelText("Your tally").textContent).toMatch(/^1 hand: 1 Best or Correct, 0\.00bb given up\./);
     expect(within(drill).getByRole("button", { name: "Next hand" })).toBeTruthy();
   });
 
@@ -103,7 +100,7 @@ describe("PloRiverPage", () => {
     expect((screen.getByLabelText("Pot") as HTMLInputElement).value).toBe("9.1");
     expect((screen.getByLabelText("OOP stack") as HTMLInputElement).value).toBe("95.7");
     expect((screen.getByLabelText("OOP range") as HTMLInputElement).value).toBe("AAxx,KKxx,QQxx");
-    expect(screen.getByLabelText("From your hand").textContent).toMatch(/^From your hand: the turn, BB \(OOP\) against BTN \(IP\), you BTN with AhQdJsTd\. .*the ranges are still yours to type/);
+    expect(screen.getByLabelText("From your hand").textContent).toMatch(/^From your hand: the turn, BB \(OOP\) against BTN \(IP\), you BTN with AhQdJsTd\. Board, pot and stacks filled; type the ranges\./);
     expect(screen.getByRole("button", { name: "Solve this turn" })).toBeTruthy();
 
     type("PLO hand history", "PokerStars Hand #1: Hold'em No Limit ($1/$2)");
@@ -127,8 +124,6 @@ describe("PloRiverPage", () => {
     const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
     expect(badge.textContent).toMatch(/a turn and its 44 river cards from the ranges typed/);
     expect(badge.textContent).toMatch(/every river at bets 100% of the pot, raises none, up to 0 raises/);
-    expect(section.textContent).toMatch(/through the turn and all 44 rivers/);
-    expect(section.textContent).toMatch(/less chips bet on the turn and river/);
     expect(section.textContent).toMatch(/highest EV first/);
 
     // the river after the turn checks through, on a card: the solve's own river, its two EVs adding to the river's pot
@@ -162,7 +157,6 @@ describe("PloRiverPage", () => {
     const section = await screen.findByRole("region", { name: "Flop solution" }, { timeout: 30000 });
     const badge = within(section).getByRole("button", { name: /Heads-up PLO4 solve of every combo/ });
     expect(badge.textContent).toMatch(/a flop and its 45 turn cards, every river after each/);
-    expect(section.textContent).toMatch(/through the flop, all 45 turns and every river after each/);
 
     // the turn after a bet and a call, on the king; then the river after that turn checks through
     const after = within(section).getByRole("region", { name: "The turn after the flop" });

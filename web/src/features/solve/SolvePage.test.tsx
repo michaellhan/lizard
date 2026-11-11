@@ -26,10 +26,8 @@ const num = (name: string, value: string) => fireEvent.change(screen.getByRole("
 const problems = () => screen.queryByRole("alert", { name: "Setup problems" });
 
 describe("SolvePage", () => {
-  it("says node locks and automatic sizing are in Study, by the names they have there, and sends no one to the classic app for them", () => {
+  it("sends no one to the classic app", () => {
     open("p=2&s=100");
-    expect(screen.getByText(/Node locks and automatic sizing are in Study, a hand at a time: .Hold this node at a mix \(true node lock\)., .Against a read \(best response\). and .Choose bet sizes \(automatic sizing\)./)).toBeInTheDocument();
-    expect(screen.queryByText(/Not here yet: node locks/)).toBeNull();
     expect(screen.queryByRole("link", { name: /classic/i })).toBeNull();
   });
 
@@ -167,7 +165,7 @@ describe("SolvePage", () => {
     expect(screen.getByRole("spinbutton", { name: "Ante" })).toHaveValue(0.11);
     expect(screen.getByRole("spinbutton", { name: "BB stack" })).toHaveValue(21);
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("30 20 14 10.5 8 6.5 5 3.5 2.5");
-    expect(screen.getByText(/^Set up: Final table\. 9 players left, all paid.*Lizard's own, not any site's\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Set up: Final table\. 9 players left, all paid.*\.$/)).toBeInTheDocument();
     expect(problems()).toBeNull();
     expect(screen.getByRole("region", { name: "Bubble factors" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Open in Study/ }));
@@ -183,7 +181,7 @@ describe("SolvePage", () => {
     expect((screen.getAllByRole("textbox", { name: "Payouts" }).at(-1) as HTMLInputElement).value.split(" ")).toHaveLength(115);
     // Clear forgets it
     fireEvent.click(screen.getAllByRole("button", { name: /^Clear/ }).at(-1)!);
-    expect(screen.getAllByText(/^A stage or a format sets the table/).at(-1)).toBeInTheDocument();
+    expect(screen.getAllByText(/^A stage or format fills in the form/).at(-1)).toBeInTheDocument();
   });
 
   it("sets up a sit & go or spin format at once, with no ante at its start", () => {
@@ -194,7 +192,7 @@ describe("SolvePage", () => {
     expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(75);
     expect(screen.getByRole("spinbutton", { name: "Ante" })).toHaveValue(null);
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("50 30 20");
-    expect(screen.getByText(/^Set up: Sit & go, 9 players\..*; no ante\. Change anything below/)).toBeInTheDocument();
+    expect(screen.getByText(/^Set up: Sit & go, 9 players\..*; no ante\.$/)).toBeInTheDocument();
     expect(problems()).toBeNull();
     // its bubble has the stages' big-blind ante
     fireEvent.click(within(formats).getByRole("button", { name: "Sit & go bubble" }));

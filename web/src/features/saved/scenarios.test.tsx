@@ -151,12 +151,12 @@ describe("the Saved page", () => {
     saved();
     expect(await screen.findByRole("listitem", { name: "Scenario a" })).toBeInTheDocument();
     expect(screen.queryByRole("listitem", { name: "Scenario b" })).toBeNull();
-    expect(screen.getByText(/1 saved scenario is damaged/)).toBeInTheDocument();
+    expect(screen.getByText(/1 saved scenario can.t be read/)).toBeInTheDocument();
   });
 
   it("says there are none yet", async () => {
     saved();
-    expect(await screen.findByText(/No saved scenarios yet/)).toBeInTheDocument();
+    expect(await within(await screen.findByRole("region", { name: "Saved scenarios" })).findByText(/None yet/)).toBeInTheDocument();
   });
 });
 
@@ -218,7 +218,7 @@ describe("starting one in Practice", () => {
   it("says when it can't be read, and starts nothing", async () => {
     await (await db())!.put("savedScenarios", { ...scenario("b"), stack: 2 } as never);
     await practice("/practice?scenario=b");
-    expect(await screen.findByRole("alert")).toHaveTextContent("That saved scenario is gone or can't be read");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Saved scenario not found.");
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/practice"));
   });
 });

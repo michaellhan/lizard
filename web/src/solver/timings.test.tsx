@@ -110,7 +110,7 @@ describe("measured solve times", () => {
       recordTiming("x", "worker", "fast", LIVE, provenanceOf(LIVE, ctx));
       recordTiming("y", "worker", "fast", { ...LIVE, street: "flop", seconds: 12.4 }, provenanceOf(LIVE, ctx));
     });
-    expect(fast.title).toMatch(/Measured in this browser: flop 12 s \(1\), river 4\.2 s \(1\) \(the median/);
+    expect(fast.title).toMatch(/Measured in this browser: flop 12 s \(1\), river 4\.2 s \(1\)$/);
     expect(within(table).getAllByRole("row")[2]).toHaveTextContent("Fast12 s (1)–4.2 s (1)");
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(within(table).getAllByRole("row")[2]).toHaveTextContent("Fast–––");

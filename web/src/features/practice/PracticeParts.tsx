@@ -19,14 +19,14 @@ import type { Provenance, StopCost } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { ASK_AHEAD, meterLine, type AheadMeter } from "./ahead";
 import { reviewedText } from "./copyForAi";
-import { exploitNote, GRADED_BY_READ } from "./exploit";
+import { exploitNote } from "./exploit";
 
 const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
-import { PF_GRADED, pfWords } from "./pfGrade";
-import { CopyForAi, Kbd, MixTable, REVEAL_CHIPS, REVEAL_NOTE } from "./HintReveal";
+import { pfWords } from "./pfGrade";
+import { CopyForAi, Kbd, MixTable, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
-import { FIELD_RATE, LEVEL_HANDS, LEVEL_RISE, leftOf, levelOf } from "./tournamentPlay";
+import { LEVEL_HANDS, leftOf, levelOf } from "./tournamentPlay";
 import { sessionUnit, type Kept, type PracticeSession } from "./session";
 import { retrySpot, SessionRetry } from "./SessionRetry";
 
@@ -93,15 +93,15 @@ export function KeepHand({ kept, all, onKeep, onAll }: { kept: Kept | null; all:
 /** What a tournament session's numbers are, under its score. */
 export const tournamentNote = (t: Pick<HandTournament, "model">) =>
   t.model === "icm"
-    ? "A tournament in prize equity: EVs here are chips worth as much prize equity, never bb won, and no chips are counted as a result. It stays apart from your other numbers in History and Review."
-    : "A tournament in chip EV, with no prizes: EVs here are bb of chips, and it stays apart from your other numbers in History and Review.";
+    ? "Tournament, ICM: EVs in chips of prize equity, kept apart."
+    : "Tournament, chip EV: EVs in bb of chips, kept apart.";
 
 /** A grade with no EV, in words: what it went by, and why there's none. */
 export function byFrequency(p: Provenance | null | undefined): string {
-  if (p?.source === "library-turn") return "Graded by how often your hand plays each action: no EV is stored for it, so none is counted as lost.";
-  if (p?.source === "push-fold") return "Graded by how often the push/fold model plays your hand: it gives frequencies and no EVs, so none is counted as lost.";
-  if (p?.evIn === "chips") return "Graded by how often the betting rules play it: their EVs are in chips and this session counts prize equity, so none is counted as lost.";
-  return "Graded by how often the chart plays it: the preflop charts have no EVs.";
+  if (p?.source === "library-turn") return "Graded by frequency: no EV stored.";
+  if (p?.source === "push-fold") return "Graded by push/fold frequency: no EVs.";
+  if (p?.evIn === "chips") return "Graded by frequency: rule EVs are chips, not prize equity.";
+  return "Graded by chart frequency: charts have no EVs.";
 }
 
 /** The score in one line, and what it rests on folded under it (the sources it was graded against on the fold's own line;
@@ -122,8 +122,8 @@ export function ScoreStrip({ session, acc, loss, lossPct, children }: { session:
     session.opts.pfSolve && pfWords(session.cells),
     session.opts.tournament && tournamentNote(session.opts.tournament),
     session.opts.exploit && exploitNote(session.opts.exploit),
-    session.opts.exploit && !!session.read?.off && `${many(session.read.off, "hand")} left out of Net against the profile: a move of theirs after the flop was the equilibrium's, or they made none.`,
-    !!session.revealed && `${session.revealed} decision${session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. ${REVEAL_CHIPS}`,
+    session.opts.exploit && !!session.read?.off && `${many(session.read.off, "hand")} left out of Net against the profile.`,
+    !!session.revealed && `${session.revealed} revealed decision${session.revealed === 1 ? "" : "s"} not graded.`,
   ].filter((x): x is string => !!x);
   return (
     <section aria-label="Score" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
@@ -142,15 +142,12 @@ export function ScoreStrip({ session, acc, loss, lossPct, children }: { session:
       {session.opts.exploit && item("Net against the profile", session.read?.hands ? `${signed(session.read.net)}bb · ${many(session.read.hands, "hand")}` : "–")}
       {/* (always there and one line high, so nothing under it moves as the first grade or look-ahead comes in) */}
       <details className="basis-full text-xs text-muted">
-        <summary className="cursor-pointer">{s.n > 0 ? `Graded against: ${sourcesText(session.sources)}` : "Where these numbers come from"}</summary>
+        <summary className="cursor-pointer">{s.n > 0 ? `Graded against: ${sourcesText(session.sources)}` : "Nothing graded yet"}</summary>
         <div className="mt-1 space-y-1">
           {notes.map((n) => (
             <p key={n}>{n}</p>
           ))}
           {children}
-          {!notes.length && (
-            <p>{s.n > 0 ? "Each decision's grade and what answered it are under Your last decision and Recent decisions." : "Nothing graded yet: each decision says what graded it once you've made it."}</p>
-          )}
         </div>
       </details>
     </section>
@@ -168,7 +165,7 @@ export function AskAhead({ stopCost, restarts }: { stopCost: StopCost | null; re
     <div className="flex flex-wrap items-center gap-x-2 text-sm">
       <label
         className="flex items-center gap-1.5"
-        title="While you decide, the solver works on your likeliest next spots, so an answer can be there when you reach one. It's the same answer, and it uses the solver while you think. Only what should be quick is asked ahead, though a rare one can run on until you move."
+        title="Solve likely next spots while you think"
       >
         <input
           type="checkbox"
@@ -182,8 +179,8 @@ export function AskAhead({ stopCost, restarts }: { stopCost: StopCost | null; re
         />
         <span className="text-muted">Ask ahead</span>
       </label>
-      {kills && <span className="text-xs text-muted">Off: this browser can&rsquo;t stop a solve, so a wrong guess would hold up your next answer.</span>}
-      {!kills && restarts > 0 && <span className="text-xs text-muted">Off on this page: the solver didn&rsquo;t answer a stop and had to restart.</span>}
+      {kills && <span className="text-xs text-muted">Off: this browser can&rsquo;t stop a solve.</span>}
+      {!kills && restarts > 0 && <span className="text-xs text-muted">Off: the solver had to restart.</span>}
     </div>
   );
 }
@@ -193,7 +190,7 @@ export function AskAhead({ stopCost, restarts }: { stopCost: StopCost | null; re
  * page would move as the first look-ahead goes out, just as the options you're about to press have come up. */
 export function AheadLine({ on, meter }: { on: boolean; meter: AheadMeter }) {
   if (!on && !meter.asked) return null;
-  return meter.asked > 0 ? <p>Asking ahead, measured in this browser since this page opened: {meterLine(meter)}</p> : null;
+  return meter.asked > 0 ? <p>Asking ahead: {meterLine(meter)}</p> : null;
 }
 
 function RetryOpener({ back, onClick }: { back: boolean; onClick: () => void }) {
@@ -254,7 +251,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
         ) : retrySpot(e) ? (
           <RetryOpener back={closed === e} onClick={() => setRetrying(e)} />
         ) : (
-          <p className="text-xs text-muted">This one can&rsquo;t be retried: its spot wasn&rsquo;t kept.</p>
+          <p className="text-xs text-muted">Can&rsquo;t retry: spot not kept.</p>
         ))}
     </div>
   );
@@ -282,7 +279,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
         </button>
       </div>
       <Link to="/review" className="text-xs underline">
-        Every mistake kept, and what&rsquo;s due for review
+        All mistakes in Review
       </Link>
       {retry && (
         <div role="group" aria-label="Step through your decisions" className="flex flex-wrap items-center gap-2">
@@ -292,7 +289,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
           <button type="button" disabled={at < 0 || at === review.length - 1} onClick={() => show(review[at + 1] ?? null)} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50">
             Later
           </button>
-          <span className="text-xs text-muted">{at >= 0 ? `Decision ${at + 1} of the ${review.length} kept` : `Your last ${review.length} graded decision${review.length === 1 ? "" : "s"}`}. Looking back or retrying changes nothing at the table.</span>
+          <span className="text-xs text-muted">{at >= 0 ? `Decision ${at + 1} of ${review.length}` : `Last ${review.length} graded decision${review.length === 1 ? "" : "s"}`}</span>
         </div>
       )}
       {pick && !xs.some((x) => x.e === pick) && detail(pick)}
@@ -368,13 +365,12 @@ export function Carried({ hand, sim, onReset }: { hand: PracticeHand; sim: Sim; 
           </>
         )}
         {names && ` · ${names} rebought to ${hand.stack}bb`}
-        {hand.result?.folded && sim.active.size > 1 && !sim.handOver && " · the others' chips go as if they checked it down"}
       </span>
       <button
         type="button"
         onClick={onReset}
         disabled={!hand.result}
-        title={`The next hand with every seat back at ${hand.stack}bb (the setup's stack)`}
+        title={`Every seat back to ${hand.stack}bb`}
         className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
       >
         Reset stacks
@@ -427,28 +423,16 @@ export function PlayedOut({ hand, sim, onRestart }: { hand: PracticeHand; sim: S
               </>
             )
           )}
-          {hand.result?.folded && sim.active.size > 1 && !sim.handOver && " · the others' chips go as if they checked it down"}
-        </span>
+          </span>
         <button
           type="button"
           onClick={onRestart}
           disabled={!hand.result}
-          title="The next hand starts the tournament over from the setup"
           className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40"
         >
           Start over
         </button>
       </div>
-      <p>
-        Played out by Lizard&rsquo;s own simplification: the blinds go up {LEVEL_RISE}× every {LEVEL_HANDS} hands, a player out is paid the
-        lowest prize left once all left are paid, the tables are balanced after every hand (players come from the other tables at
-        their average stack, or the one due the big blind moves away, never you; the last tables merge into a final table), the
-        other tables are only a count and an average stack, and they lose {FIELD_RATE * 100}% of their players a level.
-        {t.bounty &&
-          (t.bounty.format === "mystery"
-            ? " Each knockout, here or at the other tables, draws a mystery envelope at random from those left, from the first hand (many real events start the draws later), whoever won the most chips in the hand drawing it; the answers value a knockout at the average envelope left."
-            : " A bounty goes to whoever won the most chips in the hand that knocked its player out, and a player from another table brings the other tables' average bounty.")}
-      </p>
     </div>
   );
 }
@@ -511,7 +495,8 @@ export function FallbackMoves({ hand, onMove }: { hand: PracticeHand; onMove: (a
 }
 
 /** `spot`: where it was taken, for Copy for AI, on a graded decision. */
-export function DecisionView({ d, players, title = "Your last decision", spot, children }: { d: Omit<Decision, "move">; players: number; title?: string; spot?: Reviewed; children?: ReactNode }) {
+// (`players` is no longer read; kept so callers outside Practice stay unchanged)
+export function DecisionView({ d, title = "Your last decision", spot, children }: { d: Omit<Decision, "move">; players?: number; title?: string; spot?: Reviewed; children?: ReactNode }) {
   const g = d.grade;
   // (a stored turn keeps no hand's EV, so there's no column of dashes to read as if one had been left out)
   const hasEv = d.provenance?.source !== "library-turn" && d.provenance?.source !== "push-fold" && d.provenance?.evIn !== "chips" && d.mix.some((a) => a.ev != null);
@@ -532,15 +517,15 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
       </div>
       {d.revealed && (
         <p role="status" className="text-muted">
-          {REVEAL_NOTE} {REVEAL_CHIPS}
+          {REVEAL_NOTE}
         </p>
       )}
       {d.offProfile && (
         <p className="text-muted">
-          The engine answered this spot without the assumed profile, so the numbers below aren&rsquo;t a best response to it. An exploit session is never graded against anything else, so this decision isn&rsquo;t counted.
+          No best response to the profile here: not counted.
         </p>
       )}
-      {g && d.pfWhy && <p className="text-muted">Not by the preflop solve here, so this is the chart&rsquo;s grade: {d.pfWhy}</p>}
+      {g && d.pfWhy && <p className="text-muted">Chart&rsquo;s grade, not the solve&rsquo;s: {d.pfWhy}</p>}
       {g && d.mix.length > 0 && (
         <p>
           {whyText(
@@ -562,18 +547,6 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
         </p>
       )}
       {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} unit={evUnit(d.provenance)} />}
-      {/* (what the grade rests on, said once asked: the badge names the answer, and the verdict, the why and the EV come first) */}
-      <details className="text-xs text-muted">
-        <summary className="cursor-pointer">How this was graded</summary>
-        <div className="mt-1 space-y-1">
-          {g && d.provenance?.source === "best-response" && <p>{GRADED_BY_READ}</p>}
-          {g && d.provenance?.source === "preflop-solve" && <p>{PF_GRADED}</p>}
-          <p>
-            Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.
-            {d.mix.some((a) => a.rough) ? " ≈ marks a move the range almost never takes, whose EV is rough." : ""}
-          </p>
-        </div>
-      </details>
       {children}
       {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}
       {d.study && (
@@ -581,7 +554,7 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
           <Link to={`/study?${d.study}`} className="text-accent hover:underline">
             Open this spot in Study →
           </Link>
-          {d.provenance?.source === "best-response" && <span className="text-xs text-muted"> Study opens it at equilibrium. Its lock panel has the same profiles.</span>}
+          {d.provenance?.source === "best-response" && <span className="text-xs text-muted"> (at equilibrium)</span>}
         </p>
       )}
     </section>

@@ -22,7 +22,7 @@ function ClassicSpeed() {
     try {
       const m = await readClassicSpeed();
       if (m) set({ mode: m });
-      setSaid(m ? `Set to ${SPEED_LABEL[m]}, the speed saved on the older gto-solver site.` : "The older gto-solver site has no speed saved in this browser.");
+      setSaid(m ? `Set to ${SPEED_LABEL[m]}, the older site's speed.` : "No speed saved by the older site.");
     } catch (e) {
       setSaid(e instanceof Error ? e.message : String(e));
     } finally {
@@ -35,7 +35,6 @@ function ClassicSpeed() {
       <button type="button" disabled={busy} onClick={() => void use()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
         Use its speed
       </button>{" "}
-      (read only: its settings are left as they are; its other settings have no counterpart here).{" "}
       {said && <span role="status">{said}</span>}
     </p>
   );
@@ -47,17 +46,12 @@ export function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
-      <p className="text-sm text-muted">Saved in this browser (IndexedDB). Settings never leave your device.</p>
+      <p className="text-sm text-muted">Saved in this browser only.</p>
 
       <fieldset className="space-y-2 rounded-lg border border-border bg-surface p-4">
         <legend className="px-1 font-medium">Solve accuracy</legend>
         <ModePicker />
-        <p className="text-xs text-muted">
-          In the browser, Fast stops once a heads-up street settles; the local Python solver runs its whole budget.
-          Accurate aims at about 0.1% of the pot heads-up; Quick solves a smaller game and is rough on turns. Study offers
-          Fast and Accurate only and runs Quick at Fast. Library flops answer instantly at every speed (on the local
-          solver, the flops of its own library).
-        </p>
+        <p className="text-xs text-muted">Study runs Quick at Fast. Library flops are instant.</p>
         <ModeTimes />
         <ClassicSpeed />
       </fieldset>
@@ -67,8 +61,8 @@ export function SettingsPage() {
         <p className="text-xs text-muted">
           <Link to="/engine" className="underline">
             Engine status
-          </Link>{" "}
-          shows the solver runtime, its threads, versions and diagnostics.
+          </Link>
+          : runtime and diagnostics.
         </p>
         <label className="flex items-center gap-2 text-sm">
           <input type="radio" name="transport" checked={s.transport === "worker"} onChange={() => s.set({ transport: "worker" })} />
@@ -123,23 +117,17 @@ export function SettingsPage() {
             <option value="pot">% of pot</option>
           </select>
         </label>
-        <p className="text-xs text-muted">Applies to Study's action buttons and the hand-class panel; the EV grid shades in bb either way.</p>
+        <p className="text-xs text-muted">In Study; the EV grid stays in bb.</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={s.patterns} onChange={(e) => s.set({ patterns: e.target.checked })} />
           Patterns on action colours
         </label>
-        <p className="text-xs text-muted">
-          On a range grid or a mix bar each action has its colour and, over it, a pattern. Seven colours can&rsquo;t all be told apart by eye, least of all with colour-blindness, so the pattern is
-          what separates the closest. Turned off, actions are colour alone: cleaner to look at, but two sizes of bet can look alike, and the gaps and the legend are all that tell them apart.
-        </p>
+        <p className="text-xs text-muted">Tells close colours apart.</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={s.studyKeys} onChange={(e) => s.set({ studyKeys: e.target.checked })} />
           Keyboard shortcuts in Study
         </label>
-        <p className="text-xs text-muted">
-          The number keys play an action or pick a brush, b opens the range builder, and Backspace and the arrow keys walk the line. The number keys, b and Backspace only work
-          with focus away from buttons, links and fields. Turn this off if the keys get in the way of speech input or another tool.
-        </p>
+        <p className="text-xs text-muted">Numbers: actions or brushes; b: builder; Backspace and arrows: walk the line. Not while a field has focus.</p>
       </fieldset>
 
       {SyncPanel && (

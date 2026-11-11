@@ -13,7 +13,7 @@ import { useSettings } from "@/state/settings";
 import { BlockersPanel } from "./BlockersPanel";
 import { curveAt, curvesOf, nutAdvantage, rangeAdvantage, runoutText, sidesOf, takingAction } from "./breakdown";
 import { studyRequest, type StudyHand } from "./studyState";
-import { isAggressive, valueBluff, valueBluffText, valueShare, type ValueBluff } from "./valueBluff";
+import { valueBluff, valueBluffText, valueShare, type ValueBluff } from "./valueBluff";
 
 type Run = { kind: "asking" } | { kind: "none"; message: string } | { kind: "done"; bd: Breakdown; res: AdvisorResponse; provenance: Provenance };
 
@@ -50,7 +50,7 @@ export function BreakdownPanel({
         const r = await client.solve({ state: { ...studyRequest(hand), breakdown: true }, mode, signal: ac.signal });
         const bd = r.data.breakdown;
         if (ac.signal.aborted) return;
-        setRun(bd ? { kind: "done", bd, res: r.data, provenance: r.provenance } : { kind: "none", message: "No breakdown here: this spot was answered by the betting rules, with no solve to break down." });
+        setRun(bd ? { kind: "done", bd, res: r.data, provenance: r.provenance } : { kind: "none", message: "No breakdown: betting rules, not a solve." });
       } catch (e) {
         if (ac.signal.aborted) return;
         setRun({ kind: "none", message: e instanceof SolverError && e.kind === "cancelled" ? "Stopped." : e instanceof Error ? e.message : String(e) });
@@ -100,7 +100,7 @@ function Shown({
       {curves.length > 1 ? (
         <Equity bd={bd} sides={curves} />
       ) : (
-        <p className="text-xs text-muted">No equity distribution here: this answer has no equities for the ranges.</p>
+        <p className="text-xs text-muted">No equities in this answer.</p>
       )}
       <BlockersPanel res={res} bd={bd} provenance={provenance} {...blockers} />
     </div>
@@ -186,7 +186,7 @@ function Categories({ bd, res, provenance, evUnit, onFilter }: { bd: Breakdown; 
             <th scope="col" className="w-11 py-0.5 text-right font-normal">%</th>
             {hasEq && <th scope="col" className="w-10 py-0.5 text-right font-normal">Eq</th>}
             {hasEv && <th scope="col" className="w-12 py-0.5 text-right font-normal">EV</th>}
-            {vb && <th scope="col" title="How much of this category's combos in the action is value" className="w-12 py-0.5 text-right font-normal">Value</th>}
+            {vb && <th scope="col" title="Value share" className="w-12 py-0.5 text-right font-normal">Value</th>}
           </tr>
         </thead>
         <tbody>
@@ -225,14 +225,7 @@ function Categories({ bd, res, provenance, evUnit, onFilter }: { bd: Breakdown; 
       )}
       {vb && taking !== null && <ValueBluffView s={vb} color={colors[taking]!} text={valueBluffText(vb, bd, res)} />}
       {split?.kind === "none" && <p className="text-xs text-muted">{split.why}</p>}
-      <p className="text-xs text-muted">
-        {shownPart === "made"
-          ? "Made hands by what the hole cards add: a pair on the board is everyone's. Top pair's kicker is top, good (the next two) or weak."
-          : "Draws by what the hole cards add. Each hand counts once, in its best draw."}
-        {hasEv ? ` EV in ${unit}.` : ""}
-        {taking !== null ? " Equity and EV aren't shown for one action: the table has them for a whole category, and the hands taking one action needn't share them." : ""}
-        {hero && taking === null && bd.actions.some(isAggressive) ? " Pick a bet or raise above to see how much of it is value and how much bluff." : ""}
-      </p>
+      {hasEv && <p className="text-xs text-muted">EV in {unit}.</p>}
     </section>
   );
 }

@@ -105,6 +105,99 @@ textarea {
   border-color: var(--color-danger);
 }
 
+/* A select draws its own chevron; its list is components/SelectMenu.tsx, not the system's popup. */
+select:not([multiple]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2394a39b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.6rem auto;
+  padding-right: 1.6rem;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+select:not([multiple]):hover:not(:disabled) {
+  border-color: var(--color-muted);
+}
+
+select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Checkboxes, radios and sliders in the accent, not the system blue. */
+input:is([type="checkbox"], [type="radio"], [type="range"]) {
+  accent-color: var(--color-accent-strong);
+  cursor: pointer;
+}
+
+/* Number fields without the system's spin arrows: they're typed into. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* A file picker's button like the app's own. */
+input[type="file"] {
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  padding: 0.25rem 0.6rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: var(--color-surface-3);
+}
+
+/* A date field's calendar mark, light on the dark theme. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+/* A fold's mark: a small chevron that turns, not the system's triangle. */
+summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 0.42em;
+  height: 0.42em;
+  margin-right: 0.5em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-0.12em) rotate(-45deg);
+  opacity: 0.7;
+  transition: transform 0.15s;
+}
+
+details[open] > summary::before {
+  transform: translateY(-0.2em) rotate(45deg);
+}
+
 /* A pressed control's fill is 1.25:1 against the panel, so it gets a mark that isn't only a shade. An underline, as a
    box-shadow here would cancel the ring some of these use and forced-colors mode would drop it. */
 [aria-pressed="true"],

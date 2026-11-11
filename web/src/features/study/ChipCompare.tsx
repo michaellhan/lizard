@@ -60,8 +60,7 @@ export function ChipCompare({
       <p className="text-xs text-muted">
         <button type="button" onClick={() => void ask()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2">
           Compare with chip EV
-        </button>{" "}
-        The same spot in chips: the same stacks, ante and line, with no prizes, other tables or bounties.
+        </button>
       </p>
     );
   if (state.kind === "loading")
@@ -122,8 +121,7 @@ export function ChipCompare({
       <p>
         <Link to={compareLink(hand, chipHand(hand))} className="underline hover:text-text">
           Every hand class, prize equity against chips
-        </Link>{" "}
-        <span className="text-muted">(Compare: each class's change in frequency and EV)</span>
+        </Link>
       </p>
     </section>
   );

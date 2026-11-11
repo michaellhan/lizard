@@ -51,7 +51,7 @@ describe("when the database won't open", () => {
       expect(await db()).toBeNull();
     });
     expect(dbState()).toBe("failed");
-    expect(screen.getByRole("alert")).toHaveTextContent("nothing you do here is being kept");
+    expect(screen.getByRole("alert")).toHaveTextContent("nothing is being kept");
     expect(quiet).toHaveBeenCalled();
     expect(await putSpot(SPOT)).toBe(false);
     expect(await putRange(RANGE)).toBe(false);

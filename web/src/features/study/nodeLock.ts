@@ -84,8 +84,8 @@ export function combosNamed(scope: LockScope, board = ""): number | null {
  * in both modes, so nothing refuses a hand here; what differs is what's below it. */
 export function scopeNote(street: AdvisorResponse["street"], scope: LockScope): string | null {
   if (scope.kind === "range") return null;
-  if (street === "turn") return "The rivers below are played as one card per class, exact only for ranges symmetric in the swapped suits. Holding some hands and not others breaks that, so this answer is marked approximate.";
-  if (street === "flop") return "Below this flop hands share buckets from the turn on, so the hands you name are held here and are no longer apart there.";
+  if (street === "turn") return "Rivers by card class: marked approximate.";
+  if (street === "flop") return "Hands share buckets from the turn on.";
   return null;
 }
 
@@ -93,7 +93,7 @@ export function scopeNote(street: AdvisorResponse["street"], scope: LockScope): 
  * one, which stays in memory to be compared. An estimate: docs/ACCURACY.md section 16 has what's been measured. */
 export const memoryNote = (street: AdvisorResponse["street"], mode: SolveMode): string | null =>
   street === "flop" && mode === "accurate"
-    ? "At Accurate on a flop, both solves stay in memory to be compared: an estimated 1.2 GB, not measured in a browser, which a phone may not have. Fast asks for far less."
+    ? "Accurate on a flop needs about 1.2 GB; a phone may not cope. Fast uses less."
     : null;
 
 /** Each seat's value in both solves, the player acting first. */
@@ -120,14 +120,13 @@ export function costWords(n: NodeLockBlock): string {
   const me = n.seats[n.player], them = n.seats[1 - n.player];
   const cost = n.locked.lock_cost[n.player];
   const first = cost < 0.005 ? `Dropping the lock wins ${me} nothing against ${them} as ${them} now plays.` : `Dropping the lock would win ${me} ${cost.toFixed(2)} bb more against ${them} as ${them} now plays.`;
-  const what = "That's what holding this mix leaves on the table against an opponent who has adapted to it. It says nothing about how far the solve got.";
-  const open = n.untrained ? ` The lock leaves an action unplayed, so ${them} never trained an answer to it, and this figure can run well above what the lock really costs: the change in value is the better guide.` : "";
-  return `${first} ${what}${open}`;
+  const open = n.untrained ? ` An action is left unplayed, so ${them} never trained an answer to it: this can overstate the cost.` : "";
+  return `${first}${open}`;
 }
 
 /** The exploitability, on the engine's definition, beside the unlocked solve's on the same one. */
 export const exploitWords = (n: NodeLockBlock): string =>
-  `${Math.max(n.locked.exploitability_pct, 0).toFixed(3)}% of the pot in the restricted game: each player's best response keeps their own locks. The unlocked solve measures ${Math.max(n.unlocked.exploitability_pct, 0).toFixed(3)}% on the same definition.`;
+  `${Math.max(n.locked.exploitability_pct, 0).toFixed(3)}% of the pot in the restricted game (unlocked: ${Math.max(n.unlocked.exploitability_pct, 0).toFixed(3)}%).`;
 
 /** The unlocked column's own provenance: the live solve the lock was set against, in this tree. */
 export function unlockedProvenance(locked: Provenance, n: NodeLockBlock): Provenance {

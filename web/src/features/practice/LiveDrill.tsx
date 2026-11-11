@@ -11,7 +11,7 @@ import { bb, pct } from "@/components/actions";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { missedAgain } from "@/features/review/mistakes";
-import { CAPPED_WORDS, GRADE_RULES, summary, whoOf, whyText, type Grade } from "@/grading/grade";
+import { CAPPED_WORDS, summary, whoOf, whyText, type Grade } from "@/grading/grade";
 import { storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryRanges } from "@/library/entry";
 import type { LibraryFiles, LibraryReport } from "@/library/files";
@@ -22,7 +22,6 @@ import { useSettings } from "@/state/settings";
 import { liveDrillText } from "./copyForAi";
 import { pick, turnCandidates, type TextureFilter } from "./drills";
 import { PastDrills } from "./PastDrills";
-import { handLabel } from "./handFilter";
 import { liveHint, LIVE_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, Kbd, MixTable, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { isNextKey, optionFromKey } from "./keys";
@@ -88,7 +87,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
             return;
           }
         }
-        setDeal({ key: dealKey, st: "none", message: hand ? `No hand of this kind reached this decision on the ${tries} flops drawn: widen a filter, or deal again.` : "No stored line reaches this decision on the flops drawn: deal again, or pick another." });
+        setDeal({ key: dealKey, st: "none", message: hand ? `None of these hands on ${tries} flops drawn: widen a filter.` : "No stored line reaches this decision: deal again." });
       } catch (e) {
         if (alive) setDeal({ key: dealKey, st: "none", message: `Couldn't deal: ${message(e)}` });
       }
@@ -206,8 +205,8 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted">
-        {spot.label} in {source}: {new Set(cands.map((c) => c.f)).size.toLocaleString()} flops with stored turns{filtered ? " and this texture" : ""}. No file stores this decision: the line, the {street === "river" ? "turn card and which hands get here are stored ones, the river is dealt at random," : "bet and which hands get here are stored ones,"} and each hand is answered by a live solve, at Fast or above, so it takes some seconds. It&rsquo;s graded by that solve&rsquo;s EVs, on the same scale as any decision.
-        {street === "river" ? " A river comes only after the turn checks through: no file stores who calls a turn bet, so a river facing a bet isn't dealt." : ""}
+        {spot.label} in {source}: {new Set(cands.map((c) => c.f)).size.toLocaleString()} flops with stored turns{filtered ? " and this texture" : ""}. Each hand is a live solve (some seconds).
+        {street === "river" ? " Rivers only after a checked turn." : ""}
       </p>
 
       <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
@@ -217,7 +216,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
         {item("Streak", `${s.streak} (best ${s.best})`)}
         {!!session.revealed && (
           <p className="basis-full text-xs text-muted">
-            {session.revealed} pick{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers.
+            {session.revealed} revealed pick{session.revealed === 1 ? "" : "s"} not graded.
           </p>
         )}
       </section>
@@ -227,11 +226,11 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
       <section aria-label="Your hand" className="space-y-3 rounded-lg border border-border bg-surface p-3">
         {noDraws ? (
           <p role="status" className="text-sm text-muted">
-            No card is left to come on the river, so {handLabel(hand!)} deals nothing: pick a made hand or a hand class.
+            No river draws: pick a made hand or class.
           </p>
         ) : !cands.length ? (
           <p role="status" className="text-sm text-muted">
-            {spot.label} stores no turn{filtered ? " with that texture: widen the filter" : " in this library, so nothing can be dealt here: pick another spot"}.
+            {spot.label} stores no turn{filtered ? " with that texture: widen the filter" : ": pick another spot"}.
           </p>
         ) : !shown ? (
           <p className="text-sm text-muted">Dealing…</p>
@@ -305,7 +304,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
       {pr && answer && graded && (
         <section aria-label="Answer" className="space-y-2 rounded-lg border border-border bg-surface p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: you revealed the answer first</span>}
+            {graded.g ? <VerdictTag v={graded.g.verdict} /> : <span className="text-xs text-muted">Not graded: revealed</span>}
             <span>
               you took <span className="font-mono">{label(answer.mix[graded.a]!)}</span>
               {graded.g && graded.g.a !== graded.g.best && (
@@ -340,7 +339,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
           {answer.off && <p className="text-warn">Off the solve here: {answer.off}.</p>}
           <MixTable mix={answer.mix} hasEv={hasEv} labelOf={label} chose={answer.mix[graded.a]!.action} unit={evUnit(answer.provenance)} />
           <p className="text-xs text-muted">
-            Your hand&rsquo;s frequencies and EVs from this solve, on ranges narrowed by solving the streets before it. The flop {pr.flop} and the {pr.cards.length > 1 ? `cards ${pr.cards.join(" ")}` : `turn ${pr.cards[0]}`} are shown in other suits.
+            {pr.flop} {pr.cards.join(" ")} shown in other suits.
           </p>
           {graded.g && <CopyForAi key={dealKey} text={() => liveDrillText(rep, pr, graded.g!, answer)} />}
           <div className="flex flex-wrap items-center gap-3">
@@ -358,23 +357,8 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
       )}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-        <summary className="cursor-pointer">How decisions are graded</summary>
-        <ul className="mt-2 space-y-1">
-          {GRADE_RULES.map((r) => (
-            <li key={r.verdict}>
-              <VerdictTag v={r.verdict} /> {r.rule}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-muted">
-          Only a live solve of the spot with an EV for every action and a measured distance from equilibrium grades here. Betting rules, an equity estimate, a chart or a rough or cut-short solve is said in words and the spot is dealt again, with nothing scored.
-        </p>
-      </details>
 
       <PastDrills past={past} current={session.id} history="/history?kind=practice" historyLabel="Every Practice session" />
-      </div>
     </div>
   );
 }

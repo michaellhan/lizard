@@ -29,10 +29,9 @@ const show = (source: string) =>
 describe("DecisionView", () => {
   it("doesn't call a stored turn the chart, and has no EV column for it", () => {
     show("library-turn");
-    expect(screen.getByText(/no EV is stored for it/)).toBeTruthy();
+    expect(screen.getByText(/no EV stored/)).toBeTruthy();
     expect(screen.queryByText(/preflop charts/)).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "EV bb" })).toBeNull();
-    expect(screen.getByText(/Your hand.s frequencies at this heads-up spot/)).toBeTruthy();
   });
   it("marks an EV the answer calls rough, in the table and in what was given up", () => {
     const d = decision("live");
@@ -51,12 +50,11 @@ describe("DecisionView", () => {
   });
   it("still says so for the preflop charts", () => {
     show("charts");
-    expect(screen.getByText(/the preflop charts have no EVs/)).toBeTruthy();
+    expect(screen.getByText(/charts have no EVs/)).toBeTruthy();
     // (a column of dashes would say there's something to read)
     expect(screen.queryByRole("columnheader", { name: "EV bb" })).toBeNull();
-    expect(screen.getByText(/Your hand.s frequencies at this heads-up spot/)).toBeTruthy();
   });
-  it("says a grade by the preflop solve is a simplified model's, with the opponents on the charts", () => {
+  it("calls a grade by the preflop solve a class-level model's", () => {
     const d = decision("preflop-solve");
     d.grade = { ...d.grade!, byEv: true };
     d.mix = [{ action: "check", freq: 1, ev: 1 }, { action: "bet", freq: 0, ev: 0.5 }];
@@ -65,9 +63,8 @@ describe("DecisionView", () => {
         <DecisionView d={d} players={6} />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/an equilibrium of a simplified class-level game, not a full solve/)).toBeTruthy();
-    expect(screen.getByText(/the opponents here play the charts/)).toBeTruthy();
-    expect(screen.queryByText(/Not by the preflop solve/)).toBeNull();
+    expect(screen.getByRole("button", { name: /class-level model/ })).toBeTruthy();
+    expect(screen.queryByText(/Chart.s grade/)).toBeNull();
   });
   it("says why a decision in such a session took the chart's grade, and calls it the chart's", () => {
     const d = decision("charts");
@@ -77,8 +74,8 @@ describe("DecisionView", () => {
         <DecisionView d={d} players={6} />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/Not by the preflop solve here, so this is the chart.s grade: The solve.s options aren.t yours here\./)).toBeTruthy();
-    expect(screen.getByText(/Graded by how often the chart plays it/)).toBeTruthy();
+    expect(screen.getByText(/Chart.s grade, not the solve.s: The solve.s options aren.t yours here\./)).toBeTruthy();
+    expect(screen.getByText(/Graded by chart frequency/)).toBeTruthy();
     expect(screen.queryByText(/not a full solve/)).toBeNull();
   });
   it("says neither of a decision in any other session", () => {

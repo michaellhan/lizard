@@ -24,7 +24,7 @@ describe("BackupNudge", () => {
     expect(screen.queryByRole("region", { name: "Backup reminder" })).toBeNull();
     await act(() => noteSaved());
     const line = await screen.findByRole("region", { name: "Backup reminder" });
-    expect(line).toHaveTextContent(`${NUDGE.first} saves since Lizard started counting, and no backup yet: they’re kept in this browser only`);
+    expect(line).toHaveTextContent(`${NUDGE.first} saves since Lizard started counting, and no backup yet: kept in this browser only`);
 
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Backup reminder" })).toBeNull());

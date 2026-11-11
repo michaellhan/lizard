@@ -5,15 +5,15 @@
 import { useState } from "react";
 import { rowKeys } from "@/components/rowKeys";
 import type { AdvisorResponse } from "@/solver/protocol";
-import { PF_STALL_BACK, pfFraction, pfMinutes, pfStalled, pfStatusOf, type PfRun } from "./pfSolve";
+import { pfFraction, pfMinutes, pfStalled, pfStatusOf, type PfRun } from "./pfSolve";
 import { describePfSizes, PF_SIZE, PF_SIZE_KEYS, pfSizeProblems, type PfSizeKey, type PfSizes } from "./pfSizes";
 
 export type PfSource = "charts" | "solver";
 
 export function PreflopSource({ value, onChange }: { value: PfSource; onChange: (v: PfSource) => void }) {
   const opts: [PfSource, string, string][] = [
-    ["charts", "Charts", "The hand-written charts the advice plays: a mix with no EVs"],
-    ["solver", "Solver", "A solve of this game's preflop (a class-level model): every hand's mix and EVs, run only when you ask"],
+    ["charts", "Charts", "Hand-written charts, no EVs"],
+    ["solver", "Solver", "Class-level preflop solve, with EVs"],
   ];
   return (
     <div role="radiogroup" aria-label="Preflop source" onKeyDown={rowKeys("radio", (i) => onChange(opts[i]![0]))} className="inline-flex rounded-md border border-border bg-surface-2 p-0.5 text-sm">
@@ -55,7 +55,6 @@ export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; on
           if (!problems.length) onApply(sizes);
         }}
       >
-        <p className="text-xs text-muted">The solve's raise sizes (the charts play their own). Blank: the default, in grey.</p>
         <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
           {PF_SIZE_KEYS.map((k) => {
             const { label, unit, lo, hi, def, hint } = PF_SIZE[k];
@@ -96,10 +95,7 @@ export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; on
             Defaults
           </button>
         </div>
-        <p className="text-xs text-muted">
-          Other sizes are another game: the precomputed 6-max solves don't hold it, so it's offered to solve in your browser (seconds heads-up, minutes at 6-max). A line's
-          raises are played at the solve's sizes, said under the answer.
-        </p>
+        <p className="text-xs text-muted">Non-default sizes solve in your browser.</p>
       </form>
     </details>
   );
@@ -128,7 +124,7 @@ export function PfProgress({ run, onStop }: { run: PfRun; onStop: () => void }) 
         {run.stop ? (
           <span className="text-muted">Stopping after this chunk…</span>
         ) : (
-          <button type="button" onClick={onStop} title="Stop here: the answers so far stay" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+          <button type="button" onClick={onStop} title="Answers so far stay" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
             Stop
           </button>
         )}
@@ -157,10 +153,7 @@ export function PfPanel({ res, running, onSolve, onCharts }: { res: AdvisorRespo
       <p>
         <b>Solve this game's preflop</b>: {String(res.game ?? "")}.
       </p>
-      <p className="text-muted">
-        Every hand's mix and EVs at every preflop decision, at the equilibrium of a class-level model (flops valued by the flop library's realization; no ICM). About{" "}
-        {pfMinutes(est)} in your browser, on one core; the strategy shows as it converges, and you can stop any time. It runs only when you ask.
-      </p>
+      <p className="text-muted">Class-level model, about {pfMinutes(est)} in your browser.</p>
       {!running && (
         <button type="button" onClick={onSolve} className="rounded bg-accent px-3 py-1 font-medium text-bg">
           Solve
@@ -176,18 +169,7 @@ export function PfNote({ res, running, onContinue }: { res: AdvisorResponse; run
   if (!p) return null;
   return (
     <div role="group" aria-label="About the preflop solve" className="space-y-1 text-xs text-muted">
-      <details>
-        <summary className="cursor-pointer hover:text-text">About this preflop solve</summary>
-        <p className="mt-1">
-        Preflop solve of this game ({p.label}): {p.cached ? "solved earlier in this browser, " : p.stored ? "precomputed, " : ""}
-        {p.iterations} iterations{p.mbb != null ? `, ${num(p.mbb)} mbb/hand from equilibrium (a seat's average)` : ""}
-        {pfStalled(p)
-          ? `; it stopped there, getting no nearer in ${PF_STALL_BACK} iterations (the model's three-way pots keep some games above the ${num(p.target_mbb ?? 0)} mbb target, though their numbers settle)`
-          : ""}
-        . The solve's own equilibrium of a class-level model (its flops valued by the flop library's realization), not the charts: the advice plays the charts, which
-        fit published solves better.
-        </p>
-      </details>
+      {pfStalled(p) && <p>Stopped above its {num(p.target_mbb ?? 0)} mbb target.</p>}
       {!p.done && (
         <p className="text-warn">
           Not finished: the numbers can still move.{" "}
@@ -200,8 +182,7 @@ export function PfNote({ res, running, onContinue }: { res: AdvisorResponse; run
       )}
       {res.rough ? (
         <p className="text-warn">
-          A line the solve rarely or never plays: the mix here is barely solved (the range gives up {typeof res.regret_bb === "number" ? res.regret_bb.toFixed(3) : "?"}bb a hand
-          to its best actions here), so take its EVs as rough.
+          Rarely played line: EVs rough (range gives up {typeof res.regret_bb === "number" ? res.regret_bb.toFixed(3) : "?"}bb a hand here).
         </p>
       ) : null}
     </div>

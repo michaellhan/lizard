@@ -14,8 +14,6 @@ import { studyRequest, type StudyHand } from "./studyState";
 /** seconds a chunk runs; the iterations a 6-max solve takes to its target (the bar before the first measure) */
 export const PF_CHUNK = 4;
 export const PF_ITERS = 1000;
-/** a solve with a target stops once it gets no nearer in this many iterations (pf_study.STALL_BACK) */
-export const PF_STALL_BACK = 200;
 /** finished solves kept in the browser (~0.3 MB each at 6-max), the oldest dropped */
 export const PF_KEEP = 6;
 

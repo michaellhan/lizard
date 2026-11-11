@@ -43,6 +43,6 @@ export async function openGame(page: Page): Promise<void> {
 
 /** Practice's score: what graded the session, and its notes, are on a fold under the figures; opened if it's closed. */
 export async function openScoreNotes(page: Page): Promise<void> {
-  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^(Graded against:|Where these numbers come from)/ }) }).first();
+  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^(Graded against:|Nothing graded yet)/ }) }).first();
   if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
 }

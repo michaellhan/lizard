@@ -11,7 +11,7 @@ import { midnight } from "@/features/review/schedule";
 import type { LibrarySpotIndex } from "@/library/catalog";
 import { SEATS } from "@/poker/seats";
 import { CHART, chartMistake, mistake } from "@/test/mistake";
-import { buildPlan, DRILL_TARGET, gameOf, librarySpotFor, PLAN_RULE, PLAN_SCOPE, withLibrary, type PlanHand, type PlanInput } from "./plan";
+import { buildPlan, DRILL_TARGET, gameOf, librarySpotFor, withLibrary, type PlanHand, type PlanInput } from "./plan";
 
 const NOW = new Date(2026, 10, 5, 12).getTime();
 const DAY = 86_400_000;
@@ -64,7 +64,7 @@ describe("the plan's order", () => {
     const last = plan.leaks.at(-1)!;
     expect(plan.leaks[0]!.lost).toBeGreaterThan(0);
     expect(last.lost).toBeNull();
-    expect(last.says.join(" ")).toMatch(/No EV to weigh/);
+    expect(last.says.join(" ")).toMatch(/No EV: all \d+ decisions graded by frequency/);
   });
 
   it("gives the same plan in any order of what's kept", () => {
@@ -75,12 +75,6 @@ describe("the plan's order", () => {
     expect(b.thin.map((l) => l.id)).toEqual(a.thin.map((l) => l.id));
     expect(b.drill?.to).toBe(a.drill?.to);
   });
-
-  it("states the rule, and that it's no coach", () => {
-    expect(PLAN_RULE).toHaveLength(4);
-    expect(PLAN_SCOPE).toMatch(/rule, not a coach/);
-    expect(PLAN_SCOPE).toMatch(/can't say why/);
-  });
 });
 
 describe("reviews", () => {
@@ -89,7 +83,7 @@ describe("reviews", () => {
     expect(r.title).toBe("Retry 2 due reviews");
     expect(r.to).toBe("/review?retry=next");
     expect(r.says.join(" ")).toMatch(/2 mistakes due/);
-    expect(r.says.join(" ")).toMatch(/1 first graded by EV, 1 by frequency/);
+    expect(r.says.join(" ")).toMatch(/1 graded by EV, 1 by frequency/);
     expect(r.says.join(" ")).toMatch(/Preflop charts/i);
   });
 
@@ -102,7 +96,7 @@ describe("reviews", () => {
   it("counts a tournament or exploit review in the queue, and says so", () => {
     const r = buildPlan(input({ mistakes: [dueToday({ id: "a", tournament: "x" as never }), dueToday({ id: "b", exploit: "y" as never })] })).reviews!;
     expect(r.due).toBe(2);
-    expect(r.says.join(" ")).toMatch(/1 from tournament sessions and 1 from exploit sessions/);
+    expect(r.says.join(" ")).toMatch(/Includes 1 from tournaments and 1 from exploit sessions/);
   });
 
   it("is done only when none is due and one moved on today: never by a press, nor by a retry that moved nothing", () => {
@@ -118,14 +112,6 @@ describe("reviews", () => {
 });
 
 describe("reviews, with entries from Analyze", () => {
-  it("says which answer a retry is graded against", () => {
-    const kept = (id: string) => dueToday({ id, from: "analyze", ask: { via: "kept", hand: "h1", decision: `h1|${id}` } });
-    const words = (mistakes: MistakeRecord[]) => buildPlan(input({ mistakes })).reviews!.says[0];
-    expect(words([dueToday()])).toMatch(/A retry is graded against the answer there is now\.$/);
-    expect(words([kept("a")])).toMatch(/A retry is graded against the answer kept with its decision, nothing solved\.$/);
-    expect(words([kept("a"), dueToday()])).toMatch(/the answer there is now, or, for the 1 from Analyze or a leak drill, against the answer kept with its decision\.$/);
-  });
-
   it("orders and counts them as any entry: the longest overdue first, finished ones and those not due out", () => {
     const ask = { via: "kept", hand: "h1", decision: "d" } as const;
     const plan = buildPlan(
@@ -157,7 +143,7 @@ describe("leaks", () => {
     const leak = buildPlan(input({ decisions: times(40, () => open()) })).leaks.find((l) => l.leak.kind === "pf")!;
     const words = leak.says.join(" ");
     expect(words).toMatch(/0% in the mix \(95% range 0% to \d+%\) against the preflop charts, by frequency, not a solve, over 40 decisions/);
-    expect(words).toMatch(/No EV to weigh/);
+    expect(words).toMatch(/No EV: all/);
     expect(leak.lost).toBeNull();
   });
 
@@ -189,12 +175,6 @@ describe("leaks", () => {
     expect(firstFreq).toBeGreaterThan(plan.leaks.findLastIndex((l) => l.pfLost !== null));
   });
 
-  it("says the order on the page, and that the two are neither added nor weighed", () => {
-    expect(PLAN_RULE[1]).toMatch(/a solve of the spot first, the most first; then those with EV given up to the preflop solve/);
-    expect(PLAN_RULE[1]).toMatch(/neither added to a spot's nor weighed against them/);
-    expect(PLAN_RULE[1]).toMatch(/graded by frequency has no EV to weigh/);
-  });
-
   it("is done when every decision its drill can deal has been answered, and a new one undoes it", () => {
     const ds = times(40, () => flop("SRP · IP · checked to", 1));
     const key = buildPlan(input({ decisions: ds })).leaks.find((l) => l.leak.kind === "spot")!;
@@ -218,7 +198,7 @@ describe("leaks", () => {
     expect(leak.dealt).toBe(60);
     // the read stays over the 40 with an EV, and the row says why its drill has more
     expect(leak.says.join(" ")).toMatch(/over 40 decisions graded by EV/);
-    expect(leak.progress).toBe("0 of 60 decisions answered in its drill, 20 of them graded by frequency and dealt though the read above can't use them.");
+    expect(leak.progress).toBe("0 of 60 decisions answered in its drill, 20 of them by frequency.");
     const answered = (ids: readonly string[]) => session({ id: drillSessionId(leak.leak), kind: "analysis", meta: { drill: "leak", done: ids, score: {} } });
     const most = buildPlan(input({ decisions, sessions: [answered(byEv.map((x) => x.id))] })).leaks.find((l) => l.id === leak.id)!;
     expect(most.done).toBe(false);
@@ -258,7 +238,7 @@ describe("what's kept out of the leaks", () => {
 
   it("gives the first step, not an empty plan, when that's all there is", () => {
     const plan = buildPlan(input({ hands, decisions: [...leaky("t"), ...leaky("x")], sessions: [session({ id: "e1", kind: "exploit" })] }));
-    expect(plan.first?.text).toMatch(/tournament hand or an exploit session/);
+    expect(plan.first?.text).toMatch(/tournament or exploit session/);
   });
 
   it("leaves a tournament or exploit mistake out of the misses, though the queue keeps it", () => {
@@ -278,19 +258,19 @@ describe("too few to read", () => {
     const plan = buildPlan(input({ decisions: [...thin(12, "SRP · IP · checked to"), ...thin(25, "3bet pot · IP · checked to")] }));
     const spots = plan.thin.filter((t) => t.leak.kind === "spot");
     expect(spots.map((t) => t.n)).toEqual([25, 12]);
-    expect(spots[0]!.says[0]).toBe(`Too few to read, and not a leak: 25 graded decisions, ${MIN_READ - 25} short of the ${MIN_READ} it takes.`);
+    expect(spots[0]!.says[0]).toBe(`25 graded decisions, ${MIN_READ - 25} short of ${MIN_READ}.`);
     expect(spots[0]!.says.join(" ")).not.toMatch(/bb lost|% in the mix|You \d/);
     expect(spots[0]!.title).toBe(`Collect hands: ${spots[0]!.what}`);
     expect(spots[0]!.also.to).toBe("/analyze");
     expect(spots[0]!.done).toBe(false);
   });
 
-  it("isn't a leak drill: its link starts hands in the pot it needs, and they're stated to count once graded", () => {
+  it("isn't a leak drill: its link starts hands in the pot it needs", () => {
     const row = buildPlan(input({ decisions: thin(12) })).thin.find((t) => t.leak.kind === "spot")!;
     const q = new URL(row.to, "http://x").searchParams;
     expect(new URL(row.to, "http://x").pathname).toBe("/practice");
     expect(readSetupLink(q)).not.toBeNull();
-    expect(row.says.join(" ")).toMatch(/counts here once it's kept and graded in Analyze/);
+    expect(row.says.join(" ")).toMatch(/The link plays /);
   });
 
   it("plays preflop for a preflop row", () => {
@@ -308,7 +288,7 @@ describe("the drill", () => {
     const s = readSetupLink(new URL(plan.drill!.to, "http://x").searchParams)!;
     expect(s).toMatchObject({ players: 6, stack: 100, opts: { seat: "BTN", preflopOnly: true, pot: null } });
     expect(plan.drill!.says[0]).toMatch(/13 of the 30 misses counted, 7 of them from BTN/);
-    expect(plan.drill!.says.join(" ")).toMatch(/preflop charts, by frequency, not a solve/);
+    expect(plan.drill!.says.join(" ")).toMatch(/preflop charts \(not a solve\)/);
   });
 
   it("settles a tie by the street's order, then the seat's", () => {
@@ -367,10 +347,6 @@ describe("the drill", () => {
       const held = kept(ds[0]!.id, { times: 3, decisions: { [ds[0]!.id]: 2, "h1|flop|9": 1 } });
       expect(buildPlan(input({ decisions: ds, mistakes: [held] })).drill).toMatchObject({ misses: 2 });
     });
-
-    it("says that it doesn't count one twice", () => {
-      expect(PLAN_RULE.join(" ")).toMatch(/isn't counted again where its own decision already is/);
-    });
   });
 
   it("doesn't count what was played in the mix, or what nothing graded", () => {
@@ -398,7 +374,7 @@ describe("the drill", () => {
     const practice = (decisions: number, x: Partial<SessionRecord> = {}, meta = {}) => session({ decisions, meta: { seat: "BTN", preflopOnly: true, ...meta }, ...x });
     const run = (...sessions: SessionRecord[]) => buildPlan(input({ decisions: ds, sessions })).drill!;
     expect(run().done).toBe(false);
-    expect(run().progress).toBe(`0 of ${DRILL_TARGET} decisions in this drill in sessions started today.`);
+    expect(run().progress).toBe(`0 of ${DRILL_TARGET} decisions today.`);
     expect(run(practice(DRILL_TARGET - 1)).done).toBe(false);
     expect(run(practice(DRILL_TARGET)).done).toBe(true);
     expect(run(practice(12, { id: "a" }), practice(8, { id: "b" })).done).toBe(true);
@@ -440,24 +416,24 @@ describe("with nothing to go on", () => {
   it("says what to do first with nothing kept", () => {
     const plan = buildPlan(input({ hands: [] }));
     expect(plan.next).toBeNull();
-    expect(plan.first?.text).toMatch(/Nothing is kept in this browser/);
+    expect(plan.first?.text).toMatch(/Nothing kept yet/);
     expect(plan.first?.links.map((l) => l.to)).toEqual(["/practice", "/analyze"]);
   });
 
   it("doesn't call a browser empty that keeps only mistakes it leaves out", () => {
     const plan = buildPlan(input({ hands: [], mistakes: [mistake({ tournament: "x" as never, due: NOW + DAY })] }));
-    expect(plan.first?.text).toMatch(/kept here \(1 mistake\) is from tournament or exploit sessions/);
+    expect(plan.first?.text).toMatch(/1 mistake kept, all from tournament or exploit sessions/);
   });
 
   it("sends kept hands to be graded", () => {
     const plan = buildPlan(input({ decisions: [d({ verdict: "Not graded", why: "x" })] }));
-    expect(plan.first?.text).toMatch(/1 hand kept and none graded/);
+    expect(plan.first?.text).toMatch(/1 hand kept, none graded/);
     expect(plan.first?.links[0]?.to).toBe("/analyze");
   });
 
   it("says when there's nothing to do over graded decisions", () => {
     const plan = buildPlan(input({ decisions: times(3, () => flop("SRP · IP · checked to", 0, { verdict: "Best" })) }));
-    expect(plan.first?.text).toMatch(/3 graded decisions leave no step/);
+    expect(plan.first?.text).toMatch(/Nothing to do yet over 3 graded decisions/);
   });
 
   it("has no first step once there's one, and says why each empty part is empty", () => {
@@ -510,17 +486,17 @@ describe("a generated session is set to the game you play", () => {
     expect(t.kind === "setup" && [t.setup.players, t.setup.stack]).toEqual([3, 40]);
     expect(t.to).toContain("players=3");
     expect(t.to).toContain("stack=40");
-    expect(plan.drill!.says.join(" ")).toContain("The table and stack are your last Practice session's.");
+    expect(plan.drill!.says.join(" ")).toContain("Table and stack from your last Practice session.");
     for (const step of plan.thin) expect(step.to).toContain("stack=40");
   });
 
   it("says when there's no session to go by, and sits a seat off your table at the smallest that has it", () => {
     const plan = buildPlan(input({ decisions: missed }));
-    expect(plan.drill!.says.join(" ")).toContain("No Practice session is kept, so that's 6-max at 100bb.");
+    expect(plan.drill!.says.join(" ")).toContain("6-max, 100bb.");
     const seated = buildPlan(input({ decisions: missed, sessions: [played({}, { players: 2 })] }));
     // (it says the table moved, not that it's yours)
-    expect(seated.drill!.says.join(" ")).not.toContain("The table and stack are your last Practice session's.");
-    expect(seated.drill!.says.join(" ")).toMatch(/The stack is your last Practice session's, at \d players, the smallest table with this seat\./);
+    expect(seated.drill!.says.join(" ")).not.toContain("Table and stack from your last Practice session.");
+    expect(seated.drill!.says.join(" ")).toMatch(/Stack from your last Practice session, \d players\./);
     const t = seated.drill!.target;
     expect(t.kind === "setup" && t.setup.stack).toBe(40);
     expect(t.kind === "setup" && SEATS[t.setup.players]!.includes(t.setup.opts.seat)).toBe(true);

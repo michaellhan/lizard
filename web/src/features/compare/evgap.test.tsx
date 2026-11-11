@@ -73,10 +73,10 @@ describe("Study's two actions' EV", () => {
     fireEvent.click(screen.getByRole("button", { name: "Compare two actions' EV" }));
     const panel = screen.getByRole("region", { name: "Two actions' EV" });
     expect(within(panel).getByRole("grid", { name: "EV of check minus bet 75%" })).toBeInTheDocument();
-    expect(within(panel).getByText(/≈ bet 75% is taken by almost none of the range here/)).toBeInTheDocument();
-    expect(within(panel).getByText(/1 class takes both at least 5% of the time; its gap is 0\.02bb in size/)).toBeInTheDocument();
+    expect(within(panel).getByText(/≈ bet 75% is almost never taken/)).toBeInTheDocument();
+    expect(within(panel).getByText(/1 class takes both 5%\+ of the time; gap 0\.02bb/)).toBeInTheDocument();
     // noise: 0.5% of the 10bb pot
-    expect(within(panel).getByText(/Gaps under 0\.05bb/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Under 0\.05bb: noise/)).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Swap" }));
     expect(within(panel).getByRole("gridcell", { name: "AA: bet 75% − check = +1.50bb (bet 75% 9.50bb, check 8.00bb; takes them 100% and 0%)" })).toBeInTheDocument();
     expect(within(panel).getByRole("gridcell", { name: "65s: not in the range" })).toBeInTheDocument();

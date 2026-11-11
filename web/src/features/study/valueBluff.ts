@@ -95,15 +95,10 @@ export function valueBluffText(s: ValueBluff, bd: Breakdown, res: AdvisorRespons
   const line = pct(s.line, s.line === 0.5 ? 0 : 1);
   const heads = bd.villains.length === 1;
   const them = heads ? `${bd.villains[0]!.who}'s whole range` : bd.villains.length === 2 ? "both other ranges" : "the other ranges";
-  const everyone = heads ? `${bd.villains[0]!.who} calls with everything` : "everyone calls with everything";
-  const facing = (res.to_call_bb ?? 0) > 0;
   return [
-    `Value: over ${line} equity against ${them} at this node, so before rake the ${facing ? "raise" : "bet"} earns more than ${facing ? "calling" : "checking"} even if ${everyone}.`,
-    `Bluff: ${line} or less, so it needs folds.`,
+    `Value: over ${line} equity against ${them}; bluff: ${line} or less.`,
     `Equities are all-in, ${runoutText(bd)}.`,
-    `The answer doesn't hold which hands would continue. Those are stronger than the whole range, so some of this value is thinner than it looks.`,
-    `It's a yardstick on the answer's equities: the solver doesn't label hands.`,
-    res.tournament ? "In a tournament this test is in chips, not prizes." : "",
+    res.tournament ? "In chips, not prizes." : "",
   ]
     .filter(Boolean)
     .join(" ");

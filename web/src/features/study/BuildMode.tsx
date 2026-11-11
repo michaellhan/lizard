@@ -333,7 +333,7 @@ export function BuildMode({
     return () => window.removeEventListener("keydown", on);
   }, []);
 
-  const graded = provenance.source === "charts" ? "Graded against the preflop charts: an approximation, not a solve." : provenance.approximate ? "Graded against an approximate answer, not a converged solve." : null;
+  const graded = provenance.source === "charts" ? "Against the preflop charts, not a solve." : provenance.approximate ? "Against an approximate answer." : null;
   const misses = scores ? biggestMisses(scores.head) : [];
   const sel = selected && g.cells[selected]?.w ? selected : null;
   const spoken = scores ? sel : pressed;
@@ -394,7 +394,7 @@ export function BuildMode({
         {!scores ? (
           <div className="space-y-3 rounded-lg border border-border bg-surface p-3">
             <p>
-              Paint {res.actor}'s strategy: pick an action, then click or drag over hands. Unpainted hands {names[d]}.
+              Pick an action, then paint hands. Unpainted hands {names[d]}.
             </p>
             <div role="group" aria-label="Brush" className="flex flex-wrap gap-1.5">
               {names.map((n, a) => (
@@ -413,7 +413,7 @@ export function BuildMode({
               <button
                 type="button"
                 aria-pressed={tool === "lock"}
-                title="Click or drag over hands to lock them (no brush paints a locked hand), again to unlock"
+                title="Lock or unlock hands"
                 onClick={() => setTool("lock")}
                 className={`rounded-md border px-2.5 py-1 ${tool === "lock" ? "border-accent ring-1 ring-accent" : "border-border hover:bg-surface-2"}`}
               >
@@ -435,7 +435,7 @@ export function BuildMode({
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={fillAll} disabled={typeof tool !== "number"} title="Paint every hand with this brush (but locked hands and locked combos)" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
+              <button type="button" onClick={fillAll} disabled={typeof tool !== "number"} title="Paint every unlocked hand" className="rounded border border-border px-2 py-0.5 hover:bg-surface-2 disabled:opacity-40">
                 Fill all
               </button>
               <button type="button" onClick={reset} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
@@ -453,7 +453,7 @@ export function BuildMode({
                 <button
                   type="button"
                   aria-pressed={tool === "combos"}
-                  title="Click a hand to set each of its combos' mix (a brush again to paint whole hands)"
+                  title="Set each combo's mix"
                   onClick={() => setTool("combos")}
                   className={`rounded-md border px-2.5 py-1 ${tool === "combos" ? "border-accent ring-1 ring-accent" : "border-border hover:bg-surface-2"}`}
                 >
@@ -467,7 +467,7 @@ export function BuildMode({
             <div className="flex flex-wrap items-center gap-2">
               <select
                 aria-label="Hands to paint at once"
-                title="A group of hands to paint or lock at once. A hand class goes whole: in a made-hand or draw category when at least half its combos here are in it"
+                title="Hands to paint or lock at once"
                 value={group}
                 onChange={(e) => setGroup(e.target.value)}
                 className="rounded border border-border bg-surface-2 px-2 py-0.5"
@@ -505,7 +505,7 @@ export function BuildMode({
               {hasCombos && group[0] !== "s" && (
                 <label
                   className="flex items-center gap-1 text-xs"
-                  title="Paint only the combos in the category, each apart from its class, rather than the classes mostly in it. Then the score goes combo by combo. A lock still goes by hand"
+                  title="Paint only the category's combos"
                 >
                   <input type="checkbox" aria-label="By combo" checked={byCombo} onChange={(e) => setByCombo(e.target.checked)} />
                   <span className="text-muted">By combo</span>
@@ -516,7 +516,7 @@ export function BuildMode({
               <summary className="cursor-pointer text-xs text-muted">As range text</summary>
               <div className="mt-2 space-y-2">
                 <label htmlFor="build-text" className="block text-xs">
-                  Hands that play {typeof tool !== "number" ? "a brush (pick one)" : names[tool]}, each at its weight (none: all of it)
+                  Hands that play {typeof tool !== "number" ? "a brush (pick one)" : names[tool]} (hand:weight)
                 </label>
                 <textarea
                   id="build-text"
@@ -589,20 +589,19 @@ export function BuildMode({
               {graded && <p className="text-xs text-warn">{graded}</p>}
               {scores.combo && scores.byCombo && (
                 <p className="text-xs text-muted">
-                  Graded combo by combo over {scores.combo.combos.toFixed(1)} live combos, as you painted combos: each against its own mix. By class, your mixes averaged, it's {pct(scores.cls.acc)}. The solver's class mixes, painted exactly, score {pct(scores.combo.ceiling.acc)}
-                  {scores.combo.ceiling.ev_loss_bb != null && ` and give up ${scores.combo.ceiling.ev_loss_bb.toFixed(3)}bb`} combo by combo.
+                  Graded combo by combo over {scores.combo.combos.toFixed(1)} live combos. By class: {pct(scores.cls.acc)}. Solver&rsquo;s class mixes: {pct(scores.combo.ceiling.acc)}
+                  {scores.combo.ceiling.ev_loss_bb != null && `, ${scores.combo.ceiling.ev_loss_bb.toFixed(3)}bb`}.
                 </p>
               )}
               {scores.combo && !scores.byCombo && (
                 <p className="text-xs text-muted">
                   Combo by combo: {pct(scores.combo.acc)} accurate
-                  {scores.combo.ev_loss_bb != null && `, ${scores.combo.ev_loss_bb.toFixed(3)}bb a combo given up`}. A
-                  hand class can't tell its combos apart (a flush draw from the same hand without one): the solver's
-                  class mixes, painted exactly, score {pct(scores.combo.ceiling.acc)}
-                  {scores.combo.ceiling.ev_loss_bb != null && ` and give up ${scores.combo.ceiling.ev_loss_bb.toFixed(3)}bb`} this way.
+                  {scores.combo.ev_loss_bb != null && `, ${scores.combo.ev_loss_bb.toFixed(3)}bb a combo given up`}. Solver&rsquo;s class
+                  mixes: {pct(scores.combo.ceiling.acc)}
+                  {scores.combo.ceiling.ev_loss_bb != null && `, ${scores.combo.ceiling.ev_loss_bb.toFixed(3)}bb`}.
                 </p>
               )}
-              {!scores.combo && <p className="text-xs text-muted">Combos can't be graded: this answer gives hand classes only, so this score is by class.</p>}
+              {!scores.combo && <p className="text-xs text-muted">Graded by class only.</p>}
             </section>
             <table className="w-full text-left">
               <caption className="sr-only">Each action's share of the range, yours and the solver's</caption>
@@ -626,7 +625,7 @@ export function BuildMode({
                 ))}
               </tbody>
             </table>
-            <p className="text-xs text-muted">Each hand: the solver's mix above, yours below; outlined where they differ by 20% or more (red: 50%).</p>
+            <p className="text-xs text-muted">Top: solver, bottom: yours. Outlined if 20%+ off (red: 50%+).</p>
             {misses.length > 0 && (
               <div role="group" aria-label="Biggest differences" className="space-y-1">
                 <p className="text-xs text-muted">Biggest differences:</p>

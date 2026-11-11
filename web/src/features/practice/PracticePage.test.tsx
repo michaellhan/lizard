@@ -100,7 +100,7 @@ describe("PracticePage", () => {
     // graded by frequency (the chart), with the chart's provenance
     let last = await screen.findByRole("region", { name: "Last decision" });
     expect(within(last).getByText("Best")).toBeInTheDocument();
-    expect(within(last).getByText(/Graded by how often the chart plays it/)).toBeInTheDocument();
+    expect(within(last).getByText(/Graded by chart frequency: charts have no EVs\./)).toBeInTheDocument();
     // the rule-based why, in the chart's name (not a solver's)
     expect(within(last).getByText(/^The chart (always plays this here|picks this most often here: \d+% of the time)\.$/)).toBeInTheDocument();
     expect(within(last).getByText(describeProvenance(prov("charts")))).toBeInTheDocument();
@@ -628,7 +628,7 @@ describe("PracticePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hint" }));
     const said = screen.getByText(/A call is 0\.5bb to win 1\.5bb: pot odds of 25\.0%/);
     expect(said).toHaveTextContent("Preflop in BTN/SB, no one has come in yet.");
-    expect(said).toHaveTextContent("Worked out from the chips on the table. The answer isn't read for a hint");
+    expect(said).toHaveTextContent("From the chips on the table, not the answer.");
     expect(said.textContent).not.toMatch(/70\.0%|raise 2\.5/);
     expect(askedSoFar()).toHaveLength(before);
     // (it doesn't cost the grade)
@@ -639,14 +639,14 @@ describe("PracticePage", () => {
   it("Reveal shows the mix for your hand from the answer in hand; the decision after it isn't graded, and the page says so", async () => {
     await headsUp();
     const before = askedSoFar().length;
-    expect(screen.getByRole("button", { name: "Reveal" })).toHaveAttribute("title", "Shows the answer for your hand; what you do after it isn't graded.");
+    expect(screen.getByRole("button", { name: "Reveal" })).toHaveAttribute("title", "Show the answer (then not graded)");
     fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
     const shown = screen.getByRole("group", { name: "Revealed answer" });
     expect(within(shown).getByRole("row", { name: /raise 2\.5 70\.0%/ })).toBeInTheDocument();
     // the charts by name, never a solve
     expect(within(shown).getByText(/^The chart.s mix for your hand$/)).toBeInTheDocument();
-    expect(within(shown).getByText("This answer has no EVs for your hand.")).toBeInTheDocument();
-    expect(within(shown).getByRole("status")).toHaveTextContent(/this decision isn.t graded\. It doesn.t count toward your score, your streak, History or Review\. The hand still counts in Hands and Net\./);
+    expect(within(shown).getByText("No EVs for your hand.")).toBeInTheDocument();
+    expect(within(shown).getByRole("status")).toHaveTextContent("Answer seen first: not graded.");
     expect(askedSoFar()).toHaveLength(before);
 
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
@@ -654,7 +654,7 @@ describe("PracticePage", () => {
     expect(within(last).getByText("Not graded: you revealed the answer first")).toBeInTheDocument();
     expect(within(last).queryByRole("button", { name: "Copy for AI" })).toBeNull();
     const score = within(screen.getByRole("region", { name: "Score" }));
-    expect(score.getByText("1 decision made after Reveal, not in these numbers. The hand still counts in Hands and Net.")).toBeInTheDocument();
+    expect(score.getByText("1 revealed decision not graded.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Recent decisions" })).toBeNull();
     // the flop's decision is yours to grade again
     const flop = await screen.findByRole("group", { name: "Your options" });
@@ -673,7 +673,7 @@ describe("PracticePage", () => {
     const was = score();
     const calls = stub.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "Previous" }));
-    expect(screen.getByText(/Decision 1 of the 1 kept\./)).toBeInTheDocument();
+    expect(screen.getByText("Decision 1 of 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Later" })).toBeDisabled();
 
@@ -724,7 +724,7 @@ describe("PracticePage", () => {
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
     const last = await screen.findByRole("region", { name: "Last decision" });
     fireEvent.click(within(last).getByRole("button", { name: "Copy for AI" }));
-    expect(await within(last).findByText(/^Copied\. Lizard sent nothing/)).toBeInTheDocument();
+    expect(await within(last).findByText("Copied.")).toBeInTheDocument();
     const text = writeText.mock.calls[0]![0];
     expect(text).toContain("Seats, first to act preflop first: BTN/SB, BB");
     expect(text).toContain("The preflop charts are approximate tables. They are not a solved answer");

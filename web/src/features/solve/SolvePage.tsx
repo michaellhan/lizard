@@ -4,9 +4,8 @@
 // line is kept while the table's size stays. Node locks and automatic sizing aren't set up here: Study asks them a hand at a time.
 // Tournaments (ROADMAP Phase 7) is this page for a tournament: the prizes left, the other tables and the bounties
 // (features/tournaments/tournament.ts) in place of the rake, answered in prize equity.
-import { About } from "@/components/About";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import type { SavedRange } from "@/data/db";
 import { listRanges } from "@/data/saved";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -168,25 +167,6 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     <div className="max-w-4xl space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">{tour ? "Tournaments" : "Solve"}</h1>
-        <p className="text-sm text-muted">
-          {tour ? "Set up a tournament spot and open it in Study, answered in prize equity (ICM)." : "Set up a spot of your own and open it in Study."}
-        </p>
-        <About>
-        <p>
-          {tour ? (
-            <>
-              Set up a tournament spot (the prizes left, each seat's stack, the players at other tables, bounties) and open it in Study, which answers it in prize equity (ICM):
-              chips you might lose count for more than chips you might win. Postflop is solved in your browser in prize equity; preflop is the charts with a risk premium, or the
-              push/fold equilibrium in prize equity where a raise commits the stack. The badge on each answer says which.
-            </>
-          ) : (
-            <>
-              Set up a spot of your own and open it in Study, which answers it node by node. The library and the preflop charts answer only where they hold the same game;
-              anything else is solved in your browser (or the local solver in Settings), and the badge on each answer says what produced it.
-            </>
-          )}
-        </p>
-        </About>
       </div>
 
       <form
@@ -251,8 +231,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               </div>
               <p className="text-xs text-muted" aria-live="polite">
                 {stage
-                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}. Change anything below; the numbers are Lizard's own, not any site's.`
-                  : "A stage or a format sets the table, each seat's chips, the ante, the prizes left and the other tables at once, from the start of a hand."}
+                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.`
+                  : "A stage or format fills in the form."}
               </p>
             </div>
             <div className="space-y-1.5 text-sm">
@@ -261,7 +241,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                 <input
                   aria-label="Payouts"
                   placeholder="e.g. 50 30 20, or paste a payout table"
-                  title="Prizes first place first, in any unit. A table pasted from a site or a sheet (1st $10,000, 4-6 $2,000) is read place by place."
+                  title="First place first, any unit"
                   value={payouts}
                   onChange={(e) => setPayouts(e.target.value)}
                   onPaste={(e) => {
@@ -288,21 +268,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   <button
                     type="button"
                     onClick={() => setPayouts(curve.join(" "))}
-                    title="The places a field of the players left (this table's and the other tables') would pay at 15%, on a curve of Lizard's own"
+                    title="Lizard's own curve"
                     className="rounded border border-border px-2 py-0.5 hover:bg-surface-2"
                   >
                     15% paid, {curve.length} places
                   </button>
                 )}
               </div>
-              <About label="About prizes">
-<p>
-                The prizes still to be paid, first place first, in any unit. Two or more: prize equity (ICM). One: winner takes all, where chips are prizes and Study answers in
-                chips. None, with bounties: chip EV, the prizes taken as the bounties in play. A satellite pays equal prizes (seats); preflop its answers are still the chip charts
-                with a risk premium, far from a satellite's real folding ranges, so read them as the badge says: approximate. 15% paid: the places a field of the players left
-                would pay, first place about a quarter (a curve of Lizard's own, with 10 or more players left).
-              </p>
-</About>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span>Other tables</span>
@@ -344,9 +316,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               </div>
               {bFormat !== "off" && (
                 <p className="text-xs text-muted">
-                  In the payouts' units. KO pays a player's whole bounty to whoever busts them, PKO half at once (the rest goes on the winner's head), a mystery bounty an envelope
-                  from the pool; only a player who covers another can bust them.{seatBounties ? " A seat's own bounty goes in the seats below." : ""} Valued by the proportional model:
-                  each player owns their chip share of the bounties in play.
+                  In the payouts&rsquo; units.{seatBounties ? " Per-seat bounties go in Seats." : ""}
                 </p>
               )}
             </div>
@@ -364,12 +334,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               {seatsSet ? `: ${seatsSet} set by you, the rest the table's stack and the charts' range` : ": each the table's stack and the charts' range"}
             </span>
           </summary>
-          <About label="How to fill these in">
-<p>
-            A stack left blank is the table's. A range is the one the seat takes to the flop (PIO style: 22+, A2s+, KTo+, QJs:0.5, AhKh); blank, the preflop charts' range for the
-            line played. Preflop is still answered by the charts.
-          </p>
-</About>
+          <p className="text-xs text-muted">Blank: the table&rsquo;s stack and the charts&rsquo; range. Range: 22+, A2s+, QJs:0.5, AhKh.</p>
           <div className="scroll-x">
             <table className="w-full text-sm">
               <thead>
@@ -434,8 +399,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         <div className={`grid gap-4 ${tour ? "" : "md:grid-cols-[3fr_2fr]"}`}>
         <fieldset className="min-w-0 space-y-2 rounded-lg border border-border bg-surface p-4">
           <legend className="px-1 font-medium">Bet sizes</legend>
-          <p className="text-xs text-muted" title="Each size multiplies the game tree your browser solves">
-            After the flop, % of the pot, up to {LIMITS.sizes} a street ({LIMITS.sizePct[0]}–{LIMITS.sizePct[1]}%). Blank: the engine's own.
+          <p className="text-xs text-muted">
+            % of the pot, up to {LIMITS.sizes} a street. Blank: the engine&rsquo;s.
           </p>
           <div className={`grid gap-2 sm:grid-cols-2 ${tour ? "" : "md:grid-cols-1 lg:grid-cols-2"}`}>
             {SIZE_STREETS.map((k) => (
@@ -463,7 +428,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               </label>
             </div>
             <p className="text-xs text-muted">
-              Taken from pots that see a flop. A library flop answered for a raked table is read off its unraked solve until the raked one has run, and labelled approximate.
+              Taken from pots that see a flop.
             </p>
           </fieldset>
         )}
@@ -497,25 +462,6 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
         </div>
       </form>
 
-      <About label="Node locks, bet sizing and more">
-      {tour && (
-        <p>
-          Not here yet: a satellite-aware preflop (its answers stay the chip charts with a risk premium). ICM and chip EV side by side: Study's "Compare with chip EV" under a
-          tournament answer. A cash game:{" "}
-          <Link to="/solve" className="underline hover:text-text">
-            Solve
-          </Link>
-          .
-        </p>
-      )}
-      <p>
-        Node locks and automatic sizing are in Study, a hand at a time: &ldquo;Hold this node at a mix (true node lock)&rdquo;, &ldquo;Against a read (best response)&rdquo; and &ldquo;Choose bet sizes (automatic sizing)&rdquo;, and after the flop only heads-up. Saved ranges come from{" "}
-        <Link to="/ranges" className="underline hover:text-text">
-          Ranges
-        </Link>
-        .
-      </p>
-      </About>
     </div>
   );
 }

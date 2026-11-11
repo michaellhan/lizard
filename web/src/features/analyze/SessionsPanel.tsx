@@ -3,7 +3,6 @@
 // first. A session picked is a filter like the hands table's (`sess`): the report, the drill, the results and the
 // stats follow it, and grading takes its hands alone. Everything is read from the hands and grades kept.
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { About } from "@/components/About";
 import { bringIntoView } from "@/components/scroll";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
@@ -118,14 +117,6 @@ export function SessionsPanel({
         <h2 ref={head} tabIndex={-1} className="text-lg font-semibold">
           Your sessions
         </h2>
-        <p className="text-muted">Each sitting, and how your grades moved across them. Pick one to see only its hands.</p>
-        <About>
-          <p>
-            A session is a sitting by the site&rsquo;s own clock: one kind of game at one site, ended by a break over 30 minutes (8 hours in a tournament). Sessions are
-            read from the hands kept, so these numbers move as hands and grades change, and deleting an import removes its sessions. You choose what to grade, so
-            the sessions graded may not be typical. Pick one for its hands, report and results; grading then takes its hands alone.
-          </p>
-        </About>
       </div>
       {sess && !picked && <Missing sess={sess} hands={hands} onClear={clear} />}
       {(kinds.length > 1 || bases.length > 0) && (
@@ -161,14 +152,13 @@ export function SessionsPanel({
           Over the {plural(rest.length, "hand")} the filters show, of {hands.length.toLocaleString()} kept.
         </p>
       )}
-      {!sess && narrow.length > 0 && <p className="text-xs text-muted">The line and the comparison are left out while the EV lost, tag or search filters pick hands by how they went.</p>}
+      {!sess && narrow.length > 0 && <p className="text-xs text-muted">No line while the EV lost, tag or search filters are on.</p>}
       {trend && basis && <TrendView trend={trend} basis={basis} sits={ofKind} />}
-      {!sess && !answers.length && rows.length > 0 && <p className="text-muted">Nothing is graded here yet: grade some decisions (Grades & leaks) for a line.</p>}
+      {!sess && !answers.length && rows.length > 0 && <p className="text-muted">Nothing graded yet (Grades & leaks).</p>}
       {listed.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs text-muted">
-            {basis ? `In the mix: Best or Correct, on ${basis}, clear folds left out.` : "In the mix: none graded here yet."} Won is what the histories say, in big blinds, nothing
-            graded: a tournament&rsquo;s chips aren&rsquo;t money, and a hand left out doesn&rsquo;t say what it won (Your results says why).
+            {basis ? `In the mix: on ${basis}.` : "None graded here yet."} Won: in bb, from the histories.
           </p>
           <ul ref={list} aria-label="Sessions" className="space-y-1">
             {listed.map((r) => (
@@ -264,7 +254,7 @@ function TrendView({ trend, basis, sits }: { trend: Trend; basis: string; sits: 
         <TrendChart basis={basis} points={points} />
       ) : (
         <p className="text-muted">
-          {basis}: {moreForLine(n).toLocaleString()} more {moreForLine(n) === 1 ? "decision" : "decisions"} for a line (clear folds and undated hands left out).
+          {basis}: {moreForLine(n).toLocaleString()} more {moreForLine(n) === 1 ? "decision" : "decisions"} for a line.
         </p>
       )}
       {latest && <Verdict latest={latest} basis={basis} since={sits[latest.at]?.first ?? 0} />}
@@ -281,11 +271,10 @@ function Verdict({ latest: l, basis, since }: { latest: LatestThird; basis: stri
         <strong className="font-medium">{l.change ?? "No clear change"}.</strong>
       ) : (
         <span className="text-muted">
-          Under {MIN_SIDE} on a side is too few to call the share as a whole; a row below needs {MIN_ROW}.
+          Too few to call (under {MIN_SIDE} a side).
         </span>
       )}{" "}
       {versionNote(l.versions) && <span role="group" aria-label="Versions compared">{versionNote(l.versions)} </span>}
-      <span className="text-muted">The share moves with the spots dealt as well as with how they were played; the rows below compare a spot with itself, though another table size or depth still moves its answer.</span>
     </p>
   );
 }
@@ -342,11 +331,8 @@ function Rows({ shifts, tooFew, noMix }: { shifts: Shift[]; tooFew: number; noMi
         </details>
       )}
       <p className="text-xs text-muted">
-        Rows are chosen by their size alone, and include clear folds as the Report does.
-        {tooFew > 0 ? ` ${tooFew.toLocaleString()} more ${tooFew === 1 ? "has" : "have"} under ${MIN_ROW} decisions on a side.` : ""}
-        {shifts.length > 0 ? " About one row in a hundred shows a change by chance." : ""}
-        {noMix > 0 ? ` ${plural(noMix, "read")} checked before a read's own mix was kept ${noMix === 1 ? "is" : "are"} left out of the frequencies.` : ""}
-        {shifts.length > 0 ? " Where a row spans versions, part of its change can be the answer's: the preflop charts come with the solver build, and a library version is its spot's ranges and bet tree." : ""}
+        {tooFew > 0 ? `${tooFew.toLocaleString()} more ${tooFew === 1 ? "row has" : "rows have"} under ${MIN_ROW} decisions a side.` : ""}
+        {noMix > 0 ? ` ${plural(noMix, "read")} left out of the frequencies.` : ""}
         {shifts.some((r) => r.versions.unknown[0] + r.versions.unknown[1] > 0) ? ` ${VERSION_UNKNOWN}` : ""}
       </p>
     </div>
@@ -377,7 +363,7 @@ export function TrendChart({ basis, points, about }: { basis: string; points: Bl
         <span className="font-medium">{basis}</span>
         <span className="text-xs text-muted">
           {" "}
-          · {about ?? `share of decisions in the mix, by blocks of about ${points[0]!.n.toLocaleString()} in the order played, clear folds left out; the band is its 95% range.`}
+          · {about ?? "share in the mix, 95% band"}
         </span>
       </figcaption>
       <div className="flex h-44">

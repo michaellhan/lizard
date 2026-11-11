@@ -193,11 +193,11 @@ export const CHIP_MODEL = "chip EV: these stacks with no prizes";
  * that kind of pot; you play from the flop. */
 export type PotDrill = "srp" | "3bet" | "4bet" | "bvb";
 export const POT_DRILLS: Record<PotDrill, { label: string; one: string; tip: string }> = {
-  srp: { label: "Single-raised pots", one: "a single-raised pot", tip: "Heads-up after one preflop raise and a call: the preflop is played for you, you play from the flop" },
-  "3bet": { label: "3-bet pots", one: "a 3-bet pot", tip: "Heads-up after a 3-bet and a call: the preflop is played for you, you play from the flop" },
+  srp: { label: "Single-raised pots", one: "a single-raised pot", tip: "Heads-up from the flop; preflop played for you" },
+  "3bet": { label: "3-bet pots", one: "a 3-bet pot", tip: "Heads-up from the flop; preflop played for you" },
   // (no library spot holds one: its decisions are live solves on the charts' ranges)
-  "4bet": { label: "4-bet pots", one: "a 4-bet pot", tip: "Heads-up after a 4-bet and a call: the preflop is played for you from the charts and the library stores no such pot, so every decision is a live solve. Rare, so it can take many deals to find one" },
-  bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "Small blind against big blind, folded to them: the preflop is played for you, you play from the flop" },
+  "4bet": { label: "4-bet pots", one: "a 4-bet pot", tip: "Live solves only; rare to deal" },
+  bvb: { label: "Blind vs blind", one: "a blind-vs-blind pot", tip: "SB vs BB from the flop; preflop played for you" },
 };
 /** The drills' board filter's flops, as a hand's cards: none where it's not a drill's pot or the filter is empty. */
 const flopsFor = (o: DealOptions): readonly string[] | null => (isPotDrill(o.pot) && o.board && Object.values(o.board).some(Boolean) ? flopsLike(o.board) : null);
@@ -205,7 +205,7 @@ export const isPotDrill = (x: unknown): x is PotDrill => typeof x === "string" &
 /** A hand's pot: a drill, or Instant flops, a heads-up flop the library holds. That one needs the tables' index, so it's
  * no drill: it isn't in POT_DRILLS, and the Play select stays as it was. */
 export type HandPot = PotDrill | "lib";
-export const INSTANT_FLOPS = { label: "Instant flops", one: "an instant flop", tip: "A heads-up flop the library holds: the preflop is played for you, you play from the flop" };
+export const INSTANT_FLOPS = { label: "Instant flops", one: "an instant flop", tip: "A library flop; preflop played for you" };
 export const isHandPot = (x: unknown): x is HandPot => x === "lib" || isPotDrill(x);
 /** A hand's pot in words. */
 export const potLabel = (p: HandPot) => (p === "lib" ? INSTANT_FLOPS : POT_DRILLS[p]).one;

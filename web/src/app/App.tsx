@@ -3,6 +3,7 @@ import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { BASE_URL } from "@/config";
 import { useSettings } from "@/state/settings";
 import { Shell } from "./Shell";
+import { SelectMenu } from "@/components/SelectMenu";
 import { HomePage } from "@/features/home/HomePage";
 import { NotFoundPage } from "@/features/home/NotFoundPage";
 import { freshChunk } from "./freshChunk";
@@ -76,6 +77,7 @@ export function App() {
           </Route>
         </Route>
       </Routes>
+      <SelectMenu />
     </BrowserRouter>
   );
 }

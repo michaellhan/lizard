@@ -140,7 +140,7 @@ describe("FullHands on a Room", () => {
     heads();
     fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: /fold/i }));
     await screen.findByRole("button", { name: "Next hand" });
-    fireEvent.keyDown(screen.getByText("How decisions are graded"), { key: "Enter" });
+    fireEvent.keyDown(document.querySelector("summary")!, { key: "Enter" });
     expect(screen.getByRole("button", { name: "Next hand" })).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "Enter" });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Next hand" })).toBeNull());
@@ -158,7 +158,7 @@ describe("FullHands on a Room", () => {
           <PracticePage pace={0} />
         </MemoryRouter>,
       );
-      const note = await screen.findByText(/Any session kept in this browser couldn.t be read in time, so this is a new one. Nothing here is kept until it has been read./, undefined, { timeout: 3000 });
+      const note = await screen.findByText(/Saved session couldn.t be read in time: new session./, undefined, { timeout: 3000 });
       expect(note).toHaveAttribute("role", "status");
       await act(async () => answer());
       await waitFor(() => expect(note).not.toBeInTheDocument());

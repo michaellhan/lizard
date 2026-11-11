@@ -174,19 +174,6 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
           <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} reviewing={miss !== null} onReview={() => set({ miss: "1", hand: null })} />
         )}
       </div>
-      {(!hands?.length || (tab === "import" && miss === null)) && (
-      <div className="space-y-1">
-        <p className="text-sm text-muted">Import your hand histories, replay them, and grade your decisions. Nothing leaves this browser.</p>
-        <About>
-          <p>
-            Your hand histories are read and kept in this browser only; nothing is uploaded. Each hand replays street by street, and each of your decisions
-            opens in Study at that point. Your decisions can be graded against the stored preflop solve where it reads the spot, else the preflop charts, and
-            the flop library, or on every street by a Quick triage or a Fast solve, each grade saying what it stands on, and your sessions show how those
-            grades moved over time.
-          </p>
-        </About>
-      </div>
-      )}
       {result && <ImportBanner r={result} onClose={() => setResult(null)} />}
       {hands === null || shown === null ? (
         <p className="text-sm text-muted">Reading the hands kept here…</p>
@@ -409,7 +396,7 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
   return (
     <section aria-label="Import" className="space-y-2 rounded-lg border border-border bg-surface p-3">
       <h2 className="text-lg font-semibold">Import hands</h2>
-      <p className="text-xs text-muted">Reads {HH_SITES.join(", ")} hand histories, as your poker client saves them (PokerNow: its hands download, a .json file); Hold'em only.</p>
+      <p className="text-xs text-muted">{HH_SITES.join(", ")} hand histories; Hold'em only.</p>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -480,7 +467,7 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
           <button type="button" disabled={!!busy} onClick={() => void fromClassic()} className="rounded border border-border px-2 py-0.5 text-text hover:bg-surface-2 disabled:opacity-40">
             Import its My hands
           </button>{" "}
-          Read only: that site&rsquo;s data is left as it is. Your tags and notes come along; its grades don&rsquo;t (graded again here).
+          Tags and notes come along; grades don&rsquo;t.
         </p>
       </About>
       {error && (
@@ -794,20 +781,12 @@ function HandDetail({ hand, decisions, exploits, onSaved, onClose }: { hand: Han
         ))}
       </ol>
       <p className="text-muted">
-        Pot {fmt(sim.pot)}bb ({hand.end}). {hand.site === PRACTICE_SITE
-          ? `A hand you played in Practice${hand.playedFor ? ", preflop played for you from the charts" : ""}`
-          : hand.site === CLASSIC_SITE
-            ? "A hand from My hands on the older gto-solver site"
-            : "From your hand history"}
-        , replayed on Lizard's table.
-        {decisions.length
-          ? hand.playedFor
-            ? " Grades: each move from the flop against what answered it, which its grade names."
-            : ` Grades: ${decisions.some((d) => d.street === "preflop" && d.source === "preflop-solve") ? "your preflop moves as each is marked, the preflop solve (by EV, a class-level model, not a full solve) or the preflop charts (by frequency, not a solve)" : "your preflop moves against the preflop charts (by frequency, not a solve)"}; after the flop, each move against what answered it, which its grade names.`
-          : " None of your decisions here is graded yet."}
-        {hand.revealed?.length ? ` ${hand.revealed.length === 1 ? "One decision here was" : `${hand.revealed.length} decisions here were`} made after Reveal in Practice, so ${hand.revealed.length === 1 ? "it isn't" : "they aren't"} graded.` : ""}
-        {h.ante > LIMITS.ante && ` Study can't set up an ante over ${LIMITS.ante}bb a seat, so its decisions don't open in Study.`}
-        {h.tournament && " A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page, to add the prizes left and any bounties."}
+        Pot {fmt(sim.pot)}bb ({hand.end}).
+        {hand.site === PRACTICE_SITE ? ` Played in Practice${hand.playedFor ? ", preflop from the charts" : ""}.` : hand.site === CLASSIC_SITE ? " From the older gto-solver site." : ""}
+        {decisions.length ? "" : " Not graded yet."}
+        {hand.revealed?.length ? ` ${hand.revealed.length === 1 ? "One decision" : `${hand.revealed.length} decisions`} after Reveal: not graded.` : ""}
+        {h.ante > LIMITS.ante && ` Ante over ${LIMITS.ante}bb: doesn't open in Study.`}
+        {h.tournament && " Tournament hand: chips, no ICM; “with prizes” opens Tournaments."}
       </p>
       {misses && <p className="text-xs text-muted">{out ?? ADD_RULE}</p>}
       {r.warnings.length > 0 && (

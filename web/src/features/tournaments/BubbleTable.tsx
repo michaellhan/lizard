@@ -78,7 +78,7 @@ export function BubbleTable({ table, actor }: { table: Table; actor?: string }) 
                       title={
                         x === null
                           ? `a chip ${h} wins from ${v} gains nothing`
-                          : `${h} against ${v}: a chip lost costs ${x.toFixed(2)} chips won; calling an all-in for the shorter stack, nothing else in the pot, needs ${(callNeed(x) * 100).toFixed(1)}% equity (chips: 50%)`
+                          : `${h} vs ${v}: bubble factor ${x.toFixed(2)}, a call needs ${(callNeed(x) * 100).toFixed(1)}% (chips: 50%)`
                       }
                     >
                       {x === null ? "no gain" : show === "bf" ? x.toFixed(2) : `${(callNeed(x) * 100).toFixed(1)}%`}
@@ -92,13 +92,8 @@ export function BubbleTable({ table, actor }: { table: Table; actor?: string }) 
         </table>
       </div>
       <p className="text-muted">
-        Each row is a seat risking chips, each column the opponent, both all in for the shorter stack:{" "}
-        {show === "bf"
-          ? "what a chip lost costs in prize equity over what a chip won gains (1: chips; above 1, a call needs more than its chip odds)."
-          : "the equity the row's call of the column's all-in needs with nothing else in the pot (no blinds or antes; in chips 50%, so the risk premium is the rest)."}{" "}
-        {ICM_TABLE_LABEL}
-        {table.approx ? `, ${table.players} players modelled by ${table.modelled}` : ""}; at the start of the hand, and without bounties, which change what a bust is worth but
-        not this ratio.
+        Row all in against column{show === "bf" ? " (1: chips)" : ", nothing else in the pot (chips: 50%)"}. {ICM_TABLE_LABEL}
+        {table.approx ? `, ${table.players} players modelled by ${table.modelled}` : ""}; start of hand, no bounties.
       </p>
     </div>
   );

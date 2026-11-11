@@ -8,10 +8,10 @@ import type { LiveProblem } from "./liveDeal";
 import { setupOf, type PracticeHand } from "./practice";
 
 /** said beside a hint, as these numbers aren't the answer's */
-export const HINT_SOURCE = "Worked out from the chips on the table. The answer isn't read for a hint, and a hint doesn't change the grade.";
-export const DRILL_HINT_SOURCE = "Worked out from this stored spot's pot and bet. The answer isn't read for a hint, and a hint doesn't change the grade.";
+export const HINT_SOURCE = "From the chips on the table, not the answer.";
+export const DRILL_HINT_SOURCE = "From the pot and bet, not the answer.";
 
-export const LIVE_HINT_SOURCE = "Worked out from this spot's pot and bet. The answer isn't read for a hint, and a hint doesn't change the grade.";
+export const LIVE_HINT_SOURCE = "From the pot and bet, not the answer.";
 
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const POTS = ["limped", "single-raised", "3-bet", "4-bet"];

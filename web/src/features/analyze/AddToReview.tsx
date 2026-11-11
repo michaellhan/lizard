@@ -1,4 +1,4 @@
-// "Add to review": one graded decision kept for the review queue, by your press (schedule.ts QUEUE_RULE). Nothing is
+// "Add to review": one graded decision kept for the review queue, by your press. Nothing is
 // solved: the entry keeps the mix it was graded against.
 import { useState } from "react";
 import { Link } from "react-router";

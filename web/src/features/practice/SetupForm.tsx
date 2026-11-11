@@ -16,8 +16,6 @@ import { MAX_PLAYERS, MIN_PLAYERS, seatLabel, seatsOf } from "@/poker/seats";
 import {
   ASSUMED,
   EXPLOIT_PROFILES,
-  EXPLOIT_SCOPE,
-  EXPLOIT_TABLE,
   exploitNumbers,
   exploitOf,
   isProfile,
@@ -25,11 +23,9 @@ import {
   type ExploitProfile,
 } from "./exploit";
 import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
-import { PF_MODEL } from "./pfGrade";
 import { LEVEL_HANDS } from "./tournamentPlay";
 import {
   carries,
-  drillTries,
   hardHand,
   handWorks,
   isPotDrill,
@@ -66,12 +62,6 @@ const ON_WORDS = {
   flop: "read on the flop dealt",
   cards: "read on your two cards",
 } as const;
-
-// (measured: docs/ACCURACY.md section 18)
-const PF_SIZES_COST =
-  "With its sizes a blind\u2019s 3-bet of a 2.5bb open is 12bb, not the chart\u2019s 10bb, and those hands leave the flop library, kept by size, for live solves after the flop.";
-const PF_SIZES_OFF = `Your options and the opponents stay the charts\u2019, so the decisions its tree can\u2019t answer, measured at about 30% and most of the blinds\u2019, keep the chart\u2019s grade and say why. Offering its raise sizes takes that to about 4% if you play the charts. ${PF_SIZES_COST}`;
-const PF_SIZES_ON = `The opponents stay the charts\u2019, and where it answers, your raise is at its size. About 4% of decisions if you play the charts, more if you go off its lines, it can\u2019t answer: those keep the chart\u2019s size and grade and say why. ${PF_SIZES_COST}`;
 
 const SIZE_LABEL: Record<SizeStreet, string> = {
   flop: "Flop bets",
@@ -303,7 +293,7 @@ export function SetupForm({
           </option>
           <option
             value="tournament"
-            title="A payout and each seat's stack, answered in chip EV or prize equity"
+            title="Chip EV or ICM"
           >
             Tournament
           </option>
@@ -334,9 +324,9 @@ export function SetupForm({
         className={`text-xs text-muted ${isPotDrill(play) ? "basis-full" : ""}`}
       >
         {exploit
-          ? `${profileName(exploit.profile)}: ${exploitNumbers(exploit)}. ${ASSUMED} You're graded against the best response to these numbers, never against equilibrium, and the answers are solved live, so each takes a few seconds. ${EXPLOIT_SCOPE} ${EXPLOIT_TABLE}`
+          ? `${profileName(exploit.profile)}: ${exploitNumbers(exploit)}. ${ASSUMED} Graded by best response, not equilibrium; live solves.`
           : isPotDrill(play)
-            ? "Pick a profile to be graded against the best response to it, in place of equilibrium."
+            ? ""
             : "Needs a pot drill under Play."}
       </p>
       {isPF && (
@@ -345,14 +335,8 @@ export function SetupForm({
           className={`basis-full text-xs ${pfOk ? "text-muted" : "text-danger"}`}
         >
           {pfOk
-            ? ""
-            : `Push/fold is ${MIN_STACK} to ${PUSH_FOLD_MAX}bb: bring the stack down. `}
-          The engine jams or folds first in at {PUSH_FOLD_MAX}bb or less, and
-          Practice&rsquo;s tables start at {MIN_STACK}bb. Facing a jam you call
-          or fold. The answers are the push/fold model, an equilibrium by hand
-          class with no EVs, so a decision is graded by how often it plays your
-          hand. An all-in runs out. A stack under {MIN_STACK}bb is a
-          seat&rsquo;s own, under Tournament.
+            ? "Push/fold model: graded by frequency, no EVs."
+            : `Push/fold is ${MIN_STACK} to ${PUSH_FOLD_MAX}bb: bring the stack down.`}
         </p>
       )}
       {isT && (
@@ -438,17 +422,17 @@ export function SetupForm({
           </label>
           <p id="hands-note" className="min-w-0 flex-1 text-xs text-muted">
             {handOn
-              ? `${handLabel(hand)}: ${ON_WORDS[HAND_GROUPS.find((g) => g.options.some((o) => o.key === hand))?.on ?? "flop"]}, at one table. This only picks what you're dealt: each decision is graded as any other hand's, against the strategy for every hand you could hold there, not one fitted to these hands.${hard ? ` Rare in ${POT_DRILLS[play].label.toLowerCase()}: on the 6-max 100bb charts about 1 deal in ${hard.toLocaleString("en-US")} gets here at the hardest seat, so the ${drillTries(play).toLocaleString("en-US")} deals can run out.` : ""}`
-              : `Made hands and draws are read on the flop dealt, hand classes on your two cards.${isPotDrill(play) && HAND_GROUPS.some((g) => g.options.some((o) => !handWorks(play, o.key))) ? " Hands this pot almost never reaches aren't listed." : ""}`}
+              ? `${handLabel(hand)}: ${ON_WORDS[HAND_GROUPS.find((g) => g.options.some((o) => o.key === hand))?.on ?? "flop"]}, one table only.${hard ? ` Rare: about 1 deal in ${hard.toLocaleString("en-US")}.` : ""}`
+              : ""}
           </p>
           {handOn && tables > 1 && (
             <p role="status" className="basis-full text-xs text-danger">
-              {`${tables} tables are set, and hands are filtered at one table only: above it they aren't.`}
+              Hand filter works at one table only.
             </p>
           )}
           {!handOk && (
             <p role="alert" className="basis-full text-xs text-danger">
-              {`No ${handLabel(hand)} turned up on these flops: widen them or pick other hands.`}
+              {`No ${handLabel(hand)} on these flops: widen them.`}
             </p>
           )}
         </div>
@@ -478,7 +462,7 @@ export function SetupForm({
         title={
           isT
             ? "A tournament has no rake"
-            : `Taken from pots that see a flop, 0–${LIMITS.rakePct}% of the pot, capped in bb (blank: no cap)`
+            : `0–${LIMITS.rakePct}% of flop pots, cap in bb`
         }
       >
         <span className="text-muted">Rake</span>
@@ -536,11 +520,11 @@ export function SetupForm({
         title={
           isT
             ? canCarry
-              ? `The tournament moves on: chips carry, a player with none is out (paid if in the money), the tables are balanced after every hand down to a final table, and the blinds go up every ${LEVEL_HANDS} hands. Lizard's own simplification`
-              : "A tournament is played out in full hands with your seat moving each hand"
+              ? `Chips carry, blinds rise every ${LEVEL_HANDS} hands`
+              : "Needs full hands with your seat moving"
             : canCarry
-              ? `A ring game: each player's chips carry to the next hand, a seat under ${REBUY * 100}% of the stack rebuying to it`
-              : "Chips carry in full hands with your seat moving each hand"
+              ? `Chips carry; rebuy under ${REBUY * 100}%`
+              : "Needs full hands with your seat moving"
         }
       >
         <input
@@ -558,7 +542,7 @@ export function SetupForm({
         <>
           <label
             className="flex items-center gap-1.5"
-            title={`By EV against the stored solve, an ${PF_MODEL}`}
+            title="Class-level model, not a full solve"
           >
             <input
               type="checkbox"
@@ -597,9 +581,10 @@ export function SetupForm({
             hidden={!pfSolve || !pfSaid}
             className="basis-full text-xs text-muted"
           >
-            By EV in place of the chart&rsquo;s frequency, from the stored
-            solve: an {PF_MODEL}. {pfSizes ? PF_SIZES_ON : PF_SIZES_OFF} The two
-            are never added together.
+            Not a full solve.{" "}
+            {pfSizes
+              ? "Your raise uses its size where it answers; those hands leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."
+              : "Spots it can\u2019t answer (about 30%) keep the chart\u2019s grade. Its sizes cut that to 4% but leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."}
           </p>
         </>
       )}
@@ -622,11 +607,8 @@ export function SetupForm({
           {sizes ? `: ${describeSetup({ sizes }).join(", ")}` : ""}
         </summary>
         <p className="mt-1 text-xs text-muted">
-          Postflop, in % of the pot, up to {LIMITS.sizes} a street, as on the
-          Solve page: the solver&rsquo;s tree, your options and the
-          opponents&rsquo; bets use them from the flop on. The flop library
-          answers only where its tree has the same sizes; otherwise the flop is
-          solved live. Blank: the engine&rsquo;s own.
+          % of pot, up to {LIMITS.sizes} a street. Sizes off the library solve
+          live. Blank: the engine&rsquo;s own.
         </p>
         <div className="mt-1 grid gap-2 sm:grid-cols-2">
           {SIZE_STREETS.map((k) => (

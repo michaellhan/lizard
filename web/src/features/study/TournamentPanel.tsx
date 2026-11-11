@@ -40,7 +40,7 @@ export function TournamentPanel({ t, actor, out = [], pairs }: { t: TournamentIn
       )}
       {bf.length > 0 && !winnerTakesAll && (
         <p>
-          <span className="font-medium">Bubble factors</span> <span className="text-muted">(a chip {who} loses to them costs this many chips won):</span>{" "}
+          <span className="font-medium">Bubble factors:</span>{" "}
           {bf.every(([, v]) => v === null)
             ? "none: a chip won from anyone gains nothing."
             : bf.map(([p, v]) => `${p} ${v === null ? "(a chip won gains nothing)" : v.toFixed(2)}`).join(" · ")}
@@ -68,7 +68,7 @@ export function TournamentPanel({ t, actor, out = [], pairs }: { t: TournamentIn
           {covered.length > 0 ? ` Covered by ${covered.join(", ")}.` : ""}
         </p>
       )}
-      <p className="text-muted">{assumed ? "Where EVs show, they're chips, the bounties priced in chips." : "Where EVs show, they're in prize equity, as chips worth as much."}</p>
+      <p className="text-muted">{assumed ? "EVs in chips, bounties included." : "EVs in chips of prize equity."}</p>
     </div>
   );
 }

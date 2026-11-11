@@ -3,10 +3,10 @@ import { MORE } from "@/app/routes";
 
 /** The four main pages, each with what it's for in a line. */
 const MAIN: { path: string; label: string; blurb: string; cta: string }[] = [
-  { path: "study", label: "Study", blurb: "Look up the equilibrium strategy for any spot, hand by hand, preflop to river.", cta: "Open Study" },
-  { path: "practice", label: "Practice", blurb: "Play hands against equilibrium opponents. Every decision you make is graded.", cta: "Play a hand" },
-  { path: "analyze", label: "Analyze", blurb: "Paste or drop your hand histories and see where you lost EV.", cta: "Import hands" },
-  { path: "solve", label: "Solve", blurb: "Set up your own spot (stacks, ranges, bet sizes, rake) and solve it.", cta: "Set up a spot" },
+  { path: "study", label: "Study", blurb: "Equilibrium strategy for any spot.", cta: "Open Study" },
+  { path: "practice", label: "Practice", blurb: "Play hands; every decision graded.", cta: "Play a hand" },
+  { path: "analyze", label: "Analyze", blurb: "Import hand histories, find lost EV.", cta: "Import hands" },
+  { path: "solve", label: "Solve", blurb: "Solve your own spot.", cta: "Set up a spot" },
 ];
 
 export function HomePage() {
@@ -15,8 +15,7 @@ export function HomePage() {
       <section className="space-y-3 pt-2">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Study poker at equilibrium.</h1>
         <p className="max-w-2xl text-muted">
-          A No-Limit Hold&rsquo;em solver and trainer that runs in your browser. Every number says where it came from. No account
-          needed, and your data stays on this device.
+          A No-Limit Hold&rsquo;em solver and trainer in your browser. No account; your data stays on this device.
         </p>
       </section>
       <section aria-label="Main pages" className="grid gap-3 sm:grid-cols-2">

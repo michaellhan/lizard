@@ -15,7 +15,7 @@ import { describe as sayProvenance } from "@/solver/provenance";
 import { addedMistake, addOut, decisionOut, decisionProvenance, handOut, leakMistake } from "./fromAnalyze";
 import { KEPT_RETRY_WORDS, answerChange, missedAgain, ORIGIN_WORDS, retried, withTry } from "./mistakes";
 import { askAgain, keptAnswer } from "./retry";
-import { dueAfter, QUEUE_RULE, REVIEW_DAYS, ADD_RULE } from "./schedule";
+import { dueAfter, REVIEW_DAYS, ADD_RULE } from "./schedule";
 
 const text = readFileSync(join(process.cwd(), "..", "solver", "tests", "data", "hh", "stars_6max_srp.txt"), "utf8");
 const r = importHand(text);
@@ -70,11 +70,8 @@ beforeEach(async () => {
 });
 
 describe("what's kept out", () => {
-  it("says the rule on the page, and keeps tournaments and exploit sessions out, in words", () => {
-    expect(QUEUE_RULE).toMatch(/every pick below Correct in a leak drill/);
-    expect(QUEUE_RULE).toMatch(/only when you press Add to review/);
-    expect(QUEUE_RULE).toMatch(/tournament hands and hands from exploit sessions stay out/);
-    expect(ADD_RULE).toMatch(/Add to review keeps the one you choose/);
+  it("keeps tournaments and exploit sessions out, in words", () => {
+    expect(ADD_RULE).toMatch(/only through Add to review/);
     expect(handOut(hand, new Set())).toBeNull();
     expect(handOut({ ...hand, tournament: "T" }, new Set())).toMatch(/A tournament hand stays out/);
     expect(handOut(hand, new Set(["i1"]))).toMatch(/A hand from an exploit session stays out/);

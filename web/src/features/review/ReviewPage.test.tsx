@@ -51,17 +51,10 @@ describe("ReviewPage", () => {
     expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
   });
 
-  it("links to the Plan", async () => {
+  it("sends you to Practice with nothing kept", async () => {
     page();
-    await screen.findByText(/No mistake kept yet/);
-    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
-  });
-
-  it("says the schedule, and sends you to Practice with nothing kept", async () => {
-    page();
-    expect(await screen.findByText(/No mistake kept yet/)).toBeInTheDocument();
-    expect(screen.getByText(/comes due 1 day after you make it.*3 days, then 7, then 21/)).toBeInTheDocument();
-    expect(screen.getByText(/kept in this browser with no account/)).toBeInTheDocument();
+    expect(await screen.findByText(/No mistakes yet/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Practice" })[0]).toHaveAttribute("href", "/practice");
   });
 
   it("lists a mistake with its grade, EV lost, provenance, schedule and Study link", async () => {
@@ -184,14 +177,6 @@ describe("ReviewPage", () => {
     expect(await within(screen.getByRole("region", { name: "Retry" })).findByText(/^preflop · missed/)).toBeInTheDocument();
   });
 
-  it("says what comes to the queue, and what a delete does", async () => {
-    page();
-    expect(await screen.findByText(/What comes here: every Inaccuracy, Mistake and Blunder from Practice/)).toBeInTheDocument();
-    expect(screen.getByText(/only when you press Add to review/)).toBeInTheDocument();
-    expect(screen.getByText(/tournament hands and hands from exploit sessions stay out/)).toBeInTheDocument();
-    expect(screen.getByText(/Delete takes an entry out of the queue/)).toBeInTheDocument();
-  });
-
   describe("an entry from Analyze", () => {
     const keptAsk = { via: "kept", hand: "h1", decision: "h1|turn|1" } as const;
     const provenance = { ...LIVE, transport: "kept", keptLabel: "Live solve (Quick) · medium confidence" } as const;
@@ -224,7 +209,6 @@ describe("ReviewPage", () => {
       expect(screen.getByText(/missed 3 times/)).toBeInTheDocument();
       expect(screen.getAllByText(/Live solve \(Quick\) · medium confidence/).length).toBeGreaterThan(0);
       expect(screen.getAllByRole("link", { name: "Open the hand →" })[0]).toHaveAttribute("href", "/analyze?hand=h1");
-      expect(screen.getByText(/A decision from Analyze is graded against the answer kept with it, with no solve/)).toBeInTheDocument();
     });
 
     it("retries against the answer kept, says so, and says it's the same answer", async () => {
@@ -232,7 +216,7 @@ describe("ReviewPage", () => {
       await seed(kept());
       page();
       fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
-      expect(await screen.findByText(/Graded against the answer kept with this decision in Analyze, nothing solved/)).toBeInTheDocument();
+      expect(await screen.findByText(/Against the answer kept in Analyze; nothing solved/)).toBeInTheDocument();
       fireEvent.click(await screen.findByRole("button", { name: /bet 33%/ }));
       expect(await screen.findByText(/The same answer both times/)).toBeInTheDocument();
       await waitFor(async () => expect((await listMistakes()).list[0]).toMatchObject({ step: 1 }));
@@ -272,7 +256,7 @@ describe("ReviewPage", () => {
       fireEvent.click(screen.getByRole("button", { name: "Delete: Ah Kd, flop" }));
       fireEvent.click(screen.getByRole("button", { name: "Delete this entry" }));
       await waitFor(() => expect(screen.queryByRole("heading", { name: /Retry/ })).toBeNull());
-      expect(await screen.findByText(/No mistake kept yet/)).toBeInTheDocument();
+      expect(await screen.findByText(/No mistakes yet/)).toBeInTheDocument();
     });
   });
 

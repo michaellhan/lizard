@@ -133,7 +133,7 @@ describe("AnalyzePage", () => {
     expect(hand).toHaveTextContent("you 100bb; UTG 100, HJ 143.27, CO 100, SB 62.4, BB 100");
     expect(within(hand).getByRole("listitem", { name: "flop" })).toHaveTextContent("BB checks");
     expect(within(hand).getByRole("listitem", { name: "flop" })).toHaveTextContent("You bet 1.8");
-    expect(hand).toHaveTextContent("Pot 21.3bb (won, all folded). From your hand history, replayed on Lizard's table. None of your decisions here is graded yet.");
+    expect(hand).toHaveTextContent("Pot 21.3bb (won, all folded). Not graded yet.");
     const links = within(hand).getAllByRole("link", { name: /^Study / });
     expect(links).toHaveLength(4);
     // (the small blind, still to act, has its own 62.4bb; the folded seats' stacks don't come along)
@@ -165,7 +165,7 @@ describe("AnalyzePage", () => {
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("tournament 3712345678");
     expect(hand).toHaveTextContent("0.1bb ante");
-    expect(hand).toHaveTextContent("A tournament hand: Study answers it in chips, with no ICM or bounties; “with prizes” opens a decision on the Tournaments page");
+    expect(hand).toHaveTextContent("Tournament hand: chips, no ICM; “with prizes” opens Tournaments.");
     const links = within(hand).getAllByRole("link", { name: /^Study / });
     expect(links).toHaveLength(4);
     const q = "p=9&s=80&pre=UTG%3Af%2CUTG1%3Af%2CUTG2%3Af%2CLJ%3Ar2.2%2CHJ%3Af&stacks=LJ%3A100%2CBTN%3A136.73%2CSB%3A41.67%2CBB%3A83.67&ante=0.1";
@@ -185,7 +185,6 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(handRows()).toHaveLength(4));
     tab("Grades & leaks");
     let panel = screen.getByRole("region", { name: "Grading" });
-    expect(panel).toHaveTextContent("the charts aren't a solve and have no EVs");
     fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "library" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
@@ -206,7 +205,7 @@ describe("AnalyzePage", () => {
     // (the report follows a moment after the grades: it's counted after what you're doing)
     const rep = await screen.findByRole("region", { name: "Report" });
     await waitFor(() => expect(within(rep).getByLabelText("Summary")).toHaveTextContent("5 of your decisions graded in 4 hands: 60% in the mix (Best or Correct)."));
-    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb of solver EV lost in all, 2.2% of the pot per decision on average (not what you won).");
+    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb of solver EV lost in all, 2.2% of the pot per decision.");
     expect(within(rep).getByText("4 not graded")).toBeInTheDocument();
     // the mtt hand's call is one CO's chart leaves out: off the chart
     const off = within(rep).getByRole("list", { name: /^Off the chart/ });
@@ -247,8 +246,7 @@ describe("AnalyzePage", () => {
     tab("Grades & leaks");
     const panel = screen.getByRole("region", { name: "Grading" });
     fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "triage" } });
-    expect(await within(panel).findByText(/17 decisions to ask: about \d+ s in this browser \(an estimate/)).toBeInTheDocument();
-    expect(panel).toHaveTextContent("else a Quick solve.");
+    expect(await within(panel).findByText(/17 decisions to ask: about \d+ s in this browser\./)).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 17 decisions graded in this run\.$/)).toBeInTheDocument();
     expect(stub.asked.every((s) => s.triage === true && !s.library_only)).toBe(true);
@@ -256,7 +254,6 @@ describe("AnalyzePage", () => {
 
     const hand = screen.getByRole("region", { name: "Hand" });
     // (what a grade stands on isn't said to be the library for a move a read or a solve answered)
-    expect(hand).toHaveTextContent("after the flop, each move against what answered it, which its grade names.");
     expect(hand).not.toHaveTextContent("against the flop library");
     const river = within(hand).getByLabelText("Grade of river decision 2");
     expect(river.getAttribute("title")).toContain("Live solve (Quick)");
@@ -294,8 +291,7 @@ describe("AnalyzePage", () => {
     tab("Grades & leaks");
     const panel = screen.getByRole("region", { name: "Grading" });
     fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "accurate" } });
-    expect(panel).toHaveTextContent("else a solve at Accurate: Study's tightest setting");
-    expect(await within(panel).findByText(/17 decisions to ask: about .+ in this browser \(an estimate/)).toBeInTheDocument();
+    expect(await within(panel).findByText(/17 decisions to ask: about .+ in this browser\./)).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 17 decisions graded in this run\.$/)).toBeInTheDocument();
     expect(stub.modes.length).toBeGreaterThan(0);
@@ -371,12 +367,12 @@ describe("AnalyzePage", () => {
     tab("Results");
     const res = await screen.findByRole("region", { name: "Your results" });
     await waitFor(() => expect(within(res).queryByRole("status")).toBeNull());
-    expect(res).toHaveTextContent("What you won or lost in your 4 hands, in big blinds, as the histories say: nothing here is graded or solved.How this worksWon is what each pot paid you (after the rake) less what you put in");
+    expect(res).toHaveTextContent("4 hands, in bb, from the histories (not graded).");
     // the SRP hand's +10.5bb on the button, the 3-bet pot's -100bb and the straddled pot's -43.5bb in the big blind
     const cash = within(res).getByRole("region", { name: "Cash games" });
     // (the 3-bet pot went in on the turn drawing dead: its all-in EV is what it lost)
     expect(cash).toHaveTextContent("Cash games (3 hands)Won−133.0bb−$193.85All-in EV−133.0bb1 all-in at their equitybb/100−4433.395% range −10686.0 to +1819.3At showdown−100.0bbWithout showdown−33.0bb");
-    expect(cash).toHaveTextContent("Over 3 hands, bb/100 is mostly the cards");
+    expect(cash).toHaveTextContent("Few hands: bb/100 is mostly luck.");
     expect(within(cash).getByRole("row", { name: "BTN" })).toHaveTextContent("BTN1+10.5bb+1050.0");
     expect(within(cash).getByRole("row", { name: "BB" })).toHaveTextContent("BB2−143.5bb−7175.0");
     const tour = within(res).getByRole("region", { name: "Tournaments" });
@@ -404,7 +400,7 @@ describe("AnalyzePage", () => {
     tab("Stats");
     await screen.findByRole("region", { name: "Your stats" });
     const stats = () => screen.getByRole("region", { name: "Your stats" });
-    expect(stats()).toHaveTextContent("Counted from your 4 hands, as you played them: nothing here is graded or solved.");
+    expect(stats()).toHaveTextContent("4 hands, as played (not graded).");
     const row = (name: string) => within(stats()).getByRole("row", { name });
     await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%4 / 4"));
     // the SRP hand's open, the 3-bet pots' re-raises, the MTT hand's call; three c-bets, one turn barrel of three
@@ -439,7 +435,7 @@ describe("AnalyzePage", () => {
     showFilters();
     fireEvent.change(screen.getByRole("combobox", { name: "Your seat" }), { target: { value: "BB" } });
     await waitFor(() => expect(row("VPIP")).toHaveTextContent("100%2 / 2"));
-    expect(stats()).toHaveTextContent("Counted from the 2 hands the filters show");
+    expect(stats()).toHaveTextContent("2 hands the filters show, as played");
     expect(row("3-bet")).toHaveTextContent("100%2 / 2");
     tab("Grades & leaks");
     expect(within(screen.getByRole("region", { name: "Report" })).getByLabelText("Summary")).toHaveTextContent("Over the 2 hands the filters show, of 4 kept.");
@@ -484,7 +480,7 @@ describe("AnalyzePage", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Tag" }), { target: { value: "c-bet" } });
     expect(handRows().map((r) => r.getAttribute("aria-label"))).toEqual(["Hand 249012345678"]);
     tab("Stats");
-    expect(await screen.findByText(/Counted from the 1 hand the filters show/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 hand the filters show, as played/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     tab("Hands");
     fireEvent.change(screen.getByRole("searchbox", { name: "Search hands" }), { target: { value: "river SIZING" } });
@@ -552,7 +548,7 @@ describe("AnalyzePage", () => {
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("2025-06-01 09:30 · 6-handed");
     expect(within(hand).getByRole("listitem", { name: "flop" })).toHaveTextContent("You bet 1.8");
-    expect(hand).toHaveTextContent("A hand from My hands on the older gto-solver site, replayed on Lizard's table.");
+    expect(hand).toHaveTextContent("From the older gto-solver site.");
     expect(within(hand).getByRole("group", { name: "Your tags and note" })).toHaveTextContent("classicbet small");
 
     // again: nothing new; the classic database as it was
@@ -652,7 +648,7 @@ describe("AnalyzePage", () => {
     expect(res).toHaveTextContent("many/s9.txt: 1 read, 0 to keep");
   });
 
-  it("says a kept hand's preflop was played for you, and doesn't speak of your preflop moves in its grades", async () => {
+  it("says a kept hand's preflop was played for you", async () => {
     const text = HH("stars_6max_srp.txt");
     const rec = (n: string, o: object) => ({ ...recordOf(text, importHand(text), { id: "practice:s", name: "Practice", at: 1 }), id: `practice|${n}`, number: n, site: PRACTICE_SITE, ...o });
     await addHands([rec("L1-1", { playedFor: "preflop" }), rec("L1-2", {})]);
@@ -662,15 +658,13 @@ describe("AnalyzePage", () => {
     const opened = async (n: string) => {
       await waitFor(() => expect(handRows().some((r) => r.getAttribute("aria-label") === `Hand ${n}`)).toBe(true));
       fireEvent.click(within(handRows().find((r) => r.getAttribute("aria-label") === `Hand ${n}`)!).getByRole("button", { name: "Open" }));
-      return within(await screen.findByRole("region", { name: "Hand" })).findByText(/replayed on Lizard's table/);
+      return within(await screen.findByRole("region", { name: "Hand" })).findByText(/Played in Practice/);
     };
     const drawn = await opened("L1-1");
-    expect(drawn).toHaveTextContent("A hand you played in Practice, preflop played for you from the charts, replayed on Lizard's table.");
-    expect(drawn).toHaveTextContent("Grades: each move from the flop against what answered it");
-    expect(drawn).not.toHaveTextContent("your preflop moves");
+    expect(drawn).toHaveTextContent("Played in Practice, preflop from the charts.");
 
     const own = await opened("L1-2");
-    expect(own).toHaveTextContent("A hand you played in Practice, replayed on Lizard's table.");
-    expect(own).toHaveTextContent("Grades: your preflop moves against the preflop charts");
+    expect(own).toHaveTextContent("Played in Practice.");
+    expect(own).not.toHaveTextContent("preflop from the charts");
   });
 });

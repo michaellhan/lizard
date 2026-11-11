@@ -27,18 +27,15 @@ describe("the hand filter", () => {
     expect(screen.getByRole("group", { name: "Made hands: read on the flop dealt" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Draws: read on the flop dealt" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Hand classes: read on your two cards" })).toBeInTheDocument();
-    expect(note()).toHaveTextContent("Made hands and draws are read on the flop dealt, hand classes on your two cards.");
   });
 
   it("starts the session with it, and says it's graded as ever, once", () => {
     const start = open();
     pick("Play", "3bet");
     pick("Hands", "m:top_tk");
-    expect(note()).toHaveTextContent("Top pair, top kicker: read on the flop dealt, at one table.");
+    expect(note()).toHaveTextContent("Top pair, top kicker: read on the flop dealt, one table only.");
     pick("Hands", "c:sa");
-    expect(note()).toHaveTextContent("Suited aces: read on your two cards, at one table.");
-    expect(note()).toHaveTextContent("graded as any other hand's, against the strategy for every hand you could hold there");
-    expect(screen.getAllByText(/graded as any other hand/)).toHaveLength(1);
+    expect(note()).toHaveTextContent("Suited aces: read on your two cards, one table only.");
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(start).toHaveBeenCalledWith(6, 100, expect.objectContaining({ pot: "3bet", hand: "c:sa" }));
   });
@@ -61,14 +58,12 @@ describe("the hand filter", () => {
     const offered = () => [...select.options].map((o) => o.value);
     expect(offered()).toContain("m:quads");
     expect(offered()).not.toContain("m:nothing");
-    expect(note()).toHaveTextContent("Hands this pot almost never reaches aren't listed.");
     pick("Hands", "m:trips");
-    expect(note()).toHaveTextContent("Rare in 4-bet pots: on the 6-max 100bb charts about 1 deal in 1,081 gets here at the hardest seat, so the 3,000 deals can run out.");
+    expect(note()).toHaveTextContent("Rare: about 1 deal in 1,081.");
     pick("Hands", "m:quads");
-    expect(note()).not.toHaveTextContent("Rare in");
+    expect(note()).not.toHaveTextContent("Rare:");
     pick("Play", "srp");
     expect(offered()).toContain("m:nothing");
-    expect(note()).not.toHaveTextContent("aren't listed");
   });
 
   it("drops a choice the next pot doesn't offer, rather than keep it unseen", () => {
@@ -91,7 +86,7 @@ describe("the hand filter", () => {
     pick("Play", "srp");
     pick("Hands", "m:flush");
     pick("Flop: Suits", "rainbow");
-    expect(screen.getByRole("alert")).toHaveTextContent("No Flush turned up on these flops: widen them or pick other hands.");
+    expect(screen.getByRole("alert")).toHaveTextContent("No Flush on these flops: widen them.");
     expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(start).not.toHaveBeenCalled();
@@ -102,7 +97,7 @@ describe("the hand filter", () => {
 
   it("says so if more tables are set, and only then", () => {
     render(<SetupForm players={6} stack={100} opts={{ ...OPTS, pot: "srp", hand: "m:set" }} tables={3} onEdit={() => {}} onStart={() => {}} />);
-    expect(screen.getByRole("status")).toHaveTextContent("3 tables are set, and hands are filtered at one table only: above it they aren't.");
+    expect(screen.getByRole("status")).toHaveTextContent("Hand filter works at one table only.");
     cleanup();
     open({ ...OPTS, pot: "srp", hand: "m:set" });
     expect(screen.queryByRole("status")).toBeNull();
@@ -185,14 +180,13 @@ describe("grading preflop by the preflop solve", () => {
     const note = document.getElementById("pf-note")!;
     // (ticked by default, but said once a box is changed: your move stays on the first screen)
     expect(note).not.toBeVisible();
-    expect(box()).toHaveAccessibleDescription(/not a full solve/);
+    expect(box()).toHaveAccessibleDescription(/Not a full solve/);
     fireEvent.click(box()!);
     expect(note).not.toBeVisible();
     fireEvent.click(box()!);
     expect(note).toBeVisible();
-    expect(note).toHaveTextContent("equilibrium of a simplified class-level preflop game, not a full solve");
-    expect(note).toHaveTextContent("the opponents stay the charts");
-    expect(note).toHaveTextContent("keep the chart\u2019s grade and say why");
+    expect(note).toHaveTextContent("Not a full solve.");
+    expect(note).toHaveTextContent("keep the chart\u2019s grade");
   });
   it("isn't there where no solve is stored, and says why", () => {
     open();
@@ -248,15 +242,13 @@ describe("grading preflop by the preflop solve", () => {
     it("says its cost in plain words before you tick it, and what it is once you have", () => {
       open();
       const note = document.getElementById("pf-note")!;
-      expect(sizes()).toHaveAccessibleDescription(/not a full solve/);
+      expect(sizes()).toHaveAccessibleDescription(/Not a full solve/);
       expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
       expect(note).toHaveTextContent("leave the flop library");
       fireEvent.click(sizes()!);
-      expect(note).toHaveTextContent("equilibrium of a simplified class-level preflop game, not a full solve");
+      expect(note).toHaveTextContent("Your raise uses its size where it answers");
       expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
       expect(note).toHaveTextContent("leave the flop library");
-      expect(note).not.toHaveTextContent("Your options and the opponents stay the charts");
-      expect(note).toHaveTextContent("The opponents stay the charts");
     });
     it("doesn't go on into a game with no stored solve", () => {
       const start = open();

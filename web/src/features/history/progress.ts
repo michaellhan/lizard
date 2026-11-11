@@ -281,8 +281,8 @@ export function basisTrend(sessions: readonly SessionRecord[], basis: Basis): Ba
   const why = line
     ? null
     : n < MIN_BLOCKS * BLOCK
-      ? `${n.toLocaleString()} decision${n === 1 ? "" : "s"} so far: a line needs ${(MIN_BLOCKS * BLOCK).toLocaleString()}, ${moreForLine(n).toLocaleString()} more, as a share over fewer than ${BLOCK} is mostly chance.`
-      : `${n.toLocaleString()} decisions, but they make only ${blocks.length} stretch${blocks.length === 1 ? "" : "es"} of ${BLOCK} or more, since a session isn't cut in two, and a line needs ${MIN_BLOCKS}.`;
+      ? `${moreForLine(n).toLocaleString()} more decisions for a line.`
+      : `${blocks.length} of ${MIN_BLOCKS} stretches for a line.`;
   const counted = (ps: typeof parts) => {
     const all = new Map<string | null, number>();
     for (const c of ps.flatMap((p) => p.cells)) for (const [v, k] of keptCounts(c.versions, c.n)) all.set(v, (all.get(v) ?? 0) + k);

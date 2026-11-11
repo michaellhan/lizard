@@ -8,7 +8,6 @@ import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { pct } from "@/components/actions";
 import { flopWords, TEXTURE_GROUPS, type TextureFilter } from "@/features/practice/drills";
-import { CLASSES } from "@/features/study/runouts";
 import { storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryFiles, LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
@@ -20,7 +19,6 @@ import {
   FLOP_KB,
   lineChoices,
   marginText,
-  MIN_FLOPS_FOR_MARGIN,
   readFlops,
   readingOrder,
   sampleText,
@@ -142,7 +140,7 @@ export function TurnReportPanel({
     return (
       <section aria-label="Turn report" className="rounded-lg border border-border bg-surface p-3 text-sm">
         <h2 className="font-medium">Turn report</h2>
-        <p className="mt-1 text-muted">{spot.label} stores no turn files, so there&rsquo;s no turn report for it. Spots with stored turns have one here.</p>
+        <p className="mt-1 text-muted">{spot.label} stores no turns.</p>
       </section>
     );
   }
@@ -171,9 +169,8 @@ export function TurnReportPanel({
         <p className="text-muted">No flop of this texture ({textureWords(filter)}) has stored turns in {spot.label}.</p>
       ) : (
         <p className="text-muted">
-          How the stored turn&rsquo;s first decisions change with the turn card, over flops of {textureWords(filter)}: {eligible.length} of {cover.flops} such flops have stored turns
-          {eligible.length < cover.flops ? `, standing for ${pct(cover.share, 0)} of them by how often they come up, and the report is over those alone` : ""}.
-          {!asked && ` Reading ${Math.min(sample, eligible.length)} of them takes two files a flop, up to about ${firstBytes.toFixed(1)} MB.`}
+          {eligible.length} of {cover.flops} flops of {textureWords(filter)} have stored turns{eligible.length < cover.flops ? ` (${pct(cover.share, 0)} by frequency; the report covers those)` : ""}.
+          {!asked && ` Reading ${Math.min(sample, eligible.length)}: about ${firstBytes.toFixed(1)} MB.`}
         </p>
       )}
 
@@ -225,7 +222,7 @@ export function TurnReportPanel({
       <p role="status" className="sr-only">
         {running ? "Reading the turn report." : read.length ? `Turn report: ${read.length} flops read.` : ""}
       </p>
-      {stopped && !asked && <p className="text-muted">Stopped before a flop came back, so there&rsquo;s nothing to show yet.</p>}
+      {stopped && !asked && <p className="text-muted">Stopped before any flop came back.</p>}
       {fatal && (
         <p role="alert" className="text-danger">
           Couldn&rsquo;t read this spot&rsquo;s ranges, which the report needs: {fatal}
@@ -269,9 +266,9 @@ export function TurnReportPanel({
             </span>
           </form>
           <p className="text-muted">
-            This line is stored on {line.flops} of the {read.length} flops read.{" "}
-            {line.unread > 0 && `On ${line.unread} more it's stored but left out: a decision on the way to it is too rare for the flop's file to hold, so its hands can't be weighed. `}
-            {table.rows.length === 0 && "No hands reach this decision on it."}
+            Stored on {line.flops} of {read.length} flops read.{" "}
+            {line.unread > 0 && `${line.unread} more left out (too rare to weigh). `}
+            {table.rows.length === 0 && "No hands reach this decision."}
           </p>
           {table.rows.length > 0 && <TurnChart table={table} who={who} seats={seats} sample={state} />}
           {table.rows.length > 0 && (
@@ -294,13 +291,13 @@ export function TurnReportPanel({
                           {label(c)}
                         </th>
                       ))}
-                      <th scope="col" className="px-1.5 py-1.5 text-right font-medium sm:px-2" title="Half the 95% interval from reading a sample, in points of frequency, on the action it's widest">
+                      <th scope="col" className="px-1.5 py-1.5 text-right font-medium sm:px-2" title="Half the 95% sampling interval">
                         Margin
                       </th>
-                      <th scope="col" className="phone-col px-2 py-1.5 text-right font-medium" title="Flops read where this class of card comes up on this line">
+                      <th scope="col" className="phone-col px-2 py-1.5 text-right font-medium">
                         Flops
                       </th>
-                      <th scope="col" className="phone-col px-2 py-1.5 text-right font-medium" title="The acting range at the decision, in combos, averaged as the mix is">
+                      <th scope="col" className="phone-col px-2 py-1.5 text-right font-medium" title="Acting range size">
                         Combos
                       </th>
                     </tr>
@@ -334,12 +331,6 @@ export function TurnReportPanel({
               </div>
             </PhoneColumns>
           )}
-          <p className="text-xs text-muted">
-            Precomputed solutions, the library&rsquo;s: each flop&rsquo;s stored turn is its flop solve&rsquo;s own, with one bet size, mixes in 5% steps and a turn class&rsquo;s cards alike. A turn you deal in Study is solved on its own, with more sizes. Each mix is the range at the decision, each combo by how much of it reaches there on this line. Averages count each flop by how many of the 22,100 it stands for, the hand pairs that take the line and the cards in the class
-            {who === "after" ? `, and how often ${seats[0]} checks there` : ""}. A line is stored where at least 1% of hand pairs take it, so an average is over the flops that store it.
-            {" "}Turn cards are classed by the first of these that holds: {CLASSES.flush.toLowerCase()} (a third card of a suit on the board, or more); {CLASSES.straight.toLowerCase()} (a straight&rsquo;s five ranks hold the card and two board ranks or more); {CLASSES.pair.toLowerCase()}; an overcard (above every board card); a brick (below every board card); an undercard (between them).
-            {" "}Margin is half a 95% interval, in points of frequency, for reading a sample of the flops rather than all of them, on the action where it&rsquo;s widest. It says nothing of the solves&rsquo; own error, and a row behind fewer than {MIN_FLOPS_FOR_MARGIN} flops doesn&rsquo;t get one. Combos is the acting range&rsquo;s size there.
-          </p>
         </>
       )}
     </section>

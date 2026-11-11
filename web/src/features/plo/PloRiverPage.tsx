@@ -3,13 +3,12 @@
 // sizes aren't in the tree. The page says so, and every number under it sits under the solve's provenance. Loaded with its
 // route, so no PLO code is in the first download; the work is done in a worker.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { About } from "@/components/About";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { cardName, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { RiverClient } from "@/engine/plo/river/client";
-import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_FLOP_WORK, MAX_MEMORY_BYTES, MAX_SECONDS, MAX_TURN_WORK, MAX_WORK, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason, type ViewPath } from "@/engine/plo/river/run";
+import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_SECONDS, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason, type ViewPath } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 import { byClass } from "./classes";
@@ -138,13 +137,7 @@ export function PloRiverPage() {
     <div className="max-w-3xl space-y-5">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
-        <p className="text-sm text-muted">One street and every street after it, solved exactly at the sizes you list from the ranges you type: heads-up, nothing earlier solved, no rake.</p>
-        <About label="What it covers">
-        <p>
-          One river, a turn and every river card after it, or a flop and every turn and river after it, solved exactly at the sizes you list, every combo of both ranges and every card they block. It covers the street you type and after: the ranges
-          are the ones you type, no earlier street is solved, it&apos;s heads-up, pot limit&apos;s other sizes aren&apos;t in the tree, and there&apos;s no rake. A flop fits only narrow ranges: every turn and river after it is solved with it.
-        </p>
-        </About>
+        <p className="text-sm text-muted">No rake; earlier streets aren&apos;t solved.</p>
       </header>
 
       <FromHistory
@@ -154,7 +147,7 @@ export function PloRiverPage() {
           setStackOop(String(spot.stacks[0]));
           setStackIp(String(spot.stacks[1]));
           setFromHand(
-            `From your hand: the ${spot.street}, ${spot.seats[0]} (OOP) against ${spot.seats[1]} (IP)${spot.hero === null ? `, after you'd folded (you were ${read.heroPos} with ${read.hole})` : `, you ${spot.seats[spot.hero]} with ${read.hole}`}. Board, pot and stacks are the hand's; the ranges are still yours to type, as a hand history shows one hand, not a range.`,
+            `From your hand: the ${spot.street}, ${spot.seats[0]} (OOP) against ${spot.seats[1]} (IP)${spot.hero === null ? `, after you'd folded (you were ${read.heroPos} with ${read.hole})` : `, you ${spot.seats[spot.hero]} with ${read.hole}`}. Board, pot and stacks filled; type the ranges.`,
           );
         }}
       />
@@ -179,9 +172,7 @@ export function PloRiverPage() {
           <span className="text-muted">IP range, acts last</span>
           <input aria-label="IP range" value={ip} onChange={(e) => setIp(e.target.value)} className={inputClass} spellCheck={false} />
         </label>
-        <About label="How to write a range">
-          <p>A hand (AsKsQhJh) or a range, separated by commas: AAxx any two aces or more; JT98ds with a suit shape (ds double-suited, ss single-suited, r rainbow); random every hand; @25 a weight in percent.</p>
-        </About>
+        <p className="text-xs text-muted">e.g. AAxx, JT98ds, KQJTss@25, AsKsQhJh, random</p>
         <label className="block space-y-1 text-sm">
           <span className="text-muted">Board, five cards for a river, four for a turn, three for a flop</span>
           <input aria-label="Board" value={board} onChange={(e) => setBoard(e.target.value)} className={inputClass} spellCheck={false} />
@@ -232,7 +223,7 @@ export function PloRiverPage() {
             raises={[turnRaises, setTurnRaises]}
             cap={[turnCap, setTurnCap]}
             allIn={[turnAllIn, setTurnAllIn]}
-            note="Where the flop's betting closes with chips behind, each of the turn cards that can come is solved as its own turn at these sizes, every river after it too, in one solve with the flop. All-in on the flop, every turn and river is a showdown."
+            note="Each turn card is solved at these sizes."
           />
         )}
         {(isTurn || isFlop) && (
@@ -243,15 +234,12 @@ export function PloRiverPage() {
             raises={[riverRaises, setRiverRaises]}
             cap={[riverCap, setRiverCap]}
             allIn={[riverAllIn, setRiverAllIn]}
-            note={`Where the turn's betting closes with chips behind, each of the river cards that can come is solved as its own river at these sizes, in one solve with the ${isFlop ? "flop and turn" : "turn"}. All-in on the turn, every river card is a showdown.`}
+            note={"Each river card is solved at these sizes."}
           />
         )}
-        <About label="How sizes are read">
-        <p>
-          Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises. A size is cut to the largest pot-limit bet, lifted to the smallest, and a raise&apos;s percent is of the pot after the call, so 100 is the pot-limit raise. The raise cap counts raises
-          after the first bet. Chips one stack has over the other aren&apos;t in play.
+        <p className="text-xs text-muted">
+          Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises; a raise&apos;s % is of the pot after the call.
         </p>
-        </About>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <label className="min-w-0 space-y-1">
             <span className="text-muted">Target, % of pot</span>
@@ -262,13 +250,9 @@ export function PloRiverPage() {
             <input aria-label="Time budget" inputMode="decimal" value={seconds} onChange={(e) => setSeconds(e.target.value)} className={inputClass} />
           </label>
         </div>
-        <About label="Limits">
-        <p>
-          The target is at least {MIN_TARGET_PCT}%, the budget up to {MAX_SECONDS} s. A solve stops at whichever comes first and says which. A spot is refused, never sampled or grouped, over{" "}
-          {(MAX_WORK / 1e6).toFixed(0)} million combos times ways a hand can end (a turn {(MAX_TURN_WORK / 1e6).toFixed(0)} million, counting every river&apos;s; a flop {(MAX_FLOP_WORK / 1e6).toFixed(0)} million, counting every turn&apos;s and river&apos;s), or about{" "}
-          {(MAX_MEMORY_BYTES / 1e6).toFixed(0)} MB.
+        <p className="text-xs text-muted">
+          Target at least {MIN_TARGET_PCT}%, budget up to {MAX_SECONDS} s.
         </p>
-        </About>
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" disabled={running} className={buttonClass}>
             {isFlop ? "Solve this flop" : isTurn ? "Solve this turn" : "Solve this river"}
@@ -355,13 +339,12 @@ function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
   const turn = result.street === "turn";
   const flop = result.street === "flop";
   const later = turn || flop;
-  const dropped = result.unmatched.flatMap((x, seat) => (x ? [`${x.toLocaleString("en-US")} ${SEAT_NAMES[seat]} combos left out: each shares a card with every hand on the other side.`] : []));
+  const dropped = result.unmatched.flatMap((x, seat) => (x ? [`${x.toLocaleString("en-US")} ${SEAT_NAMES[seat]} combos left out (blocked).`] : []));
   return (
     <section aria-label={flop ? "Flop solution" : turn ? "Turn solution" : "River solution"} className="min-w-0 space-y-3">
       <ProvenanceBadge p={provenance} />
       <p className="text-sm">
-        {stopWords(result)} Exploitability {result.exploitability.pct.toFixed(3)}% of the pot ({result.exploitability.chips.toFixed(3)}bb a matchup), the average of what each seat gains by an exact best response in this tree{turn ? `, through the turn and all ${result.rivers} rivers` : ""}
-        {flop ? `, through the flop, all ${result.turns} turns and every river after each` : ""}.
+        {stopWords(result)} Exploitability {result.exploitability.pct.toFixed(3)}% of the pot ({result.exploitability.chips.toFixed(3)}bb a matchup).
       </p>
       <p className="text-xs text-muted">
         Board {result.board}
@@ -397,9 +380,7 @@ function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
           onView={onView}
         />
       )}
-      <p className="text-xs text-muted">
-        EV is in bb: chips won from the pot of {result.pot}, less chips bet {flop ? "on the flop, turn and river" : turn ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to the pot on every line. A frequency counts the matchups that can be dealt, so a card a hand blocks is in it. No rake.
-      </p>
+      <p className="text-xs text-muted">EV in bb of the pot of {result.pot}. No rake.</p>
     </section>
   );
 }
@@ -479,7 +460,7 @@ function FromHistory({ onUse }: { onUse: (spot: HistorySpot, read: HistoryRead) 
     <details className="rounded border border-border p-3 text-sm">
       <summary className="cursor-pointer">Start from a hand you played</summary>
       <div className="mt-2 space-y-2">
-        <p className="text-xs text-muted">Paste a four-card pot-limit Omaha hand history, as your poker client saved it. Each street two players saw with chips behind can go in the form, with the hand&apos;s board, pot and stacks. Nothing is kept.</p>
+        <p className="text-xs text-muted">Paste a PLO4 hand history. Nothing is kept.</p>
         <textarea aria-label="PLO hand history" value={text} onChange={(e) => setText(e.target.value)} rows={5} className={`${inputClass} font-mono text-xs`} spellCheck={false} />
         <button
           type="button"
@@ -499,7 +480,7 @@ function FromHistory({ onUse }: { onUse: (spot: HistorySpot, read: HistoryRead) 
               You were {got.heroPos} with <span className="font-mono">{got.hole}</span>. {got.skipped.join(" ")} {got.warnings.join(" ")}
             </p>
             {got.spots.length === 0 ? (
-              <p>No street of this hand had two players with chips behind, so there&apos;s nothing here for the solver.</p>
+              <p>No street had two players with chips behind.</p>
             ) : (
               <div className="flex flex-wrap items-end gap-2">
                 <label className="min-w-0 space-y-1">
@@ -560,8 +541,7 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
     <section aria-label="Practice this solve" className="space-y-2 rounded border border-border p-3 text-sm">
       <h2 className="font-semibold">Practice this solve</h2>
       <p className="text-xs text-muted">
-        A hand dealt as this solve plays: a {first} decision drawn by how often its line comes up, then a combo of the player to act by how often it gets there. Your action is graded against that combo&apos;s mix in this solve and each action&apos;s EV with the best play after it against the other range&apos;s strategy, by the EV it gives up in % of the pot at the decision, the scale every
-        trainer here uses{band === "rough" || band === "approximate" ? "; this solve is short of converged, so no verdict goes past an Inaccuracy" : ""}.
+        Graded against this solve&apos;s mix and EVs{band === "rough" || band === "approximate" ? "; not converged, so no verdict past Inaccuracy" : ""}.
       </p>
       <button type="button" className={buttonClass} onClick={next}>
         {spot ? "Next hand" : "Deal a hand"}
@@ -612,7 +592,7 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
       )}
       {tally.hands > 0 && (
         <p aria-label="Your tally" className="text-xs text-muted">
-          {tally.hands} hand{tally.hands === 1 ? "" : "s"}: {tally.ok} Best or Correct, {chips(tally.loss)}bb given up in all. Kept on this page only, for this solve.
+          {tally.hands} hand{tally.hands === 1 ? "" : "s"}: {tally.ok} Best or Correct, {chips(tally.loss)}bb given up. Not saved.
         </p>
       )}
     </section>
@@ -629,7 +609,7 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
   const [nodeId, setNodeId] = useState(0);
   const street = next === "turn" ? "turn" : "river";
   const before = next === "turn" ? "flop" : "turn";
-  if (!lines.length || !cards.length) return <p className="text-xs text-muted">{`Every line of this ${before} ends all-in or in a fold: each ${street} is a showdown, with no decision to show.`}</p>;
+  if (!lines.length || !cards.length) return <p className="text-xs text-muted">{`Every ${before} line ends all-in or folded: no ${street} decision.`}</p>;
   const show = async () => {
     const v = await ask(closing, card);
     setView(v);
@@ -667,11 +647,11 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
           Show this {street}
         </button>
       </div>
-      {missing && <p className="text-sm text-muted">That {street} isn&apos;t there to show: the solve that made it is gone from the worker. Solve again to look.</p>}
+      {missing && <p className="text-sm text-muted">That {street} is gone from the worker. Solve again.</p>}
       {view && node && (
         <>
           <p className="text-xs text-muted">
-            Board {board} {view.card}: pot {view.pot}, {view.stack} behind, the solve&apos;s own {street} strategies, each hand reaching it as often as the {before}&apos;s line lets it (Reach).
+            Board {board} {view.card}: pot {view.pot}, {view.stack} behind.
           </p>
           <label className="block space-y-1 text-sm">
             <span className="text-muted">{Street} decision</span>
@@ -688,7 +668,7 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
           <ClassTable hands={view.hands[node.player]!} board={`${board}${view.card}`} node={node} />
           <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={street === "turn"} node={node} />
           <p className="text-xs text-muted">
-            {Street} EVs are in bb of the {street}&apos;s pot of {view.pot}: chips won from it less chips bet {street === "turn" ? "on the turn and river" : "on the river"}, so the two ranges&apos; EVs add to it.
+            EV in bb of the {street}&apos;s pot of {view.pot}.
           </p>
           {view.street === "turn" && (
             <After

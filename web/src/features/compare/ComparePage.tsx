@@ -40,7 +40,7 @@ const spotWords = (h: StudyHand) =>
 export function notComparable(r: SolveResult["data"]): string | null {
   if (r.study === "node" && r.grid) return null;
   if (r.study === "pf_unsolved")
-    return `This game's preflop isn't solved yet (about ${pfMinutes(typeof r.estimate_s === "number" ? r.estimate_s : 60)} in your browser): open it in Study, solve it there, then come back.`;
+    return `Preflop not solved yet (about ${pfMinutes(typeof r.estimate_s === "number" ? r.estimate_s : 60)}): solve it in Study first.`;
   if (r.study === "pf_none") return `The preflop solve doesn't take this game: ${String(r.reason ?? "")}.`;
   if (typeof r.error === "string") return r.error;
   if (r.study === "deal") return "Not a decision: the next card is due.";
@@ -109,11 +109,11 @@ export function ComparePage() {
       <div className="max-w-3xl space-y-3">
         <h1 className="text-2xl font-semibold">Compare</h1>
         <p className="text-sm text-muted">
-          Pick two spots, or open a comparison from a spot in{" "}
+          Pick two spots, or compare from{" "}
           <Link to="/study" className="underline hover:text-text">
             Study
-          </Link>{" "}
-          (Compare this spot: in chip EV, without rake, at another stack, against the preflop solve, or with a spot you pinned).
+          </Link>
+          .
         </p>
         <SpotPicker a={params.get("a")} b={params.get("b")} onPick={pick} />
       </div>
@@ -151,10 +151,7 @@ export function ComparePage() {
   });
   return (
     <div className="max-w-5xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Compare</h1>
-        <p className="text-sm text-muted">Two spots answered one after the other and shown side by side, B against A. Each answer keeps its own source.</p>
-      </div>
+      <h1 className="text-2xl font-semibold">Compare</h1>
       <p role="status" className="sr-only">
         {said}
       </p>
@@ -218,7 +215,7 @@ export function ComparePage() {
             Try again
           </button>
         )}
-        {why.length > 0 && <p className="text-sm text-muted">Nothing compared: {why.length > 1 ? "neither side is" : `${why[0]!.slice(0, 1)} isn't`} a decision with an answer (above).</p>}
+        {why.length > 0 && <p className="text-sm text-muted">Nothing compared: {why.length > 1 ? "neither side is" : `${why[0]!.slice(0, 1)} isn't`} a decision with an answer.</p>}
         {sa.kind === "done" && sb.kind === "done" && !why.length && <Diff ra={sa.result} rb={sb.result} bySource={bySource} menus={sizesOnly(a, b)} />}
       </div>
     </div>
@@ -290,11 +287,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
             </tr>
           </tbody>
         </table>
-        <p className="mt-1 text-xs text-muted">
-          {noise !== null
-            ? `EV changes under ${noise.toFixed(2)}bb (the two answers' distance from equilibrium combined) are marked (noise).`
-            : "No distance from equilibrium is measured on both sides, so no EV change can be called noise or not."}
-        </p>
+        {noise !== null && <p className="mt-1 text-xs text-muted">EV changes under {noise.toFixed(2)}bb: noise.</p>}
       </section>
       {A.grid && B.grid && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
@@ -308,7 +301,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
               </select>
             </label>
             <DiffMatrix diffs={classes} action={action} selected={selected} onSelect={setSelected} />
-            <p className="text-xs text-muted">Blue: B takes it more often; red: less often; the stronger, the bigger. Darker grey: a class in one range only.</p>
+            <p className="text-xs text-muted">Blue: B more often; red: less. Dark grey: one range only.</p>
             <p role="status" className="text-sm">
               {sel ? diffLabel(sel, sel.cls, action) : ""}
             </p>
@@ -325,7 +318,7 @@ function Diff({ ra, rb, bySource, menus }: { ra: SolveResult; rb: SolveResult; b
                 ))}
               </ol>
             ) : (
-              <p className="text-xs text-muted">No hand class in both ranges changes it by half a point or more.</p>
+              <p className="text-xs text-muted">No class changes by half a point or more.</p>
             )}
           </section>
         </div>
@@ -350,10 +343,6 @@ function MenuSummary({ m, actor, pot }: { m: Menus; actor: string; pot: number |
         {side("B", m.b)}
       </ul>
       <p>{menuWords(m, actor, pot)}</p>
-      <p className="text-xs text-muted">
-        A street's menu is every bet's on that street, both players', so each EV is what the game with that menu is worth to {actor} here, from the answers above (each
-        with its own badge). Study's one-size view keeps the rest of the tree and changes one decision's sizes.
-      </p>
     </section>
   );
 }

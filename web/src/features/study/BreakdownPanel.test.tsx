@@ -237,7 +237,7 @@ describe("BreakdownPanel", () => {
   it("says so where the rules answered", async () => {
     const { getSolver } = solver(() => ({ data: { breakdown: null }, provenance: PROV }));
     await opened(getSolver);
-    expect(screen.getByText(/answered by the betting rules/)).toBeTruthy();
+    expect(screen.getByText(/betting rules, not a solve/)).toBeTruthy();
   });
 
   it("says what went wrong", async () => {

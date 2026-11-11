@@ -83,7 +83,7 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
     } catch (e) {
       console.error("Starting fresh failed:", e);
       setStage("failed");
-      setSaid({ ok: false, text: "The browser wouldn't delete it, so nothing has changed. Clearing this site's data in the browser's settings does the same." });
+      setSaid({ ok: false, text: "The browser wouldn't delete it; nothing changed. Clearing this site's data in browser settings does the same." });
     }
   };
 
@@ -110,7 +110,7 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
             <h2 ref={started} tabIndex={-1} className="text-lg font-semibold outline-none">
               Started fresh
             </h2>
-            <p>The old data is gone and this browser is keeping data again. If you have a backup, restore it here.</p>
+            <p>Old data deleted. Restore a backup here if you have one.</p>
             <div className="flex flex-wrap items-center gap-2">
               <label className={`${BUTTON} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent`}>
                 {restoring ? "Restoring…" : "Restore from a file"}
@@ -158,7 +158,7 @@ function Panel({ stage, setStage, reload }: { stage: Stage; setStage: (s: Stage)
                 {partly}
               </p>
             )}
-            {stage === "blocked" && <p role="status">Another Lizard tab is holding the data. Close the other Lizard tabs and this carries on.</p>}
+            {stage === "blocked" && <p role="status">Another Lizard tab is holding the data. Close the other Lizard tabs.</p>}
             {stage === "deleting" && <p role="status">Deleting…</p>}
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" disabled={trying} onClick={() => void again()} className={BUTTON}>

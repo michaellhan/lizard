@@ -98,12 +98,12 @@ export function CompareLinks({ hand, min, max, bets }: { hand: StudyHand; min: n
             compare
           </Link>
         ) : (
-          <span title={`Another stack, ${min}–${max}bb`}>(another stack, {min}–{max}bb)</span>
+          <span>({min}–{max}bb)</span>
         )}
       </span>
       {bets && <MenuLink hand={hand} street={bets.street} now={bets.now} />}
       {pinned && (
-        <Link to={compareLink(pinned, hand)} className={link} title="The spot you pinned as A, this one as B">
+        <Link to={compareLink(pinned, hand)} className={link} title="A: pinned, B: this spot">
           with the pinned spot
         </Link>
       )}
@@ -111,8 +111,7 @@ export function CompareLinks({ hand, min, max, bets }: { hand: StudyHand; min: n
         type="button"
         aria-pressed={pin === here}
         onClick={() => setPin(pin === here ? null : here)}
-        title={pin === here ? "Pinned: any other spot links to a comparison with this one" : "Keep this spot as A, to compare any other spot with it"}
-        className="rounded border border-border px-2 py-0.5 hover:bg-surface-2"
+                className="rounded border border-border px-2 py-0.5 hover:bg-surface-2"
       >
         {pin === here ? "Pinned as A · unpin" : "Pin as A"}
       </button>
@@ -136,7 +135,7 @@ function MenuLink({ hand, street, now }: { hand: StudyHand; street: SizeStreet; 
       />
       %{" "}
       {b ? (
-        <Link to={compareLink(hand, b)} className="underline hover:text-text" title="This spot with its menu as A, the menu typed as B">
+        <Link to={compareLink(hand, b)} className="underline hover:text-text" title="A: this menu, B: typed">
           compare menus
         </Link>
       ) : (

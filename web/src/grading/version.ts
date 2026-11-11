@@ -173,4 +173,4 @@ export function versionSummary(c: VersionCounts): string | null {
 }
 
 /** Why a version can be unknown, for a page that shows one. */
-export const VERSION_UNKNOWN = "A version is unknown where a grade was made before versions were kept, on a local solver or on a development build.";
+export const VERSION_UNKNOWN = "Unknown: graded before versions were kept, or on a local or dev build.";

@@ -123,7 +123,7 @@ export function ResizableWorkspace({
           aria-valuenow={Math.round(shown * 100)}
           aria-valuemin={Math.round(Math.min(limits.min, shown) * 100)}
           aria-valuemax={Math.round(Math.max(limits.max, shown) * 100)}
-          title="Drag or use the arrow keys to resize, Home and End for the limits. Press Enter or double-click to reset."
+          title="Drag or arrow keys to resize; Enter or double-click resets."
           className="group relative cursor-col-resize touch-none select-none"
           onPointerDown={(e) => {
             if (e.button !== 0) return;

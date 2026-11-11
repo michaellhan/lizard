@@ -200,7 +200,7 @@ describe("Study's preflop Solver source", () => {
     renderAt(withPf(HU, "solver"));
     const offer = await screen.findByRole("region", { name: "Solve this game's preflop" });
     expect(offer).toHaveTextContent("heads-up, 100bb, no rake");
-    expect(offer).toHaveTextContent("About 10 s in your browser");
+    expect(offer).toHaveTextContent("Class-level model, about 10 s in your browser");
     // never started by itself
     expect(asks("run")).toHaveLength(0);
     expect(screen.getByRole("radio", { name: "Solver" })).toHaveAttribute("aria-checked", "true");
@@ -215,7 +215,6 @@ describe("Study's preflop Solver source", () => {
     // the node from the solve, labelled as such, once it's done
     await waitFor(() => expect(screen.getByText(/^Preflop solve \(class-level model\) · 2\.00 mbb\/hand/)).toBeInTheDocument());
     await waitFor(() => expect(screen.queryByRole("status", { name: "Preflop solve" })).toBeNull());
-    expect(screen.getByLabelText("About the preflop solve")).toHaveTextContent("1000 iterations, 2.00 mbb/hand from equilibrium (a seat's average)");
     expect(screen.getByLabelText("About the preflop solve")).not.toHaveTextContent("Not finished");
     // the solve's EVs: the EV view is offered
     expect(screen.getByRole("button", { name: "EV" })).toBeInTheDocument();
@@ -297,9 +296,9 @@ describe("Compare: the charts against the preflop solve", () => {
     const charts = provenanceOf({ street: "preflop", study: "node" }, ctx);
     const solve = provenanceOf({ study: "node", street: "preflop", source: "solver", pf_solve: { done: true, mbb: 1 } } as AdvisorResponse, ctx);
     expect(sourceWarning(charts, solve, true)).toBe(
-      "The two sides are two sources of the same spot (A: Preflop charts; B: Preflop solve (class-level model)): the differences are theirs, not the spot's. A (Preflop charts) is approximate: read small differences as noise.",
+      "Two sources of one spot (A: Preflop charts; B: Preflop solve (class-level model)): the differences are theirs. A (Preflop charts) is approximate: small differences are noise.",
     );
-    expect(notComparable({ study: "pf_unsolved", estimate_s: 200 })).toBe("This game's preflop isn't solved yet (about 3 min in your browser): open it in Study, solve it there, then come back.");
+    expect(notComparable({ study: "pf_unsolved", estimate_s: 200 })).toBe("Preflop not solved yet (about 3 min): solve it in Study first.");
     expect(notComparable({ study: "node", grid: { actions: [], cells: {} } })).toBeNull();
   });
 });

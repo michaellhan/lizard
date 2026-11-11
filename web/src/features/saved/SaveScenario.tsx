@@ -54,7 +54,7 @@ export function SaveScenario({ setup }: { setup: ScenarioSetup | null }) {
         onClick={start}
         aria-expanded={open}
         disabled={!setup}
-        title={setup ? "Keep this setup, as it's set, in this browser under a name" : "Fix the setup first: it can't start as it stands"}
+        title={setup ? "Save this setup" : "Fix the setup first"}
         className="rounded border border-border px-2.5 py-1 hover:bg-surface-2 disabled:opacity-40"
       >
         Save scenario

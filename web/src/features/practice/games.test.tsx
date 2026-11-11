@@ -252,7 +252,7 @@ describe("the New session form", () => {
     const start = open();
     pick("Play", "pushfold");
     expect(screen.getByRole("spinbutton", { name: "Stack in big blinds" })).toHaveValue(12);
-    expect(screen.getByText(/equilibrium by hand class with no EVs/)).toBeInTheDocument();
+    expect(screen.getByText(/Push\/fold model: graded by frequency, no EVs/)).toBeInTheDocument();
     go();
     expect(start).toHaveBeenCalledWith(6, 12, expect.objectContaining({ pushFold: true, preflopOnly: false, sizes: null }));
   });
@@ -397,7 +397,7 @@ describe("what's said of a decision", () => {
   it("gives a push/fold answer no EV column, and calls it the model", () => {
     show(dec(prov({ source: "push-fold", approximate: true }), false, false));
     expect(screen.queryByRole("columnheader", { name: /^EV/ })).toBeNull();
-    expect(screen.getByText(/Graded by how often the push\/fold model plays your hand/)).toBeInTheDocument();
+    expect(screen.getByText("Graded by push/fold frequency: no EVs.")).toBeInTheDocument();
   });
 
   it("gives a fallback's chips in a prize session no EV column either", () => {

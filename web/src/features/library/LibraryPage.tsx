@@ -1,6 +1,5 @@
 // Library coverage, read live from the published index: as the heads-up builds complete more flops and the library
 // is republished, this page (and the engine) pick them up without a redeploy.
-import { About } from "@/components/About";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
@@ -49,12 +48,7 @@ export function LibraryPage() {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold">Precomputed library</h1>
-          <p className="max-w-2xl text-sm text-muted">Flops answered instantly from solutions computed offline. Anything not listed is solved live.</p>
-          <About>
-            <p>
-              Each entry is within ~0.1-0.15% of the pot of equilibrium in its abstraction. Coverage is read from the published index each time.
-            </p>
-          </About>
+          <p className="max-w-2xl text-sm text-muted">Anything not listed is solved live.</p>
         </div>
         <button type="button" onClick={() => setTick((t) => t + 1)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
           Refresh
@@ -82,7 +76,6 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
       {cat && !cat.available && (
         <p className="text-sm text-muted">{cat.unreadable ? "Couldn't read this library's index. Check your connection, then Refresh." : "Not published yet."}</p>
       )}
-      {groups.length > 0 && <p className="text-xs text-muted sm:hidden">Scroll a table sideways for all its columns, Study last.</p>}
       {groups.map(([game, spots]) => (
         <div key={game} className="scroll-x rounded-lg border border-border">
           <table className="w-full min-w-[560px] text-sm">
@@ -112,7 +105,7 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
                         <div className="h-1.5 w-24 overflow-hidden rounded bg-surface-3" aria-hidden>
                           <div className="h-full bg-accent" style={{ width: `${Math.min(100, (s.flops / s.target) * 100)}%` }} />
                         </div>
-                        <span className="font-mono text-xs" title={`${s.flops} of the ${s.target} flops this spot is built over`}>
+                        <span className="font-mono text-xs">
                           {s.flops} / {s.target}
                         </span>
                       </div>

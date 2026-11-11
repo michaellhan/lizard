@@ -70,7 +70,7 @@ describe("Your sessions", () => {
     expect(rows[0]).toHaveTextContent("1 hand");
     expect(rows[0]).toHaveTextContent("0 of");
     expect(rows[0]).toHaveTextContent("—");
-    expect(await panel()).toHaveTextContent("Nothing is graded here yet");
+    expect(await panel()).toHaveTextContent("None graded here yet.");
   });
 
   it("keeps a tournament's chips out of Won, and each kind to itself", async () => {
@@ -184,7 +184,7 @@ describe("Your sessions", () => {
     expect(line).toHaveAttribute("aria-valuenow", String(Number(lastBlock) - 1));
     expect(line.getAttribute("aria-valuetext")).toMatch(/^Block \d+ of \d+: \d+% in the mix/);
     expect(screen.getByLabelText("Latest sessions against before")).toHaveTextContent(/not a solve.*in the mix over your latest 110 decisions.*Better\./);
-    expect(p).toHaveTextContent("on Preflop charts (by frequency, not a solve), clear folds left out");
+    expect(p).toHaveTextContent("In the mix: on Preflop charts (by frequency, not a solve).");
     expect(within(p).getByRole("table", { name: "Changes against before" })).toHaveTextContent("RFI");
   });
 
@@ -203,7 +203,6 @@ describe("Your sessions", () => {
     expect(row).toHaveTextContent("RFI");
     expect(row).toHaveTextContent("Better");
     expect(row).toHaveTextContent("solver build aaaa/1111 before, bbbb/2222 latest");
-    expect(p).toHaveTextContent("Where a row spans versions, part of its change can be the answer's");
   });
 
   it("shows grades with no version as unknown, and one known version as the same", async () => {
@@ -215,7 +214,7 @@ describe("Your sessions", () => {
     const p = await panel();
     const table = await within(p).findByRole("table", { name: "Changes against before" });
     expect(within(table).getAllByRole("row")[1]).toHaveTextContent(/Version unknown \(\d+ before, \d+ latest\)/);
-    expect(p).toHaveTextContent("A version is unknown where a grade was made before versions were kept");
+    expect(p).toHaveTextContent("Unknown: graded before versions were kept");
     cleanup();
     await putDecisions(graded({ version: "build:aaaa/1111" }));
     open();
@@ -232,7 +231,7 @@ describe("Your sessions", () => {
     await tab("Sessions");
     const p = await panel();
     await within(p).findByRole("list", { name: "Sessions" });
-    await waitFor(() => expect(p).toHaveTextContent("left out while"));
+    await waitFor(() => expect(p).toHaveTextContent("No line while the EV lost, tag or search filters are on."));
     expect(within(p).queryByRole("figure")).toBeNull();
     expect(screen.queryByLabelText("Latest sessions against before")).toBeNull();
     cleanup();
@@ -285,7 +284,7 @@ describe("Your sessions", () => {
     await waitFor(() => expect(within(screen.getByLabelText("Leak drill")).getByLabelText("Drill score")).toHaveTextContent("1 of 2 drilled"));
     cleanup();
     open("drill=pf:Limp");
-    expect(await screen.findByText("None of this leak's decisions is graded with its mix in this browser.")).toBeInTheDocument();
+    expect(await screen.findByText("None of this leak's decisions is graded with its mix.")).toBeInTheDocument();
   });
 
   it("keeps History's total the whole leak's, whatever session a pick or a Start over was made under", async () => {
@@ -351,8 +350,8 @@ describe("Your sessions", () => {
     open();
     await tab("Sessions");
     const p = await panel();
-    await waitFor(() => expect(p).toHaveTextContent("300 more decisions for a line (clear folds and undated hands left out)"));
-    expect(p).not.toHaveTextContent("Nothing is graded here yet");
+    await waitFor(() => expect(p).toHaveTextContent("300 more decisions for a line."));
+    expect(p).not.toHaveTextContent("Nothing graded yet");
     cleanup();
     const d = await db();
     await Promise.all([d!.clear("hands"), d!.clear("decisions")]);

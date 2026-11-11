@@ -12,11 +12,9 @@ import type { Decision } from "./practice";
 type Mix = Decision["mix"];
 
 /** What's said once the answer is shown, and after the move. */
-export const REVEAL_NOTE = "You saw the answer first, so this decision isn't graded. It doesn't count toward your score, your streak, History or Review.";
+export const REVEAL_NOTE = "Answer seen first: not graded.";
 /** Reveal's rule, on its button. */
-export const REVEAL_TIP = "Shows the answer for your hand; what you do after it isn't graded.";
-/** A hand's chips are what happened at the table: only the decision is left out. */
-export const REVEAL_CHIPS = "The hand still counts in Hands and Net.";
+export const REVEAL_TIP = "Show the answer (then not graded)";
 
 /** Your hand's mix: each action, how often it's played, and its EV where `hasEv`. `chose`: your action, marked. */
 export function MixTable({ mix, hasEv, labelOf, chose, unit = "bb" }: { mix: Mix; hasEv: boolean; labelOf: (a: Mix[number]) => string; chose?: string; unit?: string }) {
@@ -55,7 +53,7 @@ export function RevealedMix({ mix, provenance, labelOf, note }: { mix: Mix; prov
         <ProvenanceBadge p={provenance} />
       </div>
       <MixTable mix={mix} hasEv={hasEv} labelOf={labelOf} unit={evUnit(provenance)} />
-      {!hasEv && <p className="text-xs text-muted">This answer has no EVs for your hand.</p>}
+      {!hasEv && <p className="text-xs text-muted">No EVs for your hand.</p>}
       <p role="status">{note}</p>
     </div>
   );
@@ -124,19 +122,19 @@ export function CopyForAi({ text }: { text: () => string }) {
   return (
     <div className="space-y-1 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => void copy()} title="Plain text for you to paste into a chatbot. Lizard sends nothing itself." className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
+        <button type="button" onClick={() => void copy()} title="Plain text to paste into a chatbot" className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
           Copy for AI
         </button>
         {copied.st === "done" && (
           <span role="status" className="text-xs text-muted">
-            Copied. Lizard sent nothing: paste it yourself, and check what a chatbot says against the numbers.
+            Copied.
           </span>
         )}
       </div>
       {copied.st === "failed" && (
         <div className="space-y-1">
           <p role="alert" className="text-danger">
-            Not copied: {copied.why}. The text is here to copy by hand.
+            Not copied: {copied.why}. Copy it by hand:
           </p>
           <textarea readOnly aria-label="Text for AI" value={copied.text} rows={6} className="w-full rounded border border-border bg-surface-2 p-1 font-mono text-xs" />
         </div>

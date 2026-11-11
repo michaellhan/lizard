@@ -346,7 +346,6 @@ describe("kept apart", () => {
     const words = pfWords(session().cells)!;
     expect(words).toMatch(/1 by the preflop solve, by EV/);
     expect(words).toMatch(/1 by the charts, by frequency, no EV/);
-    expect(words).toMatch(/never added together/);
     expect(pfWords({})).toBeNull();
     const rec = toRecord(session());
     expect(rec.meta!.pfSolve).toBe(true);
