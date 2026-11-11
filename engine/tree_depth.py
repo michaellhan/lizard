@@ -124,7 +124,8 @@ def _advise_at(self, state, *args, **kwargs):
         res = _upstream(self, state, *args, **kwargs)
     finally:
         self.cfg, self.max_cells = saved
-    if isinstance(res, dict) and "error" not in res:
+    # (said only on a heads-up answer: a 3- or 4-way solve keeps its own menu and raise cap, multiway_solver.MWConfig)
+    if isinstance(res, dict) and "error" not in res and not res.get("multiway"):
         res["tree"] = {**({"raises": raises} if raises is not None else {}),
                        **({"max_cells": cap} if cap is not None else {})}
     return res

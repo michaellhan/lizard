@@ -442,7 +442,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                 </option>
               ))}
             </select>
-            <span className="text-muted">{raisesWords(raises)}</span>
+            <span className="text-muted">{raisesWords(raises)} (heads-up pots: 3- and 4-way solves keep their own)</span>
           </label>
           <TreeNote />
         </fieldset>

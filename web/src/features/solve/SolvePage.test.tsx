@@ -75,7 +75,7 @@ describe("SolvePage", () => {
     const first = open("p=2&s=100&raises=3");
     const cap = screen.getByRole("combobox", { name: "Raise cap" });
     expect(cap).toHaveValue("3");
-    expect(screen.getByText("a bet and 2 raises a street, then all-in only")).toBeInTheDocument();
+    expect(screen.getByText("a bet and 2 raises a street, then all-in only (heads-up pots: 3- and 4-way solves keep their own)")).toBeInTheDocument();
     expect(screen.getByText(/This device builds up to 12M cells, up to ~0\.\d GB \(Phone,/)).toBeInTheDocument();
     fireEvent.change(cap, { target: { value: "4" } });
     type("Flop bets", "25, 33, 50, 75, 125");

@@ -130,6 +130,14 @@ class Requests(unittest.TestCase):
         self.assertIn("raises must be a whole number from 1 to 4", r.get("error", ""))
         self.assertEqual(self.adv.cfg.max_raises, 2)
 
+    def test_a_multiway_answer_says_nothing_of_it(self):
+        """3- and 4-way solves keep their own menu and raise cap (multiway_solver.MWConfig), so their answer doesn't
+        claim the request's."""
+        for multiway, want in ((True, None), (False, {"raises": 3})):
+            with mock.patch.object(td, "_upstream", lambda adv, st, *a, **k: {"street": "flop", "multiway": multiway}):
+                self.assertEqual(td._advise_at(self.adv, {"raises": 3}).get("tree"), want)
+        self.assertEqual(self.adv.cfg.max_raises, 2)
+
     def test_the_cap_cuts_the_tree_and_says_so(self):
         """A flop (no time cap on the flop: only max_cells) with five bet sizes, two raise sizes and four raises is past
         the smallest cap, so it's cut, with the note; under upstream's 24M it isn't."""
