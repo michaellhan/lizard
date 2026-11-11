@@ -164,6 +164,7 @@ export function PloRiverPage() {
           void run();
         }}
       >
+        <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1 text-sm">
           <span className="text-muted">OOP range, acts first</span>
           <input aria-label="OOP range" value={oop} onChange={(e) => setOop(e.target.value)} className={inputClass} spellCheck={false} />
@@ -172,6 +173,7 @@ export function PloRiverPage() {
           <span className="text-muted">IP range, acts last</span>
           <input aria-label="IP range" value={ip} onChange={(e) => setIp(e.target.value)} className={inputClass} spellCheck={false} />
         </label>
+        </div>
         <p className="text-xs text-muted">e.g. AAxx, JT98ds, KQJTss@25, AsKsQhJh, random</p>
         <label className="block space-y-1 text-sm">
           <span className="text-muted">Board, five cards for a river, four for a turn, three for a flop</span>
@@ -240,20 +242,16 @@ export function PloRiverPage() {
         <p className="text-xs text-muted">
           Up to {MAX_BET_SIZES} bets and {MAX_RAISE_SIZES} raises; a raise&apos;s % is of the pot after the call.
         </p>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <label className="min-w-0 space-y-1">
+        {/* (the solver's stopping rules on the Solve button's row) */}
+        <div className="flex flex-wrap items-end gap-3 text-sm">
+          <label className="w-36 space-y-1" title={`At least ${MIN_TARGET_PCT}%`}>
             <span className="text-muted">Target, % of pot</span>
             <input aria-label="Target exploitability" inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} className={inputClass} />
           </label>
-          <label className="min-w-0 space-y-1">
+          <label className="w-36 space-y-1" title={`Up to ${MAX_SECONDS} s`}>
             <span className="text-muted">Time budget, s</span>
             <input aria-label="Time budget" inputMode="decimal" value={seconds} onChange={(e) => setSeconds(e.target.value)} className={inputClass} />
           </label>
-        </div>
-        <p className="text-xs text-muted">
-          Target at least {MIN_TARGET_PCT}%, budget up to {MAX_SECONDS} s.
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
           <button type="submit" disabled={running} className={buttonClass}>
             {isFlop ? "Solve this flop" : isTurn ? "Solve this turn" : "Solve this river"}
           </button>

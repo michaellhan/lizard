@@ -4972,3 +4972,12 @@ Library were looked at in the browser and left alone: each already opens on its 
 - Other default-looking controls in `styles/index.css`: checkboxes, radios and sliders in the accent colour; no spin
   arrows on number fields; the file picker's button and the date field's calendar mark match the theme; folds use a
   turning chevron in place of the system triangle.
+
+## 2026-11-11: the More pages looked over
+
+Owner: "Yes, More pages". Each was looked at in the browser at 1280×800. Review, Plan, History, Saved, Reports,
+Ranges, PLO equity and Library already lead with their content and keep their explanations folded, so they're
+unchanged; Tournaments shares Solve's change. PLO's form was long: its two ranges now sit side by side and the
+solver's target and time budget share the Solve button's row (their limits are the fields' titles), so the button is
+at about 580px rather than at the fold. UI only: tsc, eslint, `vitest run src/features/plo` 24 passed; checked in the
+browser (no sideways scroll). Builds left alone.
