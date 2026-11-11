@@ -445,7 +445,7 @@ test("7b. Push/fold: all-in or fold, graded by frequency, and named a model", as
   await options(page).first().click();
   await expect(page.getByText("Decisions graded")).toBeVisible();
   await expect(page.getByText(/Push\/fold model \(not a solve\)/).first()).toBeVisible();
-  await expect(page.getByText(/by how often/i).first()).toBeVisible();
+  await expect(page.getByText(/^Graded by push\/fold frequency/).first()).toBeVisible();
   await clean(page, problems);
 });
 
