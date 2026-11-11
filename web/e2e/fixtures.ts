@@ -40,3 +40,9 @@ export async function openGame(page: Page): Promise<void> {
   const game = page.locator('details:has(form[aria-label="New session"])');
   if (!(await game.evaluate((d) => (d as HTMLDetailsElement).open))) await game.locator("summary").first().click();
 }
+
+/** Practice's score: what graded the session, and its notes, are on a fold under the figures; opened if it's closed. */
+export async function openScoreNotes(page: Page): Promise<void> {
+  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^(Graded against:|Where these numbers come from)/ }) }).first();
+  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
+}

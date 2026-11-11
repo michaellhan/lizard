@@ -2,7 +2,7 @@
 // real worker. Scenario 1 (every route and deep link, refreshed) is routes.e2e.ts. These are long flows, so they run at
 // one width: routes.e2e.ts and content.e2e.ts carry the three widths of scenario 14.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Problems, openGame } from "./fixtures";
+import { expect, overflow, test, type Problems, openGame, openScoreNotes } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
@@ -509,6 +509,7 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   // the stored solve came down once, and is no custom solve
   expect(new Set(fetched).size).toBe(1);
   expect(fetched[0]).toMatch(/6max_100bb\.bin/);
+  await openScoreNotes(page);
   await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
 
   await page.goto("/lizard/history/");
@@ -745,8 +746,10 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit.png" });
   await options(page).first().click();
-  await expect(page.getByText(/^Graded against the best response to the assumed profile/)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText(/^Graded against: Exploiting an assumed profile \(best response, not a solve\)/)).toBeVisible();
+  await expect(page.getByText(/^Graded against: Exploiting an assumed profile \(best response, not a solve\)/)).toBeVisible({ timeout: 60_000 });
+  // (the decision's note on how it was graded is on its own fold)
+  await page.getByRole("region", { name: "Last decision" }).locator("summary", { hasText: "How this was graded" }).click();
+  await expect(page.getByText(/^Graded against the best response to the assumed profile/)).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit-graded.png", fullPage: true });
   // The next decision is its own live solve at Quick.
   const next = page.getByRole("button", { name: /next/i }).first();
