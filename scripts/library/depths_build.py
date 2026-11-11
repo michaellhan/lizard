@@ -57,6 +57,7 @@ class Batch(NamedTuple):
     flops: int  # representative_flops(n)
     max_mcells: Optional[float]  # only the flops whose tree is at most this many million cells (None: all)
     mb: int  # a worker's estimated peak, MB (~41 bytes a cell over the batch's largest tree, from the README's figures)
+    jobs: int = JOBS  # worker processes (one where two would hold ~6 GB of a shared 16 GB machine)
 
 
 # Most useful first (docs/library-depths.md): the four most-played heads-up pots (BTN, CO and SB opens the big blind
@@ -69,7 +70,7 @@ BATCHES = [
     Batch("40bb-3bp", ["3bp_bb_btn_40bb"], 184, None, 300),
     Batch("40bb-srp-small", SRP40, 184, 24.0, 1000),
     Batch("40bb-srp", SRP40, 184, None, 1600),
-    Batch("200bb", ["3bp_bb_btn_200bb", "srp_btn_bb_200bb", "srp_co_bb_200bb", "srp_sb_bb_200bb"], 184, None, 2900),
+    Batch("200bb", ["3bp_bb_btn_200bb", "srp_btn_bb_200bb", "srp_co_bb_200bb", "srp_sb_bb_200bb"], 184, None, 2900, 1),
 ]
 BY_NAME = {b.name: b for b in BATCHES}
 
@@ -177,7 +178,7 @@ def boards_of(b: Batch, snap: Path) -> Optional[list]:
 def build_cmd(snap: Path, b: Batch, boards: Optional[list]) -> list:
     pick = ["--boards", ",".join(boards)] if boards is not None else ["--flops", str(b.flops)]
     return [str(PY), str(snap / "scripts" / "build_flop_library.py"), "--spots", ",".join(b.spots), *pick,
-            "--jobs", str(JOBS), "--fresh", "--turn-evs", "--out", str(OUT)]
+            "--jobs", str(b.jobs), "--fresh", "--turn-evs", "--out", str(OUT)]
 
 
 def chain(names: list) -> int:
@@ -303,26 +304,27 @@ def cmd_status(_a) -> int:
         if m:
             secs.setdefault(m.group(3), []).append(int(m.group(7)))
     planned = st.get("planned", {})
-    left_s = 0.0
-    seen = set()
+    # per spot: the largest plan among the batches started (a spot in two batches, its small flops and then all)
+    plan: dict = {}
     for b in BATCHES:
-        if b.name not in (st.get("batches") or []):
-            continue
-        n_plan = planned.get(b.name, b.flops)
-        for s in b.spots:
-            if (s, b.name) in seen:
-                continue
-            seen.add((s, b.name))
-            n = entries_on_disk(s)
-            per = secs.get(s) or [x for k, v in secs.items() if k in b.spots for x in v]
-            avg = sum(per) / len(per) if per else None
-            left_s += max(0, n_plan - n) * (avg or 0)
-            print(f"  {b.name:<15} {s:<18} {n:>4} on disk of {n_plan}" + (f"   {avg:.0f} s/entry over {len(per)}" if avg else ""))
+        if b.name in (st.get("batches") or []):
+            for s in b.spots:
+                n_plan = planned.get(b.name, b.flops)
+                if n_plan >= plan.get(s, (0,))[0]:
+                    plan[s] = (n_plan, b)
+    core_s = wall_s = 0.0
+    for s, (n_plan, b) in plan.items():
+        n = entries_on_disk(s)
+        per = secs.get(s) or [x for k, v in secs.items() if k in b.spots for x in v]
+        avg = sum(per) / len(per) if per else None
+        left = max(0, n_plan - n) * (avg or 0)
+        core_s, wall_s = core_s + left, wall_s + left / b.jobs
+        print(f"  {b.name:<15} {s:<18} {n:>4} on disk of {n_plan}" + (f"   {avg:.0f} s/entry over {len(per)}" if avg else ""))
     for k, v in (st.get("peakRss") or {}).items():
         print(f"  peak RAM ({k}): largest process {v['processKB'] / 1024:.0f} MB, the job {v['totalKB'] / 1024:.0f} MB")
-    if left_s:
-        print(f"  ETA: ~{left_s / JOBS / 3600:.1f} h of solving left at {JOBS} workers ({left_s / 3600:.1f} core-hours; a "
-              "batch not measured yet counts 0), once it holds a heavy slot")
+    if core_s:
+        print(f"  ETA: ~{wall_s / 3600:.1f} h of solving left ({core_s / 3600:.1f} core-hours; a spot not measured yet "
+              "counts 0, and one measured on its small flops only counts low), once it holds a heavy slot")
     prog = [ln for ln in lines if PROGRESS.match(ln)]
     if prog:
         print(f"  last: {prog[-1][:170]}")
