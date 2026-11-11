@@ -33,3 +33,10 @@ export function overflow(page: Page): Promise<number> {
 
 export { expect };
 export type { Page } from "@playwright/test";
+
+/** Practice's Game form, folded at first so the table comes first, opened for a test to fill (once: a second call leaves it). */
+export async function openGame(page: Page): Promise<void> {
+  // (by CSS: a role query doesn't see into a closed <details>)
+  const game = page.locator('details:has(form[aria-label="New session"])');
+  if (!(await game.evaluate((d) => (d as HTMLDetailsElement).open))) await game.locator("summary").first().click();
+}

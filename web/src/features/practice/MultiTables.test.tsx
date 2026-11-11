@@ -196,7 +196,8 @@ describe("Tables (multitable.test.js:68)", () => {
     expect(screen.queryByRole("tablist", { name: "Tables" })).toBeNull();
     expect(screen.queryByText(/Not here yet/)).toBeNull();
     expect(screen.queryByText(/Spots and Seat apply/)).toBeNull();
-    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toHaveProperty("open", true);
+    // (folded under Game at one table too, so the table comes first: a click opens it)
+    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toHaveProperty("open", false);
     const yours = () => cardsIn(within(screen.getByRole("region", { name: "Table" })).getByRole("listitem", { name: "BTN (you)" }));
     const cards = yours();
 
@@ -216,7 +217,7 @@ describe("Tables (multitable.test.js:68)", () => {
     await screen.findByRole("region", { name: "Table" });
     expect(screen.queryByRole("region", { name: "Table 1" })).toBeNull();
     expect(yours()).toEqual(cards);
-    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toHaveProperty("open", true);
+    expect(screen.getByRole("form", { name: "New session" }).closest("details")).toHaveProperty("open", false);
   });
 
   it("restarts every table on a New session", async () => {
@@ -309,7 +310,7 @@ describe("Tables (multitable.test.js:68)", () => {
     const stack = () => screen.getByRole("spinbutton", { name: "Stack in big blinds" });
     fireEvent.change(stack(), { target: { value: "150" } });
     const field = stack();
-    expect(form().closest("details")).toHaveProperty("open", true);
+    expect(form().closest("details")).toHaveProperty("open", false);
 
     fireEvent.click(screen.getByRole("radio", { name: "2" }));
     await screen.findByRole("region", { name: "Table 2" });
@@ -320,7 +321,7 @@ describe("Tables (multitable.test.js:68)", () => {
     fireEvent.click(screen.getByRole("radio", { name: "1" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Table 2" })).toBeNull());
     expect(stack()).toHaveValue(150);
-    expect(form().closest("details")).toHaveProperty("open", true);
+    expect(form().closest("details")).toHaveProperty("open", false);
   });
 
   it("says what it is opponents play by, above one table and at one", async () => {
@@ -884,15 +885,14 @@ describe("what graded the figures", () => {
     expect(tablesRow(2)).not.toHaveTextContent("Graded against");
   });
 
-  it("says it under the score once a decision is graded, the line held before that above one table, and a table's row at its first finished hand", async () => {
+  it("says it under the score once a decision is graded, on a line there before that, and a table's row at its first finished hand", async () => {
     const hand = betInto(1);
     stub.advice = byHand([hand, facing("fold", "call")]);
     stub.move = () => new Promise(() => {});
     await open(doc([hand, theirMove(2)]));
     const score = screen.getByRole("region", { name: "Score" });
-    const held = score.querySelector("p")!;
-    expect(held.className).toMatch(/min-h-8/);
-    expect(held).toHaveTextContent(/^$/);
+    // (the line is there before anything's graded, so nothing under it moves when the first grade comes in)
+    expect(score.querySelector("summary")).toHaveTextContent("Where these numbers come from");
 
     // (mid-hand: your decision's in the score, and not yet in the table's row, which counts finished hands)
     fireEvent.click(within(await ready()).getByRole("button", { name: /call/i }));
@@ -901,14 +901,13 @@ describe("what graded the figures", () => {
     expect(tablesRow(1)).not.toHaveTextContent("Graded against");
   });
 
-  it("says it at one table too, once there's a figure, with no line held before that", async () => {
+  it("says it at one table too, on the fold's own line under the score, once there's a figure", async () => {
     page();
     await ready();
     const score = screen.getByRole("region", { name: "Score" });
-    expect(score.querySelector("p")).toBeNull();
+    expect(score.querySelector("summary")).toHaveTextContent("Where these numbers come from");
     fireEvent.click(within(await ready()).getAllByRole("button")[0]!);
-    await waitFor(() => expect(score).toHaveTextContent("Graded against: Live solve 1"));
-    expect(score.querySelector("p")!.className).not.toMatch(/min-h-8/);
+    await waitFor(() => expect(score.querySelector("summary")).toHaveTextContent("Graded against: Live solve 1"));
   });
 
   it("says it on a past session's row, where one has a figure to read", async () => {
@@ -1360,8 +1359,6 @@ describe("Asking ahead", () => {
     expect(screen.getByText(WHY)).toBeInTheDocument();
     expect(useSettings.getState().askAhead).toBe(true);
     expect(screen.queryByText(METER)).toBeNull();
-    // (no room kept for a meter that can't start)
-    expect(document.querySelector("p.min-h-12:empty")).toBeNull();
   });
 
   it("shows no meter while it's off", async () => {
@@ -1379,8 +1376,8 @@ describe("Asking ahead", () => {
     const go = hold();
     await open(doc([checkedTo(1), checkedTo(2)]));
     expect(screen.queryByText(METER)).toBeNull();
-    // (its room is kept, so the page stays put as it starts)
-    expect(document.querySelector("p.min-h-12:empty")).not.toBeNull();
+    // (it comes under the score's fold, which is there already, so the page stays put as it starts)
+    expect(screen.getByRole("region", { name: "Score" }).querySelector("details")).not.toBeNull();
     go();
     expect(await screen.findByText(METER)).toBeInTheDocument();
   });

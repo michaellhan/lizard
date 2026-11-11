@@ -2,7 +2,7 @@
 // step reaches the next by what's on the page, not by a link typed in. The hands' misses are real in the first chain,
 // where the app grades what's clicked; the second writes them into the browser's store, as the fixtures grade clean.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Page } from "./fixtures";
+import { expect, overflow, test, type Page, openGame } from "./fixtures";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
@@ -13,6 +13,7 @@ const options = (page: Page) => page.getByRole("group", { name: "Your options" }
 
 test("Phase 5: a drill set up, played, graded with numbers, kept, opened in Study and tried again", async ({ page, problems }) => {
   await page.goto("/lizard/practice/");
+  await openGame(page);
   await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
   await page.getByLabel("Play", { exact: true }).selectOption("preflop");
   await page.getByRole("button", { name: "New session" }).click();
@@ -113,6 +114,7 @@ test("Phase 6: a session imported, a measured leak opened in Study, drilled, sav
 
 test("Practice's rates by seat and pot come back in History", async ({ page, problems }) => {
   await page.goto("/lizard/practice/");
+  await openGame(page);
   await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
   await page.getByLabel("Players").selectOption("3");
   await page.getByLabel("Stack in big blinds").fill("40");

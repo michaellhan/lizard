@@ -2,7 +2,7 @@
 // real worker. Scenario 1 (every route and deep link, refreshed) is routes.e2e.ts. These are long flows, so they run at
 // one width: routes.e2e.ts and content.e2e.ts carry the three widths of scenario 14.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Problems } from "./fixtures";
+import { expect, overflow, test, type Problems, openGame } from "./fixtures";
 import type { Page } from "@playwright/test";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
@@ -427,6 +427,7 @@ test("11c. A turn report read from a sample of stored flops says what it stands 
 // (Practice's two modes that aren't cash, on the real worker)
 async function session(page: Page, play: string, then?: () => Promise<unknown>) {
   await page.goto("/lizard/practice/");
+  await openGame(page);
   await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
   await page.getByLabel("Play", { exact: true }).selectOption(play);
   await then?.();

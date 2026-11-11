@@ -4861,3 +4861,18 @@ Reviewed at the owner's request, with preflop counted as an edge, as MTT / final
 
   The charts' quality stays graded in the Preflop rows (APPROXIMATE).
 - **Left PARTIAL:** MTT, whose preflop is a chip chart with a risk premium, where ICM matters most; and PLO4. Counts: Formats 4 / 2 / 0 / 0, Lizard total 46 / 10 / 4 / 3.
+
+### 2026-11-10: Practice decluttered: the table, your options and your last decision on the first screen
+
+The owner found the page bloated. Nothing about play or grading changed. What moved:
+
+- Mode, Ask ahead and Tables share one row.
+- The Game box is closed by default, as one line.
+- The score is one line of figures. What it was graded against is on a fold under it, with its notes and the ask-ahead meter inside.
+- "How this table works" moved below the table.
+- A decision's long note on how it was graded is under "How this was graded".
+- On a phone, three seats fit a row.
+
+At 1280×800 the table now starts at 301px rather than 533px, and your options at 486px rather than 718px, so Last decision is on the first screen. On a phone your options are at 584px of 812, rather than 718px.
+
+Browser tests open the Game box before filling it (`e2e/fixtures.ts` `openGame`).

@@ -3,7 +3,7 @@
 // through to the published library; everything else stands on the page's own play. Timings go to the test's output as
 // `timing: ...` lines, for the matrix.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Page, type Problems } from "./fixtures";
+import { expect, overflow, test, type Page, type Problems, openGame } from "./fixtures";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
@@ -221,6 +221,7 @@ const nextHand = (page: Page) => page.getByRole("button", { name: "Next hand" })
 
 async function newSession(page: Page, set: () => Promise<unknown>) {
   await page.goto("/lizard/practice/");
+  await openGame(page);
   await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
   await set();
   await page.getByRole("button", { name: "New session" }).click();
@@ -620,6 +621,7 @@ test("A leak drill on a Practice hand: Open in Study carries the rake and sizes 
 test("Practice's preflop solve at tablet height, both boxes ticked: the move is on the first screen, and all three ways stay apart in History", async ({ page, problems }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto("/lizard/practice/");
+  await openGame(page);
   await expect(page.getByRole("button", { name: "New session" })).toBeEnabled({ timeout: 60_000 });
   await page.getByLabel("Play", { exact: true }).selectOption("preflop");
 

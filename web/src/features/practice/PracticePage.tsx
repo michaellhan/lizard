@@ -202,8 +202,6 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     return d;
   });
   const place = useCallback((at: HTMLElement | null) => void at?.append(home), [home]);
-  // On a phone the table comes first: the setup and everything else above it would fill the first screen and more.
-  const [wide] = useState(() => typeof matchMedia !== "function" || matchMedia("(min-width: 768px)").matches);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const sum = summary(session.score);
@@ -260,12 +258,59 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           </div>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* (one row of controls, the game a line under it, the score a line: the table, your options and your last decision
+          on the first screen, and what explains them below it) */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <ModePicker modes={["quick", "accurate"]} />
         <AskAhead stopCost={snap.stopCost} restarts={snap.restarts} />
+        <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
       </div>
-      <details className="text-sm">
-        <summary className="cursor-pointer text-muted">How this table works</summary>
+      {!many && (
+        <details className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+          <summary className="cursor-pointer">
+            Game · {session.players}-max · {session.stack}bb
+            {session.opts.pushFold ? " · push/fold" : ""}
+            {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
+            {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
+            {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
+          </summary>
+          <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
+        </details>
+      )}
+
+      {many && (
+        <details className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+          <summary className="cursor-pointer">Game</summary>
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-muted">
+              {session.opts.exploit
+                ? "Above one table Seat decides where you sit, and the board filter here waits until you're back at one table. An exploit session keeps its pot and its profile at every table."
+                : "Above one table Spots and Seat decide what's dealt, so Your seat, Play's kinds of pot and Carry chips here wait until you're back at one table. Preflop only still counts."}
+            </p>
+            <div ref={place} />
+          </div>
+        </details>
+      )}
+      {createPortal(setup, home)}
+
+      <div className="order-last md:order-none">
+        <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct}>
+          <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
+        </ScoreStrip>
+      </div>
+      {snap.keptRead && (
+        <p role="status" className="text-sm text-warn">
+          {keptNote(snap.keptRead)}
+        </p>
+      )}
+
+      {/* (while a link is being asked about, a key answers that, not the table) */}
+      <div ref={tableRef} className="scroll-mt-14">
+        {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active && !asking} />}
+      </div>
+
+      <details className="rounded-lg border border-border bg-surface p-3 text-sm">
+        <summary className="cursor-pointer">How this table works</summary>
         <div className="mt-1">
           {many ? (
             <p className="text-sm text-muted">
@@ -291,51 +336,6 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
           )}
         </div>
       </details>
-      {!many && (
-        <details open={wide} className="rounded-lg border border-border bg-surface p-3 text-sm">
-          <summary className="cursor-pointer">
-            Game · {session.players}-max · {session.stack}bb
-            {session.opts.pushFold ? " · push/fold" : ""}
-            {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
-            {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
-            {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
-          </summary>
-          <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
-        </details>
-      )}
-
-      {many && (
-        <details className="rounded-lg border border-border bg-surface p-3 text-sm">
-          <summary className="cursor-pointer">Game</summary>
-          <div className="mt-2 space-y-2">
-            <p className="text-xs text-muted">
-              {session.opts.exploit
-                ? "Above one table Seat decides where you sit, and the board filter here waits until you're back at one table. An exploit session keeps its pot and its profile at every table."
-                : "Above one table Spots and Seat decide what's dealt, so Your seat, Play's kinds of pot and Carry chips here wait until you're back at one table. Preflop only still counts."}
-            </p>
-            <div ref={place} />
-          </div>
-        </details>
-      )}
-      {createPortal(setup, home)}
-
-      <TablesBar room={room} session={session} count={tables.length} stopCost={snap.stopCost} flops={snap.flops} pressRef={pressRef} />
-
-      <div className="order-last space-y-4 md:order-none">
-        <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} reserve={many} />
-        <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
-      </div>
-      {snap.keptRead && (
-        <p role="status" className="text-sm text-warn">
-          {keptNote(snap.keptRead)}
-        </p>
-      )}
-
-      {/* (while a link is being asked about, a key answers that, not the table) */}
-      <div ref={tableRef} className="scroll-mt-14">
-        {many ? <MultiTables room={room} snap={snap} active={active && !asking} pressRef={pressRef} /> : <OneTable room={room} snap={snap} active={active && !asking} />}
-      </div>
-
       <details className="rounded-lg border border-border bg-surface p-3 text-sm">
         <summary className="cursor-pointer">How decisions are graded</summary>
         <ul className="mt-2 space-y-1">
@@ -454,7 +454,7 @@ function OneTable({ room, snap, active }: { room: Room; snap: RoomSnapshot; acti
             {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
           </span>
         </div>
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-2">
           {seatsOf(hand.players).map((p) => (
             <SeatView key={p} hand={hand} sim={sim} p={p} />
           ))}

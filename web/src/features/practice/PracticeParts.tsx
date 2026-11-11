@@ -103,20 +103,29 @@ export function byFrequency(p: Provenance | null | undefined): string {
   return "Graded by how often the chart plays it: the preflop charts have no EVs.";
 }
 
-/** `reserve`: hold the line under it before there's anything to say, as above one table the dock sits below it. */
-export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; reserve?: boolean }) {
+/** The score in one line, and what it rests on folded under it (the sources it was graded against on the fold's own line;
+ * how the two ways of grading preflop split, the game's notes and `children`, the ask-ahead meter, inside): the numbers stay
+ * on the first screen beside the table, and where they come from is a line under them. */
+export function ScoreStrip({ session, acc, loss, lossPct, children }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; children?: ReactNode }) {
   const s = session.score;
   // (graded more than one way, a single rate or EV figure would add unlike things: each way gets its own, as in History)
   const ways = cellWays(Object.values(session.cells ?? {}));
   const split = GRADE_WAYS.filter((w) => ways[w]);
   const item = (label: string, value: string) => (
-    <div className="rounded bg-surface-2 px-2 py-1">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="font-mono">{value}</div>
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-xs text-muted">{label}</span>
+      <span className="font-mono">{value}</span>
     </div>
   );
+  const notes = [
+    session.opts.pfSolve && pfWords(session.cells),
+    session.opts.tournament && tournamentNote(session.opts.tournament),
+    session.opts.exploit && exploitNote(session.opts.exploit),
+    session.opts.exploit && !!session.read?.off && `${many(session.read.off, "hand")} left out of Net against the profile: a move of theirs after the flop was the equilibrium's, or they made none.`,
+    !!session.revealed && `${session.revealed} decision${session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. ${REVEAL_CHIPS}`,
+  ].filter((x): x is string => !!x);
   return (
-    <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
+    <section aria-label="Score" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
       {item("Hands", String(session.hands))}
       {item("Decisions graded", String(s.n))}
       {split.length > 1 ? (
@@ -130,20 +139,19 @@ export function ScoreStrip({ session, acc, loss, lossPct, reserve }: { session: 
       {item("Streak", `${s.streak} (best ${s.best})`)}
       {!session.opts.preflopOnly && !session.opts.tournament && !session.opts.exploit && item("Net", `${signed(session.net)}bb`)}
       {session.opts.exploit && item("Net against the profile", session.read?.hands ? `${signed(session.read.net)}bb · ${many(session.read.hands, "hand")}` : "–")}
-      {(s.n > 0 || reserve) && <p className={`basis-full text-xs text-muted ${reserve ? "min-h-8" : ""}`}>{s.n > 0 && `Graded against: ${sourcesText(session.sources)}`}</p>}
-      {session.opts.pfSolve && pfWords(session.cells) && <p className="basis-full text-xs text-muted">{pfWords(session.cells)}</p>}
-      {session.opts.tournament && <p className="basis-full text-xs text-muted">{tournamentNote(session.opts.tournament)}</p>}
-      {session.opts.exploit && <p className="basis-full text-xs text-muted">{exploitNote(session.opts.exploit)}</p>}
-      {session.opts.exploit && !!session.read?.off && (
-        <p className="basis-full text-xs text-muted">
-          {many(session.read.off, "hand")} left out of Net against the profile: a move of theirs after the flop was the equilibrium's, or they made none.
-        </p>
-      )}
-      {!!session.revealed && (
-        <p className="basis-full text-xs text-muted">
-          {session.revealed} decision{session.revealed === 1 ? "" : "s"} made after Reveal, not in these numbers. {REVEAL_CHIPS}
-        </p>
-      )}
+      {/* (always there and one line high, so nothing under it moves as the first grade or look-ahead comes in) */}
+      <details className="basis-full text-xs text-muted">
+        <summary className="cursor-pointer">{s.n > 0 ? `Graded against: ${sourcesText(session.sources)}` : "Where these numbers come from"}</summary>
+        <div className="mt-1 space-y-1">
+          {notes.map((n) => (
+            <p key={n}>{n}</p>
+          ))}
+          {children}
+          {!notes.length && (
+            <p>{s.n > 0 ? "Each decision's grade and what answered it are under Your last decision and Recent decisions." : "Nothing graded yet: each decision says what graded it once you've made it."}</p>
+          )}
+        </div>
+      </details>
     </section>
   );
 }
@@ -184,7 +192,7 @@ export function AskAhead({ stopCost, restarts }: { stopCost: StopCost | null; re
  * page would move as the first look-ahead goes out, just as the options you're about to press have come up. */
 export function AheadLine({ on, meter }: { on: boolean; meter: AheadMeter }) {
   if (!on && !meter.asked) return null;
-  return <p className="min-h-12 text-xs text-muted sm:min-h-8">{meter.asked > 0 && `Asking ahead, measured in this browser since this page opened: ${meterLine(meter)}`}</p>;
+  return meter.asked > 0 ? <p>Asking ahead, measured in this browser since this page opened: {meterLine(meter)}</p> : null;
 }
 
 function RetryOpener({ back, onClick }: { back: boolean; onClick: () => void }) {
@@ -531,8 +539,6 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
           The engine answered this spot without the assumed profile, so the numbers below aren&rsquo;t a best response to it. An exploit session is never graded against anything else, so this decision isn&rsquo;t counted.
         </p>
       )}
-      {g && d.provenance?.source === "best-response" && <p className="text-muted">{GRADED_BY_READ}</p>}
-      {g && d.provenance?.source === "preflop-solve" && <p className="text-muted">{PF_GRADED}</p>}
       {g && d.pfWhy && <p className="text-muted">Not by the preflop solve here, so this is the chart&rsquo;s grade: {d.pfWhy}</p>}
       {g && d.mix.length > 0 && (
         <p>
@@ -555,7 +561,18 @@ export function DecisionView({ d, players, title = "Your last decision", spot, c
         </p>
       )}
       {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} unit={evUnit(d.provenance)} />}
-      <p className="text-xs text-muted">Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.{d.mix.some((a) => a.rough) ? " ≈ marks a move the range almost never takes, whose EV is rough." : ""}</p>
+      {/* (what the grade rests on, said once asked: the badge names the answer, and the verdict, the why and the EV come first) */}
+      <details className="text-xs text-muted">
+        <summary className="cursor-pointer">How this was graded</summary>
+        <div className="mt-1 space-y-1">
+          {g && d.provenance?.source === "best-response" && <p>{GRADED_BY_READ}</p>}
+          {g && d.provenance?.source === "preflop-solve" && <p>{PF_GRADED}</p>}
+          <p>
+            Your hand&rsquo;s frequencies{hasEv ? " and EVs" : ""} at {players === 2 ? "this heads-up" : "this"} spot, from the answer named in the badge.
+            {d.mix.some((a) => a.rough) ? " ≈ marks a move the range almost never takes, whose EV is rough." : ""}
+          </p>
+        </div>
+      </details>
       {children}
       {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}
       {d.study && (
