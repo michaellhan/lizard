@@ -56,8 +56,9 @@ The owner allowed up to 3 GB a process for this build on 2026-11-11, so all four
 about 3 GB of the shared 16 GB rather than 6.
 
 Measured on 2026-11-11 (one entry, nice 10, outside `heavy`): a `3bp_bb_btn_40bb` flop (5c4d2h) took 9 s at a
-463 MB peak and reached 0.018% exploitability in 200 iterations, so the 3bet batch should take about 15 minutes with
-2 workers. The other peaks and times in the table are estimates from tree sizes until `status` reports real ones.
+463 MB peak and reached 0.018% exploitability in 200 iterations, so the 3bet batch would take about 15 minutes with
+2 workers. Under `heavy` (efficiency cores) the build itself runs about 20 s an entry at 274 MB a process, so the
+3bet batch takes about 30 minutes and the larger trees about twice the README's speed estimates. The other peaks and times in the table are estimates from tree sizes until `status` reports real ones.
 The same entry, assembled into a stage with `--formats`, answered a 40bb hand in the native advisor
 (`precomputed.spot` `3bp_bb_btn_40bb`, label "BB 3bet vs BTN, 40bb"), while the same hand at 100bb still read
 `3bp_bb_btn`.
