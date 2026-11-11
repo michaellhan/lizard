@@ -5,6 +5,7 @@ import type { LibraryStamp } from "@/library/version";
 import type { AdvisorResponse, AdvisorState, NodeLockAnswer, NodeLockProgress, NodeLockRequest, PlayMove } from "./protocol";
 import { provenanceOf } from "./provenance";
 import { recordTiming } from "./timings";
+import { withTreeCap, type TreeCap } from "./treeDepth";
 import {
   SolverError,
   type PlayRequest,
@@ -84,11 +85,14 @@ export class SolverClient {
   /** the stamps of the library this backend answers from, read when a stored answer first needs one; none for a local
    * server, whose library isn't the page's */
   private readonly libraryStamp?: () => Promise<LibraryStamp | null>;
+  /** this device's tree cap, read as each request goes (the setting; solver/treeDepth.ts) */
+  private readonly treeCap: () => TreeCap;
 
-  constructor(transport: SolverTransport, solverVersion: string, libraryStamp?: () => Promise<LibraryStamp | null>) {
+  constructor(transport: SolverTransport, solverVersion: string, libraryStamp?: () => Promise<LibraryStamp | null>, treeCap: () => TreeCap = () => "standard") {
     this.transport = transport;
     this.solverVersion = solverVersion;
     this.libraryStamp = libraryStamp;
+    this.treeCap = treeCap;
   }
 
   /** A stored answer's version: the entry the engine names, or for a stored turn, which names none, the whole library's
@@ -156,7 +160,7 @@ export class SolverClient {
     // (provenance records the mode the request runs at, as sent)
     const ctx = { mode: effectiveMode(req.state, mode), transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
-      const sent = applyMode(req.state, mode, this.transport.kind);
+      const sent = withTreeCap(applyMode(req.state, mode, this.transport.kind), this.treeCap(), this.transport.kind);
       const data = await this.transport.request(sent, {
         progressive: req.play ? false : (req.progressive ?? false),
         signal: req.signal,

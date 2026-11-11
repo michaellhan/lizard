@@ -184,7 +184,7 @@ describe("Study's Compare this spot links", () => {
     expect(betMenuOf(B, { ...flop, multiway: true })).toBeNull();
     expect(betMenuOf(B, { ...flop, street: "preflop" })).toBeNull();
     expect(withMenu(A, "flop", [33, 75], "75 33%")).toEqual({ b: null, problem: "the same menu as this spot's" });
-    expect(withMenu(A, "flop", [33, 75], "10, 20, 30, 40").problem).toBe("at most 3 flop bet sizes (each one multiplies the game tree)");
+    expect(withMenu(A, "flop", [33, 75], "10, 20, 30, 40, 50, 60").problem).toBe("at most 5 flop bet sizes (each one multiplies the game tree)");
     // (a library's river can offer more sizes than a menu may be typed with: what the field starts on is no mistake)
     expect(withMenu(A, "river", [25, 50, 75, 125], "25, 50, 75, 125")).toEqual({ b: null, problem: "the same menu as this spot's" });
     expect(withMenu(A, "flop", [33, 75], "600").problem).toBe("flop bet sizes must be 5–500% of the pot");

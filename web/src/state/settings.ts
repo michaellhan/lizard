@@ -4,6 +4,7 @@ import { kvGet, kvSet } from "@/data/db";
 import { DEFAULT_LOCAL_SOLVER_URL, type LibraryChoice } from "@/config";
 import type { Spot } from "@/features/practice/room";
 import type { GridView } from "@/features/study/views";
+import type { TreeCap } from "@/solver/treeDepth";
 import type { SolveMode, TransportKind } from "@/solver/types";
 
 export interface Settings {
@@ -34,6 +35,8 @@ export interface Settings {
   /** patterns over the action colours, wherever a mix is drawn (off, the default: colour alone). Saved under a new name
    * since 2026-11-11, when the default went to off: the older `patterns`, saved on by everyone, is dropped */
   actionPatterns: boolean;
+  /** how big a tree this device's heads-up solves may build (solver/treeDepth.ts; the worker's alone) */
+  treeCap: TreeCap;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -52,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   studySplit: null,
   studyKeys: true,
   actionPatterns: false,
+  treeCap: "standard",
 };
 
 const KEY = "settings.v1";
@@ -65,8 +69,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

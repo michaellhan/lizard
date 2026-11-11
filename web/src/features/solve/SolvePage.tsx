@@ -5,7 +5,7 @@
 // Tournaments (ROADMAP Phase 7) is this page for a tournament: the prizes left, the other tables and the bounties
 // (features/tournaments/tournament.ts) in place of the rake, answered in prize equity.
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import type { SavedRange } from "@/data/db";
 import { listRanges } from "@/data/saved";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -14,7 +14,26 @@ import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
 import { bubbleTableOf } from "@/features/tournaments/icm";
 import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
-import { LIMITS, numsOf, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
+import { useSettings } from "@/state/settings";
+import { capWords, TREE_CAPS } from "@/solver/treeDepth";
+import { ENGINE_RAISES, LIMITS, numsOf, raisesWords, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
+
+/** What a bigger menu costs here: this device's tree cap, and that a local server keeps upstream's tree. */
+function TreeNote() {
+  const cap = useSettings((s) => s.treeCap);
+  const transport = useSettings((s) => s.transport);
+  if (transport !== "worker")
+    return <p className="text-xs text-muted">A local server runs the engine without Lizard&rsquo;s additions: it keeps a raise cap of {ENGINE_RAISES} and its own 24M-cell trees.</p>;
+  return (
+    <p className="text-xs text-muted">
+      More sizes and raises make a bigger tree (a turn with 5 bets and 3 raises: 7M cells at a cap of 1, 39M at 2). This device builds up to {capWords(cap)} ({TREE_CAPS[cap].label},{" "}
+      <Link to="/settings" className="underline hover:text-text">
+        Settings
+      </Link>
+      ); past that the tree is cut to fit and the answer says how.
+    </p>
+  );
+}
 
 const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 const str = (x: number | undefined) => (x === undefined ? "" : String(x));
@@ -33,6 +52,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   const [stack, setStack] = useState(String(start.stack));
   const [stacks, setStacks] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(s0?.stacks ?? {}).map(([p, v]) => [p, String(v)])));
   const [sizes, setSizes] = useState<Record<SizeStreet, string>>(() => Object.fromEntries(SIZE_STREETS.map((k) => [k, (s0?.sizes?.[k] ?? []).join(", ")])) as Record<SizeStreet, string>);
+  const [raises, setRaises] = useState(s0?.raises ?? ENGINE_RAISES);
   const [rake, setRake] = useState(str(s0?.rake));
   // (the Seats fold as the user left it; null until they open or close it)
   const [seatsShown, setSeatsShown] = useState<boolean | null>(null);
@@ -86,12 +106,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     () => ({
       stacks: Object.fromEntries(seats.filter((p) => stacks[p]?.trim()).map((p) => [p, Number(stacks[p])])),
       sizes: Object.fromEntries(SIZE_STREETS.map((k) => [k, numsOf(sizes[k])])),
+      raises,
       ...(tour ? { tournament } : { rake: numOf(rake), rakeCap: numOf(cap) }),
       ante: numOf(ante),
       straddle: straddle && players >= 3,
       ranges: Object.fromEntries(seats.filter((p) => ranges[p]?.trim()).map((p) => [p, ranges[p]!])),
     }),
-    [seats, stacks, sizes, tour, tournament, rake, cap, ante, straddle, players, ranges],
+    [seats, stacks, sizes, raises, tour, tournament, rake, cap, ante, straddle, players, ranges],
   );
   const setup = tidySetup(typed);
   const problems = [...(stackOk ? [] : [`the table's stack must be ${MIN_STACK}–${MAX_STACK}bb`]), ...setupProblems(players, typed)];
@@ -118,6 +139,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   const clear = () => {
     setStacks({});
     setSizes({ flop: "", turn: "", river: "", raise: "" });
+    setRaises(ENGINE_RAISES);
     setRake("");
     setCap("");
     setAnte("");
@@ -411,6 +433,18 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               </label>
             ))}
           </div>
+          <label className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="w-20 shrink-0">Raise cap</span>
+            <select aria-label="Raise cap" value={raises} onChange={(e) => setRaises(Number(e.target.value))} className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm">
+              {[1, 2, 3, 4].map((n) => (
+                <option key={n} value={n}>
+                  {n} {n === ENGINE_RAISES ? "(the engine’s)" : ""}
+                </option>
+              ))}
+            </select>
+            <span className="text-muted">{raisesWords(raises)}</span>
+          </label>
+          <TreeNote />
         </fieldset>
 
         {!tour && (

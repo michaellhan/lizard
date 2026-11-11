@@ -17,6 +17,10 @@ export interface AdvisorState {
   turn?: AdvisorAction[];
   river?: AdvisorAction[];
   sizes?: Record<string, number[]>;
+  /** the most sized bets and raises a street in its heads-up solves, 1-4 (engine/tree_depth.py; the worker's alone) */
+  raises?: number;
+  /** this device's tree cap in cells (engine/tree_depth.py, solver/treeDepth.ts; the worker's alone) */
+  max_cells?: number;
   ranges?: Record<string, string>;
   /** "fast" (default) or "accurate"; Quick is `quick: true`. */
   speed?: "fast" | "accurate";
@@ -147,6 +151,8 @@ export interface AdvisorResponse {
   fallback_reason?: string;
   notes?: string[];
   seconds?: number;
+  /** what the request's heads-up trees were asked under (engine/tree_depth.py): its raise cap and this device's cap */
+  tree?: { raises?: number; max_cells?: number };
   [key: string]: unknown;
 }
 

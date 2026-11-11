@@ -2,6 +2,7 @@
 // what produced it (library / live solve / charts / heuristic rules) and how close to equilibrium it is.
 import { describeLock, type Lock } from "@/features/study/locks";
 import type { AdvisorResponse } from "./protocol";
+import { treeWords } from "./treeDepth";
 import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
 export interface ProvenanceContext {
@@ -172,6 +173,9 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   // street over a wide menu, whose distance from equilibrium isn't reported; the figures below are the second solve's
   if (Array.isArray(r.sizes_kept) && r.sizes_kept.length)
     p.sizing = `${r.street ?? "street"} bet sizes ${(r.sizes_kept as string[]).join(", ")} chosen by a first solve over a wide menu (one street deep, one raise)`;
+  // a raise cap or tree cap the request set (engine/tree_depth.py): the game solved, so it's said with the figure measured in it
+  const tree = source === "live" || source === "node-lock" ? treeWords(r.tree) : null;
+  if (tree) p.tree = tree;
   if (source === "preflop-solve") preflopSolveOf(r, p);
   const tm = tournamentModelOf(r, source);
   if (tm) {
@@ -291,6 +295,7 @@ export function describe(p: Provenance): string {
   if (p.lock) parts.push(p.lock);
   if (p.lockRange) parts.push(p.lockRange);
   if (p.sizing) parts.push(p.sizing);
+  if (p.tree) parts.push(p.tree);
   if (p.librarySpot) parts.push(p.librarySpot);
   if (p.view) parts.push(p.view);
   if (p.tournament) parts.push(p.tournament);

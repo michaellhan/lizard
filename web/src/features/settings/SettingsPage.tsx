@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibraryChoice } from "@/config";
 import { useRuntime } from "@/solver/runtime";
+import { capWords, TREE_CAPS, type TreeCap } from "@/solver/treeDepth";
 import type { SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
 import { readClassicSpeed } from "@/features/analyze/classic";
@@ -54,6 +55,17 @@ export function SettingsPage() {
         <p className="text-xs text-muted">Study runs Quick at Fast. Library flops are instant.</p>
         <ModeTimes />
         <ClassicSpeed />
+        <label className="flex items-center gap-2 text-sm">
+          Tree size
+          <select aria-label="Tree size" className="rounded border border-border bg-surface-2 px-2 py-1" value={s.treeCap} onChange={(e) => s.set({ treeCap: e.target.value as TreeCap })}>
+            {(Object.keys(TREE_CAPS) as TreeCap[]).map((c) => (
+              <option key={c} value={c}>
+                {TREE_CAPS[c].label}: {capWords(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-muted">The biggest tree a solve in this browser builds; a bigger one is cut to fit. Phone for little memory; Large for a desktop with memory to spare.</p>
       </fieldset>
 
       <fieldset className="space-y-2 panel p-4">

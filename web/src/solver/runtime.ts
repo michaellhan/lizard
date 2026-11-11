@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { LIBRARY_SOURCES, SOLVER_ASSET_BASE, type LibrarySourceId } from "@/config";
 import { loadStamps, resolveLibrarySource } from "@/library/catalog";
 import type { LibraryStamp } from "@/library/version";
+import { useSettings } from "@/state/settings";
 import { SolverClient } from "./client";
 import { HttpTransport } from "./http-transport";
 import type { RuntimeStatus, TransportKind } from "./types";
@@ -81,7 +82,7 @@ export const useRuntime = create<RuntimeState>((set, get) => {
       transport === "http"
         ? new HttpTransport({ url: localSolverUrl })
         : new WorkerTransport({ assetBase: SOLVER_ASSET_BASE, version, libraryBase: lib.base });
-    const client = new SolverClient(t, solverVersionOf(manifest), transport === "worker" ? stampsAt(lib.base) : undefined);
+    const client = new SolverClient(t, solverVersionOf(manifest), transport === "worker" ? stampsAt(lib.base) : undefined, () => useSettings.getState().treeCap);
     get().client?.dispose();
     client.onStatus((status) => set({ status }));
     set({ client, manifest, key, librarySource: lib.id });
