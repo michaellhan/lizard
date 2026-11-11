@@ -39,7 +39,7 @@ describe("MissCards", () => {
     expect(answer).toHaveTextContent("−1.5bb · 12% of the pot");
     expect(answer).toHaveTextContent("Fold is worth 0bb with this hand, 1.5bb more than call, which is never played.");
     expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("call(you)0%-1.5bbfold100%0bb");
-    expect(within(box).getByRole("link", { name: "Open the hand" }).getAttribute("href")).toContain("hand=c");
+    expect(within(box).queryByRole("link", { name: "Open the hand" })).toBeNull();
   });
 
   it("says why in a line: by EV what the best is worth over yours, by frequency how often each is played", () => {

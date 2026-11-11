@@ -3,7 +3,7 @@
 // hand with why in a line, and what graded it (the grade's own provenance: nothing is solved here). One click opens the
 // spot in Study on your own hand. Arrow keys move, Escape closes; the miss you're on is in the URL (`miss`).
 import { useEffect, useMemo, useRef } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { describe } from "@/solver/provenance";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -14,7 +14,7 @@ import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
 import { decisionProvenance } from "@/features/review/fromAnalyze";
 import { studyLinkAt, withMyHand } from "./analyze";
-import { decisionIndex, lineBefore, roughActions, withParams } from "./leakDrill";
+import { decisionIndex, lineBefore, roughActions } from "./leakDrill";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
@@ -126,7 +126,6 @@ export function whyLine(d: DecisionRecord): string | null {
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function Card({ d, hand }: { d: DecisionRecord; hand: HandRecord | undefined }) {
-  const [params] = useSearchParams();
   const r = useMemo(() => (hand ? readHand(hand.text) : null), [hand]);
   const street = d.street as Street;
   const i = decisionIndex(d);
@@ -217,16 +216,11 @@ function Card({ d, hand }: { d: DecisionRecord; hand: HandRecord | undefined }) 
         {d.note && <p className="text-xs text-muted">{d.note}</p>}
         <GradedBy d={d} />
       </div>
-      <p className="flex flex-wrap items-center gap-3 text-sm">
-        {study && (
-          <Link to={study} className="rounded bg-surface-3 px-3 py-1.5 font-medium hover:bg-surface-2">
-            Study this spot with your hand →
-          </Link>
-        )}
-        <Link to={withParams(params, { hand: d.handId })} className="text-xs text-muted underline hover:text-text">
-          Open the hand
+      {study && (
+        <Link to={study} className="inline-block rounded bg-surface-3 px-3 py-1.5 text-sm font-medium hover:bg-surface-2">
+          Study this spot with your hand →
         </Link>
-      </p>
+      )}
     </div>
   );
 }
