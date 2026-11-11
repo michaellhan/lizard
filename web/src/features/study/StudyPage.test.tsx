@@ -576,7 +576,7 @@ describe("StudyPage", () => {
       expect(stub.asked).toHaveLength(asked);
       expect(bar).toHaveAttribute("aria-valuenow", "65");
       fireEvent.keyDown(bar, { key: "Enter" });
-      expect(bar).toHaveAttribute("aria-valuenow", "58");
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "58"));
       expect(useSettings.getState().studySplit).toBeNull();
       expect(bar).toHaveFocus();
     });
@@ -615,7 +615,7 @@ describe("StudyPage", () => {
       fireEvent.keyDown(bar, { key: "b" });
       expect(screen.getByRole("region", { name: "Build" })).toBeInTheDocument();
       fireEvent.keyDown(bar, { key: "Enter" });
-      expect(bar).toHaveAttribute("aria-valuenow", "58");
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "58"));
     });
 
     it("stacks Build's grid and its panel on a narrow window, with no separator", async () => {
