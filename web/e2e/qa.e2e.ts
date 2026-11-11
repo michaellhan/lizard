@@ -681,7 +681,7 @@ test("7c. A tournament session in prize equity says so, with chip EV apart from 
 
 test("14b. The keyboard alone: a page change moves focus, the grid is one tab stop, and playing an action keeps your place", async ({ page, problems }) => {
   await page.goto("/lizard/");
-  await page.getByRole("link", { name: "Ranges" }).first().focus();
+  await page.getByRole("link", { name: "Ranges", exact: true }).first().focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveTitle(/Ranges/);
   await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
