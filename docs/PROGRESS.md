@@ -5017,3 +5017,35 @@ preflop game in which every outcome is paid in prize equity.
 - Where this meets the preflop-solver work: the shared `pf_game` / `pf_study` interfaces (`ICMGame.__init__` copies
   `Game.__init__`; `pf_icm_study.Solve` subclasses `pf_study.Solve`), and the worker's import line, which this edit
   chains on. `engine/pf_stored.py` and `scripts/pf/build_stored.py` are untouched.
+
+## 2026-11-11: stored prize-equity preflop solves, and Practice graded by them
+
+- Six stage and format presets are solved once in prize equity and stored: Final-table bubble, Three left, Heads-up,
+  Sit & go bubble, Sit & go 6 players and Double or nothing (`engine/pf_icm_stored.py` lists them; files in
+  `engine/pf_icm/` with the manifest `stages.json`; built by `scripts/pf_icm/build_stored.py`, through the shared slot).
+  They are 0.015-1.28 mbb/hand a seat from equilibrium and 0.4-51 KB each. `scripts/build-solver-assets.mjs` copies them
+  into the site's `pf/` folder, and Study answers them from the file at once. The 8- and 9-player presets are left out,
+  as they are over the browser's size cap and take 2-5 GB to build.
+- Practice grades a tournament session's preflop by them where the session is one of these presets as it sets the
+  table, not played out, with no bounties (`pfBlocked`, `web/src/features/practice/pfIcmStored.ts`). Any other
+  tournament gets a reason that names the stored presets. A chip-EV tournament at equal stacks is the cash game the
+  stored grid answers.
+- With the charts' opponents and buttons, 4.8% of decisions lined up with the solve's tree (`scripts/pf_icm/coverage.py
+  --charts`). The charts open 2.5bb where the tree opened 2bb, and have no jam beside the open. So three changes:
+  - The ICM tree now opens 2.5bb, the cash solve's and the charts' size, and its key hashes the sizes.
+  - In these sessions (`PracticeHand.pfOptions`, sent as `pf_play`), each opponent's preflop move is drawn from the
+    stored node (`pf_icm_study.play`, which wraps `Advisor.play` for stored keys only), and your buttons are the
+    node's options.
+  - A jam no one left can call counts the same on both sides (the node's `uncalled_bb`, taken off the table's pot in
+    `chipsOff`), and an opponent's raise keeps the tree's size to the cent.
+  Now 100% of decisions are graded by the solve when you play the solve's or the chart's mix, and 93-97% a preset
+  when you pick any option evenly (the rest are classes the solve has folded). The setup and the opponents line say so.
+- Re-measured with 2.5bb opens (`scripts/pf_icm/convergence.py`, ACCURACY 20.3): the sit & go bubble levels off at 1.28
+  mbb (was 1.83), and the 6-max tables reach 1.5 and 0.61 at 600 iterations (were 2.1 and 2.5).
+- Checked in a browser (dev build) over 18 hands of a sit & go bubble session: 17 preflop decisions were graded by the
+  solve, badged "Preflop solve (class-level model) · precomputed · every outcome paid in prize equity …", with EVs in bb
+  of prize equity. One was a class the solve had folded: it fell back to the push/fold model, with the reason given.
+- Tests: `scripts/engine/test_pf_icm_stored.py` 6/6 and `test_pf_icm.py` 13/13; `pfIcmStored.test.ts` (new, 8 tests);
+  vitest practice, solver, analyze and study 2,054 passed; `pyodide.test.mjs` 21/21; tsc and eslint clean. A
+  pfGrade test that expected every tournament refused now expects the unequal chip-EV one and a non-preset ICM one
+  refused.

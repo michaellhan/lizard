@@ -233,7 +233,7 @@ the honest one for flops.
 | Other formats (`pf_formats.py`) | The 100bb charts shifted by deltas from solves of the abstract preflop game | Approximate. About a point of noise per decision; antes solved only at 20/40/100bb; straddle 6-handed only (`README.md:4566-4577`) [M] |
 | Push/fold (≤ 12 bb raising first in; under 20 bb generally) | Fictitious play over 169 classes (`pf_classes.py:65`) [V] | An equilibrium of a jam-or-fold model; callers treated alike and independently [V] |
 | Preflop solve (Study, and Practice's and Analyze's preflop by choice, sections 18-18.3; stored for 110 games) | DCFR over the abstract preflop game (`pf_game.py`) | About 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from published spots; opens tighter in places (UTG 14.8% vs the charts' 18.7%) [M] |
-| Tournament preflop solve (Study only, section 20) | DCFR over the same class-level game with each seat's own stack and ante, every outcome paid in prize equity (`engine/pf_icm.py`) | Matches push/fold where the models agree (within 0.1-0.5 points of jam share); levels off at 0.15-2.5 mbb/hand a seat in prize equity (3-handed to 6-max, 600-4,000 iterations), and 4-6 mbb for the same games in chips, from its 3-way valuation, section 20 [M] |
+| Tournament preflop solve (Study; Practice for six stored presets, section 20) | DCFR over the same class-level game with each seat's own stack and ante, every outcome paid in prize equity (`engine/pf_icm.py`) | Matches push/fold where the models agree (within 0.1-0.5 points of jam share); levels off at 0.06-1.5 mbb/hand a seat in prize equity (3-handed to 6-max, 600-2,000 iterations), and 0.6-4.7 mbb for the same games in chips, from its 3-way valuation; the six stored presets are 0.015-1.28 mbb, section 20 [M] |
 | Rake, pool (exploit) adjustments | Rules on top of the charts | Fitted to one published raked solve, or to public population data plus judgement (`README.md:4578-4579; pool: `README.md:1529``) [M] |
 
 Five `@expectedFailure` tests (`tests/test_gto.py:2797-2932`) document that the equity-realization models disagree
@@ -319,7 +319,7 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
 | Heads-up postflop | Solved in prize equity (`HUPayoffs`, `advisor.py:8136-8150`) [V] | Every tournament flop is a live solve: the libraries are skipped under ICM (`advisor.py:4742, 4826-4827`) [V]. A split pays the mean of a win and a loss: 0.25% of the pot given up on a river built to chop (section 14.6) |
 | 3- and 4-way postflop | Solved with `MWPayoffs` [V] | Who wins when a player busts is averaged: 0.002-0.33% of the pot given up against the exact prize game on a 3-way river (`scripts/bench_mw_icm.py`) [M]. A chip-EV solve on a bubble gives up 3.3-5.5% [M] |
 | 5+ way pots | Betting rules, in chips [M] | Not ICM-aware |
-| Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M]. Lizard's Study (2026-11-11): a class-level preflop solve in prize equity on request, section 20 [M] | The charts' risk premium is heuristic. Upstream's preflop solver refuses tournaments (`pf_study.py:187-188`); Lizard's `engine/pf_icm_study.py` takes them in Study only, not in Practice or Analyze [V] |
+| Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M]. Lizard's Study (2026-11-11): a class-level preflop solve in prize equity on request, and six stored presets that Practice grades by, section 20 [M] | The charts' risk premium is heuristic. Upstream's preflop solver refuses tournaments (`pf_study.py:187-188`); Lizard's `engine/pf_icm_study.py` takes them in Study, and in Practice and Analyze for the six stored presets (section 20.5) [V] |
 | Bounties (KO, PKO, mystery) | Proportional model (`icm.py:13-17, 201`) [V] | A convention, not a derivation. Mystery bounties use the average envelope, with no variance [V] |
 
 ---
@@ -1103,6 +1103,10 @@ classes, card removal by `PAIR_COMPAT`, discounted CFR, the same flop model) wit
   left can bust each other, a folded seat gains. Chips give it nothing either way.
 - Three players at most reach a showdown (two from 7-handed on), as in the cash game. A raise is refused once three
   others are all-in for less, since they can't fold.
+- The sizes are the cash game's: 2.5bb opens (3bb from the small blind, which may also limp), and 3bets to 3x, or 4.8x
+  from a blind. Practice's chart opponents play these sizes, which a stored preset needs (20.5). The first version
+  opened 2.2bb (2bb at 25bb or less), as solved MTT charts do. The spec's key includes the sizes, so a stored file with
+  other sizes is never loaded.
 
 ### 20.1 Checks against the engine's own models (`scripts/engine/test_pf_icm.py`, 13 tests, about 15 s)
 
@@ -1133,42 +1137,83 @@ share of who busts is the model's simplification.
 
 ### 20.3 Convergence (mbb/hand of prize equity a seat, the solve's own game)
 
+Measured by `scripts/pf_icm/convergence.py` with the 2.5bb opens. Figures are the mean over seats, with the worst seat
+in brackets where it stands out.
+
 | Game | Nodes | Exploitability by iterations |
 |---|---|---|
-| 3-handed 15/9/22bb, 0.1bb ante, 50/30/20 | 60 | 2.4 mean at 100, 0.31 at 200, 0.16 at 400, 0.15 at 800 |
-| Sit & go bubble: CO 24, BTN 16, SB 9, BB 18bb, 0.25bb ante, 50/30/20 | 267 | 1.86 at 500, 1.81 at 1,000, 1.83 at 2,000-4,000 (BB 5.5) |
-| The same in chips | 267 | 5.9 at 500-2,000 (BB 11.3) |
-| The same in chips at equal 24bb (the cash solve's game) | 197 | 3.5 at 300, 2.9 at 1,200 |
-| The same in chips, heads-up pots only | 185 | 0.035 at 300, 0.002 at 1,200 |
-| 6-max, 20bb each, 0.125bb ante, 50/30/20 | 1,525 | 8.5 at 100, 3.1 at 300, 2.1 at 600 |
-| 6-max, 25/12/40/18/30/22bb, 50/30/20 | 3,311 | 6.2 at 100, 2.7 at 300, 2.5 at 600 |
-| The same two in chips | 1,525 / 3,311 | 4.2 / 4.3 at 600 (the equal one is the cash solve's game) |
+| 3-handed 15/9/22bb, 0.1bb ante, 50/30/20 | 60 | 6.8 at 100, 0.65 at 200, 0.15 at 400, 0.064 at 800 |
+| Sit & go bubble: CO 24, BTN 16, SB 9, BB 18bb, 0.25bb ante, 50/30/20 | 202 | 1.29 at 500, 1.28 at 1,000, 1.29 at 2,000 (BB 4.2) |
+| The same in chips | 202 | 4.6 at 500, 4.7 at 2,000 (BB 10.5) |
+| The same in chips at equal 24bb (the cash solve's game) | 197 | 3.1 at 300, 2.8 at 1,200 |
+| The same in chips, heads-up pots only | 112 | 0.034 at 300, 0.0018 at 1,200 |
+| 6-max, 20bb each, 0.125bb ante, 50/30/20 | 1,525 | 9.1 at 100, 2.2 at 300, 1.5 at 600 |
+| 6-max, 25/12/40/18/30/22bb, 50/30/20 | 2,703 | 3.7 at 100, 0.85 at 300, 0.61 at 600 |
+| The same two in chips | 1,525 / 2,703 | 2.2 / 0.64 at 600 (the equal one is the cash solve's game) |
 
 The solve levels off rather than converging to zero, and the cause is the 3-way pot. A game with heads-up pots only
-converges to 0.002. The cash solve at equal stacks levels off at 2.9 in the same table, which is what upstream's
+converges to 0.002. The cash solve at equal stacks levels off at 2.8 in the same table, which is what upstream's
 `STALL` rule is for. A 3-way showdown is valued from each player's range-average share against the other two (six
 hand orders, weighted by those shares). That makes the payoff depend on the strategies, so CFR settles on a floor.
-With unequal stacks the side pots raise the floor (5.9 in chips here), and prize equity lowers it (1.8 here, 2.1-2.5 at 6-max
-against 4.2-4.3 in chips), since a bubble makes 3-way all-ins rarer.
+With unequal stacks the side pots raise the floor (4.7 in chips on the sit & go bubble). Prize equity lowers it (1.3
+there), since a bubble makes 3-way all-ins rarer. With the first version's 2.2bb opens the same tables levelled off
+higher: 1.83 on the sit & go bubble (267 nodes), and 2.1 and 2.5 at 6-max (3,311 nodes for the unequal one).
 
-A small tree runs to `pf_study.MAX_ITERS` (2,000) and reports its distance. The badge shows it ("1.83 mbb/hand from
+A small tree runs to `pf_study.MAX_ITERS` (2,000) and reports its distance. The badge shows it ("1.28 mbb/hand from
 equilibrium"), so a game that stopped above the 1.5 target says how far.
 
 ### 20.4 Speed and size
 
-Natively, the sit & go bubble (267 nodes) runs about 4.6 ms an iteration, 2,000 in 9 s; 6-max at 20bb (1,525 nodes) about 37 ms, and the unequal 6-max (3,311) about 77 ms, so its 600 iterations take about 46 s natively and roughly 80 s in a browser at pf_study's measured 1.75x. In the dev build's browser
-worker it ran 2,000 iterations in 31 s with the pane hidden, which throttles the page. The panel estimated 5 s, so
-`estimate_seconds` (pf_study's rule, scaled by nodes and seats) runs low on this tree. The browser takes up to 70,000
-nodes x seats (`BROWSER_WORK`) and the local server 300,000:
+Natively, the sit & go bubble (202 nodes) runs 2,000 iterations in about 5 s. 6-max at 20bb (1,525 nodes) runs 600 in
+about 19 s, and the unequal 6-max (2,703 nodes) 600 in about 24 s. A browser takes roughly 1.75x that, pf_study's
+measured ratio. In the dev build's browser worker, the first version's sit & go bubble ran 2,000 iterations in 31 s with
+the pane hidden, which throttles the page. The panel had estimated 5 s, so `estimate_seconds` (pf_study's rule, scaled
+by nodes and seats) runs low on these trees. The browser takes up to 70,000 nodes x seats (`BROWSER_WORK`), and the
+local server 300,000:
 
 | Table | Nodes | Browser |
 |---|---|---|
-| Heads-up, 3 left, sit & go bubble (2-4 players) | 22-270 | yes, seconds |
-| Final-table bubble (5 players, 8-40bb) | 946 | yes |
+| Heads-up, 3 left, sit & go bubble (2-4 players) | 22-202 | yes, seconds |
+| Final-table bubble (5 players, 8-40bb) | 895 | yes |
 | 6-max at 20bb | 1,525 | yes |
-| MTT bubble (8 players, 6-48bb) | 13,088 | no: local server |
-| Final table (9 players, 6-62bb), Early (8 at 60bb) | 24,924 / 33,978 | no: local server |
+| MTT bubble (8 players, 6-48bb) | 13,088 (with 2.2bb opens) | no: local server |
+| Final table (9 players, 6-62bb), Early (8 at 60bb) | 24,924 / 33,978 (with 2.2bb opens) | no: local server |
 
-Practice and Analyze grade preflop only from stored solves, and none is stored for a tournament. A precomputed set for
-the stage presets (each stage's stacks are fixed) would let them grade a tournament's preflop. The 8- and 9-player
-stages need the local server or an offline build.
+### 20.5 Stored presets, and Practice graded by them (2026-11-11)
+
+Six stage and format presets are solved once (`scripts/pf_icm/build_stored.py`, 1,500 iterations, as for the cash grid)
+and stored in `engine/pf_icm/` with a manifest (`stages.json`). The worker reads them from the site's `pf/` folder. So
+Study answers them at once, and Practice grades a session set to one of them, as long as it is set up as the preset
+sets it, not played out, and has no bounties. The 8- and 9-player presets are left out: their trees are over the
+browser's size cap and take 2-5 GB to build natively.
+
+| Preset | Nodes | mbb/hand a seat | Build | File |
+|---|---|---|---|---|
+| Final-table bubble (5 players, 20/40/8/28/14bb, 9 paid, another table of 5) | 895 | 0.95 | 20 s | 7.3 KB |
+| Three left (30/55/15bb) | 78 | 0.12 | 2 s | 1.1 KB |
+| Heads-up (40/60bb) | 22 | 0.015 | 1 s | 0.4 KB |
+| Sit & go bubble (24/16/9/18bb, 50/30/20) | 202 | 1.28 | 5 s | 2.3 KB |
+| Sit & go, 6 players (75bb, 65/35, no ante) | 7,542 | 1.13 | 176 s | 50.8 KB |
+| Double or nothing (6 at 50bb, 3 paid, no ante) | 4,667 | 0.57 | 87 s | 23.5 KB |
+
+`scripts/pf_icm/coverage.py` measures how much of Practice's preflop the solve grades. It plays 1,000 hands a preset,
+moving your seat each hand, and makes the checks `pfGrade.ts` makes:
+
+| How the hand is played | Decisions graded by the solve |
+|---|---|
+| The charts' opponents and buttons, as before (`--charts`) | 4.8% on the sit & go bubble (100 hands). The charts open 2.5bb where the tree opened 2bb, and offer no jam beside the open |
+| The opponents drawn from the solve and your buttons its options. You play the solve's mix where it answers, else the chart's | 100.0% on every preset (12,897 decisions) |
+| The same, but you pick any option evenly | 93-97% a preset. The rest are lines the solve doesn't take with your class ("it holds no EV for it"), or rarely plays |
+
+So in these sessions the preflop is played on the solve's tree (`PracticeHand.pfOptions`). Where the solve reads the
+spot, your options are its own. Each opponent's preflop move is drawn from the solve's mix for that hand class
+(`pf_icm_study.play`, asked by the request's `pf_play`, and only for a stored key). Two details keep the table and the
+tree alike:
+
+- A jam bigger than anyone left can call is played on the tree to the deepest of them. The node reports the rest
+  (`uncalled_bb`), which `chipsOff` takes off the table's pot.
+- An opponent's raise keeps the tree's size to the cent (4-bets to 17.25bb).
+
+Checked in a browser (dev build, 2026-11-11) over 18 hands of the sit & go bubble: 17 preflop decisions were graded by
+the solve and one by the push/fold model. That one came after my test loop raised T4s from the small blind, a class the
+solve had folded by then, and the grade says so.

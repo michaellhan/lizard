@@ -130,6 +130,7 @@ export function TournamentFields({
   problems,
   onStage,
   playOut = false,
+  solvedPreflop = false,
 }: {
   draft: TournamentDraft;
   onDraft: (d: TournamentDraft) => void;
@@ -143,6 +144,8 @@ export function TournamentFields({
   onStage?: (st: StagePreset) => void;
   /** the tournament is played out (Play it out) */
   playOut?: boolean;
+  /** the preflop is graded by, and played on, a stored preset's solve (practice.ts `pfOptions`) */
+  solvedPreflop?: boolean;
 }) {
   const icm = draft.model === "icm";
   const set = (o: Partial<TournamentDraft>) => onDraft({ ...draft, ...o });
@@ -279,7 +282,11 @@ export function TournamentFields({
       )}
       <p className="basis-full text-xs text-muted">
         {playOut ? "" : "Each hand restarts from these stacks. "}
-        {icm ? "ICM (Malmuth-Harville); non-jam preflop spots are heuristic charts." : "Chip EV: cash-game answers in bb."}
+        {icm
+          ? solvedPreflop
+            ? "ICM (Malmuth-Harville); the preflop is played on this preset's stored prize-equity solve, its options yours and its mix the opponents'."
+            : "ICM (Malmuth-Harville); non-jam preflop spots are heuristic charts."
+          : "Chip EV: cash-game answers in bb."}
       </p>
     </fieldset>
   );

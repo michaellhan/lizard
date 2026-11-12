@@ -143,7 +143,7 @@ export interface HandRecord {
   revealed?: string[];
   /** a Practice hand's rake and own sizes, as its Study line has them: a history doesn't carry them. An imported hand has
    * none, so its line is never taken for a raked game's. */
-  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap"> & { pfSizes?: true };
+  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap"> & { pfSizes?: true; pfOptions?: true };
   tournament?: string;
   text: string;
   /** your tags and note on the hand, and when you last changed them (none until you do) */

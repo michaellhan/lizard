@@ -30,6 +30,9 @@ export interface AdvisorState {
   breakdown?: boolean;
   /** The analyzer's Quick triage: read from what's in hand, else a Quick solve at its own budgets (Advisor.triage). */
   triage?: boolean;
+  /** Practice in a stored tournament preset (practice.ts `pfOptions`): an opponent's preflop move is drawn from the stored
+   * prize-equity solve where its node is the spot (engine/pf_icm_study.play), else the chart's */
+  pf_play?: boolean;
   [key: string]: unknown;
 }
 
@@ -113,6 +116,9 @@ export interface AdvisorResponse {
   opponent?: string;
   position?: "IP" | "OOP" | string;
   pot_bb?: number;
+  /** a tournament's preflop solve (engine/pf_icm_study.py): the chips of a jam no one still in can call, which its tree
+   * leaves out of `pot_bb` and a table counts */
+  uncalled_bb?: number;
   /** what a call costs the player to act, in bb (the pot above already holds the bet faced) */
   to_call_bb?: number;
   actions?: AdvisorActionStat[];

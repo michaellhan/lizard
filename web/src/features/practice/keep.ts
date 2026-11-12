@@ -145,6 +145,7 @@ const isHand = (x: unknown): x is PracticeHand =>
   opt(x.exploit, isExploit) &&
   opt(x.pfSolve, (p) => p === true) &&
   opt(x.pfSizes, (p) => p === true) &&
+  opt(x.pfOptions, (p) => p === true) &&
   (x.tournament === undefined || (isObj(x.stacks) && Object.keys(x.stacks).length === x.players)) &&
   opt(x.revealed, (r) => r === true);
 

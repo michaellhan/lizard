@@ -42,8 +42,11 @@ import { answering } from "./TableTile";
 
 export { optionLabel };
 
-/** What the other seats play by: never a solve preflop, nor on a multiway flop or turn. */
+/** What the other seats play by: never a solve preflop (but a stored tournament preset's, practice.ts `pfOptions`), nor on a
+ * multiway flop or turn. */
 const OPPONENTS = "Opponents: charts preflop, then the solver\u2019s mix (rules with 5+ in).";
+const OPPONENTS_STORED = "Opponents: the stored preflop solve\u2019s mix preflop (the charts off its tree), then the solver\u2019s mix (rules with 5+ in).";
+const opponentsOf = (o: { pfSolve?: boolean; tournament?: { model: string } }) => (o.pfSolve && o.tournament?.model === "icm" ? OPPONENTS_STORED : OPPONENTS);
 
 type Tab = "hands" | "drills";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -323,7 +326,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
-          <p className="mt-2 text-xs text-muted">{OPPONENTS}</p>
+          <p className="mt-2 text-xs text-muted">{opponentsOf(session.opts)}</p>
         </details>
       )}
 
@@ -331,7 +334,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <details ref={gameRef} className="min-w-0 flex-1 basis-72 panel px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-muted">{OPPONENTS} Some fields apply at one table only.</p>
+            <p className="text-xs text-muted">{opponentsOf(session.opts)} Some fields apply at one table only.</p>
             <div ref={place} />
           </div>
         </details>

@@ -1,0 +1,190 @@
+[
+ {
+  "name": "Final-table bubble",
+  "key": "icm5_537c59c9ee3a5a68",
+  "request": {
+   "players": 5,
+   "stack": 40,
+   "payouts": [
+    30,
+    20,
+    14,
+    10.5,
+    8,
+    6.5,
+    5,
+    3.5,
+    2.5
+   ],
+   "stacks": {
+    "HJ": 20,
+    "BTN": 8,
+    "SB": 28,
+    "BB": 14
+   },
+   "ante": 0.2,
+   "field": {
+    "players": 5,
+    "chips": 110.0
+   }
+  },
+  "players": 5,
+  "nodes": 895,
+  "iterations": 1500,
+  "mbb": 0.952,
+  "mbb_seats": [
+   0.356,
+   0.405,
+   2.647,
+   0.935,
+   0.415
+  ],
+  "seconds": 20.1,
+  "bytes": 7276,
+  "label": "5 players, stacks HJ 20 \u00b7 CO 40 \u00b7 BTN 8 \u00b7 SB 28 \u00b7 BB 14bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
+ },
+ {
+  "name": "Three left",
+  "key": "icm3_9b41af870049f4af",
+  "request": {
+   "players": 3,
+   "stack": 55,
+   "payouts": [
+    30,
+    20,
+    14
+   ],
+   "stacks": {
+    "BTN": 30,
+    "BB": 15
+   },
+   "ante": 0.33
+  },
+  "players": 3,
+  "nodes": 78,
+  "iterations": 1500,
+  "mbb": 0.115,
+  "mbb_seats": [
+   0.123,
+   0.192,
+   0.029
+  ],
+  "seconds": 2.2,
+  "bytes": 1108,
+  "label": "3 players, stacks BTN 30 \u00b7 SB 55 \u00b7 BB 15bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
+ },
+ {
+  "name": "Heads-up",
+  "key": "icm2_60cc277c8dee7c1d",
+  "request": {
+   "players": 2,
+   "stack": 60,
+   "payouts": [
+    30,
+    20
+   ],
+   "stacks": {
+    "SB": 40
+   },
+   "ante": 0.5
+  },
+  "players": 2,
+  "nodes": 22,
+  "iterations": 1500,
+  "mbb": 0.015,
+  "mbb_seats": [
+   0.019,
+   0.01
+  ],
+  "seconds": 0.8,
+  "bytes": 449,
+  "label": "heads-up, stacks SB 40 \u00b7 BB 60bb, 0.5bb ante each, prize equity (ICM, Malmuth-Harville): 2 paid in the model (30/20), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
+ },
+ {
+  "name": "Sit & go bubble",
+  "key": "icm4_e0d82a5ac3a11175",
+  "request": {
+   "players": 4,
+   "stack": 24,
+   "payouts": [
+    50,
+    30,
+    20
+   ],
+   "stacks": {
+    "BTN": 16,
+    "SB": 9,
+    "BB": 18
+   },
+   "ante": 0.25
+  },
+  "players": 4,
+  "nodes": 202,
+  "iterations": 1500,
+  "mbb": 1.279,
+  "mbb_seats": [
+   0.196,
+   0.331,
+   0.411,
+   4.176
+  ],
+  "seconds": 4.8,
+  "bytes": 2305,
+  "label": "4 players, stacks CO 24 \u00b7 BTN 16 \u00b7 SB 9 \u00b7 BB 18bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (50/30/20), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
+ },
+ {
+  "name": "Sit & go, 6 players",
+  "key": "icm6_c90e6c239eb2fcda",
+  "request": {
+   "players": 6,
+   "stack": 75,
+   "payouts": [
+    65,
+    35
+   ]
+  },
+  "players": 6,
+  "nodes": 7542,
+  "iterations": 1500,
+  "mbb": 1.13,
+  "mbb_seats": [
+   0.551,
+   0.88,
+   1.596,
+   2.039,
+   1.242,
+   0.469
+  ],
+  "seconds": 175.6,
+  "bytes": 50775,
+  "label": "6 players, stacks UTG 75 \u00b7 HJ 75 \u00b7 CO 75 \u00b7 BTN 75 \u00b7 SB 75 \u00b7 BB 75bb, prize equity (ICM, Malmuth-Harville): 2 paid in the model (65/35), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
+ },
+ {
+  "name": "Double or nothing",
+  "key": "icm6_30cdcd37a890364b",
+  "request": {
+   "players": 6,
+   "stack": 50,
+   "payouts": [
+    1,
+    1,
+    1
+   ]
+  },
+  "players": 6,
+  "nodes": 4667,
+  "iterations": 1500,
+  "mbb": 0.565,
+  "mbb_seats": [
+   0.257,
+   0.37,
+   0.806,
+   1.094,
+   0.626,
+   0.236
+  ],
+  "seconds": 86.9,
+  "bytes": 23520,
+  "label": "6 players, stacks UTG 50 \u00b7 HJ 50 \u00b7 CO 50 \u00b7 BTN 50 \u00b7 SB 50 \u00b7 BB 50bb, prize equity (ICM, Malmuth-Harville): 3 paid in the model (1/1/1), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
+ }
+]

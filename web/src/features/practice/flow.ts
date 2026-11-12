@@ -57,5 +57,9 @@ export function chartDraw(h: PracticeHand, seat: string, charts?: Charts) {
  * check or call instead (villainMove; it should not happen). */
 export function moveOf(h: PracticeHand, mv: Pick<PlayMove, "action" | "to">, sim: Sim = simOf(h)): { move: Move; fallback: string | null } {
   const m = recordOf(setupOf(h), sim, { action: mv.action, to: mv.to, clamp: true });
-  return typeof m === "string" ? { move: villainMove(h, mv, sim), fallback: m } : { move: m, fallback: null };
+  if (typeof m === "string") return { move: villainMove(h, mv, sim), fallback: m };
+  // (a stored tournament preset's preflop, drawn from the solve: a raise at its size to the cent, as yours is, or its
+  // 4-bet to 17.25bb would be rounded off its tree)
+  const exact = h.pfOptions && sim.current === "preflop" && m.action === "raise" && typeof mv.to === "number";
+  return { move: exact ? { ...m, to: mv.to! } : m, fallback: null };
 }

@@ -40,6 +40,7 @@ import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./expl
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { flopsLike, type TextureFilter } from "./texture";
 import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE } from "@/solver/pfStored";
+import { pfIcmStage, PF_ICM_WORDS } from "./pfIcmStored";
 
 export interface Decision {
   street: Street;
@@ -124,6 +125,10 @@ export interface PracticeHand {
   pfSolve?: true;
   /** with `pfSolve`: at a spot the solve grades, your raise is at the solve's own size in place of the chart's (pfGrade.ts) */
   pfSizes?: true;
+  /** with `pfSolve`, a session set to a stored tournament preset (pfIcmStored.ts): the preflop is played on the solve's tree.
+   * At a spot it reads, your options are its own, and the opponents' preflop moves are drawn from it (stateFor's `pf_play`,
+   * engine/pf_icm_study.play), as their charts' sizes and options aren't the tree's. */
+  pfOptions?: true;
   /** after your fold (the classic trainer's runOut): "played", the others play the hand on by their strategies to its
    * end; "shown", nobody left to play, everyone's cards and the board shown. Your result stays as at your fold. */
   run?: "played" | "shown";
@@ -298,13 +303,21 @@ export const playsOn = (o: HandOptions & GameOptions) => !!o.tournament && !!o.c
 export { PF_STORED_RAKE } from "@/solver/pfStored";
 
 /** Why a session can't be graded by the preflop solve, in words; null where it can. It can only where the worker already
- * holds a stored solve of this very game (pf_study.STORED and Lizard's grid, `@/solver/pfStored`), as Practice never
- * starts one. */
+ * holds a stored solve of this very game (pf_study.STORED and Lizard's grid, `@/solver/pfStored`; a tournament's, the
+ * presets stored in prize equity, `./pfIcmStored`), as Practice never starts one. */
 export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "pot" | "ante" | "straddle" | "carry" | "seat" | "preflopOnly" | "sizes" | "rake" | "rakeCap"> & GameOptions): string | null {
   const stored = "The preflop solve is stored for";
   const solveFirst = "This game would need a solve first, and Practice doesn't start one: Study can.";
   if (o.pot) return "One kind of pot plays your preflop for you, so there's no preflop decision to grade.";
-  if (o.tournament) return "A tournament's stacks and prizes aren't the game the preflop solve is stored for.";
+  if (o.tournament?.model === "icm") {
+    // (a stored tournament preset, engine/pf_icm_stored.py: solved in prize equity, as Practice sends the preset)
+    if (playsOn(o as HandOptions & GameOptions)) return "Played out, the stacks and prizes move on from the preset's, and the preflop solve is stored for the preset as it starts.";
+    if (!pfIcmStage(players, stack, o.ante, o.tournament)) return `A tournament's preflop solve is stored for these presets only, as they set the table, with no bounties: ${PF_ICM_WORDS}. ${solveFirst}`;
+    if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
+    return null;
+  }
+  // (a chip EV tournament is sent as a cash game: stored where every seat has the table's stack and the grid has it)
+  if (o.tournament && Object.values(o.tournament.stacks).some((v) => Math.abs(v - stack) > 1e-9)) return `${stored} equal stacks only in chip EV. ${solveFirst}`;
   if (!(PF_PLAYERS as readonly number[]).includes(players)) return `${stored} 2 to ${PF_PLAYERS.at(-1)} players only. ${solveFirst}`;
   if (!(PF_DEPTHS as readonly number[]).includes(stack)) return `${stored} stacks of ${PF_DEPTHS_WORDS} only; the nearest is ${nearestDepth(stack)}bb. ${solveFirst}`;
   if (o.ante || o.straddle) return `${stored} no ante and no straddle only. ${solveFirst}`;
@@ -390,7 +403,9 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pushFold ? { pushFold: true as const } : {}),
     ...(opts.tournament ? (table?.tournament ? { tournament: table.tournament, stacks: table.stacks } : tournamentHand(opts.tournament)) : {}),
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
-    ...(opts.pfSolve && !pfBlocked(players, stack, opts) ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}) } : {}),
+    ...(opts.pfSolve && !pfBlocked(players, stack, opts)
+      ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}), ...(opts.tournament?.model === "icm" ? { pfOptions: true as const } : {}) }
+      : {}),
   };
 }
 
@@ -573,6 +588,8 @@ export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
     // (your sizes change the postflop solves only: sent from the flop on, as the classic page does, so preflop's
     // answer is the same)
     ...(h.sizes && h.shown >= 3 ? { sizes: h.sizes } : {}),
+    // (a stored tournament preset's preflop: the opponents' moves from the solve, engine/pf_icm_study.play)
+    ...(h.pfOptions && h.shown < 3 ? { pf_play: true } : {}),
   };
 }
 
@@ -714,7 +731,7 @@ export function decide(
 ): { hand: PracticeHand; decision: Decision } | { error: string } {
   const a = optionsOf(res)[i];
   if (!a) return { error: "That action isn't in the answer." };
-  const m = moveOfOption(h, a, sim, !!h.pfSizes && provenance?.source === "preflop-solve");
+  const m = moveOfOption(h, a, sim, (!!h.pfSizes || !!h.pfOptions) && provenance?.source === "preflop-solve");
   if (typeof m === "string") return { error: m };
   const mix = gradable(mixOf(res), provenance);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;

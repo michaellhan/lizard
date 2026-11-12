@@ -70,7 +70,8 @@ describe("where it can be set", () => {
       [6, 100, { ...plain, sizes: { flop: [50] } }],
       [6, 100, { ...plain, pot: "srp" }],
       [6, 100, { ...plain, pot: "lib" }],
-      [6, 100, { ...plain, tournament: { model: "chips", stacks: {} } }],
+      [6, 100, { ...plain, tournament: { model: "chips", stacks: { UTG: 60 } } }],
+      [6, 100, { ...plain, tournament: { model: "icm", payouts: [50, 30, 20], stacks: {} } }],
     ] as const) expect(pfBlocked(p, s, o as never)).toMatch(/\w+ \w+/);
   });
   it("is said in words that send you to Study, not into a solve", () => {

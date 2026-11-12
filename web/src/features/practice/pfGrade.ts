@@ -17,7 +17,7 @@
 // be asked of it is the move it made (`pfPlayed`).
 import { kindOf } from "@/components/actions";
 import { classOf } from "@/engine/nlhe/cards";
-import { recordOf, type Move, type Sim, type TableSetup } from "@/poker/table";
+import { behind, recordOf, type Move, type Sim, type TableSetup } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { bb } from "@/components/actions";
@@ -85,13 +85,17 @@ export interface PfSpot {
   sim: Sim;
   table: TableSetup;
   ownSizes?: boolean;
+  /** the session's `pfOptions`: where the solve reads the spot, your options are the solve's own */
+  ownOptions?: boolean;
 }
 
 /** The chips in aren't the tree's, in words; null where they are. An all-in with no size is walked onto the tree's raise
- * with no note: the chips are what tell. */
-function chipsOff({ sim, hero }: PfSpot, node: AdvisorResponse): string | null {
-  const toCall = (sim.cur?.curBet ?? 0) - (sim.cur?.bets[hero] ?? 0);
-  if (Math.abs((node.pot_bb ?? NaN) - sim.pot) <= CHIP_EPS && Math.abs((node.to_call_bb ?? NaN) - toCall) <= CHIP_EPS) return null;
+ * with no note: the chips are what tell. A tournament's tree plays a jam no one still in can call to the deepest of them
+ * (`uncalled_bb`, off the table's pot), and a call for more than you have is your all-in, on the table as on the tree. */
+function chipsOff({ sim, hero, table }: PfSpot, node: AdvisorResponse): string | null {
+  const toCall = Math.min((sim.cur?.curBet ?? 0) - (sim.cur?.bets[hero] ?? 0), behind(table, sim, hero));
+  const pot = sim.pot - (typeof node.uncalled_bb === "number" ? node.uncalled_bb : 0);
+  if (Math.abs((node.pot_bb ?? NaN) - pot) <= CHIP_EPS && Math.abs((node.to_call_bb ?? NaN) - toCall) <= CHIP_EPS) return null;
   return `The chips in aren't the solve's: the pot is ${sim.pot}bb here and ${node.pot_bb}bb on its tree.`;
 }
 
@@ -102,6 +106,10 @@ export function pfReadAt(spot: PfSpot, res: AdvisorResponse, asked: PfAsked | un
   const { node } = read;
   const off = chipsOff(spot, node);
   if (off) return chart(off);
+  if (spot.ownOptions) {
+    const acts = node.actions ?? [];
+    return { data: asOptions(read, acts, acts.map((_, i) => i)), provenance: read.provenance };
+  }
   const options = optionsOf(res);
   const moves = options.map((a) => recordOf(spot.table, spot.sim, { action: kindOf(a.action), to: typeof a.amount_bb === "number" ? a.amount_bb : undefined, clamp: true }));
   const table = moves.flatMap((m) => (typeof m === "string" ? [] : [m]));
@@ -116,7 +124,7 @@ export function pfReadAt(spot: PfSpot, res: AdvisorResponse, asked: PfAsked | un
 
 /** A hand at the table's spot (`pfReadAt`). */
 export function pfRead(h: PracticeHand, res: AdvisorResponse, asked: PfAsked | undefined, sim: Sim = simOf(h)): PfRead {
-  return pfReadAt({ hero: h.hero, hole: h.hands[h.hero]!.join(""), sim, table: setupOf(h), ownSizes: h.pfSizes }, res, asked);
+  return pfReadAt({ hero: h.hero, hole: h.hands[h.hero]!.join(""), sim, table: setupOf(h), ownSizes: h.pfSizes, ownOptions: h.pfOptions }, res, asked);
 }
 
 /** A site's hand: no buttons were offered, so there are no options to line up, and what the solve can say of it is the move
@@ -140,9 +148,10 @@ export function gradedOn(h: PracticeHand, held: HeldAnswer, sim: Sim = simOf(h))
   return "why" in read ? { data: held.data, provenance: held.provenance, pfWhy: read.why } : read;
 }
 
-/** Your options at a spot: the answer's, at the solve's sizes where the session offers them. */
+/** Your options at a spot: the answer's, at the solve's sizes where the session offers them, or the solve's own in a stored
+ * tournament preset (`pfOptions`). */
 export function optionsAt(h: PracticeHand, held: HeldAnswer | null | undefined, sim: Sim = simOf(h)): AdvisorActionStat[] {
-  return held ? optionsOf(h.pfSizes ? gradedOn(h, held, sim).data : held.data) : [];
+  return held ? optionsOf(h.pfSizes || h.pfOptions ? gradedOn(h, held, sim).data : held.data) : [];
 }
 
 /** A retry of a decision graded by the solve: the same read, of the answer asked now, against the options and pot kept with

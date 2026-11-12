@@ -349,6 +349,7 @@ export function SetupForm({
           stack={s}
           problems={tournament?.problems ?? []}
           playOut={carry && canCarry}
+          solvedPreflop={!!game && !pfNo && pfSolve && game.tournament?.model === "icm"}
           onStage={(st) => {
             const d = stageDraft(st);
             setP(d.players);

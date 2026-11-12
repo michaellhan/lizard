@@ -44,9 +44,12 @@ EPS = 1e-9
 
 @dataclass
 class Sizes(G.Sizes):
-    """pf_game's sizes with a tournament's open (2.2bb, as most solved MTT charts; 2bb at 25bb or less: smaller_open)."""
-    open: float = 2.2
-    small_open: float = 2.0     # the open from an effective stack of SMALL_OPEN_AT bb or less
+    """pf_game's sizes: 2.5bb opens, 3bb from the small blind, 3bets to 3x, 4.8x from a blind (12bb), 10bb in the big blind
+    over the small blind, all on the half big blind. They're the sizes the charts Practice's opponents play, so a stored
+    preset's preflop (engine/pf_icm_stored.py) lines up with Practice's table (a 2.2bb open, as solved MTT charts have it,
+    left every hand facing a chart's 2.5bb open off the tree: scripts/pf_icm/coverage.py). `small_open` (off by default):
+    a smaller open from an effective stack of `small_open_at` bb or less."""
+    small_open: Optional[float] = None
     small_open_at: float = 25.0
 
 

@@ -55,10 +55,11 @@ const bundleSha = execFileSync(python(), [join(ROOT, "scripts", "pyodide", "bund
   encoding: "utf8",
 }).trim();
 
-// upstream's two stored games, then Lizard's grid (engine/pf_stored.py, built by scripts/pf/build_stored.py); a name in
-// both would be two solves of one game, so that fails the build
+// upstream's two stored games, then Lizard's grid (engine/pf_stored.py, built by scripts/pf/build_stored.py) and its
+// stored tournament stages (engine/pf_icm_stored.py, built by scripts/pf_icm/build_stored.py); a name in two would be
+// two solves of one game, so that fails the build
 const pfFrom = new Map();
-for (const dir of [join(SOLVER, "gto", "static", "pf"), join(ROOT, "engine", "pf")]) {
+for (const dir of [join(SOLVER, "gto", "static", "pf"), join(ROOT, "engine", "pf"), join(ROOT, "engine", "pf_icm")]) {
   if (!existsSync(dir)) continue;
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".bin"))) {
     if (pfFrom.has(f)) throw new Error(`pf/${f} is stored twice: ${pfFrom.get(f)} and ${dir}`);
