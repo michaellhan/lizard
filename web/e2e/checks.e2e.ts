@@ -7,6 +7,12 @@ import { expect, overflow, test, type Page, type Problems, openGame, openScoreNo
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
+/** History's breakdown tables are under a closed Breakdown fold: opened if it's closed. */
+async function openBreakdown(page: Page): Promise<void> {
+  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^Breakdown$/ }) }).first();
+  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
+}
+
 test.skip(({ viewport }) => viewport?.width !== 1440, "this sets its own sizes");
 test.skip(Boolean(process.env.CI), "run in the local gate: several read the live library or wait on the real worker, and none should hold up a deploy");
 test.describe.configure({ timeout: 300_000 });
@@ -298,6 +304,7 @@ test("Session stats: a real session's figures in History, each way of grading ap
   await expect(score).toBeVisible();
 
   await page.goto("/lizard/history/");
+  await openBreakdown(page);
   const rates = page.getByRole("region", { name: "Rates by seat and pot type" });
   await expect(rates).toBeVisible();
   // each seat's rows by EV and by frequency, in tables of their own, never one row
@@ -330,6 +337,7 @@ test("Session stats: a real session's figures in History, each way of grading ap
   await rates.getByLabel("Rates from").selectOption("build");
   await expect(rates).toContainText("not split by seat or pot");
   await page.reload();
+  await openBreakdown(page);
   await expect(page.getByRole("region", { name: "Rates by seat and pot type" })).toContainText("not split by seat or pot");
   await page.getByRole("region", { name: "Rates by seat and pot type" }).getByLabel("Rates from").selectOption("");
   await expect(page).not.toHaveURL(/kind=/);
@@ -355,6 +363,7 @@ test("Session stats: every seat and pot at 375px stays within the page, and the 
     { id: "leak-drill|pf:RFI", kind: "analysis", startedAt: Date.now() - 7_200_000, decisions: 2, evLossBb: 0, meta: { drill: "leak", leak: "pf:RFI", label: "RFI", total: 5, done: ["a", "b"], score: { n: 2, ok: 1, loss: 0, lossPct: 0, ne: 0, streak: 0, best: 1, recent: [1, 0] } } },
   ]);
   await page.reload();
+  await openBreakdown(page);
   const rates = page.getByRole("region", { name: "Rates by seat and pot type" });
   await expect(rates).toBeVisible();
   await expect(rates).toContainText("Seat not kept: 7 decisions in 1 session");
@@ -666,6 +675,7 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   const heads = await page.getByRole("table", { name: "Totals by kind" }).locator("th").allTextContents();
   expect(heads).toContain("By the preflop solve");
   expect(heads.includes("By frequency")).toBe(charts);
+  await openBreakdown(page);
   const rates = page.getByRole("region", { name: "Rates by seat and pot type" });
   await expect(rates).toContainText(/Preflop solve/);
   await expect(page.getByRole("region", { name: "Sessions" }).getByRole("listitem").first()).toContainText(/by the preflop solve/);
@@ -807,7 +817,7 @@ test("A 4-way flop answer in Study says what answered it, and calls nothing solv
 
 test("The Saved page: sort kept across a reload, tags edited and searched, and one item exported and restored", async ({ page, problems }) => {
   await page.goto("/lizard/saved");
-  await expect(page.getByRole("region", { name: "Saved spots" })).toContainText("0 saved");
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
   const spot = (id: string, title: string, createdAt: number, updatedAt: number) => ({ id, title, line: "p=2&s=100&pre=SB%3Ar2.5%2CBB%3Ac&b=Kd7c2h", state: {}, tags: [], note: "", createdAt, updatedAt });
   await putStore(page, "savedSpots", [spot("a", "Bravo", 1000, 9000), spot("b", "Alpha", 3000, 3000), spot("c", "Charlie", 2000, 5000)]);
   await page.reload();
@@ -859,7 +869,7 @@ test("The Saved page: sort kept across a reload, tags edited and searched, and o
       }),
   );
   await page.reload();
-  await expect(page.getByRole("region", { name: "Saved spots" })).toContainText("0 saved");
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
   await page.getByLabel("Backup file to restore").setInputFiles(path);
   await expect(page.getByRole("listitem", { name: "Charlie" })).toContainText("bluff");
   await expect(list).toHaveCount(1);

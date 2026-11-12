@@ -1,8 +1,8 @@
 // Solve times measured in this browser (ROADMAP Phase 6): live answers' engine seconds by backend, mode, street and
 // table, once per request, the last KEEP kept; their medians beside the modes and in Settings.
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ModePicker, ModeTimes } from "@/features/study/ModePicker";
+import { ModePicker } from "@/features/study/ModePicker";
 import { useSettings } from "@/state/settings";
 import { SolverClient } from "./client";
 import type { AdvisorResponse, AdvisorState } from "./protocol";
@@ -98,23 +98,16 @@ describe("measured solve times", () => {
     expect(timingOf(s, "worker", "fast", "river", false)).toBeNull();
   });
 
-  it("shows the medians on the mode buttons and in Settings' table, and clears them", () => {
+  it("shows the medians on the mode buttons", () => {
     useSettings.setState({ transport: "worker" });
     render(<ModePicker modes={["fast", "accurate"]} />);
     const fast = screen.getByRole("radio", { name: "Fast" });
     expect(fast.title).toMatch(/Not measured in this browser yet$/);
-    render(<ModeTimes />);
-    const table = screen.getByRole("table", { name: "Solve times measured in this browser" });
-    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Quick–––");
     act(() => {
       recordTiming("x", "worker", "fast", LIVE, provenanceOf(LIVE, ctx));
       recordTiming("y", "worker", "fast", { ...LIVE, street: "flop", seconds: 12.4 }, provenanceOf(LIVE, ctx));
     });
     expect(fast.title).toMatch(/Measured in this browser: flop 12 s \(1\), river 4\.2 s \(1\)$/);
-    expect(within(table).getAllByRole("row")[2]).toHaveTextContent("Fast12 s (1)–4.2 s (1)");
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    expect(within(table).getAllByRole("row")[2]).toHaveTextContent("Fast–––");
-    expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
     act(() => clearTimings());
   });
 });

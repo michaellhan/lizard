@@ -159,7 +159,6 @@ describe("a setup's link", () => {
     const flop = within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent);
     fireEvent.keyDown(window, { key: "1" });
     fireEvent.keyDown(document.body, { key: "2" });
-    expect(screen.getByRole("region", { name: "Hand history" }).textContent).not.toMatch(/You check|bet 33%/);
     expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(flop);
     expect(stub.asked).toBe(asked);
     fireEvent.click(keep());

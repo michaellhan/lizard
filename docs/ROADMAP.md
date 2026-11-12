@@ -5,7 +5,7 @@ Status as of 2026-11-05. This plans the path from today's state to broad parity 
 ## Where we start
 
 - **The engine covers most features, often in part.** The bundled solver and its classic app (`solver/`, served at `/gto-solver/`, with a frozen full copy at `/gto-solver-classic/`) handle Study, Practice, drills, multitabling, hand-history analysis, reports, custom setups, ICM and bounties. Of 60 matrix rows, the engine is WORKING on 12, PARTIAL on 39 and APPROXIMATE on 4.
-- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 63 matrix rows, Lizard is WORKING on 42, PARTIAL on 13, APPROXIMATE on 5 and NOT IMPLEMENTED on 3 (2026-11-10; WORKING by the owner's rule of 2026-11-08, the core working with only edges left). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
+- **Lizard's own interface now covers Study, Practice, Analyze, Solve, Reports, Ranges, Tournaments, Library, History, Plan, Review and Saved.** Of 70 matrix rows, Lizard is WORKING on 46, PARTIAL on 11, APPROXIMATE on 5 and NOT IMPLEMENTED on 8 (2026-11-11, after seven rows were added for GTO Wizard features that had none; WORKING by the owner's rule of 2026-11-08, the core working with only edges left). `FEATURE_MATRIX.md` has the rows; each phase below says what's done.
 - **Much of the plumbing is ready but unused.** That includes:
   - the `SolverClient` queue with worker and HTTP backends;
   - provenance on every answer;
@@ -547,8 +547,9 @@ Moves matrix rows: Solution comparisons, Range comparison.
   - Extend the class-level preflop solve to unequal stacks, 7–9 players in the browser, antes and the straddle. Measure against published solves, as `docs/research/03` §4 did (today 2.4–3.0 points).
   - Offer it as the default source only where it beats the charts on that measure.
 - **ICM preflop solve.** Prize-equity payoffs in the preflop game (using `icm.Model`), replacing the chip chart plus risk premium.
-- **True node-lock re-solve.** Hold a locked strategy fixed inside CFR and solve the rest to equilibrium, instead of a best response to a tendency. Done: `engine/nodelock.py` (checked against an LP, ACCURACY section 16) in Study since 2026-11-05, on several nodes of a street since 2026-11-10 (kept locks, `study_lock.py` `also`). Open: earlier streets reacting to a later street's lock.
-- **Bigger trees.** More sizes and raises per street where memory allows, with per-device caps.
+- **True node-lock re-solve.** Hold a locked strategy fixed inside CFR and solve the rest to equilibrium, instead of a best response to a tendency. Done: `engine/nodelock.py` (checked against an LP, ACCURACY section 16) in Study since 2026-11-05, on several nodes of a street since 2026-11-10 (kept locks, `study_lock.py` `also`). One street back since 2026-11-11: a turn or river lock held in the street before's solve, which reacts (`study_lock.py` `reach_back`, approximate: that tree's coarser abstraction, whole range only). Open: two streets back, and a hand-scoped lock held from the street before.
+- **Bigger trees.** More sizes and raises per street where memory allows, with per-device caps. Done 2026-11-11 for heads-up: up to 5 sizes and a raise cap of 1 to 4 a street on the Solve page, tree caps of 12M, 24M or 32M cells in the browser and 64M natively (`engine/tree_depth.py`, ACCURACY section 22). Open: multiway trees, and a turn's big menus with 3 or more raises, which pass every browser cap.
+- **Abstraction error.** Measured 2026-11-11 (ACCURACY section 21): a flop model's flop held in the exact game gave up 0.6% (library) to 1.9% (browser) of the pot on average, up to 5.4%, on 3 narrow spots; said in a heads-up flop answer's provenance. Open: real ranges, bigger menus, turns, and a browser flop model closer to the library's (the river dealt).
 - **Library breadth.** More depths, 2-max and 3-way spots, and turn files for the older-tree spots. These are built offline in the separate library pipeline (`library-build/`), never on a machine that is also serving development.
 
 **Dependencies.**

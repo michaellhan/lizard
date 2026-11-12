@@ -47,3 +47,6 @@ solver/sanity_report.md
 *.swp
 .claude/settings.local.json
 web/.vitest/
+
+# --- benchmark caches (large, regenerated) ---
+scripts/benchmarks/results/abstraction/

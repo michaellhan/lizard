@@ -123,8 +123,12 @@ describe("AnalyzePage", () => {
     expect(row).toHaveAttribute("aria-label", "Hand 249012345678");
     expect(row).toHaveTextContent("SRP");
     expect(row).toHaveTextContent("21.3");
-    expect(row).toHaveTextContent("won, all folded");
-    fireEvent.click(within(row!).getByRole("button", { name: "Open" }));
+    // (no Site, Big blind or End columns: the hand itself says them)
+    expect(row).not.toHaveTextContent("won, all folded");
+    expect(within(row!).queryByRole("button", { name: "Open" })).toBeNull();
+    const opener = within(row!).getByRole("button", { name: /^Open the hand/ });
+    expect(opener).toHaveAccessibleName("Open the hand played 2024-03-02 21:14");
+    fireEvent.click(opener);
 
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(within(hand).getByRole("heading", { name: "PokerStars hand #249012345678" })).toBeInTheDocument();
@@ -160,9 +164,8 @@ describe("AnalyzePage", () => {
     expect(res).toHaveTextContent("gg.txt: 1 read, 1 to keep");
     tab("Hands");
     await waitFor(() => expect(handRows()).toHaveLength(4));
-    const mtt = handRows().find((r) => r.textContent?.includes("300 chips"))!;
-    expect(mtt).toHaveTextContent("MTT");
-    fireEvent.click(within(mtt).getByRole("button", { name: "Open" }));
+    const mtt = screen.getByRole("row", { name: "Hand 250123456789" });
+    fireEvent.click(within(mtt).getByRole("button", { name: /^Open the hand/ }));
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("tournament 3712345678");
     expect(hand).toHaveTextContent("0.1bb ante");
@@ -340,7 +343,7 @@ describe("AnalyzePage", () => {
     expect(answer).toHaveTextContent("Mistake0.12bb lost (2.2% of the pot)");
     expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("bet 75%43%3.12bb");
     expect(answer).toHaveTextContent("In the hand you played bet 1.8");
-    expect(answer).toHaveTextContent("From Precomputed solution · srp_btn_bb.");
+    expect(answer).toHaveTextContent("From Precomputed solution · srp_btn_bb · this flop model gave up 0.6% pot on average, up to 2.1%, against the full game on 3 narrow test spots.");
     expect(within(answer).getByRole("link", { name: "Open in Study" }).getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax$/);
     const handHref = within(answer).getByRole("link", { name: "Open the hand" }).getAttribute("href")!;
     expect([...new URLSearchParams(handHref.split("?")[1])]).toEqual([["pos", "BTN"], ["drill", "spot:SRP · IP · checked to"], ["hand", "PokerStars|249012345678|AhQd"]]);
@@ -489,7 +492,7 @@ describe("AnalyzePage", () => {
     expect(screen.getByTestId("where").textContent).toMatch(/q=river\+SIZING/);
     fireEvent.change(screen.getByRole("searchbox", { name: "Search hands" }), { target: { value: "300 chips" } });
     expect(handRows()).toHaveLength(1);
-    expect(handRows()[0]).toHaveTextContent("MTT");
+    expect(handRows()[0]).toHaveAttribute("aria-label", "Hand 250123456789");
   });
 
   it("lists the first hands of many, and deletes an import with its hands", async () => {
@@ -545,7 +548,7 @@ describe("AnalyzePage", () => {
     await waitFor(() => expect(handRows()).toHaveLength(3));
     const row = handRows().find((r) => r.textContent?.includes("classic"))!;
     expect(row).toHaveTextContent("SRP");
-    fireEvent.click(within(row).getByRole("button", { name: "Open" }));
+    fireEvent.click(within(row).getByRole("button", { name: /^Open the hand/ }));
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(hand).toHaveTextContent("2025-06-01 09:30 · 6-handed");
     expect(within(hand).getByRole("listitem", { name: "flop" })).toHaveTextContent("You bet 1.8");
@@ -576,8 +579,8 @@ describe("AnalyzePage", () => {
     try {
       open();
       await waitFor(() => expect(handRows()).toHaveLength(3));
-      fireEvent.click(within(handRows()[0]!).getByRole("button", { name: "Open" }));
-      fireEvent.click(within(handRows()[1]!).getByRole("button", { name: "Open" }));
+      fireEvent.click(within(handRows()[0]!).getByRole("button", { name: /^Open the hand/ }));
+      fireEvent.click(within(handRows()[1]!).getByRole("button", { name: /^Open the hand/ }));
       fireEvent.click(within(screen.getByRole("region", { name: "Hand" })).getByRole("button", { name: "Close" }));
       await waitFor(() => expect(screen.queryByRole("region", { name: "Hand" })).toBeNull());
       expect(scroll).toHaveBeenCalledTimes(2);
@@ -588,17 +591,29 @@ describe("AnalyzePage", () => {
     }
   });
 
-  it("moves the keyboard into a hand on Open, and back to that row's Open on Close", async () => {
+  it("opens a hand on a click anywhere on its row, as its button does", async () => {
     open();
     await waitFor(() => expect(handRows()).toHaveLength(3));
-    const opener = within(handRows()[1]!).getByRole("button", { name: "Open" });
+    const row = handRows()[1]!;
+    expect(row).toHaveClass("cursor-pointer");
+    expect(within(screen.getByRole("region", { name: "Hands" })).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["Played", "Your seat", "Cards", "Board", "Pot type", "Pot (bb)"]);
+    const id = within(row).getByRole("button", { name: /^Open the hand/ }).dataset.openHand!;
+    fireEvent.click(within(row).getAllByRole("cell")[4]!);
+    expect(await screen.findByRole("region", { name: "Hand" })).toBeInTheDocument();
+    expect(new URLSearchParams(screen.getByTestId("where").textContent!.split("?")[1]).get("hand")).toBe(id);
+  });
+
+  it("moves the keyboard into a hand from its row's button, and back to that button on Close", async () => {
+    open();
+    await waitFor(() => expect(handRows()).toHaveLength(3));
+    const opener = within(handRows()[1]!).getByRole("button", { name: /^Open the hand/ });
     opener.focus();
     fireEvent.click(opener);
     const hand = await screen.findByRole("region", { name: "Hand" });
     await waitFor(() => expect(hand).toHaveFocus());
     fireEvent.click(within(hand).getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Hand" })).toBeNull());
-    expect(within(handRows()[1]!).getByRole("button", { name: "Open" })).toHaveFocus();
+    expect(within(handRows()[1]!).getByRole("button", { name: /^Open the hand/ })).toHaveFocus();
   });
 
   it("shows the focus on the file pickers through their labels", async () => {
@@ -658,7 +673,7 @@ describe("AnalyzePage", () => {
     open();
     const opened = async (n: string) => {
       await waitFor(() => expect(handRows().some((r) => r.getAttribute("aria-label") === `Hand ${n}`)).toBe(true));
-      fireEvent.click(within(handRows().find((r) => r.getAttribute("aria-label") === `Hand ${n}`)!).getByRole("button", { name: "Open" }));
+      fireEvent.click(within(handRows().find((r) => r.getAttribute("aria-label") === `Hand ${n}`)!).getByRole("button", { name: /^Open the hand/ }));
       return within(await screen.findByRole("region", { name: "Hand" })).findByText(/Played in Practice/);
     };
     const drawn = await opened("L1-1");

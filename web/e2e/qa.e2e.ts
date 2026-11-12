@@ -7,6 +7,12 @@ import type { Page } from "@playwright/test";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
+/** History's breakdown tables are under a closed Breakdown fold: opened if it's closed. */
+async function openBreakdown(page: Page): Promise<void> {
+  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^Breakdown$/ }) }).first();
+  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
+}
+
 test.skip(({ viewport }) => viewport?.width !== 1440, "one width: see the top of this file");
 test.describe.configure({ timeout: 240_000 });
 
@@ -335,13 +341,13 @@ test("11. A texture-filtered flop report says how many flops it stands on", asyn
     await r.fulfill({ response: await r.fetch({ url: `https://www.michael-han.com${u.pathname}${u.search}` }) });
   });
   await page.goto("/lizard/reports/");
-  await expect(page.getByText(/\d+ of 1,755 flops stored, standing for \d/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/flop report over its \d+ stored flops/)).toBeVisible({ timeout: 60_000 });
   const shown = page.getByRole("row", { name: "Average" }).first();
   await expect(shown).toBeVisible();
   const all = await shown.textContent();
   await page.getByLabel("Suits").selectOption({ index: 1 });
   await expect(shown).not.toHaveText(all ?? "");
-  await expect(page.getByText(/\d+ of 1,755 flops stored, standing for \d/)).toBeVisible();
+  await expect(page.getByText(/flop report over its \d+ stored flops/)).toBeVisible();
     await clean(page, problems);
 });
 
@@ -513,6 +519,7 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
 
   await page.goto("/lizard/history/");
+  await openBreakdown(page);
   const streets = page.getByRole("table", { name: "Totals by street" });
   await expect(streets.getByRole("row", { name: /preflop/i })).toHaveCount(2);
   await expect(streets).toContainText("Preflop solve");
@@ -577,7 +584,7 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
   expect(bySolve).toBeGreaterThan(0);
   await expect(page.getByRole("region", { name: "Last decision" }).getByText(/not a full solve/).first()).toBeVisible();
   // (that game's file and no other: never the 6-max one read as if it were this game)
-  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["4max_40bb.bin"]);
+  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz1_4max_40bb.bin"]);
   await clean(page, problems);
 });
 
@@ -585,11 +592,11 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
 // is graded by the stored solve of that very game where one is stored and by the charts where none is (each under its own
 // name), a decision after the flop is graded too, and only that game's preflop file is read.
 const FORMATS = [
-  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "6max_100bb_r5c3.bin" },
+  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz1_6max_100bb_r5c3.bin" },
   { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
-  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "3max_25bb.bin" },
+  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz1_3max_25bb.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
-  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "2max_200bb.bin" },
+  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz1_2max_200bb.bin" },
   { name: "deep, 6 players at 250bb, past the stored depths", players: "6", stack: "250", file: null },
 ] as const;
 for (const f of FORMATS) {
@@ -683,7 +690,11 @@ test("7c. A tournament session in prize equity says so, with chip EV apart from 
 
 test("14b. The keyboard alone: a page change moves focus, the grid is one tab stop, and playing an action keeps your place", async ({ page, problems }) => {
   await page.goto("/lizard/");
-  await page.getByRole("link", { name: "Ranges", exact: true }).first().focus();
+  // (Ranges is under the nav's More: opened and picked by the keyboard)
+  const more = page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /More/ });
+  await more.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("list", { name: "More pages" }).getByRole("link", { name: "Ranges", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveTitle(/Ranges/);
   await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
@@ -831,9 +842,9 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
   await clean(page, problems);
 });
 
-test("10c. The plan starts empty, reads what's graded, and its practice step opens a started session", async ({ page, problems }) => {
-  await page.goto("/lizard/plan/");
-  await expect(page.getByRole("heading", { level: 1, name: "Plan" })).toBeVisible();
+test("10c. Review's plan starts empty, reads what's graded, and its practice step opens a started session", async ({ page, problems }) => {
+  await page.goto("/lizard/review/");
+  await expect(page.getByRole("heading", { level: 1, name: "Review" })).toBeVisible();
   const start = page.getByRole("region", { name: "Start here" });
   await expect(start.getByRole("link", { name: "Play hands in Practice" })).toBeVisible();
   await start.getByRole("link", { name: "Import hands in Analyze" }).click();
@@ -847,7 +858,7 @@ test("10c. The plan starts empty, reads what's graded, and its practice step ope
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
 
   // Graded and clean, there's nothing to do yet, and the page says so
-  await page.goto("/lizard/plan/");
+  await page.goto("/lizard/review/");
   await expect(page.getByRole("region", { name: "Start here" })).toContainText(/Nothing to do yet over/);
 
   // Marked as missed in the browser's own store, as a worse player's grades would be
@@ -866,9 +877,7 @@ test("10c. The plan starts empty, reads what's graded, and its practice step ope
         };
       }),
   );
-  await page.goto("/lizard/plan/");
-  const next = page.getByRole("status", { name: "Next step" });
-  await expect(next).toBeVisible();
+  await page.goto("/lizard/review/");
   await expect(page.getByRole("region", { name: "Start here" })).toHaveCount(0);
   const drill = page.getByRole("region", { name: "Practice drill" });
   await expect(drill).toBeVisible();
@@ -911,7 +920,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   );
   await page.reload();
   await page.getByRole("tab", { name: "Hands" }).click();
-  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
+  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: /^Open the hand/ }).first().click();
   const hand = page.getByRole("region", { name: "Hand", exact: true });
   await expect(hand.getByText(/Misses reach Review only through Add to review/)).toBeVisible();
   const add = hand.getByRole("button", { name: /^Add to review: / }).first();
@@ -920,7 +929,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   // the same spot pressed again isn't a second entry
   await page.reload();
   await page.getByRole("tab", { name: "Hands" }).click();
-  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: "Open" }).first().click();
+  await page.getByRole("row", { name: /^Hand / }).getByRole("button", { name: /^Open the hand/ }).first().click();
   await hand.getByRole("button", { name: /^Add to review: / }).first().click();
   await expect(hand.getByRole("status").filter({ hasText: /^Already kept/ })).toBeVisible();
   await hand.getByRole("link", { name: "Review" }).first().click();

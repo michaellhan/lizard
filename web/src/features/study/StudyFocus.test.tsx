@@ -322,13 +322,13 @@ describe("Stop and Try again", () => {
 
 describe("Study's keys", () => {
   it("leaves 1-9, b and Backspace to what's focused on a button or link", async () => {
-    renderAt("p=6&s=100&pre=UTG:f");
+    renderAt("p=6&s=100&pre=UTG:f&rake=5");
     const fold = await firstAction();
     fold.focus();
     fireEvent.keyDown(fold, { key: "1" });
     fireEvent.keyDown(fold, { key: "b" });
     fireEvent.keyDown(fold, { key: "Backspace" });
-    const link = screen.getByRole("link", { name: "Set up your own" });
+    const link = screen.getByRole("link", { name: "Edit setup" });
     fireEvent.keyDown(link, { key: "1" });
     fireEvent.keyDown(link, { key: "Backspace" });
     await act(async () => {});

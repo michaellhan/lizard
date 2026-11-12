@@ -273,9 +273,12 @@ function SpotReport({
         <>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <ProvenanceBadge p={provenance} />
-            <span className="text-muted">
-              {cover.flops} of {FLOP_CLASSES.toLocaleString()} flops stored, standing for {pct(cover.share)} of all {ALL_FLOPS.toLocaleString()}
-            </span>
+            {/* (said only while some aren't stored: the badge names the count) */}
+            {cover.flops < FLOP_CLASSES && (
+              <span className="text-muted">
+                {cover.flops} of {FLOP_CLASSES.toLocaleString()} flops stored, standing for {pct(cover.share)} of all {ALL_FLOPS.toLocaleString()}
+              </span>
+            )}
             <span className="flex-1" />
             <span role="group" aria-label="Show as" className="segmented inline-flex overflow-hidden rounded-md border border-border">
               {(["Table", "Chart"] as const).map((v) => (

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it } from "vitest";
 import { deleteRange, putRange } from "@/data/saved";
 import { fromSearch, studyRequest } from "@/features/study/studyState";
+import { useSettings } from "@/state/settings";
 import { SolvePage } from "./SolvePage";
 
 function Where() {
@@ -40,11 +41,11 @@ describe("SolvePage", () => {
     expect(screen.getByRole("checkbox", { name: "Straddle" })).toBeDisabled();
 
     // out of range: refused, and Study isn't opened
-    type("Flop bets", "33, 75, 125, 150");
+    type("Flop bets", "25, 33, 75, 125, 150, 200");
     num("Rake", "30");
     type("BB range", "22+, XYZ");
     expect(within(problems()!).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "at most 3 flop bet sizes (each one multiplies the game tree)",
+      "at most 5 flop bet sizes (each one multiplies the game tree)",
       "the rake must be 0–25% of the pot",
       `BB's range: can't read "XYZ"`,
     ]);
@@ -67,6 +68,28 @@ describe("SolvePage", () => {
     const h = fromSearch(where.split("?")[1]!)!;
     expect(h.setup).toEqual({ stacks: { BB: 40 }, sizes: { flop: [33, 75], raise: [60] }, rake: 5, rakeCap: 3, ranges: { BB: "22+,A2s+,AhKh" } });
     expect(studyRequest(h)).toMatchObject({ stacks: { BB: 40 }, sizes: { flop: [33, 75], raise: [60] }, rake: 0.05, rake_cap: 3, ranges: { BB: "22+,A2s+,AhKh" } });
+  });
+
+  it("sets the raise cap and five sizes a street, says this device's tree cap, and opens it in Study with them", async () => {
+    useSettings.setState({ transport: "worker", treeCap: "phone" });
+    const first = open("p=2&s=100&raises=3");
+    const cap = screen.getByRole("combobox", { name: "Raise cap" });
+    expect(cap).toHaveValue("3");
+    expect(screen.getByText("a bet and 2 raises a street, then all-in only, heads-up")).toBeInTheDocument();
+    expect(screen.getByText(/Trees up to 12M cells, up to ~0\.\d GB here/)).toBeInTheDocument();
+    fireEvent.change(cap, { target: { value: "4" } });
+    type("Flop bets", "25, 33, 50, 75, 125");
+    expect(problems()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open in Study" }));
+    const h = fromSearch(screen.getByTestId("where").textContent!.split("?")[1]!)!;
+    expect(studyRequest(h)).toMatchObject({ raises: 4, sizes: { flop: [25, 33, 50, 75, 125] } });
+    first.unmount();
+    // the engine's own cap is no setting; a local server is said to keep upstream's
+    useSettings.setState({ transport: "http" });
+    open("p=2&s=100");
+    expect(screen.getByRole("combobox", { name: "Raise cap" })).toHaveValue("2");
+    expect(screen.getByText("A local server keeps a raise cap of 2 and 24M-cell trees.")).toBeInTheDocument();
+    useSettings.setState({ transport: "worker", treeCap: "standard" });
   });
 
   it("fills a seat's range from a saved range, and starts the line over at a new table size", async () => {

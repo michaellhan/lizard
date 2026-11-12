@@ -1,5 +1,6 @@
-// Review: your mistakes kept across sessions, what's due to retry on a spaced schedule (schedule.ts), the retry itself,
-// and the list of them. A retry asks the spot again, shows the options without the mix, and grades your pick as the
+// Review, the one page of what to work on: your mistakes kept across sessions, what's due to retry on a spaced schedule
+// (schedule.ts), the retry itself, the list of them, and the plan past them (features/plan: the leaks, a Practice drill,
+// the 12 lessons). A retry asks the spot again, shows the options without the mix, and grades your pick as the
 // decision was graded, against the answer there is now and under that answer's own provenance. Where that isn't the kind
 // of answer the first grade stood on, the page says so and doesn't set the two side by side (mistakes.ts answerChange).
 // A decision from Analyze is retried against the answer kept with it, with no solve. All of it is kept in this browser,
@@ -8,18 +9,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { DeleteButton } from "@/components/DeleteButton";
 import { PlayingCard } from "@/components/PlayingCard";
-import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
+import { ProvenanceDetail } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { MistakeRecord } from "@/data/db";
 import { changeMistake, deleteMistake, listMistakes } from "@/data/mistakes";
-import { STREET_ORDER, shareText } from "@/features/history/progress";
+import { STREET_ORDER } from "@/features/history/progress";
+import { Lessons } from "@/features/plan/LessonsPanel";
+import { PlanSteps, StartHere, usePlan } from "@/features/plan/PlanPage";
 import { profileName } from "@/features/practice/exploit";
 import { DecisionView, optionLabel, useHandKeys } from "@/features/practice/PracticeParts";
-import { ModePicker } from "@/features/study/ModePicker";
 import { CAPPED_WORDS } from "@/grading/grade";
-import { versionOf, versionWords } from "@/grading/version";
 import { seatLabel } from "@/poker/seats";
 import { evUnit, sourceLabel } from "@/solver/provenance";
+import type { LibraryFiles } from "@/library/files";
 import type { Provenance } from "@/solver/types";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError } from "@/solver/types";
@@ -38,7 +40,8 @@ const isStreet = (x: string | null): x is (typeof STREET_ORDER)[number] => STREE
 
 type Loaded = { list: MistakeRecord[]; damaged: number; now: number };
 
-export function ReviewPage() {
+export function ReviewPage({ files }: { files?: LibraryFiles } = {}) {
+  const { plan, failed: planFailed } = usePlan(files);
   const [data, setData] = useState<Loaded | null>(null);
   const [n, setN] = useState(0);
   const [params, setParams] = useSearchParams();
@@ -51,7 +54,7 @@ export function ReviewPage() {
   const [shownT, setShownT] = useState(LIST_PAGE);
   const [shownX, setShownX] = useState(LIST_PAGE);
 
-  // the Plan page's link: the first due opens as it's read, as Retry the next one would, and the link goes from the address
+  // the link to the next due (?retry=next, as the plan's step had it): the first due opens as it's read, as Retry the next one would, and the link goes from the address
   const opener = useRef<HTMLElement | null>(null);
   const retryNext = useRef(params.get("retry") === "next");
   const openAsked = (list: readonly MistakeRecord[], now: number) => {
@@ -174,13 +177,26 @@ export function ReviewPage() {
               {many(data.damaged, "record")} kept here couldn&rsquo;t be read, and {data.damaged === 1 ? "is" : "are"} left out.
             </p>
           )}
-          {!list.length ? (
-            <p className="text-sm text-muted">
-              No mistakes yet. Misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link> land here.
-            </p>
+          {/* (with nothing kept, the plan's first step says where to start; the line says it once the plan has nothing to add) */}
+          {list.length > 0 ? (
+            <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />
+          ) : plan?.first ? (
+            <StartHere first={plan.first} />
           ) : (
+            (plan || planFailed) && (
+              <p className="text-sm text-muted">
+                No mistakes yet. Misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link> land here.
+              </p>
+            )
+          )}
+          {plan && <PlanSteps plan={plan} />}
+          {planFailed && (
+            <p role="alert" className="text-sm text-danger">
+              Couldn&rsquo;t read the hands kept here, so there&rsquo;s no drill or leak to suggest.
+            </p>
+          )}
+          {list.length > 0 && (
             <>
-              <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />
               {cash.length > 0 && (
                 <section aria-label="Past mistakes" className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -197,13 +213,8 @@ export function ReviewPage() {
                       </select>
                     </label>
                   </div>
-                  <Tally list={listed} />
                   {!listed.length && <p className="text-sm text-muted">None on the {street}.</p>}
-                  <ul className="space-y-2">
-                    {listed.slice(0, shown).map((m) => (
-                      <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} onDelete={(from) => remove(m, from)} />
-                    ))}
-                  </ul>
+                  <Rows ms={listed.slice(0, shown)} now={now} current={current} onOpen={open} onDelete={remove} />
                   <ProvenanceDetail ps={listed.slice(0, shown).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
                   {listed.length > shown && (
                     <button type="button" onClick={() => setShown((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
@@ -215,18 +226,8 @@ export function ReviewPage() {
               {exploited.length > 0 && (
                 <section aria-label="Exploit mistakes" className="space-y-2">
                   <h2 className="text-lg font-semibold">Exploit mistakes</h2>
-                  <p className="text-xs text-muted">
-                    Graded against an assumed profile, not equilibrium.
-                  </p>
-                  <Tally list={onStreet(exploited)} />
                   {!onStreet(exploited).length && <p className="text-sm text-muted">None on the {street}.</p>}
-                  <ul className="space-y-2">
-                    {onStreet(exploited)
-                      .slice(0, shownX)
-                      .map((m) => (
-                        <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} onDelete={(from) => remove(m, from)} />
-                      ))}
-                  </ul>
+                  <Rows ms={onStreet(exploited).slice(0, shownX)} now={now} current={current} onOpen={open} onDelete={remove} note="An assumed profile, not equilibrium" />
                   <ProvenanceDetail ps={onStreet(exploited).slice(0, shownX).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
                   {onStreet(exploited).length > shownX && (
                     <button type="button" onClick={() => setShownX((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
@@ -238,18 +239,8 @@ export function ReviewPage() {
               {tourney.length > 0 && (
                 <section aria-label="Tournament mistakes" className="space-y-2">
                   <h2 className="text-lg font-semibold">Tournament mistakes</h2>
-                  <p className="text-xs text-muted">
-                    EV in prize-equity chips, not bb.
-                  </p>
-                  <Tally list={onStreet(tourney)} />
                   {!onStreet(tourney).length && <p className="text-sm text-muted">None on the {street}.</p>}
-                  <ul className="space-y-2">
-                    {onStreet(tourney)
-                      .slice(0, shownT)
-                      .map((m) => (
-                        <MistakeRow key={m.id} m={m} now={now} active={current?.id === m.id} onRetry={() => open(m)} onDelete={(from) => remove(m, from)} />
-                      ))}
-                  </ul>
+                  <Rows ms={onStreet(tourney).slice(0, shownT)} now={now} current={current} onOpen={open} onDelete={remove} note="EV in prize-equity chips, not bb" />
                   <ProvenanceDetail ps={onStreet(tourney).slice(0, shownT).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
                   {onStreet(tourney).length > shownT && (
                     <button type="button" onClick={() => setShownT((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
@@ -262,6 +253,8 @@ export function ReviewPage() {
           )}
         </>
       )}
+
+      <Lessons />
     </div>
   );
 }
@@ -273,31 +266,38 @@ function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecor
     <section aria-label="Review queue" className="space-y-2 panel p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">Due now</h2>
-        <span className="font-mono">{queue.length}</span>
+        <span className="tabular-nums">{queue.length}</span>
         {next && !current && (
           <button type="button" onClick={() => onOpen(next)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">
             Retry the next one
           </button>
         )}
-        {list.some((m) => m.ask.via === "solver") && <ModePicker modes={["quick", "accurate"]} />}
       </div>
       {!queue.length && <p className="text-muted">Nothing is due today.{soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}</p>}
     </section>
   );
 }
 
-/** The kept mistakes in numbers, each count with what it is. */
-function Tally({ list }: { list: MistakeRecord[] }) {
-  const byEv = list.filter((m) => m.grade.byEv).length;
-  const tries = list.flatMap((m) => m.tries);
-  const ok = tries.filter((t) => t.ok).length;
-  const unlike = tries.filter((t) => !t.like).length;
-  const done = list.filter((m) => m.due === null).length;
+/** A list of kept mistakes under one caption saying what graded them: the source most of them share, said once, and a
+ * row graded by another saying its own. `note`: what the whole list is graded in, after it. */
+function Rows({ ms, now, current, onOpen, onDelete, note }: { ms: MistakeRecord[]; now: number; current: MistakeRecord | null; onOpen: (m: MistakeRecord) => void; onDelete: (m: MistakeRecord, from: HTMLElement) => void; note?: string }) {
+  const common = commonSource(ms);
+  const others = ms.some((m) => gradedSource(m) !== common);
   return (
-    <p className="text-xs text-muted">
-      {many(list.length, "spot")}: {byEv} graded by EV, {list.length - byEv} by frequency with no EV. {done} finished.{" "}
-      {tries.length ? `Over the last retries kept, ${shareText(ok, tries.length)} Best or Correct${unlike ? `, ${unlike} of them against another kind of answer than the first` : ""}.` : "No retries yet."}
-    </p>
+    <>
+      {common !== null && (
+        <p className="text-xs text-muted">
+          Graded against {common}
+          {others ? ", unless a row says otherwise" : ""}
+          .{note ? ` ${note}.` : ""}
+        </p>
+      )}
+      <ul className="space-y-2">
+        {ms.map((m) => (
+          <MistakeRow key={m.id} m={m} now={now} common={common} active={current?.id === m.id} onRetry={() => onOpen(m)} onDelete={(from) => onDelete(m, from)} />
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -324,34 +324,44 @@ function Spot({ m }: { m: Pick<MistakeRecord, "hole" | "board" | "players" | "se
   );
 }
 
-/** What graded a mistake, in short: the source's name (≈ where approximate; the charts and rules say they aren't a solve),
- * whether its grade was capped, and the last retry's verdict. The fold it heads holds the whole label. */
-export function gradedBrief(m: Pick<MistakeRecord, "provenance" | "grade" | "tries">): string {
+/** What graded a mistake, in short: the source's name (≈ where approximate; the charts and rules say they aren't a solve).
+ * The list's "How these answers were produced" holds each answer's whole label. */
+export function gradedSource(m: Pick<MistakeRecord, "provenance">): string {
   const p: Provenance | undefined = m.provenance ?? undefined;
   const name = !p ? "an answer not kept" : p.source === "charts" ? "Preflop charts (not a solve)" : p.source === "live" && p.mode === "quick" ? `${sourceLabel("live")} (Quick)` : sourceLabel(p.source);
-  const last = m.tries.at(-1);
-  return `${p?.approximate ? "\u2248 " : ""}${name}${m.grade.capped ? " · capped at Inaccuracy" : ""}${last ? ` · last retry ${last.verdict}` : ""}`;
+  return `${p?.approximate ? "\u2248 " : ""}${name}`;
 }
 
-function MistakeRow({ m, now, active, onRetry, onDelete }: { m: MistakeRecord; now: number; active: boolean; onRetry: () => void; onDelete: (from: HTMLElement) => void }) {
+/** The source most of a list's mistakes were graded against (the first listed where tied); null with none. */
+export function commonSource(ms: readonly Pick<MistakeRecord, "provenance">[]): string | null {
+  const n = new Map<string, number>();
+  for (const m of ms) n.set(gradedSource(m), (n.get(gradedSource(m)) ?? 0) + 1);
+  let best: string | null = null;
+  for (const [k, c] of n) if (best === null || c > n.get(best)!) best = k;
+  return best;
+}
+
+function MistakeRow({ m, now, common, active, onRetry, onDelete }: { m: MistakeRecord; now: number; common: string | null; active: boolean; onRetry: () => void; onDelete: (from: HTMLElement) => void }) {
   const last = m.tries.at(-1);
+  const source = gradedSource(m);
+  const due = isDue(m, now);
   return (
     <li tabIndex={-1} className={`space-y-0.5 rounded-lg border bg-surface px-2 py-1.5 text-sm outline-none ${active ? "border-accent" : "border-border"}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="font-mono text-xs text-muted">
+        <span className="text-xs text-muted tabular-nums">
           {day(m.lastAt)} · {m.street}
         </span>
         <Spot m={m} />
         <span>
-          you took <span className="font-mono">{m.chose}</span>
+          you took <span className="font-medium">{m.chose}</span>
         </span>
         <VerdictTag v={m.grade.verdict} />
-        <span className="font-mono text-xs">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
+        <span className="text-xs tabular-nums">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
         <span className="flex-1" />
         <span className="flex flex-wrap items-center gap-3 text-xs">
-          <span>{dueWords(m, now)}</span>
-          <button type="button" onClick={onRetry} aria-label={`${isDue(m, now) ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
-            {isDue(m, now) ? "Retry" : "Retry early"}
+          {!due && <span className="text-muted">{dueWords(m, now)}</span>}
+          <button type="button" onClick={onRetry} aria-label={`${due ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+            {due ? "Retry" : "Retry early"}
           </button>
           {m.study ? (
             <Link to={`/study?${m.study}`} className="text-accent hover:underline">
@@ -368,26 +378,16 @@ function MistakeRow({ m, now, active, onRetry, onDelete }: { m: MistakeRecord; n
           <DeleteButton what="this entry" name={`Delete: ${m.hole.join(" ")}, ${m.street}`} onDelete={onDelete} />
         </span>
       </div>
-      <div className="flex flex-wrap items-start gap-x-2 text-xs text-muted">
-        <span>
-          {m.tournament ? "Tournament · " : ""}
-          {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
-          {ORIGIN_WORDS[m.from] ? `${ORIGIN_WORDS[m.from]} · ` : ""}
-          {m.game} · {m.line}
-          {m.times > 1 ? ` · missed ${m.times} times` : ""}
-        </span>
-        <details className="min-w-0">
-          <summary className="cursor-pointer hover:text-text">Graded against {gradedBrief(m)}</summary>
-          <div className="mt-1 space-y-1">
-            {m.grade.capped && <p>{CAPPED_WORDS}</p>}
-            <p>
-              Graded against {m.provenance ? <ProvenanceBadge p={m.provenance} quiet /> : "an answer not kept"}
-              {` · version ${versionWords(versionOf(m.provenance))}`}
-              {last ? ` · last retry ${day(last.at)}: ${last.verdict}, against ${last.label}, version ${versionWords(last.version)}` : ""}
-            </p>
-          </div>
-        </details>
-      </div>
+      <p className="text-xs text-muted">
+        {m.tournament ? "Tournament · " : ""}
+        {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
+        {ORIGIN_WORDS[m.from] ? `${ORIGIN_WORDS[m.from]} · ` : ""}
+        {m.game} · {m.line}
+        {m.times > 1 ? ` · missed ${m.times} times` : ""}
+        {last ? ` · last retry ${day(last.at)}: ${last.verdict}${last.like ? "" : `, against ${last.label}`}` : ""}
+        {source !== common ? ` · graded against ${source}` : ""}
+      </p>
+      {m.grade.capped && <p className="text-xs text-muted">{CAPPED_WORDS}</p>}
     </li>
   );
 }

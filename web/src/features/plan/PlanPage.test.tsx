@@ -1,6 +1,7 @@
-// The Plan page: built once from what's kept, each step a link, the rule on the page, and no plan to read as a solve.
+// The plan's parts as Review shows them: built once from what's kept, each step a link, a part with nothing in it left out,
+// no plan to read as a solve, and /plan gone to Review.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db, putSession, type DecisionRecord, type HandRecord, type MistakeRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
@@ -18,13 +19,17 @@ vi.mock("./plan", async (real) => {
     },
   };
 });
-import { PlanPage } from "./PlanPage";
+import { PlanPage, PlanSteps, StartHere, usePlan } from "./PlanPage";
 
 const NOW = Date.now();
+function Plan({ files }: { files: LibraryFiles }) {
+  const { plan } = usePlan(files);
+  return plan && (plan.first ? <StartHere first={plan.first} /> : <PlanSteps plan={plan} />);
+}
 const page = (files?: LibraryFiles) =>
   render(
-    <MemoryRouter initialEntries={["/plan"]}>
-      <PlanPage files={files ?? ({ index: async () => ({ spots: [] }) } as unknown as LibraryFiles)} />
+    <MemoryRouter initialEntries={["/review"]}>
+      <Plan files={files ?? ({ index: async () => ({ spots: [] }) } as unknown as LibraryFiles)} />
     </MemoryRouter>,
   );
 const hand = (id: string, x: Partial<HandRecord> = {}) => ({ id, site: "PokerStars", number: id, hero: "BTN", playedAt: 1, importedAt: 1, importId: "i1", text: "", ...x }) as HandRecord;
@@ -64,7 +69,19 @@ beforeEach(async () => {
   count.n = 0;
 });
 
-describe("PlanPage", () => {
+describe("the plan", () => {
+  it("sends /plan to Review", () => {
+    render(
+      <MemoryRouter initialEntries={["/plan"]}>
+        <Routes>
+          <Route path="/plan" element={<PlanPage />} />
+          <Route path="/review" element={<h1>Review</h1>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Review" })).toBeInTheDocument();
+  });
+
   it("says what to do first with nothing kept", async () => {
     page();
     const start = await screen.findByRole("region", { name: "Start here" });
@@ -75,37 +92,44 @@ describe("PlanPage", () => {
     expect(screen.queryByRole("region", { name: "Leaks" })).toBeNull();
   });
 
-  it("lists each part in order with its link, and the next step as the current one", async () => {
+  it("lists each part in order with its link, with no reviews part, Next line or empty part", async () => {
     await seed([hand("h1")], Array.from({ length: 40 }, () => decision()), [mistake({ due: NOW - 1000 })]);
     page();
-    const next = await screen.findByRole("status", { name: "Next step" });
-    expect(within(next).getByRole("link", { name: "Retry 1 due review" })).toHaveAttribute("href", "/review?retry=next");
-    const reviews = screen.getByRole("region", { name: "Reviews due" });
-    expect(within(reviews).getByRole("listitem", { name: "Reviews due today" })).toHaveAttribute("aria-current", "step");
-    const leaks = screen.getByRole("region", { name: "Leaks" });
+    const leaks = await screen.findByRole("region", { name: "Leaks" });
+    expect(screen.queryByRole("region", { name: "Reviews due" })).toBeNull();
+    expect(screen.queryByRole("status", { name: "Next step" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Too few to read" })).toBeNull();
+    expect(screen.queryByText(/Nothing is waiting on more hands/)).toBeNull();
     const link = within(leaks).getAllByRole("link", { name: /^Drill this leak: / })[0]!;
     expect(link.getAttribute("href")).toMatch(/^\/analyze\?drill=.*game=equilibrium/);
     expect(within(leaks).getAllByText(/of solver EV given up over 40 decisions graded by EV/).length).toBeGreaterThan(0);
     const drill = screen.getByRole("region", { name: "Practice drill" });
     expect(within(drill).getByRole("link", { name: "Practice the flop from BTN" })).toHaveAttribute("href", "/practice?play=srp&seat=BTN&players=6&stack=100");
+    expect(within(drill).getAllByText("Practice the flop from BTN")).toHaveLength(1);
     expect(within(drill).getByRole("button", { name: /Save scenario/ })).toBeInTheDocument();
+  });
+
+  it("marks the next step as the current one where it's shown", async () => {
+    await seed([hand("h1")], Array.from({ length: 40 }, () => decision()));
+    page();
+    const leaks = await screen.findByRole("region", { name: "Leaks" });
+    expect(within(leaks).getAllByRole("listitem")[0]).toHaveAttribute("aria-current", "step");
+  });
+
+  it("says no leak line where there's no leak", async () => {
+    await seed([hand("h1")], [decision({ street: "preflop", situation: "RFI" })]);
+    page();
+    await screen.findByRole("region", { name: "Practice drill" });
+    expect(screen.queryByRole("region", { name: "Leaks" })).toBeNull();
+    expect(screen.queryByText(/No leak in/)).toBeNull();
   });
 
   it("doesn't call a leak with nothing to deal done", async () => {
     await seed([hand("h1")], Array.from({ length: 40 }, () => decision({ mix: undefined, verdict: "Correct" })));
     page();
-    const said = await screen.findByRole("status", { name: "Next step" });
-    expect(said).toHaveTextContent(/Nothing to start: the open leak keeps no mix/);
-    expect(said).not.toHaveTextContent(/marked done/);
-  });
-
-  it("marks a step done by what's kept, and a press changes nothing", async () => {
-    await seed([hand("h1")], [decision()], [mistake({ due: NOW - 1000 })]);
-    page();
-    const reviews = await screen.findByRole("listitem", { name: "Reviews due today" });
-    expect(within(reviews).queryByText("Done")).toBeNull();
-    fireEvent.click(within(reviews).getByRole("link", { name: /Retry 1 due review/ }));
-    expect(within(reviews).queryByText("Done")).toBeNull();
+    const leaks = await screen.findByRole("region", { name: "Leaks" });
+    expect(within(leaks).getByText(/Nothing to start: the open leak keeps no mix/)).toBeInTheDocument();
+    expect(within(leaks).queryByText("Done")).toBeNull();
   });
 
   it("shows a drill done from a session kept today", async () => {
@@ -147,12 +171,13 @@ describe("PlanPage", () => {
 
   it("builds the plan once, whatever re-renders it", async () => {
     await seed([hand("h1")], Array.from({ length: 12 }, () => decision()));
-    const { rerender } = page();
-    await screen.findByRole("status", { name: "Next step" });
+    const files = { index: async () => ({ spots: [] }) } as unknown as LibraryFiles;
+    const { rerender } = page(files);
+    await screen.findByRole("region", { name: "Too few to read" });
     for (let i = 0; i < 3; i++)
       rerender(
-        <MemoryRouter initialEntries={["/plan"]}>
-          <PlanPage files={{ index: async () => ({ spots: [] }) } as unknown as LibraryFiles} />
+        <MemoryRouter initialEntries={["/review"]}>
+          <Plan files={files} />
         </MemoryRouter>,
       );
     const thin = await screen.findByRole("region", { name: "Too few to read" });

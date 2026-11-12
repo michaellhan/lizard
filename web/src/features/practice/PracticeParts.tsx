@@ -592,31 +592,38 @@ export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; on
   );
 }
 
-export function HandLog({ hand }: { hand: PracticeHand }) {
-  const say = (m: Move) => sayMove(m, hand.hero, hand.players);
+/** The hand so far, a street a line, under the seats: who folded, called, bet and raised, and to how much. Preflop, the folds
+ * before anyone came in are one phrase ("UTG, HJ, CO fold"). */
+export function HandLine({ hand }: { hand: PracticeHand }) {
+  const say = (m: Move) => sayMove(m, hand.hero, hand.players) + (m.to !== undefined ? "bb" : "");
   const out = [0, 3, 4, 5];
-  const pre = hand.lines.preflop;
-  const opened = pre.findIndex((m) => m.action !== "fold");
-  // (preflop, the folds before anyone came in are left out; yours, and the one that ends the hand, are not)
-  const keep = (m: Move, k: number) => m.action !== "fold" || m.pos === hand.hero || k === pre.length - 1 || (opened >= 0 && k > opened);
-  const rows = STREETS.filter((_, i) => hand.shown >= out[i]!).map((st, i) => ({
-    st,
-    // (the street's own cards: the flop's three, then one each)
-    cards: hand.board.slice(i <= 1 ? 0 : out[i - 1], out[i]).join(" "),
-    moves: hand.lines[st].filter((m, k) => st !== "preflop" || keep(m, k)).map(say),
-  }));
+  const movesOf = (ms: Move[], st: string): string[] => {
+    if (st !== "preflop") return ms.map(say);
+    const lead = ms.findIndex((m) => m.action !== "fold");
+    const folds = ms.slice(0, lead < 0 ? ms.length : lead);
+    const who = folds.map((m) => (m.pos === hand.hero ? "you" : seatLabel(m.pos, hand.players)));
+    const head = !folds.length ? [] : folds.length === 1 ? [say(folds[0]!)] : [`${who.join(", ")} fold`];
+    return [...head, ...ms.slice(folds.length).map(say)];
+  };
+  const rows = STREETS.filter((_, i) => hand.shown >= out[i]!)
+    .map((st, i) => ({
+      st,
+      // (the street's own cards: the flop's three, then one each)
+      cards: hand.board.slice(i <= 1 ? 0 : out[i - 1], out[i]).join(" "),
+      moves: movesOf(hand.lines[st], st),
+    }))
+    .filter((r) => r.moves.length);
+  if (!rows.length) return null;
   return (
-    <section aria-label="Hand history" className="panel p-3 text-sm">
-      <h2 className="mb-1 font-medium">This hand</h2>
-      <ol className="space-y-0.5">
-        {rows.map((r) => (
-          <li key={r.st}>
-            <span className="text-muted">{r.st}</span>
-            {r.cards && <span className="font-mono"> [{r.cards}]</span>}
-            {r.moves.length ? `: ${r.moves.join(", ")}` : ""}
-          </li>
-        ))}
-      </ol>
-    </section>
+    <ol aria-label="Actions so far" className="space-y-0.5 text-sm">
+      {rows.map((r) => (
+        <li key={r.st}>
+          <span className="text-muted capitalize">{r.st}</span>
+          {r.cards && <span className="font-mono text-muted"> {r.cards}</span>}
+          <span className="text-muted">: </span>
+          {r.moves.join(", ")}
+        </li>
+      ))}
+    </ol>
   );
 }

@@ -33,9 +33,27 @@ describe("the custom setup", () => {
     expect(setupRequest({ rake: 4.5 }, 6)).toEqual({ rake: 0.045 });
   });
 
+  it("sends a raise cap other than the engine's own, and says it in words and in the URL", () => {
+    expect(setupRequest({ raises: 4 }, 6)).toEqual({ raises: 4 });
+    expect(setupRequest({ raises: 1 }, 2)).toEqual({ raises: 1 });
+    // the engine's 2 is no setting
+    expect(setupRequest({ raises: 2 }, 6)).toEqual({});
+    expect(tidySetup({ raises: 2 })).toBeUndefined();
+    expect(describeSetup({ raises: 1 })).toEqual(["a bet, then all-in only"]);
+    expect(describeSetup({ raises: 3 })).toEqual(["a bet and 2 raises a street, then all-in only"]);
+    const h: StudyHand = { ...freshHand(2, 100), setup: { raises: 4, sizes: { flop: [25, 33, 50, 75, 125] } } };
+    const q = toSearch(h);
+    expect(q).toContain("raises=4");
+    expect(fromSearch(q)?.setup).toEqual({ raises: 4, sizes: { flop: [25, 33, 50, 75, 125] } });
+    expect(studyRequest(fromSearch(q)!)).toMatchObject({ raises: 4, sizes: { flop: [25, 33, 50, 75, 125] }, study: true });
+  });
+
   it("refuses what's out of range before it reaches the solver", () => {
     expect(setupProblems(6, FULL)).toEqual([]);
-    expect(setupProblems(6, { sizes: { flop: [25, 33, 75, 125] } })).toEqual(["at most 3 flop bet sizes (each one multiplies the game tree)"]);
+    expect(setupProblems(6, { sizes: { flop: [25, 33, 75, 125, 150] } })).toEqual([]);
+    expect(setupProblems(6, { sizes: { flop: [20, 25, 33, 75, 125, 150] } })).toEqual(["at most 5 flop bet sizes (each one multiplies the game tree)"]);
+    for (const raises of [1, 4]) expect(setupProblems(6, { raises })).toEqual([]);
+    for (const raises of [0, 5, 2.5, NaN]) expect(setupProblems(6, { raises })).toEqual(["bets and raises a street must be a whole number from 1 to 4"]);
     expect(setupProblems(6, { sizes: { river: [2], raise: [600] } })).toEqual(["river bet sizes must be 5–500% of the pot", "raise sizes must be 5–500% of the pot"]);
     expect(setupProblems(6, { sizes: { turn: [NaN] } })).toEqual(["turn bet sizes must be 5–500% of the pot"]);
     expect(setupProblems(6, { rake: 30 })).toEqual(["the rake must be 0–25% of the pot"]);

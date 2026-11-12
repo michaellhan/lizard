@@ -49,12 +49,31 @@ const EDITS = [
     to: "sys.path.insert(0, '/app'); import engine.pf_stored; from gto.advisor import Advisor;",
   },
   {
+    // The preflop solve (Study's Solver source, Practice's and Analyze's "grade by the preflop solve": a request with
+    // state.study and state.preflop_solve and no board) goes to Lizard's preflop solver (engine/pf_solve.py: each seat's
+    // own stack, 2 to 9 players, the calibrated flop model), which keeps Advisor._study_pf's protocol. A tournament's
+    // (payouts or bounties) stays Advisor's. After the nodelock edit above, whose branch it goes before.
+    from: `+ "        if st.get('nodelock') and not pl:\\n"`,
+    to:
+      `+ "        if st.get('study') and st.get('preflop_solve') and not pl and not str(st.get('board') or '') and not st.get('payouts') and not st.get('bounties'):\\n"\n` +
+      `             + "            from engine.pf_solve import answer as pf_answer\\n"\n` +
+      `             + "            return json.dumps(pf_answer(adv, st))\\n"\n` +
+      `             + "        if st.get('nodelock') and not pl:\\n"`,
+  },
+  {
     // A tournament's preflop solved in prize equity (engine/pf_icm_study.py, on engine/pf_icm.py): importing it wraps
     // Advisor._study_pf so a Study preflop-solve request with payouts or bounties is answered there (upstream answers
     // those "pf_none"), everything else as before. Once, at start, after the stored games (this edit runs on the one
     // above's output).
     from: "import engine.pf_stored; from gto.advisor import Advisor;",
     to: "import engine.pf_stored; import engine.pf_icm_study; from gto.advisor import Advisor;",
+  },
+  {
+    // engine/tree_depth.py: a request's `raises` (1-4 a street) and `max_cells` (this device's tree cap, at most
+    // tree_depth.BROWSER_MAX here) for its heads-up solves; a request without them is upstream's. Last, and anchored on
+    // the Advisor's import alone, so other imports chained on the pf_stored line above stay in front of it.
+    from: "from gto.advisor import Advisor;",
+    to: "import engine.tree_depth; from gto.advisor import Advisor;",
   },
 ];
 

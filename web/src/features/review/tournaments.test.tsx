@@ -112,7 +112,7 @@ describe("ReviewPage", () => {
     const own = await screen.findByRole("region", { name: "Exploit mistakes" });
     expect(within(own).getByText("2.00bb lost · 36.0% pot")).toBeInTheDocument();
     expect(within(own).getByText(/Exploiting Nit \(assumed\) ·/)).toBeInTheDocument();
-    expect(within(own).getByText(/Graded against an assumed profile, not equilibrium/)).toBeInTheDocument();
+    expect(within(own).getByText(/^Graded against ≈ Exploiting an assumed profile \(best response, not a solve\)\. An assumed profile, not equilibrium\.$/)).toBeInTheDocument();
     expect(within(own).getAllByText(/Exploiting an assumed profile \(best response, not a solve\)/).length).toBeGreaterThan(0);
     const past = screen.getByRole("region", { name: "Past mistakes" });
     expect(within(past).queryByText(/2\.00bb lost/)).toBeNull();
@@ -124,6 +124,7 @@ describe("ReviewPage", () => {
     page();
     const own = await screen.findByRole("region", { name: "Tournament mistakes" });
     expect(within(own).getByText("0.40bb of prize equity lost · 7.3% pot")).toBeInTheDocument();
+    expect(within(own).getByText(/^Graded against .*\. EV in prize-equity chips, not bb\.$/)).toBeInTheDocument();
     const past = screen.getByRole("region", { name: "Past mistakes" });
     expect(within(past).getByText("0.40bb lost · 7.3% pot")).toBeInTheDocument();
     expect(within(past).queryByText(/prize equity lost/)).toBeNull();

@@ -154,7 +154,7 @@ export function PfPanel({ res, running, onSolve, onCharts }: { res: AdvisorRespo
         <b>Solve this game's preflop</b>: {String(res.game ?? "")}.
       </p>
       <p className="text-muted">
-        {typeof res.model === "string" ? `${res.model[0].toUpperCase()}${res.model.slice(1)}` : "Class-level model"}, about {pfMinutes(est)} in your browser.
+        {typeof res.model === "string" ? `${res.model.charAt(0).toUpperCase()}${res.model.slice(1)}` : "Class-level model"}, about {pfMinutes(est)} in your browser.
       </p>
       {!running && (
         <button type="button" onClick={onSolve} className="rounded bg-accent px-3 py-1 font-medium text-bg">

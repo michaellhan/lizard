@@ -156,7 +156,8 @@ describe("the Saved page", () => {
 
   it("says there are none yet", async () => {
     saved();
-    expect(await within(await screen.findByRole("region", { name: "Saved scenarios" })).findByText(/None yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Nothing saved yet\./)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Saved scenarios" })).toBeNull();
   });
 });
 

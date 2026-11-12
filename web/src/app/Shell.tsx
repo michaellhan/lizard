@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { BASE_URL } from "@/config";
 import { MORE, ROUTES, routeTitle } from "./routes";
@@ -19,14 +19,11 @@ interface NavItem {
   blurb?: string;
 }
 
-/** Every page the bar can show, in its order: the four main pages, then the others as the More menu lists them. */
-const ITEMS: NavItem[] = [...ROUTES.filter((r) => r.nav).map((r) => ({ path: r.path, label: r.label })), ...MORE];
-/** the main pages, which stay in the bar (scrolling in it on a phone) however narrow it gets */
-const MAIN = ROUTES.filter((r) => r.nav).length;
+/** The four main pages, always in the bar. */
+const MAIN: NavItem[] = ROUTES.filter((r) => r.nav).map((r) => ({ path: r.path, label: r.label }));
 
-/** The pages that didn't fit in the bar, behind one button: it closes on a pick, a page change, Escape or a click
- * elsewhere, and is marked while you're on one of its pages. With every page in the bar it's left for a phone, where
- * Settings is reached through it. */
+/** Every other page, behind one button: it closes on a pick, a page change, Escape or a click elsewhere, and is marked
+ * while you're on one of its pages. On a phone Settings is reached through it too. */
 function MoreMenu({ items }: { items: NavItem[] }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
@@ -53,7 +50,7 @@ function MoreMenu({ items }: { items: NavItem[] }) {
   }, [open]);
   const here = items.some((m) => pathname.split("/").filter(Boolean)[0] === m.path);
   return (
-    <div ref={box} className={`relative shrink-0 ${items.length ? "" : "sm:hidden"}`}>
+    <div ref={box} className="relative shrink-0">
       <button type="button" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)} className={linkClass({ isActive: here })}>
         More ▾
       </button>
@@ -83,66 +80,18 @@ function MoreMenu({ items }: { items: NavItem[] }) {
   );
 }
 
-/** How many of the bar's pages fit in `room`, from each one's width, More's and the gap between them: all of them where
- * they fit with no More, else as many as leave room for More, and never fewer than the main pages. */
-export function fitCount(widths: number[], more: number, gap: number, room: number): number {
-  const total = widths.reduce((a, w) => a + w, 0) + gap * Math.max(0, widths.length - 1);
-  if (total <= room) return widths.length;
-  const left = room - more - gap;
-  let used = 0;
-  let n = 0;
-  for (; n < widths.length; n++) {
-    const next = used + (n ? gap : 0) + widths[n]!;
-    if (next > left) break;
-    used = next;
-  }
-  return Math.max(MAIN, n);
-}
-
-/** The primary nav: every page that fits, the rest under More. A hidden copy of the bar, every page in it, gives each
- * one's width; the bar's own width and that copy's (it changes as the font loads) are watched. */
+/** The primary nav: the four main pages, then More. */
 function PrimaryNav() {
-  const nav = useRef<HTMLElement>(null);
-  const ruler = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(MAIN);
-  useLayoutEffect(() => {
-    const bar = nav.current;
-    const row = ruler.current;
-    if (!bar || !row || typeof ResizeObserver !== "function") return;
-    const fit = () => {
-      const widths = [...row.children].map((c) => c.getBoundingClientRect().width);
-      const more = widths.pop() ?? 0;
-      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
-      const cs = getComputedStyle(bar);
-      const room = bar.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-      setShown(fitCount(widths, more, gap, room));
-    };
-    fit();
-    const seen = new ResizeObserver(fit);
-    seen.observe(bar);
-    seen.observe(row);
-    return () => seen.disconnect();
-  }, []);
   return (
-    <nav ref={nav} aria-label="Primary" className="segmented relative -mx-1 flex min-w-0 flex-1 items-center gap-0.5 px-1 sm:gap-1">
+    <nav aria-label="Primary" className="segmented relative -mx-1 flex min-w-0 flex-1 items-center gap-0.5 px-1 sm:gap-1">
       <div className="flex min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1">
-        {ITEMS.slice(0, shown).map((r) => (
-          <NavLink key={r.path} to={`/${r.path}`} title={r.blurb} className={linkClass}>
+        {MAIN.map((r) => (
+          <NavLink key={r.path} to={`/${r.path}`} className={linkClass}>
             {r.label}
           </NavLink>
         ))}
       </div>
-      <MoreMenu items={ITEMS.slice(shown)} />
-      <div aria-hidden="true" className="pointer-events-none invisible absolute inset-0 overflow-hidden">
-        <div ref={ruler} className="flex w-max gap-0.5 sm:gap-1">
-          {ITEMS.map((r) => (
-            <span key={r.path} className={linkClass({ isActive: false })}>
-              {r.label}
-            </span>
-          ))}
-          <span className={linkClass({ isActive: false })}>More ▾</span>
-        </div>
-      </div>
+      <MoreMenu items={MORE} />
     </nav>
   );
 }

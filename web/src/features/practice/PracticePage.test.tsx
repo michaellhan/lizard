@@ -140,8 +140,6 @@ describe("PracticePage", () => {
       "advise SB <flop>",
       "play BB",
     ]);
-    expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent(/preflop: You raise to 2\.5, BB calls/);
-    expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent(/flop \[.. .. ..\]: BB checks, You bet 1\.5, BB folds/);
     // the session kept for History: the hand under its pot type, the decisions under what graded them
     await waitFor(async () =>
       expect((await allSessions()).find((s) => s.kind === "practice" && s.meta.hands === 1 && s.meta.players === 2)?.meta).toMatchObject({
@@ -174,7 +172,6 @@ describe("PracticePage", () => {
     const options = await screen.findByRole("group", { name: "Your options" });
     expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]);
     expect(stub.calls.map((c) => c.replace(/([2-9TJQKA][shdc]){3}$/, "<flop>"))).toEqual(["play SB", "play BB", "play SB", "play BB", "play BB", "advise SB <flop>"]);
-    expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent(/preflop: You raise to 2\.5, BB calls/);
     expect(screen.getByText("Hand 1 · heads-up · 100bb")).toBeInTheDocument();
     fireEvent.click(within(options).getByRole("button", { name: "bet 33% (1.6bb)" }));
     expect(await screen.findByText("You won")).toBeInTheDocument();
@@ -567,7 +564,6 @@ describe("PracticePage", () => {
       fireEvent.click(within(moves).getByRole("button", { name: "fold" }));
       expect(await screen.findByText("Not graded")).toBeInTheDocument();
       expect(screen.getByRole("status")).toHaveTextContent("You folded · −0.5bb");
-      expect(screen.getByRole("region", { name: "Hand history" })).toHaveTextContent("preflop: You fold");
     } finally {
       stub.answer = answer;
     }

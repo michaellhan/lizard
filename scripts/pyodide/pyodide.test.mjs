@@ -161,6 +161,20 @@ test("the published worker sends a node lock to engine/, before the advice and i
   assert.match(worker, /py\.globals\.set\("post_partial", \(s\) => postMessage\(\{ id: CUR, partial: JSON\.parse\(s\) \}\)\);/);
 });
 
+test("the published worker sends the preflop solve to engine/pf_solve.py, a tournament's to the advice", () => {
+  const worker = editWorker(upstream);
+  const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
+  const at = (s) => {
+    assert.ok(body.includes(s), `answer() has no ${s}`);
+    return body.indexOf(s);
+  };
+  const gate = "if st.get('study') and st.get('preflop_solve') and not pl and not str(st.get('board') or '') and not st.get('payouts') and not st.get('bounties'):";
+  assert.ok(at("    try:") < at(gate));
+  assert.ok(at(gate) < at("from engine.pf_solve import answer as pf_answer"));
+  assert.ok(at("return json.dumps(pf_answer(adv, st))") < at("if st.get('nodelock') and not pl:"));
+  assert.ok(at("adv.advise(st)") < at("except Cancelled:"));
+});
+
 test("the published worker sends an opponent's move with a read to engine/, and one without it to Advisor.play", () => {
   const worker = editWorker(upstream);
   const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
@@ -174,10 +188,18 @@ test("the published worker sends an opponent's move with a read to engine/, and 
   assert.ok(at("adv.play(st, pl['seat']") < at("except Cancelled:"));
 });
 
-test("the published worker imports the tournament preflop solve at start, after the stored games and before the Advisor", () => {
+test("the published worker imports Lizard's engine patches at start, before the Advisor it patches", () => {
   const worker = editWorker(upstream);
-  const line = "import engine.pf_stored; import engine.pf_icm_study; from gto.advisor import Advisor;";
-  assert.equal(worker.split(line).length, 2);
+  const line = worker.split("\n").find((l) => l.includes("from gto.advisor import Advisor;"));
+  assert.ok(line, "no Advisor import");
+  const at = (s) => {
+    assert.ok(line.includes(s), `the start-up line has no ${s}`);
+    return line.indexOf(s);
+  };
+  assert.ok(at("sys.path.insert(0, '/app');") < at("import engine.pf_stored;"));
+  assert.ok(at("import engine.pf_stored;") < at("import engine.pf_icm_study;"));
+  assert.ok(at("import engine.pf_icm_study;") < at("import engine.tree_depth;"));
+  assert.ok(at("import engine.tree_depth;") < at("from gto.advisor import Advisor;"));
 });
 
 test("hostsNamed sees URLs in comments and strings, and leaves the worker's own paths alone", () => {

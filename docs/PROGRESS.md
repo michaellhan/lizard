@@ -4982,6 +4982,93 @@ solver's target and time budget share the Solve button's row (their limits are t
 at about 580px rather than at the fold. UI only: tsc, eslint, `vitest run src/features/plo` 24 passed; checked in the
 browser (no sideways scroll). Builds left alone.
 
+## 2026-11-11: Postflop depth (branch claude/postflop-depth-185a1a)
+
+From the parent session's brief: closer to GTO Wizard AI's postflop depth, in three steps, each behind its own label.
+
+- **Abstraction error measured** (`scripts/benchmarks/abstraction.py`, ACCURACY section 21). Each flop model's flop
+  was held combo by combo in the exact game, with the rest re-solved, on 3 narrow spots. Fast gave up 1.9% of the pot
+  on average (up to 4.9%), Accurate 1.9% (5.4%) and the library model 0.6% (2.1%). Their own badges read 0.005–0.5%,
+  and the control gave up 0.001%. Most of the cost is the river played by strength without its card. A heads-up flop
+  answer from Fast, Accurate or the library now says so in its provenance (`web/src/solver/abstraction.ts`).
+- **Bigger trees** (`engine/tree_depth.py`, a build-time edit declared in `solver/UPSTREAM.json`; ACCURACY section 22).
+  Up to 5 sizes and a raise cap of 1–4 a street on the Solve page, heads-up. A Tree size setting offers Phone 12M,
+  Standard 24M or Large 32M cells (64M natively). Peak memory is 47 MB plus 33 bytes a turn cell, natively. A turn
+  with 5 sizes and 2 or more raises passes every browser cap and is cut to fit.
+- **Earlier streets react to a later lock** (`engine/nodelock.py` `lift`, `runout_token`, `street_moves`;
+  `study_lock.py` `reach_back`; ACCURACY section 16). A turn or river lock can be held from the street before, which
+  re-solves around it. The answer is labelled approximate and covers the whole range only.
+- Tests: Python `test_tree_depth.py`, `test_study_lock.py` and `test_nodelock.py`, 110 passed (through slot.sh), and
+  `pyodide.test.mjs` (21). Web: the whole suite (188 files, 3,521 tests), plus tsc and eslint. The controls were
+  checked in the browser on a local build, without a solve.
+- Not done: the browser's own memory peak, real-range abstraction spots, and multiway trees. Not pushed or deployed.
+  The gtosolver builds were left alone: everything heavy went through slot.sh.
+
+## 2026-11-11: Lizard's preflop solver (calibrated class-level model, own stacks, 2 to 9 players)
+
+Task from the parent session: close the preflop gap with a solver that is measurably closer to published solves and
+covers more games, for the most accuracy per CPU hour, without touching `solver/`.
+
+**What changed.**
+- `engine/pf_engine.py`: pf_game's tree and game, generalized.
+  - Each seat has its own stack: raises are capped at the deepest stack able to call, a short stack calls all-in for
+    less, pots are split into layers, and each heads-up flop is valued at its effective depth.
+  - 7 to 9 players play on a smaller tree (at most two see a flop, no cold 4bets).
+  - The payoff is pluggable (`ChipPayoff`; a nonlinear payoff gets exact side pots), for ICM later.
+- `engine/pf_model.py`: upstream's library flop model plus ten corrections per pot type (share shifts, edge scales,
+  river-fix weights). It is calibrated by `scripts/pf/calibrate.py` (perturbation Jacobian, ridge Gauss-Newton, a 2-fold
+  held-out check by spot) to the 26 certain published 6-max 100bb spots. The result is `engine/pf_calib.py` (generated).
+- `engine/pf_solve.py`: Study's protocol on that game (pf_unsolved / pf_progress / pf_export / a node). Every answer
+  carries `pf_model`, and from 7 players `pf_limits`. Its stored grid is the same 110 games as before, rebuilt as
+  `engine/pf/lz1_*.bin` by `scripts/pf/build_stored.py --engine`.
+- Worker: a build-time edit (`scripts/pyodide/worker-edits.mjs`, declared in `solver/UPSTREAM.json`) sends every
+  preflop solve request with no board and no tournament to `engine.pf_solve.answer`. That covers Study's Solver source
+  and Practice's and Analyze's grade. Tournaments still go to the Advisor.
+- Page: `web/src/solver/pfStored.ts` keys are now `lz1_…`. In `provenance.ts`, the label is still "Preflop solve
+  (class-level model)", followed by the model's words and, from 7 players, the tree's limits.
+- Docs: ACCURACY section 6 and the new section 18.4; FEATURE_MATRIX's Preflop, Preflop trainer and Preflop solves
+  rows.
+
+**Measured [M]** (pf_equilibrium.report against `solver/tests/preflop_refs.py`, 26 certain spots at 5% capped at 4bb,
+700 iterations):
+
+| | Mean error | Spots out | Facts off |
+|---|---:|---:|---:|
+| Upstream's model | 2.85 | 16 | 11 / 15 |
+| Calibrated | 2.37 | 14 | 10 / 15 |
+| Calibrated, held out | 2.51 | 13 | — |
+
+Upstream's shipped file scores 2.99 at its own rake (5% capped at 3bb). The charts score 0.96 and stay the default.
+The calibration cost about 18 solves of about 2 minutes each, on one core through the shared slot.
+
+**Not adopted.** `ext` (a smooth fit for classes outside a library spot's range) left the mean error at 2.85.
+
+**Stored grid.** The 110 games were rebuilt in 63 minutes on one core through the slot. 1.2 MB.
+
+The shipped 6-max 100bb file at its rake (5% capped at 3bb) scores 2.49, against upstream's 2.99. Unraked, it is worse:
+7.79 against 7.06 (the references are raked; the unraked game is still measured only against them).
+
+Six games (40bb at 4 to 6 players, 5-max 50bb, 6-max 150 and 200bb) were over 1.5 mbb at 1,500 iterations. They were
+re-solved at 3,000. Four came under it; 4-max and 5-max 40bb level off at 1.60 and 1.65 (unquantized too). `engine/pf_solve.STORED_ITERS_OF` says so, and each
+header holds its real figure.
+
+**Checked in a browser** (local dev server), Study's Solver source:
+- 3 players at BTN 40 / SB 18 / BB 60bb: solved in about 5 s, 0.22 mbb.
+- 9 players at 100bb: about 80 s, 1.10 mbb, UTG opens 9.0%, the label naming the tree's limits.
+
+Practice's and Analyze's grades send the same request; they were not clicked through again.
+
+**Tests.**
+- `scripts/engine/test_pf_engine.py` through the slot: 17 pass (the stored grid included).
+- `web` vitest `src/solver`: 102 pass.
+- `node --test scripts/pyodide/pyodide.test.mjs`: 21 pass.
+
+**Left.**
+- `engine/pf_stored.py` and the old `engine/pf/*.bin` are no longer asked for by chip games. Remove them once the ICM
+  branch settles.
+- The unraked games aren't measured against unraked references (none in the repo).
+- A tournament's preflop is left to the ICM branch.
+
 ## 2026-11-11: a tournament's preflop solved in prize equity (Study)
 
 Before this, a tournament's preflop away from push/fold was the chip chart with a risk premium, and Study's preflop

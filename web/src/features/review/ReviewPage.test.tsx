@@ -1,11 +1,13 @@
 // The Review page: the schedule said, the queue, a retry graded under the current answer's provenance, a changed answer
-// not compared, frequency grades never EV, a damaged record counted.
+// not compared, frequency grades never EV, a damaged record counted, what graded a list said once, and the plan on it.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { db } from "@/data/db";
+import { db, type DecisionRecord, type HandRecord } from "@/data/db";
 import { keepMistake, listMistakes } from "@/data/mistakes";
 import { CAPPED_WORDS } from "@/grading/grade";
+import { LESSONS } from "@/features/plan/lessons";
+import type { LibraryFiles } from "@/library/files";
 import { CHART, chartMistake, LIVE, mistake, STORED } from "@/test/mistake";
 import type { MistakeRecord } from "@/data/db";
 import type { RetryAnswer } from "./mistakes";
@@ -20,22 +22,24 @@ const seed = (...xs: MistakeRecord[]) => Promise.all(xs.map((m) => keepMistake(m
 function Address() {
   return <output aria-label="address">{useLocation().search}</output>;
 }
+const noLibrary = { index: async () => ({ spots: [] }) } as unknown as LibraryFiles;
 const page = (at = "/review") =>
   render(
     <MemoryRouter initialEntries={[at]}>
-      <ReviewPage />
+      <ReviewPage files={noLibrary} />
       <Address />
     </MemoryRouter>,
   );
 const answer = (x: Partial<RetryAnswer> = {}): RetryAnswer => ({ mix: mistake().mix, pot: 5.5, provenance: LIVE, ...x });
 
 beforeEach(async () => {
-  await (await db())!.clear("mistakes");
+  const d = (await db())!;
+  await Promise.all([d.clear("mistakes"), d.clear("hands"), d.clear("decisions"), d.clear("sessions")]);
   ask.next.mockReset();
 });
 
 describe("ReviewPage", () => {
-  it("opens the first due from the Plan's link, once, and takes the link from the address", async () => {
+  it("opens the first due from a ?retry=next link, once, and takes the link from the address", async () => {
     ask.next.mockReturnValue(new Promise(() => undefined));
     await seed(mistake({ id: "a", due: PAST + 1 }), mistake({ id: "b", due: PAST }));
     page("/review?retry=next&street=flop");
@@ -51,10 +55,12 @@ describe("ReviewPage", () => {
     expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
   });
 
-  it("sends you to Practice with nothing kept", async () => {
+  it("says where to start with nothing kept", async () => {
     page();
-    expect(await screen.findByText(/No mistakes yet/)).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Practice" })[0]).toHaveAttribute("href", "/practice");
+    const start = await screen.findByRole("region", { name: "Start here" });
+    expect(within(start).getByText(/Nothing kept yet/)).toBeInTheDocument();
+    expect(within(start).getByRole("link", { name: "Play hands in Practice" })).toHaveAttribute("href", "/practice");
+    expect(screen.queryByText(/No mistakes yet/)).toBeNull();
   });
 
   it("lists a mistake with its grade, EV lost, provenance, schedule and Study link", async () => {
@@ -63,12 +69,34 @@ describe("ReviewPage", () => {
     const list = await screen.findByRole("region", { name: "Past mistakes" });
     expect(within(list).getByText("Mistake")).toBeInTheDocument();
     expect(within(list).getByText("0.40bb lost · 7.3% pot")).toBeInTheDocument();
-    expect(within(list).getAllByText(/Live/).length).toBeGreaterThan(0);
+    expect(within(list).getByText("Graded against Live solve (Quick).")).toBeInTheDocument();
     expect(within(list).getByText(/^Due in \d days$/)).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "Open in Study →" })).toHaveAttribute("href", "/study?p=6&s=100");
     expect(within(list).getByRole("button", { name: /^Retry early/ })).toBeInTheDocument();
     expect(screen.getByText(/Nothing is due today/)).toBeInTheDocument();
-    expect(within(list).getByText(/1 spot: 1 graded by EV, 0 by frequency/)).toBeInTheDocument();
+    expect(screen.queryByText(/graded by EV/)).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Solve accuracy" })).toBeNull();
+  });
+
+  it("says no date on a row that's due", async () => {
+    await seed(mistake({ due: PAST }));
+    page();
+    const list = await screen.findByRole("region", { name: "Past mistakes" });
+    expect(within(list).getByRole("button", { name: /^Retry: / })).toBeInTheDocument();
+    expect(within(list).queryByText(/^Due/)).toBeNull();
+  });
+
+  it("says what graded a list once, a row graded otherwise its own, and keeps each answer's whole label a press away", async () => {
+    await seed(mistake({ id: "a" }), mistake({ id: "b", hole: ["Qh", "Qd"] }), chartMistake({ id: "c" }));
+    page();
+    const list = await screen.findByRole("region", { name: "Past mistakes" });
+    expect(within(list).getAllByText(/^Graded against/)).toHaveLength(1);
+    expect(within(list).getByText("Graded against Live solve (Quick), unless a row says otherwise.")).toBeInTheDocument();
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.filter((r) => /graded against/.test(r.textContent ?? ""))).toHaveLength(1);
+    expect(within(list).getByText(/· graded against ≈ Preflop charts \(not a solve\)/)).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "How these answers were produced" }));
+    expect(within(list).getByText(/Live solve \(Quick\) · 0\.40% pot from equilibrium/)).toBeInTheDocument();
   });
 
   it("labels a chart's mistake by frequency, never EV lost or a solve", async () => {
@@ -79,7 +107,6 @@ describe("ReviewPage", () => {
     expect(within(list).queryByText(/bb lost/)).toBeNull();
     expect(within(list).getAllByText(/Preflop charts/i).length).toBeGreaterThan(0);
     expect(within(list).getByText(/^Graded against (≈ )?Preflop charts \(not a solve\)/)).toBeInTheDocument();
-    expect(within(list).getByText(/0 graded by EV, 1 by frequency with no EV/)).toBeInTheDocument();
   });
 
   it("says where Study can't open a spot", async () => {
@@ -207,6 +234,7 @@ describe("ReviewPage", () => {
       expect(await screen.findByText(/Added from Analyze/)).toBeInTheDocument();
       expect(screen.getByText(/From a leak drill/)).toBeInTheDocument();
       expect(screen.getByText(/missed 3 times/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "How these answers were produced" }));
       expect(screen.getAllByText(/Live solve \(Quick\) · medium confidence/).length).toBeGreaterThan(0);
       expect(screen.getAllByRole("link", { name: "Open the hand →" })[0]).toHaveAttribute("href", "/analyze?hand=h1");
     });
@@ -291,5 +319,49 @@ describe("ReviewPage", () => {
     fireEvent.click(within(panel).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("region", { name: "Retry" })).toBeNull();
     expect(screen.getByRole("button", { name: /^Retry: / })).toHaveFocus();
+  });
+
+  describe("the plan on it", () => {
+    const hand = { id: "h1", site: "PokerStars", number: "h1", hero: "BTN", playedAt: 1, importedAt: 1, importId: "i1", text: "" } as HandRecord;
+    const decision = (i: number): DecisionRecord =>
+      ({
+        id: `d${i}`,
+        handId: "h1",
+        street: "flop",
+        i: 0,
+        pos: "BTN",
+        action: "bet 1.8",
+        situation: "SRP · IP · checked to",
+        role: "PFR",
+        facing: false,
+        multi: false,
+        ip: true,
+        mix: [["check", 0.6, 3.1], ["bet 33%", 0.4, 2.1]],
+        verdict: "Mistake",
+        evLossBb: 1,
+        lossPct: 10,
+        pot: 5.5,
+        source: "library",
+        label: "Precomputed solution · srp_btn_bb",
+        gradedAt: 0,
+      }) as DecisionRecord;
+
+    it("shows the leaks, the drill once and the lessons, with what's due said only in Due now", async () => {
+      const d = (await db())!;
+      await d.put("hands", hand);
+      for (let i = 0; i < 40; i++) await d.put("decisions", decision(i));
+      await seed(mistake({ due: PAST }));
+      page();
+      const drill = await screen.findByRole("region", { name: "Practice drill" });
+      expect(within(drill).getAllByText("Practice the flop from BTN")).toHaveLength(1);
+      expect(within(drill).getByRole("link", { name: "Practice the flop from BTN" })).toHaveAttribute("href", "/practice?play=srp&seat=BTN&players=6&stack=100");
+      expect(screen.getByRole("region", { name: "Leaks" })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Review queue" })).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Reviews due" })).toBeNull();
+      expect(screen.queryByRole("status", { name: "Next step" })).toBeNull();
+      expect(screen.queryByText(/Nothing is waiting on more hands/)).toBeNull();
+      expect(screen.getByRole("heading", { name: "Lessons" })).toBeInTheDocument();
+      expect(await screen.findAllByRole("link", { name: /^Drill it/ })).toHaveLength(LESSONS.length);
+    });
   });
 });

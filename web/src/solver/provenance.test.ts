@@ -30,6 +30,24 @@ describe("provenance", () => {
     expect(sourceOf({})).toBe("unknown");
   });
 
+  it("names Lizard's preflop solver's model and, past 6 players, its tree's limits, never as solved", () => {
+    const node: AdvisorResponse = {
+      study: "node",
+      street: "preflop",
+      pf_solve: { key: "lz1_9max_100bb", done: true, stored: false, mbb: 1.2 },
+      pf_model: "calibrated class-level model",
+      pf_limits: "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet",
+    };
+    const p = provenanceOf(node, ctx);
+    expect(p.source).toBe("preflop-solve");
+    const said = describeProvenance(p);
+    expect(said).toMatch(/^Preflop solve \(class-level model\) · calibrated class-level model: flop values fitted to published 6-max 100bb solves, still approximate, 7 or more players: at most two see a flop/);
+    expect(said).toContain("1.20 mbb/hand from equilibrium");
+    expect(said).not.toMatch(/\bsolved\b(?! game)/i);
+    // upstream's (no pf_model) is said as before
+    expect(describeProvenance(provenanceOf({ study: "node", street: "preflop", pf_solve: { done: true, stored: true, mbb: 1 } }, ctx))).toMatch(/^Preflop solve \(class-level model\) · precomputed · /);
+  });
+
   it("labels stored turns, answers at once and 5+-way heuristics as what they are (advisor.py's shapes)", () => {
     const storedTurn: AdvisorResponse = {
       street: "turn",
@@ -110,7 +128,7 @@ describe("provenance", () => {
     expect(borrowed).toMatchObject({ source: "library", approximate: true, librarySpot: "srp_btn_bb" });
     expect(borrowed.exploitabilityPct).toBeUndefined(); // that spot's, on its own ranges
     expect(describeProvenance(borrowed)).toBe(
-      "Precomputed solution · srp_btn_bb · another table's spot read as this one (this table's ranges differ from that spot's by 2.0% of their weight at most) · approximate",
+      "Precomputed solution · srp_btn_bb · another table's spot read as this one (this table's ranges differ from that spot's by 2.0% of their weight at most) · this flop model gave up 0.6% pot on average, up to 2.1%, against the full game on 3 narrow test spots · approximate",
     );
     expect(provenanceOf({ street: "preflop", grid: { actions: [], cells: {} } }, ctx)).toMatchObject({ source: "charts", approximate: true });
     const turn = provenanceOf({ street: "turn", approximate: { source: "store", label: "the nearest spot that stores its turns (srp_co_bb)" } }, ctx);

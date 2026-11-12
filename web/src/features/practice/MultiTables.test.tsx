@@ -5,7 +5,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { kvGet, kvSet, putSession } from "@/data/db";
+import { kvGet, kvSet } from "@/data/db";
 import { addHands } from "@/data/hands";
 import { classOf } from "@/engine/nlhe/cards";
 import { emptyTally } from "@/features/history/history";
@@ -910,19 +910,11 @@ describe("what graded the figures", () => {
     await waitFor(() => expect(score.querySelector("summary")).toHaveTextContent("Graded against: Live solve 1"));
   });
 
-  it("says it on a past session's row, where one has a figure to read", async () => {
-    const past = { kind: "practice" as const, evLossBb: 1, meta: { hands: 3, ok: 3, graded: 2, net: 1 } };
-    // (dated ahead of the sessions these tests have left behind)
-    const ahead = Date.now() + 1e6;
-    await putSession({ ...past, id: "kept", startedAt: ahead + 2, decisions: 4, meta: { ...past.meta, sources: { live: 3, charts: 1 } } });
-    await putSession({ ...past, id: "older", startedAt: ahead + 1, decisions: 4 });
-    await putSession({ ...past, id: "none", startedAt: ahead, decisions: 0 });
+  it("leaves past sessions to History: one link there, and no list of its own", async () => {
     page();
-    const rows = within(await screen.findByRole("region", { name: "Past sessions" })).getAllByRole("listitem");
-    expect(rows[0]).toHaveTextContent("Graded against: Live solve 3, Preflop charts (approximate) 1");
-    expect(rows[0]).toHaveTextContent("75% best or correct");
-    expect(rows[1]).toHaveTextContent("Graded against: Not kept: played before Lizard kept what graded each decision");
-    expect(rows[2]).not.toHaveTextContent("Graded against");
+    await ready();
+    expect(screen.queryByRole("region", { name: "Past sessions" })).toBeNull();
+    expect(screen.getByRole("link", { name: "All sessions →" })).toHaveAttribute("href", "/history");
   });
 });
 

@@ -8,7 +8,7 @@ export interface RouteDef {
   label: string;
   /** shown in the primary nav (the four main pages) */
   nav: boolean;
-  /** shown under the nav's More menu and in the home page's list of other tools */
+  /** shown under the nav's More menu */
   more?: boolean;
   /** a page with `rows` takes its status from them (`routeGrade`); this is the status of one with none */
   status: RouteStatus;
@@ -96,19 +96,19 @@ export const ROUTES: RouteDef[] = [
   { path: "compare", label: "Compare", nav: false, status: "partial", summary: "Two spots side by side (a tournament in chip EV, with and without rake, two stacks): the actions, the range and each hand class's change, each side with its own source.", rows: ["Solution comparisons"] },
   { path: "equity", label: "PLO equity", nav: false, status: "partial", summary: "PLO4 hand and range equity, exact or Monte Carlo, each number labelled as such: a calculator, not a solver.", rows: ["PLO4"] },
   { path: "plo", label: "PLO flop, turn and river", nav: false, more: true, status: "partial", summary: "One heads-up PLO4 river, a turn and every river after it, or a flop and every turn and river after it, solved exactly at the sizes you list, from ranges you type. Preflop isn't solved, and there's no rake.", rows: ["PLO4"] },
-  { path: "library", label: "Library", nav: false, more: true, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
+  { path: "library", label: "Library", nav: false, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
   { path: "history", label: "History", nav: false, more: true, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions.", rows: ["Session stats", "Preferences / progress"] },
-  { path: "plan", label: "Plan", nav: false, more: true, status: "partial", summary: "What to do next, in order, from what you've kept (reviews due, leaks, a Practice drill, by a plain rule stated on the page), and 12 lessons, each a report to read and a drill.", rows: ["Study plans"] },
-  { path: "review", label: "Review", nav: false, more: true, status: "partial", summary: "Your mistakes kept across sessions, what's due to retry on a spaced schedule, each graded again under the current answer's provenance.", rows: ["Study plans"] },
+  { path: "plan", label: "Review", nav: false, status: "partial", summary: "The old address of the plan, now on Review: it goes there.", rows: ["Study plans"] },
+  { path: "review", label: "Review", nav: false, more: true, status: "partial", summary: "What to work on: your mistakes kept across sessions, due to retry on a spaced schedule and graded again under the current answer's provenance; leaks and a Practice drill from what you've kept, by a plain rule; and 12 lessons, each a report to read and a drill.", rows: ["Study plans"] },
   { path: "saved", label: "Saved", nav: false, more: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore.", rows: ["Saved solutions", "Saved hands"] },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },
   { path: "settings", label: "Settings", nav: false, status: "working", summary: "Solver mode, backend, library source and display." },
 ];
 
-/** The More menu and the home page's other tools, in this order: your own progress first, then the other tools. */
+/** The More menu, in this order: your own progress first, then the other tools. (Plan is part of Review now, /plan goes
+ * there; Library is reached from Settings.) */
 export const MORE: { path: string; label: string; blurb: string }[] = [
-  { path: "review", label: "Review", blurb: "Retry the mistakes you've kept, on a spaced schedule." },
-  { path: "plan", label: "Plan", blurb: "What to work on next, and 12 short lessons." },
+  { path: "review", label: "Review", blurb: "What to work on: mistakes due to retry, a drill, and 12 lessons." },
   { path: "history", label: "History", blurb: "Every session you've played, and your trend." },
   { path: "saved", label: "Saved", blurb: "Spots and ranges you've saved; backup and restore." },
   { path: "reports", label: "Reports", blurb: "A spot's flop strategy across every stored flop." },
@@ -116,7 +116,6 @@ export const MORE: { path: string; label: string; blurb: string }[] = [
   { path: "tournaments", label: "Tournaments", blurb: "Tournament spots in prize equity (ICM, bounties)." },
   { path: "plo", label: "PLO", blurb: "Heads-up Omaha flop, turn and river solves." },
   { path: "equity", label: "PLO equity", blurb: "Omaha hand and range equity." },
-  { path: "library", label: "Library", blurb: "Which spots are precomputed." },
 ];
 
 export const ROUTE_PATHS = ROUTES.map((r) => r.path).filter(Boolean);

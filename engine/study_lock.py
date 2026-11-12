@@ -31,6 +31,14 @@ are that live solve's, and a flop whose stored sizes aren't the live tree's is r
 
 What the restricted game covers: the root's street and below. The ranges entering the street stay as the unlocked hand
 left them, since the earlier streets aren't in this solve.
+
+One street back (state["nodelock"]["reach"] = "back", on the turn or the river): the lock is held instead in the solve
+the Advisor ran for the street before to narrow the ranges (the flop's for a turn node, the turn's for a river node,
+watched as the others are), at the node the hand's actions reach in that tree (nodelock.lift, runout_token), so that
+street re-solves around it and the ranges entering this one react. That tree plays this street as its own abstraction
+does (the flop's: the turn by card class and hand buckets, one bet and one raise size; the turn's: the river by card
+class), so only a whole-range lock on actions that tree has can be held there, and the answer is that tree's: approximate
+for this spot, and labelled so. Kept locks (`also`) are on this street's solve and aren't carried back.
 """
 from __future__ import annotations
 
@@ -45,7 +53,8 @@ from gto.advisor import HU_CHECKS, HU_RESERVE, OVER_TARGET
 from gto.cards import cards_str
 from gto.solver import BucketEntry, Cancelled, Chance, Decision, TooSlow
 
-from .nodelock import (LABEL, Lock, LockError, LockRefused, LockedSolution, measure_plain, solve_locked, tree_shape)
+from .nodelock import (LABEL, Lock, LockError, LockRefused, LockedSolution, lift, measure_plain, runout_token,
+                       solve_locked, street_moves, tree_shape)
 
 ITERATIONS = 1000       # as a heads-up solve's (advisor.HU_CHECKS' end)
 REACH_MIN = 1e-6        # a share of the range this small isn't reached: its frequencies mean nothing
@@ -54,6 +63,25 @@ SCOPE_STREET = ("The lock is on this street's solve. The ranges entering the str
                 "them: the earlier streets don't react to it.")
 SCOPE_NODE = ("The solve starts at this node, so what came before it doesn't react to the lock: the ranges here stay "
               "as the unlocked hand left them.")
+
+
+SCOPE_BACK = ("The lock is held in the {prev}'s solve, so the {prev} re-solves around it and the ranges entering the "
+              "{street} react. That solve plays the {street} more coarsely than the {street}'s own does, so these are "
+              "that tree's numbers: approximate for this spot.")
+STREETS = ("flop", "turn", "river")
+MOVED_SHARE = 0.02      # the street before's decisions listed as moved: reached by this much of the player's range in both
+
+
+def _back_words(prev: str, street: str, root, names: Sequence[str]) -> str:
+    """What the street before's tree abstracts where the lock is held, in words."""
+    below = _below(root)
+    parts = [f"Held in the {prev}'s tree, which plays this node with its own menu: {', '.join(names)}."]
+    if below["turn_classes"] or below["river_classes"]:
+        parts.append(f"There the {street} is one card per class, so the lock covers the class of this {street} card.")
+    if below["buckets"]:
+        parts.append("Hands share buckets there, so every hand of the range holds the mix.")
+    parts.append("Exploitability is measured in that tree, not in the full game.")
+    return " ".join(parts)
 
 
 class _Multiway(Cancelled):
@@ -67,7 +95,7 @@ class _Capture:
 
     def __init__(self, adv, flop: bool):
         self.adv, self.flop = adv, flop
-        self.asked, self.found = {}, None
+        self.asked, self.found, self.solves = {}, None, []
 
     def __enter__(self):
         adv = self.adv
@@ -77,6 +105,7 @@ class _Capture:
             sol = solved(board, r0, r1, pot, stack, budget, bets=bets, to_act=to_act, n_raises=n_raises, **more)
             self.asked[id(sol)] = dict(board=board, r0=r0, r1=r1, pot=pot, stack=stack, bets=bets, to_act=to_act,
                                        n_raises=n_raises)
+            self.solves.append(sol)
             return sol
 
         def node_watched(sol, node, n_r0, n_r1, evs, strat, cur, hero, villain, hero_p, board, to_call, behind, expl,
@@ -119,12 +148,12 @@ def _board_cards(state: dict) -> int:
     return len(str(state.get("board") or "").replace(" ", "").replace(",", "")) // 2
 
 
-def _study(adv, state: dict, flop: bool) -> dict:
+def _study(adv, state: dict, flop: bool, back: bool = False) -> dict:
     """The Study answer's solve and node (_Capture.found) with what its solve was asked, or LockRefused for a node with
-    none."""
+    none. `back`: the solves of the streets before too, the library left out (found["earlier"]: [(sol, asked)])."""
     st = {k: v for k, v in state.items() if k not in ("nodelock", "one_size", "breakdown", "runouts", "preflop_solve")}
     st["study"] = True
-    with _Capture(adv, flop) as cap:
+    with _Capture(adv, flop or back) as cap:
         try:
             res = adv.study(st)
         except _Multiway:
@@ -143,6 +172,7 @@ def _study(adv, state: dict, flop: bool) -> dict:
     found["asked"] = cap.asked.get(id(found["sol"]))
     if found["asked"] is None:
         raise LockRefused("This node's answer has no solve of its own to lock.")
+    found["earlier"] = [(sol, cap.asked[id(sol)]) for sol in cap.solves if sol is not found["sol"]]
     return found
 
 
@@ -429,11 +459,180 @@ def locked_study(adv, state: dict, post=None) -> dict:
     return out
 
 
+def _action_token(node, act: dict, p: int, bb: float, at: str) -> str:
+    """The tree's name for a recorded action at `node` (player p): check, call and fold as they are; a bet or raise the
+    size whose amount is nearest the one taken (child.bets[p], this street's chips, bb); all-in where the tree has it."""
+    kind = str(act.get("action"))
+    if node.player != p:
+        raise LockRefused(f"{at}: that tree has the other player acting here, so it isn't the hand's line")
+    if kind in ("check", "call", "fold"):
+        if kind not in node.names:
+            raise LockRefused(f"{at}: that tree has no {kind} here ({', '.join(node.names)})")
+        return kind
+    if kind == "all-in" and "all-in" in node.names:
+        return "all-in"
+    sized = [i for i, n in enumerate(node.names) if n not in ("check", "call", "fold")]
+    if not sized:
+        raise LockRefused(f"{at}: that tree has no bet or raise here ({', '.join(node.names)})")
+    to = float(act.get("to") or act.get("amount") or 0.0) / bb
+
+    def amount(i):
+        child = node.children[i]
+        while not isinstance(child, (Decision, Chance)) and hasattr(child, "child"):
+            child = child.child
+        return float(child.bets[p]) if isinstance(child, Decision) else float("inf")
+    return node.names[min(sized, key=lambda i: abs(amount(i) - to))]
+
+
+def _hand_line(sol, state: dict, streets: Sequence[str], card: int, seats: Sequence[str], bb: float) -> tuple:
+    """The line in `sol` (rooted at the start of streets[0]) that the hand's actions take to the decision on screen:
+    streets[0]'s actions, the next card's token, then streets[1]'s actions. (line, the prefix to streets[1]'s start,
+    notes)."""
+    node, line, prefix, notes = sol.root, [], None, []
+    for k, st in enumerate(streets):
+        if k == 1:
+            if not isinstance(node, Chance):
+                raise LockRefused(f"In the {streets[0]}'s tree the {streets[0]} isn't over where the hand's is, so its "
+                                  "line can't be followed there.")
+            tok, notes = runout_token(sol, line, card)
+            line.append(tok)
+            prefix = list(line)
+            node = node.child
+        for act in state.get(st) or []:
+            while not isinstance(node, (Decision, Chance)) and hasattr(node, "child"):
+                node = node.child
+            if not isinstance(node, Decision):
+                raise LockRefused(f"In the {streets[0]}'s tree the hand ends before {act.get('pos')} {act.get('action')} "
+                                  f"on the {st}.")
+            pos = str(act.get("pos"))
+            if pos not in seats:
+                raise LockError(f"{pos} isn't in this heads-up pot")
+            tok = _action_token(node, act, seats.index(pos), bb, f"{st} {pos} {act.get('action')}")
+            line.append(tok)
+            node = node.children[node.names.index(tok)]
+        while not isinstance(node, (Decision, Chance)) and hasattr(node, "child"):
+            node = node.child
+    if not isinstance(node, Decision):
+        raise LockRefused(f"In the {streets[0]}'s tree nobody acts where the hand is, so there's no node to hold.")
+    return line, prefix, notes
+
+
+def reach_back(adv, state: dict, post=None) -> dict:
+    """The lock on the node on screen held in the solve of the street before (the module's docstring, "One street
+    back"): that street re-solves around it. LockError or LockRefused with words for the page."""
+    t0 = time.time()
+    n = _board_cards(state)
+    if n not in (4, 5):
+        raise LockRefused("Only a turn or river node can be held from the street before: on the flop the street before "
+                          "is preflop, which isn't in these trees.")
+    req = state["nodelock"]
+    if req.get("also"):
+        raise LockRefused("Kept locks are on this street's solve: holding a lock from the street before holds it alone. "
+                          "Drop the kept locks, or lock this street only.")
+    if (req.get("hands") or "all") != "all":
+        raise LockRefused("From the street before, only the whole range can be held: that tree plays this street by hand "
+                          "buckets or card classes, where a hand has no strategy of its own.")
+    found = _study(adv, state, flop=False, back=True)
+    street, prev = STREETS[n - 3], STREETS[n - 4]
+    earlier = [(s, a) for s, a in found["earlier"] if len(a["board"]) == n - 1 and not any(a["bets"]) and
+               a["to_act"] == 0]
+    if not earlier:
+        raise LockRefused(f"No solve of the {prev} narrowed these ranges (the library or the betting rules did), so "
+                          f"there's no {prev} tree to hold the lock in.")
+    sol, a = earlier[-1]
+    cfg = sol.ctx.cfg
+    if getattr(cfg, "icm", None) is not None:
+        raise LockRefused("A tournament's payoffs aren't zero-sum, and a lock hasn't been checked on them: this is for "
+                          "cash games.")
+    seats = [found["hero"], found["villain"]] if found["hero_p"] == 0 else [found["villain"], found["hero"]]
+    bb = float(state.get("bb") or 1.0)
+    line, prefix, notes = _hand_line(sol, state, (prev, street), found["board"][n - 1], seats, bb)
+    # the node in that tree, and the lock on its actions
+    node = sol.root
+    for tok in line:
+        node = node.child if isinstance(node, Chance) else node.children[node.names.index(tok)]
+        while not isinstance(node, (Decision, Chance)) and hasattr(node, "child"):
+            node = node.child
+    if node.player != found["hero_p"]:
+        raise LockRefused(f"In the {prev}'s tree the other player acts here, so it isn't the node on screen.")
+    mix = req.get("mix")
+    if not isinstance(mix, dict) or not mix:
+        raise LockError("A lock needs a mix: a frequency for the node's actions.")
+    names = list(node.names)
+    if set(mix) - set(names):
+        e = LockRefused(f"The {prev}'s tree plays this node with its own actions: {', '.join(names)}. The lock has to be "
+                        "given on those.")
+        e.actions = names
+        raise e
+    lock = Lock(tuple(line), int(found["hero_p"]), {k: float(v) for k, v in mix.items()}, "all")
+    unlocked = measure_plain(sol)
+    budget = max(0.5, min(120.0, float(state.get("budget") or adv.time_budget)))
+    first = max(adv.hu_settled_from.get(prev, HU_CHECKS[0]), HU_CHECKS[0])
+    t1 = time.time()
+    try:
+        held = solve_locked(a["board"], a["r0"], a["r1"], a["pot"], a["stack"], [lock], bets=a["bets"],
+                            to_act=a["to_act"], n_raises=a["n_raises"], cfg=cfg, time_budget=budget,
+                            max_iters=min(c for c in HU_CHECKS if c >= first), should_stop=adv.should_stop,
+                            reserve=HU_RESERVE, horizon=ITERATIONS, same_tree=tree_shape(sol.root))
+    except TooSlow:
+        raise LockError("The solver can't run this tree on this device in the time this mode has.") from None
+    _run(adv, held, budget, first, adv.hu_settled, post, t1, t0)
+    m = held.measure()
+    applied = held.applied[0]
+    notes = notes + [x for x in applied.notes if not (notes and "stands for its class" in x)]
+    if unlocked["exploitability_pct"] > 2 * max(m["exploitability_pct"], 0.05):
+        notes.append(f"The {prev}'s solve that narrowed the ranges ran on its own shorter budget ({int(sol.iters)} "
+                     f"iterations, {unlocked['exploitability_pct']:.2f}% of the pot from equilibrium), so part of the "
+                     "difference is the locked solve going further, not the lock.")
+    aim = adv.expl_target
+    if aim is not None and m["exploitability_pct"] > OVER_TARGET * aim:
+        notes.append(f"The solve stopped {m['exploitability_pct']:.2f}% of the pot from the restricted game's "
+                     f"equilibrium, more than {OVER_TARGET} times this mode's aim of {aim}%.")
+    moves = street_moves(sol, held)
+    for x in moves:
+        x["seat"] = seats[x["player"]]
+    on_line = [x for x in moves if x["line"] == list(line[:len(x["line"])])]
+    return {
+        "study": "nodelock", "street": street, "actor": found["hero"], "opponent": found["villain"],
+        "position": "OOP" if found["hero_p"] == 0 else "IP", "board": cards_str(found["board"]),
+        "kind": "node-locked equilibrium", "game": "restricted", "label": LABEL,
+        "node_lock": {
+            "line": list(line), "seat": found["hero"], "player": lock.player, "seats": seats, "reach": prev,
+            "actions": applied.names, "mix": applied.mix, "hands": "all", "cells": applied.cells,
+            "ignored": 0, "ignored_hands": [],
+            "words": _words(found["hero"], applied.names, applied.mix, "all") + f", held from the {prev}",
+            "untrained": bool(min(applied.mix) <= 0.0),
+            "root_pot": m["root_pot"],
+            "locked": {**m, "seconds": round(held.seconds, 2)},
+            "unlocked": unlocked,
+            # the street before: its decisions on the hand's line, then the ones that moved most
+            "earlier": {"street": prev, "on_line": on_line,
+                        "moved": sorted((x for x in moves if x["moved"] is not None and x not in on_line
+                                         and min(x["share"]) >= MOVED_SHARE), key=lambda x: -x["moved"])[:6]},
+            "changes": [],
+            "abstraction": _back_words(prev, street, held.root, applied.names),
+            "scope": SCOPE_BACK.format(prev=prev, street=street),
+            "root": root_key(a, sol.root),
+            "also": [],
+        },
+        "solver": {"iterations": int(held.iters), "solve_seconds": round(held.seconds, 2), "nodes": held.n_nodes,
+                   "active_combos": held.ctx.n, "exploitability_pct": round(max(m["exploitability_pct"], 0.0), 4),
+                   "core": bool(core.lib() is not None and held.solver.use_core and held.solver._core_ok),
+                   **({"target_pct": aim} if aim is not None else {}), "approximate": True},
+        "notes": notes, "seconds": round(time.time() - t0, 2),
+    }
+
+
 def answer(adv, state: dict, post=None) -> dict:
     """locked_study as the worker sends it: what's wrong with a lock comes back in words (lock_error "invalid" for one
     that makes no sense, "refused" for one this spot can't honour), and `live_actions` where the actions differ."""
     try:
         with np.errstate(all="ignore"):
+            reach = (state.get("nodelock") or {}).get("reach")
+            if reach not in (None, "here", "back"):
+                raise LockError(f"reach is \"here\" or \"back\", got {reach!r}")
+            if reach == "back":
+                return reach_back(adv, state, post)
             return locked_study(adv, state, post)
     except LockRefused as e:
         return {"error": str(e), "lock_error": "refused", **({"live_actions": e.actions} if hasattr(e, "actions") else {})}

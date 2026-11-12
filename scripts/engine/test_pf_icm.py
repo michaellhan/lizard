@@ -170,7 +170,9 @@ class Direction(unittest.TestCase):
         self.assertLess(bubble[1], chips[1] - 0.05)
         self.assertLess(sat[1], bubble[1])
         self.assertLess(sat[0], bubble[0])
-        self.assertEqual(self.jams_and_calls([100]), chips)
+        # (winner takes all is chip EV, to the last bits of a float: the two sum in different orders)
+        for a, b in zip(self.jams_and_calls([100]), chips):
+            self.assertAlmostEqual(a, b, places=12)
 
     def test_a_ko_bounty_widens_a_covering_call(self):
         pos, stacks, pay = ["BTN", "SB", "BB"], [20, 8, 20], [60, 40]

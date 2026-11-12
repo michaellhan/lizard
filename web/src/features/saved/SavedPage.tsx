@@ -83,6 +83,7 @@ export function SavedPage() {
   const leaving = useRef<HTMLElement | null>(null);
   const place = useRef<{ list: Element; at: number } | null>(null);
   const [said, setSaid] = useState("");
+  const heading = useRef<HTMLHeadingElement>(null);
   const onGone = (from: HTMLElement, what: string) => {
     const row = from.closest("li");
     if (row?.parentElement) {
@@ -95,7 +96,8 @@ export function SavedPage() {
     if (!place.current || leaving.current?.isConnected) return;
     const { list, at } = place.current;
     place.current = null;
-    const row = list.children[at] ?? list.lastElementChild ?? list.closest("section");
+    // (the last one of a kind gone takes its section with it: the keyboard goes to the page's heading)
+    const row = list.isConnected ? (list.children[at] ?? list.lastElementChild ?? list.closest("section")) : heading.current;
     (row as HTMLElement | null)?.focus();
   });
 
@@ -129,138 +131,131 @@ export function SavedPage() {
   const shownReports = useMemo(() => sortSaved((reports?.list ?? []).filter((r) => textMatches([r.name, r.note, ...(r.tags ?? []), reportWords(r.filters)], query)), sort, (r) => r.name), [reports, query, sort]);
   const shownRanges = useMemo(() => sortSaved((ranges ?? []).filter((r) => textMatches([r.name, r.note, ...(r.tags ?? []), r.text], query)), sort, (r) => r.name), [ranges, query, sort]);
 
+  // (everything read, and nothing kept of any kind)
+  const nothing = !!spots && !!drills && !!scenarios && !!reports && !!ranges && !spots.length && !drills.length && !scenarios.list.length && !scenarios.damaged && !reports.list.length && !reports.damaged && !ranges.length;
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Saved</h1>
+        <h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold">
+          Saved
+        </h1>
       </div>
       <p role="status" className="sr-only">
         {said}
       </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          aria-label="Search everything saved"
-          placeholder="Search names, tags, notes, lines"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-64 max-w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm"
-        />
-        <label className="flex items-center gap-1 text-sm text-muted">
-          Sort
-          <select value={sort} onChange={(e) => pickSort(e.target.value as SavedSort)} className="rounded border border-border bg-surface-2 px-2 py-1 text-text">
-            {SAVED_SORTS.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
+      {nothing ? (
+        <p className="text-sm text-muted">
+          Nothing saved yet. Save spots in <Link to="/study" className="underline">Study</Link>, ranges in <Link to="/ranges" className="underline">Ranges</Link>, drills and scenarios in{" "}
+          <Link to="/practice" className="underline">Practice</Link>, reports in <Link to="/analyze" className="underline">Analyze</Link>.
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            aria-label="Search everything saved"
+            placeholder="Search names, tags, notes, lines"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-64 max-w-full rounded border border-border bg-surface-2 px-2 py-1 text-sm"
+          />
+          <label className="flex items-center gap-1 text-sm text-muted">
+            Sort
+            <select value={sort} onChange={(e) => pickSort(e.target.value as SavedSort)} className="rounded border border-border bg-surface-2 px-2 py-1 text-text">
+              {SAVED_SORTS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {!!spots?.length && (
+        <section aria-label="Saved spots" tabIndex={-1} className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-lg font-semibold">Spots</h2>
+            <span className="text-sm text-muted">{spots.length}</span>
+          </div>
+          {spots && spots.length > 0 && shown.length === 0 && <p className="text-sm text-muted">No saved spot matches “{query}”.</p>}
+          <ul className="space-y-2">
+            {shown.map((s) => (
+              <SpotRow key={s.id} spot={s} answer={answers.get(s.id)} current={current} onChange={reload} onGone={onGone} />
             ))}
-          </select>
-        </label>
-      </div>
+          </ul>
+        </section>
+      )}
 
-      <section aria-label="Saved spots" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 className="text-lg font-semibold">Spots</h2>
-          <span className="text-sm text-muted">{spots ? `${spots.length} saved` : "Reading…"}</span>
-          {spots && spots.length === 0 && (
-            <p className="text-sm text-muted">
-              None yet. Save one in <Link to="/study" className="underline">Study</Link>.
+      {!!drills?.length && (
+        <section aria-label="Saved drills" tabIndex={-1} className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-lg font-semibold">Drills</h2>
+            <span className="text-sm text-muted">{drills.length}</span>
+          </div>
+          {!!drills?.length && !shownDrills.length && <p className="text-sm text-muted">No saved drill matches “{query}”.</p>}
+          <ul className="space-y-2">
+            {shownDrills.map((d) => (
+              <DrillRow key={d.id} drill={d} onChange={reload} onGone={onGone} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {!!(scenarios?.list.length || scenarios?.damaged) && (
+        <section aria-label="Saved scenarios" tabIndex={-1} className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-lg font-semibold">Scenarios</h2>
+            <span className="text-sm text-muted">{scenarios.list.length}</span>
+          </div>
+          {!!scenarios?.damaged && (
+            <p role="status" className="text-sm text-warn">
+              {scenarios.damaged} saved scenario{scenarios.damaged === 1 ? "" : "s"} can&rsquo;t be read.
             </p>
           )}
-        </div>
-        {spots && spots.length > 0 && shown.length === 0 && <p className="text-sm text-muted">No saved spot matches “{query}”.</p>}
-        <ul className="space-y-2">
-          {shown.map((s) => (
-            <SpotRow key={s.id} spot={s} answer={answers.get(s.id)} current={current} onChange={reload} onGone={onGone} />
-          ))}
-        </ul>
-      </section>
+          {!!scenarios?.list.length && !shownScenarios.length && <p className="text-sm text-muted">No saved scenario matches “{query}”.</p>}
+          <ul className="space-y-2">
+            {shownScenarios.map((s) => (
+              <ScenarioRow key={s.id} scenario={s} onChange={reload} onGone={onGone} />
+            ))}
+          </ul>
+        </section>
+      )}
 
-      <section aria-label="Saved drills" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 className="text-lg font-semibold">Drills</h2>
-          <span className="text-sm text-muted">{drills ? `${drills.length} saved` : "Reading…"}</span>
-          {drills && drills.length === 0 && (
-            <p className="text-sm text-muted">
-              None yet. Save one in <Link to="/practice?tab=drills" className="underline">Practice</Link> or <Link to="/analyze" className="underline">Analyze</Link>.
+      {!!(reports?.list.length || reports?.damaged) && (
+        <section aria-label="Saved reports" tabIndex={-1} className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-lg font-semibold">Reports</h2>
+            <span className="text-sm text-muted">{reports.list.length}</span>
+          </div>
+          {!!reports?.damaged && (
+            <p role="status" className="text-sm text-warn">
+              {reports.damaged} saved report{reports.damaged === 1 ? "" : "s"} can&rsquo;t be read.
             </p>
           )}
-        </div>
-        {!!drills?.length && !shownDrills.length && <p className="text-sm text-muted">No saved drill matches “{query}”.</p>}
-        <ul className="space-y-2">
-          {shownDrills.map((d) => (
-            <DrillRow key={d.id} drill={d} onChange={reload} onGone={onGone} />
-          ))}
-        </ul>
-      </section>
+          {!!reports?.list.length && !shownReports.length && <p className="text-sm text-muted">No saved report matches “{query}”.</p>}
+          <ul className="space-y-2">
+            {shownReports.map((r) => (
+              <ReportRow key={r.id} report={r} onChange={reload} onGone={onGone} />
+            ))}
+          </ul>
+        </section>
+      )}
 
-      <section aria-label="Saved scenarios" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 className="text-lg font-semibold">Scenarios</h2>
-          <span className="text-sm text-muted">{scenarios ? `${scenarios.list.length} saved` : "Reading…"}</span>
-          {scenarios && scenarios.list.length === 0 && (
-            <p className="text-sm text-muted">
-              None yet. Save one in <Link to="/practice" className="underline">Practice</Link>.
-            </p>
-          )}
-        </div>
-        {!!scenarios?.damaged && (
-          <p role="status" className="text-sm text-warn">
-            {scenarios.damaged} saved scenario{scenarios.damaged === 1 ? "" : "s"} can&rsquo;t be read.
-          </p>
-        )}
-        {!!scenarios?.list.length && !shownScenarios.length && <p className="text-sm text-muted">No saved scenario matches “{query}”.</p>}
-        <ul className="space-y-2">
-          {shownScenarios.map((s) => (
-            <ScenarioRow key={s.id} scenario={s} onChange={reload} onGone={onGone} />
-          ))}
-        </ul>
-      </section>
-
-      <section aria-label="Saved reports" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 className="text-lg font-semibold">Reports</h2>
-          <span className="text-sm text-muted">{reports ? `${reports.list.length} saved` : "Loading"}</span>
-          {reports && reports.list.length === 0 && (
-            <p className="text-sm text-muted">
-              None yet. Save one in{" "}
-              <Link to="/analyze" className="underline">
-                Analyze
-              </Link>
-              .
-            </p>
-          )}
-        </div>
-        {!!reports?.damaged && (
-          <p role="status" className="text-sm text-warn">
-            {reports.damaged} saved report{reports.damaged === 1 ? "" : "s"} can&rsquo;t be read.
-          </p>
-        )}
-        {!!reports?.list.length && !shownReports.length && <p className="text-sm text-muted">No saved report matches “{query}”.</p>}
-        <ul className="space-y-2">
-          {shownReports.map((r) => (
-            <ReportRow key={r.id} report={r} onChange={reload} onGone={onGone} />
-          ))}
-        </ul>
-      </section>
-
-      <section aria-label="Saved ranges" tabIndex={-1} className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <h2 className="text-lg font-semibold">Ranges</h2>
-          <span className="text-sm text-muted">{ranges ? `${ranges.length} saved` : "Reading…"}</span>
-          {ranges && ranges.length === 0 && (
-            <p className="text-sm text-muted">
-              None yet. Save one in <Link to="/ranges" className="underline">Ranges</Link>.
-            </p>
-          )}
-        </div>
-        {!!ranges?.length && !shownRanges.length && <p className="text-sm text-muted">No saved range matches “{query}”.</p>}
-        <ul className="space-y-2">
-          {shownRanges.map((r) => (
-            <RangeRow key={r.id} range={r} onChange={reload} onGone={onGone} />
-          ))}
-        </ul>
-      </section>
+      {!!ranges?.length && (
+        <section aria-label="Saved ranges" tabIndex={-1} className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-lg font-semibold">Ranges</h2>
+            <span className="text-sm text-muted">{ranges.length}</span>
+          </div>
+          {!!ranges?.length && !shownRanges.length && <p className="text-sm text-muted">No saved range matches “{query}”.</p>}
+          <ul className="space-y-2">
+            {shownRanges.map((r) => (
+              <RangeRow key={r.id} range={r} onChange={reload} onGone={onGone} />
+            ))}
+          </ul>
+        </section>
+      )}
 
       <BackupPanel onRestored={reload} />
     </div>
