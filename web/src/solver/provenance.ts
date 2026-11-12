@@ -223,7 +223,8 @@ function preflopSolveOf(r: AdvisorResponse, p: Provenance): void {
 }
 
 /** What a tournament answer's numbers are in (ROADMAP Phase 7), from the engine's `tournament` block and notes: a
- * postflop solve pays prize equity (the engine never reads the chip-EV library for one); preflop, your own all-in is
+ * postflop solve pays prize equity (the engine never reads the chip-EV library for one), and so does Study's preflop
+ * solve of a tournament (pf_icm_study); otherwise preflop, your own all-in is
  * the push/fold equilibrium in prize equity, a call of a jam is priced in prize equity, and anything else is the chip
  * chart with a risk premium; a fallback plays chips. Null for an answer that isn't a tournament's. */
 export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): string | null {
@@ -238,9 +239,17 @@ export function tournamentModelOf(r: AdvisorResponse, source: ResultSource): str
     : said.includes("winner-take-all")
       ? "prize-equity solve (winner takes all: chips are prizes)"
       : "prize-equity solve (ICM)";
+  // the tournament preflop solve (engine/pf_icm_study.py): every outcome of the class-level game paid in prize equity
+  const pfSolve = said.startsWith("tournament: no payouts")
+    ? "every outcome paid in chips plus the bounties won (no payouts given)"
+    : said.includes("winner-take-all")
+      ? "every outcome paid in chips (winner takes all: chips are prizes)"
+      : "every outcome paid in prize equity (ICM, Malmuth-Harville), folded seats included";
   const what =
     source === "rules" || source === "equity"
       ? "a tournament, but the fallback plays chips"
+      : source === "preflop-solve"
+        ? pfSolve
       : source === "charts" || source === "push-fold"
         ? chartWithJam(r)
           ? "chip chart with a risk premium, its all-in from the push/fold equilibrium in prize equity"

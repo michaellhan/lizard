@@ -5068,3 +5068,39 @@ Practice's and Analyze's grades send the same request; they were not clicked thr
   branch settles.
 - The unraked games aren't measured against unraked references (none in the repo).
 - A tournament's preflop is left to the ICM branch.
+
+## 2026-11-11: a tournament's preflop solved in prize equity (Study)
+
+Before this, a tournament's preflop away from push/fold was the chip chart with a risk premium, and Study's preflop
+solver refused tournaments. Now, with Study's Solver source, a spot with payouts or bounties is solved as a class-level
+preflop game in which every outcome is paid in prize equity.
+
+- `engine/pf_icm.py`: the game. It's pf_game's tree and CFR with each seat's own stack and ante, a jam beside the open
+  at 25bb or less, side pots, and terminals paid by `icm.Model.value_batch` (Malmuth-Harville, field stand-ins,
+  proportional bounties). Folded seats are paid their prize equity as the hand plays out. At most three players reach
+  a showdown (two from 7-handed), and a raise is refused once three others are all-in for less. It handles 2-9
+  players, satellites (flat payouts) and KO/PKO/mystery bounties.
+- `engine/pf_icm_study.py`: Study's protocol (pf_unsolved / pf_progress / node / pf_export / load) for it, with a game
+  key that includes the stacks and prizes, three solves held, and the tournament block and notes on every node. The
+  worker imports it through a build-time edit chained on the pf_stored one (`scripts/pyodide/worker-edits.mjs`,
+  declared in `solver/UPSTREAM.json`, tested in `pyodide.test.mjs`). It wraps `Advisor._study_pf` for tournaments only.
+- Provenance: `tournamentModelOf` names it ("every outcome paid in prize equity (ICM, Malmuth-Harville), folded seats
+  included"; winner-take-all "in chips"; no payouts with bounties "chips plus the bounties won") after the badge's
+  "Preflop solve (class-level model)". EVs are in bb of prize equity. Study's solve panel names the model from the
+  answer.
+- Checked (ACCURACY section 20): it equals the cash solve in chips; winner-take-all equals chips; heads-up push/fold
+  and the advisor's 3- and 4-handed push/fold in prize equity agree in the same game. On a bubble, jams and calls
+  tighten against chips, and a satellite tightens them more. KO bounties widen a covering call. Convergence levels off
+  at the 3-way valuation's floor, the same kind as the cash solve's. Found and fixed on the way: unequal stacks made
+  4-way showdowns (an all-in call for less wasn't counted, and a raise over three all-ins let in a fourth).
+- Checked in a browser (dev build): the sit & go bubble preset opened in Study with Solver solved in the worker to
+  2,000 iterations at 1.83 mbb/hand, badged as above, with prize equity and bubble factors beside it.
+- Tests: `scripts/engine/test_pf_icm.py` (13 tests, about 15 s), `provenance.test.ts` (a new case),
+  `pyodide.test.mjs` 21/21, `vitest run src/solver src/features/study` 523 passed, tsc and eslint clean.
+- Not done: Practice and Analyze still grade a tournament's preflop by push/fold or the chart, since they grade only
+  stored solves and none is stored for a tournament (`pfBlocked`). A precomputed set for the stage presets would
+  close that. The 8-9 player stages are over the browser's size cap and solve only on the local server.
+  `estimate_seconds` runs low on these trees.
+- Where this meets the preflop-solver work: the shared `pf_game` / `pf_study` interfaces (`ICMGame.__init__` copies
+  `Game.__init__`; `pf_icm_study.Solve` subclasses `pf_study.Solve`), and the worker's import line, which this edit
+  chains on. `engine/pf_stored.py` and `scripts/pf/build_stored.py` are untouched.

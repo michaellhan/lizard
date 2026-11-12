@@ -293,6 +293,27 @@ describe("the push/fold model (advisor.py _push and _vs_jam, as the engine says 
     expect(provenanceOf(r, ctx)).toMatchObject({ source: "charts", tournament: "chip chart with a risk premium, its all-in from the push/fold equilibrium in prize equity" });
     expect(tournamentModelOf).toBeTypeOf("function");
   });
+
+  it("names the tournament preflop solve's model, in prize equity, not the chip chart (engine/pf_icm_study.py)", () => {
+    const node = (note: string, extra: Partial<AdvisorResponse> = {}): AdvisorResponse => ({
+      street: "preflop",
+      study: "node",
+      pf_icm: true,
+      pf_solve: { iterations: 900, mbb: 0.4, done: true },
+      tournament: { equity_share: 0.2, note },
+      notes: [note, "preflop solve in prize equity (class-level model): every outcome paid in prize equity, EVs in bb of prize equity against folding now"],
+      actions: [{ action: "fold", freq: 0.7 }, { action: "all-in", freq: 0.3 }],
+      ...extra,
+    });
+    const icm = provenanceOf(node("tournament: ICM, BTN's prize equity 20.0% of what's left to pay"), ctx);
+    expect(icm).toMatchObject({ source: "preflop-solve", evIn: "prize", tournament: "every outcome paid in prize equity (ICM, Malmuth-Harville), folded seats included" });
+    expect(icm.tournament).not.toMatch(/chart|risk premium/);
+    expect(describeProvenance(icm)).toContain("Preflop solve (class-level model)");
+    expect(evUnit(icm)).toBe(PRIZE_UNIT);
+    const pko = provenanceOf(node("tournament: ICM, BTN's prize equity 20.0% (40 players modelled by 9)", { tournament: { note: "tournament: ICM, BTN's prize equity 20.0% (40 players modelled by 9)", bounties: { format: "pko" } } }), ctx);
+    expect(pko.tournament).toBe("every outcome paid in prize equity (ICM, Malmuth-Harville), folded seats included, 40 players modelled by 9, PKO bounties, proportional model");
+    expect(provenanceOf(node("tournament: winner-take-all, chips are prizes"), ctx).tournament).toBe("every outcome paid in chips (winner takes all: chips are prizes)");
+  });
 });
 
 describe("ranges an earlier street narrowed by the betting rules", () => {

@@ -197,7 +197,8 @@ test("the published worker imports Lizard's engine patches at start, before the 
     return line.indexOf(s);
   };
   assert.ok(at("sys.path.insert(0, '/app');") < at("import engine.pf_stored;"));
-  assert.ok(at("import engine.pf_stored;") < at("import engine.tree_depth;"));
+  assert.ok(at("import engine.pf_stored;") < at("import engine.pf_icm_study;"));
+  assert.ok(at("import engine.pf_icm_study;") < at("import engine.tree_depth;"));
   assert.ok(at("import engine.tree_depth;") < at("from gto.advisor import Advisor;"));
 });
 

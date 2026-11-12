@@ -233,6 +233,7 @@ the honest one for flops.
 | Other formats (`pf_formats.py`) | The 100bb charts shifted by deltas from solves of the abstract preflop game | Approximate. About a point of noise per decision; antes solved only at 20/40/100bb; straddle 6-handed only (`README.md:4566-4577`) [M] |
 | Push/fold (≤ 12 bb raising first in; under 20 bb generally) | Fictitious play over 169 classes (`pf_classes.py:65`) [V] | An equilibrium of a jam-or-fold model; callers treated alike and independently [V] |
 | Preflop solve (Study, and Practice's and Analyze's preflop by choice, sections 18-18.4; stored for 110 games) | Lizard's preflop solver since 2026-11-11 (`engine/pf_solve.py`): DCFR over the abstract preflop game, upstream's class-level model with flop values calibrated to published solves, each seat's own stack, 2 to 9 players (section 18.4) | About 1.5 mbb/hand in its own game [V]; 2.37 points from the published 6-max 100bb spots, 2.51 held out (upstream's model: 2.85 at the same rake, its shipped file 2.99); opens still tight (UTG 15.8% vs published 18.3%) [M] |
+| Tournament preflop solve (Study only, section 20) | DCFR over the same class-level game with each seat's own stack and ante, every outcome paid in prize equity (`engine/pf_icm.py`) | Matches push/fold where the models agree (within 0.1-0.5 points of jam share); levels off at 0.15-2.5 mbb/hand a seat in prize equity (3-handed to 6-max, 600-4,000 iterations), and 4-6 mbb for the same games in chips, from its 3-way valuation, section 20 [M] |
 | Rake, pool (exploit) adjustments | Rules on top of the charts | Fitted to one published raked solve, or to public population data plus judgement (`README.md:4578-4579; pool: `README.md:1529``) [M] |
 
 Five `@expectedFailure` tests (`tests/test_gto.py:2797-2932`) document that the equity-realization models disagree
@@ -318,7 +319,7 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
 | Heads-up postflop | Solved in prize equity (`HUPayoffs`, `advisor.py:8136-8150`) [V] | Every tournament flop is a live solve: the libraries are skipped under ICM (`advisor.py:4742, 4826-4827`) [V]. A split pays the mean of a win and a loss: 0.25% of the pot given up on a river built to chop (section 14.6) |
 | 3- and 4-way postflop | Solved with `MWPayoffs` [V] | Who wins when a player busts is averaged: 0.002-0.33% of the pot given up against the exact prize game on a 3-way river (`scripts/bench_mw_icm.py`) [M]. A chip-EV solve on a bubble gives up 3.3-5.5% [M] |
 | 5+ way pots | Betting rules, in chips [M] | Not ICM-aware |
-| Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M] | Heuristic. Study's preflop solver refuses tournaments (`pf_study.py:187-188`) [V] |
+| Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M]. Lizard's Study (2026-11-11): a class-level preflop solve in prize equity on request, section 20 [M] | The charts' risk premium is heuristic. Upstream's preflop solver refuses tournaments (`pf_study.py:187-188`); Lizard's `engine/pf_icm_study.py` takes them in Study only, not in Practice or Analyze [V] |
 | Bounties (KO, PKO, mystery) | Proportional model (`icm.py:13-17, 201`) [V] | A convention, not a derivation. Mystery bounties use the average envelope, with no variance [V] |
 
 ---
@@ -1235,6 +1236,92 @@ because a share is a count across a line: a group of hands that sit near 80% can
 runouts did no better: 540 of them, at three times the time, were off by 0.35 on average and 4.4 at most. Every runout would
 take about 2.5 s a flop, about 19 hours on one core over the library, so the step keeps Study's sample and the page states the
 error. A small lead may be no lead. This sample of flops is small, and no flop's share has been checked by a second engine.
+
+## 20. Tournament preflop solved in prize equity (2026-11-11)
+
+`engine/pf_icm.py` solves a tournament's preflop as a game in which every outcome is paid in prize equity, and
+`engine/pf_icm_study.py` answers Study's Solver source with it when a spot has payouts or bounties. The worker imports it
+through a build-time edit declared in `solver/UPSTREAM.json`. It's the cash solve's game (`pf_game.py`: 169 hand
+classes, card removal by `PAIR_COMPAT`, discounted CFR, the same flop model) with these changes:
+
+- Each seat plays its own stack less its ante. A short blind posts what it has. A jam is offered beside the open at 25bb
+  effective or less. A raise over a short all-in plays to the deepest stack that can call it.
+- Every terminal is paid by `icm.Model.value_batch` (Malmuth-Harville, at most 12 seats plus field stand-ins, bounties by
+  the proportional model) in chip equivalents of prize equity, so a winner-take-all pays chips exactly. A pot with
+  unequal all-ins splits into side pots, and a bust pays its bounty to whoever wins the busted player's last chips.
+- A seat that has folded is paid its prize equity as the hand plays out (`ICMGame.bystanders`). If the two players
+  left can bust each other, a folded seat gains. Chips give it nothing either way.
+- Three players at most reach a showdown (two from 7-handed on), as in the cash game. A raise is refused once three
+  others are all-in for less, since they can't fold.
+
+### 20.1 Checks against the engine's own models (`scripts/engine/test_pf_icm.py`, 13 tests, about 15 s)
+
+| Check | Result |
+|---|---|
+| In chips at equal stacks, against `pf_game.Game` on the same tree (2- and 3-handed) | Strategies equal to 1e-12, same exploitability |
+| Winner-take-all prizes against chips (4-handed, unequal stacks) | Payoffs equal to 1e-14, strategies to 1e-12 |
+| Heads-up push/fold against `pf_classes.push_fold` | Jam 72.85% vs 72.84% at 5bb, 58.70% vs 58.66% at 10bb, 45.9% vs 45.4% at 15bb |
+| 3-handed 10bb jam-or-fold, 50/30/20, against the advisor's push/fold in prize equity, with the same game (no overcalls, folded seats paid nothing) | Button jams 38.4% vs 38.3%; BB calls a small blind's jam 23.3% vs 23.2% |
+| The same, 4-handed (CO first in) | 42.3% vs 42.3% at equal 10bb stacks; 25.8% vs 24.9% at 8/15/6/11bb |
+
+### 20.2 What prize equity changes (3-handed, 10bb each, jam or fold)
+
+| Prizes | Button jams | BB calls an SB jam |
+|---|---|---|
+| Chips (and winner-take-all, identical) | 32.7% | 37.3% |
+| 50/30/20 | 25.6% | 23.3% |
+| Satellite, 2 seats | 19.7% | 9.8% |
+
+KO bounties of 20 on every head (3-handed, 20/8/20bb, 60/40) widen the big blind's call of the 8bb small blind's jam
+from 30.7% to 43.0%, since it covers.
+
+The full model jams tighter than the advisor's push/fold because folded seats gain (BTN 25.5% against 38.4% in the
+same 3-handed spot). A fold by the button there is worth +0.17bb of prize equity, because the blinds may bust each other.
+The advisor values a fold at nothing. A direct best response checks this for 72o (EV 0.0267bb against the game's own
+0.0267). Which is closer to real play is a modelling question: the bystander gain is real ICM, while a range-average
+share of who busts is the model's simplification.
+
+### 20.3 Convergence (mbb/hand of prize equity a seat, the solve's own game)
+
+| Game | Nodes | Exploitability by iterations |
+|---|---|---|
+| 3-handed 15/9/22bb, 0.1bb ante, 50/30/20 | 60 | 2.4 mean at 100, 0.31 at 200, 0.16 at 400, 0.15 at 800 |
+| Sit & go bubble: CO 24, BTN 16, SB 9, BB 18bb, 0.25bb ante, 50/30/20 | 267 | 1.86 at 500, 1.81 at 1,000, 1.83 at 2,000-4,000 (BB 5.5) |
+| The same in chips | 267 | 5.9 at 500-2,000 (BB 11.3) |
+| The same in chips at equal 24bb (the cash solve's game) | 197 | 3.5 at 300, 2.9 at 1,200 |
+| The same in chips, heads-up pots only | 185 | 0.035 at 300, 0.002 at 1,200 |
+| 6-max, 20bb each, 0.125bb ante, 50/30/20 | 1,525 | 8.5 at 100, 3.1 at 300, 2.1 at 600 |
+| 6-max, 25/12/40/18/30/22bb, 50/30/20 | 3,311 | 6.2 at 100, 2.7 at 300, 2.5 at 600 |
+| The same two in chips | 1,525 / 3,311 | 4.2 / 4.3 at 600 (the equal one is the cash solve's game) |
+
+The solve levels off rather than converging to zero, and the cause is the 3-way pot. A game with heads-up pots only
+converges to 0.002. The cash solve at equal stacks levels off at 2.9 in the same table, which is what upstream's
+`STALL` rule is for. A 3-way showdown is valued from each player's range-average share against the other two (six
+hand orders, weighted by those shares). That makes the payoff depend on the strategies, so CFR settles on a floor.
+With unequal stacks the side pots raise the floor (5.9 in chips here), and prize equity lowers it (1.8 here, 2.1-2.5 at 6-max
+against 4.2-4.3 in chips), since a bubble makes 3-way all-ins rarer.
+
+A small tree runs to `pf_study.MAX_ITERS` (2,000) and reports its distance. The badge shows it ("1.83 mbb/hand from
+equilibrium"), so a game that stopped above the 1.5 target says how far.
+
+### 20.4 Speed and size
+
+Natively, the sit & go bubble (267 nodes) runs about 4.6 ms an iteration, 2,000 in 9 s; 6-max at 20bb (1,525 nodes) about 37 ms, and the unequal 6-max (3,311) about 77 ms, so its 600 iterations take about 46 s natively and roughly 80 s in a browser at pf_study's measured 1.75x. In the dev build's browser
+worker it ran 2,000 iterations in 31 s with the pane hidden, which throttles the page. The panel estimated 5 s, so
+`estimate_seconds` (pf_study's rule, scaled by nodes and seats) runs low on this tree. The browser takes up to 70,000
+nodes x seats (`BROWSER_WORK`) and the local server 300,000:
+
+| Table | Nodes | Browser |
+|---|---|---|
+| Heads-up, 3 left, sit & go bubble (2-4 players) | 22-270 | yes, seconds |
+| Final-table bubble (5 players, 8-40bb) | 946 | yes |
+| 6-max at 20bb | 1,525 | yes |
+| MTT bubble (8 players, 6-48bb) | 13,088 | no: local server |
+| Final table (9 players, 6-62bb), Early (8 at 60bb) | 24,924 / 33,978 | no: local server |
+
+Practice and Analyze grade preflop only from stored solves, and none is stored for a tournament. A precomputed set for
+the stage presets (each stage's stacks are fixed) would let them grade a tournament's preflop. The 8- and 9-player
+stages need the local server or an offline build.
 
 ## 21. Flop abstraction error (2026-11-11)
 
