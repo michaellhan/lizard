@@ -110,7 +110,7 @@ describe("provenance", () => {
     expect(borrowed).toMatchObject({ source: "library", approximate: true, librarySpot: "srp_btn_bb" });
     expect(borrowed.exploitabilityPct).toBeUndefined(); // that spot's, on its own ranges
     expect(describeProvenance(borrowed)).toBe(
-      "Precomputed solution · srp_btn_bb · another table's spot read as this one (this table's ranges differ from that spot's by 2.0% of their weight at most) · approximate",
+      "Precomputed solution · srp_btn_bb · another table's spot read as this one (this table's ranges differ from that spot's by 2.0% of their weight at most) · this flop model gave up 0.6% pot on average, up to 2.1%, against the full game on 3 narrow test spots · approximate",
     );
     expect(provenanceOf({ street: "preflop", grid: { actions: [], cells: {} } }, ctx)).toMatchObject({ source: "charts", approximate: true });
     const turn = provenanceOf({ street: "turn", approximate: { source: "store", label: "the nearest spot that stores its turns (srp_co_bb)" } }, ctx);

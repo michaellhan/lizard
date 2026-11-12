@@ -2,6 +2,7 @@
 // what produced it (library / live solve / charts / heuristic rules) and how close to equilibrium it is.
 import { describeLock, type Lock } from "@/features/study/locks";
 import type { AdvisorResponse } from "./protocol";
+import { abstractionWords, flopModelOf } from "./abstraction";
 import { treeWords } from "./treeDepth";
 import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
@@ -182,6 +183,9 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   // a raise cap or tree cap the request set (engine/tree_depth.py): the game solved, so it's said with the figure measured in it
   const tree = source === "live" || source === "node-lock" ? treeWords(r.tree) : null;
   if (tree) p.tree = tree;
+  // a heads-up flop's figure is in its own smaller game: what that game's flop gave up in the full one (ACCURACY section 21)
+  const abs = abstractionWords(flopModelOf(r, source, p.mode, ctx.transport));
+  if (abs) p.abstraction = abs;
   if (source === "preflop-solve") preflopSolveOf(r, p);
   const tm = tournamentModelOf(r, source);
   if (tm) {
@@ -315,6 +319,7 @@ export function describe(p: Provenance): string {
     if (p.source === "node-lock") parts.push(`${p.exploitabilityPct.toFixed(2)}% pot exploitable in the restricted game, each player's best response keeping their own locks${band}`);
     else parts.push(p.source === "best-response" ? `${p.exploitabilityPct.toFixed(2)}% pot from equilibrium in the solve it's laid on${band}` : `${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
   }
+  if (p.abstraction) parts.push(p.abstraction);
   if (p.mbbPerHand !== undefined) parts.push(`${p.mbbPerHand.toFixed(2)} mbb/hand from equilibrium (a seat's average)`);
   if (p.iterations !== undefined) parts.push(`${p.iterations} iterations`);
   if (p.partial) parts.push(p.stopped ? "partial, stopped before it finished" : "in progress");

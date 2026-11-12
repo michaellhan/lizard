@@ -1,0 +1,2414 @@
+{
+ "config": {
+  "exact": {
+   "depth": 3,
+   "later_sizes": null,
+   "leaf_rivers": null,
+   "leaf_rivers_flop": 48,
+   "leaf_turns": 49,
+   "n_rivers": null,
+   "n_rivers_from_flop": 48,
+   "n_turns": 49,
+   "river_classes": false,
+   "river_play": false,
+   "river_sample": null,
+   "turn_classes": false
+  },
+  "exact_iters": 1000,
+  "later": {
+   "bet": {
+    "river": [
+     0.75
+    ],
+    "turn": [
+     0.75
+    ]
+   },
+   "raise": {
+    "river": [
+     0.75
+    ],
+    "turn": [
+     0.75
+    ]
+   }
+  },
+  "menu": {
+   "allin_spr": 2.5,
+   "bet_sizes": {
+    "flop": [
+     0.33,
+     0.75
+    ],
+    "river": [
+     0.75
+    ],
+    "turn": [
+     0.75
+    ]
+   },
+   "max_raises": 1,
+   "raise_sizes": {
+    "flop": [
+     0.5
+    ],
+    "river": [
+     0.75
+    ],
+    "turn": [
+     0.75
+    ]
+   }
+  },
+  "spots": {
+   "3bp-AJ3": {
+    "board": "AhJd3c",
+    "ip": "AJo:0.5,QJs,JTs,TT,33,KJs",
+    "oop": "AA,KK,AKs,AQs,A5s,KQs,76s",
+    "pot": 20.0,
+    "stack": 80.0,
+    "what": "3bet pot, ace-high, SPR 4"
+   },
+   "srp-JT8": {
+    "board": "JdTd8c",
+    "ip": "AA,JJ,AJs,KQs,98s,KdQd,A5s",
+    "oop": "88,T9s,97s,Q9s,AdXd,65s",
+    "pot": 5.5,
+    "stack": 97.5,
+    "what": "single-raised pot, wet two-tone, 100bb"
+   },
+   "srp-K72": {
+    "board": "Ks7d2c",
+    "ip": "AA,KK,AKs,KQs,QQ,A5s",
+    "oop": "77,22,K9s,QJs,JTs,98s,65s",
+    "pot": 5.5,
+    "stack": 97.5,
+    "what": "single-raised pot, dry king-high, 100bb"
+   }
+  },
+  "variants": {
+   "accurate": {
+    "config": {
+     "bucket_river_step": 1,
+     "leaf_rivers_flop": 8,
+     "leaf_turns": 4,
+     "n_rivers_from_flop": 8,
+     "n_turns": 4,
+     "river_buckets": 64,
+     "river_classes": true,
+     "river_strength": 32,
+     "turn_buckets": true
+    },
+    "iterations": 1000,
+    "what": "the browser's Accurate: turn by rank class, turn and river by 64 hand buckets over every river"
+   },
+   "fast": {
+    "config": {
+     "bucket_river_step": 3,
+     "leaf_rivers_flop": 4,
+     "leaf_turns": 4,
+     "n_rivers_from_flop": 4,
+     "n_turns": 3,
+     "river_buckets": 32,
+     "river_classes": true,
+     "river_strength": 32,
+     "turn_buckets": true
+    },
+    "iterations": 400,
+    "what": "the browser's Fast: turn by rank class, turn and river by 32 hand buckets over every third river"
+   },
+   "fast-k8": {
+    "config": {
+     "bucket_river_step": 3,
+     "leaf_rivers_flop": 4,
+     "leaf_turns": 4,
+     "n_rivers_from_flop": 4,
+     "n_turns": 3,
+     "river_buckets": 8,
+     "river_classes": true,
+     "river_strength": 8,
+     "turn_buckets": true
+    },
+    "iterations": 400,
+    "what": "Fast with 8 buckets: about the combos per bucket real ranges put in Fast's 32"
+   },
+   "library": {
+    "config": {
+     "leaf_rivers_flop": 8,
+     "leaf_turns": 4,
+     "n_rivers_from_flop": 8,
+     "n_turns": 4,
+     "river_dealt": 64
+    },
+    "iterations": 300,
+    "what": "the flop library's model: turn by rank class per combo, the river dealt, 64 buckets on each card"
+   },
+   "river-strength": {
+    "config": {
+     "leaf_rivers_flop": 48,
+     "leaf_turns": 49,
+     "n_turns": 49,
+     "river_strength": 32,
+     "river_strength_spr": 0.0,
+     "turn_classes": false
+    },
+    "iterations": 1000,
+    "what": "only the river by 32 strength buckets without its card (every turn per combo)"
+   },
+   "turn-classes": {
+    "config": {
+     "depth": 3,
+     "leaf_rivers_flop": 48,
+     "leaf_turns": 49,
+     "n_rivers_from_flop": 48,
+     "n_turns": 49,
+     "river_play": false,
+     "turn_classes": true
+    },
+    "iterations": 1000,
+    "what": "only the turn by rank class (per combo, every river dealt per combo)"
+   }
+  }
+ },
+ "measured": "2026-11-11",
+ "runs": {
+  "abstract/3bp-AJ3/accurate": {
+   "cells": 244270,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.30941,
+      "fold": 0.69059
+     },
+     "bet 75% / all-in": {
+      "call": 0.9538,
+      "fold": 0.0462
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.71997,
+      "fold": 0.28003
+     },
+     "check / bet 75%": {
+      "all-in": 3e-05,
+      "call": 0.5553,
+      "fold": 0.44468
+     },
+     "root": {
+      "bet 33%": 0.60254,
+      "bet 75%": 0.0,
+      "check": 0.39746
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.82096,
+      "fold": 0.17904
+     },
+     "bet 75%": {
+      "all-in": 0.19951,
+      "call": 0.40569,
+      "fold": 0.3948
+     },
+     "check": {
+      "bet 33%": 0.4709,
+      "bet 75%": 6e-05,
+      "check": 0.52904
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.40206,
+      "fold": 0.59794
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.53311,
+      "fold": 0.46689
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.02658208819667718,
+   "peak_mb": 63.546875,
+   "seconds": 0.7806100845336914,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.6201090068908399,
+    -0.6201092441686603
+   ],
+   "variant": "accurate"
+  },
+  "abstract/3bp-AJ3/fast": {
+   "cells": 122798,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.30473,
+      "fold": 0.69527
+     },
+     "bet 75% / all-in": {
+      "call": 0.10112,
+      "fold": 0.89888
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.72775,
+      "fold": 0.27225
+     },
+     "check / bet 75%": {
+      "all-in": 7e-05,
+      "call": 0.56119,
+      "fold": 0.43874
+     },
+     "root": {
+      "bet 33%": 0.5679,
+      "bet 75%": 0.0,
+      "check": 0.4321
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.82153,
+      "fold": 0.17847
+     },
+     "bet 75%": {
+      "all-in": 0.18005,
+      "call": 0.42466,
+      "fold": 0.39529
+     },
+     "check": {
+      "bet 33%": 0.46575,
+      "bet 75%": 0.00024,
+      "check": 0.53401
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.40693,
+      "fold": 0.59307
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.48294,
+      "fold": 0.51706
+     }
+    }
+   ],
+   "iterations": 400,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.06912125354748583,
+   "peak_mb": 58.375,
+   "seconds": 0.19950318336486816,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.5836053620114852,
+    -0.583605256149073
+   ],
+   "variant": "fast"
+  },
+  "abstract/3bp-AJ3/fast-k8": {
+   "cells": 31694,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.27055,
+      "fold": 0.72945
+     },
+     "bet 75% / all-in": {
+      "call": 0.30891,
+      "fold": 0.69109
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.7559,
+      "fold": 0.2441
+     },
+     "check / bet 75%": {
+      "all-in": 0.00162,
+      "call": 0.58493,
+      "fold": 0.41345
+     },
+     "root": {
+      "bet 33%": 0.42318,
+      "bet 75%": 0.0,
+      "check": 0.57682
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.08116,
+      "call": 0.74139,
+      "fold": 0.17745
+     },
+     "bet 75%": {
+      "all-in": 0.23603,
+      "call": 0.36326,
+      "fold": 0.40071
+     },
+     "check": {
+      "bet 33%": 0.47601,
+      "bet 75%": 0.00113,
+      "check": 0.52286
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.42076,
+      "fold": 0.57924
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.43914,
+      "fold": 0.56086
+     }
+    }
+   ],
+   "iterations": 400,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.06809678089105334,
+   "peak_mb": 53.984375,
+   "seconds": 0.10302519798278809,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.4742189669723146,
+    -0.47421920265307266
+   ],
+   "variant": "fast-k8"
+  },
+  "abstract/3bp-AJ3/library": {
+   "cells": 7970976,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.31886,
+      "fold": 0.68114
+     },
+     "bet 75% / all-in": {
+      "call": 0.39753,
+      "fold": 0.60247
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.71636,
+      "fold": 0.28364
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.55282,
+      "fold": 0.44718
+     },
+     "root": {
+      "bet 33%": 0.85609,
+      "bet 75%": 0.0,
+      "check": 0.14391
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.80404,
+      "fold": 0.19596
+     },
+     "bet 75%": {
+      "all-in": 0.18847,
+      "call": 0.39313,
+      "fold": 0.4184
+     },
+     "check": {
+      "bet 33%": 0.44447,
+      "bet 75%": 0.00334,
+      "check": 0.55219
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.401,
+      "fold": 0.599
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.41902,
+      "fold": 0.58098
+     }
+    }
+   ],
+   "iterations": 300,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.11269321624171798,
+   "peak_mb": 522.015625,
+   "seconds": 10.168927907943726,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.8644618340086139,
+    -0.8644613895690042
+   ],
+   "variant": "library"
+  },
+  "abstract/3bp-AJ3/river-strength": {
+   "cells": 546696,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.28978,
+      "fold": 0.71022
+     },
+     "bet 75% / all-in": {
+      "call": 0.96318,
+      "fold": 0.03682
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.54787,
+      "fold": 0.45213
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.42506,
+      "fold": 0.57494
+     },
+     "root": {
+      "bet 33%": 0.83118,
+      "bet 75%": 0.0,
+      "check": 0.16882
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.24658,
+      "call": 0.5222,
+      "fold": 0.23122
+     },
+     "bet 75%": {
+      "all-in": 0.29999,
+      "call": 0.28558,
+      "fold": 0.41443
+     },
+     "check": {
+      "bet 33%": 0.02141,
+      "bet 75%": 0.4517,
+      "check": 0.52689
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.28784,
+      "fold": 0.71216
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.47772,
+      "fold": 0.52228
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.009644458168431291,
+   "peak_mb": 65.84375,
+   "seconds": 1.9156651496887207,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.7108100964121842,
+    -0.7108105965208209
+   ],
+   "variant": "river-strength"
+  },
+  "abstract/3bp-AJ3/turn-classes": {
+   "cells": 6364800,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.32076,
+      "fold": 0.67924
+     },
+     "bet 75% / all-in": {
+      "call": 0.00029,
+      "fold": 0.99971
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.71135,
+      "fold": 0.28865
+     },
+     "check / bet 75%": {
+      "all-in": 0.00072,
+      "call": 0.54789,
+      "fold": 0.45139
+     },
+     "root": {
+      "bet 33%": 0.86103,
+      "bet 75%": 0.0,
+      "check": 0.13897
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.8046,
+      "fold": 0.1954
+     },
+     "bet 75%": {
+      "all-in": 0.19242,
+      "call": 0.39066,
+      "fold": 0.41692
+     },
+     "check": {
+      "bet 33%": 0.43889,
+      "bet 75%": 2e-05,
+      "check": 0.56109
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.40494,
+      "fold": 0.59506
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.34368,
+      "fold": 0.65632
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.021622794666929235,
+   "peak_mb": 250.796875,
+   "seconds": 15.512225151062012,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.8636405342503598,
+    -0.8636408901670903
+   ],
+   "variant": "turn-classes"
+  },
+  "abstract/srp-JT8/accurate": {
+   "cells": 288532,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.30724,
+      "fold": 0.69276
+     },
+     "bet 75% / all-in": {
+      "call": 0.42052,
+      "fold": 0.57948
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.9888,
+      "fold": 0.0112
+     },
+     "check / bet 75%": {
+      "all-in": 1e-05,
+      "call": 0.66797,
+      "fold": 0.33202
+     },
+     "root": {
+      "bet 33%": 0.84228,
+      "bet 75%": 0.15772,
+      "check": 0.0
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.06532,
+      "call": 0.58915,
+      "fold": 0.34553
+     },
+     "bet 75%": {
+      "all-in": 0.06695,
+      "call": 0.43961,
+      "fold": 0.49344
+     },
+     "check": {
+      "bet 33%": 0.04313,
+      "bet 75%": 0.07621,
+      "check": 0.88066
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.41,
+      "fold": 0.59
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.50681,
+      "fold": 0.49319
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.006227249167708751,
+   "peak_mb": 66.515625,
+   "seconds": 1.8690450191497803,
+   "spot": "srp-JT8",
+   "value": [
+    1.305863806739398,
+    -1.305863891918354
+   ],
+   "variant": "accurate"
+  },
+  "abstract/srp-JT8/fast": {
+   "cells": 234772,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.26994,
+      "fold": 0.73006
+     },
+     "bet 75% / all-in": {
+      "call": 0.41139,
+      "fold": 0.58861
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.77021,
+      "fold": 0.22979
+     },
+     "check / bet 75%": {
+      "all-in": 0.00717,
+      "call": 0.556,
+      "fold": 0.43683
+     },
+     "root": {
+      "bet 33%": 0.61867,
+      "bet 75%": 0.3813,
+      "check": 3e-05
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.06532,
+      "call": 0.63033,
+      "fold": 0.30435
+     },
+     "bet 75%": {
+      "all-in": 0.06927,
+      "call": 0.46421,
+      "fold": 0.46652
+     },
+     "check": {
+      "bet 33%": 0.05026,
+      "bet 75%": 0.0869,
+      "check": 0.86284
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.40465,
+      "fold": 0.59535
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.45922,
+      "fold": 0.54078
+     }
+    }
+   ],
+   "iterations": 400,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.03144205572770902,
+   "peak_mb": 62.71875,
+   "seconds": 0.5280401706695557,
+   "spot": "srp-JT8",
+   "value": [
+    1.2730638226010809,
+    -1.2730637520654804
+   ],
+   "variant": "fast"
+  },
+  "abstract/srp-JT8/fast-k8": {
+   "cells": 59668,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.22608,
+      "fold": 0.77392
+     },
+     "bet 75% / all-in": {
+      "call": 0.46343,
+      "fold": 0.53657
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.71197,
+      "fold": 0.28803
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.71167,
+      "fold": 0.28832
+     },
+     "root": {
+      "bet 33%": 0.53402,
+      "bet 75%": 0.46597,
+      "check": 1e-05
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.08329,
+      "call": 0.59172,
+      "fold": 0.32499
+     },
+     "bet 75%": {
+      "all-in": 0.07602,
+      "call": 0.44778,
+      "fold": 0.4762
+     },
+     "check": {
+      "bet 33%": 0.04838,
+      "bet 75%": 0.10757,
+      "check": 0.84405
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.5136,
+      "fold": 0.4864
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.67186,
+      "fold": 0.32814
+     }
+    }
+   ],
+   "iterations": 400,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.0403230503018664,
+   "peak_mb": 53.890625,
+   "seconds": 0.28536176681518555,
+   "spot": "srp-JT8",
+   "value": [
+    1.4036019982763641,
+    -1.4036019929140084
+   ],
+   "variant": "fast-k8"
+  },
+  "abstract/srp-JT8/library": {
+   "cells": 17337652,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.30336,
+      "fold": 0.69664
+     },
+     "bet 75% / all-in": {
+      "call": 0.36748,
+      "fold": 0.63252
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.96564,
+      "fold": 0.03436
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.95934,
+      "fold": 0.04066
+     },
+     "root": {
+      "bet 33%": 0.58058,
+      "bet 75%": 0.41941,
+      "check": 1e-05
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.04399,
+      "call": 0.57328,
+      "fold": 0.38272
+     },
+     "bet 75%": {
+      "all-in": 0.04644,
+      "call": 0.44991,
+      "fold": 0.50365
+     },
+     "check": {
+      "bet 33%": 0.0203,
+      "bet 75%": 0.06395,
+      "check": 0.91575
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.36,
+      "fold": 0.64
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.43085,
+      "fold": 0.56915
+     }
+    }
+   ],
+   "iterations": 300,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.14267012772225632,
+   "peak_mb": 992.921875,
+   "seconds": 29.31854009628296,
+   "spot": "srp-JT8",
+   "value": [
+    1.4395644664764404,
+    -1.4395645168000852
+   ],
+   "variant": "library"
+  },
+  "abstract/srp-JT8/river-strength": {
+   "cells": 539712,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.4384,
+      "fold": 0.5616
+     },
+     "bet 75% / all-in": {
+      "call": 0.48695,
+      "fold": 0.51305
+     },
+     "check / bet 33%": {
+      "all-in": 0.00026,
+      "call": 0.42375,
+      "fold": 0.57599
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.2165,
+      "fold": 0.7835
+     },
+     "root": {
+      "bet 33%": 0.46647,
+      "bet 75%": 0.53353,
+      "check": 0.0
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.68906,
+      "fold": 0.31094
+     },
+     "bet 75%": {
+      "all-in": 0.0,
+      "call": 0.5398,
+      "fold": 0.4602
+     },
+     "check": {
+      "bet 33%": 0.01461,
+      "bet 75%": 0.00987,
+      "check": 0.97552
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.60452,
+      "fold": 0.39548
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.74203,
+      "fold": 0.25797
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.00728512005297494,
+   "peak_mb": 66.78125,
+   "seconds": 1.9015800952911377,
+   "spot": "srp-JT8",
+   "value": [
+    1.2936905317240521,
+    -1.293690437264096
+   ],
+   "variant": "river-strength"
+  },
+  "abstract/srp-JT8/turn-classes": {
+   "cells": 13563700,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.41238,
+      "fold": 0.58762
+     },
+     "bet 75% / all-in": {
+      "call": 0.47227,
+      "fold": 0.52773
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.85565,
+      "fold": 0.14435
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.74888,
+      "fold": 0.25112
+     },
+     "root": {
+      "bet 33%": 0.24148,
+      "bet 75%": 0.75852,
+      "check": 0.0
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.64228,
+      "fold": 0.35772
+     },
+     "bet 75%": {
+      "all-in": 0.0,
+      "call": 0.52297,
+      "fold": 0.47703
+     },
+     "check": {
+      "bet 33%": 0.01188,
+      "bet 75%": 0.01112,
+      "check": 0.97699
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.3445,
+      "fold": 0.6555
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.48042,
+      "fold": 0.51958
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.029334724980656368,
+   "peak_mb": 487.28125,
+   "seconds": 32.245420932769775,
+   "spot": "srp-JT8",
+   "value": [
+    1.4699683898872982,
+    -1.4699685449831215
+   ],
+   "variant": "turn-classes"
+  },
+  "abstract/srp-K72/accurate": {
+   "cells": 156884,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.25012,
+      "fold": 0.74988
+     },
+     "bet 75% / all-in": {
+      "call": 0.41602,
+      "fold": 0.58398
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.48595,
+      "fold": 0.51405
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.3618,
+      "fold": 0.6382
+     },
+     "root": {
+      "bet 33%": 0.0,
+      "bet 75%": 0.0,
+      "check": 1.0
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.069,
+      "call": 0.84209,
+      "fold": 0.08892
+     },
+     "bet 75%": {
+      "all-in": 0.10308,
+      "call": 0.59993,
+      "fold": 0.29699
+     },
+     "check": {
+      "bet 33%": 0.96062,
+      "bet 75%": 0.03936,
+      "check": 2e-05
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.16043,
+      "fold": 0.83957
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.40641,
+      "fold": 0.59359
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.0049467107043313615,
+   "peak_mb": 61.625,
+   "seconds": 0.6429991722106934,
+   "spot": "srp-K72",
+   "value": [
+    -1.0120292745455346,
+    1.0120292455459685
+   ],
+   "variant": "accurate"
+  },
+  "abstract/srp-K72/fast": {
+   "cells": 127764,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.20574,
+      "fold": 0.79426
+     },
+     "bet 75% / all-in": {
+      "call": 0.3315,
+      "fold": 0.6685
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.48666,
+      "fold": 0.51334
+     },
+     "check / bet 75%": {
+      "all-in": 7e-05,
+      "call": 0.36595,
+      "fold": 0.63398
+     },
+     "root": {
+      "bet 33%": 0.00013,
+      "bet 75%": 0.0,
+      "check": 0.99987
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.06742,
+      "call": 0.83769,
+      "fold": 0.09489
+     },
+     "bet 75%": {
+      "all-in": 0.09434,
+      "call": 0.60133,
+      "fold": 0.30433
+     },
+     "check": {
+      "bet 33%": 0.96182,
+      "bet 75%": 0.03786,
+      "check": 0.00033
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.17501,
+      "fold": 0.82499
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.40165,
+      "fold": 0.59835
+     }
+    }
+   ],
+   "iterations": 400,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.0358189688496627,
+   "peak_mb": 59.15625,
+   "seconds": 0.3252689838409424,
+   "spot": "srp-K72",
+   "value": [
+    -1.0221145389858721,
+    1.0221144591116342
+   ],
+   "variant": "fast"
+  },
+  "abstract/srp-K72/fast-k8": {
+   "cells": 32916,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.08411,
+      "fold": 0.91589
+     },
+     "bet 75% / all-in": {
+      "call": 0.01202,
+      "fold": 0.98798
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.40813,
+      "fold": 0.59187
+     },
+     "check / bet 75%": {
+      "all-in": 7e-05,
+      "call": 0.30363,
+      "fold": 0.6963
+     },
+     "root": {
+      "bet 33%": 0.18932,
+      "bet 75%": 3e-05,
+      "check": 0.81065
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.02472,
+      "call": 0.91235,
+      "fold": 0.06294
+     },
+     "bet 75%": {
+      "all-in": 0.06185,
+      "call": 0.63701,
+      "fold": 0.30114
+     },
+     "check": {
+      "bet 33%": 0.99929,
+      "bet 75%": 9e-05,
+      "check": 0.00062
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.17521,
+      "fold": 0.82479
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.46026,
+      "fold": 0.53974
+     }
+    }
+   ],
+   "iterations": 400,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.11632355265855326,
+   "peak_mb": 54.375,
+   "seconds": 0.12440800666809082,
+   "spot": "srp-K72",
+   "value": [
+    -1.1192449024229338,
+    1.1192448500430945
+   ],
+   "variant": "fast-k8"
+  },
+  "abstract/srp-K72/library": {
+   "cells": 9391824,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.0959,
+      "fold": 0.9041
+     },
+     "bet 75% / all-in": {
+      "call": 0.36336,
+      "fold": 0.63664
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.35567,
+      "fold": 0.64433
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.28693,
+      "fold": 0.71307
+     },
+     "root": {
+      "bet 33%": 0.38463,
+      "bet 75%": 0.0,
+      "check": 0.61537
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 1e-05,
+      "call": 0.88984,
+      "fold": 0.11015
+     },
+     "bet 75%": {
+      "all-in": 0.00127,
+      "call": 0.69744,
+      "fold": 0.30129
+     },
+     "check": {
+      "bet 33%": 0.77384,
+      "bet 75%": 0.18613,
+      "check": 0.04003
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.16206,
+      "fold": 0.83794
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.26171,
+      "fold": 0.73829
+     }
+    }
+   ],
+   "iterations": 300,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.4985447497516726,
+   "peak_mb": 570.15625,
+   "seconds": 14.327262878417969,
+   "spot": "srp-K72",
+   "value": [
+    -0.9610717946832831,
+    0.9610716420592684
+   ],
+   "variant": "library"
+  },
+  "abstract/srp-K72/river-strength": {
+   "cells": 539712,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.69624,
+      "fold": 0.30376
+     },
+     "bet 75% / all-in": {
+      "call": 0.06369,
+      "fold": 0.93631
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.47539,
+      "fold": 0.52461
+     },
+     "check / bet 75%": {
+      "all-in": 6e-05,
+      "call": 0.3587,
+      "fold": 0.64124
+     },
+     "root": {
+      "bet 33%": 0.0,
+      "bet 75%": 0.0,
+      "check": 1.0
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.05883,
+      "call": 0.81596,
+      "fold": 0.12521
+     },
+     "bet 75%": {
+      "all-in": 0.0813,
+      "call": 0.58588,
+      "fold": 0.33282
+     },
+     "check": {
+      "bet 33%": 0.99998,
+      "bet 75%": 0.0,
+      "check": 2e-05
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.19735,
+      "fold": 0.80265
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.42922,
+      "fold": 0.57078
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.005240172357561851,
+   "peak_mb": 69.578125,
+   "seconds": 3.2607998847961426,
+   "spot": "srp-K72",
+   "value": [
+    -1.0201590705399561,
+    1.0201589960843225
+   ],
+   "variant": "river-strength"
+  },
+  "abstract/srp-K72/turn-classes": {
+   "cells": 7347600,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.09485,
+      "fold": 0.90515
+     },
+     "bet 75% / all-in": {
+      "call": 0.08077,
+      "fold": 0.91923
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.40247,
+      "fold": 0.59753
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.32417,
+      "fold": 0.67583
+     },
+     "root": {
+      "bet 33%": 0.32787,
+      "bet 75%": 0.0,
+      "check": 0.67213
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.89804,
+      "fold": 0.10196
+     },
+     "bet 75%": {
+      "all-in": 0.0017,
+      "call": 0.70272,
+      "fold": 0.29558
+     },
+     "check": {
+      "bet 33%": 0.65994,
+      "bet 75%": 0.25505,
+      "check": 0.08501
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.16108,
+      "fold": 0.83892
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.24919,
+      "fold": 0.75081
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "abstract",
+   "own_exploitability_pct": 0.09614096747504262,
+   "peak_mb": 280.859375,
+   "seconds": 21.591718196868896,
+   "spot": "srp-K72",
+   "value": [
+    -0.9598773850335015,
+    0.9598773080692549
+   ],
+   "variant": "turn-classes"
+  },
+  "exact/3bp-AJ3": {
+   "cells": 23986728,
+   "combos": [
+    32,
+    36
+   ],
+   "exploitability_pct": 0.019026696967165968,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.33218,
+      "fold": 0.66782
+     },
+     "bet 75% / all-in": {
+      "call": 0.20006,
+      "fold": 0.79994
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.74062,
+      "fold": 0.25938
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.56529,
+      "fold": 0.43471
+     },
+     "root": {
+      "bet 33%": 0.83103,
+      "bet 75%": 0.0,
+      "check": 0.16897
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.77903,
+      "fold": 0.22097
+     },
+     "bet 75%": {
+      "all-in": 0.21968,
+      "call": 0.34756,
+      "fold": 0.43277
+     },
+     "check": {
+      "bet 33%": 0.20549,
+      "bet 75%": 0.17213,
+      "check": 0.62238
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.40787,
+      "fold": 0.59213
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.50033,
+      "fold": 0.49967
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "exact",
+   "peak_mb": 832.375,
+   "root_pot": 20.0,
+   "seconds": 88.22197413444519,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9272042233407782,
+    -0.9272048293118271
+   ]
+  },
+  "exact/srp-JT8": {
+   "cells": 27691200,
+   "combos": [
+    34,
+    28
+   ],
+   "exploitability_pct": 0.029161126218377947,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.41677,
+      "fold": 0.58323
+     },
+     "bet 75% / all-in": {
+      "call": 0.50117,
+      "fold": 0.49883
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.48797,
+      "fold": 0.51203
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.48797,
+      "fold": 0.51203
+     },
+     "root": {
+      "bet 33%": 0.53727,
+      "bet 75%": 0.46273,
+      "check": 0.0
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.64781,
+      "fold": 0.35219
+     },
+     "bet 75%": {
+      "all-in": 0.0,
+      "call": 0.52273,
+      "fold": 0.47727
+     },
+     "check": {
+      "bet 33%": 0.01936,
+      "bet 75%": 0.01183,
+      "check": 0.96881
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.36092,
+      "fold": 0.63908
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.35574,
+      "fold": 0.64426
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "exact",
+   "peak_mb": 952.078125,
+   "root_pot": 5.5,
+   "seconds": 92.00499701499939,
+   "spot": "srp-JT8",
+   "value": [
+    1.3837752029763786,
+    -1.3837752053481898
+   ]
+  },
+  "exact/srp-K72": {
+   "cells": 27691200,
+   "combos": [
+    32,
+    30
+   ],
+   "exploitability_pct": 0.0868972485533243,
+   "freqs": [
+    {
+     "bet 33% / all-in": {
+      "call": 0.1101,
+      "fold": 0.8899
+     },
+     "bet 75% / all-in": {
+      "call": 0.10172,
+      "fold": 0.89828
+     },
+     "check / bet 33%": {
+      "all-in": 0.0,
+      "call": 0.3512,
+      "fold": 0.6488
+     },
+     "check / bet 75%": {
+      "all-in": 0.0,
+      "call": 0.28689,
+      "fold": 0.71311
+     },
+     "root": {
+      "bet 33%": 0.33239,
+      "bet 75%": 0.0,
+      "check": 0.66761
+     }
+    },
+    {
+     "bet 33%": {
+      "all-in": 0.0,
+      "call": 0.88259,
+      "fold": 0.11741
+     },
+     "bet 75%": {
+      "all-in": 0.00171,
+      "call": 0.68398,
+      "fold": 0.3143
+     },
+     "check": {
+      "bet 33%": 0.49267,
+      "bet 75%": 0.33986,
+      "check": 0.16746
+     },
+     "check / bet 33% / all-in": {
+      "call": 0.21182,
+      "fold": 0.78818
+     },
+     "check / bet 75% / all-in": {
+      "call": 0.23201,
+      "fold": 0.76799
+     }
+    }
+   ],
+   "iterations": 1000,
+   "kind": "exact",
+   "peak_mb": 948.171875,
+   "root_pot": 5.5,
+   "seconds": 76.52299284934998,
+   "spot": "srp-K72",
+   "value": [
+    -0.9863825791612618,
+    0.9863825289890019
+   ]
+  },
+  "locked/3bp-AJ3/accurate/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.015604473719458556,
+   "gain_held": [
+    0.0018552599759712463,
+    0.004386529511812176
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 842.328125,
+   "player": 0,
+   "seconds": 64.65901494026184,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.8336989941209126,
+    -0.8336996124121561
+   ],
+   "variant": "accurate"
+  },
+  "locked/3bp-AJ3/accurate/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.013911307327914015,
+   "gain_held": [
+    0.002873218572881253,
+    0.002691304358284352
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 832.953125,
+   "player": 1,
+   "seconds": 67.75624990463257,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9783360536018627,
+    -0.9783359655352871
+   ],
+   "variant": "accurate"
+  },
+  "locked/3bp-AJ3/exact-self/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.015071297792400571,
+   "gain_held": [
+    0.0017266795348729325,
+    0.004301839582087297
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 835.578125,
+   "player": 0,
+   "seconds": 84.91966104507446,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9272154520573228,
+    -0.9272159850198116
+   ],
+   "variant": "exact-self"
+  },
+  "locked/3bp-AJ3/exact-self/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.014150947609859186,
+   "gain_held": [
+    0.003099608535401588,
+    0.0025607705085420873
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 831.296875,
+   "player": 1,
+   "seconds": 71.09599590301514,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9271567595632453,
+    -0.9271576657819977
+   ],
+   "variant": "exact-self"
+  },
+  "locked/3bp-AJ3/fast-k8/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.011769058396891574,
+   "gain_held": [
+    0.0017061538424587575,
+    0.003001469516297872
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 832.953125,
+   "player": 0,
+   "seconds": 69.09881401062012,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.5590680628872374,
+    -0.559067750775643
+   ],
+   "variant": "fast-k8"
+  },
+  "locked/3bp-AJ3/fast-k8/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.012326502199551117,
+   "gain_held": [
+    0.002613037054618683,
+    0.0023175638252017627
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 832.921875,
+   "player": 1,
+   "seconds": 68.51772594451904,
+   "spot": "3bp-AJ3",
+   "value": [
+    1.158329046970349,
+    -1.1583289333507776
+   ],
+   "variant": "fast-k8"
+  },
+  "locked/3bp-AJ3/fast/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.013948831862446165,
+   "gain_held": [
+    0.0017187232727894353,
+    0.0038608094721890307
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 832.5625,
+   "player": 0,
+   "seconds": 66.12131118774414,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.8001433383905147,
+    -0.8001435056257477
+   ],
+   "variant": "fast"
+  },
+  "locked/3bp-AJ3/fast/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.013917244622108358,
+   "gain_held": [
+    0.002799510727658827,
+    0.002767387121184517
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 833.109375,
+   "player": 1,
+   "seconds": 67.50626993179321,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9701870117461282,
+    -0.9701868960731908
+   ],
+   "variant": "fast"
+  },
+  "locked/3bp-AJ3/library/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.015234736397535253,
+   "gain_held": [
+    0.0016220910489961327,
+    0.004471803510017969
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 834.875,
+   "player": 0,
+   "seconds": 69.07207989692688,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9092908165671608,
+    -0.9092909525456041
+   ],
+   "variant": "library"
+  },
+  "locked/3bp-AJ3/library/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.013383548096728703,
+   "gain_held": [
+    0.0026947902150131764,
+    0.002658629023678305
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 830.828125,
+   "player": 1,
+   "seconds": 68.36121106147766,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9506518852197382,
+    -0.9506515867972488
+   ],
+   "variant": "library"
+  },
+  "locked/3bp-AJ3/river-strength/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.011319998539225662,
+   "gain_held": [
+    0.0012960272734204858,
+    0.003231972142269779
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 830.96875,
+   "player": 0,
+   "seconds": 65.85671615600586,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.6837584244577508,
+    -0.683758544921875
+   ],
+   "variant": "river-strength"
+  },
+  "locked/3bp-AJ3/river-strength/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.00933072125930745,
+   "gain_held": [
+    0.0023701991761131413,
+    0.001362089327609839
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 838.5,
+   "player": 1,
+   "seconds": 62.22171592712402,
+   "spot": "3bp-AJ3",
+   "value": [
+    1.3542332936702162,
+    -1.3542333429509943
+   ],
+   "variant": "river-strength"
+  },
+  "locked/3bp-AJ3/turn-classes/0": {
+   "cells": 23986728,
+   "exploitability_pct": 0.014523885481985965,
+   "gain_held": [
+    0.0014858412460987402,
+    0.004323712946695646
+   ],
+   "held_cells": 130,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 836.59375,
+   "player": 0,
+   "seconds": 68.16106820106506,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9096220646178323,
+    -0.9096220901708284
+   ],
+   "variant": "turn-classes"
+  },
+  "locked/3bp-AJ3/turn-classes/1": {
+   "cells": 23986728,
+   "exploitability_pct": 0.01358657028004917,
+   "gain_held": [
+    0.00269229925420289,
+    0.002742328857816778
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 833.078125,
+   "player": 1,
+   "seconds": 68.92229890823364,
+   "spot": "3bp-AJ3",
+   "value": [
+    0.9522588100159568,
+    -0.9522585052052183
+   ],
+   "variant": "turn-classes"
+  },
+  "locked/srp-JT8/accurate/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.02040343735684887,
+   "gain_held": [
+    0.0007710469878283721,
+    0.0014733311214250033
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 952.5,
+   "player": 0,
+   "seconds": 130.65539598464966,
+   "spot": "srp-JT8",
+   "value": [
+    1.3408483042797414,
+    -1.3408484937410454
+   ],
+   "variant": "accurate"
+  },
+  "locked/srp-JT8/accurate/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.025482924969533194,
+   "gain_held": [
+    0.001534669044521042,
+    0.0012684527021276093
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 952.515625,
+   "player": 1,
+   "seconds": 116.25809216499329,
+   "spot": "srp-JT8",
+   "value": [
+    1.6814484010518216,
+    -1.6814482377062208
+   ],
+   "variant": "accurate"
+  },
+  "locked/srp-JT8/exact-self/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.021359046682335358,
+   "gain_held": [
+    0.0008829684303808261,
+    0.0014665267046760633
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 951.1875,
+   "player": 0,
+   "seconds": 119.21582984924316,
+   "spot": "srp-JT8",
+   "value": [
+    1.3837657568776485,
+    -1.38376581957596
+   ],
+   "variant": "exact-self"
+  },
+  "locked/srp-JT8/exact-self/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.028024253385424993,
+   "gain_held": [
+    0.0019129875621994863,
+    0.001169680310197263
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 950.8125,
+   "player": 1,
+   "seconds": 104.97036385536194,
+   "spot": "srp-JT8",
+   "value": [
+    1.3837725091145525,
+    -1.3837725728440862
+   ],
+   "variant": "exact-self"
+  },
+  "locked/srp-JT8/fast-k8/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.021895830413631856,
+   "gain_held": [
+    0.0009554007303200773,
+    0.0014531406151794268
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 748.765625,
+   "player": 0,
+   "seconds": 114.02143788337708,
+   "spot": "srp-JT8",
+   "value": [
+    1.266864830234884,
+    -1.2668647980607504
+   ],
+   "variant": "fast-k8"
+  },
+  "locked/srp-JT8/fast-k8/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.026052940330780556,
+   "gain_held": [
+    0.001550531717320336,
+    0.0013152917190655256
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 948.5,
+   "player": 1,
+   "seconds": 102.94701313972473,
+   "spot": "srp-JT8",
+   "value": [
+    1.6811612370104938,
+    -1.6811611635874713
+   ],
+   "variant": "fast-k8"
+  },
+  "locked/srp-JT8/fast/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.0207170514345338,
+   "gain_held": [
+    0.0008276902399635411,
+    0.0014511854178351768
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 960.546875,
+   "player": 0,
+   "seconds": 175.34266781806946,
+   "spot": "srp-JT8",
+   "value": [
+    1.329046811508885,
+    -1.3290467641757846
+   ],
+   "variant": "fast"
+  },
+  "locked/srp-JT8/fast/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.026127443066878166,
+   "gain_held": [
+    0.0015273688161248078,
+    0.0013466499212317906
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 838.03125,
+   "player": 1,
+   "seconds": 125.86515974998474,
+   "spot": "srp-JT8",
+   "value": [
+    1.650586167008819,
+    -1.6505862981802863
+   ],
+   "variant": "fast"
+  },
+  "locked/srp-JT8/library/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.019968317530555894,
+   "gain_held": [
+    0.000788503897787729,
+    0.0014080110305734195
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 954.53125,
+   "player": 0,
+   "seconds": 118.3683488368988,
+   "spot": "srp-JT8",
+   "value": [
+    1.3575468862551718,
+    -1.357546788185938
+   ],
+   "variant": "library"
+  },
+  "locked/srp-JT8/library/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.0208383754217016,
+   "gain_held": [
+    0.0013595131390233828,
+    0.000932708157363793
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 950.5625,
+   "player": 1,
+   "seconds": 113.20001697540283,
+   "spot": "srp-JT8",
+   "value": [
+    1.5012312479136725,
+    -1.5012313556506147
+   ],
+   "variant": "library"
+  },
+  "locked/srp-JT8/river-strength/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.019969476692122626,
+   "gain_held": [
+    0.0008656892802991756,
+    0.0013309531558343135
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 949.1875,
+   "player": 0,
+   "seconds": 92.64505100250244,
+   "spot": "srp-JT8",
+   "value": [
+    1.3629862017491285,
+    -1.3629862544445843
+   ],
+   "variant": "river-strength"
+  },
+  "locked/srp-JT8/river-strength/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.030745698364536608,
+   "gain_held": [
+    0.0018248896285324445,
+    0.0015571371915665821
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 948.578125,
+   "player": 1,
+   "seconds": 97.42830991744995,
+   "spot": "srp-JT8",
+   "value": [
+    1.4994068038504842,
+    -1.4994067452770616
+   ],
+   "variant": "river-strength"
+  },
+  "locked/srp-JT8/turn-classes/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.0211796729710006,
+   "gain_held": [
+    0.0009000676302497457,
+    0.0014296963965603204
+   ],
+   "held_cells": 140,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 950.3125,
+   "player": 0,
+   "seconds": 77.94961881637573,
+   "spot": "srp-JT8",
+   "value": [
+    1.3752810149663048,
+    -1.3752810319814714
+   ],
+   "variant": "turn-classes"
+  },
+  "locked/srp-JT8/turn-classes/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.027835222398533217,
+   "gain_held": [
+    0.0018841715007504867,
+    0.0011777029630881675
+   ],
+   "held_cells": 115,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 950.4375,
+   "player": 1,
+   "seconds": 74.56016206741333,
+   "spot": "srp-JT8",
+   "value": [
+    1.3849870838920963,
+    -1.3849871455591856
+   ],
+   "variant": "turn-classes"
+  },
+  "locked/srp-K72/accurate/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.05699637176452429,
+   "gain_held": [
+    0.002575761578484048,
+    0.003693839315613623
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 948.921875,
+   "player": 0,
+   "seconds": 111.25115704536438,
+   "spot": "srp-K72",
+   "value": [
+    -1.108897621182079,
+    1.1088977773181516
+   ],
+   "variant": "accurate"
+  },
+  "locked/srp-K72/accurate/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.05446945718783347,
+   "gain_held": [
+    0.0043205909857444436,
+    0.0016710493049172381
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 949.328125,
+   "player": 1,
+   "seconds": 101.62872099876404,
+   "spot": "srp-K72",
+   "value": [
+    -0.8582568730569448,
+    0.8582570464522751
+   ],
+   "variant": "accurate"
+  },
+  "locked/srp-K72/exact-self/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.05039879028740216,
+   "gain_held": [
+    0.002259261667753365,
+    0.0032846052638608736
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 948.671875,
+   "player": 0,
+   "seconds": 79.38978600502014,
+   "spot": "srp-K72",
+   "value": [
+    -0.9864210681080416,
+    0.9864210163302695
+   ],
+   "variant": "exact-self"
+  },
+  "locked/srp-K72/exact-self/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.0525984196014058,
+   "gain_held": [
+    0.0035164508755359813,
+    0.0022693752806186573
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 948.75,
+   "player": 1,
+   "seconds": 76.79706501960754,
+   "spot": "srp-K72",
+   "value": [
+    -0.9863705297913214,
+    0.986370704792164
+   ],
+   "variant": "exact-self"
+  },
+  "locked/srp-K72/fast-k8/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.05443518718037135,
+   "gain_held": [
+    0.0024630180244482602,
+    0.003524852565392589
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 937.234375,
+   "player": 0,
+   "seconds": 99.09426593780518,
+   "spot": "srp-K72",
+   "value": [
+    -1.0808279666836413,
+    1.0808279779473138
+   ],
+   "variant": "fast-k8"
+  },
+  "locked/srp-K72/fast-k8/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.04072249032883623,
+   "gain_held": [
+    0.0027751826276682934,
+    0.0017042913085036915
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 952.59375,
+   "player": 1,
+   "seconds": 81.82809209823608,
+   "spot": "srp-K72",
+   "value": [
+    -0.9378148666535965,
+    0.937814612342954
+   ],
+   "variant": "fast-k8"
+  },
+  "locked/srp-K72/fast/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.05348711429308564,
+   "gain_held": [
+    0.002500334631610812,
+    0.0033832479406286087
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 840.6875,
+   "player": 0,
+   "seconds": 138.65389895439148,
+   "spot": "srp-K72",
+   "value": [
+    -1.105553301897916,
+    1.1055531283018967
+   ],
+   "variant": "fast"
+  },
+  "locked/srp-K72/fast/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.04047789006789249,
+   "gain_held": [
+    0.0029699312717424986,
+    0.001482636635725676
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 962.03125,
+   "player": 1,
+   "seconds": 131.17583107948303,
+   "spot": "srp-K72",
+   "value": [
+    -0.8626892462322607,
+    0.8626893004183015
+   ],
+   "variant": "fast"
+  },
+  "locked/srp-K72/library/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.04967969433957518,
+   "gain_held": [
+    0.002331814395259757,
+    0.0031329519820935126
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 712.78125,
+   "player": 0,
+   "seconds": 114.65271186828613,
+   "spot": "srp-K72",
+   "value": [
+    -1.0001617585769806,
+    1.0001618195864488
+   ],
+   "variant": "library"
+  },
+  "locked/srp-K72/library/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.07391962470363837,
+   "gain_held": [
+    0.00470318135990444,
+    0.0034279773574957817
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 939.1875,
+   "player": 1,
+   "seconds": 95.19810605049133,
+   "spot": "srp-K72",
+   "value": [
+    -0.9675245317144426,
+    0.9675243388522755
+   ],
+   "variant": "library"
+  },
+  "locked/srp-K72/river-strength/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.07166867634688202,
+   "gain_held": [
+    0.0033642806610942877,
+    0.0045192737370627345
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 940.796875,
+   "player": 0,
+   "seconds": 132.81649494171143,
+   "spot": "srp-K72",
+   "value": [
+    -1.117726043268085,
+    1.117726218720478
+   ],
+   "variant": "river-strength"
+  },
+  "locked/srp-K72/river-strength/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.040161415179696854,
+   "gain_held": [
+    0.0028433494696311623,
+    0.001574406200135492
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 952.40625,
+   "player": 1,
+   "seconds": 93.28781795501709,
+   "spot": "srp-K72",
+   "value": [
+    -0.8975460649740816,
+    0.8975458369913326
+   ],
+   "variant": "river-strength"
+  },
+  "locked/srp-K72/turn-classes/0": {
+   "cells": 27691200,
+   "exploitability_pct": 0.0574749357587541,
+   "gain_held": [
+    0.002613229318872423,
+    0.0037090136145905284
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 938.84375,
+   "player": 0,
+   "seconds": 95.38516807556152,
+   "spot": "srp-K72",
+   "value": [
+    -1.0007946900647096,
+    1.0007947002998505
+   ],
+   "variant": "turn-classes"
+  },
+  "locked/srp-K72/turn-classes/1": {
+   "cells": 27691200,
+   "exploitability_pct": 0.057475091318008466,
+   "gain_held": [
+    0.0038801347366487215,
+    0.0024421253083322103
+   ],
+   "held_cells": 125,
+   "iterations": 1000,
+   "kind": "locked",
+   "peak_mb": 950.453125,
+   "player": 1,
+   "seconds": 107.9545669555664,
+   "spot": "srp-K72",
+   "value": [
+    -0.9725465132331206,
+    0.9725463148143757
+   ],
+   "variant": "turn-classes"
+  }
+ }
+}
