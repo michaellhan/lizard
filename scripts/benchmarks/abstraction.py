@@ -18,7 +18,7 @@ bench_flop_abstraction.py), but with Lizard's own exact mode as the full game, s
 Beside it: the abstract solve's exploitability in its own game (what the app shows), and how far its flop frequencies
 are from the exact solve's (range level, points; per combo, reach-weighted total variation).
 
-Limits, said here and in docs/ACCURACY.md section 21: the exact game holds every turn and river per combo, which is 17 bytes a
+Limits, said here and in docs/ACCURACY.md section 21: the exact game holds every turn and river per combo, which is about 34 bytes a
 cell here, so the ranges are narrow (about 30 combos a player) and the tree has one raise a street. The app's buckets
 then hold one or two combos each where real ranges put 10-20 in one; `fast-k8` plays 8 buckets to show which way that
 pushes. The turn and river menu is one size (75%), the menu every live flop solve plays below the flop
