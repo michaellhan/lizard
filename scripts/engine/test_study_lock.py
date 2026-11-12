@@ -341,8 +341,10 @@ class ReachBack(Shared):
         for x in on + n["earlier"]["moved"]:
             for mix in (x["unlocked"], x["locked"]):
                 self.assertAlmostEqual(sum(mix), 1.0, delta=1e-4)
-        # the lock makes BB's turn stab a sure thing after check, bet, call: BB's flop check moves by a point or more
-        self.assertGreater(on[0]["moved"], 1.0, on[0])
+            self.assertAlmostEqual(x["moved"], 100 * max(abs(a - b) for a, b in zip(x["unlocked"], x["locked"])), places=6)
+        # the flop re-solved around the lock: something on it moves (how far depends on how far the flop's own solve got
+        # in its budget; test_nodelock.py OneStreetBack has the exact game, where it's points)
+        self.assertGreater(max(x["moved"] for x in on + n["earlier"]["moved"]), 0.0)
         self.assertTrue(all(min(x["share"]) >= sl.MOVED_SHARE for x in n["earlier"]["moved"]))
 
     def test_it_is_labelled_that_trees_numbers_and_approximate(self):
