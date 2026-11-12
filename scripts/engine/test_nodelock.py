@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 from engine import nodelock as nl  # noqa: E402
 from engine.nodelock import Lock, LockError, LockRefused, _float32_mix, solve_locked  # noqa: E402
 from gto import core  # noqa: E402
-from gto.cards import cards  # noqa: E402
+from gto.cards import card, card_str, cards  # noqa: E402
 from gto.ranges import parse_range  # noqa: E402
 from gto.solver import CFR_SCHEMES, Cancelled, Config, Decision, solve  # noqa: E402
 
@@ -502,6 +502,96 @@ class Abstraction(unittest.TestCase):
         self.assertLess(held.applied[0].rows, node.B + 1)
 
 
+class HoldStrategy(unittest.TestCase):
+    """street_strategy and hold_strategy: a whole street of one player's play, combo by combo, from one solve laid on
+    another (scripts/benchmarks/abstraction.py's measure of the flop abstraction)."""
+    F = cards("Kd7c2h")
+    O, I = parse_range("KQs,76s,65s,22"), parse_range("QQ,AKs,A2s")
+    POT, STACK = 6.0, 9.0      # (the stack under two bets: the turn and river end in all-ins, a small tree)
+    BUCKETS = dict(turn_classes=True, n_turns=3, n_rivers_from_flop=3, leaf_turns=3, leaf_rivers_flop=3,
+                   turn_buckets=True, river_buckets=4, later_sizes=None)
+
+    def exact_flop(self, locks=(), seed=None, iters=200):
+        return solve_locked(self.F, self.O, self.I, self.POT, self.STACK, list(locks), cfg=exact(bets=(0.5,)),
+                            time_budget=1e9, max_iters=iters, seed=seed)
+
+    def abstract_flop(self, iters=200):
+        cfg = Config(**{**dict(bet_sizes={s: [0.5] for s in STREETS}, raise_sizes={s: [] for s in STREETS},
+                               max_raises=0, allin_spr=0.0), **self.BUCKETS})
+        return solve(self.F, self.O, self.I, self.POT, self.STACK, cfg=cfg, time_budget=1e9, max_iters=iters)
+
+    def held(self, source, p, iters=200):
+        info = {}
+
+        def seed(root, s):
+            info["cells"] = nl.hold_strategy(s, nl.street_strategy(source, p), p)
+
+        sol = self.exact_flop(seed=seed, iters=iters)
+        return sol, info["cells"]
+
+    def test_the_street_has_every_decision_of_the_player_and_no_more(self):
+        sol = self.exact_flop(iters=2)
+        for p in (0, 1):
+            got = nl.street_strategy(sol, p)
+            want = {line for line, q, _ in nl.lines(sol.root) if q == p and "*" not in line}
+            self.assertEqual(set(got), want)
+            for names, s in got.values():
+                self.assertEqual(s.shape, (len(names), 1326))
+                on = s.sum(axis=0) > 0
+                self.assertTrue(np.allclose(s.sum(axis=0)[on], 1.0, atol=1e-5))
+                self.assertEqual(int(on.sum()), sol.ctx.n)
+
+    def test_holding_an_equilibrium_moves_no_value(self):
+        free = self.exact_flop(iters=400)
+        v = free.measure()["value"]
+        for p in (0, 1):
+            sol, cells = self.held(free, p, iters=400)
+            m = sol.measure()
+            self.assertGreater(cells, 0)
+            self.assertAlmostEqual(m["value"][p], v[p], delta=0.003 * self.POT)
+            self.assertLess(m["exploitability_pct"], 0.3)
+
+    def test_the_held_mix_comes_back_combo_by_combo(self):
+        src = self.abstract_flop(iters=50)
+        want = nl.street_strategy(src, 0)
+        sol, _ = self.held(src, 0, iters=30)
+        got = nl.street_strategy(sol, 0)
+        for line, (names, s) in want.items():
+            on = s.sum(axis=0) > 0
+            self.assertTrue(np.allclose(got[line][1][:, on], s[:, on], atol=1e-6), line)
+
+    def test_a_held_player_cant_gain_and_its_opponent_cant_lose(self):
+        """With one player's flop fixed at another game's answer, that player's restricted-game value is at most its
+        equilibrium value, and the other's at least theirs (a zero-sum game: a restriction can only cost its player)."""
+        free = self.exact_flop(iters=400).measure()["value"]
+        src = self.abstract_flop()
+        tol = 0.003 * self.POT
+        for p in (0, 1):
+            m = self.held(src, p, iters=400)[0].measure()
+            self.assertLessEqual(m["value"][p], free[p] + tol)
+            self.assertGreaterEqual(m["value"][1 - p], free[1 - p] - tol)
+            self.assertLess(m["exploitability_pct"], 0.3)
+
+    def test_a_missing_or_different_decision_is_refused(self):
+        src = nl.street_strategy(self.exact_flop(iters=2), 0)
+        line = next(iter(src))
+        short = {k: v for k, v in src.items() if k != line}
+        with self.assertRaisesRegex(LockError, "no strategy given"):
+            self.exact_flop(seed=lambda root, s: nl.hold_strategy(s, short, 0), iters=1)
+        names, s = src[line]
+        renamed = {**src, line: (list(reversed(names)), s)}
+        with self.assertRaisesRegex(LockError, "aren't the tree's"):
+            self.exact_flop(seed=lambda root, s: nl.hold_strategy(s, renamed, 0), iters=1)
+        extra = {**src, ("bet 999%",): (names, s)}
+        with self.assertRaisesRegex(LockError, "not a decision"):
+            self.exact_flop(seed=lambda root, s: nl.hold_strategy(s, extra, 0), iters=1)
+
+    def test_it_wont_hold_over_another_lock(self):
+        src = nl.street_strategy(self.exact_flop(iters=2), 0)
+        with self.assertRaisesRegex(LockError, "already locked"):
+            self.exact_flop([Lock((), 0, {"check": 1.0})], seed=lambda root, s: nl.hold_strategy(s, src, 0), iters=1)
+
+
 class RiverClasses(unittest.TestCase):
     def solve(self, locks):
         return solve_locked(TURN, T_OOP, T_IP, 20.0, 40.0, locks, cfg=exact(river_classes=True), time_budget=1e9, max_iters=3)
@@ -517,6 +607,70 @@ class RiverClasses(unittest.TestCase):
     def test_a_hand_above_them_is_honoured_and_noted(self):
         sol = self.solve([Lock((), 0, [1.0, 0.0], {"classes": ["KQs"]})])
         self.assertRegex(sol.applied[0].notes[-1], "symmetric")
+
+
+class OneStreetBack(unittest.TestCase):
+    """lift, runout_token and street_moves: a later street's lock held from an earlier root, so the earlier street
+    re-solves around it (engine/study_lock.py reach "back"). The reference for the value is nodelock_bench.py's
+    turn-merged cases (a river lock held from the turn's root, against an LP: within 0.05% of the pot); here, on an
+    exact flop small enough for seconds, what must hold whatever the lock: the restricted game is solved (exploitability
+    under 0.3% of the pot), the lock can cost only its player (0.3% of the pot), and the flop moves."""
+    F = cards("Kd7c2h")
+    O, I = parse_range("KQs,76s,65s,22"), parse_range("QQ,AKs,A2s")
+    POT, STACK = 6.0, 9.0
+
+    def flop(self, locks=(), iters=400, **more):
+        return solve_locked(self.F, self.O, self.I, self.POT, self.STACK, list(locks), cfg=exact(bets=(0.5,), **more),
+                            time_budget=1e9, max_iters=iters)
+
+    def test_lift_puts_the_earlier_line_in_front(self):
+        lk = Lock(("As", "check"), 1, {"check": 1.0}, {"classes": ["QQ"]})
+        up = nl.lift(lk, ("check", "check"))
+        self.assertEqual(up.line, ("check", "check", "As", "check"))
+        self.assertEqual((up.player, up.mix, up.hands), (1, lk.mix, lk.hands))
+
+    def test_a_dealt_card_is_its_own_token(self):
+        sol = self.flop(iters=1)
+        self.assertEqual(nl.runout_token(sol, ("check", "check"), card("As")), ("As", []))
+        with self.assertRaisesRegex(LockError, "doesn't end where a card is dealt"):
+            nl.runout_token(sol, ("check",), card("As"))
+        with self.assertRaisesRegex(LockError, "no action"):
+            nl.runout_token(sol, ("bet 999%",), card("As"))
+
+    def test_a_card_of_a_class_is_its_played_card_with_a_note(self):
+        sol = self.flop(iters=1, turn_classes=True)
+        classes = sol.ctx.turn_classes(self.F, sol.solver.dead)
+        played, members = next((p, c) for p, c in classes if len(c) > 1)
+        other = next(c for c in members if c != played)
+        token, notes = nl.runout_token(sol, ("check", "check"), other)
+        self.assertEqual(token, card_str(played))
+        self.assertRegex(notes[0], f"{card_str(other)} is played as {card_str(played)}")
+        self.assertEqual(nl.runout_token(sol, ("check", "check"), played), (card_str(played), []))
+
+    def test_a_turn_lock_moves_the_flop_and_the_flop_is_solved_around_it(self):
+        free = self.flop()
+        # OOP never bets the turn after the flop goes check-check, on every turn card
+        held = self.flop([Lock(("check", "check", "*"), 0, {"check": 1.0})])
+        m, v = held.measure(), free.measure()["value"]
+        tol = 0.003 * self.POT
+        self.assertLess(m["exploitability_pct"], 0.3)
+        self.assertLessEqual(m["value"][0], v[0] + tol)
+        self.assertGreaterEqual(m["value"][1], v[1] - tol)
+        moves = nl.street_moves(free, held)
+        self.assertEqual({tuple(x["line"]) for x in moves}, {(), ("check",), ("bet 50%",), ("bet 50%", "all-in"),
+                                                              ("check", "bet 50%"), ("check", "bet 50%", "all-in")})
+        for x in moves:
+            for mix in (x["unlocked"], x["locked"]):
+                if mix is not None:
+                    self.assertAlmostEqual(sum(mix), 1.0, delta=1e-5)
+        root = next(x for x in moves if x["line"] == [])
+        self.assertEqual(root["share"], [1.0, 1.0])
+        # IP, checked to, takes the free card more or bets more: something on the flop moves by a point or more
+        self.assertGreater(max(x["moved"] or 0 for x in moves), 1.0, moves)
+
+    def test_an_empty_lock_moves_nothing(self):
+        a, b = self.flop(iters=200), self.flop(iters=200)
+        self.assertTrue(all((x["moved"] or 0) < 1e-6 for x in nl.street_moves(a, b)))
 
 
 if __name__ == "__main__":

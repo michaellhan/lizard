@@ -6,11 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { pct } from "@/components/actions";
 import { NodeLockError, type SolverClient } from "@/solver/client";
-import type { AdvisorResponse, NodeLockChange, NodeLockAnswer, NodeLockProgress } from "@/solver/protocol";
+import type { AdvisorResponse, NodeLockChange, NodeLockAnswer, NodeLockEarlier, NodeLockProgress } from "@/solver/protocol";
 import { SolverError, type SolveMode, type SolveResult } from "@/solver/types";
 import { asKept, keptFor, keptOf, sameLock, useKeptLocks } from "./keptLocks";
 import { holesOf } from "./LockPanel";
-import { actionRows, combosNamed, costWords, exploitWords, handsOf, memoryNote, mixOf, nodeActions, nodeLockRefusal, scopeNote, startingMix, unlockedProvenance, valueRows, type LockScope } from "./nodeLock";
+import { actionRows, combosNamed, costWords, exploitWords, handsOf, memoryNote, mixOf, nodeActions, nodeLockRefusal, reachBack, scopeNote, startingMix, unlockedProvenance, valueRows, type LockScope } from "./nodeLock";
 import { studyRequest, type StudyHand } from "./studyState";
 
 type Run =
@@ -78,6 +78,9 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
   const drop = useKeptLocks((k) => k.drop);
   const street = res.street ?? "";
   const kept = keptFor(allKept, street, hand.board);
+  const [backAsked, setBack] = useState(false);
+  const back = reachBack(res.street, scope, kept.length);
+  const fromBack = backAsked && !!back && !back.blocked;
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -91,7 +94,7 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
       const client = await getSolver();
       const result = await client.nodeLock(
         studyRequest(hand),
-        { mix, hands, expect: { actor, actions }, ...(kept.length ? { also: kept.map(asKept) } : {}) },
+        fromBack ? { mix, hands, expect: { actor, actions }, reach: "back" } : { mix, hands, expect: { actor, actions }, ...(kept.length ? { also: kept.map(asKept) } : {}) },
         { mode, signal: ac.signal, onProgress: (progress) => setRun({ kind: "running", progress }) },
       );
       setRun({ kind: "done", result });
@@ -150,6 +153,15 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
           {kind === "combo" && !cls && <span className="text-xs text-muted">(select a class)</span>}
           {named !== null && <span className="text-xs text-muted">{named === 1 ? "1 combo" : `${named} combos`} named; the rest of the range stays free</span>}
         </fieldset>
+        {back && (
+          <div className="space-y-0.5">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={fromBack} disabled={!!back.blocked} onChange={(e) => setBack(e.target.checked)} />
+              Hold it from the {back.from}, so the {back.from} reacts
+            </label>
+            <p className="text-xs text-muted">{back.blocked ?? `Approximate: that tree plays the ${street} more coarsely.`}</p>
+          </div>
+        )}
         {note && <p className="text-xs text-muted">{note}</p>}
         {heavy && <p className="text-xs text-muted">{heavy}</p>}
         {problems.length > 0 && (
@@ -203,7 +215,7 @@ function LockForm({ hand, res, cls, mode, getSolver }: NodeLockPanelProps) {
   );
 }
 
-function Mixes({ c }: { c: NodeLockChange }) {
+function Mixes({ c }: { c: Pick<NodeLockChange, "actions" | "unlocked" | "locked"> }) {
   return (
     <table className="text-xs">
       <thead>
@@ -225,6 +237,40 @@ function Mixes({ c }: { c: NodeLockChange }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function Earlier({ n }: { n: NodeLockAnswer["node_lock"] }) {
+  const e = n.earlier;
+  if (!e) return null;
+  const at = (x: NodeLockEarlier) => `${x.seat} ${x.line.length ? `after ${x.line.join(", ")}` : "first"}`;
+  return (
+    <div className="space-y-2 text-xs">
+      <p className="text-muted">
+        The {e.street} with the lock on, on this hand&apos;s line (held after {n.line.join(", ")}):
+      </p>
+      {e.on_line.map((x) => (
+        <div key={x.line.join(">")}>
+          <p className="text-muted">{at(x)}</p>
+          <Mixes c={x} />
+        </div>
+      ))}
+      {e.moved.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-muted">Elsewhere on the {e.street}, what moved most</summary>
+          <div className="mt-1 space-y-2">
+            {e.moved.map((x) => (
+              <div key={x.line.join(">")}>
+                <p className="text-muted">
+                  {at(x)}: {x.moved!.toFixed(1)} points (reached by {pct(x.share[0])} of {x.seat}&apos;s range unlocked, {pct(x.share[1])} locked)
+                </p>
+                <Mixes c={x} />
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -300,6 +346,7 @@ function LockResult({ result, stored, street, board }: { result: SolveResult<Nod
         <span className="text-muted">Lock cost: </span>
         {costWords(n)}
       </p>
+      <Earlier n={n} />
       {others.length > 0 && (
         <details className="text-xs">
           <summary className="cursor-pointer text-muted">The decisions around it</summary>

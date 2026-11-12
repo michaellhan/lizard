@@ -276,8 +276,8 @@ describe("StudyPage", () => {
 
     // a link edited by hand past the limits: said, and nothing asked
     const asked = stub.asked.length;
-    renderAt("p=2&s=100&sz.flop=10%2C20%2C30%2C40&rake=40");
-    expect(await screen.findByRole("alert")).toHaveTextContent("This setup can't be solved: at most 3 flop bet sizes (each one multiplies the game tree); the rake must be 0–25% of the pot.");
+    renderAt("p=2&s=100&sz.flop=10%2C20%2C30%2C40%2C50%2C60&rake=40");
+    expect(await screen.findByRole("alert")).toHaveTextContent("This setup can't be solved: at most 5 flop bet sizes (each one multiplies the game tree); the rake must be 0–25% of the pot.");
     expect(within(screen.getByLabelText("Setup")).getByRole("link", { name: "Edit setup" })).toBeInTheDocument();
     expect(stub.asked.length).toBe(asked);
   });

@@ -48,6 +48,13 @@ const EDITS = [
     from: "sys.path.insert(0, '/app'); from gto.advisor import Advisor;",
     to: "sys.path.insert(0, '/app'); import engine.pf_stored; from gto.advisor import Advisor;",
   },
+  {
+    // engine/tree_depth.py: a request's `raises` (1-4 a street) and `max_cells` (this device's tree cap, at most
+    // tree_depth.BROWSER_MAX here) for its heads-up solves; a request without them is upstream's. Last, and anchored on
+    // the Advisor's import alone, so other imports chained on the pf_stored line above stay in front of it.
+    from: "from gto.advisor import Advisor;",
+    to: "import engine.tree_depth; from gto.advisor import Advisor;",
+  },
 ];
 
 export function editWorker(source) {

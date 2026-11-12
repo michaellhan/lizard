@@ -343,7 +343,7 @@ describe("AnalyzePage", () => {
     expect(answer).toHaveTextContent("Mistake0.12bb lost (2.2% of the pot)");
     expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("bet 75%43%3.12bb");
     expect(answer).toHaveTextContent("In the hand you played bet 1.8");
-    expect(answer).toHaveTextContent("From Precomputed solution · srp_btn_bb.");
+    expect(answer).toHaveTextContent("From Precomputed solution · srp_btn_bb · this flop model gave up 0.6% pot on average, up to 2.1%, against the full game on 3 narrow test spots.");
     expect(within(answer).getByRole("link", { name: "Open in Study" }).getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax$/);
     const handHref = within(answer).getByRole("link", { name: "Open the hand" }).getAttribute("href")!;
     expect([...new URLSearchParams(handHref.split("?")[1])]).toEqual([["pos", "BTN"], ["drill", "spot:SRP · IP · checked to"], ["hand", "PokerStars|249012345678|AhQd"]]);

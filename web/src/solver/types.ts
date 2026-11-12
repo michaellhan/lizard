@@ -72,6 +72,11 @@ export interface Provenance {
   exploit?: string;
   /** automatic sizing's answer (features/study/autoSize.ts): its bet sizes chosen by a first solve; in words */
   sizing?: string;
+  /** the tree a heads-up solve was asked to build, where the request set it (engine/tree_depth.py: a raise cap, this
+   * device's cap in cells); in words */
+  tree?: string;
+  /** a heads-up flop answer: what its flop model gave up in the full game on the benchmark's spots (abstraction.ts) */
+  abstraction?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */
   mbbPerHand?: number;
   /** a Quick triage read: how far it can be trusted */

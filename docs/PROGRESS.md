@@ -4981,3 +4981,25 @@ unchanged; Tournaments shares Solve's change. PLO's form was long: its two range
 solver's target and time budget share the Solve button's row (their limits are the fields' titles), so the button is
 at about 580px rather than at the fold. UI only: tsc, eslint, `vitest run src/features/plo` 24 passed; checked in the
 browser (no sideways scroll). Builds left alone.
+
+## 2026-11-11: Postflop depth (branch claude/postflop-depth-185a1a)
+
+From the parent session's brief: closer to GTO Wizard AI's postflop depth, in three steps, each behind its own label.
+
+- **Abstraction error measured** (`scripts/benchmarks/abstraction.py`, ACCURACY section 21). Each flop model's flop
+  was held combo by combo in the exact game, with the rest re-solved, on 3 narrow spots. Fast gave up 1.9% of the pot
+  on average (up to 4.9%), Accurate 1.9% (5.4%) and the library model 0.6% (2.1%). Their own badges read 0.005–0.5%,
+  and the control gave up 0.001%. Most of the cost is the river played by strength without its card. A heads-up flop
+  answer from Fast, Accurate or the library now says so in its provenance (`web/src/solver/abstraction.ts`).
+- **Bigger trees** (`engine/tree_depth.py`, a build-time edit declared in `solver/UPSTREAM.json`; ACCURACY section 22).
+  Up to 5 sizes and a raise cap of 1–4 a street on the Solve page, heads-up. A Tree size setting offers Phone 12M,
+  Standard 24M or Large 32M cells (64M natively). Peak memory is 47 MB plus 33 bytes a turn cell, natively. A turn
+  with 5 sizes and 2 or more raises passes every browser cap and is cut to fit.
+- **Earlier streets react to a later lock** (`engine/nodelock.py` `lift`, `runout_token`, `street_moves`;
+  `study_lock.py` `reach_back`; ACCURACY section 16). A turn or river lock can be held from the street before, which
+  re-solves around it. The answer is labelled approximate and covers the whole range only.
+- Tests: Python `test_tree_depth.py`, `test_study_lock.py` and `test_nodelock.py`, 110 passed (through slot.sh), and
+  `pyodide.test.mjs` (21). Web: the whole suite (188 files, 3,521 tests), plus tsc and eslint. The controls were
+  checked in the browser on a local build, without a solve.
+- Not done: the browser's own memory peak, real-range abstraction spots, and multiway trees. Not pushed or deployed.
+  The gtosolver builds were left alone: everything heavy went through slot.sh.

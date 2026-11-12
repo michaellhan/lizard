@@ -82,7 +82,7 @@ describe("readScenario", () => {
       withOpts({ rakeCap: -1 }),
       withOpts({ straddle: 1 }),
       withOpts({ sizes: { flop: [1] } }),
-      withOpts({ sizes: { flop: [25, 33, 50, 75] } }),
+      withOpts({ sizes: { flop: [20, 25, 33, 50, 75, 100] } }),
       withOpts({ sizes: { flop: "33" } }),
       withOpts({ sizes: { preflop: [33] } }),
       withOpts({ pot: "srp", board: { suits: "rainbowish" } }),

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Link } from "react-router";
+import { capWords, TREE_CAPS, type TreeCap } from "@/solver/treeDepth";
 import { useSettings } from "@/state/settings";
 import { ModePicker } from "@/features/study/ModePicker";
 
@@ -17,6 +18,17 @@ export function SettingsPage() {
         <legend className="font-medium">Solve accuracy</legend>
         <ModePicker />
         <p className="text-xs text-muted">Study runs Quick at Fast. Library flops are instant.</p>
+        <label className="flex items-center gap-2 text-sm">
+          Tree size
+          <select aria-label="Tree size" className="rounded border border-border bg-surface-2 px-2 py-1" value={s.treeCap} onChange={(e) => s.set({ treeCap: e.target.value as TreeCap })}>
+            {(Object.keys(TREE_CAPS) as TreeCap[]).map((c) => (
+              <option key={c} value={c}>
+                {TREE_CAPS[c].label}: {capWords(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-muted">A bigger tree is cut to fit.</p>
       </fieldset>
 
       <fieldset className="space-y-2 panel p-4">
