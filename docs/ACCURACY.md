@@ -810,8 +810,31 @@ The wasm core and the native one differ in thread timing, not in what they compu
 | Spots larger than the benchmark's | The LP's largest spots are small, so app-sized ranges have no reference, only the engine's own measure |
 | Rake | One note in the answer. No value under rake was compared; the LP needs zero-sum payoffs |
 | Accurate mode | Its node mapping is tested, and one turn was locked at Accurate by hand. None runs in the tests, and no flop has been locked at Accurate |
-| Earlier streets | They don't react. Ranges enter the street as the unlocked hand left them, so this is a lock of one street down, not of the whole hand |
+| Earlier streets | By default they don't react: ranges enter the street as the unlocked hand left them. "Hold it from the flop / turn" (below) lets the street before react, in that street's coarser tree. Two streets back (a river lock moving the flop) isn't offered |
 | An Accurate flop lock's memory | The baseline stays in memory to be compared, so two solves sit side by side. Accurate flop heaps can reach about 590 MB alone, so an estimated 1.2 GB; left unmeasured with the machine under 40% free, and the panel says so |
+
+**One street back (2026-11-11).** A turn or river node can be held from the street before (`engine/study_lock.py` `reach_back`, "Hold it from the flop" or "from the turn" in Study's panel). The lock goes into the solve of the street before, whose tree has that node below a chance node. Its line from this street's root is lifted under that street's line and the card's token (`engine/nodelock.py` `lift`, `runout_token`). That street then re-solves around it as every node above a lock does, so the ranges entering this street react. The engine core is the one the LP checks above: nodelock_bench's `turn-merged`, `turn-merged-both-lines`, `turn-merged-every-river`, `turn-merged-ip-folds`, `turn-river-all-runouts` and `turn-river-combo-runout` each hold a river lock in a solve rooted at the turn, and all pass within 0.05% of the pot (they moved value by 0.008% to 5.7% of the pot).
+
+What's new is the tree it's held in. The street before plays this street more coarsely than this street's own solve does: a flop's tree has the turn by card class with one size (75%), and hands from the turn on by bucket. So:
+
+- only a whole-range lock is taken;
+- a card of a class is held as its class's played card, with a note;
+- a mix on an action that tree hasn't got is refused, with that tree's actions given back.
+
+The answer is labelled approximate and "that tree's numbers". On an exact flop (`scripts/engine/test_nodelock.py` `OneStreetBack`: `Kd7c2h`, 22 and three suited hands against QQ, AKs and A2s, pot 6, stack 9, every card dealt) at 400 iterations, OOP was held never betting the turn after a check-check, on every turn card:
+
+| | Unlocked | Turn lock held from the flop |
+|---|---|---|
+| OOP's value, bb | 0.5762 | 0.5427 (−0.56% of the pot) |
+| Exploitability, % pot | 0.048 | 0.031 in the restricted game |
+| OOP's flop check | 46.4% | 39.3% |
+| IP's flop bet after a check | 24.9% | 43.3% |
+| IP facing a flop bet: call, all-in | 49.0%, 21.5% | 33.5%, 35.3% |
+| Lock cost to OOP | | 0.80 bb |
+
+The test holds what must hold whatever the lock: the restricted game solved to under 0.3% of the pot, the held player not gaining and the other not losing beyond 0.3% of the pot, and the flop moving by more than a point. Through Study at Fast (`scripts/engine/test_study_lock.py` `ReachBack`), BB's turn lead held at 100% from the flop moved BB's flop check from 91.7% to 100% and BTN's check behind from 27.5% to 22%, at 0.09% of the pot in the restricted game. That is one run at Fast's budget: in the full test suite, under load, the
+same lock moved the flop by 0.35 points, so the test checks only that the flop moves and that the moves are reported
+consistently. No reference covers the coarse trees themselves (section 21 has what the flop's abstraction costs).
 
 **Not established.** Agreement on 31 small cases is evidence about these code paths, not a proof. It says the restricted game is solved correctly in exact mode, not that a held mix is a good model of any player.
 
@@ -1085,3 +1108,142 @@ because a share is a count across a line: a group of hands that sit near 80% can
 runouts did no better: 540 of them, at three times the time, were off by 0.35 on average and 4.4 at most. Every runout would
 take about 2.5 s a flop, about 19 hours on one core over the library, so the step keeps Study's sample and the page states the
 error. A small lead may be no lead. This sample of flops is small, and no flop's share has been checked by a second engine.
+
+## 21. Flop abstraction error (2026-11-11)
+
+A live flop solve doesn't play the game it is asked about. Below the flop it plays the turn by rank class, the turn and
+river by hand bucket, and the river cards by sample (docs/research/03 §2.5). The exploitability on its badge is
+measured inside that smaller game. `scripts/benchmarks/abstraction.py` measures what the badge can't see, in the way
+upstream measured its library against an outside solver, but with Lizard's exact mode (section 14) as the full game:
+
+1. solve the spot in one of the app's flop models, natively, to its own iterations (Fast 400, Accurate 1,000, the
+   library 300);
+2. solve the same spot and menu exactly, with every turn and river dealt per combo, for 1,000 iterations;
+3. for each player, solve the exact game again with that player's every flop decision held, combo by combo, at the
+   model's mix (`engine/nodelock.py` `hold_strategy`), and everything after the flop re-solved, that player's own
+   later play included.
+
+**Given up** is the player's value in step 2 minus their value in step 3, in % of the pot. It is the EV the model's
+flop strategy loses against every card dealt when both players play the turn and river perfectly afterwards. As a
+control, the exact solve's own flop held the same way (`exact-self`) must give up nothing beyond convergence.
+
+**The models.** Fast and Accurate are the browser's (`solver/gto/static/worker.js`). Fast plays the turn by rank class
+and the turn and river by 32 hand buckets, over every third river. Accurate uses 64 buckets over every river. The
+library model is `flop_library.library_config`: the turn by rank class per combo, the river dealt, and 64 buckets on
+each card. Three variants show which part costs what: Fast with 8 buckets (`fast-k8`), and one part alone with the rest
+exact, either the turn classes (`turn-classes`) or the river by 32 strength buckets without its card (`river-strength`).
+
+**The spots.** The ranges are narrow on purpose, because the exact game holds every turn and river per combo at about 34 bytes
+a cell: about 30 combos a player, 24M to 28M cells and 830 to 950 MB a solve. The flop menu is 33/75% with a 50% raise
+and one raise a street. The turn and river play one size, 75%, which is the menu every live flop solve plays below the
+flop (`Config.later_sizes`), so what's measured is the card and hand abstraction, not a smaller menu.
+
+| Spot | Board | Pot, stack | Ranges |
+|---|---|---|---|
+| `srp-K72` | Ks7d2c | 5.5, 97.5 | 77, 22, K9s, QJs, JTs, 98s, 65s / AA, KK, AKs, KQs, QQ, A5s |
+| `srp-JT8` | JdTd8c | 5.5, 97.5 | 88, T9s, 97s, Q9s, AdXd, 65s / AA, JJ, AJs, KQs, 98s, KdQd, A5s |
+| `3bp-AJ3` | AhJd3c | 20, 80 | AA, KK, AKs, AQs, A5s, KQs, 76s / AJo (half), QJs, JTs, TT, 33, KJs |
+
+**Measured [M]**, `results/abstraction.json`, native, one thread, through `slot.sh`. Given up is in % of the pot, OOP
+then IP. "Own game" is the figure the model's badge would show. The exact solves were 0.019% to 0.087% from
+equilibrium, and 0.009% to 0.074% with a flop held.
+
+| Model | K72 own game | K72 given up | JT8 own game | JT8 given up | AJ3 own game | AJ3 given up |
+|---|---|---|---|---|---|---|
+| exact-self (control) | 0.087 | 0.001, 0.000 | 0.029 | 0.000, 0.000 | 0.019 | 0.000, 0.000 |
+| Fast | 0.036 | 2.17, 2.25 | 0.031 | 1.00, 4.85 | 0.069 | 0.64, 0.22 |
+| Accurate | 0.005 | 2.23, 2.33 | 0.006 | 0.78, 5.41 | 0.027 | 0.47, 0.26 |
+| Library | 0.499 | 0.25, 0.34 | 0.143 | 0.48, 2.14 | 0.113 | 0.09, 0.12 |
+| Fast at 8 buckets | 0.116 | 1.72, 0.88 | 0.040 | 2.13, 5.41 | 0.068 | 1.84, 1.16 |
+| Turn classes alone | 0.096 | 0.26, 0.25 | 0.029 | 0.15, 0.02 | 0.022 | 0.09, 0.13 |
+| River strength alone | 0.005 | 2.39, 1.62 | 0.007 | 0.38, 2.10 | 0.010 | 1.22, 2.14 |
+
+Over the six player-spots, Fast gave up 1.85% of the pot on average and 4.85% at most. Accurate gave up 1.91% and
+5.41%, and the library model 0.57% and 2.14%. Their own badges read 0.005% to 0.5%. The largest flop frequency gaps
+against the exact solve, per spot and model, were 24 to 75 points on one decision's action, range-wide.
+
+**What it shows.**
+
+- **The badge understates the distance from the full game.** It does so by one to three orders of magnitude, on every
+  spot and model. The control gives up nothing (0.001% at most), so the gap is the abstraction, not the method.
+- **Accurate is no closer than Fast.** Its extra buckets and iterations bring its own-game figure to 0.005%, but the
+  full-game cost stays the same or grows: its game is solved better, not made closer to the full one.
+- **The library model is 3 to 8 times closer** than either browser model, though its own figure is the largest of the
+  three. It keeps the river card and buckets on each card.
+- **Most of the cost is the river abstraction,** in particular playing the river by strength without its card. That
+  variant alone gave up up to 2.4%; the turn classes alone at most 0.26%. The parts don't add up to the whole:
+  equilibria aren't unique, and errors from different parts can cancel.
+- **Fewer buckets isn't consistently worse.** Fast at 8 buckets gave up less than Fast on K72 for IP, and more on AJ3.
+  These ranges put one or two combos in a bucket, so bucket count isn't what limits the models here.
+
+**Surfaced.** Since this measures the answers people see, a heads-up flop answer from the browser's Fast or Accurate
+(live, or a node lock on it) or from the flop library carries it in its provenance, beside its own figure
+(`web/src/solver/abstraction.ts`): "this flop model gave up 1.9% pot on average, up to 4.9%, against the full game on 3
+narrow test spots". It isn't put on Quick, a local server's solves (their configs are the server's own), turns, rivers,
+multiway pots or tournament spots, none of which were measured. The band and the approximate flag are unchanged: they
+describe convergence in the solved game, which the figure beside them still is.
+
+**Not established.**
+
+| Not covered | Why it matters |
+|---|---|
+| Real ranges | 30 combos a player, not 500 to 600. With real ranges a bucket holds 10 to 20 combos where here it holds one or two, which could push the cost either way; the 8-bucket variant didn't move it one way consistently |
+| Bigger menus | One raise a street, two flop sizes; the turn and river at one size in both games |
+| More spots | Three boards. JT8, the wet board, cost most; a spread over many boards would need a faster exact game |
+| The browser | Native, compiled core. The browser runs the same configs on the wasm core, which section 16 found to agree with native |
+| Turns | A turn solve deals every river per combo and buckets nothing on the turn itself; only river classes were measured here (section 16's river-class lock notes) |
+
+The solves took about 1.2 hours of one core through `slot.sh`: 1 to 3 minutes a held solve, 830 to 950 MB, and up to
+990 MB for the library model's own solve on JT8.
+
+## 22. Bigger heads-up trees (2026-11-11)
+
+The Solve page offers up to 5 bet and 5 raise sizes a street and a raise cap of 1 to 4 bets and raises a street.
+Settings offers a tree cap: Phone 12M, Standard 24M (upstream's `MAX_CELLS`) or Large 32M cells; native runs allow
+up to 64M (`engine/tree_depth.py`, `web/src/solver/treeDepth.ts`). These apply to heads-up solves only. A tree past
+the cap is cut to fit by upstream's `TRIMS`: fewer sizes, then fewer raises, with a note saying so. On a turn or river,
+upstream also caps the tree by what the mode's time allows (`advisor.py` `_cells_cap`), so on a slow device a bigger
+cap helps only where that time allows.
+
+**Cells [M].** `scripts/benchmarks/tree_depth.py cells` counted them by walking the tree, with no arrays built. The
+setup: BTN open against a BB defence, 594 and 574 combos, at the worker's Fast config; Accurate's turns and rivers are
+the same trees, and its flops are a little larger. The menus are the same each street: `app` is 33/75% with a 50%
+raise; `3x3` is 33/75/125% with 50/100/200% raises; `5x3` is 25/33/50/75/125% with those raises; `5x5` also adds
+33/50/75% raises. Millions of cells at a raise cap of 1, 2, 3 and 4:
+
+| Root | app | 3x3 | 5x3 | 5x5 |
+|---|---|---|---|---|
+| Flop `Ks7d2c`, pot 5.5 | 0.1, 0.4, 0.6, 0.6 | 0.2, 0.9, 1.5, 1.8 | 0.3, 1.6, 2.8, 3.4 | 0.3, 2.4, 6.9, 14.3 |
+| Turn `Ks7d2c5h`, pot 11 | 1.3, 4.2, 6.2, 6.5 | 2.8, 12.4, 17.7, 18.0 | 7.0, 39.1, 54.7, 55.6 | 7.0, 91.4, 200.7, 250.7 |
+| River `Ks7d2c5h9s`, pot 22 | under 0.05 at every cap | 0.0, 0.1, 0.1, 0.1 | 0.0, 0.1, 0.1, 0.1 | 0.0, 0.2, 0.3, 0.4 |
+
+The turn is where the cap binds, because a turn solve deals every river per combo. A flop solve plays the turn and
+river at one size by bucket (`Config.later_sizes`), so even its largest menu stays under Phone's cap. On a turn:
+
+- 3 sizes and 3 raises (17.7M) fit Standard;
+- 5 sizes at 2 raises (39M) pass every browser cap and are cut;
+- 5x5 at 4 raises (251M) passes even the native 64M.
+
+The raise cap counts the bet: at 2, a bet and a raise; after that, the player facing a bet may only fold, call or go
+all-in. That is the engine's `Config.max_raises`, and the page's words say it the same way.
+
+**Memory [M].** `tree_depth.py memory` solved each tree briefly in a process of its own, natively on one thread, and
+read its peak resident memory. For turns, from 2.8M to 17.7M cells (136 to 602 MB), the peak fits 47 MB plus 33 bytes
+a cell. That gives about 424 MB at Phone's 12M, 801 MB at Standard's 24M and 1,052 MB at Large's 32M. A flop's cell costs
+more, about 51 bytes (772 MB for the 14.3M-cell 5x5 flop at 4 raises), but no flop menu the page allows builds past
+19M. Upstream notes that Pyodide's heap ran about 10% under native on the same tree (`advisor.py`, above `MAX_CELLS`),
+so these figures are the high end for the browser. The worker's heap is 2 GB, shared with the solves it keeps; before a
+solve bigger than the room left, `engine/tree_depth.py` evicts kept solves to make room (`_make_room`).
+`web/src/solver/treeDepth.ts` shows these figures in Settings ("12M cells, up to ~0.4 GB").
+
+**Not established.**
+
+- **A browser's own peak.** It wasn't measured in a browser, and a phone's tab may be killed before the worker's heap
+  fills. Standard is the default on every device; Phone is offered for small ones, not set from a measured limit.
+- **Time.** The cap is in cells, and a turn or river solve's time cap still applies (`_cells_cap`), so a slow device may
+  solve a smaller tree than its cap allows. How long a Large tree takes to converge in the browser wasn't measured.
+- **Accuracy at depth.** Bigger menus aren't compared against an outside solver here. They are the same engine on a
+  bigger tree, with its exploitability measured in that tree as before.
+
+The Solve page's controls (the raise cap and up to 5 sizes) and the Settings tree cap were checked in the browser on
+2026-11-11, on a local build without a solve.
