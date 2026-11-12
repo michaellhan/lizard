@@ -12,7 +12,7 @@ import { RangeMatrix } from "@/components/RangeMatrix";
 import { cellWays, GRADE_WAYS, sourcesText, WAY_HEADS, wayFigures } from "@/features/history/history";
 import { whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
-import { behind, legal, type Sim } from "@/poker/table";
+import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
 import type { GetClient } from "@/features/review/retry";
 import { describe as describeProvenance, evUnit, sourceLabel } from "@/solver/provenance";
 import type { Provenance, StopCost } from "@/solver/types";
@@ -24,7 +24,7 @@ import { exploitNote } from "./exploit";
 const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
 import { pfWords } from "./pfGrade";
 import { CopyForAi, Kbd, MixTable, REVEAL_NOTE } from "./HintReveal";
-import { chipsAfter, optionLabel, runEnd, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
+import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
 import { mistakes, recent, type Reviewed } from "./review";
 import { LEVEL_HANDS, leftOf, levelOf } from "./tournamentPlay";
 import { sessionUnit, type Kept, type PracticeSession } from "./session";
@@ -589,5 +589,41 @@ export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; on
         {cell && cell.w < 0.999 && <span className="text-muted"> · {pct(cell.w)} of its combos in the range</span>}
       </p>
     </details>
+  );
+}
+
+/** The hand so far, a street a line, under the seats: who folded, called, bet and raised, and to how much. Preflop, the folds
+ * before anyone came in are one phrase ("UTG, HJ, CO fold"). */
+export function HandLine({ hand }: { hand: PracticeHand }) {
+  const say = (m: Move) => sayMove(m, hand.hero, hand.players) + (m.to !== undefined ? "bb" : "");
+  const out = [0, 3, 4, 5];
+  const movesOf = (ms: Move[], st: string): string[] => {
+    if (st !== "preflop") return ms.map(say);
+    const lead = ms.findIndex((m) => m.action !== "fold");
+    const folds = ms.slice(0, lead < 0 ? ms.length : lead);
+    const who = folds.map((m) => (m.pos === hand.hero ? "you" : seatLabel(m.pos, hand.players)));
+    const head = !folds.length ? [] : folds.length === 1 ? [say(folds[0]!)] : [`${who.join(", ")} fold`];
+    return [...head, ...ms.slice(folds.length).map(say)];
+  };
+  const rows = STREETS.filter((_, i) => hand.shown >= out[i]!)
+    .map((st, i) => ({
+      st,
+      // (the street's own cards: the flop's three, then one each)
+      cards: hand.board.slice(i <= 1 ? 0 : out[i - 1], out[i]).join(" "),
+      moves: movesOf(hand.lines[st], st),
+    }))
+    .filter((r) => r.moves.length);
+  if (!rows.length) return null;
+  return (
+    <ol aria-label="Actions so far" className="space-y-0.5 text-sm">
+      {rows.map((r) => (
+        <li key={r.st}>
+          <span className="text-muted capitalize">{r.st}</span>
+          {r.cards && <span className="font-mono text-muted"> {r.cards}</span>}
+          <span className="text-muted">: </span>
+          {r.moves.join(", ")}
+        </li>
+      ))}
+    </ol>
   );
 }

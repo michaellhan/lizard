@@ -24,7 +24,7 @@ import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
-import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, useHandKeys } from "./PracticeParts";
+import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLine, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, useHandKeys } from "./PracticeParts";
 import { gradedOn, optionsAt } from "./pfGrade";
 import { isNextKey, optionFromKey } from "./keys";
 import { KeysHelp } from "./KeysHelp";
@@ -424,6 +424,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
               <SeatView key={p} hand={hand} sim={sim} p={p} />
             ))}
           </ul>
+          <HandLine hand={hand} />
           {hand.stacks && !hand.tournament && <Carried hand={hand} sim={sim} onReset={() => room.nextHand(true)} />}
           {hand.tournament && playsOn(session.opts) && <PlayedOut hand={hand} sim={sim} onRestart={() => room.nextHand(true)} />}
         </section>
