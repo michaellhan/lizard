@@ -232,7 +232,7 @@ the honest one for flops.
 | 6-max 100bb charts (`gto/preflop.py`) | Hand-written ranges "approximations of solver outputs" (`preflop.py:3`), tuned to published aggregate frequencies (gtopreflop.com, the GTO Wizard blog, Poker Academy and others; `tests/preflop_refs.py:1-20`) [V] | 0.96 points mean over 26 spots (`README.md:4547-4551`) [M]. Squeezes, 4-bet responses and cold calls vs 3-bets have one published figure each; 5-bets and limped pots have none and are judgement [M] |
 | Other formats (`pf_formats.py`) | The 100bb charts shifted by deltas from solves of the abstract preflop game | Approximate. About a point of noise per decision; antes solved only at 20/40/100bb; straddle 6-handed only (`README.md:4566-4577`) [M] |
 | Push/fold (≤ 12 bb raising first in; under 20 bb generally) | Fictitious play over 169 classes (`pf_classes.py:65`) [V] | An equilibrium of a jam-or-fold model; callers treated alike and independently [V] |
-| Preflop solve (Study, and Practice's and Analyze's preflop by choice, sections 18-18.3; stored for 110 games) | DCFR over the abstract preflop game (`pf_game.py`) | About 1.5 mbb/hand in its own game [V]; 2.4-3.0 points from published spots; opens tighter in places (UTG 14.8% vs the charts' 18.7%) [M] |
+| Preflop solve (Study, and Practice's and Analyze's preflop by choice, sections 18-18.4; stored for 110 games) | Lizard's preflop solver since 2026-11-11 (`engine/pf_solve.py`): DCFR over the abstract preflop game, upstream's class-level model with flop values calibrated to published solves, each seat's own stack, 2 to 9 players (section 18.4) | About 1.5 mbb/hand in its own game [V]; 2.37 points from the published 6-max 100bb spots, 2.51 held out (upstream's model: 2.85 at the same rake, its shipped file 2.99); opens still tight (UTG 15.8% vs published 18.3%) [M] |
 | Rake, pool (exploit) adjustments | Rules on top of the charts | Fitted to one published raked solve, or to public population data plus judgement (`README.md:4578-4579; pool: `README.md:1529``) [M] |
 
 Five `@expectedFailure` tests (`tests/test_gto.py:2797-2932`) document that the equity-realization models disagree
@@ -1087,6 +1087,133 @@ Heads-up first in is 78.4% without the sizes because the small blind's chart ope
 badge's 1.03 mbb/hand matching `4max_40bb.bin`'s and not the 6-max file's (`web/e2e/qa.e2e.ts` 7j). The other 106 are checked
 natively, by the file test and the coverage runs above. Raked games' coverage wasn't measured separately (at 6-max 100bb it
 matched the unraked game's to the decimal).
+
+### 18.4 Lizard's preflop solver: calibrated flop values, own stacks, 7 to 9 players (2026-11-11)
+
+Every preflop solve request (Study's Solver source, and Practice's and Analyze's grade by the preflop solve) now goes to
+`engine/pf_solve.py` instead of upstream's `Advisor._study_pf`. This is a build-time edit of the worker, declared in
+`solver/UPSTREAM.json`; `solver/` is untouched. A tournament's request (payouts or bounties) still goes to the Advisor,
+which refuses it as before. The solver is still a class-level model: the same 169 classes, the same DCFR, and flops
+valued by a realization model, not solved. It differs from upstream's in three ways.
+
+1. **Calibrated flop values** (`engine/pf_model.py`). Upstream's library model gives each heads-up flop's share of the
+   pot per class pair. On top of that, ten corrections are fitted per pot type:
+   - a constant share moved between aggressor and caller (in or out of position);
+   - a scale on the edge over all-in equity;
+   - the river correction's weight in single-raised and 3bet pots.
+
+   The fit is to the published 6-max 100bb solves in `solver/tests/preflop_refs.py`: the 26 certain spots, at their rake
+   of 5% capped at 4bb. The method is one-at-a-time perturbations (11 solves), a ridge-regularised Gauss-Newton step,
+   and a verifying solve at the result (`scripts/pf/calibrate.py`; its 18 runs in `scripts/pf/calib_runs.jsonl`). The parameters and what they were measured at are in
+   `engine/pf_calib.py`, which is generated. With the default parameters, the model is upstream's exactly
+   (`scripts/engine/test_pf_engine.py`).
+2. **Each seat's own stack** (`engine/pf_engine.py`):
+   - a raise is capped at the deepest stack still able to call it;
+   - a shorter stack calls all-in for less;
+   - pots are split into layers (main, side, an uncalled excess back to its owner);
+   - each heads-up flop is valued at its effective depth.
+
+   With every stack equal, the tree and every terminal value are pf_game's (tested to 1e-9). A heads-up game is zero-sum
+   to the chip. A seat covered by everyone plays exactly the game at its own depth.
+3. **7 to 9 players.** At most two players see a flop, and nobody cold 4bets or cold-calls a 3bet. That keeps 9-handed
+   at 4,795 nodes (6-max upstream: 11,010) and about 70 s to its target natively. Answers there say so (`pf_limits`, in
+   the provenance line).
+
+The payoff is pluggable (`pf_engine.ChipPayoff`; a nonlinear payoff gets exact side-pot handling), for an ICM payoff
+later. Nothing here uses one.
+
+**Against the published solves [M].** These are `pf_equilibrium.report`'s mean absolute error, in points, over every
+published action of the 26 certain spots, as section 6 and docs/research/03 §4 measure it. Spots out means outside
+their tolerance. The 15 hand facts were never fitted. Every row is solved for 700 iterations, except the two stored files
+(1,500).
+
+| Model | Rake | Mean error | Spots out | Hand facts off |
+|---|---|---:|---:|---:|
+| Upstream's, stored file as shipped (`6max_100bb_r5c3`) | 5% cap 3bb | 2.99 | 16 / 26 | 12 / 15 |
+| Upstream's, solved at the references' rake | 5% cap 4bb | 2.85 | 16 / 26 | 11 / 15 |
+| **Calibrated (adopted)** | 5% cap 4bb | **2.37** | **14 / 26** | **10 / 15** |
+| Calibrated, stored file as shipped (`lz1_6max_100bb_r5c3`, 1,500 iterations) | 5% cap 3bb | 2.49 | 13 / 26 | 10 / 15 |
+| Calibrated, held out (each half of the spots scored in the solve fitted on the other half) | 5% cap 4bb | 2.51 | 13 / 26 | — |
+| Preflop charts (`gto/preflop.py`, for comparison) | 5% cap 4bb | 0.96 | — | — |
+
+By kind of spot, upstream's model → calibrated:
+- opens: 4.54 → 3.52 points (6 of 7 out either way);
+- facing an open: 1.87 → 1.57 (5 → 4 out);
+- facing a 3bet: 3.42 → 2.91 (5 → 4 out).
+
+The largest moves:
+- BTN opens 36.7% → 40.8% (published 43.7%);
+- BB facing the SB's open calls 26.6% → 35.4% (33.8%) and 3bets 24.2% → 19.2% (16.2%);
+- CO facing the BTN's 3bet calls 11.9% → 18.2% (16.9%);
+- SB facing the BB's 3bet calls 14.7% → 19.7% (21.4%).
+
+One hand fact came in: UTG opens AJo/KQo (67% → 100%). None went out. UTG's 44 moved 34% → 75%, still short of the
+95%+ wanted.
+
+What it doesn't fix:
+- Opens are still 3–4 points tight from UTG to CO.
+- Openers still 4bet too much against a 3bet.
+- The facts that need a mixed hand stay pure (A5o 3bets, Ax 4bet bluffs, 22 from UTG, A4o on the BTN). A class-level
+  model with one value a class pair plays those pure.
+
+The held-out error is the honest figure: about a third of a point better than upstream's model, not a solve's accuracy.
+The charts stay closer to the published solves (0.96), so the charts stay the default everywhere. The Solver source is
+still offered and still labelled approximate.
+
+**Tried and not adopted.** Valuing classes outside a library spot's range by a smooth fit of the range's own values
+(`ext`, in place of upstream's measured model joined at the range's edge). It fixes the BTN's A2o (100% → 0%) and cuts
+spots out from 16 to 12. But the mean error stays at 2.85 points, and it breaks three facts that held (BB calls A2s,
+UTG flats QQ facing a 3bet, BB 3bets JJ+). The code stays (`Params.ext`, off).
+
+**Not measured.**
+- Every reference is 6-max 100bb. The corrections are applied unchanged at other depths and table sizes, on top of
+  upstream's depth factors (`pf_study.DEPTH_SCALE`, fitted at 20, 40, 100 and 200bb).
+- Nothing measures the unequal-stack or 7–9 player games against a fuller solve. They are the same model on a correct
+  tree, nothing more.
+- A sanity check, not a reference: heads-up 100bb, the SB raises 60.5% and limps 36.8% (upstream's model: 49.6% and
+  48.6%), and the BB facing a 2.5bb open folds 27.2%.
+
+**The stored grid.** It holds the same 110 games as section 18.3 (2 to 6 players; 20 to 200bb; equal stacks; no rake
+or 5% capped at 3bb), rebuilt with this model by `scripts/pf/build_stored.py --engine` into `engine/pf/lz1_*.bin`. The
+lines are logged in `engine/pf/lz1_built.jsonl`. The build took 63 minutes of one core through the shared slot.
+
+Each file stores the strategy as the page reads it, quantized, with its exploitability in the header:
+
+| Players | Games | mbb/hand a seat | Longest build |
+|---|---:|---|---:|
+| 2 | 22 | 0.04 to 0.22 | 1 s |
+| 3 | 22 | 0.04 to 1.03 | 4 s |
+| 4 | 22 | 0.08 to 1.60 | 20 s |
+| 5 | 22 | 0.13 to 1.65 | 84 s |
+| 6 | 22 | 0.15 to 1.50 | 422 s |
+
+The grid is 110 files, 1.18 MB. Six games were over the 1.5 mbb target at 1,500 iterations: 40bb at 4, 5 and 6
+players, 5-max 50bb, and 6-max 150 and 200bb. They were re-solved at 3,000 iterations (`engine/pf_solve.STORED_ITERS_OF`;
+a stored solve says that count). Four came under the target. 4-max and 5-max 40bb level off at 1.60 and 1.65 mbb.
+Unquantized it is the same: 1.69, 1.65 and 1.60 at 750, 1,500 and 3,000 iterations, so quantization isn't the cause. A
+live solve stops these by its stall rule too. Their headers carry the figure shown.
+
+Unraked, the shipped 6-max 100bb file scores 7.79 points against upstream's 7.06 (23 and 25 spots out). The references
+are raked (5% capped at 4bb), so the calibration was fitted to the raked game; an unraked game is measured only against
+them, and there it is further off. No unraked references are in the repo.
+
+Upstream's 108 files (`engine/pf_stored.py`) stay in the repo and the worker still loads their list. Nothing asks for
+them now, because every chip-game preflop request goes to `engine/pf_solve.py`. They can go once the ICM work no longer
+needs `pf_study`'s stored path.
+
+The old and new files are not two answers to one game: the keys differ (`lz1_` prefix), so a browser's cache
+(`lizard-pf`), a grade's stamp and the site's `pf/` never mix them. The bundle's version hashes every file, so this is
+a new version.
+
+**Checked in a browser** (local dev server, 2026-11-11), Study's Solver source:
+- **3 players, BTN 40 / SB 18 / BB 60bb.** Upstream refused unequal stacks. Offered as about 5 s; solved to 2,000
+  iterations at 0.22 mbb/hand. The BTN opens 33.3%. The SB facing the open goes all-in 19.0%, calls 4.5% and folds
+  76.5%.
+- **9 players, 100bb.** Offered as about 2 minutes; solved to 500 iterations at 1.10 mbb/hand in about 80 s. UTG opens
+  9.0%. The line states the tree's limits.
+
+Nothing else was clicked through: Practice's and Analyze's grade use the same request, and their own e2e steps weren't
+re-run.
 
 ## 19. Nut advantage on Reports (2026-11-06)
 
