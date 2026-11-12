@@ -584,7 +584,7 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
   expect(bySolve).toBeGreaterThan(0);
   await expect(page.getByRole("region", { name: "Last decision" }).getByText(/not a full solve/).first()).toBeVisible();
   // (that game's file and no other: never the 6-max one read as if it were this game)
-  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["4max_40bb.bin"]);
+  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz1_4max_40bb.bin"]);
   await clean(page, problems);
 });
 
@@ -592,11 +592,11 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
 // is graded by the stored solve of that very game where one is stored and by the charts where none is (each under its own
 // name), a decision after the flop is graded too, and only that game's preflop file is read.
 const FORMATS = [
-  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "6max_100bb_r5c3.bin" },
+  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz1_6max_100bb_r5c3.bin" },
   { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
-  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "3max_25bb.bin" },
+  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz1_3max_25bb.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
-  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "2max_200bb.bin" },
+  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz1_2max_200bb.bin" },
   { name: "deep, 6 players at 250bb, past the stored depths", players: "6", stack: "250", file: null },
 ] as const;
 for (const f of FORMATS) {
