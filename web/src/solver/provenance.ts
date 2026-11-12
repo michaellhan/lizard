@@ -191,8 +191,13 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
 function preflopSolveOf(r: AdvisorResponse, p: Provenance): void {
   const st = (typeof r.pf_solve === "object" && r.pf_solve ? r.pf_solve : {}) as { mbb?: unknown; done?: unknown; stored?: unknown; cached?: unknown };
   if (typeof st.mbb === "number") p.mbbPerHand = st.mbb;
-  if (st.cached) p.view = "solved earlier in this browser";
-  else if (st.stored) p.view = "precomputed";
+  // Lizard's preflop solver (engine/pf_solve.py) names its model and, past 6 players, the tree's limits; upstream's names neither
+  const view: string[] = [];
+  if (typeof r.pf_model === "string") view.push(`${r.pf_model}: flop values fitted to published 6-max 100bb solves, still approximate`);
+  if (typeof r.pf_limits === "string") view.push(r.pf_limits);
+  if (st.cached) view.push("solved earlier in this browser");
+  else if (st.stored) view.push("precomputed");
+  if (view.length) p.view = view.join(", ");
   if (r.study !== "node") return;
   if (!st.done) {
     p.approximate = true;

@@ -48,6 +48,18 @@ const EDITS = [
     from: "sys.path.insert(0, '/app'); from gto.advisor import Advisor;",
     to: "sys.path.insert(0, '/app'); import engine.pf_stored; from gto.advisor import Advisor;",
   },
+  {
+    // The preflop solve (Study's Solver source, Practice's and Analyze's "grade by the preflop solve": a request with
+    // state.study and state.preflop_solve and no board) goes to Lizard's preflop solver (engine/pf_solve.py: each seat's
+    // own stack, 2 to 9 players, the calibrated flop model), which keeps Advisor._study_pf's protocol. A tournament's
+    // (payouts or bounties) stays Advisor's. After the nodelock edit above, whose branch it goes before.
+    from: `+ "        if st.get('nodelock') and not pl:\\n"`,
+    to:
+      `+ "        if st.get('study') and st.get('preflop_solve') and not pl and not str(st.get('board') or '') and not st.get('payouts') and not st.get('bounties'):\\n"\n` +
+      `             + "            from engine.pf_solve import answer as pf_answer\\n"\n` +
+      `             + "            return json.dumps(pf_answer(adv, st))\\n"\n` +
+      `             + "        if st.get('nodelock') and not pl:\\n"`,
+  },
 ];
 
 export function editWorker(source) {

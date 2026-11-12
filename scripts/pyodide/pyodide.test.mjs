@@ -161,6 +161,20 @@ test("the published worker sends a node lock to engine/, before the advice and i
   assert.match(worker, /py\.globals\.set\("post_partial", \(s\) => postMessage\(\{ id: CUR, partial: JSON\.parse\(s\) \}\)\);/);
 });
 
+test("the published worker sends the preflop solve to engine/pf_solve.py, a tournament's to the advice", () => {
+  const worker = editWorker(upstream);
+  const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
+  const at = (s) => {
+    assert.ok(body.includes(s), `answer() has no ${s}`);
+    return body.indexOf(s);
+  };
+  const gate = "if st.get('study') and st.get('preflop_solve') and not pl and not str(st.get('board') or '') and not st.get('payouts') and not st.get('bounties'):";
+  assert.ok(at("    try:") < at(gate));
+  assert.ok(at(gate) < at("from engine.pf_solve import answer as pf_answer"));
+  assert.ok(at("return json.dumps(pf_answer(adv, st))") < at("if st.get('nodelock') and not pl:"));
+  assert.ok(at("adv.advise(st)") < at("except Cancelled:"));
+});
+
 test("the published worker sends an opponent's move with a read to engine/, and one without it to Advisor.play", () => {
   const worker = editWorker(upstream);
   const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
