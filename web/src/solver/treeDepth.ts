@@ -15,9 +15,10 @@ export type TreeCap = "phone" | "standard" | "large";
 /** The engine's own cap (solver/gto/advisor.py MAX_CELLS): sent as nothing. */
 export const ENGINE_CELLS = 24_000_000;
 
-/** Measured by scripts/benchmarks/tree_depth.py memory (native, one thread): MB at a solve's peak for a tree of
- * that many cells, base + cells x bytes. */
-export const TREE_MEMORY = { baseMb: 120, bytesPerCell: 27 };
+/** Measured by scripts/benchmarks/tree_depth.py memory (native, one thread, 2026-11-11): MB at a solve's peak for a
+ * turn's tree of that many cells, base + cells x bytes (2.8M to 17.7M cells: 136 to 602 MB). A flop's cell costs more
+ * (14.3M cells, 772 MB), but no flop menu the page allows builds past 19M. */
+export const TREE_MEMORY = { baseMb: 47, bytesPerCell: 33 };
 
 export const peakMb = (cells: number) => Math.round(TREE_MEMORY.baseMb + (cells * TREE_MEMORY.bytesPerCell) / 2 ** 20);
 

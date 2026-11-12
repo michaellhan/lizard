@@ -12,8 +12,9 @@ until it fits. A request can now ask for:
   cap is cut to the device's cap like any other tree, and the answer's note says how (Advisor._trim_note).
 - "max_cells": the most cells a new tree may have, clamped to CAPS for where it runs: the browser's worker has a
   2 GB heap that also holds the solves kept for reuse (worker.js cache_mb 700), so it goes no higher than
-  BROWSER_MAX; natively NATIVE_MAX. A cell costs 20-27 bytes at a solve's peak (advisor.py, above MAX_CELLS; measured
-  again here: scripts/benchmarks/tree_depth.py).
+  BROWSER_MAX; natively NATIVE_MAX. A turn's cell costs 33 bytes at a solve's peak, natively, on top of
+  about 47 MB (scripts/benchmarks/tree_depth.py: 801 MB at 24M, 1,052 MB at 32M); a flop's about 51, but no flop menu
+  the page allows builds past 19M. Pyodide's heap ran ~10% under native (advisor.py, above MAX_CELLS).
 
 Neither changes the multiway solves, preflop, or a flop library answer (the library's trees are stored with their own
 raise cap, flop_library.tree_key, so a different cap is solved live). The answer says what it was asked under
@@ -34,7 +35,8 @@ RAISES_MIN, RAISES_MAX = 1, 4
 CELLS_MIN = 2_000_000
 BROWSER_MAX = 32_000_000
 NATIVE_MAX = 64_000_000
-BYTES_PER_CELL = 27   # a cell at a solve's peak, the high end (advisor.py above MAX_CELLS; scripts/benchmarks/tree_depth.py)
+BYTES_PER_CELL = 33   # a turn's cell at a solve's peak, natively (scripts/benchmarks/tree_depth.py memory, 2026-11-11): the
+                      # trees past MAX_CELLS are turns, a flop's tree staying under it
 
 
 def cells_max() -> int:

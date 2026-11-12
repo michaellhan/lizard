@@ -81,7 +81,7 @@ class Cache(unittest.TestCase):
         self.assertEqual(td._make_room(a, 32_000_000), 0, "natively nothing goes")
         with mock.patch.object(td.sys, "platform", "emscripten"):
             self.assertEqual(td._make_room(a, MAX_CELLS), 0, "nor at upstream's cap")
-            # 8M cells more at BYTES_PER_CELL: ~206 MB, so ~494 MB may stay: the oldest (300) goes
+            # 8M cells more at BYTES_PER_CELL: ~252 MB, so ~448 MB may stay: the oldest (300) goes
             self.assertEqual(td._make_room(a, 32_000_000), 1)
         self.assertEqual(sorted(a._cache), [1, 2])
         self.assertNotIn(("spot", 0), a._by_spot)
