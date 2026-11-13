@@ -552,7 +552,8 @@ describe("a Practice hand of a stored tournament spot", () => {
     const ko = keptHand("Sit & go bubble", { format: "ko", seats: { CO: 10, BTN: 10, SB: 10, BB: 10 }, field: 10 });
     expect(pfOut(ko.rec, ko.replayed)).toMatch(/stored only for these spots.*final-table set/);
     const old = keptHand("Sit & go bubble");
-    const { tournament: _t, ...setup } = old.rec.setup!;
+    const setup = { ...old.rec.setup! };
+    delete setup.tournament;
     expect(pfOut({ ...old.rec, setup }, old.replayed)).toMatch(/aren't kept with this hand/);
   });
 });

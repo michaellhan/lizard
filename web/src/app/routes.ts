@@ -64,7 +64,7 @@ export const GRADES: Record<string, Grade> = {
   "Convergence display": "WORKING",
   ICM: "PARTIAL",
   "MTT / final table": "WORKING",
-  Satellites: "APPROXIMATE",
+  Satellites: "PARTIAL",
   "KO / PKO": "PARTIAL",
   "Mystery bounty": "PARTIAL",
   "Payout structures": "WORKING",
