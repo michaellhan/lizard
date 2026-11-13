@@ -1,4 +1,5 @@
-// Practice, in two tabs: full hands (here) and drills (DrillsPanel.tsx, one flop decision from the library).
+// Practice, in three tabs: full hands (here), drills (DrillsPanel.tsx, one flop decision from the library) and combos
+// (ComboQuiz.tsx, a combo-counting quiz: exact counts, no solver).
 // In full hands each opponent plays its actual hand: from the charts preflop, then from the solver's mix (Advisor.play), or
 // by betting rules on a flop or turn with five or more still in. Your options are the solver's actions at your spot, and
 // each decision is graded against its answer once you've acted (src/grading/grade.ts: by EV given up where the answer has
@@ -22,6 +23,7 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSolver } from "@/solver/useSolver";
 import { useSettings } from "@/state/settings";
 import { describeSetup } from "@/features/solve/setup";
+import { ComboQuiz } from "./ComboQuiz";
 import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
@@ -47,10 +49,11 @@ const OPPONENTS = "Opponents: charts preflop, then the solver\u2019s mix (rules 
 const OPPONENTS_STORED = "Opponents: the stored preflop solve\u2019s mix preflop (the charts off its tree), then the solver\u2019s mix (rules with 5+ in).";
 const opponentsOf = (o: { pfSolve?: boolean; tournament?: { model: string } }) => (o.pfSolve && o.tournament?.model === "icm" ? OPPONENTS_STORED : OPPONENTS);
 
-type Tab = "hands" | "drills";
+type Tab = "hands" | "drills" | "combos";
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: "hands", label: "Full hands" },
   { id: "drills", label: "Drills" },
+  { id: "combos", label: "Combos" },
 ];
 
 /** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). `pause`, `guard`:
@@ -72,17 +75,18 @@ export function PracticePage(props: { pace?: number; pause?: number; guard?: num
 
 function HoldemPractice({ pace = PACE, pause, guard }: { pace?: number; pause?: number; guard?: number }) {
   const [params, setParams] = useSearchParams();
-  const tab: Tab = params.get("tab") === "drills" ? "drills" : "hands";
+  const asked = params.get("tab");
+  const tab: Tab = asked === "drills" || asked === "combos" ? asked : "hands";
   // a hand under way is kept while you drill (its table is mounted once opened, and hidden)
   const [handsOpened, setHandsOpened] = useState(tab === "hands");
   const open = (t: Tab) => {
     if (t === "hands") setHandsOpened(true);
-    setParams(t === "hands" ? {} : { tab: "drills" });
+    setParams(t === "hands" ? {} : { tab: t });
   };
   const [help, setHelp] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
-  // the page's keys (keys.ts): D the other tab, ? the key list; Esc leaves a field, so the table's keys work again, or
-  // closes the list
+  // the page's keys (keys.ts): D between Full hands and Drills (from Combos, Full hands), ? the key list; Esc leaves a
+  // field, so the table's keys work again, or closes the list
   useHandKeys(true, (e) => {
     if (e.key === "?") setHelp((h) => !h);
     else if (e.key.toLowerCase() === "d") {
@@ -138,6 +142,11 @@ function HoldemPractice({ pace = PACE, pause, guard }: { pace?: number; pause?: 
       {tab === "drills" && (
         <div role="tabpanel" id="practice-panel-drills" aria-labelledby="practice-tab-drills">
           <DrillsPanel />
+        </div>
+      )}
+      {tab === "combos" && (
+        <div role="tabpanel" id="practice-panel-combos" aria-labelledby="practice-tab-combos">
+          <ComboQuiz active={!help} />
         </div>
       )}
     </div>

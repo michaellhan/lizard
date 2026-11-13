@@ -46,7 +46,7 @@ export const KEY_HELP: readonly KeyGroup[] = [
   {
     title: "Your move",
     rows: [
-      { keys: ["1", "–", "9"], what: "Your options, in the order shown" },
+      { keys: ["1", "–", "9"], what: "Your options, in the order shown (Combos: your answer, 1–4)" },
       { keys: ["F"], what: "Fold" },
       { keys: ["C", "X"], what: "Check or call" },
       { keys: ["R", "B"], what: "The smallest bet or raise" },
@@ -59,7 +59,7 @@ export const KEY_HELP: readonly KeyGroup[] = [
   {
     title: "After you act",
     rows: [
-      { keys: ["Enter", "Space", "N"], what: "Next hand (several tables: deal the finished ones)" },
+      { keys: ["Enter", "Space", "N"], what: "Next hand (several tables: deal the finished ones; Combos: next question)" },
       { keys: ["O"], what: "Run it out or show hands" },
       { keys: ["K"], what: "Keep the finished hand in Analyze" },
       { keys: ["G"], what: "Open or close the range grid of your last decision" },
@@ -70,7 +70,7 @@ export const KEY_HELP: readonly KeyGroup[] = [
     rows: [
       { keys: ["S"], what: "Several tables: go to the next one waiting for you" },
       { keys: ["E"], what: "Edit the game: open the setup and go to its first field" },
-      { keys: ["D"], what: "Switch between Full hands and Drills" },
+      { keys: ["D"], what: "Switch between Full hands and Drills (from Combos: Full hands)" },
       { keys: ["Esc"], what: "Leave a field, so these keys work again" },
       { keys: ["?"], what: "Show or hide this list" },
     ],

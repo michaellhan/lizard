@@ -587,7 +587,12 @@ describe("PracticePage", () => {
     expect(drills).toHaveFocus();
     await waitFor(() => expect(drills).toHaveAttribute("aria-selected", "true"));
     expect([hands.tabIndex, drills.tabIndex]).toEqual([-1, 0]);
+    const combos = screen.getByRole("tab", { name: "Combos" });
     fireEvent.keyDown(drills, { key: "ArrowRight" });
+    expect(combos).toHaveFocus();
+    await waitFor(() => expect(combos).toHaveAttribute("aria-selected", "true"));
+    expect([hands.tabIndex, drills.tabIndex, combos.tabIndex]).toEqual([-1, -1, 0]);
+    fireEvent.keyDown(combos, { key: "ArrowRight" });
     expect(hands).toHaveFocus();
     await waitFor(() => expect(hands).toHaveAttribute("aria-selected", "true"));
   });

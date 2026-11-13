@@ -5417,3 +5417,29 @@ subclass or call is unaffected. `solver/` is byte-identical; no new `UPSTREAM.js
 3-handed game under 1.5 mbb, opens by position, the switches, the chart-sized game, the memory estimate within 20% of
 the measured peaks; plus two protocol tests for `estimate_mb` and the browser's refusal). vitest `src/solver`,
 `src/features/study` and `pfGrade.test.ts` 584 passed. `scripts/pyodide/pyodide.test.mjs` 22/22. tsc and eslint clean.
+### 2026-11-13: combo-counting quiz (Practice's Combos tab)
+
+The owner asked what Flopsy (flopsy.io) offers and whether Lizard covers it. Flopsy is one product, a combo-counting
+quiz ($11.99 a month): your hand, a flop and a villain range, then "how many two pair combos?" with a few choices, the
+possible and blocked combos by category, and a stats page (success rate, streak, by category: correct, assisted,
+incorrect). Lizard had the counts as information (Study's breakdown and blockers panels) but no quiz, so it was built.
+
+- `web/src/features/practice/combos.ts`: exact counting, no solver. Each combo of the range is live, taken out by your
+  hand, or dead on the flop, in one of Flopsy's 12 categories (named by the hole cards' part, so a pocket pair on a
+  paired flop is a pocket pair, not two pair); weights count as fractions. Questions on what they can have or what
+  your hand takes out, four choices built from the slips players make (blockers or the flop forgotten). A record in kv
+  (`comboQuiz.v1`), like settings not in backups or sync.
+- `ComboQuiz.tsx`, the third Practice tab (`?tab=combos`): five sample ranges typed for the quiz and labelled so, your
+  saved ranges, or a typed one; the counts table openable first (the answer is then "helped"); the classes behind each
+  answer; keys 1-4 and N, folded into the existing key-list rows.
+- Feature matrix: a new Practice row, Combo-counting trainer, NOT IMPLEMENTED / WORKING (its GTO Wizard cell says it
+  comes from Flopsy); counts now 71 rows.
+- Tests: `combos.test.ts` (a 156-combo example worked by hand, flushes, paired flops, 300 seeded questions, the record)
+  and `ComboQuiz.test.tsx`, 18 passed; `vitest run src/features/practice src/app` 1,290 passed (the tab arrow-key test
+  now walks three tabs); tsc and eslint clean. Checked in Chromium (dev build) at 1280 px and 375 px: a question
+  answered (J♣J♥ on 3♥A♥9♦, no-pair combos your hand takes out: 18, re-counted by hand), the counts opened, no
+  horizontal scroll, no console errors from the page.
+- Not done: turn and river questions, draw categories, and Flopsy's endless-question account model (here every
+  question is dealt in the browser, free). Committed on its own (26b570a), without the other uncommitted work in the tree, then applied
+  alone on origin/main (1fedcd1) and pushed, which deployed it; the two docs' summary counts and log were merged by hand.
+  The precompute builds were left alone.
