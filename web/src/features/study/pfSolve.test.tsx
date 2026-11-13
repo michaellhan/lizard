@@ -134,6 +134,19 @@ describe("the preflop Solver source's state", () => {
     expect(samePf(h, freshHand(3, 50))).toEqual({ ...freshHand(3, 50), pf: "solver", pfSizes: { open: 2.2 } });
   });
 
+  it("lets the small blind complete as another game: sent apart from the sizes, in the link, and named", () => {
+    const six = withPf(freshHand(6, 100), "solver");
+    const h = withPfSizes(six, { open: 2.2, limp: true });
+    expect(studyRequest(h)).toMatchObject({ pf_sizes: { open: 2.2 }, pf_sb_limp: true });
+    expect(studyRequest(withPfSizes(six, { limp: true }))).not.toHaveProperty("pf_sizes");
+    expect(studyRequest(withPfSizes(six, { limp: true })).pf_sb_limp).toBe(true);
+    expect(pfGame(withPfSizes(six, { limp: true }))).not.toBe(pfGame(six));
+    expect(toSearch(h)).toContain("pfs=open%3A2.2%2Climp");
+    expect(fromSearch(toSearch(h))).toEqual(h);
+    expect(describePfSizes(h.pfSizes)).toBe("open 2.2bb, SB completes");
+    expect(tidyPfSizes({ limp: true })).toEqual({ limp: true });
+  });
+
   it("fills the bar toward the target from the last measure, else by iterations", () => {
     expect(pfFraction({ done: true, mbb: 9, target: 1.5, it: 100 })).toBe(1);
     expect(pfFraction({ done: false, mbb: 3, target: 1.5, it: 300 })).toBeCloseTo(Math.pow(0.5, 1 / 1.2));

@@ -37,11 +37,12 @@ export function PreflopSource({ value, onChange }: { value: PfSource; onChange: 
 
 /** The solve's raise sizes (classic study.js's game form): blank is the default; Apply makes it another game, which
  * the precomputed solves don't hold. */
-export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; onApply: (s: PfSizes | undefined) => void }) {
+export function PfSizesForm({ value, onApply, players }: { value: PfSizes | undefined; onApply: (s: PfSizes | undefined) => void; players: number }) {
   const [typed, setTyped] = useState<Record<PfSizeKey, string>>(
     () => Object.fromEntries(PF_SIZE_KEYS.map((k) => [k, value?.[k] !== undefined ? String(value[k]) : ""])) as Record<PfSizeKey, string>,
   );
-  const sizes: PfSizes = Object.fromEntries(PF_SIZE_KEYS.filter((k) => typed[k].trim()).map((k) => [k, Number(typed[k])]));
+  const [limp, setLimp] = useState(!!value?.limp);
+  const sizes: PfSizes = { ...Object.fromEntries(PF_SIZE_KEYS.filter((k) => typed[k].trim()).map((k) => [k, Number(typed[k])])), ...(limp && players > 2 ? { limp: true as const } : {}) };
   const problems = pfSizeProblems(sizes);
   const custom = describePfSizes(value);
   return (
@@ -80,6 +81,15 @@ export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; on
             );
           })}
         </div>
+        {players > 2 && (
+          <label className="flex items-start gap-2">
+            <input type="checkbox" checked={limp} onChange={(e) => setLimp(e.target.checked)} className="mt-1" />
+            <span>
+              The small blind may complete when it&rsquo;s folded to
+              <span className="block text-xs text-muted">The big blind then checks or raises to 3.5bb. Heads-up the small blind always may. Not with a straddle.</span>
+            </span>
+          </label>
+        )}
         {problems.length > 0 && (
           <ul role="alert" className="list-disc pl-5 text-xs text-danger">
             {problems.map((p) => (
@@ -95,7 +105,7 @@ export function PfSizesForm({ value, onApply }: { value: PfSizes | undefined; on
             Defaults
           </button>
         </div>
-        <p className="text-xs text-muted">Non-default sizes solve in your browser.</p>
+        <p className="text-xs text-muted">Non-default sizes, and the small blind&rsquo;s complete, solve in your browser.</p>
       </form>
     </details>
   );

@@ -63,6 +63,14 @@ class Spec:
     straddle: bool = False
     rake: Optional[Tuple[float, Optional[float]]] = None
     sizes: Tuple[Tuple[str, float], ...] = ()
+    # the small blind may complete when it's folded to (heads-up it always may, as upstream's game; 3 or more players
+    # only when asked, and never with a straddle, which pf_engine.build rules out)
+    sb_limp: bool = False
+
+    @property
+    def limps(self) -> bool:
+        """The small blind's complete is in the tree: heads-up always, else when asked (no straddle)."""
+        return self.players == 2 or (self.sb_limp and not self.straddle)
 
     @property
     def equal(self) -> bool:
@@ -89,6 +97,8 @@ class Spec:
             k += f"_r{self.rake[0] * 100:g}" + (f"c{self.rake[1]:g}" if self.rake[1] else "")
         for n, v in self.sizes:
             k += f"_{n}{v:g}"
+        if self.limps and self.players > 2:
+            k += "_l"
         return k
 
     def label(self) -> str:
@@ -106,6 +116,8 @@ class Spec:
         sz = self.sizes_obj()
         bits.append(f"opens {sz.open:g}bb (SB {sz.sb_open:g}), 3bets {sz.ip_3bet:g}x / {sz.blind_3bet:g}x from the blinds, "
                     f"4bets {sz.four_x:g}x")
+        if self.limps and self.players > 2:
+            bits.append(f"the small blind may complete when folded to (the big blind raises it to {sz.iso:g}bb)")
         if self.players > 6:
             bits.append("at most two see a flop, no cold 4bets")
         return ", ".join(bits)
@@ -123,7 +135,7 @@ class Spec:
     def build(self) -> Tuple[G.Node, List[str]]:
         pos = self.positions()
         root = E.build(pos, self.seat_stacks(), sizes=self.sizes_obj(), max_players=3 if self.players <= 6 else 2,
-                       ante=self.ante, straddle=self.straddle, sb_limp=self.players == 2, cold4=self.players <= 6)
+                       ante=self.ante, straddle=self.straddle, sb_limp=self.limps, cold4=self.players <= 6)
         return root, pos
 
     def game(self, payoff=None, model_params: Optional[M.Params] = None) -> E.Game:
@@ -190,7 +202,9 @@ def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
         if abs(v - getattr(G.Sizes(), k)) > 1e-9:
             sizes.append((k, v))
     stacks = (vals[0],) if len(set(vals)) == 1 else tuple(vals)
-    return Spec(n, stacks, round(ante, 4), straddle, (rate, cap) if rate > 0 else None, tuple(sizes)), None
+    # (asked for with a straddle, the complete is left out of the tree and of the key: pf_engine.build has none there)
+    sb_limp = bool(state.get("pf_sb_limp")) and n > 2 and not straddle
+    return Spec(n, stacks, round(ante, 4), straddle, (rate, cap) if rate > 0 else None, tuple(sizes), sb_limp), None
 
 
 # ----------------------------------------------------------------------------- the stored solves

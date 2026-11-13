@@ -5,7 +5,7 @@ import type { AdvisorAction, AdvisorActionStat, AdvisorResponse, AdvisorState } 
 import { kindOf } from "@/components/actions";
 import { parseCards } from "@/engine/nlhe/cards";
 import { setupFromParams, setupRequest, setupToParams, type SpotSetup } from "@/features/solve/setup";
-import { encodePfSizes, parsePfSizes, tidyPfSizes, type PfSizes } from "./pfSizes";
+import { encodePfSizes, parsePfSizes, pfSizesRequest, tidyPfSizes, type PfSizes } from "./pfSizes";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -48,7 +48,7 @@ export function studyRequest(h: StudyHand): AdvisorState {
     river: h.river,
     ...setupRequest(h.setup, h.players),
     study: true,
-    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...(h.pfSizes ? { pf_sizes: { ...h.pfSizes } } : {}) } : {}),
+    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...pfSizesRequest(h.pfSizes) } : {}),
   };
 }
 

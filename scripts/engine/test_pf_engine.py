@@ -112,6 +112,34 @@ class OwnStacks(unittest.TestCase):
         s = random_strategy(a)
         self.assertLess(float(np.abs(a.values(s) - b.values(s)).max()), 1e-9)
 
+    def test_small_blind_complete_when_asked(self):
+        # 3+ players: the small blind folded to may complete only when asked, not with a straddle; heads-up it always may
+        def sb_names(spec):
+            root, pos = spec.build()
+            nd = root
+            while nd.kind == "dec" and pos[nd.player] != "SB":
+                nd = nd.children[nd.names.index("fold")]
+            return nd.names
+        self.assertNotIn("call", sb_names(P.Spec(6, (100.0,))))
+        self.assertIn("call", sb_names(P.Spec(6, (100.0,), sb_limp=True)))
+        self.assertNotIn("call", sb_names(P.Spec(6, (100.0,), straddle=True, sb_limp=True)))
+        self.assertIn("call", sb_names(P.Spec(2, (100.0,))))
+        # its own game: its own key and label, and the request's flag reaches it (left out with a straddle, and heads-up)
+        on, _ = P.spec_of({"players": 6, "stack": 100, "pf_sb_limp": True})
+        self.assertTrue(on.key.endswith("_l"))
+        self.assertIn("may complete", on.label())
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100})[0].key, "lz1_6max_100bb")
+        self.assertFalse(P.spec_of({"players": 6, "stack": 100, "straddle": True, "pf_sb_limp": True})[0].key.endswith("_l"))
+        self.assertEqual(P.spec_of({"players": 2, "stack": 100, "pf_sb_limp": True})[0].key, "lz1_2max_100bb")
+        # after the complete the big blind checks or raises to Sizes.iso
+        root, pos = on.build()
+        nd = root
+        while pos[nd.player] != "SB":
+            nd = nd.children[nd.names.index("fold")]
+        bb = nd.children[nd.names.index("call")]
+        self.assertEqual(pos[bb.player], "BB")
+        self.assertIn("raise", bb.names)
+
     def test_nine_handed_tree_is_small(self):
         r = E.build(list(SEATS[9]), [100.0] * 9, max_players=2, cold4=False)
         self.assertLess(sum(1 for _ in G.walk(r)), 6000)
@@ -119,8 +147,8 @@ class OwnStacks(unittest.TestCase):
 
 class Converges(unittest.TestCase):
     def test_small_games_reach_target(self):
-        for n, stacks in ((2, [30, 100]), (3, [12, 40, 25]), (3, [100, 100, 100])):
-            spec = P.Spec(n, tuple(stacks))
+        for n, stacks, limp in ((2, [30, 100], False), (3, [12, 40, 25], False), (3, [100, 100, 100], False), (3, [40, 40, 40], True)):
+            spec = P.Spec(n, tuple(stacks), sb_limp=limp)
             g = spec.game()
             g.solve(1500)
             mbb = 1000 * sum(g.exploitability(per_seat=True)) / n
