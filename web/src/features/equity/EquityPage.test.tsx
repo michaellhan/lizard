@@ -1,5 +1,5 @@
 import { fireEvent, render as renderPage, screen, waitFor } from "@testing-library/react";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
@@ -90,13 +90,38 @@ describe("EquityPage", () => {
 
 describe("the initial bundle", () => {
   const src = join(__dirname, "..", "..");
-  const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)]));
 
-  it("holds no PLO code: nothing imports it but the route's dynamic import", () => {
-    const others = files(src).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !f.includes("/engine/plo/") && !f.includes("/features/equity/") && !f.includes("/features/plo/"));
-    expect(others.length).toBeGreaterThan(100);
-    const statics = others.filter((f) => /(from|import)\s+"[^"]*(engine\/plo|features\/equity|features\/plo)/.test(readFileSync(f, "utf8")));
-    expect(statics).toEqual([]);
+  it("holds no PLO code: nothing the first page loads statically reaches it", () => {
+    // Every file main.tsx reaches through static imports (`import ... from`, not `import()`), the initial bundle. PLO
+    // code (engine/plo, features/plo, features/equity) may only be reached through a dynamic import, as the routes and
+    // Study's and Practice's PLO panels are (lazy).
+    const resolve = (from: string, spec: string): string | null => {
+      const base = spec.startsWith("@/") ? join(src, spec.slice(2)) : spec.startsWith(".") ? join(from, "..", spec) : null;
+      if (!base) return null;
+      for (const f of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")]) {
+        try {
+          if (statSync(f).isFile()) return f;
+        } catch {
+          /* not this one */
+        }
+      }
+      return null;
+    };
+    const reached = new Set<string>();
+    const queue = [join(src, "main.tsx")];
+    while (queue.length) {
+      const f = queue.pop()!;
+      if (reached.has(f)) continue;
+      reached.add(f);
+      const text = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      for (const m of text.matchAll(/(?:^|[\s;])(?:import|export)\s+(?!type\b)(?:[^"';]*?\sfrom\s+)?"([^"]+)"/g)) {
+        const to = resolve(f, m[1]!);
+        if (to && /\.tsx?$/.test(to)) queue.push(to);
+      }
+    }
+    expect(reached.size).toBeGreaterThan(30);
+    const plo = [...reached].filter((f) => /\/(engine\/plo|features\/plo|features\/equity)\//.test(f));
+    expect(plo).toEqual([]);
     const app = readFileSync(join(src, "app", "App.tsx"), "utf8");
     expect(app).toMatch(/import\("@\/features\/equity\/EquityPage"\)/);
     expect(app).toMatch(/import\("@\/features\/plo\/PloRiverPage"\)/);

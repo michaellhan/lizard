@@ -237,7 +237,7 @@ function FlopWeights({ size }: { size: number }) {
         <div className="max-h-60 overflow-auto">
           <table className="text-left">
             <caption className="sr-only">The flops of the set</caption>
-            <thead className="sticky top-0 bg-surface-1 text-muted">
+            <thead className="sticky top-0 bg-surface text-muted">
               <tr>
                 <th className="pr-3 font-normal">Flop</th>
                 <th className="pr-3 font-normal">Texture</th>
