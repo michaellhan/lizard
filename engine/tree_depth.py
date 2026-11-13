@@ -103,37 +103,43 @@ def _make_room(adv, cap: int) -> int:
 _upstream = getattr(A.Advisor._advise_at, "upstream", A.Advisor._advise_at)   # (imported again: still upstream's)
 
 
-def _advise_at(self, state, *args, **kwargs):
-    try:
-        raises, cap = parse(state)
-    except ValueError as e:
-        return {"error": str(e)}
-    # (a cap higher than the last request's: the solves cut under that one are dropped, so this one solves the bigger tree)
-    now = cap if cap is not None else self.max_cells
-    if now and now > getattr(self, "_tree_cap", now):
-        _forget_cut(self, now)
-    self._tree_cap = now
-    if raises is None and cap is None:
-        return _upstream(self, state, *args, **kwargs)
-    saved = self.cfg, self.max_cells
-    try:
-        if raises is not None:
-            self.cfg = self.cfg.copy()
-            self.cfg.max_raises = raises
-        if cap is not None:
-            self.max_cells = cap
-            _make_room(self, cap)
-        res = _upstream(self, state, *args, **kwargs)
-    finally:
-        self.cfg, self.max_cells = saved
-    # (said only on a heads-up answer: a 3- or 4-way solve keeps its own menu and raise cap, multiway_solver.MWConfig)
-    if isinstance(res, dict) and "error" not in res and not res.get("multiway"):
-        res["tree"] = {**({"raises": raises} if raises is not None else {}),
-                       **({"max_cells": cap} if cap is not None else {})}
-    return res
+def _wrapping(upstream):
+    """Advisor._advise_at over `upstream`, held in this closure rather than a module global, so importing this module
+    again (importlib.reload) over another module's wrap can't turn the chain into a loop."""
+    def _advise_at(self, state, *args, **kwargs):
+        try:
+            raises, cap = parse(state)
+        except ValueError as e:
+            return {"error": str(e)}
+        # (a cap higher than the last request's: the solves cut under that one are dropped, so this one solves the bigger tree)
+        now = cap if cap is not None else self.max_cells
+        if now and now > getattr(self, "_tree_cap", now):
+            _forget_cut(self, now)
+        self._tree_cap = now
+        if raises is None and cap is None:
+            return upstream(self, state, *args, **kwargs)
+        saved = self.cfg, self.max_cells
+        try:
+            if raises is not None:
+                self.cfg = self.cfg.copy()
+                self.cfg.max_raises = raises
+            if cap is not None:
+                self.max_cells = cap
+                _make_room(self, cap)
+            res = upstream(self, state, *args, **kwargs)
+        finally:
+            self.cfg, self.max_cells = saved
+        # (said only on a heads-up answer: a 3- or 4-way solve keeps its own menu and raise cap, multiway_solver.MWConfig)
+        if isinstance(res, dict) and "error" not in res and not res.get("multiway"):
+            res["tree"] = {**({"raises": raises} if raises is not None else {}),
+                           **({"max_cells": cap} if cap is not None else {})}
+        return res
+
+    _advise_at.upstream = upstream
+    return _advise_at
 
 
-_advise_at.upstream = _upstream
+_advise_at = _wrapping(_upstream)
 
 
 def install() -> None:

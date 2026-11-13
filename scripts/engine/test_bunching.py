@@ -7,6 +7,7 @@ Small budgets: what's tested is which ranges a solve gets and what the answer sa
 Run: .venv/bin/python -m unittest scripts/engine/test_bunching.py   (pytest runs it too)
 """
 import itertools
+from types import SimpleNamespace
 import sys
 import unittest
 from pathlib import Path
@@ -330,6 +331,30 @@ class TheWrap(unittest.TestCase):
 
     def test_a_bad_value_is_an_error(self):
         self.assertIn("bunching must be", self.ask(PRE, bunching="lots")["error"])
+
+
+class ImportedAgain(unittest.TestCase):
+    """unittest discover runs this file before test_tree_depth.py, which reloads engine.tree_depth over bunching's wrap.
+    Each wrap holds its upstream in a closure, so no order of imports turns the chain into a loop."""
+
+    def test_reloads_in_any_order_keep_the_chain_finite(self):
+        import importlib
+        saved = A.Advisor._advise_at
+
+        def base(self, state, *args, **kwargs):
+            return {"base": True}
+
+        try:
+            A.Advisor._advise_at = base
+            importlib.reload(engine.tree_depth)
+            importlib.reload(B)
+            importlib.reload(engine.tree_depth)
+            importlib.reload(B)
+            res = A.Advisor._advise_at(SimpleNamespace(max_cells=None), {}, None, 0.0, None, None, [], {}, 100, {"preflop": []}, None, None,
+                                       None)
+            self.assertEqual(res, {"base": True})
+        finally:
+            A.Advisor._advise_at = saved
 
 
 if __name__ == "__main__":

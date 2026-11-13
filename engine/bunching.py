@@ -416,44 +416,50 @@ def _with_ranges(plan: Plan, line: List[dict]) -> Callable:
     return bunched
 
 
-def _advise_at(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes, custom, locks):
-    try:
-        asked = parse(state)
-    except ValueError as e:
-        return {"error": str(e)}
-    if asked is None or len(board) < 3:
-        return _upstream(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes, custom, locks)
-    preflop = streets["preflop"]
-    pool_except = hero if state.get("opponents") == "pool" else None
-    try:
-        plan = plan_for(state, asked, preflop, positions, stack, board, pool_except, locks)
-    except (Unavailable, ValueError) as e:
-        res = _upstream(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes, custom, locks)
-        if isinstance(res, dict) and "error" not in res:
-            res["bunching"] = {"off": str(e)}
-            res.setdefault("notes", []).append(f"bunching: off ({e})")
+def _wrapping(upstream):
+    """Advisor._advise_at over `upstream`, held in this closure rather than a module global, so importing this module
+    again (importlib.reload) over another module's wrap can't turn the chain into a loop."""
+    def _advise_at(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes, custom, locks):
+        try:
+            asked = parse(state)
+        except ValueError as e:
+            return {"error": str(e)}
+        if asked is None or len(board) < 3:
+            return upstream(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes, custom, locks)
+        preflop = streets["preflop"]
+        pool_except = hero if state.get("opponents") == "pool" else None
+        try:
+            plan = plan_for(state, asked, preflop, positions, stack, board, pool_except, locks)
+        except (Unavailable, ValueError) as e:
+            res = upstream(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes, custom, locks)
+            if isinstance(res, dict) and "error" not in res:
+                res["bunching"] = {"off": str(e)}
+                res.setdefault("notes", []).append(f"bunching: off ({e})")
+            return res
+        entering = dict(_upstream_ranges(preflop, positions, stack, pool_except, locks))
+        for p, r in (custom or {}).items():
+            if p in entering:
+                entering[p] = r
+        bunched_custom = {p: plan.weigh(r) for p, r in (custom or {}).items()}
+        saved = A.preflop_ranges, self.library, self.mw_library
+        A.preflop_ranges = _with_ranges(plan, preflop)
+        self.library = self.mw_library = None
+        try:
+            res = upstream(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes,
+                            bunched_custom, locks)
+        finally:
+            A.preflop_ranges, self.library, self.mw_library = saved
+        if isinstance(res, dict) and "error" not in res and "skipped" not in res:
+            info = plan.info(entering, board)
+            res["bunching"] = info
+            res.setdefault("notes", []).insert(0, note_of(info))
         return res
-    entering = dict(_upstream_ranges(preflop, positions, stack, pool_except, locks))
-    for p, r in (custom or {}).items():
-        if p in entering:
-            entering[p] = r
-    bunched_custom = {p: plan.weigh(r) for p, r in (custom or {}).items()}
-    saved = A.preflop_ranges, self.library, self.mw_library
-    A.preflop_ranges = _with_ranges(plan, preflop)
-    self.library = self.mw_library = None
-    try:
-        res = _upstream(self, state, actor, t0, hero, hole, board, positions, stack, streets, sizes,
-                        bunched_custom, locks)
-    finally:
-        A.preflop_ranges, self.library, self.mw_library = saved
-    if isinstance(res, dict) and "error" not in res and "skipped" not in res:
-        info = plan.info(entering, board)
-        res["bunching"] = info
-        res.setdefault("notes", []).insert(0, note_of(info))
-    return res
+
+    _advise_at.bunching_upstream = upstream
+    return _advise_at
 
 
-_advise_at.bunching_upstream = _upstream
+_advise_at = _wrapping(_upstream)
 
 
 def install() -> None:

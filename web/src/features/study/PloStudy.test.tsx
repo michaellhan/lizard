@@ -5,11 +5,10 @@ import { StudyPage } from "./StudyPage";
 
 // jsdom has no Worker, so the PLO solve runs its slices on the page (as PloRiverPage.test.tsx)
 
-let where = "";
 function Where() {
-  where = useLocation().search;
-  return null;
+  return <output data-testid="where">{useLocation().search}</output>;
 }
+const where = () => screen.getByTestId("where").textContent ?? "";
 
 const open = (search: string) =>
   render(
@@ -47,8 +46,8 @@ describe("Study for PLO", () => {
     const shapes = within(section).getByRole("table", { name: "Hand shapes at this decision" });
     expect(within(shapes).getAllByRole("button").length).toBeGreaterThan(0);
     // the link keeps the spot it solved
-    expect(new URLSearchParams(where).get("board")).toBe("2c7d9hJsKd");
-    expect(new URLSearchParams(where).get("game")).toBe("plo4");
+    expect(new URLSearchParams(where()).get("board")).toBe("2c7d9hJsKd");
+    expect(new URLSearchParams(where()).get("game")).toBe("plo4");
   });
 
   it("hides Hold'em's tools and lists them as not for PLO", async () => {
