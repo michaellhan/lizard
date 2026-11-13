@@ -40,6 +40,7 @@ export const GRADES: Record<string, Grade> = {
   "Custom drills": "WORKING",
   "Exploit practice": "WORKING",
   "Range-builder trainer": "WORKING",
+  "Combo-counting trainer": "WORKING",
   Multitabling: "WORKING",
   "EV-loss scoring": "PARTIAL",
   "Session stats": "WORKING",
@@ -87,7 +88,7 @@ export function routeGrade(r: RouteDef): { status: RouteStatus; working: number;
 export const ROUTES: RouteDef[] = [
   { path: "", label: "Home", nav: false, status: "working", summary: "Overview" },
   { path: "study", label: "Study", nav: true, status: "partial", summary: "Browse solutions node by node: preflop charts, precomputed flops, live turns and rivers.", rows: ["Solution browser", "Preflop", "Postflop", "Range matrices", "Combo view", "Frequencies & EV", "Equity & EQR", "Range comparison", "Filters", "Node navigation", "Range-builder trainer"] },
-  { path: "practice", label: "Practice", nav: true, status: "partial", summary: "Play hands against GTO opponents or drill one flop decision, each decision graded against the solution.", rows: ["Preflop trainer", "Postflop trainer", "Full-hand play", "Drills", "Custom drills", "Exploit practice", "Multitabling", "EV-loss scoring", "Session stats", "Coaching / feedback"] },
+  { path: "practice", label: "Practice", nav: true, status: "partial", summary: "Play hands against GTO opponents or drill one flop decision, each decision graded against the solution; or count combos on a flop, by exact count.", rows: ["Preflop trainer", "Postflop trainer", "Full-hand play", "Drills", "Custom drills", "Exploit practice", "Multitabling", "EV-loss scoring", "Session stats", "Coaching / feedback", "Combo-counting trainer"] },
   { path: "analyze", label: "Analyze", nav: true, status: "partial", summary: "Import your hand histories, keep them in this browser, replay each hand and open your decisions in Study.", rows: ["Hand-history import", "Bulk upload", "Decision grading", "Leak finding", "Frequency comparison vs GTO", "Results", "Reports", "Saved hands"] },
   { path: "solve", label: "Solve", nav: true, status: "partial", summary: "A spot of your own: each seat's stack, bet sizes, rake, ante or straddle, and ranges, opened in Study.", rows: ["Preflop solves", "Postflop solves", "Heads-up", "Multiway", "Custom ranges", "Stacks & bet sizes", "Node locking", "Rake", "Automatic sizing", "Convergence display"] },
   { path: "reports", label: "Reports", nav: false, more: true, status: "partial", summary: "A library spot's flop strategy across its stored flops, by texture, with EV, equity and EQR.", rows: ["Aggregate reports"] },
