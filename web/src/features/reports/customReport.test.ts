@@ -4,7 +4,7 @@ import type { StudyHand } from "@/features/study/studyState";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { columns, rows } from "./reports";
-import { callersAfter, checkSpot, customBase, customProvenance, customReport, customStudyHand, flopsToGo, newFlopReport, openers, potLine, seatsIn, solveFlop, type Ask, type CustomFlop } from "./customReport";
+import { callersAfter, checkSpot, customBase, customProvenance, customReport, customStudyHand, FAST_VS_LIBRARY, flopsToGo, newFlopReport, openers, potLine, seatsIn, solveFlop, type Ask, type CustomFlop } from "./customReport";
 import { flopSet } from "./flopSets";
 
 const base: StudyHand = {
@@ -198,6 +198,8 @@ describe("the report", () => {
     );
     expect(p.approximateLabel).toBe("1 short of the accuracy target, 1 left out, not solved, 21 of the set not solved yet");
     expect(p.abstraction).toMatch(/^this flop model gave up 1\.9% pot on average, up to 4\.9%.*\(the library's flops: this flop model gave up 0\.6% pot on average/);
+    // (and what a Fast report measured against the library's own report of a stored spot)
+    expect(p.abstraction).toContain(`; against the library's report of 6-max 100bb BTN vs BB (95 flops), a Fast report's EVs were ${FAST_VS_LIBRARY.evPct}% pot off a flop on average and in position's bet size split ${FAST_VS_LIBRARY.splitPts} points`);
   });
 
   it("is not approximate once every flop is solved within its target, and names Accurate's model", () => {
@@ -207,6 +209,7 @@ describe("the report", () => {
     expect(p.approximate).toBe(false);
     expect(p.approximateLabel).toBeUndefined();
     expect(p.abstraction).toMatch(/gave up 1\.9% pot on average, up to 5\.4%/);
+    expect(p.abstraction).not.toContain("against the library's report");
     // (a local server's solves were never measured)
     expect(customProvenance({ size: 2, mode: "accurate", flops, done, left: [] }, "http").abstraction).toBeUndefined();
   });

@@ -5136,3 +5136,56 @@ preflop game in which every outcome is paid in prize equity.
   vitest practice, solver, analyze and study 2,054 passed; `pyodide.test.mjs` 21/21; tsc and eslint clean. A
   pfGrade test that expected every tournament refused now expects the unequal chip-EV one and a non-preset ICM one
   refused.
+
+## 2026-11-13: custom flop reports (Reports, from Solve or Study)
+
+- **The flop sets.** The solver's representative sets are ported card for card (`flopSets.ts`, checked against
+  `representative_flops` at 9, 25, 49, 95 and 184). The setup shows each flop's weight (1/n of all flops), how often
+  it's dealt, and each texture's share of the set against its share of all flops.
+- **Where it starts.** Solve's new "Report over flops" button and Study's link open the setup. A Solve spot whose line
+  doesn't reach a flop gets a pot picker: opener, caller, single-raised or 3bet, walked on the preflop answers.
+  Multiway and tournament spots are refused, with the reason given.
+- **The run** (`customRun.ts`):
+  - Flops are solved one after another in the worker at Fast or Accurate. The page's thread only sends requests and
+    stores small answers.
+  - The report is written to IndexedDB after every flop. Pause drops the flop in hand and keeps the rest; resume goes
+    on from there, after a reload too.
+  - One report solves at a time. Moving between pages doesn't stop it.
+  - A flop the betting rules answered is left out and counted. The solver failing stops the run and keeps what's done.
+- **Memory.** A new worker edit lets a request ask the worker to keep less of its solves (`cache_mb`; 64 MB minimum,
+  never above its 700 MB budget). A report asks for 256 MB, so it can't push out a Study session's solves or fill the
+  heap. Records are capped at 184 flops.
+- **Kept here.**
+  - IndexedDB migration 11 adds the store `flopReports`.
+  - It is in backup and restore, with tombstones for deletes.
+  - The Saved page lists each report with how far it got: open, edit (name, tags, note), export, delete.
+- **Drawn as the library's reports:** strategy, EV, equity, EQR, range advantage, texture filters, sort, groups,
+  chart and CSV.
+- **Provenance.**
+  - It says the report was solved live at its tier over N sampled flops of the representative set.
+  - It gives each solve's distance from equilibrium, the iterations, and the flop model's abstraction error (ACCURACY
+    21).
+  - A Fast report adds its measured gap to the library: "EVs were 0.35% pot off a flop on average and in position's
+    bet size split 16 points".
+- **Accuracy (ACCURACY section 24, `scripts/benchmarks/custom_report.py`, through the shared slot).** BTN vs BB 100bb
+  was reported live at Fast with the library off, over the representative 25 and 95, against the library's report of
+  all 1,755 flops.
+  - EVs agree within 0.35% of the pot a flop, equity within 0.2 points, BB's check within 0.9 points.
+  - Sampling 25 flops moves no average by more than about 1 point.
+  - In position's share of bets at 75% after the check is 15-17 points lower at Fast than in the library. That comes
+    from the flop model, not the sample.
+- **Checked in a browser** (dev build, 2026-11-13):
+  - 6-max 60bb CO vs BB from Solve: 9 flops at Fast in about 10 s, each at 300 iterations and 0.06-0.12% pot from
+    equilibrium.
+  - A 25-flop run paused at 8, was listed on Saved, then was reopened and resumed to 25.
+  - The report was kept across a reload.
+  - A 40bb BTN vs BB run had no main-thread task over 50 ms.
+  - One wording fix came from the check: "300 iterations a flop", not "300–300".
+- **FEATURE_MATRIX:** Custom aggregated reports PARTIAL → WORKING, for heads-up cash flop spots. What's left is in its
+  Notes. The summary counts were already stale and are left for the merge (the shared note says so).
+- **Tests:**
+  - tsc and eslint clean.
+  - vitest over reports, data, saved and SolvePage: 478 passed, 2 skipped, in 26 files. New files: `flopSets.test.ts`
+    10, `customReport.test.ts` 13, `customRun.test.ts` 3, `CustomReportPanel.test.tsx` 2, `flopReports.test.ts`, and
+    `db.test.ts`'s v10 to v11 migration.
+  - `pyodide.test.mjs` 23/23.

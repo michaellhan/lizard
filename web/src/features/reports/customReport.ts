@@ -240,6 +240,14 @@ const TIER: Record<SolveMode, string> = { quick: "Quick", fast: "Fast", accurate
 const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
 const pct = (x: number) => `${x < 0.1 ? x.toFixed(3) : x.toFixed(2)}%`;
 
+/** A Fast report of a spot the library stores, solved live with the library off, against the library's own report
+ * (docs/ACCURACY.md section 24, scripts/benchmarks/custom_report.py: 6-max 100bb BTN vs BB, the representative 95):
+ * the mean per flop of BB's EV off, % of the pot, and of in position's share of its bets at 75% after BB's check off,
+ * points. Shown with a Fast report's abstraction error: the size split is the column to trust least. */
+export const FAST_VS_LIBRARY = { evPct: 0.35, splitPts: 16, spot: "6-max 100bb BTN vs BB", flops: 95 };
+const vsLibrary = () =>
+  `against the library's report of ${FAST_VS_LIBRARY.spot} (${FAST_VS_LIBRARY.flops} flops), a Fast report's EVs were ${FAST_VS_LIBRARY.evPct}% pot off a flop on average and in position's bet size split ${FAST_VS_LIBRARY.splitPts} points`;
+
 /** What the numbers are: your spot, solved live at a tier over n flops of a representative set, with how far each solve
  * was from equilibrium in its own game and what its flop model gave up against the full game (abstraction.ts). A flop the
  * library stores is read from it (Study's own rule), and the label says how many were. */
@@ -265,7 +273,8 @@ export function customProvenance(r: Pick<FlopReportRecord, "done" | "left" | "si
     its.length ? `${Math.min(...its) === Math.max(...its) ? Math.min(...its) : `${Math.min(...its)}–${Math.max(...its)}`} iterations a flop` : "",
   ].filter(Boolean);
   const model: FlopModel | null = live.length && transport === "worker" && (r.mode === "fast" || r.mode === "accurate") ? r.mode : stored ? "library" : null;
-  const words = abstractionWords(model);
+  const given = abstractionWords(model);
+  const words = given && model === "fast" ? `${given}; ${vsLibrary()}` : given;
   return {
     source: live.length ? "live" : stored ? "library" : "instant",
     approximate: approx > 0 || togo > 0,
