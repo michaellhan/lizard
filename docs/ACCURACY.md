@@ -1506,3 +1506,104 @@ solve bigger than the room left, `engine/tree_depth.py` evicts kept solves to ma
 
 The Solve page's controls (the raise cap and up to 5 sizes) and the Settings tree cap were checked in the browser on
 2026-11-11, on a local build without a solve.
+
+## 23. Bunching (2026-11-13)
+
+An option on the Solve page and in Study (`engine/bunching.py`): the ranges entering the flop are weighed by the hands
+the seats that folded preflop were holding. Each remaining combo h gets F(h) = P(no folder holds a card of h), from the
+folders' card moments under their fold ranges (the charts' or the preflop solve's), and every street is solved live on
+the weighted ranges. Measured by `scripts/engine/measure_bunching.py` (through the shared slot, 5 min, peak 496 MB).
+
+### 23.1 The combinatorics (`scripts/engine/test_bunching.py`, 23 tests, about 17 s)
+
+- One and two folders: the moments are exact (matrix sums), and match brute force over every deal of small random fold
+  ranges to 1e-12, F and the next card's odds included.
+- Three or more: rejection-sampled, 60,000 deals. Against brute force on three folders, every combo's F is within 4.5
+  of its stated standard errors, with the mean |z| under 1. The stated error, sqrt(F(1-F)/60,000), is 0.26-0.31% of F
+  on the spots below, and the badge says it.
+- The plan (moments, factors, the next card's odds) takes 0.02-0.07 s natively for the charts' folds; reading the
+  preflop solve's folds adds about 0.5 s the first time.
+
+### 23.2 How much the folds move the ranges
+
+From the charts' folds, at 100bb: each remaining range's combos before and after weighting, and the lowest factor F in
+the range over its highest (the weight the most-blocked combo keeps against the least-blocked one):
+
+| Spot | Folders | Remaining combos (even -> weighted) | Lowest F / highest F |
+|---|---|---|---|
+| UTG vs BB, Kd7c2h | HJ, CO, BTN, SB | UTG 223 -> 210, BB 337 -> 319 | UTG 0.89, BB 0.91 |
+| BTN vs BB, Kd7c2h | UTG, HJ, CO, SB | BTN 535 -> 474, BB 513 -> 469 | BTN 0.78, BB 0.83 |
+| BTN vs SB and BB, Kd7c2h | UTG, HJ, CO | BTN 535 -> 486, SB 50 -> 46, BB 353 -> 333 | BTN 0.82, SB 0.86, BB 0.86 |
+
+("Weighted" is relative to the combo the folds block least, so only the ratios inside a range matter.) A BTN open faces
+four tight folds that hold most of the low cards: 22's factor is 0.64 and AA's 0.82, so 22 keeps 78% of the weight AA
+keeps. UTG faces folds from wide
+ranges that hold every card more evenly, so the effect there is about half as big.
+
+### 23.3 What it changes in the solve
+
+Each spot's flop solved twice at the worker's Accurate config (to 0.01-0.02% of the pot, natively), once on the even
+deal and once bunched, every library put aside both times. Read at the first actor's root and at the last actor's node
+after checks: the range's frequencies (check / bet 33% / bet 75%, %), the class-weighted mean change of each hand
+class's mix (points) and EV (bb), and the node's EV (bb). For scale, the last two columns are the same spot unbunched
+at Fast against Accurate.
+
+| Spot, node | Even deal | Bunched | Class mix Δ | Class EV Δ | Node EV even -> bunched | Fast vs Accurate: mix Δ, EV Δ |
+|---|---|---|---|---|---|---|
+| UTG vs BB Kd7c2h, BB first | 100 / 0 / 0 | 100 / 0 / 0 | 0.0 | 0.023 | 1.58 -> 1.57 | 0.0, 0.125 |
+| UTG vs BB Kd7c2h, UTG after a check | 1.0 / 85.1 / 13.9 | 0.2 / 88.7 / 11.2 | 5.9 | 0.033 | 3.920 -> 3.932 | 21.6, 0.069 |
+| UTG vs BB 8h6d4c, BB first | 91.3 / 0 / 8.7 | 91.4 / 0 / 8.6 | 3.1 | 0.042 | 2.284 -> 2.265 | 6.8, 0.089 |
+| UTG vs BB 8h6d4c, UTG after a check | 45.0 / 45.2 / 9.8 | 44.6 / 46.3 / 9.1 | 9.0 | 0.040 | 3.257 -> 3.272 | 16.3, 0.091 |
+| BTN vs BB Kd7c2h, BB first | 100 / 0 / 0 | 100 / 0 / 0 | 0.0 | 0.031 | 1.94 -> 1.93 | 0.0, 0.071 |
+| BTN vs BB Kd7c2h, BTN after a check | 26.7 / 58.3 / 14.9 | 24.2 / 64.2 / 11.6 | 12.4 | 0.029 | 3.561 -> 3.576 | 17.3, 0.075 |
+| BTN vs BB 8h6d4c, BB first | 90.4 / 3.1 / 6.5 | 92.1 / 3.3 / 4.7 | 4.5 | 0.045 | 2.372 -> 2.367 | 6.1, 0.107 |
+| BTN vs BB 8h6d4c, BTN after a check | 56.4 / 0.2 / 43.4 | 56.2 / 0.3 / 43.4 | 6.0 | 0.036 | 3.243 -> 3.228 | 19.3, 0.095 |
+| 3-way Kd7c2h, SB first | 61.1 / 35.2 / 3.7 | 63.9 / 32.0 / 4.2 | 5.3 | 0.038 | 3.173 -> 3.146 | 12.0, 0.135 |
+| 3-way Kd7c2h, BTN after two checks | 59.4 / 40.5 / 0.1 | 59.7 / 40.0 / 0.3 | 6.1 | 0.040 | 3.199 -> 3.202 | 13.7, 0.230 |
+
+(3-way: BTN opens 2.5bb, SB and BB call; the 3-player solver's Accurate game, 400 iterations, 0.07% of the pot mean
+best-response gain.)
+
+What that says:
+
+- **Range frequencies move up to 6 points.** The largest: BTN's small c-bet on Kd7c2h, 58.3% -> 64.2%, its big bet
+  14.9% -> 11.6% (the BB's range keeps fewer of the low pairs and gutshots the folds hold, so it is a little stronger
+  and BTN bets smaller). Most nodes move 0-3 points.
+- **EVs move by hundredths of a bb**: a node's EV by at most 0.027 bb (0.5% of the pot), a hand class's by 0.02-0.05 bb
+  on average. Both are about half of how far Fast and Accurate are apart on the same spot.
+- **A hand class's mix moves 3-12 points** (combo-weighted mean), less than Fast against Accurate (6-22). Two converged
+  solves of nearly the same game can also differ in classes that are indifferent between actions, so part of that
+  column is the solution's own freedom, not the folds.
+
+So bunching is a real but small correction on these spots, smaller than the gap between the two speeds. It matters most
+where tight folds face a late-position open (BTN vs BB), and least where the folds come from wide early ranges.
+
+### 23.4 What the model leaves out
+
+- **Each player's factor alone.** The exact weight of a pair of hands (one per remaining player) is J = P(no folder
+  holds a card of either), not F(h1) F(h2). Over 400,000 sampled folder deals and about 2,700 pairs drawn from the two
+  ranges, J / (F1 F2), normalised to its mean, has a root-mean-square spread (the two halves' covariance, so sampling
+  noise of 0.04-0.07% is taken out) of 0.29% (UTG vs BB), 0.41% (BTN vs BB) and 0.30% (3-way, BTN and BB), with 95%
+  of pairs within 0.58-0.84%. That is a twentieth or less of how far F itself varies across a range (9-22%). The 3-way spot's third player isn't in
+  this measurement.
+- **The runouts are dealt evenly.** The folds make the next card's odds uneven too: on BTN vs BB Kd7c2h a turn ace is
+  8.80% likely against 8.16% even (+7.8% of itself), a king 6.37% (6.12%), a deuce 5.88% (6.12%); on UTG vs BB the ace
+  is 8.49%. The solves still deal every turn and river card evenly (upstream's chance nodes, buckets and compiled core
+  would all need the weights); Study shows these odds under the switch, said as not played.
+- **The flop only.** The factor is conditioned on the flop; a turn's solve narrows from the same weighted flop ranges.
+  The turn card's own effect on the folds is the size of the odds above.
+- **Postflop folds** aren't counted: their hands are a postflop range, not a preflop fold.
+
+### 23.5 Cost
+
+- **Natively**, a bunched flop solve takes the same time as an even one on the same tree (heads-up 2.7-3.4 s against
+  2.8-3.5 s at Accurate; the 3-way 27 s against 19 s, within what the shared machine's load moves a run by), plus the
+  plan's 0.02-0.07 s.
+- **The real cost is the library.** The flop libraries hold solves of the even deal, so a bunched flop is always solved
+  live. In a browser (dev build, threaded core, Fast) on 2026-11-13: BTN vs BB 8h6d4c answered from the library in 0.6
+  s, bunched by a live solve in 0.8 s (300 iterations, 0.11% of the pot); 3-way Kd7c2h from the 3-way library in 1.0 s,
+  bunched in 5.6 s (400 iterations, 0.07%); UTG vs BB Ts8s3d from the preflop solve's folds in 1.6 s. A device without
+  threads takes longer (Fast's flop budget is 8 s).
+
+**Not established.** 4-way pots take the weighted ranges the same way but weren't measured or tested. No comparison with
+another solver's bunching was made.

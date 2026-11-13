@@ -5136,3 +5136,30 @@ preflop game in which every outcome is paid in prize equity.
   vitest practice, solver, analyze and study 2,054 passed; `pyodide.test.mjs` 21/21; tsc and eslint clean. A
   pfGrade test that expected every tournament refused now expects the unequal chip-EV one and a non-preset ICM one
   refused.
+
+## 2026-11-13: Bunching (Custom solving)
+
+The "Bunching effect" row goes from NOT IMPLEMENTED / NOT IMPLEMENTED to PARTIAL / WORKING.
+
+- `engine/bunching.py`: the folders' preflop fold ranges (the charts', or the preflop solve's where its game is stored
+  or solved in the browser, else the charts' with the reason) weigh each remaining combo by P(no folder holds a card of
+  it), from the folders' card moments: exact for one or two folders, sampled over 60,000 deals past that, the error
+  stated. It also gives the next card's odds under the folds. It wraps `Advisor._advise_at` (after
+  `engine/tree_depth.py`'s wrap): a request with `bunching` solves every street live on the weighted ranges (custom
+  ranges too), the libraries put aside for the request; one without is answered as before. Loaded at worker start by
+  a new entry in `scripts/pyodide/worker-edits.mjs`, declared in `solver/UPSTREAM.json`; `solver/` is untouched.
+- Web: a Bunching select on the Solve page (`bunch` in the link; refused heads-up), a Bunching switch in Study on a
+  3-or-more-player flop, turn or river (its folds follow the preflop source in use), the live solve's provenance
+  naming the folders, the fold source, exact or sampled with its error, and that the turn and river are still dealt
+  evenly, and the next card's odds under the switch. A local Python server is sent nothing.
+- Measured (ACCURACY section 23, `scripts/engine/measure_bunching.py`): on UTG vs BB, BTN vs BB and a 3-way spot, range
+  frequencies move up to 6 points and EVs by hundredths of a bb, about half the gap between Fast and Accurate. The
+  per-player factor leaves out 0.3-0.4% of a pair's weight. The cost is a live solve where the library would answer.
+- Left (why the engine column is PARTIAL): the turn and river are still dealt evenly in the solve (the odds are shown,
+  not played); 4-way pots go through the same path but weren't measured.
+- Tests: `scripts/engine/test_bunching.py` 23 passed; `scripts/pyodide/*.test.mjs` 22 passed; vitest
+  `src/solver/bunching.test.ts`, `SolvePage.test.tsx`, Study's `studyState` and `StudyPage` tests 91 passed (and the
+  wider `src/features/solve src/features/study src/solver src/data` run 496 passed before the Solve page test was added);
+  tsc and eslint clean. Checked in a browser (dev build): the Solve page's select opens Study with `bunch=charts`; BTN
+  vs BB, 3-way and UTG vs BB from the preflop solve's folds each solved live with the badge and the next card's odds;
+  the switch off went back to the library's answer.

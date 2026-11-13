@@ -23,12 +23,12 @@ folders' joint deal exactly, SAMPLES of them, F's standard error being sqrt(F (1
 What is approximate, and said in every answer:
 - F(h) is the factor for each remaining player alone. The exact weight of a pair of hands is P(no folder holds a card
   of either), which isn't a product of the two; the solver takes independent ranges, so each player's combos get their
-  own factor. docs/ACCURACY.md section 34 measures what that leaves out (under 1% of a pair's weight on the spots
-  measured).
+  own factor. docs/ACCURACY.md section 23 (Bunching) measures what that leaves out: 0.3-0.4% of a pair's weight
+  (root mean square), under 0.9% at the 95th percentile, on the spots measured.
 - The factor is conditioned on the flop, not on later cards (a turn's or river's own effect on the folds is the size
   of the runout odds below), so a turn's solve narrows from the same flop ranges its flop solve used.
 - The solves still deal the turn and river evenly: the odds the folds give each card are computed (card_odds) and
-  shown, not played. They move a card's chance by a few percent of itself (ACCURACY section 34).
+  shown, not played. They move a rank's chance by up to 8% of itself, an ace's most (ACCURACY section 23).
 - Seats that fold after the flop aren't counted: their hands are a postflop range, not a preflop fold.
 
 The worker imports this module at start (scripts/pyodide/worker-edits.mjs, declared in solver/UPSTREAM.json); it wraps
