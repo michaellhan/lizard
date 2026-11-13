@@ -1,11 +1,11 @@
 // Your spot's flop report: the flops it samples, what it asks a flop, and the report it builds from the answers.
 import { describe, expect, it } from "vitest";
-import { texture } from "@/features/practice/texture";
 import type { StudyHand } from "@/features/study/studyState";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { columns, rows } from "./reports";
-import { customBase, customProvenance, customReport, customStudyHand, flopClassList, sampleOrder, solveFlop, type Ask } from "./customReport";
+import { callersAfter, checkSpot, customBase, customProvenance, customReport, customStudyHand, FAST_VS_LIBRARY, flopsToGo, newFlopReport, openers, potLine, seatsIn, solveFlop, type Ask, type CustomFlop } from "./customReport";
+import { flopSet } from "./flopSets";
 
 const base: StudyHand = {
   players: 6,
@@ -71,27 +71,75 @@ function fakeAsk(source: Provenance["source"] = "live", seen: AdvisorState[] = [
   };
 }
 
-describe("the flops sampled", () => {
-  it("are the 1,755 flop classes, standing for all 22,100 flops", () => {
-    const all = flopClassList();
-    expect(all).toHaveLength(1755);
-    expect(all.reduce((a, x) => a + x.w, 0)).toBe(22100);
-    expect(new Set(all.map((x) => x.f)).size).toBe(1755);
-    // (a rainbow flop of three ranks stands for 24, a monotone one for 4, a trip for 4)
-    const ranks = (f: string) => f[0]! + f[2]! + f[4]!;
-    const of = (r: string, suits: string) => all.filter((x) => ranks(x.f) === r && texture(x.f).suits === suits).map((x) => x.w);
-    expect(of("AK2", "rainbow")).toEqual([24]);
-    expect(of("AK2", "mono")).toEqual([4]);
-    expect(of("777", "rainbow")).toEqual([4]);
+describe("a new report", () => {
+  it("keeps the spot with no board and the set of n in its solving order, nothing solved yet", () => {
+    const r = newFlopReport(base, { id: "a", name: "x", from: "solve", mode: "accurate", size: 25, now: 7 });
+    expect(r).toMatchObject({ id: "a", from: "solve", mode: "accurate", size: 25, done: [], left: [], seats: null, status: "paused", createdAt: 7, updatedAt: 7 });
+    expect(r.spot).not.toContain("b=");
+    expect(r.spot).toContain("pre=");
+    expect([...r.flops].sort()).toEqual(flopSet(25).map((x) => x.f).sort());
+    // (spread: the first few aren't all of one suit pattern, as the set's texture order would have them)
+    expect(new Set(r.flops.slice(0, 5).map((f) => new Set([f[1], f[3], f[5]]).size)).size).toBeGreaterThan(1);
+    expect(newFlopReport(base, { id: "b", name: "y", from: "study", mode: "fast", size: 25, now: 8 }).flops).toEqual(r.flops);
   });
 
-  it("walk every class once, and any stretch from the start spreads over the suits", () => {
-    const order = sampleOrder(1);
-    expect(order).toHaveLength(1755);
-    expect(new Set(order.map((x) => x.f)).size).toBe(1755);
-    const suits = new Set(order.slice(0, 12).map((x) => texture(x.f).suits));
-    expect(suits.size).toBeGreaterThan(1);
-    expect(sampleOrder(1).map((x) => x.f)).toEqual(order.map((x) => x.f));
+  it("goes on with the flops not tried, each weighted 22,100/n", () => {
+    const r = newFlopReport(base, { id: "a", name: "x", from: "solve", mode: "fast", size: 9, now: 1 });
+    const done = { f: r.flops[0]!, w: 22100 / 9, nodes: { "": { names: ["check"], freqs: [1] } }, bets: {}, source: "live" as const, approximate: false };
+    const togo = flopsToGo({ ...r, done: [done], left: [{ f: r.flops[2]!, why: "rules" }] });
+    expect(togo.map((x) => x.f)).toEqual([r.flops[1], ...r.flops.slice(3)]);
+    expect(togo.every((x) => x.w === 22100 / 9)).toBe(true);
+  });
+});
+
+describe("the spot", () => {
+  const ask = (data: AdvisorResponse): Ask => async () => ({ data, provenance: prov("charts") });
+  it("is reported where its line reaches a heads-up flop", async () => {
+    expect(seatsIn(base)).toEqual(["BTN", "BB"]);
+    expect(await checkSpot(ask({ study: "deal", street: "flop" }), base)).toEqual({ ok: true });
+  });
+
+  it("asks for a pot where the line doesn't reach a flop, or reaches it 3-way", async () => {
+    expect(await checkSpot(ask({ study: "node", street: "preflop", actor: "UTG" }), { ...base, preflop: [] })).toMatchObject({ ok: false, unfinished: true });
+    const threeWay = { ...base, preflop: base.preflop.map((a) => (a.pos === "SB" ? { pos: "SB", action: "call" } : a)) };
+    expect(await checkSpot(ask({ study: "deal", street: "flop" }), threeWay)).toMatchObject({ ok: false, unfinished: true, why: expect.stringMatching(/3 players/) });
+  });
+
+  it("refuses a tournament spot, its EVs being prize equity", async () => {
+    expect(await checkSpot(ask({ study: "deal", street: "flop" }), { ...base, setup: { tournament: { payouts: [50, 30, 20] } } })).toMatchObject({ ok: false, unfinished: false });
+  });
+
+  it("gets a pot's line from the spot's own preflop answers: folds to the opener, who raises, and the caller calls or 3-bets", async () => {
+    const order = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+    // (a stand-in preflop: whoever's next, by the line so far; the hand is dealt once the betting closes)
+    const preflop: Ask = async (state) => {
+      const line = state.preflop ?? [];
+      const raises = line.filter((a) => a.action.startsWith("raise")).length;
+      const folded = new Set(line.filter((a) => a.action === "fold").map((a) => a.pos));
+      const acted = line.length;
+      const closed = raises > 0 && line.at(-1)?.action === "call" && order.filter((p) => !folded.has(p)).length === 2;
+      if (closed) return { data: { study: "deal", street: "flop" }, provenance: prov("charts") };
+      const actor = acted < 6 ? order[acted]! : "BTN";
+      const sizes = raises === 0 ? [2.5] : [10, 22];
+      return {
+        data: {
+          study: "node",
+          street: "preflop",
+          actor,
+          actions: [{ action: "fold", freq: 0.5 }, ...(raises ? [{ action: "call", freq: 0.3 }] : []), ...sizes.map((x, i) => ({ action: `raise ${x}`, amount_bb: x, freq: i === 0 ? 0.15 : 0.05 }))],
+        },
+        provenance: prov("charts"),
+      };
+    };
+    const srp = await potLine(preflop, { ...base, preflop: [] }, "BTN", "BB", "srp");
+    expect(srp.preflop.map((a) => `${a.pos}:${a.action}`)).toEqual(["UTG:fold", "HJ:fold", "CO:fold", "BTN:raise", "SB:fold", "BB:call"]);
+    expect(srp.preflop[3]).toMatchObject({ to: 2.5 });
+    const tbp = await potLine(preflop, { ...base, preflop: [] }, "BTN", "BB", "3bp");
+    expect(tbp.preflop.map((a) => `${a.pos}:${a.action}`)).toEqual(["UTG:fold", "HJ:fold", "CO:fold", "BTN:raise", "SB:fold", "BB:raise", "BTN:call"]);
+    // (the 3-bet the answer plays most)
+    expect(tbp.preflop[5]).toMatchObject({ to: 10 });
+    expect(openers(6)).not.toContain("BB");
+    expect(callersAfter(6, "BTN")).toEqual(["SB", "BB"]);
   });
 });
 
@@ -138,11 +186,31 @@ describe("the report", () => {
     expect(customStudyHand(base, ["BB", "BTN"], fl, "bet 75%")).toBeNull();
   });
 
-  it("says how many flops it stands on and how each was answered", () => {
-    const f = (source: Provenance["source"], approximate = false) => ({ f: "x", w: 1, nodes: {}, bets: {}, source, approximate });
-    const p = customProvenance([f("live"), f("live", true), f("library")], "fast", 2);
+  it("says it's a live solve at the tier over n sampled flops, how close each solve came, and the flop model's abstraction error", () => {
+    const f = (source: CustomFlop["source"], approximate = false, exploitabilityPct?: number, iterations?: number): CustomFlop => ({ f: "x", w: 1, nodes: {}, bets: {}, source, approximate, ...(exploitabilityPct !== undefined ? { exploitabilityPct, iterations } : {}) });
+    const rec = { size: 25, mode: "fast" as const, flops: Array.from({ length: 25 }, (_, i) => `f${i}`), left: [{ f: "y", why: "rules" }] };
+    const p = customProvenance({ ...rec, done: [f("live", false, 0.2, 300), f("live", true, 0.6, 400), f("library")] });
     expect(p.source).toBe("live");
     expect(p.approximate).toBe(true);
-    expect(p.approximateLabel).toBe("flop report of your spot over 3 sampled flops (2 solved here, 1 read from the library), 1 short of the accuracy target, 2 left out");
+    expect(p.mode).toBe("fast");
+    expect(p.view).toBe(
+      "flop report of your spot over 3 sampled flops of the solver's representative 25, each standing for 1/25 of all flops; 2 solved live at Fast, 1 read from the flop library, which stores it; each solve 0.20% to 0.60% pot from equilibrium in its own game (mean 0.40%); 300–400 iterations a flop",
+    );
+    expect(p.approximateLabel).toBe("1 short of the accuracy target, 1 left out, not solved, 21 of the set not solved yet");
+    expect(p.abstraction).toMatch(/^this flop model gave up 1\.9% pot on average, up to 4\.9%.*\(the library's flops: this flop model gave up 0\.6% pot on average/);
+    // (and what a Fast report measured against the library's own report of a stored spot)
+    expect(p.abstraction).toContain(`; against the library's report of 6-max 100bb BTN vs BB (95 flops), a Fast report's EVs were ${FAST_VS_LIBRARY.evPct}% pot off a flop on average and in position's bet size split ${FAST_VS_LIBRARY.splitPts} points`);
+  });
+
+  it("is not approximate once every flop is solved within its target, and names Accurate's model", () => {
+    const flops = ["a", "b"];
+    const done = flops.map((f) => ({ f, w: 1, nodes: {}, bets: {}, source: "live" as const, approximate: false, exploitabilityPct: 0.01, iterations: 1000 }));
+    const p = customProvenance({ size: 2, mode: "accurate", flops, done, left: [] });
+    expect(p.approximate).toBe(false);
+    expect(p.approximateLabel).toBeUndefined();
+    expect(p.abstraction).toMatch(/gave up 1\.9% pot on average, up to 5\.4%/);
+    expect(p.abstraction).not.toContain("against the library's report");
+    // (a local server's solves were never measured)
+    expect(customProvenance({ size: 2, mode: "accurate", flops, done, left: [] }, "http").abstraction).toBeUndefined();
   });
 });

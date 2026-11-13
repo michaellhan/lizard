@@ -83,6 +83,19 @@ const EDITS = [
     from: "import engine.tree_depth; from gto.advisor import Advisor;",
     to: "import engine.tree_depth; import engine.bunching; from gto.advisor import Advisor;",
   },
+  {
+    // A request's `cache_mb` (web/src/features/reports/customRun.ts: a custom flop report's solves): the most the solves
+    // kept for reuse may hold while it's answered, below the worker's own 700 MB (cache_mb, set at start), which comes back
+    // with the next request that doesn't say. A report solves flop after flop and reuses none of them, so without this its
+    // solves would fill the worker's heap to the same 700 MB as a long Study session and push those out. Advisor._keep
+    // still keeps the latest two whatever they hold (the flop being read, and the one before).
+    from: `+ "    adv = advs.get(st.get('speed'), advs['fast'])\\n"`,
+    to:
+      `+ "    adv = advs.get(st.get('speed'), advs['fast'])\\n"\n` +
+      `             + "    _keep = globals().setdefault('KEEP_MB', adv.cache_mb)\\n"\n` +
+      `             + "    _mb = min(_keep, max(64.0, float(st.get('cache_mb') or _keep)))\\n"\n` +
+      `             + "    for _a in advs.values(): _a.cache_mb = _mb\\n"`,
+  },
 ];
 
 export function editWorker(source) {

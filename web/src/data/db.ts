@@ -6,7 +6,7 @@ import type { SessionOptions } from "@/features/practice/practice";
 import type { SpotSetup } from "@/features/solve/setup";
 import type { Verdict } from "@/grading/grade";
 import type { AdvisorState } from "@/solver/protocol";
-import type { Confidence, ConvergenceBand, Provenance } from "@/solver/types";
+import type { Confidence, ConvergenceBand, Provenance, ResultSource, SolveMode } from "@/solver/types";
 
 export const DB_NAME = "lizard";
 
@@ -75,6 +75,55 @@ export interface SavedReport {
   name: string;
   /** the filters set, by their URL names */
   filters: Record<string, string>;
+  note: string;
+  tags?: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One flop of a custom flop report, answered: each node's actions and range frequencies (by the node's path: "",
+ * "check", "bet 33%", "check|bet 75%"), the players' range EVs and equities where the answer has them, the bet each
+ * facing node faces (bb), and how it was answered. */
+export interface FlopReportFlop {
+  f: string;
+  /** flops of the 22,100 it stands for in the report's averages */
+  w: number;
+  nodes: Record<string, { names: string[]; freqs: number[] }>;
+  ev?: [number, number];
+  eq?: [number, number];
+  bets: Record<string, number>;
+  source: ResultSource;
+  approximate: boolean;
+  /** the root solve's distance from equilibrium in its own game, % of the pot, and its iterations */
+  exploitabilityPct?: number;
+  iterations?: number;
+  /** wall time here, the root and the nodes read after it */
+  seconds?: number;
+}
+
+/** A flop report of your own spot (features/reports/customReport.ts): the spot, the set of flops chosen and the tier,
+ * and each flop as it was solved. Kept after every flop, so a report paused, or a tab closed, goes on where it stopped. */
+export interface FlopReportRecord {
+  id: string;
+  name: string;
+  /** the spot: Study's link (studyState.ts toSearch) with no board */
+  spot: string;
+  /** where it was set up */
+  from: "study" | "solve";
+  /** the tier each flop is solved at */
+  mode: SolveMode;
+  /** the representative set's size (features/reports/flopSets.ts) */
+  size: number;
+  /** the set's flops in the order they're solved */
+  flops: string[];
+  done: FlopReportFlop[];
+  /** flops whose root wasn't a solve of the flop (the betting rules answered, or an error), with why */
+  left: { f: string; why: string }[];
+  /** out of position, in position; null until the first root is answered */
+  seats: [string, string] | null;
+  pot: number;
+  /** "paused": stopped with flops to go; "done": every flop tried. A run in a tab is never stored as running. */
+  status: "paused" | "done";
   note: string;
   tags?: string[];
   createdAt: number;
@@ -325,6 +374,7 @@ export interface LizardDB extends DBSchema {
   savedDrills: { key: string; value: SavedDrill; indexes: { byUpdated: number } };
   savedScenarios: { key: string; value: SavedScenario; indexes: { byUpdated: number } };
   savedReports: { key: string; value: SavedReport; indexes: { byUpdated: number } };
+  flopReports: { key: string; value: FlopReportRecord; indexes: { byUpdated: number } };
   mistakes: { key: string; value: MistakeRecord; indexes: { byDue: number; byLast: number; byStreet: string } };
   tombstones: { key: [string, string]; value: Tombstone; indexes: { byAge: [string, number] } };
 }
@@ -348,6 +398,7 @@ export const LAST_CHANGED = {
   savedDrills: (d: SavedDrill) => d.updatedAt,
   savedScenarios: (d: SavedScenario) => d.updatedAt,
   savedReports: (d: SavedReport) => d.updatedAt,
+  flopReports: (d: FlopReportRecord) => d.updatedAt,
   sessions: (d: SessionRecord) => d.endedAt ?? d.startedAt,
   hands: (d: HandRecord) => d.updatedAt ?? d.importedAt,
   decisions: (d: DecisionRecord) => d.gradedAt,
@@ -409,6 +460,10 @@ export const MIGRATIONS: Record<number, (db: IDBPDatabase<LizardDB>, tx: Upgrade
   // (adds a store and touches no record, so what was deleted before this has no tombstone: nothing could say it was)
   10: (db) => {
     db.createObjectStore("tombstones", { keyPath: ["store", "id"] }).createIndex("byAge", ["store", "at"]);
+  },
+  // (custom flop reports: a store of their own, as each holds up to 184 flops' answers; touches no record)
+  11: (db) => {
+    db.createObjectStore("flopReports", { keyPath: "id" }).createIndex("byUpdated", "updatedAt");
   },
 };
 

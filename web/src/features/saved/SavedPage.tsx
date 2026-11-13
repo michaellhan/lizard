@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { DeleteButton } from "@/components/DeleteButton";
 import { useFocusHold } from "@/components/useFocusHold";
-import type { SavedDrill, SavedRange, SavedReport, SavedScenario, SavedSpot } from "@/data/db";
+import type { FlopReportRecord, SavedDrill, SavedRange, SavedReport, SavedScenario, SavedSpot } from "@/data/db";
+import { deleteFlopReport, listFlopReports, putFlopReport } from "@/data/flopReports";
+import { forget as forgetRun, useReportRun } from "@/features/reports/customRun";
 import { answerWords, kb, listAnswers, seenWords, type KeptAnswer } from "@/data/answers";
 import { nudgeState, onNudgeState, type NudgeState } from "@/data/backupNudge";
 import { kvGet, kvSet } from "@/data/db";
@@ -69,6 +71,7 @@ export function SavedPage() {
   const [drills, setDrills] = useState<SavedDrill[] | null>(null);
   const [scenarios, setScenarios] = useState<{ list: SavedScenario[]; damaged: number } | null>(null);
   const [reports, setReports] = useState<{ list: SavedReport[]; damaged: number } | null>(null);
+  const [flopReports, setFlopReports] = useState<{ list: FlopReportRecord[]; damaged: number } | null>(null);
   const [answers, setAnswers] = useState<Map<string, KeptAnswer | null>>(new Map());
   const current = useCurrentBuild();
   const [query, setQuery] = useState("");
@@ -111,8 +114,9 @@ export function SavedPage() {
 
   useEffect(() => {
     let alive = true;
-    void Promise.all([listSpots(), listRanges(), listDrills(), listScenarios(), listReports(), listAnswers()]).then(([s, r, d, c, p, a]) => {
+    void Promise.all([listSpots(), listRanges(), listDrills(), listScenarios(), listReports(), listAnswers(), listFlopReports()]).then(([s, r, d, c, p, a, f]) => {
       if (!alive) return;
+      setFlopReports(f);
       setSpots(s);
       setRanges(r);
       setDrills(d);
@@ -129,10 +133,11 @@ export function SavedPage() {
   const shownDrills = useMemo(() => sortSaved((drills ?? []).filter((d) => textMatches([d.name, d.about, d.note, ...(d.tags ?? [])], query)), sort, (d) => d.name), [drills, query, sort]);
   const shownScenarios = useMemo(() => sortSaved((scenarios?.list ?? []).filter((c) => textMatches([c.name, c.note, ...(c.tags ?? []), scenarioWords(c)], query)), sort, (c) => c.name), [scenarios, query, sort]);
   const shownReports = useMemo(() => sortSaved((reports?.list ?? []).filter((r) => textMatches([r.name, r.note, ...(r.tags ?? []), reportWords(r.filters)], query)), sort, (r) => r.name), [reports, query, sort]);
+  const shownFlopReports = useMemo(() => sortSaved((flopReports?.list ?? []).filter((r) => textMatches([r.name, r.note, ...(r.tags ?? []), lineText(r.spot)], query)), sort, (r) => r.name), [flopReports, query, sort]);
   const shownRanges = useMemo(() => sortSaved((ranges ?? []).filter((r) => textMatches([r.name, r.note, ...(r.tags ?? []), r.text], query)), sort, (r) => r.name), [ranges, query, sort]);
 
   // (everything read, and nothing kept of any kind)
-  const nothing = !!spots && !!drills && !!scenarios && !!reports && !!ranges && !spots.length && !drills.length && !scenarios.list.length && !scenarios.damaged && !reports.list.length && !reports.damaged && !ranges.length;
+  const nothing = !!spots && !!drills && !!scenarios && !!reports && !!ranges && !spots.length && !drills.length && !scenarios.list.length && !scenarios.damaged && !reports.list.length && !reports.damaged && !ranges.length && !!flopReports && !flopReports.list.length && !flopReports.damaged;
 
   return (
     <div className="space-y-6">
@@ -237,6 +242,26 @@ export function SavedPage() {
           <ul className="space-y-2">
             {shownReports.map((r) => (
               <ReportRow key={r.id} report={r} onChange={reload} onGone={onGone} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {!!(flopReports?.list.length || flopReports?.damaged) && (
+        <section aria-label="Flop reports" tabIndex={-1} className="space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-lg font-semibold">Flop reports</h2>
+            <span className="text-sm text-muted">{flopReports.list.length}</span>
+          </div>
+          {!!flopReports?.damaged && (
+            <p role="status" className="text-sm text-warn">
+              {flopReports.damaged} flop report{flopReports.damaged === 1 ? "" : "s"} can&rsquo;t be read.
+            </p>
+          )}
+          {!!flopReports?.list.length && !shownFlopReports.length && <p className="text-sm text-muted">No flop report matches “{query}”.</p>}
+          <ul className="space-y-2">
+            {shownFlopReports.map((r) => (
+              <FlopReportRow key={r.id} report={r} onChange={reload} onGone={onGone} />
             ))}
           </ul>
         </section>
@@ -607,6 +632,98 @@ function ReportRow({ report, onChange, onGone }: { report: SavedReport; onChange
   );
 }
 
+/** A custom flop report (features/reports): its spot, how far it got, at which tier; opened on Reports. */
+function FlopReportRow({ report: kept, onChange, onGone }: { report: FlopReportRecord; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
+  const hold = useFocusHold<HTMLLIElement>();
+  // (a run in this page has the latest: what's kept is behind it by the flop in hand at most)
+  const run = useReportRun(kept.id);
+  const report = run && run.rec.updatedAt >= kept.updatedAt ? run.rec : kept;
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(report.name);
+  const [tags, setTags] = useState((report.tags ?? []).join(", "));
+  const [note, setNote] = useState(report.note);
+  const [failed, setFailed] = useState(false);
+  const edit = () => {
+    setName(report.name);
+    setTags((report.tags ?? []).join(", "));
+    setNote(report.note);
+    setFailed(false);
+    setEditing(true);
+  };
+  const save = async () => {
+    const kept = await stored(() => putFlopReport({ ...report, name: name.trim() || report.name, tags: readTags(tags), note: note.trim(), updatedAt: Date.now() }));
+    setFailed(!kept);
+    if (!kept) return;
+    setEditing(false);
+    onChange();
+  };
+  const tier = { quick: "Quick", fast: "Fast", accurate: "Accurate" }[report.mode];
+  const togo = report.flops.length - report.done.length - report.left.length;
+  return (
+    <li {...hold} aria-label={report.name} className="space-y-1 panel p-3 text-sm">
+      {editing ? (
+        <form
+          aria-label={`Edit ${report.name}`}
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <input data-focus-first aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <TagsField value={tags} onChange={setTags} />
+          <textarea aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded border border-border bg-surface-2 px-2 py-1" />
+          <div className="flex gap-2">
+            <button type="submit" className="rounded-md bg-accent px-3 py-1 font-medium text-bg">
+              Save
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2">
+              Cancel
+            </button>
+            {failed && (
+              <span role="alert" className="text-xs text-danger">
+                {NOT_SAVED}
+              </span>
+            )}
+          </div>
+        </form>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <strong>{report.name}</strong>
+            <TagChips tags={report.tags} />
+            <span className="flex-1" />
+            <Link to={`/reports?custom=${encodeURIComponent(report.id)}`} aria-label={`Open ${report.name}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+              Open in Reports
+            </Link>
+            <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+              Edit
+            </button>
+            <ExportButton name={report.name} item={["flopReports", report]} />
+            <DeleteButton
+              what="report"
+              onDelete={(from) => {
+                onGone(from, `Flop report ${report.name}`);
+                forgetRun(report.id);
+                void deleteFlopReport(report.id).then(onChange);
+              }}
+            />
+          </div>
+          <p className="text-xs">{lineText(report.spot)}</p>
+          {report.note && <p className="whitespace-pre-wrap">{report.note}</p>}
+          <p className="text-xs text-muted">
+            {`${report.done.length} of ${report.flops.length} flops solved live at ${tier}`}
+            {report.left.length ? `, ${report.left.length} left out` : ""}
+            {run?.running ? " · solving now" : togo ? ` · paused, ${togo} to go` : " · finished"}
+            {` · saved ${day(report.createdAt)}`}
+            {report.updatedAt !== report.createdAt ? `, changed ${day(report.updatedAt)}` : ""}
+          </p>
+        </>
+      )}
+    </li>
+  );
+}
+
 function RangeRow({ range, onChange, onGone }: { range: SavedRange; onChange: () => void; onGone: (from: HTMLElement, what: string) => void }) {
   const hold = useFocusHold<HTMLLIElement>();
   const [editing, setEditing] = useState(false);
@@ -711,7 +828,7 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
       const b = await downloadBackup();
       setMsg({
         ok: true,
-        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedAnswers} saved answers, ${b.counts.savedDrills} drills, ${b.counts.savedScenarios} scenarios, ${b.counts.savedRanges} ranges, ${b.counts.savedReports} saved reports, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
+        text: `Backup made: ${b.counts.savedSpots} spots, ${b.counts.savedAnswers} saved answers, ${b.counts.savedDrills} drills, ${b.counts.savedScenarios} scenarios, ${b.counts.savedRanges} ranges, ${b.counts.savedReports} saved reports, ${b.counts.flopReports} flop reports, ${b.counts.sessions} sessions, ${b.counts.hands} hands, ${b.counts.decisions} graded decisions, ${b.counts.mistakes} kept mistakes.`,
       });
     } catch (e) {
       console.error("The backup failed:", e);

@@ -1607,3 +1607,92 @@ where tight folds face a late-position open (BTN vs BB), and least where the fol
 
 **Not established.** 4-way pots take the weighted ranges the same way but weren't measured or tested. No comparison with
 another solver's bunching was made.
+
+## 24. Custom flop reports against the library (2026-11-13)
+
+(Numbered 24 because the bunching branch took 23 the same day.)
+
+A flop report of your own spot (Reports, "Report over flops" from Solve or Study) solves one flop at a time in the
+browser's worker at Fast or Accurate, over the solver's representative set of 9, 25, 49, 95 or 184 flops. Each flop
+stands for 1/n of all 22,100. The library's own report of a stored spot holds all 1,755 flop classes, each weighted by
+how often it is dealt, solved offline in the library's flop model. To see what a custom report gets wrong,
+`scripts/benchmarks/custom_report.py` reports a spot the library stores with the library turned off, the way a custom
+report solves a spot the library doesn't store, and compares it with the library's report.
+
+**How.**
+
+- The spot is 6-max 100bb, BTN opens 2.5bb and BB calls (`srp_btn_bb`): 5.5bb pot, 97.5bb behind.
+- The live side is the worker's Fast Advisor as `solver/gto/static/worker.js` builds it with 4 or more threads, which
+  most browsers give it: Accurate's turn tree, the river inside at 33/75/125%, and the heads-up solve stopped once
+  0.2% of the pot from equilibrium, from its 300th iteration.
+- It asks the same two questions the page's report asks (`customReport.ts` `solveFlop`): the flop's root, then in
+  position after BB's check. Both are study requests.
+- It runs natively on one thread, through the shared slot. A solve's numbers don't depend on its threads.
+- Every flop stopped at 300 iterations, as in the browser checks, at 0.06% to 0.16% of the pot from equilibrium in its
+  own game (mean 0.10%). The time budget never cut a solve short.
+- 1.0 to 3.5 s a flop natively (1.7 s on average), 2.6 minutes for 95 flops, 425 MB peak.
+- The library side is `library-build/lizard-library/srp_btn_bb/report.json`, the assembled release.
+- Results: `scripts/benchmarks/results/custom_report_srp_btn_bb_25.json` and `…_95.json`.
+
+**The averages** (each weighted as its report weights it):
+
+| Column | Library, all 1,755 flops | Library, the 25 | Live Fast, the 25 | Library, the 95 | Live Fast, the 95 |
+|---|---|---|---|---|---|
+| BB checks | 98.8% | 98.9% | 98.5% | 98.3% | 97.7% |
+| BTN bets after the check | 56.1% | 56.0% | 59.5% | 55.0% | 58.2% |
+| of those bets, at 75% | 71.8% | 72.9% | 56.1% | 71.4% | 56.4% |
+| BB's EV (bb) | 2.04 | 2.04 | 2.03 | 2.06 | 2.05 |
+| BB's EV (% pot) | 37.0 | 37.0 | 36.8 | 37.4 | 37.2 |
+| BB's equity | 45.5% | 45.5% | 45.6% | 45.6% | 45.7% |
+
+**The differences**, split into their two causes:
+
+- **Sampling** is the library over the set minus the library over every flop: the error of using n flops, not 1,755.
+- **Model** is live Fast minus the library, on the same flops: Fast's flop model against the library's.
+- **Report** is what a user sees: the live report minus the library's report, both causes together.
+- **Per flop** is the mean (and largest) absolute difference flop by flop, live against the library.
+
+| Column | Sampling, 25 | Sampling, 95 | Model, 25 | Model, 95 | Report, 25 | Report, 95 | Per flop mean (max), 25 | Per flop mean (max), 95 |
+|---|---|---|---|---|---|---|---|---|
+| BB checks (points) | 0.1 | -0.2 | -0.4 | -0.6 | -0.3 | -0.8 | 0.4 (3.0) | 0.9 (8.0) |
+| BTN bets after the check (points) | -0.1 | -0.6 | 3.5 | 3.1 | 3.4 | 2.5 | 4.0 (10.4) | 3.8 (17.1) |
+| of those bets, at 75% (points) | 1.1 | 0.5 | -16.8 | -15.0 | -15.7 | -14.5 | 18.0 (42.2) | 16.3 (49.3) |
+| BB's EV (bb) | -0.00 | 0.01 | -0.01 | -0.01 | -0.01 | -0.00 | 0.02 (0.04) | 0.02 (0.06) |
+| BB's EV (% pot) | -0.0 | 0.2 | -0.2 | -0.2 | -0.2 | -0.0 | 0.3 (0.7) | 0.3 (1.1) |
+| BB's equity (points) | -0.0 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 | 0.2 (0.6) | 0.2 (0.8) |
+
+**What this says.**
+
+- **Sampling is small on this spot.** The representative sets are drawn by texture and weight, and 25 flops land
+  within about 1 point of the full library's averages on every column (0.6 at 95). A spot whose strategy changes more
+  from flop to flop than this one could need more flops; the set sizes stay offered for that.
+- **EV, equity and BB's check agree.** EVs are within 0.3% of the pot a flop on average (1.1% at most, on 6d6c5h), and
+  the report's average EV within 0.2%. Equity is within 0.2 points. BB checks within 1 point on average. These
+  columns can be read as the library's.
+- **In position bets a little more often, and much smaller.** Fast bets after the check 3 to 4 points more often than
+  the library. Of its bets, 56% are at 75% pot where the library's are 71-73%. That is 15-17 points lower on
+  average, lower on 76 of the 95 flops, and up to 49 points on one flop (Qc7d5c).
+  - This is the flop model below the flop, not the sample. Fast plays the turn by rank class and the turn and river by
+    32 hand buckets over every third river (section 21). The library plays the turn per combo, deals the river and
+    uses 64 buckets.
+  - Section 21 measured what each model gives up against the full game: Fast 1.9% of the pot on average, the library
+    0.6%. So where they disagree, the library is the better guide.
+  - The size split sits where the two sizes are close in value. A coarser game below the flop moves it a long way at
+    little cost, which is why the EVs still agree.
+- **Accurate wasn't measured here.** Its flop model is closer to the library's (64 buckets over every river), but it
+  takes longer a flop. Section 21's Accurate figure (1.9% mean, 5.4% at most) is what a report at Accurate shows.
+
+**On the page.** A custom report's provenance says it was solved live at its tier over n sampled flops of the
+representative set, with each solve's distance from equilibrium and the iterations, and its flop model's abstraction
+error from section 21. A Fast report also carries this comparison in its abstraction line (`FAST_VS_LIBRARY` in
+`customReport.ts`): "EVs were 0.35% pot off a flop on average and in position's bet size split 16 points".
+
+**Not established.**
+
+- Other spots. Only BTN vs BB single-raised was compared. 3bet pots, shallower stacks and other positions may differ,
+  most likely in the size split.
+- Accurate against the library.
+- The turn. A custom report stops at the flop.
+- The browser's own numbers. The browser runs the same engine through Pyodide, and a solve's numbers don't depend on
+  the threads, but this comparison ran natively. The browser checks (2026-11-13: 6-max 60bb CO vs BB, 9 and 25 flops, and
+  40bb BTN vs BB, 9 flops, at Fast) stopped every flop at 300 iterations, 0.04% to 0.12% of the pot from equilibrium, as here.
