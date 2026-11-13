@@ -1,4 +1,4 @@
-"""Tests for nuts.py: its share is Study's, it waits for the builds, and it never does a flop twice.
+"""Tests for nuts.py: its share is Study's, it waits while a heads-up build runs, and it never does a flop twice.
 
 Run: .venv/bin/python -m unittest discover -s scripts/library
 """
@@ -68,10 +68,18 @@ class Run(unittest.TestCase):
         self.assertEqual(run("--stage", s, "--out", self.out, building=True), 3)
         self.assertFalse(self.out.exists())
 
-    def test_it_waits_for_a_spot_short_of_its_target_with_no_build_running(self):
-        s = stage(self.root, summary={"x": {"flops": 2, "target": 2}, "lp": {"flops": 208, "target": 552}})
-        self.assertEqual(run("--stage", s, "--out", self.out), 3)
-        self.assertFalse(self.out.exists())
+    def test_a_spot_short_of_its_target_gets_the_flops_it_has_with_no_build_running(self):
+        s = stage(self.root, summary={"x": {"flops": 2, "target": 552}})
+        self.assertEqual(run("--stage", s, "--out", self.out), 0)
+        self.assertEqual(sorted(json.loads((self.out / "x.json").read_bytes())["flops"]), ["As9s4d", "Kd7c2h"])
+
+    def test_only_a_heads_up_library_build_counts_as_one(self):
+        lib, lp = (str(d) for d in nuts.HU_SOURCES)
+        self.assertTrue(nuts.is_build(f".venv/bin/python scripts/build_flop_library.py --format 2max --out {lib} --turn-evs"))
+        self.assertTrue(nuts.is_build(f"python scripts/build_flop_library.py --spots lp_sb_bb_2max --out {lp}"))
+        self.assertFalse(nuts.is_build("./target/release/hu-solver --dir runs/hu --tree B --rounds 17"))
+        self.assertFalse(nuts.is_build(f"python scripts/build_flop_library.py --out {lib}-552"))
+        self.assertFalse(nuts.is_build(f"python scripts/library/assemble.py --hu {lib}"))
 
     def test_it_writes_every_flop_and_does_none_twice(self):
         s = stage(self.root)

@@ -5105,6 +5105,24 @@ preflop game in which every outcome is paid in prize equity.
   `Game.__init__`; `pf_icm_study.Solve` subclasses `pf_study.Solve`), and the worker's import line, which this edit
   chains on. `engine/pf_stored.py` and `scripts/pf/build_stored.py` are untouched.
 
+### 2026-11-11: nut advantage live
+
+The Reports page's Nut adv column had never appeared: `scripts/library/nuts.py` waited while any process matching
+`hu-solver` ran, which matched the preflop project's unrelated `hu-solver` solve, and while any spot was short of its
+target, which the limped heads-up spot (208 of 552, its build stopped on 2026-11-03) will not reach. It now waits only
+for a `build_flop_library.py` writing into one of `assemble.py`'s heads-up sources (`is_build`, tested on both
+commands), and a spot short of its target gets the flops it has; the step resumes, so flops added later get theirs on
+the next publish. The full run did 27,538 flops in 49 minutes on one core, through `slot.sh`; `publish.sh` published
+library `049a7489` with `nuts.json` on all 20 two-player spots, and the live index and files match. Checked on the
+live site: Reports for BTN vs BB shows the column on every flop (all flops BTN +7.5; sorted, AK and AQ boards lead at
+BTN +23). Tests: `scripts/library/test_nuts.py`, `test_assemble.py`, 17 passed.
+
+Library builds started the same day, each in its own session and branch, building into `library-build/sources/`:
+the five 552-flop single-raised spots to every flop, the four 3-way spots to every flop, the limped heads-up spot's
+last 323 flops (its 4.2 GB came from the tree's size plus memory kept between flops; capped at 4 GB by the owner), and
+40bb and 200bb spots. The single-raised one finished on 2026-11-12 and was merged and published on
+2026-11-13 (library `66b89def`, nut shares for its new flops in `30bbcf5d`); the others are still building.
+
 ## 2026-11-11: stored prize-equity preflop solves, and Practice graded by them
 
 - Six stage and format presets are solved once in prize equity and stored: Final-table bubble, Three left, Heads-up,
