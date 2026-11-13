@@ -757,7 +757,11 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit.png" });
   await options(page).first().click();
-  await expect(page.getByText(/^Graded against: Exploiting an assumed profile \(best response, not a solve\)/)).toBeVisible({ timeout: 60_000 });
+  // (the profile re-solved across the tree where the worker can hold it, engine/profile_solve.py; the one-node best
+  // response elsewhere, each under its own name)
+  await expect(
+    page.getByText(/^Graded against: (Exploit re-solve against an assumed profile \(not an equilibrium\)|Exploiting an assumed profile \(best response, not a solve\))/),
+  ).toBeVisible({ timeout: 60_000 });
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-exploit-graded.png", fullPage: true });
   // The next decision is its own live solve at Quick.
   const next = page.getByRole("button", { name: /next/i }).first();
