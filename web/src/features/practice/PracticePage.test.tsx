@@ -303,12 +303,16 @@ describe("PracticePage", () => {
   it("shows your whole range at your last decision, as its answer plays it, once asked for", async () => {
     const answer = stub.answer;
     // (the chart's answer with its grid: your hand's class and another)
+    let other = "72o";
     const grid = { actions: ["fold", "call", "raise 2.5"], cells: {} as Record<string, { w: number; f: number[] }> };
     stub.answer = (st) => {
       const r = answer(st);
       if (st.board) return r;
-      grid.cells[classOf(st.hole!)] = { w: 1, f: [0.1, 0.2, 0.7] };
-      grid.cells["72o"] = { w: 0.5, f: [1, 0, 0] };
+      const mine = classOf(st.hole!);
+      // (another hand than yours, whatever you were dealt: dealt 72o, a second 72o would overwrite your own mix)
+      other = mine === "72o" ? "83o" : "72o";
+      grid.cells[mine] = { w: 1, f: [0.1, 0.2, 0.7] };
+      grid.cells[other] = { w: 0.5, f: [1, 0, 0] };
       return { ...r, data: { ...r.data, grid } };
     };
     try {
@@ -331,8 +335,8 @@ describe("PracticePage", () => {
       const mine = classOf(stub.states.find((x) => !x.board)!.hole!);
       expect(within(last).getByText(/\(your hand\): fold 10\.0%, call 20\.0%, raise 2\.5 70\.0%$/).textContent).toBe(`${mine} (your hand): fold 10.0%, call 20.0%, raise 2.5 70.0%`);
       // another hand picked: its mix, and its share of combos
-      fireEvent.click(within(matrix).getByRole("gridcell", { name: /^72o/ }));
-      expect(within(last).getByText(/^: fold 100\.0%$/)).toHaveTextContent(/^72o: fold 100\.0% · 50\.0% of its combos in the range$/);
+      fireEvent.click(within(matrix).getByRole("gridcell", { name: new RegExp(`^${other}`) }));
+      expect(within(last).getByText(/^: fold 100\.0%$/)).toHaveTextContent(new RegExp(`^${other}: fold 100\\.0% · 50\\.0% of its combos in the range$`));
       // on the flop: no grid in the answer, none shown
       await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")).toHaveLength(2));
       fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));

@@ -55,7 +55,7 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="text-muted">Structures:</span>
-        <select aria-label="Payout structure" className={SEL} value={which} onChange={(ev) => setWhich(ev.target.value)}>
+        <select aria-label="Payout structure" className={`${SEL} min-w-0 max-w-full`} value={which} onChange={(ev) => setWhich(ev.target.value)}>
           <option value="">A room-style structure…</option>
           {PAYOUT_STRUCTURES.map((x) => (
             <option key={x.name} value={x.name} title={x.about}>
@@ -88,7 +88,7 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
         {spots.length > 0 && (
           <select
             aria-label="Payouts of a saved spot"
-            className={SEL}
+            className={`${SEL} min-w-0 max-w-full`}
             value=""
             onChange={(ev) => {
               const s = spots.find((x) => x.id === ev.target.value);
