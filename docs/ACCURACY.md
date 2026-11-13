@@ -1334,8 +1334,8 @@ local server 300,000:
 Six stage and format presets are solved once (`scripts/pf_icm/build_stored.py`, 1,500 iterations, as for the cash grid)
 and stored in `engine/pf_icm/` with a manifest (`stages.json`). The worker reads them from the site's `pf/` folder. So
 Study answers them at once, and Practice grades a session set to one of them, as long as it is set up as the preset
-sets it, not played out, and has no bounties. The 8- and 9-player presets are left out: their trees are over the
-browser's size cap and take 2-5 GB to build natively.
+sets it, not played out, and has no bounties. The 8- and 9-player presets were left out here, as their trees were over the
+browser's size cap and took 2-5 GB to build natively; they are stored since 2026-11-13 (20.6).
 
 | Preset | Nodes | mbb/hand a seat | Build | File |
 |---|---|---|---|---|
@@ -1367,6 +1367,52 @@ tree alike:
 Checked in a browser (dev build, 2026-11-11) over 18 hands of the sit & go bubble: 17 preflop decisions were graded by
 the solve and one by the push/fold model. That one came after my test loop raised T4s from the small blind, a class the
 solve had folded by then, and the grade says so.
+
+### 20.6 Seven to nine players, and the final-table set (2026-11-13)
+
+From 7 players the tree drops one more family of lines, as `engine/pf_engine.py`'s 7+ tree does: once the pot has been
+raised twice, a player who hasn't put chips in by choice can only fold. There are no cold 4bets, and no cold calls of a
+3bet or of a jam over a raise (`build(cold4=False)`). At most two players see a flop, as before. The solve's label and
+each answer (`pf_limits`, shown on the badge) say so, and the key hashes it, so 2 to 6 player keys are unchanged. These
+lines are rare at a full table, but they made most of its nodes:
+
+| Table | Nodes before | Nodes now | Browser (70,000 nodes x seats) |
+|---|---|---|---|
+| Bubble (8 players, 6-48bb) | 12,226 | 1,310 | yes |
+| Early (8 at 60bb) | 24,470 | 2,148 | yes |
+| Final table (9 players, 6-62bb) | 23,356 | 2,096 | yes |
+| 9 players at 200bb, equal | over the native cap | 5,593 | yes |
+
+Every table up to the 250bb stack limit now fits the native cap (the biggest is 6 players at 200bb or more: 14,157 nodes,
+85,000 of 300,000). Stored at 1,500 iterations (`scripts/pf_icm/build_stored.py`, one process a game):
+
+| Preset | Nodes | mbb/hand a seat | Build | File |
+|---|---|---|---|---|
+| Early | 2,148 | 0.12 | 49 s | 14.9 KB |
+| Bubble | 1,310 | 0.24 | 32 s | 8.6 KB |
+| Final table | 2,096 | 0.20 | 55 s | 12.6 KB |
+| Sit & go, 9 players (75bb, 50/30/20, no ante) | 3,318 | 0.08 | 65 s | 17.8 KB |
+
+The final-table set (`pf_icm_stored.FINAL_TABLE_SET`, the page's `finalTableStacks`) is 105 spots: 3 to 9 left; 10,
+15, 20, 30 or 40bb average; equal stacks, the chip leader on the button with twice the average, or a short big blind
+with 40% of it (the rest share what's left, to 0.1bb). Every spot pays a 9-paid final table's prizes left
+(30/20/14/10.5/8/6.5/5/3.5/2.5) and has the stages' 1bb big-blind ante as each seat's share, no other tables and no
+bounties.
+
+| Players left | Nodes | mbb/hand a seat | Build (15 spots) | Files |
+|---|---|---|---|---|
+| 3 | 42-82 | 0.04-1.62 | 17 s | 15 KB |
+| 4 | 137-401 | 0.08-0.75 | 54 s | 34 KB |
+| 5 | 378-1,552 | 0.11-0.80 | 225 s | 81 KB |
+| 6 | 924-5,002 | 0.15-0.80 | 658 s | 179 KB |
+| 7 | 632-1,102 | 0.02-0.10 | 228 s | 82 KB |
+| 8 | 985-1,720 | 0.02-0.10 | 333 s | 118 KB |
+| 9 | 1,464-2,542 | 0.02-0.08 | 528 s | 161 KB |
+
+That is 34 minutes of one core and 670 KB; the 115 stored files are 809 KB in all. The 7 to 9 handed spots converge
+further than the 5 and 6 handed ones because their trees end sooner. Each number is the solve's distance from the
+equilibrium of its own simplified game, not from a full-tree solve (20.3). The 1.62 mbb spot is 3 left at 10bb with a
+short big blind, where most hands are jams.
 
 ## 21. Flop abstraction error (2026-11-11)
 

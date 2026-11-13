@@ -10,7 +10,10 @@ import { importHand, type ReplayedHand } from "@/hh/replay";
 import nodes from "@/test/fixtures/pf_nodes.json";
 import { practiceRecord } from "@/features/practice/history";
 import { gradedOn, PF_MODEL } from "@/features/practice/pfGrade";
-import { decide, finish, newHand, setupOf, withVillain, type PracticeHand } from "@/features/practice/practice";
+import { decide, finish, newHand, setupOf, withVillain, type PracticeHand, type TournamentOptions } from "@/features/practice/practice";
+import { readDraft, stageDraft } from "@/features/practice/TournamentFields";
+import { FINAL_TABLE_SET, FORMAT_PRESETS, STAGE_PRESETS } from "@/features/tournaments/tournament";
+import { seatsOf } from "@/poker/seats";
 import type { Move } from "@/poker/table";
 import { SolverError, type Provenance } from "@/solver/types";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
@@ -31,6 +34,7 @@ import {
   jamOffTree,
   matchMove,
   offText,
+  pfOut,
   roleOf,
   situationAt,
   type Ask,
@@ -519,6 +523,37 @@ describe("preflop by the stored solve", () => {
     expect([ds[1]!, ds[2]!, ds[3]!].every((x) => ids.has(x.id))).toBe(true);
     // (without the hands, as ever)
     expect(answeredIds(ds).has(ds[0]!.id)).toBe(true);
+  });
+});
+
+describe("a Practice hand of a stored tournament spot", () => {
+  /** a hand of a session set to this preset, everyone folding to the big blind, kept as Practice keeps it */
+  const keptHand = (name: string, bounty?: TournamentOptions["bounty"]) => {
+    const st = [...STAGE_PRESETS, ...FORMAT_PRESETS, ...FINAL_TABLE_SET].find((p) => p.name === name)!;
+    const { players, stack, ante, draft } = stageDraft(st);
+    const tournament = { ...readDraft(draft, players, stack, 250).value!, ...(bounty ? { bounty } : {}) };
+    let h = newHand(players, stack, 0, 7, { ante, tournament, pfSolve: true });
+    for (const p of seatsOf(players).slice(0, -1)) h = withVillain(h, { pos: p, action: "fold" });
+    const rec = practiceRecord({ ...h, result: finish(h) }, { id: "s", startedAt: 1 }, new Date(2));
+    return { rec, replayed: importHand(rec.text), stack };
+  };
+
+  it("keeps its prizes, asks its answers in prize equity, and is graded by the stored solve", () => {
+    for (const name of ["Sit & go bubble", "Final table", "Final table, 6 left, 20bb average, chip leader on the button"]) {
+      const { rec, replayed } = keptHand(name);
+      expect(rec.setup?.tournament?.payouts, name).toBeTruthy();
+      expect(pfOut(rec, replayed), name).toBeNull();
+      const st = adviceStateAt(replayed, "preflop", 0, "preflop", rec.setup);
+      expect(st.payouts, name).toEqual(rec.setup!.tournament!.payouts);
+    }
+  });
+
+  it("isn't graded by a solve where its game isn't the one stored, and says which are", () => {
+    const ko = keptHand("Sit & go bubble", { format: "ko", seats: { CO: 10, BTN: 10, SB: 10, BB: 10 }, field: 10 });
+    expect(pfOut(ko.rec, ko.replayed)).toMatch(/stored only for these spots.*final-table set/);
+    const old = keptHand("Sit & go bubble");
+    const { tournament: _t, ...setup } = old.rec.setup!;
+    expect(pfOut({ ...old.rec, setup }, old.replayed)).toMatch(/aren't kept with this hand/);
   });
 });
 

@@ -56,10 +56,12 @@ class Sizes(G.Sizes):
 # ----------------------------------------------------------------------------- the tree
 def build(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[float] = (), sizes: Optional[Sizes] = None,
           max_players: int = 3, max_players_raised: int = 2, sb_limp: bool = True, jam_open: float = JAM_OPEN,
-          pushfold: bool = False, allin_players: int = 3) -> G.Node:
+          pushfold: bool = False, allin_players: int = 3, cold4: bool = True) -> G.Node:
     """The preflop tree for `positions` in seating order (the last two the blinds; heads-up SB, BB), each seat's
     `stacks` (bb at the start of the hand, its ante included) and `antes` (each seat's dead money, bb: a big blind
-    ante is the big blind's alone). Nodes as pf_game's: a terminal's `inv` is every seat's chips in (antes included)."""
+    ante is the big blind's alone). Nodes as pf_game's: a terminal's `inv` is every seat's chips in (antes included).
+    `cold4=False` (7 or more players, as engine/pf_engine.py's): once the pot has been raised twice, a player who hasn't
+    put chips in voluntarily only folds (no cold 4bets, no cold calls of a 3bet or of a jam over a raise)."""
     sizes = sizes or Sizes()
     n = len(positions)
     pos = list(positions)
@@ -100,7 +102,7 @@ def build(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[flo
             return cur * x + callers * cur
         return float("inf")
 
-    def rec(bets, folded, acted, n_raises, last, p, line):
+    def rec(bets, folded, acted, n_raises, last, p, line, vol=frozenset()):
         live = [q for q in range(n) if q not in folded]
         if len(live) == 1:
             return G.Node("fold", inv=np.array(bets) + ante, active=tuple(live), n_raises=n_raises, line=line)
@@ -118,16 +120,19 @@ def build(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[flo
         q = nxt
         top = eff(q, live)                       # the most q can usefully put in
         names, kids = [], []
+        cold = (not cold4) and n_raises >= 2 and q not in vol
         if bets[q] < cur - EPS:
             names.append("fold")
-            kids.append(rec(bets, folded | {q}, acted | {q}, n_raises, last, q + 1, line + ((pos[q], "fold", 0.0),)))
+            kids.append(rec(bets, folded | {q}, acted | {q}, n_raises, last, q + 1, line + ((pos[q], "fold", 0.0),), vol))
+        if cold:
+            return G.Node("dec", player=q, names=names, children=kids, n_raises=n_raises, line=line)
         if n_raises == 0 and sb_limp and not pushfold and q in (sb, bb) \
                 and all(x in folded for x in range(n) if x not in (sb, bb)) and bets[q] < cur + EPS:
             # the small blind completes, or the big blind checks behind its limp ("call": a flop at 1bb each)
             if (q == sb or sb in acted) and cur < cap[q] - EPS:
                 b2 = list(bets); b2[q] = cur
                 names.append("call")
-                kids.append(rec(b2, folded, acted | {q}, 0, last, q + 1, line + ((pos[q], "call", cur),)))
+                kids.append(rec(b2, folded, acted | {q}, 0, last, q + 1, line + ((pos[q], "call", cur),), vol | {q}))
         if n_raises > 0:
             # (the players in the pot at this level: who has matched it, and who is all in for less)
             in_level = sum(1 for r in live if bets[r] >= cur - EPS or bets[r] >= cap[r] - EPS)
@@ -139,7 +144,8 @@ def build(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[flo
             if in_level < c_cap:
                 b2 = list(bets); b2[q] = min(cur, cap[q])
                 names.append("call")
-                kids.append(rec(b2, folded, acted | {q}, n_raises, last, q + 1, line + ((pos[q], "call", b2[q]),)))
+                kids.append(rec(b2, folded, acted | {q}, n_raises, last, q + 1, line + ((pos[q], "call", b2[q]),),
+                                vol | {q}))
         # (a raise keeps every player all in for less in the pot, as they can't fold: with allin_players of them already
         # in, a raise would make a bigger showdown than the game values, so q calls or folds)
         all_in = sum(1 for r in live if r != q and bets[r] >= cap[r] - EPS)
@@ -158,12 +164,12 @@ def build(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[flo
                 b2 = list(bets); b2[q] = to
                 nm = "all-in" if to >= top - EPS else "raise"
                 names.append(nm)
-                kids.append(rec(b2, folded, {q}, n_raises + 1, q, q + 1, line + ((pos[q], nm, to),)))
+                kids.append(rec(b2, folded, {q}, n_raises + 1, q, q + 1, line + ((pos[q], nm, to),), vol | {q}))
                 # beside a raise first in, the jam (shallow): push/fold's option kept in the tree
                 if nm == "raise" and n_raises == 0 and top <= jam_open + EPS:
                     b3 = list(bets); b3[q] = top
                     names.append("all-in")
-                    kids.append(rec(b3, folded, {q}, 1, q, q + 1, line + ((pos[q], "all-in", top),)))
+                    kids.append(rec(b3, folded, {q}, 1, q, q + 1, line + ((pos[q], "all-in", top),), vol | {q}))
         return G.Node("dec", player=q, names=names, children=kids, n_raises=n_raises, line=line)
 
     bets = [0.0] * n

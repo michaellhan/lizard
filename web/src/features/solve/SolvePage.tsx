@@ -12,8 +12,11 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
+import { FinalTableSet, storedSpotLink } from "@/features/tournaments/FinalTableSet";
+import { PayoutTools } from "@/features/tournaments/PayoutTools";
+import { pfIcmStage } from "@/features/practice/pfIcmStored";
 import { bubbleTableOf } from "@/features/tournaments/icm";
-import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, csvPayouts, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
 import { useSettings } from "@/state/settings";
 import { capWords, TREE_CAPS } from "@/solver/treeDepth";
 import type { BunchingSource } from "@/solver/bunching";
@@ -277,10 +280,11 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   </button>
                 ))}
               </div>
+              <FinalTableSet onSetUp={setUpStage} onOpen={(st) => void navigate(storedSpotLink(st))} />
               <p className="text-xs text-muted" aria-live="polite">
                 {stage
-                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.`
-                  : "A stage or format fills in the form."}
+                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.${pfIcmStage(stage.players, Math.max(...stage.stacks), presetAnte(stage), { model: "icm", stacks: Object.fromEntries(seatsOf(stage.players).map((p, i) => [p, stage.stacks[i]!])), payouts: stage.payouts, ...(stage.field ? { field: stage.field } : {}) }) ? " Its preflop solve in prize equity is stored: Study's Solver source answers it at once." : ""}`
+                  : "A stage, format or final-table spot fills in the form."}
               </p>
             </div>
             <div className="space-y-1.5 text-sm">
@@ -293,7 +297,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   value={payouts}
                   onChange={(e) => setPayouts(e.target.value)}
                   onPaste={(e) => {
-                    const t = pastedPayouts(e.clipboardData.getData("text"));
+                    const raw = e.clipboardData.getData("text");
+                    const t = csvPayouts(raw) ?? pastedPayouts(raw);
                     if (t === null) return;
                     e.preventDefault();
                     setPayouts(t);
@@ -323,6 +328,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   </button>
                 )}
               </div>
+              <PayoutTools playersLeft={players + (Number.isInteger(fN) && fN > 0 ? fN : 0)} onPayouts={setPayouts} />
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span>Other tables</span>

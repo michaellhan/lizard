@@ -312,7 +312,7 @@ export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "
   if (o.tournament?.model === "icm") {
     // (a stored tournament preset, engine/pf_icm_stored.py: solved in prize equity, as Practice sends the preset)
     if (playsOn(o as HandOptions & GameOptions)) return "Played out, the stacks and prizes move on from the preset's, and the preflop solve is stored for the preset as it starts.";
-    if (!pfIcmStage(players, stack, o.ante, o.tournament)) return `A tournament's preflop solve is stored for these presets only, as they set the table, with no bounties: ${PF_ICM_WORDS}. ${solveFirst}`;
+    if (!pfIcmStage(players, stack, o.ante, o.tournament)) return `A tournament's preflop solve is stored only for these spots, as they set the table, with no bounties: ${PF_ICM_WORDS}. ${solveFirst}`;
     if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
     return null;
   }
@@ -522,7 +522,8 @@ const rakeOf = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: Math.round(h
 export const rakeSetup = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.rake.pct, ...(h.rake.cap ? { rakeCap: h.rake.cap } : {}) } : {});
 
 /** The hand's prizes, in the engine's keys and in Study's setup. A chip EV session has none to send. */
-const prizesOf = (h: Pick<PracticeHand, "tournament">): TournamentSetup | undefined => {
+/** A prize-equity hand's prizes left, other tables and bounties, as its answers are asked (undefined in chip EV). */
+export const prizesOf = (h: Pick<PracticeHand, "tournament">): TournamentSetup | undefined => {
   const t = h.tournament;
   if (t?.model !== "icm") return undefined;
   const b = t.bounty;

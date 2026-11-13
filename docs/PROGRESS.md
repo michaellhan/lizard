@@ -5249,3 +5249,51 @@ from ranges you give. No preflop. The FEATURE_MATRIX PLO4 row stays PARTIAL, wit
 - Not done: PLO preflop; ranges suggested or solved for a hand from history; Practice from the deal or saved to History;
   PLO hands in backups and sync. The Hand-history import row still says Analyze rejects Omaha hands; that row isn't
   this branch's to edit.
+
+## 2026-11-13: tournament gaps: 8- and 9-player stored solves, a final-table set, payout structures and import (branch claude/icm-stored-9a389d)
+
+- **7 to 9 handed tree** (`engine/pf_icm.py` `build(cold4=False)`, `engine/pf_icm_study.py` `Spec.cold4`, `LIMITS_7UP`):
+  from 7 players, once the pot is raised twice, a seat that hasn't put chips in by choice can only fold, as
+  `engine/pf_engine.py`'s 7+ tree. Early (8 at 60bb) goes from 24,470 nodes to 2,148, Bubble from 12,226 to 1,310 and
+  Final table (9) from 23,356 to 2,096, so each builds natively in about a minute under 1 GB and fits the browser's live cap. The
+  key hashes "no cold 4bets" only for 7 or more, so the 2 to 6 player keys and files are unchanged; the label and each
+  answer (`pf_limits`, which the badge already shows) say it.
+- **Stored** (`engine/pf_icm_stored.py` `ALL`, built by `scripts/pf_icm/build_stored.py all --missing` through
+  slot.sh, one process a game, each file written whole and then its manifest entry, so a stop resumes at the next game):
+  Early, Bubble, Final table and Sit & go 9 players (0.08-0.24 mbb/hand a seat, 32-65 s each), and a final-table set of
+  105 spots: 3 to 9 left, 10/15/20/30/40bb average, equal stacks, the chip leader on the button, or a short big blind,
+  paying a 9-paid final table's prizes left, with the stages' big-blind ante (0.02-1.62 mbb, 34 minutes of one core, 670
+  KB; ACCURACY 20.6). 115 files, 809 KB in all, under `engine/pf_icm/`; the site's
+  `pf/` folder takes them as before (`scripts/build-solver-assets.mjs`).
+- **Practice and Analyze**: a session set to any of the 115 spots (as set, not played out, no bounties) is graded by its
+  stored solve (`web/src/features/practice/pfIcmStored.ts` `PF_ICM_PRESETS`, `pfIcmStage`); the Stage list has the
+  final-table set. A Practice hand now keeps its tournament in its record (`HandRecord.setup.tournament`, no new
+  IndexedDB store or version), and Analyze grades a kept hand from a stored spot by the solve (`grading.ts` `pfOut`,
+  `adviceStateAt`); an older hand says its prizes weren't kept.
+- **Tournaments page**: "Final-table set (stored)" picks a spot (players left, average, shape) to set up or to open in
+  Study on its stored solve, with the coverage stated (`FinalTableSet.tsx`). The stage note says when a spot's preflop
+  is stored. Payouts: room-style structures in Lizard's own shapes (sit & go 6/9/18/45/180, MTT standard, top-heavy and
+  flat by entrants; `PAYOUT_STRUCTURES`, `mttPayouts`), trimmed to the players left; a payout table from a CSV, TSV or
+  text file or pasted as CSV (`csvPayouts`, `readPayoutTable`, checked by `payoutProblems`), with what was read said;
+  and a saved spot's payouts reused ("From a saved spot…"), which is how a table is kept (`PayoutTools.tsx`). Practice's
+  Prizes list has the structures and takes a CSV paste too. A payout list that rises down the places is now a problem.
+- **Grades** (FEATURE_MATRIX): ICM final-table library NOT IMPLEMENTED to PARTIAL; Satellites APPROXIMATE to PARTIAL;
+  ICM, chipEV, KO/PKO, Mystery, MTT (formats), MTT / final table, Payout structures and Real tournament presets notes
+  updated, their grades unchanged. The summary's Tournaments line was stale (Real presets had moved to PARTIAL); it and
+  the total are recounted.
+- **Checked in a browser** (dev build): a Practice session at the final-table set's 6 left, 20bb average, chip leader
+  on the button dealt BTN 40 and the rest 16bb with the solve's opponents, and a fold of 76o to a CO open was graded
+  Best under "Preflop solve (class-level model) · precomputed · every outcome paid in prize equity …" with EVs in bb of
+  prize equity; a Final table (9 players) session graded a fold to a jam the same way, its badge adding the 7+
+  limits; that hand, kept, was graded in Analyze "by the preflop solve (class-level model)"; the Tournaments page's
+  final-table set opened its spot in Study, answered at once from the file.
+- **Tests**: `scripts/engine/test_pf_icm.py` 14/14 and `test_pf_icm_stored.py` 8/8 (through slot.sh; a 9-player 200bb
+  table no longer counts as too big, so the refusal is now checked with the cap lowered); vitest 197 in tournaments,
+  solve, practice grading, pfIcmStored, grading and provenance, then 1,832 (2 skipped) in practice, analyze and data;
+  tsc and eslint clean.
+- **Depends on** upstream `gto/pf_game.py` (Node, walk, the DCFR arrays) and `gto/pf_study.py` (pack/unpack,
+  STORED_ITERS) as they stand: this branch changes neither, nor `engine/pf_engine.py`/`pf_solve.py`. A change to
+  pf_game's tree or pack format would change the keys or files and need `build_stored.py all` again (about 50 minutes
+  of one core).
+- **Left**: no bounties in any stored spot; one payout structure in the final-table set; Practice's preflop elsewhere
+  is the chart with a risk premium; real rooms' files and pastes only tried as test strings.

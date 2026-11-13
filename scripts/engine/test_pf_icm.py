@@ -80,6 +80,30 @@ class Tree(unittest.TestCase):
         self.assertNotIn("raise", jam.names)               # and the deep one can only call or fold
 
 
+    def test_seven_or_more_nobody_cold_4bets(self):
+        """From 7 players (cold4=False, as pf_engine): once the pot is raised twice, a seat that has put no chips in
+        by choice can only fold; the opener and the 3bettor play on. 2 to 6 players keep every option."""
+        def walk(root, line):
+            nd = root
+            for a in line:
+                nd = nd.children[nd.names.index(a)]
+            return nd
+        pos = SEATS[8]
+        cold = I.build(pos, [40] * 8, [0.12] * 8, max_players=2, cold4=False)
+        full = I.build(pos, [40] * 8, [0.12] * 8, max_players=2)
+        self.assertLess(sum(1 for _ in G.walk(cold)), sum(1 for _ in G.walk(full)) / 3)
+        after = walk(cold, ["raise", "raise"])                       # UTG opens, the next seat 3bets
+        self.assertEqual(after.names, ["fold"])
+        opener = walk(cold, ["raise", "raise"] + ["fold"] * 6)
+        self.assertIn("call", opener.names)
+        self.assertGreater(len(walk(full, ["raise", "raise"]).names), 1)
+        self.assertGreater(len(walk(cold, ["fold", "raise", "call"]).names), 1)    # a flat isn't a 3bet: still open
+        self.assertTrue(IS.Spec(6, (40.0,) * 6, (0.0,) * 6, "").cold4)
+        seven = IS.Spec(7, (40.0,) * 7, (0.0,) * 7, "")
+        self.assertFalse(seven.cold4)
+        self.assertIn(IS.LIMITS_7UP, seven.label())
+
+
 class Chips(unittest.TestCase):
     def test_chips_is_pf_game(self):
         for n, st, ante in ((2, 30, 0.0), (3, 40, 0.1)):
@@ -215,12 +239,17 @@ class Study(unittest.TestCase):
         self.assertNotIn("pf_icm", a)
 
     def test_too_big_says_why(self):
-        for st in ({"players": 9, "stack": 200, "payouts": [50, 30, 20]},
-                   {"players": 3, "stack": 400, "payouts": [50, 30, 20]}):
-            with self.subTest(**{k: v for k, v in st.items() if k != "payouts"}):
-                a = ask(st)
-                self.assertEqual(a.get("study"), "pf_none", a)
-                self.assertTrue(a["reason"])
+        from unittest import mock
+        nine = {"players": 9, "stack": 200, "payouts": [50, 30, 20]}
+        # (since 2026-11-13 the 7-9 handed tree fits every table to 250bb under MAX_WORK: 9 at 200bb is 5,593 nodes)
+        self.assertEqual(ask(nine).get("study"), "pf_unsolved")
+        with mock.patch.object(IS, "MAX_WORK", 20_000):
+            a = ask(nine)
+            self.assertEqual(a.get("study"), "pf_none", a)
+            self.assertIn("too big", a["reason"])
+        a = ask({"players": 3, "stack": 400, "payouts": [50, 30, 20]})
+        self.assertEqual(a.get("study"), "pf_none", a)
+        self.assertTrue(a["reason"])
 
 
 if __name__ == "__main__":
