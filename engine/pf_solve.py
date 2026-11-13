@@ -44,8 +44,20 @@ STORED_RAKES = (None, (0.05, 3.0))
 # stored games solved past pf_study.STORED_ITERS (1,500) as they were over its 1.5 mbb target there; some level off just
 # above it (a live solve stops those by its stall rule too); each header holds the mbb shown (engine/pf/lz1_built.jsonl)
 STORED_ITERS_OF = {"lz1_4max_40bb": 3000, "lz1_5max_40bb": 3000, "lz1_5max_50bb": 3000, "lz1_6max_40bb": 3000,
-                   "lz1_6max_150bb": 3000, "lz1_6max_200bb": 3000}
+                   "lz1_6max_150bb": 3000, "lz1_6max_200bb": 3000, "lz1_6max_40bb_blind_3bet4": 6000}
+# the slowest of them, 6-max 40bb at the charts' 3bet size, levels off above 1.7: 1.793 mbb at 1,500 iterations, 1.759
+# at 3,000, 1.745 at 6,000 (doubling the work moved it 0.014). Its base game stops at 1.496; the 4x 3bet puts more of
+# the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a solve. 1.8 is the bound
+# the test holds these to; nothing else in the grid is above 1.65
 LIMITS_7UP = "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
+# memory a solve needs (MB): measured natively, peak resident over building the game, iterating and the exploitability
+# check: 6-max 11,010 nodes x 6 seats 749 MB, 9-handed 4,795 x 9 588 MB, 4-max 764 x 4 138 MB (a 78 MB interpreter in
+# each); ~11.8 KB a node a seat (169 classes' float64 arrays) on top of the interpreter
+MB_BASE, MB_PER_WORK = 90.0, 0.0118
+# the most the worker builds in the browser, whatever the device (Pyodide's 32-bit heap is 4 GB at most, and a tab
+# near 2 GB is at risk on most devices); the page sets a lower cap a device (web/src/features/study/pfCap.ts)
+MAX_MB_BROWSER = 2048.0
+OPTION_KEYS = ("open_limps", "opens", "flop3", "cold")
 HERE = os.path.dirname(os.path.abspath(__file__))
 STORE_DIR = os.path.join(HERE, "pf")
 
@@ -66,6 +78,54 @@ class Spec:
     # the small blind may complete when it's folded to (heads-up it always may, as upstream's game; 3 or more players
     # only when asked, and never with a straddle, which pf_engine.build rules out)
     sb_limp: bool = False
+    # the tree builder (2026-11-13): any seat may limp first in or over-limp (3 or more players, no straddle);
+    # a position's own open size (bb); 3-way flops and cold calls of a 3bet / cold 4bets (None: the table size's
+    # default, on up to 6 players and off from 7)
+    open_limps: bool = False
+    opens: Tuple[Tuple[str, float], ...] = ()
+    flop3: Optional[bool] = None
+    cold: Optional[bool] = None
+
+    @property
+    def three_way(self) -> bool:
+        """Up to three see a single-raised (or limped) flop; else two."""
+        return self.players <= 6 if self.flop3 is None else bool(self.flop3)
+
+    @property
+    def cold_calls(self) -> bool:
+        """Cold calls of a 3bet and cold 4bets are in the tree."""
+        return self.players <= 6 if self.cold is None else bool(self.cold)
+
+    def tree_notes(self) -> List[str]:
+        """What this game adds to the stored grid's, for the provenance line (each its own words): none for a game of
+        the grid's kind."""
+        out = []
+        if not self.equal:
+            out.append("each seat's own stack (side pots; not measured against a fuller solve)")
+        if self.open_limps:
+            out.append("limps from any seat (not measured against a fuller solve)")
+        if self.opens:
+            out.append("opens by position: " + ", ".join(f"{p} {v:g}bb" for p, v in self.opens))
+        if self.sizes == CHART_SIZES:
+            out.append("at the charts' raise sizes (a blind's 3bet to 4x the open, where the published solves' is "
+                       "4.8x: measured against them only where the sizes are alike)")
+        if self.players > 6 and (self.three_way or self.cold_calls):
+            out.append("a 7-9 handed tree with " + " and ".join(
+                x for x, on in (("3-way flops", self.three_way), ("cold calls", self.cold_calls)) if on))
+        return out
+
+    def limits(self) -> Optional[str]:
+        """What the tree leaves out that the full one has, in words (None: nothing)."""
+        out = []
+        if not self.three_way:
+            out.append("at most two see a flop")
+        if not self.cold_calls:
+            out.append("nobody cold 4bets or cold-calls a 3bet")
+        if not out:
+            return None
+        if self.players > 6 and self.flop3 is None and self.cold is None:
+            return LIMITS_7UP
+        return ", ".join(out)
 
     @property
     def limps(self) -> bool:
@@ -97,8 +157,16 @@ class Spec:
             k += f"_r{self.rake[0] * 100:g}" + (f"c{self.rake[1]:g}" if self.rake[1] else "")
         for n, v in self.sizes:
             k += f"_{n}{v:g}"
-        if self.limps and self.players > 2:
+        if self.limps and self.players > 2 and not self.open_limps:
             k += "_l"
+        if self.open_limps:
+            k += "_L"
+        for p, v in self.opens:
+            k += f"_o{p}{v:g}"
+        if self.flop3 is not None and self.three_way != (self.players <= 6):
+            k += "_f3" if self.three_way else "_f2"
+        if self.cold is not None and self.cold_calls != (self.players <= 6):
+            k += "_c1" if self.cold_calls else "_c0"
         return k
 
     def label(self) -> str:
@@ -116,10 +184,15 @@ class Spec:
         sz = self.sizes_obj()
         bits.append(f"opens {sz.open:g}bb (SB {sz.sb_open:g}), 3bets {sz.ip_3bet:g}x / {sz.blind_3bet:g}x from the blinds, "
                     f"4bets {sz.four_x:g}x")
-        if self.limps and self.players > 2:
+        if self.opens:
+            bits.append("opens " + ", ".join(f"{p} {v:g}bb" for p, v in self.opens))
+        if self.open_limps:
+            bits.append(f"any seat may limp or over-limp (a raise over limpers: the open plus 1bb a limper)")
+        elif self.limps and self.players > 2:
             bits.append(f"the small blind may complete when folded to (the big blind raises it to {sz.iso:g}bb)")
-        if self.players > 6:
-            bits.append("at most two see a flop, no cold 4bets")
+        lim = self.limits()
+        if lim:
+            bits.append(lim.replace("7 or more players: ", ""))
         return ", ".join(bits)
 
     def sizes_obj(self) -> G.Sizes:
@@ -134,9 +207,21 @@ class Spec:
 
     def build(self) -> Tuple[G.Node, List[str]]:
         pos = self.positions()
-        root = E.build(pos, self.seat_stacks(), sizes=self.sizes_obj(), max_players=3 if self.players <= 6 else 2,
-                       ante=self.ante, straddle=self.straddle, sb_limp=self.limps, cold4=self.players <= 6)
+        root = E.build(pos, self.seat_stacks(), sizes=self.sizes_obj(), max_players=3 if self.three_way else 2,
+                       ante=self.ante, straddle=self.straddle, sb_limp=self.limps and not self.open_limps,
+                       cold4=self.cold_calls, limps=self.open_limps, opens=dict(self.opens))
         return root, pos
+
+    def nodes(self) -> int:
+        """The tree's nodes (built and counted once a game)."""
+        n = _NODES.get(self.key)
+        if n is None:
+            n = _NODES[self.key] = sum(1 for _ in G.walk(self.build()[0]))
+        return n
+
+    def estimate_mb(self) -> float:
+        """About how much memory a solve of this game needs (MB_BASE, MB_PER_WORK)."""
+        return MB_BASE + MB_PER_WORK * self.nodes() * self.players
 
     def game(self, payoff=None, model_params: Optional[M.Params] = None) -> E.Game:
         root, pos = self.build()
@@ -145,6 +230,9 @@ class Spec:
                    ante=self.ante)
         g.avg_power = PS.AVG_POWER
         return g
+
+
+_NODES: Dict[str, int] = {}
 
 
 def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
@@ -204,12 +292,60 @@ def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
     stacks = (vals[0],) if len(set(vals)) == 1 else tuple(vals)
     # (asked for with a straddle, the complete is left out of the tree and of the key: pf_engine.build has none there)
     sb_limp = bool(state.get("pf_sb_limp")) and n > 2 and not straddle
-    return Spec(n, stacks, round(ante, 4), straddle, (rate, cap) if rate > 0 else None, tuple(sizes), sb_limp), None
+    tree = state.get("pf_tree") or {}
+    if not isinstance(tree, dict):
+        return None, "pf_tree must be an object"
+    unknown = [k for k in tree if k not in OPTION_KEYS]
+    if unknown:
+        return None, f"unknown tree option {unknown[0]!r} (options: {', '.join(OPTION_KEYS)})"
+    open_limps = bool(tree.get("open_limps")) and n > 2 and not straddle
+    opens = []
+    raw_opens = tree.get("opens") or {}
+    if not isinstance(raw_opens, dict):
+        return None, "opens: a size by position"
+    lo_o, hi_o = PS.SIZE_LIMITS["open"]
+    for p, v in sorted(raw_opens.items(), key=lambda kv: pos.index(str(kv[0]).upper()) if str(kv[0]).upper() in pos else -1):
+        p = str(p).upper()
+        if p not in pos or p == pos[-1]:
+            return None, f"opens: {p} doesn't open at this table (opens: {', '.join(pos[:-1])})"
+        try:
+            v = round(float(v), 2)
+        except (TypeError, ValueError):
+            return None, f"opens: {p}'s open must be a number"
+        if not lo_o <= v <= hi_o:
+            return None, f"opens: {p}'s open must be {lo_o:g} to {hi_o:g}bb"
+        default = (dict(sizes).get("sb_open", G.Sizes().sb_open) if p == pos[-2]
+                   else dict(sizes).get("open", G.Sizes().open))
+        if abs(v - default) > 1e-9:
+            opens.append((p, v))
+    flop3 = tree.get("flop3")
+    cold = tree.get("cold")
+    flop3 = None if flop3 is None or bool(flop3) == (n <= 6) else bool(flop3)
+    cold = None if cold is None or bool(cold) == (n <= 6) else bool(cold)
+    return Spec(n, stacks, round(ante, 4), straddle, (rate, cap) if rate > 0 else None, tuple(sizes),
+                sb_limp and not open_limps, open_limps, tuple(opens), flop3, cold), None
 
 
 # ----------------------------------------------------------------------------- the stored solves
+# The charts' raise sizes (2026-11-13): the charts' blinds 3bet to 4x the open (gto/advisor.py _default_size: 10bb over
+# 2.5bb), the tree's default to 4.8x (12bb, the published solves' size). Practice's opponents play the charts, so at
+# the tree's size a blind's 3bet leaves the tree and the decisions after it, and your own 3bet from a blind, have no EV
+# (about 30% of 6-max decisions; docs/ACCURACY.md section 18.5). The same game at the charts' 3bet size is stored
+# beside it, for Practice's and Analyze's grade (web/src/features/practice/pfGrade.ts); Study's Solver source keeps the
+# tree's own sizes. Every other size of the tree already is the charts' (opens 2.5bb, SB 3bb, 3bets 3x in position,
+# BvB 10bb, 4bets 2.3x, a caller adding its bet).
+CHART_SIZES: Tuple[Tuple[str, float], ...] = (("blind_3bet", 4.0),)
+STORED_CHART_PLAYERS = (6,)
+
+
+def chart_sized(spec: Spec) -> Spec:
+    """The game at the charts' raise sizes."""
+    return Spec(spec.players, spec.stacks, spec.ante, spec.straddle, spec.rake, CHART_SIZES)
+
+
 def stored_games() -> List[Spec]:
-    return [Spec(n, (d,), rake=r) for n in STORED_PLAYERS for d in STORED_DEPTHS for r in STORED_RAKES]
+    grid = [Spec(n, (d,), rake=r) for n in STORED_PLAYERS for d in STORED_DEPTHS for r in STORED_RAKES]
+    return grid + [chart_sized(s) for s in grid if s.players in STORED_CHART_PLAYERS]
 
 
 STORED_KEYS = frozenset(s.key for s in stored_games())
@@ -255,8 +391,12 @@ class Solve(PS.Solve):
             st = self.spec.seat_stacks()[self.game.positions.index(p)]
             res["stack_bb"] = round(st - self.spec.ante - bets[p], 2)
             res["pf_model"] = MODEL
-            if self.spec.players > 6:
-                res["pf_limits"] = LIMITS_7UP
+            lim = self.spec.limits()
+            if lim:
+                res["pf_limits"] = lim
+            notes = self.spec.tree_notes()
+            if notes:
+                res["pf_tree"] = notes
             res["solver"]["by"] = "Lizard's preflop solve"
         return res
 
@@ -319,6 +459,10 @@ def answer(adv, state: dict) -> dict:
         return {"study": "pf_none", "street": "preflop", "reason": why, "pf_model": MODEL}
     stop = getattr(adv, "should_stop", None)
     if isinstance(pfs, dict) and pfs.get("run"):
+        if held(spec) is None and sys.platform == "emscripten" and spec.estimate_mb() > MAX_MB_BROWSER:
+            return {"study": "pf_none", "street": "preflop", "pf_model": MODEL,
+                    "reason": f"this tree needs about {spec.estimate_mb():,.0f} MB, more than a browser tab can hold "
+                              f"({MAX_MB_BROWSER:,.0f} MB): take 3-way flops, cold calls or limps off"}
         sec = max(0.5, min(30.0, float(pfs["run"])))
         s = solve(spec, sec, stop)
         return {"study": "pf_progress", "street": "preflop", "pf_solve": s.status(), "pf_model": MODEL,
@@ -333,8 +477,10 @@ def answer(adv, state: dict) -> dict:
             pass
     s = held(spec)
     if s is None:
+        mb = spec.estimate_mb()
         return {"study": "pf_unsolved", "street": "preflop", "game": spec.label(), "key": spec.key, "pf_model": MODEL,
-                "estimate_s": round(PS.estimate_seconds(spec)), "seconds": round(time.time() - t0, 2)}
+                "estimate_s": round(PS.estimate_seconds(spec)), "estimate_mb": round(mb), "nodes": spec.nodes(),
+                "max_mb": MAX_MB_BROWSER, "seconds": round(time.time() - t0, 2)}
     res = s.node(_norm_actions(st.get("preflop"), float(st.get("bb", 1.0))))
     res["seconds"] = round(time.time() - t0, 3)
     return res

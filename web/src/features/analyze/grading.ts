@@ -15,6 +15,7 @@ import { pfPlayed, pfReadAt, type PfAsked, type PfSpot } from "@/features/practi
 import { PF_ICM_WORDS, pfIcmStage } from "@/features/practice/pfIcmStored";
 import { pfBlocked } from "@/features/practice/practice";
 import { tournamentRequest } from "@/features/tournaments/tournament";
+import { pfGradeSizes } from "@/solver/pfStored";
 import { capGrade, grade, type Grade, type Verdict } from "@/grading/grade";
 import { versionOf } from "@/grading/version";
 import { importHand, type ReplayedHand } from "@/hh/replay";
@@ -251,7 +252,7 @@ export const PF_NO_RAKE = "this history doesn't say its rake or cap, so it's rea
  * a stop leaves the chart's grade, with why. */
 async function askPf({ triage: _t, library_only: _l, ...state }: AdvisorState, ask: Ask): Promise<PfAsked> {
   try {
-    const a = await ask({ ...state, study: true, preflop_solve: true });
+    const a = await ask({ ...state, study: true, preflop_solve: true, ...pfGradeSizes(state) });
     if (a.data.cancelled) throw new SolverError("cancelled", "cancelled");
     return a;
   } catch (e) {

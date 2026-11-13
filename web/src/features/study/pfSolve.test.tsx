@@ -9,7 +9,8 @@ import type { SolveResult } from "@/solver/types";
 import { askNode, newRun, pfCache, pfCacheKey, pfFraction, pfGame, runPf } from "./pfSolve";
 import { StudyPage } from "./StudyPage";
 import { describePfSizes, parsePfSizes, pfSizeProblems, tidyPfSizes } from "./pfSizes";
-import { freshHand, fromSearch, play, samePf, studyRequest, toSearch, withPf, withPfSizes, type StudyHand } from "./studyState";
+import { solveCapMb, overCap } from "./pfCap";
+import { freshHand, fromSearch, play, samePf, studyRequest, toSearch, withPf, withPfSizes, withPfStacks, type StudyHand } from "./studyState";
 
 // the engine's preflop solve stubbed (Advisor._study_pf, pf_study.Solve): one heads-up game, solved 500 iterations a
 // chunk to 1,000; every request kept in `pf.asked`; a chunk waits on `pf.hold` where a test sets one
@@ -147,6 +148,51 @@ describe("the preflop Solver source's state", () => {
     expect(tidyPfSizes({ limp: true })).toEqual({ limp: true });
   });
 
+  it("keeps the tree builder's options: limps, opens a position, the switches at their table's default left out", () => {
+    const six = withPf(freshHand(6, 100), "solver");
+    const h = withPfSizes(six, { limps: true, opens: { UTG: 2.2, BTN: 2.5, SB: 3.5, BB: 3 }, flop3: true, cold: false });
+    // (BTN at the open's default, BB opening nothing, 3-way flops on at 6-max: left out)
+    expect(h.pfSizes).toEqual({ limps: true, opens: { UTG: 2.2, SB: 3.5 }, cold: false });
+    expect(studyRequest(h)).toMatchObject({ pf_tree: { open_limps: true, opens: { UTG: 2.2, SB: 3.5 }, cold: false } });
+    expect(studyRequest(h)).not.toHaveProperty("pf_sizes");
+    expect(toSearch(h)).toContain("pfs=L%2Co.UTG%3A2.2%2Co.SB%3A3.5%2Ccold%3A0");
+    expect(fromSearch(toSearch(h))).toEqual(h);
+    expect(describePfSizes(h.pfSizes)).toBe("limps, UTG opens 2.2bb, SB opens 3.5bb, no cold calls");
+    expect(pfSizeProblems({ opens: { UTG: 9 } })).toEqual(["UTG's open must be 2–5bb"]);
+    // 9-handed: the switches are off by default, so on is what's kept; a seat the new table hasn't loses its open
+    const nine = withPfSizes(withPf(freshHand(9, 100), "solver"), { flop3: true, cold: false, opens: { UTG2: 2.2 } });
+    expect(nine.pfSizes).toEqual({ flop3: true, opens: { UTG2: 2.2 } });
+    expect(samePf(nine, freshHand(6, 100)).pfSizes).toBeUndefined(); // (3-way flops are 6-max's default)
+    expect(samePf(nine, freshHand(8, 100)).pfSizes).toEqual({ flop3: true });
+    // limps from any seat stand in for the small blind's complete; heads-up there's nothing to add
+    expect(tidyPfSizes({ limps: true, limp: true }, 6)).toEqual({ limps: true });
+    expect(tidyPfSizes({ limps: true }, 2)).toBeUndefined();
+  });
+
+  it("sets each seat's own stack into the setup, the table's stack left out", () => {
+    const h = withPfStacks(withPf(freshHand(3, 40), "solver"), { BTN: 40, SB: 18, BB: 60 });
+    expect(h.setup).toEqual({ stacks: { SB: 18, BB: 60 } });
+    expect(studyRequest(h).stacks).toEqual({ SB: 18, BB: 60 });
+    expect(withPfStacks(h, {}).setup).toBeUndefined();
+    expect(withPfStacks(h, undefined)).toBe(h);
+    expect(withPfStacks({ ...h, setup: { rake: 5, stacks: { SB: 18 } } }, {}).setup).toEqual({ rake: 5 });
+  });
+
+  it("caps a solve's memory a device: a quarter of what the browser reports, 1 GB where it says nothing", () => {
+    expect(solveCapMb({ memoryGb: 8 })).toMatchObject({ mb: 2048 });
+    expect(solveCapMb({ memoryGb: 4 })).toMatchObject({ mb: 1024 });
+    expect(solveCapMb({ memoryGb: 2 })).toMatchObject({ mb: 512 });
+    expect(solveCapMb({ memoryGb: 8, touch: true })).toMatchObject({ mb: 768 });
+    expect(solveCapMb({})).toMatchObject({ mb: 1024 });
+    expect(solveCapMb({ touch: true })).toMatchObject({ mb: 768 });
+    // 6-max (about 870 MB) fits 4 GB and up; 9-handed's small tree (about 600 MB) a phone; its full tree nowhere
+    expect(overCap(870, 2048, { memoryGb: 4 })).toBeNull();
+    expect(overCap(870, 2048, { memoryGb: 2 })).toBe("This tree needs about 870 MB to solve, more than 512 MB on this device (a quarter of the 2 GB this browser reports).");
+    expect(overCap(599, 2048, { touch: true })).toBeNull();
+    expect(overCap(18000, 2048, { memoryGb: 8 })).toMatch(/more than 2,048 MB on this device/);
+    expect(overCap(undefined, 2048, {})).toBeNull();
+  });
+
   it("fills the bar toward the target from the last measure, else by iterations", () => {
     expect(pfFraction({ done: true, mbb: 9, target: 1.5, it: 100 })).toBe(1);
     expect(pfFraction({ done: false, mbb: 3, target: 1.5, it: 300 })).toBeCloseTo(Math.pow(0.5, 1 / 1.2));
@@ -262,7 +308,7 @@ describe("Study's preflop Solver source", () => {
   it("sets the solve's raise sizes: refused out of range, sent as pf_sizes on Apply, named, and back to the defaults", async () => {
     renderAt(withPf(HU, "solver"));
     await screen.findByRole("region", { name: "Solve this game's preflop" });
-    const form = screen.getByRole("form", { name: "Preflop solve sizes" });
+    const form = screen.getByRole("form", { name: "Preflop solve tree" });
     fireEvent.change(within(form).getByLabelText("Open"), { target: { value: "6" } });
     expect(within(form).getByRole("alert")).toHaveTextContent("Open must be 2–5bb");
     expect(within(form).getByRole("button", { name: "Apply" })).toBeDisabled();
@@ -272,12 +318,51 @@ describe("Study's preflop Solver source", () => {
     pf.asked = [];
     fireEvent.click(within(form).getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(pf.asked.at(-1)?.pf_sizes).toEqual({ open: 2.2 }));
-    expect(screen.getByText("Sizes: open 2.2bb")).toBeInTheDocument();
+    expect(screen.getByText("Tree: open 2.2bb")).toBeInTheDocument();
     pf.asked = [];
     fireEvent.click(screen.getByRole("button", { name: "Defaults" }));
     await waitFor(() => expect(pf.asked.length).toBeGreaterThan(0));
     expect(pf.asked.at(-1)).not.toHaveProperty("pf_sizes");
-    expect(screen.getByText("Sizes")).toBeInTheDocument();
+    expect(screen.getByText("Tree")).toBeInTheDocument();
+  });
+
+  it("builds the tree: limps, opens by position and own stacks sent on Apply, the stacks into the setup", async () => {
+    renderAt(withPf(freshHand(6, 100), "solver"));
+    await screen.findByRole("region", { name: "Solve this game's preflop" });
+    const form = screen.getByRole("form", { name: "Preflop solve tree" });
+    fireEvent.click(within(form).getByLabelText(/Any seat may limp or over-limp/));
+    fireEvent.change(within(form).getByLabelText("UTG opens"), { target: { value: "2.2" } });
+    fireEvent.change(within(form).getByLabelText("SB opens"), { target: { value: "3" } }); // (the SB's default: not sent)
+    fireEvent.change(within(form).getByLabelText("BTN stack"), { target: { value: "40" } });
+    fireEvent.change(within(form).getByLabelText("BB stack"), { target: { value: "100" } }); // (the table's: not kept)
+    fireEvent.click(within(form).getByLabelText(/Up to three see a flop/));
+    fireEvent.change(within(form).getByLabelText("CO stack"), { target: { value: "300" } });
+    expect(within(form).getByRole("alert")).toHaveTextContent("CO's stack must be 5–250bb");
+    fireEvent.change(within(form).getByLabelText("CO stack"), { target: { value: "" } });
+    pf.asked = [];
+    fireEvent.click(within(form).getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(pf.asked.at(-1)?.pf_tree).toEqual({ open_limps: true, opens: { UTG: 2.2 }, flop3: false }));
+    expect(pf.asked.at(-1)?.stacks).toEqual({ BTN: 40 });
+    expect(screen.getByText("Tree: limps, UTG opens 2.2bb, 2 to a flop, own stacks")).toBeInTheDocument();
+  });
+
+  it("refuses to offer a solve past this device's memory, saying how much it needs and what to take off", async () => {
+    const client = (await pf.getSolver()) as { solve: (r: { state: AdvisorState }) => Promise<SolveResult> };
+    const solve = client.solve;
+    client.solve = async (r) =>
+      r.state.preflop_solve === true
+        ? { ...(await solve(r)), data: { study: "pf_unsolved", street: "preflop", game: "9 players, 100bb", key: "lz1_9max_100bb_f3_c1", estimate_s: 900, estimate_mb: 18000, max_mb: 2048 } }
+        : solve(r);
+    try {
+      renderAt(withPf(freshHand(9, 100), "solver"));
+      const panel = await screen.findByRole("region", { name: "Solve this game's preflop" });
+      expect(panel).toHaveTextContent("too big to solve here");
+      expect(within(panel).getByRole("alert")).toHaveTextContent("This tree needs about 18,000 MB to solve, more than");
+      expect(within(panel).queryByRole("button", { name: "Solve" })).toBeNull();
+      expect(within(panel).getByRole("button", { name: "Use the charts" })).toBeInTheDocument();
+    } finally {
+      client.solve = solve;
+    }
   });
 
   it("says when the solve doesn't take a game, and offers the charts", async () => {

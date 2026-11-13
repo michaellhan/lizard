@@ -16,7 +16,9 @@ can grade whose options are its in kind, your raise is at the solve's own size, 
 the table's half big blind). Anywhere else your raise stays the chart's, and that decision the chart's.
 
     .venv/bin/python scripts/pf_practice_coverage.py --hands 30000 --policy chart,uniform,solve [--rake] [--own-sizes]
-        [--players 2..6] [--stack 20..200]   (a game of engine/pf_stored.py's grid; 6 players at 100bb by default)
+        [--players 2..6] [--stack 20..200]   (a game of engine/pf_solve.py's grid; 6 players at 100bb by default)
+        [--chart-sizes]   (the grid's game at the charts' raise sizes: what Practice's grade asks at 6-max since 11-13)
+        [--upstream]      (pf_study's stored grid, what ACCURACY sections 18 to 18.3 measured)
 """
 import argparse
 import collections
@@ -33,6 +35,7 @@ from gto.advisor import Advisor          # noqa: E402
 from gto import pf_study                 # noqa: E402
 from gto.preflop import SEATS as TABLES  # noqa: E402
 import engine.pf_stored                  # noqa: E402,F401  (Lizard's stored games, as the worker has them)
+from engine import pf_solve as LZ        # noqa: E402  (the solver every chip-game preflop request goes to since 11-11)
 
 SEATS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]
 RANKS = "23456789TJQKA"
@@ -166,11 +169,21 @@ def verdict(evs, freqs, a, pot):
     return ("Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"), raw
 
 
-def run(policy, hands, seed, rake, own_sizes):
+def held_solve(rake, upstream, sizes=()):
+    """The stored solve Practice's grade reads: Lizard's (engine/pf_solve.py, the worker's since 2026-11-11) or, with
+    --upstream, pf_study's (what sections 18 to 18.3 measured). `sizes`: a Spec's sizes, for a stored game at other
+    raise sizes."""
+    r = (0.05, 3.0) if rake else None
+    if upstream:
+        return pf_study.held(pf_study.Spec(len(SEATS), STACK, 0.0, False, r))
+    return LZ.held(LZ.Spec(len(SEATS), (STACK,), rake=r, sizes=tuple(sizes)))
+
+
+def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
     rnd = random.Random(seed)
     adv = Advisor()
     extra = {"rake": 0.05, "rake_cap": 3} if rake else {}
-    solve = pf_study.held(pf_study.Spec(len(SEATS), STACK, 0.0, False, (0.05, 3.0) if rake else None))
+    solve = held_solve(rake, upstream, sizes)
     if solve is None or not solve.stored:
         raise SystemExit("no stored solve")
     seen, why, by = collections.Counter(), collections.Counter(), collections.defaultdict(collections.Counter)
@@ -243,14 +256,17 @@ def main():
     ap.add_argument("--own-sizes", action="store_true")
     ap.add_argument("--players", type=int, default=6, help="2 to 6: a stored game of engine/pf_stored.py")
     ap.add_argument("--stack", type=float, default=100.0)
+    ap.add_argument("--upstream", action="store_true", help="pf_study's stored solve (before 2026-11-11), not Lizard's")
+    ap.add_argument("--chart-sizes", action="store_true", help="the stored game at the charts' raise sizes "
+                    "(engine/pf_solve.py CHART_SIZES), as Practice's grade asks it at 6-max since 2026-11-13")
     a = ap.parse_args()
     global SEATS, STACK
     SEATS, STACK = list(TABLES[a.players]), a.stack
     for pol in a.policy.split(","):
         t0 = time.time()
-        o = run(pol, a.hands, a.seed, a.rake, a.own_sizes)
+        o = run(pol, a.hands, a.seed, a.rake, a.own_sizes, a.upstream, LZ.CHART_SIZES if a.chart_sizes else ())
         n = sum(o["seen"].values())
-        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
+        print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}{' upstream' if a.upstream else ''}{' chart-sizes' if a.chart_sizes else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
         for k, v in o["seen"].most_common():
             print(f"  {k:12s} {v:7d} {v / n:6.1%}")
         for pot in ("first in", "facing an open", "facing a 3-bet", "facing a 4-bet", "facing a 5-bet+"):

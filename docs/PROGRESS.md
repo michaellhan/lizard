@@ -5355,3 +5355,47 @@ systematic sample go first, then the other 327.
   assemble into a scratch stage with the source at 572 flops: `srp_utg_hj` 572 (all hashes checked, report 572
   flops), 43,283 files, 298.1 MB. Not published from here: the main checkout's 6-hourly job picks it up once this
   branch is merged.
+
+## 2026-11-13: preflop tree builder, a device memory cap, and preflop decisions that now carry EV
+
+ROADMAP Phase 9 "Preflop", the four gaps the matrix named. Two commits on `claude/pf-depth-8cc87b`. The measurements,
+the tree sizes and the browser checks are in `docs/ACCURACY.md` section 18.5.
+
+**The tree builder.** Study's Sizes form is now a Tree form (`web/src/features/study/PreflopSolve.tsx` `PfSizesForm`,
+`pfSizes.ts`): the raise sizes as before, plus each seat's own stack (5 to 250bb, written to the hand's `setup.stacks`
+by `studyState.ts` `withPfStacks`), a position's own open size, limps and over-limps from any seat, and 3-way flops and
+cold calls switched either way. In the engine they are `Spec.open_limps`, `opens`, `flop3`, `cold`
+(`engine/pf_solve.py`, built by `engine/pf_engine.py` `build`'s new `limps` and `opens` arguments), in the request as
+`pf_tree`, and in Study's link as `pfs=L,o.UTG:2.2,f3:1,cold:0`. Each is off by default: the default trees still have
+11,010 nodes at 6-max and 4,795 at 9-handed, the keys are unchanged, and no stored game carries an option, so
+everything measured before this day stands. Each option has its own key suffix, its words in the game's label and in
+`pf_limits`, and a note in the answer's `pf_tree` that Study's provenance line repeats, so a user is told what tree
+produced the number.
+
+**The memory cap.** A solve's peak memory was measured natively (6-max 749 MB, 9-handed 588 MB, 4-max 138 MB) and
+fitted to `MB = 90 + 0.0118 x nodes x seats`. `pf_unsolved` carries `estimate_mb`, `nodes` and `max_mb`; the worker
+refuses a tree past 2,048 MB when running in a browser. The page holds it to a lower per-device cap
+(`web/src/features/study/pfCap.ts`), and over it the panel says what the tree needs, what the cap is and why, and
+offers the charts instead of Solve.
+
+**Preflop decisions with EV.** The grade reads only a spot whose sizes are its own, and the charts' blinds 3bet to 4x
+the open where the tree raises 4.8x, which left about 30% of 6-max decisions on a frequency grade. Each 6-max game is
+now stored a second time at `blind_3bet` 4 (22 files, `engine/pf/lz1_6max_*_blind_3bet4.bin`), and Practice's and
+Analyze's grade asks for it at 6 players in a cash game (`web/src/solver/pfStored.ts` `pfGradeSizes`). On 30,000 hands
+playing the charts: decisions answered 70.2% to 93.0%, hands holding one it can't grade 30.8% to 7.3%. Study still
+solves the tree's own 4.8x, which is the published solves' size.
+
+**Grades.** `docs/FEATURE_MATRIX.md`: Preflop, Preflop solves, Preflop tree builder and EV-loss scoring keep the grades
+they had (APPROXIMATE, APPROXIMATE, APPROXIMATE, PARTIAL), with their Notes brought up to date. Nothing moved because
+nothing about the grades' causes changed: the numbers are still the calibrated class-level model, 2.4 to 2.5 points off
+the published solves, and preflop decisions still go without EV where the solve can't answer (7.3% of 6-max hands now,
+and all of 7 to 9 players and tournaments). The gaps the rows named are smaller, not closed.
+
+**No interface changed for the ICM session.** `pf_study.Solve`, `pf_game.Game` and `pf_icm.py` are untouched; every
+change is in `engine/pf_engine.py` and `engine/pf_solve.py`, with all new `Spec` fields defaulted so an existing
+subclass or call is unaffected. `solver/` is byte-identical; no new `UPSTREAM.json` patch was needed.
+
+**Tests.** `scripts/engine/test_pf_engine.py` 27 (7 new in `TreeOptions`: defaults unchanged, the limp tree, a limped
+3-handed game under 1.5 mbb, opens by position, the switches, the chart-sized game, the memory estimate within 20% of
+the measured peaks; plus two protocol tests for `estimate_mb` and the browser's refusal). vitest `src/solver`,
+`src/features/study` and `pfGrade.test.ts` 584 passed. `scripts/pyodide/pyodide.test.mjs` 22/22. tsc and eslint clean.

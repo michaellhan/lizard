@@ -41,6 +41,7 @@ import {
   withPf,
   withPfSizes,
   withBunchingOn,
+  withPfStacks,
   type StudyHand,
 } from "./studyState";
 import { encodePfSizes } from "./pfSizes";
@@ -436,7 +437,14 @@ function HoldemStudy() {
           <GamePicker page="study" current="nlhe" />
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
           {streetOf(hand) === "preflop" && hand.pf === "solver" && (
-            <PfSizesForm key={encodePfSizes(hand.pfSizes ?? {})} value={hand.pfSizes} players={hand.players} onApply={(s) => setHand(withPfSizes(hand, s))} />
+            <PfSizesForm
+              key={`${encodePfSizes(hand.pfSizes ?? {})}|${JSON.stringify(hand.setup?.stacks ?? {})}|${hand.players}`}
+              value={hand.pfSizes}
+              players={hand.players}
+              stack={hand.stack}
+              stacks={hand.setup?.stacks}
+              onApply={(s, stacks) => setHand(withPfStacks(withPfSizes(hand, s), stacks))}
+            />
           )}
           <ModePicker modes={["fast", "accurate"]} />
           <div {...newHandBox}>

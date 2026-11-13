@@ -1216,6 +1216,108 @@ a new version.
 Nothing else was clicked through: Practice's and Analyze's grade use the same request, and their own e2e steps weren't
 re-run.
 
+### 18.5 Tree options, a memory cap, and the charts' 3bet size for grading (2026-11-13)
+
+Four things, measured apart: what the tree can now be asked for, how big a tree a browser is allowed to solve, how much
+of a 6-max session the grade can put an EV on, and what the charts' 3bet size costs in accuracy.
+
+**The tree's options** (`engine/pf_solve.py` `Spec`, `spec_of`; `engine/pf_engine.py` `build`). Each is off by default,
+so every stored game and every number measured before this section is unchanged (an engine test asserts the default
+trees still have 11,010 nodes at 6-max and 4,795 at 9-handed, and that a default switch leaves the key alone):
+
+| Option | `pf_tree` | In the link | What it adds |
+|---|---|---|---|
+| Limps from any seat | `open_limps` | `pfs=L` | Any seat may limp first in or over-limp. A raise over limpers goes to the open plus 1bb a limper; the big blind checks or raises to 3.5bb (plus 1bb a limper past the first). Never with a straddle; heads-up it is ignored (the small blind's complete already is the first-in call) |
+| Opens by position | `opens` | `pfs=o.UTG:2.2` | That seat's own first-in raise, 2 to 5bb. An open equal to the table's default is dropped, so it never makes a new key |
+| Up to three see a flop | `flop3` | `pfs=f3:1` / `f3:0` | On up to 6 players, off from 7 |
+| Cold calls of a 3bet, cold 4bets | `cold` | `pfs=cold:1` / `cold:0` | On up to 6 players, off from 7 |
+
+Each has its own key suffix (`_L`, `_o{POS}{v}`, `_f3`/`_f2`, `_c1`/`_c0`, written only where the value isn't that table
+size's default), its own words in the game's label and in `pf_limits`, and a note in the answer's `pf_tree`, which
+Study's provenance line repeats. No stored game carries any of them, so each solves live in the browser.
+
+What they cost in tree size (nodes, the figure the memory estimate is built on):
+
+| Players | Default | Limps | 2-way, no cold calls | 3-way flops | Cold calls | Both |
+|---|---:|---:|---:|---:|---:|---:|
+| 6-max | 11,010 | 28,947 | 1,135 | — | — | — |
+| 7 | 1,979 | — | 1,979 | 6,585 | 20,773 | 30,667 |
+| 8 | 3,177 | — | 3,177 | 12,389 | — | 75,321 |
+| 9 | 4,795 | — | 4,795 | 21,385 | 109,179 | 168,526 |
+
+**The memory a solve needs, and the cap.** Peak resident memory was measured natively over building the game, iterating
+and the exploitability check: 6-max (11,010 nodes, 6 seats) 749 MB, 9-handed (4,795 x 9) 588 MB, 4-max (764 x 4) 138 MB.
+Fitted, `MB = 90 + 0.0118 x nodes x seats` (`MB_BASE`, `MB_PER_WORK`), which is within 20% of all three (an engine test).
+`pf_unsolved` now carries `estimate_mb`, `nodes` and `max_mb`. The worker refuses outright, with `pf_none` and the
+reason in words, a tree estimated past 2,048 MB when it is running in a browser (`MAX_MB_BROWSER`: Pyodide's heap is
+32-bit); natively nothing is refused. On top of that the page holds a solve to a per-device cap
+(`web/src/features/study/pfCap.ts`): a quarter of `navigator.deviceMemory` up to 2,048 MB, 1,024 MB where the browser
+reports no memory (Safari, Firefox), 768 MB on a touch device. Over the cap the panel says how much the tree needs,
+what the cap is and why, what to take off, and offers the charts instead; there is no Solve button.
+
+The estimate is the tree's, not a measurement of that tab, and a browser's own limit is not `navigator.deviceMemory`:
+a tab can be killed well under the cap, and a device with no report may hold more than 1,024 MB. The cap is a guess
+sized to be safe, not a promise. Nothing here was measured in a browser other than Chrome.
+
+**How much of a 6-max session the grade can put an EV on.** `pfGrade.ts` reads only a spot whose chips, options and
+sizes are its own. The charts' blinds 3bet to 4x the open (10bb over 2.5bb) and the solve's tree raises 4.8x (12bb, the
+published solves' size), so most blind 3bet lines were refused and kept the chart's frequency grade. Each 6-max game is
+now stored a second time at `blind_3bet` 4 (`engine/pf/lz1_6max_*_blind_3bet4.bin`, 22 files: 11 depths, raked and not),
+and Practice's and Analyze's grade asks for that one at 6 players in a cash game (`pfStored.ts` `pfGradeSizes`). Study
+still solves the tree's own 4.8x.
+
+The 22 files were solved the same way as the rest of the grid (1,500 iterations), and 21 of them land between 0.35 and
+1.44 mbb/hand a seat. One doesn't: 6-max 40bb at the 4x 3bet levels off above the grid's 1.5 target, at 1.793 mbb after
+1,500 iterations, 1.759 after 3,000 and 1.745 after 6,000, which is what is stored. Its own-size twin stops at 1.496.
+The 4x 3bet puts more of the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a
+solve, and doubling the work moves it 0.014; a live solve's stall rule would stop there too. It is the only file in the
+grid above 1.65, and the figure is in its header where the page reads it.
+
+Measured on 30,000 hands a run (`scripts/pf_practice_coverage.py`, now on Lizard's engine, `--chart-sizes` for the
+after), 6-max 100bb, you playing the charts:
+
+| | Decisions answered | Hands holding one it can't grade | First in | Facing an open | Facing a 3bet | SB | BB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Before | 70.2% | 30.8% | 100% | 46.7% | 3.9% | 23.4% | 12.0% |
+| After | 93.0% | 7.3% | 100% | 99.0% | 21.1% | 91.2% | 81.8% |
+
+Raked (5% capped at 3bb) the same: 70.2% to 93.0%. Playing at random, 65.6% to 86.3%; playing the solve itself, 70.7%
+to 93.3% (that last row is a check that the grade reads the solve it is drawn from: 99.7% Best).
+
+What is still refused is mostly 4bet sizes: the chart 4bets to 20bb where the tree raises to 17.25bb (1,025 of the
+2,133 remaining), then 17 against 17.25 (285) and 25.5 against 23 (264). Facing a 3bet is still only 21.1% answered.
+A grade that allowed a size within some tolerance instead of exactly would answer more; it isn't built, because the EV
+read would then be another spot's.
+
+**What the chart size costs in accuracy.** Both games solved 700 iterations at the references' rake and scored the same
+way as section 18.4 (`scripts/pf/measure_tree.py`):
+
+| Game | Mean error | Spots out | Facts off | mbb/hand |
+|---|---:|---:|---:|---:|
+| The tree's own 4.8x (reproduced) | 2.37 | 14/26 | 10 | 1.38 |
+| The charts' 4x | 3.16 | 15/26 | 10 | 1.10 |
+
+By kind: opens 3.52 to 3.36, facing an open 1.57 to 1.59, facing a 3bet 2.91 to 4.89. The whole rise is in three spots
+where the reference's opener faces a 12bb blind 3bet and the chart-sized game's faces 10bb (CO vs BB 1.13 to 5.31, BTN
+vs SB 2.23 to 6.64, BTN vs BB 2.92 to 7.77). That is the two games differing, not the model getting worse: a 10bb 3bet
+is a different spot, and the published solves hold no 10bb one to compare with. It is why Study keeps the 4.8x tree,
+and why the grade's label is unchanged: both are the calibrated class-level model, APPROXIMATE.
+
+**Checked in a browser** (local dev server, 2026-11-13), Study's Solver source:
+- **3 players, BTN 25 / SB 40 / BB 40bb**, set in the new Tree form (the link carries `stacks=BTN:25`). Offered as about
+  5 s and about 93 MB; solved to 2,000 iterations at 0.46 mbb/hand, the BTN raising 41.1% first in. The line reads
+  "each seat's own stack (side pots; not measured against a fuller solve)".
+- **9 players, 100bb, 3-way flops and cold calls on.** Refused, as it should be: "This tree needs about 17,987 MB to
+  solve, more than 2,048 MB on this device (a quarter of the 16 GB this browser reports)", with the charts offered.
+  Counting that 168,526-node tree took about 15 s before the refusal.
+- **7 players, 100bb, 3-way flops on.** Offered as about 2 minutes and about 634 MB, so the fuller 7-handed tree does
+  fit a desktop tab. It was not solved: a 2-minute browser solve wasn't run while the machine's library builds were
+  using it, so nothing is measured about a 7-handed 3-way-flop solve's accuracy.
+
+Not done: no straddle from a seat other than UTG, no 5bet rules, and the limp and per-position-open trees are not
+measured against the published solves (none of them has limps or uneven opens, so there is nothing there to measure
+against). A limped 3-handed 40bb game converges under 1.5 mbb/hand in 1,500 iterations, which is all that is claimed.
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the

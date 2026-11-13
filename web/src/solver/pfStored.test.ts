@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_KEYS, PF_MODEL_TAG, PF_PLAYERS, pfKey } from "./pfStored";
+import { nearestDepth, PF_CHART_PLAYERS, PF_DEPTHS, PF_DEPTHS_WORDS, PF_KEYS, PF_MODEL_TAG, PF_PLAYERS, pfChartKey, pfGradeSizes, pfKey } from "./pfStored";
 
 const ROOT = resolve(__dirname, "../../..");
 const py = readFileSync(resolve(ROOT, "engine/pf_solve.py"), "utf8");
@@ -26,7 +26,16 @@ describe("the stored preflop games", () => {
     expect(pfKey(6, 100, false)).toBe("lz1_6max_100bb");
     expect(pfKey(6, 100, true)).toBe("lz1_6max_100bb_r5c3");
     expect(pfKey(2, 20, false)).toBe("lz1_2max_20bb");
-    expect(PF_KEYS).toHaveLength(PF_PLAYERS.length * PF_DEPTHS.length * 2);
+    expect(pfChartKey(6, 100, false)).toBe("lz1_6max_100bb_blind_3bet4");
+    expect(pfChartKey(6, 100, true)).toBe("lz1_6max_100bb_r5c3_blind_3bet4");
+    expect(PF_KEYS).toHaveLength((PF_PLAYERS.length + PF_CHART_PLAYERS.length) * PF_DEPTHS.length * 2);
+  });
+  it("store the charts' blind 3bet size beside the tree's, for the table sizes engine/pf_solve.py does", () => {
+    expect(py).toMatch(/^CHART_SIZES: Tuple\[Tuple\[str, float\], \.\.\.\] = \(\("blind_3bet", 4\.0\),\)$/m);
+    expect(tuple("STORED_CHART_PLAYERS")).toEqual([...PF_CHART_PLAYERS]);
+    expect(pfGradeSizes({ players: 6 })).toEqual({ pf_sizes: { blind_3bet: 4 } });
+    expect(pfGradeSizes({ players: 5 })).toEqual({});
+    expect(pfGradeSizes({ players: 6, payouts: [50, 30, 20] })).toEqual({});
   });
   it("each have a file in engine/pf/, and none is upstream's", () => {
     expect(PF_KEYS.filter((k) => !existsSync(resolve(ROOT, "engine/pf", `${k}.bin`)))).toEqual([]);
