@@ -1,6 +1,6 @@
 // The Review page: the schedule said, the queue, a retry graded under the current answer's provenance, a changed answer
 // not compared, frequency grades never EV, a damaged record counted, what graded a list said once, and the plan on it.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db, type DecisionRecord, type HandRecord } from "@/data/db";
@@ -140,6 +140,9 @@ describe("ReviewPage", () => {
     page();
     fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
     await screen.findByRole("group", { name: "Your options" });
+    // (the options reach the DOM a flush before the effect puts the key listener on window, and findBy can resolve on
+    // that first flush: without this the key lands on nothing. It never did here, but did on CI under load.)
+    await act(async () => {});
     fireEvent.keyDown(window, { key: "1" });
     expect(await screen.findByText(/One step back: due in 3 days/)).toBeInTheDocument();
     expect((await listMistakes()).list[0]).toMatchObject({ step: 1, tries: [{ ok: false, chose: "check" }] });
