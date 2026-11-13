@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Overnight, the single-raised library build also uses the performance cores (scripts/library/night_boost.sh).
+     auto turns it on at 00:30 and off at 07:30; a run missed while the Mac slept happens on wake and goes by the hour.
+     bash starts it, as for com.michaelhan.lizard-library, since launchd's zsh can't read ~/Desktop on this Mac.
+     Install: cp to ~/Library/LaunchAgents and `launchctl bootstrap gui/$(id -u) <that file>`; remove with bootout. -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.michaelhan.lizard-night</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/bash</string>
+    <string>/Users/mhan/Desktop/projects/lizard/scripts/library/night_boost.sh</string>
+    <string>auto</string>
+  </array>
+  <key>StartCalendarInterval</key><array>
+    <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+  <key>StandardOutPath</key><string>/Users/mhan/Library/Logs/lizard-night.log</string>
+  <key>StandardErrorPath</key><string>/Users/mhan/Library/Logs/lizard-night.log</string>
+</dict></plist>
