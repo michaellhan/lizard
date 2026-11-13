@@ -92,6 +92,24 @@ describe("SolvePage", () => {
     useSettings.setState({ transport: "worker", treeCap: "standard" });
   });
 
+  it("turns bunching on from the charts' or the preflop solve's folds, refuses it heads-up, and opens it in Study with it", () => {
+    const first = open("p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Kd7c2h&bunch=solve");
+    const pick = screen.getByRole("combobox", { name: "Bunching" });
+    expect(pick).toHaveValue("solve");
+    fireEvent.change(pick, { target: { value: "charts" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open in Study" }));
+    const h = fromSearch(screen.getByTestId("where").textContent!.split("?")[1]!)!;
+    expect(h.setup).toEqual({ bunching: "charts" });
+    expect(studyRequest(h)).toMatchObject({ bunching: "charts", board: "Kd7c2h" });
+    first.unmount();
+    open("p=2&s=100");
+    fireEvent.change(screen.getByRole("combobox", { name: "Bunching" }), { target: { value: "charts" } });
+    expect(within(problems()!).getByText("bunching needs 3 or more players: heads-up nobody folds before the flop")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Bunching" })).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByRole("combobox", { name: "Bunching" }), { target: { value: "off" } });
+    expect(problems()).toBeNull();
+  });
+
   it("fills a seat's range from a saved range, and starts the line over at a new table size", async () => {
     await putRange({ id: "r1", name: "BTN open", text: "22+,A2s+,K9s+", combos: 300, note: "", createdAt: 1, updatedAt: 1 });
     open("p=2&s=100&pre=SB:r2.5,BB:c&b=Ks7d2c");

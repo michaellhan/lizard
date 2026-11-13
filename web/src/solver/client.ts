@@ -5,6 +5,7 @@ import type { LibraryStamp } from "@/library/version";
 import type { AdvisorResponse, AdvisorState, NodeLockAnswer, NodeLockProgress, NodeLockRequest, PlayMove } from "./protocol";
 import { provenanceOf } from "./provenance";
 import { recordTiming } from "./timings";
+import { withBunching } from "./bunching";
 import { withTreeCap, type TreeCap } from "./treeDepth";
 import {
   SolverError,
@@ -160,7 +161,7 @@ export class SolverClient {
     // (provenance records the mode the request runs at, as sent)
     const ctx = { mode: effectiveMode(req.state, mode), transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
-      const sent = withTreeCap(applyMode(req.state, mode, this.transport.kind), this.treeCap(), this.transport.kind);
+      const sent = withBunching(withTreeCap(applyMode(req.state, mode, this.transport.kind), this.treeCap(), this.transport.kind), this.transport.kind);
       const data = await this.transport.request(sent, {
         progressive: req.play ? false : (req.progressive ?? false),
         signal: req.signal,

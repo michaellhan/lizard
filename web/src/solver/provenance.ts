@@ -3,6 +3,7 @@
 import { describeLock, type Lock } from "@/features/study/locks";
 import type { AdvisorResponse } from "./protocol";
 import { abstractionWords, flopModelOf } from "./abstraction";
+import { bunchingWords } from "./bunching";
 import { treeWords } from "./treeDepth";
 import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
@@ -183,6 +184,9 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   // a raise cap or tree cap the request set (engine/tree_depth.py): the game solved, so it's said with the figure measured in it
   const tree = source === "live" || source === "node-lock" ? treeWords(r.tree) : null;
   if (tree) p.tree = tree;
+  // the ranges entering the flop weighed by the preflop folds (engine/bunching.py): which folds, and that runouts aren't
+  const bunch = source === "live" || source === "node-lock" ? bunchingWords(r.bunching) : null;
+  if (bunch) p.bunching = bunch;
   // a heads-up flop's figure is in its own smaller game: what that game's flop gave up in the full one (ACCURACY section 21)
   const abs = abstractionWords(flopModelOf(r, source, p.mode, ctx.transport));
   if (abs) p.abstraction = abs;
@@ -320,6 +324,7 @@ export function describe(p: Provenance): string {
   if (p.lockRange) parts.push(p.lockRange);
   if (p.sizing) parts.push(p.sizing);
   if (p.tree) parts.push(p.tree);
+  if (p.bunching) parts.push(p.bunching);
   if (p.librarySpot) parts.push(p.librarySpot);
   if (p.view) parts.push(p.view);
   if (p.tournament) parts.push(p.tournament);

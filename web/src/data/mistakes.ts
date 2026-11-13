@@ -35,7 +35,7 @@ const isProvenance = (p: unknown): p is Provenance =>
   isStr(p.solverVersion) &&
   isNum(p.receivedAt) &&
   [p.exploitabilityPct, p.targetPct, p.iterations, p.seconds, p.mbbPerHand].every(isOptNum) &&
-  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
+  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.bunching, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;

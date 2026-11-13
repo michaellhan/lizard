@@ -1,6 +1,7 @@
 // Wire protocol of the solver worker (solver/gto/static/worker.js, reused unchanged from gto-solver) and of the
 // optional local Python server (solver/gto/server.py). These types describe the messages exactly as the
 // upstream code sends and reads them; the typed, user-facing API is in ./types.ts.
+import type { BunchingBlock } from "./bunching";
 import type { Confidence } from "./types";
 
 /** A game state as gto/advisor.py reads it (money in big blinds unless `bb` is given). Open-ended on purpose:
@@ -21,6 +22,9 @@ export interface AdvisorState {
   raises?: number;
   /** this device's tree cap in cells (engine/tree_depth.py, solver/treeDepth.ts; the worker's alone) */
   max_cells?: number;
+  /** weigh the ranges entering the flop by the preflop folds (engine/bunching.py, solver/bunching.ts; the worker's alone):
+   * whose fold ranges, the charts' or the preflop solve's */
+  bunching?: "charts" | "solve";
   ranges?: Record<string, string>;
   /** "fast" (default) or "accurate"; Quick is `quick: true`. */
   speed?: "fast" | "accurate";
@@ -159,6 +163,8 @@ export interface AdvisorResponse {
   seconds?: number;
   /** what the request's heads-up trees were asked under (engine/tree_depth.py): its raise cap and this device's cap */
   tree?: { raises?: number; max_cells?: number };
+  /** the ranges' weighing by the preflop folds, where the request asked for it (engine/bunching.py) */
+  bunching?: BunchingBlock;
   [key: string]: unknown;
 }
 

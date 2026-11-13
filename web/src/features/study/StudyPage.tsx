@@ -14,6 +14,7 @@ import { SolverError, type Provenance, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse, OpponentRange } from "@/solver/protocol";
 import { useSettings } from "@/state/settings";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
+import { BUNCHING_SOURCES, nextCardWords } from "@/solver/bunching";
 import {
   back,
   cardsNeeded,
@@ -37,6 +38,7 @@ import {
   samePf,
   withPf,
   withPfSizes,
+  withBunchingOn,
   type StudyHand,
 } from "./studyState";
 import { encodePfSizes } from "./pfSizes";
@@ -467,6 +469,17 @@ export function StudyPage() {
         {/* (one line: the folds to a seat, and what game this is) */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
+          {streetOf(hand) !== "preflop" && hand.players >= 3 && (
+            <label className="flex items-center gap-1.5 text-xs text-muted" title="Weigh the ranges entering the flop by the hands the seats that folded preflop held (from the preflop source in use); every street is then solved live, the turn and river still dealt evenly">
+              <input type="checkbox" checked={!!hand.setup?.bunching} onChange={(e) => setHand(withBunchingOn(hand, e.target.checked))} />
+              Bunching{hand.setup?.bunching ? ` (${BUNCHING_SOURCES[hand.setup.bunching]})` : ""}
+            </label>
+          )}
+          {raw?.bunching && nextCardWords(raw.bunching) && (
+            <p aria-label="Bunching" className="text-xs text-muted">
+              {nextCardWords(raw.bunching)}; the solve still deals them evenly.
+            </p>
+          )}
           {hand.setup && (
             <p role="group" aria-label="Setup" className="text-xs text-muted">
               Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}

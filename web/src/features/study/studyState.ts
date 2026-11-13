@@ -4,7 +4,7 @@
 import type { AdvisorAction, AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { kindOf } from "@/components/actions";
 import { parseCards } from "@/engine/nlhe/cards";
-import { setupFromParams, setupRequest, setupToParams, type SpotSetup } from "@/features/solve/setup";
+import { setupFromParams, setupRequest, setupToParams, tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { encodePfSizes, parsePfSizes, pfSizesRequest, tidyPfSizes, type PfSizes } from "./pfSizes";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
@@ -49,7 +49,18 @@ export function studyRequest(h: StudyHand): AdvisorState {
     ...setupRequest(h.setup, h.players),
     study: true,
     ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...pfSizesRequest(h.pfSizes) } : {}),
+    // (bunching from the preflop solve's folds: its game, sizes and all, so the folds are read off the solve that played the line)
+    ...(h.setup?.bunching === "solve" && streetOf(h) !== "preflop" ? pfSizesRequest(h.pfSizes) : {}),
   };
+}
+
+/** The hand with bunching on or off (engine/bunching.py): on, from the preflop source in use, the preflop solve's folds
+ * with the Solver source and the charts' otherwise. Kept in the setup, so it's in the link (bunch=) and Solve's form. */
+export function withBunchingOn(h: StudyHand, on: boolean): StudyHand {
+  const setup = tidySetup({ ...h.setup, bunching: on ? (h.pf === "solver" ? "solve" : "charts") : undefined });
+  const rest = { ...h };
+  delete rest.setup;
+  return setup ? { ...rest, setup } : rest;
 }
 
 /** The hand with preflop's source set: the charts (no `pf`, and no solve sizes) or the Solver source (kept in the URL

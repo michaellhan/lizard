@@ -16,6 +16,7 @@ import { bubbleTableOf } from "@/features/tournaments/icm";
 import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
 import { useSettings } from "@/state/settings";
 import { capWords, TREE_CAPS } from "@/solver/treeDepth";
+import type { BunchingSource } from "@/solver/bunching";
 import { ENGINE_RAISES, LIMITS, numsOf, raisesWords, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 /** What a bigger menu costs here: this device's tree cap, and that a local server keeps upstream's tree. */
@@ -32,6 +33,28 @@ function TreeNote() {
       </Link>
       ); a bigger one is cut to fit.
     </p>
+  );
+}
+
+/** Bunching (engine/bunching.py): the ranges entering the flop weighed by the hands the preflop folders held. */
+function BunchingField({ value, onChange, problem }: { value: BunchingSource | "off"; onChange: (v: BunchingSource | "off") => void; problem: object }) {
+  const transport = useSettings((s) => s.transport);
+  return (
+    <fieldset className="min-w-0 space-y-2 panel p-4">
+      <legend className="font-medium">Bunching</legend>
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <span>Weigh the ranges by the preflop folds</span>
+        <select aria-label="Bunching" value={value} onChange={(e) => onChange(e.target.value as BunchingSource | "off")} {...problem} className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm">
+          <option value="off">Off</option>
+          <option value="charts">From the charts&rsquo; folds</option>
+          <option value="solve">From the preflop solve&rsquo;s folds</option>
+        </select>
+      </label>
+      <p className="text-xs text-muted">
+        The seats that fold before the flop hold mostly low cards, so the hands left are a little richer in high ones. On, every street is solved live on the weighted ranges (the flop libraries hold the even deal), and the answer names whose folds were used; the turn and river are still dealt evenly. The preflop solve&rsquo;s folds need its game stored or solved in this browser, else the charts&rsquo; are used and the answer says so.
+        {transport !== "worker" && " A local server runs without it."}
+      </p>
+    </fieldset>
   );
 }
 
@@ -60,6 +83,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   const [ante, setAnte] = useState(str(s0?.ante));
   const [straddle, setStraddle] = useState(!!s0?.straddle);
   const [ranges, setRanges] = useState<Record<string, string>>(() => ({ ...(s0?.ranges ?? {}) }));
+  const [bunching, setBunching] = useState<BunchingSource | "off">(s0?.bunching ?? "off");
   const [payouts, setPayouts] = useState(t0?.payouts?.join(" ") ?? "");
   const [fieldN, setFieldN] = useState(str(t0?.field?.players));
   const [fieldAvg, setFieldAvg] = useState(str(t0?.field?.avg));
@@ -111,8 +135,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
       ante: numOf(ante),
       straddle: straddle && players >= 3,
       ranges: Object.fromEntries(seats.filter((p) => ranges[p]?.trim()).map((p) => [p, ranges[p]!])),
+      ...(bunching !== "off" ? { bunching } : {}),
     }),
-    [seats, stacks, sizes, raises, tour, tournament, rake, cap, ante, straddle, players, ranges],
+    [seats, stacks, sizes, raises, tour, tournament, rake, cap, ante, straddle, players, ranges, bunching],
   );
   const setup = tidySetup(typed);
   const problems = [...(stackOk ? [] : [`the table's stack must be ${MIN_STACK}–${MAX_STACK}bb`]), ...setupProblems(players, typed)];
@@ -145,6 +170,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setAnte("");
     setStraddle(false);
     setRanges({});
+    setBunching("off");
     setPayouts("");
     setFieldN("");
     setFieldAvg("");
@@ -410,6 +436,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
             </table>
           </div>
         </details>
+
+        <BunchingField value={bunching} onChange={setBunching} problem={flag("bunching")} />
 
         {pairs && (
           <section aria-label="Bubble factors" className="min-w-0 space-y-2 panel p-4">
