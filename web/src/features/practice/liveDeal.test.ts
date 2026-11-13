@@ -435,7 +435,7 @@ describe("what grades a live drill", () => {
 
   it("labels a call by what it costs and a bet by its chips", () => {
     const a = answered();
-    expect(a.mix.map((x) => liveActionLabel(a, x))).toEqual(["fold", "call 4.13bb", "raise to 21"]);
+    expect(a.mix.map((x) => liveActionLabel(a, x))).toEqual(["fold", "call 4.13bb", "raise to 21bb"]);
     const b = answered({ actions: [{ action: "bet 75%", freq: 1, ev_bb: 1, amount_bb: 7 }] });
     expect(liveActionLabel(b, b.mix[0]!)).toBe("bet 75% (7bb)");
   });

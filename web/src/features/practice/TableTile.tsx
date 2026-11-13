@@ -88,8 +88,8 @@ function SeatChip({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string })
     >
       <span className="font-medium">{seatLabel(p, hand.players)}</span>
       {/* (shown cards take the stack's place: the chip stays on one line) */}
-      {cards ? cards.map((c) => <PlayingCard key={c} card={c} size="xs" />) : <span className="font-mono text-muted">{fmt(behind(setupOf(hand), sim, p))}</span>}
-      <span className="min-w-0 truncate font-mono">{won ? <span className="text-accent">won {fmt(won)}</span> : folded ? "folded" : sim.allin.has(p) ? "all-in" : bet > 0 ? `bet ${fmt(bet)}` : ""}</span>
+      {cards ? cards.map((c) => <PlayingCard key={c} card={c} size="xs" />) : <span className="font-mono text-muted">{fmt(behind(setupOf(hand), sim, p) + (won ?? 0))}</span>}
+      <span className="min-w-0 truncate font-mono">{won ? <span className="text-accent">collected {fmt(won)}</span> : folded ? "folded" : sim.allin.has(p) ? "all-in" : bet > 0 ? `bet ${fmt(bet)}` : ""}</span>
     </li>
   );
 }

@@ -555,10 +555,10 @@ describe("the view (multitable.test.js:366)", () => {
     const hand = river(1);
     stub.advice = byHand([hand, { street: "river", actions: [{ action: "check", freq: 1, ev_bb: 0 }] }]);
     await open(doc([hand, theirMove(2)]));
-    expect(within(tile(1)).queryByText(/^won /)).toBeNull();
+    expect(within(tile(1)).queryByText(/^collected /)).toBeNull();
     fireEvent.click(within(await ready()).getByRole("button", { name: /check/i }));
     await waitFor(() => expect(within(tile(1)).getByRole("listitem", { name: "BB" }).querySelectorAll('[role="img"]')).toHaveLength(2));
-    expect(within(tile(1)).getAllByText(/^won /).length).toBeGreaterThan(0);
+    expect(within(tile(1)).getAllByText(/^collected /).length).toBeGreaterThan(0);
     expect(within(tile(1)).getByRole("listitem", { name: "SB" }).querySelectorAll('[role="img"]')).toHaveLength(0);
   });
 
@@ -690,7 +690,7 @@ describe("the dock", () => {
     // (nothing is pressed: the Room's own timer tells the page)
     await waitFor(() => expect(screen.getByRole("group", { name: "Your options" })).not.toHaveAttribute("aria-disabled"), { timeout: 4000 });
     expect(screen.getByRole("group", { name: "Your options" }).className).not.toMatch(/opacity-50/);
-    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]!);
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: /bet 33%/i }));
     await waitFor(() => expect(tile(1)).toHaveTextContent("Best · flop"));
   });
 
@@ -731,7 +731,7 @@ describe("the keys", () => {
   }
   const line = (i: number) => within(tile(i)).getByTitle(describeProvenance(LIVE));
 
-  it("takes 1–9 by place and F, C and X by what the option is, whichever order they came in", async () => {
+  it("takes 1–9 by place, in the order shown (passive first), and F, C and X by what the option is, whichever order they came in", async () => {
     await spots([betInto(1), facing("call", "fold")], [betInto(2), facing("fold", "call")], [checkedTo(3), CHECKED], [checkedTo(4), CHECKED]);
     key("f");
     await waitFor(() => expect(line(1)).toHaveTextContent("flop · fold ·"));
@@ -739,7 +739,8 @@ describe("the keys", () => {
     await waitFor(() => expect(line(2)).toHaveTextContent("flop · call ·"));
     key("x");
     await waitFor(() => expect(line(3)).toHaveTextContent("flop · check ·"));
-    key("1");
+    // (the answer lists the bet first; it's shown after the check)
+    key("2");
     await waitFor(() => expect(line(4)).toHaveTextContent("flop · bet 33% ·"));
   });
 
@@ -930,7 +931,7 @@ describe("your verdict", () => {
     const rail = screen.getByRole("region", { name: `Table 1, hand ${hand.n + 1}, flop` });
     expect(rail).toHaveTextContent("Mistake");
     const review = screen.getByRole("region", { name: "Your decisions" });
-    expect(review).toHaveTextContent(`T1 #${hand.n + 1} flop`);
+    expect(review).toHaveTextContent(`Table 1 · Hand ${hand.n + 1} · flop`);
   });
 
   it("is the hand's last decision on the tile", async () => {
@@ -988,11 +989,11 @@ describe("your verdict", () => {
     await open(doc([a, b]));
     await ready();
     await waitFor(() => expect(screen.getAllByTitle("Your place in the queue")).toHaveLength(2));
-    key("1");
+    key("2");
     await within(tile(1)).findByText(/flop · bet 33%/);
     const rail = screen.getByRole("region", { name: `Table 1, hand ${a.n + 1}, flop` });
     expect(rail.parentElement!.className).toMatch(/opacity-60/);
-    key("1");
+    key("2");
     await within(tile(2)).findByText(/flop · bet 33%/);
     const now = screen.getByRole("region", { name: `Table 2, hand ${b.n + 1}, flop` });
     await waitFor(() => expect(now.parentElement!.className).not.toMatch(/opacity-60/));
@@ -1113,9 +1114,9 @@ describe("a reload", () => {
     expect(screen.getByRole("radio", { name: "3" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("region", { name: "Table 3" })).toBeInTheDocument();
     const review = screen.getByRole("region", { name: "Your decisions" });
-    expect(review).toHaveTextContent("T2 #7 flop");
+    expect(review).toHaveTextContent("Table 2 · Hand 7 · flop");
     expect(screen.getAllByRole("region", { name: "Table 2, hand 7, flop" })).toHaveLength(1);
-    fireEvent.click(within(review).getByRole("button", { name: /T2 #7 flop/ }));
+    fireEvent.click(within(review).getByRole("button", { name: /Table 2 · Hand 7 · flop/ }));
     expect(screen.getAllByRole("region", { name: "Table 2, hand 7, flop" })).toHaveLength(2);
   });
 
@@ -1126,7 +1127,7 @@ describe("a reload", () => {
     hold();
     await open(doc([youFirst(1), youFirst(2)], { session: { review: [reviewed(hand, r.decision as Decision, 7)] } }));
     expect(screen.getByRole("region", { name: "Table 1, hand 7, flop" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Your decisions" })).toHaveTextContent(/#7 flop/);
+    expect(screen.getByRole("region", { name: "Your decisions" })).toHaveTextContent(/Hand 7 · flop/);
     expect(screen.getByRole("region", { name: "Your decisions" })).not.toHaveTextContent("T1");
   });
 });

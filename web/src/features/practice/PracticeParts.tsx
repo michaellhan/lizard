@@ -309,7 +309,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
                   className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
                 >
                   <span className="font-mono text-xs text-muted">
-                    {e.table ? `T${e.table} ` : ""}#{e.n} {e.d.street}
+                    {e.table ? `Table ${e.table} · ` : ""}Hand {e.n} · {e.d.street}
                   </span>
                   <span className="flex gap-0.5">
                     {e.hole.map((c) => (
@@ -456,7 +456,8 @@ export function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: st
           {seatLabel(p, hand.players)}
           {you && <span className="text-accent"> · you</span>}
         </span>
-        <span className="font-mono text-muted">{fmt(behind(t, sim, p))}</span>
+        {/* (once the hand is over, the stack with what it collected: what the next hand starts from) */}
+        <span className="font-mono text-muted">{fmt(behind(t, sim, p) + (won ?? 0))}</span>
       </div>
       <div className="flex gap-0.5">
         {folded && !you && !cards ? (
@@ -466,7 +467,8 @@ export function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: st
         )}
       </div>
       <div className="h-4 font-mono">
-        {won ? <span className="text-accent">won {fmt(won)}</span> : bet > 0 ? <span>bet {fmt(bet)}</span> : sim.allin.has(p) && !folded ? "all-in" : ""}
+        {/* (the pot it took, chips in included: the hand's line says what it won or lost over them) */}
+        {won ? <span className="text-accent">collected {fmt(won)}</span> : bet > 0 ? <span>bet {fmt(bet)}</span> : sim.allin.has(p) && !folded ? "all-in" : ""}
       </div>
     </li>
   );

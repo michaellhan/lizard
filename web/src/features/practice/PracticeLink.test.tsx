@@ -73,8 +73,8 @@ async function underWay() {
   fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
   fireEvent.click(screen.getByRole("button", { name: "New session" }));
   const options = await screen.findByRole("group", { name: "Your options" });
-  fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
-  await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).queryByRole("button", { name: "raise 2.5" })).toBeNull());
+  fireEvent.click(within(options).getByRole("button", { name: "raise 2.5bb" }));
+  await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).queryByRole("button", { name: "raise 2.5bb" })).toBeNull());
 }
 const clickLink = (name = "a link") => {
   const link = screen.getByRole("button", { name });

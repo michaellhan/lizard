@@ -17,7 +17,7 @@ export function SettingsPage() {
       <fieldset className="space-y-2 panel p-4">
         <legend className="font-medium">Solve accuracy</legend>
         <ModePicker />
-        <p className="text-xs text-muted">Study runs Quick at Fast. Library flops are instant.</p>
+        <p className="text-xs text-muted">Study solves at Fast even when this is set to Quick. Library flops are instant.</p>
         <label className="flex items-center gap-2 text-sm">
           Tree size
           <select aria-label="Tree size" className="rounded border border-border bg-surface-2 px-2 py-1" value={s.treeCap} onChange={(e) => s.set({ treeCap: e.target.value as TreeCap })}>

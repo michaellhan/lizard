@@ -740,7 +740,8 @@ function BackupPanel({ onRestored }: { onRestored: () => void }) {
       {count && (
         <p role="group" aria-label="Last backup">
           {count.lastBackupAt ? `Last backup made here ${day(count.lastBackupAt)}` : "No backup made in this browser yet"}
-          {`; ${count.saves} ${count.saves === 1 ? "save" : "saves"} ${count.lastBackupAt ? "since" : "counted so far"}.`}
+          {/* (every write to the data counts, hands kept and imported too, not only this page's saved spots) */}
+          {`; ${count.saves} ${count.saves === 1 ? "change" : "changes"} to your data ${count.lastBackupAt ? "since" : "so far"}.`}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">

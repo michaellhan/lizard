@@ -861,5 +861,8 @@ export function shownCards(h: PracticeHand, p: string, sim: Sim = simOf(h)): [st
 export function optionLabel(name: string, amount: number | undefined): string {
   const k = kindOf(name);
   const size = typeof amount === "number" ? String(Math.round(amount * 100) / 100) : null;
-  return (k === "bet" || k === "raise") && size !== null && !name.includes(size) ? `${name} (${size}bb)` : name;
+  if (!(k === "bet" || k === "raise") || size === null) return name;
+  // (a name that says the size already, "raise to 7" or "raise 2.5", gets its unit; one that doesn't, "bet 33%", the size)
+  const said = new RegExp(`(^|[^\\d.])${size.replace(".", "\\.")}(?![\\d.%])(?!\\s*bb)`);
+  return said.test(name) ? name.replace(said, `$1${size}bb`) : name.includes(`${size}bb`) ? name : `${name} (${size}bb)`;
 }

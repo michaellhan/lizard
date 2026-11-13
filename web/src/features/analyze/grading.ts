@@ -32,7 +32,7 @@ export type GradeScope = "preflop" | "library" | "triage" | "all" | "accurate";
 export const SCOPES: Record<GradeScope, string> = {
   preflop: "Preflop only",
   library: "Preflop and stored flops (instant)",
-  triage: "Every street, quick (recommended)",
+  triage: "Every street, Quick reads, doubtful ones checked at Fast (recommended)",
   all: "Every street, Fast solves (slower)",
   accurate: "Every street, Accurate solves (slowest)",
 };

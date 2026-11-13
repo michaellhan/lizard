@@ -26,7 +26,7 @@ import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLine, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, useHandKeys } from "./PracticeParts";
 import { gradedOn, optionsAt } from "./pfGrade";
-import { isNextKey, optionFromKey } from "./keys";
+import { isNextKey, optionFromKey, shownOrder } from "./keys";
 import { KeysHelp } from "./KeysHelp";
 import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
@@ -373,8 +373,10 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
     const k = e.key.toLowerCase();
     if (k === "g" && lastRange) return setRangeOpen((o) => !o);
     if (phase.kind === "hero" && answer) {
-      const i = optionFromKey(e.key, optionsAt(hand, answer, sim).map((a) => a.action));
-      if (i >= 0) room.choose(i);
+      const opts = optionsAt(hand, answer, sim);
+      const order = shownOrder(opts);
+      const i = optionFromKey(e.key, order.map((k) => opts[k]!.action));
+      if (i >= 0) room.choose(order[i]!);
     } else if (hand.result && (phase.kind === "over" || hand.run)) {
       // (Enter or Space on a focused button or link is that control's own)
       if (isNextKey(e.key)) {
@@ -471,11 +473,11 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
           )}
           {phase.kind === "hero" && answer && (
             <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
-              {optionsAt(hand, answer, sim).map((a, i) => (
+              {((opts) => shownOrder(opts).map((k, i) => [opts[k]!, k, i] as const))(optionsAt(hand, answer, sim)).map(([a, k, i]) => (
                 <button
                   key={a.action}
                   type="button"
-                  onClick={() => room.choose(i)}
+                  onClick={() => room.choose(k)}
                   className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:bg-surface-3"
                 >
                   {i < 9 && (
