@@ -96,7 +96,8 @@ describe("AnalyzePage", () => {
     expect(screen.queryByRole("tablist", { name: "Analyze views" })).toBeNull();
     const res = await paste([HH("stars_6max_srp.txt"), HH("stars_3bet_pot.txt"), OMAHA].join("\n\n"));
     expect(res).toHaveTextContent("Pasted hands: 3 hands read, 2 to keep (2 new, 0 already kept from an earlier import).");
-    expect(res).toHaveTextContent("Skipped: 1 not Hold'em.");
+    expect(res).toHaveTextContent("1 PLO hand kept apart from Hold'em's: Analyze PLO.");
+    expect(res).not.toHaveTextContent("not Hold'em");
     await waitFor(() => expect(handRows()).toHaveLength(2));
     // newest played first
     expect(handRows().map((r) => r.getAttribute("aria-label"))).toEqual(["Hand 249876543210", "Hand 249012345678"]);

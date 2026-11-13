@@ -76,7 +76,9 @@ describe("reading files", () => {
     const prep = await prepare([{ name: "s.txt", text }], IMP, (k, n) => prog.push([k, n]), 25, noPause);
     const want = TXT.length + 60 + 3;
     expect(prep.total).toBe(want);
-    expect(prep.skipped).toEqual({ nonHoldem: 1, noHero: 1, noDecisions: prep.skipped.noDecisions, duplicate: 1, failed: 0 });
+    // the Omaha hand is kept apart as a PLO hand (PloAnalyze.test.tsx), not skipped
+    expect(prep.omaha).toHaveLength(1);
+    expect(prep.skipped).toEqual({ nonHoldem: 0, noHero: 1, noDecisions: prep.skipped.noDecisions, duplicate: 1, failed: 0 });
     // a walk to hero's big blind is the only hand without a decision of hero's
     const walks = splitHands(synth).filter((t) => /HeroName: posts big blind/.test(t) && !/HeroName: (folds|calls|raises|checks|bets)/.test(t)).length;
     expect(prep.skipped.noDecisions).toBe(walks);

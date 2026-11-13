@@ -5216,3 +5216,36 @@ The "Bunching effect" row goes from NOT IMPLEMENTED / NOT IMPLEMENTED to PARTIAL
     10, `customReport.test.ts` 13, `customRun.test.ts` 3, `CustomReportPanel.test.tsx` 2, `flopReports.test.ts`, and
     `db.test.ts`'s v10 to v11 migration.
   - `pyodide.test.mjs` 23/23.
+
+## 2026-11-13: PLO in Study, Practice and Analyze (branch claude/plo-integrate-aaae1c)
+
+Roadmap Phase 10's Lizard-side work: PLO4 is a game the three main pages open, from the registry, for heads-up postflop
+from ranges you give. No preflop. The FEATURE_MATRIX PLO4 row stays PARTIAL, with the exact scope in its last paragraph.
+
+- Range view by hand shape (`web/src/engine/plo/structure.ts`, `features/plo/StructureGrid.tsx`): 14 structure rows by 5
+  suit columns, each cell's share, mix and EV at a decision, a cell picked listing its combos. Counts are held to their
+  combinatorics.
+- Registry (`web/src/engine/registry.ts`, `types.ts`): PLO4 is `solverSupported: true`, with `solverScope`,
+  `preflopSolved: false`, the structure grid, and per page the Hold'em features PLO doesn't have. `gameOf`/`gamesFor`.
+  A Hold'em/PLO switch on Study, Practice and Analyze (`components/GamePicker.tsx`), and a closed list of what's
+  missing for PLO on each.
+- Study at `?game=plo4` (`features/study/PloStudy.tsx`) is the `/plo` solver (now `PloSolver`, with the spot in the
+  link, `features/plo/spot.ts`), four presets, solved on open. A stale or StrictMode-cancelled run no longer clears a
+  newer one. With a hand from Analyze, your line is graded on the solve (`features/plo/mine.ts`, `MyHand.tsx`) and the
+  grade is kept with the hand.
+- Practice at `?game=plo4` (`features/practice/PloPractice.tsx`, `features/plo/playHand.ts`): hands on a solve run there,
+  the other seat sampling the solve, turn and flop solves played on through the cards dealt, each decision graded by EV
+  lost on the one scale; not saved to History.
+- Analyze: Omaha hands (PokerStars and GG tested) are kept apart (`data/ploHands.ts`, kv, not in a backup) instead of
+  skipped as not Hold'em, and listed at `?game=plo4` (`features/analyze/PloAnalyze.tsx`, `omaha.ts`): preflop said
+  unsolved, a heads-up street linked to Study with its spot and sizes as played, anything else ungraded with why.
+  Two Hold'em tests that counted the Omaha fixture as skipped now expect it kept as PLO.
+- Checked in a browser (dev server): a PLO river solved in Study with its badge and shapes grid; PLO practice hands on the
+  turn preset through the river card, graded; PLO Analyze empty state; 375px with no sideways scroll.
+- Tests: vitest study + practice 1,687 passed (2 skipped); analyze + hh + data 678 passed; the PLO files (registry,
+  structure, StructureGrid, spot, mine, playHand, PloRiverPage, drill and the rest of features/plo, PloStudy,
+  PloPractice) 44 passed; omaha 4 and PloAnalyze 4 inside the analyze run; tsc (app) and eslint clean on the files
+  touched. `web/e2e/plo.e2e.ts` was not run.
+- Not done: PLO preflop; ranges suggested or solved for a hand from history; Practice from the deal or saved to History;
+  PLO hands in backups and sync. The Hand-history import row still says Analyze rejects Omaha hands; that row isn't
+  this branch's to edit.
