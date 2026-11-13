@@ -103,7 +103,7 @@ describe("a flop report of a Solve-page spot", () => {
     expect(screen.getAllByRole("row").filter((r) => /^[2-9TJQKA][cdhs]/.test(r.getAttribute("aria-label") ?? ""))).toHaveLength(9);
     expect(screen.getByRole("row", { name: "Average" })).toHaveTextContent("All 9 flops solved");
     expect(screen.getAllByRole("columnheader").map((c) => c.textContent).join("|")).toMatch(/EQR/);
-    expect(screen.getByRole("button", { name: /flop report of your spot over 9 sampled flops of the solver's representative 9.*9 solved live at Fast.*this flop model gave up 1\.9% pot on average/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /flop report of your spot over 9 sampled flops of the solver's representative 9.*9 solved live at Fast.*; 300 iterations a flop · this flop model gave up 1\.9% pot on average/ })).toBeInTheDocument();
     // a texture filter narrows the rows
     fireEvent.change(screen.getByRole("combobox", { name: "Pairing" }), { target: { value: "paired" } });
     await waitFor(() => expect(screen.getAllByRole("row").filter((r) => /^[2-9TJQKA][cdhs]/.test(r.getAttribute("aria-label") ?? ""))).toHaveLength(2));

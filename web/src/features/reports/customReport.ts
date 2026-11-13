@@ -262,7 +262,7 @@ export function customProvenance(r: Pick<FlopReportRecord, "done" | "left" | "si
     `flop report of your spot over ${plural(flops.length, "sampled flop")} of the solver's representative ${r.size}, ${each}`,
     how.join(", "),
     ex.length ? `each solve ${pct(Math.min(...ex))} to ${pct(Math.max(...ex))} pot from equilibrium in its own game (mean ${pct(ex.reduce((a, b) => a + b, 0) / ex.length)})` : "",
-    its.length ? `${Math.min(...its)}–${Math.max(...its)} iterations a flop` : "",
+    its.length ? `${Math.min(...its) === Math.max(...its) ? Math.min(...its) : `${Math.min(...its)}–${Math.max(...its)}`} iterations a flop` : "",
   ].filter(Boolean);
   const model: FlopModel | null = live.length && transport === "worker" && (r.mode === "fast" || r.mode === "accurate") ? r.mode : stored ? "library" : null;
   const words = abstractionWords(model);
