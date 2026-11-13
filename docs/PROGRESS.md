@@ -5158,8 +5158,10 @@ preflop game in which every outcome is paid in prize equity.
   each street's abstract game, in 0.1-15 s natively.
 - Checked in a browser on the wasm core: river `Kd7c2h5s9d`, BTN as Calling station, 300 iterations, 0.0004% left, BB's
   exploit 2.61bb (best response apart 2.61bb) against 0.97bb unadjusted and 0.86bb at equilibrium; a turn link with
-  `prof=BB:…;hand` opened the panel set, re-solving the flop (207 decisions held) then the turn. Exploit practice's
-  re-solved advice was not clicked through in a browser.
+  `prof=BB:…;hand` opened the panel set, re-solving the flop (207 decisions held) then the turn. Exploit practice
+  against Calling station at Quick: the flop graded by the re-solve (10 iterations, 0.50% left, Quick's aim), the turn
+  by the re-solve on the flop and turn (257 iterations, 0.0000%), a 33% bet a Mistake against its 125% (0.73bb); all 4
+  of their moves after the flop were the profile's.
 - Tests: `test_nodelock`, `test_study_lock`, `test_exploit_play` and the new `test_profile_solve` (17), 120 OK; vitest
   solver, study, saved, practice, review, history, data and grading 2,389 passed (one Review test timed out under load
   and passed alone, 26/26), new `profileSolve.test.ts` (10) and `ProfilePanel.test.tsx` (10); `pyodide.test.mjs` 23/23;

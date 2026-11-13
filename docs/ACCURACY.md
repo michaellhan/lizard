@@ -1575,7 +1575,9 @@ the re-solve is to the best response *in that game*, not in the full game; the f
 c-bet and a checked turn, BB to act, BTN held to Calling station at Fast: 300 iterations, 0.0004% of the pot left; BB's
 exploit 2.61bb against 0.97bb for its equilibrium strategy and 0.86bb at equilibrium, and the best response computed apart
 2.61bb; BB's 250% bet 0.0% → 27.3%. The turn `Kd7c2h5s` with BB held from the flop: flop re-solve 300 iterations
-(0.0006%), turn 129 iterations in its 8 s budget (0.0061%), BTN's exploit 4.68bb against 2.41bb.
+(0.0006%), turn 129 iterations in its 8 s budget (0.0061%), BTN's exploit 4.68bb against 2.41bb. Exploit practice against Calling
+station at Quick: the flop's advice stopped at Quick's aim (10 iterations, 0.50% of the pot left), the turn's re-solved
+on the flop and turn to 0.0000% in 257 iterations.
 
 **Not established.**
 
