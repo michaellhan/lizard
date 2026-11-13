@@ -39,7 +39,7 @@ import type { Provenance } from "@/solver/types";
 import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./exploit";
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { flopsLike, type TextureFilter } from "./texture";
-import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE } from "@/solver/pfStored";
+import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE, pfGradeSizes } from "@/solver/pfStored";
 import { pfIcmStage, PF_ICM_WORDS } from "./pfIcmStored";
 
 export interface Decision {
@@ -603,7 +603,10 @@ export function adviceState(h: PracticeHand, sim: Sim = simOf(h)): AdvisorState 
 }
 
 /** The request of the preflop solve at your spot. The engine drops your seat and cards (Advisor.study): a retry reads them. */
-export const pfState = (h: PracticeHand): AdvisorState => ({ ...stateFor(h), study: true, preflop_solve: true });
+export const pfState = (h: PracticeHand): AdvisorState => {
+  const st = stateFor(h);
+  return { ...st, study: true, preflop_solve: true, ...pfGradeSizes(st) };
+};
 
 /** The request that answers a decision again: what it was graded on. */
 export const askOf = (h: PracticeHand, d: Pick<Decision, "provenance">): AdvisorState => (d.provenance?.source === "preflop-solve" ? pfState(h) : adviceState(h));
