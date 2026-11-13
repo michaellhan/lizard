@@ -482,7 +482,7 @@ test("7f. A 4-bet pot dealt to a hand category finds one on the worker in time, 
   await clean(page, problems);
 });
 
-test("7g. Preflop graded by the stored solve where it's that very spot, by the charts elsewhere, each under its own name, kept apart in History", async ({ page, problems }) => {
+test("7g. Preflop graded by the stored solve where it's that very spot, by the charts where no game is stored, each under its own name, kept apart in History", async ({ page, problems }) => {
   const fetched: string[] = [];
   page.on("request", (r) => {
     if (/\/solver\/pf\//.test(r.url())) fetched.push(r.url());
@@ -490,10 +490,10 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   // (ticked by default where the game is stored: nothing to tick)
   await session(page, "preflop", () => expect(page.getByLabel("Grade preflop by the preflop solve")).toBeChecked());
   const next = page.getByRole("button", { name: "Next hand" });
+  const last = page.getByRole("region", { name: "Last decision" });
   const solve = page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first();
-  const chart = page.getByText(/^Chart\u2019s grade, not the solve\u2019s/).first();
-  let [bySolve, byChart] = [0, 0];
-  for (let i = 0; i < 80 && !(bySolve && byChart); i += 1) {
+  let bySolve = 0;
+  for (let i = 0; i < 80 && !bySolve; i += 1) {
     await expect(options(page).first().or(next)).toBeVisible({ timeout: 90_000 });
     if (await next.isVisible()) {
       await next.click();
@@ -502,21 +502,41 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
     await options(page).first().click();
     await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
     if (await solve.isVisible()) {
-      if (!bySolve) await expect(page.getByRole("region", { name: "Last decision" }).getByText(/not a full solve/).first()).toBeVisible();
+      await expect(last.getByText(/not a full solve/).first()).toBeVisible();
       bySolve += 1;
     }
-    if (await chart.isVisible()) {
-      if (!byChart) await expect(page.getByText(/Preflop charts/).first()).toBeVisible();
-      byChart += 1;
-    }
   }
-  expect(bySolve).toBeGreaterThan(0);
-  expect(byChart).toBeGreaterThan(0);
-  // the stored solve came down once, and is no custom solve
+  expect(bySolve, "preflop graded by the stored solve").toBeGreaterThan(0);
+  // The stored solve came down once, and is no custom solve. At 6 players in a cash game the grade asks for the game
+  // stored at the charts' own 3bet size (pfChartKey, _blind_3bet4), which is the size the charts' own decisions are
+  // in; the tree's own 4.8x twin is what Study solves.
   expect(new Set(fetched).size).toBe(1);
-  expect(fetched[0]).toMatch(/6max_100bb\.bin/);
+  expect(fetched[0]).toMatch(/lz1_6max_100bb_blind_3bet4\.bin$/);
   await openScoreNotes(page);
   await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
+
+  // The charts grade where no game is stored. They are met in a session of their own (6 players at 250bb, past the
+  // stored depths) rather than waited for inside the stored one: since the grade started asking the 6-max games at
+  // the charts' own 3bet size, a stored game answers 93% of its spots and nearly all of the ones this loop reaches
+  // (the first decision, facing an open, 99%), so a chart fallback there is too rare to wait on.
+  await session(page, "preflop", async () => {
+    await page.getByLabel("Stack in big blinds").fill("250");
+    await expect(page.getByLabel("Grade preflop by the preflop solve")).toHaveCount(0);
+  });
+  let byChart = 0;
+  for (let i = 0; i < 80 && !byChart; i += 1) {
+    await expect(options(page).first().or(next)).toBeVisible({ timeout: 90_000 });
+    if (await next.isVisible()) {
+      await next.click();
+      continue;
+    }
+    await options(page).first().click();
+    await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
+    if (await last.getByText(/Preflop charts/).first().isVisible()) byChart += 1;
+  }
+  expect(byChart, "preflop graded by the charts, named so").toBeGreaterThan(0);
+  // (no second file: nothing is stored at this depth)
+  expect(new Set(fetched).size).toBe(1);
 
   await page.goto("/lizard/history/");
   await openBreakdown(page);
@@ -592,7 +612,8 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
 // is graded by the stored solve of that very game where one is stored and by the charts where none is (each under its own
 // name), a decision after the flop is graded too, and only that game's preflop file is read.
 const FORMATS = [
-  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz1_6max_100bb_r5c3.bin" },
+  // (6-max cash reads the chart-sized game, the charts' 4x blind 3bet, not the tree's 4.8x one: see 7g)
+  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz1_6max_100bb_r5c3_blind_3bet4.bin" },
   { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
   { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz1_3max_25bb.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
