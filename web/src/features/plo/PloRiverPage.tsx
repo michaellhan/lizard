@@ -12,6 +12,7 @@ import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_SECONDS, MIN_TARGET_PCT, SEAT_
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 import { byClass } from "./classes";
+import { StructureGrid } from "./StructureGrid";
 import { spotsFromHistory, type HistoryRead, type HistorySpot } from "./fromHistory";
 import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally } from "./drill";
 import type { Grade } from "@/grading/grade";
@@ -365,6 +366,7 @@ function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
       <RangeTable node={node} />
       <ActionTable node={node} />
       <EveryDecision nodes={result.nodes} />
+      <ShapeGrid hands={result.hands[node.player]!} start={result.weights[node.player]!} node={node} />
       <ClassTable hands={result.hands[node.player]!} board={result.board} node={node} />
       <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={later} node={node} />
       <Drill result={result} band={provenance.band} />
@@ -663,6 +665,7 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
           </label>
           <RangeTable node={node} />
           <ActionTable node={node} />
+          <ShapeGrid hands={view.hands[node.player]!} start={view.weights[node.player]!} node={node} />
           <ClassTable hands={view.hands[node.player]!} board={`${board}${view.card}`} node={node} />
           <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={street === "turn"} node={node} />
           <p className="text-xs text-muted">
@@ -683,6 +686,11 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
       )}
     </section>
   );
+}
+
+/** The decision's range by hand shape (StructureGrid): pairs and connectedness against suits, each cell's mix, its combos on a pick. */
+export function ShapeGrid({ hands, start, node }: { hands: Int32Array; start: Float32Array; node: ResultNode }) {
+  return <StructureGrid key={node.id} label="Hand shapes at this decision" whose={`${SEAT_NAMES[node.player]} hands`} hands={hands} weight={node.weight} start={start} actions={node.actions} strategy={node.strategy} ev={node.ev} />;
 }
 
 /** The decision's range condensed: its combos by what they hold on the board, strongest first. */
