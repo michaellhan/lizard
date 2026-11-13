@@ -92,6 +92,24 @@ class Spec:
         """Cold calls of a 3bet and cold 4bets are in the tree."""
         return self.players <= 6 if self.cold is None else bool(self.cold)
 
+    def tree_notes(self) -> List[str]:
+        """What this game adds to the stored grid's, for the provenance line (each its own words): none for a game of
+        the grid's kind."""
+        out = []
+        if not self.equal:
+            out.append("each seat's own stack (side pots; not measured against a fuller solve)")
+        if self.open_limps:
+            out.append("limps from any seat (not measured against a fuller solve)")
+        if self.opens:
+            out.append("opens by position: " + ", ".join(f"{p} {v:g}bb" for p, v in self.opens))
+        if self.sizes == CHART_SIZES:
+            out.append("at the charts' raise sizes (a blind's 3bet to 4x the open, where the published solves' is "
+                       "4.8x: measured against them only where the sizes are alike)")
+        if self.players > 6 and (self.three_way or self.cold_calls):
+            out.append("a 7-9 handed tree with " + " and ".join(
+                x for x, on in (("3-way flops", self.three_way), ("cold calls", self.cold_calls)) if on))
+        return out
+
     def limits(self) -> Optional[str]:
         """What the tree leaves out that the full one has, in words (None: nothing)."""
         out = []
@@ -305,8 +323,25 @@ def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
 
 
 # ----------------------------------------------------------------------------- the stored solves
+# The charts' raise sizes (2026-11-13): the charts' blinds 3bet to 4x the open (gto/advisor.py _default_size: 10bb over
+# 2.5bb), the tree's default to 4.8x (12bb, the published solves' size). Practice's opponents play the charts, so at
+# the tree's size a blind's 3bet leaves the tree and the decisions after it, and your own 3bet from a blind, have no EV
+# (about 30% of 6-max decisions; docs/ACCURACY.md section 18.5). The same game at the charts' 3bet size is stored
+# beside it, for Practice's and Analyze's grade (web/src/features/practice/pfGrade.ts); Study's Solver source keeps the
+# tree's own sizes. Every other size of the tree already is the charts' (opens 2.5bb, SB 3bb, 3bets 3x in position,
+# BvB 10bb, 4bets 2.3x, a caller adding its bet).
+CHART_SIZES: Tuple[Tuple[str, float], ...] = (("blind_3bet", 4.0),)
+STORED_CHART_PLAYERS = (6,)
+
+
+def chart_sized(spec: Spec) -> Spec:
+    """The game at the charts' raise sizes."""
+    return Spec(spec.players, spec.stacks, spec.ante, spec.straddle, spec.rake, CHART_SIZES)
+
+
 def stored_games() -> List[Spec]:
-    return [Spec(n, (d,), rake=r) for n in STORED_PLAYERS for d in STORED_DEPTHS for r in STORED_RAKES]
+    grid = [Spec(n, (d,), rake=r) for n in STORED_PLAYERS for d in STORED_DEPTHS for r in STORED_RAKES]
+    return grid + [chart_sized(s) for s in grid if s.players in STORED_CHART_PLAYERS]
 
 
 STORED_KEYS = frozenset(s.key for s in stored_games())
@@ -355,6 +390,9 @@ class Solve(PS.Solve):
             lim = self.spec.limits()
             if lim:
                 res["pf_limits"] = lim
+            notes = self.spec.tree_notes()
+            if notes:
+                res["pf_tree"] = notes
             res["solver"]["by"] = "Lizard's preflop solve"
         return res
 

@@ -226,6 +226,24 @@ class TreeOptions(unittest.TestCase):
         self.assertIsNone(P.Spec(7, (100.0,), flop3=True, cold=True).limits())
         self.assertEqual(P.Spec(9, (100.0,)).limits(), P.LIMITS_7UP)
 
+    def test_chart_sizes(self):
+        # the charts' blind 3bet (4x the open: 10bb over 2.5bb) in place of the tree's 4.8x, for Practice's grade; named
+        c = P.chart_sized(P.Spec(6, (100.0,), rake=(0.05, 3.0)))
+        self.assertEqual(c.key, "lz1_6max_100bb_r5c3_blind_3bet4")
+        self.assertIn(c, P.stored_games())
+        self.assertIn("at the charts' raise sizes", " ".join(c.tree_notes()))
+        self.assertEqual(P.Spec(6, (100.0,)).tree_notes(), [])
+        nd, pos = self.first_in(c, "BTN")
+        o = nd.children[nd.names.index("raise")]
+        o = o.children[o.names.index("fold")]                  # the SB folds, the BB 3bets to 10bb, the BTN 4bets to 23bb
+        btn = o.children[o.names.index("raise")]
+        self.assertAlmostEqual(btn.line[-1][2], 10.0)
+        self.assertEqual(pos[btn.player], "BTN")
+        self.assertAlmostEqual(btn.children[btn.names.index("raise")].line[-1][2], 23.0)
+        # what the request asks: the sizes as Practice sends them reach the stored game's key
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_sizes": {"blind_3bet": 4}})[0].key,
+                         "lz1_6max_100bb_blind_3bet4")
+
     def test_memory_estimate(self):
         # the measured peaks it was fitted to (pf_solve.MB_BASE, MB_PER_WORK), within 20%
         for spec, mb in ((P.Spec(6, (100.0,)), 749), (P.Spec(9, (100.0,)), 588)):

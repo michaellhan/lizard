@@ -209,6 +209,9 @@ function preflopSolveOf(r: AdvisorResponse, p: Provenance): void {
   const view: string[] = [];
   if (typeof r.pf_model === "string") view.push(`${r.pf_model}: flop values fitted to published 6-max 100bb solves, still approximate`);
   if (typeof r.pf_limits === "string") view.push(r.pf_limits);
+  // what the game adds to the stored grid's kind (engine/pf_solve.py Spec.tree_notes): own stacks, limps from any seat,
+  // opens by position, a fuller 7-9 handed tree, the charts' raise sizes; each in its own words
+  if (Array.isArray(r.pf_tree)) for (const t of r.pf_tree) if (typeof t === "string") view.push(t);
   if (st.cached) view.push("solved earlier in this browser");
   else if (st.stored) view.push("precomputed");
   if (view.length) p.view = view.join(", ");

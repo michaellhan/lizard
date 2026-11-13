@@ -65,8 +65,21 @@ export function withPf(h: StudyHand, v: "charts" | "solver"): StudyHand {
 export function withPfSizes(h: StudyHand, s: PfSizes | undefined): StudyHand {
   const rest = { ...h };
   delete rest.pfSizes;
-  const t = tidyPfSizes(s);
+  const t = tidyPfSizes(s, h.players);
   return t ? { ...rest, pfSizes: t } : rest;
+}
+
+/** The hand with each seat's own stack (the tree form's; into the setup, so the charts and the hand after the flop
+ * play them too): a seat at the table's stack left out, none set taking the setup's stacks off; undefined: unchanged. */
+export function withPfStacks(h: StudyHand, stacks: Record<string, number> | undefined): StudyHand {
+  if (stacks === undefined) return h;
+  const own = Object.fromEntries(Object.entries(stacks).filter(([, v]) => Number.isFinite(v) && Math.abs(v - h.stack) > 1e-9));
+  const setup = { ...(h.setup ?? {}) };
+  delete setup.stacks;
+  if (Object.keys(own).length) setup.stacks = own;
+  const rest = { ...h };
+  delete rest.setup;
+  return Object.keys(setup).length ? { ...rest, setup } : rest;
 }
 
 /** A new hand (to) with from's preflop source and the solve's sizes. */
@@ -195,7 +208,7 @@ export function fromSearch(search: string): StudyHand | null {
     turn: parseLine(q.get("turn") ?? ""),
     river: parseLine(q.get("river") ?? ""),
     ...(setup ? { setup } : {}),
-    ...(q.get("pf") === "solver" ? { pf: "solver" as const, ...((s) => (s ? { pfSizes: s } : {}))(parsePfSizes(q.get("pfs"))) } : {}),
+    ...(q.get("pf") === "solver" ? { pf: "solver" as const, ...((s) => (s ? { pfSizes: s } : {}))(parsePfSizes(q.get("pfs"), players)) } : {}),
   };
 }
 
