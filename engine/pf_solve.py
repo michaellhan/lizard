@@ -44,7 +44,11 @@ STORED_RAKES = (None, (0.05, 3.0))
 # stored games solved past pf_study.STORED_ITERS (1,500) as they were over its 1.5 mbb target there; some level off just
 # above it (a live solve stops those by its stall rule too); each header holds the mbb shown (engine/pf/lz1_built.jsonl)
 STORED_ITERS_OF = {"lz1_4max_40bb": 3000, "lz1_5max_40bb": 3000, "lz1_5max_50bb": 3000, "lz1_6max_40bb": 3000,
-                   "lz1_6max_150bb": 3000, "lz1_6max_200bb": 3000}
+                   "lz1_6max_150bb": 3000, "lz1_6max_200bb": 3000, "lz1_6max_40bb_blind_3bet4": 6000}
+# the slowest of them, 6-max 40bb at the charts' 3bet size, levels off above 1.7: 1.793 mbb at 1,500 iterations, 1.759
+# at 3,000, 1.745 at 6,000 (doubling the work moved it 0.014). Its base game stops at 1.496; the 4x 3bet puts more of
+# the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a solve. 1.8 is the bound
+# the test holds these to; nothing else in the grid is above 1.65
 LIMITS_7UP = "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
 # memory a solve needs (MB): measured natively, peak resident over building the game, iterating and the exploitability
 # check: 6-max 11,010 nodes x 6 seats 749 MB, 9-handed 4,795 x 9 588 MB, 4-max 764 x 4 138 MB (a 78 MB interpreter in

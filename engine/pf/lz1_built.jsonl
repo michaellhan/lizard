@@ -136,3 +136,5 @@
 {"key": "lz1_6max_150bb_r5c3_blind_3bet4", "iterations": 1500, "seconds": 221.0, "mbb": 0.728, "bytes": 84017}
 {"key": "lz1_6max_200bb_blind_3bet4", "iterations": 1500, "seconds": 229.9, "mbb": 1.416, "bytes": 79102}
 {"key": "lz1_6max_200bb_r5c3_blind_3bet4", "iterations": 1500, "seconds": 449.9, "mbb": 0.628, "bytes": 76458}
+{"key": "lz1_6max_40bb_blind_3bet4", "iterations": 3000, "seconds": 124.7, "mbb": 1.759, "bytes": 12097}
+{"key": "lz1_6max_40bb_blind_3bet4", "iterations": 6000, "seconds": 273.3, "mbb": 1.745, "bytes": 11895}
