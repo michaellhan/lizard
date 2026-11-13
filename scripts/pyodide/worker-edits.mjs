@@ -75,6 +75,14 @@ const EDITS = [
     from: "from gto.advisor import Advisor;",
     to: "import engine.tree_depth; from gto.advisor import Advisor;",
   },
+  {
+    // engine/bunching.py: a request's `bunching` ("charts" or "solve": whose preflop fold ranges) weighs the ranges
+    // entering the flop by the folded seats' hands and solves every street live on them; a request without it is
+    // upstream's. After tree_depth, so it wraps tree_depth's wrap of Advisor._advise_at (this edit runs on that one's
+    // output).
+    from: "import engine.tree_depth; from gto.advisor import Advisor;",
+    to: "import engine.tree_depth; import engine.bunching; from gto.advisor import Advisor;",
+  },
 ];
 
 export function editWorker(source) {
