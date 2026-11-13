@@ -6,9 +6,11 @@ No library file holds a hand's equity, so a nut share can't be read from what th
 weight at NUT_EQ or more against the other range, over its weight with an equity). It reads the assembled stage, and
 assemble.py publishes the result as <spot>/nuts.json.
 
-The owner chose to run this over the library only after the heads-up builds finish, so it refuses while one runs or a
-spot is short of its target (--now goes ahead, for a few flops by hand). Stopped or killed, it takes up where it stopped:
-a flop's share depends only on its board and the two ranges, so nothing is done twice. About 0.13 s a flop on one core.
+The owner chose to keep this off the CPU while a heads-up build runs, so it refuses while a build_flop_library.py writes
+into one of assemble.py's heads-up sources (--now goes ahead, for a few flops by hand). A spot short of its target gets the
+flops it has: a stopped build may never reach its target (the limped one stopped on 2026-11-03), and flops it adds later
+get theirs on a later run. Stopped or killed, it takes up where it stopped: a flop's share depends only on its board and
+the two ranges, so nothing is done twice. About 0.13 s a flop on one core.
 
 Usage: nuts.py [--stage library-build/stage] [--out library-build/nuts] [--spot ID] [--limit N] [--now]
 Exit status 0 with nothing to do or all of it done, 3 when it won't run yet.
@@ -22,6 +24,7 @@ for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -35,6 +38,9 @@ sys.path.insert(0, str(ROOT / "solver"))
 from gto.breakdown import NUT_EQ, range_equities  # noqa: E402
 from gto.cards import cards as parse_cards  # noqa: E402
 from gto.flop_library import MEMBER_FULL  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from assemble import HU_SOURCES  # noqa: E402
 
 FORMAT = 1
 SAVE_EVERY = 50  # flops between saves, so a stop loses a few seconds of work
@@ -56,19 +62,23 @@ def flop_nuts(flop: str, full0: np.ndarray, full1: np.ndarray) -> list[float]:
     return [share(e0, w0), share(e1, w1)]
 
 
+def is_build(cmd: str) -> bool:
+    """A command line that's a heads-up library build: build_flop_library.py writing into one of assemble.py's heads-up
+    sources. Not any process named like one: the preflop project's hu-solver, a preflop solve, once held this step back
+    for days."""
+    return "build_flop_library.py" in cmd and any(re.search(rf"{re.escape(str(d))}(/|\s|$)", cmd) for d in HU_SOURCES)
+
+
 def build_running() -> bool:
-    return subprocess.run(["pgrep", "-q", "-f", "hu-solver"]).returncode == 0
+    out = subprocess.run(["ps", "-axww", "-o", "command="], capture_output=True, text=True).stdout
+    return any(is_build(line) for line in out.splitlines())
 
 
 def why_not_yet(stage: Path) -> str | None:
-    """Why the step must wait, or None. A process gone isn't enough: the builds stop and start between stages."""
+    """Why the step must wait, or None."""
     if build_running():
         return "a heads-up build is running"
-    p = stage / "lizard-library.json"
-    if not p.exists():
-        return f"no {p}"
-    short = [k for k, v in json.loads(p.read_bytes())["spots"].items() if v.get("target") and v["flops"] < v["target"]]
-    return f"short of target: {', '.join(short)}" if short else None
+    return None if (stage / "index.json").exists() else f"no {stage / 'index.json'}"
 
 
 def load(path: Path, fp: list[str]) -> dict:
