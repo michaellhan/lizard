@@ -210,15 +210,26 @@ const PLACE = /^(\d+)\s*(st|nd|rd|th)?(?:\s*(?:-|–|—|to)\s*(\d+)\s*(?:st|nd|
 /** Far more places than a payout table has: a range past this isn't spelled out (the check refuses past 200). */
 const MOST_PLACES = 250;
 
+/** A tournament summary a poker room writes (its header names the tournament and its prize pool): its place lines are
+ * read for the prizes paid and its other lines skipped. */
+const SUMMARY = /tournament\s*#\s*\d+[\s\S]*prize\s*pool|prize\s*pool[\s\S]*tournament\s*#\s*\d+/i;
+const SUMMARY_HEAD = /tournament|buy-?in|prize\s*pool|\bplayers?\b|\bentrants?\b|started|finished|you (?:received|won)|\d{4}[/.-]\d{1,2}[/.-]\d{1,2}/i;
+/** a summary's place line: "12: name", "12th : name" */
+const PLACE_LINE = /^\d+\s*(?:st|nd|rd|th)?\s*:/i;
+/** an amount with its currency sign before it ("$1,234.56", "€ 50") */
+const MONEY = /[$€£¥]\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)/;
+
 /** A payout table pasted from a site or a sheet, one place (or a range of places) a line, as the payouts box's text ("1st
  * $10,000 / 2nd $6,000 / 4-6 $2,000" -> "10000 6000 2000 2000 2000"); a place left out is a gap ("?") the check names.
- * Lines without a number ("Place Prize") and a "Total" line are skipped. null for text that isn't a table (one line with
+ * Lines without a number ("Place Prize") and a "Total" line are skipped, and so are a room's tournament summary's header
+ * and its unpaid finishers. null for text that isn't a table (one line with
  * no place on it), which the box takes as it is. */
 export function pastedPayouts(text: string): string | null {
+  const summary = SUMMARY.test(text);
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => /\d/.test(l) && !/^total\b/i.test(l));
+    .filter((l) => /\d/.test(l) && !/^total\b/i.test(l) && !(summary && SUMMARY_HEAD.test(l) && !PLACE_LINE.test(l)));
   if (!lines.length) return null;
   const byPlace = new Map<number, number>();
   let at = 0;
@@ -227,9 +238,14 @@ export function pastedPayouts(text: string): string | null {
     const line = plainMoney(raw);
     const m = PLACE.exec(line);
     const rest = m ? line.slice(m[0].length) : "";
-    const amount = /\d+(?:\.\d+)?/.exec(rest);
+    // (an amount with its currency sign first: a player's name in a summary can hold digits, and a share in brackets follows)
+    const money = m ? MONEY.exec(raw.slice(PLACE.exec(raw)?.[0].length ?? 0)) : null;
+    const amount = money ? [money[1]!.replace(/,/g, "")] : /\d+(?:\.\d+)?/.exec(rest);
     const tabbed = /^\d+\s*\t/.test(line);
-    if (m && amount && (m[2] || m[3] || m[4] || m[5] || tabbed)) {
+    const marked = !!m && !!(m[2] || m[3] || m[4] || m[5] || tabbed);
+    // (a summary's finisher with no prize: "25: hero (Canada),")
+    if (summary && marked && !money) continue;
+    if (m && amount && marked) {
       placed = true;
       const from = Number(m[1]);
       const to = Math.min(m[3] ? Number(m[3]) : from, MOST_PLACES);

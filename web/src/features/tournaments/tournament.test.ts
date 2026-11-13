@@ -29,6 +29,25 @@ describe("a pasted payout table", () => {
     expect(pastedPayouts("1st $1,000")).toBe("1000");
     expect(pastedPayouts("no numbers here")).toBeNull();
   });
+
+  it("reads a room's tournament summary: its prizes paid, not its header, its unpaid finishers or digits in a name", () => {
+    const stars = [
+      "PokerStars Tournament #3456789012, No Limit Hold'em",
+      "Buy-In: $10.00/$1.00 USD",
+      "180 players",
+      "Total Prize Pool: $1,800.00 USD",
+      "Tournament started 2026/10/01 18:00:00 ET [2026/10/02 0:00:00 CET]",
+      "  1: winner77 (Canada), $1,540.00 (30%)",
+      "  2: abc123 (Germany), $360.00 (20%)",
+      "  3: tournamentking (United Kingdom), $180.00 (10%)",
+      "  4: hero (United States),",
+      "  5: fifth 5 (Sweden),",
+      "You finished in 4th place.",
+    ].join("\n");
+    expect(pastedPayouts(stars)).toBe("1540 360 180");
+    const gg = ["Tournament #123456, Daily $10, Hold'em No Limit", "Buy-in: $9.2+$0.8", "1,000 Players", "Total Prize Pool: $10,000", "1st : Player1, $2,000", "2nd : Player2, $1,200", "3rd : Hero, $800", "You finished the tournament in 3rd place.", "You received a total of $800."].join("\n");
+    expect(pastedPayouts(gg)).toBe("2000 1200 800");
+  });
 });
 
 describe("a tournament's setup", () => {

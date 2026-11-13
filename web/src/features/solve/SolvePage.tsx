@@ -262,7 +262,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                 Payouts
                 <input
                   aria-label="Payouts"
-                  placeholder="e.g. 50 30 20, or paste a payout table"
+                  placeholder="e.g. 50 30 20, or paste a payout table or tournament summary"
                   title="First place first, any unit"
                   value={payouts}
                   onChange={(e) => setPayouts(e.target.value)}

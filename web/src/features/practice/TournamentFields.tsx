@@ -189,7 +189,7 @@ export function TournamentFields({
       </label>
       {icm && (
         <>
-          <label className="flex items-center gap-1" title="First place first; a pasted payout table works">
+          <label className="flex items-center gap-1" title="First place first; a pasted payout table or a room's tournament summary works">
             <span className="text-muted">Prizes left</span>
             <input
               aria-label="Prizes left"
