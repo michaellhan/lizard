@@ -12,6 +12,7 @@ const TONE: Record<Provenance["source"], string> = {
   "push-fold": "border-act-bet1/50 text-act-bet1",
   "best-response": "border-warn/60 text-warn",
   "node-lock": "border-warn/60 text-warn",
+  "profile-solve": "border-warn/60 text-warn",
   "plo-river": "border-act-check/50 text-act-check",
   rules: "border-warn/60 text-warn",
   equity: "border-warn/60 text-warn",

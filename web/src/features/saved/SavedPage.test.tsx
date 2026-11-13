@@ -58,6 +58,16 @@ afterEach(() => vi.restoreAllMocks());
 const SPOT_FOR_EDIT: SavedSpot = { id: "edit", title: "Edit me", line: "p=6&s=100", state: {}, tags: [], note: "as kept", createdAt: 1, updatedAt: 1 };
 
 describe("SavedPage", () => {
+  it("keeps a spot's profile, says it, and opens Study with it", async () => {
+    await putSpot(spot("p", "Against a station", { profile: "BB:fold=-20,bluff=-50;hand" }));
+    renderAt("/saved");
+    const row = await screen.findByRole("listitem", { name: "Against a station" });
+    expect(row).toHaveTextContent("Profile kept: BB folds -20 pts to a first bet, bluffs 50% less, held from the flop (assumed numbers; Study re-solves against it)");
+    expect(within(row).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", `/study?${LINE}&prof=${encodeURIComponent("BB:fold=-20,bluff=-50;hand")}`);
+    // (and a backup carries it)
+    expect((await makeBackup()).stores.savedSpots.find((x) => x.id === "p")?.data.profile).toBe("BB:fold=-20,bluff=-50;hand");
+  });
+
   it("lists, searches, edits and deletes saved spots, and opens one in Study at its line", async () => {
     await putSpot(spot("a", "Ace-high c-bet", { tags: ["srp", "dry"], note: "bet small", seen: { source: "library", label: "Precomputed solution · srp_btn_bb" }, updatedAt: 5 }));
     await putSpot(spot("b", "Low board", { line: "p=2&s=100&pre=SB%3Ar2.5%2CBB%3Ac&b=7c5d2h", updatedAt: 3 }));

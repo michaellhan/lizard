@@ -15,9 +15,16 @@ import { NOT_SAVED, SAVED_SORTS, deleteDrill, deleteRange, deleteSpot, isDrillLi
 import { deleteReport, listReports, putReport, reportLink, reportWords } from "@/data/reports";
 import { deleteScenario, listScenarios, putScenario, scenarioWords } from "@/data/scenarios";
 import { describeSetup } from "@/features/solve/setup";
+import { describeProfile, parseProfile, PROF } from "@/features/study/profile";
 import { describeLine, fromSearch } from "@/features/study/studyState";
 import { downloadBackup, downloadItem, restoreFile } from "./backupFile";
 import { useCurrentBuild } from "./useSavedAnswer";
+
+/** A kept profile in words, "BB folds -20 pts to a first bet, …", held from the flop where it was; null without one. */
+const profileWords = (s: string | undefined): string | null => {
+  const p = parseProfile(s);
+  return p ? `${p.seat} ${describeProfile(p.adj)}${p.streets === "hand" ? ", held from the flop" : ""}` : null;
+};
 
 const lineText = (line: string) => {
   const h = fromSearch(line);
@@ -344,7 +351,7 @@ function SpotRow({ spot, answer, current, onChange, onGone }: { spot: SavedSpot;
             <strong>{spot.title}</strong>
             <TagChips tags={spot.tags} />
             <span className="flex-1" />
-            <Link to={`/study?${spot.line}${answer ? `&saved=${encodeURIComponent(spot.id)}` : ""}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+            <Link to={`/study?${spot.line}${answer ? `&saved=${encodeURIComponent(spot.id)}` : ""}${spot.profile ? `&${PROF}=${encodeURIComponent(spot.profile)}` : ""}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
               Open in Study
             </Link>
             <button type="button" data-focus-first onClick={edit} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
@@ -360,6 +367,7 @@ function SpotRow({ spot, answer, current, onChange, onGone }: { spot: SavedSpot;
             />
           </div>
           <p className="font-mono text-xs">{lineText(spot.line)}</p>
+          {profileWords(spot.profile) && <p className="text-xs">Profile kept: {profileWords(spot.profile)} (assumed numbers; Study re-solves against it)</p>}
           {spot.note && <p className="whitespace-pre-wrap">{spot.note}</p>}
           <p className="text-xs text-muted">
             Saved {day(spot.createdAt)}

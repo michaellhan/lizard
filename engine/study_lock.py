@@ -111,7 +111,7 @@ class _Capture:
         def node_watched(sol, node, n_r0, n_r1, evs, strat, cur, hero, villain, hero_p, board, to_call, behind, expl,
                          lib_sol, positions, notes, t0):
             self.found = dict(sol=sol, node=node, cur=cur, hero=hero, villain=villain, hero_p=hero_p, board=board,
-                              library=lib_sol is not None, notes=list(notes))
+                              library=lib_sol is not None, notes=list(notes), n_r0=n_r0, n_r1=n_r1, evs=evs, strat=strat)
             # (the node's whole-range tables aren't needed here, and its equities take seconds in the browser)
             return {"study": "node", "street": cur.name, "actor": hero, "actions": [{"action": n} for n in node.names]}
 
@@ -629,6 +629,9 @@ def answer(adv, state: dict, post=None) -> dict:
     try:
         with np.errstate(all="ignore"):
             reach = (state.get("nodelock") or {}).get("reach")
+            if (state.get("nodelock") or {}).get("profile") is not None:
+                from .profile_solve import answer as profiled     # (a player profile held across the tree)
+                return profiled(adv, state, post)
             if reach not in (None, "here", "back"):
                 raise LockError(f"reach is \"here\" or \"back\", got {reach!r}")
             if reach == "back":

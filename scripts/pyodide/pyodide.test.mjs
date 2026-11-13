@@ -188,6 +188,20 @@ test("the published worker sends an opponent's move with a read to engine/, and 
   assert.ok(at("adv.play(st, pl['seat']") < at("except Cancelled:"));
 });
 
+test("a profile re-solve rides the node lock's and the read's branches: engine/ sends it on, no worker edit of its own", () => {
+  // Study's and Exploit practice's advice carry state.nodelock.profile (web/src/solver/client.ts profileSolve,
+  // profileRouted), which the node lock's branch above hands to engine/study_lock.answer; an opponent's move keeps its
+  // `locks` with `profile_solve`, which the read's branch hands to engine/exploit_play.play
+  const lock = readFileSync(join(ROOT, "engine", "study_lock.py"), "utf8");
+  const answer = lock.slice(lock.indexOf("def answer(adv, state: dict, post=None)"));
+  assert.ok(answer.indexOf('.get("profile") is not None') >= 0 && answer.indexOf('.get("profile") is not None') < answer.indexOf("from .profile_solve import answer as profiled") + 200);
+  const play = readFileSync(join(ROOT, "engine", "exploit_play.py"), "utf8");
+  assert.match(play, /state\.get\("profile_solve"\)/);
+  assert.ok(existsSync(join(ROOT, "engine", "profile_solve.py")));
+  const worker = editWorker(upstream);
+  assert.ok(!worker.includes("profile_solve"));
+});
+
 test("the published worker imports Lizard's engine patches at start, before the Advisor it patches", () => {
   const worker = editWorker(upstream);
   const line = worker.split("\n").find((l) => l.includes("from gto.advisor import Advisor;"));

@@ -183,7 +183,7 @@ export function answerChange(m: Pick<MistakeRecord, "provenance" | "mix" | "ask"
   }
   if (a.solverVersion && b.solverVersion && a.solverVersion !== b.solverVersion)
     out.push(`${a.source === "charts" ? "The charts' build" : "The build behind it"} has changed (${a.solverVersion} then, ${b.solverVersion} now).`);
-  if ((a.source === "live" || a.source === "best-response") && a.mode !== b.mode) out.push(`It was solved at ${a.mode}; this time at ${b.mode}.`);
+  if ((a.source === "live" || a.source === "best-response" || a.source === "profile-solve") && a.mode !== b.mode) out.push(`It was solved at ${a.mode}; this time at ${b.mode}.`);
   if (a.approximate !== b.approximate) out.push(a.approximate ? "That answer was labelled approximate; this one isn't." : "This answer is labelled approximate; that one wasn't.");
   if ((a.approximateLabel ?? "") !== (b.approximateLabel ?? "")) out.push("It was read from something else this time.");
   if ((a.view ?? "") !== (b.view ?? "")) out.push(`It came differently then (${a.view ?? "not said"}) and now (${b.view ?? "not said"}).`);
@@ -209,7 +209,14 @@ export type RetrySpot = Pick<MistakeRecord, "ask" | "provenance" | "mix" | "stre
 /** The answer as the spot's game has it: a chip EV tournament's says so, and a fallback's chips aren't graded beside prize
  * equity, as at the table (practice.ts `modelled`, `gradable`), and a locked answer asked again is the best response it was. */
 const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
-  const read = m.provenance?.source === "best-response" && answer.provenance.lock ? bestResponse(answer.provenance, m.provenance.exploit) : null;
+  // (a profile re-solve asked again comes back as one, its own source; a one-node answer to it is the best response it was)
+  const exploited = m.provenance?.source === "best-response" || m.provenance?.source === "profile-solve";
+  const read =
+    exploited && answer.provenance.source === "profile-solve"
+      ? { ...answer.provenance, ...(m.provenance?.exploit ? { exploit: m.provenance.exploit } : {}) }
+      : exploited && answer.provenance.lock
+        ? bestResponse(answer.provenance, m.provenance?.exploit)
+        : null;
   const provenance = read ?? (m.provenance?.tournament === CHIP_MODEL ? { ...answer.provenance, tournament: CHIP_MODEL } : answer.provenance);
   return { ...answer, provenance, mix: gradable(answer.mix, provenance) };
 };

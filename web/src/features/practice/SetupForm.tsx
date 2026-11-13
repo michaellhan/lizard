@@ -324,7 +324,7 @@ export function SetupForm({
         className={`text-xs text-muted ${isPotDrill(play) ? "basis-full" : ""}`}
       >
         {exploit
-          ? `${profileName(exploit.profile)}: ${exploitNumbers(exploit)}. ${ASSUMED} Graded by best response, not equilibrium; live solves.`
+          ? `${profileName(exploit.profile)}: ${exploitNumbers(exploit)}. ${ASSUMED} Graded against a re-solve of your play with the profile held at every decision of theirs (in the browser's solver; a one-node best response elsewhere), not equilibrium; live solves.`
           : isPotDrill(play)
             ? ""
             : "Needs a pot drill under Play."}
