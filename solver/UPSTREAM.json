@@ -9,7 +9,8 @@
     "CLAUDE.md (upstream agent instructions that deploy the legacy site)"
   ],
   "local_patches": [
-    "scripts/deploy.sh, scripts/deploy_library.sh: a guard that refuses to publish the legacy site from this snapshot unless BUILD_ONLY (deploy.sh: or DRY_RUN=1, which publishes nothing) or LIZARD_ALLOW_UPSTREAM_DEPLOY=1"
+    "scripts/deploy.sh, scripts/deploy_library.sh: a guard that refuses to publish the legacy site from this snapshot unless BUILD_ONLY (deploy.sh: or DRY_RUN=1, which publishes nothing) or LIZARD_ALLOW_UPSTREAM_DEPLOY=1",
+    "gto/advisor.py (upstream 36fb5f5b, ported 2026-11-13): preflop_strategy takes `pool` and preflop_ranges passes it for hero's own seat (pool_except), so in exploit mode hero's later-street range holds the pool-priced calls their preflop advice gives instead of the chart's range; tests/test_gto.py test_pool_preflop_flats_and_3bets_more follows it as upstream's does (scripts/engine/test_pool_hero_range.py)"
   ],
   "build_time_edits": [
     "gto/static/worker.js as served by Lizard (scripts/build-solver-assets.mjs): Cache API name 'gto-solver' -> 'lizard:solver', so Lizard and the classic app on the same origin do not evict each other's cached bundle. The file in solver/ is unchanged.",
