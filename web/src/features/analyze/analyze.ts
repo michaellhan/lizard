@@ -2,6 +2,8 @@
 // solver/gto/static/session.js: handId, prepare, hhFiles, filesName, decisions, preflopRaises, preflopSituation,
 // POT_TYPE), each hand's summary for the hands table, and the Study line at one of your decisions.
 import type { DecisionRecord, HandRecord } from "@/data/db";
+import type { PloHandRecord } from "@/data/ploHands";
+import { readOmaha } from "./omaha";
 import { HandHistoryError, splitHands } from "@/hh/parse";
 import { pokerNowHands } from "@/hh/pokernow";
 import { finalSim, importHand, type ReplayedHand } from "@/hh/replay";
@@ -220,6 +222,8 @@ export function hash(s: string): string {
 
 export interface Prepared {
   hands: HandRecord[];
+  /** four-card Omaha hands found among them, kept apart (data/ploHands.ts); absent when there were none */
+  omaha?: PloHandRecord[];
   skipped: Record<SkipKind, number>;
   /** the unreadable hands: their place in their file and why */
   errors: { n: number; number: string; msg: string; file?: string }[];
@@ -250,6 +254,7 @@ export async function prepare(
   const skipped: Record<SkipKind, number> = { nonHoldem: 0, noHero: 0, noDecisions: 0, duplicate: 0, failed: 0 };
   const errors: Prepared["errors"] = [];
   const hands: HandRecord[] = [];
+  const omaha: PloHandRecord[] = [];
   const seen = new Set<string>();
   for (let j = 0; j < parts.length; j++) {
     if (j && j % chunk === 0) {
@@ -267,6 +272,14 @@ export async function prepare(
       // (a HandHistoryError says why; anything else is the importer's own failure, kept as unreadable)
       const msg = e instanceof HandHistoryError ? e.message : `the importer failed: ${String(e)}`;
       const kind = skipKind(msg);
+      // an Omaha hand is kept apart as a PLO hand, not skipped (omaha.ts)
+      if (kind === "nonHoldem" && !refused) {
+        const o = readOmaha(t, imp);
+        if (typeof o !== "string") {
+          omaha.push(o);
+          continue;
+        }
+      }
       skipped[kind]++;
       if (kind === "failed") errors.push({ n: k + 1, number: refused?.number ?? handNumber(t), msg, ...(multi ? { file: f.name } : {}) });
       continue;
@@ -285,7 +298,7 @@ export async function prepare(
     hands.push(rec);
   }
   progress?.(parts.length, parts.length);
-  return { hands, skipped, errors, total: parts.length, ...(multi ? { files: per } : {}) };
+  return { hands, skipped, errors, total: parts.length, ...(multi ? { files: per } : {}), ...(omaha.length ? { omaha } : {}) };
 }
 
 /** The hand-history files among those picked or dropped (a folder's: its .txt, .xml, .log and .hh files, and .json
