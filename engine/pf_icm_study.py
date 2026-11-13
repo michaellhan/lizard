@@ -16,8 +16,10 @@ EVs: each class's EV of each action against folding now, in chip equivalents of 
 folding is 0 as in pf_study's answers. In prize equity folding isn't just the chips in lost: the player not in the pot
 gains when others bust, which the fold's value counts.
 
-Size: the tree grows with the players and the stacks (pf_icm.build: 6 players at 20bb 1,525 nodes, at 40bb 4,667; 9 at
-20bb 9,326). A game whose arrays (nodes x seats) would not fit is refused in words (MAX_WORK; BROWSER_WORK in the browser).
+Size: the tree grows with the players and the stacks (pf_icm.build: 6 players at 30bb 2,008 nodes, at 75bb 7,542). From
+7 players nobody cold 4bets or cold-calls a 3bet (Spec.cold4, as engine/pf_engine.py's 7-9 handed tree): 9 at 20bb 1,527
+nodes, at 75bb 3,318 (with cold 4bets 12,000 to 109,000, too big to build in 1 GB). A game whose arrays (nodes x seats)
+would not fit is refused in words (MAX_WORK; BROWSER_WORK in the browser).
 """
 from __future__ import annotations
 
@@ -48,6 +50,7 @@ MAX_WORK = 300_000         # ... and natively
 MIN_STACK = 1.5            # bb: a seat with less can't post its blind and act (and push/fold below that is all in)
 MAX_STACK = 250.0
 MODEL_NAME = "preflop solve in prize equity (class-level model)"
+LIMITS_7UP = "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
 
 
 @dataclass(frozen=True)
@@ -65,8 +68,17 @@ class Spec:
     def key(self) -> str:
         """A file-name-safe id: 'icm6_<hash>' (pf_study's Spec.key for the browser's keep)."""
         game = [dataclasses.asdict(I.Sizes()), I.JAM_OPEN]     # (the sizes too: a file of other sizes never loads)
+        if not self.cold4:
+            game.append("no cold 4bets")       # (7 or more players' smaller tree; 2-6 players' keys as they were)
         h = hashlib.sha1(json.dumps([self.players, self.stacks, self.antes, self.prize_key, game]).encode()).hexdigest()[:16]
         return f"icm{self.players}_{h}"
+
+    @property
+    def cold4(self) -> bool:
+        """Cold 4bets and cold calls of a 3bet are in the tree up to 6 players; from 7 a player who hasn't put chips in
+        voluntarily only folds once the pot is 3bet (pf_icm.build cold4=False, as engine/pf_engine.py's 7-9 handed
+        tree): 9-handed 1,500 to 3,300 nodes instead of 12,000 to 109,000."""
+        return self.players <= 6
 
     @property
     def ante(self) -> float:
@@ -91,15 +103,17 @@ class Spec:
         small = f" ({sz.small_open:g} from {sz.small_open_at:g}bb)" if sz.small_open else ""
         bits.append(f"opens {sz.open:g}bb{small}, SB {sz.sb_open:g}x or limp, "
                     f"a jam beside the open from {I.JAM_OPEN:g}bb, 3bets {sz.ip_3bet:g}x / {sz.blind_3bet:g}x from the blinds")
+        if not self.cold4:
+            bits.append(LIMITS_7UP)
         return ", ".join(bits)
 
     def build(self) -> Tuple[G.Node, List[str]]:
         pos = self.positions()
-        return I.build(pos, self.stacks, self.antes, max_players=3 if self.players <= 6 else 2), pos
+        return I.build(pos, self.stacks, self.antes, max_players=3 if self.players <= 6 else 2, cold4=self.cold4), pos
 
     def game(self) -> I.ICMGame:
         pos = self.positions()
-        g = I.game(pos, list(self.stacks), list(self.antes), icm_model=self.model)
+        g = I.game(pos, list(self.stacks), list(self.antes), icm_model=self.model, cold4=self.cold4)
         g.avg_power = PS.AVG_POWER
         return g
 
@@ -294,7 +308,8 @@ class Solve(PS.Solve):
                 "solver": {"by": "the preflop solve", "model": MODEL_NAME, "iterations": self.iters,
                            "mbb": st["mbb"], "exploitability_bb": None if self.expl is None else round(sum(self.expl), 4)},
                 "pf_solve": st, "pf_icm": True, "source": "solver", "notes": notes, "regret_bb": round(regret, 3),
-                "rough": bool(never or thin or regret >= PS.ROUGH_BB)}
+                "rough": bool(never or thin or regret >= PS.ROUGH_BB),
+                **({} if self.spec.cold4 else {"pf_limits": LIMITS_7UP})}
 
     def _bets_on_tree(self, node: G.Node) -> Dict[str, float]:
         """Each seat's chips in this round at `node`, from the tree's own line (the blinds as posted, short ones all in)."""

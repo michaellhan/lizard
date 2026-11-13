@@ -1,6 +1,6 @@
 """engine/pf_icm_stored.py: the stored tournament presets, answered by the worker's own path (Advisor.advise with study and
 preflop_solve, as Practice asks, never with "run") from their files: a node with pf_solve stored and done. Each file is
-its game's tree, the manifest, KEYS and STAGES agree, and the request each was stored for still reads as its key.
+its game's tree, the manifest, KEYS and ALL (the presets, then the final-table set) agree, and the request each was stored for still reads as its key.
 
 Run: .venv/bin/python -m unittest scripts/engine/test_pf_icm_stored.py   (seconds)
 """
@@ -31,10 +31,28 @@ def ask(req, hero, preflop=()):
 
 class Stored(unittest.TestCase):
     def test_manifest_keys_and_stages_agree(self):
-        self.assertEqual([e["name"] for e in MANIFEST], [s[0] for s in ST.STAGES])
+        self.assertEqual([e["name"] for e in MANIFEST], [s[0] for s in ST.ALL])
         self.assertEqual(ST.KEYS, {e["key"]: e["name"] for e in MANIFEST})
-        for e, s in zip(MANIFEST, ST.STAGES):
+        for e, s in zip(MANIFEST, ST.ALL):
             self.assertEqual(e["request"], ST.request(s), e["name"])
+            self.assertEqual(e["set"], ST.set_of(e["name"]), e["name"])
+
+    def test_the_final_table_set_is_every_count_depth_and_shape(self):
+        ft = [s for s in ST.ALL if ST.set_of(s[0]).startswith("final")]
+        self.assertEqual(len(ft), len(ST.FT_PLAYERS) * len(ST.FT_DEPTHS) * len(ST.FT_SHAPES))
+        self.assertEqual(ST.ft_stacks(6, 20, "leader"), (16, 16, 16, 40, 16, 16))
+        self.assertEqual(ST.ft_stacks(3, 15, "short"), (19.5, 19.5, 6))
+        for s in ft:
+            n, stacks = s[1], s[2]
+            with self.subTest(s[0]):
+                self.assertEqual(len(stacks), n)
+                avg = next(d for d in ST.FT_DEPTHS if f", {d:g}bb average" in s[0])
+                self.assertLessEqual(abs(sum(stacks) - n * avg), 0.1 * n)    # chips kept, to the tenth a seat
+
+    def test_seven_or_more_players_say_their_limits(self):
+        for e in MANIFEST:
+            with self.subTest(e["name"]):
+                self.assertEqual("nobody cold 4bets" in e["label"], e["players"] >= 7)
 
     def test_each_file_is_its_games_tree(self):
         for e in MANIFEST:
@@ -60,6 +78,7 @@ class Stored(unittest.TestCase):
                 self.assertTrue(a["pf_icm"])
                 self.assertTrue(a["notes"][0].startswith("tournament:"), a["notes"])
                 self.assertAlmostEqual(sum(x["freq"] for x in a["actions"]), 1.0, places=2)
+                self.assertEqual("pf_limits" in a, e["players"] >= 7, a.get("pf_limits"))
 
     def test_the_opponents_play_the_stored_mix_where_asked(self):
         """Practice's `pf_play`: an opponent's preflop move is drawn from the node's mix for its class, at the tree's sizes
