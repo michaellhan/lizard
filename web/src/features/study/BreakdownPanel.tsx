@@ -1,6 +1,6 @@
 // Study's breakdown of a postflop node (classic breakdown.js, gto/breakdown.py): each range by made hands and draws,
 // with the share, mix, equity and EV of every category, and each range's equity distribution, averages and share at
-// the nut threshold. Asked only when opened, on the node's own state, with its own provenance. A category picked can
+// the nut threshold. Asked only once Study's Breakdown tab is opened, on the node's own state, with its own provenance. A category picked can
 // show just those hands in the grid. One action picked splits into value and bluff (valueBluff.ts), and a hand picked
 // shows what it blocks in the opponent's range (BlockersPanel).
 import { useEffect, useMemo, useState } from "react";
@@ -24,17 +24,12 @@ const SERIES = ["#3fa52b", "#4a90e2", "#bd8212"];
 export function BreakdownPanel({
   hand,
   mode,
-  open,
-  onOpen,
   evUnit,
   getSolver,
   onFilter,
 }: {
   hand: StudyHand;
   mode: SolveMode;
-  /** kept by the page, so the panel stays open from node to node */
-  open: boolean;
-  onOpen: (open: boolean) => void;
   evUnit: EvUnit;
   getSolver: () => Promise<SolverClient>;
   /** show one category's hands in the grid, by its filter key ("m:<id>" or "d:<id>") */
@@ -42,7 +37,6 @@ export function BreakdownPanel({
 }) {
   const [run, setRun] = useState<Run>({ kind: "asking" });
   useEffect(() => {
-    if (!open) return;
     const ac = new AbortController();
     void (async () => {
       try {
@@ -57,23 +51,18 @@ export function BreakdownPanel({
       }
     })();
     return () => ac.abort();
-  }, [open, hand, mode, getSolver]);
+  }, [hand, mode, getSolver]);
 
   return (
-    <details open={open} onToggle={(e) => onOpen(e.currentTarget.open)} className="w-full panel p-3 text-sm">
-      <summary className="cursor-pointer font-medium">Breakdown and equity</summary>
-      {open && (
-        <div className="mt-2 @container">
-          {run.kind === "asking" && (
-            <p role="status" className="text-muted">
-              Breaking down the ranges…
-            </p>
-          )}
-          {run.kind === "none" && <p className="text-muted">{run.message}</p>}
-          {run.kind === "done" && <Shown bd={run.bd} res={run.res} provenance={run.provenance} evUnit={evUnit} onFilter={onFilter} blockers={{ hand, mode, getSolver }} />}
-        </div>
+    <section aria-label="Breakdown and equity" className="w-full panel p-3 text-sm @container">
+      {run.kind === "asking" && (
+        <p role="status" className="text-muted">
+          Breaking down the ranges…
+        </p>
       )}
-    </details>
+      {run.kind === "none" && <p className="text-muted">{run.message}</p>}
+      {run.kind === "done" && <Shown bd={run.bd} res={run.res} provenance={run.provenance} evUnit={evUnit} onFilter={onFilter} blockers={{ hand, mode, getSolver }} />}
+    </section>
   );
 }
 

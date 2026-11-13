@@ -90,7 +90,7 @@ function renderAt(search: string) {
 }
 
 afterEach(() => {
-  useSettings.setState({ evUnit: "bb" });
+  useSettings.setState({ evUnit: "bb", studyTab: "hand" });
   stub.provenance = null;
   stub.answerFor = null;
 });
@@ -101,8 +101,9 @@ describe("StudyPage", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     stub.answer = THREE_WAY;
     renderAt("p=3&s=100");
-    // (under More tools, with the other tools that aren't needed every time)
+    // (on the Tools tab, with the other tools that aren't needed every time)
     await screen.findByRole("region", { name: "Actions" });
+    fireEvent.click(await screen.findByRole("tab", { name: "Tools" }));
     fireEvent.click(await screen.findByRole("button", { name: "Copy for AI" }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     const text = writeText.mock.calls[0]![0];
@@ -112,6 +113,32 @@ describe("StudyPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "✎ Build" }));
     expect(screen.queryByRole("button", { name: "Copy for AI" })).toBeNull();
     Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("puts the hand, the breakdown and the tools on tabs beside the grid, asking the breakdown only once its tab is picked", async () => {
+    stub.answer = THREE_WAY;
+    stub.asked = [];
+    renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");
+    const tabs = await screen.findByRole("tablist", { name: "Study panel" });
+    expect(within(tabs).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Hand", "Breakdown", "Tools"]);
+    expect(within(tabs).getByRole("tab", { name: "Hand" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText(/Click a hand in the grid/)).toBeInTheDocument();
+    expect(stub.asked.some((st) => (st as { breakdown?: boolean }).breakdown)).toBe(false);
+    // the arrow keys move along the tabs, not along the line, and the tab picked is kept
+    fireEvent.keyDown(within(tabs).getByRole("tab", { name: "Hand" }), { key: "ArrowRight" });
+    expect(within(tabs).getByRole("tab", { name: "Breakdown" })).toHaveAttribute("aria-selected", "true");
+    expect(useSettings.getState().studyTab).toBe("breakdown");
+    expect(screen.getByRole("region", { name: "Breakdown and equity" })).toBeInTheDocument();
+    await waitFor(() => expect(stub.asked.some((st) => (st as { breakdown?: boolean }).breakdown)).toBe(true));
+    // a hand picked in the grid from the breakdown is shown on Hand, named on its tab
+    fireEvent.click(within(screen.getByRole("grid", { name: "BB range" })).getByRole("gridcell", { name: /^AA/ }));
+    expect(within(tabs).getByRole("tab", { name: "Hand · AA" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("complementary")).toBeVisible();
+    // from Tools it stays on Tools, whose tools take the hand picked
+    fireEvent.click(within(tabs).getByRole("tab", { name: "Tools" }));
+    fireEvent.click(within(screen.getByRole("grid", { name: "BB range" })).getByRole("gridcell", { name: /^KK/ }));
+    expect(within(tabs).getByRole("tab", { name: "Tools" })).toHaveAttribute("aria-selected", "true");
+    expect(within(tabs).getByRole("tab", { name: "Hand · KK" })).toBeInTheDocument();
   });
 
   it("shows one toggle per opponent in a 3-way answer, and each one's grid", async () => {
@@ -443,6 +470,9 @@ describe("StudyPage", () => {
     stub.answer = THREE_WAY;
     const search = "p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h";
     const { unmount } = renderAt(search);
+    // (on the Tools tab, in its own fold)
+    fireEvent.click(await screen.findByRole("tab", { name: "Tools" }));
+    fireEvent.click(screen.getByText("Compare this spot"));
     const nav = await screen.findByRole("navigation", { name: "Compare this spot" });
     const b = (name: string) => fromSearch(new URLSearchParams(within(nav).getByRole("link", { name }).getAttribute("href")!.split("?")[1]).get("b")!)!;
     expect(b("with 5% rake, capped at 3bb").setup).toEqual({ rake: 5, rakeCap: 3 });
@@ -451,6 +481,7 @@ describe("StudyPage", () => {
     stub.answer = { study: "over" };
     renderAt(search);
     expect(await screen.findByText(/The hand is over/)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Tools" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Compare this spot" })).toBeNull();
   });
 
@@ -462,12 +493,12 @@ describe("StudyPage", () => {
       useSettings.setState({ studySplit: null });
     });
 
-    it("stands between the grid and the panel on a wide window, and starts at the layout's 1.4 to 1", async () => {
+    it("stands between the grid and the panel on a wide window, and starts at half", async () => {
       wide(true);
       stub.answer = THREE_WAY;
       renderAt(search);
       const bar = await screen.findByRole("separator", { name: "Resize the range and the panel beside it" });
-      expect(bar).toHaveAttribute("aria-valuenow", "58");
+      expect(bar).toHaveAttribute("aria-valuenow", "50");
       expect(bar.previousElementSibling).toContainElement(screen.getByRole("region", { name: "Range" }));
       expect(bar.nextElementSibling).toContainElement(screen.getByRole("complementary"));
     });
@@ -483,21 +514,21 @@ describe("StudyPage", () => {
     // (`before(a, b)`: a comes first in the page, which is the order the keyboard goes in)
     const before = (a: Element, b: Element) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING, `${a.tagName} before ${b.tagName}`).toBeTruthy();
 
-    it("puts the actions and the breakdown in the panel on a wide window, so the separator moves them too", async () => {
+    it("puts the actions and the tabs in the panel on a wide window, so the separator moves them too", async () => {
       wide(true);
       stub.answer = THREE_WAY;
       renderAt(search);
       const bar = await screen.findByRole("separator");
       const panel = bar.nextElementSibling as HTMLElement;
       const actions = screen.getByRole("region", { name: "Actions" });
-      const breakdown = screen.getByText("Breakdown and equity").closest("details")!;
+      const tabs = screen.getByRole("tablist", { name: "Study panel" });
       expect(panel).toContainElement(actions);
-      expect(panel).toContainElement(breakdown);
+      expect(panel).toContainElement(tabs);
       expect(bar.previousElementSibling).not.toContainElement(actions);
-      // the grid, the actions, the combos, the breakdown: left to right and top to bottom, as they're read
+      // the grid, the actions, the tabs, the combos: left to right and top to bottom, as they're read
       before(screen.getByRole("region", { name: "Range" }), actions);
-      before(actions, screen.getByRole("complementary"));
-      before(screen.getByRole("complementary"), breakdown);
+      before(actions, tabs);
+      before(tabs, screen.getByRole("complementary"));
       // what those numbers came from goes with them
       expect(within(actions).getByText(/^Live solve/)).toBeInTheDocument();
       expect(within(actions).getByRole("button", { name: "How this was produced" })).toBeInTheDocument();
@@ -511,8 +542,8 @@ describe("StudyPage", () => {
       const range = screen.getByRole("region", { name: "Range" });
       expect(screen.getAllByRole("region", { name: "Actions" })).toHaveLength(1);
       before(actions, range);
-      before(range, screen.getByRole("complementary"));
-      before(screen.getByRole("complementary"), screen.getByText("Breakdown and equity"));
+      before(range, screen.getByRole("tablist", { name: "Study panel" }));
+      before(screen.getByRole("tablist", { name: "Study panel" }), screen.getByRole("complementary"));
     });
 
     it("leaves the actions above Build's own split on a wide window, without the numbers", async () => {
@@ -526,7 +557,7 @@ describe("StudyPage", () => {
       expect(bar.parentElement).not.toContainElement(actions);
       before(actions, bar);
       expect(within(actions).queryByText(/combos/)).toBeNull();
-      expect(screen.queryByText("Breakdown and equity")).toBeNull();
+      expect(screen.queryByRole("tablist")).toBeNull();
     });
 
     it("shows a node with no grid in full on a wide window, with no split to put it in", async () => {
@@ -534,7 +565,10 @@ describe("StudyPage", () => {
       stub.answer = { ...THREE_WAY, grid: undefined } as unknown as AdvisorResponse;
       renderAt(search);
       await screen.findByRole("region", { name: "Actions" });
-      expect(await screen.findByText("Breakdown and equity")).toBeInTheDocument();
+      // (no grid to pick a hand in, so no Hand tab: the breakdown and the tools)
+      expect(await screen.findByRole("tab", { name: "Breakdown" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("tab", { name: "Tools" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: /^Hand/ })).toBeNull();
       expect(screen.queryByRole("separator")).toBeNull();
     });
 
@@ -553,17 +587,17 @@ describe("StudyPage", () => {
       renderAt(search);
       const bar = await screen.findByRole("separator");
       // (a slow runner may show the bar a moment before its default, which the keys move from)
-      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "58"));
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "50"));
       const asked = stub.asked.length;
       fireEvent.keyDown(bar, { key: "ArrowLeft" });
-      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "56"));
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "48"));
       fireEvent.keyDown(bar, { key: "ArrowRight" });
       fireEvent.keyDown(bar, { key: "ArrowRight" });
-      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "60"));
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "52"));
       await screen.findByRole("region", { name: "Range" });
       expect(stub.asked).toHaveLength(asked);
       const saved = useSettings.getState().studySplit!;
-      expect(saved).toBeCloseTo(1.4 / 2.4 + 0.02);
+      expect(saved).toBeCloseTo(0.5 + 0.02);
       // read back from the store, as a new visit would
       await vi.waitFor(async () => expect(await kvGet("settings.v1")).toMatchObject({ studySplit: saved }));
       useSettings.setState({ studySplit: null });
@@ -586,7 +620,7 @@ describe("StudyPage", () => {
       expect(stub.asked).toHaveLength(asked);
       expect(bar).toHaveAttribute("aria-valuenow", "65");
       fireEvent.keyDown(bar, { key: "Enter" });
-      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "58"));
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "50"));
       expect(useSettings.getState().studySplit).toBeNull();
       expect(bar).toHaveFocus();
     });
@@ -625,7 +659,7 @@ describe("StudyPage", () => {
       fireEvent.keyDown(bar, { key: "b" });
       expect(screen.getByRole("region", { name: "Build" })).toBeInTheDocument();
       fireEvent.keyDown(bar, { key: "Enter" });
-      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "58"));
+      await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "50"));
     });
 
     it("stacks Build's grid and its panel on a narrow window, with no separator", async () => {
@@ -649,7 +683,7 @@ describe("StudyPage", () => {
       await useSettings.getState().load();
       stub.answer = THREE_WAY;
       renderAt(search);
-      expect(await screen.findByRole("separator")).toHaveAttribute("aria-valuenow", "58");
+      expect(await screen.findByRole("separator")).toHaveAttribute("aria-valuenow", "50");
     });
   });
 });

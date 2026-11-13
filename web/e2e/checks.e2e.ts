@@ -3,7 +3,7 @@
 // through to the published library; everything else stands on the page's own play. Timings go to the test's output as
 // `timing: ...` lines, for the matrix.
 import { readFileSync } from "node:fs";
-import { expect, overflow, test, type Page, type Problems, openGame, openScoreNotes } from "./fixtures";
+import { expect, overflow, test, type Page, type Problems, openGame, openScoreNotes, openStudyTools } from "./fixtures";
 
 const hh = (name: string) => readFileSync(new URL(`../../solver/tests/data/hh/${name}`, import.meta.url), "utf8");
 
@@ -437,7 +437,8 @@ test("Filters in Study: a category and an equity bucket narrow the grid and the 
   expect(narrowed.replace(/These numbers.*\n?/, "")).not.toBe(before);
 
   // the EV gap panel says the same
-  await page.getByRole("button", { name: "Compare two actions' EV" }).click();
+  await openStudyTools(page);
+  await page.getByText("Compare two actions' EV", { exact: true }).click();
   const gap = page.getByRole("region", { name: "Two actions' EV" });
   await expect(gap.getByText(`These numbers are over ${name} alone, not the whole range.`)).toBeVisible();
 

@@ -5130,3 +5130,25 @@ incorrect). Lizard had the counts as information (Study's breakdown and blockers
 - Not done: turn and river questions, draw categories, and Flopsy's endless-question account model (here every
   question is dealt in the browser, free). Committed on its own, without the other uncommitted work in the tree.
   The precompute builds were left alone.
+
+### 2026-11-13: Study's layout reworked (tabs beside the grid)
+
+The owner found Study hard to read: the panel right of the grid ran far taller than it (actions, combos, the breakdown
+with its chart and blockers, then the EV comparison), and most tools were hidden under a closed "More tools".
+
+- Right of the grid, under the actions, three tabs (`StudyTabs.tsx`): **Hand** (the class picked in the grid),
+  **Breakdown** (postflop; asked only once its tab is opened) and **Tools** (Compare two actions' EV, one size, against
+  a read, node lock, automatic sizing, Compare this spot, Copy for AI, each a named fold with a line on what it does).
+  A panel is kept once opened, so switching tabs loses nothing on that node. A hand picked in the grid from Breakdown
+  goes to Hand; from Tools it stays, as the lock and sizing tools take the hand picked. Arrow keys move along the tabs.
+- The tab is a Setting (`studyTab`), replacing `breakdownOpen`.
+- The grid is held to the window's height and pinned while the panel beside it scrolls (and the opponent's grid side
+  by side the same); the split starts at half, not 1.4 to 1. The range toolbar is two rows: whose range, the totals,
+  Side by side and Build; then what the grid shows (as one segmented control), the category filter and the legend.
+- `EvGapPanel` and `OneSizePanel` take `opened` (drawn inside a fold, without their own button, frame and Close);
+  `BreakdownPanel` is a plain region asked on mount.
+- Checked: vitest 3,551 passed and 1 failed, then fixed and rerun with StudyPage's tests (contrast's "ring inside anything that clips" needed `segmented` on the two new button
+  groups); the Study e2e specs on a build, desktop and phone, all pass (the split's default is 50 now, and the river
+  spec opens Breakdown again after a hand picked put Hand up). In the browser at 1440×900: the whole grid fits and
+  stays pinned while the breakdown scrolls, the tabs and keys work, preflop offers Hand and Tools only, side by side
+  and Build unchanged; at 375 wide everything stacks with no sideways scroll.

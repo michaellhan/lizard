@@ -4,9 +4,10 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { ResizableWorkspace, WIDE_QUERY } from "@/components/ResizableWorkspace";
 import { useSettings } from "@/state/settings";
 
-/** The grid's share of the width beside its panel, 1.4 to 1 as before it could be moved; and in px, the narrowest each can
- * go: 420 leaves the 13 columns about 30px each for their labels, 320 the combo table its four columns. */
-const STUDY_SPLIT = 1.4 / 2.4;
+/** The grid's share of the width beside its panel: half, since the grid is held to the window's height (so on a laptop a
+ * wider share is empty beside it) and the panel holds the actions and the tabs; and in px, the narrowest each can go: 420
+ * leaves the 13 columns about 30px each for their labels, 320 the combo table its four columns. */
+const STUDY_SPLIT = 0.5;
 const STUDY_MIN_MATRIX = 420;
 const STUDY_MIN_PANEL = 320;
 

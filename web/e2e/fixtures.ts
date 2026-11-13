@@ -41,12 +41,17 @@ export async function openGame(page: Page): Promise<void> {
   if (!(await game.evaluate((d) => (d as HTMLDetailsElement).open))) await game.locator("summary").first().click();
 }
 
-/** Study's tools past the answer (Copy for AI, Compare this spot, the lock and sizing panels) are on one fold, "More
- * tools", closed on each new node; opened if it's closed, once the answer is in (`timeout` to wait for it). */
+/** One of Study's tabs beside the grid (Hand, Breakdown, Tools), picked once the answer is in (`timeout` to wait for it). */
+export async function openStudyTab(page: Page, name: "Hand" | "Breakdown" | "Tools", timeout = 30_000): Promise<void> {
+  const tab = page.getByRole("tablist", { name: "Study panel" }).getByRole("tab", { name: new RegExp(`^${name}`) });
+  await expect(tab).toBeVisible({ timeout });
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+/** Study's tools past the answer (Copy for AI, Compare this spot, the lock and sizing panels) are on its Tools tab. */
 export async function openStudyTools(page: Page, timeout = 30_000): Promise<void> {
-  const fold = page.locator("details").filter({ has: page.locator(":scope > summary", { hasText: /^More tools$/ }) });
-  await expect(fold).toBeVisible({ timeout });
-  if (!(await fold.evaluate((d) => (d as HTMLDetailsElement).open))) await fold.locator(":scope > summary").click();
+  await openStudyTab(page, "Tools", timeout);
 }
 
 /** Practice's score: what graded the session, and its notes, are on a fold under the figures; opened if it's closed. */

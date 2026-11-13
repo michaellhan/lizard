@@ -26,10 +26,22 @@ const swatch = (r: OneSizeRow) => {
   return i < 0 ? undefined : colors[i];
 };
 
-export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: AdvisorResponse; getSolver: () => Promise<SolverClient> }) {
+export function OneSizePanel({
+  hand,
+  res,
+  getSolver,
+  opened,
+}: {
+  hand: StudyHand;
+  res: AdvisorResponse;
+  getSolver: () => Promise<SolverClient>;
+  /** opened from outside (Study's Tools fold, which draws the panel and its title around it): no button, frame, title or Close */
+  opened?: boolean;
+}) {
   const state = useMemo(() => studyRequest(hand), [hand]);
   const run = useMemo(() => runOf(state, res.street, kindOf(res.actions)), [state, res]);
-  const [open, setOpen] = useState(false);
+  const [own, setOpen] = useState(false);
+  const open = opened ?? own;
   const [sel, setSel] = useState<string | null>(null);
   const [, bump] = useReducer((x: number) => x + 1, 0);
   const ask: Ask = useCallback(async (st, signal) => (await getSolver()).solve({ state: st, mode: "fast", signal }), [getSolver]);
@@ -71,18 +83,21 @@ export function OneSizePanel({ hand, res, getSolver }: { hand: StudyHand; res: A
   const rows = [...(full ? [full] : []), ...sum.rows];
   const prov = rows.length ? oneSizeProvenance(rows, run.prov, { total: totalOf(run), done: run.status === "done", targetPct: m.target_pct, seconds: run.secs.length ? run.secs.reduce((a, b) => a + b, 0) : undefined }) : null;
   return (
-    <section aria-label={`One ${raise ? "raise" : "bet"} size`} className="w-full space-y-3 panel p-3 text-sm">
+    <section aria-label={`One ${raise ? "raise" : "bet"} size`} className={`w-full space-y-3 text-sm ${opened === undefined ? "panel p-3" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <strong>One {raise ? "raise" : "bet"} size</strong>
+        {opened === undefined && <strong>One {raise ? "raise" : "bet"} size</strong>}
         <span className="text-muted">
-          · {m.actor ? `${m.actor}'s ${m.street} decision` : `the ${run.street ?? ""} decision`}
+          {opened === undefined && "· "}
+          {m.actor ? `${m.actor}'s ${m.street} decision` : `the ${run.street ?? ""} decision`}
           {m.pot_bb != null ? ` · pot ${m.pot_bb}bb, ${m.stack_bb}bb behind` : ""} · solved at Fast
         </span>
         <span className="flex-1" />
         {prov && <ProvenanceBadge p={prov} />}
-        <button type="button" onClick={() => setOpen(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-          Close
-        </button>
+        {opened === undefined && (
+          <button type="button" onClick={() => setOpen(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            Close
+          </button>
+        )}
       </div>
       <Progress run={run} onGo={go} onStop={() => stop(run, true)} />
       {best && full && (

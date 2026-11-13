@@ -15,7 +15,7 @@ async function openPanel(page: Page, url: string) {
   const summary = page.getByText("Hold this node at a mix (true node lock)");
   await expect(summary).toBeVisible();
   await summary.click();
-  // (the panel's own fold, inside More tools': the innermost)
+  // (the panel's own fold, on the Tools tab)
   return page.locator("details", { has: summary }).last();
 }
 

@@ -64,7 +64,10 @@ export function OpponentSide({
         </div>
       )}
       <RangeHeading seat={opp.seat} role="the opponent" totals={oppTotals(opp)} provenance={provenance} />
-      <RangeMatrix cells={opp.grid.cells} actions={[]} colors={[]} selected={selected} onSelect={onSelect} view="weight" caption={`${opp.seat} range`} />
+      {/* (held to the window's height, as the actor's grid beside it is) */}
+      <div className="lg:max-w-[calc(100vh-18rem)]">
+        <RangeMatrix cells={opp.grid.cells} actions={[]} colors={[]} selected={selected} onSelect={onSelect} view="weight" caption={`${opp.seat} range`} />
+      </div>
     </section>
   );
 }

@@ -4,6 +4,7 @@ import { kvGet, kvSet } from "@/data/db";
 import { DEFAULT_LOCAL_SOLVER_URL, type LibraryChoice } from "@/config";
 import type { Spot } from "@/features/practice/room";
 import type { GridView } from "@/features/study/views";
+import type { StudyTab } from "@/features/study/StudyTabs";
 import type { TreeCap } from "@/solver/treeDepth";
 import type { SolveMode, TransportKind } from "@/solver/types";
 
@@ -23,9 +24,10 @@ export interface Settings {
   /** Practice: ask ahead for your likeliest lines while you decide (null: not chosen, read as the measured default, ahead.ts's
    * `ASK_AHEAD`, which a saved `false` would hide when it changes) */
   askAhead: boolean | null;
-  /** Study: what the grid shows, whether the breakdown is open, and which of its categories */
+  /** Study: what the grid shows, the side panel's tab (Hand, Breakdown or Tools), and which of the breakdown's categories.
+   * The tab replaced `breakdownOpen` on 2026-11-13, when the breakdown moved onto a tab: an old saved value is dropped */
   studyView: GridView;
-  breakdownOpen: boolean;
+  studyTab: StudyTab;
   breakdownPart: "made" | "draws";
   /** Study: the matrix column's share of the width beside its panel (null: not moved, read as the layout's default, which a
    * saved number would hide when it changes). Any saved value is clamped where it's read, by ResizableWorkspace */
@@ -51,7 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   practiceSeat: "random",
   askAhead: null,
   studyView: "mix",
-  breakdownOpen: false,
+  studyTab: "hand",
   breakdownPart: "made",
   studySplit: null,
   studyKeys: true,
@@ -70,8 +72,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, breakdownOpen, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

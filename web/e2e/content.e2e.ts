@@ -1,7 +1,7 @@
 // Pages with something on them, on the real worker: what the route sweep's empty pages can't show. Each ends on the
 // same checks: nothing scrolls sideways, nothing was logged as an error, and a screenshot for a person to look at.
 import { readFileSync } from "node:fs";
-import { expect, openStudyTools, overflow, test, type Problems } from "./fixtures";
+import { expect, openStudyTab, openStudyTools, overflow, test, type Problems } from "./fixtures";
 import type { Page, TestInfo } from "@playwright/test";
 
 const HANDS = readFileSync(new URL("../../solver/tests/data/hh/gg_allin_preflop.txt", import.meta.url), "utf8");
@@ -69,17 +69,14 @@ test("Study: the line walked by its breadcrumb, Forward and the keys, and a call
 
 test("Study: a river's breakdown, with its categories, its equity chart and a category shown in the grid", async ({ page, problems }, info) => {
   await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
-  const panel = page.locator("details", { hasText: "Breakdown and equity" });
-  await expect(panel).toBeVisible({ timeout: 90_000 });
-  await panel.locator("summary").click();
+  await openStudyTab(page, "Breakdown", 90_000);
+  const panel = page.getByRole("region", { name: "Breakdown and equity" });
   const cats = panel.getByRole("region", { name: "Hand categories" });
   await expect(cats.getByRole("row").nth(1)).toBeVisible({ timeout: 45_000 });
   await expect(cats.getByRole("button", { name: /^Live solve|solve/i }).or(cats.getByText(/solve/i)).first()).toBeVisible();
   const chart = panel.getByRole("region", { name: "Equity distribution" });
   await expect(chart.getByText(/range advantage/)).toBeVisible();
   await expect(chart.getByText("on the river, no cards to come", { exact: false })).toBeVisible();
-  await openStudyTools(page);
-  await expect(page.getByRole("navigation", { name: "Compare this spot" })).toHaveCount(1);
   await chart.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-breakdown.png`, fullPage: false });
   await cats.scrollIntoViewIfNeeded();
@@ -93,14 +90,18 @@ test("Study: a river's breakdown, with its categories, its equity chart and a ca
   await cats.getByRole("button", { name: "Show these hands in the grid" }).click();
   await expect(page.getByRole("combobox", { name: /one category/ })).not.toHaveValue("");
   expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
+
+  // the links to Compare: on the Tools tab, in their own fold
+  await openStudyTools(page);
+  await page.getByText("Compare this spot", { exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Compare this spot" })).toHaveCount(1);
   expect(problems.errors).toEqual([]);
 });
 
 test("Study: a bet split into value and bluff, and what a hand blocks, on the real engine", async ({ page, problems }, info) => {
   await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
-  const panel = page.locator("details", { hasText: "Breakdown and equity" });
-  await expect(panel).toBeVisible({ timeout: 90_000 });
-  await panel.locator("summary").click();
+  await openStudyTab(page, "Breakdown", 90_000);
+  const panel = page.getByRole("region", { name: "Breakdown and equity" });
   const cats = panel.getByRole("region", { name: "Hand categories" });
   await expect(cats.getByRole("row").nth(1)).toBeVisible({ timeout: 45_000 });
   await cats.getByRole("group", { name: "What an action is made of" }).getByRole("button", { name: /^bet/ }).first().click();
@@ -149,12 +150,12 @@ test("Study: the folds to a seat in one step, and the split beside the grid that
     await page.mouse.up();
     await expect(split).not.toHaveAttribute("aria-valuenow", at ?? "");
     await split.dblclick();
-    await expect(split).toHaveAttribute("aria-valuenow", "58");
+    await expect(split).toHaveAttribute("aria-valuenow", "50");
     await split.focus();
     await page.keyboard.press("End");
-    await expect(split).not.toHaveAttribute("aria-valuenow", "58");
+    await expect(split).not.toHaveAttribute("aria-valuenow", "50");
     await page.keyboard.press("Enter");
-    await expect(split).toHaveAttribute("aria-valuenow", "58");
+    await expect(split).toHaveAttribute("aria-valuenow", "50");
     await expect(split).toBeFocused();
   }
   expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
@@ -164,11 +165,12 @@ test("Study: the folds to a seat in one step, and the split beside the grid that
 test("Study: the actions and the breakdown sit in the panel, which the separator resizes, with nothing clipped at either limit", async ({ page, problems }, info) => {
   test.setTimeout(150_000); // (a river solved live, its breakdown, and the next node)
   await page.goto("/lizard/study/?p=2&s=100&pre=SB:c,BB:x&b=Ks7d2c5h9d&flop=BB:x,SB:x&turn=BB:x,SB:x");
-  const panel = page.locator("details", { hasText: "Breakdown and equity" });
-  await expect(panel).toBeVisible({ timeout: 90_000 });
-  await panel.locator("summary").click();
+  await openStudyTab(page, "Breakdown", 90_000);
+  const panel = page.getByRole("region", { name: "Breakdown and equity" });
   await expect(panel.getByRole("region", { name: "Hand categories" }).getByRole("row").nth(1)).toBeVisible({ timeout: 45_000 });
+  // (a hand picked from the breakdown is shown on the Hand tab: the tabs stand for the panel under the actions from here)
   await page.getByRole("gridcell", { name: /^K6s:/ }).click();
+  const tabs = page.getByRole("tablist", { name: "Study panel" });
   const combos = page.getByRole("complementary").getByRole("table");
   await expect(combos).toBeVisible();
 
@@ -179,7 +181,7 @@ test("Study: the actions and the breakdown sit in the panel, which the separator
   if (info.project.name === "phone") {
     await expect(split).toHaveCount(0);
     expect((await box(actions)).y, "the actions above the grid").toBeLessThan((await box(range)).y);
-    expect((await box(panel)).y, "the breakdown below it").toBeGreaterThan((await box(range)).y);
+    expect((await box(tabs)).y, "the tabs below it").toBeGreaterThan((await box(range)).y);
   } else {
     // what's in a pane stays in it, and what's beside each other in a table keeps apart, which a pane's edge can't show
     const looked = async (name: string) => {
@@ -212,14 +214,15 @@ test("Study: the actions and the breakdown sit in the panel, which the separator
     await split.focus();
     await page.keyboard.press("End");
     await expect.poll(async () => Math.round((await box(actions)).width)).toBe(320);
-    expect((await box(panel)).width, "the breakdown as wide as the actions").toBe((await box(actions)).width);
+    expect((await box(tabs)).width, "the tabs as wide as the actions").toBe((await box(actions)).width);
     await looked("the panel's narrowest");
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-panel-narrowest.png`, fullPage: true });
 
+    await split.focus(); // (the full-page shot above can take the focus off it)
     await page.keyboard.press("Home");
     await expect.poll(async () => Math.round((await box(range)).width)).toBe(420);
-    expect((await box(panel)).width).toBe((await box(actions)).width);
+    expect((await box(tabs)).width).toBe((await box(actions)).width);
     await looked("the grid's narrowest");
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `e2e-results/shots/${info.project.name}/study-grid-narrowest.png`, fullPage: true });
@@ -232,7 +235,7 @@ test("Study: the actions and the breakdown sit in the panel, which the separator
     await page.mouse.down();
     await page.mouse.move(bar.x + bar.width / 2 + 100, bar.y + 100, { steps: 4 });
     await expect.poll(async () => Math.round(wideAt - (await box(actions)).width)).toBe(100);
-    expect((await box(panel)).width).toBe((await box(actions)).width);
+    expect((await box(tabs)).width).toBe((await box(actions)).width);
     await page.mouse.up();
 
     // the next stop after the separator is the first action, and playing it leaves the keyboard on the node it reaches
@@ -249,6 +252,8 @@ test("Study: the actions and the breakdown sit in the panel, which the separator
     await expect(actions.getByRole("heading")).toContainText("BB", { timeout: 45_000 });
   }
   await expect(actions.getByText(/Live solve|solve/i).first(), "the actions keep their source").toBeVisible();
+  // (the hand picked above put the Hand tab up, and the tab is kept: the breakdown is a click away)
+  await openStudyTab(page, "Breakdown", 45_000);
   await expect(panel.getByRole("region", { name: "Hand categories" }).getByText(/Live solve|solve/i).first(), "and so does the breakdown").toBeVisible({ timeout: 45_000 });
   expect(await overflow(page), "sideways scroll, px").toBeLessThanOrEqual(0);
   expect(problems.errors).toEqual([]);

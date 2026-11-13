@@ -35,18 +35,11 @@ const solver = (answer: () => unknown) => {
   return { solve, getSolver: () => Promise.resolve({ solve } as unknown as SolverClient) };
 };
 const opened = async (getSolver: () => Promise<SolverClient>, onFilter = vi.fn()) => {
-  render(<BreakdownPanel hand={hand} mode="fast" open onOpen={() => {}} evUnit="bb" getSolver={getSolver} onFilter={onFilter} />);
+  render(<BreakdownPanel hand={hand} mode="fast" evUnit="bb" getSolver={getSolver} onFilter={onFilter} />);
   await act(async () => {});
 };
 
 describe("BreakdownPanel", () => {
-  it("asks nothing until it's opened", async () => {
-    const { solve, getSolver } = solver(() => ({ data: { breakdown: BD }, provenance: PROV }));
-    render(<BreakdownPanel hand={hand} mode="fast" open={false} onOpen={() => {}} evUnit="bb" getSolver={getSolver} onFilter={() => {}} />);
-    await act(async () => {});
-    expect(solve).not.toHaveBeenCalled();
-  });
-
   it("asks the node with the breakdown flag, and shows categories, equity and the advantages under its provenance", async () => {
     const { solve, getSolver } = solver(() => ({ data: { breakdown: BD }, provenance: PROV }));
     await opened(getSolver);

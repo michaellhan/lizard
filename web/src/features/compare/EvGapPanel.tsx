@@ -8,8 +8,20 @@ import type { Provenance } from "@/solver/types";
 import { DeltaMatrix, type DeltaCell } from "./DiffMatrix";
 import { evGaps, hasActionEvs, mixing, widest, type EvGap } from "./evgap";
 
-export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse; provenance: Provenance; evUnit: EvUnit }) {
-  const [open, setOpen] = useState(false);
+export function EvGapPanel({
+  res,
+  provenance,
+  evUnit,
+  opened,
+}: {
+  res: FilteredResponse;
+  provenance: Provenance;
+  evUnit: EvUnit;
+  /** opened from outside (Study's Tools fold, which draws the panel around it): its own button, frame and Close are left out */
+  opened?: boolean;
+}) {
+  const [own, setOpen] = useState(false);
+  const open = opened ?? own;
   const [picked, setPicked] = useState<[string | null, string | null]>([null, null]);
   const [selected, setSelected] = useState<string | null>(null);
   if (!hasActionEvs(res)) return null;
@@ -62,7 +74,7 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse;
   const select = (i: 0 | 1, value: string) => setPicked((p) => (i === 0 ? [value, p[1]] : [p[0], value]));
 
   return (
-    <section aria-label="Two actions' EV" className="w-full space-y-3 panel p-3">
+    <section aria-label="Two actions' EV" className={`w-full space-y-3 ${opened === undefined ? "panel p-3" : ""}`}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>EV of</span>
         <select aria-label="First action" value={x} onChange={(e) => select(0, e.target.value)} className="rounded border border-border bg-surface-2 px-2 py-0.5">
@@ -83,9 +95,11 @@ export function EvGapPanel({ res, provenance, evUnit }: { res: FilteredResponse;
           Swap
         </button>
         <span className="flex-1" />
-        <button type="button" onClick={() => setOpen(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-          Close
-        </button>
+        {opened === undefined && (
+          <button type="button" onClick={() => setOpen(false)} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            Close
+          </button>
+        )}
       </div>
       {res.filter && <p className="text-xs text-muted">{filterWords(res.filter)}</p>}
       {rough.length > 0 && (
