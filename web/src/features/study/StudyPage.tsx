@@ -2,8 +2,10 @@
 // answers for every hand of the player to act (Advisor.study): the 13x13 mix, EVs, equity, the range's totals.
 // Preflop the charts answer at once; library flops answer at once; other flops (heads-up / 3-way), turns and
 // rivers are solved live in the browser (or the local Python server), with progress and cancel.
-import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { GamePicker } from "@/components/GamePicker";
+import { gameOf } from "@/engine/registry";
 import { cellLabel, cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
 import { useFocusHold } from "@/components/useFocusHold";
@@ -104,7 +106,23 @@ export function oppsOf(res: AdvisorResponse | undefined): OpponentRange[] {
     : [];
 }
 
+// PLO's Study comes in its own chunk, so no PLO code loads with Hold'em's
+const PloStudy = lazy(() => import("./PloStudy").then((m) => ({ default: m.PloStudy })));
+
+/** Study: Hold'em, or another game the link names (`game`, engine/registry.ts) in its own chunk. */
 export function StudyPage() {
+  const [params] = useSearchParams();
+  const game = gameOf(params.get("game"));
+  if (game.id === "plo4")
+    return (
+      <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+        <PloStudy />
+      </Suspense>
+    );
+  return <HoldemStudy />;
+}
+
+function HoldemStudy() {
   const [params, setParams] = useSearchParams();
   const hand = useMemo<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100), [params]);
   // (a new node keeps the ranges side by side, where they were: `vs` is the view's, not the hand's)
@@ -396,6 +414,7 @@ export function StudyPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Study</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <GamePicker page="study" current="nlhe" />
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
           {streetOf(hand) === "preflop" && hand.pf === "solver" && (
             <PfSizesForm key={encodePfSizes(hand.pfSizes ?? {})} value={hand.pfSizes} players={hand.players} onApply={(s) => setHand(withPfSizes(hand, s))} />

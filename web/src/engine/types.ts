@@ -1,11 +1,14 @@
-// Game engines. NLHE is the only one implemented; the interface is what a new engine (e.g. PLO4) must provide
-// so the shared UI (range views, hand entry, trainers) can work with it without NLHE-specific branches.
+// Game engines: what a game (NLHE, PLO4) provides so the shared UI (range views, hand entry, trainers) can work with it
+// without game-specific branches, and what each page can't do for it yet, so a page hides or marks those parts.
 
 export type Rank = "A" | "K" | "Q" | "J" | "T" | "9" | "8" | "7" | "6" | "5" | "4" | "3" | "2";
 export type Suit = "s" | "h" | "d" | "c";
 export type Card = `${Rank}${Suit}`;
 
 export type GameId = "nlhe" | "plo4";
+
+/** The pages a game can open on. */
+export type GamePage = "study" | "practice" | "analyze";
 
 export interface SeatLayout {
   /** seat names in preflop action order, e.g. ["UTG","HJ","CO","BTN","SB","BB"] */
@@ -34,8 +37,14 @@ export interface GameEngine {
   maxPlayers: number;
   /** whether the in-browser solver backend supports this game */
   solverSupported: boolean;
+  /** what the solver covers for this game, in words for a label */
+  solverScope: string;
+  /** whether any preflop spot is solved (PLO: no) */
+  preflopSolved: boolean;
+  /** the pages that open for this game, each with the parts it doesn't have for it yet, by name ([] for none missing) */
+  pages: Partial<Record<GamePage, readonly string[]>>;
   seatLayout(players: number): SeatLayout;
-  /** null when the game has no compact class grid (PLO) */
+  /** the range view's grouping: NLHE's 13x13 grid, PLO's hand shapes (rows of structure, columns of suits) */
   classGrid: HandClassGrid | null;
   parseHand(text: string): Card[] | null;
 }
