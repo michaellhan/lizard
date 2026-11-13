@@ -256,3 +256,17 @@ test("the pins name one version, one source and full hashes", () => {
   assert.deepEqual(new Set(files.map((f) => f.name)).size, files.length);
   for (const f of files) assert.match(f.sha256, /^[0-9a-f]{64}$/);
 });
+
+test("the published worker lowers the kept solves' budget for a request that asks (a custom flop report), and restores it after", () => {
+  const worker = editWorker(upstream);
+  const body = worker.slice(worker.indexOf('"def answer(st, pl):'), worker.indexOf('"def early(st):'));
+  const at = (s) => {
+    assert.ok(body.includes(s), `answer() has no ${s}`);
+    return body.indexOf(s);
+  };
+  assert.ok(at("adv = advs.get(st.get('speed'), advs['fast'])") < at("globals().setdefault('KEEP_MB', adv.cache_mb)"));
+  assert.ok(at("float(st.get('cache_mb') or _keep)") < at("for _a in advs.values(): _a.cache_mb = _mb"));
+  assert.ok(at("for _a in advs.values(): _a.cache_mb = _mb") < at("    try:"));
+  // (the worker's own budget is set before answer() exists, so the first request reads it)
+  assert.ok(worker.indexOf("cache_mb = advs['accurate'].cache_mb = 700") < worker.indexOf('"def answer(st, pl):'));
+});

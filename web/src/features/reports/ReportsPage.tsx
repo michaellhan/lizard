@@ -71,8 +71,9 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
   const choice = useSettings((s) => s.librarySource);
   const [lib, setLib] = useState<Lib>({ st: "loading" });
   const [keptTurns] = useState<KeptTurns>(() => new Map());
-  // (a report of your own spot, from Study: solved here, with no library to read)
-  const mine = params.get("mine");
+  // (a report of your own spot, from Study or Solve: set up (mine, the spot's link) or kept (custom, its id); solved here,
+  // with no library to read)
+  const mine = params.get("mine") || params.get("custom");
 
   useEffect(() => {
     if (mine) return;
@@ -120,7 +121,7 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
       </div>
-      {mine && <CustomReportPanel mine={mine} params={params} set={set} rowLimit={rowLimit} />}
+      {mine && <CustomReportPanel mine={params.get("mine")} custom={params.get("custom")} from={params.get("from") === "solve" ? "solve" : "study"} params={params} set={set} rowLimit={rowLimit} />}
       {!mine && lib.st === "loading" && <p className="text-sm text-muted">Loading the library&rsquo;s index…</p>}
       {!mine && lib.st === "error" && (
         <p role="alert" className="text-sm text-danger">

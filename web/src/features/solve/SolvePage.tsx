@@ -484,6 +484,17 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           <button type="submit" disabled={problems.length > 0} className="rounded-md border border-accent bg-accent/15 px-3 py-1.5 font-medium hover:bg-accent/25 disabled:opacity-40">
             Open in Study
           </button>
+          {!tour && (
+            <button
+              type="button"
+              disabled={problems.length > 0}
+              title="Solve this spot on a representative set of flops, each in this browser, and report them as the library's spots are"
+              onClick={() => void navigate(`/reports?mine=${encodeURIComponent(toSearch({ ...hand, board: "", flop: [], turn: [], river: [] }))}&from=solve`)}
+              className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-40"
+            >
+              Report over flops
+            </button>
+          )}
           <button type="button" onClick={clear} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
             Clear the setup
           </button>

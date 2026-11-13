@@ -30,6 +30,8 @@ export interface AdvisorState {
   prior_budget?: number;
   /** Study mode: answer for whoever acts next with their whole range (Advisor.study). */
   study?: boolean;
+  /** the most the worker's kept solves may hold while this is answered, MB (a custom flop report's; worker-edits.mjs) */
+  cache_mb?: number;
   /** ask for the category and equity breakdown of the node (breakdown.py); the answer's `breakdown` */
   breakdown?: boolean;
   /** The analyzer's Quick triage: read from what's in hand, else a Quick solve at its own budgets (Advisor.triage). */

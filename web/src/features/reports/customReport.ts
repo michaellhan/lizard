@@ -1,91 +1,116 @@
-// A flop report of your own spot: Study's heads-up flop, with its own setup and preflop line, answered on a sample of
-// flops one at a time in this browser, and drawn as Reports draws a library spot's (the rows, averages, groups, chart and
-// CSV of reports.ts). The library reports only what it stores; this reports a spot it doesn't, at the cost of a solve a
-// flop.
+// A flop report of your own spot: a heads-up flop spot set up in Study or on the Solve page, with its own setup and
+// preflop line, solved on a representative set of flops one at a time in the browser's solver worker, and drawn as
+// Reports draws a library spot's (the rows, averages, groups, chart and CSV of reports.ts). The library reports only what
+// it stores; this reports a spot it doesn't, at the cost of a solve a flop.
 //
-// What's sampled. Every flop up to suit isomorphism (the 1,755 classes, each standing for w of the 22100), sorted so that
-// alike ones sit together, and walked as the turn report walks its flops (turnReport.ts readingOrder): any stretch from the
-// start is spread evenly over the textures, so a report stopped part way, or solved further, is still a fair sample. Each
-// class is equally likely and each row weighs w, as in the library's report.
+// What's solved. The solver's representative set of n flops (flopSets.ts: 9, 25, 49, 95 or 184, picked by how often each
+// is dealt, each then standing for 22,100/n flops), solved in an order that spreads any stretch from the start evenly
+// over the set (turnReport.ts readingOrder), so a report paused part way is still a fair sample of it. The report and each
+// flop's answer are kept in this browser (data/flopReports.ts) after every flop.
 //
 // What's asked a flop. The root (out of position first), then the nodes the report's views read: in position after a
 // check, in position facing out of position's most common first bet, and out of position facing in position's most
 // common bet after a check. The root is the solve; the rest are read from the same flop's tree. A flop whose root wasn't
 // solved (the betting rules or an equity read answered) is left out and counted, never shown as a solve.
 import { kindOf } from "@/components/actions";
-import { texture } from "@/features/practice/texture";
-import { encodeLine, play, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
+import type { FlopReportFlop, FlopReportRecord } from "@/data/db";
+import { encodeLine, fromSearch, play, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
 import type { LibraryReport, ReportFlop } from "@/library/files";
+import { abstractionWords, type FlopModel } from "@/solver/abstraction";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
-import type { Provenance, ResultSource, SolveMode, SolveResult } from "@/solver/types";
+import type { Provenance, ResultSource, SolveMode, SolveResult, TransportKind } from "@/solver/types";
+import { flopSet, type SetFlop } from "./flopSets";
+import { seatsOf } from "@/poker/seats";
 import { readingOrder } from "./turnReport";
 
-/** flops solved at a time, and added by each "solve more" */
-export const CUSTOM_SAMPLE = 12;
+/** the order a set's flops are solved in: the same for a set every time */
+const SEED = 1;
 
-const RANKS = "23456789TJQKA";
-const SUITS = "cdhs";
-const PERMS: readonly string[] = (() => {
-  const out: string[] = [];
-  const go = (rest: string, acc: string) => (rest ? [...rest].forEach((c, i) => go(rest.slice(0, i) + rest.slice(i + 1), acc + c)) : out.push(acc));
-  go(SUITS, "");
-  return out;
-})();
-const card = (i: number) => RANKS[i >> 2]! + SUITS[i & 3]!;
-// (a flop as its three cards high to low, ties by suit: one string per flop)
-const sortCards = (cs: string[]) => [...cs].sort((a, b) => RANKS.indexOf(b[0]!) - RANKS.indexOf(a[0]!) || (a[1]! < b[1]! ? -1 : a[1]! > b[1]! ? 1 : 0)).join("");
-
-let classes: readonly { f: string; w: number }[] | null = null;
-
-/** Every flop class: the least of its suit relabellings, and how many of the 22100 flops it stands for (worked out once,
- * when first asked: about 0.5M relabellings). */
-export function flopClassList(): readonly { f: string; w: number }[] {
-  return (classes ??= listClasses());
+/** A new report of a spot: the set of `size` in the order it's solved, nothing solved yet. */
+export function newFlopReport(spot: StudyHand, opts: { id: string; name: string; from: FlopReportRecord["from"]; mode: SolveMode; size: number; now: number }): FlopReportRecord {
+  const flops = readingOrder(flopSet(opts.size), SEED).map((x) => x.f);
+  return {
+    id: opts.id,
+    name: opts.name,
+    spot: toSearch(customBase(spot)),
+    from: opts.from,
+    mode: opts.mode,
+    size: opts.size,
+    flops,
+    done: [],
+    left: [],
+    seats: null,
+    pot: 0,
+    status: "paused",
+    note: "",
+    createdAt: opts.now,
+    updatedAt: opts.now,
+  };
 }
 
-function listClasses(): { f: string; w: number }[] {
-  const count = new Map<string, number>();
-  for (let a = 0; a < 52; a++)
-    for (let b = a + 1; b < 52; b++)
-      for (let c = b + 1; c < 52; c++) {
-        const cs = [card(a), card(b), card(c)];
-        let best = "";
-        for (const p of PERMS) {
-          const s = sortCards(cs.map((x) => x[0]! + p[SUITS.indexOf(x[1]!)]!));
-          if (!best || s < best) best = s;
-        }
-        count.set(best, (count.get(best) ?? 0) + 1);
-      }
-  return [...count].map(([f, w]) => ({ f, w }));
+/** The set's flops not yet tried, in order, each with its weight. */
+export function flopsToGo(r: Pick<FlopReportRecord, "size" | "flops" | "done" | "left">): SetFlop[] {
+  const tried = new Set([...r.done.map((d) => d.f), ...r.left.map((l) => l.f)]);
+  const byF = new Map(flopSet(r.size).map((x) => [x.f, x]));
+  return r.flops.filter((f) => !tried.has(f)).flatMap((f) => byF.get(f) ?? []);
 }
 
-const ORDER_KEY = (f: string) => {
-  const t = texture(f);
-  return [t.suits, t.pair, t.hi, t.conn, f].join(" ");
+/** The spot a report is of, from its record (null where the link no longer reads). */
+export const reportSpot = (r: Pick<FlopReportRecord, "spot">): StudyHand | null => fromSearch(r.spot);
+
+/** The seats still in after the preflop line: the table's less those who folded. */
+export const seatsIn = (h: StudyHand): string[] => {
+  const out = new Set(h.preflop.filter((a) => kindOf(a.action) === "fold").map((a) => a.pos));
+  return seatsOf(h.players).filter((p) => !out.has(p));
 };
 
-/** The flops in the order they're solved: alike ones together, walked evenly from the seed. */
-export function sampleOrder(seed: number): { f: string; w: number }[] {
-  const sorted = [...flopClassList()].map((x) => ({ ...x, k: ORDER_KEY(x.f) })).sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
-  return readingOrder(
-    sorted.map(({ f, w }) => ({ f, w })),
-    seed,
-  );
+/** Whether a spot can be reported: its preflop line closed with two players to see a flop, and no tournament (its EVs
+ * are prize equity, which the report's columns aren't). `unfinished`: the line doesn't reach a flop, so a pot can be
+ * picked for it (potLine). */
+export type SpotCheck = { ok: true } | { ok: false; why: string; unfinished: boolean };
+
+export async function checkSpot(ask: Ask, h: StudyHand): Promise<SpotCheck> {
+  if (h.setup?.tournament) return { ok: false, why: "a tournament spot's EVs are prize equity, which a flop report doesn't show", unfinished: false };
+  const res = (await ask(studyRequest(customBase(h)))).data;
+  if (res.error) return { ok: false, why: res.error, unfinished: false };
+  if (res.study !== "deal" || res.street !== "flop") return { ok: false, why: "its preflop line doesn't reach a flop yet", unfinished: true };
+  const left = seatsIn(h);
+  if (left.length !== 2) return { ok: false, why: `${left.length} players see the flop, and a flop report is heads-up`, unfinished: true };
+  return { ok: true };
 }
 
-/** One flop answered: each node's actions and their frequencies, the players' EVs and equities where the answer has them. */
-export interface CustomFlop {
-  f: string;
-  w: number;
-  nodes: Record<string, { names: string[]; freqs: number[] }>;
-  ev?: [number, number];
-  eq?: [number, number];
-  /** the bet each facing node faces, in bb as Study plays it, by the node's path */
-  bets: Record<string, number>;
-  source: ResultSource;
-  approximate: boolean;
-  seconds?: number;
+export type PotKind = "srp" | "3bp";
+export const POT_WORDS: Record<PotKind, string> = { srp: "single-raised", "3bp": "3-bet" };
+
+/** Who may open (anyone but the big blind) and who may then call or 3-bet (anyone after the opener). */
+export const openers = (players: number) => seatsOf(players).slice(0, -1);
+export const callersAfter = (players: number, opener: string) => seatsOf(players).slice(seatsOf(players).indexOf(opener) + 1);
+
+/** The spot's preflop line for a pot: everyone folds to the opener, who raises; the rest fold to the caller, who calls (a
+ * single-raised pot) or 3-bets and is called. Each action is the one the spot's own preflop answer offers (the charts', or
+ * the preflop solve's), walked node by node as Study plays it. Throws where the answer offers no such action. */
+export async function potLine(ask: Ask, h: StudyHand, opener: string, caller: string, kind: PotKind): Promise<StudyHand> {
+  let at: StudyHand = { ...customBase(h), preflop: [] };
+  for (let i = 0; i < 24; i++) {
+    const res = (await ask(studyRequest(at))).data;
+    if (res.study === "deal") return at;
+    if (res.error) throw new Error(res.error);
+    if (res.street !== "preflop" || !res.actor) throw new Error("the preflop line can't be walked here");
+    const acts = res.actions ?? [];
+    const raises = at.preflop.filter((a) => kindOf(a.action) === "raise").length;
+    const actor = String(res.actor);
+    const want = actor === opener && raises === 0 ? "raise" : actor === caller && raises === 1 ? (kind === "srp" ? "call" : "raise") : actor === opener && raises === 2 ? "call" : "fold";
+    // (of several sizes, the one played most)
+    const like = acts.filter((a) => kindOf(a.action) === want);
+    const pick = like.length ? like.reduce((x, y) => ((y.freq ?? 0) > (x.freq ?? 0) ? y : x)) : want === "fold" ? acts.find((a) => kindOf(a.action) === "check") : undefined;
+    if (!pick) throw new Error(`${actor} has no ${want} in this spot's preflop answer`);
+    at = play(at, res, pick);
+  }
+  throw new Error("the preflop line didn't close");
 }
+
+/** One flop answered (stored as it is: db.ts FlopReportFlop). */
+export type CustomFlop = FlopReportFlop;
 
 /** What the page asks: a node, answered (useSolver's client.solve, with the mode and a stop). */
 export type Ask = (state: AdvisorState) => Promise<SolveResult<AdvisorResponse>>;
@@ -147,7 +172,19 @@ export async function solveFlop(ask: Ask, base: StudyHand, flop: { f: string; w:
   const p = root.provenance;
   const ev = typeof r.range_ev_bb === "number" && typeof r.pot_bb === "number" && !base.setup?.rake && !base.setup?.tournament ? ([r.range_ev_bb, r.pot_bb - r.range_ev_bb] as [number, number]) : undefined;
   const eq = typeof r.range_eq === "number" && typeof r.opponent_eq === "number" ? ([r.range_eq, r.opponent_eq] as [number, number]) : undefined;
-  return { f: flop.f, w: flop.w, nodes, bets, ...(ev ? { ev } : {}), ...(eq ? { eq } : {}), source: p.source, approximate: p.approximate, ...(p.seconds !== undefined ? { seconds: p.seconds } : {}) };
+  return {
+    f: flop.f,
+    w: flop.w,
+    nodes,
+    bets,
+    ...(ev ? { ev } : {}),
+    ...(eq ? { eq } : {}),
+    source: p.source,
+    approximate: p.approximate,
+    ...(p.exploitabilityPct !== undefined ? { exploitabilityPct: p.exploitabilityPct } : {}),
+    ...(p.iterations !== undefined ? { iterations: p.iterations } : {}),
+    ...(p.seconds !== undefined ? { seconds: p.seconds } : {}),
+  };
 }
 
 /** The flops answered as a report reports.ts draws: each node's names the union over the flops, in first-seen order. */
@@ -199,18 +236,46 @@ export function customStudyLink(base: StudyHand, seats: readonly [string, string
   return h ? `/study?${toSearch(h)}` : null;
 }
 
-/** What the numbers are: your spot, solved here a flop at a time, with how many and how. */
-export function customProvenance(flops: readonly CustomFlop[], mode: SolveMode, left: number): Provenance {
-  const live = flops.filter((x) => x.source === "live").length;
-  const stored = flops.length - live;
+const TIER: Record<SolveMode, string> = { quick: "Quick", fast: "Fast", accurate: "Accurate" };
+const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
+const pct = (x: number) => `${x < 0.1 ? x.toFixed(3) : x.toFixed(2)}%`;
+
+/** What the numbers are: your spot, solved live at a tier over n flops of a representative set, with how far each solve
+ * was from equilibrium in its own game and what its flop model gave up against the full game (abstraction.ts). A flop the
+ * library stores is read from it (Study's own rule), and the label says how many were. */
+export function customProvenance(r: Pick<FlopReportRecord, "done" | "left" | "size" | "mode" | "flops">, transport: TransportKind = "worker"): Provenance {
+  const flops = r.done;
+  const live = flops.filter((x) => x.source === "live");
+  const stored = flops.filter((x) => x.source === "library").length;
+  const other = flops.length - live.length - stored;
   const approx = flops.filter((x) => x.approximate).length;
-  const how = [live ? `${live} solved here` : "", stored ? `${stored} read from the library` : ""].filter(Boolean).join(", ");
+  const togo = r.flops.length - flops.length - r.left.length;
+  const ex = live.flatMap((x) => (typeof x.exploitabilityPct === "number" ? [x.exploitabilityPct] : []));
+  const its = live.flatMap((x) => (typeof x.iterations === "number" ? [x.iterations] : []));
+  const each = r.size >= 1755 ? "each weighted by how often it's dealt" : `each standing for 1/${r.size} of all flops`;
+  const how = [
+    live.length ? `${live.length} solved live at ${TIER[r.mode]}` : "",
+    stored ? `${stored} read from the flop library, which stores ${stored === 1 ? "it" : "them"}` : "",
+    other ? `${other} read at once from other solves` : "",
+  ].filter(Boolean);
+  const view = [
+    `flop report of your spot over ${plural(flops.length, "sampled flop")} of the solver's representative ${r.size}, ${each}`,
+    how.join(", "),
+    ex.length ? `each solve ${pct(Math.min(...ex))} to ${pct(Math.max(...ex))} pot from equilibrium in its own game (mean ${pct(ex.reduce((a, b) => a + b, 0) / ex.length)})` : "",
+    its.length ? `${Math.min(...its)}–${Math.max(...its)} iterations a flop` : "",
+  ].filter(Boolean);
+  const model: FlopModel | null = live.length && transport === "worker" && (r.mode === "fast" || r.mode === "accurate") ? r.mode : stored ? "library" : null;
+  const words = abstractionWords(model);
   return {
-    source: live ? "live" : "library",
-    approximate: approx > 0,
-    approximateLabel: `flop report of your spot over ${flops.length} sampled flop${flops.length === 1 ? "" : "s"} (${how})${approx ? `, ${approx} short of the accuracy target` : ""}${left ? `, ${left} left out` : ""}`,
-    mode,
-    transport: "worker",
+    source: live.length ? "live" : stored ? "library" : "instant",
+    approximate: approx > 0 || togo > 0,
+    view: view.join("; "),
+    ...(approx || r.left.length || togo
+      ? { approximateLabel: [approx ? `${approx} short of the accuracy target` : "", r.left.length ? `${r.left.length} left out, not solved` : "", togo ? `${togo} of the set not solved yet` : ""].filter(Boolean).join(", ") }
+      : {}),
+    ...(words ? { abstraction: live.length && stored && model !== "library" ? `${words} (the library's flops: ${abstractionWords("library")})` : words } : {}),
+    mode: r.mode,
+    transport,
     solverVersion: "your spot's flop report",
     partial: false,
     receivedAt: Date.now(),
