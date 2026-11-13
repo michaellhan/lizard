@@ -709,6 +709,15 @@ export function StudyPage() {
             <div className="mt-2 space-y-3">
               {!building && !raw.tournament && !!raw.actions?.length && <CopyForAi key={`${phase.result.provenance.source}|${myCls}`} text={() => studyText(hand, raw, phase.result.provenance, myCls)} />}
               <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, raw)} />
+              {/* (a heads-up flop: the same spot reported over many flops, each solved here, on Reports) */}
+              {raw.street === "flop" && !raw.multiway && !raw.tournament && res?.study === "node" && (
+                <p className="text-sm">
+                  <Link to={`/reports?mine=${encodeURIComponent(toSearch({ ...hand, board: "", flop: [], turn: [], river: [] }))}`} className="underline hover:text-text">
+                    Flop report of this spot →
+                  </Link>{" "}
+                  <span className="text-muted">solved here on a sample of flops</span>
+                </p>
+              )}
               {!opp && res?.study === "node" && (
                 <div className="flex flex-wrap items-start gap-2">
                   {offersOneSize(raw) && <OneSizePanel key={`one-size|${requestKey}`} hand={hand} res={raw} getSolver={getSolver} />}

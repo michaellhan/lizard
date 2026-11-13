@@ -17,6 +17,8 @@ import { gameLabel, resolveLibrarySource, type LibraryIndex, type LibrarySpotInd
 import { flopCards } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
 import { useSettings } from "@/state/settings";
+import type { Provenance } from "@/solver/types";
+import { CustomReportPanel } from "./CustomReportPanel";
 import { MixBar } from "./MixBar";
 import { ReportChart } from "./ReportChart";
 import { TurnReportPanel, type KeptTurns } from "./TurnReportPanel";
@@ -69,8 +71,11 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
   const choice = useSettings((s) => s.librarySource);
   const [lib, setLib] = useState<Lib>({ st: "loading" });
   const [keptTurns] = useState<KeptTurns>(() => new Map());
+  // (a report of your own spot, from Study: solved here, with no library to read)
+  const mine = params.get("mine");
 
   useEffect(() => {
+    if (mine) return;
     let alive = true;
     void (async () => {
       try {
@@ -91,7 +96,7 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
     return () => {
       alive = false;
     };
-  }, [files, choice]);
+  }, [files, choice, mine]);
 
   const all = lib.st === "ready" ? lib.index.spots : [];
   const mw = lib.st === "ready" ? (lib.mw?.spots ?? []).filter(mwReportable) : [];
@@ -115,20 +120,158 @@ export function ReportsPage({ files, rowLimit = ROW_LIMIT, turnSample }: { files
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
       </div>
-      {lib.st === "loading" && <p className="text-sm text-muted">Loading the library&rsquo;s index…</p>}
-      {lib.st === "error" && (
+      {mine && <CustomReportPanel mine={mine} params={params} set={set} rowLimit={rowLimit} />}
+      {!mine && lib.st === "loading" && <p className="text-sm text-muted">Loading the library&rsquo;s index…</p>}
+      {!mine && lib.st === "error" && (
         <p role="alert" className="text-sm text-danger">
           Couldn&rsquo;t read the library: {lib.message}
         </p>
       )}
-      {lib.st === "ready" && !spot && <p className="text-sm text-muted">This library has no spot with a flop report.</p>}
-      {lib.st === "ready" && spot && <SpotReport key={spot.id} files={lib.files} spot={spot} spots={spots} params={params} set={set} rowLimit={rowLimit} keptTurns={keptTurns} turnSample={turnSample} />}
-      {lib.st === "ready" && <Coverage spots={all} mw={mw} source={lib.label} />}
+      {!mine && lib.st === "ready" && !spot && <p className="text-sm text-muted">This library has no spot with a flop report.</p>}
+      {!mine && lib.st === "ready" && spot && <SpotReport key={spot.id} files={lib.files} spot={spot} spots={spots} params={params} set={set} rowLimit={rowLimit} keptTurns={keptTurns} turnSample={turnSample} />}
+      {!mine && lib.st === "ready" && <Coverage spots={all} mw={mw} source={lib.label} />}
     </div>
   );
 }
 
 type Rep = { st: "loading"; done?: number; total?: number } | { st: "ready"; rep: LibraryReport } | { st: "error"; message: string };
+
+/** What the URL says of a report's view: the decision, filters, grouping, order and table or chart. */
+export function useReportParams(params: URLSearchParams, seats: readonly string[]) {
+  const decisions = viewsFor(seats);
+  const v = params.get("view");
+  const view: ReportView = isView(v) && decisions.includes(v) ? v : "oop";
+  const group = isGroup(params.get("group")) ? (params.get("group") as TextureKey) : null;
+  const sort = params.get("sort") ?? "flop";
+  const desc = params.get("desc") !== "0";
+  const chart = params.get("show") === "chart";
+  const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
+  const filterKey = JSON.stringify(filter);
+  const steadyFilter = useMemo(() => filter, [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { decisions, view, group, sort, desc, chart, filter: steadyFilter, filterKey };
+}
+type ReportParams = ReturnType<typeof useReportParams>;
+
+/** The rows a report shows in the URL's view, filters and order. */
+export function useReportRows(rep: LibraryReport | null, p: ReportParams) {
+  const all = useMemo(() => (rep ? rows(rep, p.view) : []), [rep, p.view]);
+  const shown = useMemo(() => (rep ? sortRows(filterRows(all, p.filter), p.sort, p.desc, rep.pot) : []), [rep, all, p.filter, p.sort, p.desc]);
+  return { all, shown };
+}
+
+/** The decision, the texture filters and the grouping; `children` go first (the library's spot). */
+export function ReportControls({ seats, views, p, set, children }: { seats: readonly string[]; views: ReportView[] | null; p: ReportParams; set: (kv: Record<string, string | null>) => void; children?: React.ReactNode }) {
+  const { decisions, view, filter, group } = p;
+  return (
+    <form aria-label="Report" className="flex flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
+      {children}
+      <span role="group" aria-label="Decision" className="segmented inline-flex overflow-hidden rounded-md border border-border">
+        {decisions.map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={v === view}
+            disabled={views != null && !views.includes(v) && v !== view}
+            title={views != null && !views.includes(v) ? "In no flop here" : undefined}
+            onClick={() => set({ view: v === "oop" ? null : v })}
+            className={`px-2.5 py-1 disabled:opacity-40 ${v === view ? "bg-surface-3 text-text" : "text-muted enabled:hover:bg-surface-2"}`}
+          >
+            {viewLabel(v, seats)}
+          </button>
+        ))}
+      </span>
+      {TEXTURE_GROUPS.map((g) => (
+        <label key={g.key} className="flex items-center gap-1">
+          <span className="text-muted">{g.label}</span>
+          <select aria-label={g.label} value={filter[g.key] ?? ""} onChange={(e) => set({ [g.key]: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+            <option value="">Any</option>
+            {Object.entries(g.values).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+      <label className="flex items-center gap-1">
+        <span className="text-muted">Group</span>
+        <select aria-label="Group by" value={group ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+          <option value="">No groups</option>
+          {TEXTURE_GROUPS.map((g) => (
+            <option key={g.key} value={g.key}>
+              By {g.label.toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </label>
+    </form>
+  );
+}
+
+/** A report drawn: its source and the CSV, the table or chart, and what the views leave out. `note` sits beside the badge;
+ * `linkOf` is a flop's Study link where it isn't the library spot's; `csvName` the download's name. */
+export function ReportBody({
+  rep,
+  provenance,
+  p,
+  rows: { all, shown },
+  set,
+  rowLimit,
+  note,
+  linkOf,
+  csvName,
+  allLabel,
+}: {
+  rep: LibraryReport;
+  provenance: Provenance;
+  p: ReportParams;
+  rows: { all: ReturnType<typeof rows>; shown: ReturnType<typeof rows> };
+  set: (kv: Record<string, string | null>) => void;
+  rowLimit: number;
+  note?: React.ReactNode;
+  linkOf?: (f: string) => string | null;
+  csvName: string;
+  allLabel?: string;
+}) {
+  const { view, group, sort, desc, chart } = p;
+  const download = () => saveCsv(toCsv(rep, view, shown, provenance), csvName);
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <ProvenanceBadge p={provenance} />
+        {note}
+        <span className="flex-1" />
+        <span role="group" aria-label="Show as" className="segmented inline-flex overflow-hidden rounded-md border border-border">
+          {(["Table", "Chart"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={(v === "Chart") === chart}
+              onClick={() => set({ show: v === "Chart" ? "chart" : null })}
+              className={`px-2.5 py-1 ${(v === "Chart") === chart ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2"}`}
+            >
+              {v}
+            </button>
+          ))}
+        </span>
+        <button type="button" onClick={download} disabled={!shown.length} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2 disabled:opacity-40">
+          Download CSV
+        </button>
+      </div>
+      {chart ? (
+        <ReportChart rep={rep} view={view} cols={columns(rep, view)} shown={shown} group={group} order={orderText(sort, desc, columns(rep, view), rep.seats)} set={set} linkOf={linkOf} />
+      ) : (
+        <ReportTable rep={rep} view={view} all={all} shown={shown} group={group} sort={sort} desc={desc} set={set} rowLimit={rowLimit} linkOf={linkOf} allLabel={allLabel} />
+      )}
+      {isFacing(view) && <p className="text-xs text-muted">Facing a bet: flops with the bet under 5% left out.</p>}
+      {nutFlops(rep) > 0 && (
+        <p className="text-xs text-muted">
+          Nut adv: from the stored ranges, not solved{nutFlops(rep) < rep.flops.length ? `; ${nutFlops(rep)} of ${rep.flops.length} flops so far` : ""}.
+        </p>
+      )}
+    </>
+  );
+}
 
 function SpotReport({
   files,
@@ -169,30 +312,16 @@ function SpotReport({
     };
   }, [files, spot]);
 
-  const decisions = viewsFor(spot.seats);
-  const view: ReportView = isView(params.get("view")) && decisions.includes(params.get("view") as ReportView) ? (params.get("view") as ReportView) : "oop";
-  const group = isGroup(params.get("group")) ? (params.get("group") as TextureKey) : null;
-  const sort = params.get("sort") ?? "flop";
-  const desc = params.get("desc") !== "0";
-  const chart = params.get("show") === "chart";
-  const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
-  const filterKey = JSON.stringify(filter);
-  const steadyFilter = useMemo(() => filter, [filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  const p = useReportParams(params, spot.seats);
   const rep = data.st === "ready" ? data.rep : null;
-  const all = useMemo(() => (rep ? rows(rep, view) : []), [rep, view]);
-  const shown = useMemo(() => (rep ? sortRows(filterRows(all, filter), sort, desc, rep.pot) : []), [rep, all, filterKey, sort, desc]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shownRows = useReportRows(rep, p);
   const provenance = useMemo(() => (rep ? reportProvenance(rep, mode, spot.report) : null), [rep, mode, spot.report]);
   const cover = rep ? coverage(rep) : null;
   const views = useMemo(() => (rep ? viewsOf(rep) : null), [rep]);
 
-  const download = () => {
-    if (rep && provenance) saveCsv(toCsv(rep, view, shown, provenance), `lizard-report-${rep.id}-${view}.csv`);
-  };
-
   return (
     <div className="space-y-3">
-      <form aria-label="Report" className="flex flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
+      <ReportControls seats={spot.seats} views={views} p={p} set={set}>
         <label className="flex items-center gap-1">
           <span className="text-muted">Spot</span>
           <select aria-label="Spot" value={spot.id} onChange={(e) => set({ spot: e.target.value })} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
@@ -210,46 +339,7 @@ function SpotReport({
             ))}
           </select>
         </label>
-        <span role="group" aria-label="Decision" className="segmented inline-flex overflow-hidden rounded-md border border-border">
-          {decisions.map((v) => (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={v === view}
-              disabled={views != null && !views.includes(v) && v !== view}
-              title={views != null && !views.includes(v) ? "In no stored flop" : undefined}
-              onClick={() => set({ view: v === "oop" ? null : v })}
-              className={`px-2.5 py-1 disabled:opacity-40 ${v === view ? "bg-surface-3 text-text" : "text-muted enabled:hover:bg-surface-2"}`}
-            >
-              {viewLabel(v, spot.seats)}
-            </button>
-          ))}
-        </span>
-        {TEXTURE_GROUPS.map((g) => (
-          <label key={g.key} className="flex items-center gap-1">
-            <span className="text-muted">{g.label}</span>
-            <select aria-label={g.label} value={filter[g.key] ?? ""} onChange={(e) => set({ [g.key]: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1.5 py-1">
-              <option value="">Any</option>
-              {Object.entries(g.values).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-        <label className="flex items-center gap-1">
-          <span className="text-muted">Group</span>
-          <select aria-label="Group by" value={group ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="rounded border border-border bg-surface-2 px-1.5 py-1">
-            <option value="">No groups</option>
-            {TEXTURE_GROUPS.map((g) => (
-              <option key={g.key} value={g.key}>
-                By {g.label.toLowerCase()}
-              </option>
-            ))}
-          </select>
-        </label>
-      </form>
+      </ReportControls>
 
       {data.st === "loading" &&
         (data.total ? (
@@ -271,47 +361,25 @@ function SpotReport({
       )}
       {rep && provenance && cover && (
         <>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <ProvenanceBadge p={provenance} />
-            {/* (said only while some aren't stored: the badge names the count) */}
-            {cover.flops < FLOP_CLASSES && (
-              <span className="text-muted">
-                {cover.flops} of {FLOP_CLASSES.toLocaleString()} flops stored, standing for {pct(cover.share)} of all {ALL_FLOPS.toLocaleString()}
-              </span>
-            )}
-            <span className="flex-1" />
-            <span role="group" aria-label="Show as" className="segmented inline-flex overflow-hidden rounded-md border border-border">
-              {(["Table", "Chart"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={(v === "Chart") === chart}
-                  onClick={() => set({ show: v === "Chart" ? "chart" : null })}
-                  className={`px-2.5 py-1 ${(v === "Chart") === chart ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2"}`}
-                >
-                  {v}
-                </button>
-              ))}
-            </span>
-            <button type="button" onClick={download} disabled={!shown.length} className="rounded-md border border-border px-3 py-1 hover:bg-surface-2 disabled:opacity-40">
-              Download CSV
-            </button>
-          </div>
-          {chart ? (
-            <ReportChart rep={rep} view={view} cols={columns(rep, view)} shown={shown} group={group} order={orderText(sort, desc, columns(rep, view), rep.seats)} set={set} />
-          ) : (
-            <ReportTable rep={rep} view={view} all={all} shown={shown} group={group} sort={sort} desc={desc} set={set} rowLimit={rowLimit} />
-          )}
-          {isFacing(view) && (
-            <p className="text-xs text-muted">Facing a bet: flops with the bet under 5% left out.</p>
-          )}
-          {nutFlops(rep) > 0 && (
-            <p className="text-xs text-muted">
-              Nut adv: from the stored ranges, not solved{nutFlops(rep) < rep.flops.length ? `; ${nutFlops(rep)} of ${rep.flops.length} flops so far` : ""}.
-            </p>
-          )}
+          <ReportBody
+            rep={rep}
+            provenance={provenance}
+            p={p}
+            rows={shownRows}
+            set={set}
+            rowLimit={rowLimit}
+            csvName={`lizard-report-${rep.id}-${p.view}.csv`}
+            note={
+              /* (said only while some aren't stored: the badge names the count) */
+              cover.flops < FLOP_CLASSES && (
+                <span className="text-muted">
+                  {cover.flops} of {FLOP_CLASSES.toLocaleString()} flops stored, standing for {pct(cover.share)} of all {ALL_FLOPS.toLocaleString()}
+                </span>
+              )
+            }
+          />
           {/* (a sample belongs to its texture and seed: a new one starts from the top, what's read kept in keptTurns) */}
-          <TurnReportPanel key={`${filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={steadyFilter} params={params} set={set} kept={keptTurns} sample={turnSample} againRef={sampleAgainRef} />
+          <TurnReportPanel key={`${p.filterKey}|${params.get("tseed") ?? ""}`} files={files} spot={spot} rep={rep} filter={p.filter} params={params} set={set} kept={keptTurns} sample={turnSample} againRef={sampleAgainRef} />
         </>
       )}
     </div>
@@ -350,6 +418,8 @@ function ReportTable({
   desc,
   set,
   rowLimit,
+  linkOf,
+  allLabel,
 }: {
   rep: LibraryReport;
   view: ReportView;
@@ -360,6 +430,9 @@ function ReportTable({
   desc: boolean;
   set: (kv: Record<string, string | null>) => void;
   rowLimit: number;
+  linkOf?: (f: string) => string | null;
+  /** the average row's name with every flop shown (the library's: "All stored flops" or "All flops") */
+  allLabel?: string;
 }) {
   const [showAll, setShowAll] = useState(false);
   const listed = showAll ? shown : shown.slice(0, rowLimit);
@@ -432,7 +505,7 @@ function ReportTable({
           <tr aria-label="Average" className="border-t border-border bg-surface-2 font-semibold">
             <td className="sticky left-0 bg-surface-2 px-2 py-1">
               {/* (a spot still being built stores only some flops: its averages are over those) */}
-              {shown.length < all.length ? `${shown.length} flops` : coverage(rep).share < 0.9999 ? "All stored flops" : "All flops"}
+              {shown.length < all.length ? `${shown.length} flops` : (allLabel ?? (coverage(rep).share < 0.9999 ? "All stored flops" : "All flops"))}
               <small className="block font-normal text-faint">{pct(tot ? sum.w / tot : 0, 0)} of flops</small>
               <Partial a={sum} />
             </td>
@@ -460,7 +533,7 @@ function ReportTable({
               </tr>
             ))}
           {listed.map((r) => {
-            const link = studyLink(rep, r.f, view);
+            const link = linkOf ? linkOf(r.f) : studyLink(rep, r.f, view);
             return (
               <tr key={r.f} aria-label={r.f} className="border-t border-border hover:bg-surface-2">
                 <td className="sticky left-0 bg-bg px-2 py-1">
