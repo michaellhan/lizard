@@ -5136,3 +5136,33 @@ preflop game in which every outcome is paid in prize equity.
   vitest practice, solver, analyze and study 2,054 passed; `pyodide.test.mjs` 21/21; tsc and eslint clean. A
   pfGrade test that expected every tournament refused now expects the unequal chip-EV one and a non-preset ICM one
   refused.
+
+## 2026-11-13: Player profiles held across the tree and re-solved
+
+- `engine/profile_solve.py` holds one player to an assumed profile at every decision of theirs. Each such mix is the
+  equilibrium's with `TendencyLock` laid on it, recorded through a best-response walk and pinned with
+  `engine/nodelock.py`'s pins. The other player is then re-solved by CFR on the same tree, so their answer is their
+  best response to the profile across the tree. The answer carries both sides' mixes and EVs, the street's values
+  (equilibrium, the equilibrium strategy against the profile, the exploit, a best response computed apart) and the
+  convergence, the exploiter's remaining gain in % of the pot. Requests ride the existing branches
+  (`study_lock.answer` and `exploit_play.play`), so there is no new worker edit; `pyodide.test.mjs` checks that.
+- Study: an "Exploit a profile (held across the tree, re-solved)" panel, with a preset or your own numbers (street fold
+  keys too), either seat, this street or from the flop. The profile is kept in the link (`prof`) as you walk the line
+  and with a saved spot; Saved shows it and opens Study with it. Its own provenance source is `profile-solve`, labelled
+  "Exploit re-solve against an assumed profile (not an equilibrium)".
+- Exploit practice: on the worker your advice is the re-solve and you are graded against it (`profileRouted`). Where it
+  is refused, the client asks the one-node best response and says so; a local server gets the one-node best response.
+- Accuracy (ACCURACY section 23, `scripts/benchmarks/profile_bench.py`, 34 s through the slot): 64 exact runs within
+  0.0034% of the pot of an independent best response, the held player within 0.0000061%; 8 of 8 wrong profiles caught
+  (smallest 0.063% of the pot). At the worker's Fast config the re-solve sits 0.0002-0.003% from the best response in
+  each street's abstract game, in 0.1-15 s natively.
+- Checked in a browser on the wasm core: river `Kd7c2h5s9d`, BTN as Calling station, 300 iterations, 0.0004% left, BB's
+  exploit 2.61bb (best response apart 2.61bb) against 0.97bb unadjusted and 0.86bb at equilibrium; a turn link with
+  `prof=BB:…;hand` opened the panel set, re-solving the flop (207 decisions held) then the turn. Exploit practice's
+  re-solved advice was not clicked through in a browser.
+- Tests: `test_nodelock`, `test_study_lock`, `test_exploit_play` and the new `test_profile_solve` (17), 120 OK; vitest
+  solver, study, saved, practice, review, history, data and grading 2,389 passed (one Review test timed out under load
+  and passed alone, 26/26), new `profileSolve.test.ts` (10) and `ProfilePanel.test.tsx` (10); `pyodide.test.mjs` 23/23;
+  tsc and eslint clean.
+- FEATURE_MATRIX: Player profiles in solves PARTIAL → WORKING. The Summary row isn't edited here: at merge, Custom
+  solving goes 9 / 1 / 2 / 1 → 10 / 0 / 2 / 1.

@@ -1506,3 +1506,83 @@ solve bigger than the room left, `engine/tree_depth.py` evicts kept solves to ma
 
 The Solve page's controls (the raise cap and up to 5 sizes) and the Settings tree cap were checked in the browser on
 2026-11-11, on a local build without a solve.
+
+## 23. Player profile re-solve (2026-11-13)
+
+`engine/profile_solve.py` holds one player to an assumed profile at every decision of theirs and re-solves the other
+player against it. The profile is derived from the equilibrium by a fixed, documented rule: at each of the profiled
+player's decisions, the equilibrium's mix with the engine's `TendencyLock` laid on it (`gto/exploit.py`; folds move by
+hand strength, their weakest calls folding first and their strongest folds calling first; bluffs move among their weak
+hands; bets and raises scale every hand alike), each node's range being the one the profile itself brings there. Those
+mixes are pinned with `engine/nodelock.py`'s pins and the rest re-solved by CFR on the same tree. With every decision of
+one player held, the restricted game's equilibrium for the other player is their best response to the held strategy,
+so the re-solve should equal a best response computed apart.
+
+**What the figures mean.** *Convergence* is what the exploiting player's best response still gains against the held
+profile, in % of the street's root pot: 0 once the re-solve is that best response. *Gap* is the re-solve's value against
+an independent best response: the engine's best-response walk over the equilibrium solve's tree with `TendencyLock` laid
+on during the walk, a code path apart from the re-solve's CFR and its pins. *Pins* compares that walk's best response
+with the re-solve's own best response to its pinned strategy: it checks that the pins are the strategy the rule gives.
+
+**Method.** `scripts/benchmarks/profile_bench.py`, through `slot.sh`, 34 s, raw numbers in
+`scripts/benchmarks/results/profile.json`. Exact trees (every card dealt, per combo), pot 10, stack 40: two rivers
+(`2c7d9hJsKd` at bets 50% and 100% with one raise, 5 profiled decisions; `Ah8d5c3s3h` at 33/75/150% with two raises,
+9) and a turn with every river dealt (`2c7d9hJs`, bet 75%, 12 decisions and 13,920 to 18,705 pinned cells). Each spot
+runs the four presets on both players, 64 runs in all.
+
+**Measured [M]: every run within 0.0034% of the pot of the independent best response.**
+
+| Spot | Iterations | Worst convergence (% pot) | Worst gap (% pot) | Worst pins (% pot) | Time |
+|---|---|---|---|---|---|
+| River, 2 sizes | 300 / 1,000 / 3,000 | 0.00047 / 0.00021 / 0.00015 | 0.00047 / 0.00021 / 0.00015 | 0.0000096 | up to 0.03 s |
+| River, 3 sizes, 2 raises | 300 / 1,000 / 3,000 | 0.00091 / 0.00062 / 0.00032 | 0.00091 / 0.00062 / 0.00032 | 0.0000065 | up to 0.04 s |
+| Turn, every river | 100 / 400 | 0.0034 / 0.0012 | 0.0034 / 0.0012 | 0.0000058 | up to 0.17 s |
+
+- The gap tracks the convergence figure, as it should: the re-solve approaches the best response from below.
+- The held player can't move: their best-response gain under their own pins is at most 0.0000061% of the pot.
+- The check has power here: in every run the exploit beat the exploiter's equilibrium strategy against the profile by
+  0.63bb or more (6.3% of the pot), so a re-solve that ignored the profile would miss by that much.
+- Warm (from the equilibrium) and cold starts reach the same value (`test_profile_solve.py`).
+
+**Spoiled on purpose.** The re-solve run with the wrong profile and checked against the right one (river, 2 sizes,
+3,000 iterations, both players): all 8 caught.
+
+| Fault | Gap (% pot), OOP / IP profiled |
+|---|---|
+| Calling station checked as Nit | +1.23 / -0.73 |
+| Fold -20 checked as fold -25 | +2.00 / +1.94 |
+| Bluff -50 checked as bluff -45 | -0.063 / -0.37 |
+| The equilibrium (bet -1) checked as Calling station | +6.29 / +11.22 |
+
+The smallest, five points of bluffing, is 0.063% of the pot, 200 times the worst gap above.
+
+**The app's trees [M].** Through Study's request at the worker's Fast config (`scripts/engine/test_study_lock.py` FAST,
+the engine natively, on a loaded machine), the values the panel shows, bb per pair dealt at the street's root:
+
+| Spot | Exploiter at equilibrium | Their equilibrium strategy vs the profile | Re-solved exploit | Best response apart | Convergence | Time |
+|---|---|---|---|---|---|---|
+| River, BTN Calling station | 0.855 | 0.960 | 2.587 | 2.587 | 0.0004% | 3.9 s |
+| River, BB Nit | -0.855 | -0.753 | 0.325 | 0.325 | 0.0004% | 0.1 s |
+| Turn, BB Calling station | 0.367 | 0.570 | 2.795 | 2.795 | 0.0029% | 9.5 s |
+| Turn, BB Calling station, from the flop | 2.115 | 2.403 | 4.674 | 4.674 | 0.0027% | 14.6 s |
+| Flop, BB Calling station | 0.805 | 2.284 | 11.118 | 11.118 | 0.0004% | 1.3 s |
+| Flop, BTN Maniac | -0.805 | 0.652 | 13.113 | 13.113 | 0.0002% | 1.1 s |
+
+These are inside the abstract game each street's solve plays (buckets, card classes, its bet menu), so they say how close
+the re-solve is to the best response *in that game*, not in the full game; the flop's abstraction error is section 21.
+
+**In a browser, on the wasm core [M].** Study, 6-max 100bb, BTN opens and BB calls, `Kd7c2h5s9d` after a called flop
+c-bet and a checked turn, BB to act, BTN held to Calling station at Fast: 300 iterations, 0.0004% of the pot left; BB's
+exploit 2.61bb against 0.97bb for its equilibrium strategy and 0.86bb at equilibrium, and the best response computed apart
+2.61bb; BB's 250% bet 0.0% → 27.3%. The turn `Kd7c2h5s` with BB held from the flop: flop re-solve 300 iterations
+(0.0006%), turn 129 iterations in its 8 s budget (0.0061%), BTN's exploit 4.68bb against 2.41bb.
+
+**Not established.**
+
+- Profiles are heads-up, after the flop, cash only. "From the flop" holds the profile in every postflop solve of the
+  hand; preflop the ranges are the equilibrium's (the charts or the preflop solve).
+- The rule is one fixed derivation from the equilibrium. GTO Wizard describes its profiles as incentives the solver
+  re-solves under, so the profiled player also adjusts; here they don't, which is what makes the answer the exploiter's
+  best response, checkable as above.
+- The equilibrium side is a live solve with the flop library left out, so it can differ a little from a stored flop
+  answer shown above it.
