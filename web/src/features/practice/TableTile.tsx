@@ -14,6 +14,7 @@ import { describe as describeProvenance, evUnit, sourceLabel } from "@/solver/pr
 import { fmt, signed } from "./PracticeParts";
 import { boardShown, needsIndex, phaseOf, potLabel, runEnd, seeking, setupOf, shownCards, simOf, type Decision, type HandResult, type PracticeHand } from "./practice";
 import type { RoomTable } from "./room";
+import { useHandSounds } from "./sounds";
 
 /** A hand's end in a line. */
 export function resultLine(r: HandResult): string {
@@ -97,6 +98,7 @@ function SeatChip({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: string })
 /** `i`: its place, from 0. `front`: it's the table in front (on a phone the only one drawn). */
 export function TableTile({ i, t, state, front, onPick, onRetry }: { i: number; t: RoomTable; state: TableState; front: boolean; onPick: () => void; onRetry: () => void }) {
   const h = t.hand;
+  useHandSounds(h);
   const sim = simOf(h);
   const out = h.board.slice(0, h.shown);
   const made = out.length >= 3 && !h.result?.folded ? handName(rank7([...h.hands[h.hero]!, ...out])) : null;

@@ -35,6 +35,7 @@ import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
 import { assumedWords, readWords } from "./exploit";
 import { answering } from "./TableTile";
+import { useHandSounds } from "./sounds";
 
 export { optionLabel };
 
@@ -105,7 +106,8 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
             </button>
           ))}
         </div>
-        <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className="ml-auto hidden rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 sm:inline-block">
+        <SoundSwitch />
+        <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className="hidden rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 sm:inline-block">
           Keyboard<Kbd>?</Kbd>
         </button>
       </div>
@@ -121,6 +123,23 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
         </div>
       )}
     </div>
+  );
+}
+
+/** Practice's sounds on or off (saved with the settings). */
+function SoundSwitch() {
+  const on = useSettings((s) => s.sounds);
+  const set = useSettings((s) => s.set);
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => set({ sounds: !on })}
+      className="ml-auto rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2"
+      title={on ? "Sounds on: click to mute" : "Sounds off: click to turn on"}
+    >
+      {on ? "Sound on" : "Sound off"}
+    </button>
   );
 }
 
@@ -359,6 +378,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
 
   const sim = useMemo(() => simOf(hand), [hand]);
   const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
+  useHandSounds(hand);
   // an opponent's move under way, or your preflop played for you in a drill; what stopped it, said by seat
   const moving = phase.kind === "villain" || phase.kind === "auto" ? phase : null;
   const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
