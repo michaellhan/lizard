@@ -21,6 +21,9 @@ export interface SavedSpot {
   note: string;
   /** the answer seen when the spot was saved: its source and its provenance line */
   seen?: { source: string; label: string };
+  /** a player profile held across the tree, as Study's link holds it (features/study/profile.ts profileParam): the spot
+   * opens with it in the Study panel's form */
+  profile?: string;
   createdAt: number;
   updatedAt: number;
 }

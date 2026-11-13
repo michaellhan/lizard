@@ -594,12 +594,14 @@ export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
 }
 
 /** Your advice's request. In exploit practice, heads up after the flop, it carries the read on your opponent, and so does
- * their move's (flow.ts `needOf`), which engine/exploit_play.py draws from the read (exploit.ts). */
+ * their move's (flow.ts `needOf`), with `profile_solve`: on the worker your advice is the profile re-solve (the read held
+ * at every decision of theirs, your play re-solved: engine/profile_solve.py) and their move is drawn from that same
+ * re-solve (engine/exploit_play.py); client.ts `profileRouted` says what other backends get (exploit.ts). */
 export function adviceState(h: PracticeHand, sim: Sim = simOf(h)): AdvisorState {
   const state = stateFor(h);
   if (!h.exploit || h.shown < 3) return state;
   const others = [...sim.active].filter((p) => p !== h.hero);
-  return others.length === 1 ? { ...state, locks: { [others[0]!]: { ...h.exploit.lock } } } : state;
+  return others.length === 1 ? { ...state, locks: { [others[0]!]: { ...h.exploit.lock } }, profile_solve: true } : state;
 }
 
 /** The request of the preflop solve at your spot. The engine drops your seat and cards (Advisor.study): a retry reads them. */
@@ -704,7 +706,8 @@ export const gradable = (mix: Decision["mix"], p: Pick<Provenance, "evIn"> | nul
 
 /** The answer's provenance as the hand's game has it: a chip EV session's says so, as the engine's can't. */
 export function modelled(h: Pick<PracticeHand, "tournament" | "exploit">, p: Provenance | null): Provenance | null {
-  if (p && h.exploit) return p.lock ? bestResponse(p, assumedWords(h.exploit)) : p;
+  // (a profile re-solve keeps its own source: the best response to the read across the tree, not at one node)
+  if (p && h.exploit) return p.source === "profile-solve" ? { ...p, exploit: assumedWords(h.exploit) } : p.lock ? bestResponse(p, assumedWords(h.exploit)) : p;
   return p && h.tournament?.model === "chips" ? { ...p, tournament: CHIP_MODEL } : p;
 }
 

@@ -51,6 +51,7 @@ const isPushFold = (r: AdvisorResponse) =>
   (said(r, OWN_JAM) && !chartWithJam(r)) || (said(r, "facing an all-in, call when equity beats the pot odds") && said(r, "jam range: push/fold equilibrium"));
 
 export function sourceOf(r: AdvisorResponse): ResultSource {
+  if (r.profile_solve || r.study === "profile_progress") return "profile-solve";
   if (r.node_lock || r.study === "nodelock_progress") return "node-lock";
   if (r.fallback) return FALLBACK_SOURCES[r.fallback] ?? "rules";
   if (r.precomputed) return "library";
@@ -166,8 +167,16 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
       p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${held}` : held;
     }
   }
-  // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}})
-  const locked = r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];
+  // a profile re-solve (engine/profile_solve.py): the profile in words, held at every decision of theirs, and its scope
+  const prof = r.profile_solve;
+  if (prof) {
+    p.lock = `${prof.words}, held at every decision of theirs and the rest re-solved: the best response to it across the tree, not an equilibrium`;
+    if ("scope" in prof) p.view = prof.scope;
+    else p.view = `re-solved on the ${prof.streets.join(" and ")}`;
+  }
+  // a lock's answer is the best response to it, on the solve (advisor.py _advise_at, "locked": {seat: {key: number}});
+  // a profile re-solve's `locked` names the same profile, said above
+  const locked = !prof && r.locked && typeof r.locked === "object" ? Object.entries(r.locked as Record<string, Lock>) : [];
   // (preflop, on the charts' strategy: in the preflop words)
   if (locked.length) {
     p.lock = `best response to ${locked.map(([seat, l]) => `${seat} ${describeLock(l, r.street === "preflop")}`).join("; ")}, not an equilibrium re-solve`;
@@ -181,7 +190,7 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (Array.isArray(r.sizes_kept) && r.sizes_kept.length)
     p.sizing = `${r.street ?? "street"} bet sizes ${(r.sizes_kept as string[]).join(", ")} chosen by a first solve over a wide menu (one street deep, one raise)`;
   // a raise cap or tree cap the request set (engine/tree_depth.py): the game solved, so it's said with the figure measured in it
-  const tree = source === "live" || source === "node-lock" ? treeWords(r.tree) : null;
+  const tree = source === "live" || source === "node-lock" || source === "profile-solve" ? treeWords(r.tree) : null;
   if (tree) p.tree = tree;
   // a heads-up flop's figure is in its own smaller game: what that game's flop gave up in the full one (ACCURACY section 21)
   const abs = abstractionWords(flopModelOf(r, source, p.mode, ctx.transport));
@@ -293,6 +302,7 @@ const LABELS: Record<ResultSource, string> = {
   "push-fold": "Push/fold model (not a solve)",
   "best-response": "Exploiting an assumed profile (best response, not a solve)",
   "node-lock": "Node-locked equilibrium of the restricted game, not the unlocked equilibrium",
+  "profile-solve": "Exploit re-solve against an assumed profile (not an equilibrium)",
   "plo-river": "Heads-up PLO4 solve of every combo from the street typed (a river; a turn and every river after it; or a flop and every turn and river after it): earlier streets aren't solved",
   rules: "Heuristic rules (not a solve)",
   equity: "Equity estimate (not a solve)",
@@ -330,7 +340,8 @@ export function describe(p: Provenance): string {
     const what = p.multiway ? "mean best-response gain" : "from equilibrium";
     const band = p.band ? ` (${p.band}${p.band === "approximate" && p.targetPct !== undefined ? `, target ${p.targetPct}%` : ""})` : "";
     // (a best response to an assumed profile is never "solved": this figure is the equilibrium solve under it, on ranges the profile reshaped)
-    if (p.source === "node-lock") parts.push(`${p.exploitabilityPct.toFixed(2)}% pot exploitable in the restricted game, each player's best response keeping their own locks${band}`);
+    if (p.source === "profile-solve") parts.push(`${p.exploitabilityPct.toFixed(p.exploitabilityPct < 0.01 ? 4 : 2)}% pot still gained by a best response to the profile (the re-solve's convergence)${band}`);
+    else if (p.source === "node-lock") parts.push(`${p.exploitabilityPct.toFixed(2)}% pot exploitable in the restricted game, each player's best response keeping their own locks${band}`);
     else parts.push(p.source === "best-response" ? `${p.exploitabilityPct.toFixed(2)}% pot from equilibrium in the solve it's laid on${band}` : `${p.exploitabilityPct.toFixed(2)}% pot ${what} in the solved game${band}`);
   }
   if (p.abstraction) parts.push(p.abstraction);

@@ -57,6 +57,8 @@ import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
 import { ChangeCards } from "./ChangeCards";
 import { NodeLockPanel } from "./NodeLockPanel";
+import { keepProfile, parseProfile, PROF, profileParam, type StudyProfile } from "./profile";
+import { ProfilePanel } from "./ProfilePanel";
 import { ComboPanel } from "./ComboPanel";
 import { classOf } from "@/engine/nlhe/cards";
 import { studyText } from "@/features/practice/copyForAi";
@@ -107,8 +109,23 @@ export function oppsOf(res: AdvisorResponse | undefined): OpponentRange[] {
 export function StudyPage() {
   const [params, setParams] = useSearchParams();
   const hand = useMemo<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100), [params]);
-  // (a new node keeps the ranges side by side, where they were: `vs` is the view's, not the hand's)
-  const setHand = useCallback((h: StudyHand) => setParams((q) => keepVs(toSearch(h), q.get(VS))), [setParams]);
+  // (a new node keeps the ranges side by side, where they were: `vs` is the view's, not the hand's; and the profile held
+  // across the tree, `prof`, so it's there to re-solve at the next node)
+  const setHand = useCallback((h: StudyHand) => setParams((q) => keepProfile(keepVs(toSearch(h), q.get(VS)), q.get(PROF))), [setParams]);
+  const profParam = params.get(PROF);
+  const keptProfile = useMemo(() => parseProfile(profParam), [profParam]);
+  const keepProf = useCallback(
+    (p: StudyProfile) =>
+      setParams(
+        (q) => {
+          const next = new URLSearchParams(q);
+          next.set(PROF, profileParam(p));
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
   // both players' ranges side by side (sideBySideLink.ts): a view, so turned on, off or to another opponent in place
   const setVs = useCallback(
     (vs: string | null) =>
@@ -447,7 +464,7 @@ export function StudyPage() {
           Reset
         </button>
         <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
-        <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
+        <SaveSpot key={requestKey} hand={hand} profile={keptProfile ? profileParam(keptProfile) : undefined} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
       </nav>
       <SavedAnswerNote
         hold={kept}
@@ -723,6 +740,7 @@ export function StudyPage() {
                   {offersOneSize(raw) && <OneSizePanel key={`one-size|${requestKey}`} hand={hand} res={raw} getSolver={getSolver} />}
                   {offersLock(raw) && <LockPanel key={`lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
                   <NodeLockPanel key={`node-lock|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />
+                  <ProfilePanel key={`profile|${requestKey}`} hand={hand} res={raw} mode={mode} getSolver={getSolver} kept={keptProfile} onKeep={keepProf} />
                   {offersAutoSize(raw) && <AutoSizePanel key={`auto-size|${requestKey}`} hand={hand} res={raw} cls={myCls} mode={mode} getSolver={getSolver} />}
                 </div>
               )}

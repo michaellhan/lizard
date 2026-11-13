@@ -2,7 +2,17 @@
 // requests (the backends run one solve at a time), supports AbortSignal cancellation for queued and running
 // requests, and attaches provenance to every answer.
 import type { LibraryStamp } from "@/library/version";
-import type { AdvisorResponse, AdvisorState, NodeLockAnswer, NodeLockProgress, NodeLockRequest, PlayMove } from "./protocol";
+import type {
+  AdvisorResponse,
+  AdvisorState,
+  NodeLockAnswer,
+  NodeLockProgress,
+  NodeLockRequest,
+  PlayMove,
+  ProfileSolveAnswer,
+  ProfileSolveProgress,
+  ProfileSolveRequest,
+} from "./protocol";
 import { provenanceOf } from "./provenance";
 import { recordTiming } from "./timings";
 import { withTreeCap, type TreeCap } from "./treeDepth";
@@ -160,8 +170,9 @@ export class SolverClient {
     // (provenance records the mode the request runs at, as sent)
     const ctx = { mode: effectiveMode(req.state, mode), transport: this.transport.kind, solverVersion: this.solverVersion };
     try {
-      const sent = withTreeCap(applyMode(req.state, mode, this.transport.kind), this.treeCap(), this.transport.kind);
-      const data = await this.transport.request(sent, {
+      const routed = profileRouted(req.state, this.transport.kind, !!req.play);
+      const sent = withTreeCap(applyMode(routed, mode, this.transport.kind), this.treeCap(), this.transport.kind);
+      let data = await this.transport.request(sent, {
         progressive: req.play ? false : (req.progressive ?? false),
         signal: req.signal,
         ...(req.play ? { play: req.play } : {}),
@@ -169,6 +180,14 @@ export class SolverClient {
           ? (p: AdvisorResponse) => req.onPartial?.({ data: p, provenance: provenanceOf(p, { ...ctx, partial: true }) })
           : undefined,
       });
+      // a profile re-solve this spot refused (engine/profile_solve.py: no heads-up solve of its own to hold it in): the
+      // one-node best response to the read instead, labelled as that (provenance "best-response", not "profile-solve")
+      if (routed !== req.state && routed.nodelock && data.lock_error) {
+        const plain = withTreeCap(applyMode(profileRouted(req.state, "http", false), mode, this.transport.kind), this.treeCap(), this.transport.kind);
+        const refused = data.error;
+        data = await this.transport.request(plain, { progressive: false, signal: req.signal });
+        data = { ...data, notes: [`no profile re-solve here (${refused}): the best response at this node alone`, ...(data.notes ?? [])] };
+      }
       const provenance = await this.stamped(data, provenanceOf(data, { ...ctx, partial: false }));
       // (the mode's measured times: a live advice or Study answer, not an opponent's move; a triage solve is Quick's)
       if (!req.play && !req.untimed) recordTiming(JSON.stringify(sent), this.transport.kind, provenance.mode, data, provenance);
@@ -218,10 +237,49 @@ export class SolverClient {
     return r as SolveResult<NodeLockAnswer>;
   }
 
+  /** A profile re-solve in Study (engine/profile_solve.py): `state` is the Study state of the node on screen; the
+   * profile is held at every decision of `req.seat`'s and the rest re-solved. Worker only, as a node lock. Rejects
+   * NodeLockError where it can't run. */
+  async profileSolve(
+    state: AdvisorState,
+    req: ProfileSolveRequest,
+    opts: { mode?: SolveMode; signal?: AbortSignal; onProgress?: (p: ProfileSolveProgress) => void } = {},
+  ): Promise<SolveResult<ProfileSolveAnswer>> {
+    if (this.transport.kind !== "worker") {
+      throw new NodeLockError("refused", "Profile re-solves run in the browser's solver, not on a local server: switch the backend to the browser to use them.");
+    }
+    const r = await this.solve({
+      state: { ...state, study: true, nodelock: { profile: req } },
+      mode: opts.mode,
+      signal: opts.signal,
+      untimed: true,
+      onPartial: opts.onProgress ? (p) => opts.onProgress?.(p.data as unknown as ProfileSolveProgress) : undefined,
+    });
+    if (r.data.error) throw new NodeLockError(r.data.lock_error ?? "invalid", r.data.error);
+    if (r.data.study !== "profile" || !r.data.profile_solve) throw new SolverError("solver-error", "The solver answered without the profile re-solve.");
+    return r as SolveResult<ProfileSolveAnswer>;
+  }
+
   dispose(): void {
     for (const q of this.queue.splice(0)) q.reject(new SolverError("cancelled", "solver disposed"));
     this.transport.dispose();
   }
+}
+
+/** Exploit practice's request with `profile_solve` (practice.ts adviceState): on the worker, the player's advice goes to
+ * the profile re-solve (engine/profile_solve.py advise_answer, through the nodelock branch) and the opponent's move keeps
+ * the flag (engine/exploit_play.py draws it from the same re-solve); elsewhere the flag is dropped (a local server has no
+ * engine/: its advice is the one-node best response to `locks`, and `play` drops the read). */
+export function profileRouted(state: AdvisorState, kind: TransportKind, play: boolean): AdvisorState {
+  if (!state.profile_solve) return state;
+  const rest = { ...state };
+  delete rest.profile_solve;
+  if (kind !== "worker") return rest;
+  if (play) return state;
+  const seats = Object.entries((state.locks ?? {}) as Record<string, Record<string, number>>);
+  if (seats.length !== 1) return rest;
+  delete rest.locks;
+  return { ...rest, nodelock: { profile: { seat: seats[0]![0], adj: seats[0]![1] }, advise: true } };
 }
 
 /** The state with no read in it. */

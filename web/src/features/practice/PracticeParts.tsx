@@ -556,7 +556,7 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
           <Link to={`/study?${d.study}`} className="text-accent hover:underline">
             Open this spot in Study →
           </Link>
-          {d.provenance?.source === "best-response" && <span className="text-xs text-muted"> (at equilibrium)</span>}
+          {(d.provenance?.source === "best-response" || d.provenance?.source === "profile-solve") && <span className="text-xs text-muted"> (at equilibrium)</span>}
         </p>
       )}
     </section>

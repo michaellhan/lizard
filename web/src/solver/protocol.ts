@@ -148,6 +148,8 @@ export interface AdvisorResponse {
   multiway?: boolean;
   /** a node lock's answer (engine/study_lock.py) */
   node_lock?: NodeLockBlock;
+  /** a profile re-solve's answer (engine/profile_solve.py): Study's whole block, or Exploit practice's advice's summary */
+  profile_solve?: ProfileSolveBlock | ProfileAdviceBlock;
   /** a node lock's request that wasn't run: "invalid", it makes no sense; "refused", this spot can't honour it */
   lock_error?: "invalid" | "refused";
   /** with lock_error, where the node's actions in the live tree aren't the ones given (a stored flop's sizes) */
@@ -272,6 +274,98 @@ export interface NodeLockEarlier {
 
 export type NodeLockAnswer = AdvisorResponse & { study: "nodelock"; node_lock: NodeLockBlock };
 
+/** A player profile held at every decision of theirs and the rest re-solved (engine/profile_solve.py), sent as
+ * `state.nodelock = {profile}` on the Study state of the node on screen. `adj`: the profile's numbers
+ * (features/study/locks.ts LOCK_KEYS) or a preset's name. `streets`: "street" holds it in this street's solve alone,
+ * the ranges entering it the equilibrium's; "hand" in every solve of the hand after the flop (a turn or river). */
+export interface ProfileSolveRequest {
+  seat: string;
+  adj: Record<string, number> | string;
+  streets?: "street" | "hand";
+}
+
+/** One answer at the node, over the actor's range there: its mix and each action's EV (bb relative to folding now). */
+export interface ProfileSide {
+  mix: number[];
+  ev: number[];
+  range_ev: number;
+  combos: number;
+}
+
+/** How far a profile re-solve got: `gain_pct` what the exploiting player's best response still gains against the
+ * profile, % of the root pot (0 once it is that best response); bb per dealt pair, [OOP, IP]. */
+export interface ProfileConvergence {
+  iterations: number;
+  root_pot: number;
+  gain_pct: number;
+  exploitability_pct: number;
+  value: [number, number];
+  /** the exploiting player's best response to the held strategy, computed apart (bb per dealt pair) */
+  best_response: number;
+  seconds: number;
+}
+
+export interface ProfileSolveBlock {
+  seat: string;
+  /** the profiled player, 0 OOP, 1 IP */
+  player: 0 | 1;
+  exploiter: string;
+  seats: [string, string];
+  adj: Record<string, number>;
+  words: string;
+  streets_held: "street" | "hand";
+  line: string[];
+  actions: string[];
+  /** the player acting on screen is the profiled one */
+  actor_profiled: boolean;
+  eq: ProfileSide;
+  exploit: ProfileSide;
+  /** per hand class of the actor's range: weight in each answer, both mixes and EVs */
+  classes: Record<string, { w: number; w_ex: number; eq: number[] | null; ex: number[] | null; ev_eq: number | null; ev_ex: number | null }>;
+  /** the street's values for the exploiting player (`player`), bb per dealt pair at the solve's root, one tree and one
+   * pair of ranges: at equilibrium, their equilibrium strategy against the profile, the re-solved exploit */
+  values: {
+    player: 0 | 1;
+    eq: number;
+    eq_vs_profile: number;
+    exploit: number;
+    /** a best response to the profile computed apart from the re-solve: the exploit's value once it has converged */
+    best_response: number;
+    profiled: { eq: number; exploited: number };
+    root_pot: number;
+    unlocked_exploitability_pct: number;
+  };
+  convergence: ProfileConvergence;
+  pinned: { nodes: number; cells: number };
+  streets: { street: "flop" | "turn" | "river"; nodes: number; cells: number; iterations: number; gain_pct: number }[];
+  scope: string;
+  rule: string;
+}
+
+/** Exploit practice's advice against a profile (engine/profile_solve.py advise_answer). */
+export interface ProfileAdviceBlock {
+  seat: string;
+  player: 0 | 1;
+  adj: Record<string, number>;
+  words: string;
+  gain_pct: number;
+  iterations: number;
+  streets: string[];
+  label: string;
+}
+
+export type ProfileSolveAnswer = AdvisorResponse & { study: "profile"; profile_solve: ProfileSolveBlock; label: string };
+
+/** How a profile re-solve is going (each street's re-solve reports as it runs). */
+export interface ProfileSolveProgress {
+  study: "profile_progress";
+  street: "flop" | "turn" | "river";
+  iterations: number;
+  of: number;
+  exploitability_pct: number | null;
+  seconds: number;
+}
+
 /** How a node lock is going, at each of its solve's checks. */
 export interface NodeLockProgress {
   study: "nodelock_progress";
@@ -293,6 +387,9 @@ export type PlayMove = AdvisorResponse & {
    * strategy, false where it was the equilibrium's, `profile_why` saying why; absent from Advisor.play itself */
   profile?: boolean;
   profile_why?: string;
+  /** with `profile`: drawn from the profile re-solve the player's advice used (engine/profile_solve.py), not a one-node
+   * best response's read */
+  resolved?: boolean;
 };
 
 export interface OpponentRange {
