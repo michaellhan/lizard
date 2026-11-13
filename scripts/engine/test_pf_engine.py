@@ -145,6 +145,94 @@ class OwnStacks(unittest.TestCase):
         self.assertLess(sum(1 for _ in G.walk(r)), 6000)
 
 
+class TreeOptions(unittest.TestCase):
+    """The tree builder's options (2026-11-13): open-limps and over-limps from any seat, a position's own open, 3-way
+    flops and cold calls switched either way; with none asked the trees are the ones before."""
+
+    @staticmethod
+    def first_in(spec, who):
+        root, pos = spec.build()
+        nd = root
+        while nd.kind == "dec" and pos[nd.player] != who:
+            nd = nd.children[nd.names.index("fold")]
+        return nd, pos
+
+    def test_defaults_unchanged(self):
+        self.assertEqual(P.Spec(6, (100.0,)).nodes(), 11010)
+        self.assertEqual(P.Spec(9, (100.0,)).nodes(), 4795)
+        for n in (6, 9):
+            on = P.Spec(n, (100.0,), flop3=n <= 6, cold=n <= 6)
+            self.assertEqual(on.key, P.Spec(n, (100.0,)).key)
+            self.assertEqual(on.nodes(), P.Spec(n, (100.0,)).nodes())
+        # the request's options at their table size's defaults are the default game (one key, one stored file)
+        self.assertEqual(P.spec_of({"players": 6, "pf_tree": {"flop3": True, "cold": True, "opens": {"UTG": 2.5}}})[0].key,
+                         "lz1_6max_100bb")
+
+    def test_open_limps(self):
+        spec = P.Spec(4, (100.0,), open_limps=True)
+        self.assertTrue(spec.key.endswith("_L"))
+        nd, pos = self.first_in(spec, "CO")
+        self.assertEqual(nd.names, ["fold", "call", "raise"])
+        lim = nd.children[1]
+        self.assertEqual(pos[lim.player], "BTN")
+        self.assertIn("call", lim.names)                       # an over-limp
+        iso = lim.children[lim.names.index("raise")]
+        self.assertAlmostEqual(iso.line[-1][2], 2.5 + 1.0)     # the open plus 1bb a limper
+        x = lim.children[lim.names.index("call")]              # CO, BTN limp: with the big blind three are in, so the
+        self.assertEqual((pos[x.player], x.names), ("SB", ["fold", "raise"]))   # small blind can't complete
+        x = x.children[0]
+        # the big blind checks behind limpers (no fold), and raises over them to Sizes.iso + 1bb a limper past the first
+        self.assertEqual((pos[x.player], x.names), ("BB", ["call", "raise"]))
+        self.assertAlmostEqual(x.children[1].line[-1][2], G.Sizes().iso + 1.0)
+        # at most three see a limped flop: UTG, CO and the SB limp, and the big blind is the fourth only by checking
+        for nd in G.walk(spec.build()[0]):
+            if nd.kind == "show" and nd.n_raises == 0:
+                self.assertLessEqual(len(nd.active), 3)
+        # never with a straddle, never heads-up (the small blind's complete is always there)
+        self.assertNotIn("call", self.first_in(P.Spec(4, (100.0,), straddle=True, open_limps=True), "BTN")[0].names)
+        self.assertFalse(P.spec_of({"players": 2, "pf_tree": {"open_limps": True}})[0].open_limps)
+
+    def test_open_limps_converge(self):
+        spec = P.Spec(3, (40.0,), open_limps=True)
+        g = spec.game()
+        g.solve(1500)
+        self.assertLess(1000 * sum(g.exploitability(per_seat=True)) / 3, 1.5)
+
+    def test_opens_by_position(self):
+        spec, why = P.spec_of({"players": 6, "pf_tree": {"opens": {"UTG": 2.2, "btn": 2.0}}})
+        self.assertIsNone(why)
+        self.assertEqual(spec.opens, (("UTG", 2.2), ("BTN", 2.0)))
+        for who, want in (("UTG", 2.2), ("HJ", 2.5), ("BTN", 2.0), ("SB", 3.0)):
+            nd, pos = self.first_in(spec, who)
+            self.assertAlmostEqual(nd.children[nd.names.index("raise")].line[-1][2], want, msg=who)
+        # a 3bet scales from the open it faces: the BB over the BTN's 2bb, 4.8x
+        nd, pos = self.first_in(spec, "BTN")
+        o = nd.children[nd.names.index("raise")]
+        o = o.children[o.names.index("fold")]
+        self.assertAlmostEqual(o.children[o.names.index("raise")].line[-1][2], 2.0 * 4.8)
+        self.assertIn("opens UTG 2.2bb, BTN 2bb", spec.label())
+        for st, word in (({"opens": {"BB": 3}}, "doesn't open"), ({"opens": {"UTG": 9}}, "2 to 5bb"),
+                         ({"limps": True}, "unknown tree option")):
+            self.assertIn(word, P.spec_of({"players": 6, "pf_tree": st})[1])
+
+    def test_three_way_and_cold_switches(self):
+        # 7 to 9 players can have the full tree's 3-way flops and cold calls; 6-max can do without them
+        self.assertEqual(P.Spec(7, (100.0,), flop3=True).nodes(), 6585)
+        self.assertEqual(P.Spec(7, (100.0,), flop3=True, cold=True).nodes(), 30667)
+        self.assertEqual(P.Spec(6, (100.0,), flop3=False, cold=False).nodes(), 1135)
+        self.assertTrue(any(nd.kind == "show" and len(nd.active) == 3 for nd in G.walk(P.Spec(7, (100.0,), flop3=True).build()[0])))
+        self.assertEqual(P.Spec(7, (100.0,), flop3=True).limits(), "nobody cold 4bets or cold-calls a 3bet")
+        self.assertEqual(P.Spec(6, (100.0,), flop3=False).limits(), "at most two see a flop")
+        self.assertIsNone(P.Spec(7, (100.0,), flop3=True, cold=True).limits())
+        self.assertEqual(P.Spec(9, (100.0,)).limits(), P.LIMITS_7UP)
+
+    def test_memory_estimate(self):
+        # the measured peaks it was fitted to (pf_solve.MB_BASE, MB_PER_WORK), within 20%
+        for spec, mb in ((P.Spec(6, (100.0,)), 749), (P.Spec(9, (100.0,)), 588)):
+            self.assertLess(abs(spec.estimate_mb() - mb) / mb, 0.2, spec.key)
+        self.assertGreater(P.Spec(9, (100.0,), flop3=True, cold=True).estimate_mb(), P.MAX_MB_BROWSER)
+
+
 class Converges(unittest.TestCase):
     def test_small_games_reach_target(self):
         for n, stacks, limp in ((2, [30, 100], False), (3, [12, 40, 25], False), (3, [100, 100, 100], False), (3, [40, 40, 40], True)):
@@ -192,6 +280,25 @@ class Protocol(unittest.TestCase):
         self.assertEqual(r2["study"], "node")
         self.assertTrue(r2["pf_solve"]["cached"])
         self.assertEqual([c["freq"] for c in r2["actions"]], [c["freq"] for c in r["actions"]])
+
+    def test_unsolved_names_its_memory(self):
+        r = P.answer(self.Adv, {"players": 7, "stack": 100, "study": True, "preflop": [], "preflop_solve": True,
+                                "pf_tree": {"flop3": True}})
+        self.assertEqual(r["study"], "pf_unsolved")
+        self.assertEqual(r["nodes"], 6585)
+        self.assertEqual(r["estimate_mb"], round(P.MB_BASE + P.MB_PER_WORK * 6585 * 7))
+        self.assertEqual(r["max_mb"], P.MAX_MB_BROWSER)
+
+    def test_browser_refuses_a_tree_past_its_heap(self):
+        st = {"players": 9, "stack": 100, "study": True, "pf_tree": {"flop3": True, "cold": True}, "preflop_solve": {"run": 1}}
+        plat = sys.platform
+        try:
+            sys.platform = "emscripten"
+            r = P.answer(self.Adv, st)
+        finally:
+            sys.platform = plat
+        self.assertEqual(r["study"], "pf_none")
+        self.assertIn("MB", r["reason"])
 
     def test_refusals(self):
         for st, word in (({"players": 10}, "2 to 9"), ({"players": 6, "stacks": {"BTN": 2}}, "stacks of"),
