@@ -4,6 +4,7 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction, type StoreNames } from "idb";
 import type { SessionOptions } from "@/features/practice/practice";
 import type { SpotSetup } from "@/features/solve/setup";
+import type { TournamentSetup } from "@/features/tournaments/tournament";
 import type { Verdict } from "@/grading/grade";
 import type { AdvisorState } from "@/solver/protocol";
 import type { Confidence, ConvergenceBand, Provenance } from "@/solver/types";
@@ -142,8 +143,9 @@ export interface HandRecord {
    * in the history, and in no grade */
   revealed?: string[];
   /** a Practice hand's rake and own sizes, as its Study line has them: a history doesn't carry them. An imported hand has
-   * none, so its line is never taken for a raked game's. */
-  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap"> & { pfSizes?: true; pfOptions?: true };
+   * none, so its line is never taken for a raked game's. A tournament's prizes left in prize equity (`tournament`), as its
+   * answers were asked, so Analyze asks them so too. */
+  setup?: Pick<SpotSetup, "sizes" | "rake" | "rakeCap"> & { pfSizes?: true; pfOptions?: true; tournament?: TournamentSetup };
   tournament?: string;
   text: string;
   /** your tags and note on the hand, and when you last changed them (none until you do) */

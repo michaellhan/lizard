@@ -13,7 +13,7 @@ import { sessionImport } from "@/features/analyze/sessions";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
 import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
-import { rakeSetup, runEnd, setupOf, shownCards, type PracticeHand } from "./practice";
+import { prizesOf, rakeSetup, runEnd, setupOf, shownCards, type PracticeHand } from "./practice";
 
 export { PRACTICE_SITE };
 /** your name in the history */
@@ -131,8 +131,18 @@ export function practiceRecord(h: PracticeHand, session: { id: string; startedAt
     ...(revealed.length ? { revealed } : {}),
     // (what the history can't say, for its Study links, and whether its raises were offered at the preflop solve's sizes,
     // which Analyze reads a spot by)
-    ...(h.sizes || h.rake || h.pfSizes || h.pfOptions
-      ? { setup: { ...(h.sizes ? { sizes: h.sizes } : {}), ...rakeSetup(h), ...(h.pfSizes ? { pfSizes: true as const } : {}), ...(h.pfOptions ? { pfOptions: true as const } : {}) } }
+    // (and a prize-equity hand's prizes, which the history can't say: Analyze asks its answers in prize equity too, and
+    // grades its preflop by a stored solve where its game is one)
+    ...(h.sizes || h.rake || h.pfSizes || h.pfOptions || prizesOf(h)
+      ? {
+          setup: {
+            ...(h.sizes ? { sizes: h.sizes } : {}),
+            ...rakeSetup(h),
+            ...(h.pfSizes ? { pfSizes: true as const } : {}),
+            ...(h.pfOptions ? { pfOptions: true as const } : {}),
+            ...(prizesOf(h) ? { tournament: prizesOf(h) } : {}),
+          },
+        }
       : {}),
     ...(h.pot ? { playedFor: "preflop" as const, decisions: heroDecisions(replayed).filter((d) => d.street !== "preflop").length } : {}),
   };

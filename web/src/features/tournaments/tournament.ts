@@ -194,6 +194,49 @@ export const FORMAT_PRESETS: readonly StagePreset[] = [
   },
 ];
 
+/**
+ * The final-table set: preflop solves in prize equity stored for the last 3 to 9 players of a 9-paid final table (its last
+ * places' prizes), at an average stack of FT_DEPTHS bb, in three shapes of stacks (FT_SHAPES), with a 1bb big-blind ante
+ * as each seat's share and no other tables. Lizard's own shapes, as engine/pf_icm_stored.py FINAL_TABLE_SET builds them
+ * (pfIcmStored.test.ts holds the two to the manifest).
+ */
+export const FT_PLAYERS = [3, 4, 5, 6, 7, 8, 9] as const;
+export const FT_DEPTHS = [10, 15, 20, 30, 40] as const;
+export const FT_SHAPES = ["equal", "leader", "short"] as const;
+export type FtShape = (typeof FT_SHAPES)[number];
+export const FT_SHAPE_WORDS: Record<FtShape, string> = { equal: "equal stacks", leader: "chip leader on the button", short: "short stack in the big blind" };
+
+/** Down to 0.1bb (floor, as the engine's list: the two agree to the bit). */
+const tenth = (x: number) => Math.floor(x * 10 + 1e-9) / 10;
+
+/** Each seat's chips in seat order: equal; the button with twice the average and the rest sharing what's left; the big
+ * blind with 0.4 of it and the rest sharing what's left. */
+export function finalTableStacks(players: number, avg: number, shape: FtShape): number[] {
+  if (shape === "equal") return Array<number>(players).fill(avg);
+  const special = shape === "leader" ? 2 * avg : tenth(0.4 * avg);
+  const rest = tenth((players * avg - special) / (players - 1));
+  const at = shape === "leader" ? players - 3 : players - 1;
+  return Array.from({ length: players }, (_, i) => (i === at ? special : rest));
+}
+
+export const finalTableName = (players: number, avg: number, shape: FtShape) => `Final table, ${players} left, ${avg}bb average, ${FT_SHAPE_WORDS[shape]}`;
+
+/** One spot of the final-table set, as a preset (it sets up as a stage does). */
+export function finalTableSpot(players: number, avg: number, shape: FtShape): StagePreset {
+  return {
+    name: finalTableName(players, avg, shape),
+    about: `${players} left of a 9-paid final table, ${avg}bb on average, ${FT_SHAPE_WORDS[shape]}`,
+    players,
+    stacks: finalTableStacks(players, avg, shape),
+    payouts: FINAL_TABLE.slice(0, players),
+  };
+}
+
+export const FINAL_TABLE_SET: readonly StagePreset[] = FT_PLAYERS.flatMap((n) => FT_DEPTHS.flatMap((d) => FT_SHAPES.map((sh) => finalTableSpot(n, d, sh))));
+
+/** The set's coverage, in words, for the page. */
+export const FT_COVERAGE = `${FINAL_TABLE_SET.length} spots: ${FT_PLAYERS[0]} to ${FT_PLAYERS.at(-1)} players left of a 9-paid final table (${FINAL_TABLE.join("/")}), averages of ${FT_DEPTHS.join(", ")}bb, each with ${FT_SHAPES.map((s) => FT_SHAPE_WORDS[s]).join(", ")}, a 1bb big-blind ante, no other tables`;
+
 /** Money as people write it, made plain: no currency sign or percent sign, no thousands commas ("$1,000" -> "1000"). */
 const plainMoney = (t: string) => t.replace(/[$€£¥%]/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
 
@@ -260,6 +303,125 @@ export function pastedPayouts(text: string): string | null {
   return Array.from({ length: last }, (_, k) => (byPlace.has(k + 1) ? String(byPlace.get(k + 1)) : "?")).join(" ");
 }
 
+/** A CSV row's cells: split on the delimiter outside double quotes, quotes taken off. */
+function csvCells(line: string, sep: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (c === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else quoted = !quoted;
+    } else if (!quoted && c === sep) {
+      out.push(cur.trim());
+      cur = "";
+    } else cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/** A cell that's a place or a range of places: "1", "1st", "4-6", "7th – 9th". */
+const PLACE_CELL = /^(\d+)\s*(?:st|nd|rd|th)?(?:\s*(?:-|–|—|to)\s*(\d+)\s*(?:st|nd|rd|th)?)?$/i;
+
+/**
+ * A payout table saved as CSV from a spreadsheet or a site ("Place,Prize" or "Place;Prize;%" rows, a header row, quoted
+ * cells such as "$1,000.00", ranges such as 4-6), as the payouts box's text: each row's place and the first number after
+ * it (an amount or a percent: either is in proportion, all ICM reads), through pastedPayouts. null where the text isn't
+ * one (fewer than two rows starting with a place, or rows of one cell), which the box then reads as pasted text.
+ */
+export function csvPayouts(text: string): string | null {
+  // (the delimiter: a tab where any line has one, as a sheet copies, so "$10,000" stays whole; else a semicolon; else a comma)
+  const sep = text.includes("\t") ? "\t" : /;/.test(text) ? ";" : ",";
+  const rows = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => csvCells(l, sep));
+  const placed = rows.filter((r) => r.length >= 2 && PLACE_CELL.test(r[0]!) && r.slice(1).some((c) => /\d/.test(c)));
+  // (rows of different lengths are an unquoted "1,$1,000": not CSV to read, the pasted-text reader's)
+  if (placed.length < 2 || new Set(placed.map((r) => r.length)).size > 1) return null;
+  const lines = placed.map((r) => {
+    const m = PLACE_CELL.exec(r[0]!)!;
+    const prize = r.slice(1).find((c) => /\d/.test(c))!;
+    return `${m[1]}${m[2] ? `-${m[2]}` : ""}\t${plainMoney(prize).replace(/[^\d.]/g, "")}`;
+  });
+  return pastedPayouts(lines.join("\n"));
+}
+
+/** A payout table read from a file or a paste, with what's wrong with it and a line saying what it is. */
+export function readPayoutTable(text: string): { text: string; payouts: number[]; problems: string[]; note: string } {
+  const t = csvPayouts(text) ?? pastedPayouts(text) ?? text.trim();
+  const payouts = parsePayouts(t);
+  const problems = payoutProblems(payouts);
+  const total = payouts.filter((x) => Number.isFinite(x)).reduce((a, b) => a + b, 0);
+  const note = payouts.length
+    ? `${payouts.length} place${payouts.length === 1 ? "" : "s"} paid, ${Math.round(total * 100) / 100} in all, 1st ${payouts[0]}${payouts.length > 1 ? `, last ${payouts.at(-1)}` : ""}`
+    : "no prizes read";
+  return { text: t, payouts, problems, note };
+}
+
+/** What's wrong with a list of prizes, first place first: a gap or a word, a prize of 0 or less, too many places, or a
+ * place paying more than the one above it (no table pays that way, and it's what a column read the wrong way round gives). */
+export function payoutProblems(ps: readonly number[]): string[] {
+  const out: string[] = [];
+  const gaps = ps.flatMap((x, i) => (Number.isFinite(x) ? [] : [i + 1]));
+  if (gaps.length) out.push(`no prize read for place ${gaps.slice(0, 5).join(", ")}${gaps.length > 5 ? ", …" : ""}`);
+  if (ps.some((x) => Number.isFinite(x) && !(x > 0))) out.push("every prize must be more than 0");
+  if (ps.length > T_LIMITS.places) out.push(`at most ${T_LIMITS.places} places paid (this has ${ps.length})`);
+  const up = ps.findIndex((x, i) => i > 0 && Number.isFinite(x) && Number.isFinite(ps[i - 1]!) && x > ps[i - 1]! + 1e-9);
+  if (up > 0) out.push(`place ${up + 1} pays more than place ${up}: prizes go first place first, largest first`);
+  return out;
+}
+
+/** Room-style payout structures of Lizard's own (not any site's): the usual shapes of a format, in % of the prize pool.
+ * `byEntrants`: an MTT's, whose places paid follow the entrants. The prizes left at a table are its first places, as many
+ * as the players left (`prizesLeft`). */
+export interface PayoutStructure {
+  name: string;
+  about: string;
+  byEntrants: boolean;
+  of: (entrants: number) => number[];
+}
+
+/** An MTT's payouts, in % to 0.01: `share` of the entrants paid (2 to T_LIMITS.places places), place k in proportion to
+ * k^-steep, the final table's nine paid one by one and the places after it in bands (3, 3, 3, then 9 at a time) that pay
+ * their band's average, as rooms pay them. */
+export function mttPayouts(entrants: number, share: number, steep: number): number[] {
+  const places = Math.max(2, Math.min(T_LIMITS.places, Math.round(entrants * share)));
+  const w = Array.from({ length: places }, (_, k) => (k + 1) ** -steep);
+  const bands: [number, number][] = [];
+  for (let k = 0; k < places; ) {
+    const size = k < 9 ? 1 : k < 18 ? 3 : 9;
+    bands.push([k, Math.min(places, k + size)]);
+    k += size;
+  }
+  const flat = bands.flatMap(([a, b]) => {
+    const avg = w.slice(a, b).reduce((x, y) => x + y, 0) / (b - a);
+    return Array<number>(b - a).fill(avg);
+  });
+  const tot = flat.reduce((x, y) => x + y, 0);
+  return flat.map((x) => Math.round((x / tot) * 10000) / 100);
+}
+
+export const PAYOUT_STRUCTURES: readonly PayoutStructure[] = [
+  { name: "Sit & go, 6 players", about: "2 paid, 65/35", byEntrants: false, of: () => [65, 35] },
+  { name: "Sit & go, 9 players", about: "3 paid, 50/30/20", byEntrants: false, of: () => [50, 30, 20] },
+  { name: "Sit & go, 18 players", about: "4 paid, 40/30/20/10", byEntrants: false, of: () => [40, 30, 20, 10] },
+  { name: "Sit & go, 45 players", about: "7 paid, 32% to first", byEntrants: false, of: () => [32, 21, 15, 11, 9, 7, 5] },
+  { name: "Sit & go, 180 players", about: "18 paid, banded after the final table", byEntrants: false, of: () => mttPayouts(180, 0.1, 0.9) },
+  { name: "MTT, standard", about: "15% of the entrants paid, banded after the final table", byEntrants: true, of: (e) => mttPayouts(e, 0.15, 0.85) },
+  { name: "MTT, top-heavy", about: "10% paid, more to the top places", byEntrants: true, of: (e) => mttPayouts(e, 0.1, 1.0) },
+  { name: "MTT, flat", about: "20% paid, more to the min-cashes", byEntrants: true, of: (e) => mttPayouts(e, 0.2, 0.7) },
+];
+
+/** The prizes still to pay with this many players left: the structure's first places, as many as the players left (the
+ * places below were paid to the players out). */
+export const prizesLeft = (structure: readonly number[], playersLeft: number): number[] => structure.slice(0, Math.max(1, playersLeft));
+
 const pos = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x > 0;
 
 /** A KO or PKO seat's bounty (its own, else everyone's). */
@@ -301,6 +463,8 @@ export function tournamentProblems(players: number, t: TournamentSetup | undefin
   const ps = t.payouts ?? [];
   if (ps.some((x) => !(x > 0) || !Number.isFinite(x))) out.push("the payouts must be positive numbers, first place first (like 50, 30, 20)");
   if (ps.length > T_LIMITS.places) out.push(`at most ${T_LIMITS.places} places paid`);
+  const up = ps.findIndex((x, i) => i > 0 && x > ps[i - 1]! + 1e-9);
+  if (up > 0) out.push(`the payouts must go largest first: place ${up + 1} pays more than place ${up}`);
   if (t.field) {
     const { players: n, avg } = t.field;
     if (!(Number.isInteger(n) && n >= 0 && n <= T_LIMITS.field)) out.push(`the players at other tables must be a whole number, 0–${T_LIMITS.field}`);

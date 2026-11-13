@@ -12,7 +12,9 @@
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
 import { pfPlayed, pfReadAt, type PfAsked, type PfSpot } from "@/features/practice/pfGrade";
+import { PF_ICM_WORDS, pfIcmStage } from "@/features/practice/pfIcmStored";
 import { pfBlocked } from "@/features/practice/practice";
+import { tournamentRequest } from "@/features/tournaments/tournament";
 import { capGrade, grade, type Grade, type Verdict } from "@/grading/grade";
 import { versionOf } from "@/grading/version";
 import { importHand, type ReplayedHand } from "@/hh/replay";
@@ -88,6 +90,8 @@ export function adviceStateAt(r: ReplayedHand, street: Street, i: number, scope:
     ...(h.ante > 0 ? { ante: h.ante } : {}),
     ...(h.straddle ? { straddle: true } : {}),
     ...(kept?.rake ? { rake: Math.round(kept.rake * 10) / 1000, ...(kept.rakeCap ? { rake_cap: kept.rakeCap } : {}) } : {}),
+    // (a Practice hand in prize equity: its prizes, as Practice asked its answers)
+    ...(kept?.tournament ? tournamentRequest(kept.tournament, h.players) : {}),
     preflop: conv(lines.preflop),
     flop: conv(lines.flop),
     turn: conv(lines.turn),
@@ -225,7 +229,15 @@ export type Ask = (state: AdvisorState) => Promise<{ data: AdvisorResponse; prov
  * or cap (`adviceStateAt`), so it's asked as the game with none, and a decision says so (`PF_NO_RAKE`). */
 export function pfOut(hand: Pick<HandRecord, "tournament" | "setup">, r: Pick<ReplayedHand, "hand" | "setup">): string | null {
   const h = r.hand;
-  if (hand.tournament !== undefined) return "A tournament's stacks and prizes aren't the game the preflop solve is stored for.";
+  if (hand.tournament !== undefined) {
+    // (a Practice hand of a stored tournament spot, in prize equity: engine/pf_icm_stored.py, as Practice grades it)
+    const t = hand.setup?.tournament;
+    if (!t?.payouts) return "A tournament's stacks and prizes aren't kept with this hand, so no stored preflop solve can be matched to it.";
+    const stack = Math.max(...Object.values(r.setup.stacks));
+    if (!pfIcmStage(h.players, stack, h.ante, { model: "icm", stacks: r.setup.stacks, payouts: t.payouts, ...(t.field ? { field: t.field } : {}), ...(t.bounty ? { bounty: t.bounty } : {}) }))
+      return `A tournament's preflop solve is stored only for these spots, as they set the table, with no bounties: ${PF_ICM_WORDS}.`;
+    return null;
+  }
   if (r.setup.limit === "pot" || h.hole.length !== 2) return "The preflop solve is of no-limit hold'em.";
   if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks only.";
   const { sizes, rake = 0, rakeCap = 0 } = hand.setup ?? {};
