@@ -8,9 +8,11 @@
 // (OneTable), two to four in MultiTables.tsx, whichever the Room has, as a session above one table comes back on a reload.
 // What a hand needs next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and
 // SetupForm.tsx.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
+import { GamePicker } from "@/components/GamePicker";
+import { gameOf } from "@/engine/registry";
 import { bringIntoView } from "@/components/scroll";
 import { rowKeys } from "@/components/rowKeys";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -53,7 +55,22 @@ const TABS: readonly { id: Tab; label: string }[] = [
 
 /** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). `pause`, `guard`:
  * the Room's, above one table (unset: its own). */
-export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pause?: number; guard?: number } = {}) {
+// PLO's Practice comes in its own chunk, so no PLO code loads with Hold'em's
+const PloPractice = lazy(() => import("./PloPractice").then((m) => ({ default: m.PloPractice })));
+
+/** Practice: Hold'em, or another game the link names (`game`, engine/registry.ts). */
+export function PracticePage(props: { pace?: number; pause?: number; guard?: number } = {}) {
+  const [params] = useSearchParams();
+  if (gameOf(params.get("game")).id === "plo4")
+    return (
+      <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+        <PloPractice />
+      </Suspense>
+    );
+  return <HoldemPractice {...props} />;
+}
+
+function HoldemPractice({ pace = PACE, pause, guard }: { pace?: number; pause?: number; guard?: number }) {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "drills" ? "drills" : "hands";
   // a hand under way is kept while you drill (its table is mounted once opened, and hidden)
@@ -86,6 +103,7 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">Practice</h1>
+        <GamePicker page="practice" current="nlhe" />
         <div role="tablist" aria-label="Practice" onKeyDown={rowKeys("tab", (i) => open(TABS[i]!.id))} className="flex gap-1 rounded-md border border-border p-0.5 text-sm">
           {TABS.map((t) => (
             <button
