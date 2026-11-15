@@ -22,9 +22,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Four kinds of check side by side, so a deploy waits on the slowest, not on all of them in a row: the unit tests,
-  # the Python ones, and the site built once and its browser tests split over four machines (each test runs on one;
-  # each machine still runs one test at a time, as each page boots a solver).
+  # Four kinds of check side by side: the unit tests, the Python ones, and the site built once and its browser tests split
+  # over four machines (each test runs on one; each machine still runs one test at a time, as each page boots a solver).
+  # Only the build gates the deploy (owner's choice, 2026-11-15: a small change shouldn't wait ~8 minutes on the tests).
+  # The build typechecks (tsc -b), so code that doesn't compile never ships; the other checks run alongside and turn the
+  # run red if they fail, after the site may already be serving the change (revert and push to roll back).
   unit:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -104,7 +106,7 @@ jobs:
           retention-days: 1
 
   e2e:
-    # (not ubuntu-latest: that moved to 26.04, which Playwright 1.56.1 has no Chromium for, and the browser tests gate the deploy)
+    # (not ubuntu-latest: that moved to 26.04, which Playwright 1.56.1 has no Chromium for)
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -146,7 +148,8 @@ jobs:
   deploy:
     # (main only: a manual run on another branch checks it and publishes nothing)
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [unit, python, build, e2e]
+    # (the build alone: see the note on the checks above)
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       pages: write
