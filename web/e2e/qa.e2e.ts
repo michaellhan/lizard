@@ -558,7 +558,12 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
 
 
 test("7h. The solve's raise sizes are offered with the first box, ticked by default, and are off by default, with what they cost said; a raise goes in at the solve's size", async ({ page, problems }) => {
+  // At 5 players, not 6: a 6-max cash grade asks the game stored at the charts' own sizes (pfGradeSizes, see 7g), where
+  // every 3bet and 4bet the charts make is the solve's too (10bb from a blind, 7.5bb in position, 2.3x 4bets), so no
+  // button there is the solve's alone. At 5 players the stored game is the tree's own, whose blinds 3bet 4.8x (12bb over
+  // a 2.5bb open) where the charts 3bet 4x (10bb).
   await session(page, "preflop", async () => {
+    await page.getByLabel("Players", { exact: true }).selectOption("5");
     const sizes = page.getByLabel("Offer the solve's raise sizes");
     await expect(page.getByLabel("Grade preflop by the preflop solve")).toBeChecked();
     await expect(sizes).not.toBeChecked();
@@ -574,9 +579,13 @@ test("7h. The solve's raise sizes are offered with the first box, ticked by defa
       await next.click();
       continue;
     }
-    // (a blind's 3-bet, or any 4-bet: the sizes the charts don't have)
-    const raise = options(page).filter({ hasText: /raise\D*(12|14\.5|17\.25|23|24\.75|27\.6|28\.75|33|33\.35|39\.1|39\.6)(?![\d.])/ }).first();
-    if (await raise.isVisible()) {
+    // (a blind's 3bet over a lone open, 4.8x a 2.5bb open: a size the charts don't have, so the button is offered at it
+    // only where the solve reads the spot, your hand's class included. Not over a caller: the charts' big blind squeezes an
+    // open the small blind called to 10bb plus the 2bb it added, 12bb too. The 4bets are left out: 2.3x the 3bet in both,
+    // so a 4bet button is the chart's own and either may grade it.)
+    const raise = options(page).filter({ hasText: /raise\D*12(?![\d.])/ }).first();
+    const line = (await page.getByRole("list", { name: "Actions so far" }).allInnerTexts()).join(" ");
+    if ((await raise.isVisible()) && !/call|limp/i.test(line)) {
       await raise.click();
       await expect(page.getByRole("button", { name: /Preflop solve \(class-level model\)/ }).first()).toBeVisible({ timeout: 90_000 });
       seen += 1;

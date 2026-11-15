@@ -5601,6 +5601,33 @@ anywhere on the page.
   the browser at 1440×900 on a river and a turn node and the hand's start, and at 375 wide.
 
 
+### 2026-11-15: browser steps 7g and 7h on a fresh build
+
+Asked for: 7g and 7h (`web/e2e/qa.e2e.ts`) timed out on a build of 041c4f5, waiting for the "Preflop solve (class-level
+model)" badge after the hero raised, the decision graded by "Preflop charts, approximate" instead. The badge's name is
+unchanged by 6ae4325/7fcd2c5 (the short chip is `sourceLabel`, the same words), so that wasn't it.
+
+- 7g: the app and the test are right. It passed at once on a root `npm run build` (twice, 8-9 s). The failing build had
+  stale solver assets: `web/public/solver/` in the main checkout was staged on 2026-11-13 02:19, before 516fe7b added
+  the chart-sized 6-max games, and holds none of the 22 `lz1_6max_*_blind_3bet4.bin` files; `npm -w web run build` copies
+  that folder as it is, so the 6-max grade's file is missing and every decision falls back to the charts. Only the root
+  build (`scripts/build-solver-assets.mjs`) restages it, and in a worktree it needs `PYTHON=<repo>/.venv/bin/python`
+  (no `.venv` there, and the system Python has no `treys`).
+- 7h: the test was stale. Since 516fe7b a 6-max cash grade asks the game stored at the charts' own sizes, where every
+  3bet and 4bet the charts make is the solve's too (10bb from a blind, 7.5bb in position, 4bets 2.3x), so its list of
+  "sizes the charts don't have" (12, 23, 17.25...) now caught the charts' own buttons: on the full build it raised 98o
+  to 23bb over a 10bb 3bet, and the app graded it by the charts and said why ("The solve has folded 98o from this seat
+  by here"), as it should. 7h now plays 5 players at 100bb, whose stored game is the tree's own (blinds 3bet 4.8x, 12bb
+  over a 2.5bb open, against the charts' 10bb), and takes only a 12bb raise over a lone open (not over a call or limp,
+  where the charts' big blind squeezes to 12bb too). A button at 12bb is offered only where the solve reads the spot,
+  the hand's class included, so the grade is the solve's every time.
+- Not changed, said here: at 6-max cash "Offer the solve's raise sizes" now changes no button (the sizes are the same),
+  and the form's note still says "about 30%" and "a 3-bet of 12bb, not the chart's 10bb", which holds at 2 to 5 players
+  but not at 6, where 516fe7b measured 93.0% answered. `SetupForm.tsx` was left alone (another session's work in it).
+- Checked: on a fresh root build of 041c4f5, 7g and 7h 4 passed (each twice, `--repeat-each=2`, port 4186 through the
+  slot); before the change 7h failed there and 7g passed; vitest `src/features/practice` 1,297 passed (2 skipped);
+  eslint clean on the test file. The flop-library builds were left alone.
+
 ### 2026-11-15: Practice's live opponents, and check/fold ahead
 
 Asked for: opponents who play like a typical live cash game rather than GTO, and a way to fold ahead instead of waiting
