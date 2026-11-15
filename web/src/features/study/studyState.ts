@@ -236,6 +236,10 @@ export function forward(at: StudyHand, tip: StudyHand): StudyHand | null {
 
 export interface LineStep {
   label: string;
+  /** the street the step is on: an action's, or the one its cards deal */
+  street: Street;
+  /** a street's cards, where the step deals them */
+  cards?: string;
   /** the seats in a run of folds */
   detail?: string;
   /** the node right after this step */
@@ -254,24 +258,24 @@ export function lineSteps(at: StudyHand, tip: StudyHand): LineStep[] {
     if (!prev) return;
     const pos: LineStep["at"] = i < here ? "past" : i === here ? "here" : "ahead";
     const cards = node.board.slice(prev.board.length);
+    const street = streetOf(node);
     if (cards) {
-      out.push({ label: cards, hand: node, at: pos });
+      out.push({ label: cards, street, cards, hand: node, at: pos });
       return;
     }
-    const street = streetOf(node);
     const act = node[street].at(-1);
     if (!act) return;
     if (street !== "preflop" || kindOf(act.action) !== "fold") {
-      out.push({ label: say(act), hand: node, at: pos });
+      out.push({ label: say(act), street, hand: node, at: pos });
       return;
     }
     const last = out.at(-1);
     const folds = last?.folds && i - 1 !== here ? [...last.folds, act.pos] : [act.pos];
-    const step = { label: folds.length > 1 ? `${folds.length} folds` : say(act), hand: node, at: pos, folds, ...(folds.length > 1 ? { detail: `${folds.join(", ")} fold` } : {}) };
+    const step = { label: folds.length > 1 ? `${folds.length} folds` : say(act), street, hand: node, at: pos, folds, ...(folds.length > 1 ? { detail: `${folds.join(", ")} fold` } : {}) };
     if (folds.length > 1) out[out.length - 1] = step;
     else out.push(step);
   });
-  return out.map(({ label, detail, hand, at: where }) => ({ label, hand, at: where, ...(detail ? { detail } : {}) }));
+  return out.map(({ label, street, cards, detail, hand, at: where }) => ({ label, street, hand, at: where, ...(cards ? { cards } : {}), ...(detail ? { detail } : {}) }));
 }
 
 export type StudyKey = { kind: "back" | "forward" | "build" } | { kind: "play"; index: number };

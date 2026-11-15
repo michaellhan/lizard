@@ -74,6 +74,7 @@ import { catsOf, equityBuckets, filterRes, filterWords, type FilteredResponse } 
 import { actionLine, VIEW_LABELS, viewsOf, type GridView } from "./views";
 import { keepVs, pickOpp, VS } from "./sideBySideLink";
 import { OpponentSide, oppTotals, RangeHeading } from "./SideBySide";
+import { LineBoard, LineRows } from "./StudyLine";
 import { StudyTabs, ToolFold, type StudyTab } from "./StudyTabs";
 
 type Phase =
@@ -478,47 +479,39 @@ export function StudyPage() {
         </div>
       </div>
 
-      <nav aria-label="Line" className="flex flex-wrap items-center gap-1.5 panel p-2 text-sm">
-        {steps.map((s, i) => (
+      {/* (where the spot stands: the board, the line a street a row; under them the ways along it) */}
+      <nav aria-label="Line" className="space-y-2 panel p-2 text-sm">
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+          <LineBoard board={hand.board} />
+          <LineRows steps={steps} setHand={setHand} toAct={phase.kind === "done" ? raw?.actor : undefined} />
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-border pt-1.5">
           <button
-            key={i}
+            ref={backButton}
             type="button"
-            aria-current={s.at === "here" ? "step" : undefined}
-            title={s.detail}
-            onClick={() => setHand(s.hand)}
-            className={`rounded px-2 py-0.5 font-mono ${
-              s.at === "ahead" ? "border border-dashed border-border text-muted hover:text-text" : `bg-surface-2 hover:bg-surface-3 ${s.at === "here" ? "ring-1 ring-accent" : ""}`
-            }`}
+            aria-keyshortcuts={keys ? "ArrowLeft" : undefined}
+            onClick={() => prevNode && setHand(prevNode)}
+            disabled={!prevNode}
+            className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
           >
-            {s.label}
+            ← Back
           </button>
-        ))}
-        <span className="flex-1" />
-        <button
-          ref={backButton}
-          type="button"
-          aria-keyshortcuts={keys ? "ArrowLeft" : undefined}
-          onClick={() => prevNode && setHand(prevNode)}
-          disabled={!prevNode}
-          className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
-        >
-          ← Back
-        </button>
-        <button
-          ref={forwardButton}
-          type="button"
-          aria-keyshortcuts={keys ? "ArrowRight" : undefined}
-          onClick={() => nextNode && setHand(nextNode)}
-          disabled={!nextNode}
-          className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
-        >
-          Forward →
-        </button>
-        <button type="button" onClick={() => setHand(samePf(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
-          Reset
-        </button>
-        <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
-        <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
+          <button
+            ref={forwardButton}
+            type="button"
+            aria-keyshortcuts={keys ? "ArrowRight" : undefined}
+            onClick={() => nextNode && setHand(nextNode)}
+            disabled={!nextNode}
+            className="rounded px-2 py-0.5 text-muted hover:bg-surface-2 disabled:opacity-40"
+          >
+            Forward →
+          </button>
+          <button type="button" onClick={() => setHand(samePf(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+            Reset
+          </button>
+          <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
+          <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
+        </div>
       </nav>
       <SavedAnswerNote
         hold={kept}

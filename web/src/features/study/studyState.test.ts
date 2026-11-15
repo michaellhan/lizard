@@ -140,6 +140,9 @@ describe("moving along a line", () => {
     expect(s.map((x) => x.at)).toEqual(["past", "past", "past", "past", "here", "ahead"]);
     expect(s[1]?.hand.preflop).toHaveLength(4);
     expect(s[4]?.hand).toEqual(at);
+    // (each on its street, a street's cards dealing it)
+    expect(s.map((x) => x.street)).toEqual(["preflop", "preflop", "preflop", "preflop", "flop", "flop"]);
+    expect(s.map((x) => x.cards)).toEqual([undefined, undefined, undefined, undefined, "Ks7d2c", undefined]);
   });
 
   it("splits a run of folds where the node shown stands in it", () => {

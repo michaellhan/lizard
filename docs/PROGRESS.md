@@ -5285,3 +5285,21 @@ a panel of its own.
 - Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,634 passed; in Chromium against the real worker, 30 any-spot hands: 9 preflop, a
   river solved live, stored turns and flops, one live turn refused in words; History's row for the session.
 
+
+### 2026-11-15: Study's line laid out a street a row
+
+Asked for: show the river's card, and lay the actions out so it's clear which spot you're at, as Practice does. The Line
+bar was one run of small mono chips with the board as text among the actions ("Ks7d2c", "Qh", "4s"), and no board
+anywhere on the page.
+
+- `StudyLine.tsx` (new): `LineBoard`, the node's board as cards, five places with those not dealt an outline (none before
+  the flop); `LineRows`, a row a street, Preflop's actions and each later street headed by its cards as a button to the
+  node it deals, the node shown ringed and what's ahead dashed; at the end of the line "→ BB to act" once the answer is
+  in (not while the street's next step is still ahead), and "the start of the hand" before anything is played.
+- `lineSteps` (`studyState.ts`) says each step's street and the cards a step deals; the labels are unchanged.
+- Back, Forward, Reset, Change the cards and Save spot sit on a bar under the rows. On a phone the rows go under the
+  board; no sideways scroll at 375.
+- Checked: tsc and eslint clean; Study's tests 426 passed (with `StudyLine.test.tsx`: the rows and their cards, the river
+  card ringed and who acts, a step's node, the hand's start and the board); on a build `content.e2e.ts` and
+  `nodelock.e2e.ts` 38 passed (2 skipped as before) on desktop and phone, and `checks.e2e.ts`'s Study specs 4 passed; in
+  the browser at 1440×900 on a river and a turn node and the hand's start, and at 375 wide.
