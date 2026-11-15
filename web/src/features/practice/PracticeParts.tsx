@@ -523,7 +523,7 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
             </>
           )}
         </span>
-        {d.provenance && <ProvenanceBadge p={d.provenance} />}
+        {d.provenance && <ProvenanceBadge p={d.provenance} short />}
       </div>
       {d.revealed && (
         <p role="status" className="text-muted">
