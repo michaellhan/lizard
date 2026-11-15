@@ -26,11 +26,11 @@ import { DrillsPanel } from "./DrillsPanel";
 import { MultiTables, TablesBar } from "./MultiTables";
 import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
-import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLine, KeepHand, optionLabel, PlayedOut, RangeView, ReviewMistakes, RunText, ScoreStrip, SeatView, useHandKeys } from "./PracticeParts";
+import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLine, KeepHand, optionLabel, PlayedOut, ReviewMistakes, RunText, ScoreStrip, SeatView, SpotRange, useHandKeys, type RangeLook } from "./PracticeParts";
 import { gradedOn, optionsAt } from "./pfGrade";
 import { isNextKey, optionFromKey } from "./keys";
 import { KeysHelp } from "./KeysHelp";
-import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, runKind, seeking, simOf } from "./practice";
+import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { FIRST_OPTS, keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
@@ -357,7 +357,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
   const { session, tables, kept } = snap;
   const { hand, answer, failed, error, last, lastRange } = tables[0]!;
   const shown = answer && gradedOn(hand, answer);
-  const [rangeOpen, setRangeOpen] = useState(false);
+  const [rangeLook, setRangeLook] = useState<RangeLook>("mix");
   const [retrying, setRetrying] = useState(false);
   const retry = useMemo(() => ({ getClient: room.retryClient, onOpen: setRetrying }), [room]);
   const keepAll = useSettings((s) => s.keepHands);
@@ -370,6 +370,19 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
   const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
   // (one spot of one hand: a hint or a Reveal's table goes as the hand moves on)
   const spotKey = `${hand.seed}|${hand.n}|${hand.shown}|${hand.decisions.length}`;
+  // your range beside the table: at your turn, this spot's (its strategy kept back until you act or reveal); between your
+  // turns, your last decision's in this hand
+  const here = phase.kind === "hero" && shown ? rangeAt(hand, shown.data, shown.provenance, sim) : null;
+  const range = phase.kind === "hero" && shown ? here : hand.decisions.length > 0 ? lastRange : null;
+  const rangeProv = here ? (modelled(hand, shown!.provenance) ?? shown!.provenance) : range ? (last?.provenance ?? null) : null;
+  const rangeEmpty =
+    phase.kind === "hero" && shown
+      ? shown.provenance?.source === "rules" || shown.provenance?.source === "equity"
+        ? "No range here: this spot's answer is from betting rules or an equity estimate, which keep none."
+        : "No range here: this spot's answer has no hand-by-hand grid."
+      : phase.kind === "hero" && !failed
+        ? "Waiting for this spot's answer…"
+        : "Shows at your turn.";
 
   // keys (keys.ts): 1–9, F, C/X, R/B, A your options; Enter, Space or N the next hand, O runs it out, K keeps the hand in
   // Analyze; G the last decision's range; H and Shift+H are HintReveal's. None under an open retry, whose options look
@@ -377,7 +390,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
   const keyable = active && !retrying;
   useHandKeys(keyable, (e, tag) => {
     const k = e.key.toLowerCase();
-    if (k === "g" && lastRange) return setRangeOpen((o) => !o);
+    if (k === "g" && range) return setRangeLook((l) => (l === "mix" ? "weight" : "mix"));
     if (phase.kind === "hero" && answer) {
       const i = optionFromKey(e.key, optionsAt(hand, answer, sim).map((a) => a.action));
       if (i >= 0) room.choose(i);
@@ -397,7 +410,8 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
     if (hand.result && active) nextRef.current?.focus({ preventScroll: true });
   }, [hand.result, active]);
 
-  // (wide: the table and your move on the left, what you've done on the right; narrow: one under the other)
+  // (wide: the table, your move and how it graded on the left, the score and your range on the right; narrow: one under
+  // the other)
   return (
     <div className="space-y-3 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-4 lg:space-y-0">
       <div className="min-w-0 space-y-3">
@@ -575,18 +589,23 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
           )}
         </section>
 
-        {/* (your recent decisions under the table, in the room the move leaves, so the right column's last decision
-            isn't followed by a scroll) */}
+        {/* (how your last decision graded, right under where you made it; then your recent decisions, folded to a line) */}
+        {last && <DecisionView d={last} players={hand.players} spot={session.review.find((e) => e.d === last)} />}
         {session.review.length > 0 && <ReviewMistakes review={session.review} retry={retry} />}
       </div>
 
-      <aside aria-label="Your results" className="min-w-0 space-y-3">
+      {/* (the score and your range, pinned beside the table on a wide window) */}
+      <aside aria-label="Your results" className="min-w-0 space-y-3 lg:sticky lg:top-16">
         {side}
-        {last && (
-          <DecisionView d={last} players={hand.players} spot={session.review.find((e) => e.d === last)}>
-            {lastRange && <RangeView key={`${last.study}|${lastRange.cls}`} r={lastRange} open={rangeOpen} onToggle={setRangeOpen} />}
-          </DecisionView>
-        )}
+        <SpotRange
+          key={range ? `${spotKey}|${range.label}|${range.cls}` : "none"}
+          r={range}
+          provenance={rangeProv}
+          strategy={!here || !!hand.revealed}
+          look={rangeLook}
+          onLook={setRangeLook}
+          empty={rangeEmpty}
+        />
       </aside>
     </div>
   );

@@ -51,7 +51,7 @@ export const KEY_HELP: readonly KeyGroup[] = [
       { keys: ["Enter", "Space", "N"], what: "Next hand (several tables: deal the finished ones; Combos: next question)" },
       { keys: ["O"], what: "Run it out or show hands" },
       { keys: ["K"], what: "Keep the finished hand in Analyze" },
-      { keys: ["G"], what: "Open or close the range grid of your last decision" },
+      { keys: ["G"], what: "Your range: switch between hands and strategy (several tables: open or close the last decision's range)" },
     ],
   },
   {

@@ -9,7 +9,7 @@ import { allSessions, type SessionRecord } from "@/data/db";
 import { listMistakes } from "@/data/mistakes";
 import { TrendChart } from "@/features/analyze/SessionsPanel";
 import { dueQueue } from "@/features/review/schedule";
-import { byDay, GRADE_WAYS, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, WAY_HEADS, WAY_WORDS, type GradeWay, type SessionKind, type SessionRow, type Split, type WayTally } from "./history";
+import { byDay, GRADE_WAYS, KINDS, kindLabel, kindTotals, kindUnit, potTotals, rowOf, sourcesText, WAY_HEADS, type GradeWay, type SessionKind, type SessionRow, type Split, type WayTally } from "./history";
 import { BASIS_WORDS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, type Basis, type BasisTrend, type SplitTotals } from "./progress";
 
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
@@ -17,8 +17,26 @@ const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Mat
 const lossText = (bbPer: number | null, pctPer: number | null, unit = "bb") => (bbPer == null ? "–" : `${bb(bbPer)}${unit}${pctPer == null ? "" : ` · ${pctPer.toFixed(1)}% pot`}`);
 const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
 const okText = (ok: number, n: number) => (!n ? "–" : pct(ok / n, 0));
-/** A way's figures for a session's row. */
-const wayText = (way: GradeWay, t: WayTally, unit: string) => `${okText(t.ok, t.n)} Best or Correct of ${t.n} ${WAY_WORDS[way]}${way === "freq" ? "" : `, ${lossText(t.loss / t.n, t.lossPct / t.n, unit)} lost per decision`}`;
+/** A way's figures for a session's row, a line of their own: the share Best or Correct, then (graded by EV) what a
+ * decision lost; the words the columns' heads say are kept for a screen reader. */
+function WayLine({ way, t, unit }: { way: GradeWay; t: WayTally; unit: string }) {
+  return (
+    <span className="block">
+      <span className="text-muted">{WAY_HEADS[way]}:</span> {okText(t.ok, t.n)} of {t.n}
+      <span className="sr-only"> Best or Correct</span>
+      {way !== "freq" && (
+        <>
+          {` · ${lossText(t.loss / t.n, t.lossPct / t.n, unit)}`}
+          <span className="sr-only"> lost per decision</span>
+        </>
+      )}
+    </span>
+  );
+}
+/** The session list's columns, wide: when, what kind, the setup, how many, how they graded, and the net; set once on
+ * the list, and every day and row below takes them (a subgrid), so the columns line up down the page. */
+const COLS = "xl:grid xl:grid-cols-[3.5rem_6rem_minmax(0,1fr)_auto_auto_auto] xl:gap-x-4";
+const ROW = "xl:col-span-full xl:grid xl:grid-cols-subgrid";
 /** The ways any of these totals used: a column for each, the preflop solve's only where it graded. */
 const waysIn = (rows: readonly Split[]) => GRADE_WAYS.filter((w) => rows.some((r) => r.ways[w]));
 /** A way's figures in a totals table. */
@@ -146,22 +164,39 @@ export function HistoryPage() {
               <h2 className="text-lg font-semibold">Sessions</h2>
               <KindSelect label="Show" kind={kind} setKind={setKind} />
             </div>
-            {against != null && (
-              <p className="text-xs text-muted">
-                Graded against: {against}.{days.some((d) => d.rows.some((r) => r.against !== against)) ? " A session graded otherwise names its own." : ""}
-              </p>
-            )}
+            <p className="text-xs text-muted">
+              Each session: its decisions Best or Correct, and what one lost where graded by EV (bb · % of the pot).
+              {against != null && (
+                <>
+                  {" "}
+                  <span>Graded against: {against}.{days.some((d) => d.rows.some((r) => r.against !== against)) ? " A session graded otherwise names its own." : ""}</span>
+                </>
+              )}
+            </p>
             {!days.length && <p className="text-sm text-muted">No {kind ? kindLabel(kind).toLowerCase() : "session"} kept yet.</p>}
-            {days.map((d) => (
-              <section key={d.key} aria-label={d.label} className="space-y-1 panel p-3">
-                <h3 className="text-sm font-medium">{d.label}</h3>
-                <ul className="divide-y divide-border">
-                  {d.rows.map((r) => (
-                    <SessionItem key={r.id} r={r} common={against} />
-                  ))}
-                </ul>
-              </section>
-            ))}
+            {/* (one panel, a day a block; wide, every row on the same columns under one head) */}
+            {days.length > 0 && (
+              <div className={`panel divide-y divide-border px-3 ${COLS}`}>
+                <div aria-hidden className={`hidden py-1.5 text-xs text-muted ${ROW}`}>
+                  <span>Time</span>
+                  <span>Kind</span>
+                  <span>Setup</span>
+                  <span>Played</span>
+                  <span>Best or Correct · EV lost a decision</span>
+                  <span>Net</span>
+                </div>
+                {days.map((d) => (
+                  <section key={d.key} aria-label={d.label} className={`py-2 ${ROW}`}>
+                    <h3 className="text-sm font-medium xl:col-span-full">{d.label}</h3>
+                    <ul className={`divide-y divide-border/60 ${ROW}`}>
+                      {d.rows.map((r) => (
+                        <SessionItem key={r.id} r={r} common={against} />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}
@@ -186,36 +221,43 @@ function KindSelect({ label, kind, setKind }: { label: string; kind: SessionKind
   );
 }
 
-/** `common`: the list's provenance; a session graded otherwise says its own. */
+/** `common`: the list's provenance; a session graded otherwise says its own, under its setup. Wide, on the list's
+ * columns; narrow, the setup on a line and the figures under it. */
 function SessionItem({ r, common }: { r: SessionRow; common: string | null }) {
   const time = new Date(r.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const parts =
-    r.kind === "build"
-      ? [r.acc == null ? null : `${pct(r.acc)} accurate${r.byCombo ? ", by combo" : ""}`, r.buildLoss == null ? null : `${r.buildLoss.toFixed(3)}bb a combo`]
-      : [
-          r.hands != null ? many(r.hands, "hand") : null,
-          many(r.n, "decision"),
-          ...GRADE_WAYS.flatMap((w) => (r.split.ways[w] ? [wayText(w, r.split.ways[w], kindUnit(r.kind))] : [])),
-          r.split.apart ? `${r.split.apart} not told apart by how ${r.split.apart === 1 ? "it was" : "they were"} graded` : null,
-          r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : null,
-          r.kind === "exploit" ? readNetText(r.readNet) : null,
-        ];
+  const build = r.kind === "build";
+  const played = build ? null : [r.hands != null ? many(r.hands, "hand") : null, many(r.n, "decision")].filter(Boolean).join(" · ");
+  const net = r.kind === "practice" ? (r.net == null ? "no net (preflop only)" : `net ${signed(r.net)}bb`) : r.kind === "exploit" ? readNetText(r.readNet) : null;
   return (
-    <li className="space-y-0.5 py-1.5 text-sm">
-      <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-xs tabular-nums text-muted">{time}</span>
+    <li className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5 text-sm ${ROW}`}>
+      <span className="text-xs tabular-nums text-muted">{time}</span>
+      <span>
         <span className="rounded bg-surface-2 px-1.5 text-xs">{kindLabel(r.kind)}</span>
-        <span>{r.what}</span>
+      </span>
+      <span className="min-w-0 flex-[1_1_14rem]">
+        {r.what}
         {r.to && (
-          <Link to={r.to.href} className="text-xs underline">
-            {r.to.label}
-          </Link>
+          <>
+            {" "}
+            <Link to={r.to.href} className="whitespace-nowrap text-xs underline">
+              {r.to.label}
+            </Link>
+          </>
         )}
-      </div>
-      <p className="text-muted">
-        {parts.filter(Boolean).join(" · ")}
-        {r.against !== common && <span className="text-xs"> · Graded against: {r.graded}</span>}
-      </p>
+        {r.against !== common && <span className="block text-xs text-muted">Graded against: {r.graded}</span>}
+      </span>
+      {/* (narrow: the figures start a line of their own; on a phone the net beside the count, the grades under them) */}
+      <span aria-hidden className="basis-full xl:hidden" />
+      <span className="whitespace-nowrap text-muted">{played}</span>
+      <span className="min-w-0 flex-[1_1_14rem] max-sm:order-1 max-sm:basis-full xl:whitespace-nowrap">
+        {build ? (
+          <span className="block">{[r.acc == null ? null : `${pct(r.acc)} accurate${r.byCombo ? ", by combo" : ""}`, r.buildLoss == null ? null : `${r.buildLoss.toFixed(3)}bb a combo`].filter(Boolean).join(" · ")}</span>
+        ) : (
+          GRADE_WAYS.map((w) => r.split.ways[w] && <WayLine key={w} way={w} t={r.split.ways[w]} unit={kindUnit(r.kind)} />)
+        )}
+        {r.split.apart > 0 && !build && <span className="block text-muted">{r.split.apart} not told apart by how {r.split.apart === 1 ? "it was" : "they were"} graded</span>}
+      </span>
+      <span className="tabular-nums xl:whitespace-nowrap">{net}</span>
     </li>
   );
 }

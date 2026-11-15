@@ -326,8 +326,8 @@ test("Session stats: a real session's figures in History, each way of grading ap
   expect(heads.filter((h) => /by EV/i.test(h)).length, heads.join(" | ")).toBe(1);
   expect(heads.filter((h) => /frequency/i.test(h)).length, heads.join(" | ")).toBe(1);
   const line = page.getByRole("region", { name: "Sessions" }).getByRole("listitem").first();
-  await expect(line).toContainText(/Best or Correct of \d+ by EV/);
-  await expect(line).toContainText(/Best or Correct of \d+ by frequency/);
+  await expect(line).toContainText(/By EV: \S+ of \d+ Best or Correct/);
+  await expect(line).toContainText(/By frequency: \S+ of \d+ Best or Correct/);
 
   // the page's kind filter, in the URL, from the keyboard
   await rates.getByLabel("Rates from").focus();

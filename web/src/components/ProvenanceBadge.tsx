@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { Provenance } from "@/solver/types";
-import { describe } from "@/solver/provenance";
+import { describe, sourceLabel } from "@/solver/provenance";
 
 const TONE: Record<Provenance["source"], string> = {
   library: "border-accent/40 text-accent",
@@ -50,10 +50,23 @@ function Words({ p }: { p: Provenance }) {
  * detail by click, tap or keyboard. `quiet`: a plain label and no tab stop, for a badge in a long list or one in the way of
  * a page's keyboard; a ProvenanceDetail in the same panel then holds its detail.
  */
-export function ProvenanceBadge({ p, quiet = false }: { p: Provenance; quiet?: boolean }) {
+export function ProvenanceBadge({ p, quiet = false, short = false }: { p: Provenance; quiet?: boolean; short?: boolean }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const title = [describe(p), ...detailLines(p)].join("\n");
+  // `short`: the source's name alone on the badge (≈ if approximate, and partial if it is), for a panel where the whole
+  // description would be paragraphs; that description is the first line of what it opens to, and its tooltip
+  const words = short ? (
+    <>
+      {p.approximate && <span aria-hidden>≈</span>}
+      {sourceLabel(p.source)}
+      {p.partial && " · partial"}
+      {p.approximate && <span className="sr-only">, approximate</span>}
+    </>
+  ) : (
+    <Words p={p} />
+  );
+  const lines = short ? [describe(p), ...detailLines(p)] : detailLines(p);
   if (quiet) {
     return (
       <span className={`${LOOK} ${TONE[p.source]}`} title={title}>
@@ -72,11 +85,11 @@ export function ProvenanceBadge({ p, quiet = false }: { p: Provenance; quiet?: b
         onClick={() => setOpen(!open)}
         className={`provenance-toggle ${LOOK} text-left ${TONE[p.source]}`}
       >
-        <Words p={p} />
+        {words}
       </button>
       {open && (
         <span id={id} className="block w-72 max-w-full rounded border border-border bg-surface-2 px-2 py-1 text-xs text-muted">
-          {detailLines(p).map((l) => (
+          {lines.map((l) => (
             <span key={l} className="block">
               {l}
             </span>

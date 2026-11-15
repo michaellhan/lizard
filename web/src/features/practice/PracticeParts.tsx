@@ -2,7 +2,7 @@
 // last decision and your range at it, the hand's log, keeping a hand, and Review mistakes with stepping back through
 // your decisions. Each draws what it's given: the hand and the session stay with the page. And the keys' rules, which
 // each view of the hand keeps.
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
@@ -209,6 +209,8 @@ function RetryOpener({ back, onClick }: { back: boolean; onClick: () => void }) 
  * each opening its spot and verdict. `retry`, at one table: Previous and Later step through all of them, and any can be
  * retried; `onOpen` says when a retry is open, as the table's keys would play a real move under it. */
 export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: { getClient: GetClient; onOpen: (open: boolean) => void } }) {
+  // (folded to one quiet line until opened: the table and your range come first)
+  const [unfolded, setUnfolded] = useState(false);
   const [open, setOpen] = useState(false);
   // (the one open, by itself: the list moves on past REVIEW_KEEP)
   const [pick, setPick] = useState<Reviewed | null>(null);
@@ -256,7 +258,13 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
     </div>
   );
   return (
-    <section aria-label="Your decisions" className="space-y-2 panel p-3 text-sm">
+    <section aria-label="Your decisions" className="text-sm">
+      <details open={unfolded} onToggle={(e) => setUnfolded(e.currentTarget.open)}>
+        <summary className="cursor-pointer px-1 text-xs text-muted hover:text-text">
+          Recent decisions · {many(review.length, "decision")}
+          {bad.length > 0 ? ` · ${many(bad.length, "mistake")}` : ""}
+        </summary>
+        <div className="mt-2 space-y-2 panel p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-medium">
           {open ? (
@@ -332,6 +340,8 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
           })}
         </ul>
       )}
+        </div>
+      </details>
     </section>
   );
 }
@@ -589,6 +599,83 @@ export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; on
         {cell && cell.w < 0.999 && <span className="text-muted"> · {pct(cell.w)} of its combos in the range</span>}
       </p>
     </details>
+  );
+}
+
+export type RangeLook = "weight" | "mix";
+
+/** Your range, always beside the table. At your turn: the hands you hold here (each class shaded by its share of combos
+ * still in your range), yours ringed, and not the answer's mix, which would give the spot away; once you've acted or
+ * revealed, the mix as well (`strategy`). Between your turns it stays on your last decision's. `empty`: why there's none. */
+export function SpotRange({ r, provenance, strategy, look, onLook, empty }: { r: RangeAt | null; provenance: Provenance | null; strategy: boolean; look: RangeLook; onLook: (l: RangeLook) => void; empty: string }) {
+  const [sel, setSel] = useState<string | null>(r?.cls ?? null);
+  // (the weights alone, with no action in a cell's label either: a reader's label would say the mix too)
+  const weights = useMemo(() => (r ? Object.fromEntries(Object.entries(r.grid.cells).map(([k, c]) => [k, { w: c.w, f: [] as number[] }])) : {}), [r]);
+  if (!r) {
+    return (
+      <section aria-label="Your range" className="space-y-1 panel p-3 text-sm">
+        <h2 className="font-medium">Your range</h2>
+        <p className="text-xs text-muted">{empty}</p>
+      </section>
+    );
+  }
+  const mixOn = strategy && look === "mix";
+  const colors = actionFills(r.grid.actions);
+  const pick = sel ?? r.cls;
+  const cell = r.grid.cells[pick];
+  const mix = cell ? r.grid.actions.map((a, i) => ({ a, f: cell.f[i] ?? 0 })).filter((x) => x.f >= 0.0005) : [];
+  const tab = (l: RangeLook, label: string, off = false) => {
+    const on = (l === "mix") === mixOn;
+    return (
+      <button
+        type="button"
+        aria-pressed={on}
+        disabled={off}
+        title={off ? "Shows once you've acted (or revealed the answer)" : undefined}
+        onClick={() => onLook(l)}
+        className={`px-2 py-0.5 disabled:opacity-50 ${on ? "bg-surface-3 text-text" : "text-muted hover:text-text"}`}
+      >
+        {label}
+      </button>
+    );
+  };
+  return (
+    <section aria-label="Your range" className="space-y-2 panel p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-medium">Your range</h2>
+        <span className="flex-1" />
+        <div role="group" aria-label="Range view" className="flex overflow-hidden rounded-md border border-border text-xs">
+          {tab("weight", "Hands")}
+          {tab("mix", "Strategy", !strategy)}
+        </div>
+      </div>
+      <p className="text-xs text-muted">{r.label.replace(/^Your range · /, "")}</p>
+      {mixOn ? (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {r.grid.actions.map((a, i) => (
+            <span key={a} className="inline-flex items-center gap-1">
+              <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
+              {a}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted">Each hand filled to how much of it is still in your range{strategy ? "" : "; the strategy shows once you act"}.</p>
+      )}
+      {mixOn ? (
+        <RangeMatrix cells={r.grid.cells} actions={r.grid.actions} colors={colors} selected={pick} onSelect={setSel} caption={r.label} />
+      ) : (
+        <RangeMatrix cells={weights} actions={[]} colors={[]} view="weight" selected={pick} onSelect={setSel} caption={r.label} />
+      )}
+      <p className="text-xs">
+        <span className="font-mono">{pick}</span>
+        {pick === r.cls && " (your hand)"}:{" "}
+        {!cell || cell.w <= 0 ? "not in your range here" : mixOn ? mix.map((x) => `${x.a} ${pct(x.f)}`).join(", ") : `${pct(cell.w)} of its combos in your range`}
+        {mixOn && cell && cell.w > 0 && cell.w < 0.999 && <span className="text-muted"> · {pct(cell.w)} of its combos in the range</span>}
+      </p>
+      {/* (under the grid: what produced it, by name, its whole description a click away) */}
+      {provenance && <ProvenanceBadge p={provenance} short />}
+    </section>
   );
 }
 

@@ -247,7 +247,8 @@ describe("sessions history", () => {
       expect(head).toHaveTextContent("KindSessionsDecisionsBy EVBy the preflop solveBy frequencyHands · net");
       expect(row).toHaveTextContent("Full hands14215 of 20 · 0.40bb · 5.0% pot9 of 12 · 0.20bb · 2.5% pot8 of 104 · +3bb over 4");
       expect(screen.getByRole("region", { name: "Sessions" })).toHaveTextContent(
-        "75% Best or Correct of 20 by EV, 0.40bb · 5.0% pot lost per decision · 75% Best or Correct of 12 by the preflop solve, 0.20bb · 2.5% pot lost per decision · 80% Best or Correct of 10 by frequency",
+        // (a way a line, under the columns' heads; their words kept for a screen reader)
+        "By EV: 75% of 20 Best or Correct · 0.40bb · 5.0% pot lost per decisionBy the preflop solve: 75% of 12 Best or Correct · 0.20bb · 2.5% pot lost per decisionBy frequency: 80% of 10 Best or Correct",
       );
       cleanup();
       await d.clear("sessions");
@@ -464,7 +465,9 @@ describe("sessions history", () => {
     const items = within(today).getAllByRole("listitem");
     expect(items).toHaveLength(4);
     expect(items[0]).toHaveTextContent("Full hands2 players · 100bb");
-    expect(items[0]).toHaveTextContent("2 hands · 3 decisions · 3 not told apart by how they were graded · net +4.5bb");
+    expect(items[0]).toHaveTextContent("2 hands · 3 decisions");
+    expect(items[0]).toHaveTextContent("3 not told apart by how they were graded");
+    expect(items[0]).toHaveTextContent("net +4.5bb");
     // (the list's provenance once, over it; the sessions graded otherwise name their own)
     expect(within(sessions).getAllByText(/^Graded against: Live solve, Preflop charts \(approximate\)\. A session graded otherwise names its own\.$/)).toHaveLength(1);
     expect(items[0]).not.toHaveTextContent("Graded against");
@@ -473,8 +476,10 @@ describe("sessions history", () => {
     expect(items[1]).toHaveTextContent("82.0% accurate · 0.040bb a combo");
     expect(within(items[1]!).getByRole("link", { name: "Open the node in Study" })).toHaveAttribute("href", `/study?${BUILD.meta.line as string}`);
     expect(within(items[2]!).getByRole("link", { name: "Drill it again" })).toHaveAttribute("href", "/practice?tab=drills&spot=srp_btn_bb&view=vsbet");
-    expect(items[3]).toHaveTextContent("1 hand · 1 decision · 100% Best or Correct of 1 by frequency · no net (preflop only)");
-    expect(within(sessions).getByRole("region", { name: label(1) })).toHaveTextContent("3 hands · 4 decisions · 4 not told apart by how they were graded");
+    expect(items[3]).toHaveTextContent("1 hand · 1 decision");
+    expect(items[3]).toHaveTextContent("By frequency: 100% of 1 Best or Correct");
+    expect(items[3]).toHaveTextContent("no net (preflop only)");
+    expect(within(sessions).getByRole("region", { name: label(1) })).toHaveTextContent("3 hands · 4 decisions4 not told apart by how they were graded");
 
     fireEvent.change(within(sessions).getByRole("combobox", { name: "Show" }), { target: { value: "analysis" } });
     await waitFor(() => expect(within(sessions).queryByRole("region", { name: label(3) })).toBeNull());

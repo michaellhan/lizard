@@ -356,58 +356,48 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               {seatsSet ? `: ${seatsSet} set by you, the rest the table's stack and the charts' range` : ": each the table's stack and the charts' range"}
             </span>
           </summary>
-          <p className="text-xs text-muted">Blank: the table&rsquo;s stack and the charts&rsquo; range. Range: 22+, A2s+, QJs:0.5, AhKh.</p>
-          <div className="scroll-x">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="py-1 pr-2 font-normal">Seat</th>
-                  <th className="py-1 pr-2 font-normal">
-                    Stack (bb, {MIN_STACK} to {MAX_STACK})
-                  </th>
-                  {seatBounties && <th className="py-1 pr-2 font-normal">Bounty</th>}
-                  <th className="py-1 font-normal">Range entering the flop</th>
-                </tr>
-              </thead>
-              <tbody>
-                {seats.map((p) => (
-                  <tr key={p} className="align-top">
-                    <td className="py-1 pr-2 font-medium">{seatLabel(p, players)}</td>
-                    <td className="py-1 pr-2">
-                      <input aria-label={`${p} stack`} type="number" inputMode="decimal" step="any" placeholder={stackOk ? String(n) : ""} value={stacks[p] ?? ""} onChange={(e) => setStacks({ ...stacks, [p]: e.target.value })} {...flag(`${p}'s stack`)} className={`${field} w-16`} />
-                    </td>
-                    {seatBounties && (
-                      <td className="py-1 pr-2">
-                        <input aria-label={`${p} bounty`} type="number" inputMode="decimal" step="any" min={0} placeholder={bEach.trim() || "0"} value={bSeats[p] ?? ""} onChange={(e) => setBSeats({ ...bSeats, [p]: e.target.value })} {...flag(`${p}'s bounty`)} className={`${field} w-16`} />
-                      </td>
-                    )}
-                    <td className="py-1">
-                      <div className="flex flex-wrap items-start gap-1.5">
-                        <input aria-label={`${p} range`} placeholder="the charts'" value={ranges[p] ?? ""} onChange={(e) => setRanges({ ...ranges, [p]: e.target.value })} {...flag(`${p}'s range`)} className={`${field} min-w-0 flex-1 basis-32`} />
-                        {saved.length > 0 && (
-                          <select
-                            aria-label={`${p} saved range`}
-                            className={`${field} max-w-40 font-sans`}
-                            value=""
-                            onChange={(e) => {
-                              const r = saved.find((x) => x.id === e.target.value);
-                              if (r) setRanges({ ...ranges, [p]: r.text });
-                            }}
-                          >
-                            <option value="">Saved range…</option>
-                            {saved.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <p className="text-xs text-muted">
+            Stacks in bb ({MIN_STACK} to {MAX_STACK}), ranges entering the flop, like 22+, A2s+, QJs:0.5, AhKh; a blank is the table&rsquo;s.
+          </p>
+          {/* (a seat a line, two lines across on a wide window: a 9-max table is five lines, not nine) */}
+          <div className="grid gap-x-6 gap-y-1.5 text-sm lg:grid-cols-2">
+            {/* (what each box is, over each column of seats; each box has its own name for a reader) */}
+            {[0, 1].map((i) => (
+              <div key={i} aria-hidden className={`${i ? "hidden lg:flex" : "flex"} gap-1.5 text-xs text-muted`}>
+                <span className="w-10 shrink-0">Seat</span>
+                <span className="w-16 shrink-0">Stack</span>
+                {seatBounties && <span className="w-16 shrink-0">Bounty</span>}
+                <span>Range</span>
+              </div>
+            ))}
+            {seats.map((p) => (
+              <div key={p} role="group" aria-label={seatLabel(p, players)} className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="w-10 shrink-0 font-medium">{seatLabel(p, players)}</span>
+                <input aria-label={`${p} stack`} type="number" inputMode="decimal" step="any" placeholder={stackOk ? String(n) : ""} value={stacks[p] ?? ""} onChange={(e) => setStacks({ ...stacks, [p]: e.target.value })} {...flag(`${p}'s stack`)} className={`${field} w-16`} />
+                {seatBounties && (
+                  <input aria-label={`${p} bounty`} type="number" inputMode="decimal" step="any" min={0} placeholder={bEach.trim() || "0"} value={bSeats[p] ?? ""} onChange={(e) => setBSeats({ ...bSeats, [p]: e.target.value })} {...flag(`${p}'s bounty`)} className={`${field} w-16`} />
+                )}
+                <input aria-label={`${p} range`} placeholder="the charts' range" value={ranges[p] ?? ""} onChange={(e) => setRanges({ ...ranges, [p]: e.target.value })} {...flag(`${p}'s range`)} className={`${field} min-w-0 flex-1 basis-32`} />
+                {saved.length > 0 && (
+                  <select
+                    aria-label={`${p} saved range`}
+                    className={`${field} max-w-32 font-sans`}
+                    value=""
+                    onChange={(e) => {
+                      const r = saved.find((x) => x.id === e.target.value);
+                      if (r) setRanges({ ...ranges, [p]: r.text });
+                    }}
+                  >
+                    <option value="">Saved…</option>
+                    {saved.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            ))}
           </div>
         </details>
 
@@ -480,7 +470,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           </ul>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        {/* (kept in view at the window's foot while a long setup scrolls, so the way on is always there) */}
+        <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center gap-3 border-t border-border bg-bg/95 px-1 py-2 text-sm backdrop-blur">
           <button type="submit" disabled={problems.length > 0} className="rounded-md border border-accent bg-accent/15 px-3 py-1.5 font-medium hover:bg-accent/25 disabled:opacity-40">
             Open in Study
           </button>

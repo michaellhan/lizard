@@ -21,6 +21,20 @@ describe("ProvenanceBadge", () => {
     expect(screen.queryByText("1.50 s")).toBeNull();
   });
 
+  it("says only what answered when short, approximate or not, and opens to the whole description", () => {
+    render(<ProvenanceBadge p={p} short />);
+    const b = screen.getByRole("button");
+    expect(b).toHaveTextContent(/^≈Live solve, approximate$/);
+    expect(b).toHaveAttribute("title", expect.stringContaining(describeProvenance(p)));
+    fireEvent.click(b);
+    const detail = document.getElementById(b.getAttribute("aria-controls")!)!;
+    expect(detail).toHaveTextContent(describeProvenance(p));
+    expect(detail).toHaveTextContent("fallback: the worker died");
+    cleanup();
+    render(<ProvenanceBadge p={{ ...p, source: "rules", approximate: false, partial: true }} short />);
+    expect(screen.getByRole("button")).toHaveTextContent(/^Heuristic rules \(not a solve\) · partial$/);
+  });
+
   it("names a decision's kept answer in the line written then, and doesn't name a backend it can't tell", () => {
     const p = { source: "live", approximate: false, mode: "quick", transport: "kept", solverVersion: "", partial: false, receivedAt: 0, keptLabel: "Live solve (Quick) · medium confidence" } as const;
     render(<ProvenanceBadge p={p} />);

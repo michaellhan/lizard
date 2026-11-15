@@ -5171,6 +5171,28 @@ with its chart and blockers, then the EV comparison), and most tools were hidden
   stays pinned while the breakdown scrolls, the tabs and keys work, preflop offers Hand and Tools only, side by side
   and Build unchanged; at 375 wide everything stacks with no sideways scroll.
 
+### 2026-11-13: Practice's layout reworked (the grade by the table)
+
+Asked after Study's rework whether the other pages were clean: Analyze and Solve were; Practice at one table had
+Study's fault. At 1440×900 the column beside the table ran 1,160px against the table's 304 (score, the whole range grid
+with a four-line source note, then your last decision with the same note again), and the grade you'd just been given
+was below the fold under the range.
+
+- Your last decision moved under Your move (then Recent decisions), so the grade is where you just acted; the column
+  beside the table is the score and your range only, pinned while the page scrolls (`lg:sticky lg:top-16`). Measured
+  after a decision: 576px left, 631px right, and the page about one screen. On a phone: table, move, grade, score, range.
+- `ProvenanceBadge` takes `short`: the source's name (≈ and ", approximate" for a reader if approximate; "partial" if
+  so), with the whole description first in what it opens to and in its tooltip. Used on the range panel only: the last
+  decision keeps the full badge, as `qa.e2e.ts` holds the preflop model's "not a full solve" in view there.
+- Built on uncommitted Practice work found in the tree (the always-shown "Your range" panel, `SpotRange`, the G key
+  switching its view, and its feature-matrix line), last touched at 08:25 with no session running or claiming it; it
+  goes in with this.
+- `qa.e2e.ts` 7 ("A bad Practice decision is told what it cost") looked for "bb lost", which only the recent-decisions
+  list says, and that list is folded since the work above: it now reads the Last decision's "EV given up".
+- Checked: tsc and eslint clean; vitest 3,553 passed (with a test that the grade sits under your move, outside the
+  results column, and one for the short badge); the Practice e2e specs on a build, desktop and phone, 9 passed after
+  the fix to 7; in the browser at 1440×900 (after a decision, at your turn, the badge opened) and at 375 wide.
+
 ### 2026-11-14: Drills default to any spot, filters folded; the Combos tab explains its counting
 
 - Drills (`DrillsPanel.tsx`): no `spot` in the URL means Any spot. Each hand draws a drillable spot and one of the four
@@ -5188,6 +5210,22 @@ with its chart and blockers, then the EV comparison), and most tools were hidden
   any-spot drills over two spots with the score kept, the filters opened, a chosen spot's Decision select, and the
   Combos explainer with a solution opened.
 
+### 2026-11-14: Solve's and Tournaments' setup tidied
+
+From a check of every page after Study's and Practice's reworks: none had Study's fault, and Tournaments was the
+busiest, a 1,297px form at 1440×900 with Open in Study below the fold, most of it a six-row Seats table of placeholders
+(open in a tournament on purpose, as the stacks are the spot).
+
+- Seats (`SolvePage.tsx`, shared by Solve and Tournaments) is a line a seat, a `group` named by the seat holding its
+  stack, its bounty with per-seat bounties, its range and the saved-range picker, two lines across from `lg` with a
+  heading over each column (Seat, Stack, Bounty, Range; hidden from readers, as each box has its own name). The hint is
+  one line. 354px to 184px; the Tournaments page 1,297px to 1,144px.
+- Open in Study, Clear the setup and where it opens stay at the window's foot (`sticky bottom-0`) while a long setup
+  scrolls.
+- Checked: tsc and eslint clean; Solve's tests 16 passed (a seat's line holds its stack, bounty and range); the Solve
+  and Tournaments e2e specs on a build, desktop and phone, 11 passed; in the browser at 1440×900 (Bubble preset with KO
+  bounties: the headings line up) and at 375 wide (no sideways scroll; a seat's range wraps under its stack).
+
 ### 2026-11-15: Drills tell the hand so far
 
 - A drill hand said only the node's action ("BB checks · pot 20.5bb"). It now has a line a street: Preflop in words
@@ -5198,6 +5236,25 @@ with its chart and blockers, then the EV comparison), and most tools were hidden
 - Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,625 passed (new unit tests
   for the preflop words, a flop, a turn with a raise on the flop and the stack after it); in the browser on BTN vs BB,
   BB 3-bet vs BTN, the limped heads-up spot and a stored turn, and at 375 px wide with no horizontal scroll.
+
+### 2026-11-15: History's session list tidied
+
+The last pass over the pages (Home, Settings, Engine, Compare, Library and History, at 1440×900 and 375 wide) found
+only History wanting: a session was two lines of run-on text ("1 hand · 1 decision · 100% Best or Correct of 1 by the
+preflop solve, 0.00bb · 0.0% pot lost per decision · net 0bb"), what graded it said up to three times, and each day was
+a panel of its own.
+
+- The list is one panel, a day a block. From `xl` every row takes the list's columns (a subgrid, so they line up down
+  the page) under one head hidden from readers: Time, Kind, Setup, Played, Best or Correct · EV lost a decision, Net.
+- A way of grading is a line of its own ("By EV: 75% of 20 · 0.40bb · 5.0% pot"), the heads' words kept in `sr-only`
+  text; a range build says its accuracy there. One line over the list says what the figures are and what graded them;
+  a session graded otherwise names its own under its setup.
+- Narrower, the setup on a line and the figures under it; on a phone the net beside the count and the grades under it.
+  No sideways scroll at 375.
+- Checked: tsc and eslint clean; History's tests 94 passed with the contrast tests; the unit suite 3,560 passed, the one
+  failure a 5 s timeout in ReviewPage under load that passed alone (26 of 26); `checks.e2e.ts` and `qa.e2e.ts` on a
+  build, 52 passed, the one failure (Study's filters, sideways scroll at 375) passed on a rerun against a fresh build
+  after another session's Drills commit landed mid-run.
 
 ### 2026-11-15: drill rows named by street; Any spot deals turns too
 
@@ -5227,3 +5284,4 @@ with its chart and blockers, then the EV comparison), and most tools were hidden
 - Not done: preflop mistakes aren't kept for review, and preflop isn't a Decision for a chosen spot.
 - Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,634 passed; in Chromium against the real worker, 30 any-spot hands: 9 preflop, a
   river solved live, stored turns and flops, one live turn refused in words; History's row for the session.
+

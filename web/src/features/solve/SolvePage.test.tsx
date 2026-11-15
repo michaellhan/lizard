@@ -133,6 +133,10 @@ describe("SolvePage", () => {
     num("Their average stack", "40");
     fireEvent.change(screen.getByRole("combobox", { name: "Bounties" }), { target: { value: "ko" } });
     num("Each seat's bounty", "5");
+    // a seat a line: its stack, its bounty and its range together, under the seat's name
+    const btn = screen.getByRole("group", { name: "BTN" });
+    expect(within(btn).getAllByRole("spinbutton").map((b) => b.getAttribute("aria-label"))).toEqual(["BTN stack", "BTN bounty"]);
+    expect(within(btn).getByRole("textbox", { name: "BTN range" })).toBeInTheDocument();
     num("BTN bounty", "10");
     num("CO stack", "8");
     // what can't be asked is refused first

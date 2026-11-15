@@ -271,6 +271,11 @@ describe("PracticePage", () => {
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));
     const review = await screen.findByRole("region", { name: "Your decisions" });
+    // folded to one quiet line until opened
+    const fold = within(review).getByText(/^Recent decisions · 2 decisions/);
+    expect(fold.closest("details")!.open).toBe(false);
+    fireEvent.click(fold);
+    await waitFor(() => expect(fold.closest("details")!.open).toBe(true));
     // your last decisions, newest first
     expect(within(review).getByRole("heading")).toHaveTextContent("Recent decisions");
     expect(within(review).getAllByRole("button", { name: /^#1 / }).map((b) => b.textContent)).toEqual([
@@ -300,7 +305,7 @@ describe("PracticePage", () => {
     await waitFor(() => expect(screen.queryByRole("region", { name: "Your decisions" })).toBeNull());
   });
 
-  it("shows your whole range at your last decision, as its answer plays it, once asked for", async () => {
+  it("shows your range beside the table at all times: the hands you hold at your turn, yours picked, and the strategy once the answer is out", async () => {
     const answer = stub.answer;
     // (the chart's answer with its grid: your hand's class and another)
     const grid = { actions: ["fold", "call", "raise 2.5"], cells: {} as Record<string, { w: number; f: number[] }> };
@@ -319,24 +324,37 @@ describe("PracticePage", () => {
       );
       fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
       fireEvent.click(screen.getByRole("button", { name: "New session" }));
-      fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
-      const last = await screen.findByRole("region", { name: "Last decision" });
-      const summary = within(last).getByText("Your range · preflop · BTN/SB vs BB");
-      const details = summary.closest("details")!;
-      expect(details.open).toBe(false);
-      fireEvent.click(summary);
-      await waitFor(() => expect(details.open).toBe(true));
-      const matrix = within(last).getByRole("grid", { name: "Your range · preflop · BTN/SB vs BB" });
-      expect(within(matrix).getAllByRole("gridcell")).toHaveLength(169);
+      await screen.findByRole("group", { name: "Your options" });
       const mine = classOf(stub.states.find((x) => !x.board)!.hole!);
-      expect(within(last).getByText(/\(your hand\): fold 10\.0%, call 20\.0%, raise 2\.5 70\.0%$/).textContent).toBe(`${mine} (your hand): fold 10.0%, call 20.0%, raise 2.5 70.0%`);
+      // at your turn: the hands in your range, yours picked, and no strategy (it would give the answer away)
+      let panel = await screen.findByRole("region", { name: "Your range" });
+      expect(within(panel).getByText("preflop · BTN/SB vs BB")).toBeInTheDocument();
+      let matrix = within(panel).getByRole("grid", { name: "Your range · preflop · BTN/SB vs BB" });
+      expect(within(matrix).getAllByRole("gridcell")).toHaveLength(169);
+      expect(within(matrix).getByRole("gridcell", { name: new RegExp(`^${mine}:`) })).toHaveAttribute("aria-selected", "true");
+      expect(within(matrix).getByRole("gridcell", { name: new RegExp(`^${mine}:`) }).getAttribute("aria-label")).not.toMatch(/raise/);
+      expect(panel).toHaveTextContent(`${mine} (your hand): 100.0% of its combos in your range`);
+      expect(panel).not.toHaveTextContent(/raise 2\.5 70\.0%/);
+      expect(within(panel).getByRole("button", { name: "Strategy" })).toBeDisabled();
+      // once the answer is out (revealed here; acting does the same): the strategy, your hand's mix in words
+      fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+      await waitFor(() => expect(within(screen.getByRole("region", { name: "Your range" })).getByRole("button", { name: "Strategy" })).toBeEnabled());
+      panel = screen.getByRole("region", { name: "Your range" });
+      expect(within(panel).getByText(/\(your hand\): fold 10\.0%, call 20\.0%, raise 2\.5 70\.0%$/).textContent).toBe(`${mine} (your hand): fold 10.0%, call 20.0%, raise 2.5 70.0%`);
       // another hand picked: its mix, and its share of combos
+      matrix = within(panel).getByRole("grid", { name: "Your range · preflop · BTN/SB vs BB" });
       fireEvent.click(within(matrix).getByRole("gridcell", { name: /^72o/ }));
-      expect(within(last).getByText(/^: fold 100\.0%$/)).toHaveTextContent(/^72o: fold 100\.0% · 50\.0% of its combos in the range$/);
-      // on the flop: no grid in the answer, none shown
+      expect(within(panel).getByText(/^: fold 100\.0%$/)).toHaveTextContent(/^72o: fold 100\.0% · 50\.0% of its combos in the range$/);
+      // the last decision no longer holds a range of its own
+      fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+      const last = await screen.findByRole("region", { name: "Last decision" });
+      expect(within(last).queryByText(/^Your range/)).toBeNull();
+      // and its grade sits under your move, by the table, not in the column beside it with the score and your range
+      expect(screen.getByRole("complementary", { name: "Your results" })).not.toContainElement(last);
+      expect(screen.getByRole("region", { name: "Your move" }).compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // on the flop: no grid in the answer, and the panel says so
       await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")).toHaveLength(2));
-      fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));
-      await waitFor(() => expect(within(screen.getByRole("region", { name: "Last decision" })).queryByText(/^Your range/)).toBeNull());
+      await waitFor(() => expect(screen.getByRole("region", { name: "Your range" })).toHaveTextContent(/No range here/));
     } finally {
       stub.answer = answer;
     }

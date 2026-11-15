@@ -187,7 +187,8 @@ test("7. A bad Practice decision is told what it cost", async ({ page, problems 
     } else {
       await page.getByRole("button", { name: /next hand|deal/i }).first().click();
     }
-    lost = await page.getByText(/\d bb lost|\dbb lost|no EV lost/).first().isVisible();
+    // (the grade by the table says what it cost; the list of recent decisions is folded to a line since 2026-11-13)
+    lost = await page.getByRole("region", { name: "Last decision" }).getByText(/EV given up/).first().isVisible();
   }
   expect(lost, "a graded decision with its EV").toBe(true);
   await clean(page, problems);
