@@ -282,6 +282,12 @@ function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecor
   );
 }
 
+/** The mistake lists' columns, wide: when it was missed and on what street, the spot, your move with its grade and cost,
+ * when it's next due, and what you can do; set once on a list, every row takes them (a subgrid), so they line up down the
+ * list as History's sessions do. Narrow, a row is the spot on a line and the rest under it. */
+const COLS = "lg:grid lg:grid-cols-[6rem_minmax(0,1fr)_auto_auto_auto] lg:gap-x-4";
+const ROW = "lg:col-span-full lg:grid lg:grid-cols-subgrid";
+
 /** A list of kept mistakes under one caption saying what graded them: the source most of them share, said once, and a
  * row graded by another saying its own. `note`: what the whole list is graded in, after it. */
 function Rows({ ms, now, current, onOpen, onDelete, note }: { ms: MistakeRecord[]; now: number; current: MistakeRecord | null; onOpen: (m: MistakeRecord) => void; onDelete: (m: MistakeRecord, from: HTMLElement) => void; note?: string }) {
@@ -296,11 +302,22 @@ function Rows({ ms, now, current, onOpen, onDelete, note }: { ms: MistakeRecord[
           .{note ? ` ${note}.` : ""}
         </p>
       )}
-      <ul className="space-y-2">
-        {ms.map((m) => (
-          <MistakeRow key={m.id} m={m} now={now} common={common} active={current?.id === m.id} onRetry={() => onOpen(m)} onDelete={(from) => onDelete(m, from)} />
-        ))}
-      </ul>
+      {ms.length > 0 && (
+        <div className={`panel px-3 ${COLS}`}>
+          <div aria-hidden className={`hidden border-b border-border py-1.5 text-xs text-muted ${ROW}`}>
+            <span>Missed</span>
+            <span>Spot</span>
+            <span>You took</span>
+            <span>Next</span>
+            <span />
+          </div>
+          <ul className={`divide-y divide-border/60 ${ROW}`}>
+            {ms.map((m) => (
+              <MistakeRow key={m.id} m={m} now={now} common={common} active={current?.id === m.id} onRetry={() => onOpen(m)} onDelete={(from) => onDelete(m, from)} />
+            ))}
+          </ul>
+        </div>
+      )}
     </>
   );
 }
@@ -349,49 +366,60 @@ function MistakeRow({ m, now, common, active, onRetry, onDelete }: { m: MistakeR
   const last = m.tries.at(-1);
   const source = gradedSource(m);
   const due = isDue(m, now);
+  const about = [
+    m.tournament ? "Tournament" : "",
+    m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed)` : "",
+    ORIGIN_WORDS[m.from] ?? "",
+    m.game,
+    m.line,
+    source !== common ? `graded against ${source}` : "",
+  ].filter(Boolean);
+  const history = [
+    m.times > 1 ? `missed ${m.times} times` : "",
+    last ? `last retry ${day(last.at)}: ${last.verdict}${last.like ? "" : `, against ${last.label}`}` : "",
+  ].filter(Boolean);
   return (
-    <li tabIndex={-1} className={`space-y-0.5 rounded-lg border bg-surface px-2 py-1.5 text-sm outline-none ${active ? "border-accent" : "border-border"}`}>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-xs text-muted tabular-nums">
-          {day(m.lastAt)} · {m.street}
+    <li tabIndex={-1} className={`flex flex-wrap items-start gap-x-3 gap-y-1 py-2 text-sm outline-none ${ROW} ${active ? "-mx-3 border-l-2 border-accent bg-surface-2 px-3" : ""}`}>
+      <span className="text-xs tabular-nums text-muted lg:pt-1">
+        {day(m.lastAt)}
+        <span className="lg:block">
+          <span className="lg:hidden"> · </span>
+          {m.street}
         </span>
+      </span>
+      <span className="min-w-0 basis-full space-y-0.5 lg:basis-auto">
         <Spot m={m} />
-        <span>
-          you took <span className="font-medium">{m.chose}</span>
+        <span className="block text-xs text-muted">{about.join(" · ")}</span>
+        {history.length > 0 && <span className="block text-xs text-muted">{history.join(" · ")}</span>}
+        {m.grade.capped && <span className="block text-xs text-muted">{CAPPED_WORDS}</span>}
+      </span>
+      <span className="space-y-0.5 lg:pt-0.5">
+        <span className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
+          <span className="font-mono">{m.chose}</span>
+          <VerdictTag v={m.grade.verdict} />
         </span>
-        <VerdictTag v={m.grade.verdict} />
-        <span className="text-xs tabular-nums">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
-        <span className="flex-1" />
-        <span className="flex flex-wrap items-center gap-3 text-xs">
-          {!due && <span className="text-muted">{dueWords(m, now)}</span>}
-          <button type="button" onClick={onRetry} aria-label={`${due ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
-            {due ? "Retry" : "Retry early"}
-          </button>
-          {m.study ? (
-            <Link to={`/study?${m.study}`} className="text-accent hover:underline">
-              Open in Study →
-            </Link>
-          ) : (
-            <span className="text-muted">Study can&rsquo;t set up this game</span>
-          )}
-          {m.ask.via === "kept" && (
-            <Link to={`/analyze?${new URLSearchParams({ hand: m.ask.hand })}`} className="text-accent hover:underline">
-              Open the hand →
-            </Link>
-          )}
-          <DeleteButton what="this entry" name={`Delete: ${m.hole.join(" ")}, ${m.street}`} onDelete={onDelete} />
-        </span>
-      </div>
-      <p className="text-xs text-muted">
-        {m.tournament ? "Tournament · " : ""}
-        {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
-        {ORIGIN_WORDS[m.from] ? `${ORIGIN_WORDS[m.from]} · ` : ""}
-        {m.game} · {m.line}
-        {m.times > 1 ? ` · missed ${m.times} times` : ""}
-        {last ? ` · last retry ${day(last.at)}: ${last.verdict}${last.like ? "" : `, against ${last.label}`}` : ""}
-        {source !== common ? ` · graded against ${source}` : ""}
-      </p>
-      {m.grade.capped && <p className="text-xs text-muted">{CAPPED_WORDS}</p>}
+        <span className="block whitespace-nowrap text-xs tabular-nums text-muted">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
+      </span>
+      {/* (a row that's due says no date: its Retry button is the one lit) */}
+      <span className="whitespace-nowrap text-xs text-muted lg:pt-1">{due ? "" : dueWords(m, now)}</span>
+      <span className="flex basis-full flex-wrap items-center gap-3 text-xs lg:basis-auto lg:flex-nowrap lg:justify-end">
+        <button type="button" onClick={onRetry} aria-label={`${due ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className={`rounded-md px-2.5 py-1 font-medium ${due ? "bg-accent text-bg hover:bg-accent-strong" : "border border-border hover:bg-surface-2"}`}>
+          {due ? "Retry" : "Retry early"}
+        </button>
+        {m.study ? (
+          <Link to={`/study?${m.study}`} className="whitespace-nowrap text-accent hover:underline">
+            Open in Study →
+          </Link>
+        ) : (
+          <span className="text-muted">Study can&rsquo;t set up this game</span>
+        )}
+        {m.ask.via === "kept" && (
+          <Link to={`/analyze?${new URLSearchParams({ hand: m.ask.hand })}`} className="whitespace-nowrap text-accent hover:underline">
+            Open the hand →
+          </Link>
+        )}
+        <DeleteButton what="this entry" name={`Delete: ${m.hole.join(" ")}, ${m.street}`} onDelete={onDelete} />
+      </span>
     </li>
   );
 }
