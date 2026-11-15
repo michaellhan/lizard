@@ -5187,3 +5187,14 @@ with its chart and blockers, then the EV comparison), and most tools were hidden
 - Checked: tsc and eslint clean; vitest for practice, history, plan, saved and app, 1,497 passed; in the browser,
   any-spot drills over two spots with the score kept, the filters opened, a chosen spot's Decision select, and the
   Combos explainer with a solution opened.
+
+### 2026-11-15: Drills tell the hand so far
+
+- A drill hand said only the node's action ("BB checks · pot 20.5bb"). It now has a line a street: Preflop in words
+  from the report's line ("Folds to BTN. BTN raises to 2.5bb, BB 3-bets to 10bb, BTN calls"), Flop with its pot and
+  line (the bet in bb), a stored turn's pot and line, and a highlighted Now line: who acts (you), the price of a call,
+  the pot and the stack behind (the report's flop stack less what you put in on the flop). `drills.ts` `preflopWords`
+  and `story`; `DrillsPanel.tsx` `HandStory`. Live drills (river, a turn facing a bet) keep their own line.
+- Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,625 passed (new unit tests
+  for the preflop words, a flop, a turn with a raise on the flop and the stack after it); in the browser on BTN vs BB,
+  BB 3-bet vs BTN, the limped heads-up spot and a stored turn, and at 375 px wide with no horizontal scroll.

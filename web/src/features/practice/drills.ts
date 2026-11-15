@@ -350,6 +350,83 @@ export function situation(rep: Pick<LibraryReport, "seats">, pr: Pick<DrillProbl
   return `${line} · pot ${fmt(pr.pot)}bb`;
 }
 
+/** A preflop line in words: the folds before the first voluntary action said once, later folds left out, raises
+ * counted ("BTN raises to 2.5bb", "BB 3-bets to 10bb"). "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c" is "Folds to BTN.
+ * BTN raises to 2.5bb, BB calls". */
+export function preflopWords(line: string): string {
+  const acts = parseLine(line);
+  const first = acts.findIndex((a) => a.action !== "fold");
+  if (first < 0) return "";
+  const out: string[] = [];
+  let raises = 0;
+  for (const a of acts.slice(first)) {
+    if (a.action === "fold") continue;
+    if (a.action === "raise" || a.action === "bet" || a.action === "all-in") {
+      raises++;
+      const to = a.to ? ` to ${fmt(a.to)}bb` : "";
+      out.push(a.action === "all-in" ? `${a.pos} goes all-in` : raises === 1 ? `${a.pos} raises${to}` : `${a.pos} ${raises + 1}-bets${to}`);
+    } else if (a.action === "call") out.push(raises ? `${a.pos} calls` : `${a.pos} limps`);
+    else if (a.action === "check") out.push(`${a.pos} checks`);
+    else out.push(`${a.pos} ${a.action}s`);
+  }
+  const folds = first > 0 ? `Folds to ${acts[first]!.pos}. ` : "";
+  return `${folds}${out.join(", ")}`;
+}
+
+/** what each player has put in on a street's line, and the pot after it (the bet sizes are fractions of the pot) */
+function streetPut(startPot: number, path: readonly string[]): { pot: number; put: [number, number] } {
+  let pot = startPot;
+  const put: [number, number] = [0, 0];
+  path.forEach((x, i) => {
+    const w = (i % 2) as 0 | 1;
+    if (/^bet /.test(x)) {
+      const b = Math.round((parseFloat(x.slice(4)) / 100) * pot * 100) / 100;
+      put[w] += b;
+      pot += b;
+    } else if (/^raise to /.test(x)) {
+      const to = parseFloat(x.slice(9));
+      pot += to - put[w];
+      put[w] = to;
+    } else if (x === "call") {
+      const d = put[w === 0 ? 1 : 0] - put[w];
+      pot += d;
+      put[w] += d;
+    }
+  });
+  return { pot: Math.round(pot * 100) / 100, put };
+}
+
+/** One street of the hand so far, in words (its cards are the board shown beside it). */
+export interface StoryStep {
+  street: "Preflop" | "Flop" | "Turn";
+  /** the pot as the street starts (the flop's from the report; not said preflop) */
+  pot: number | null;
+  text: string;
+}
+
+/** The hand up to your decision, street by street, and where you stand now: the price of a call, the pot, what you have
+ * behind (the report's stack at the flop, less what you've put in since). */
+export function story(
+  rep: Pick<LibraryReport, "seats" | "line" | "pot" | "stack">,
+  pr: Pick<DrillProblem, "path" | "pot" | "bet" | "turn" | "player" | "hero">,
+): { steps: StoryStep[]; now: { hero: string; toCall: number; pot: number; behind: number | null } } {
+  const [o] = rep.seats;
+  const steps: StoryStep[] = [];
+  const pre = preflopWords(rep.line);
+  if (pre) steps.push({ street: "Preflop", pot: null, text: pre });
+  const flopLine = pr.path.length ? flopWords(rep, pr.path) : "";
+  let behind: number | null = rep.stack;
+  if (pr.turn) {
+    const f = streetPut(rep.pot, pr.path);
+    steps.push({ street: "Flop", pot: rep.pot, text: flopLine || "Checked through" });
+    steps.push({ street: "Turn", pot: f.pot, text: pr.turn.at.length ? `${o} checks` : `${o} to act first` });
+    behind = Math.round((rep.stack - f.put[pr.player]) * 100) / 100;
+  } else {
+    steps.push({ street: "Flop", pot: rep.pot, text: flopLine ? `${flopLine}${pr.bet ? ` (${fmt(pr.bet)}bb)` : ""}` : `${o} to act first` });
+  }
+  return { steps, now: { hero: pr.hero, toCall: pr.bet, pot: pr.pot, behind: behind != null && behind >= 0 ? behind : null } };
+}
+
 /** the same node in Study: the preflop line, the shown board and the action to the node */
 export function studyHandOf(rep: LibraryReport, pr: DrillProblem): StudyHand {
   const [oop, ip] = rep.seats;
