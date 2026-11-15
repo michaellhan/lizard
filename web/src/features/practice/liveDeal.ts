@@ -28,7 +28,7 @@ import type { TurnFile, TurnLine, TurnNode } from "@/library/turns";
 import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
 import { bandOf, sourceLabel } from "@/solver/provenance";
 import type { Provenance, ResultSource, SolveMode, SolveResult } from "@/solver/types";
-import { flopWords, lineReach, pick, relabel, shuffle } from "./drills";
+import { flopWords, lineReach, pick, preflopWords, relabel, shuffle, type Story, type StoryStep } from "./drills";
 import { handTest } from "./handFilter";
 import { gradable, gradeMix, mixOf, optionLabel, optionsOf, type Decision } from "./practice";
 
@@ -169,6 +169,8 @@ export interface LiveProblem {
   /** the pot with any bet faced, and that bet, bb */
   pot: number;
   bet: number;
+  /** the bet's name on the tree, "bet 75%"; null where none is faced */
+  betName?: string | null;
   /** the stored turn card, and the river dealt, on the stored flop */
   cards: string[];
   /** the action to the decision, in words */
@@ -238,6 +240,7 @@ export function liveProblem(rep: LibraryReport, e: Entry, t: TurnFile, street: L
       spot: rep.id,
       flop: t.head.board,
       ...at,
+      betName: s.bet ?? null,
       player,
       hero,
       board: shown,
@@ -260,6 +263,30 @@ export function liveProblem(rep: LibraryReport, e: Entry, t: TurnFile, street: L
       },
     };
   }
+}
+
+/** The hand up to a live decision, street by street (drills.ts `story`): the flop's line, the turn checked through before a
+ * river, and the street you act on with the bet you face. What you have behind is the flop's stack less what you put in on
+ * the flop, its chips as the tree bet them. */
+export function liveStory(rep: Pick<LibraryReport, "seats" | "line" | "pot" | "stack">, pr: Pick<LiveProblem, "street" | "view" | "path" | "pot" | "bet" | "betName" | "player" | "hero" | "moves">): Story {
+  const [o, p] = rep.seats;
+  const steps: StoryStep[] = [];
+  const pre = preflopWords(rep.line);
+  if (pre) steps.push({ street: "Preflop", pot: null, text: pre });
+  steps.push({ street: "Flop", pot: rep.pot, text: pr.path.length ? flopWords(rep, pr.path) : "Checked through" });
+  const put: Record<string, number> = {};
+  for (const m of pr.moves.flop) {
+    if ((m.action === "bet" || m.action === "raise") && typeof m.to === "number") put[m.pos] = m.to;
+    else if (m.action === "call") put[m.pos] = Math.max(0, ...Object.values(put));
+  }
+  const behind = Math.round((rep.stack - (put[pr.hero] ?? 0)) * 100) / 100;
+  const start = Math.round((pr.pot - pr.bet) * 100) / 100;
+  if (pr.street === "river") {
+    steps.push({ street: "Turn", pot: start, text: "Checked through" });
+    return { steps, now: { street: "River", pot: start, line: pr.view === "ip" ? `${o} checks` : "", hero: pr.hero, toCall: 0, behind } };
+  }
+  const bet = pr.betName ? `bets ${pr.betName.slice(4)} (${fmt(pr.bet)}bb)` : `bets ${fmt(pr.bet)}bb`;
+  return { steps, now: { street: "Turn", pot: start, line: pr.view === "ipfaces" ? `${o} ${bet}` : `${o} checks, ${p} ${bet}`, hero: pr.hero, toCall: pr.bet, behind } };
 }
 
 /** The same spot in Study. */

@@ -7,7 +7,8 @@
 // score is kept in IndexedDB (sessions). Nothing is solved here. Reveal shows the same stored mix before you pick, and a
 // pick after it has no grade: it adds nothing to the score and keeps no mistake, and the session only counts how many
 // there were. What no file stores, a river and a turn facing a bet, is a live drill's (LiveDrill.tsx): the same page and
-// settings, each hand answered by a solve.
+// settings, each hand answered by a solve. With no spot picked, Any spot deals all of these and preflop decisions graded
+// by the stored preflop solve (PreflopDrill.tsx), one score over them (anySession.ts).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -19,7 +20,7 @@ import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { addVersion } from "@/features/history/history";
 import { drillMistake, drillMix, missedAgain } from "@/features/review/mistakes";
-import { addScore, emptyScore, summary, whyText, type Grade, type Score } from "@/grading/grade";
+import { addScore, summary, whyText, type Grade } from "@/grading/grade";
 import { gameLabel, isDrillable, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
@@ -60,8 +61,12 @@ import { dealtFrom } from "./texture";
 import { drillHint, DRILL_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { isNextKey, optionFromKey } from "./keys";
+import { HandStory } from "./HandStory";
 import { LiveDrill } from "./LiveDrill";
+import { pfDrillable } from "./pfDrill";
+import { PreflopDrill } from "./PreflopDrill";
 import { PastDrills } from "./PastDrills";
+import { addGraded, newSession, type DrillSession, type Shared } from "./anySession";
 import { isLiveTurnView, isRiverView, LIVE_TURN_VIEWS, liveViewLabel, RIVER_VIEWS, type LiveStreet, type LiveView } from "./liveDeal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -267,33 +272,6 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   );
 }
 
-const fmtBb = (x: number) => String(Math.round(x * 100) / 100);
-
-/** The hand up to your decision, a street a line, and a last line for where you stand: who acts, the price, the pot and
- * what you have behind. */
-function HandStory({ rep, pr }: { rep: LibraryReport; pr: DrillProblem }) {
-  const { steps, now } = story(rep, pr);
-  return (
-    <ol aria-label="The hand so far" className="space-y-1 text-sm">
-      {steps.map((s) => (
-        <li key={s.street} className="flex gap-3">
-          <span className="w-16 shrink-0 pt-0.5 text-xs text-muted">{s.street}</span>
-          <span>
-            {s.pot != null && <span className="text-muted">pot {fmtBb(s.pot)}bb · </span>}
-            {s.text}
-          </span>
-        </li>
-      ))}
-      <li className="flex gap-3 rounded border-l-2 border-accent bg-surface-2 py-1 pr-2">
-        <span className="w-16 shrink-0 pl-2 pt-0.5 text-xs text-accent">Now</span>
-        <span>
-          <span className="font-medium">{now.hero} (you) to act</span>
-          {now.toCall > 0 ? `, ${fmtBb(now.toCall)}bb to call` : ""} · pot {fmtBb(now.pot)}bb{now.behind != null ? ` · ${fmtBb(now.behind)}bb behind` : ""}
-        </span>
-      </li>
-    </ol>
-  );
-}
 
 /** What a hand filter leaves: the deals (a hand at a stored spot) on the flops read, said plainly when it's too few. */
 function DealsLeft({ hand, of, count }: { hand: string; of: number; count: Counted | null }) {
@@ -312,26 +290,6 @@ function DealsLeft({ hand, of, count }: { hand: string; of: number; count: Count
   );
 }
 
-interface DrillSession {
-  id: string;
-  startedAt: number;
-  score: Score;
-  /** how many stand on each version of the spot (a decision's grade has its own) */
-  versions: Record<string, number>;
-  /** picks made after Reveal: none of them is in the score */
-  revealed?: number;
-  /** the graded decisions by what was dealt: the texture filter's key, and "|" and the hand where one was asked for
-   * (dealtFrom; "" for every flop and hand), each with how many were Best or Correct. Lessons count by it. */
-  byDeal?: Record<string, { n: number; ok: number }>;
-}
-
-const newSession = (): DrillSession => ({
-  id: `drill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-  startedAt: Date.now(),
-  score: emptyScore(),
-  versions: {},
-});
-
 /** an any-spot session's spot and decision in its record: many of both, so neither a lesson nor a plan's drill counts it */
 const ANY_SPOT = "any";
 
@@ -342,7 +300,7 @@ const toRecord = (s: DrillSession, spot: { id: string; label: string }, street: 
   endedAt: Date.now(),
   decisions: s.score.n,
   evLossBb: s.score.loss,
-  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions, ...(s.revealed ? { revealed: s.revealed } : {}), ...(s.byDeal ? { byDeal: s.byDeal } : {}) },
+  meta: { spot: spot.id, label: spot.label, view, ...(street === "turn" ? { street } : {}), ok: s.score.ok, graded: s.score.ne, lossPct: s.score.lossPct, best: s.score.best, versions: s.versions, ...(s.revealed ? { revealed: s.revealed } : {}), ...(s.byDeal ? { byDeal: s.byDeal } : {}), ...(s.cells ? { cells: s.cells, sources: s.sources ?? {} } : {}) },
 });
 
 type SpotData = { st: "loading" } | { st: "ready"; report: LibraryReport; ranges: LibraryRanges } | { st: "error"; message: string };
@@ -377,24 +335,43 @@ function ScoreBar({ session }: { session: DrillSession }) {
   );
 }
 
-/** what an any-spot drill lends the spot it drew for a hand: its session, the next draw, and the screened flops so far */
-interface Shared {
-  session: DrillSession;
-  setSession: (f: (s: DrillSession) => DrillSession) => void;
-  next: () => void;
-  /** the spot drawn has nothing under the filters: draw another */
-  skip: () => void;
-  screens: Map<string, Candidate[]>;
-}
-
+/** how often an any-spot drill deals a turn, where the spot drawn stores turns */
+const TURN_SHARE = 0.3;
+/** how often a turn facing a bet or a river is dealt there, each answered by a live solve (some seconds) */
+const LIVE_TURN_SHARE = 0.1;
+const RIVER_SHARE = 0.12;
+/** how often an any-spot drill deals a preflop decision, on a spot whose game's preflop solve is stored and with no filter
+ * set (the filters are the flop's and the hand's on it) */
+const PREFLOP_SHARE = 0.2;
 /** draws in a row with nothing under the filters before an any-spot drill says so */
 const ANY_TRIES = 16;
 
-/** Any spot: each hand a spot and a flop decision drawn afresh (the stored ones only, so each answer is there at once),
- * one score over all of them. */
+/** a hand an any-spot drill deals: a stored flop or turn decision, a live turn or river, or a preflop decision */
+type AnyAt =
+  | { spot: LibrarySpotIndex; kind: "stored"; street: DrillStreet; view: DrillView }
+  | { spot: LibrarySpotIndex; kind: "live"; street: LiveStreet; view: LiveView }
+  | { spot: LibrarySpotIndex; kind: "preflop" };
+
+/** Any spot: each hand a spot and a decision drawn afresh, one score over all of them: preflop (the stored preflop solve),
+ * the flop and a stored turn (the library, at once), and a turn facing a bet or a river (a live solve). */
 function AnyDrill({ files, spots, tree, filter, hand, rng, source }: { files: LibraryFiles; spots: LibrarySpotIndex[]; tree: unknown; filter: TextureFilter; hand: string | null; rng: () => number; source: string }) {
   const [session, setSession] = useState<DrillSession>(newSession);
-  const draw = useCallback(() => ({ spot: spots[Math.floor(rng() * spots.length)]!, view: DRILL_VIEWS[Math.floor(rng() * DRILL_VIEWS.length)]! }), [spots, rng]);
+  // a flop decision mostly; preflop where the game's solve is stored; on a spot whose turns are stored, a turn (stored, or
+  // facing a bet and solved live) or a river (solved live)
+  const loose = !hand && !Object.values(filter).some(Boolean);
+  const noRivers = !!hand?.startsWith("d:");
+  const draw = useCallback((): AnyAt => {
+    const spot = spots[Math.floor(rng() * spots.length)]!;
+    const of = <T,>(xs: readonly T[]) => xs[Math.floor(rng() * xs.length)]!;
+    if (loose && pfDrillable(spot) && rng() < PREFLOP_SHARE) return { spot, kind: "preflop" };
+    if (storedTurnFlops(spot).length > 0) {
+      const r = rng();
+      if (r < TURN_SHARE) return { spot, kind: "stored", street: "turn", view: of(TURN_VIEWS) };
+      if (r < TURN_SHARE + LIVE_TURN_SHARE) return { spot, kind: "live", street: "turn", view: of(LIVE_TURN_VIEWS) };
+      if (!noRivers && r < TURN_SHARE + LIVE_TURN_SHARE + RIVER_SHARE) return { spot, kind: "live", street: "river", view: of(RIVER_VIEWS) };
+    }
+    return { spot, kind: "stored", street: "flop", view: of(DRILL_VIEWS) };
+  }, [spots, rng, loose, noRivers]);
   const [at, setAt] = useState(draw);
   const [round, setRound] = useState(0);
   const [misses, setMisses] = useState(0);
@@ -443,7 +420,13 @@ function AnyDrill({ files, spots, tree, filter, hand, rng, source }: { files: Li
           </button>
         </p>
       ) : (
-        <SpotDrill key={round} files={files} spot={at.spot} tree={tree} street="flop" view={at.view} filter={filter} hand={hand} rng={rng} source={source} shared={shared} />
+        at.kind === "preflop" ? (
+          <PreflopDrill key={round} files={files} spot={at.spot} rng={rng} shared={shared} />
+        ) : at.kind === "live" ? (
+          <LiveDrill key={round} files={files} spot={at.spot} street={at.street} view={at.view} filter={filter} hand={hand} rng={rng} source={source} shared={shared} />
+        ) : (
+          <SpotDrill key={round} files={files} spot={at.spot} tree={tree} street={at.street} view={at.view} filter={filter} hand={hand} rng={rng} source={source} shared={shared} />
+        )
       )}
       <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />
     </div>
@@ -626,14 +609,16 @@ function SpotDrill({
       const dk = dealtFrom(filter, hand);
       setSession((s) => {
         const was = s.byDeal?.[dk] ?? { n: 0, ok: 0 };
-        return { ...s, score: addScore(s.score, g), versions: addVersion(s.versions, version), byDeal: { ...s.byDeal, [dk]: { n: was.n + 1, ok: was.ok + (g.ok ? 1 : 0) } } };
+        // (under an any-spot drill, by street and source too: its session holds other drills' grades)
+        const t = shared ? addGraded(s, g, street, street === "turn" ? "library-turn" : "library", version) : { ...s, score: addScore(s.score, g) };
+        return { ...t, versions: addVersion(s.versions, version), byDeal: { ...s.byDeal, [dk]: { n: was.n + 1, ok: was.ok + (g.ok ? 1 : 0) } } };
       });
       if (deal.st === "ready" && data.st === "ready") {
         const m = drillMistake(session.id, data.report, pr, g, drillProvenance(deal.entry, mode, pr, version), studyLink(data.report, pr), spot.flops[pr.flop], Date.now());
         if (m) void keepMistake(m, missedAgain).catch(() => {});
       }
     },
-    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree, filter, hand, setSession],
+    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree, filter, hand, setSession, shared, street],
   );
   const sharedNext = shared?.next;
   const next = useCallback(() => (sharedNext ? sharedNext() : setN((x) => x + 1)), [sharedNext]);
@@ -727,7 +712,7 @@ function SpotDrill({
             {shared && (
               <p className="text-xs text-muted">
                 {spot.label}
-                {spot.game ? ` (${gameLabel(spot)})` : ""} · {viewLabel(view, spot.seats)}
+                {spot.game ? ` (${gameLabel(spot)})` : ""} · {street === "turn" ? turnViewLabel(view, spot.seats) : viewLabel(view, spot.seats)}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-4">
@@ -743,7 +728,7 @@ function SpotDrill({
                 ))}
               </div>
             </div>
-            <HandStory rep={rep} pr={shown.pr} />
+            <HandStory story={story(rep, shown.pr)} />
             <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
               {shown.pr.names.map((name, i) => (
                 <button

@@ -196,20 +196,14 @@ describe("a problem's spot", () => {
     expect(preflopWords("SB:c,BB:x")).toBe("SB limps, BB checks");
     expect(preflopWords("")).toBe("");
     const s = story(REP, { path: ["check", "bet 75%"], pot: 9.63, bet: 4.13, player: 0, hero: "BB" });
-    expect(s.steps).toEqual([
-      { street: "Preflop", pot: null, text: "Folds to BTN. BTN raises to 2.5bb, BB calls" },
-      { street: "Flop", pot: 5.5, text: "BB checks, BTN bets 75% (4.13bb)" },
-    ]);
-    expect(s.now).toEqual({ hero: "BB", toCall: 4.13, pot: 9.63, behind: 97.5 });
-    expect(story(REP, { path: [], pot: 5.5, bet: 0, player: 0, hero: "BB" }).steps[1]!.text).toBe("BB to act first");
+    expect(s.steps).toEqual([{ street: "Preflop", pot: null, text: "Folds to BTN. BTN raises to 2.5bb, BB calls" }]);
+    expect(s.now).toEqual({ street: "Flop", pot: 5.5, line: "BB checks, BTN bets 75% (4.13bb)", hero: "BB", toCall: 4.13, behind: 97.5 });
+    expect(story(REP, { path: [], pot: 5.5, bet: 0, player: 0, hero: "BB" }).now).toMatchObject({ street: "Flop", line: "", hero: "BB" });
     // a turn: the flop's line, the turn's pot after it, and the stack less what you put in on the flop
     const t = story(REP, { path: ["check", "bet 33%", "raise to 7", "call"], pot: 19.5, bet: 0, player: 1, hero: "BTN", turn: { card: "9s", at: ["check"], rangeEvs: null } });
-    expect(t.steps.slice(1)).toEqual([
-      { street: "Flop", pot: 5.5, text: "BB checks, BTN bets 33%, BB raises to 7, BTN calls" },
-      { street: "Turn", pot: 19.5, text: "BB checks" },
-    ]);
-    expect(t.now).toEqual({ hero: "BTN", toCall: 0, pot: 19.5, behind: 90.5 });
-    expect(story(REP, { path: ["check", "check"], pot: 5.5, bet: 0, player: 0, hero: "BB", turn: { card: "9s", at: [], rangeEvs: null } }).steps[2]).toEqual({ street: "Turn", pot: 5.5, text: "BB to act first" });
+    expect(t.steps.slice(1)).toEqual([{ street: "Flop", pot: 5.5, text: "BB checks, BTN bets 33%, BB raises to 7, BTN calls" }]);
+    expect(t.now).toEqual({ street: "Turn", pot: 19.5, line: "BB checks", hero: "BTN", toCall: 0, behind: 90.5 });
+    expect(story(REP, { path: ["check", "check"], pot: 5.5, bet: 0, player: 0, hero: "BB", turn: { card: "9s", at: [], rangeEvs: null } }).now).toMatchObject({ street: "Turn", pot: 5.5, line: "" });
   });
 
   it("the pot and the bet faced, the action said, sizes in bb", () => {
