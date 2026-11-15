@@ -330,7 +330,8 @@ export function rowOf(s: SessionRecord): SessionRow {
       ...base,
       what: `${str(m.label) || spot || "A library spot"}${VIEW_WORDS[view] ? `, ${VIEW_WORDS[view]}` : ""}${m.street === "turn" ? " on the turn" : ""}`,
       ...said(m.street === "turn" ? "Stored turn from the flop library (by how often, in 5% steps)" : "Precomputed solution (the flop library)"),
-      ...(spot ? { to: { href: `/practice?tab=drills&spot=${encodeURIComponent(spot)}${m.street === "turn" ? "&street=turn" : ""}${view ? `&view=${encodeURIComponent(view)}` : ""}`, label: "Drill it again" } } : {}),
+      // (an any-spot session, spot "any", is drilled again as any spot)
+      ...(spot === "any" ? { to: { href: "/practice?tab=drills", label: "Drill it again" } } : spot ? { to: { href: `/practice?tab=drills&spot=${encodeURIComponent(spot)}${m.street === "turn" ? "&street=turn" : ""}${view ? `&view=${encodeURIComponent(view)}` : ""}`, label: "Drill it again" } } : {}),
     };
   }
   if (s.kind === "analysis") {
