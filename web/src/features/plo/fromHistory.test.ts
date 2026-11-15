@@ -42,7 +42,7 @@ describe("a PLO hand you played, as spots to solve", () => {
     expect(allIn.skipped).toEqual(["The river came with a player all-in: nothing is left to decide."]);
   });
 
-  it("refuses what isn't four-card Omaha high, in words, and Analyze's import still refuses Omaha", () => {
+  it("refuses what isn't four-card Omaha high, in words, and Hold'em's reader still refuses Omaha", () => {
     expect(spotsFromHistory(PLO.replace("Omaha Pot Limit", "Hold'em No Limit").replace("[Ah Qd Js Td]", "[Ah Qd]"))).toMatch(/Not an Omaha hand/);
     expect(spotsFromHistory(PLO.replace("Omaha Pot Limit", "Omaha Hi/Lo Pot Limit"))).toMatch(/Only four-card Omaha high/);
     expect(spotsFromHistory(PLO.replace("Omaha Pot Limit", "5 Card Omaha Pot Limit"))).toMatch(/Only four-card Omaha high/);

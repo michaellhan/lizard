@@ -57,13 +57,13 @@ export function retryStory(m: Pick<MistakeRecord, "study" | "street" | "pot" | "
   const steps: StoryStep[] = [];
   const pre = preflopWords(encodeLine(h.preflop));
   if (street !== "preflop" && pre) steps.push({ street: "Preflop", pot: null, text: pre });
-  for (const s of STREETS.slice(1, at)) {
+  for (const s of (["flop", "turn", "river"] as const).slice(0, at - 1)) {
     const [a, b] = CARDS[s];
     const cards = spaced(h.board.slice(a, b));
     steps.push({ street: NAME[s], pot: null, text: `${cards} · ${streetWords(h[s]) || "checked through"}` });
   }
 
-  const blinds = street === "preflop" ? { SB: 0.5, BB: 1 } : {};
+  const blinds: Record<string, number> = street === "preflop" ? { SB: 0.5, BB: 1 } : {};
   const mo = money(h[street], blinds);
   if (!mo) return null;
   const inStreet = Object.values(mo.put).reduce((x, y) => x + y, 0) - (street === "preflop" ? 1.5 : 0);

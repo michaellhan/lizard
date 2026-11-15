@@ -16,13 +16,17 @@ EVs: each class's EV of each action against folding now, in chip equivalents of 
 folding is 0 as in pf_study's answers. In prize equity folding isn't just the chips in lost: the player not in the pot
 gains when others bust, which the fold's value counts.
 
-Size: the tree grows with the players and the stacks (pf_icm.build: 6 players at 20bb 1,525 nodes, at 40bb 4,667; 9 at
-20bb 9,326). A game whose arrays (nodes x seats) would not fit is refused in words (MAX_WORK; BROWSER_WORK in the browser).
+Size: the tree grows with the players and the stacks (pf_icm.build: 6 players at 30bb 2,008 nodes, at 75bb 7,542). From
+7 players nobody cold 4bets or cold-calls a 3bet (Spec.cold4, as engine/pf_engine.py's 7-9 handed tree): 9 at 20bb 1,527
+nodes, at 75bb 3,318 (with cold 4bets 12,000 to 109,000, too big to build in 1 GB). A game whose arrays (nodes x seats)
+would not fit is refused in words (MAX_WORK; BROWSER_WORK in the browser).
 """
 from __future__ import annotations
 
 import base64
+import dataclasses
 import hashlib
+import random
 import json
 import sys
 import time
@@ -38,6 +42,7 @@ from gto.pf_classes import CLASSES, N_IN
 from gto.preflop import SEATS
 
 from engine import pf_icm as I
+from engine import pf_icm_stored as ST
 
 K = len(CLASSES)
 BROWSER_WORK = 70_000      # nodes x seats a solve may hold in the browser (pf_study's 6-max 100bb is 66k: ~60 MB)
@@ -45,6 +50,7 @@ MAX_WORK = 300_000         # ... and natively
 MIN_STACK = 1.5            # bb: a seat with less can't post its blind and act (and push/fold below that is all in)
 MAX_STACK = 250.0
 MODEL_NAME = "preflop solve in prize equity (class-level model)"
+LIMITS_7UP = "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
 
 
 @dataclass(frozen=True)
@@ -61,8 +67,18 @@ class Spec:
     @property
     def key(self) -> str:
         """A file-name-safe id: 'icm6_<hash>' (pf_study's Spec.key for the browser's keep)."""
-        h = hashlib.sha1(json.dumps([self.players, self.stacks, self.antes, self.prize_key]).encode()).hexdigest()[:16]
+        game = [dataclasses.asdict(I.Sizes()), I.JAM_OPEN]     # (the sizes too: a file of other sizes never loads)
+        if not self.cold4:
+            game.append("no cold 4bets")       # (7 or more players' smaller tree; 2-6 players' keys as they were)
+        h = hashlib.sha1(json.dumps([self.players, self.stacks, self.antes, self.prize_key, game]).encode()).hexdigest()[:16]
         return f"icm{self.players}_{h}"
+
+    @property
+    def cold4(self) -> bool:
+        """Cold 4bets and cold calls of a 3bet are in the tree up to 6 players; from 7 a player who hasn't put chips in
+        voluntarily only folds once the pot is 3bet (pf_icm.build cold4=False, as engine/pf_engine.py's 7-9 handed
+        tree): 9-handed 1,500 to 3,300 nodes instead of 12,000 to 109,000."""
+        return self.players <= 6
 
     @property
     def ante(self) -> float:
@@ -84,17 +100,20 @@ class Spec:
             bits.append(f"{next(iter(a)):g}bb ante each" if len(a) == 1 else "antes " + " · ".join(f"{x:g}" for x in self.antes))
         bits.append(self.prize_words or "winner takes all (chips)")
         sz = I.Sizes()
-        bits.append(f"opens {sz.open:g}bb ({sz.small_open:g} from {sz.small_open_at:g}bb), SB {sz.sb_open:g}x or limp, "
+        small = f" ({sz.small_open:g} from {sz.small_open_at:g}bb)" if sz.small_open else ""
+        bits.append(f"opens {sz.open:g}bb{small}, SB {sz.sb_open:g}x or limp, "
                     f"a jam beside the open from {I.JAM_OPEN:g}bb, 3bets {sz.ip_3bet:g}x / {sz.blind_3bet:g}x from the blinds")
+        if not self.cold4:
+            bits.append(LIMITS_7UP)
         return ", ".join(bits)
 
     def build(self) -> Tuple[G.Node, List[str]]:
         pos = self.positions()
-        return I.build(pos, self.stacks, self.antes, max_players=3 if self.players <= 6 else 2), pos
+        return I.build(pos, self.stacks, self.antes, max_players=3 if self.players <= 6 else 2, cold4=self.cold4), pos
 
     def game(self) -> I.ICMGame:
         pos = self.positions()
-        g = I.game(pos, list(self.stacks), list(self.antes), icm_model=self.model)
+        g = I.game(pos, list(self.stacks), list(self.antes), icm_model=self.model, cold4=self.cold4)
         g.avg_power = PS.AVG_POWER
         return g
 
@@ -136,6 +155,8 @@ def spec_of(adv, state: dict) -> Tuple[Optional[Spec], Optional[str]]:
         prize_key = json.dumps(model.key, default=str)
         words = prize_words(model)
     spec = Spec(n, tuple(st), tuple(antes), prize_key, words, model)
+    if spec.key in ST.KEYS:      # (a stored game: no need to build its tree to size it)
+        return spec, None
     w = work_of(spec)
     cap = BROWSER_WORK if sys.platform == "emscripten" else MAX_WORK
     if w > cap:
@@ -261,6 +282,11 @@ class Solve(PS.Solve):
                          "grid": {"actions": [], "cells": {CLASSES[i]: {"w": round(float(min(1.0, wq[i])), 4)}
                                                             for i in np.nonzero(lq)[0]}}})
         pot = sum(bets.values()) + sum(self.spec.antes)
+        # a jam bigger than anyone still in can call is played to the deepest of them (I.build): the rest, which a table
+        # counts in its pot, is no chip in play (pfGrade.ts chipsOff takes it off the table's pot)
+        cap = {q: self.spec.stacks[i] - self.spec.antes[i] for i, q in enumerate(pos)}
+        jammed = {x for x, act, _ in node.line if act == "all-in"}
+        uncalled = sum(max(0.0, cap[x] - bets[x]) for x in jammed)
         st = self.status()
         regret = float((held * (evs.max(0) - evm))[live].sum() / max(float(held[live].sum()), 1e-300))
         if never:
@@ -272,7 +298,7 @@ class Solve(PS.Solve):
                      if self.spec.prize_key else
                      "preflop solve in chips (winner takes all: prize equity is chips), each seat's own stack")
         return {"study": "node", "street": "preflop", "actor": pos[p], "players": g.n, "board": "",
-                "pot_bb": round(pot, 2),
+                "pot_bb": round(pot, 2), "uncalled_bb": round(uncalled, 2),
                 "to_call_bb": round(min(cur, self.spec.stacks[p] - self.spec.antes[p]) - bets[pos[p]], 2),
                 "stack_bb": round(self.spec.stacks[p] - self.spec.antes[p] - bets[pos[p]], 2),
                 "actions": acts, "grid": {"actions": names, "cells": cells}, "range_combos": round(tot, 1),
@@ -282,7 +308,8 @@ class Solve(PS.Solve):
                 "solver": {"by": "the preflop solve", "model": MODEL_NAME, "iterations": self.iters,
                            "mbb": st["mbb"], "exploitability_bb": None if self.expl is None else round(sum(self.expl), 4)},
                 "pf_solve": st, "pf_icm": True, "source": "solver", "notes": notes, "regret_bb": round(regret, 3),
-                "rough": bool(never or thin or regret >= PS.ROUGH_BB)}
+                "rough": bool(never or thin or regret >= PS.ROUGH_BB),
+                **({} if self.spec.cold4 else {"pf_limits": LIMITS_7UP})}
 
     def _bets_on_tree(self, node: G.Node) -> Dict[str, float]:
         """Each seat's chips in this round at `node`, from the tree's own line (the blinds as posted, short ones all in)."""
@@ -306,7 +333,16 @@ MAX_HELD = 3
 
 
 def held(spec: Spec) -> Optional[Solve]:
-    return _HELD.get(spec.key)
+    """The game's solve in hand: one run here, else a stored one (engine/pf_icm_stored.py), else None."""
+    s = _HELD.get(spec.key)
+    if s is None:
+        blob = ST.read(spec.key)
+        if blob is not None:
+            try:
+                s = _keep(Solve(spec, blob))
+            except ValueError:      # (a file from another tree: the game changed since it was stored)
+                s = None
+    return s
 
 
 def _keep(s: Solve) -> Solve:
@@ -391,21 +427,85 @@ def _tourney(st: dict) -> bool:
     return bool(st.get("payouts") or st.get("bounties")) and not str(st.get("board") or "")
 
 
+def play(adv, st: dict, seat: str, hole, seed: Optional[int] = None) -> Optional[dict]:
+    """A Practice opponent's preflop move in a session graded by a stored preset (the request's `pf_play`, which
+    practice.ts stateFor sends only there): drawn from the stored solve's mix for its hand class at the node, so the hand
+    stays on the tree the player's own decisions are graded on (with the charts' moves, whose sizes and options aren't
+    the tree's, few were: scripts/pf_icm/coverage.py). In Advisor.play's format, with `pf_icm`. None where the node isn't
+    this spot (another game, a line off the tree or the line's size not the tree's, past the preflop, a class the line
+    has left without weight): the chart's move, as upstream."""
+    if not st.get("pf_play") or not _tourney(st):
+        return None
+    from gto import advisor as A
+    spec, _ = spec_of(adv, st)
+    if spec is None or spec.key not in ST.KEYS:
+        return None
+    s = held(spec)
+    if s is None:
+        return None
+    res = s.node(A._norm_actions(st.get("preflop"), float(st.get("bb", 1.0))))
+    if res.get("study") != "node" or res.get("actor") != seat:
+        return None
+    if any("played as the solve's size" in n for n in res.get("notes", [])):
+        return None
+    cards = tuple(A.parse_cards(hole)) if isinstance(hole, str) else tuple(hole)
+    cell = res["grid"]["cells"].get(_class_of(A.cards_str(cards)))
+    if cell is None or not sum(cell["f"]):
+        return None
+    names = res["grid"]["actions"]
+    amount = {a["action"]: a.get("amount_bb") for a in res["actions"]}
+    rng = random.Random(seed) if seed is not None else adv.rng
+    r, i = rng.random() * sum(cell["f"]), len(names) - 1
+    for k, f in enumerate(cell["f"]):
+        r -= f
+        if r <= 0 and f > 0:
+            i = k
+            break
+    name = names[i]
+    mix = [{"action": n, "amount_bb": amount.get(n), "freq": round(float(f), 4)} for n, f in zip(names, cell["f"])]
+    out = {"pos": seat, "action": name, "name": name, "freq": round(float(cell["f"][i]), 4), "street": "preflop",
+           "actions": mix, "pf_icm": True}
+    if name == "raise":
+        out["to"] = round(float(amount[name]) * float(st.get("bb", 1.0)), 2)
+    return out
+
+
+_RANKS = "23456789TJQKA"
+
+
+def _class_of(hole: str) -> str:
+    """'AhKd' -> 'AKo'."""
+    a, b = hole[:2], hole[2:]
+    if _RANKS.index(a[0]) < _RANKS.index(b[0]):
+        a, b = b, a
+    return a[0] + b[0] if a[0] == b[0] else a[0] + b[0] + ("s" if a[1] == b[1] else "o")
+
+
 def install() -> None:
-    """Sends a tournament's Study preflop solve here (idempotent): Advisor._study_pf wrapped."""
+    """Sends a tournament's Study preflop solve here, and a stored preset's Practice opponents' preflop moves (idempotent):
+    Advisor._study_pf and Advisor.play wrapped."""
     from gto.advisor import Advisor
-    if getattr(Advisor._study_pf, "_pf_icm", False):
-        return
-    upstream = Advisor._study_pf
+    if not getattr(Advisor._study_pf, "_pf_icm", False):
+        upstream = Advisor._study_pf
 
-    def _study_pf(self, st, pfs):
-        if _tourney(st):
-            return answer(self, st, pfs)
-        return upstream(self, st, pfs)
+        def _study_pf(self, st, pfs):
+            if _tourney(st):
+                return answer(self, st, pfs)
+            return upstream(self, st, pfs)
 
-    _study_pf._pf_icm = True
-    _study_pf.upstream = upstream
-    Advisor._study_pf = _study_pf
+        _study_pf._pf_icm = True
+        _study_pf.upstream = upstream
+        Advisor._study_pf = _study_pf
+    if not getattr(Advisor.play, "_pf_icm", False):
+        up_play = Advisor.play
+
+        def _play(self, state, seat, hole, seed=None):
+            out = play(self, state, str(seat).upper(), hole, seed)
+            return out if out is not None else up_play(self, state, seat, hole, seed)
+
+        _play._pf_icm = True
+        _play.upstream = up_play
+        Advisor.play = _play
 
 
 install()

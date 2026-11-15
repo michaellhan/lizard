@@ -2,19 +2,21 @@
 // types (engine/plo/river/, engine/plo/turn/). That's all it is: no street before the one typed is solved, the ranges aren't anyone's solution, there's no rake, and pot-limit poker's other
 // sizes aren't in the tree. The page says so, and every number under it sits under the solve's provenance. Loaded with its
 // route, so no PLO code is in the first download; the work is done in a worker.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { cardName, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { RiverClient } from "@/engine/plo/river/client";
-import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_SECONDS, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverRequest, type RiverResult, type RiverView, type StopReason, type ViewPath } from "@/engine/plo/river/run";
+import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_SECONDS, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverResult, type RiverView, type StopReason, type ViewPath } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
 import { byClass } from "./classes";
+import { StructureGrid } from "./StructureGrid";
 import { spotsFromHistory, type HistoryRead, type HistorySpot } from "./fromHistory";
 import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally } from "./drill";
 import type { Grade } from "@/grading/grade";
+import { DEFAULT_SPOT, requestOf, type PloSpot } from "./spot";
 
 const inputClass = "w-full min-w-0 rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
 const buttonClass = "rounded border border-border px-3 py-1 text-sm hover:bg-surface-2 disabled:opacity-40";
@@ -24,17 +26,7 @@ const pct = (x: number | null, digits = 1) => (x === null ? "–" : `${(x * 100)
 const chips = (x: number | null) => (x === null || Number.isNaN(x) ? "–" : x.toFixed(2));
 const handText = (i: number) => handAt(i).map(cardName).join("");
 
-/** "50, 100" as numbers, or null if it isn't. An empty list is fine: that seat of the tree has no such size. */
-function readSizes(text: string): number[] | null {
-  const items = text
-    .split(",")
-    .map((s) => s.trim().replace(/%$/, ""))
-    .filter(Boolean);
-  const out = items.map(Number);
-  return out.every(Number.isFinite) ? out : null;
-}
-
-function stopWords(r: RiverResult): string {
+export function stopWords(r: RiverResult): string {
   const said: Record<StopReason, string> = {
     target: `Reached the target of ${r.targetPct}% of the pot.`,
     time: `The time budget ran out short of the ${r.targetPct}% target: these numbers are approximate.`,
@@ -44,33 +36,59 @@ function stopWords(r: RiverResult): string {
   return said[r.stop];
 }
 
-function progressWords(p: RiverProgress | null) {
+export function progressWords(p: RiverProgress | null) {
   if (!p) return "Reading the ranges";
   const far = p.exploitabilityPct === null ? "not measured yet" : `${p.exploitabilityPct.toFixed(3)}% of the pot from equilibrium`;
   return `${p.iterations.toLocaleString("en-US")} iterations, ${far}, ${p.seconds.toFixed(1)} s`;
 }
 
 export function PloRiverPage() {
-  const [oop, setOop] = useState("AAxx,KKxx,QQxx");
-  const [ip, setIp] = useState("JT98,JT97,T987");
-  const [board, setBoard] = useState("Js9s4d2h7c");
-  const [pot, setPot] = useState("20");
-  const [stackOop, setStackOop] = useState("100");
-  const [stackIp, setStackIp] = useState("100");
-  const [bets, setBets] = useState("50, 100");
-  const [raises, setRaises] = useState("100");
-  const [raiseCap, setRaiseCap] = useState(2);
-  const [allIn, setAllIn] = useState(true);
-  // (a turn solves every river too, a flop every turn and river: one size a street to start, as two sizes and a raise
-  // are mostly over the limit)
-  const [turnBets, setTurnBets] = useState("75");
-  const [turnRaises, setTurnRaises] = useState("");
-  const [turnCap, setTurnCap] = useState(0);
-  const [turnAllIn, setTurnAllIn] = useState(true);
-  const [riverBets, setRiverBets] = useState("75");
-  const [riverRaises, setRiverRaises] = useState("");
-  const [riverCap, setRiverCap] = useState(0);
-  const [riverAllIn, setRiverAllIn] = useState(true);
+  return (
+    <PloSolver
+      heading={
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
+          <p className="text-sm text-muted">No rake; earlier streets aren&apos;t solved.</p>
+        </header>
+      }
+    />
+  );
+}
+
+export interface PloSolverProps {
+  heading?: ReactNode;
+  /** the spot the form starts on */
+  initial?: PloSpot;
+  /** solve it as soon as the page opens */
+  autoSolve?: boolean;
+  /** offer "Start from a hand you played" */
+  fromHistory?: boolean;
+  /** told the spot whenever a solve starts */
+  onSolve?: (spot: PloSpot) => void;
+  /** more under a solution, given the solution */
+  extra?: (result: RiverResult, band: string | undefined) => ReactNode;
+}
+
+/** The PLO solve: its form, the solve in a worker, and the solution under its provenance (the /plo page and Study's PLO). */
+export function PloSolver({ heading, initial = DEFAULT_SPOT, autoSolve = false, fromHistory = true, onSolve, extra }: PloSolverProps) {
+  const [oop, setOop] = useState(initial.oop);
+  const [ip, setIp] = useState(initial.ip);
+  const [board, setBoard] = useState(initial.board);
+  const [pot, setPot] = useState(initial.pot);
+  const [stackOop, setStackOop] = useState(initial.stacks[0]);
+  const [stackIp, setStackIp] = useState(initial.stacks[1]);
+  const [bets, setBets] = useState(initial.sizes.bets);
+  const [raises, setRaises] = useState(initial.sizes.raises);
+  const [raiseCap, setRaiseCap] = useState(initial.sizes.cap);
+  const [allIn, setAllIn] = useState(initial.sizes.allIn);
+  const [turnBets, setTurnBets] = useState(initial.turn.bets);
+  const [turnRaises, setTurnRaises] = useState(initial.turn.raises);
+  const [turnCap, setTurnCap] = useState(initial.turn.cap);
+  const [turnAllIn, setTurnAllIn] = useState(initial.turn.allIn);
+  const [riverBets, setRiverBets] = useState(initial.river.bets);
+  const [riverRaises, setRiverRaises] = useState(initial.river.raises);
+  const [riverCap, setRiverCap] = useState(initial.river.cap);
+  const [riverAllIn, setRiverAllIn] = useState(initial.river.allIn);
   const cardCount = parseIds(board)?.length;
   const isTurn = cardCount === 4;
   const isFlop = cardCount === 3;
@@ -88,59 +106,66 @@ export function PloRiverPage() {
   useEffect(
     () => () => {
       client.current?.dispose();
+      client.current = null;
     },
     [],
   );
 
+  // the latest run's number: an earlier one's outcome, cancelled by a newer run or an unmount, changes nothing
+  const runId = useRef(0);
   const run = async () => {
+    const mine = ++runId.current;
     setError(null);
     setResult(null);
     setCancelledEmpty(false);
     setProgress(null);
-    const betSizes = readSizes(bets);
-    const raiseSizes = readSizes(raises);
-    const turnBetSizes = readSizes(turnBets);
-    const turnRaiseSizes = readSizes(turnRaises);
-    const riverBetSizes = readSizes(riverBets);
-    const riverRaiseSizes = readSizes(riverRaises);
-    if (!betSizes || !raiseSizes || ((isTurn || isFlop) && (!riverBetSizes || !riverRaiseSizes)) || (isFlop && (!turnBetSizes || !turnRaiseSizes))) {
-      setError("Sizes are percents, separated by commas: 50, 100.");
-      return;
-    }
-    const request: RiverRequest = {
+    const spot: PloSpot = {
       oop,
       ip,
       board,
-      pot: Number(pot),
-      stacks: [Number(stackOop), Number(stackIp)],
-      sizes: { bets: betSizes, raises: raiseSizes, raiseCap, allIn },
-      ...(isFlop ? { turnSizes: { bets: turnBetSizes!, raises: turnRaiseSizes!, raiseCap: turnCap, allIn: turnAllIn } } : {}),
-      ...(isTurn || isFlop ? { riverSizes: { bets: riverBetSizes!, raises: riverRaiseSizes!, raiseCap: riverCap, allIn: riverAllIn } } : {}),
-      targetPct: Number(target),
-      seconds: Number(seconds),
+      pot,
+      stacks: [stackOop, stackIp],
+      sizes: { bets, raises, cap: raiseCap, allIn },
+      turn: { bets: turnBets, raises: turnRaises, cap: turnCap, allIn: turnAllIn },
+      river: { bets: riverBets, raises: riverRaises, cap: riverCap, allIn: riverAllIn },
     };
+    const request = requestOf(spot, { targetPct: Number(target), seconds: Number(seconds) });
+    if (typeof request === "string") {
+      setError(request);
+      return;
+    }
+    onSolve?.(spot);
     const c = (client.current ??= new RiverClient());
     setRunning(true);
     try {
-      const outcome = await c.run(request, setProgress);
+      const outcome = await c.run(request, (p) => mine === runId.current && setProgress(p));
+      if (mine !== runId.current) return;
       setResult(outcome.result);
       setCancelledEmpty(outcome.cancelled && !outcome.result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (mine === runId.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setRunning(false);
-      setProgress(null);
+      if (mine === runId.current) {
+        setRunning(false);
+        setProgress(null);
+      }
     }
   };
 
+  // (Study opens a spot solved, as its Hold'em spots open: on the first render's spot, a moment after mounting, so
+  // React's development double mount starts it once)
+  useEffect(() => {
+    if (!autoSolve) return;
+    const t = setTimeout(() => void run(), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSolve]);
+
   return (
     <div className="max-w-3xl space-y-5">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
-        <p className="text-sm text-muted">No rake; earlier streets aren&apos;t solved.</p>
-      </header>
+      {heading}
 
-      <FromHistory
+      {fromHistory && <FromHistory
         onUse={(spot, read) => {
           setBoard(spot.board);
           setPot(String(spot.pot));
@@ -150,7 +175,7 @@ export function PloRiverPage() {
             `From your hand: the ${spot.street}, ${spot.seats[0]} (OOP) against ${spot.seats[1]} (IP)${spot.hero === null ? `, after you'd folded (you were ${read.heroPos} with ${read.hole})` : `, you ${spot.seats[spot.hero]} with ${read.hole}`}. Board, pot and stacks filled; type the ranges.`,
           );
         }}
-      />
+      />}
       {fromHand && (
         <p aria-label="From your hand" aria-live="polite" className="text-sm">
           {fromHand}
@@ -274,7 +299,7 @@ export function PloRiverPage() {
         </p>
       )}
       {cancelledEmpty && <p className="text-sm text-muted">Cancelled before there was anything to show.</p>}
-      {result && <Results key={result.iterations} result={result} onView={(path) => client.current?.river(path) ?? Promise.resolve(null)} />}
+      {result && <Results key={result.iterations} result={result} onView={(path) => client.current?.river(path) ?? Promise.resolve(null)} extra={extra} />}
     </div>
   );
 }
@@ -317,23 +342,24 @@ function StreetSizes({ street, legend, bets, raises, cap, allIn, note }: { stree
 
 type AskView = (path: ViewPath) => Promise<RiverView | null>;
 
-function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
+/** A PLO solve's provenance, from its result. */
+export function resultProvenance(result: RiverResult) {
+  return ploRiverProvenance({
+    stop: result.stop,
+    iterations: result.iterations,
+    seconds: result.seconds,
+    exploitabilityPct: result.exploitability.pct,
+    targetPct: result.targetPct,
+    sizes: result.sizes,
+    ...(result.street === "turn" ? { turn: { riverSizes: result.riverSizes!, rivers: result.rivers! } } : {}),
+    ...(result.street === "flop" ? { flop: { turnSizes: result.turnSizes!, riverSizes: result.riverSizes!, turns: result.turns! } } : {}),
+  });
+}
+
+function Results({ result, onView, extra }: { result: RiverResult; onView: AskView; extra?: PloSolverProps["extra"] }) {
   const [nodeId, setNodeId] = useState(0);
   const node = result.nodes.find((n) => n.id === nodeId) ?? result.nodes[0]!;
-  const provenance = useMemo(
-    () =>
-      ploRiverProvenance({
-        stop: result.stop,
-        iterations: result.iterations,
-        seconds: result.seconds,
-        exploitabilityPct: result.exploitability.pct,
-        targetPct: result.targetPct,
-        sizes: result.sizes,
-        ...(result.street === "turn" ? { turn: { riverSizes: result.riverSizes!, rivers: result.rivers! } } : {}),
-        ...(result.street === "flop" ? { flop: { turnSizes: result.turnSizes!, riverSizes: result.riverSizes!, turns: result.turns! } } : {}),
-      }),
-    [result],
-  );
+  const provenance = useMemo(() => resultProvenance(result), [result]);
   const turn = result.street === "turn";
   const flop = result.street === "flop";
   const later = turn || flop;
@@ -365,8 +391,10 @@ function Results({ result, onView }: { result: RiverResult; onView: AskView }) {
       <RangeTable node={node} />
       <ActionTable node={node} />
       <EveryDecision nodes={result.nodes} />
+      <ShapeGrid hands={result.hands[node.player]!} start={result.weights[node.player]!} node={node} />
       <ClassTable hands={result.hands[node.player]!} board={result.board} node={node} />
       <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={later} node={node} />
+      {extra?.(result, provenance.band)}
       <Drill result={result} band={provenance.band} />
       {later && (
         <After
@@ -663,6 +691,7 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
           </label>
           <RangeTable node={node} />
           <ActionTable node={node} />
+          <ShapeGrid hands={view.hands[node.player]!} start={view.weights[node.player]!} node={node} />
           <ClassTable hands={view.hands[node.player]!} board={`${board}${view.card}`} node={node} />
           <ComboTable key={`${view.closing}:${view.card}:${node.id}`} hands={view.hands[node.player]!} start={view.weights[node.player]!} byEv={street === "turn"} node={node} />
           <p className="text-xs text-muted">
@@ -683,6 +712,11 @@ function After({ next, board, lines, cards, ask, onView }: { next: "turn" | "riv
       )}
     </section>
   );
+}
+
+/** The decision's range by hand shape (StructureGrid): pairs and connectedness against suits, each cell's mix, its combos on a pick. */
+export function ShapeGrid({ hands, start, node }: { hands: Int32Array; start: Float32Array; node: ResultNode }) {
+  return <StructureGrid key={node.id} label="Hand shapes at this decision" whose={`${SEAT_NAMES[node.player]} hands`} hands={hands} weight={node.weight} start={start} actions={node.actions} strategy={node.strategy} ev={node.ev} />;
 }
 
 /** The decision's range condensed: its combos by what they hold on the board, strongest first. */

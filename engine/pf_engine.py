@@ -18,6 +18,11 @@ What is new:
 * **A smaller tree** (`cold4=False`): once the pot has been 3bet, a player who hasn't put chips in voluntarily can only
   fold (no cold 4bets or cold calls of a 3bet), so 7-9 handed trees fit in memory (9-handed: ~9k nodes instead of
   109k with at most two to a flop).
+* **Tree options** (2026-11-13, the tree builder): `limps` lets any seat limp first in or over-limp (call the big
+  blind) while fewer than `max_players` are in, the big blind then checking or raising, a raise over limpers going to
+  the seat's open plus 1bb a limper (the small blind's sb_open, the big blind's Sizes.iso, plus 1bb a limper past the
+  first); never with a straddle. `opens` gives a seat its own open size (bb, first in; the 3bet sizes then scale from
+  it). Both off, the tree is the one before (tests/test_pf_engine.py).
 * **The payoff** (`payoff`, ChipPayoff by default): a function of each seat's chip result at a terminal outcome. Chip
   EV is linear and exact. A nonlinear payoff (prize equity) is evaluated per outcome: at a heads-up terminal each of
   the two winners (a folded seat's utility weighted by the pot's chance to go each way, taken over the two players'
@@ -50,14 +55,18 @@ class ChipPayoff:
 # ----------------------------------------------------------------------------- the tree
 def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.Sizes] = None,
           max_players: int = 3, max_players_raised: int = 2, sb_limp: bool = False, ante: float = 0.0,
-          straddle: bool = False, cold4: bool = True) -> G.Node:
-    """pf_game.build with each seat's own stack (`stacks`, bb before the ante, in `positions` order) and `cold4`
-    (False: from the 3bet on, a player who hasn't put chips in voluntarily only folds)."""
+          straddle: bool = False, cold4: bool = True, limps: bool = False,
+          opens: Optional[Dict[str, float]] = None) -> G.Node:
+    """pf_game.build with each seat's own stack (`stacks`, bb before the ante, in `positions` order), `cold4`
+    (False: from the 3bet on, a player who hasn't put chips in voluntarily only folds), `limps` (any seat may limp
+    first in or over-limp; not with a straddle) and `opens` (a position's own open size, bb)."""
     sizes = sizes or G.Sizes()
     n = len(positions)
     pos = list(positions)
     sb, bb = (n - 2, n - 1) if n > 2 else (0, 1)
     straddle = bool(straddle) and n >= 3
+    limps = bool(limps) and not straddle
+    open_of = {pos.index(p): float(v) for p, v in (opens or {}).items() if p in pos}
     stk = [float(s) - ante for s in stacks]       # what each has to bet after the ante
     rank = G.post_rank(pos)
     posted = [0.0] * n
@@ -67,11 +76,12 @@ def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.S
         posted[0] += 2.0
     posted = [min(p, s) for p, s in zip(posted, stk)]
 
-    def raise_to(p, cur, n_raises, last, callers, bets):
+    def raise_to(p, cur, n_raises, last, callers, bets, limpers=0):
         if n_raises == 0:
             if p == bb and not straddle:
-                return sizes.iso
-            return (sizes.sb_open if p == sb else sizes.open) * cur
+                return sizes.iso + max(0, limpers - 1) * cur
+            base = open_of.get(p, sizes.sb_open if p == sb else sizes.open)
+            return base * cur + limpers * cur
         if n_raises == 1:
             if p == sb and last == bb and abs(bets[sb] - 1.0) < 1e-9:
                 return cur * sizes.limp_3bet
@@ -112,7 +122,16 @@ def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.S
             names.append("fold")
             kids.append(rec(bets, folded | {q}, acted | {q}, vol, n_raises, last, q + 1,
                             line + ((pos[q], "fold", 0.0),)))
-        if n_raises == 0 and sb_limp and not straddle and q in (sb, bb) \
+        if n_raises == 0 and limps:
+            # open-limps and over-limps: a seat facing the big blind calls it while fewer than max_players are in;
+            # the big blind with limpers in checks (its "call" puts nothing in)
+            in_pot = sum(1 for r in live if bets[r] >= cur - 1e-9)
+            if bets[q] >= cur - 1e-9 or in_pot < max_players:
+                b2 = list(bets); b2[q] = min(cur, stk[q])
+                names.append("call")
+                kids.append(rec(b2, folded, acted | {q}, vol | ({q} if bets[q] < cur - 1e-9 else set()), 0, last,
+                                q + 1, line + ((pos[q], "call", b2[q]),)))
+        elif n_raises == 0 and sb_limp and not straddle and q in (sb, bb) \
                 and all(x in folded for x in range(n) if x not in (sb, bb)) and bets[q] < cur + 1e-9:
             if q == sb or sb in acted:
                 b2 = list(bets); b2[q] = min(cur, stk[q])
@@ -134,7 +153,8 @@ def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.S
         eff = min(stk[q], reach_max)                # the most this raise can put at risk
         if not cold and cur < stk[q] - 1e-9 and n_raises < 4 and reach_max > cur + 1e-9:
             callers = sum(1 for r in live if r != last and r != q and bets[r] >= cur - 1e-9) if n_raises > 0 else 0
-            to = raise_to(q, cur, n_raises, last, callers, bets)
+            limpers = sum(1 for r in live if r != q and r in vol) if n_raises == 0 else 0
+            to = raise_to(q, cur, n_raises, last, callers, bets, limpers)
             if to >= sizes.jam_frac * eff or n_raises == 3:
                 to = eff
             to = min(to, eff)

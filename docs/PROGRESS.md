@@ -5120,9 +5120,303 @@ BTN +23). Tests: `scripts/library/test_nuts.py`, `test_assemble.py`, 17 passed.
 Library builds started the same day, each in its own session and branch, building into `library-build/sources/`:
 the five 552-flop single-raised spots to every flop, the four 3-way spots to every flop, the limped heads-up spot's
 last 323 flops (its 4.2 GB came from the tree's size plus memory kept between flops; capped at 4 GB by the owner), and
-40bb and 200bb spots. None is merged yet.
+40bb and 200bb spots. The single-raised one finished on 2026-11-12 and was merged and published on
+2026-11-13 (library `66b89def`, nut shares for its new flops in `30bbcf5d`); the others are still building.
 
+## 2026-11-11: stored prize-equity preflop solves, and Practice graded by them
 
+- Six stage and format presets are solved once in prize equity and stored: Final-table bubble, Three left, Heads-up,
+  Sit & go bubble, Sit & go 6 players and Double or nothing (`engine/pf_icm_stored.py` lists them; files in
+  `engine/pf_icm/` with the manifest `stages.json`; built by `scripts/pf_icm/build_stored.py`, through the shared slot).
+  They are 0.015-1.28 mbb/hand a seat from equilibrium and 0.4-51 KB each. `scripts/build-solver-assets.mjs` copies them
+  into the site's `pf/` folder, and Study answers them from the file at once. The 8- and 9-player presets are left out,
+  as they are over the browser's size cap and take 2-5 GB to build.
+- Practice grades a tournament session's preflop by them where the session is one of these presets as it sets the
+  table, not played out, with no bounties (`pfBlocked`, `web/src/features/practice/pfIcmStored.ts`). Any other
+  tournament gets a reason that names the stored presets. A chip-EV tournament at equal stacks is the cash game the
+  stored grid answers.
+- With the charts' opponents and buttons, 4.8% of decisions lined up with the solve's tree (`scripts/pf_icm/coverage.py
+  --charts`). The charts open 2.5bb where the tree opened 2bb, and have no jam beside the open. So three changes:
+  - The ICM tree now opens 2.5bb, the cash solve's and the charts' size, and its key hashes the sizes.
+  - In these sessions (`PracticeHand.pfOptions`, sent as `pf_play`), each opponent's preflop move is drawn from the
+    stored node (`pf_icm_study.play`, which wraps `Advisor.play` for stored keys only), and your buttons are the
+    node's options.
+  - A jam no one left can call counts the same on both sides (the node's `uncalled_bb`, taken off the table's pot in
+    `chipsOff`), and an opponent's raise keeps the tree's size to the cent.
+  Now 100% of decisions are graded by the solve when you play the solve's or the chart's mix, and 93-97% a preset
+  when you pick any option evenly (the rest are classes the solve has folded). The setup and the opponents line say so.
+- Re-measured with 2.5bb opens (`scripts/pf_icm/convergence.py`, ACCURACY 20.3): the sit & go bubble levels off at 1.28
+  mbb (was 1.83), and the 6-max tables reach 1.5 and 0.61 at 600 iterations (were 2.1 and 2.5).
+- Checked in a browser (dev build) over 18 hands of a sit & go bubble session: 17 preflop decisions were graded by the
+  solve, badged "Preflop solve (class-level model) · precomputed · every outcome paid in prize equity …", with EVs in bb
+  of prize equity. One was a class the solve had folded: it fell back to the push/fold model, with the reason given.
+- Tests: `scripts/engine/test_pf_icm_stored.py` 6/6 and `test_pf_icm.py` 13/13; `pfIcmStored.test.ts` (new, 8 tests);
+  vitest practice, solver, analyze and study 2,054 passed; `pyodide.test.mjs` 21/21; tsc and eslint clean. A
+  pfGrade test that expected every tournament refused now expects the unequal chip-EV one and a non-preset ICM one
+  refused.
+
+## 2026-11-13: Bunching (Custom solving)
+
+The "Bunching effect" row goes from NOT IMPLEMENTED / NOT IMPLEMENTED to PARTIAL / WORKING.
+
+- `engine/bunching.py`: the folders' preflop fold ranges (the charts', or the preflop solve's where its game is stored
+  or solved in the browser, else the charts' with the reason) weigh each remaining combo by P(no folder holds a card of
+  it), from the folders' card moments: exact for one or two folders, sampled over 60,000 deals past that, the error
+  stated. It also gives the next card's odds under the folds. It wraps `Advisor._advise_at` (after
+  `engine/tree_depth.py`'s wrap): a request with `bunching` solves every street live on the weighted ranges (custom
+  ranges too), the libraries put aside for the request; one without is answered as before. Loaded at worker start by
+  a new entry in `scripts/pyodide/worker-edits.mjs`, declared in `solver/UPSTREAM.json`; `solver/` is untouched.
+- Web: a Bunching select on the Solve page (`bunch` in the link; refused heads-up), a Bunching switch in Study on a
+  3-or-more-player flop, turn or river (its folds follow the preflop source in use), the live solve's provenance
+  naming the folders, the fold source, exact or sampled with its error, and that the turn and river are still dealt
+  evenly, and the next card's odds under the switch. A local Python server is sent nothing.
+- Measured (ACCURACY section 23, `scripts/engine/measure_bunching.py`): on UTG vs BB, BTN vs BB and a 3-way spot, range
+  frequencies move up to 6 points and EVs by hundredths of a bb, about half the gap between Fast and Accurate. The
+  per-player factor leaves out 0.3-0.4% of a pair's weight. The cost is a live solve where the library would answer.
+- Left (why the engine column is PARTIAL): the turn and river are still dealt evenly in the solve (the odds are shown,
+  not played); 4-way pots go through the same path but weren't measured.
+- Tests: `scripts/engine/test_bunching.py` 23 passed; `scripts/pyodide/*.test.mjs` 22 passed; vitest
+  `src/solver/bunching.test.ts`, `SolvePage.test.tsx`, Study's `studyState` and `StudyPage` tests 91 passed (and the
+  wider `src/features/solve src/features/study src/solver src/data` run 496 passed before the Solve page test was added);
+  tsc and eslint clean. Checked in a browser (dev build): the Solve page's select opens Study with `bunch=charts`; BTN
+  vs BB, 3-way and UTG vs BB from the preflop solve's folds each solved live with the badge and the next card's odds;
+  the switch off went back to the library's answer.
+
+## 2026-11-13: custom flop reports (Reports, from Solve or Study)
+
+- **The flop sets.** The solver's representative sets are ported card for card (`flopSets.ts`, checked against
+  `representative_flops` at 9, 25, 49, 95 and 184). The setup shows each flop's weight (1/n of all flops), how often
+  it's dealt, and each texture's share of the set against its share of all flops.
+- **Where it starts.** Solve's new "Report over flops" button and Study's link open the setup. A Solve spot whose line
+  doesn't reach a flop gets a pot picker: opener, caller, single-raised or 3bet, walked on the preflop answers.
+  Multiway and tournament spots are refused, with the reason given.
+- **The run** (`customRun.ts`):
+  - Flops are solved one after another in the worker at Fast or Accurate. The page's thread only sends requests and
+    stores small answers.
+  - The report is written to IndexedDB after every flop. Pause drops the flop in hand and keeps the rest; resume goes
+    on from there, after a reload too.
+  - One report solves at a time. Moving between pages doesn't stop it.
+  - A flop the betting rules answered is left out and counted. The solver failing stops the run and keeps what's done.
+- **Memory.** A new worker edit lets a request ask the worker to keep less of its solves (`cache_mb`; 64 MB minimum,
+  never above its 700 MB budget). A report asks for 256 MB, so it can't push out a Study session's solves or fill the
+  heap. Records are capped at 184 flops.
+- **Kept here.**
+  - IndexedDB migration 11 adds the store `flopReports`.
+  - It is in backup and restore, with tombstones for deletes.
+  - The Saved page lists each report with how far it got: open, edit (name, tags, note), export, delete.
+- **Drawn as the library's reports:** strategy, EV, equity, EQR, range advantage, texture filters, sort, groups,
+  chart and CSV.
+- **Provenance.**
+  - It says the report was solved live at its tier over N sampled flops of the representative set.
+  - It gives each solve's distance from equilibrium, the iterations, and the flop model's abstraction error (ACCURACY
+    21).
+  - A Fast report adds its measured gap to the library: "EVs were 0.35% pot off a flop on average and in position's
+    bet size split 16 points".
+- **Accuracy (ACCURACY section 24, `scripts/benchmarks/custom_report.py`, through the shared slot).** BTN vs BB 100bb
+  was reported live at Fast with the library off, over the representative 25 and 95, against the library's report of
+  all 1,755 flops.
+  - EVs agree within 0.35% of the pot a flop, equity within 0.2 points, BB's check within 0.9 points.
+  - Sampling 25 flops moves no average by more than about 1 point.
+  - In position's share of bets at 75% after the check is 15-17 points lower at Fast than in the library. That comes
+    from the flop model, not the sample.
+- **Checked in a browser** (dev build, 2026-11-13):
+  - 6-max 60bb CO vs BB from Solve: 9 flops at Fast in about 10 s, each at 300 iterations and 0.06-0.12% pot from
+    equilibrium.
+  - A 25-flop run paused at 8, was listed on Saved, then was reopened and resumed to 25.
+  - The report was kept across a reload.
+  - A 40bb BTN vs BB run had no main-thread task over 50 ms.
+  - One wording fix came from the check: "300 iterations a flop", not "300–300".
+- **FEATURE_MATRIX:** Custom aggregated reports PARTIAL → WORKING, for heads-up cash flop spots. What's left is in its
+  Notes. The summary counts were already stale and are left for the merge (the shared note says so).
+- **Tests:**
+  - tsc and eslint clean.
+  - vitest over reports, data, saved and SolvePage: 478 passed, 2 skipped, in 26 files. New files: `flopSets.test.ts`
+    10, `customReport.test.ts` 13, `customRun.test.ts` 3, `CustomReportPanel.test.tsx` 2, `flopReports.test.ts`, and
+    `db.test.ts`'s v10 to v11 migration.
+  - `pyodide.test.mjs` 23/23.
+
+## 2026-11-13: PLO in Study, Practice and Analyze (branch claude/plo-integrate-aaae1c)
+
+Roadmap Phase 10's Lizard-side work: PLO4 is a game the three main pages open, from the registry, for heads-up postflop
+from ranges you give. No preflop. The FEATURE_MATRIX PLO4 row stays PARTIAL, with the exact scope in its last paragraph.
+
+- Range view by hand shape (`web/src/engine/plo/structure.ts`, `features/plo/StructureGrid.tsx`): 14 structure rows by 5
+  suit columns, each cell's share, mix and EV at a decision, a cell picked listing its combos. Counts are held to their
+  combinatorics.
+- Registry (`web/src/engine/registry.ts`, `types.ts`): PLO4 is `solverSupported: true`, with `solverScope`,
+  `preflopSolved: false`, the structure grid, and per page the Hold'em features PLO doesn't have. `gameOf`/`gamesFor`.
+  A Hold'em/PLO switch on Study, Practice and Analyze (`components/GamePicker.tsx`), and a closed list of what's
+  missing for PLO on each.
+- Study at `?game=plo4` (`features/study/PloStudy.tsx`) is the `/plo` solver (now `PloSolver`, with the spot in the
+  link, `features/plo/spot.ts`), four presets, solved on open. A stale or StrictMode-cancelled run no longer clears a
+  newer one. With a hand from Analyze, your line is graded on the solve (`features/plo/mine.ts`, `MyHand.tsx`) and the
+  grade is kept with the hand.
+- Practice at `?game=plo4` (`features/practice/PloPractice.tsx`, `features/plo/playHand.ts`): hands on a solve run there,
+  the other seat sampling the solve, turn and flop solves played on through the cards dealt, each decision graded by EV
+  lost on the one scale; not saved to History.
+- Analyze: Omaha hands (PokerStars and GG tested) are kept apart (`data/ploHands.ts`, kv, not in a backup) instead of
+  skipped as not Hold'em, and listed at `?game=plo4` (`features/analyze/PloAnalyze.tsx`, `omaha.ts`): preflop said
+  unsolved, a heads-up street linked to Study with its spot and sizes as played, anything else ungraded with why.
+  Two Hold'em tests that counted the Omaha fixture as skipped now expect it kept as PLO.
+- Checked in a browser (dev server): a PLO river solved in Study with its badge and shapes grid; PLO practice hands on the
+  turn preset through the river card, graded; PLO Analyze empty state; 375px with no sideways scroll.
+- Tests: vitest study + practice 1,687 passed (2 skipped); analyze + hh + data 678 passed; the PLO files (registry,
+  structure, StructureGrid, spot, mine, playHand, PloRiverPage, drill and the rest of features/plo, PloStudy,
+  PloPractice) 44 passed; omaha 4 and PloAnalyze 4 inside the analyze run; tsc (app) and eslint clean on the files
+  touched. `web/e2e/plo.e2e.ts` was not run.
+- Not done: PLO preflop; ranges suggested or solved for a hand from history; Practice from the deal or saved to History;
+  PLO hands in backups and sync. The Hand-history import row still says Analyze rejects Omaha hands; that row isn't
+  this branch's to edit.
+
+## 2026-11-13: tournament gaps: 8- and 9-player stored solves, a final-table set, payout structures and import (branch claude/icm-stored-9a389d)
+
+- **7 to 9 handed tree** (`engine/pf_icm.py` `build(cold4=False)`, `engine/pf_icm_study.py` `Spec.cold4`, `LIMITS_7UP`):
+  from 7 players, once the pot is raised twice, a seat that hasn't put chips in by choice can only fold, as
+  `engine/pf_engine.py`'s 7+ tree. Early (8 at 60bb) goes from 24,470 nodes to 2,148, Bubble from 12,226 to 1,310 and
+  Final table (9) from 23,356 to 2,096, so each builds natively in about a minute under 1 GB and fits the browser's live cap. The
+  key hashes "no cold 4bets" only for 7 or more, so the 2 to 6 player keys and files are unchanged; the label and each
+  answer (`pf_limits`, which the badge already shows) say it.
+- **Stored** (`engine/pf_icm_stored.py` `ALL`, built by `scripts/pf_icm/build_stored.py all --missing` through
+  slot.sh, one process a game, each file written whole and then its manifest entry, so a stop resumes at the next game):
+  Early, Bubble, Final table and Sit & go 9 players (0.08-0.24 mbb/hand a seat, 32-65 s each), and a final-table set of
+  105 spots: 3 to 9 left, 10/15/20/30/40bb average, equal stacks, the chip leader on the button, or a short big blind,
+  paying a 9-paid final table's prizes left, with the stages' big-blind ante (0.02-1.62 mbb, 34 minutes of one core, 670
+  KB; ACCURACY 20.6). 115 files, 809 KB in all, under `engine/pf_icm/`; the site's
+  `pf/` folder takes them as before (`scripts/build-solver-assets.mjs`).
+- **Practice and Analyze**: a session set to any of the 115 spots (as set, not played out, no bounties) is graded by its
+  stored solve (`web/src/features/practice/pfIcmStored.ts` `PF_ICM_PRESETS`, `pfIcmStage`); the Stage list has the
+  final-table set. A Practice hand now keeps its tournament in its record (`HandRecord.setup.tournament`, no new
+  IndexedDB store or version), and Analyze grades a kept hand from a stored spot by the solve (`grading.ts` `pfOut`,
+  `adviceStateAt`); an older hand says its prizes weren't kept.
+- **Tournaments page**: "Final-table set (stored)" picks a spot (players left, average, shape) to set up or to open in
+  Study on its stored solve, with the coverage stated (`FinalTableSet.tsx`). The stage note says when a spot's preflop
+  is stored. Payouts: room-style structures in Lizard's own shapes (sit & go 6/9/18/45/180, MTT standard, top-heavy and
+  flat by entrants; `PAYOUT_STRUCTURES`, `mttPayouts`), trimmed to the players left; a payout table from a CSV, TSV or
+  text file or pasted as CSV (`csvPayouts`, `readPayoutTable`, checked by `payoutProblems`), with what was read said;
+  and a saved spot's payouts reused ("From a saved spot…"), which is how a table is kept (`PayoutTools.tsx`). Practice's
+  Prizes list has the structures and takes a CSV paste too. A payout list that rises down the places is now a problem.
+- **Grades** (FEATURE_MATRIX): ICM final-table library NOT IMPLEMENTED to PARTIAL; Satellites APPROXIMATE to PARTIAL;
+  ICM, chipEV, KO/PKO, Mystery, MTT (formats), MTT / final table, Payout structures and Real tournament presets notes
+  updated, their grades unchanged. The summary's Tournaments line was stale (Real presets had moved to PARTIAL); it and
+  the total are recounted.
+- **Checked in a browser** (dev build): a Practice session at the final-table set's 6 left, 20bb average, chip leader
+  on the button dealt BTN 40 and the rest 16bb with the solve's opponents, and a fold of 76o to a CO open was graded
+  Best under "Preflop solve (class-level model) · precomputed · every outcome paid in prize equity …" with EVs in bb of
+  prize equity; a Final table (9 players) session graded a fold to a jam the same way, its badge adding the 7+
+  limits; that hand, kept, was graded in Analyze "by the preflop solve (class-level model)"; the Tournaments page's
+  final-table set opened its spot in Study, answered at once from the file.
+- **Tests**: `scripts/engine/test_pf_icm.py` 14/14 and `test_pf_icm_stored.py` 8/8 (through slot.sh; a 9-player 200bb
+  table no longer counts as too big, so the refusal is now checked with the cap lowered); vitest 197 in tournaments,
+  solve, practice grading, pfIcmStored, grading and provenance, then 1,832 (2 skipped) in practice, analyze and data;
+  tsc and eslint clean.
+- **Depends on** upstream `gto/pf_game.py` (Node, walk, the DCFR arrays) and `gto/pf_study.py` (pack/unpack,
+  STORED_ITERS) as they stand: this branch changes neither, nor `engine/pf_engine.py`/`pf_solve.py`. A change to
+  pf_game's tree or pack format would change the keys or files and need `build_stored.py all` again (about 50 minutes
+  of one core).
+- **Left**: no bounties in any stored spot; one payout structure in the final-table set; Practice's preflop elsewhere
+  is the chart with a risk premium; real rooms' files and pastes only tried as test strings.
+
+## 2026-11-13: Player profiles held across the tree and re-solved
+
+- `engine/profile_solve.py` holds one player to an assumed profile at every decision of theirs. Each such mix is the
+  equilibrium's with `TendencyLock` laid on it, recorded through a best-response walk and pinned with
+  `engine/nodelock.py`'s pins. The other player is then re-solved by CFR on the same tree, so their answer is their
+  best response to the profile across the tree. The answer carries both sides' mixes and EVs, the street's values
+  (equilibrium, the equilibrium strategy against the profile, the exploit, a best response computed apart) and the
+  convergence, the exploiter's remaining gain in % of the pot. Requests ride the existing branches
+  (`study_lock.answer` and `exploit_play.play`), so there is no new worker edit; `pyodide.test.mjs` checks that.
+- Study: an "Exploit a profile (held across the tree, re-solved)" panel, with a preset or your own numbers (street fold
+  keys too), either seat, this street or from the flop. The profile is kept in the link (`prof`) as you walk the line
+  and with a saved spot; Saved shows it and opens Study with it. Its own provenance source is `profile-solve`, labelled
+  "Exploit re-solve against an assumed profile (not an equilibrium)".
+- Exploit practice: on the worker your advice is the re-solve and you are graded against it (`profileRouted`). Where it
+  is refused, the client asks the one-node best response and says so; a local server gets the one-node best response.
+- Accuracy (ACCURACY section 25, `scripts/benchmarks/profile_bench.py`, 34 s through the slot): 64 exact runs within
+  0.0034% of the pot of an independent best response, the held player within 0.0000061%; 8 of 8 wrong profiles caught
+  (smallest 0.063% of the pot). At the worker's Fast config the re-solve sits 0.0002-0.003% from the best response in
+  each street's abstract game, in 0.1-15 s natively.
+- Checked in a browser on the wasm core: river `Kd7c2h5s9d`, BTN as Calling station, 300 iterations, 0.0004% left, BB's
+  exploit 2.61bb (best response apart 2.61bb) against 0.97bb unadjusted and 0.86bb at equilibrium; a turn link with
+  `prof=BB:…;hand` opened the panel set, re-solving the flop (207 decisions held) then the turn. Exploit practice
+  against Calling station at Quick: the flop graded by the re-solve (10 iterations, 0.50% left, Quick's aim), the turn
+  by the re-solve on the flop and turn (257 iterations, 0.0000%), a 33% bet a Mistake against its 125% (0.73bb); all 4
+  of their moves after the flop were the profile's.
+- Tests: `test_nodelock`, `test_study_lock`, `test_exploit_play` and the new `test_profile_solve` (17), 120 OK; vitest
+  solver, study, saved, practice, review, history, data and grading 2,389 passed (one Review test timed out under load
+  and passed alone, 26/26), new `profileSolve.test.ts` (10) and `ProfilePanel.test.tsx` (10); `pyodide.test.mjs` 23/23;
+  tsc and eslint clean.
+- FEATURE_MATRIX: Player profiles in solves PARTIAL → WORKING. The Summary row isn't edited here: at merge, Custom
+  solving goes 9 / 1 / 2 / 1 → 10 / 0 / 2 / 1.
+
+## 2026-11-11: the five 552-flop single-raised spots building on to every flop
+
+Owner's request (one of four library builds, each in its own session). `srp_hj_co`, `srp_btn_sb`, `srp_utg_hj`,
+`srp_co_sb` and `srp_utg_btn` stop at 552 flops in the base. Their 552 entries are on the solver's older tree (the river
+bet blind on the turn's boards, no turn files); `build_flop_library.py` solves only the current dealt-river tree, about
+7x the CPU. So `scripts/library/build_srp_every_flop.py` (outside `solver/`, which is unchanged) solves the 1,203
+missing flops per spot the way the 552 were: `old_tree()`, 0.15% of the pot, 200-1,000 iterations, no turn files,
+written by the build script's own `write_entry`, with its `write_index` writing a whole-spot index and report (the
+source is seeded with the base's 552, each checked against its hash). The 876 flops that make the 552 a 1,656
+systematic sample go first, then the other 327.
+
+- Running detached into `library-build/sources/srp-every-flop/` (main checkout, gitignored), one `heavy` job per
+  spot with 2 workers: `scripts/library/srp_every_flop.sh status` (or `stop`, `start` to resume; checked: a stop
+  kept every entry and a start went on with 1,177 of 1,203 left). Log: `build.log` there.
+- Measured on the first 26 entries (`srp_utg_hj`, efficiency cores, 2 processes): 6-18 s per entry, peak 180-300 MB
+  per worker, the base build's speed. From the base entries' own times (mean 12-92 s by spot) that's about 27.5 hours
+  of slot time: `srp_utg_hj` ~2 h, `srp_utg_btn` ~2.5, `srp_hj_co` ~3, `srp_co_sb` ~5, `srp_btn_sb` ~15 (its peak
+  memory not measured yet; the log prints `peak_mb` per entry). Plus the waits for a `heavy` slot (both were held by
+  other projects' jobs at the start). Earliest finish about 2026-11-12 evening.
+- `assemble.py --extend` (default that folder) takes a source's spot only when it is the same spot (ranges, pot,
+  stack, tree, old tree) holding every base flop with the same hash and more of them; anything else, or a copy that
+  fails a hash, leaves the base's. `BUILD_PLANS` targets the five at 1,755. `test_assemble.py` 16 passed. A real
+  assemble into a scratch stage with the source at 572 flops: `srp_utg_hj` 572 (all hashes checked, report 572
+  flops), 43,283 files, 298.1 MB. Not published from here: the main checkout's 6-hourly job picks it up once this
+  branch is merged.
+
+## 2026-11-13: preflop tree builder, a device memory cap, and preflop decisions that now carry EV
+
+ROADMAP Phase 9 "Preflop", the four gaps the matrix named. Two commits on `claude/pf-depth-8cc87b`. The measurements,
+the tree sizes and the browser checks are in `docs/ACCURACY.md` section 18.5.
+
+**The tree builder.** Study's Sizes form is now a Tree form (`web/src/features/study/PreflopSolve.tsx` `PfSizesForm`,
+`pfSizes.ts`): the raise sizes as before, plus each seat's own stack (5 to 250bb, written to the hand's `setup.stacks`
+by `studyState.ts` `withPfStacks`), a position's own open size, limps and over-limps from any seat, and 3-way flops and
+cold calls switched either way. In the engine they are `Spec.open_limps`, `opens`, `flop3`, `cold`
+(`engine/pf_solve.py`, built by `engine/pf_engine.py` `build`'s new `limps` and `opens` arguments), in the request as
+`pf_tree`, and in Study's link as `pfs=L,o.UTG:2.2,f3:1,cold:0`. Each is off by default: the default trees still have
+11,010 nodes at 6-max and 4,795 at 9-handed, the keys are unchanged, and no stored game carries an option, so
+everything measured before this day stands. Each option has its own key suffix, its words in the game's label and in
+`pf_limits`, and a note in the answer's `pf_tree` that Study's provenance line repeats, so a user is told what tree
+produced the number.
+
+**The memory cap.** A solve's peak memory was measured natively (6-max 749 MB, 9-handed 588 MB, 4-max 138 MB) and
+fitted to `MB = 90 + 0.0118 x nodes x seats`. `pf_unsolved` carries `estimate_mb`, `nodes` and `max_mb`; the worker
+refuses a tree past 2,048 MB when running in a browser. The page holds it to a lower per-device cap
+(`web/src/features/study/pfCap.ts`), and over it the panel says what the tree needs, what the cap is and why, and
+offers the charts instead of Solve.
+
+**Preflop decisions with EV.** The grade reads only a spot whose sizes are its own, and the charts' blinds 3bet to 4x
+the open where the tree raises 4.8x, which left about 30% of 6-max decisions on a frequency grade. Each 6-max game is
+now stored a second time at `blind_3bet` 4 (22 files, `engine/pf/lz1_6max_*_blind_3bet4.bin`), and Practice's and
+Analyze's grade asks for it at 6 players in a cash game (`web/src/solver/pfStored.ts` `pfGradeSizes`). On 30,000 hands
+playing the charts: decisions answered 70.2% to 93.0%, hands holding one it can't grade 30.8% to 7.3%. Study still
+solves the tree's own 4.8x, which is the published solves' size.
+
+**Grades.** `docs/FEATURE_MATRIX.md`: Preflop, Preflop solves, Preflop tree builder and EV-loss scoring keep the grades
+they had (APPROXIMATE, APPROXIMATE, APPROXIMATE, PARTIAL), with their Notes brought up to date. Nothing moved because
+nothing about the grades' causes changed: the numbers are still the calibrated class-level model, 2.4 to 2.5 points off
+the published solves, and preflop decisions still go without EV where the solve can't answer (7.3% of 6-max hands now,
+and all of 7 to 9 players and tournaments). The gaps the rows named are smaller, not closed.
+
+**No interface changed for the ICM session.** `pf_study.Solve`, `pf_game.Game` and `pf_icm.py` are untouched; every
+change is in `engine/pf_engine.py` and `engine/pf_solve.py`, with all new `Spec` fields defaulted so an existing
+subclass or call is unaffected. `solver/` is byte-identical; no new `UPSTREAM.json` patch was needed.
+
+**Tests.** `scripts/engine/test_pf_engine.py` 27 (7 new in `TreeOptions`: defaults unchanged, the limp tree, a limped
+3-handed game under 1.5 mbb, opens by position, the switches, the chart-sized game, the memory estimate within 20% of
+the measured peaks; plus two protocol tests for `estimate_mb` and the browser's refusal). vitest `src/solver`,
+`src/features/study` and `pfGrade.test.ts` 584 passed. `scripts/pyodide/pyodide.test.mjs` 22/22. tsc and eslint clean.
 ### 2026-11-13: combo-counting quiz (Practice's Combos tab)
 
 The owner asked what Flopsy (flopsy.io) offers and whether Lizard covers it. Flopsy is one product, a combo-counting
@@ -5146,8 +5440,10 @@ incorrect). Lizard had the counts as information (Study's breakdown and blockers
   answered (J♣J♥ on 3♥A♥9♦, no-pair combos your hand takes out: 18, re-counted by hand), the counts opened, no
   horizontal scroll, no console errors from the page.
 - Not done: turn and river questions, draw categories, and Flopsy's endless-question account model (here every
-  question is dealt in the browser, free). Committed on its own, without the other uncommitted work in the tree.
+  question is dealt in the browser, free). Committed on its own (26b570a), without the other uncommitted work in the tree, then applied
+  alone on origin/main (1fedcd1) and pushed, which deployed it; the two docs' summary counts and log were merged by hand.
   The precompute builds were left alone.
+
 
 ### 2026-11-13: Study's layout reworked (tabs beside the grid)
 

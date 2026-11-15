@@ -16,7 +16,7 @@ const isStrs = (x: unknown): x is string[] => Array.isArray(x) && x.every(isStr)
 const isOptNum = (x: unknown) => x === undefined || isNum(x);
 const isOptStr = (x: unknown) => x === undefined || isStr(x);
 
-const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, "node-lock": true, "plo-river": true, rules: true, equity: true, unknown: true };
+const SOURCES: Record<ResultSource, true> = { library: true, "library-turn": true, instant: true, live: true, charts: true, "preflop-solve": true, "push-fold": true, "best-response": true, "node-lock": true, "profile-solve": true, "plo-river": true, rules: true, equity: true, unknown: true };
 /** One of the sources a provenance can name. */
 export const isSource = (x: string): x is ResultSource => Object.hasOwn(SOURCES, x);
 const VERDICTS: readonly string[] = ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"] satisfies Verdict[];
@@ -35,7 +35,7 @@ const isProvenance = (p: unknown): p is Provenance =>
   isStr(p.solverVersion) &&
   isNum(p.receivedAt) &&
   [p.exploitabilityPct, p.targetPct, p.iterations, p.seconds, p.mbbPerHand].every(isOptNum) &&
-  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
+  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.bunching, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;

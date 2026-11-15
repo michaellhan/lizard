@@ -4,8 +4,8 @@
 import type { AdvisorAction, AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import { kindOf } from "@/components/actions";
 import { parseCards } from "@/engine/nlhe/cards";
-import { setupFromParams, setupRequest, setupToParams, type SpotSetup } from "@/features/solve/setup";
-import { encodePfSizes, parsePfSizes, tidyPfSizes, type PfSizes } from "./pfSizes";
+import { setupFromParams, setupRequest, setupToParams, tidySetup, type SpotSetup } from "@/features/solve/setup";
+import { encodePfSizes, parsePfSizes, pfSizesRequest, tidyPfSizes, type PfSizes } from "./pfSizes";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -48,8 +48,19 @@ export function studyRequest(h: StudyHand): AdvisorState {
     river: h.river,
     ...setupRequest(h.setup, h.players),
     study: true,
-    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...(h.pfSizes ? { pf_sizes: { ...h.pfSizes } } : {}) } : {}),
+    ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...pfSizesRequest(h.pfSizes) } : {}),
+    // (bunching from the preflop solve's folds: its game, sizes and all, so the folds are read off the solve that played the line)
+    ...(h.setup?.bunching === "solve" && streetOf(h) !== "preflop" ? pfSizesRequest(h.pfSizes) : {}),
   };
+}
+
+/** The hand with bunching on or off (engine/bunching.py): on, from the preflop source in use, the preflop solve's folds
+ * with the Solver source and the charts' otherwise. Kept in the setup, so it's in the link (bunch=) and Solve's form. */
+export function withBunchingOn(h: StudyHand, on: boolean): StudyHand {
+  const setup = tidySetup({ ...h.setup, bunching: on ? (h.pf === "solver" ? "solve" : "charts") : undefined });
+  const rest = { ...h };
+  delete rest.setup;
+  return setup ? { ...rest, setup } : rest;
 }
 
 /** The hand with preflop's source set: the charts (no `pf`, and no solve sizes) or the Solver source (kept in the URL
@@ -65,8 +76,21 @@ export function withPf(h: StudyHand, v: "charts" | "solver"): StudyHand {
 export function withPfSizes(h: StudyHand, s: PfSizes | undefined): StudyHand {
   const rest = { ...h };
   delete rest.pfSizes;
-  const t = tidyPfSizes(s);
+  const t = tidyPfSizes(s, h.players);
   return t ? { ...rest, pfSizes: t } : rest;
+}
+
+/** The hand with each seat's own stack (the tree form's; into the setup, so the charts and the hand after the flop
+ * play them too): a seat at the table's stack left out, none set taking the setup's stacks off; undefined: unchanged. */
+export function withPfStacks(h: StudyHand, stacks: Record<string, number> | undefined): StudyHand {
+  if (stacks === undefined) return h;
+  const own = Object.fromEntries(Object.entries(stacks).filter(([, v]) => Number.isFinite(v) && Math.abs(v - h.stack) > 1e-9));
+  const setup = { ...(h.setup ?? {}) };
+  delete setup.stacks;
+  if (Object.keys(own).length) setup.stacks = own;
+  const rest = { ...h };
+  delete rest.setup;
+  return Object.keys(setup).length ? { ...rest, setup } : rest;
 }
 
 /** A new hand (to) with from's preflop source and the solve's sizes. */
@@ -195,7 +219,7 @@ export function fromSearch(search: string): StudyHand | null {
     turn: parseLine(q.get("turn") ?? ""),
     river: parseLine(q.get("river") ?? ""),
     ...(setup ? { setup } : {}),
-    ...(q.get("pf") === "solver" ? { pf: "solver" as const, ...((s) => (s ? { pfSizes: s } : {}))(parsePfSizes(q.get("pfs"))) } : {}),
+    ...(q.get("pf") === "solver" ? { pf: "solver" as const, ...((s) => (s ? { pfSizes: s } : {}))(parsePfSizes(q.get("pfs"), players)) } : {}),
   };
 }
 

@@ -2,8 +2,10 @@
 // answers for every hand of the player to act (Advisor.study): the 13x13 mix, EVs, equity, the range's totals.
 // Preflop the charts answer at once; library flops answer at once; other flops (heads-up / 3-way), turns and
 // rivers are solved live in the browser (or the local Python server), with progress and cancel.
-import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { GamePicker } from "@/components/GamePicker";
+import { gameOf } from "@/engine/registry";
 import { cellLabel, cellValue, RangeMatrix } from "@/components/RangeMatrix";
 import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
 import { useFocusHold } from "@/components/useFocusHold";
@@ -14,6 +16,7 @@ import { SolverError, type Provenance, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse, OpponentRange } from "@/solver/protocol";
 import { useSettings } from "@/state/settings";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
+import { BUNCHING_SOURCES, nextCardWords } from "@/solver/bunching";
 import {
   back,
   cardsNeeded,
@@ -37,6 +40,8 @@ import {
   samePf,
   withPf,
   withPfSizes,
+  withBunchingOn,
+  withPfStacks,
   type StudyHand,
 } from "./studyState";
 import { encodePfSizes } from "./pfSizes";
@@ -58,6 +63,8 @@ import { offersLock } from "./locks";
 import { LockPanel } from "./LockPanel";
 import { ChangeCards } from "./ChangeCards";
 import { NodeLockPanel } from "./NodeLockPanel";
+import { keepProfile, parseProfile, PROF, profileParam, type StudyProfile } from "./profile";
+import { ProfilePanel } from "./ProfilePanel";
 import { ComboPanel } from "./ComboPanel";
 import { classOf } from "@/engine/nlhe/cards";
 import { studyText } from "@/features/practice/copyForAi";
@@ -107,11 +114,42 @@ export function oppsOf(res: AdvisorResponse | undefined): OpponentRange[] {
     : [];
 }
 
+// PLO's Study comes in its own chunk, so no PLO code loads with Hold'em's
+const PloStudy = lazy(() => import("./PloStudy").then((m) => ({ default: m.PloStudy })));
+
+/** Study: Hold'em, or another game the link names (`game`, engine/registry.ts) in its own chunk. */
 export function StudyPage() {
+  const [params] = useSearchParams();
+  const game = gameOf(params.get("game"));
+  if (game.id === "plo4")
+    return (
+      <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+        <PloStudy />
+      </Suspense>
+    );
+  return <HoldemStudy />;
+}
+
+function HoldemStudy() {
   const [params, setParams] = useSearchParams();
   const hand = useMemo<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100), [params]);
-  // (a new node keeps the ranges side by side, where they were: `vs` is the view's, not the hand's)
-  const setHand = useCallback((h: StudyHand) => setParams((q) => keepVs(toSearch(h), q.get(VS))), [setParams]);
+  // (a new node keeps the ranges side by side, where they were: `vs` is the view's, not the hand's; and the profile held
+  // across the tree, `prof`, so it's there to re-solve at the next node)
+  const setHand = useCallback((h: StudyHand) => setParams((q) => keepProfile(keepVs(toSearch(h), q.get(VS)), q.get(PROF))), [setParams]);
+  const profParam = params.get(PROF);
+  const keptProfile = useMemo(() => parseProfile(profParam), [profParam]);
+  const keepProf = useCallback(
+    (p: StudyProfile) =>
+      setParams(
+        (q) => {
+          const next = new URLSearchParams(q);
+          next.set(PROF, profileParam(p));
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
   // both players' ranges side by side (sideBySideLink.ts): a view, so turned on, off or to another opponent in place
   const setVs = useCallback(
     (vs: string | null) =>
@@ -436,10 +474,20 @@ export function StudyPage() {
       )}
       {!opp && offersLock(done) && <LockPanel key={`lock|${requestKey}`} hand={hand} res={done} cls={myCls} mode={mode} getSolver={getSolver} />}
       {!opp && <NodeLockPanel key={`node-lock|${requestKey}`} hand={hand} res={done} cls={myCls} mode={mode} getSolver={getSolver} />}
+      {!opp && <ProfilePanel key={`profile|${requestKey}`} hand={hand} res={done} mode={mode} getSolver={getSolver} kept={keptProfile} onKeep={keepProf} />}
       {!opp && offersAutoSize(done) && <AutoSizePanel key={`auto-size|${requestKey}`} hand={hand} res={done} cls={myCls} mode={mode} getSolver={getSolver} />}
       <ToolFold title="Compare this spot" hint="another stack, rake or bet menu">
         <CompareLinks key={`compare|${requestKey}`} hand={hand} min={MIN_STACK} max={MAX_STACK} bets={betMenuOf(hand, done)} />
       </ToolFold>
+      {/* (a heads-up flop: the same spot reported over many flops, each solved here, on Reports) */}
+      {done.street === "flop" && !done.multiway && !done.tournament && (
+        <p className="text-sm">
+          <Link to={`/reports?mine=${encodeURIComponent(toSearch({ ...hand, board: "", flop: [], turn: [], river: [] }))}`} className="underline hover:text-text">
+            Flop report of this spot →
+          </Link>{" "}
+          <span className="text-muted">solved here on a sample of flops</span>
+        </p>
+      )}
       {!building && !done.tournament && !!done.actions?.length && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
           <CopyForAi key={`${shown!.provenance.source}|${myCls}`} text={() => studyText(hand, done, shown!.provenance, myCls)} />
@@ -468,9 +516,17 @@ export function StudyPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Study</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <GamePicker page="study" current="nlhe" />
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
           {streetOf(hand) === "preflop" && hand.pf === "solver" && (
-            <PfSizesForm key={encodePfSizes(hand.pfSizes ?? {})} value={hand.pfSizes} onApply={(s) => setHand(withPfSizes(hand, s))} />
+            <PfSizesForm
+              key={`${encodePfSizes(hand.pfSizes ?? {})}|${JSON.stringify(hand.setup?.stacks ?? {})}|${hand.players}`}
+              value={hand.pfSizes}
+              players={hand.players}
+              stack={hand.stack}
+              stacks={hand.setup?.stacks}
+              onApply={(s, stacks) => setHand(withPfStacks(withPfSizes(hand, s), stacks))}
+            />
           )}
           <ModePicker modes={["fast", "accurate"]} />
           <div {...newHandBox}>
@@ -510,7 +566,7 @@ export function StudyPage() {
             Reset
           </button>
           <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
-          <SaveSpot key={requestKey} hand={hand} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
+          <SaveSpot key={requestKey} hand={hand} profile={keptProfile ? profileParam(keptProfile) : undefined} provenance={phase.kind === "done" && !kept.result ? phase.result.provenance : undefined} answer={phase.kind === "done" && !kept.result ? phase.result : undefined} />
         </div>
       </nav>
       <SavedAnswerNote
@@ -531,6 +587,17 @@ export function StudyPage() {
         {/* (one line: the folds to a seat, and what game this is) */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {!problems.length && <FoldTo hand={hand} res={raw} setHand={setHand} />}
+          {streetOf(hand) !== "preflop" && hand.players >= 3 && (
+            <label className="flex items-center gap-1.5 text-xs text-muted" title="Weigh the ranges entering the flop by the hands the seats that folded preflop held (from the preflop source in use); every street is then solved live, the turn and river still dealt evenly">
+              <input type="checkbox" checked={!!hand.setup?.bunching} onChange={(e) => setHand(withBunchingOn(hand, e.target.checked))} />
+              Bunching{hand.setup?.bunching ? ` (${BUNCHING_SOURCES[hand.setup.bunching]})` : ""}
+            </label>
+          )}
+          {raw?.bunching && nextCardWords(raw.bunching) && (
+            <p aria-label="Bunching" className="text-xs text-muted">
+              {nextCardWords(raw.bunching)}; the solve still deals them evenly.
+            </p>
+          )}
           {hand.setup && (
             <p role="group" aria-label="Setup" className="text-xs text-muted">
               Your setup: {describeSetup(hand.setup).join(" · ") || "none"}.{" "}

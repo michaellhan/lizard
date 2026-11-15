@@ -45,7 +45,9 @@ export const isHole = (x: unknown): x is string => isStr(x) && HOLE_RE.test(x);
 
 export function validSpot(d: Record<string, unknown>): boolean {
   const seen = d.seen === undefined || (isObj(d.seen) && isStr(d.seen.source) && isStr(d.seen.label));
-  return isStr(d.title) && isStr(d.line) && isObj(d.state) && isStrs(d.tags) && isStr(d.note) && seen && isTime(d.createdAt) && isTime(d.updatedAt);
+  // (a profile held across the tree, as Study's link holds it: features/study/profile.ts; none on a spot kept before)
+  const profile = d.profile === undefined || isStr(d.profile);
+  return isStr(d.title) && isStr(d.line) && isObj(d.state) && isStrs(d.tags) && isStr(d.note) && seen && profile && isTime(d.createdAt) && isTime(d.updatedAt);
 }
 
 /** The tags of a kind that had none at first: a record kept before them has none. */

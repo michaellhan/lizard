@@ -233,7 +233,7 @@ the honest one for flops.
 | Other formats (`pf_formats.py`) | The 100bb charts shifted by deltas from solves of the abstract preflop game | Approximate. About a point of noise per decision; antes solved only at 20/40/100bb; straddle 6-handed only (`README.md:4566-4577`) [M] |
 | Push/fold (≤ 12 bb raising first in; under 20 bb generally) | Fictitious play over 169 classes (`pf_classes.py:65`) [V] | An equilibrium of a jam-or-fold model; callers treated alike and independently [V] |
 | Preflop solve (Study, and Practice's and Analyze's preflop by choice, sections 18-18.4; stored for 110 games) | Lizard's preflop solver since 2026-11-11 (`engine/pf_solve.py`): DCFR over the abstract preflop game, upstream's class-level model with flop values calibrated to published solves, each seat's own stack, 2 to 9 players (section 18.4) | About 1.5 mbb/hand in its own game [V]; 2.37 points from the published 6-max 100bb spots, 2.51 held out (upstream's model: 2.85 at the same rake, its shipped file 2.99); opens still tight (UTG 15.8% vs published 18.3%) [M] |
-| Tournament preflop solve (Study only, section 20) | DCFR over the same class-level game with each seat's own stack and ante, every outcome paid in prize equity (`engine/pf_icm.py`) | Matches push/fold where the models agree (within 0.1-0.5 points of jam share); levels off at 0.15-2.5 mbb/hand a seat in prize equity (3-handed to 6-max, 600-4,000 iterations), and 4-6 mbb for the same games in chips, from its 3-way valuation, section 20 [M] |
+| Tournament preflop solve (Study; Practice for six stored presets, section 20) | DCFR over the same class-level game with each seat's own stack and ante, every outcome paid in prize equity (`engine/pf_icm.py`) | Matches push/fold where the models agree (within 0.1-0.5 points of jam share); levels off at 0.06-1.5 mbb/hand a seat in prize equity (3-handed to 6-max, 600-2,000 iterations), and 0.6-4.7 mbb for the same games in chips, from its 3-way valuation; the six stored presets are 0.015-1.28 mbb, section 20 [M] |
 | Rake, pool (exploit) adjustments | Rules on top of the charts | Fitted to one published raked solve, or to public population data plus judgement (`README.md:4578-4579; pool: `README.md:1529``) [M] |
 
 Five `@expectedFailure` tests (`tests/test_gto.py:2797-2932`) document that the equity-realization models disagree
@@ -319,7 +319,7 @@ approximate (section 3). Preflop rake is one re-pricing rule fitted to one publi
 | Heads-up postflop | Solved in prize equity (`HUPayoffs`, `advisor.py:8136-8150`) [V] | Every tournament flop is a live solve: the libraries are skipped under ICM (`advisor.py:4742, 4826-4827`) [V]. A split pays the mean of a win and a loss: 0.25% of the pot given up on a river built to chop (section 14.6) |
 | 3- and 4-way postflop | Solved with `MWPayoffs` [V] | Who wins when a player busts is averaged: 0.002-0.33% of the pot given up against the exact prize game on a 3-way river (`scripts/bench_mw_icm.py`) [M]. A chip-EV solve on a bubble gives up 3.3-5.5% [M] |
 | 5+ way pots | Betting rules, in chips [M] | Not ICM-aware |
-| Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M]. Lizard's Study (2026-11-11): a class-level preflop solve in prize equity on request, section 20 [M] | The charts' risk premium is heuristic. Upstream's preflop solver refuses tournaments (`pf_study.py:187-188`); Lizard's `engine/pf_icm_study.py` takes them in Study only, not in Practice or Analyze [V] |
+| Preflop | Push/fold solved in prize equity. Other spots: chip charts re-priced by a risk premium with `ICM_COMMIT = 1.0` (`advisor.py:226`), "judgment fit to the published shape" (`README.md:4599`) [V/M]. Lizard's Study (2026-11-11): a class-level preflop solve in prize equity on request, and six stored presets that Practice grades by, section 20 [M] | The charts' risk premium is heuristic. Upstream's preflop solver refuses tournaments (`pf_study.py:187-188`); Lizard's `engine/pf_icm_study.py` takes them in Study, and in Practice and Analyze for the six stored presets (section 20.5) [V] |
 | Bounties (KO, PKO, mystery) | Proportional model (`icm.py:13-17, 201`) [V] | A convention, not a derivation. Mystery bounties use the average envelope, with no variance [V] |
 
 ---
@@ -1216,6 +1216,108 @@ a new version.
 Nothing else was clicked through: Practice's and Analyze's grade use the same request, and their own e2e steps weren't
 re-run.
 
+### 18.5 Tree options, a memory cap, and the charts' 3bet size for grading (2026-11-13)
+
+Four things, measured apart: what the tree can now be asked for, how big a tree a browser is allowed to solve, how much
+of a 6-max session the grade can put an EV on, and what the charts' 3bet size costs in accuracy.
+
+**The tree's options** (`engine/pf_solve.py` `Spec`, `spec_of`; `engine/pf_engine.py` `build`). Each is off by default,
+so every stored game and every number measured before this section is unchanged (an engine test asserts the default
+trees still have 11,010 nodes at 6-max and 4,795 at 9-handed, and that a default switch leaves the key alone):
+
+| Option | `pf_tree` | In the link | What it adds |
+|---|---|---|---|
+| Limps from any seat | `open_limps` | `pfs=L` | Any seat may limp first in or over-limp. A raise over limpers goes to the open plus 1bb a limper; the big blind checks or raises to 3.5bb (plus 1bb a limper past the first). Never with a straddle; heads-up it is ignored (the small blind's complete already is the first-in call) |
+| Opens by position | `opens` | `pfs=o.UTG:2.2` | That seat's own first-in raise, 2 to 5bb. An open equal to the table's default is dropped, so it never makes a new key |
+| Up to three see a flop | `flop3` | `pfs=f3:1` / `f3:0` | On up to 6 players, off from 7 |
+| Cold calls of a 3bet, cold 4bets | `cold` | `pfs=cold:1` / `cold:0` | On up to 6 players, off from 7 |
+
+Each has its own key suffix (`_L`, `_o{POS}{v}`, `_f3`/`_f2`, `_c1`/`_c0`, written only where the value isn't that table
+size's default), its own words in the game's label and in `pf_limits`, and a note in the answer's `pf_tree`, which
+Study's provenance line repeats. No stored game carries any of them, so each solves live in the browser.
+
+What they cost in tree size (nodes, the figure the memory estimate is built on):
+
+| Players | Default | Limps | 2-way, no cold calls | 3-way flops | Cold calls | Both |
+|---|---:|---:|---:|---:|---:|---:|
+| 6-max | 11,010 | 28,947 | 1,135 | — | — | — |
+| 7 | 1,979 | — | 1,979 | 6,585 | 20,773 | 30,667 |
+| 8 | 3,177 | — | 3,177 | 12,389 | — | 75,321 |
+| 9 | 4,795 | — | 4,795 | 21,385 | 109,179 | 168,526 |
+
+**The memory a solve needs, and the cap.** Peak resident memory was measured natively over building the game, iterating
+and the exploitability check: 6-max (11,010 nodes, 6 seats) 749 MB, 9-handed (4,795 x 9) 588 MB, 4-max (764 x 4) 138 MB.
+Fitted, `MB = 90 + 0.0118 x nodes x seats` (`MB_BASE`, `MB_PER_WORK`), which is within 20% of all three (an engine test).
+`pf_unsolved` now carries `estimate_mb`, `nodes` and `max_mb`. The worker refuses outright, with `pf_none` and the
+reason in words, a tree estimated past 2,048 MB when it is running in a browser (`MAX_MB_BROWSER`: Pyodide's heap is
+32-bit); natively nothing is refused. On top of that the page holds a solve to a per-device cap
+(`web/src/features/study/pfCap.ts`): a quarter of `navigator.deviceMemory` up to 2,048 MB, 1,024 MB where the browser
+reports no memory (Safari, Firefox), 768 MB on a touch device. Over the cap the panel says how much the tree needs,
+what the cap is and why, what to take off, and offers the charts instead; there is no Solve button.
+
+The estimate is the tree's, not a measurement of that tab, and a browser's own limit is not `navigator.deviceMemory`:
+a tab can be killed well under the cap, and a device with no report may hold more than 1,024 MB. The cap is a guess
+sized to be safe, not a promise. Nothing here was measured in a browser other than Chrome.
+
+**How much of a 6-max session the grade can put an EV on.** `pfGrade.ts` reads only a spot whose chips, options and
+sizes are its own. The charts' blinds 3bet to 4x the open (10bb over 2.5bb) and the solve's tree raises 4.8x (12bb, the
+published solves' size), so most blind 3bet lines were refused and kept the chart's frequency grade. Each 6-max game is
+now stored a second time at `blind_3bet` 4 (`engine/pf/lz1_6max_*_blind_3bet4.bin`, 22 files: 11 depths, raked and not),
+and Practice's and Analyze's grade asks for that one at 6 players in a cash game (`pfStored.ts` `pfGradeSizes`). Study
+still solves the tree's own 4.8x.
+
+The 22 files were solved the same way as the rest of the grid (1,500 iterations), and 21 of them land between 0.35 and
+1.44 mbb/hand a seat. One doesn't: 6-max 40bb at the 4x 3bet levels off above the grid's 1.5 target, at 1.793 mbb after
+1,500 iterations, 1.759 after 3,000 and 1.745 after 6,000, which is what is stored. Its own-size twin stops at 1.496.
+The 4x 3bet puts more of the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a
+solve, and doubling the work moves it 0.014; a live solve's stall rule would stop there too. It is the only file in the
+grid above 1.65, and the figure is in its header where the page reads it.
+
+Measured on 30,000 hands a run (`scripts/pf_practice_coverage.py`, now on Lizard's engine, `--chart-sizes` for the
+after), 6-max 100bb, you playing the charts:
+
+| | Decisions answered | Hands holding one it can't grade | First in | Facing an open | Facing a 3bet | SB | BB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Before | 70.2% | 30.8% | 100% | 46.7% | 3.9% | 23.4% | 12.0% |
+| After | 93.0% | 7.3% | 100% | 99.0% | 21.1% | 91.2% | 81.8% |
+
+Raked (5% capped at 3bb) the same: 70.2% to 93.0%. Playing at random, 65.6% to 86.3%; playing the solve itself, 70.7%
+to 93.3% (that last row is a check that the grade reads the solve it is drawn from: 99.7% Best).
+
+What is still refused is mostly 4bet sizes: the chart 4bets to 20bb where the tree raises to 17.25bb (1,025 of the
+2,133 remaining), then 17 against 17.25 (285) and 25.5 against 23 (264). Facing a 3bet is still only 21.1% answered.
+A grade that allowed a size within some tolerance instead of exactly would answer more; it isn't built, because the EV
+read would then be another spot's.
+
+**What the chart size costs in accuracy.** Both games solved 700 iterations at the references' rake and scored the same
+way as section 18.4 (`scripts/pf/measure_tree.py`):
+
+| Game | Mean error | Spots out | Facts off | mbb/hand |
+|---|---:|---:|---:|---:|
+| The tree's own 4.8x (reproduced) | 2.37 | 14/26 | 10 | 1.38 |
+| The charts' 4x | 3.16 | 15/26 | 10 | 1.10 |
+
+By kind: opens 3.52 to 3.36, facing an open 1.57 to 1.59, facing a 3bet 2.91 to 4.89. The whole rise is in three spots
+where the reference's opener faces a 12bb blind 3bet and the chart-sized game's faces 10bb (CO vs BB 1.13 to 5.31, BTN
+vs SB 2.23 to 6.64, BTN vs BB 2.92 to 7.77). That is the two games differing, not the model getting worse: a 10bb 3bet
+is a different spot, and the published solves hold no 10bb one to compare with. It is why Study keeps the 4.8x tree,
+and why the grade's label is unchanged: both are the calibrated class-level model, APPROXIMATE.
+
+**Checked in a browser** (local dev server, 2026-11-13), Study's Solver source:
+- **3 players, BTN 25 / SB 40 / BB 40bb**, set in the new Tree form (the link carries `stacks=BTN:25`). Offered as about
+  5 s and about 93 MB; solved to 2,000 iterations at 0.46 mbb/hand, the BTN raising 41.1% first in. The line reads
+  "each seat's own stack (side pots; not measured against a fuller solve)".
+- **9 players, 100bb, 3-way flops and cold calls on.** Refused, as it should be: "This tree needs about 17,987 MB to
+  solve, more than 2,048 MB on this device (a quarter of the 16 GB this browser reports)", with the charts offered.
+  Counting that 168,526-node tree took about 15 s before the refusal.
+- **7 players, 100bb, 3-way flops on.** Offered as about 2 minutes and about 634 MB, so the fuller 7-handed tree does
+  fit a desktop tab. It was not solved: a 2-minute browser solve wasn't run while the machine's library builds were
+  using it, so nothing is measured about a 7-handed 3-way-flop solve's accuracy.
+
+Not done: no straddle from a seat other than UTG, no 5bet rules, and the limp and per-position-open trees are not
+measured against the published solves (none of them has limps or uneven opens, so there is nothing there to measure
+against). A limped 3-handed 40bb game converges under 1.5 mbb/hand in 1,500 iterations, which is all that is claimed.
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the
@@ -1253,6 +1355,10 @@ classes, card removal by `PAIR_COMPAT`, discounted CFR, the same flop model) wit
   left can bust each other, a folded seat gains. Chips give it nothing either way.
 - Three players at most reach a showdown (two from 7-handed on), as in the cash game. A raise is refused once three
   others are all-in for less, since they can't fold.
+- The sizes are the cash game's: 2.5bb opens (3bb from the small blind, which may also limp), and 3bets to 3x, or 4.8x
+  from a blind. Practice's chart opponents play these sizes, which a stored preset needs (20.5). The first version
+  opened 2.2bb (2bb at 25bb or less), as solved MTT charts do. The spec's key includes the sizes, so a stored file with
+  other sizes is never loaded.
 
 ### 20.1 Checks against the engine's own models (`scripts/engine/test_pf_icm.py`, 13 tests, about 15 s)
 
@@ -1283,45 +1389,132 @@ share of who busts is the model's simplification.
 
 ### 20.3 Convergence (mbb/hand of prize equity a seat, the solve's own game)
 
+Measured by `scripts/pf_icm/convergence.py` with the 2.5bb opens. Figures are the mean over seats, with the worst seat
+in brackets where it stands out.
+
 | Game | Nodes | Exploitability by iterations |
 |---|---|---|
-| 3-handed 15/9/22bb, 0.1bb ante, 50/30/20 | 60 | 2.4 mean at 100, 0.31 at 200, 0.16 at 400, 0.15 at 800 |
-| Sit & go bubble: CO 24, BTN 16, SB 9, BB 18bb, 0.25bb ante, 50/30/20 | 267 | 1.86 at 500, 1.81 at 1,000, 1.83 at 2,000-4,000 (BB 5.5) |
-| The same in chips | 267 | 5.9 at 500-2,000 (BB 11.3) |
-| The same in chips at equal 24bb (the cash solve's game) | 197 | 3.5 at 300, 2.9 at 1,200 |
-| The same in chips, heads-up pots only | 185 | 0.035 at 300, 0.002 at 1,200 |
-| 6-max, 20bb each, 0.125bb ante, 50/30/20 | 1,525 | 8.5 at 100, 3.1 at 300, 2.1 at 600 |
-| 6-max, 25/12/40/18/30/22bb, 50/30/20 | 3,311 | 6.2 at 100, 2.7 at 300, 2.5 at 600 |
-| The same two in chips | 1,525 / 3,311 | 4.2 / 4.3 at 600 (the equal one is the cash solve's game) |
+| 3-handed 15/9/22bb, 0.1bb ante, 50/30/20 | 60 | 6.8 at 100, 0.65 at 200, 0.15 at 400, 0.064 at 800 |
+| Sit & go bubble: CO 24, BTN 16, SB 9, BB 18bb, 0.25bb ante, 50/30/20 | 202 | 1.29 at 500, 1.28 at 1,000, 1.29 at 2,000 (BB 4.2) |
+| The same in chips | 202 | 4.6 at 500, 4.7 at 2,000 (BB 10.5) |
+| The same in chips at equal 24bb (the cash solve's game) | 197 | 3.1 at 300, 2.8 at 1,200 |
+| The same in chips, heads-up pots only | 112 | 0.034 at 300, 0.0018 at 1,200 |
+| 6-max, 20bb each, 0.125bb ante, 50/30/20 | 1,525 | 9.1 at 100, 2.2 at 300, 1.5 at 600 |
+| 6-max, 25/12/40/18/30/22bb, 50/30/20 | 2,703 | 3.7 at 100, 0.85 at 300, 0.61 at 600 |
+| The same two in chips | 1,525 / 2,703 | 2.2 / 0.64 at 600 (the equal one is the cash solve's game) |
 
 The solve levels off rather than converging to zero, and the cause is the 3-way pot. A game with heads-up pots only
-converges to 0.002. The cash solve at equal stacks levels off at 2.9 in the same table, which is what upstream's
+converges to 0.002. The cash solve at equal stacks levels off at 2.8 in the same table, which is what upstream's
 `STALL` rule is for. A 3-way showdown is valued from each player's range-average share against the other two (six
 hand orders, weighted by those shares). That makes the payoff depend on the strategies, so CFR settles on a floor.
-With unequal stacks the side pots raise the floor (5.9 in chips here), and prize equity lowers it (1.8 here, 2.1-2.5 at 6-max
-against 4.2-4.3 in chips), since a bubble makes 3-way all-ins rarer.
+With unequal stacks the side pots raise the floor (4.7 in chips on the sit & go bubble). Prize equity lowers it (1.3
+there), since a bubble makes 3-way all-ins rarer. With the first version's 2.2bb opens the same tables levelled off
+higher: 1.83 on the sit & go bubble (267 nodes), and 2.1 and 2.5 at 6-max (3,311 nodes for the unequal one).
 
-A small tree runs to `pf_study.MAX_ITERS` (2,000) and reports its distance. The badge shows it ("1.83 mbb/hand from
+A small tree runs to `pf_study.MAX_ITERS` (2,000) and reports its distance. The badge shows it ("1.28 mbb/hand from
 equilibrium"), so a game that stopped above the 1.5 target says how far.
 
 ### 20.4 Speed and size
 
-Natively, the sit & go bubble (267 nodes) runs about 4.6 ms an iteration, 2,000 in 9 s; 6-max at 20bb (1,525 nodes) about 37 ms, and the unequal 6-max (3,311) about 77 ms, so its 600 iterations take about 46 s natively and roughly 80 s in a browser at pf_study's measured 1.75x. In the dev build's browser
-worker it ran 2,000 iterations in 31 s with the pane hidden, which throttles the page. The panel estimated 5 s, so
-`estimate_seconds` (pf_study's rule, scaled by nodes and seats) runs low on this tree. The browser takes up to 70,000
-nodes x seats (`BROWSER_WORK`) and the local server 300,000:
+Natively, the sit & go bubble (202 nodes) runs 2,000 iterations in about 5 s. 6-max at 20bb (1,525 nodes) runs 600 in
+about 19 s, and the unequal 6-max (2,703 nodes) 600 in about 24 s. A browser takes roughly 1.75x that, pf_study's
+measured ratio. In the dev build's browser worker, the first version's sit & go bubble ran 2,000 iterations in 31 s with
+the pane hidden, which throttles the page. The panel had estimated 5 s, so `estimate_seconds` (pf_study's rule, scaled
+by nodes and seats) runs low on these trees. The browser takes up to 70,000 nodes x seats (`BROWSER_WORK`), and the
+local server 300,000:
 
 | Table | Nodes | Browser |
 |---|---|---|
-| Heads-up, 3 left, sit & go bubble (2-4 players) | 22-270 | yes, seconds |
-| Final-table bubble (5 players, 8-40bb) | 946 | yes |
+| Heads-up, 3 left, sit & go bubble (2-4 players) | 22-202 | yes, seconds |
+| Final-table bubble (5 players, 8-40bb) | 895 | yes |
 | 6-max at 20bb | 1,525 | yes |
-| MTT bubble (8 players, 6-48bb) | 13,088 | no: local server |
-| Final table (9 players, 6-62bb), Early (8 at 60bb) | 24,924 / 33,978 | no: local server |
+| MTT bubble (8 players, 6-48bb) | 13,088 (with 2.2bb opens) | no: local server |
+| Final table (9 players, 6-62bb), Early (8 at 60bb) | 24,924 / 33,978 (with 2.2bb opens) | no: local server |
 
-Practice and Analyze grade preflop only from stored solves, and none is stored for a tournament. A precomputed set for
-the stage presets (each stage's stacks are fixed) would let them grade a tournament's preflop. The 8- and 9-player
-stages need the local server or an offline build.
+### 20.5 Stored presets, and Practice graded by them (2026-11-11)
+
+Six stage and format presets are solved once (`scripts/pf_icm/build_stored.py`, 1,500 iterations, as for the cash grid)
+and stored in `engine/pf_icm/` with a manifest (`stages.json`). The worker reads them from the site's `pf/` folder. So
+Study answers them at once, and Practice grades a session set to one of them, as long as it is set up as the preset
+sets it, not played out, and has no bounties. The 8- and 9-player presets were left out here, as their trees were over the
+browser's size cap and took 2-5 GB to build natively; they are stored since 2026-11-13 (20.6).
+
+| Preset | Nodes | mbb/hand a seat | Build | File |
+|---|---|---|---|---|
+| Final-table bubble (5 players, 20/40/8/28/14bb, 9 paid, another table of 5) | 895 | 0.95 | 20 s | 7.3 KB |
+| Three left (30/55/15bb) | 78 | 0.12 | 2 s | 1.1 KB |
+| Heads-up (40/60bb) | 22 | 0.015 | 1 s | 0.4 KB |
+| Sit & go bubble (24/16/9/18bb, 50/30/20) | 202 | 1.28 | 5 s | 2.3 KB |
+| Sit & go, 6 players (75bb, 65/35, no ante) | 7,542 | 1.13 | 176 s | 50.8 KB |
+| Double or nothing (6 at 50bb, 3 paid, no ante) | 4,667 | 0.57 | 87 s | 23.5 KB |
+
+`scripts/pf_icm/coverage.py` measures how much of Practice's preflop the solve grades. It plays 1,000 hands a preset,
+moving your seat each hand, and makes the checks `pfGrade.ts` makes:
+
+| How the hand is played | Decisions graded by the solve |
+|---|---|
+| The charts' opponents and buttons, as before (`--charts`) | 4.8% on the sit & go bubble (100 hands). The charts open 2.5bb where the tree opened 2bb, and offer no jam beside the open |
+| The opponents drawn from the solve and your buttons its options. You play the solve's mix where it answers, else the chart's | 100.0% on every preset (12,897 decisions) |
+| The same, but you pick any option evenly | 93-97% a preset. The rest are lines the solve doesn't take with your class ("it holds no EV for it"), or rarely plays |
+
+So in these sessions the preflop is played on the solve's tree (`PracticeHand.pfOptions`). Where the solve reads the
+spot, your options are its own. Each opponent's preflop move is drawn from the solve's mix for that hand class
+(`pf_icm_study.play`, asked by the request's `pf_play`, and only for a stored key). Two details keep the table and the
+tree alike:
+
+- A jam bigger than anyone left can call is played on the tree to the deepest of them. The node reports the rest
+  (`uncalled_bb`), which `chipsOff` takes off the table's pot.
+- An opponent's raise keeps the tree's size to the cent (4-bets to 17.25bb).
+
+Checked in a browser (dev build, 2026-11-11) over 18 hands of the sit & go bubble: 17 preflop decisions were graded by
+the solve and one by the push/fold model. That one came after my test loop raised T4s from the small blind, a class the
+solve had folded by then, and the grade says so.
+
+### 20.6 Seven to nine players, and the final-table set (2026-11-13)
+
+From 7 players the tree drops one more family of lines, as `engine/pf_engine.py`'s 7+ tree does: once the pot has been
+raised twice, a player who hasn't put chips in by choice can only fold. There are no cold 4bets, and no cold calls of a
+3bet or of a jam over a raise (`build(cold4=False)`). At most two players see a flop, as before. The solve's label and
+each answer (`pf_limits`, shown on the badge) say so, and the key hashes it, so 2 to 6 player keys are unchanged. These
+lines are rare at a full table, but they made most of its nodes:
+
+| Table | Nodes before | Nodes now | Browser (70,000 nodes x seats) |
+|---|---|---|---|
+| Bubble (8 players, 6-48bb) | 12,226 | 1,310 | yes |
+| Early (8 at 60bb) | 24,470 | 2,148 | yes |
+| Final table (9 players, 6-62bb) | 23,356 | 2,096 | yes |
+| 9 players at 200bb, equal | over the native cap | 5,593 | yes |
+
+Every table up to the 250bb stack limit now fits the native cap (the biggest is 6 players at 200bb or more: 14,157 nodes,
+85,000 of 300,000). Stored at 1,500 iterations (`scripts/pf_icm/build_stored.py`, one process a game):
+
+| Preset | Nodes | mbb/hand a seat | Build | File |
+|---|---|---|---|---|
+| Early | 2,148 | 0.12 | 49 s | 14.9 KB |
+| Bubble | 1,310 | 0.24 | 32 s | 8.6 KB |
+| Final table | 2,096 | 0.20 | 55 s | 12.6 KB |
+| Sit & go, 9 players (75bb, 50/30/20, no ante) | 3,318 | 0.08 | 65 s | 17.8 KB |
+
+The final-table set (`pf_icm_stored.FINAL_TABLE_SET`, the page's `finalTableStacks`) is 105 spots: 3 to 9 left; 10,
+15, 20, 30 or 40bb average; equal stacks, the chip leader on the button with twice the average, or a short big blind
+with 40% of it (the rest share what's left, to 0.1bb). Every spot pays a 9-paid final table's prizes left
+(30/20/14/10.5/8/6.5/5/3.5/2.5) and has the stages' 1bb big-blind ante as each seat's share, no other tables and no
+bounties.
+
+| Players left | Nodes | mbb/hand a seat | Build (15 spots) | Files |
+|---|---|---|---|---|
+| 3 | 42-82 | 0.04-1.62 | 17 s | 15 KB |
+| 4 | 137-401 | 0.08-0.75 | 54 s | 34 KB |
+| 5 | 378-1,552 | 0.11-0.80 | 225 s | 81 KB |
+| 6 | 924-5,002 | 0.15-0.80 | 658 s | 179 KB |
+| 7 | 632-1,102 | 0.02-0.10 | 228 s | 82 KB |
+| 8 | 985-1,720 | 0.02-0.10 | 333 s | 118 KB |
+| 9 | 1,464-2,542 | 0.02-0.08 | 528 s | 161 KB |
+
+That is 34 minutes of one core and 670 KB; the 115 stored files are 809 KB in all. The 7 to 9 handed spots converge
+further than the 5 and 6 handed ones because their trees end sooner. Each number is the solve's distance from the
+equilibrium of its own simplified game, not from a full-tree solve (20.3). The 1.62 mbb spot is 3 left at 10bb with a
+short big blind, where most hands are jams.
 
 ## 21. Flop abstraction error (2026-11-11)
 
@@ -1461,3 +1654,275 @@ solve bigger than the room left, `engine/tree_depth.py` evicts kept solves to ma
 
 The Solve page's controls (the raise cap and up to 5 sizes) and the Settings tree cap were checked in the browser on
 2026-11-11, on a local build without a solve.
+
+## 23. Bunching (2026-11-13)
+
+An option on the Solve page and in Study (`engine/bunching.py`): the ranges entering the flop are weighed by the hands
+the seats that folded preflop were holding. Each remaining combo h gets F(h) = P(no folder holds a card of h), from the
+folders' card moments under their fold ranges (the charts' or the preflop solve's), and every street is solved live on
+the weighted ranges. Measured by `scripts/engine/measure_bunching.py` (through the shared slot, 5 min, peak 496 MB).
+
+### 23.1 The combinatorics (`scripts/engine/test_bunching.py`, 23 tests, about 17 s)
+
+- One and two folders: the moments are exact (matrix sums), and match brute force over every deal of small random fold
+  ranges to 1e-12, F and the next card's odds included.
+- Three or more: rejection-sampled, 60,000 deals. Against brute force on three folders, every combo's F is within 4.5
+  of its stated standard errors, with the mean |z| under 1. The stated error, sqrt(F(1-F)/60,000), is 0.26-0.31% of F
+  on the spots below, and the badge says it.
+- The plan (moments, factors, the next card's odds) takes 0.02-0.07 s natively for the charts' folds; reading the
+  preflop solve's folds adds about 0.5 s the first time.
+
+### 23.2 How much the folds move the ranges
+
+From the charts' folds, at 100bb: each remaining range's combos before and after weighting, and the lowest factor F in
+the range over its highest (the weight the most-blocked combo keeps against the least-blocked one):
+
+| Spot | Folders | Remaining combos (even -> weighted) | Lowest F / highest F |
+|---|---|---|---|
+| UTG vs BB, Kd7c2h | HJ, CO, BTN, SB | UTG 223 -> 210, BB 337 -> 319 | UTG 0.89, BB 0.91 |
+| BTN vs BB, Kd7c2h | UTG, HJ, CO, SB | BTN 535 -> 474, BB 513 -> 469 | BTN 0.78, BB 0.83 |
+| BTN vs SB and BB, Kd7c2h | UTG, HJ, CO | BTN 535 -> 486, SB 50 -> 46, BB 353 -> 333 | BTN 0.82, SB 0.86, BB 0.86 |
+
+("Weighted" is relative to the combo the folds block least, so only the ratios inside a range matter.) A BTN open faces
+four tight folds that hold most of the low cards: 22's factor is 0.64 and AA's 0.82, so 22 keeps 78% of the weight AA
+keeps. UTG faces folds from wide
+ranges that hold every card more evenly, so the effect there is about half as big.
+
+### 23.3 What it changes in the solve
+
+Each spot's flop solved twice at the worker's Accurate config (to 0.01-0.02% of the pot, natively), once on the even
+deal and once bunched, every library put aside both times. Read at the first actor's root and at the last actor's node
+after checks: the range's frequencies (check / bet 33% / bet 75%, %), the class-weighted mean change of each hand
+class's mix (points) and EV (bb), and the node's EV (bb). For scale, the last two columns are the same spot unbunched
+at Fast against Accurate.
+
+| Spot, node | Even deal | Bunched | Class mix Δ | Class EV Δ | Node EV even -> bunched | Fast vs Accurate: mix Δ, EV Δ |
+|---|---|---|---|---|---|---|
+| UTG vs BB Kd7c2h, BB first | 100 / 0 / 0 | 100 / 0 / 0 | 0.0 | 0.023 | 1.58 -> 1.57 | 0.0, 0.125 |
+| UTG vs BB Kd7c2h, UTG after a check | 1.0 / 85.1 / 13.9 | 0.2 / 88.7 / 11.2 | 5.9 | 0.033 | 3.920 -> 3.932 | 21.6, 0.069 |
+| UTG vs BB 8h6d4c, BB first | 91.3 / 0 / 8.7 | 91.4 / 0 / 8.6 | 3.1 | 0.042 | 2.284 -> 2.265 | 6.8, 0.089 |
+| UTG vs BB 8h6d4c, UTG after a check | 45.0 / 45.2 / 9.8 | 44.6 / 46.3 / 9.1 | 9.0 | 0.040 | 3.257 -> 3.272 | 16.3, 0.091 |
+| BTN vs BB Kd7c2h, BB first | 100 / 0 / 0 | 100 / 0 / 0 | 0.0 | 0.031 | 1.94 -> 1.93 | 0.0, 0.071 |
+| BTN vs BB Kd7c2h, BTN after a check | 26.7 / 58.3 / 14.9 | 24.2 / 64.2 / 11.6 | 12.4 | 0.029 | 3.561 -> 3.576 | 17.3, 0.075 |
+| BTN vs BB 8h6d4c, BB first | 90.4 / 3.1 / 6.5 | 92.1 / 3.3 / 4.7 | 4.5 | 0.045 | 2.372 -> 2.367 | 6.1, 0.107 |
+| BTN vs BB 8h6d4c, BTN after a check | 56.4 / 0.2 / 43.4 | 56.2 / 0.3 / 43.4 | 6.0 | 0.036 | 3.243 -> 3.228 | 19.3, 0.095 |
+| 3-way Kd7c2h, SB first | 61.1 / 35.2 / 3.7 | 63.9 / 32.0 / 4.2 | 5.3 | 0.038 | 3.173 -> 3.146 | 12.0, 0.135 |
+| 3-way Kd7c2h, BTN after two checks | 59.4 / 40.5 / 0.1 | 59.7 / 40.0 / 0.3 | 6.1 | 0.040 | 3.199 -> 3.202 | 13.7, 0.230 |
+
+(3-way: BTN opens 2.5bb, SB and BB call; the 3-player solver's Accurate game, 400 iterations, 0.07% of the pot mean
+best-response gain.)
+
+What that says:
+
+- **Range frequencies move up to 6 points.** The largest: BTN's small c-bet on Kd7c2h, 58.3% -> 64.2%, its big bet
+  14.9% -> 11.6% (the BB's range keeps fewer of the low pairs and gutshots the folds hold, so it is a little stronger
+  and BTN bets smaller). Most nodes move 0-3 points.
+- **EVs move by hundredths of a bb**: a node's EV by at most 0.027 bb (0.5% of the pot), a hand class's by 0.02-0.05 bb
+  on average. Both are about half of how far Fast and Accurate are apart on the same spot.
+- **A hand class's mix moves 3-12 points** (combo-weighted mean), less than Fast against Accurate (6-22). Two converged
+  solves of nearly the same game can also differ in classes that are indifferent between actions, so part of that
+  column is the solution's own freedom, not the folds.
+
+So bunching is a real but small correction on these spots, smaller than the gap between the two speeds. It matters most
+where tight folds face a late-position open (BTN vs BB), and least where the folds come from wide early ranges.
+
+### 23.4 What the model leaves out
+
+- **Each player's factor alone.** The exact weight of a pair of hands (one per remaining player) is J = P(no folder
+  holds a card of either), not F(h1) F(h2). Over 400,000 sampled folder deals and about 2,700 pairs drawn from the two
+  ranges, J / (F1 F2), normalised to its mean, has a root-mean-square spread (the two halves' covariance, so sampling
+  noise of 0.04-0.07% is taken out) of 0.29% (UTG vs BB), 0.41% (BTN vs BB) and 0.30% (3-way, BTN and BB), with 95%
+  of pairs within 0.58-0.84%. That is a twentieth or less of how far F itself varies across a range (9-22%). The 3-way spot's third player isn't in
+  this measurement.
+- **The runouts are dealt evenly.** The folds make the next card's odds uneven too: on BTN vs BB Kd7c2h a turn ace is
+  8.80% likely against 8.16% even (+7.8% of itself), a king 6.37% (6.12%), a deuce 5.88% (6.12%); on UTG vs BB the ace
+  is 8.49%. The solves still deal every turn and river card evenly (upstream's chance nodes, buckets and compiled core
+  would all need the weights); Study shows these odds under the switch, said as not played.
+- **The flop only.** The factor is conditioned on the flop; a turn's solve narrows from the same weighted flop ranges.
+  The turn card's own effect on the folds is the size of the odds above.
+- **Postflop folds** aren't counted: their hands are a postflop range, not a preflop fold.
+
+### 23.5 Cost
+
+- **Natively**, a bunched flop solve takes the same time as an even one on the same tree (heads-up 2.7-3.4 s against
+  2.8-3.5 s at Accurate; the 3-way 27 s against 19 s, within what the shared machine's load moves a run by), plus the
+  plan's 0.02-0.07 s.
+- **The real cost is the library.** The flop libraries hold solves of the even deal, so a bunched flop is always solved
+  live. In a browser (dev build, threaded core, Fast) on 2026-11-13: BTN vs BB 8h6d4c answered from the library in 0.6
+  s, bunched by a live solve in 0.8 s (300 iterations, 0.11% of the pot); 3-way Kd7c2h from the 3-way library in 1.0 s,
+  bunched in 5.6 s (400 iterations, 0.07%); UTG vs BB Ts8s3d from the preflop solve's folds in 1.6 s. A device without
+  threads takes longer (Fast's flop budget is 8 s).
+
+**Not established.** 4-way pots take the weighted ranges the same way but weren't measured or tested. No comparison with
+another solver's bunching was made.
+
+## 24. Custom flop reports against the library (2026-11-13)
+
+(Numbered 24 because the bunching branch took 23 the same day.)
+
+A flop report of your own spot (Reports, "Report over flops" from Solve or Study) solves one flop at a time in the
+browser's worker at Fast or Accurate, over the solver's representative set of 9, 25, 49, 95 or 184 flops. Each flop
+stands for 1/n of all 22,100. The library's own report of a stored spot holds all 1,755 flop classes, each weighted by
+how often it is dealt, solved offline in the library's flop model. To see what a custom report gets wrong,
+`scripts/benchmarks/custom_report.py` reports a spot the library stores with the library turned off, the way a custom
+report solves a spot the library doesn't store, and compares it with the library's report.
+
+**How.**
+
+- The spot is 6-max 100bb, BTN opens 2.5bb and BB calls (`srp_btn_bb`): 5.5bb pot, 97.5bb behind.
+- The live side is the worker's Fast Advisor as `solver/gto/static/worker.js` builds it with 4 or more threads, which
+  most browsers give it: Accurate's turn tree, the river inside at 33/75/125%, and the heads-up solve stopped once
+  0.2% of the pot from equilibrium, from its 300th iteration.
+- It asks the same two questions the page's report asks (`customReport.ts` `solveFlop`): the flop's root, then in
+  position after BB's check. Both are study requests.
+- It runs natively on one thread, through the shared slot. A solve's numbers don't depend on its threads.
+- Every flop stopped at 300 iterations, as in the browser checks, at 0.06% to 0.16% of the pot from equilibrium in its
+  own game (mean 0.10%). The time budget never cut a solve short.
+- 1.0 to 3.5 s a flop natively (1.7 s on average), 2.6 minutes for 95 flops, 425 MB peak.
+- The library side is `library-build/lizard-library/srp_btn_bb/report.json`, the assembled release.
+- Results: `scripts/benchmarks/results/custom_report_srp_btn_bb_25.json` and `…_95.json`.
+
+**The averages** (each weighted as its report weights it):
+
+| Column | Library, all 1,755 flops | Library, the 25 | Live Fast, the 25 | Library, the 95 | Live Fast, the 95 |
+|---|---|---|---|---|---|
+| BB checks | 98.8% | 98.9% | 98.5% | 98.3% | 97.7% |
+| BTN bets after the check | 56.1% | 56.0% | 59.5% | 55.0% | 58.2% |
+| of those bets, at 75% | 71.8% | 72.9% | 56.1% | 71.4% | 56.4% |
+| BB's EV (bb) | 2.04 | 2.04 | 2.03 | 2.06 | 2.05 |
+| BB's EV (% pot) | 37.0 | 37.0 | 36.8 | 37.4 | 37.2 |
+| BB's equity | 45.5% | 45.5% | 45.6% | 45.6% | 45.7% |
+
+**The differences**, split into their two causes:
+
+- **Sampling** is the library over the set minus the library over every flop: the error of using n flops, not 1,755.
+- **Model** is live Fast minus the library, on the same flops: Fast's flop model against the library's.
+- **Report** is what a user sees: the live report minus the library's report, both causes together.
+- **Per flop** is the mean (and largest) absolute difference flop by flop, live against the library.
+
+| Column | Sampling, 25 | Sampling, 95 | Model, 25 | Model, 95 | Report, 25 | Report, 95 | Per flop mean (max), 25 | Per flop mean (max), 95 |
+|---|---|---|---|---|---|---|---|---|
+| BB checks (points) | 0.1 | -0.2 | -0.4 | -0.6 | -0.3 | -0.8 | 0.4 (3.0) | 0.9 (8.0) |
+| BTN bets after the check (points) | -0.1 | -0.6 | 3.5 | 3.1 | 3.4 | 2.5 | 4.0 (10.4) | 3.8 (17.1) |
+| of those bets, at 75% (points) | 1.1 | 0.5 | -16.8 | -15.0 | -15.7 | -14.5 | 18.0 (42.2) | 16.3 (49.3) |
+| BB's EV (bb) | -0.00 | 0.01 | -0.01 | -0.01 | -0.01 | -0.00 | 0.02 (0.04) | 0.02 (0.06) |
+| BB's EV (% pot) | -0.0 | 0.2 | -0.2 | -0.2 | -0.2 | -0.0 | 0.3 (0.7) | 0.3 (1.1) |
+| BB's equity (points) | -0.0 | 0.1 | 0.1 | 0.1 | 0.1 | 0.1 | 0.2 (0.6) | 0.2 (0.8) |
+
+**What this says.**
+
+- **Sampling is small on this spot.** The representative sets are drawn by texture and weight, and 25 flops land
+  within about 1 point of the full library's averages on every column (0.6 at 95). A spot whose strategy changes more
+  from flop to flop than this one could need more flops; the set sizes stay offered for that.
+- **EV, equity and BB's check agree.** EVs are within 0.3% of the pot a flop on average (1.1% at most, on 6d6c5h), and
+  the report's average EV within 0.2%. Equity is within 0.2 points. BB checks within 1 point on average. These
+  columns can be read as the library's.
+- **In position bets a little more often, and much smaller.** Fast bets after the check 3 to 4 points more often than
+  the library. Of its bets, 56% are at 75% pot where the library's are 71-73%. That is 15-17 points lower on
+  average, lower on 76 of the 95 flops, and up to 49 points on one flop (Qc7d5c).
+  - This is the flop model below the flop, not the sample. Fast plays the turn by rank class and the turn and river by
+    32 hand buckets over every third river (section 21). The library plays the turn per combo, deals the river and
+    uses 64 buckets.
+  - Section 21 measured what each model gives up against the full game: Fast 1.9% of the pot on average, the library
+    0.6%. So where they disagree, the library is the better guide.
+  - The size split sits where the two sizes are close in value. A coarser game below the flop moves it a long way at
+    little cost, which is why the EVs still agree.
+- **Accurate wasn't measured here.** Its flop model is closer to the library's (64 buckets over every river), but it
+  takes longer a flop. Section 21's Accurate figure (1.9% mean, 5.4% at most) is what a report at Accurate shows.
+
+**On the page.** A custom report's provenance says it was solved live at its tier over n sampled flops of the
+representative set, with each solve's distance from equilibrium and the iterations, and its flop model's abstraction
+error from section 21. A Fast report also carries this comparison in its abstraction line (`FAST_VS_LIBRARY` in
+`customReport.ts`): "EVs were 0.35% pot off a flop on average and in position's bet size split 16 points".
+
+**Not established.**
+
+- Other spots. Only BTN vs BB single-raised was compared. 3bet pots, shallower stacks and other positions may differ,
+  most likely in the size split.
+- Accurate against the library.
+- The turn. A custom report stops at the flop.
+- The browser's own numbers. The browser runs the same engine through Pyodide, and a solve's numbers don't depend on
+  the threads, but this comparison ran natively. The browser checks (2026-11-13: 6-max 60bb CO vs BB, 9 and 25 flops, and
+  40bb BTN vs BB, 9 flops, at Fast) stopped every flop at 300 iterations, 0.04% to 0.12% of the pot from equilibrium, as here.
+
+## 25. Player profile re-solve (2026-11-13)
+
+`engine/profile_solve.py` holds one player to an assumed profile at every decision of theirs and re-solves the other
+player against it. The profile is derived from the equilibrium by a fixed, documented rule: at each of the profiled
+player's decisions, the equilibrium's mix with the engine's `TendencyLock` laid on it (`gto/exploit.py`; folds move by
+hand strength, their weakest calls folding first and their strongest folds calling first; bluffs move among their weak
+hands; bets and raises scale every hand alike), each node's range being the one the profile itself brings there. Those
+mixes are pinned with `engine/nodelock.py`'s pins and the rest re-solved by CFR on the same tree. With every decision of
+one player held, the restricted game's equilibrium for the other player is their best response to the held strategy,
+so the re-solve should equal a best response computed apart.
+
+**What the figures mean.** *Convergence* is what the exploiting player's best response still gains against the held
+profile, in % of the street's root pot: 0 once the re-solve is that best response. *Gap* is the re-solve's value against
+an independent best response: the engine's best-response walk over the equilibrium solve's tree with `TendencyLock` laid
+on during the walk, a code path apart from the re-solve's CFR and its pins. *Pins* compares that walk's best response
+with the re-solve's own best response to its pinned strategy: it checks that the pins are the strategy the rule gives.
+
+**Method.** `scripts/benchmarks/profile_bench.py`, through `slot.sh`, 34 s, raw numbers in
+`scripts/benchmarks/results/profile.json`. Exact trees (every card dealt, per combo), pot 10, stack 40: two rivers
+(`2c7d9hJsKd` at bets 50% and 100% with one raise, 5 profiled decisions; `Ah8d5c3s3h` at 33/75/150% with two raises,
+9) and a turn with every river dealt (`2c7d9hJs`, bet 75%, 12 decisions and 13,920 to 18,705 pinned cells). Each spot
+runs the four presets on both players, 64 runs in all.
+
+**Measured [M]: every run within 0.0034% of the pot of the independent best response.**
+
+| Spot | Iterations | Worst convergence (% pot) | Worst gap (% pot) | Worst pins (% pot) | Time |
+|---|---|---|---|---|---|
+| River, 2 sizes | 300 / 1,000 / 3,000 | 0.00047 / 0.00021 / 0.00015 | 0.00047 / 0.00021 / 0.00015 | 0.0000096 | up to 0.03 s |
+| River, 3 sizes, 2 raises | 300 / 1,000 / 3,000 | 0.00091 / 0.00062 / 0.00032 | 0.00091 / 0.00062 / 0.00032 | 0.0000065 | up to 0.04 s |
+| Turn, every river | 100 / 400 | 0.0034 / 0.0012 | 0.0034 / 0.0012 | 0.0000058 | up to 0.17 s |
+
+- The gap tracks the convergence figure, as it should: the re-solve approaches the best response from below.
+- The held player can't move: their best-response gain under their own pins is at most 0.0000061% of the pot.
+- The check has power here: in every run the exploit beat the exploiter's equilibrium strategy against the profile by
+  0.63bb or more (6.3% of the pot), so a re-solve that ignored the profile would miss by that much.
+- Warm (from the equilibrium) and cold starts reach the same value (`test_profile_solve.py`).
+
+**Spoiled on purpose.** The re-solve run with the wrong profile and checked against the right one (river, 2 sizes,
+3,000 iterations, both players): all 8 caught.
+
+| Fault | Gap (% pot), OOP / IP profiled |
+|---|---|
+| Calling station checked as Nit | +1.23 / -0.73 |
+| Fold -20 checked as fold -25 | +2.00 / +1.94 |
+| Bluff -50 checked as bluff -45 | -0.063 / -0.37 |
+| The equilibrium (bet -1) checked as Calling station | +6.29 / +11.22 |
+
+The smallest, five points of bluffing, is 0.063% of the pot, 200 times the worst gap above.
+
+**The app's trees [M].** Through Study's request at the worker's Fast config (`scripts/engine/test_study_lock.py` FAST,
+the engine natively, on a loaded machine), the values the panel shows, bb per pair dealt at the street's root:
+
+| Spot | Exploiter at equilibrium | Their equilibrium strategy vs the profile | Re-solved exploit | Best response apart | Convergence | Time |
+|---|---|---|---|---|---|---|
+| River, BTN Calling station | 0.855 | 0.960 | 2.587 | 2.587 | 0.0004% | 3.9 s |
+| River, BB Nit | -0.855 | -0.753 | 0.325 | 0.325 | 0.0004% | 0.1 s |
+| Turn, BB Calling station | 0.367 | 0.570 | 2.795 | 2.795 | 0.0029% | 9.5 s |
+| Turn, BB Calling station, from the flop | 2.115 | 2.403 | 4.674 | 4.674 | 0.0027% | 14.6 s |
+| Flop, BB Calling station | 0.805 | 2.284 | 11.118 | 11.118 | 0.0004% | 1.3 s |
+| Flop, BTN Maniac | -0.805 | 0.652 | 13.113 | 13.113 | 0.0002% | 1.1 s |
+
+These are inside the abstract game each street's solve plays (buckets, card classes, its bet menu), so they say how close
+the re-solve is to the best response *in that game*, not in the full game; the flop's abstraction error is section 21.
+
+**In a browser, on the wasm core [M].** Study, 6-max 100bb, BTN opens and BB calls, `Kd7c2h5s9d` after a called flop
+c-bet and a checked turn, BB to act, BTN held to Calling station at Fast: 300 iterations, 0.0004% of the pot left; BB's
+exploit 2.61bb against 0.97bb for its equilibrium strategy and 0.86bb at equilibrium, and the best response computed apart
+2.61bb; BB's 250% bet 0.0% → 27.3%. The turn `Kd7c2h5s` with BB held from the flop: flop re-solve 300 iterations
+(0.0006%), turn 129 iterations in its 8 s budget (0.0061%), BTN's exploit 4.68bb against 2.41bb. Exploit practice against Calling
+station at Quick: the flop's advice stopped at Quick's aim (10 iterations, 0.50% of the pot left), the turn's re-solved
+on the flop and turn to 0.0000% in 257 iterations.
+
+**Not established.**
+
+- Profiles are heads-up, after the flop, cash only. "From the flop" holds the profile in every postflop solve of the
+  hand; preflop the ranges are the equilibrium's (the charts or the preflop solve).
+- The rule is one fixed derivation from the equilibrium. GTO Wizard describes its profiles as incentives the solver
+  re-solves under, so the profiled player also adjusts; here they don't, which is what makes the answer the exploiter's
+  best response, checkable as above.
+- The equilibrium side is a live solve with the flop library left out, so it can differ a little from a stored flop
+  answer shown above it.

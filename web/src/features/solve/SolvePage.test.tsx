@@ -92,6 +92,24 @@ describe("SolvePage", () => {
     useSettings.setState({ transport: "worker", treeCap: "standard" });
   });
 
+  it("turns bunching on from the charts' or the preflop solve's folds, refuses it heads-up, and opens it in Study with it", () => {
+    const first = open("p=6&s=100&pre=UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c&b=Kd7c2h&bunch=solve");
+    const pick = screen.getByRole("combobox", { name: "Bunching" });
+    expect(pick).toHaveValue("solve");
+    fireEvent.change(pick, { target: { value: "charts" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open in Study" }));
+    const h = fromSearch(screen.getByTestId("where").textContent!.split("?")[1]!)!;
+    expect(h.setup).toEqual({ bunching: "charts" });
+    expect(studyRequest(h)).toMatchObject({ bunching: "charts", board: "Kd7c2h" });
+    first.unmount();
+    open("p=2&s=100");
+    fireEvent.change(screen.getByRole("combobox", { name: "Bunching" }), { target: { value: "charts" } });
+    expect(within(problems()!).getByText("bunching needs 3 or more players: heads-up nobody folds before the flop")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Bunching" })).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByRole("combobox", { name: "Bunching" }), { target: { value: "off" } });
+    expect(problems()).toBeNull();
+  });
+
   it("fills a seat's range from a saved range, and starts the line over at a new table size", async () => {
     await putRange({ id: "r1", name: "BTN open", text: "22+,A2s+,K9s+", combos: 300, note: "", createdAt: 1, updatedAt: 1 });
     open("p=2&s=100&pre=SB:r2.5,BB:c&b=Ks7d2c");
@@ -208,7 +226,7 @@ describe("SolvePage", () => {
     expect((screen.getAllByRole("textbox", { name: "Payouts" }).at(-1) as HTMLInputElement).value.split(" ")).toHaveLength(115);
     // Clear forgets it
     fireEvent.click(screen.getAllByRole("button", { name: /^Clear/ }).at(-1)!);
-    expect(screen.getAllByText(/^A stage or format fills in the form/).at(-1)).toBeInTheDocument();
+    expect(screen.getAllByText(/^A stage, format or final-table spot fills in the form/).at(-1)).toBeInTheDocument();
   });
 
   it("sets up a sit & go or spin format at once, with no ante at its start", () => {
@@ -219,7 +237,7 @@ describe("SolvePage", () => {
     expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(75);
     expect(screen.getByRole("spinbutton", { name: "Ante" })).toHaveValue(null);
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("50 30 20");
-    expect(screen.getByText(/^Set up: Sit & go, 9 players\..*; no ante\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Set up: Sit & go, 9 players\..*; no ante\. Its preflop solve in prize equity is stored: Study's Solver source answers it at once\.$/)).toBeInTheDocument();
     expect(problems()).toBeNull();
     // its bubble has the stages' big-blind ante
     fireEvent.click(within(formats).getByRole("button", { name: "Sit & go bubble" }));
@@ -231,6 +249,35 @@ describe("SolvePage", () => {
     expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(25);
     expect(screen.queryByRole("region", { name: "Bubble factors" })).toBeNull();
     expect(problems()).toBeNull();
+  });
+
+  it("sets up a spot of the final-table set, and opens its stored preflop solve in Study", () => {
+    open("p=6&s=100", "/tournaments");
+    const ft = screen.getByRole("group", { name: "Final-table set" });
+    fireEvent.change(within(ft).getByRole("combobox", { name: "Players left" }), { target: { value: "3" } });
+    fireEvent.change(within(ft).getByRole("combobox", { name: "Average stack" }), { target: { value: "15" } });
+    fireEvent.change(within(ft).getByRole("combobox", { name: "Stacks" }), { target: { value: "short" } });
+    expect(ft).toHaveTextContent("Stacks BTN 19.5 · SB 19.5 · BB 6bb.");
+    expect(ft).toHaveTextContent(/105 spots/);
+    fireEvent.click(within(ft).getByRole("button", { name: "Set up" }));
+    expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("3");
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("30 20 14");
+    expect(screen.getByText(/^Set up: Final table, 3 left, 15bb average, short stack in the big blind\..*Its preflop solve in prize equity is stored/)).toBeInTheDocument();
+    expect(problems()).toBeNull();
+    fireEvent.click(within(ft).getByRole("button", { name: "Open its preflop solve" }));
+    const h = fromSearch(screen.getByTestId("where").textContent!.split("?")[1]!)!;
+    expect(h.players).toBe(3);
+    expect(h.pf).toBe("solver");
+    expect(h.setup?.stacks).toEqual({ BB: 6 });
+    expect(h.setup?.tournament?.payouts).toEqual([30, 20, 14]);
+  });
+
+  it("fills the payouts from a room-style structure, trimmed to the players left", () => {
+    open("p=9&s=40", "/tournaments");
+    fireEvent.change(screen.getByRole("combobox", { name: "Payout structure" }), { target: { value: "Sit & go, 9 players" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use" }));
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("50 30 20");
+    expect(screen.getByText(/^Sit & go, 9 players: 3 places paid; all of them still to pay/)).toBeInTheDocument();
   });
 
   it("opens a Study spot's tournament as it was set, mystery bounties too", () => {

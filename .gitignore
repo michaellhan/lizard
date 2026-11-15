@@ -9,7 +9,10 @@
 secrets/
 
 # --- dependencies, caches, virtualenvs ---
-node_modules/
+# No trailing slash: a git worktree gets node_modules as a symlink to the main checkout's, and `node_modules/`
+# matches only a real directory, so the symlink was committable (and was committed once, which broke CI:
+# `npm ci` deletes the root one and tsc then can't write web/node_modules/.tmp).
+node_modules
 .venv/
 __pycache__/
 *.pyc

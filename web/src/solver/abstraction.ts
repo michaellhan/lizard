@@ -25,7 +25,7 @@ export const FLOP_SPOTS = 3;
 export function flopModelOf(r: AdvisorResponse, source: ResultSource, mode: SolveMode, transport: TransportKind): FlopModel | null {
   if (r.street !== "flop" || r.multiway || r.tournament) return null;
   if (source === "library") return "library";
-  if (source !== "live" && source !== "node-lock") return null;
+  if (source !== "live" && source !== "node-lock" && source !== "profile-solve") return null;
   if (transport !== "worker") return null;
   return mode === "fast" || mode === "accurate" ? mode : null;
 }

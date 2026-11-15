@@ -10,8 +10,10 @@ import { describe } from "@/solver/provenance";
 import type { Provenance, SolveResult } from "@/solver/types";
 import { describeLine, studyRequest, toSearch, type StudyHand } from "./studyState";
 
-/** `answer`: the finished answer on screen, kept with the spot (none while a saved answer is shown: that one stays). */
-export function SaveSpot({ hand, provenance, answer }: { hand: StudyHand; provenance?: Provenance; answer?: SolveResult }) {
+/** `answer`: the finished answer on screen, kept with the spot (none while a saved answer is shown: that one stays).
+ * `profile`: the profile held across the tree in the link (profile.ts profileParam), kept with the spot so it opens
+ * with it. */
+export function SaveSpot({ hand, provenance, answer, profile }: { hand: StudyHand; provenance?: Provenance; answer?: SolveResult; profile?: string }) {
   const line = toSearch(hand);
   // undefined while looking, null where the line isn't saved
   const [saved, setSaved] = useState<SavedSpot | null | undefined>(undefined);
@@ -61,6 +63,7 @@ export function SaveSpot({ hand, provenance, answer }: { hand: StudyHand; proven
       tags: readTags(tags),
       note: note.trim(),
       seen: provenance ? { source: provenance.source, label: describe(provenance) } : here?.seen,
+      ...(profile ? { profile } : {}),
       createdAt: here?.createdAt ?? t,
       updatedAt: t,
     };

@@ -3,7 +3,7 @@
 // every seat starts with the same KO or PKO bounty (played out, a bounty follows its player, and a PKO's grows), and a
 // mystery's envelopes are typed one by one ("500, 100x4, 25x20"), as played out each knockout draws one.
 import { LIMITS } from "@/features/solve/setup";
-import { FORMAT_PRESETS, PAYOUT_PRESETS, parsePayouts, pastedPayouts, presetAnte, STAGE_PRESETS, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
+import { csvPayouts, FINAL_TABLE_SET, FORMAT_PRESETS, FT_PLAYERS, PAYOUT_PRESETS, PAYOUT_STRUCTURES, parsePayouts, pastedPayouts, presetAnte, STAGE_PRESETS, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { TournamentOptions } from "./practice";
 
@@ -130,6 +130,7 @@ export function TournamentFields({
   problems,
   onStage,
   playOut = false,
+  solvedPreflop = false,
 }: {
   draft: TournamentDraft;
   onDraft: (d: TournamentDraft) => void;
@@ -143,6 +144,8 @@ export function TournamentFields({
   onStage?: (st: StagePreset) => void;
   /** the tournament is played out (Play it out) */
   playOut?: boolean;
+  /** the preflop is graded by, and played on, a stored preset's solve (practice.ts `pfOptions`) */
+  solvedPreflop?: boolean;
 }) {
   const icm = draft.model === "icm";
   const set = (o: Partial<TournamentDraft>) => onDraft({ ...draft, ...o });
@@ -155,7 +158,7 @@ export function TournamentFields({
           title="Table, stacks, ante and prizes at once"
           value=""
           onChange={(e) => {
-            const st = [...STAGE_PRESETS, ...FORMAT_PRESETS].find((x) => x.name === e.target.value);
+            const st = [...STAGE_PRESETS, ...FORMAT_PRESETS, ...FINAL_TABLE_SET].find((x) => x.name === e.target.value);
             if (st) onStage(st);
           }}
           className={INPUT}
@@ -175,6 +178,15 @@ export function TournamentFields({
               </option>
             ))}
           </optgroup>
+          {FT_PLAYERS.map((n) => (
+            <optgroup key={n} label={`Final table set, ${n} left`}>
+              {FINAL_TABLE_SET.filter((st) => st.players === n).map((st) => (
+                <option key={st.name} value={st.name} title={st.about}>
+                  {st.about.replace(/^\d+ left of a 9-paid final table, /, "")}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
       )}
       <label className="flex items-center gap-1">
@@ -186,14 +198,15 @@ export function TournamentFields({
       </label>
       {icm && (
         <>
-          <label className="flex items-center gap-1" title="First place first; a pasted payout table works">
+          <label className="flex items-center gap-1" title="First place first; a pasted payout table or a room's tournament summary works">
             <span className="text-muted">Prizes left</span>
             <input
               aria-label="Prizes left"
               value={draft.payouts}
               onChange={(e) => set({ payouts: e.target.value })}
               onPaste={(e) => {
-                const t = pastedPayouts(e.clipboardData.getData("text"));
+                const raw = e.clipboardData.getData("text");
+                const t = csvPayouts(raw) ?? pastedPayouts(raw);
                 if (t === null) return;
                 e.preventDefault();
                 set({ payouts: t });
@@ -207,6 +220,13 @@ export function TournamentFields({
                 {p.name}
               </option>
             ))}
+            <optgroup label="Room-style structures">
+              {PAYOUT_STRUCTURES.filter((x) => !x.byEntrants).map((x) => (
+                <option key={x.name} value={x.of(0).join(", ")} title={x.about}>
+                  {x.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
           <label className="flex items-center gap-1" title="Blank: none">
             <span className="text-muted">Others</span>
@@ -279,7 +299,11 @@ export function TournamentFields({
       )}
       <p className="basis-full text-xs text-muted">
         {playOut ? "" : "Each hand restarts from these stacks. "}
-        {icm ? "ICM (Malmuth-Harville); non-jam preflop spots are heuristic charts." : "Chip EV: cash-game answers in bb."}
+        {icm
+          ? solvedPreflop
+            ? "ICM (Malmuth-Harville); the preflop is played on this spot's stored prize-equity solve, its options yours and its mix the opponents'."
+            : "ICM (Malmuth-Harville); non-jam preflop spots are heuristic charts."
+          : "Chip EV: cash-game answers in bb."}
       </p>
     </fieldset>
   );

@@ -129,6 +129,7 @@ const WHAT: Record<BackupStore, string> = {
   savedDrills: "saved drill",
   savedScenarios: "saved scenario",
   savedReports: "saved report",
+  flopReports: "flop report",
   sessions: "session",
   hands: "imported hand",
   decisions: "graded decision",

@@ -93,7 +93,7 @@ export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
 /** Whose numbers a grade is against, by the answer's source (provenance.ts): the solver, or what answered in its place
  * (the charts aren't a solve). */
 export function whoOf(source: string | undefined): string {
-  return source === "charts" ? "The chart" : source === "preflop-solve" ? "The preflop solve" : source === "push-fold" ? "The push/fold model" : source === "best-response" ? "The best response to the assumed profile" : source === "rules" ? "The rule-based model" : source === "equity" ? "The equity fallback" : source === "instant" ? "The read at once" : "The solver";
+  return source === "charts" ? "The chart" : source === "preflop-solve" ? "The preflop solve" : source === "push-fold" ? "The push/fold model" : source === "best-response" ? "The best response to the assumed profile" : source === "profile-solve" ? "The re-solve against the assumed profile" : source === "rules" ? "The rule-based model" : source === "equity" ? "The equity fallback" : source === "instant" ? "The read at once" : "The solver";
 }
 
 /** The rule-based "why" (the classic trainer's why, practice.js:431-444): how often the answer plays your action and

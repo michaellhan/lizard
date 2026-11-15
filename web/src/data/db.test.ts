@@ -13,7 +13,8 @@ describe("IndexedDB migrations", () => {
 
   it("creates every store on a fresh database", async () => {
     const db = await openLizardDB(DB_VERSION, fresh());
-    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "hands", "kv", "mistakes", "savedAnswers", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions", "tombstones"]);
+    expect([...db.objectStoreNames].sort()).toEqual(["decisions", "flopReports", "hands", "kv", "mistakes", "savedAnswers", "savedDrills", "savedRanges", "savedReports", "savedScenarios", "savedSpots", "sessions", "tombstones"]);
+    expect([...db.transaction("flopReports").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("sessions").store.indexNames].sort()).toEqual(["byKind", "byStarted"]);
     expect([...db.transaction("savedRanges").store.indexNames]).toEqual(["byUpdated"]);
     expect([...db.transaction("savedScenarios").store.indexNames]).toEqual(["byUpdated"]);
@@ -230,8 +231,35 @@ describe("IndexedDB migrations", () => {
     expect((rejected as Error).name).toBe("VersionError");
   });
 
-  it("opens at version 10", () => {
-    expect(DB_VERSION).toBe(10);
+  it("upgrades a version-10 database in place: every record and deletion as it was, and an empty store for flop reports", async () => {
+    const name = fresh();
+    const v10 = await openLizardDB(10, name);
+    expect([...v10.objectStoreNames]).not.toContain("flopReports");
+    const spot = { id: "s1", title: "SRP", line: "p=2&s=100", state: {}, tags: ["a"], note: "n", createdAt: 1, updatedAt: 2 };
+    const report = { id: "r1", name: "Leaks", filters: { pos: "BTN" }, note: "", createdAt: 1, updatedAt: 3 };
+    await v10.put("savedSpots", spot);
+    await v10.put("savedReports", report);
+    await v10.put("mistakes", mistake());
+    await v10.put("tombstones", { store: "savedRanges", id: "gone", at: 7 });
+    await v10.put("kv", "name", "savedSort");
+    v10.close();
+
+    const v11 = await openLizardDB(11, name);
+    expect(v11.version).toBe(11);
+    expect(await v11.get("savedSpots", "s1")).toEqual(spot);
+    expect(await v11.get("savedReports", "r1")).toEqual(report);
+    expect(await v11.get("mistakes", mistake().id)).toEqual(mistake());
+    expect(await v11.get("tombstones", ["savedRanges", "gone"])).toEqual({ store: "savedRanges", id: "gone", at: 7 });
+    expect(await v11.get("kv", "savedSort")).toBe("name");
+    expect(await v11.count("flopReports")).toBe(0);
+    const rec = { id: "f1", name: "BB vs BTN", spot: "p=6&s=100", from: "study" as const, mode: "fast" as const, size: 9, flops: ["Kc7d2h"], done: [], left: [], seats: null, pot: 0, status: "paused" as const, note: "", createdAt: 1, updatedAt: 4 };
+    await v11.put("flopReports", rec);
+    expect(await v11.getAllFromIndex("flopReports", "byUpdated")).toEqual([rec]);
+    v11.close();
+  });
+
+  it("opens at version 11", () => {
+    expect(DB_VERSION).toBe(11);
   });
 });
 

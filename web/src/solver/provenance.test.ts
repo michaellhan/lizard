@@ -48,6 +48,19 @@ describe("provenance", () => {
     expect(describeProvenance(provenanceOf({ study: "node", street: "preflop", pf_solve: { done: true, stored: true, mbb: 1 } }, ctx))).toMatch(/^Preflop solve \(class-level model\) · precomputed · /);
   });
 
+  it("names what a preflop solve's tree adds, each in its own words (Spec.tree_notes)", () => {
+    const node: AdvisorResponse = {
+      study: "node",
+      street: "preflop",
+      pf_solve: { key: "lz1_3max_s40-18-60_L", done: true, stored: false, mbb: 0.4 },
+      pf_model: "calibrated class-level model",
+      pf_tree: ["each seat's own stack (side pots; not measured against a fuller solve)", "limps from any seat (not measured against a fuller solve)"],
+    };
+    const said = describeProvenance(provenanceOf(node, ctx));
+    expect(said).toContain("still approximate, each seat's own stack (side pots; not measured against a fuller solve), limps from any seat");
+    expect(said).not.toMatch(/\bsolved\b(?! game)/i);
+  });
+
   it("labels stored turns, answers at once and 5+-way heuristics as what they are (advisor.py's shapes)", () => {
     const storedTurn: AdvisorResponse = {
       street: "turn",

@@ -238,6 +238,7 @@ const SOURCE_SET: Record<ResultSource, true> = {
   "push-fold": true,
   "best-response": true,
   "node-lock": true,
+  "profile-solve": true,
   "plo-river": true,
   rules: true,
   equity: true,

@@ -153,7 +153,7 @@ describe("backup and restore", () => {
     const b = await makeBackup(() => Date.UTC(2026, 10, 3));
     expect(b.format).toBe(BACKUP_FORMAT);
     expect(b.exported).toBe("2026-11-03T00:00:00.000Z");
-    expect(b.counts).toEqual({ savedSpots: 1, savedAnswers: 0, savedRanges: 1, savedDrills: 1, savedScenarios: 0, savedReports: 0, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
+    expect(b.counts).toEqual({ savedSpots: 1, savedAnswers: 0, savedRanges: 1, savedDrills: 1, savedScenarios: 0, savedReports: 0, flopReports: 0, sessions: 2, hands: 0, decisions: 0, mistakes: 0 });
     expect(b.stores.savedDrills[0]).toEqual({ id: "k", v: 1, created: 1, updated: 8, dev: b.device, data: drill("k", 8, { note: "every texture" }) });
     expect(b.stores.sessions.find((r) => r.id === "d")).toMatchObject({ id: "d", v: 1, created: 10, updated: 20, dev: b.device });
     expect(b.stores.sessions.find((r) => r.id === "e")).toMatchObject({ created: 30, updated: 30 });

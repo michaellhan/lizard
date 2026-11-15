@@ -7,6 +7,8 @@
 //   rake      a share of the pot taken from pots that see a flop (sent as 0.05 for 5%), with rake_cap in bb
 //   ante      each seat's ante, bb; straddle: a 2bb straddle from the first seat (3 or more players)
 //   ranges    the ranges entering the flop, PIO style ({seat: "22+,A2s+"}); preflop is still the charts, _custom_ranges
+//   bunching  the ranges entering the flop weighed by the hands the preflop folders held, from the charts' or the preflop
+//             solve's fold ranges (engine/bunching.py, solver/bunching.ts). The worker's alone, like raises
 //   payouts, field, bounties: a tournament's (the Tournaments page; features/tournaments/tournament.ts), never raked
 // Checked here before any request: the engine checks too, but holds stacks to wider limits. Up to 5 sizes a street, as the
 // engine allows in Study: each multiplies the tree, and a tree past this device's cap (Settings, solver/treeDepth.ts) is
@@ -24,6 +26,7 @@ import {
   type TournamentSetup,
 } from "@/features/tournaments/tournament";
 import { seatsOf } from "@/poker/seats";
+import { BUNCHING_SOURCES, type BunchingSource } from "@/solver/bunching";
 
 /** "33, 75" -> [33, 75] (a word that isn't a number stays, as NaN, for the check to name) */
 export const numsOf = (t: string) => t.split(/[\s,;]+/).filter(Boolean).map((x) => Number(x.replace(/%$/, "")));
@@ -67,6 +70,8 @@ export interface SpotSetup {
   ranges?: Record<string, string>;
   /** a tournament's prizes left, other tables and bounties (the Tournaments page; features/tournaments) */
   tournament?: TournamentSetup;
+  /** weigh the ranges entering the flop by the preflop folds, from these fold ranges (unset: off) */
+  bunching?: BunchingSource;
 }
 
 /** The setup with nothing unset or empty kept (undefined where nothing is set). */
@@ -88,6 +93,7 @@ export function tidySetup(s: SpotSetup | undefined): SpotSetup | undefined {
   if (ranges.length) out.ranges = Object.fromEntries(ranges.map(([p, t]) => [p, t.trim()]));
   const tour = tidyTournament(s.tournament);
   if (tour) out.tournament = tour;
+  if (s.bunching === "charts" || s.bunching === "solve") out.bunching = s.bunching;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -125,6 +131,8 @@ export function setupProblems(players: number, s: SpotSetup | undefined): string
   }
   out.push(...tournamentProblems(players, s.tournament));
   if (tidyTournament(s.tournament) && s.rake) out.push("a tournament has no rake");
+  if (s.bunching !== undefined && s.bunching !== "charts" && s.bunching !== "solve") out.push("bunching must be from the charts' or the preflop solve's folds");
+  else if (s.bunching && players < 3) out.push("bunching needs 3 or more players: heads-up nobody folds before the flop");
   return out;
 }
 
@@ -149,12 +157,13 @@ export function setupRequest(s: SpotSetup | undefined, players: number): Partial
     ...(t.ante ? { ante: t.ante } : {}),
     ...(t.straddle ? { straddle: true } : {}),
     ...(t.ranges ? { ranges: t.ranges } : {}),
+    ...(t.bunching ? { bunching: t.bunching } : {}),
     ...tournamentRequest(t.tournament, players),
   };
 }
 
 // ---- in the URL: stacks=BTN:40,BB:120 · sz.flop=33,75 (sz.turn, sz.river, sz.raise) · raises=3 · rake=5 · cap=3 · ante=0.1 ·
-// straddle=1 · rg.BB=22+,A2s+
+// straddle=1 · rg.BB=22+,A2s+ · bunch=charts (or solve)
 const nums = (v: string) => v.split(",").filter((x) => x.trim()).map(Number);
 
 export function setupToParams(s: SpotSetup | undefined, q: URLSearchParams): void {
@@ -168,6 +177,7 @@ export function setupToParams(s: SpotSetup | undefined, q: URLSearchParams): voi
   if (t.ante) q.set("ante", String(t.ante));
   if (t.straddle) q.set("straddle", "1");
   for (const [p, text] of Object.entries(t.ranges ?? {})) q.set(`rg.${p}`, text);
+  if (t.bunching) q.set("bunch", t.bunching);
   tournamentToParams(t.tournament, q);
 }
 
@@ -198,8 +208,13 @@ export function setupFromParams(q: URLSearchParams): SpotSetup | undefined {
   if (Object.keys(ranges).length) s.ranges = ranges;
   const tour = tournamentFromParams(q);
   if (tour) s.tournament = tour;
+  const bunch = q.get("bunch");
+  if (bunch === "charts" || bunch === "solve") s.bunching = bunch;
   return Object.keys(s).length ? s : undefined;
 }
+
+/** A setup's bunching in words: "bunching from the preflop charts' fold ranges". */
+export const bunchingWordsOf = (s: BunchingSource) => `bunching from ${BUNCHING_SOURCES[s]}`;
 
 /** A raise cap in words: "a bet, then all-in only", "a bet and 3 raises a street, then all-in only". */
 export const raisesWords = (n: number) => (n <= 1 ? "a bet, then all-in only" : `a bet and ${n - 1 === 1 ? "a raise" : `${n - 1} raises`} a street, then all-in only`);
@@ -219,5 +234,6 @@ export function describeSetup(s: SpotSetup | undefined): string[] {
   if (t.straddle) out.push("straddle");
   if (t.ranges) out.push(`${Object.keys(t.ranges).join(", ")} range${Object.keys(t.ranges).length > 1 ? "s" : ""} set`);
   out.push(...describeTournament(t.tournament));
+  if (t.bunching) out.push(bunchingWordsOf(t.bunching));
   return out;
 }

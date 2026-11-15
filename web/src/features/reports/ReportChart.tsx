@@ -21,6 +21,7 @@ export function ReportChart({
   group,
   order,
   set,
+  linkOf,
 }: {
   rep: LibraryReport;
   view: ReportView;
@@ -30,6 +31,8 @@ export function ReportChart({
   /** the table's order, in words ("by Check, highest first") */
   order: string;
   set: (kv: Record<string, string | null>) => void;
+  /** a flop's Study link (your spot's report has its own; the library's reads the spot) */
+  linkOf?: (f: string) => string | null;
 }) {
   const colors = actionFills(cols);
   const stored = shown.filter((r) => r.freqs);
@@ -49,7 +52,7 @@ export function ReportChart({
         />
       )}
       {stored.length > 0 ? (
-        <FlopStrip rep={rep} view={view} rows={stored} cols={cols} colors={colors} order={order} />
+        <FlopStrip seats={rep.seats} rows={stored} cols={cols} colors={colors} order={order} linkOf={linkOf ?? ((f) => studyLink(rep, f, view))} />
       ) : (
         <p className="text-sm text-muted">No flop shown stores this decision.</p>
       )}
@@ -213,19 +216,19 @@ export function stepClip(rows: readonly Pick<ReportRow, "freqs">[], i: number): 
 }
 
 function FlopStrip({
-  rep,
-  view,
+  seats,
   rows,
   cols,
   colors,
   order,
+  linkOf,
 }: {
-  rep: LibraryReport;
-  view: ReportView;
+  seats: readonly string[];
   rows: readonly ReportRow[];
   cols: string[];
   colors: string[];
   order: string;
+  linkOf: (f: string) => string | null;
 }) {
   const navigate = useNavigate();
   const [hover, setHover] = useState<number | null>(null);
@@ -238,7 +241,7 @@ function FlopStrip({
     return Math.min(n - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * n)));
   };
   const h = hover != null ? rows[hover] : undefined;
-  const linkAt = (k: number | null) => (k != null && rows[k] ? studyLink(rep, rows[k].f, view) : null);
+  const linkAt = (k: number | null) => (k != null && rows[k] ? linkOf(rows[k].f) : null);
   const link = linkAt(hover);
   // the share of the flops shown where each action is played at all (the strip's summary for a screen reader)
   const some = cols.map((_, i) => rows.filter((r) => (r.freqs![i] ?? 0) >= 0.005).length / n);
@@ -275,7 +278,7 @@ function FlopStrip({
                   ))}
                 </span>
                 {h.bet && <span className="ml-1 text-muted">{facingText(h)}</span>}
-                <Mix freqs={h.freqs!} ev={h.ev} cols={cols} colors={colors} seats={rep.seats} />
+                <Mix freqs={h.freqs!} ev={h.ev} cols={cols} colors={colors} seats={seats} />
               </Tip>
             </>
           )}

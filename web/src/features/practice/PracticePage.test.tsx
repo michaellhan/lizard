@@ -93,9 +93,9 @@ describe("PracticePage", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Grade preflop by the preflop solve" }));
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     const options = await screen.findByRole("group", { name: "Your options" });
-    expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1fold", "2call", "3raise 2.5"]);
+    expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["1fold", "2call", "3raise 2.5bb"]);
     expect(screen.getByRole("listitem", { name: "BTN/SB (you)" })).toHaveAttribute("aria-current", "true");
-    fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(options).getByRole("button", { name: "raise 2.5bb" }));
 
     // graded by frequency (the chart), with the chart's provenance
     let last = await screen.findByRole("region", { name: "Last decision" });
@@ -239,7 +239,7 @@ describe("PracticePage", () => {
     fireEvent.click(carry);
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     // you raise, the big blind calls and checks the flop; you bet, it folds: 2.5bb won
-    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
     expect(screen.getByText(/^Chips carried: your stack/)).toHaveTextContent("Chips carried: your stack 100bb");
     expect(screen.getByRole("button", { name: "Reset stacks" })).toBeDisabled();
@@ -267,7 +267,7 @@ describe("PracticePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
     expect(screen.queryByRole("region", { name: "Your decisions" })).toBeNull();
     // your raise (Best); the big blind calls and checks the flop; your check is in the mix but gives up 0.2bb
-    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
     fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "check" }));
     const review = await screen.findByRole("region", { name: "Your decisions" });
@@ -278,16 +278,16 @@ describe("PracticePage", () => {
     await waitFor(() => expect(fold.closest("details")!.open).toBe(true));
     // your last decisions, newest first
     expect(within(review).getByRole("heading")).toHaveTextContent("Recent decisions");
-    expect(within(review).getAllByRole("button", { name: /^#1 / }).map((b) => b.textContent)).toEqual([
-      expect.stringMatching(/^#1 flop.*check.*Correct.*0\.20bb lost.*Live solve$/),
-      expect.stringMatching(/^#1 preflop.*raise 2\.5.*Best.*played 70\.0%.*Preflop charts$/),
+    expect(within(review).getAllByRole("button", { name: /^Hand 1 · / }).map((b) => b.textContent)).toEqual([
+      expect.stringMatching(/^Hand 1 · flop.*check.*Correct.*0\.20bb lost.*Live solve$/),
+      expect.stringMatching(/^Hand 1 · preflop.*raise 2\.5.*Best.*played 70\.0%.*Preflop charts$/),
     ]);
     const toggle = within(review).getByRole("button", { name: "Review mistakes (1)" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
     expect(within(review).getByRole("heading")).toHaveTextContent("Your biggest mistakes · last 2 decisions");
-    const row = within(review).getByRole("button", { name: /^#1 flop/ });
-    expect(row).toHaveTextContent("#1 flop");
+    const row = within(review).getByRole("button", { name: /^Hand 1 · flop/ });
+    expect(row).toHaveTextContent("Hand 1 · flop");
     expect(row).toHaveTextContent("check");
     expect(row).toHaveTextContent("Correct");
     expect(row).toHaveTextContent("0.20bb lost");
@@ -308,12 +308,16 @@ describe("PracticePage", () => {
   it("shows your range beside the table at all times: the hands you hold at your turn, yours picked, and the strategy once the answer is out", async () => {
     const answer = stub.answer;
     // (the chart's answer with its grid: your hand's class and another)
+    let other = "72o";
     const grid = { actions: ["fold", "call", "raise 2.5"], cells: {} as Record<string, { w: number; f: number[] }> };
     stub.answer = (st) => {
       const r = answer(st);
       if (st.board) return r;
-      grid.cells[classOf(st.hole!)] = { w: 1, f: [0.1, 0.2, 0.7] };
-      grid.cells["72o"] = { w: 0.5, f: [1, 0, 0] };
+      const mine = classOf(st.hole!);
+      // (another hand than yours, whatever you were dealt: dealt 72o, a second 72o would overwrite your own mix)
+      other = mine === "72o" ? "83o" : "72o";
+      grid.cells[mine] = { w: 1, f: [0.1, 0.2, 0.7] };
+      grid.cells[other] = { w: 0.5, f: [1, 0, 0] };
       return { ...r, data: { ...r.data, grid } };
     };
     try {
@@ -343,10 +347,10 @@ describe("PracticePage", () => {
       expect(within(panel).getByText(/\(your hand\): fold 10\.0%, call 20\.0%, raise 2\.5 70\.0%$/).textContent).toBe(`${mine} (your hand): fold 10.0%, call 20.0%, raise 2.5 70.0%`);
       // another hand picked: its mix, and its share of combos
       matrix = within(panel).getByRole("grid", { name: "Your range · preflop · BTN/SB vs BB" });
-      fireEvent.click(within(matrix).getByRole("gridcell", { name: /^72o/ }));
-      expect(within(panel).getByText(/^: fold 100\.0%$/)).toHaveTextContent(/^72o: fold 100\.0% · 50\.0% of its combos in the range$/);
+      fireEvent.click(within(matrix).getByRole("gridcell", { name: new RegExp(`^${other}`) }));
+      expect(within(panel).getByText(/^: fold 100\.0%$/)).toHaveTextContent(new RegExp(`^${other}: fold 100\\.0% · 50\\.0% of its combos in the range$`));
       // the last decision no longer holds a range of its own
-      fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+      fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
       const last = await screen.findByRole("region", { name: "Last decision" });
       expect(within(last).queryByText(/^Your range/)).toBeNull();
       // and its grade sits under your move, by the table, not in the column beside it with the score and your range
@@ -385,7 +389,7 @@ describe("PracticePage", () => {
     // each asked from the seat's own view
     expect(stub.states.map((st) => st.hero)).toEqual(["SB", "BB", "SB", "BB"]);
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
-    expect(screen.getByRole("listitem", { name: "SB" })).toHaveTextContent("won 2");
+    expect(screen.getByRole("listitem", { name: "SB" })).toHaveTextContent("collected 2");
     // every seat's cards shown once it's over, the big blind's folded ones too
     for (const seat of ["SB", "BB"]) expect(faces(seat)).toEqual([expect.stringMatching(/ of /), expect.stringMatching(/ of /)]);
     await waitFor(async () => expect((await allSessions())[0]?.meta).toMatchObject({ players: 3, hands: 1, net: 0 }));
@@ -405,7 +409,7 @@ describe("PracticePage", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Raises" }), { target: { value: "250%" } });
     stub.states = [];
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["1check", "2bet 33% (1.6bb)"]));
     expect(screen.getByText(/^Hand 1 · heads-up/)).toHaveTextContent("Hand 1 · heads-up · 100bb · your sizes: flop bets 50%, raises 250%");
     // preflop's requests without them, the flop's with them
@@ -510,7 +514,7 @@ describe("PracticePage", () => {
     );
     fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(await screen.findByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     // (the flop's options: the preflop group's buttons are gone first)
     fireEvent.click(await screen.findByRole("button", { name: "bet 33% (1.6bb)" }));
     expect(await screen.findByText("You won")).toBeInTheDocument();
@@ -651,7 +655,7 @@ describe("PracticePage", () => {
     expect(said.textContent).not.toMatch(/70\.0%|raise 2\.5/);
     expect(askedSoFar()).toHaveLength(before);
     // (it doesn't cost the grade)
-    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     expect(within(await screen.findByRole("region", { name: "Last decision" })).getByText("Best")).toBeInTheDocument();
   });
 
@@ -661,14 +665,14 @@ describe("PracticePage", () => {
     expect(screen.getByRole("button", { name: "Reveal" })).toHaveAttribute("title", "Show the answer (then not graded)");
     fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
     const shown = screen.getByRole("group", { name: "Revealed answer" });
-    expect(within(shown).getByRole("row", { name: /raise 2\.5 70\.0%/ })).toBeInTheDocument();
+    expect(within(shown).getByRole("row", { name: /raise 2\.5bb 70\.0%/ })).toBeInTheDocument();
     // the charts by name, never a solve
     expect(within(shown).getByText(/^The chart.s mix for your hand$/)).toBeInTheDocument();
     expect(within(shown).getByText("No EVs for your hand.")).toBeInTheDocument();
     expect(within(shown).getByRole("status")).toHaveTextContent("Answer seen first: not graded.");
     expect(askedSoFar()).toHaveLength(before);
 
-    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     const last = await screen.findByRole("region", { name: "Last decision" });
     expect(within(last).getByText("Not graded: you revealed the answer first")).toBeInTheDocument();
     expect(within(last).queryByRole("button", { name: "Copy for AI" })).toBeNull();
@@ -705,7 +709,7 @@ describe("PracticePage", () => {
     expect(stub.calls).toHaveLength(calls);
     // a number key doesn't reach the table under it
     fireEvent.keyDown(window, { key: "3" });
-    fireEvent.click(within(options).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(options).getByRole("button", { name: "raise 2.5bb" }));
     expect(within(retry).getByText(/^This retry$/)).toBeInTheDocument();
     expect(within(retry).getByText(/This time:/)).toHaveTextContent("Same kind of answer both times.");
     // the grade is said as it comes, and the keyboard goes on to the way out
@@ -720,7 +724,7 @@ describe("PracticePage", () => {
 
   it("keeps the table's keys off while a retry is open, as they'd play a real move under it", async () => {
     await headsUp();
-    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     const flop = await screen.findByRole("group", { name: "Your options" });
     await waitFor(() => expect(within(flop).getByRole("button", { name: "check" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Previous" }));
@@ -740,14 +744,14 @@ describe("PracticePage", () => {
     const writeText = vi.fn(async (_: string) => {});
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     await headsUp();
-    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Your options" })).getByRole("button", { name: "raise 2.5bb" }));
     const last = await screen.findByRole("region", { name: "Last decision" });
     fireEvent.click(within(last).getByRole("button", { name: "Copy for AI" }));
     expect(await within(last).findByText("Copied.")).toBeInTheDocument();
     const text = writeText.mock.calls[0]![0];
     expect(text).toContain("Seats, first to act preflop first: BTN/SB, BB");
     expect(text).toContain("The preflop charts are approximate tables. They are not a solved answer");
-    expect(text).toContain("- raise 2.5: 70.0%");
+    expect(text).toContain("- raise 2.5bb: 70.0%");
 
     writeText.mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
     fireEvent.click(within(last).getByRole("button", { name: "Copy for AI" }));
@@ -770,7 +774,11 @@ describe("PracticePage", () => {
 
   it("labels a size the solver's name doesn't say", () => {
     expect(optionLabel("bet 33%", 1.8)).toBe("bet 33% (1.8bb)");
-    expect(optionLabel("raise 2.5", 2.5)).toBe("raise 2.5");
+    expect(optionLabel("raise 2.5", 2.5)).toBe("raise 2.5bb");
+    expect(optionLabel("raise to 7", 7)).toBe("raise to 7bb");
+    expect(optionLabel("raise to 17", 7)).toBe("raise to 17 (7bb)");
+    expect(optionLabel("raise 2.5bb", 2.5)).toBe("raise 2.5bb");
+    expect(optionLabel("bet 33%", 33)).toBe("bet 33% (33bb)");
     expect(optionLabel("check", undefined)).toBe("check");
   });
 });

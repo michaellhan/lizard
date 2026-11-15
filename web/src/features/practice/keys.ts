@@ -25,6 +25,17 @@ export function optionFromKey(key: string, actions: readonly string[]): number {
   return -1;
 }
 
+const RANK: Record<string, number> = { fold: 0, check: 1, call: 1, bet: 2, raise: 2, "all-in": 3 };
+
+/** The order options are shown in, as indices into the answer's own list: fold, check or call, the bets and raises from
+ * the smallest, all-in last, whatever order the answer lists them in (the preflop charts list a raise first, the flop's
+ * solve a fold first), so 1 is always the most passive option and the last the most aggressive, on every street. */
+export function shownOrder(options: readonly { action: string; amount_bb?: number | null }[]): number[] {
+  const rank = (i: number) => RANK[kindOf(options[i]!.action)] ?? 2;
+  const size = (i: number) => (typeof options[i]!.amount_bb === "number" ? options[i]!.amount_bb! : 0);
+  return options.map((_, i) => i).sort((a, b) => rank(a) - rank(b) || size(a) - size(b) || a - b);
+}
+
 /** "Next hand": Enter, Space or N. */
 export const isNextKey = (key: string) => key === "Enter" || key === " " || key.toLowerCase() === "n";
 

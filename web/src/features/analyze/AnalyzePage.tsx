@@ -5,8 +5,11 @@
 // stored preflop solve or else the charts, and the flop library, or by triage or a solve (GradingPanel.tsx), each grade shown
 // with what it stands on;
 // your sittings and how the grades moved across them (SessionsPanel.tsx).
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router";
+import { GamePicker } from "@/components/GamePicker";
+import { gameOf } from "@/engine/registry";
+import { addPloHands } from "@/data/ploHands";
 import { bringIntoView } from "@/components/scroll";
 import { PlayingCard } from "@/components/PlayingCard";
 import { VerdictTag } from "@/components/VerdictTag";
@@ -67,7 +70,22 @@ interface Result {
   kept: { added: number; existing: number } | null;
 }
 
-export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}) {
+// PLO's Analyze comes in its own chunk, so no PLO code loads with Hold'em's
+const PloAnalyze = lazy(() => import("./PloAnalyze").then((m) => ({ default: m.PloAnalyze })));
+
+/** Analyze: Hold'em, or another game the link names (`game`, engine/registry.ts). */
+export function AnalyzePage(props: { rowLimit?: number } = {}) {
+  const [params] = useSearchParams();
+  if (gameOf(params.get("game")).id === "plo4")
+    return (
+      <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+        <PloAnalyze />
+      </Suspense>
+    );
+  return <HoldemAnalyze {...props} />;
+}
+
+function HoldemAnalyze({ rowLimit = ROW_LIMIT }: { rowLimit?: number }) {
   const [params, setParams] = useSearchParams();
   const [hands, setHands] = useState<HandRecord[] | null>(null);
   const [decisions, setDecisions] = useState<DecisionRecord[]>([]);
@@ -169,6 +187,7 @@ export function AnalyzePage({ rowLimit = ROW_LIMIT }: { rowLimit?: number } = {}
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="text-2xl font-semibold">Analyze</h1>
+        <GamePicker page="analyze" current="nlhe" />
         {hands && hands.length > 0 && (
           <Overview hands={hands.length} total={total} graded={graded} missed={missed} go={go} reviewing={miss !== null} onReview={() => set({ miss: "1", hand: null })} />
         )}
@@ -336,6 +355,7 @@ function ImportPanel({ onImported, setResult }: { onImported: () => void; setRes
       const imp = { id: newId(), name, at: Date.now() };
       const prep = await prepare(files, imp, (done, total) => setBusy({ done, total }));
       const kept = prep.hands.length ? await addHands(prep.hands) : { added: 0, existing: 0 };
+      if (prep.omaha) await addPloHands(prep.omaha);
       setResult({ name, prep, kept });
       if (kept?.added) onImported();
     } catch (e) {
@@ -524,6 +544,15 @@ function ImportResult({ r }: { r: Result }) {
         {kept === null && " This browser isn't keeping data (private browsing, or storage turned off), so nothing was kept."}
       </p>
       {skips.length > 0 && <p className="text-muted">Skipped: {skips.map(([k, v]) => `${v} ${SKIP_TEXT[k]}`).join(", ")}.</p>}
+      {prep.omaha && (
+        <p>
+          {prep.omaha.length.toLocaleString()} PLO {prep.omaha.length === 1 ? "hand" : "hands"} kept apart from Hold&apos;em&apos;s:{" "}
+          <Link to="/analyze?game=plo4" className="underline">
+            Analyze PLO
+          </Link>
+          .
+        </p>
+      )}
       {prep.files && <FileList files={prep.files} />}
       {prep.errors.length > 0 && (
         <details className="text-xs">

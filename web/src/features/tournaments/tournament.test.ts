@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { anteWords, describeTournament, FORMAT_PRESETS, paidCurve, presetAnte, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { anteWords, csvPayouts, describeTournament, FORMAT_PRESETS, mttPayouts, paidCurve, PAYOUT_STRUCTURES, payoutProblems, prizesLeft, readPayoutTable, presetAnte, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
 
@@ -28,6 +28,25 @@ describe("a pasted payout table", () => {
     expect(pastedPayouts("$1,000 $600")).toBeNull();
     expect(pastedPayouts("1st $1,000")).toBe("1000");
     expect(pastedPayouts("no numbers here")).toBeNull();
+  });
+
+  it("reads a room's tournament summary: its prizes paid, not its header, its unpaid finishers or digits in a name", () => {
+    const stars = [
+      "PokerStars Tournament #3456789012, No Limit Hold'em",
+      "Buy-In: $10.00/$1.00 USD",
+      "180 players",
+      "Total Prize Pool: $1,800.00 USD",
+      "Tournament started 2026/10/01 18:00:00 ET [2026/10/02 0:00:00 CET]",
+      "  1: winner77 (Canada), $1,540.00 (30%)",
+      "  2: abc123 (Germany), $360.00 (20%)",
+      "  3: tournamentking (United Kingdom), $180.00 (10%)",
+      "  4: hero (United States),",
+      "  5: fifth 5 (Sweden),",
+      "You finished in 4th place.",
+    ].join("\n");
+    expect(pastedPayouts(stars)).toBe("1540 360 180");
+    const gg = ["Tournament #123456, Daily $10, Hold'em No Limit", "Buy-in: $9.2+$0.8", "1,000 Players", "Total Prize Pool: $10,000", "1st : Player1, $2,000", "2nd : Player2, $1,200", "3rd : Hero, $800", "You finished the tournament in 3rd place.", "You received a total of $800."].join("\n");
+    expect(pastedPayouts(gg)).toBe("2000 1200 800");
   });
 });
 
@@ -151,5 +170,51 @@ describe("the sit & go and spin formats", () => {
     expect(anteWords({ players: 6, ante: 0.1 })).toBe("an ante of 0.1bb a seat");
     expect(describeTournament({ payouts: by("Double or nothing").payouts })).toEqual(["a satellite, 3 equal seats"]);
     expect(by("Spin, 3 players").payouts).toEqual([100]);
+  });
+});
+
+describe("a payout table imported from a file, and room-style structures", () => {
+  it("reads CSV a spreadsheet or a site saves: a header, quoted amounts, ranges, semicolons or tabs", () => {
+    expect(csvPayouts('Place,Prize,%\n1,"$1,500.00",30%\n2,"$1,000.00",20%\n3-5,$500,10%')).toBe("1500 1000 500 500 500");
+    expect(csvPayouts("Rank;Amount\n1st;€ 700\n2nd;€ 300")).toBe("700 300");
+    expect(csvPayouts("place\tprize\n1\t$10,000\n2\t$6,000")).toBe("10000 6000");
+    expect(csvPayouts("1,500\n2,300\n4,100")).toBe("500 300 ? 100");
+    // not CSV: one row, a sentence, rows of different lengths (an unquoted "$1,000"): the pasted-text reader's
+    expect(csvPayouts("1,500")).toBeNull();
+    expect(csvPayouts("50, 30, 20")).toBeNull();
+    expect(csvPayouts("1,$1,000\n2,$600")).toBeNull();
+  });
+
+  it("checks what it read and says what it is", () => {
+    const ok = readPayoutTable("Place,Prize\n1,600\n2,300\n3,100");
+    expect(ok).toMatchObject({ text: "600 300 100", payouts: [600, 300, 100], problems: [] });
+    expect(ok.note).toBe("3 places paid, 1000 in all, 1st 600, last 100");
+    expect(readPayoutTable("1,500\n2,300\n4,100").problems).toEqual(["no prize read for place 3"]);
+    expect(readPayoutTable("1,100\n2,300").problems[0]).toMatch(/place 2 pays more than place 1/);
+    expect(payoutProblems(Array<number>(201).fill(1))).toEqual(["at most 200 places paid (this has 201)"]);
+    expect(payoutProblems([50, 0])).toEqual(["every prize must be more than 0"]);
+    // the setup's own check refuses a table read the wrong way round too
+    expect(tournamentProblems(6, { payouts: [20, 30, 50] }).join()).toMatch(/largest first/);
+    expect(tournamentProblems(6, { payouts: [1, 1, 1] })).toEqual([]);
+  });
+
+  it("builds structures of Lizard's own that add to 100%, largest first, and trims them to the players left", () => {
+    for (const st of PAYOUT_STRUCTURES) {
+      for (const e of [100, 1000, 25000]) {
+        const p = st.of(e);
+        expect(Math.abs(p.reduce((a, b) => a + b, 0) - 100), st.name).toBeLessThan(0.2);
+        expect(payoutProblems(p), st.name).toEqual([]);
+      }
+    }
+    const mtt = mttPayouts(1000, 0.15, 0.85);
+    expect(mtt).toHaveLength(150);
+    // the final table one by one, then bands of 3 and of 9 paying the same
+    expect(new Set(mtt.slice(0, 9)).size).toBe(9);
+    expect(new Set(mtt.slice(9, 12)).size).toBe(1);
+    expect(new Set(mtt.slice(18, 27)).size).toBe(1);
+    expect(mttPayouts(10, 0.1, 1)).toHaveLength(2);
+    expect(mttPayouts(1e6, 0.15, 0.85)).toHaveLength(200);
+    expect(prizesLeft(mtt, 116)).toEqual(mtt.slice(0, 116));
+    expect(prizesLeft([50, 30, 20], 9)).toEqual([50, 30, 20]);
   });
 });

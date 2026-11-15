@@ -9,9 +9,11 @@
 // (OneTable), two to four in MultiTables.tsx, whichever the Room has, as a session above one table comes back on a reload.
 // What a hand needs next is flow.ts's, the session's totals session.ts's; the page's parts are in PracticeParts.tsx and
 // SetupForm.tsx.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
+import { GamePicker } from "@/components/GamePicker";
+import { gameOf } from "@/engine/registry";
 import { bringIntoView } from "@/components/scroll";
 import { rowKeys } from "@/components/rowKeys";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -28,7 +30,7 @@ import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLine, KeepHand, optionLabel, PlayedOut, ReviewMistakes, RunText, ScoreStrip, SeatView, SpotRange, useHandKeys, type RangeLook } from "./PracticeParts";
 import { gradedOn, optionsAt } from "./pfGrade";
-import { isNextKey, optionFromKey } from "./keys";
+import { isNextKey, optionFromKey, shownOrder } from "./keys";
 import { KeysHelp } from "./KeysHelp";
 import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
@@ -37,11 +39,15 @@ import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
 import { assumedWords, readWords } from "./exploit";
 import { answering } from "./TableTile";
+import { useHandSounds } from "./sounds";
 
 export { optionLabel };
 
-/** What the other seats play by: never a solve preflop, nor on a multiway flop or turn. */
+/** What the other seats play by: never a solve preflop (but a stored tournament preset's, practice.ts `pfOptions`), nor on a
+ * multiway flop or turn. */
 const OPPONENTS = "Opponents: charts preflop, then the solver\u2019s mix (rules with 5+ in).";
+const OPPONENTS_STORED = "Opponents: the stored preflop solve\u2019s mix preflop (the charts off its tree), then the solver\u2019s mix (rules with 5+ in).";
+const opponentsOf = (o: { pfSolve?: boolean; tournament?: { model: string } }) => (o.pfSolve && o.tournament?.model === "icm" ? OPPONENTS_STORED : OPPONENTS);
 
 type Tab = "hands" | "drills" | "combos";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -52,7 +58,22 @@ const TABS: readonly { id: Tab; label: string }[] = [
 
 /** `pace`: ms an opponent's move and a new card take at least, so the hand can be followed (0 in tests). `pause`, `guard`:
  * the Room's, above one table (unset: its own). */
-export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pause?: number; guard?: number } = {}) {
+// PLO's Practice comes in its own chunk, so no PLO code loads with Hold'em's
+const PloPractice = lazy(() => import("./PloPractice").then((m) => ({ default: m.PloPractice })));
+
+/** Practice: Hold'em, or another game the link names (`game`, engine/registry.ts). */
+export function PracticePage(props: { pace?: number; pause?: number; guard?: number } = {}) {
+  const [params] = useSearchParams();
+  if (gameOf(params.get("game")).id === "plo4")
+    return (
+      <Suspense fallback={<p className="text-sm text-muted">Loading</p>}>
+        <PloPractice />
+      </Suspense>
+    );
+  return <HoldemPractice {...props} />;
+}
+
+function HoldemPractice({ pace = PACE, pause, guard }: { pace?: number; pause?: number; guard?: number }) {
   const [params, setParams] = useSearchParams();
   const asked = params.get("tab");
   const tab: Tab = asked === "drills" || asked === "combos" ? asked : "hands";
@@ -86,6 +107,7 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">Practice</h1>
+        <GamePicker page="practice" current="nlhe" />
         <div role="tablist" aria-label="Practice" onKeyDown={rowKeys("tab", (i) => open(TABS[i]!.id))} className="flex gap-1 rounded-md border border-border p-0.5 text-sm">
           {TABS.map((t) => (
             <button
@@ -106,7 +128,8 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
             </button>
           ))}
         </div>
-        <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className="ml-auto hidden rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 sm:inline-block">
+        <SoundSwitch />
+        <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className="hidden rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2 sm:inline-block">
           Keyboard<Kbd>?</Kbd>
         </button>
       </div>
@@ -127,6 +150,23 @@ export function PracticePage({ pace = PACE, pause, guard }: { pace?: number; pau
         </div>
       )}
     </div>
+  );
+}
+
+/** Practice's sounds on or off (saved with the settings). */
+function SoundSwitch() {
+  const on = useSettings((s) => s.sounds);
+  const set = useSettings((s) => s.set);
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => set({ sounds: !on })}
+      className="ml-auto rounded-md border border-border px-2 py-1 text-xs text-muted hover:bg-surface-2"
+      title={on ? "Sounds on: click to mute" : "Sounds off: click to turn on"}
+    >
+      {on ? "Sound on" : "Sound off"}
+    </button>
   );
 }
 
@@ -315,7 +355,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
-          <p className="mt-2 text-xs text-muted">{OPPONENTS}</p>
+          <p className="mt-2 text-xs text-muted">{opponentsOf(session.opts)}</p>
         </details>
       )}
 
@@ -323,7 +363,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <details ref={gameRef} className="min-w-0 flex-1 basis-72 panel px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-muted">{OPPONENTS} Some fields apply at one table only.</p>
+            <p className="text-xs text-muted">{opponentsOf(session.opts)} Some fields apply at one table only.</p>
             <div ref={place} />
           </div>
         </details>
@@ -365,6 +405,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
 
   const sim = useMemo(() => simOf(hand), [hand]);
   const phase = useMemo(() => phaseOf(hand, sim), [hand, sim]);
+  useHandSounds(hand);
   // an opponent's move under way, or your preflop played for you in a drill; what stopped it, said by seat
   const moving = phase.kind === "villain" || phase.kind === "auto" ? phase : null;
   const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
@@ -392,8 +433,10 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
     const k = e.key.toLowerCase();
     if (k === "g" && range) return setRangeLook((l) => (l === "mix" ? "weight" : "mix"));
     if (phase.kind === "hero" && answer) {
-      const i = optionFromKey(e.key, optionsAt(hand, answer, sim).map((a) => a.action));
-      if (i >= 0) room.choose(i);
+      const opts = optionsAt(hand, answer, sim);
+      const order = shownOrder(opts);
+      const i = optionFromKey(e.key, order.map((k) => opts[k]!.action));
+      if (i >= 0) room.choose(order[i]!);
     } else if (hand.result && (phase.kind === "over" || hand.run)) {
       // (Enter or Space on a focused button or link is that control's own)
       if (isNextKey(e.key)) {
@@ -491,11 +534,11 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
           )}
           {phase.kind === "hero" && answer && (
             <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
-              {optionsAt(hand, answer, sim).map((a, i) => (
+              {((opts) => shownOrder(opts).map((k, i) => [opts[k]!, k, i] as const))(optionsAt(hand, answer, sim)).map(([a, k, i]) => (
                 <button
                   key={a.action}
                   type="button"
-                  onClick={() => room.choose(i)}
+                  onClick={() => room.choose(k)}
                   className="rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm hover:bg-surface-3"
                 >
                   {i < 9 && (

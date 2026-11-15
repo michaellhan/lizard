@@ -14,7 +14,7 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { useSettings } from "@/state/settings";
 import { MAX_TABLES } from "./keep";
 import { DecisionView, FallbackMoves, fmt, KeepHand, optionLabel, RangeView, ReviewMistakes, signed, useHandKeys } from "./PracticeParts";
-import { isNextKey, optionFromKey } from "./keys";
+import { isNextKey, optionFromKey, shownOrder } from "./keys";
 import { PRIZE_UNIT } from "@/solver/provenance";
 import { anyHandOnly, INSTANT_FLOPS, isPotDrill, phaseOf, POT_DRILLS, simOf } from "./practice";
 import { optionsAt } from "./pfGrade";
@@ -226,12 +226,12 @@ function Dock({ room, snap, state, head }: { room: Room; snap: RoomSnapshot; sta
         {ready && (
           <>
             <div role="group" aria-label="Your options" aria-disabled={guarded || undefined} className={`flex flex-wrap gap-2 ${guarded ? "opacity-50" : ""}`}>
-              {options.map((a, i) => (
+              {shownOrder(options).map((k, i) => [options[k]!, k, i] as const).map(([a, k, i]) => (
                 <button
                   key={`${focus}|${key}|${a.action}`}
                   type="button"
                   aria-disabled={guarded || undefined}
-                  onClick={() => room.choose(focus, key, i)}
+                  onClick={() => room.choose(focus, key, k)}
                   className="rounded-md border border-border bg-surface-2 px-3 py-1.5 hover:bg-surface-3"
                 >
                   {i < 9 && (
@@ -386,8 +386,10 @@ export function MultiTables({ room, snap, active, pressRef, side }: { room: Room
       return room.dealFinished();
     }
     if (!front.turnKey) return;
-    const i = optionFromKey(e.key, optionsAt(front.hand, front.answer).map((a) => a.action));
-    if (i >= 0) room.choose(focus, front.turnKey, i);
+    const opts = optionsAt(front.hand, front.answer);
+    const order = shownOrder(opts);
+    const i = optionFromKey(e.key, order.map((k) => opts[k]!.action));
+    if (i >= 0) room.choose(focus, front.turnKey, order[i]!);
   });
 
   return (

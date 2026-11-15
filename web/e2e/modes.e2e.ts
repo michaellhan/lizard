@@ -40,6 +40,13 @@ test("Reduced motion stops transitions and keeps the scroll cue, which only foll
   await expect(box.first()).toBeVisible();
   // (the rows lay out after the box shows: wait for one wider than its box rather than measuring the first frame)
   await expect.poll(() => box.evaluateAll((els) => els.some((e) => e.scrollWidth > e.clientWidth + 4)), { timeout: 15_000 }).toBe(true);
+  // (and for its scroll timeline to come on: a box that has just become wider than itself can still show the inactive
+  // timeline's 0px for a frame or two)
+  const wide = (els: HTMLElement[]) => {
+    const el = els.find((e) => e.scrollWidth > e.clientWidth + 4);
+    return el ? getComputedStyle(el).getPropertyValue("--scroll-more").trim() : null;
+  };
+  await expect.poll(() => box.evaluateAll(wide), { timeout: 5_000 }).toBe("28px");
   const cue = await box.evaluateAll(async (els) => {
     const el = els.find((e) => e.scrollWidth > e.clientWidth + 4);
     if (!el) return null;

@@ -28,6 +28,10 @@ export interface HistoryRead {
   /** why a street seen isn't offered: more than two players, or an all-in */
   skipped: string[];
   warnings: string[];
+  /** every street's actions as played, by position */
+  lines: Lines;
+  /** the streets you acted on */
+  acted: Street[];
 }
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -77,5 +81,6 @@ export function spotsFromHistory(text: string): HistoryRead | string {
       hero: hand.hero === oop ? 0 : hand.hero === ip ? 1 : null,
     });
   }
-  return { heroPos: hand.hero, hole: hand.hole.join(""), spots, skipped, warnings: r.warnings };
+  const acted = (["preflop", ...POSTFLOP] as Street[]).filter((st) => lines[st].some((m) => m.pos === hand.hero));
+  return { heroPos: hand.hero, hole: hand.hole.join(""), spots, skipped, warnings: r.warnings, lines, acted };
 }

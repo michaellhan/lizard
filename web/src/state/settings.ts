@@ -40,6 +40,8 @@ export interface Settings {
   actionPatterns: boolean;
   /** how big a tree this device's heads-up solves may build (solver/treeDepth.ts; the worker's alone) */
   treeCap: TreeCap;
+  /** Practice's sound effects (features/practice/sounds.ts) */
+  sounds: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -59,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   studyKeys: true,
   actionPatterns: false,
   treeCap: "standard",
+  sounds: true,
 };
 
 const KEY = "settings.v1";
@@ -72,8 +75,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

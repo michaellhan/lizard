@@ -18,7 +18,8 @@
 // here it says so and leaves it, as a tombstone beside a live record would drop it from this browser's next backups. It
 // names one id of a store a backup carries, so it can't reach settings, and it only takes what room the bound leaves, so it
 // can't push out a deletion made here.
-import { db, kvGet, kvSet, LAST_CHANGED, MAX_TOMBSTONES, tombstonesOf, type DecisionRecord, type HandRecord, type MistakeRecord, type SavedAnswer, type SavedDrill, type SavedRange, type SavedReport, type SavedScenario, type SavedSpot, type SessionRecord, type Tombstone, type TombstoneStore } from "./db";
+import { db, kvGet, kvSet, LAST_CHANGED, MAX_TOMBSTONES, tombstonesOf, type DecisionRecord, type FlopReportRecord, type HandRecord, type MistakeRecord, type SavedAnswer, type SavedDrill, type SavedRange, type SavedReport, type SavedScenario, type SavedSpot, type SessionRecord, type Tombstone, type TombstoneStore } from "./db";
+import { readFlopReport } from "./flopReports";
 import { readMistake } from "./mistakes";
 import { isDrillLink, newId } from "./saved";
 import { isOptTags, isTime, isWellFormed, validDecision, validHand, validRange, validSession, validSpot, validTombstone } from "./shapes";
@@ -47,13 +48,15 @@ interface StoreData {
   savedDrills: SavedDrill;
   savedScenarios: SavedScenario;
   savedReports: SavedReport;
+  flopReports: FlopReportRecord;
   mistakes: MistakeRecord;
 }
 export type BackupStore = keyof StoreData;
 // (a backup made before hands, drills, scenarios, reports, mistakes or answers were in it has no "hands", "decisions", "savedDrills",
 // "savedScenarios", "savedReports", "mistakes" or "savedAnswers": those restore nothing. A store added is no new record
-// shape: an older page leaves it unread, and its answers just don't come back there.)
-export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedAnswers", "savedRanges", "savedDrills", "savedScenarios", "savedReports", "sessions", "hands", "decisions", "mistakes"];
+// shape: an older page leaves it unread, and its answers just don't come back there. Custom flop reports, "flopReports",
+// came in at database version 11.)
+export const BACKUP_STORES: readonly BackupStore[] = ["savedSpots", "savedAnswers", "savedRanges", "savedDrills", "savedScenarios", "savedReports", "flopReports", "sessions", "hands", "decisions", "mistakes"];
 
 /** A deletion in a backup: a classic tombstone, with `updated` the time it was deleted. */
 export interface BackupTombstone {
@@ -117,6 +120,12 @@ const SHAPES: { [S in BackupStore]: { created: (d: StoreData[S]) => number; vali
     created: (d) => d.createdAt,
     valid: (d) => !!readReport?.(d),
   },
+  flopReports: {
+    created: (d) => d.createdAt,
+    valid: (d) => readFlopReport(d) !== null,
+    // (nothing can prove a file's flops were solved here; their provenance stays each flop's own, and the report says it
+    // came from a file in its name only if the file's did. A run never stored as running, so none arrives as one.)
+  },
   sessions: {
     created: (d) => d.startedAt,
     valid: validSession,
@@ -177,7 +186,7 @@ export async function makeBackup(now: () => number = Date.now): Promise<Backup> 
 }
 
 /** One saved item as a backup file, restored the way a whole backup is: a spot with the answer kept with it. */
-export async function itemBackup<S extends "savedSpots" | "savedRanges" | "savedDrills" | "savedScenarios" | "savedReports">(store: S, item: StoreData[S], now: () => number = Date.now): Promise<Backup> {
+export async function itemBackup<S extends "savedSpots" | "savedRanges" | "savedDrills" | "savedScenarios" | "savedReports" | "flopReports">(store: S, item: StoreData[S], now: () => number = Date.now): Promise<Backup> {
   const d = await db();
   if (!d) throw new Error("This browser's saved data can't be read here.");
   const answer = store === "savedSpots" ? await d.get("savedAnswers", item.id) : undefined;

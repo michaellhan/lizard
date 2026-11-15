@@ -12,10 +12,14 @@ import { seatLabel, seatsOf } from "@/poker/seats";
 import { MAX_STACK, MIN_STACK, PLAYERS } from "@/features/study/StudyPage";
 import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
+import { FinalTableSet, storedSpotLink } from "@/features/tournaments/FinalTableSet";
+import { PayoutTools } from "@/features/tournaments/PayoutTools";
+import { pfIcmStage } from "@/features/practice/pfIcmStored";
 import { bubbleTableOf } from "@/features/tournaments/icm";
-import { BOUNTY_FORMATS, BOUNTY_NAME, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, csvPayouts, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
 import { useSettings } from "@/state/settings";
 import { capWords, TREE_CAPS } from "@/solver/treeDepth";
+import type { BunchingSource } from "@/solver/bunching";
 import { ENGINE_RAISES, LIMITS, numsOf, raisesWords, setupProblems, SIZE_STREETS, tidySetup, type SizeStreet, type SpotSetup } from "./setup";
 
 /** What a bigger menu costs here: this device's tree cap, and that a local server keeps upstream's tree. */
@@ -32,6 +36,28 @@ function TreeNote() {
       </Link>
       ); a bigger one is cut to fit.
     </p>
+  );
+}
+
+/** Bunching (engine/bunching.py): the ranges entering the flop weighed by the hands the preflop folders held. */
+function BunchingField({ value, onChange, problem }: { value: BunchingSource | "off"; onChange: (v: BunchingSource | "off") => void; problem: object }) {
+  const transport = useSettings((s) => s.transport);
+  return (
+    <fieldset className="min-w-0 space-y-2 panel p-4">
+      <legend className="font-medium">Bunching</legend>
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <span>Weigh the ranges by the preflop folds</span>
+        <select aria-label="Bunching" value={value} onChange={(e) => onChange(e.target.value as BunchingSource | "off")} {...problem} className="rounded-md border border-border bg-surface-2 px-2 py-1 text-sm">
+          <option value="off">Off</option>
+          <option value="charts">From the charts&rsquo; folds</option>
+          <option value="solve">From the preflop solve&rsquo;s folds</option>
+        </select>
+      </label>
+      <p className="text-xs text-muted">
+        The seats that fold before the flop hold mostly low cards, so the hands left are a little richer in high ones. On, every street is solved live on the weighted ranges (the flop libraries hold the even deal), and the answer names whose folds were used; the turn and river are still dealt evenly. The preflop solve&rsquo;s folds need its game stored or solved in this browser, else the charts&rsquo; are used and the answer says so.
+        {transport !== "worker" && " A local server runs without it."}
+      </p>
+    </fieldset>
   );
 }
 
@@ -60,6 +86,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   const [ante, setAnte] = useState(str(s0?.ante));
   const [straddle, setStraddle] = useState(!!s0?.straddle);
   const [ranges, setRanges] = useState<Record<string, string>>(() => ({ ...(s0?.ranges ?? {}) }));
+  const [bunching, setBunching] = useState<BunchingSource | "off">(s0?.bunching ?? "off");
   const [payouts, setPayouts] = useState(t0?.payouts?.join(" ") ?? "");
   const [fieldN, setFieldN] = useState(str(t0?.field?.players));
   const [fieldAvg, setFieldAvg] = useState(str(t0?.field?.avg));
@@ -111,8 +138,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
       ante: numOf(ante),
       straddle: straddle && players >= 3,
       ranges: Object.fromEntries(seats.filter((p) => ranges[p]?.trim()).map((p) => [p, ranges[p]!])),
+      ...(bunching !== "off" ? { bunching } : {}),
     }),
-    [seats, stacks, sizes, raises, tour, tournament, rake, cap, ante, straddle, players, ranges],
+    [seats, stacks, sizes, raises, tour, tournament, rake, cap, ante, straddle, players, ranges, bunching],
   );
   const setup = tidySetup(typed);
   const problems = [...(stackOk ? [] : [`the table's stack must be ${MIN_STACK}–${MAX_STACK}bb`]), ...setupProblems(players, typed)];
@@ -145,6 +173,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setAnte("");
     setStraddle(false);
     setRanges({});
+    setBunching("off");
     setPayouts("");
     setFieldN("");
     setFieldAvg("");
@@ -251,10 +280,11 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   </button>
                 ))}
               </div>
+              <FinalTableSet onSetUp={setUpStage} onOpen={(st) => void navigate(storedSpotLink(st))} />
               <p className="text-xs text-muted" aria-live="polite">
                 {stage
-                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.`
-                  : "A stage or format fills in the form."}
+                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.${pfIcmStage(stage.players, Math.max(...stage.stacks), presetAnte(stage), { model: "icm", stacks: Object.fromEntries(seatsOf(stage.players).map((p, i) => [p, stage.stacks[i]!])), payouts: stage.payouts, ...(stage.field ? { field: stage.field } : {}) }) ? " Its preflop solve in prize equity is stored: Study's Solver source answers it at once." : ""}`
+                  : "A stage, format or final-table spot fills in the form."}
               </p>
             </div>
             <div className="space-y-1.5 text-sm">
@@ -262,12 +292,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                 Payouts
                 <input
                   aria-label="Payouts"
-                  placeholder="e.g. 50 30 20, or paste a payout table"
+                  placeholder="e.g. 50 30 20, or paste a payout table or tournament summary"
                   title="First place first, any unit"
                   value={payouts}
                   onChange={(e) => setPayouts(e.target.value)}
                   onPaste={(e) => {
-                    const t = pastedPayouts(e.clipboardData.getData("text"));
+                    const raw = e.clipboardData.getData("text");
+                    const t = csvPayouts(raw) ?? pastedPayouts(raw);
                     if (t === null) return;
                     e.preventDefault();
                     setPayouts(t);
@@ -297,6 +328,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   </button>
                 )}
               </div>
+              <PayoutTools playersLeft={players + (Number.isInteger(fN) && fN > 0 ? fN : 0)} onPayouts={setPayouts} />
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span>Other tables</span>
@@ -401,6 +433,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           </div>
         </details>
 
+        <BunchingField value={bunching} onChange={setBunching} problem={flag("bunching")} />
+
         {pairs && (
           <section aria-label="Bubble factors" className="min-w-0 space-y-2 panel p-4">
             <h2 className="font-medium">Bubble factors, every pair</h2>
@@ -475,6 +509,17 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
           <button type="submit" disabled={problems.length > 0} className="rounded-md border border-accent bg-accent/15 px-3 py-1.5 font-medium hover:bg-accent/25 disabled:opacity-40">
             Open in Study
           </button>
+          {!tour && (
+            <button
+              type="button"
+              disabled={problems.length > 0}
+              title="Solve this spot on a representative set of flops, each in this browser, and report them as the library's spots are"
+              onClick={() => void navigate(`/reports?mine=${encodeURIComponent(toSearch({ ...hand, board: "", flop: [], turn: [], river: [] }))}&from=solve`)}
+              className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2 disabled:opacity-40"
+            >
+              Report over flops
+            </button>
+          )}
           <button type="button" onClick={clear} className="rounded-md border border-border px-3 py-1.5 hover:bg-surface-2">
             Clear the setup
           </button>

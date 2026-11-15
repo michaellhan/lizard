@@ -14,6 +14,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TREE = {"sizes": {"flop_bet": [0.33]}, "model": {"version": 1}}
+OLD_TREE = {"sizes": {"flop_bet": [0.33]}, "model": {"version": 0}}
+NO_EXT = "/nonexistent/lizard-extend"  # (the default extension source is the main checkout's real build)
 
 
 def h(b: bytes, n: int) -> str:
@@ -25,8 +27,10 @@ def turn_file(entry: bytes) -> bytes:
     return b"GTOTN1" + zlib.compress(struct.pack("<I", len(head)) + head + b"\0" * 64)
 
 
-def make_lib(root: Path, sid: str, fp: list, flops: dict, turns=True, game=None, extra=None) -> dict:
-    """A format-2 library with one spot; `flops` maps flop -> entry bytes (None: listed but missing)."""
+def make_lib(root: Path, sid: str, fp: list, flops: dict, turns=True, game=None, extra=None, old=None,
+             spots=()) -> dict:
+    """A format-2 library with one spot (and `spots`, others already made); `flops` maps flop -> entry bytes (None:
+    listed but missing); `old`: the flops listed on the old tree."""
     d = root / sid
     d.mkdir(parents=True)
     report = json.dumps({"spot": sid}).encode()
@@ -44,13 +48,21 @@ def make_lib(root: Path, sid: str, fp: list, flops: dict, turns=True, game=None,
             "stack": 97.0, "flops": listed, "turns": turns, "report": h(report, 10)}
     if game:
         spot["game"] = game
+    if not turns:
+        spot.pop("turns")
+        for f in flops:
+            (d / f"{f}.turn.bin").unlink(missing_ok=True)
+    if old:
+        spot["old_tree"], spot["old"] = OLD_TREE, sorted(old)
     for name, data in (extra or {}).items():
         (d / name).write_bytes(data)
-    (root / "index.json").write_text(json.dumps({"format": 2, "tree": TREE, "spots": [spot]}))
+    (root / "index.json").write_text(json.dumps({"format": 2, "tree": TREE, "spots": [*spots, spot]}))
     return spot
 
 
 def run(*args) -> subprocess.CompletedProcess:
+    if "--extend" not in args:
+        args = (*args, "--extend", NO_EXT)
     return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True)
 
 
@@ -122,7 +134,7 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(len([k for k in real if not k.startswith("mw_")]), 20)
         self.assertEqual(target_of("srp_sb_bb_2max", 378, real), 1755)
         self.assertEqual(target_of("lp_sb_bb_2max", 168, real), 552)
-        self.assertEqual(target_of("srp_hj_co", 552, real), 552)
+        self.assertEqual(target_of("srp_hj_co", 552, real), 1755)  # BUILD_PLANS: build_srp_every_flop.py
 
     def test_a_corrupt_entry_or_turn_file_is_left_out(self):
         (self.hu / "srp_sb_bb_2max" / "Qc9d8h.bin").write_bytes(b"tampered")
@@ -186,6 +198,110 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(run("--out", self.out, "--base", self.base, "--hu", self.hu).returncode, 0)
         after = {p: p.read_bytes() for p in self.hu.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
+
+
+class ExtendTest(unittest.TestCase):
+    """An extension source (build_srp_every_flop.py): base spots on more flops, the base's entries included."""
+
+    BASE = {"Ks7d2c": b"entry-1", "AhKd5s": b"entry-2"}
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.base, self.hu, self.ext, self.out = (self.tmp / n for n in ("base", "hu", "ext", "stage"))
+        other = make_lib(self.base, "srp_btn_bb", ["a", "b"], {"Qh8d4c": b"btn-1"})
+        make_lib(self.base, "srp_hj_co", ["e", "f"], self.BASE, turns=False, old=self.BASE, spots=[other])
+        make_lib(self.hu, "srp_sb_bb_2max", ["c", "d"], {"Qc9d8h": b"hu-1"},
+                 game={"players": 2, "stack": 100.0, "ante": 0.0, "straddle": False})
+
+    def make_ext(self, flops, fp=("e", "f"), sid="srp_hj_co", extra=None):
+        return make_lib(self.ext, sid, list(fp), flops, turns=False, old=flops, extra=extra)
+
+    def run_ext(self, *more):
+        return run("--out", self.out, "--base", self.base, "--hu", self.hu, "--extend", self.ext, *more)
+
+    def spot(self, sid="srp_hj_co") -> dict:
+        return next(s for s in json.loads((self.out / "index.json").read_text())["spots"] if s["id"] == sid)
+
+    def test_a_superset_replaces_the_base_spot_with_its_report_and_only_listed_files(self):
+        self.make_ext({**self.BASE, "9c8d7h": b"new-1", "Jd5c2h": b"new-2"},
+                      extra={"Tc6d3h.bin.tmp": b"partial", "8c7c6c.bin": b"unindexed"})
+        r = self.run_ext()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self.spot()
+        self.assertEqual(sorted(s["flops"]), sorted([*self.BASE, "9c8d7h", "Jd5c2h"]))
+        self.assertEqual(sorted(s["old"]), sorted(s["flops"]))
+        self.assertEqual((self.out / "srp_hj_co" / "report.json").read_bytes(),
+                         (self.ext / "srp_hj_co" / "report.json").read_bytes())
+        self.assertFalse((self.out / "srp_hj_co" / "8c7c6c.bin").exists())
+        self.assertFalse((self.out / "srp_hj_co" / "Tc6d3h.bin.tmp").exists())
+        self.assertEqual(len(self.spot("srp_btn_bb")["flops"]), 1)  # other base spots as they were
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["spots"]["srp_hj_co"], {"flops": 4, "target": 1755, "game": None, "nuts": 0})
+        self.assertIn({"kind": "extension build", "spots": {"srp_hj_co": 4}},
+                      [{k: v for k, v in x.items() if k in ("kind", "spots")} for x in summary["sources"]])
+
+    def test_a_source_missing_or_changing_a_base_flop_is_left_out(self):
+        for flops in ({"Ks7d2c": b"entry-1", "9c8d7h": b"new-1", "Jd5c2h": b"new-2"},      # AhKd5s missing
+                      {"Ks7d2c": b"entry-1", "AhKd5s": b"resolved", "9c8d7h": b"new-1"}):   # AhKd5s changed
+            with self.subTest(flops=sorted(flops)):
+                if self.ext.exists():
+                    import shutil
+                    shutil.rmtree(self.ext)
+                self.make_ext(flops)
+                r = self.run_ext()
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(self.spot()["flops"], {f: h(b, 10) for f, b in self.BASE.items()})
+                self.assertIn("srp_hj_co: extension left out", r.stdout)
+                self.assertEqual((self.out / "srp_hj_co" / "report.json").read_bytes(),
+                                 (self.base / "srp_hj_co" / "report.json").read_bytes())
+
+    def test_other_ranges_a_new_spot_or_no_more_flops_are_left_out(self):
+        for kw, note in (({"fp": ("x", "y")}, "another spot"), ({"sid": "srp_new"}, "not a base spot"),
+                         ({}, "no flops beyond")):
+            with self.subTest(note=note):
+                if self.ext.exists():
+                    import shutil
+                    shutil.rmtree(self.ext)
+                self.make_ext({**self.BASE, **({"9c8d7h": b"new-1"} if kw else {})}, **kw)
+                r = self.run_ext()
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(len(self.spot()["flops"]), 2)
+                self.assertIn(note, r.stdout)
+                self.assertFalse((self.out / "srp_new").exists())
+
+    def test_a_copy_that_fails_its_hashes_falls_back_to_the_base(self):
+        self.make_ext({**self.BASE, "9c8d7h": b"new-1"})
+        (self.ext / "srp_hj_co" / "9c8d7h.bin").write_bytes(b"tampered")       # the only new flop fails its hash
+        r = self.run_ext()
+        self.assertEqual(r.returncode, 0, r.stderr)                          # (the stage's file check passed too)
+        self.assertEqual(sorted(self.spot()["flops"]), sorted(self.BASE))
+        self.assertIn("after copying", r.stdout)
+        self.assertFalse((self.out / "srp_hj_co" / "9c8d7h.bin").exists())
+        # a report rewritten since the index: the base too
+        import shutil
+        shutil.rmtree(self.ext)
+        self.make_ext({**self.BASE, "9c8d7h": b"new-1"})
+        (self.ext / "srp_hj_co" / "report.json").write_text('{"newer": 1}')
+        r = self.run_ext()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(sorted(self.spot()["flops"]), sorted(self.BASE))
+
+    def test_an_extension_once_published_is_kept_when_the_source_goes(self):
+        prev = self.tmp / "prev"
+        self.make_ext({**self.BASE, "9c8d7h": b"new-1"})
+        self.assertEqual(run("--out", prev, "--base", self.base, "--hu", self.hu, "--extend", self.ext).returncode, 0)
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--previous", prev)  # no source now
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.spot()["flops"]), 3)
+        self.assertIn("kept the previous release", r.stdout)
+
+    def test_the_extension_source_is_not_modified(self):
+        self.make_ext({**self.BASE, "9c8d7h": b"new-1"})
+        before = {p: p.read_bytes() for p in self.ext.rglob("*") if p.is_file()}
+        self.assertEqual(self.run_ext().returncode, 0)
+        self.assertEqual(before, {p: p.read_bytes() for p in self.ext.rglob("*") if p.is_file()})
+        self.assertNotEqual(run("--out", self.ext / "x", "--base", self.base, "--hu", self.hu,
+                                "--extend", self.ext).returncode, 0)
 
 
 if __name__ == "__main__":
