@@ -24,19 +24,24 @@ classic site serves the same bundle. The owner accepted that on 2026-11-05.
 ### How a deploy works
 
 1. Push to `main` (or run the workflow by hand: `gh workflow run deploy -R michaellhan/lizard`).
-2. `check-and-build` (Ubuntu 24.04, pinned because Playwright 1.56.1 has no Chromium for 26.04; Node 24, Python 3.12 with `numpy==2.0.2 treys==0.1.8`):
-   - typecheck, lint, Vitest;
-   - the library assembler's tests;
-   - the solver's quick tests (`tests.test_bundle`, `tests.test_routes`, `routes.test.js`, `solver_state.test.js`);
-   - `npm run build`:
+2. Four jobs start side by side on Ubuntu 24.04 (pinned because Playwright 1.56.1 has no Chromium for 26.04; Node 24,
+   Python 3.12 with `numpy==2.0.2 treys==0.1.8`):
+   - `build`, about a minute: `npm run build`, which typechecks (`tsc -b`) and then:
      - `scripts/build-solver-assets.mjs` builds `web/public/solver/` from `solver/`: `worker.js` with the cache
        renamed, `solver.zip` from `solver/scripts/build_bundle.py`, `pf/*.bin`, and `manifest.json` whose version
        is `sha1(worker.js + solver.zip)[:10]`;
      - `vite build` with base `/lizard/` and the CSP meta tag;
-     - `scripts/postbuild.mjs` writes `<route>/index.html` for every route, plus `404.html` and `.nojekyll`.
-3. `deploy` uploads `web/dist` with `actions/deploy-pages`. Pages serves it about a minute later.
+     - `scripts/postbuild.mjs` writes `<route>/index.html` for every route, plus `404.html` and `.nojekyll`;
+   - `unit`: typecheck, lint, Vitest, the Pyodide staging tests and the sync Worker's tests;
+   - `python`: the library assembler's, engine contract, benchmark reference and the solver's quick tests;
+   - `e2e`, after `build`: the browser tests on the built site, split over four machines.
+3. `deploy` uploads `web/dist` with `actions/deploy-pages` as soon as `build` passes, so the site has a push about two
+   minutes after it lands. It doesn't wait on `unit`, `python` or `e2e` (owner's choice, 2026-11-15: a small change
+   shouldn't wait about 8 minutes on them). They keep running, and a failure turns the run red after the site may already
+   be serving the change: fix forward, or roll back as below. Code that doesn't typecheck never deploys, as the build
+   stops.
 
-Pull requests run the checks and the build but do not deploy, and only `refs/heads/main` can reach the upload or the deploy.
+Pull requests run the same checks and the build but do not deploy, and only `refs/heads/main` can reach the upload or the deploy.
 Every action is pinned by commit, and `npm ci` runs with `--ignore-scripts`.
 
 Source maps are off (`web/vite.config.ts`). The repository is private, so the build doesn't publish the app's source. Deploys
