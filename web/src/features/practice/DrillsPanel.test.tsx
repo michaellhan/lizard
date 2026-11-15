@@ -27,6 +27,8 @@ const open = (q: string) =>
       <DrillsPanel files={new LibraryFiles("lib/", fakeFetch)} rng={seeded(3)} />
     </MemoryRouter>,
   );
+/** the hand so far, a line a street and the last for now (each line's label and text run together) */
+const told = () => within(screen.getByRole("list", { name: "The hand so far" })).getAllByRole("listitem").map((li) => li.textContent);
 const suitOf = (img: HTMLElement) => img.getAttribute("aria-label")!.split(" of ")[1];
 
 describe("DrillsPanel", () => {
@@ -80,7 +82,7 @@ describe("DrillsPanel", () => {
     expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""))).toEqual(["check", "bet 33% (1.82bb)", "bet 75% (4.13bb)"]);
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
     expect(within(screen.getByRole("group", { name: "Your cards" })).getAllByRole("img")).toHaveLength(2);
-    expect(screen.getByText("BB to act first · pot 5.5bb")).toBeInTheDocument();
+    expect(told()).toEqual(["PreflopFolds to BTN. BTN raises to 2.5bb, BB calls", "Floppot 5.5bb · BB to act first", "NowBB (you) to act · pot 5.5bb · 97.5bb behind"]);
     // (what the library stores is said only under a filter)
     expect(screen.queryByText(/flops stored/)).toBeNull();
     expect(screen.getByRole("combobox", { name: "Spot" })).toHaveDisplayValue("BTN vs BB single-raised pot");
@@ -166,7 +168,9 @@ describe("DrillsPanel", () => {
     open("spot=3bp_bb_btn&view=ipvsbet");
     const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
     expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, "")).slice(0, 2)).toEqual(["fold", expect.stringMatching(/^call [\d.]+bb$/)]);
-    expect(screen.getByText(/^BB bets (33|75)% \([\d.]+bb\) · pot [\d.]+bb$/)).toBeInTheDocument();
+    expect(told()[0]).toBe("PreflopFolds to BTN. BTN raises to 2.5bb, BB 3-bets to 10bb, BTN calls");
+    expect(told()[1]).toMatch(/^Floppot 20\.5bb · BB bets (33|75)% \([\d.]+bb\)$/);
+    expect(told()[2]).toMatch(/^NowBTN \(you\) to act, [\d.]+bb to call · pot [\d.]+bb · 90bb behind$/);
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BTN faces BB's bet");
     fireEvent.click(within(options).getByRole("button", { name: "fold" }));
     const answer = screen.getByRole("region", { name: "Answer" });
@@ -178,7 +182,7 @@ describe("DrillsPanel", () => {
     await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
     const board = within(screen.getByRole("group", { name: "Board" })).getAllByRole("img");
     expect(new Set(board.map(suitOf)).size).toBe(1);
-    expect(screen.getByText(/^BB checks, BTN bets (33|75)% \(\d+(\.\d+)?bb\) · pot \d+(\.\d+)?bb$/)).toBeInTheDocument();
+    expect(told()[1]).toMatch(/^Floppot 5\.5bb · BB checks, BTN bets (33|75)% \(\d+(\.\d+)?bb\)$/);
     expect(screen.getByText(/store this decision with this texture\./)).toBeInTheDocument();
     const names = within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""));
     expect(names[0]).toBe("fold");
@@ -213,7 +217,9 @@ describe("DrillsPanel", () => {
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB first to act on the turn");
     expect(within(screen.getByRole("group", { name: "Turn" })).getAllByRole("option")).toHaveLength(4);
     expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, "").replace(/ \(.*/, ""))).toEqual(["check", "bet 75%"]);
-    expect(screen.getByText(/^On the flop .*\. BB to act first on the turn · pot \d+(\.\d+)?bb$/)).toBeInTheDocument();
+    expect(told()[1]).toMatch(/^Floppot 5\.5bb · /);
+    expect(told()[2]).toMatch(/^Turnpot \d+(\.\d+)?bb · BB to act first$/);
+    expect(told()[3]).toMatch(/^NowBB \(you\) to act · pot \d+(\.\d+)?bb · \d+(\.\d+)?bb behind$/);
     expect(screen.queryByText(/store their turns/)).toBeNull();
     expect(asked.slice(before).some((p) => p.endsWith(".turn.bin"))).toBe(true);
     // (the river is a live drill, which this stored one reads nothing of)
@@ -233,7 +239,7 @@ describe("DrillsPanel", () => {
   it("a 3-bet pot's turn file shows the range's EV by action, marked as not your hand's, and in position after a check", async () => {
     open("spot=3bp_bb_btn&street=turn&view=ip");
     const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
-    expect(screen.getByText(/BB checks the turn · pot/)).toBeInTheDocument();
+    expect(told()[2]).toMatch(/^Turnpot [\d.]+bb · BB checks$/);
     fireEvent.click(within(options).getAllByRole("button")[0]!);
     const answer = screen.getByRole("region", { name: "Answer" });
     expect(within(answer).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Action", "Played", "Range’s EV bb"]);

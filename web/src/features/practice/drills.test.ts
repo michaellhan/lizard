@@ -25,7 +25,9 @@ import {
   potAt,
   problem,
   sampleFlops,
+  preflopWords,
   situation,
+  story,
   studyHandOf,
   studyLink,
   texture,
@@ -186,6 +188,29 @@ describe("a problem's spot", () => {
     pot: 9.63,
     bet: 4.13,
   };
+
+  it("tells the hand so far: preflop in words, each street's pot and line, and the price, pot and stack now", () => {
+    expect(preflopWords(REP.line)).toBe("Folds to BTN. BTN raises to 2.5bb, BB calls");
+    expect(preflopWords("UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:r10,BTN:c")).toBe("Folds to BTN. BTN raises to 2.5bb, BB 3-bets to 10bb, BTN calls");
+    expect(preflopWords("UTG:r2,HJ:f,CO:r6,BTN:f,SB:f,BB:f,UTG:r15,CO:c")).toBe("UTG raises to 2bb, CO 3-bets to 6bb, UTG 4-bets to 15bb, CO calls");
+    expect(preflopWords("SB:c,BB:x")).toBe("SB limps, BB checks");
+    expect(preflopWords("")).toBe("");
+    const s = story(REP, { path: ["check", "bet 75%"], pot: 9.63, bet: 4.13, player: 0, hero: "BB" });
+    expect(s.steps).toEqual([
+      { street: "Preflop", pot: null, text: "Folds to BTN. BTN raises to 2.5bb, BB calls" },
+      { street: "Flop", pot: 5.5, text: "BB checks, BTN bets 75% (4.13bb)" },
+    ]);
+    expect(s.now).toEqual({ hero: "BB", toCall: 4.13, pot: 9.63, behind: 97.5 });
+    expect(story(REP, { path: [], pot: 5.5, bet: 0, player: 0, hero: "BB" }).steps[1]!.text).toBe("BB to act first");
+    // a turn: the flop's line, the turn's pot after it, and the stack less what you put in on the flop
+    const t = story(REP, { path: ["check", "bet 33%", "raise to 7", "call"], pot: 19.5, bet: 0, player: 1, hero: "BTN", turn: { card: "9s", at: ["check"], rangeEvs: null } });
+    expect(t.steps.slice(1)).toEqual([
+      { street: "Flop", pot: 5.5, text: "BB checks, BTN bets 33%, BB raises to 7, BTN calls" },
+      { street: "Turn", pot: 19.5, text: "BB checks" },
+    ]);
+    expect(t.now).toEqual({ hero: "BTN", toCall: 0, pot: 19.5, behind: 90.5 });
+    expect(story(REP, { path: ["check", "check"], pot: 5.5, bet: 0, player: 0, hero: "BB", turn: { card: "9s", at: [], rangeEvs: null } }).steps[2]).toEqual({ street: "Turn", pot: 5.5, text: "BB to act first" });
+  });
 
   it("the pot and the bet faced, the action said, sizes in bb", () => {
     expect(potAt(REP, [])).toEqual({ pot: 5.5, bet: 0 });

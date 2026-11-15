@@ -38,7 +38,7 @@ import {
   pick,
   problem,
   sampleFlops,
-  situation,
+  story,
   studyLink,
   TEXTURE_GROUPS,
   TURN_VIEWS,
@@ -264,6 +264,34 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
         <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} tree={lib.index.tree} street={street as DrillStreet} view={stored} filter={filter} hand={hand} rng={rng} source={lib.label} />
       )}
     </div>
+  );
+}
+
+const fmtBb = (x: number) => String(Math.round(x * 100) / 100);
+
+/** The hand up to your decision, a street a line, and a last line for where you stand: who acts, the price, the pot and
+ * what you have behind. */
+function HandStory({ rep, pr }: { rep: LibraryReport; pr: DrillProblem }) {
+  const { steps, now } = story(rep, pr);
+  return (
+    <ol aria-label="The hand so far" className="space-y-1 text-sm">
+      {steps.map((s) => (
+        <li key={s.street} className="flex gap-3">
+          <span className="w-16 shrink-0 pt-0.5 text-xs text-muted">{s.street}</span>
+          <span>
+            {s.pot != null && <span className="text-muted">pot {fmtBb(s.pot)}bb · </span>}
+            {s.text}
+          </span>
+        </li>
+      ))}
+      <li className="flex gap-3 rounded border-l-2 border-accent bg-surface-2 py-1 pr-2">
+        <span className="w-16 shrink-0 pl-2 pt-0.5 text-xs text-accent">Now</span>
+        <span>
+          <span className="font-medium">{now.hero} (you) to act</span>
+          {now.toCall > 0 ? `, ${fmtBb(now.toCall)}bb to call` : ""} · pot {fmtBb(now.pot)}bb{now.behind != null ? ` · ${fmtBb(now.behind)}bb behind` : ""}
+        </span>
+      </li>
+    </ol>
   );
 }
 
@@ -715,7 +743,7 @@ function SpotDrill({
                 ))}
               </div>
             </div>
-            <p className="text-sm">{situation(rep, shown.pr)}</p>
+            <HandStory rep={rep} pr={shown.pr} />
             <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
               {shown.pr.names.map((name, i) => (
                 <button
