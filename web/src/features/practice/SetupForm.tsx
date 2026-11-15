@@ -23,6 +23,7 @@ import {
   type ExploitProfile,
 } from "./exploit";
 import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
+import { LIVE_NOTE } from "./live";
 import { LEVEL_HANDS } from "./tournamentPlay";
 import {
   carries,
@@ -107,6 +108,9 @@ export function SetupForm({
   const [ante, setAnte] = useState(opts.ante ? String(opts.ante) : "");
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
+  const [opponents, setOpponents] = useState<"gto" | "live">(
+    opts.opponents ?? "gto",
+  );
   // (on unless chosen off: the solve is preflop's default grade wherever the game is stored)
   const [pfSolve, setPfSolve] = useState(opts.pfSolve ?? true);
   const [pfSizes, setPfSizes] = useState(!!opts.pfSizes);
@@ -193,6 +197,9 @@ export function SetupForm({
         ...(isPF ? { pushFold: true } : {}),
         ...(tournament?.value ? { tournament: tournament.value } : {}),
         ...(exploit ? { exploit } : {}),
+        ...(opponents === "live" && !isPotDrill(play)
+          ? { opponents: "live" as const }
+          : {}),
       }
     : null;
   // (null with the form unfinished, as there's no game yet to say anything of)
@@ -539,6 +546,29 @@ export function SetupForm({
           {isT ? "Play it out" : "Carry chips"}
         </span>
       </label>
+      <label
+        className="flex items-center gap-1"
+        title={
+          isPotDrill(play)
+            ? "A kind of pot deals its preflop by the equilibrium"
+            : LIVE_NOTE
+        }
+      >
+        <span className="text-muted">Opponents</span>
+        <select
+          aria-label="Opponents"
+          value={isPotDrill(play) ? "gto" : opponents}
+          disabled={isPotDrill(play)}
+          onChange={(e) => setOpponents(e.target.value as "gto" | "live")}
+          className="rounded border border-border bg-surface-2 px-1.5 py-1"
+        >
+          <option value="gto">GTO</option>
+          <option value="live">Live cash regulars</option>
+        </select>
+      </label>
+      {opponents === "live" && !isPotDrill(play) && (
+        <p className="basis-full text-xs text-muted">{LIVE_NOTE}</p>
+      )}
       {game && !pfNo && (
         <>
           <label

@@ -264,3 +264,24 @@ describe("grading preflop by the preflop solve", () => {
     });
   });
 });
+
+describe("live opponents", () => {
+  it("starts a session with them, says they're hand-set rules, and keeps them out of a kind of pot", () => {
+    const start = open();
+    expect(screen.getByRole("combobox", { name: "Opponents" })).toHaveDisplayValue("GTO");
+    pick("Opponents", "live");
+    expect(screen.getByText(/Hand-set rules for a typical live cash game, not population data/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[0]![2]).toMatchObject({ opponents: "live" });
+
+    pick("Play", "srp");
+    expect(screen.getByRole("combobox", { name: "Opponents" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[1]![2]).not.toHaveProperty("opponents");
+  });
+
+  it("comes back with a session that had them", () => {
+    open({ ...OPTS, opponents: "live" });
+    expect(screen.getByRole("combobox", { name: "Opponents" })).toHaveDisplayValue("Live cash regulars");
+  });
+});

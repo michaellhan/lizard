@@ -36,6 +36,13 @@ export function shownOrder(options: readonly { action: string; amount_bb?: numbe
   return options.map((_, i) => i).sort((a, b) => rank(a) - rank(b) || size(a) - size(b) || a - b);
 }
 
+/** Check/fold set ahead, at your turn: the check where it's free, else the fold; -1 with neither. */
+export function aheadOption(actions: readonly string[]): number {
+  const kinds = actions.map(kindOf);
+  const check = kinds.indexOf("check");
+  return check >= 0 ? check : kinds.indexOf("fold");
+}
+
 /** "Next hand": Enter, Space or N. */
 export const isNextKey = (key: string) => key === "Enter" || key === " " || key.toLowerCase() === "n";
 
@@ -47,7 +54,7 @@ export const KEY_HELP: readonly KeyGroup[] = [
     title: "Your move",
     rows: [
       { keys: ["1", "–", "9"], what: "Your options, in the order shown (Combos: your answer, 1–4)" },
-      { keys: ["F"], what: "Fold" },
+      { keys: ["F"], what: "Fold (before your turn: check/fold ahead, on or off)" },
       { keys: ["C", "X"], what: "Check or call" },
       { keys: ["R", "B"], what: "The smallest bet or raise" },
       { keys: ["Shift+R"], what: "The largest bet or raise" },

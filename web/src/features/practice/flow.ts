@@ -5,8 +5,9 @@
 // hand being dealt to its pot draws each seat's move from, so that's one request a node all session, not one a seat a hand.
 import { chartKey, chartMove, chartState } from "@/library/flops";
 import { recordOf, seeded, type Move, type Sim, type Street } from "@/poker/table";
-import type { AdvisorState, PlayMove } from "@/solver/protocol";
+import type { AdvisorState } from "@/solver/protocol";
 import type { PlayRequest, SolveMode, SolveResult } from "@/solver/types";
+import { liveMove, type OppMove } from "./live";
 import { adviceState, charting, needsIndex, pfState, phaseOf, setupOf, simOf, stateFor, villainMove, type PracticeHand } from "./practice";
 
 export type Need =
@@ -53,9 +54,11 @@ export function chartDraw(h: PracticeHand, seat: string, charts?: Charts) {
   return ch ? chartMove(ch.data, seat, h.hands[seat]!.join(""), seeded((h.seed ^ 0x9e3779b9) + h.lines.preflop.length)) : null;
 }
 
-/** An opponent's answer as the move it records. `fallback`: why the table couldn't take it, where it's played as a
- * check or call instead (villainMove; it should not happen). */
-export function moveOf(h: PracticeHand, mv: Pick<PlayMove, "action" | "to">, sim: Sim = simOf(h)): { move: Move; fallback: string | null } {
+/** An opponent's answer as the move it records, as a live regular would play it in a live session (live.ts).
+ * `fallback`: why the table couldn't take it, where it's played as a check or call instead (villainMove; it should not
+ * happen). */
+export function moveOf(h: PracticeHand, answer: OppMove, sim: Sim = simOf(h)): { move: Move; fallback: string | null } {
+  const mv = liveMove(h, answer, sim);
   const m = recordOf(setupOf(h), sim, { action: mv.action, to: mv.to, clamp: true });
   if (typeof m === "string") return { move: villainMove(h, mv, sim), fallback: m };
   // (a stored tournament preset's preflop, drawn from the solve: a raise at its size to the cent, as yours is, or its

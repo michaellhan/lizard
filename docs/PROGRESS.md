@@ -5599,3 +5599,30 @@ anywhere on the page.
   card ringed and who acts, a step's node, the hand's start and the board); on a build `content.e2e.ts` and
   `nodelock.e2e.ts` 38 passed (2 skipped as before) on desktop and phone, and `checks.e2e.ts`'s Study specs 4 passed; in
   the browser at 1440×900 on a river and a turn node and the hand's start, and at 375 wide.
+
+
+### 2026-11-15: Practice's live opponents, and check/fold ahead
+
+Asked for: opponents who play like a typical live cash game rather than GTO, and a way to fold ahead instead of waiting
+for the opponents to think. Before this, Practice's opponents played the preflop charts and then the solver's mix for
+their hand.
+
+- `live.ts` (new): `liveMove` changes the solver's (or chart's) move by hand-set rules, applied inside `moveOf`
+  (`flow.ts`), so the table and the look-ahead (`ahead.ts`) draw the same move, seeded by the hand and its place. Preflop:
+  limp playable hands, raise premiums (the mix's size where it has one), call raises wide, fold to a 3-bet without a
+  strong hand. Postflop by a tier read from the cards: call down with any pair or draw, raise only two pair or better,
+  bet good hands, seldom bluff. Not population data, and said so.
+- The setup's Opponents choice (GTO / Live cash regulars), `opponents` on the session and hand (`practice.ts`
+  `livePlays`, kept in `keep.ts`, recorded in History as "live opponents (assumed)"); off in a kind of pot and in
+  exploit practice. Your grade stays against the equilibrium.
+- Check/fold ahead at one table: F or the button while an opponent thinks; at your turn it checks or folds, graded.
+- Checked: tsc and eslint clean; practice, history and review tests 1,518 passed, and `live.test.ts`, `SetupForm.test.tsx`,
+  keep and room 681 passed after the last edits; in the browser a live session limped (CO calls 1bb) and played hands to the
+  river, graded by a live solve. At one table a reload starts the default session, as before (one table keeps nothing).
+- During this work another session's rebase and merge of origin/main ran in this checkout; the changes were autostashed,
+  came back with conflicts in `PracticePage.tsx`, `keys.ts` and `practice.ts` (beside upstream's `shownOrder` and
+  `pfOptions`), and were resolved by keeping both.
+- Browser tests on a web-only build (qa's Practice section, 7 to 7j): 8 of 10 passed. 7g and 7h failed at their
+  "Preflop solve (class-level model)" chip, the same way on a clean export of HEAD 041c4f5, so not from this work: 7g
+  because that build used old solver files in `web/public/solver` (a fresh root build passes it), and 7h because the
+  test was stale after 516fe7b (fixed on branch `claude/clever-yonath-ed6d4c`, not merged here).

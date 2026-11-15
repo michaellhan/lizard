@@ -30,9 +30,9 @@ import { handHint, HINT_SOURCE } from "./hint";
 import { HintReveal, Kbd, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLine, KeepHand, optionLabel, PlayedOut, ReviewMistakes, RunText, ScoreStrip, SeatView, SpotRange, useHandKeys, type RangeLook } from "./PracticeParts";
 import { gradedOn, optionsAt } from "./pfGrade";
-import { isNextKey, optionFromKey, shownOrder } from "./keys";
+import { aheadOption, isNextKey, optionFromKey, shownOrder } from "./keys";
 import { KeysHelp } from "./KeysHelp";
-import { boardShown, gameLabel, mixOf, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
+import { boardShown, gameLabel, livePlays, mixOf, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { FIRST_OPTS, keyOf } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
@@ -48,6 +48,7 @@ export { optionLabel };
 const OPPONENTS = "Opponents: charts preflop, then the solver\u2019s mix (rules with 5+ in).";
 const OPPONENTS_STORED = "Opponents: the stored preflop solve\u2019s mix preflop (the charts off its tree), then the solver\u2019s mix (rules with 5+ in).";
 const opponentsOf = (o: { pfSolve?: boolean; tournament?: { model: string } }) => (o.pfSolve && o.tournament?.model === "icm" ? OPPONENTS_STORED : OPPONENTS);
+const LIVE_OPPONENTS = "Opponents: live cash regulars (assumed), the solver\u2019s move changed by hand-set rules; you\u2019re still graded against the equilibrium.";
 
 type Tab = "hands" | "drills" | "combos";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -353,9 +354,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
             {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
             {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
+            {livePlays(session.opts) ? " · live opponents (assumed)" : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
-          <p className="mt-2 text-xs text-muted">{opponentsOf(session.opts)}</p>
+          <p className="mt-2 text-xs text-muted">{livePlays(session.opts) ? LIVE_OPPONENTS : opponentsOf(session.opts)}</p>
         </details>
       )}
 
@@ -363,7 +365,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <details ref={gameRef} className="min-w-0 flex-1 basis-72 panel px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-muted">{opponentsOf(session.opts)} Some fields apply at one table only.</p>
+            <p className="text-xs text-muted">{livePlays(session.opts) ? LIVE_OPPONENTS : opponentsOf(session.opts)} Some fields apply at one table only.</p>
             <div ref={place} />
           </div>
         </details>
@@ -411,6 +413,21 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
   const alert = error ?? (failed && moving ? `${seatLabel(moving.seat, hand.players)}'s move failed: ${failed}` : null);
   // (one spot of one hand: a hint or a Reveal's table goes as the hand moves on)
   const spotKey = `${hand.seed}|${hand.n}|${hand.shown}|${hand.decisions.length}`;
+  // check/fold set ahead (while an opponent thinks, or your answer is on its way): at your turn it checks where that's
+  // free and folds to a bet, graded as any decision, until the hand ends or it's turned off. One table's, for this hand
+  const handKey = `${hand.seed}|${hand.n}`;
+  const [aheadFor, setAheadFor] = useState<string | null>(null);
+  const ahead = aheadFor === handKey;
+  const live = !hand.result && phase.kind !== "over";
+  const canAhead = live && !(phase.kind === "hero" && (answer || failed));
+  const playedAhead = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ahead || phase.kind !== "hero" || !answer || retrying || playedAhead.current === spotKey) return;
+    const i = aheadOption(optionsAt(hand, answer, sim).map((a) => a.action));
+    if (i < 0) return;
+    playedAhead.current = spotKey;
+    room.choose(i);
+  }, [ahead, phase.kind, answer, retrying, spotKey, hand, sim, room]);
   // your range beside the table: at your turn, this spot's (its strategy kept back until you act or reveal); between your
   // turns, your last decision's in this hand
   const here = phase.kind === "hero" && shown ? rangeAt(hand, shown.data, shown.provenance, sim) : null;
@@ -432,6 +449,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
   useHandKeys(keyable, (e, tag) => {
     const k = e.key.toLowerCase();
     if (k === "g" && range) return setRangeLook((l) => (l === "mix" ? "weight" : "mix"));
+    if (k === "f" && canAhead) return setAheadFor(ahead ? null : handKey);
     if (phase.kind === "hero" && answer) {
       const opts = optionsAt(hand, answer, sim);
       const order = shownOrder(opts);
@@ -526,6 +544,25 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
             </p>
           )}
           {phase.kind === "deal" && <p className="text-sm text-muted">Dealing the {phase.street}…</p>}
+          {canAhead && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <button
+                type="button"
+                aria-pressed={ahead}
+                aria-keyshortcuts={keyable ? "F" : undefined}
+                onClick={() => setAheadFor(ahead ? null : handKey)}
+                className={`rounded-md border px-3 py-1 ${ahead ? "border-accent bg-accent/15 text-text" : "border-border bg-surface-2 text-muted hover:bg-surface-3 hover:text-text"}`}
+              >
+                <span aria-hidden className="mr-1.5 text-xs text-faint">
+                  F
+                </span>
+                Check/fold
+              </button>
+              <span className="text-xs text-muted">
+                {ahead ? "On: at your turn this checks when it's free and folds to a bet, graded as usual." : "Set it now, so you needn't wait for your turn."}
+              </span>
+            </div>
+          )}
           {phase.kind === "hero" && !answer && !failed && (
             <p role="status" className="flex items-center gap-2 text-sm">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />

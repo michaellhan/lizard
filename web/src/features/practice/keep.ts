@@ -146,6 +146,7 @@ const isHand = (x: unknown): x is PracticeHand =>
   opt(x.pfSolve, (p) => p === true) &&
   opt(x.pfSizes, (p) => p === true) &&
   opt(x.pfOptions, (p) => p === true) &&
+  opt(x.opponents, (o) => o === "live") &&
   (x.tournament === undefined || (isObj(x.stacks) && Object.keys(x.stacks).length === x.players)) &&
   opt(x.revealed, (r) => r === true);
 
@@ -208,7 +209,8 @@ const isOpts = (x: unknown) =>
   opt(x.tournament, (t) => isGame(t) && isObj(t) && isObj(t.stacks) && Object.values(t.stacks).every(isNum)) &&
   opt(x.exploit, isExploit) &&
   opt(x.pfSolve, isBool) &&
-  opt(x.pfSizes, isBool);
+  opt(x.pfSizes, isBool) &&
+  opt(x.opponents, (o) => o === "gto" || o === "live");
 /** Your spot and its cards, and a decision that was graded: the list draws every entry's grade, and one not graded never goes in. */
 const isReviewed = (x: unknown) =>
   isObj(x) && isCount(x.n) && opt(x.table, isCount) && isStr(x.seat) && isCount(x.players) && isCards(x.hole) && x.hole.length === 2 && isCards(x.board) && isStr(x.line) && isDecision(x.d) && x.d.grade !== null && opt(x.state, isObj) && opt(x.dealtTo, isHandKey);

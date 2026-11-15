@@ -1,4 +1,4 @@
-// Practice: hands against GTO opponents, each of your decisions graded against the solver's answer for your hand.
+// Practice: hands against GTO opponents (or live ones, live.ts), each of your decisions graded against the solver's answer for your hand.
 // Pure helpers over one hand (the deal, the action so far, your graded decisions); PracticePage drives them with the
 // solver. Semantics follow the classic trainer (solver/gto/static/practice.js): every seat's cards and the board are
 // dealt up front from one deck; an opponent's move is drawn from the GTO mix for its actual hand (Advisor.play);
@@ -121,6 +121,8 @@ export interface PracticeHand {
   exploit?: Exploit;
   /** with `exploit`: how the opponent's moves after the flop were drawn, by the read or the equilibrium (`tallyRead`) */
   read?: ReadTally;
+  /** the other seats play like a live cash game's regulars, by hand-set rules (live.ts), not the equilibrium */
+  opponents?: "live";
   /** your preflop decisions are graded by the stored preflop solve where it can answer them (pfGrade.ts) */
   pfSolve?: true;
   /** with `pfSolve`: at a spot the solve grades, your raise is at the solve's own size in place of the chart's (pfGrade.ts) */
@@ -278,6 +280,8 @@ export interface GameOptions {
   pfSolve?: boolean;
   /** with `pfSolve`: offer the solve's own raise sizes where it grades the spot, in place of the chart's */
   pfSizes?: boolean;
+  /** how the other seats play: the equilibrium (the default) or a live cash game's regulars (live.ts) */
+  opponents?: "gto" | "live";
 }
 
 /** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop), and
@@ -288,6 +292,10 @@ export interface DealOptions extends HandOptions, GameOptions {
 }
 /** A session's setup, as it's kept. One kept before the board filter or the hand filter has none. */
 export type SessionOptions = Required<HandOptions> & GameOptions & Pick<DealOptions, "board" | "hand">;
+
+/** Whether the other seats play live (live.ts): not in a drill's pot, which deals its preflop by the equilibrium, nor in
+ * exploit practice, whose opponent plays its read. */
+export const livePlays = (o: Pick<HandOptions, "pot"> & GameOptions) => o.opponents === "live" && !o.pot && !o.exploit;
 
 /** A session that's only ever any hand above one table: a pot played for you would stop it being what was set up. */
 export const anyHandOnly = (o: Pick<HandOptions, "preflopOnly"> & GameOptions) => !!o.preflopOnly || !!o.pushFold || !!o.tournament;
@@ -403,6 +411,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pushFold ? { pushFold: true as const } : {}),
     ...(opts.tournament ? (table?.tournament ? { tournament: table.tournament, stacks: table.stacks } : tournamentHand(opts.tournament)) : {}),
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
+    ...(livePlays(opts) ? { opponents: "live" as const } : {}),
     ...(opts.pfSolve && !pfBlocked(players, stack, opts)
       ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}), ...(opts.tournament?.model === "icm" ? { pfOptions: true as const } : {}) }
       : {}),

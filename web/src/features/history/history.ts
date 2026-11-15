@@ -312,7 +312,7 @@ export function rowOf(s: SessionRecord): SessionRow {
     return { ...base, what, hands: num(m.hands), readNet: r ? { hands: num(r.hands), net: num(r.net), off: num(r.off) } : null, ...gradedBy(obj(m.sources)) };
   }
   if (s.kind === "practice") {
-    const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? ` · preflop graded by the preflop solve${m.pfSizes ? ", at its raise sizes" : ""}` : ""}`;
+    const kind = `${isPotDrill(m.pot) ? ` · ${POT_DRILLS[m.pot].label.toLowerCase()}` : m.pushFold ? " · push/fold" : m.preflopOnly ? " · preflop only" : ""}${m.pfSolve ? ` · preflop graded by the preflop solve${m.pfSizes ? ", at its raise sizes" : ""}` : ""}${m.opponents === "live" ? " · live opponents (assumed)" : ""}`;
     const game = `${num(m.ante) ? ` · ante ${num(m.ante)}` : ""}${m.straddle ? " · straddle" : ""}${m.carry ? " · chips carried" : ""}${m.sizes ? " · your own sizes" : ""}${num(m.rake) ? ` · rake ${num(m.rake)}%` : ""}`;
     // (a filter picks what's dealt, so a session under one is said to be)
     const dealt = [...(isTextureFilter(m.board) ? boardWords(m.board) : []), ...(isHandKey(m.hand) ? [handLabel(m.hand).toLowerCase()] : [])].map((w) => ` · ${w}`).join("");

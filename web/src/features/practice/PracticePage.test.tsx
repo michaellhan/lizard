@@ -49,6 +49,8 @@ const stub = vi.hoisted(() => {
     states: [] as AdvisorState[],
     // a preflop move of the stub's own for a seat (else it calls)
     pre: null as null | ((seat: string) => { action: PlayMove["action"]; to?: number } | null),
+    // an opponent's move held back until this settles (an opponent still thinking)
+    gate: null as null | Promise<void>,
     getSolver: null as unknown as () => Promise<unknown>,
     answer: (st: AdvisorState): SolveResult => ({ data: st.board ? FLOP : CHART, provenance: st.board ? LIVE : prov("charts") }),
   };
@@ -61,6 +63,7 @@ const stub = vi.hoisted(() => {
     play: async (state: AdvisorState, p: PlayRequest): Promise<SolveResult<PlayMove>> => {
       s.calls.push(`play ${p.seat}`);
       s.states.push(state);
+      if (s.gate) await s.gate;
       const own = !state.board ? s.pre?.(p.seat) : null;
       if (own) return { data: { pos: p.seat, ...own, name: own.action, freq: 1, street: "preflop" }, provenance: LIVE };
       const flop = (state.flop as unknown[] | undefined) ?? [];
@@ -77,6 +80,7 @@ afterEach(() => {
   stub.calls = [];
   stub.states = [];
   stub.pre = null;
+  stub.gate = null;
   useSettings.setState({ mode: "fast", keepHands: false });
 });
 
@@ -152,6 +156,40 @@ describe("PracticePage", () => {
     // the next hand: your seat moves to the big blind
     fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
     expect(await screen.findByRole("listitem", { name: "BB (you)" })).toBeInTheDocument();
+  });
+
+  it("checks or folds for you, set ahead while an opponent thinks: the fold graded as any decision, the setting gone with the hand", async () => {
+    render(
+      <MemoryRouter>
+        <PracticePage pace={0} />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Players" }), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    // the first hand you're on the button and act first: nothing to set ahead; fold it
+    const first = await screen.findByRole("group", { name: "Your options" });
+    expect(screen.queryByRole("button", { name: "Check/fold" })).toBeNull();
+    fireEvent.click(within(first).getByRole("button", { name: "fold" }));
+    // the next you're the big blind, and the button raises while you wait
+    let release = () => {};
+    stub.gate = new Promise((r) => (release = r));
+    stub.pre = (seat) => (seat === "SB" ? { action: "raise", to: 2.5 } : null);
+    fireEvent.click(await screen.findByRole("button", { name: "Next hand" }));
+    expect(await screen.findByText(/is thinking…/)).toBeInTheDocument();
+    const ahead = screen.getByRole("button", { name: "Check/fold" });
+    expect(ahead).toHaveAttribute("aria-pressed", "false");
+    fireEvent.keyDown(window, { key: "f" });
+    expect(ahead).toHaveAttribute("aria-pressed", "true");
+    release();
+    // your turn: folded for you, no button pressed, and graded
+    expect(await screen.findByText("You folded")).toBeInTheDocument();
+    const last = screen.getByRole("region", { name: "Last decision" });
+    expect(last).toHaveTextContent(/you took fold/);
+    expect(within(screen.getByRole("region", { name: "Score" })).getByText("Decisions graded").nextElementSibling).toHaveTextContent("2");
+    stub.gate = null;
+    fireEvent.click(screen.getByRole("button", { name: "Next hand" }));
+    await screen.findByRole("listitem", { name: "BTN/SB (you)" });
+    expect(screen.queryByRole("button", { name: "Check/fold", pressed: true })).toBeNull();
   });
 
   it("drills one kind of pot: your preflop played for you, dealt again until it's that pot; you play from the flop", async () => {
