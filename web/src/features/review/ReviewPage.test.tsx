@@ -129,7 +129,8 @@ describe("ReviewPage", () => {
     expect(await within(panel).findByText(/One step on: due in 3 days/)).toBeInTheDocument();
     const [m] = (await listMistakes()).list;
     expect(m).toMatchObject({ step: 1, tries: [{ verdict: "Best", ok: true, like: true, moved: true }] });
-    expect(screen.queryByRole("group", { name: "Your options" })).toBeNull();
+    // (the options stay, as a drill's do: yours marked, none to press again)
+    expect(within(options).getAllByRole("button").map((b) => [b.getAttribute("aria-pressed"), (b as HTMLButtonElement).disabled])).toEqual([["false", true], ["true", true]]);
     fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
     expect(screen.queryByRole("region", { name: "Retry" })).toBeNull();
   });

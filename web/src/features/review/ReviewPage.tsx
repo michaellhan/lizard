@@ -17,6 +17,9 @@ import { STREET_ORDER } from "@/features/history/progress";
 import { Lessons } from "@/features/plan/LessonsPanel";
 import { PlanSteps, StartHere, usePlan } from "@/features/plan/PlanPage";
 import { profileName } from "@/features/practice/exploit";
+import { HandStory } from "@/features/practice/HandStory";
+import { Kbd } from "@/features/practice/HintReveal";
+import { isNextKey } from "@/features/practice/keys";
 import { DecisionView, optionLabel, useHandKeys } from "@/features/practice/PracticeParts";
 import { CAPPED_WORDS } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
@@ -28,6 +31,7 @@ import { SolverError } from "@/solver/types";
 import { Compare } from "./Compare";
 import { costWords, KEPT_RETRY_WORDS, ORIGIN_WORDS, retried, spotWords, withTry, type RetryAnswer, type Retried } from "./mistakes";
 import { askAgain } from "./retry";
+import { retryStory } from "./retryStory";
 import { dueQueue, dueWords, isDue } from "./schedule";
 
 /** the mistakes listed at a time */
@@ -435,93 +439,133 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
   };
 
   const options = asked.st === "ready" ? asked.answer.mix : [];
-  useHandKeys(asked.st === "ready" && !done, (e) => {
-    if (/^[1-9]$/.test(e.key) && Number(e.key) <= options.length) pick(Number(e.key) - 1);
+  const finished = Boolean(done) || asked.st === "failed";
+  useHandKeys((asked.st === "ready" && !done) || finished, (e, tag) => {
+    if (!done && /^[1-9]$/.test(e.key) && Number(e.key) <= options.length) pick(Number(e.key) - 1);
+    // (Enter or Space on a focused button or link is that control's own)
+    else if (finished && isNextKey(e.key) && (e.key.toLowerCase() === "n" || !/^(BUTTON|A)$/.test(tag))) {
+      e.preventDefault();
+      onOpen(next);
+    }
   });
   useEffect(() => {
     if (done) nextRef.current?.focus({ preventScroll: true });
   }, [done]);
+  const story = useMemo(() => retryStory(m), [m]);
 
+  const nextButton = (
+    <div className="flex flex-wrap items-center gap-3">
+      <button ref={nextRef} type="button" onClick={() => onOpen(next)} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">
+        {next ? "Next one due" : "Done"}
+        <Kbd>N</Kbd>
+      </button>
+      {!done && m.study && (
+        <Link to={`/study?${m.study}`} className="text-accent hover:underline">
+          Open in Study →
+        </Link>
+      )}
+    </div>
+  );
+
+  // (wide: the hand on the left, the grade on the right once you've picked, as Practice's drills have it)
   return (
-    <section ref={box} tabIndex={-1} aria-label="Retry" className="space-y-3 rounded-lg border border-accent bg-surface p-3 text-sm outline-none">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Retry</h2>
-        <span className="text-muted">
-          {m.street} · missed {day(m.lastAt)}
-        </span>
-        <span className="flex-1" />
-        <button type="button" onClick={() => onOpen(null)} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
-          Close
-        </button>
-      </div>
-      <Spot m={m} />
-      <p>
-        {m.tournament ? "Tournament · " : ""}
-        {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
-        {m.game}
-        {m.pot > 0 ? ` · pot ${m.pot.toFixed(2).replace(/\.?0+$/, "")}bb` : ""}
-      </p>
-      <p className="text-muted">{spotWords(m)}</p>
-      {m.ask.via === "kept" && <p className="text-xs text-muted">{KEPT_RETRY_WORDS}</p>}
-
-      {asked.st === "asking" && (
-        <p role="status" className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          {m.ask.via === "kept" ? "Reading the answer kept with it…" : m.ask.via === "library" ? "Reading the library…" : "Asking the solver…"}
-          {m.ask.via !== "kept" && <span className="text-muted">(can take a while)</span>}
+    <section ref={box} tabIndex={-1} aria-label="Retry" className="space-y-4 outline-none lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+      <div className="space-y-3 panel p-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-medium">Retry</h2>
+          <span className="text-muted">
+            {m.street} · missed {day(m.lastAt)}
+          </span>
+          <span className="flex-1" />
+          <button type="button" onClick={() => onOpen(null)} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
+            Close
+          </button>
+        </div>
+        <p className="text-xs text-muted">
+          {m.tournament ? "Tournament · " : ""}
+          {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
+          {m.game}
         </p>
-      )}
-      {asked.st === "failed" && (
-        <div role="alert" className="space-y-1 text-danger">
+        <div className="flex flex-wrap items-center gap-4">
+          {m.board.length > 0 && (
+            <div role="group" aria-label="Board" className="flex gap-1">
+              {m.board.map((c) => (
+                <PlayingCard key={c} card={c} />
+              ))}
+            </div>
+          )}
+          <div role="group" aria-label="Your cards" className="flex items-center gap-1">
+            <span className="text-xs text-muted">{seatLabel(m.seat, m.players)} · you</span>
+            {m.hole.map((c) => (
+              <PlayingCard key={c} card={c} />
+            ))}
+          </div>
+        </div>
+        {story ? (
+          <HandStory story={story} />
+        ) : (
           <p>
-            No answer to grade this spot against: {asked.message}. Nothing has changed on its schedule.{" "}
-            <button
-              type="button"
-              className="underline"
-              onClick={() => {
-                setAsked({ st: "asking" });
-                setAttempt((x) => x + 1);
-              }}
-            >
-              Ask again
-            </button>
+            <span className="text-muted">{spotWords(m)}</span>
+            {m.pot > 0 ? ` · pot ${m.pot.toFixed(2).replace(/\.?0+$/, "")}bb` : ""}
           </p>
-        </div>
-      )}
-      {asked.st === "ready" && !done && (
-        <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
-          {options.map((a, i) => (
-            <button key={a.action} type="button" onClick={() => pick(i)} className="rounded-md border border-border bg-surface-2 px-3 py-1.5 hover:bg-surface-3">
-              {i < 9 && (
-                <span aria-hidden className="mr-1.5 text-xs text-faint">
-                  {i + 1}
-                </span>
-              )}
-              {optionLabel(a.action, a.amount)}
-            </button>
-          ))}
-        </div>
-      )}
+        )}
+        {m.ask.via === "kept" && <p className="text-xs text-muted">{KEPT_RETRY_WORDS}</p>}
+
+        {asked.st === "asking" && (
+          <p role="status" className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+            {m.ask.via === "kept" ? "Reading the answer kept with it…" : m.ask.via === "library" ? "Reading the library…" : "Asking the solver…"}
+            {m.ask.via !== "kept" && <span className="text-muted">(can take a while)</span>}
+          </p>
+        )}
+        {asked.st === "failed" && (
+          <div role="alert" className="space-y-1 text-danger">
+            <p>
+              No answer to grade this spot against: {asked.message}. Nothing has changed on its schedule.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => {
+                  setAsked({ st: "asking" });
+                  setAttempt((x) => x + 1);
+                }}
+              >
+                Ask again
+              </button>
+            </p>
+          </div>
+        )}
+        {asked.st === "ready" && (
+          <div role="group" aria-label="Your options" className="flex flex-wrap gap-2">
+            {options.map((a, i) => (
+              <button
+                key={a.action}
+                type="button"
+                disabled={Boolean(done)}
+                aria-pressed={done ? done.tried.chose === a.action : undefined}
+                onClick={() => pick(i)}
+                className={`rounded-md border px-3 py-1.5 hover:bg-surface-3 disabled:cursor-default ${done?.tried.chose === a.action ? "border-accent bg-surface-3" : "border-border bg-surface-2"}`}
+              >
+                {i < 9 && (
+                  <span aria-hidden className="mr-1.5 text-xs text-faint">
+                    {i + 1}
+                  </span>
+                )}
+                {optionLabel(a.action, a.amount)}
+              </button>
+            ))}
+          </div>
+        )}
+        {asked.st === "failed" && nextButton}
+      </div>
 
       {done && (
-        <div className="space-y-2">
+        <DecisionView d={done.decision} players={m.players} title="This retry">
           <Compare m={m} r={done} />
           {done.grade.capped && <p className="text-muted">{CAPPED_WORDS}</p>}
           <Moved kept={kept} now={done.tried.at} />
-          <DecisionView d={done.decision} players={m.players} title="This retry" />
-        </div>
-      )}
-      {(done || asked.st === "failed") && (
-        <div className="flex flex-wrap items-center gap-3">
-          <button ref={nextRef} type="button" onClick={() => onOpen(next)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">
-            {next ? "Next one due" : "Done"}
-          </button>
-          {!done && m.study && (
-            <Link to={`/study?${m.study}`} className="text-accent hover:underline">
-              Open in Study →
-            </Link>
-          )}
-        </div>
+          {nextButton}
+        </DecisionView>
       )}
     </section>
   );
