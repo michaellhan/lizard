@@ -1,7 +1,7 @@
 // A live drill: one decision no file stores, dealt hand after hand from a spot's stored turns and answered by a live
 // solve while you wait (liveDeal.ts). The cards and the spot come first, the options with the answer. Where the answer
 // can't grade the spot it's said in words and dealt again, with nothing scored. Kept apart from the stored drills, which
-// answer at once and read no solver.
+// answer at once and read no solver. Under an any-spot drill (`shared`) it deals one hand, scored in the any-spot session.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -12,7 +12,7 @@ import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { missedAgain } from "@/features/review/mistakes";
 import { CAPPED_WORDS, summary, whoOf, whyText, type Grade } from "@/grading/grade";
-import { storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
+import { gameLabel, storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryRanges } from "@/library/entry";
 import type { LibraryFiles, LibraryReport } from "@/library/files";
 import { evUnit } from "@/solver/provenance";
@@ -25,7 +25,9 @@ import { PastDrills } from "./PastDrills";
 import { liveHint, LIVE_HINT_SOURCE } from "./hint";
 import { CopyForAi, HintReveal, Kbd, MixTable, REVEAL_NOTE, RevealedMix } from "./HintReveal";
 import { isNextKey, optionFromKey } from "./keys";
-import { afterLive, freshLiveSession, gradeLive, liveActionLabel, liveMistake, liveMode, liveDrillKey, liveProblem, liveRecord, liveStudyLink, readLive, type LiveAnswer, type LiveProblem, type LiveSession, type LiveStreet, type LiveView } from "./liveDeal";
+import { addGraded, type Shared } from "./anySession";
+import { HandStory } from "./HandStory";
+import { afterLive, freshLiveSession, gradeLive, liveActionLabel, liveMistake, liveMode, liveDrillKey, liveProblem, liveRecord, liveStory, liveStudyLink, liveViewLabel, readLive, type LiveAnswer, type LiveProblem, type LiveSession, type LiveStreet, type LiveView } from "./liveDeal";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** the flops a deal draws before it gives up: more where a hand filter may miss on most of them */
@@ -37,8 +39,9 @@ type Deal = { key: string } & ({ st: "ready"; pr: LiveProblem } | { st: "none"; 
 type Solved = { key: string } & ({ st: "answer"; answer: LiveAnswer } | { st: "refused"; words: string });
 type Picked = { key: string; a: number; g: Grade | null };
 
-/** One spot's live decision drilled: mounted afresh (a new score) for each spot, street and decision. */
-export function LiveDrill({ files, spot, street, view, filter, hand, rng, source }: { files: LibraryFiles; spot: LibrarySpotIndex; street: LiveStreet; view: LiveView; filter: TextureFilter; hand: string | null; rng: () => number; source: string }) {
+/** One spot's live decision drilled: mounted afresh (a new score) for each spot, street and decision; or, under an
+ * any-spot drill (`shared`), for each hand, its score and past sessions the any-spot drill's. */
+export function LiveDrill({ files, spot, street, view, filter, hand, rng, source, shared }: { files: LibraryFiles; spot: LibrarySpotIndex; street: LiveStreet; view: LiveView; filter: TextureFilter; hand: string | null; rng: () => number; source: string; shared?: Shared }) {
   const mode = useSettings((s) => s.mode);
   const getSolver = useSolver();
   const [data, setData] = useState<SpotData>({ st: "loading" });
@@ -126,12 +129,13 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
 
   const drillKey = liveDrillKey(spot.id, street, view);
   useEffect(() => {
-    if (session.score.n && data.st === "ready") void putSession(liveRecord(session, data.report, spot.seats[view === "ip" || view === "ipfaces" ? 1 : 0]!, drillKey)).catch(() => {});
-  }, [session, data, spot, view, drillKey]);
+    if (session.score.n && data.st === "ready" && !shared) void putSession(liveRecord(session, data.report, spot.seats[view === "ip" || view === "ipfaces" ? 1 : 0]!, drillKey)).catch(() => {});
+  }, [session, data, spot, view, drillKey, shared]);
 
   // this drill's earlier sessions, read once as it opens (this one's own is left out as it's kept)
   const [past, setPast] = useState<SessionRecord[]>([]);
   useEffect(() => {
+    if (shared) return;
     let alive = true;
     void recentSessions("practice", 60)
       .then((xs) => alive && setPast(xs.filter((x) => x.meta.liveDrill === drillKey).slice(0, 6)))
@@ -139,25 +143,35 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
     return () => {
       alive = false;
     };
-  }, [drillKey]);
+  }, [drillKey, shared]);
 
   const choose = useCallback(
     (a: number) => {
       if (!pr || !answer || graded || data.st !== "ready") return;
       if (peeked === dealKey) {
         setPicked({ key: dealKey, a, g: null });
-        setSession((s) => ({ ...s, revealed: (s.revealed ?? 0) + 1 }));
+        if (shared) shared.setSession((s) => ({ ...s, revealed: (s.revealed ?? 0) + 1 }));
+        else setSession((s) => ({ ...s, revealed: (s.revealed ?? 0) + 1 }));
         return;
       }
       const g = gradeLive(answer, a);
       setPicked({ key: dealKey, a, g });
-      setSession((s) => afterLive(s, pr, g, answer.provenance));
-      const m = liveMistake(session.id, data.report, pr, answer, g, Date.now());
+      if (shared) shared.setSession((s) => addGraded(s, g, pr.street, answer.provenance.source));
+      else setSession((s) => afterLive(s, pr, g, answer.provenance));
+      const m = liveMistake(shared?.session.id ?? session.id, data.report, pr, answer, g, Date.now());
       if (m) void keepMistake(m, missedAgain).catch(() => {});
     },
-    [pr, answer, graded, data, peeked, dealKey, session.id],
+    [pr, answer, graded, data, peeked, dealKey, session.id, shared],
   );
-  const next = useCallback(() => setN((x) => x + 1), []);
+  const sharedNext = shared?.next;
+  const next = useCallback(() => (sharedNext ? sharedNext() : setN((x) => x + 1)), [sharedNext]);
+
+  // under an any-spot drill, a spot with nothing to deal here is passed over
+  const skip = shared?.skip;
+  const nothing = data.st === "ready" && (noDraws || !cands.length || deal?.key === dealKey && deal.st === "none");
+  useEffect(() => {
+    if (nothing) skip?.();
+  }, [nothing, skip]);
 
   useEffect(() => {
     if (graded) nextRef.current?.focus();
@@ -180,6 +194,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
     return () => window.removeEventListener("keydown", onKey);
   }, [answer, graded, told, choose, next]);
 
+  if (shared && (data.st === "loading" || nothing)) return <p className="panel p-3 text-sm text-muted">Dealing…</p>;
   if (data.st === "loading") return <p className="text-sm text-muted">Loading {spot.label}…</p>;
   if (data.st === "error")
     return (
@@ -204,11 +219,14 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
 
   return (
     <div className="space-y-4">
+      {!shared && (
       <p className="text-xs text-muted">
         {spot.label} in {source}: {new Set(cands.map((c) => c.f)).size.toLocaleString()} flops with stored turns{filtered ? " and this texture" : ""}. Each hand is a live solve (some seconds).
         {street === "river" ? " Rivers only after a checked turn." : ""}
       </p>
+      )}
 
+      {!shared && (
       <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
         {item("Decisions", String(s.n))}
         {item("Best or correct", s.n ? pct(sum.acc, 0) : "–")}
@@ -220,6 +238,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
           </p>
         )}
       </section>
+      )}
 
       {/* (wide: the hand on the left, its answer on the right once you've picked) */}
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
@@ -243,6 +262,12 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
           </p>
         ) : (
           <>
+            {shared && (
+              <p className="text-xs text-muted">
+                {spot.label}
+                {spot.game ? ` (${gameLabel(spot)})` : ""} · {liveViewLabel(street, view, spot.seats)} · a live solve, some seconds
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-4">
               <div role="group" aria-label="Board" className="flex gap-1">
                 {shown.pr.board.map((c) => (
@@ -256,7 +281,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
                 ))}
               </div>
             </div>
-            <p className="text-sm">{shown.pr.words}</p>
+            <HandStory story={liveStory(rep, shown.pr)} />
             {told?.st === "refused" ? (
               <p role="alert" className="text-sm text-danger">
                 {told.words} Nothing was scored.{" "}
@@ -358,7 +383,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
       </div>
 
 
-      <PastDrills past={past} current={session.id} history="/history?kind=practice" historyLabel="Every Practice session" />
+      {!shared && <PastDrills past={past} current={session.id} history="/history?kind=practice" historyLabel="Every Practice session" />}
     </div>
   );
 }

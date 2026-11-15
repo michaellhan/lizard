@@ -73,7 +73,12 @@ describe("a live drill", () => {
     let release: (r: SolveResult) => void = () => {};
     stub.solve = () => new Promise((go) => (release = go));
     open("spot=srp_btn_bb&street=river&view=oop");
-    expect(await screen.findByText(/^On the flop .*\. The turn checks through\. BB to act first on the river · pot [\d.]+bb$/, undefined, { timeout: 5000 })).toBeInTheDocument();
+    // (the hand so far a street a line: the turn checked through, the river yours to act on)
+    const story = await screen.findByRole("list", { name: "The hand so far" }, { timeout: 5000 });
+    const rows = within(story).getAllByRole("listitem").map((li) => li.textContent);
+    expect(rows.map((r) => r!.match(/^(Preflop|Flop|Turn|River)/)![1])).toEqual(["Preflop", "Flop", "Turn", "River"]);
+    expect(rows[2]).toMatch(/^Turnpot [\d.]+bb · Checked through$/);
+    expect(rows[3]).toMatch(/^Riverpot [\d.]+bb · BB to act · [\d.]+bb behind$/);
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(5);
     expect(screen.getByRole("status")).toHaveTextContent("Solving this spot live…");
     expect(screen.queryByRole("group", { name: "Your options" })).toBeNull();
@@ -130,7 +135,7 @@ describe("a live drill", () => {
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB checks the turn, faces a bet");
     expect(within(within(screen.getByRole("combobox", { name: "Decision" })).getByRole("group", { name: "Turn" })).getAllByRole("option").map((o) => o.textContent)).toEqual(["BB first to act on the turn", "BTN after BB checks the turn", "BB checks the turn, faces a bet", "BTN faces BB's turn bet"]);
     expect(within(opts).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""))).toEqual(["fold", "call 4.13bb"]);
-    expect(screen.getByText(/BB checks the turn, BTN bets 75% \(.*bb\) · pot/)).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent(/^Turnpot [\d.]+bb · BB checks, BTN bets 75% \([\d.]+bb\) · BB to act, [\d.]+bb to call · [\d.]+bb behind$/);
     expect(stub.asked[0]!.state.turn).toEqual([{ pos: "BB", action: "check" }, { pos: "BTN", action: "bet", to: expect.any(Number) }]);
     fireEvent.keyDown(window, { key: "2" });
     expect(screen.getByRole("region", { name: "Answer" })).toBeInTheDocument();

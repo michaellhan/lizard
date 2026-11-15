@@ -397,34 +397,48 @@ function streetPut(startPot: number, path: readonly string[]): { pot: number; pu
 }
 
 /** One street of the hand so far, in words (its cards are the board shown beside it). */
+export type StoryStreet = "Preflop" | "Flop" | "Turn" | "River";
+
 export interface StoryStep {
-  street: "Preflop" | "Flop" | "Turn";
+  street: StoryStreet;
   /** the pot as the street starts (the flop's from the report; not said preflop) */
   pot: number | null;
   text: string;
 }
 
-/** The hand up to your decision, street by street, and where you stand now: the price of a call, the pot, what you have
- * behind (the report's stack at the flop, less what you've put in since). */
+/** The street you act on: its pot as it began, its action so far, who acts, the price of a call and what they have behind. */
+export interface StoryNow {
+  street: StoryStreet;
+  pot: number;
+  line: string;
+  hero: string;
+  toCall: number;
+  behind: number | null;
+}
+export interface Story {
+  steps: StoryStep[];
+  now: StoryNow;
+}
+
+/** The hand up to your decision: the streets before it, each in a line, and the street you act on: its pot as it began,
+ * its action so far, who acts, the price of a call and what they have behind (the report's stack at the flop, less what
+ * they've put in since). */
 export function story(
   rep: Pick<LibraryReport, "seats" | "line" | "pot" | "stack">,
   pr: Pick<DrillProblem, "path" | "pot" | "bet" | "turn" | "player" | "hero">,
-): { steps: StoryStep[]; now: { hero: string; toCall: number; pot: number; behind: number | null } } {
+): Story {
   const [o] = rep.seats;
   const steps: StoryStep[] = [];
   const pre = preflopWords(rep.line);
   if (pre) steps.push({ street: "Preflop", pot: null, text: pre });
   const flopLine = pr.path.length ? flopWords(rep, pr.path) : "";
-  let behind: number | null = rep.stack;
+  const keep = (x: number) => (x >= 0 ? Math.round(x * 100) / 100 : null);
   if (pr.turn) {
     const f = streetPut(rep.pot, pr.path);
     steps.push({ street: "Flop", pot: rep.pot, text: flopLine || "Checked through" });
-    steps.push({ street: "Turn", pot: f.pot, text: pr.turn.at.length ? `${o} checks` : `${o} to act first` });
-    behind = Math.round((rep.stack - f.put[pr.player]) * 100) / 100;
-  } else {
-    steps.push({ street: "Flop", pot: rep.pot, text: flopLine ? `${flopLine}${pr.bet ? ` (${fmt(pr.bet)}bb)` : ""}` : `${o} to act first` });
+    return { steps, now: { street: "Turn", pot: f.pot, line: pr.turn.at.length ? `${o} checks` : "", hero: pr.hero, toCall: 0, behind: keep(rep.stack - f.put[pr.player]) } };
   }
-  return { steps, now: { hero: pr.hero, toCall: pr.bet, pot: pr.pot, behind: behind != null && behind >= 0 ? behind : null } };
+  return { steps, now: { street: "Flop", pot: rep.pot, line: flopLine ? `${flopLine}${pr.bet ? ` (${fmt(pr.bet)}bb)` : ""}` : "", hero: pr.hero, toCall: pr.bet, behind: keep(rep.stack) } };
 }
 
 /** the same node in Study: the preflop line, the shown board and the action to the node */

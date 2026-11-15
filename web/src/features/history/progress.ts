@@ -61,12 +61,14 @@ export function keptCells(s: SessionRecord): GradeCell[] | null {
 }
 
 /** A session's cells: a Practice session's as kept (null: played before they were kept; none where they add up to more
- * decisions than it graded, as no real session's do), a drill's from its totals: a flop drill's the flop library's by EV,
+ * decisions than it graded, as no real session's do), an any-spot drill's as kept, another drill's from its totals: a flop drill's the flop library's by EV,
  * a turn drill's the stored turn's by frequency. Any other kind has none. */
 export function cellsOf(s: SessionRecord): GradeCell[] | null {
   const m = s.meta ?? {};
   if (s.kind === "practice") return keptCells(s);
   if (s.kind === "drill" && num(s.decisions) > 0) {
+    // (an any-spot session keeps its cells: it deals flops, turns, rivers and preflop, each graded its own way)
+    if (s.meta?.cells) return keptCells(s);
     const n = num(s.decisions);
     // (a turn drill's mark: it's graded by the stored mix, with no EV)
     if (m.street === "turn") return [{ street: "turn", source: "library-turn", byEv: false, n, ok: num(m.ok), loss: 0, lossPct: 0, ...readVersions(m.versions) }];

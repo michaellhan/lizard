@@ -133,6 +133,15 @@ export function pfPlayed(spot: PfSpot, m: Move, asked: PfAsked | undefined): PfR
   return { data: asOptions(read, actions, actions.map((_, i) => i)), provenance: read.provenance };
 }
 
+/** A drill's spot (PreflopDrill): its options are the node's own, so all there is to read is the node and your class. */
+export function pfNodeRead(asked: PfAsked | undefined, seat: string, hole: string): PfRead {
+  const read = readNode(asked, seat, hole);
+  if ("why" in read) return read;
+  const actions = read.node.actions ?? [];
+  if (!actions.length) return chart("The solve has no actions here.");
+  return { data: asOptions(read, actions, actions.map((_, i) => i)), provenance: read.provenance };
+}
+
 /** What a decision at this spot is graded on: the solve's answer where it reads, else the chart's, with why. */
 export function gradedOn(h: PracticeHand, held: HeldAnswer, sim: Sim = simOf(h)): Pick<SolveResult, "data" | "provenance"> & { pfWhy?: string } {
   if (!h.pfSolve || sim.current !== "preflop") return held;

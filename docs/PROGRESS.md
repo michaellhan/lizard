@@ -5198,3 +5198,32 @@ with its chart and blockers, then the EV comparison), and most tools were hidden
 - Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,625 passed (new unit tests
   for the preflop words, a flop, a turn with a raise on the flop and the stack after it); in the browser on BTN vs BB,
   BB 3-bet vs BTN, the limped heads-up spot and a stored turn, and at 375 px wide with no horizontal scroll.
+
+### 2026-11-15: drill rows named by street; Any spot deals turns too
+
+- The highlighted row is named by the street you act on (Flop or Turn) in place of "Now", and holds that street's pot
+  and action so far, then who acts by seat ("UTG checks · BTN to act · 97.5bb behind"; "(you)" dropped), the price of a
+  call and the stack behind. `story` returns the streets before as steps and the one you act on as `now`.
+- Any spot deals a stored turn decision (first to act, or in position after a check) on 40% of the draws whose spot
+  stores turns, still read from the library with no solve. Preflop and river decisions aren't in it yet: the river is
+  a live solve, and preflop would grade by the stored preflop model through the solver.
+- Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,626 passed (a test that
+  any spot deals a turn with its row named Turn); in the browser, a chosen spot's flop row, and twelve any-spot hands
+  of which two were turns.
+
+### 2026-11-15: Any spot deals preflop, live turns and rivers
+
+- Preflop: on a spot whose game's preflop solve the worker stores (2 to 6 players, the stored depths, no ante or
+  straddle) and with no filter set, a fifth of the draws are a decision on the spot's preflop line (every seat's, the
+  folds before the raise too). The node is asked of the stored preflop solve once a page (`pfDrill.ts`,
+  `PreflopDrill.tsx`, `pfGrade.ts` `pfNodeRead`), a hand dealt from the range that reaches it (classes always folded
+  there a fifth as often), graded by EV under the solve's badge and PF_MODEL's label, every grade capped at Inaccuracy.
+  A node the solve can't grade by (off its sizes, a rare line) is not dealt again.
+- Live: on spots whose turns are stored, a turn facing a bet (10%) or a river (12%) is a live solve in the any-spot
+  session; the stored turn is 30%. `LiveDrill` takes the any-spot session (`shared`) as `SpotDrill` does.
+- The any-spot session keeps grades by street and source (`anySession.ts`); History lists what graded it with counts and
+  splits EV, the preflop solve and frequency. Live and preflop hands tell the hand so far a street a line
+  (`liveStory`, `pfStory`, shared `HandStory.tsx`); a live turn row keeps the bet's pot share ("bets 75% (4bb)").
+- Not done: preflop mistakes aren't kept for review, and preflop isn't a Decision for a chosen spot.
+- Checked: tsc and eslint clean; vitest for practice, history, plan, saved, review and app, 1,634 passed; in Chromium against the real worker, 30 any-spot hands: 9 preflop, a
+  river solved live, stored turns and flops, one live turn refused in words; History's row for the session.
