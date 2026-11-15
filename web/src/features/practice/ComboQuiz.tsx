@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PlayingCard } from "@/components/PlayingCard";
 import { kvGet, kvSet } from "@/data/db";
 import { listRanges } from "@/data/saved";
+import { ComboHelp } from "./ComboHelp";
 import { isNextKey } from "./keys";
 import { Kbd } from "./HintReveal";
 import { useHandKeys } from "./PracticeParts";
@@ -71,6 +72,8 @@ export function ComboQuiz({ rand = Math.random, active = true }: { rand?: () => 
   const [picked, setPicked] = useState<number | null>(null);
   const [helped, setHelped] = useState(false);
   const [countsOpen, setCountsOpen] = useState(false);
+  /** the "?": how a count is worked out, with examples (stays open from question to question) */
+  const [helpOpen, setHelpOpen] = useState(false);
   const [stats, setStats] = useState<QuizStats>(emptyStats);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -242,7 +245,20 @@ export function ComboQuiz({ rand = Math.random, active = true }: { rand?: () => 
             </section>
 
             <section aria-label="Question" className="space-y-3 panel p-3">
-              <p className="font-medium">{question(q)}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium">{question(q)}</p>
+                <button
+                  type="button"
+                  aria-label="How the counting works"
+                  title="How the counting works"
+                  aria-expanded={helpOpen}
+                  onClick={() => setHelpOpen((x) => !x)}
+                  className={`size-7 shrink-0 rounded-full border text-sm font-medium ${helpOpen ? "border-accent bg-accent/15 text-accent" : "border-border text-muted hover:bg-surface-2"}`}
+                >
+                  ?
+                </button>
+              </div>
+              {helpOpen && <ComboHelp />}
               <div role="group" aria-label="Choices" className="flex flex-wrap gap-2">
                 {q.options.map((o, i) => {
                   const right = picked !== null && Math.abs(o - q.answer) < 0.005;

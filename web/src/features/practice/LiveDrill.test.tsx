@@ -128,7 +128,7 @@ describe("a live drill", () => {
     open("spot=srp_btn_bb&street=turn&view=checkfaces");
     const opts = await options();
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB checks the turn, faces a bet");
-    expect(within(screen.getByRole("combobox", { name: "Decision" })).getAllByRole("option").map((o) => o.textContent)).toEqual(["BB first to act on the turn", "BTN after BB checks the turn", "BB checks the turn, faces a bet", "BTN faces BB's turn bet"]);
+    expect(within(within(screen.getByRole("combobox", { name: "Decision" })).getByRole("group", { name: "Turn" })).getAllByRole("option").map((o) => o.textContent)).toEqual(["BB first to act on the turn", "BTN after BB checks the turn", "BB checks the turn, faces a bet", "BTN faces BB's turn bet"]);
     expect(within(opts).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""))).toEqual(["fold", "call 4.13bb"]);
     expect(screen.getByText(/BB checks the turn, BTN bets 75% \(.*bb\) · pot/)).toBeInTheDocument();
     expect(stub.asked[0]!.state.turn).toEqual([{ pos: "BB", action: "check" }, { pos: "BTN", action: "bet", to: expect.any(Number) }]);
@@ -196,7 +196,7 @@ describe("a live drill", () => {
   it("says a spot with no stored turns can't deal a river", async () => {
     open("spot=srp_co_bb&street=river");
     expect(await screen.findByText(/stores no turn: pick another spot\./, undefined, { timeout: 5000 })).toBeInTheDocument();
-    expect(within(screen.getByRole("combobox", { name: "Street" })).getByRole("option", { name: "River (needs this spot's stored turns)" })).toBeDisabled();
+    expect(within(screen.getByRole("group", { name: "River (needs this spot's stored turns)" })).getAllByRole("option").every((o) => (o as HTMLOptionElement).disabled)).toBe(true);
     expect(stub.asked).toEqual([]);
   });
 
@@ -215,7 +215,6 @@ describe("a live drill", () => {
     cleanup();
     open(to.slice("/practice?tab=drills&".length));
     await options();
-    expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("River (live solve)");
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BTN after BB checks the river");
   });
 
@@ -226,9 +225,9 @@ describe("a live drill", () => {
     expect(stub.asked).toEqual([]);
     cleanup();
     open("spot=srp_btn_bb");
-    fireEvent.change(await screen.findByRole("combobox", { name: "Street" }, { timeout: 5000 }), { target: { value: "river" } });
+    fireEvent.change(await screen.findByRole("combobox", { name: "Decision" }, { timeout: 5000 }), { target: { value: "river|oop" } });
     expect(await screen.findByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB first to act on the river");
     await options();
-    expect(within(screen.getByRole("combobox", { name: "Decision" })).getAllByRole("option")).toHaveLength(2);
+    expect(within(screen.getByRole("group", { name: "River (live solve)" })).getAllByRole("option")).toHaveLength(2);
   });
 });

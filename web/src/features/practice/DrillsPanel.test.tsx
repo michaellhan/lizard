@@ -30,6 +30,50 @@ const open = (q: string) =>
 const suitOf = (img: HTMLElement) => img.getAttribute("aria-label")!.split(" of ")[1];
 
 describe("DrillsPanel", () => {
+  it("drills any spot by default: a spot and decision drawn each hand, one score over them, kept as an any-spot session", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?tab=drills"]}>
+        <DrillsPanel files={new LibraryFiles("lib/", fakeFetch)} rng={seeded(3)} />
+      </MemoryRouter>,
+    );
+    const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
+    expect(screen.getByRole("combobox", { name: "Spot" })).toHaveDisplayValue("Any spot");
+    expect(screen.queryByRole("combobox", { name: "Decision" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Filters/ })).toHaveAttribute("aria-expanded", "false");
+    // the spot drawn named over the hand
+    expect(screen.getByText(/ · (\w+ first to act|\w+ after \w+ checks|\w+ checks, faces a bet|\w+ faces \w+'s bet)$/)).toBeInTheDocument();
+    fireEvent.click(within(options).getAllByRole("button")[0]!);
+    const score = () => within(screen.getByRole("region", { name: "Score" }));
+    expect(score().getByText("Decisions").nextSibling).toHaveTextContent(/^1$/);
+    await waitFor(async () => expect((await recentSessions("drill")).some((s) => s.meta.spot === "any" && s.meta.label === "Any spot" && s.decisions === 1)).toBe(true));
+
+    // the next hand keeps the score
+    fireEvent.click(screen.getByRole("button", { name: /Next hand/ }));
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled(), { timeout: 5000 });
+    fireEvent.keyDown(window, { key: "1" });
+    await screen.findByRole("region", { name: "Answer" }, { timeout: 5000 });
+    expect(score().getByText("Decisions").nextSibling).toHaveTextContent(/^2$/);
+
+    // the filters open from one button, and a texture set there is drawn
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Suits" }), { target: { value: "mono" } });
+    expect(screen.getByRole("button", { name: /^Filters · 1/ })).toBeInTheDocument();
+    // (a filter changed deals afresh)
+    await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled(), { timeout: 5000 });
+    expect(new Set(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img").map(suitOf)).size).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByRole("button", { name: /^Filters/ }).textContent).not.toMatch(/·/);
+  });
+
+  it("says when no spot drawn has a flop under the filters", async () => {
+    render(
+      <MemoryRouter initialEntries={["/practice?tab=drills&pair=trips&suits=twotone&hand=m:quads"]}>
+        <DrillsPanel files={new LibraryFiles("lib/", fakeFetch)} rng={seeded(3)} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/^None of \d+ spots drawn has a flop with these filters: widen one\./, undefined, { timeout: 10_000 })).toBeInTheDocument();
+  });
+
   it("deals a hand at the spot's node, grades your pick against the stored answer, and deals again on a key", async () => {
     open("spot=srp_btn_bb&view=oop");
     const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
@@ -37,7 +81,10 @@ describe("DrillsPanel", () => {
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
     expect(within(screen.getByRole("group", { name: "Your cards" })).getAllByRole("img")).toHaveLength(2);
     expect(screen.getByText("BB to act first · pot 5.5bb")).toBeInTheDocument();
-    expect(screen.getByText(/7 flops stored; 7 store this decision\./)).toBeInTheDocument();
+    // (what the library stores is said only under a filter)
+    expect(screen.queryByText(/flops stored/)).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Spot" })).toHaveDisplayValue("BTN vs BB single-raised pot");
+    expect(screen.queryByRole("combobox", { name: "Hands" })).toBeNull();
 
     fireEvent.click(within(options).getByRole("button", { name: "check" }));
     const answer = screen.getByRole("region", { name: "Answer" });
@@ -163,15 +210,14 @@ describe("DrillsPanel", () => {
     open("spot=srp_btn_bb&street=turn&view=oop");
     const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(4);
-    expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("Turn");
     expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB first to act on the turn");
-    expect(within(screen.getByRole("combobox", { name: "Decision" })).getAllByRole("option")).toHaveLength(4);
+    expect(within(screen.getByRole("group", { name: "Turn" })).getAllByRole("option")).toHaveLength(4);
     expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, "").replace(/ \(.*/, ""))).toEqual(["check", "bet 75%"]);
     expect(screen.getByText(/^On the flop .*\. BB to act first on the turn · pot \d+(\.\d+)?bb$/)).toBeInTheDocument();
-    expect(screen.getByText(/7 flops stored; 7 store their turns\./)).toBeInTheDocument();
+    expect(screen.queryByText(/store their turns/)).toBeNull();
     expect(asked.slice(before).some((p) => p.endsWith(".turn.bin"))).toBe(true);
     // (the river is a live drill, which this stored one reads nothing of)
-    expect(within(screen.getByRole("combobox", { name: "Street" })).getByRole("option", { name: "River (live solve)" })).toBeEnabled();
+    expect(within(screen.getByRole("group", { name: "River (live solve)" })).getByRole("option", { name: "BB first to act on the river" })).toBeEnabled();
 
     fireEvent.click(within(options).getByRole("button", { name: /^.?check$/ }));
     const answer = screen.getByRole("region", { name: "Answer" });
@@ -197,7 +243,7 @@ describe("DrillsPanel", () => {
     const before = asked.length;
     open("spot=srp_co_bb&street=turn");
     await screen.findByText(/stores no turn in this library: pick another spot, or the flop\./, undefined, { timeout: 5000 });
-    expect(within(screen.getByRole("combobox", { name: "Street" })).getByRole("option", { name: "Turn (none stored for this spot)" })).toBeDisabled();
+    expect(within(screen.getByRole("group", { name: "Turn (none stored for this spot)" })).getAllByRole("option").every((o) => (o as HTMLOptionElement).disabled)).toBe(true);
     expect(asked.slice(before).filter((p) => p.endsWith(".bin"))).toEqual([]);
   });
 
@@ -237,7 +283,8 @@ describe("DrillsPanel", () => {
     cleanup();
     open(to.slice("/practice?tab=drills&".length));
     await waitFor(() => expect(screen.getByRole("button", { name: "★ Saved drill" })).toBeInTheDocument(), { timeout: 5000 });
-    expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("Turn");
+    expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BTN after BB checks the turn");
+    expect(screen.getByRole("button", { name: /^Filters · 2/ })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("combobox", { name: "Hands" })).toHaveDisplayValue("Gutshot");
     expect(screen.getByRole("combobox", { name: "Suits" })).toHaveDisplayValue("Monotone");
   });
@@ -248,7 +295,7 @@ describe("DrillsPanel", () => {
     open("spot=srp_btn_bb&view=ip&pair=unpaired");
     await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
     expect(await screen.findByRole("button", { name: "★ Saved drill" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("Flop");
+    expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BTN after BB checks");
     expect(screen.getByRole("combobox", { name: "Hands" })).toHaveDisplayValue("Any");
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
     await deleteDrill("old");
@@ -257,7 +304,10 @@ describe("DrillsPanel", () => {
   it("a street or hand the URL can't mean is ignored; a turn with a flop's facing-a-bet decision starts out of position", async () => {
     open("spot=srp_btn_bb&street=moon&view=oop&hand=m:nonsense");
     await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
-    expect(screen.getByRole("combobox", { name: "Street" })).toHaveDisplayValue("Flop");
+    expect(screen.getByRole("combobox", { name: "Decision" })).toHaveDisplayValue("BB first to act");
+    // (no filter set, so they stay folded)
+    expect(screen.getByRole("button", { name: /^Filters/ })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
     expect(screen.getByRole("combobox", { name: "Hands" })).toHaveDisplayValue("Any");
     cleanup();
     open("spot=srp_btn_bb&street=turn&view=vsbet");

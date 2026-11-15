@@ -5443,3 +5443,20 @@ incorrect). Lizard had the counts as information (Study's breakdown and blockers
   question is dealt in the browser, free). Committed on its own (26b570a), without the other uncommitted work in the tree, then applied
   alone on origin/main (1fedcd1) and pushed, which deployed it; the two docs' summary counts and log were merged by hand.
   The precompute builds were left alone.
+
+### 2026-11-14: Drills default to any spot, filters folded; the Combos tab explains its counting
+
+- Drills (`DrillsPanel.tsx`): no `spot` in the URL means Any spot. Each hand draws a drillable spot and one of the four
+  flop decisions (stored answers only, so nothing is solved), the spot and decision said over the hand, with one score
+  over the session. A spot with nothing under the filters is passed over; after 16 such draws in a row the page says
+  so. The session is kept with spot `any` and label "Any spot": History's "Drill it again" opens Any spot, and lessons
+  and plans, which match a spot and decision, don't count it.
+- The bar went from eight selects to Spot, Filters and Save drill. Street and Decision are one Decision select grouped
+  by street, shown once a spot is picked. Texture and hands fold behind Filters, which shows how many are set and opens
+  from the start when the URL sets one, with Clear filters. The "N flops stored" line shows only under a filter. URL
+  parameters are unchanged, so saved drills and old links open as they were.
+- Combos (`ComboHelp.tsx`): a ? beside the question opens how a count is worked out and four worked questions on
+  A♠K♣ / 5♣A♦J♥, each solution folded until asked for; `ComboHelp.test.tsx` checks each answer against `combos.ts`.
+- Checked: tsc and eslint clean; vitest for practice, history, plan, saved and app, 1,497 passed; in the browser,
+  any-spot drills over two spots with the score kept, the filters opened, a chosen spot's Decision select, and the
+  Combos explainer with a solution opened.

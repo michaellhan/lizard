@@ -109,7 +109,8 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   }, [files, choice]);
 
   const spots = useMemo(() => (lib.st === "ready" ? lib.index.spots.filter(isDrillable) : []), [lib]);
-  const spot = spots.find((s) => s.id === params.get("spot")) ?? spots[0];
+  // no spot asked for (or one this library doesn't hold): any spot, a new one each hand
+  const spot = spots.find((s) => s.id === params.get("spot")) ?? null;
   const street: DrillStreet | "river" = params.get("street") === "turn" ? "turn" : params.get("street") === "river" ? "river" : "flop";
   const asked = params.get("view");
   // (a turn file stores only two decisions and the rest of the turn is live; a flop drill's setting stays in the URL for coming back to the flop)
@@ -118,13 +119,19 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
   const view = live ?? stored;
   const hand = isHandKey(params.get("hand")) ? params.get("hand") : null;
   const filter: TextureFilter = Object.fromEntries(TEXTURE_GROUPS.flatMap((g) => (params.get(g.key) ? [[g.key, params.get(g.key)!]] : [])));
-  const set = (k: string, v: string | null) =>
+  const active = TEXTURE_GROUPS.filter((g) => filter[g.key]).length + (hand ? 1 : 0);
+  // the filters fold away; open from the start when the URL sets one
+  const [showFilters, setShowFilters] = useState(active > 0);
+  const edit = (ch: Record<string, string | null>) =>
     setParams((p) => {
       const q = new URLSearchParams(p);
-      if (v) q.set(k, v);
-      else q.delete(k);
+      for (const [k, v] of Object.entries(ch)) {
+        if (v) q.set(k, v);
+        else q.delete(k);
+      }
       return q;
     });
+  const set = (k: string, v: string | null) => edit({ [k]: v });
 
   if (lib.st === "loading") return <p className="text-sm text-muted">Loading the library&rsquo;s index…</p>;
   if (lib.st === "error")
@@ -133,29 +140,44 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
         Couldn&rsquo;t read the library: {lib.message}
       </p>
     );
-  if (!spot) return <p className="text-sm text-muted">This library has no two-player spot to drill.</p>;
-  // the drill as set, to keep (Saved): the spot named, not left to the first
-  const link = new URLSearchParams({ tab: "drills", spot: spot.id, view });
-  if (street !== "flop") link.set("street", street);
+  if (!spots.length) return <p className="text-sm text-muted">This library has no two-player spot to drill.</p>;
+  // the drill as set, to keep (Saved): the spot named, or any spot
+  const link = new URLSearchParams({ tab: "drills" });
+  if (spot) {
+    link.set("spot", spot.id);
+    link.set("view", view);
+    if (street !== "flop") link.set("street", street);
+  }
   for (const g of TEXTURE_GROUPS) if (filter[g.key]) link.set(g.key, filter[g.key]!);
   if (hand) link.set("hand", hand);
-  const labelOf = (v: DrillView | LiveView) =>
-    street === "river" || LIVE_TURN_VIEWS.includes(v as LiveView) ? liveViewLabel(street === "river" ? "river" : "turn", v as LiveView, spot.seats) : street === "turn" ? turnViewLabel(v as DrillView, spot.seats) : viewLabel(v as DrillView, spot.seats);
+  const labelOf = (st: DrillStreet | "river", v: DrillView | LiveView, seats: readonly string[]) =>
+    st === "river" || (st === "turn" && LIVE_TURN_VIEWS.includes(v as LiveView)) ? liveViewLabel(st === "river" ? "river" : "turn", v as LiveView, seats) : st === "turn" ? turnViewLabel(v as DrillView, seats) : viewLabel(v as DrillView, seats);
   const about = [
-    `${spot.label}${spot.game ? ` (${gameLabel(spot)})` : ""}`,
-    labelOf(view),
+    spot ? `${spot.label}${spot.game ? ` (${gameLabel(spot)})` : ""}` : "Any spot",
+    ...(spot ? [labelOf(street, view, spot.seats)] : []),
     ...TEXTURE_GROUPS.flatMap((g) => (filter[g.key] ? [g.values[filter[g.key]!] ?? filter[g.key]!] : [])),
     ...(hand ? [handLabel(hand)] : []),
   ].join(" · ");
-  const hasTurns = storedTurnFlops(spot).length > 0;
+  const hasTurns = spot ? storedTurnFlops(spot).length > 0 : false;
+  const select = "rounded border border-border bg-surface-2 px-1.5 py-1";
+  const decisions: { street: DrillStreet | "river"; label: string; views: readonly (DrillView | LiveView)[]; off: boolean }[] = [
+    { street: "flop", label: "Flop", views: DRILL_VIEWS, off: false },
+    { street: "turn", label: hasTurns ? "Turn" : "Turn (none stored for this spot)", views: [...TURN_VIEWS, ...LIVE_TURN_VIEWS], off: !hasTurns },
+    { street: "river", label: hasTurns ? "River (live solve)" : "River (needs this spot's stored turns)", views: RIVER_VIEWS, off: !hasTurns },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start gap-2">
-        <form aria-label="Drill" className="flex flex-1 flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
-          <label className="flex items-center gap-1">
-            <span className="text-muted">Spot</span>
-            <select aria-label="Spot" value={spot.id} onChange={(e) => set("spot", e.target.value)} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-start gap-2">
+          <form aria-label="Drill" className="flex flex-1 flex-wrap items-center gap-2 text-sm" onSubmit={(e) => e.preventDefault()}>
+            <select
+              aria-label="Spot"
+              value={spot?.id ?? ""}
+              onChange={(e) => (e.target.value ? set("spot", e.target.value) : edit({ spot: null, street: null, view: null }))}
+              className={`max-w-[18rem] ${select}`}
+            >
+              <option value="">Any spot</option>
               {spots.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}
@@ -163,61 +185,80 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex items-center gap-1">
-            <span className="text-muted">Street</span>
-            <select aria-label="Street" value={street} onChange={(e) => set("street", e.target.value === "flop" ? null : e.target.value)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
-              <option value="flop">Flop</option>
-              <option value="turn" disabled={!hasTurns}>
-                {hasTurns ? "Turn" : "Turn (none stored for this spot)"}
-              </option>
-              <option value="river" disabled={!hasTurns}>
-                {hasTurns ? "River (live solve)" : "River (needs this spot's stored turns)"}
-              </option>
-            </select>
-          </label>
-          <label className="flex items-center gap-1">
-            <span className="text-muted">Decision</span>
-            <select aria-label="Decision" value={view} onChange={(e) => set("view", e.target.value)} className="max-w-[16rem] rounded border border-border bg-surface-2 px-1.5 py-1">
-              {(street === "river" ? RIVER_VIEWS : street === "turn" ? [...TURN_VIEWS, ...LIVE_TURN_VIEWS] : DRILL_VIEWS).map((v) => (
-                <option key={v} value={v}>
-                  {labelOf(v)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {TEXTURE_GROUPS.map((g) => (
-            <label key={g.key} className="flex items-center gap-1">
-              <span className="text-muted">{g.label}</span>
-              <select aria-label={g.label} value={filter[g.key] ?? ""} onChange={(e) => set(g.key, e.target.value || null)} className="rounded border border-border bg-surface-2 px-1.5 py-1">
+            {spot && (
+              <select
+                aria-label="Decision"
+                value={`${street}|${view}`}
+                onChange={(e) => {
+                  const [st, v] = e.target.value.split("|");
+                  edit({ street: st === "flop" ? null : st!, view: v! });
+                }}
+                className={`max-w-[18rem] ${select}`}
+              >
+                {decisions.map((d) => (
+                  <optgroup key={d.street} label={d.label}>
+                    {d.views.map((v) => (
+                      <option key={v} value={`${d.street}|${v}`} disabled={d.off}>
+                        {labelOf(d.street, v, spot.seats)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              aria-expanded={showFilters}
+              aria-controls="drill-filters"
+              onClick={() => setShowFilters((x) => !x)}
+              className={`rounded border px-2 py-1 hover:bg-surface-3 ${active ? "border-accent text-accent" : "border-border text-muted"}`}
+            >
+              Filters{active ? ` · ${active}` : ""} {showFilters ? "▴" : "▾"}
+            </button>
+          </form>
+          <SaveDrill kind="library" to={`/practice?${link}`} about={about} />
+        </div>
+        {showFilters && (
+          <div id="drill-filters" role="group" aria-label="Filters" className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 p-2 text-sm">
+            {TEXTURE_GROUPS.map((g) => (
+              <label key={g.key} className="flex items-center gap-1">
+                <span className="text-muted">{g.label}</span>
+                <select aria-label={g.label} value={filter[g.key] ?? ""} onChange={(e) => set(g.key, e.target.value || null)} className={select}>
+                  <option value="">Any</option>
+                  {Object.entries(g.values).map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <label className="flex items-center gap-1">
+              <span className="text-muted">Hands</span>
+              <select aria-label="Hands" value={hand ?? ""} onChange={(e) => set("hand", e.target.value || null)} className={`max-w-[12rem] ${select}`}>
                 <option value="">Any</option>
-                {Object.entries(g.values).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
+                {HAND_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.options.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
-          ))}
-          <label className="flex items-center gap-1">
-            <span className="text-muted">Hands</span>
-            <select aria-label="Hands" value={hand ?? ""} onChange={(e) => set("hand", e.target.value || null)} className="max-w-[12rem] rounded border border-border bg-surface-2 px-1.5 py-1">
-              <option value="">Any</option>
-              {HAND_GROUPS.map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.options.map((o) => (
-                    <option key={o.key} value={o.key}>
-                      {o.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-        </form>
-        <SaveDrill kind="library" to={`/practice?${link}`} about={about} />
+            {active > 0 && (
+              <button type="button" onClick={() => edit({ ...Object.fromEntries(TEXTURE_GROUPS.map((g) => [g.key, null])), hand: null })} className="text-xs text-accent hover:underline">
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
-      {live ? (
+      {!spot ? (
+        <AnyDrill files={lib.files} spots={spots} tree={lib.index.tree} filter={filter} hand={hand} rng={rng} source={lib.label} />
+      ) : live ? (
         <LiveDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} street={street as LiveStreet} view={live} filter={filter} hand={hand} rng={rng} source={lib.label} />
       ) : (
         <SpotDrill key={`${spot.id}|${street}|${view}`} files={lib.files} spot={spot} tree={lib.index.tree} street={street as DrillStreet} view={stored} filter={filter} hand={hand} rng={rng} source={lib.label} />
@@ -256,7 +297,17 @@ interface DrillSession {
   byDeal?: Record<string, { n: number; ok: number }>;
 }
 
-const toRecord = (s: DrillSession, spot: LibrarySpotIndex, street: DrillStreet, view: DrillView): SessionRecord => ({
+const newSession = (): DrillSession => ({
+  id: `drill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+  startedAt: Date.now(),
+  score: emptyScore(),
+  versions: {},
+});
+
+/** an any-spot session's spot and decision in its record: many of both, so neither a lesson nor a plan's drill counts it */
+const ANY_SPOT = "any";
+
+const toRecord = (s: DrillSession, spot: { id: string; label: string }, street: DrillStreet, view: string): SessionRecord => ({
   id: s.id,
   kind: "drill",
   startedAt: s.startedAt,
@@ -273,7 +324,106 @@ type Counted = { key: string } & ({ st: "done"; read: number; c: DealCount } | {
 /** the draws of a filter that can hold its hands, once looked through */
 type Screened = { key: string; cands: Candidate[] };
 
-/** One spot's decision drilled: mounted afresh (a new score) for each spot, street and decision. */
+/** A session's score, over its graded decisions. */
+function ScoreBar({ session }: { session: DrillSession }) {
+  const sum = summary(session.score);
+  const s = session.score;
+  const item = (label: string, value: string) => (
+    <div className="rounded bg-surface-2 px-2 py-1">
+      <div className="text-xs text-muted">{label}</div>
+      <div className="font-mono">{value}</div>
+    </div>
+  );
+  return (
+    <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
+      {item("Decisions", String(s.n))}
+      {item("Best or correct", s.n ? pct(sum.acc, 0) : "–")}
+      {item("EV lost per decision", sum.loss == null || !s.n ? "–" : `${bb(sum.loss)}bb · ${sum.lossPct!.toFixed(1)}% pot`)}
+      {item("Streak", `${s.streak} (best ${s.best})`)}
+      {!!session.revealed && (
+        <p className="basis-full text-xs text-muted">
+          {session.revealed} revealed pick{session.revealed === 1 ? "" : "s"} not graded.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** what an any-spot drill lends the spot it drew for a hand: its session, the next draw, and the screened flops so far */
+interface Shared {
+  session: DrillSession;
+  setSession: (f: (s: DrillSession) => DrillSession) => void;
+  next: () => void;
+  /** the spot drawn has nothing under the filters: draw another */
+  skip: () => void;
+  screens: Map<string, Candidate[]>;
+}
+
+/** draws in a row with nothing under the filters before an any-spot drill says so */
+const ANY_TRIES = 16;
+
+/** Any spot: each hand a spot and a flop decision drawn afresh (the stored ones only, so each answer is there at once),
+ * one score over all of them. */
+function AnyDrill({ files, spots, tree, filter, hand, rng, source }: { files: LibraryFiles; spots: LibrarySpotIndex[]; tree: unknown; filter: TextureFilter; hand: string | null; rng: () => number; source: string }) {
+  const [session, setSession] = useState<DrillSession>(newSession);
+  const draw = useCallback(() => ({ spot: spots[Math.floor(rng() * spots.length)]!, view: DRILL_VIEWS[Math.floor(rng() * DRILL_VIEWS.length)]! }), [spots, rng]);
+  const [at, setAt] = useState(draw);
+  const [round, setRound] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const [past, setPast] = useState<SessionRecord[]>([]);
+  const [screens] = useState(() => new Map<string, Candidate[]>());
+  // a filter changed: the draws start counting again
+  const filterKey = JSON.stringify([filter, hand]);
+  const [seen, setSeen] = useState(filterKey);
+  if (seen !== filterKey) {
+    setSeen(filterKey);
+    setMisses(0);
+  }
+  const next = useCallback(() => {
+    setMisses(0);
+    setAt(draw());
+    setRound((r) => r + 1);
+  }, [draw]);
+  const skip = useCallback(() => {
+    setMisses((m) => m + 1);
+    setAt(draw());
+    setRound((r) => r + 1);
+  }, [draw]);
+  const shared = useMemo(() => ({ session, setSession, next, skip, screens }), [session, next, skip, screens]);
+
+  useEffect(() => {
+    let alive = true;
+    void recentSessions("drill", 12)
+      .then((xs) => alive && setPast(xs.filter((x) => x.meta.spot === ANY_SPOT).slice(0, 5)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (session.score.n) void putSession(toRecord(session, { id: ANY_SPOT, label: "Any spot" }, "flop", ANY_SPOT)).catch(() => {});
+  }, [session]);
+
+  return (
+    <div className="space-y-4">
+      <ScoreBar session={session} />
+      {misses >= ANY_TRIES ? (
+        <p role="status" className="panel p-3 text-sm text-muted">
+          None of {ANY_TRIES} spots drawn has a flop with these filters: widen one.{" "}
+          <button type="button" className="text-accent underline" onClick={next}>
+            Draw again
+          </button>
+        </p>
+      ) : (
+        <SpotDrill key={round} files={files} spot={at.spot} tree={tree} street="flop" view={at.view} filter={filter} hand={hand} rng={rng} source={source} shared={shared} />
+      )}
+      <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />
+    </div>
+  );
+}
+
+/** One spot's decision drilled: mounted afresh (a new score) for each spot, street and decision; or, under an any-spot
+ * drill (`shared`), for each hand, its score and past sessions the any-spot drill's. */
 function SpotDrill({
   files,
   spot,
@@ -284,6 +434,7 @@ function SpotDrill({
   hand,
   rng,
   source,
+  shared,
 }: {
   files: LibraryFiles;
   spot: LibrarySpotIndex;
@@ -295,15 +446,13 @@ function SpotDrill({
   hand: string | null;
   rng: () => number;
   source: string;
+  shared?: Shared;
 }) {
   const mode = useSettings((s) => s.mode);
   const [data, setData] = useState<SpotData>({ st: "loading" });
-  const [session, setSession] = useState<DrillSession>(() => ({
-    id: `drill-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
-    startedAt: Date.now(),
-    score: emptyScore(),
-    versions: {},
-  }));
+  const [own, setOwn] = useState<DrillSession>(newSession);
+  const session = shared?.session ?? own;
+  const setSession = shared?.setSession ?? setOwn;
   const [n, setN] = useState(0);
   const [deal, setDeal] = useState<Deal>({ key: "", st: "dealing" });
   /** your pick: `g`, null where you'd seen the answer first */
@@ -311,7 +460,13 @@ function SpotDrill({
   /** the deal whose answer you've seen */
   const [peeked, setPeeked] = useState<string | null>(null);
   const [counted, setCounted] = useState<Counted | null>(null);
-  const [screened, setScreened] = useState<Screened | null>(null);
+  const filterKey = JSON.stringify([filter, hand]);
+  const screenKey = `${spot.id}|${view}|${filterKey}`;
+  // (an any-spot drill keeps what it screened, as the same spot comes round again)
+  const [screened, setScreened] = useState<Screened | null>(() => {
+    const kept = shared?.screens.get(screenKey);
+    return kept ? { key: filterKey, cands: kept } : null;
+  });
   const [past, setPast] = useState<SessionRecord[]>([]);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -321,15 +476,15 @@ function SpotDrill({
       (d) => alive && setData({ st: "ready", ...d }),
       (e: unknown) => alive && setData({ st: "error", message: message(e) }),
     );
-    void recentSessions("drill", 12)
-      .then((xs) => alive && setPast(xs.filter((x) => x.meta.spot === spot.id && x.meta.view === view && (x.meta.street ?? "flop") === street).slice(0, 5)))
+    if (!shared)
+      void recentSessions("drill", 12)
+        .then((xs) => alive && setPast(xs.filter((x) => x.meta.spot === spot.id && x.meta.view === view && (x.meta.street ?? "flop") === street).slice(0, 5)))
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [files, spot, street, view]);
+  }, [files, spot, street, view, shared]);
 
-  const filterKey = JSON.stringify([filter, hand]);
   // the draws of the texture; then, on a flop, those that can hold the hands asked for (a turn's cards aren't known yet)
   const stored = useMemo(
     () => (data.st !== "ready" ? [] : street === "turn" ? turnCandidates(data.report, storedTurnFlops(spot), filter) : candidates(data.report, view, filter)),
@@ -341,7 +496,7 @@ function SpotDrill({
   const dealKey = `${filterKey}|${n}`;
 
   useEffect(() => {
-    if (data.st !== "ready" || !hand || street !== "flop") return;
+    if (data.st !== "ready" || !hand || street !== "flop" || screened?.key === filterKey) return;
     let alive = true;
     void (async () => {
       const out: Candidate[] = [];
@@ -350,12 +505,13 @@ function SpotDrill({
         await new Promise((go) => setTimeout(go));
         if (!alive) return;
       }
+      shared?.screens.set(screenKey, out);
       setScreened({ key: filterKey, cands: out });
     })();
     return () => {
       alive = false;
     };
-  }, [data, stored, filterKey, hand, street, view]);
+  }, [data, stored, filterKey, hand, street, view, shared, screenKey, screened]);
 
   // a hand dealt: a (flop, node) drawn by weight, its entry read, a hand drawn from the range there
   useEffect(() => {
@@ -387,7 +543,7 @@ function SpotDrill({
 
   // how many deals a hand filter leaves, on a sample of the flops (a spot's every file would be hundreds of fetches)
   useEffect(() => {
-    if (data.st !== "ready" || !hand || !cands.length) return;
+    if (data.st !== "ready" || !hand || !cands.length || shared) return;
     let alive = true;
     void (async () => {
       try {
@@ -411,11 +567,18 @@ function SpotDrill({
     return () => {
       alive = false;
     };
-  }, [data, cands, filterKey, files, spot, street, view, hand]);
+  }, [data, cands, filterKey, files, spot, street, view, hand, shared]);
 
   useEffect(() => {
-    if (session.score.n) void putSession(toRecord(session, spot, street, view)).catch(() => {});
-  }, [session, spot, street, view]);
+    if (session.score.n && !shared) void putSession(toRecord(session, spot, street, view)).catch(() => {});
+  }, [session, spot, street, view, shared]);
+
+  // under an any-spot drill, a spot with nothing under the filters is passed over
+  const empty = data.st === "ready" && !screening && !cands.length;
+  const skip = shared?.skip;
+  useEffect(() => {
+    if (empty) skip?.();
+  }, [empty, skip]);
 
   const shown: Deal = deal.key === dealKey ? deal : { key: dealKey, st: "dealing" };
   const pr = shown.st === "ready" ? shown.pr : null;
@@ -442,9 +605,10 @@ function SpotDrill({
         if (m) void keepMistake(m, missedAgain).catch(() => {});
       }
     },
-    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree, filter, hand],
+    [pr, graded, peeked, dealKey, deal, data, mode, session.id, spot, tree, filter, hand, setSession],
   );
-  const next = useCallback(() => setN((x) => x + 1), []);
+  const sharedNext = shared?.next;
+  const next = useCallback(() => (sharedNext ? sharedNext() : setN((x) => x + 1)), [sharedNext]);
 
   // once answered, the next hand is a key away
   useEffect(() => {
@@ -476,6 +640,7 @@ function SpotDrill({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  if (shared && (data.st === "loading" || empty)) return <p className="panel p-3 text-sm text-muted">Dealing…</p>;
   if (data.st === "loading") return <p className="text-sm text-muted">Loading {spot.label}…</p>;
   if (data.st === "error")
     return (
@@ -491,36 +656,21 @@ function SpotDrill({
   const filtered = Object.values(filter).some(Boolean);
   const texture = filtered ? " with this texture" : "";
   const count = hand && counted?.key === filterKey ? counted : null;
-  const sum = summary(session.score);
-  const s = session.score;
-  const item = (label: string, value: string) => (
-    <div className="rounded bg-surface-2 px-2 py-1">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="font-mono">{value}</div>
-    </div>
-  );
   const link = pr ? studyLink(rep, pr) : null;
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted">
-        {spot.label} in {source}: {flops.toLocaleString()} flops stored; {storing.toLocaleString()} store {street === "turn" ? "their turns" : "this decision"}
-        {texture}
-        {screens && !screening ? `, and ${able.toLocaleString()} of them can hold ${handLabel(hand!)}` : ""}.
-      </p>
-      {hand && cands.length > 0 && <DealsLeft hand={hand} of={able} count={count} />}
+      {/* (what the filters leave, said only under one) */}
+      {!shared && (filtered || hand) && (
+        <p className="text-xs text-muted">
+          {spot.label} in {source}: {flops.toLocaleString()} flops stored; {storing.toLocaleString()} store {street === "turn" ? "their turns" : "this decision"}
+          {texture}
+          {screens && !screening ? `, and ${able.toLocaleString()} of them can hold ${handLabel(hand!)}` : ""}.
+        </p>
+      )}
+      {!shared && hand && cands.length > 0 && <DealsLeft hand={hand} of={able} count={count} />}
 
-      <section aria-label="Score" className="flex flex-wrap gap-2 text-sm">
-        {item("Decisions", String(s.n))}
-        {item("Best or correct", s.n ? pct(sum.acc, 0) : "–")}
-        {item("EV lost per decision", sum.loss == null || !s.n ? "–" : `${bb(sum.loss)}bb · ${sum.lossPct!.toFixed(1)}% pot`)}
-        {item("Streak", `${s.streak} (best ${s.best})`)}
-        {!!session.revealed && (
-          <p className="basis-full text-xs text-muted">
-            {session.revealed} revealed pick{session.revealed === 1 ? "" : "s"} not graded.
-          </p>
-        )}
-      </section>
+      {!shared && <ScoreBar session={session} />}
 
       {/* (wide: the hand on the left, its answer on the right once you've picked) */}
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
@@ -546,6 +696,12 @@ function SpotDrill({
           </p>
         ) : (
           <>
+            {shared && (
+              <p className="text-xs text-muted">
+                {spot.label}
+                {spot.game ? ` (${gameLabel(spot)})` : ""} · {viewLabel(view, spot.seats)}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-4">
               <div role="group" aria-label="Board" className="flex gap-1">
                 {shown.pr.board.map((c) => (
@@ -674,7 +830,7 @@ function SpotDrill({
       </div>
 
 
-      <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />
+      {!shared && <PastDrills past={past} current={session.id} history="/history?kind=drill" historyLabel="Every drill session" />}
     </div>
   );
 }
