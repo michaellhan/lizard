@@ -103,7 +103,8 @@ describe("PracticePage", () => {
     expect(within(last).getByText(/Graded by chart frequency: charts have no EVs\./)).toBeInTheDocument();
     // the rule-based why, in the chart's name (not a solver's)
     expect(within(last).getByText(/^The chart (always plays this here|picks this most often here: \d+% of the time)\.$/)).toBeInTheDocument();
-    expect(within(last).getByText(describeProvenance(prov("charts")))).toBeInTheDocument();
+    // (the source a chip, its whole description the first line of its tooltip and of what it opens to)
+    expect(within(last).getByTitle((t) => t.startsWith(describeProvenance(prov("charts"))))).toHaveTextContent("Preflop charts");
     // the spot in Study: heads-up at 100bb, nothing before your decision
     expect(within(last).getByRole("link", { name: "Open this spot in Study →" })).toHaveAttribute("href", "/study?p=2&s=100");
 
@@ -116,7 +117,7 @@ describe("PracticePage", () => {
     expect(within(last).getByText("Best")).toBeInTheDocument();
     expect(within(last).getByText(/^No EV given up\. This hand mixes actions here\.$/)).toBeInTheDocument();
     expect(within(last).getByText("The solver picks this most often here: 60% of the time.")).toBeInTheDocument();
-    expect(within(last).getByText(describeProvenance(LIVE))).toBeInTheDocument();
+    expect(within(last).getByTitle((t) => t.startsWith(describeProvenance(LIVE)))).toHaveTextContent("Live solve");
     expect(within(last).getByRole("row", { name: /bet 33% \(1\.6bb\) ← you 60\.0% 2\.20/ })).toBeInTheDocument();
     // (your raise, its call, the big blind's check, the flop)
     expect(within(last).getByRole("link", { name: "Open this spot in Study →" }).getAttribute("href")).toMatch(/^\/study\?p=2&s=100&pre=SB%3Ar2\.5%2CBB%3Ac&b=([2-9TJQKA][shdc]){3}&flop=BB%3Ax$/);
@@ -298,7 +299,7 @@ describe("PracticePage", () => {
     expect(row).toHaveAttribute("aria-expanded", "true");
     expect(within(review).getByText(/· BB checks$/)).toBeInTheDocument();
     const spot = within(review).getByRole("region", { name: "Hand 1, flop" });
-    expect(within(spot).getByText(describeProvenance(LIVE))).toBeInTheDocument();
+    expect(within(spot).getByTitle((t) => t.startsWith(describeProvenance(LIVE)))).toHaveTextContent("Live solve");
     expect(within(spot).getByText(/^EV given up: 0\.20bb/)).toBeInTheDocument();
     // a new session starts its own
     fireEvent.click(screen.getByRole("button", { name: "New session" }));

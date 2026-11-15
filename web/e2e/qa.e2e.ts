@@ -503,7 +503,8 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
     await options(page).first().click();
     await expect(next.or(options(page).first())).toBeVisible({ timeout: 90_000 });
     if (await solve.isVisible()) {
-      await expect(last.getByText(/not a full solve/).first()).toBeVisible();
+      // (the source a chip in Last decision: its whole description is its tooltip, and what it opens to)
+      await expect(last.getByTitle(/not a full solve/).first()).toBeVisible();
       bySolve += 1;
     }
   }
@@ -603,7 +604,7 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
     if (await solve.isVisible()) bySolve += 1;
   }
   expect(bySolve).toBeGreaterThan(0);
-  await expect(page.getByRole("region", { name: "Last decision" }).getByText(/not a full solve/).first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Last decision" }).getByTitle(/not a full solve/).first()).toBeVisible();
   // (that game's file and no other: never the 6-max one read as if it were this game)
   expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz1_4max_40bb.bin"]);
   await clean(page, problems);
@@ -700,7 +701,7 @@ test("7c. A tournament session in prize equity says so, with chip EV apart from 
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-tournament.png" });
   await options(page).first().click();
   await expect(page.getByText("Decisions graded")).toBeVisible();
-  await expect(page.getByText(/chip chart with a risk premium|prize equity · /).first()).toBeVisible();
+  await expect(page.getByTitle(/chip chart with a risk premium|prize equity · /).first()).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-tournament-graded.png", fullPage: true });
 
   await session(page, "tournament", () => page.getByLabel("Answers in").selectOption("chips"));
