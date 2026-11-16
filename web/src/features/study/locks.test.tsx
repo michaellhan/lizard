@@ -81,6 +81,14 @@ describe("a read on the opponent", () => {
     expect(presetOf({ fold: 15, bluff: 1 })).toBeNull();
   });
 
+  it("takes the engine's street fold keys, as the live cash regular preset uses them", () => {
+    expect(lockOf({ fold_flop: "-25", fold_river: "0" })).toEqual({ lock: { fold_flop: -25 }, problems: [] });
+    expect(lockOf({ fold_turn: "200" }).problems).toEqual(["on the turn must be -100 to 100"]);
+    expect(describeLock({ fold_flop: -25, fold_river: -5 })).toBe("folds -25 pts to a flop bet, folds -5 pts to a river bet");
+    expect(describeLock({ fold_flop: -25 }, true)).toBe("");
+    expect(presetOf({ fold_flop: -25, fold_turn: -15, fold_river: -5, bluff: -60, bet: -20, raise: -40 })).toBe("live");
+  });
+
   it("is offered at a heads-up node after the flop, and asked as one hand's advice", () => {
     expect(offersLock(NODE)).toBe(true);
     // preflop on the charts (any seat still in); after the flop heads-up only, as the engine locks

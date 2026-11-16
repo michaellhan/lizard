@@ -5801,3 +5801,19 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
   over 0.02, while ext 0 has more than 20 such; the audit's pairs keep their order in the stored 6-max 100bb game).
   Checked: scripts/engine/test_pf_engine.py 29 passed (StoredGrid on the lz2 files, RangeEdge); vitest pfStored, provenance and pfSolve 46 passed. The gtosolver builds were left alone
   (solves went through slot.sh).
+
+## 2026-11-16: Exploit practice against a live cash regular
+
+- Asked: a "typical live cash player" profile in Exploit practice. The "Live cash regulars" Opponents option
+  (2026-11-15, `practice/live.ts`) already plays live tendencies on every street, but grades you against the
+  equilibrium; Exploit practice grades against the re-solve against a profile, and had only the engine's four.
+- Added `live`, "Live cash regular", to `LOCK_PRESETS` (`web/src/features/study/locks.ts`): live.ts's after-the-flop
+  player as tendency numbers (fold -25/-15/-5 pts to a flop/turn/river bet, bluff -60%, bet -20%, raise -40%), hand-set,
+  not population data. It needs the engine's per-street fold keys, which the web's lock keys lacked; they are now in
+  `LOCK_KEYS`, `LOCK_FIELDS` and the words, so Study's one-node lock takes them as its profile panel did. The engine
+  has no preset of that name and is sent the numbers (nothing in `solver/` or `engine/` changed).
+- The setup's note for it says it plays after the flop only, its preflop the charts', and points to the Opponents
+  option for a live player's preflop (`AFTER_FLOP`).
+- Checked: `test_profile_solve.py` (presets and bounds; the new test: the re-solve is the best response to it on the
+  exact turn tree, either seat, and the street keys change the value); vitest exploit, study, SetupForm, scenarios and
+  history (482 passed); in the browser on the real worker (see FEATURE_MATRIX, Exploit practice).

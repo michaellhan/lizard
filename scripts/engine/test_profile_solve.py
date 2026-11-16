@@ -33,6 +33,9 @@ from test_study_lock import FAST, HAND, ON_FLOP, ON_TURN, RIVER, advisor  # noqa
 from test_exploit_play import SPOT, STATION  # noqa: E402
 
 STREETS = ("flop", "turn", "river")
+# web/src/features/study/locks.ts LOCK_PRESETS.live, "Live cash regular": Lizard's preset, sent to the engine as its
+# numbers (gto/exploit.py has no preset of that name), the street fold keys among them
+LIVE = {"fold_flop": -25, "fold_turn": -15, "fold_river": -5, "bluff": -60, "bet": -20, "raise": -40}
 
 
 def exact(bets=(0.5, 1.0), raises=(1.0,), max_raises=1) -> Config:
@@ -102,6 +105,17 @@ class AgainstABestResponse(unittest.TestCase):
                     held, _ = self.check(eq, asked, player, ps.PRESETS[name], 400, 0.01)
                     lines = [x for x in nl.lines(held.root) if x[1] == player]
                     self.assertEqual(held.profile["nodes"], len(lines))    # every decision of theirs held
+
+    def test_live_cash_regular_street_fold_keys(self):
+        self.assertEqual(ps.check_profile(LIVE), {k: float(v) for k, v in LIVE.items()})
+        eq, asked = self.turn
+        for player in (0, 1):
+            with self.subTest(player=player):
+                self.check(eq, asked, player, LIVE, 400, 0.01)
+        # the street keys are what moves the turn's folds apart from the river's: without them it's another profile
+        a = ps.solve_profile(eq, asked, 0, LIVE, time_budget=1e9, max_iters=50)
+        b = ps.solve_profile(eq, asked, 0, {k: v for k, v in LIVE.items() if not k.startswith("fold_")}, time_budget=1e9, max_iters=50)
+        self.assertNotAlmostEqual(ps.br_check(eq, a, 0, LIVE)["value"], ps.br_check(eq, b, 0, {k: v for k, v in LIVE.items() if not k.startswith("fold_")})["value"], places=4)
 
     def test_a_custom_profile(self):
         eq, asked = self.river

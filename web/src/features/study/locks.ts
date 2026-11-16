@@ -9,6 +9,9 @@ import type { AdvisorState } from "@/solver/protocol";
 
 export const LOCK_KEYS = {
   fold: [-100, 100],
+  fold_flop: [-100, 100],
+  fold_turn: [-100, 100],
+  fold_river: [-100, 100],
   bluff: [-100, 100],
   bet: [-100, 100],
   raise: [-100, 100],
@@ -22,6 +25,9 @@ export type Lock = Partial<Record<LockKey, number>>;
 /** The fields, as the classic page's (LOCK_INPUTS, with next_raise), and what each changes (exploit.py's comments). */
 export const LOCK_FIELDS: [LockKey, string, string][] = [
   ["fold", "Folds to bets ±", "points more of their range folding facing a first bet (negative: calls more)"],
+  ["fold_flop", "… on the flop ±", "added to the above on the flop only"],
+  ["fold_turn", "… on the turn ±", "added on the turn only"],
+  ["fold_river", "… on the river ±", "added on the river only"],
   ["bluff", "Bluffs ±%", "bets from their weak hands: −100 never, +100 always"],
   ["bet", "Bets ±%", "every hand's betting when they can bet: −50 halves it, +50 bets half their checks"],
   ["raise", "Raises ±%", "raising a bet, likewise (to and from calls)"],
@@ -39,12 +45,17 @@ export const LOCK_FIELDS_PREFLOP: [LockKey, string, string][] = [
   ["raise", "Re-raises ±%", "their 3bets, 4bets and 5bets scaled, to and from calls"],
 ];
 
-/** The engine's presets (exploit.py LOCK_PRESETS; the classic page names them). */
+/** The engine's presets (exploit.py LOCK_PRESETS; the classic page names them), and Lizard's own after them: `live`,
+ * the player Practice's "Live cash regulars" opponents play after the flop (practice/live.ts: they call with any pair
+ * or draw, so most on the flop and less once draws miss, seldom bluff, bet less, raise only strong hands) as tendency
+ * numbers, hand-set on 2026-11-16 like the others and measured from no population. The engine doesn't know it by name;
+ * it's sent as its numbers, which its LOCK_KEYS take. */
 export const LOCK_PRESETS: Record<string, [string, Lock]> = {
   station: ["Calling station", { fold: -20, bluff: -50, raise: -50 }],
   nit: ["Nit", { fold: 15, bluff: -60, bet: -25, raise: -30 }],
   maniac: ["Maniac", { fold: -10, bluff: 50, bet: 30, raise: 60 }],
   overfolder: ["Overfolds to bets", { fold: 15 }],
+  live: ["Live cash regular", { fold_flop: -25, fold_turn: -15, fold_river: -5, bluff: -60, bet: -20, raise: -40 }],
 };
 
 // (the engine reads a cut as a share of the action, and a rise as a share of the action it comes from: `_shift` in
@@ -53,6 +64,9 @@ const more = (verb: string, from: string) => (v: number) => (v < 0 ? `${verb} ${
 
 const WORDS: Record<LockKey, (v: number) => string> = {
   fold: (v) => `folds ${signed(v)} pts to a first bet`,
+  fold_flop: (v) => `folds ${signed(v)} pts to a flop bet`,
+  fold_turn: (v) => `folds ${signed(v)} pts to a turn bet`,
+  fold_river: (v) => `folds ${signed(v)} pts to a river bet`,
   bluff: more("bluffs", "its weak checks"),
   bet: more("bets", "its checks"),
   raise: more("raises", "its calls"),
@@ -87,7 +101,7 @@ export function lockOf(typed: Partial<Record<LockKey, string>>, preflop = false)
     if (!t) continue;
     const x = Number(t);
     const [lo, hi] = LOCK_KEYS[k];
-    const name = label.replace(/\s*(±%?|%)$/, "");
+    const name = label.replace(/^…\s*/, "").replace(/\s*(±%?|%)$/, "");
     if (!Number.isFinite(x)) problems.push(`${name}: a number`);
     else if (x < lo || x > hi) problems.push(`${name} must be ${lo} to ${hi}`);
     else if (x !== 0 || k.startsWith("next_")) lock[k] = x;
