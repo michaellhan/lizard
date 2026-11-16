@@ -110,6 +110,21 @@ describe("ReviewPage", () => {
     expect(rows.filter((r) => r.textContent?.includes("Heads-up 40bb"))).toHaveLength(1);
   });
 
+  it("says a retry's pot by the board and the price on Call, not in the line of the hand", async () => {
+    const mix = [{ action: "fold", freq: 0.2, ev: 0 }, { action: "call", freq: 0.8, ev: 1 }];
+    const m = mistake({ due: PAST, street: "flop", board: ["6c", "5s", "3d"], seat: "BB", players: 2, pot: 9.63, study: "p=2&s=100&pre=SB:r2.5,BB:c&b=6c5s3d&flop=BB:x,SB:b4.13", mix, chose: "fold", grade: { ...mistake().grade, a: 0, best: 1 } });
+    await seed(m);
+    ask.next.mockResolvedValue(answer({ mix }));
+    page();
+    fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
+    const retry = await screen.findByRole("region", { name: "Retry" });
+    expect(within(retry).getByText("5.5bb")).toBeInTheDocument();
+    const line = within(retry).getByRole("list", { name: "The hand so far" });
+    expect(line).not.toHaveTextContent(/pot|to call/);
+    expect(line).toHaveTextContent("BB checks, SB bets 4.13bb · BB to act");
+    expect(await within(retry).findByRole("button", { name: /^call 4\.13bb$/ })).toBeInTheDocument();
+  });
+
   it("labels a chart's mistake by frequency, never EV lost or a solve", async () => {
     await seed(chartMistake({ due: PAST }));
     page();

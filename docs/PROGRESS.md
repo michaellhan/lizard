@@ -5727,3 +5727,15 @@ held too much, the lessons sat in a long block at the bottom, and the page was l
   the list. On a fresh root build: the full unit suite 3,732 passed, with 1 failure in `pfStored.test.ts` from another
   session's uncommitted preflop files in this checkout (not in this commit); browser tests routes, qa 10c and 10d and
   the chains Review flow, 24 passed (desktop).
+
+
+### 2026-11-16: the retry's flop line, shorter
+
+Asked for: less on the line you act on in a retry ("pot 8bb · BB checks, UTG bets 4bb · BTN to act, 4bb to call").
+
+- The line now says the action and who acts only: "BB checks, UTG bets 4bb · BTN to act". The pot sits beside the
+  board ("pot 8bb"), and the price of a call is on the Call button ("call 4bb"). `HandStory` takes a `bare` option
+  for this, and only Review's retry passes it, so Practice's drills keep the full line.
+- Checked: tsc and eslint clean; review and practice unit tests 1,443 passed, with a new Review test for where the pot
+  and the price are said. In the browser, a 6-max flop retry (UTG bets 4bb into 8bb) shows "pot 8bb" by the board, the
+  bare line, and "call 4bb".

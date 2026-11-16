@@ -38,6 +38,7 @@ import { dueQueue, dueWords, isDue } from "./schedule";
 export const LIST_PAGE = 30;
 
 const day = (t: number) => new Date(t).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+const bbOf = (x: number) => String(Math.round(x * 100) / 100);
 const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 ? "" : "s"}`;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const isStreet = (x: string | null): x is (typeof STREET_ORDER)[number] => STREET_ORDER.includes(x as (typeof STREET_ORDER)[number]);
@@ -511,11 +512,16 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
         </div>
         <div className="flex flex-wrap items-center gap-4">
           {m.board.length > 0 && (
-            <div role="group" aria-label="Board" className="flex gap-1">
+            <div role="group" aria-label="Board" className="flex items-center gap-1">
               {m.board.map((c) => (
                 <PlayingCard key={c} card={c} />
               ))}
             </div>
+          )}
+          {story && (
+            <span className="text-xs text-muted">
+              pot <span className="text-sm font-medium tabular-nums text-text">{bbOf(story.now.pot)}bb</span>
+            </span>
           )}
           <div role="group" aria-label="Your cards" className="flex items-center gap-1">
             <span className="text-xs text-muted">{seatLabel(m.seat, m.players)} · you</span>
@@ -525,7 +531,7 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
           </div>
         </div>
         {story ? (
-          <HandStory story={story} />
+          <HandStory story={story} bare />
         ) : (
           <p>
             <span className="text-muted">{spotWords(m)}</span>
@@ -575,6 +581,8 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
                   </span>
                 )}
                 {optionLabel(a.action, a.amount)}
+                {/* (the price of a call, said on Call, not in the line above) */}
+                {a.action === "call" && story && story.now.toCall > 0 && <>{" "}<span className="text-muted">{bbOf(story.now.toCall)}bb</span></>}
               </button>
             ))}
           </div>

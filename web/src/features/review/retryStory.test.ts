@@ -17,7 +17,7 @@ describe("retryStory", () => {
     expect(s.now).toMatchObject({ street: "Preflop", pot: 1.5, toCall: 2.5 });
   });
 
-  it("gives the earlier streets a line each, with their cards", () => {
+  it("gives the earlier streets a line each, their action only (the board is drawn above)", () => {
     const s = retryStory(at("p=6&s=100&pre=CO:r2.5,BB:c&b=Kd7s2cQh&flop=BB:x,CO:x&turn=BB:b3", "turn", 8.5, "CO"))!;
     expect(s.steps.map((x) => x.text)).toEqual([expect.any(String), "BB checks, CO checks"]);
     expect(s.now).toMatchObject({ street: "Turn", pot: 5.5, toCall: 3, line: "BB bets 3bb" });
