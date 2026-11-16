@@ -184,11 +184,10 @@ classic app. It is guarded to refuse from this snapshot.
    https because Cloudflare terminates TLS. If Cloudflare's SSL mode were set to "Full (strict)", every path on the
    domain would fail. Fixing it means re-requesting the certificate on the user site's Pages settings, possibly with
    Cloudflare's proxy briefly off; that is the owner's call.
-2. **`http://www.michael-han.com/` is not redirected to https** (it serves 200). Lizard redirects itself in
-   `main.tsx`. The fix is Cloudflare's "Always Use HTTPS" (SSL/TLS, Edge Certificates), which the owner chose on
-   2026-11-05 and which only they can switch on. Check it with
-   `curl -sI http://www.michael-han.com/lizard/ | head -3`, which should then answer 301 to https. The certificate in 1
-   stays as it is for now, by the same decision.
+2. **Done (checked 2026-11-15): `http://` redirects to https.** Cloudflare's "Always Use HTTPS" is on:
+   `curl -sI http://www.michael-han.com/lizard/` answers 301 with `Location: https://www.michael-han.com/lizard/`, and
+   the site root does the same. Lizard's own redirect in `main.tsx` stays as a fallback. The certificate in 1 stays as
+   it is, by the owner's decision of 2026-11-05.
 
 ## 4. Scheduled library publishing (installed 2026-11-05)
 
