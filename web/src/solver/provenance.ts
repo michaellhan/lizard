@@ -241,6 +241,12 @@ function preflopSolveOf(r: AdvisorResponse, p: Provenance): void {
     p.approximate = true;
     p.approximateLabel = `a line the solve rarely plays (the range gives up ${typeof r.regret_bb === "number" ? r.regret_bb.toFixed(3) : "?"}bb a hand to its best actions here): rough`;
   }
+  // at or after a 3bet (engine/pf_solve.py AFTER_3BET, docs/ACCURACY.md section 18.7): the model's 3bet and 4bet pots
+  // are its least certain values, measured off published solves' totals and a full solve's hands
+  if (typeof r.pf_3bet === "string") {
+    p.approximate = true;
+    p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${r.pf_3bet}` : r.pf_3bet;
+  }
 }
 
 /** What a tournament answer's numbers are in (ROADMAP Phase 7), from the engine's `tournament` block and notes: a

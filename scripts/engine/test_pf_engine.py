@@ -128,9 +128,9 @@ class OwnStacks(unittest.TestCase):
         on, _ = P.spec_of({"players": 6, "stack": 100, "pf_sb_limp": True})
         self.assertTrue(on.key.endswith("_l"))
         self.assertIn("may complete", on.label())
-        self.assertEqual(P.spec_of({"players": 6, "stack": 100})[0].key, "lz2_6max_100bb")
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100})[0].key, "lz3_6max_100bb")
         self.assertFalse(P.spec_of({"players": 6, "stack": 100, "straddle": True, "pf_sb_limp": True})[0].key.endswith("_l"))
-        self.assertEqual(P.spec_of({"players": 2, "stack": 100, "pf_sb_limp": True})[0].key, "lz2_2max_100bb")
+        self.assertEqual(P.spec_of({"players": 2, "stack": 100, "pf_sb_limp": True})[0].key, "lz3_2max_100bb")
         # after the complete the big blind checks or raises to Sizes.iso
         root, pos = on.build()
         nd = root
@@ -166,7 +166,7 @@ class TreeOptions(unittest.TestCase):
             self.assertEqual(on.nodes(), P.Spec(n, (100.0,)).nodes())
         # the request's options at their table size's defaults are the default game (one key, one stored file)
         self.assertEqual(P.spec_of({"players": 6, "pf_tree": {"flop3": True, "cold": True, "opens": {"UTG": 2.5}}})[0].key,
-                         "lz2_6max_100bb")
+                         "lz3_6max_100bb")
 
     def test_open_limps(self):
         spec = P.Spec(4, (100.0,), open_limps=True)
@@ -229,7 +229,7 @@ class TreeOptions(unittest.TestCase):
     def test_chart_sizes(self):
         # the charts' blind 3bet (4x the open: 10bb over 2.5bb) in place of the tree's 4.8x, for Practice's grade; named
         c = P.chart_sized(P.Spec(6, (100.0,), rake=(0.05, 3.0)))
-        self.assertEqual(c.key, "lz2_6max_100bb_r5c3_blind_3bet4")
+        self.assertEqual(c.key, "lz3_6max_100bb_r5c3_blind_3bet4")
         self.assertIn(c, P.stored_games())
         self.assertIn("at the charts' raise sizes", " ".join(c.tree_notes()))
         self.assertEqual(P.Spec(6, (100.0,)).tree_notes(), [])
@@ -242,7 +242,7 @@ class TreeOptions(unittest.TestCase):
         self.assertAlmostEqual(btn.children[btn.names.index("raise")].line[-1][2], 23.0)
         # what the request asks: the sizes as Practice sends them reach the stored game's key
         self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_sizes": {"blind_3bet": 4}})[0].key,
-                         "lz2_6max_100bb_blind_3bet4")
+                         "lz3_6max_100bb_blind_3bet4")
 
     def test_memory_estimate(self):
         # the measured peaks it was fitted to (pf_solve.MB_BASE, MB_PER_WORK), within 20%
@@ -290,6 +290,7 @@ class Protocol(unittest.TestCase):
         self.assertEqual(r["stack_bb"], 17.5)
         self.assertEqual(r["pf_model"], P.MODEL)
         self.assertIn("all-in", [a["action"] for a in r["actions"]])
+        self.assertNotIn("pf_3bet", r)    # before any 3bet
         x = P.answer(self.Adv, {**st, "preflop_solve": {"export": True}})
         self.assertEqual(x["study"], "pf_export")
         P._HELD.clear()
@@ -297,7 +298,12 @@ class Protocol(unittest.TestCase):
                                  "preflop_solve": {"load": x["blob"], "iterations": x["iterations"]}})
         self.assertEqual(r2["study"], "node")
         self.assertTrue(r2["pf_solve"]["cached"])
-        self.assertEqual([c["freq"] for c in r2["actions"]], [c["freq"] for c in r["actions"]])
+        # the export keeps each class's mix in 1/255 steps (pf_study.pack), so a mixed class moves by up to 0.002
+        np.testing.assert_allclose([c["freq"] for c in r2["actions"]], [c["freq"] for c in r["actions"]], atol=0.002)
+        # at or after a 3bet the node says the model is least certain there (docs/ACCURACY.md section 18.7)
+        r3 = P.answer(self.Adv, {**st, "preflop": [{"pos": "BTN", "action": "raise", "to": 2.5},
+                                                   {"pos": "SB", "action": "raise", "to": 10}], "preflop_solve": True})
+        self.assertEqual((r3["study"], r3["actor"], r3["pf_3bet"]), ("node", "BB", P.AFTER_3BET))
 
     def test_unsolved_names_its_memory(self):
         r = P.answer(self.Adv, {"players": 7, "stack": 100, "study": True, "preflop": [], "preflop_solve": True,
@@ -439,6 +445,67 @@ class RangeEdge(unittest.TestCase):
             f = lambda h: cells[h]["f"][0] if h in cells else 0.0
             for better, worse in ps:
                 self.assertGreaterEqual(f(better) + 0.1, f(worse), f"{seat} {better} {f(better):.2f} vs {worse} {f(worse):.2f}")
+
+
+class HandOrder(unittest.TestCase):
+    """The opener facing a 3bet plays pairs and suited hands in rank order (engine/pf_order.py: pairs from 77, suited
+    hands T-high or better with a 7 or better kicker, within 20 points; PokerData's 6-max 100bb solve has none out of
+    order over all 15 seat pairs). lz2 had 7-9 a game: its 3bet and 4bet pots valued each class from a sample of flops
+    shared by every class, so a rank the sample dealt more often lifted every hand holding it, and the class-level
+    solve took each step as a real gap (UTG facing the BTN's 3bet folded 99 85% and called 88 66%). The smoothing
+    (pf_model.smooth_shares, s2 and s3) fixes it. Held out: no fit sees hand order (docs/ACCURACY.md section 18.7)."""
+
+    def test_family_smooth_flattens_a_sawtooth_and_keeps_a_trend(self):
+        from gto.pf_classes import CLASS_INDEX
+        pairs = [CLASS_INDEX[r + r] for r in "23456789TJQKA"]
+        x = np.zeros(169)
+        x[pairs] = np.linspace(-0.1, 0.2, 13)
+        np.testing.assert_allclose(M.family_smooth(x, 1.0)[pairs], x[pairs], atol=1e-9)
+        y = x.copy()
+        y[pairs] += 0.05 * (-1) ** np.arange(13)
+        self.assertLess(np.abs(M.family_smooth(y, 1.0) - x)[pairs].max(), 0.025)   # a sawtooth of 0.05
+        np.testing.assert_allclose(M.family_smooth(y, 0.0), y)
+
+    def pair_shares(self, params):
+        """The opener's pot share with each pair from 77, calling the BTN's 3bet and 4betting it (against the
+        library's BTN 3bet range)."""
+        from gto.pf_libvals import SPOTS
+        from gto.pf_classes import CLASS_INDEX, PAIR_COMPAT
+        m = M.flop_model(100.0, params)
+        ra = np.asarray(SPOTS["3bp_btn_co"]["ip"]["range"], float)
+        idx = [CLASS_INDEX[r + r] for r in "789TJQKA"]
+        Q = PAIR_COMPAT * ra[:, None]
+        call = (Q / Q.sum(0, keepdims=True) * (1 - m.share((2, True, "BTN", "UTG")))).sum(0)[idx]
+        P_ = PAIR_COMPAT * ra[None, :]
+        four = (P_ / P_.sum(1, keepdims=True) * m.share((3, False, "UTG", "BTN"))).sum(1)[idx]
+        return call, four
+
+    def test_pairs_meet_more_of_the_pot_by_rank_or_nearly(self):
+        import dataclasses
+        def drop(x):    # the most a pair meets less of the pot than the pair below it
+            return max(0.0, -float(np.diff(x).min()))
+        call, four = self.pair_shares(M.load_params())
+        call0, four0 = self.pair_shares(dataclasses.replace(M.load_params(), s2=0.0, s3=0.0))
+        # unsmoothed (lz2's values): 88 met 0.021 more of a 3bet pot than 99, 77 0.054 more of a 4bet pot than 88
+        self.assertGreater(drop(call0), 0.015)
+        self.assertGreater(drop(four0), 0.04)
+        # smoothed (s2 = s3 = 0.5): in order calling the 3bet; 77 over 88 in a 4bet pot halved (0.023), which the
+        # solve then plays in order (77 and 88 both fold to the BTN's 3bet; HandOrder's stored-game test)
+        self.assertTrue((np.diff(call) > 0).all(), call)
+        self.assertLess(drop(four), 0.5 * drop(four0) + 0.001)
+
+    def test_stored_6max_100bb_plays_the_opener_vs_3bet_in_order(self):
+        from engine.pf_order import out_of_order_vs_3bet
+        for rake in (None, (0.05, 3.0)):
+            spec = P.Spec(6, (100.0,), rake=rake)
+            bad = out_of_order_vs_3bet(P.Solve(spec, P.read_stored(spec.key)))
+            pairs = {k: [b for b in v if b[0][0] == b[0][1]] for k, v in bad.items()}
+            self.assertEqual({k: v for k, v in pairs.items() if v}, {}, spec.key)
+            self.assertLessEqual(sum(map(len, bad.values())), MAX_OUT_OF_ORDER, f"{spec.key}: {bad}")
+
+
+# lz3: 3 unraked (A9s over ATs facing a blind 3bet, twice; A8s), 4 at 5% capped at 3bb (A9s); lz2 had 12 and 7
+MAX_OUT_OF_ORDER = 4
 
 
 if __name__ == "__main__":

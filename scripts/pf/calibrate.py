@@ -35,25 +35,33 @@ ITERS = 700                 # pf_study's 6-max raked solves stop about here (1.1
 
 
 def solve(params: dict, iters: int = ITERS, rake=RAKE, players: int = 6, stack: float = 100.0):
-    """The game solved with engine.pf_model's corrections `params` (a dict of Params fields)."""
+    """The game solved with engine.pf_model's corrections `params` (a dict of Params fields): engine/pf_solve.py's
+    game, the one the stored solves are built from (lz2 was calibrated on pf_study's, the same tree at 6-max)."""
     import gto.native  # noqa: F401
-    from gto import pf_game as G, pf_study as PS
-    from engine.pf_model import CalibratedModel, Params
-    spec = PS.Spec(players, stack, rake=rake)
-    root, pos = spec.build()
-    g = G.Game(root, pos, CalibratedModel(Params.of(params), PS.depth_scale(stack)), stack=stack, rake=rake)
-    g.avg_power = PS.AVG_POWER
-    g.solve(iters)
-    return g
+    from engine import pf_solve as S
+    from engine.pf_model import Params
+    spec = S.Spec(players, (stack,), rake=rake)
+    g = spec.game(model_params=Params.of(params))
+    for t in range(1, iters + 1):
+        g.iterate(t)
+    return g, spec
 
 
-def measure(g) -> dict:
-    """The solve at every reference ({name: {action: share}}) and hand fact ({name: share})."""
+def measure(g, spec=None, iters: int = 0) -> dict:
+    """The solve at every reference ({name: {action: share}}) and hand fact ({name: share}), and the opener facing a
+    3bet (scripts/pf/vs3bet.py: totals, the hands out of order, the per-hand gap where the local reference is)."""
     import pf_equilibrium as P
     rows, (mae, n_miss), hands, nb = P.report(g)
-    return {"refs": {name: {k: round(float(v), 5) for k, v in got.items()} for name, got, want, bad, unc in rows},
-            "facts": {name: round(float(v), 5) for name, action, v, lo, hi, ok in hands},
-            "mae": mae, "miss": n_miss, "facts_off": nb}
+    out = {"refs": {name: {k: round(float(v), 5) for k, v in got.items()} for name, got, want, bad, unc in rows},
+           "facts": {name: round(float(v), 5) for name, action, v, lo, hi, ok in hands},
+           "mae": mae, "miss": n_miss, "facts_off": nb}
+    if spec is not None:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import vs3bet
+        r = vs3bet.report(vs3bet.wrap(spec, g, iters), "")
+        out["vs3bet"] = {k: r[k] for k in ("mean_gap", "out_of_order", "pub_mae", "ref_tot_mae") if k in r}
+        out["vs3bet"]["spots"] = {k: {x: v[x] for x in v if x != "grid"} for k, v in r["spots"].items()}
+    return out
 
 
 # ----------------------------------------------------------------------------- scoring (no solving)
@@ -105,21 +113,30 @@ def facts_off(run: dict) -> int:
 # ----------------------------------------------------------------------------- commands
 def cmd_eval(a):
     plist = json.loads(a.params)
+    rakes = [tuple(float(x) for x in r.split(",")) if r != "none" else None for r in a.rakes.split(";")]
     for p in plist:
-        t0 = time.time()
-        g = solve(p, a.iters)
-        m = measure(g)
-        mbb = 1000 * sum(g.exploitability(per_seat=True)) / g.n if a.expl else None
-        rec = {"params": p, "iters": a.iters, "seconds": round(time.time() - t0, 1), "mbb": mbb, **m}
-        with open(a.out, "a") as f:
-            f.write(json.dumps(rec) + "\n")
-        print(f"{json.dumps(p)}: {m['mae'] * 100:.2f} points, {m['miss']} out, facts off {m['facts_off']}, "
-              f"{rec['seconds']}s", flush=True)
+        for rake in rakes:
+            t0 = time.time()
+            g, spec = solve(p, a.iters, rake=rake)
+            m = measure(g, spec, a.iters)
+            mbb = 1000 * sum(g.exploitability(per_seat=True)) / g.n if a.expl else None
+            rec = {"params": p, "iters": a.iters, "rake": rake, "seconds": round(time.time() - t0, 1), "mbb": mbb, **m}
+            with open(a.out, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            v = m["vs3bet"]
+            print(f"{json.dumps(p)} rake {rake}: {m['mae'] * 100:.2f} points, {m['miss']} out, facts off "
+                  f"{m['facts_off']}; vs 3bet: gap {v.get('mean_gap') or 0:.3f}, out of order {v['out_of_order']}, "
+                  f"totals vs published {v['pub_mae']:.3f}; {rec['seconds']}s", flush=True)
+            del g
 
 
-def load_runs(path):
+def load_runs(path, rake=RAKE):
+    """The runs at the references' rake (all runs with rake=False)."""
     with open(path) as f:
-        return [json.loads(x) for x in f if x.strip()]
+        runs = [json.loads(x) for x in f if x.strip()]
+    if rake is False:
+        return runs
+    return [r for r in runs if r.get("rake", list(RAKE)) == (list(rake) if rake else None)]
 
 
 def cmd_fit(a):
@@ -150,10 +167,17 @@ def cmd_fit(a):
     folds = np.array([fold_of(refs[i]) for i in idx])
     scale = np.array(step)                  # parameters in units of their perturbation
     Js = J * scale
+    # each share's weight: a3 on the call and raise shares of the opener facing a 3bet (the fold is the rest of
+    # them, so it counts once), 1 elsewhere
+    acts = [k for r in refs for k in r["want"]]
+    wt = np.array([a.w3bet if kind_of(refs[i]) == "vs_3bet" and acts[n] in ("call", "raise") else
+                   (0.0 if kind_of(refs[i]) == "vs_3bet" and a.w3bet != 1.0 else 1.0)
+                   for n, i in enumerate(idx)])
+    sw = np.sqrt(wt)
 
     def step_on(mask):
-        A = Js[mask]
-        b = (w - y0)[mask]
+        A = (Js * sw[:, None])[mask]
+        b = ((w - y0) * sw)[mask]
         # ridge on the scaled parameters: a step of one perturbation costs as much as `ridge` squared points
         lam = a.ridge ** 2 * len(b) / 1e4
         x = np.linalg.solve(A.T @ A + lam * np.eye(A.shape[1]), A.T @ b)
@@ -234,9 +258,13 @@ def cmd_write(a):
     if cv:
         meas["held_out_mae_points"] = round(cv["held_out"]["mae"], 2)
         meas["held_out_base_points"] = round(score(base)["mae"], 2)
+    if "vs3bet" in r:
+        # hands out of order where the opener faces a 3bet (engine/pf_order.py), over the 15 6-max seat pairs
+        meas["vs3bet_out_of_order"] = r["vs3bet"]["out_of_order"]
     body = (
         '"""Generated by scripts/pf/calibrate.py write: engine/pf_model.py\'s calibrated corrections (Params), and what they\n'
-        'were measured at against the published 6-max 100bb solves (docs/ACCURACY.md section 18.4). Don\'t edit by hand."""\n'
+        'were measured at against the published 6-max 100bb solves (docs/ACCURACY.md sections 18.4 and 18.7). Don\'t edit by\n'
+        'hand."""\n'
         f"PARAMS = {json.dumps(p.as_dict(), indent=4)}\n\n"
         f"MEASURED = {json.dumps(meas, indent=4)}\n")
     out = os.path.join(ROOT, "engine", "pf_calib.py")
@@ -253,6 +281,7 @@ def main():
     e.add_argument("--iters", type=int, default=ITERS)
     e.add_argument("--out", required=True)
     e.add_argument("--expl", action="store_true", help="also measure exploitability (~10 s more)")
+    e.add_argument("--rakes", default="0.05,4", help="rate,cap;rate,cap... (each param set solved at each; 'none')")
     f = sub.add_parser("fit")
     f.add_argument("--runs", required=True)
     f.add_argument("--base", default="", help="JSON Params dict of the base run (default: none)")
@@ -260,6 +289,8 @@ def main():
     f.add_argument("--iters", type=int, default=ITERS)
     f.add_argument("--ridge", type=float, default=1.0)
     f.add_argument("--damp", type=float, default=1.0)
+    f.add_argument("--w3bet", type=float, default=1.0, help="weight on the opener-vs-3bet call and raise shares "
+                                                            "(their fold then dropped as redundant); 1: all equal")
     s = sub.add_parser("show")
     s.add_argument("--runs", required=True)
     c = sub.add_parser("cv")

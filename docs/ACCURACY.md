@@ -1401,6 +1401,120 @@ solves have it, and one plain oddity: the SB folds Q8o and raises J8o (no rake).
 Nothing here measures depths or table sizes other than 6-max 100bb, as section 18.4 says of the calibration. The
 charts stay the default (0.96 points).
 
+### 18.7 The opener facing a 3bet: hands out of order, too many 4bets (2026-11-16)
+
+**The report.** The Solver source's 6-max 100bb game, raked (`lz2_6max_100bb_r5c3`), played UTG facing the BTN's
+3bet out of rank order:
+- pairs: QQ 4bet 100% and JJ called 100%, then TT 4bet 54% / called 33%, 99 4bet 15% / folded 85%, 88 called 66%, 77
+  folded, 66 called 31%, 55 folded;
+- suited hands: QJs and T9s folded.
+
+It also 4bet too much and called too little against the published references (4bet / call, % of the opened range):
+
+| Spot | lz2 | References |
+|---|---|---|
+| UTG vs BTN | 23.2 / 18.2 | 18.7 / 24.4 |
+| HJ vs CO | 22.6 / 13.3 | 18.1 / 18.3 |
+| CO vs BTN | 21.6 / 16.9 | 19.2 / 16.9 |
+| CO vs BB | 14.2 / 17.5 | 9.6 / 22.4 |
+
+UTG opened 16.6% against the references' 18.3%.
+
+**Reproduced [V].** `scripts/pf/vs3bet.py --stored` on the lz2 file gives every figure above. It also measures the
+opener facing a 3bet hand by hand, at all 15 seat pairs, against a full 6-max 100bb solve kept locally
+(PokerData's, personal-use licence; read from `~/Desktop/projects/poker-reference`, never committed or shipped; this
+section quotes only distances to it). Three measures:
+- **Per-hand gap:** half the L1 distance of each class's 4bet/call/fold mix from the solve's, weighted by the solve's
+  combos at the node.
+- **Hands out of order** (`engine/pf_order.py`): a pair from 77 up, or a suited hand T-high or better with a 7+
+  kicker, that continues (4bet + call) more than 20 points less often than a weaker hand of its family. The solve
+  itself has none at any of the 15 spots. Below those families real solves aren't monotone (22 over 33-55, 66 over 77
+  out of position, K6s and A5s as 4bet bluffs), so they are left out.
+- **Totals:** the 4bet and call shares of the range, against the solve and against the published references.
+
+lz2: gap 27.3 points, 7 hands out of order.
+
+**The cause [V].** The per-class flop values in 3bet and 4bet pots are rank-sawtoothed by the flop sample.
+- A class's value is measured over a sample of flops shared by every class, so a rank the sample deals more often
+  lifts every hand holding it.
+- `pf_eqr`'s per-class residuals, which value every 4bet pot and every class past a library range's edge, run 66
+  −0.06, 55 +0.01, 44 −0.05, 33 −0.08, 22 +0.00 in every pot type and role.
+- The library's three 3bet spots are 184 flops each, and every in-position 3bet pot uses BTN-vs-CO's. The caller's
+  share there runs 99 0.372 < 88 0.395 and 77 0.349 < 66 0.392.
+- The river correction (`advisor._river_fix`) adds a step of its own, from 0 at 77 to +0.1 at 66.
+
+A class-level solve plays each class almost purely, so each step becomes a flip between neighbours: 88 calls, 99
+folds.
+
+**The fix [V].** `s2` and `s3` (`engine/pf_model.py` `smooth_shares`) smooth a 3bet / 4bet pot's share matrix along
+each family of hands: the pairs, and the suited and offsuit hands of each high card by kicker. Each class's main
+effect, meaning its mean excess over equity as aggressor and as caller, moves `s` of the way to its family's trend in
+rank: a quadratic for 6 or more members, a line for 3-5. How a class does against one class rather than another is
+kept. `s2 = s3 = 0.5`; the ten corrections are unchanged.
+
+**Measured [M].** 700-iteration solves at the references' rake (5% capped at 4bb) and at 5% capped at 0.5bb
+(`scripts/pf/calibrate.py eval --rakes "0.05,4;0.05,0.5"`). The references are the 26 published spots of section
+18.4; gap, out-of-order and totals are the opener facing a 3bet as above. Rows are rakes 4bb / 0.5bb.
+
+| Model | References: error / out (4bb) | Per-hand gap | Out of order | Totals vs the full solve | Totals vs published |
+|---|---:|---:|---:|---:|---:|
+| lz2 | 1.84 / 5 | 26.6 / 25.1 | 9 / 8 | 9.1 / 7.0 | 3.1 / 3.9 |
+| **s2 = s3 = 0.5 (adopted, lz3)** | 2.01 / 6 | **25.9 / 24.6** | **3 / 3** | 9.2 / 6.8 | 3.2 / 3.9 |
+| s2 = s3 = 1 | 2.18 / 7 | 25.7 / 24.4 | 4 / 7 | | |
+| s2 = s3 = 0.25 | 1.87 / 7 | 26.2 / 25.0 | 5 / 4 | | |
+| s3 = 0.5 alone | 1.83 / 5 | 26.6 / 24.9 | 5 / 5 | | |
+| s2 = 0.5 alone | 1.91 / 5 | 25.6 / 24.5 | 5 / 8 | | |
+| refit, vs-3bet shares weighted ×3 | 1.98 / 10 | 25.1 / 23.5 | 1 / 3 | 8.0 / 5.4 | |
+| refit, weighted ×1 | 2.02 / 8 | 25.5 / 23.9 | 2 / 3 | | |
+
+The refits (`calibrate.py fit --w3bet`) refit the ten corrections with the references' vs-3bet call and 4bet shares
+weighted. They gain about a point of gap but put 8-10 of the 26 spots out of tolerance, and they don't hold out: each
+half's fit at the looser ridges predicted the other half at 2.87-3.58 points. They weren't adopted.
+
+lz3 holds out at 2.26 points against lz2's 2.01 and upstream's 2.85 (each half of the references scored in the solve
+fitted on the other, `s` fixed). Hand facts off: 11 of 15 (lz2 12).
+
+**The stored games, 1,500 iterations [V]** (`vs3bet.py --stored`):
+
+| Game | Per-hand gap | Out of order | Totals vs the full solve | Totals vs published |
+|---|---:|---:|---:|---:|
+| 6-max 100bb, no rake: lz2 → lz3 | 25.7 → 24.6 | 12 → 3 | 6.5 → 6.1 | 3.5 → 3.8 |
+| 6-max 100bb, 5% capped at 3bb: lz2 → lz3 | 27.3 → 26.7 | 7 → 4 | 9.2 → 9.8 | 3.1 → 3.8 |
+
+No pair is out of order in either lz3 game. What remains is A9s continuing more than ATs facing a blind 3bet (and A8s
+once, no rake).
+
+UTG facing the BTN's 3bet in the raked game now plays:
+- AA-QQ 4bet, JJ calls, TT 4bets 41% and calls 59%, 99-66 fold;
+- AKs 4bets, AQs calls, AJs and ATs mix, A9s and KQs call.
+
+**Not fixed [M]: the volume.** No correction or smoothing tried moves the 4bet share much. At 5% capped at 3bb, in the
+three published spots where the opener has position against the 3bettor (UTG vs BTN, HJ vs CO, CO vs BTN), it 4bets
+21-24% of its range where they 4bet 18-19%, and calls 12-18% where they call 17-24%. Against the blinds it is within
+about 5 points. Rake moves it less than the full solve: from the 4bb cap to the 0.5bb cap its calls rise about 5
+points, while the full solve (at 0.5bb) calls about 15 points more than the published ones (at 4bb). Part of that gap
+is between those solvers, so it was not taken as a target.
+
+So every node at or after a 3bet in Lizard's solve now says so. `engine/pf_solve.Solve.node` adds `pf_3bet` (the
+text `AFTER_3BET`) when the line holds two or more raises. `web/src/solver/provenance.ts` `preflopSolveOf` marks the
+node approximate with those words, and the label ends "· approximate".
+
+**The model's key is now `lz3`** (`MODEL_TAG`, `web/src/solver/pfStored.ts`). The stored grid was rebuilt as
+`engine/pf/lz3_*.bin` through slot.sh (132 games, 7,306 s of solving; every game within the StoredGrid bounds, the farthest 1.524 mbb
+for lz3_6max_40bb_blind_3bet4 at 6,000 iterations and 1.149 mbb among the 1,500-iteration games).
+
+**Tests.**
+- `scripts/engine/test_pf_engine.py` `HandOrder`:
+  - the smoothing flattens a sawtooth and keeps a trend;
+  - smoothed, the pairs meet more of a 3bet pot by rank, and 77 over 88 in a 4bet pot is halved (unsmoothed:
+    0.021 and 0.054 of the pot out of order);
+  - the stored 6-max 100bb games, raked and not, have no pair out of order facing a 3bet and at most 4 hands in all.
+
+  The full solve is used only as a measure, never a fit target, so hand order is held out.
+- `Protocol`: a node after a 3bet carries `pf_3bet`, one before it doesn't. Its export round trip now allows the
+  export's 1/255 steps; it had compared mixes exactly and passed on lz2 by chance of rounding.
+- `web/src/solver/provenance.test.ts`: the node is marked approximate with the text.
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the

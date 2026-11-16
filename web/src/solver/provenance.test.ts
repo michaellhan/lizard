@@ -34,7 +34,7 @@ describe("provenance", () => {
     const node: AdvisorResponse = {
       study: "node",
       street: "preflop",
-      pf_solve: { key: "lz2_9max_100bb", done: true, stored: false, mbb: 1.2 },
+      pf_solve: { key: "lz3_9max_100bb", done: true, stored: false, mbb: 1.2 },
       pf_model: "calibrated class-level model",
       pf_limits: "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet",
     };
@@ -48,11 +48,29 @@ describe("provenance", () => {
     expect(describeProvenance(provenanceOf({ study: "node", street: "preflop", pf_solve: { done: true, stored: true, mbb: 1 } }, ctx))).toMatch(/^Preflop solve \(class-level model\) · precomputed · /);
   });
 
+  it("marks a node at or after a 3bet approximate in the engine's words (pf_solve.AFTER_3BET), a rough line's words kept", () => {
+    const why = "after a 3bet the class-level model 4bets more and calls less than published solves";
+    const node: AdvisorResponse = {
+      study: "node",
+      street: "preflop",
+      pf_solve: { key: "lz3_6max_100bb", done: true, stored: true, mbb: 1.1 },
+      pf_model: "calibrated class-level model",
+      pf_3bet: why,
+    };
+    const p = provenanceOf(node, ctx);
+    expect(p).toMatchObject({ source: "preflop-solve", approximate: true, approximateLabel: why });
+    expect(describeProvenance(p)).toMatch(/after a 3bet the class-level model 4bets more .* · approximate$/);
+    const rough = provenanceOf({ ...node, rough: true, regret_bb: 0.02 }, ctx);
+    expect(rough.approximateLabel).toMatch(/: rough; after a 3bet/);
+    // a node before any 3bet says nothing of it
+    expect(provenanceOf({ ...node, pf_3bet: undefined }, ctx).approximate).toBeFalsy();
+  });
+
   it("names what a preflop solve's tree adds, each in its own words (Spec.tree_notes)", () => {
     const node: AdvisorResponse = {
       study: "node",
       street: "preflop",
-      pf_solve: { key: "lz2_3max_s40-18-60_L", done: true, stored: false, mbb: 0.4 },
+      pf_solve: { key: "lz3_3max_s40-18-60_L", done: true, stored: false, mbb: 0.4 },
       pf_model: "calibrated class-level model",
       pf_tree: ["each seat's own stack (side pots; not measured against a fuller solve)", "limps from any seat (not measured against a fuller solve)"],
     };

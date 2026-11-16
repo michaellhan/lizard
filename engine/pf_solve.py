@@ -35,20 +35,28 @@ from . import pf_engine as E
 from . import pf_model as M
 
 MODEL = "calibrated class-level model"       # in every answer (pf_model) and the provenance label
-MODEL_TAG = "lz2"                           # key prefix: a change to the model or its calibration bumps it
+MODEL_TAG = "lz3"                           # key prefix: a change to the model or its calibration bumps it
 MAX_PLAYERS = 9
 STACK_RANGE = (5.0, 250.0)                  # a seat's stack, bb (the deepest at least 10)
 STORED_PLAYERS = (2, 3, 4, 5, 6)
 STORED_DEPTHS = (20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0, 125.0, 150.0, 200.0)
 STORED_RAKES = (None, (0.05, 3.0))
 # stored games solved past pf_study.STORED_ITERS (1,500) as they were over its 1.5 mbb target there; some level off just
-# above it (a live solve stops those by its stall rule too); each header holds the mbb shown (engine/pf/lz2_built.jsonl)
-STORED_ITERS_OF = {"lz2_4max_40bb": 3000, "lz2_5max_40bb": 3000, "lz2_5max_50bb": 3000, "lz2_6max_40bb": 3000,
-                   "lz2_6max_150bb": 3000, "lz2_6max_200bb": 3000, "lz2_6max_40bb_blind_3bet4": 6000}
+# above it (a live solve stops those by its stall rule too); each header holds the mbb shown
+# (engine/pf/<tag>_built.jsonl)
+STORED_ITERS_OF = {f"{MODEL_TAG}_{k}": v for k, v in {
+    "4max_40bb": 3000, "5max_40bb": 3000, "5max_50bb": 3000, "6max_40bb": 3000, "6max_150bb": 3000,
+    "6max_200bb": 3000, "6max_40bb_blind_3bet4": 6000}.items()}
 # the slowest of them, 6-max 40bb at the charts' 3bet size, levels off above 1.7: 1.793 mbb at 1,500 iterations, 1.759
 # at 3,000, 1.745 at 6,000 (doubling the work moved it 0.014). Its base game stops at 1.496; the 4x 3bet puts more of
 # the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a solve. 1.8 is the bound
 # the test holds these to; nothing else in the grid is above 1.65
+# every node at or after a 3bet (docs/ACCURACY.md section 18.7): the page marks it approximate with these words.
+# Measured on the stored 6-max 100bb games against the published solves (the opener facing a 3bet) and, hand by hand,
+# against a full solve at matching rake; the class-level model's 3bet and 4bet pots are its least certain values
+AFTER_3BET = ("after a 3bet the class-level model's flop values are least certain: at 6-max 100bb with rake its "
+              "opener facing a 3bet 4bets up to 6 points more of its range than published solves and calls up to 10 "
+              "points less, and it plays each hand class one way where a solve mixes")
 LIMITS_7UP = "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
 # memory a solve needs (MB): measured natively, peak resident over building the game, iterating and the exploitability
 # check: 6-max 11,010 nodes x 6 seats 749 MB, 9-handed 4,795 x 9 588 MB, 4-max 764 x 4 138 MB (a 78 MB interpreter in
@@ -146,7 +154,7 @@ class Spec:
 
     @property
     def key(self) -> str:
-        """File-name-safe: 'lz2_6max_100bb', 'lz2_6max_100bb_r5c3', 'lz2_6max_s100-35-220-60-15-100_a0.1'..."""
+        """File-name-safe: 'lz3_6max_100bb', 'lz3_6max_100bb_r5c3', 'lz3_6max_s100-35-220-60-15-100_a0.1'..."""
         k = f"{MODEL_TAG}_{self.players}max_"
         k += f"{self.stacks[0]:g}bb" if self.equal else "s" + "-".join(f"{s:g}" for s in self.seat_stacks())
         if self.ante:
@@ -401,6 +409,8 @@ class Solve(PS.Solve):
             notes = self.spec.tree_notes()
             if notes:
                 res["pf_tree"] = notes
+            if sum(1 for _, act, _ in node.line if act in ("raise", "all-in")) >= 2:
+                res["pf_3bet"] = AFTER_3BET
             res["solver"]["by"] = "Lizard's preflop solve"
         return res
 

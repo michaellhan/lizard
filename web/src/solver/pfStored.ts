@@ -1,6 +1,6 @@
 // The preflop games the worker answers from a stored solve, as the page needs to know them before it asks: the grid of
 // Lizard's preflop solver (engine/pf_solve.py stored_games, built by scripts/pf/build_stored.py --engine into
-// engine/pf/lz2_*.bin), which answers every preflop solve request (Study's Solver source, Practice's and Analyze's grade).
+// engine/pf/lz3_*.bin), which answers every preflop solve request (Study's Solver source, Practice's and Analyze's grade).
 // Every one is the same calibrated class-level model and solve; pfStored.test.ts holds this list to engine/pf_solve.py
 // and to the files.
 
@@ -9,7 +9,7 @@ export const PF_DEPTHS = [20, 25, 30, 40, 50, 60, 80, 100, 125, 150, 200] as con
 /** The one rake stored beside no rake. */
 export const PF_STORED_RAKE = { pct: 5, cap: 3 };
 /** engine/pf_solve.py MODEL_TAG: the model's prefix on every key, so no file, cache entry or stamp mixes two models' solves */
-export const PF_MODEL_TAG = "lz2";
+export const PF_MODEL_TAG = "lz3";
 
 /** The stored file's key (engine/pf_solve.Spec.key), with a 5%-capped-at-3bb rake or none. */
 export const pfKey = (players: number, stack: number, raked: boolean) =>
