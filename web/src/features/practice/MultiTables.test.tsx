@@ -267,7 +267,7 @@ describe("Tables (multitable.test.js:68)", () => {
     await waitFor(() => expect(document.activeElement).toBe(head()));
   });
 
-  it("takes you to the dock and the tables from New session with a changed setup, which remakes the form you pressed in", async () => {
+  it("takes you to the dock and the tables from New session with a changed setup, the form you pressed in kept as it is", async () => {
     const scroll = vi.fn();
     Element.prototype.scrollIntoView = scroll;
     await atTables(2);
@@ -278,7 +278,9 @@ describe("Tables (multitable.test.js:68)", () => {
     fresh.focus();
     fireEvent.click(fresh);
     await waitFor(() => expect(document.activeElement).toBe(within(dock()).getByRole("heading")));
-    expect(fresh.isConnected).toBe(false);
+    // (a setup of the form's own doesn't draw it again: the change applies as it's made, and your place in it stays)
+    expect(fresh.isConnected).toBe(true);
+    expect(within(form).getByRole("spinbutton", { name: "Stack in big blinds" })).toHaveValue(150);
     expect(scroll).toHaveBeenCalledTimes(1);
     Reflect.deleteProperty(Element.prototype, "scrollIntoView");
   });

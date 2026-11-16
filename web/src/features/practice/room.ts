@@ -94,7 +94,7 @@ import {
   type SeatChoice,
 } from "./practice";
 import { estimate, plan, queue, refocus, SHORT, streetKey, type Asked, type Front, type Job, type Waiter } from "./scheduler";
-import { afterDeal, afterDecision, afterHand, atTables, freshSession, gradesOf, keyOf, toRecord, type Kept, type PracticeSession } from "./session";
+import { afterDeal, afterDecision, afterHand, atTables, freshSession, gradesOf, keyOf, setupKey, toRecord, type Kept, type PracticeSession } from "./session";
 
 /** ms an opponent's move and a new card take at least at one table, so the hand can be followed. */
 export const PACE = 450;
@@ -265,6 +265,8 @@ export interface RoomSnapshot {
   holding: boolean;
   /** something would be lost by starting over: you've played here, or a kept session hasn't been read yet (at KEPT_WAIT) */
   underWay: boolean;
+  /** a setup changed in the form waits for the hands you've acted in to finish (`applySetup`) */
+  pending: boolean;
 }
 
 /** A wait: the seconds from your turn to its buttons. `table`: from 1. */
@@ -390,6 +392,8 @@ export class Room {
   private front: Front = FREE;
   /** the next hand at one table starts every stack afresh (see `setTables`) */
   private resetStacks = false;
+  /** a setup from the form, started once no hand you've acted in is still being played (`applySetup`) */
+  private pending: ScenarioSetup | null = null;
   /** the table a hand last finished at */
   private endedAt: Table | null = null;
   private kept: Kept | null = null;
@@ -667,6 +671,30 @@ export class Room {
 
   /** Every table starts again; what was set aside goes with the session it belonged to. */
   startSession(players: number, stack: number, opts: SessionOptions): void {
+    this.begin(players, stack, opts);
+    this.pump();
+  }
+
+  /** A setup changed in the form, as a new session: at once where you haven't acted in the hand, else from the next hand
+   * (at one table, as you go on from the hand you acted in, so its end stays to be seen; above it, once no hand you've
+   * acted in is still being played, a finished table waiting for the others). The session's own setup again: nothing
+   * waits. Graded decisions are in History either way (`record`). */
+  applySetup(players: number, stack: number, opts: SessionOptions): void {
+    const same = setupKey(players, stack, opts) === setupKey(this.session.players, this.session.stack, this.session.opts);
+    this.pending = same ? null : { players, stack, opts };
+    this.pump();
+  }
+
+  /** The pending setup started, where no table holds a hand you've acted in that's still being played (or, at one table,
+   * whose end is still on it: Next hand starts it). */
+  private takePending(): void {
+    if (!this.pending || this.tables.some((t) => t.hand.decisions.length > 0 && (!t.hand.result || !this.many))) return;
+    const { players, stack, opts } = this.pending;
+    this.begin(players, stack, opts);
+  }
+
+  private begin(players: number, stack: number, opts: SessionOptions): void {
+    this.pending = null;
     if (this.persist && !this.fixed) saveLastSetup({ players, stack, opts });
     this.session = atTables(freshSession(players, stack, opts), this.tables.length);
     this.spare = [];
@@ -694,7 +722,6 @@ export class Room {
     // (a session given up unread goes as one read would)
     this.keptRead = null;
     this.saveNow = this.clearDoc = true;
-    this.pump();
   }
 
   /** How many tables, 1 to 4. Up: your hand stays as Table 1, and the others take up what was set aside or deal. Down: the
@@ -736,14 +763,18 @@ export class Room {
   nextHand(reset = false, table = this.front.focus): void {
     const t = this.tables[table];
     if (!t?.hand.result) return;
-    this.deal(t, reset || this.resetStacks);
-    this.resetStacks = false;
+    // (a setup pending starts in this hand's place; above one table, once the others' hands you're in are over)
+    if (this.pending && !this.many) this.begin(this.pending.players, this.pending.stack, this.pending.opts);
+    else if (!this.pending) {
+      this.deal(t, reset || this.resetStacks);
+      this.resetStacks = false;
+    }
     this.pump();
   }
 
   /** Every finished table's next hand now, not after `pause`. */
   dealFinished(): void {
-    if (!this.many) return;
+    if (!this.many || this.pending) return;
     for (const t of this.tables) if (t.hand.result) this.deal(t);
     this.pump();
   }
@@ -937,6 +968,7 @@ export class Room {
   }
 
   private advance(): void {
+    this.takePending();
     const mode = this.mode;
     if (mode !== this.played) {
       // (a flip asks again: the key has the mode, and a failure at another mode says nothing of this one)
@@ -946,6 +978,11 @@ export class Room {
     }
     if (this.libState === "idle" && this.solver && (this.many || mode === "accurate" || this.tables.some((t) => needsIndex(t.hand)))) this.readLib();
     for (const t of this.tables) this.step(t, mode);
+    // (above one table, the last hand you were in waiting for a setup has just ended: it starts now)
+    if (this.pending) {
+      this.takePending();
+      if (!this.pending) for (const t of this.tables) this.step(t, mode);
+    }
     const needs = this.tables.map((t) => this.needAt(t.hand, mode));
     const ready = this.tables.filter((t, i) => this.turn(t, i, needs[i]!));
     this.front = refocus(this.front, this.waiters, this.now());
@@ -981,7 +1018,8 @@ export class Room {
     while (!t.spent) {
       const h = t.hand;
       if (this.many && h.result) {
-        if (this.dealtOut || this.paced(t, this.pause)) return;
+        // (a setup pending waits for the others' hands you're in, and starts every table at once)
+        if (this.dealtOut || this.pending || this.paced(t, this.pause)) return;
         this.deal(t);
         continue;
       }
@@ -1529,6 +1567,7 @@ export class Room {
       keptRead: this.keptRead,
       holding: this.holding,
       underWay: this.keptRead === "waiting" || this.session.hands > 0 || this.tables.some((t) => t.hand.decisions.length > 0),
+      pending: !!this.pending,
     };
   }
 

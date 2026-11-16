@@ -8,7 +8,7 @@ import { addScore, emptyScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
 import { PRIZE_UNIT } from "@/solver/provenance";
 import { playedByRead } from "./exploit";
-import { carries, livePlays, playsOn, simOf, type Decision, type GameOptions, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
+import { carries, othersPlay, playsOn, simOf, type Decision, type GameOptions, type HandOptions, type HandResult, type PracticeHand, type SessionOptions } from "./practice";
 import { reviewed, withReviewed, type Reviewed } from "./review";
 
 export interface PracticeSession {
@@ -140,7 +140,7 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
     ...(s.opts.tournament ? { tournament: s.opts.tournament } : {}),
     ...(s.opts.exploit ? { exploit: s.opts.exploit, ...(s.read ? { read: s.read } : {}) } : {}),
     ...(s.opts.pfSolve ? { pfSolve: true, ...(s.opts.pfSizes ? { pfSizes: true } : {}) } : {}),
-    ...(livePlays(s.opts) ? { opponents: "live" } : {}),
+    ...(othersPlay(s.opts) ? { opponents: othersPlay(s.opts)! } : {}),
     ...(s.opts.ante ? { ante: s.opts.ante } : {}),
     ...(s.opts.straddle && s.players >= 3 ? { straddle: true } : {}),
     ...((carries(s.opts) || playsOn(s.opts)) && tables <= 1 ? { carry: true } : {}),
@@ -156,3 +156,18 @@ export const toRecord = (s: PracticeSession, tables = 1): SessionRecord => ({
 /** A finished hand kept in Analyze, or being kept: `key` is the session's and the hand's place in it. */
 export type Kept = { key: string } & ({ st: "saving" } | { st: "kept"; id: string; had: boolean } | { st: "error"; message: string });
 export const keyOf = (s: Pick<PracticeSession, "id">, h: Pick<PracticeHand, "n">) => `${s.id}|${h.n}`;
+
+/** A setup as one string, the same for the same game however it was put together: keys in order, and an option left
+ * unset (undefined or null) the same as one left out. */
+export const setupKey = (players: number, stack: number, opts: SessionOptions): string => JSON.stringify(canon({ players, stack, opts }));
+
+function canon(x: unknown): unknown {
+  if (Array.isArray(x)) return x.map(canon);
+  if (!x || typeof x !== "object") return x;
+  return Object.fromEntries(
+    Object.entries(x)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => [k, canon(v)]),
+  );
+}

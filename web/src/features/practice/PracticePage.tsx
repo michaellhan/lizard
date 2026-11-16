@@ -32,9 +32,9 @@ import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLin
 import { gradedOn, optionsAt } from "./pfGrade";
 import { aheadOption, isNextKey, optionFromKey, shownOrder } from "./keys";
 import { KeysHelp } from "./KeysHelp";
-import { boardShown, gameLabel, livePlays, mixOf, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
+import { boardShown, gameLabel, mixOf, othersPlay, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
-import { FIRST_OPTS, keyOf } from "./session";
+import { FIRST_OPTS, keyOf, setupKey } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
 import { SetupForm } from "./SetupForm";
 import { assumedWords, readWords } from "./exploit";
@@ -49,6 +49,12 @@ const OPPONENTS = "Opponents: charts preflop, then the solver\u2019s mix (rules 
 const OPPONENTS_STORED = "Opponents: the stored preflop solve\u2019s mix preflop (the charts off its tree), then the solver\u2019s mix (rules with 5+ in).";
 const opponentsOf = (o: { pfSolve?: boolean; tournament?: { model: string } }) => (o.pfSolve && o.tournament?.model === "icm" ? OPPONENTS_STORED : OPPONENTS);
 const LIVE_OPPONENTS = "Opponents: live cash regulars (assumed), the solver\u2019s move changed by hand-set rules; you\u2019re still graded against the equilibrium.";
+const LOOSE_OPPONENTS = "Opponents: loose (More action, assumed), the solver\u2019s move changed by hand-set rules; you\u2019re still graded against the equilibrium.";
+/** What the Game panel says the other seats play by. */
+const opponentsNote = (o: Parameters<typeof othersPlay>[0] & { pfSolve?: boolean }) => {
+  const by = othersPlay(o);
+  return by === "live" ? LIVE_OPPONENTS : by === "loose" ? LOOSE_OPPONENTS : opponentsOf(o);
+};
 
 type Tab = "hands" | "drills" | "combos";
 const TABS: readonly { id: Tab; label: string }[] = [
@@ -284,16 +290,28 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     gameRef.current.querySelector<HTMLElement>("input, select, textarea, button:not([disabled])")?.focus();
   });
 
+  // The form is drawn again for a session it didn't set up (a link, a kept session read back), not for one of its own: a
+  // change applies as you make it, and a form drawn again under you would lose your place in it.
+  const sessionKey = setupKey(session.players, session.stack, session.opts);
+  const [fromForm, setFromForm] = useState<string | null>(null);
+  const [formFor, setFormFor] = useState({ session: sessionKey, n: 0 });
+  if (formFor.session !== sessionKey) setFormFor({ session: sessionKey, n: formFor.n + (sessionKey === fromForm ? 0 : 1) });
   const sum = summary(session.score);
   const setup = (
     <SetupForm
-      key={`${session.players}/${session.stack}/${JSON.stringify(session.opts)}`}
+      key={formFor.n}
       players={session.players}
       stack={session.stack}
       opts={session.opts}
       tables={tables.length}
+      pending={snap.pending}
       onEdit={() => room.editing()}
+      onApply={(p, n, o) => {
+        setFromForm(setupKey(p, n, o));
+        room.applySetup(p, n, o);
+      }}
       onStart={(p, n, o) => {
+        setFromForm(setupKey(p, n, o));
         pressRef.current = many;
         room.startSession(p, n, o);
         // (at one table: with the form open on a tablet or laptop, the hand starts below the fold, and the field Enter
@@ -360,10 +378,10 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
             {session.opts.tournament ? ` · ${gameLabel(session.opts.tournament)}` : ""}
             {session.opts.exploit ? ` · exploiting ${assumedWords(session.opts.exploit)}` : ""}
             {session.opts.pfSolve ? ` · preflop graded by the preflop solve${session.opts.pfSizes ? ", at its raise sizes" : ""}` : ""}
-            {livePlays(session.opts) ? " · live opponents (assumed)" : ""}
+            {othersPlay(session.opts) === "live" ? " · live opponents (assumed)" : othersPlay(session.opts) === "loose" ? " · more action (assumed)" : ""}
           </summary>
           <div ref={place} className="mt-2 flex flex-wrap items-center gap-2" />
-          <p className="mt-2 text-xs text-muted">{livePlays(session.opts) ? LIVE_OPPONENTS : opponentsOf(session.opts)}</p>
+          <p className="mt-2 text-xs text-muted">{opponentsNote(session.opts)}</p>
         </details>
       )}
 
@@ -371,7 +389,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
         <details ref={gameRef} className="min-w-0 flex-1 basis-72 panel px-3 py-1.5 text-sm open:basis-full">
           <summary className="cursor-pointer">Game</summary>
           <div className="mt-2 space-y-2">
-            <p className="text-xs text-muted">{livePlays(session.opts) ? LIVE_OPPONENTS : opponentsOf(session.opts)} Some fields apply at one table only.</p>
+            <p className="text-xs text-muted">{opponentsNote(session.opts)} Some fields apply at one table only.</p>
             <div ref={place} />
           </div>
         </details>
@@ -505,6 +523,7 @@ function OneTable({ room, snap, active, side }: { room: Room; snap: RoomSnapshot
               {hand.pushFold ? " · push/fold" : ""}
               {hand.tournament ? ` · ${gameLabel(hand.tournament)}` : ""}
               {hand.exploit ? ` · exploiting ${assumedWords(hand.exploit)}` : ""}
+              {hand.opponents === "loose" ? " · more action" : hand.opponents === "live" ? " · live opponents" : ""}
               {hand.rake ? ` · rake ${hand.rake.pct}%${hand.rake.cap ? ` (cap ${hand.rake.cap}bb)` : ""}` : ""}
               {hand.sizes ? ` · your sizes: ${describeSetup({ sizes: hand.sizes }).join(", ")}` : ""}
             </span>

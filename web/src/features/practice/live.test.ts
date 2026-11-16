@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import type { Move } from "@/poker/table";
 import { moveOf } from "./flow";
-import { handTier, liveMove, playable, type OppMove } from "./live";
+import { handTier, liveMove, looseCalls, playable, worthPlaying, type OppMove } from "./live";
+import { classOf } from "@/engine/nlhe/cards";
 import { dealNext, newHand, simOf, withVillain, type PracticeHand } from "./practice";
 
 const mv = (pos: string, action: Move["action"], to?: number): Move => ({ pos, action, ...(to !== undefined ? { to } : {}) });
@@ -82,5 +83,71 @@ describe("liveMove", () => {
     expect(moveOf(h, OPEN)).toEqual(moveOf(h, OPEN));
     const moves = new Set(Array.from({ length: 30 }, (_, s) => at({ ...h, seed: s }, OPEN).action));
     expect([...moves].sort()).toEqual(["call", "raise"]);
+  });
+});
+
+// More action: the hands dealt you, and the loose opponents' moves.
+const RANKS = "AKQJT98765432";
+/** Every starting-hand class with its number of combos. */
+const classes = (): [string, number][] =>
+  [...RANKS].flatMap((x, i) => [...RANKS.slice(i)].flatMap((y): [string, number][] => (x === y ? [[x + y, 6]] : [[`${x}${y}s`, 4], [`${x}${y}o`, 12]])));
+const combos = (f: (c: string) => boolean) => classes().reduce((n, [c, k]) => n + (f(c) ? k : 0), 0);
+const loose = (seed = 1) => newHand(6, 100, 0, seed, { opponents: "loose" });
+
+describe("worthPlaying and looseCalls", () => {
+  it("are the best 36% and 62% of hands, as their notes say", () => {
+    expect(combos(worthPlaying)).toBe(482);
+    expect(combos(looseCalls)).toBe(822);
+    // (every hand dealt you is one a loose player would call with too)
+    expect(classes().every(([c]) => !worthPlaying(c) || looseCalls(c))).toBe(true);
+    for (const c of ["22", "A2o", "K2s", "Q6s", "J7s", "54s", "T9o", "KTo"]) expect(worthPlaying(c), c).toBe(true);
+    for (const c of ["Q5s", "J6s", "43s", "K9o", "98o", "72o"]) expect(worthPlaying(c), c).toBe(false);
+    for (const c of ["72s", "J9o", "K7o", "54o", "T8o"]) expect(looseCalls(c), c).toBe(true);
+    for (const c of ["72o", "J5o", "K6o", "43o", "T7o"]) expect(looseCalls(c), c).toBe(false);
+  });
+});
+
+describe("More action (loose opponents)", () => {
+  it("deals you only hands worth playing, by the seed, and leaves a drill's pot alone", () => {
+    for (let seed = 1; seed <= 300; seed += 1) {
+      const h = loose(seed);
+      expect(h.opponents).toBe("loose");
+      expect(worthPlaying(classOf(h.hands[h.hero]!.join(""))), `seed ${seed}`).toBe(true);
+      expect(new Set(Object.values(h.hands).flat().concat(h.board)).size).toBe(17);
+    }
+    expect(loose(5)).toEqual(loose(5));
+    expect(newHand(6, 100, 0, 1, { opponents: "loose", pot: "srp" }).opponents).toBeUndefined();
+  });
+
+  it("limps and calls opens wide, and sees more flops than a live regular", () => {
+    expect(at(holding(loose(), "UTG", "Js9d"), OPEN)).toEqual({ action: "call" });
+    expect(at(holding(live(), "UTG", "Js9d"), OPEN)).toBe(OPEN);
+    const raised = (h: PracticeHand) => played(h, [mv("UTG", "raise", 2.5)]);
+    expect(at(holding(raised(loose()), "HJ", "Td8c"), { action: "fold" })).toEqual({ action: "call" });
+    expect(at(holding(raised(live()), "HJ", "Td8c"), { action: "fold" })).toEqual({ action: "fold" });
+    // (across every class at the HJ facing an open, the loose player calls or raises far more often)
+    const inPot = (h: PracticeHand) =>
+      classes().reduce((n, [c, k]) => {
+        const hole = c.length === 2 ? `${c[0]}s${c[1]}d` : c[2] === "s" ? `${c[0]}s${c[1]}s` : `${c[0]}s${c[1]}d`;
+        const a = at(holding(raised(h), "HJ", hole), { action: "fold" }).action;
+        return n + (a === "fold" ? 0 : k);
+      }, 0);
+    expect(inPot(loose())).toBeGreaterThan(inPot(live()) * 2);
+  });
+
+  it("calls a flop bet with any pair or draw nearly always, floats with nothing, and still folds air sometimes", () => {
+    const pre = played(loose(), [mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold"), mv("BTN", "raise", 2.5), mv("SB", "fold"), mv("BB", "call")]);
+    const flop = { ...dealNext(pre, "flop"), board: cards("Ks7c2dQh3s") };
+    const bet = played(flop, [mv("BB", "check"), mv("BTN", "bet", 2)]);
+    const many = (hole: string) => Array.from({ length: 60 }, (_, s) => at(holding({ ...bet, seed: s }, "BB", hole), { action: "fold" }).action);
+    expect(many("Ah7d").filter((a) => a === "fold").length).toBeLessThan(6);
+    const air = many("9h8h");
+    expect(air.filter((a) => a === "call").length).toBeGreaterThan(12);
+    expect(air).toContain("fold");
+  });
+
+  it("draws the same move at the same spot", () => {
+    const h = holding(loose(7), "UTG", "AhQd");
+    expect(moveOf(h, OPEN)).toEqual(moveOf(h, OPEN));
   });
 });

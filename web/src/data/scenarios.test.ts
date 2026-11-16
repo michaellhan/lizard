@@ -127,6 +127,13 @@ describe("live opponents in a setup", () => {
     expect(read({ opponents: "live", pot: "srp" })!.opts.opponents).toBeUndefined();
     expect(read({ opponents: "fish" })).toBeNull();
   });
+
+  it("keeps More action (loose) the same way, and says it in words", () => {
+    expect(read({ opponents: "loose" })!.opts.opponents).toBe("loose");
+    expect(read({ opponents: "loose", pot: "srp" })!.opts.opponents).toBeUndefined();
+    expect(scenarioWords(read({ opponents: "loose" })!)).toContain("more action (assumed)");
+    expect(scenarioWords(read({ opponents: "live" })!)).toContain("live opponents (assumed)");
+  });
 });
 
 describe("the store", () => {

@@ -95,6 +95,9 @@ describe("sessions history", () => {
     expect(old.graded).toBe("Not kept: played before Lizard kept what graded each decision");
     expect(rowOf(NEW).graded).toBe("Live solve 2, Preflop charts (approximate) 1");
     expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet" } }).what).toBe("2 players · 100bb · 3-bet pots");
+    // (opponents by hand-set rules are said to be assumed)
+    expect(rowOf({ ...NEW, meta: { ...NEW.meta, opponents: "live" } }).what).toBe("2 players · 100bb · live opponents (assumed)");
+    expect(rowOf({ ...NEW, meta: { ...NEW.meta, opponents: "loose" } }).what).toBe("2 players · 100bb · more action (assumed)");
     expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet", board: { suits: "mono" }, hand: "m:set" } }).what).toMatch(/^2 players · 100bb · 3-bet pots · .+ · set$/);
     // (a backup can carry anything, and it's left unsaid rather than drawn)
     expect(rowOf({ ...NEW, meta: { ...NEW.meta, pot: "3bet", board: { suits: "nonsense" }, hand: "m:nonsense" } }).what).toBe("2 players · 100bb · 3-bet pots");

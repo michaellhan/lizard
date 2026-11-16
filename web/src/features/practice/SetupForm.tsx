@@ -1,8 +1,9 @@
 // The New session form: the table's size and stack, your seat, what's played (full hands, preflop only, one kind of pot,
 // push/fold or a tournament), in one kind of pot an assumed profile to exploit, the ante, rake and straddle, chips carried
-// and your own bet sizes, and in a stored game the preflop solve as what grades preflop, at its raise sizes if you ask. It
-// holds what's typed until it's submitted, and keeps a setup that can start as a saved scenario.
-import { useState } from "react";
+// and your own bet sizes, and in a stored game the preflop solve as what grades preflop, at its raise sizes if you ask. A
+// change you make goes to `onApply` as soon as the form is whole (a typed field once you've paused), so it needs no New
+// session; New session starts again at once. It keeps a setup that can start as a saved scenario.
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { SaveScenario } from "@/features/saved/SaveScenario";
 import {
   describeSetup,
@@ -24,7 +25,7 @@ import {
   type ExploitProfile,
 } from "./exploit";
 import { HAND_GROUPS, handFits, handLabel } from "./handFilter";
-import { LIVE_NOTE } from "./live";
+import { LIVE_NOTE, LOOSE_NOTE } from "./live";
 import { LEVEL_HANDS } from "./tournamentPlay";
 import {
   carries,
@@ -65,6 +66,9 @@ const ON_WORDS = {
   cards: "read on your two cards",
 } as const;
 
+/** ms a typed field waits for the next key before its value goes to `onApply` (a list or a box goes at once) */
+export const TYPED_WAIT = 700;
+
 const SIZE_LABEL: Record<SizeStreet, string> = {
   flop: "Flop bets",
   turn: "Turn bets",
@@ -77,7 +81,9 @@ export function SetupForm({
   stack,
   opts,
   tables = 1,
+  pending = false,
   onEdit,
+  onApply,
   onStart,
 }: {
   players: number;
@@ -85,8 +91,12 @@ export function SetupForm({
   opts: SessionOptions;
   /** the tables set now: a filter deals at one */
   tables?: number;
+  /** a change applied waits for the hand you've acted in (Room `applySetup`) */
+  pending?: boolean;
   /** you've gone to the form: what's typed here goes if it's drawn again for another session */
   onEdit: () => void;
+  /** a change of yours, whole: the game from now on, without New session */
+  onApply?: (players: number, stack: number, opts: SessionOptions) => void;
   onStart: (players: number, stack: number, opts: SessionOptions) => void;
 }) {
   const [p, setP] = useState(players);
@@ -110,8 +120,10 @@ export function SetupForm({
   const [straddle, setStraddle] = useState(opts.straddle);
   const [carry, setCarry] = useState(opts.carry);
   const [opponents, setOpponents] = useState<"gto" | "live">(
-    opts.opponents ?? "gto",
+    opts.opponents === "live" ? "live" : "gto",
   );
+  // (More action: loose opponents and hands worth playing, in place of the Opponents choice)
+  const [action, setAction] = useState(opts.opponents === "loose");
   // (on unless chosen off: the solve is preflop's default grade wherever the game is stored)
   const [pfSolve, setPfSolve] = useState(opts.pfSolve ?? true);
   const [pfSizes, setPfSizes] = useState(!!opts.pfSizes);
@@ -198,9 +210,13 @@ export function SetupForm({
         ...(isPF ? { pushFold: true } : {}),
         ...(tournament?.value ? { tournament: tournament.value } : {}),
         ...(exploit ? { exploit } : {}),
-        ...(opponents === "live" && !isPotDrill(play)
-          ? { opponents: "live" as const }
-          : {}),
+        ...(isPotDrill(play)
+          ? {}
+          : action
+            ? { opponents: "loose" as const }
+            : opponents === "live"
+              ? { opponents: "live" as const }
+              : {}),
       }
     : null;
   // (null with the form unfinished, as there's no game yet to say anything of)
@@ -212,12 +228,31 @@ export function SetupForm({
         ? { ...game, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) }
         : { ...game, pfSolve: false }
       : game;
+  // (only a change of yours applies, never the form as first drawn; a typed field once you've paused, so a stack typed as
+  // 1, 15, 150 doesn't start three games)
+  const changed = useRef(false);
+  const typed = useRef(false);
+  const apply = useEffectEvent((wp: number, wn: number, wo: SessionOptions) => onApply?.(wp, wn, wo));
+  const want = setup ? JSON.stringify([p, n, setup]) : null;
+  useEffect(() => {
+    if (!changed.current || !want) return;
+    const [wp, wn, wo] = JSON.parse(want) as [number, number, SessionOptions];
+    const go = () => apply(wp, wn, wo);
+    if (!typed.current) return go();
+    const t = setTimeout(go, TYPED_WAIT);
+    return () => clearTimeout(t);
+  }, [want]);
   return (
     <form
       aria-label="New session"
       className="flex flex-wrap items-center gap-2 text-sm"
       onFocus={onEdit}
-      onChange={onEdit}
+      onChange={(e) => {
+        changed.current = true;
+        const el = e.target as HTMLElement;
+        typed.current = el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "radio";
+        onEdit();
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         if (setup) onStart(p, n, setup);
@@ -559,7 +594,7 @@ export function SetupForm({
         <select
           aria-label="Opponents"
           value={isPotDrill(play) ? "gto" : opponents}
-          disabled={isPotDrill(play)}
+          disabled={isPotDrill(play) || action}
           onChange={(e) => setOpponents(e.target.value as "gto" | "live")}
           className="rounded border border-border bg-surface-2 px-1.5 py-1"
         >
@@ -567,8 +602,28 @@ export function SetupForm({
           <option value="live">Live cash regulars</option>
         </select>
       </label>
-      {opponents === "live" && !isPotDrill(play) && (
-        <p className="basis-full text-xs text-muted">{LIVE_NOTE}</p>
+      <label
+        className="flex items-center gap-1.5"
+        title={
+          isPotDrill(play)
+            ? "A kind of pot deals its preflop by the equilibrium"
+            : "Hands worth playing, and loose opponents: more multiway pots"
+        }
+      >
+        <input
+          type="checkbox"
+          aria-label="More action"
+          aria-describedby={action && !isPotDrill(play) ? "action-note" : undefined}
+          checked={action && !isPotDrill(play)}
+          disabled={isPotDrill(play)}
+          onChange={(e) => setAction(e.target.checked)}
+        />
+        <span className="text-muted">More action</span>
+      </label>
+      {!isPotDrill(play) && (action || opponents === "live") && (
+        <p id="action-note" className="basis-full text-xs text-muted">
+          {action ? LOOSE_NOTE : LIVE_NOTE}
+        </p>
       )}
       {game && !pfNo && (
         <>
@@ -632,10 +687,9 @@ export function SetupForm({
       >
         New session
       </button>
-      {(p !== players || n !== stack) && ok && (
+      {pending && ok && (
         <span role="status" className="text-xs text-accent">
-          {p !== players ? (p === 2 ? "Heads-up" : `${p}-max`) : `${n}bb`}
-          {p !== players && n !== stack ? `, ${n}bb` : ""} starts with New session.
+          {tables > 1 ? "Your change starts once the hands you\u2019re in are over." : "Your change starts with the next hand."}
         </span>
       )}
       <SaveScenario setup={setup && { players: p, stack: n, opts: setup }} />

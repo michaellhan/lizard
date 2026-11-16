@@ -81,7 +81,7 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   const read = o.exploit === undefined || o.exploit === null ? null : isObj(o.exploit) && isProfile(o.exploit.profile) ? exploitOf(o.exploit.profile) : false;
   if (read === false || (read && !pot)) return null;
   const opponents = o.opponents ?? "gto";
-  if (opponents !== "gto" && opponents !== "live") return null;
+  if (opponents !== "gto" && opponents !== "live" && opponents !== "loose") return null;
   const game = { pushFold, tournament: tournament ?? undefined, preflopOnly: preflop, pot, seat };
   const setup: SessionOptions = {
     seat,
@@ -98,8 +98,8 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
     ...(pushFold ? { pushFold: true } : {}),
     ...(tournament ? { tournament } : {}),
     ...(read ? { exploit: read } : {}),
-    // (the form offers live opponents outside a kind of pot only)
-    ...(opponents === "live" && !pot ? { opponents: "live" as const } : {}),
+    // (the form offers live opponents and More action outside a kind of pot only)
+    ...((opponents === "live" || opponents === "loose") && !pot ? { opponents } : {}),
   };
   // (the option exists only where a stored solve does: one set anywhere else was never the form's)
   if (pfSolve && pfBlocked(players, stack, setup)) return null;
@@ -169,6 +169,7 @@ export function scenarioWords({ players, stack, opts: o }: ScenarioSetup): strin
     o.pot && o.hand ? `hands: ${handLabel(o.hand).toLowerCase()}` : "",
     o.exploit ? `exploiting ${assumedWords(o.exploit)}: ${exploitNumbers(o.exploit)}` : "",
     o.pfSolve ? (o.pfSizes ? "preflop graded by the preflop solve, at its raise sizes" : "preflop graded by the preflop solve") : "",
+    o.pot ? "" : o.opponents === "live" ? "live opponents (assumed)" : o.opponents === "loose" ? "more action (assumed)" : "",
     o.ante ? `ante ${o.ante}bb` : "",
     o.straddle ? "straddle" : "",
     o.rake ? `rake ${o.rake}%${o.rakeCap ? ` (cap ${o.rakeCap}bb)` : ""}` : "",

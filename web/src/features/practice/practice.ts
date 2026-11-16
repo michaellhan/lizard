@@ -38,6 +38,7 @@ import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeG
 import type { Provenance } from "@/solver/types";
 import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./exploit";
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
+import { worthPlaying } from "./live";
 import { flopsLike, type TextureFilter } from "./texture";
 import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE, pfGradeSizes } from "@/solver/pfStored";
 import { pfIcmStage, PF_ICM_WORDS } from "./pfIcmStored";
@@ -121,8 +122,9 @@ export interface PracticeHand {
   exploit?: Exploit;
   /** with `exploit`: how the opponent's moves after the flop were drawn, by the read or the equilibrium (`tallyRead`) */
   read?: ReadTally;
-  /** the other seats play like a live cash game's regulars, by hand-set rules (live.ts), not the equilibrium */
-  opponents?: "live";
+  /** the other seats play by hand-set rules (live.ts), not the equilibrium: like a live cash game's regulars, or loose
+   * (More action: they limp and call wide and fold less, and you're dealt hands worth playing) */
+  opponents?: "live" | "loose";
   /** your preflop decisions are graded by the stored preflop solve where it can answer them (pfGrade.ts) */
   pfSolve?: true;
   /** with `pfSolve`: at a spot the solve grades, your raise is at the solve's own size in place of the chart's (pfGrade.ts) */
@@ -280,8 +282,9 @@ export interface GameOptions {
   pfSolve?: boolean;
   /** with `pfSolve`: offer the solve's own raise sizes where it grades the spot, in place of the chart's */
   pfSizes?: boolean;
-  /** how the other seats play: the equilibrium (the default) or a live cash game's regulars (live.ts) */
-  opponents?: "gto" | "live";
+  /** how the other seats play: the equilibrium (the default), a live cash game's regulars, or loose, with you dealt hands
+   * worth playing (More action) (live.ts) */
+  opponents?: "gto" | "live" | "loose";
 }
 
 /** What a hand can be dealt by beyond the HandOptions: in a pot-type mode, a flop of this texture (null: any flop), and
@@ -293,9 +296,12 @@ export interface DealOptions extends HandOptions, GameOptions {
 /** A session's setup, as it's kept. One kept before the board filter or the hand filter has none. */
 export type SessionOptions = Required<HandOptions> & GameOptions & Pick<DealOptions, "board" | "hand">;
 
-/** Whether the other seats play live (live.ts): not in a drill's pot, which deals its preflop by the equilibrium, nor in
- * exploit practice, whose opponent plays its read. */
-export const livePlays = (o: Pick<HandOptions, "pot"> & GameOptions) => o.opponents === "live" && !o.pot && !o.exploit;
+/** How the other seats play where it isn't the equilibrium (live.ts), else null: not in a drill's pot, which deals its
+ * preflop by the equilibrium, nor in exploit practice, whose opponent plays its read. */
+export const othersPlay = (o: Pick<HandOptions, "pot"> & GameOptions): "live" | "loose" | null =>
+  (o.opponents === "live" || o.opponents === "loose") && !o.pot && !o.exploit ? o.opponents : null;
+/** Whether the other seats play live (live.ts). */
+export const livePlays = (o: Pick<HandOptions, "pot"> & GameOptions) => othersPlay(o) === "live";
 
 /** A session that's only ever any hand above one table: a pot played for you would stop it being what was set up. */
 export const anyHandOnly = (o: Pick<HandOptions, "preflopOnly"> & GameOptions) => !!o.preflopOnly || !!o.pushFold || !!o.tournament;
@@ -389,7 +395,13 @@ export function newHand(players: number, stack: number, n: number, seed: number,
   // its turn on a hand that couldn't count)
   const dealtTo = isPotDrill(opts.pot) && opts.hand ? opts.hand : null;
   const fit = dealtTo ? drawFit(dealtTo, rnd, flops?.length ? flops : null) : null;
-  const d = fit ? dealAround(players, rnd, fit.flop, { seat: hero, hole: fit.hole }) : flops?.length ? dealOnFlop(players, rnd, flops) : deal(players, rnd);
+  const d = fit
+    ? dealAround(players, rnd, fit.flop, { seat: hero, hole: fit.hole })
+    : flops?.length
+      ? dealOnFlop(players, rnd, flops)
+      : othersPlay(opts) === "loose"
+        ? dealPlayable(players, rnd, hero)
+        : deal(players, rnd);
   return {
     seed,
     n,
@@ -411,7 +423,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.pushFold ? { pushFold: true as const } : {}),
     ...(opts.tournament ? (table?.tournament ? { tournament: table.tournament, stacks: table.stacks } : tournamentHand(opts.tournament)) : {}),
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
-    ...(livePlays(opts) ? { opponents: "live" as const } : {}),
+    ...(othersPlay(opts) ? { opponents: othersPlay(opts)! } : {}),
     ...(opts.pfSolve && !pfBlocked(players, stack, opts)
       ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}), ...(opts.tournament?.model === "icm" ? { pfOptions: true as const } : {}) }
       : {}),
@@ -460,6 +472,15 @@ export function nextTable(h: PracticeHand, chips: Record<string, number> = chips
 
 /** The session's next hand, number `n`: with chips carried, from where this one left them (or, `reset`, every seat
  * back at the starting stack). */
+/** More action's deal: dealt again on the same seeded stream until your two cards are worth playing (live.ts
+ * `worthPlaying`, about the best 36%), so the hand is still its seed's. */
+function dealPlayable(players: number, rnd: () => number, hero: string) {
+  let d = deal(players, rnd);
+  for (let i = 1; i < PLAYABLE_TRIES && !worthPlaying(classOf(d.hands[hero]!.join(""))); i += 1) d = deal(players, rnd);
+  return d;
+}
+const PLAYABLE_TRIES = 60;
+
 export function following(h: PracticeHand, seed: number, opts: DealOptions, reset = false, n = h.n + 1): PracticeHand {
   if (playsOn(opts) && opts.tournament) {
     // (a tournament played out: from where this hand left it, or over and started again; `reset` starts it again)

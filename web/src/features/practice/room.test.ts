@@ -322,6 +322,92 @@ describe("Room at one table", () => {
   });
 });
 
+describe("Room applying a changed setup (the form's, without New session)", () => {
+  it("starts it at once where you haven't acted in the hand", async () => {
+    const { room, asked } = setup({ players: 2 });
+    await flush();
+    const id = room.snapshot().session.id;
+    room.applySetup(3, 50, { ...OPTS, ante: 0.2 });
+    expect(room.snapshot()).toMatchObject({ pending: false, session: { players: 3, stack: 50, opts: { ante: 0.2 } } });
+    expect(room.snapshot().session.id).not.toBe(id);
+    expect(table(room).hand).toMatchObject({ players: 3, stack: 50, ante: 0.2, n: 0 });
+    // (what was asked for the hand that went is stopped)
+    expect(asked[0]!.signal!.aborted).toBe(true);
+  });
+
+  it("waits for the next hand once you've acted, the hand's end staying to be seen, and Next hand starts it", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(2);
+    const id = room.snapshot().session.id;
+    room.applySetup(3, 50, OPTS);
+    expect(room.snapshot()).toMatchObject({ pending: true, session: { id, players: 2, stack: 100 } });
+    await flush();
+    asked.at(-1)!.answer(move("fold"));
+    await pass(1000);
+    expect(table(room).hand.result).not.toBeNull();
+    expect(room.snapshot()).toMatchObject({ pending: true, session: { id, players: 2, hands: 1 } });
+    room.nextHand();
+    expect(room.snapshot()).toMatchObject({ pending: false, session: { players: 3, stack: 50, hands: 0 } });
+    expect(table(room).hand).toMatchObject({ players: 3, stack: 50, n: 0, result: null });
+  });
+
+  it("drops what waits when the form goes back to the session's own setup, however it's put", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(2);
+    const id = room.snapshot().session.id;
+    room.applySetup(2, 60, OPTS);
+    expect(room.snapshot().pending).toBe(true);
+    // (an option unset is one left out)
+    room.applySetup(2, 100, { ...OPTS, board: null, exploit: undefined });
+    expect(room.snapshot().pending).toBe(false);
+    await flush();
+    asked.at(-1)!.answer(move("fold"));
+    await pass(1000);
+    room.nextHand();
+    expect(room.snapshot().session).toMatchObject({ id, stack: 100, dealt: 2 });
+  });
+
+  it("New session starts at once, and takes the place of what waited", async () => {
+    const { room, asked } = setup({ players: 2, pace: 0 });
+    await flush();
+    asked[0]!.answer(CHART);
+    await flush();
+    room.choose(2);
+    room.applySetup(3, 50, OPTS);
+    room.startSession(4, 80, OPTS);
+    expect(room.snapshot()).toMatchObject({ pending: false, session: { players: 4, stack: 80 } });
+  });
+
+  it("above one table, a finished table waits for the others' hands you're in, then every table starts it", async () => {
+    const { room, asked } = several([preflop(1), flopYou(2)], { pause: 500 });
+    await answer(asked, 0, FOLD_ONLY, FLOP);
+    press(room, 0, 0);
+    expect(at(room, 0).hand.result).not.toBeNull();
+    press(room, 1, 1);
+    expect(at(room, 1).hand).toMatchObject({ result: null, decisions: [expect.anything()] });
+    room.applySetup(6, 50, OPTS);
+    const done = at(room, 0).hand;
+    await pass(2000);
+    // (no deal at table 1 while the setup waits, nor a press of Deal now)
+    room.dealFinished();
+    expect(at(room, 0).hand).toBe(done);
+    expect(room.snapshot()).toMatchObject({ pending: true, session: { stack: 100 } });
+    asked.at(-1)!.answer(move("fold"));
+    await flush();
+    expect(room.snapshot()).toMatchObject({ pending: false, session: { stack: 50 } });
+    expect(room.snapshot().tables.map((t) => [t.hand.stack, t.hand.result])).toEqual([
+      [50, null],
+      [50, null],
+    ]);
+  });
+});
+
 describe("Room's Reveal", () => {
   it("shows the answer it already holds: no request, and the decision after it counts for nothing but the count", async () => {
     const { room, asked } = setup({ players: 2 });

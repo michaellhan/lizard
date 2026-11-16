@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionOptions } from "./practice";
-import { SetupForm } from "./SetupForm";
+import { SetupForm, TYPED_WAIT } from "./SetupForm";
 
 const OPTS: SessionOptions = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 const open = (opts: SessionOptions = OPTS, onStart = vi.fn()) => {
@@ -286,16 +286,79 @@ describe("live opponents", () => {
   });
 });
 
-describe("a table size or stack not started yet", () => {
-  it("says it starts with New session, and starts it there", () => {
-    const start = open();
-    expect(screen.queryByText(/starts with New session/)).toBeNull();
-    pick("Players", "8");
-    expect(screen.getByRole("status")).toHaveTextContent("8-max starts with New session.");
-    fireEvent.change(screen.getByLabelText("Stack in big blinds"), { target: { value: "60" } });
-    expect(screen.getByRole("status")).toHaveTextContent("8-max, 60bb starts with New session.");
+describe("More action", () => {
+  it("starts a session with loose opponents in place of the Opponents choice, says what it does, and stays out of a kind of pot", () => {
+    const start = open({ ...OPTS, opponents: "live" });
+    const box = screen.getByRole("checkbox", { name: "More action" });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    expect(screen.getByRole("combobox", { name: "Opponents" })).toBeDisabled();
+    expect(screen.getByText(/dealt hands worth playing \(about the best 36%\)/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "New session" }));
-    expect(start).toHaveBeenCalledWith(8, 60, expect.anything());
+    expect(start.mock.calls[0]![2]).toMatchObject({ opponents: "loose" });
+
+    // (off again: the Opponents choice as it was)
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[1]![2]).toMatchObject({ opponents: "live" });
+
+    fireEvent.click(box);
+    pick("Play", "3bet");
+    expect(screen.getByRole("checkbox", { name: "More action" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "More action" })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start.mock.calls[2]![2]).not.toHaveProperty("opponents");
+  });
+
+  it("comes back with a session that had it", () => {
+    open({ ...OPTS, opponents: "loose" });
+    expect(screen.getByRole("checkbox", { name: "More action" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Opponents" })).toBeDisabled();
+  });
+});
+
+describe("a change applies without New session", () => {
+  const draw = (o: { pending?: boolean; tables?: number } = {}) => {
+    const apply = vi.fn();
+    const start = vi.fn();
+    const r = render(<SetupForm players={6} stack={100} opts={OPTS} onEdit={() => {}} onApply={apply} onStart={start} {...o} />);
+    return { apply, start, r };
+  };
+
+  it("applies nothing as first drawn, a list or a box at once, and a typed field once you've paused", () => {
+    vi.useFakeTimers();
+    try {
+      const { apply, start } = draw();
+      expect(apply).not.toHaveBeenCalled();
+      pick("Players", "8");
+      expect(apply).toHaveBeenLastCalledWith(8, 100, expect.objectContaining({ seat: "moves" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Straddle" }));
+      expect(apply).toHaveBeenLastCalledWith(8, 100, expect.objectContaining({ straddle: true }));
+      apply.mockClear();
+      const stack = screen.getByLabelText("Stack in big blinds");
+      fireEvent.change(stack, { target: { value: "6" } });
+      fireEvent.change(stack, { target: { value: "60" } });
+      // (6bb isn't a game: nothing goes; 60bb waits for the next key)
+      expect(apply).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(TYPED_WAIT);
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(apply).toHaveBeenLastCalledWith(8, 60, expect.objectContaining({ straddle: true }));
+      // (New session still starts again at once)
+      fireEvent.click(screen.getByRole("button", { name: "New session" }));
+      expect(start).toHaveBeenCalledWith(8, 60, expect.anything());
+    } finally {
+      vi.useRealTimers();
+      cleanup();
+    }
+  });
+
+  it("says a change waits for the next hand, or above one table for the hands you're in", () => {
+    const { r } = draw({ pending: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Your change starts with the next hand.");
+    r.rerender(<SetupForm players={6} stack={100} opts={OPTS} onEdit={() => {}} onApply={() => {}} onStart={() => {}} pending tables={3} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Your change starts once the hands you\u2019re in are over.");
+    r.rerender(<SetupForm players={6} stack={100} opts={OPTS} onEdit={() => {}} onApply={() => {}} onStart={() => {}} />);
+    expect(screen.queryByRole("status")).toBeNull();
     cleanup();
   });
 });
