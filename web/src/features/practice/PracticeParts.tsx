@@ -459,7 +459,7 @@ export function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: st
     <li
       aria-label={`${seatLabel(p, hand.players)}${you ? " (you)" : ""}`}
       aria-current={toAct ? "true" : undefined}
-      className={`space-y-1 rounded-md border p-2 text-xs ${toAct ? "border-accent" : "border-border"} ${you ? "bg-surface-2" : ""} ${folded ? "opacity-50" : ""}`}
+      className={`space-y-1 rounded-md border p-2 text-xs ${toAct ? "border-accent" : "border-border"} ${you ? "bg-surface-2" : ""} ${folded && !you ? "opacity-50" : ""}`}
     >
       <div className="flex items-center justify-between gap-1">
         <span className="font-medium">
@@ -473,12 +473,13 @@ export function SeatView({ hand, sim, p }: { hand: PracticeHand; sim: Sim; p: st
         {folded && !you && !cards ? (
           <span className="text-muted">folded</span>
         ) : (
-          (cards ?? [null, null]).map((c, i) => <PlayingCard key={i} card={c} size="sm" />)
+          // (your own cards a size up and lifted off the seat, and not dimmed when you fold: you look at them first)
+          (cards ?? [null, null]).map((c, i) => <PlayingCard key={i} card={c} size={you ? "lg" : "sm"} raised={you} />)
         )}
       </div>
       <div className="h-4 font-mono">
         {/* (the pot it took, chips in included: the hand's line says what it won or lost over them) */}
-        {won ? <span className="text-accent">collected {fmt(won)}</span> : bet > 0 ? <span>bet {fmt(bet)}</span> : sim.allin.has(p) && !folded ? "all-in" : ""}
+        {won ? <span className="text-accent">collected {fmt(won)}</span> : bet > 0 ? <span>bet {fmt(bet)}</span> : sim.allin.has(p) && !folded ? "all-in" : folded && you ? <span className="text-muted">folded</span> : ""}
       </div>
     </li>
   );

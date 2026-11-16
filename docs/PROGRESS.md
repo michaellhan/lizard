@@ -5846,3 +5846,10 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
 - `/plo`: `spotToParams` now writes a later street's sizes when they differ from the default's even where the board
   doesn't reach that street (`spotFromParams` already read them), so links stay short and nothing set is dropped.
 - Checked: see FEATURE_MATRIX, Preferences.
+
+## 2026-11-16: Your cards easier to see in Practice
+
+- Owner: the hero's cards were too hard to see (small, the face the same shade as the seat, and dimmed with the seat on a
+  fold). Now your seat draws them a size up (`lg`), lifted (`PlayingCard` `raised`: surface-3 face, control edge), and
+  your seat is not dimmed when you fold; it says "folded" instead. Checked in a browser, desktop and 375px (no sideways
+  scroll); practice and components tests pass.
