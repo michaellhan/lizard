@@ -14,6 +14,7 @@ import { useSolver } from "@/solver/useSolver";
 import { describe } from "@/solver/provenance";
 import { SolverError, type Provenance, type SolveResult } from "@/solver/types";
 import type { AdvisorResponse, OpponentRange } from "@/solver/protocol";
+import { useKept } from "@/state/kept";
 import { useSettings } from "@/state/settings";
 import { describeSetup, setupProblems } from "@/features/solve/setup";
 import { BUNCHING_SOURCES, nextCardWords } from "@/solver/bunching";
@@ -195,7 +196,8 @@ function HoldemStudy() {
   // side by side, which grid the class picked is in: the player to act's, or the opponent's beside it
   const [pickedIn, setPickedIn] = useState<"actor" | "opponent">("actor");
   // a hand category ("m:<id>" / "d:<id>"), kept from node to node while the node has it
-  const [filterKey, setFilterKey] = useState<string | null>(null);
+  // (and kept in this browser, so the page opens on the filter last picked)
+  const [filterKey, setFilterKey] = useKept("studyFilter");
   // one action picked in the legend: the others are drawn empty, and the EV view shades by its EV
   const [focus, setFocus] = useState<string | null>(null);
   // the range builder (kept on from node to node), and what's painted at each node visited

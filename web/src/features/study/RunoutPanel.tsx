@@ -11,6 +11,7 @@ import { actionFills, bb, pct } from "@/components/actions";
 import { solverThreads } from "@/solver/client";
 import { useSolver } from "@/solver/useSolver";
 import { SolverError, type Provenance } from "@/solver/types";
+import { useKept } from "@/state/kept";
 import { useSettings } from "@/state/settings";
 import {
   average,
@@ -191,14 +192,20 @@ export function RunoutPanel({ hand, street, setHand }: { hand: StudyHand; street
 
 function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenance; hand: StudyHand; onDeal: (card: string) => void; lines: ReactNode }) {
   const [who, setWho] = useState<RunoutWho>("first");
-  const [sort, setSort] = useState("card");
-  const [desc, setDesc] = useState(true);
+  // (the sort last picked, kept in this browser: the report is drawn afresh at every node)
+  // ("-" before the column when it runs up; a column this node hasn't, an action it doesn't offer, sorts by the card)
+  const [keptSort, keepSort] = useKept("runoutSort", (s): s is string => /^-?(card|(ev|eq|a)\d+)$/.test(s));
+  const setSort = (key: string, down: boolean) => keepSort(down ? key : `-${key}`);
   const [group, setGroup] = useState<RunoutGroup | "">("");
   const [filter, setFilter] = useState<RunoutFilter>({});
   const w: RunoutWho = who === "after" && ro.after_check ? "after" : "first";
   const part = partOf(ro, w);
   const acts = part.actions;
   const colors = actionFills(acts);
+  const keptKey = keptSort?.replace(/^-/, "");
+  const here = keptKey === "card" || (keptKey?.startsWith("a") ? Number(keptKey.slice(1)) < acts.length : !!keptKey && !ro.multiway && Number(keptKey.slice(2)) < 2);
+  const sort = here && keptKey ? keptKey : "card";
+  const desc = here && keptSort ? !keptSort.startsWith("-") : true;
   const all = rows(ro, w, hand.board);
   const rs = sortRows(filterRows(all, filter), sort, desc);
   const sum = average(rs);
@@ -209,8 +216,7 @@ function Report({ ro, p, hand, onDeal, lines }: { ro: RunoutReport; p: Provenanc
       <button
         type="button"
         onClick={() => {
-          setDesc(sort === key ? !desc : true);
-          setSort(key);
+          setSort(key, sort === key ? !desc : true);
         }}
         className={`hover:text-text ${sort === key ? "text-accent" : ""}`}
       >

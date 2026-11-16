@@ -16,6 +16,7 @@ import { describeSetup } from "@/features/solve/setup";
 import { describeLine, fromSearch, toSearch, type StudyHand } from "@/features/study/studyState";
 import { useSolver } from "@/solver/useSolver";
 import type { SolveMode } from "@/solver/types";
+import { useKept } from "@/state/kept";
 import { useSettings } from "@/state/settings";
 import { nodeOf, viewsOf, ALL_FLOPS } from "./reports";
 import { callersAfter, checkSpot, customProvenance, customReport, customStudyLink, flopsToGo, newFlopReport, openers, potLine, POT_WORDS, reportSpot, seatsIn, type Ask, type PotKind, type SpotCheck } from "./customReport";
@@ -67,7 +68,10 @@ function ReportSetup({ mine, from, set }: { mine: string; from: "study" | "solve
   const settingsMode = useSettings((s) => s.mode);
   const running = useRunningReport();
   const [check, setCheck] = useState<Check>({ st: "checking" });
-  const [size, setSize] = useState<number>(25);
+  // (the flop count last picked, kept in this browser)
+  const [keptSize, keepSize] = useKept("reportFlops", (s): s is `${(typeof FLOP_SET_SIZES)[number]}` => FLOP_SET_SIZES.some((n) => String(n) === s));
+  const size = keptSize ? Number(keptSize) : 25;
+  const setSize = (n: number) => keepSize(String(n) as `${(typeof FLOP_SET_SIZES)[number]}`);
   // (the Settings tier until you pick one here: settings load after the first render, so a tier read once at mount
   // would be the default "fast" on a reload, whatever Settings says)
   const [picked, setMode] = useState<SolveMode | null>(null);

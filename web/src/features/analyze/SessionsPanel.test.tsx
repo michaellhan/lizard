@@ -87,6 +87,19 @@ describe("Your sessions", () => {
     expect(row).not.toHaveTextContent("bb");
   });
 
+  it("opens on the games last picked when you come back", async () => {
+    await seed([hand(T0), hand(T0, { tournament: "Sunday 50", bb: "100 chips" })]);
+    const first = open();
+    await tab("Sessions");
+    await panel();
+    fireEvent.change(screen.getByRole("combobox", { name: "Games" }), { target: { value: "tour" } });
+    first.unmount();
+    open();
+    await tab("Sessions");
+    await panel();
+    expect(screen.getByRole("combobox", { name: "Games" })).toHaveValue("tour");
+  });
+
   it("makes a session a filter: the hands, the report, grading and links follow, and All sessions lets go", async () => {
     const [a, b] = [hand(T0), hand(T0 + DAY)];
     await seed([a, b], [dec(a, { verdict: "Mistake", freq: 0.1, mix: [["raise", 0.1, null], ["fold", 0.9, null]] }), dec(b)]);

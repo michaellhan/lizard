@@ -6,6 +6,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { bringIntoView } from "@/components/scroll";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { VERSION_UNKNOWN, versionNote } from "@/grading/version";
+import { useKept } from "@/state/kept";
 import { filterHands, filterKey } from "./analyze";
 import { BASES } from "./report";
 import { clockOf, handKind, inSess, parseSess, sessionsOf, sessWords, type HandKind, type Sitting } from "./sessions";
@@ -62,8 +63,9 @@ export function SessionsPanel({
   const kept = useMemo(() => new Set(rest.map((h) => h.id)), [rest]);
   const picked = useMemo(() => (sess ? sits.find((s) => s.key === sess) : undefined), [sits, sess]);
 
-  const [kindPick, setKind] = useState<HandKind | null>(null);
-  const [basisPick, setBasis] = useState<string | null>(null);
+  // (the kind and basis last picked, kept in this browser: one no longer listed falls back to the default)
+  const [kindPick, setKind] = useKept("sessionKind", (s): s is HandKind => KINDS.some((k) => k.kind === s));
+  const [basisPick, setBasis] = useKept("sessionBasis");
   const [all, setAll] = useState(false);
   const list = useRef<HTMLUListElement>(null);
   // (the button goes as the list grows: the first row it brought takes the focus)

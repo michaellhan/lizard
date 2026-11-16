@@ -5835,3 +5835,14 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
 - Left (minor, useState only): Analyze's grading scope and session kind, Reports' custom flop count and runout sort,
   Study's hand filter, Saved's search box.
 - Checked: full web suite 3,767 passed, tsc and eslint clean; in the browser (see FEATURE_MATRIX, Preferences).
+
+## 2026-11-16: The minor pickers kept too
+
+- Owner asked to keep what was left: Analyze's grading scope and session kind, the custom report's flop count, the
+  runout sort, Study's hand filter, Saved's search box, and /plo's later-street sizes on a board that doesn't reach them.
+- One helper, `web/src/state/kept.ts` (`useKept`, localStorage under `lizard.kept.v1.*`, each read checked against what
+  the control offers). Sessions' line basis is kept with its games. The runout sort is stored as one value (`-` before a
+  column sorted up) and used only at nodes that have that column. The test setup clears every kept pick after each test.
+- `/plo`: `spotToParams` now writes a later street's sizes when they differ from the default's even where the board
+  doesn't reach that street (`spotFromParams` already read them), so links stay short and nothing set is dropped.
+- Checked: see FEATURE_MATRIX, Preferences.

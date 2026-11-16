@@ -14,6 +14,7 @@ import type { Street } from "@/poker/table";
 import { MODE_BUDGETS, solverThreads } from "@/solver/client";
 import { useRuntime } from "@/solver/runtime";
 import { useSolver } from "@/solver/useSolver";
+import { useKept } from "@/state/kept";
 import { useSettings } from "@/state/settings";
 import { STREETS } from "./analyze";
 import { Breakdowns } from "./BreakdownPanel";
@@ -38,7 +39,10 @@ export function GradePanel({ hands, decisions, onGraded }: { hands: HandRecord[]
   const status = useRuntime((s) => s.status);
   // (the setting, not the status: nothing has started the solver until a run does)
   const transport = useSettings((s) => s.transport);
-  const [scope, setScope] = useState<GradeScope>("triage");
+  // (the scope last picked, kept in this browser)
+  const [kept, keep] = useKept("gradeScope", (s): s is GradeScope => s in SCOPES);
+  const scope: GradeScope = kept ?? "triage";
+  const setScope = keep;
   const [prog, setProg] = useState<{ k: number; n: number; graded: number; eta: number | null; checking: boolean } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

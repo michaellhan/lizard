@@ -169,6 +169,16 @@ describe("StudyPage", () => {
     expect(screen.getByRole("gridcell", { name: "KK: not in range" })).toBeInTheDocument();
   });
 
+  it("opens on the hand category last picked when you come back", async () => {
+    stub.answer = THREE_WAY;
+    const first = renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");
+    fireEvent.change(await screen.findByRole("combobox", { name: "Show only the hands of one category" }), { target: { value: "m:set" } });
+    first.unmount();
+    renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");
+    expect(await screen.findByRole("combobox", { name: "Show only the hands of one category" })).toHaveValue("m:set");
+    expect(screen.getByRole("grid", { name: "BB range (Set)" })).toBeInTheDocument();
+  });
+
   it("names the filter over the actions, and off an opponent's grid, which it doesn't touch", async () => {
     stub.answer = THREE_WAY;
     renderAt("p=6&s=100&pre=UTG:f,HJ:f,CO:r2.5,BTN:c,SB:f,BB:c&b=Kd7c2h");

@@ -18,6 +18,15 @@ describe("a PLO spot in a link", () => {
     expect(spotFromParams(new URLSearchParams("game=plo4"))).toBeNull();
   });
 
+  it("keeps a later street's sizes that aren't the default's while the board doesn't reach that street", () => {
+    const flop = { ...DEFAULT_SPOT, board: "Js9s4d", turn: { bets: "33, 66", raises: "", cap: 0, allIn: false }, river: { bets: "150", raises: "100", cap: 1, allIn: true } };
+    const river = spotFromParams(spotToParams({ ...flop, board: "Js9s4d2h7c" }))!;
+    expect(river.turn).toEqual(flop.turn);
+    expect(river.river).toEqual(flop.river);
+    // (and a turn board keeps the turn's)
+    expect(spotFromParams(spotToParams({ ...flop, board: "Js9s4d2h" }))!.turn).toEqual(flop.turn);
+  });
+
   it("makes the solve request, or says what's wrong with the sizes", () => {
     const r = requestOf({ ...DEFAULT_SPOT, board: "Js9s4d2h" }, { targetPct: 0.1, seconds: 30 });
     expect(typeof r).toBe("object");

@@ -16,6 +16,7 @@ import { deleteScenario, listScenarios, putScenario, scenarioWords } from "@/dat
 import { describeSetup } from "@/features/solve/setup";
 import { describeProfile, parseProfile, PROF } from "@/features/study/profile";
 import { describeLine, fromSearch } from "@/features/study/studyState";
+import { useKept } from "@/state/kept";
 import { downloadItem } from "./backupFile";
 import { useCurrentBuild } from "./useSavedAnswer";
 
@@ -80,7 +81,10 @@ export function SavedPage() {
   const [flopReports, setFlopReports] = useState<{ list: FlopReportRecord[]; damaged: number } | null>(null);
   const [answers, setAnswers] = useState<Map<string, KeptAnswer | null>>(new Map());
   const current = useCurrentBuild();
-  const [query, setQuery] = useState("");
+  // (the search last typed, kept in this browser)
+  const [kept, keep] = useKept("savedSearch");
+  const query = kept ?? "";
+  const setQuery = (q: string) => keep(q || null);
   const [sort, setSort] = useState<SavedSort>("changed");
   const pickSort = (s: SavedSort) => {
     setSort(s);

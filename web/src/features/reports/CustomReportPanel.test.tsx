@@ -84,6 +84,30 @@ describe("a flop report of a Solve-page spot", () => {
     }
   });
 
+  it("opens on the flop count last picked", async () => {
+    const page = () =>
+      render(
+        <MemoryRouter initialEntries={[`/reports?mine=${encodeURIComponent(toSearch(freshHand(6, 100)))}&from=solve`]}>
+          <Routes>
+            <Route path="/reports" element={<ReportsPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    const setup = async () => {
+      const pot = await screen.findByRole("form", { name: "Pick the pot" });
+      fireEvent.click(within(pot).getByRole("button", { name: "Set this pot" }));
+      return screen.findByRole("form", { name: "Report setup" });
+    };
+    const first = page();
+    let form = await setup();
+    expect(within(form).getByRole("radio", { name: "25" })).toBeChecked();
+    fireEvent.click(within(form).getByRole("radio", { name: "49" }));
+    first.unmount();
+    page();
+    form = await setup();
+    expect(within(form).getByRole("radio", { name: "49" })).toBeChecked();
+  });
+
   it("picks a pot, shows the set's weights, solves each flop, keeps the report and draws it with its provenance", async () => {
     const spot = toSearch(freshHand(6, 100));
     render(

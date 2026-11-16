@@ -18,6 +18,8 @@ afterEach(() => {
     localStorage.removeItem("lizard.lastSearch.v1");
     // (and the range on Ranges' board, features/ranges/RangesPage.tsx DRAFT_KEY)
     localStorage.removeItem("lizard.rangeDraft.v1");
+    // (and the controls' last picks, state/kept.ts)
+    for (const k of Object.keys(localStorage)) if (k.startsWith("lizard.kept.v1.")) localStorage.removeItem(k);
   } catch {
     // (an environment without localStorage has nothing kept)
   }

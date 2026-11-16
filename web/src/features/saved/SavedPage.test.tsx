@@ -68,6 +68,21 @@ describe("SavedPage", () => {
     expect((await makeBackup()).stores.savedSpots.find((x) => x.id === "p")?.data.profile).toBe("BB:fold=-20,bluff=-50;hand");
   });
 
+  it("keeps the search when you leave the page and come back", async () => {
+    await putSpot(spot("a", "Ace-high c-bet", { tags: ["dry"] }));
+    await putSpot(spot("b", "Low board", { line: "p=2&s=100&pre=SB%3Ar2.5%2CBB%3Ac&b=7c5d2h" }));
+    const first = renderAt("/saved");
+    const list = await screen.findByRole("region", { name: "Saved spots" });
+    await within(list).findByRole("listitem", { name: "Ace-high c-bet" });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search everything saved" }), { target: { value: "dry" } });
+    first.unmount();
+    renderAt("/saved");
+    expect(screen.getByRole("searchbox", { name: "Search everything saved" })).toHaveValue("dry");
+    const again = await screen.findByRole("region", { name: "Saved spots" });
+    expect(await within(again).findByRole("listitem", { name: "Ace-high c-bet" })).toBeInTheDocument();
+    expect(within(again).getAllByRole("listitem")).toHaveLength(1);
+  });
+
   it("lists, searches, edits and deletes saved spots, and opens one in Study at its line", async () => {
     await putSpot(spot("a", "Ace-high c-bet", { tags: ["srp", "dry"], note: "bet small", seen: { source: "library", label: "Precomputed solution · srp_btn_bb" }, updatedAt: 5 }));
     await putSpot(spot("b", "Low board", { line: "p=2&s=100&pre=SB%3Ar2.5%2CBB%3Ac&b=7c5d2h", updatedAt: 3 }));

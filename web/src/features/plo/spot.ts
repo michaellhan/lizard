@@ -86,8 +86,11 @@ const STREET_KEYS = [
   ["river", "r"],
 ] as const;
 
-/** A spot as query parameters (the game's own key, `game=plo4`, is the caller's). A flop's or turn's later sizes only
- * where the board has those streets. */
+const sameSizes = (a: StreetSizesForm, b: StreetSizesForm) => a.bets.replace(/\s+/g, "") === b.bets.replace(/\s+/g, "") && a.raises.replace(/\s+/g, "") === b.raises.replace(/\s+/g, "") && a.cap === b.cap && a.allIn === b.allIn;
+
+/** A spot as query parameters (the game's own key, `game=plo4`, is the caller's). A later street's sizes where the
+ * board has that street, and also where they aren't the default's: a turn's or river's sizes set on a flop stay with the
+ * spot while its board is a river, and come back when the board is a flop again. */
 export function spotToParams(spot: PloSpot): URLSearchParams {
   const q = new URLSearchParams();
   q.set("oop", spot.oop);
@@ -97,9 +100,9 @@ export function spotToParams(spot: PloSpot): URLSearchParams {
   q.set("stacks", spot.stacks.join(","));
   const street = streetOfBoard(spot.board);
   for (const [key, p] of STREET_KEYS) {
-    if (key === "turn" && street !== "flop") continue;
-    if (key === "river" && street === "river") continue;
     const f = spot[key];
+    const unused = (key === "turn" && street !== "flop") || (key === "river" && street === "river");
+    if (unused && sameSizes(f, DEFAULT_SPOT[key])) continue;
     q.set(`${p}bets`, f.bets.replace(/\s+/g, ""));
     if (f.raises.trim()) q.set(`${p}raises`, f.raises.replace(/\s+/g, ""));
     q.set(`${p}cap`, String(f.cap));
