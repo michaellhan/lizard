@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { BASE_URL } from "@/config";
-import { MORE, pathsOf, ROUTES, routeTitle, sectionOf } from "./routes";
+import { NAV, pathsOf, routeTitle, sectionOf } from "./routes";
 import { EngineStatusPill } from "@/components/EngineStatusPill";
 import { DbRecovery } from "@/features/saved/DbRecovery";
 import { BackupNudge } from "./BackupNudge";
@@ -13,90 +13,29 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-surface-3 text-text underline decoration-accent decoration-2 underline-offset-4" : "text-muted hover:bg-surface-2 hover:text-text"
   }`;
 
-interface NavItem {
-  path: string;
-  label: string;
-  blurb?: string;
-}
-
-/** The four main pages, always in the bar. */
-const MAIN: NavItem[] = ROUTES.filter((r) => r.nav).map((r) => ({ path: r.path, label: r.label }));
-
-/** Every other page, behind one button: it closes on a pick, a page change, Escape or a click elsewhere, and is marked
- * while you're on one of its pages. On a phone Settings is reached through it too. */
-function MoreMenu({ items }: { items: NavItem[] }) {
-  const { pathname } = useLocation();
-  const [open, setOpen] = useState(false);
-  const [at, setAt] = useState(pathname);
-  if (at !== pathname) {
-    setAt(pathname);
-    setOpen(false);
-  }
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-  const first = pathname.split("/").filter(Boolean)[0] ?? "";
-  // (an entry stands for its whole section: Progress is marked on History and Saved too)
-  const mine = (m: NavItem) => pathsOf(m.path).includes(first);
-  const here = items.some(mine);
-  return (
-    <div ref={box} className="relative shrink-0">
-      <button type="button" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)} className={linkClass({ isActive: here })}>
-        More ▾
-      </button>
-      {open && (
-        <div className="popover absolute right-0 top-full z-50 mt-1 w-48 p-1 shadow-lg">
-          <ul aria-label="More pages">
-            {items.map((m) => (
-              <li key={m.path}>
-                {/* (a Link, not a NavLink, which would mark only the entry's own page) */}
-                <Link
-                  to={`/${m.path}`}
-                  title={m.blurb}
-                  aria-current={mine(m) ? "page" : undefined}
-                  className={`block rounded-md px-3 py-2 text-sm ${mine(m) ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"}`}
-                >
-                  {m.label}
-                </Link>
-              </li>
-            ))}
-            <li className="sm:hidden">
-              <NavLink to="/settings" className="block rounded-md px-3 py-2 text-sm text-muted hover:bg-surface-2 hover:text-text">
-                Settings
-              </NavLink>
-            </li>
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** The primary nav: the four main pages, then More. */
+/** Every page in one bar, no More menu: an entry is marked on any page of its section (Progress on History and Saved
+ * too, PLO on Equity). On a narrow screen the bar scrolls sideways. */
 function PrimaryNav() {
+  const { pathname } = useLocation();
+  const first = pathname.split("/").filter(Boolean)[0] ?? "";
+  // on a narrow screen, the entry you're on scrolled into the bar's view (PLO, the last, is off its edge on a phone)
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bar.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [first]);
   return (
     <nav aria-label="Primary" className="segmented relative -mx-1 flex min-w-0 flex-1 items-center gap-0.5 px-1 sm:gap-1">
-      <div className="flex min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1">
-        {MAIN.map((r) => (
-          <NavLink key={r.path} to={`/${r.path}`} className={linkClass}>
-            {r.label}
-          </NavLink>
-        ))}
+      <div ref={bar} className="flex min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1">
+        {NAV.map((r) => {
+          const here = pathsOf(r.path).includes(first);
+          return (
+            // (a Link, not a NavLink, which would mark only the entry's own page)
+            <Link key={r.path} to={`/${r.path}`} title={r.blurb} aria-current={here ? "page" : undefined} className={linkClass({ isActive: here })}>
+              {r.label}
+            </Link>
+          );
+        })}
       </div>
-      <MoreMenu items={MORE} />
     </nav>
   );
 }
@@ -189,7 +128,7 @@ export function Shell() {
               aria-label="Settings"
               title="Settings"
               className={({ isActive }) =>
-                `hidden rounded-md p-1.5 transition-colors sm:inline-flex ${isActive ? "bg-surface-3 text-accent" : "text-muted hover:bg-surface-2 hover:text-text"}`
+                `inline-flex rounded-md p-1.5 transition-colors ${isActive ? "bg-surface-3 text-accent" : "text-muted hover:bg-surface-2 hover:text-text"}`
               }
             >
               <GearIcon />

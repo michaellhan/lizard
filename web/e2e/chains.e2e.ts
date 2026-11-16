@@ -47,7 +47,7 @@ test("Phase 5: a drill set up, played, graded with numbers, kept, opened in Stud
   await expect(page.getByRole("region", { name: "Actions" })).toBeVisible({ timeout: 120_000 });
 
   // kept across pages: the miss is in Review, and a retry grades it again
-  await page.goto("/lizard/review/");
+  await page.goto("/lizard/progress/");
   await page.getByRole("button", { name: /^Retry early: / }).first().click();
   const retry = page.getByRole("region", { name: "Retry" });
   await retry.getByRole("group", { name: "Your options" }).getByRole("button").first().click({ timeout: 120_000 });

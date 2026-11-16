@@ -93,7 +93,7 @@ describe("a leak drill on the turn", () => {
     expect(group).toHaveTextContent(/A Quick triage read at medium confidence/);
     const said = await screen.findByText(/due tomorrow/);
     expect(said).toHaveTextContent("Kept for Review, due tomorrow.");
-    expect(within(said).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
+    expect(within(said).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/progress");
     const { list } = await listMistakes();
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ from: "leak", chose: "check", street: "turn", ask: { via: "kept", hand: "h1" }, provenance: { confidence: "medium", source: "live" } });

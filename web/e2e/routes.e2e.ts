@@ -16,6 +16,7 @@ const ROUTES: readonly (readonly [string, RegExp])[] = [
   ["history", /./],
   ["plan", /./],
   ["review", /./],
+  ["progress", /./],
   ["equity", /./],
   ["plo", /./],
   ["saved", /./],
@@ -36,21 +37,29 @@ for (const [route, heading] of ROUTES) {
   });
 }
 
-test("every link in the primary nav can be reached and goes where it says", async ({ page, problems }, info) => {
+test("every link in the primary nav can be reached and goes where it says", async ({ page, problems }) => {
   await page.goto("/lizard/");
   const nav = page.getByRole("navigation", { name: "Primary" });
   const links = await nav.getByRole("link").all();
-  // the four main pages in the bar at every width, and four more under More: Progress, Reports, Ranges, PLO (on a phone, Settings too)
-  expect(links.length).toBe(4);
-  const more = nav.getByRole("button", { name: /More/ });
-  await more.click();
-  await expect(nav.getByRole("list", { name: "More pages" }).getByRole("link")).toHaveCount(4 + (info.project.name === "phone" ? 1 : 0));
-  await more.click();
+  // every page in the bar at every width, no More menu (on a phone the bar scrolls sideways), and Settings' gear beside it
+  expect(links.length).toBe(8);
+  await expect(nav.getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
   for (const link of links) {
     const to = await link.getAttribute("href");
     await link.click();
     await expect(page).toHaveURL(new RegExp(`${to}/?$`));
     await expect(page.locator("main")).toBeVisible();
   }
+  expect(problems.errors).toEqual([]);
+});
+
+test("an old /review or /plan link lands on Progress, its query kept", async ({ page, problems }) => {
+  // (a street filter stays in the address; ?retry=next is read and dropped by Review itself, as before)
+  await page.goto("/lizard/review/?street=flop");
+  await expect(page).toHaveURL(/\/lizard\/progress\?street=flop$/);
+  await page.goto("/lizard/plan/");
+  await expect(page).toHaveURL(/\/lizard\/progress$/);
+  await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Progress" })).toHaveAttribute("aria-current", "page");
   expect(problems.errors).toEqual([]);
 });

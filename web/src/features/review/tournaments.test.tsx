@@ -99,7 +99,7 @@ describe("ReviewPage", () => {
   const seed = (...xs: ReturnType<typeof mistake>[]) => Promise.all(xs.map((m) => keepMistake(m, (_, f) => f)));
   const page = () =>
     render(
-      <MemoryRouter initialEntries={["/review"]}>
+      <MemoryRouter initialEntries={["/progress"]}>
         <ReviewPage />
       </MemoryRouter>,
     );

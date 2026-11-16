@@ -188,7 +188,7 @@ describe("sessions history", () => {
     // (no line on solver versions: what graded each stretch is said, and that's all)
     expect(trend).not.toHaveTextContent(/different versions|Version unknown/);
     expect(within(trend).queryByLabelText("Versions compared")).toBeNull();
-    expect(screen.getByRole("link", { name: /2 mistakes kept for review, 1 due/ })).toHaveAttribute("href", "/review");
+    expect(screen.getByRole("link", { name: /2 mistakes kept for review, 1 due/ })).toHaveAttribute("href", "/progress");
     cleanup();
     await d.clear("sessions");
     await d.clear("mistakes");

@@ -23,7 +23,7 @@ function Address() {
   return <output aria-label="address">{useLocation().search}</output>;
 }
 const noLibrary = { index: async () => ({ spots: [] }) } as unknown as LibraryFiles;
-const page = (at = "/review") =>
+const page = (at = "/progress") =>
   render(
     <MemoryRouter initialEntries={[at]}>
       <ReviewPage files={noLibrary} />
@@ -42,14 +42,14 @@ describe("ReviewPage", () => {
   it("opens the first due from a ?retry=next link, once, and takes the link from the address", async () => {
     ask.next.mockReturnValue(new Promise(() => undefined));
     await seed(mistake({ id: "a", due: PAST + 1 }), mistake({ id: "b", due: PAST }));
-    page("/review?retry=next&street=flop");
+    page("/progress?retry=next&street=flop");
     expect(await screen.findByRole("heading", { name: /Retry/ })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("status", { name: "address" })).toHaveTextContent("?street=flop"));
   });
 
   it("opens nothing from that link with nothing due, and still takes it from the address", async () => {
     await seed(mistake({ due: Date.now() + 5 * 86_400_000 }));
-    page("/review?retry=next");
+    page("/progress?retry=next");
     expect(await screen.findByText(/Nothing is due today/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("status", { name: "address" })).toHaveTextContent(/^$/));
     expect(screen.queryByRole("button", { name: "Close" })).toBeNull();

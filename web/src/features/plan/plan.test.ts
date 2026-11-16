@@ -81,7 +81,7 @@ describe("reviews", () => {
   it("links to the first due, and counts by EV and by frequency, against what graded each", () => {
     const r = buildPlan(input({ mistakes: [dueToday({ id: "a" }), chartMistake({ id: "b", due: NOW - 1000 })] })).reviews!;
     expect(r.title).toBe("Retry 2 due reviews");
-    expect(r.to).toBe("/review?retry=next");
+    expect(r.to).toBe("/progress?retry=next");
     expect(r.says.join(" ")).toMatch(/2 mistakes due/);
     expect(r.says.join(" ")).toMatch(/1 graded by EV, 1 by frequency/);
     expect(r.says.join(" ")).toMatch(/Preflop charts/i);

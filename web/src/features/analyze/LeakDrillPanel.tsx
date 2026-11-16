@@ -116,7 +116,7 @@ export function LeakDrill({ leak, decisions, hands, kept, onClose }: { leak: Lea
           <h2 className="text-lg font-semibold">Drill: {leak.key}</h2>
           <p className="text-muted">
             Misses first. A pick below Correct goes to{" "}
-            <Link to="/review" className="underline">
+            <Link to="/progress" className="underline">
               Review
             </Link>{" "}
             queue.
@@ -334,7 +334,7 @@ function Problem({
               ) : (
                 <>
                   Kept for{" "}
-                  <Link to="/review" className="underline">
+                  <Link to="/progress" className="underline">
                     Review
                   </Link>
                   , {queued.due}.

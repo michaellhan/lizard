@@ -87,42 +87,49 @@ describe("Route changes", () => {
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
   });
 
-  it("shows the four main pages, the rest under More, and a mark on the current page", () => {
+  it("shows every page in the bar, no More menu, and a mark on the current page", () => {
     show("/study");
     const nav = screen.getByRole("navigation", { name: "Primary" });
     expect(nav).toHaveClass("segmented");
-    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Study", "Practice", "Analyze", "Solve"]);
-    expect(screen.getByRole("link", { name: "Study" })).toHaveClass("underline", "decoration-accent");
-    const more = within(nav).getByRole("button", { name: /More/ });
-    expect(more).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(more);
-    expect(more).toHaveAttribute("aria-expanded", "true");
-    expect(within(within(nav).getByRole("list", { name: "More pages" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Progress", "Reports", "Ranges", "PLO", "Settings"]);
-    expect(within(nav).getByRole("link", { name: "Progress" })).toHaveAttribute("href", "/review");
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(within(nav).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Study", "/study"],
+      ["Practice", "/practice"],
+      ["Analyze", "/analyze"],
+      ["Solve", "/solve"],
+      ["Progress", "/progress"],
+      ["Reports", "/reports"],
+      ["Ranges", "/ranges"],
+      ["PLO", "/plo"],
+    ]);
+    expect(within(nav).queryByRole("button")).toBeNull();
+    expect(within(nav).getByRole("link", { name: "Study" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Study" })).toHaveClass("underline", "decoration-accent");
+    // (Settings' gear in the bar at every width, a phone's too)
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveClass("inline-flex");
   });
 
-  it("marks More while you're on one of its pages, and its entry for any page of the section", () => {
+  it("marks a section's entry on any of its pages", () => {
     show("/history");
-    expect(screen.getByRole("button", { name: /More/ })).toHaveClass("underline", "decoration-accent");
-    fireEvent.click(screen.getByRole("button", { name: /More/ }));
-    expect(screen.getByRole("link", { name: "Progress" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "PLO" })).not.toHaveAttribute("aria-current");
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    expect(within(nav).getByRole("link", { name: "Progress" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "PLO" })).not.toHaveAttribute("aria-current");
+    cleanup();
+    show("/equity");
+    expect(within(screen.getByRole("navigation", { name: "Primary" })).getByRole("link", { name: "PLO" })).toHaveAttribute("aria-current", "page");
   });
 
   it("puts a section's pages in a row of tabs over each of them, the one you're on marked", () => {
     show("/saved");
     const tabs = screen.getByRole("navigation", { name: "Progress pages" });
     expect(within(tabs).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
-      ["Review", "/review"],
+      ["Review", "/progress"],
       ["History", "/history"],
       ["Saved", "/saved"],
     ]);
     expect(within(tabs).getByRole("link", { name: "Saved" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("reaches Engine and Library from Settings' tabs, as a phone hides the status pill", () => {
+  it("reaches Engine and Library from Settings' tabs", () => {
     show("/settings");
     const tabs = screen.getByRole("navigation", { name: "Settings pages" });
     expect(within(tabs).getByRole("link", { name: "Engine" })).toHaveAttribute("href", "/engine");

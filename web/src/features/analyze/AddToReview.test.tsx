@@ -60,7 +60,7 @@ describe("Add to review", () => {
     expect(await within(hand).findByText(/Misses reach Review only through Add to review/)).toBeInTheDocument();
     fireEvent.click(await within(hand).findByRole("button", { name: "Add to review: flop decision 2" }));
     const said = await within(hand).findByText(/Added, due tomorrow/);
-    expect(within(said).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/review");
+    expect(within(said).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/progress");
     const { list } = await listMistakes();
     expect(list).toMatchObject([{ from: "analyze", chose: "bet 33%", street: "flop", ask: { via: "kept", hand: "h|A" } }]);
   });

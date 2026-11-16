@@ -286,7 +286,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
           {bad.length > 0 && <span className="ml-2 rounded-full bg-surface-3 px-1.5 font-mono text-xs">{bad.length}</span>}
         </button>
       </div>
-      <Link to="/review" className="text-xs underline">
+      <Link to="/progress" className="text-xs underline">
         All mistakes in Review
       </Link>
       {retry && (

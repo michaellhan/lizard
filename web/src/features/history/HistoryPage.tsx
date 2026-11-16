@@ -131,7 +131,7 @@ export function HistoryPage() {
         <h1 className="text-2xl font-semibold">History</h1>
         {mistakes != null && mistakes.kept > 0 && (
           <p className="text-sm">
-            <Link to="/review" className="underline">
+            <Link to="/progress" className="underline">
               {many(mistakes.kept, "mistake")} kept for review, {mistakes.due} due
             </Link>
           </p>

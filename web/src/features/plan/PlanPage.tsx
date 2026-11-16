@@ -53,9 +53,9 @@ export function usePlan(files?: LibraryFiles): { plan: Plan | null; failed: bool
   return { plan, failed };
 }
 
-/** /plan's old address: the plan is on Review now. */
+/** /plan's old address: the plan is on Progress now. */
 export function PlanPage() {
-  return <Navigate to="/review" replace />;
+  return <Navigate to="/progress" replace />;
 }
 
 /** What to do first where there's no step to give, with where it's done. */

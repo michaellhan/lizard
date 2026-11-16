@@ -22,7 +22,7 @@ export function AddToReview({ d, hand, r, name }: { d: DecisionRecord; hand: Han
     return (
       <span role="status" className="text-xs text-muted">
         {kept.st === "added" ? `Added, ${kept.due}: ` : "Already kept: "}
-        <Link to="/review" className="underline">
+        <Link to="/progress" className="underline">
           Review
         </Link>
       </span>

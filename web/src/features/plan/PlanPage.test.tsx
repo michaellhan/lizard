@@ -28,7 +28,7 @@ function Plan({ files }: { files: LibraryFiles }) {
 }
 const page = (files?: LibraryFiles) =>
   render(
-    <MemoryRouter initialEntries={["/review"]}>
+    <MemoryRouter initialEntries={["/progress"]}>
       <Plan files={files ?? ({ index: async () => ({ spots: [] }) } as unknown as LibraryFiles)} />
     </MemoryRouter>,
   );
@@ -75,7 +75,7 @@ describe("the plan", () => {
       <MemoryRouter initialEntries={["/plan"]}>
         <Routes>
           <Route path="/plan" element={<PlanPage />} />
-          <Route path="/review" element={<h1>Review</h1>} />
+          <Route path="/progress" element={<h1>Review</h1>} />
         </Routes>
       </MemoryRouter>,
     );
@@ -176,7 +176,7 @@ describe("the plan", () => {
     await screen.findByRole("region", { name: "Too few to read" });
     for (let i = 0; i < 3; i++)
       rerender(
-        <MemoryRouter initialEntries={["/review"]}>
+        <MemoryRouter initialEntries={["/progress"]}>
           <Plan files={files} />
         </MemoryRouter>,
       );

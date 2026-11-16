@@ -720,11 +720,8 @@ test("7c. A tournament session in prize equity says so, with chip EV apart from 
 
 test("14b. The keyboard alone: a page change moves focus, the grid is one tab stop, and playing an action keeps your place", async ({ page, problems }) => {
   await page.goto("/lizard/");
-  // (Ranges is under the nav's More: opened and picked by the keyboard)
-  const more = page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: /More/ });
-  await more.focus();
-  await page.keyboard.press("Enter");
-  await page.getByRole("list", { name: "More pages" }).getByRole("link", { name: "Ranges", exact: true }).focus();
+  // (Ranges, picked from the bar by the keyboard)
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Ranges", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveTitle(/Ranges/);
   await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
@@ -877,7 +874,7 @@ test("10b. The filters narrow every report, in the URL, and a breakdown's row op
 });
 
 test("10c. Review's plan starts empty, reads what's graded, and its practice step opens a started session", async ({ page, problems }) => {
-  await page.goto("/lizard/review/");
+  await page.goto("/lizard/progress/");
   await expect(page.getByRole("heading", { level: 1, name: "Review" })).toBeVisible();
   const start = page.getByRole("region", { name: "Start here" });
   await expect(start.getByRole("link", { name: "Play hands in Practice" })).toBeVisible();
@@ -892,7 +889,7 @@ test("10c. Review's plan starts empty, reads what's graded, and its practice ste
   await expect(page.getByRole("region", { name: "Report" })).toBeVisible({ timeout: 180_000 });
 
   // Graded and clean, there's nothing to do yet, and the page says so
-  await page.goto("/lizard/review/");
+  await page.goto("/lizard/progress/");
   await expect(page.getByRole("region", { name: "Start here" })).toContainText(/Nothing to do yet over/);
 
   // Marked as missed in the browser's own store, as a worse player's grades would be
@@ -911,7 +908,7 @@ test("10c. Review's plan starts empty, reads what's graded, and its practice ste
         };
       }),
   );
-  await page.goto("/lizard/review/");
+  await page.goto("/lizard/progress/");
   await expect(page.getByRole("region", { name: "Start here" })).toHaveCount(0);
   const drill = page.getByRole("region", { name: "Practice drill" });
   await expect(drill).toBeVisible();
@@ -968,7 +965,7 @@ test("10d. A decision missed in Analyze goes to Review by a press, comes back gr
   await expect(hand.getByRole("status").filter({ hasText: /^Already kept/ })).toBeVisible();
   await hand.getByRole("link", { name: "Review" }).first().click();
 
-  await expect(page).toHaveURL(/\/review/);
+  await expect(page).toHaveURL(/\/progress/);
   const entry = page.getByText("Added from Analyze").first();
   await expect(entry).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/desktop/review-from-analyze.png", fullPage: true });

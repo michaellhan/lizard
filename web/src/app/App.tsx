@@ -13,10 +13,10 @@ import { freshChunk } from "./freshChunk";
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(() => freshChunk(load).then((m) => ({ default: m[name] })));
 
-/** Plan is part of Review now: an old /plan link (its query too) lands there. */
-function PlanToReview() {
+/** Review and the plan are Progress now: an old /review or /plan link (its query too, ?retry=next) lands there. */
+function ToProgress() {
   const { search } = useLocation();
-  return <Navigate to={{ pathname: "/review", search }} replace />;
+  return <Navigate to={{ pathname: "/progress", search }} replace />;
 }
 
 const StudyPage = page(() => import("@/features/study/StudyPage"), "StudyPage");
@@ -65,8 +65,9 @@ export function App() {
             <Route path="ranges" element={<RangesPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="history" element={<HistoryPage />} />
-            <Route path="plan" element={<PlanToReview />} />
-            <Route path="review" element={<ReviewPage />} />
+            <Route path="plan" element={<ToProgress />} />
+            <Route path="review" element={<ToProgress />} />
+            <Route path="progress" element={<ReviewPage />} />
             <Route path="saved" element={<SavedPage />} />
             <Route path="engine" element={<EnginePage />} />
             <Route path="settings" element={<SettingsPage />} />

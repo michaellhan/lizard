@@ -5654,3 +5654,19 @@ Tournaments, PLO, PLO equity). It now holds four: Progress, Reports, Ranges and 
   dropping `pay=`; at 375 wide, no sideways scroll on Review. A Solve unit test for the switch (Solve's file 20 passed).
   Browser tests on a web-only build: routes, saved, plo and content (desktop, tablet, phone) 72 passed; checks' Saved
   test and qa 6, 12, 13 passed; after the last change, the backup ones again (4 passed). The full suites run in CI.
+
+
+### 2026-11-15: no More menu; Progress at /progress
+
+Asked for: drop the More menu, and stop Progress opening at `/review`.
+
+- Every page is in the bar (`routes.ts` `NAV`): Study, Practice, Analyze, Solve, Progress, Reports, Ranges, PLO, plus
+  Settings' gear, now shown on phones too (before, phones reached Settings through More). An entry is marked on any page
+  of its section. On a narrow screen the bar scrolls sideways, and the current entry is scrolled into view.
+- Review's page lives at `/progress` (the Progress section's first tab, still labelled Review). `/review` and `/plan`
+  redirect there and keep their query. Every in-app link moved to `/progress`.
+- Checked: tsc and eslint clean; unit tests for app, plan, review, history, settings, saved and the Analyze links 396
+  passed. In the browser: `/review` landing on `/progress` with Progress marked; at 375 wide the bar scrolls, PLO is in
+  view on `/equity`, and the page has no sideways scroll; at desktop width all eight entries fit beside the gear.
+  Browser tests on a web-only build: routes (desktop, tablet, phone) with the new redirect test, and qa 14b and the
+  Review flows, 70 passed; after the last change, the nav, redirect, Progress and PLO ones again, 15 passed.

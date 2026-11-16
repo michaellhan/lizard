@@ -169,7 +169,7 @@ function reviewStep(mistakes: readonly MistakeRecord[], now: number): ReviewStep
     id: "reviews",
     what: "Reviews due today",
     title: queue.length ? `Retry ${many(queue.length, "due review")}` : "Open Review",
-    to: queue.length ? "/review?retry=next" : "/review",
+    to: queue.length ? "/progress?retry=next" : "/progress",
     done: !queue.length,
     progress: moved.length ? `${many(moved.length, "review")} moved on today, ${moved.filter((t) => t.ok).length.toLocaleString()} at Best or Correct.` : null,
     says,
