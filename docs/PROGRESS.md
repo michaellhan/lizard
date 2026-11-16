@@ -5853,3 +5853,20 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
   fold). Now your seat draws them a size up (`lg`), lifted (`PlayingCard` `raised`: surface-3 face, control edge), and
   your seat is not dimmed when you fold; it says "folded" instead. Checked in a browser, desktop and 375px (no sideways
   scroll); practice and components tests pass.
+
+## 2026-11-16: A raw preflop-solve error in Practice's grade, and cards in black and red
+
+- Seen on the dev server: Practice's last decision said "The preflop solve couldn't be read: raise ValueError(…) ValueError:
+  the stored preflop solve isn't this tree's" and fell back to the chart's grade. The live site was fine (checked: the same
+  BTN fold graded by the preflop solve). Cause: the dev server had been started with `npm -w web run dev`, which skips
+  `scripts/build-solver-assets.mjs`, so `web/public/solver/` predated the lz2 model change and lacked 33 of its stored
+  games; Vite's fallback answered each missing `pf/*.bin` with the app's page (200), and the engine unpacked that page.
+- Fixed three ways: the Vite dev server builds the solver files at start (`vite.config.ts` `solverFiles`, about 0.4 s,
+  not under Vitest), answers a missing `solver/` file with a 404 as the site does, and warns if any stored game in
+  `engine/pf/` still isn't there as it is; `engine/pf_solve.py` `read_stored` takes only a packed solve (`PFS1`), so a page
+  in a file's place is no stored solve, not a broken one (`test_pf_engine.py`); and the grade's note gives a Python error's
+  own message, never its traceback (`pfGrade.ts` `plainReason`, `pfGrade.test.ts`). Checked on the dev server: the files
+  made stale on purpose were rebuilt at start, and the BTN fold was graded by the preflop solve.
+- Owner: the cards should be coloured properly. `PlayingCard` drew a four-colour deck (green clubs, blue diamonds) on a dark
+  face; a face-up card is now a light face (`--color-card-face`) with black spades and clubs and red hearts and diamonds,
+  each 4.5:1 on the face and the face 3:1 from every surface (`contrast.test.ts`). Checked in Practice and on Study's board.

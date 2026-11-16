@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import nodes from "@/test/fixtures/pf_nodes.json";
 import { keptHand } from "./keep";
 import { adviceKey, needOf, pfKey } from "./flow";
-import { gradedOn, optionsAt, pfAgain, PF_MODEL, pfRead, pfWords, type HeldAnswer, type PfAsked } from "./pfGrade";
+import { gradedOn, optionsAt, pfAgain, PF_MODEL, pfRead, pfWords, plainReason, type HeldAnswer, type PfAsked } from "./pfGrade";
 import { dealNext, decide, following, gradeMix, newHand, optionsOf, pfBlocked, pfState, rangeAt, simOf, stateFor, studyOf, withVillain, type PracticeHand } from "./practice";
 import { reviewed } from "./review";
 import { afterDecision, freshSession, toRecord } from "./session";
@@ -219,6 +219,10 @@ describe("a node it can't", () => {
   it("says so where the solve wasn't to be had, and starts nothing", () => {
     expect(why(btn(), CHART_OPENED, undefined)).toMatch(/wasn't asked/);
     expect(why(btn(), CHART_OPENED, { failed: "the worker died" })).toMatch(/couldn't be read: the worker died/);
+    // (a Python error says its own message, not the traceback or the line that raised it)
+    const py = `Traceback (most recent call last):\n  File "pf_study.py", line 247, in unpack\n    raise ValueError("the stored preflop solve isn't this tree's")\nValueError: the stored preflop solve isn't this tree's`;
+    expect(why(btn(), CHART_OPENED, { failed: py })).toBe("The preflop solve couldn't be read: the stored preflop solve isn't this tree's.");
+    expect(plainReason(`raise ValueError("x") ValueError: the stored preflop solve isn't this tree's`)).toBe("the stored preflop solve isn't this tree's");
     expect(why(btn(), CHART_OPENED, asked(NODES.unsolved))).toMatch(/no decision here/);
     expect(why(btn(), CHART_OPENED, asked({ error: "UTG can't fold here" }))).toMatch(/tree doesn't hold this line: UTG can't fold here/);
     expect(why(btn(), CHART_OPENED, with_({ actor: "CO" }))).toMatch(/another seat/);

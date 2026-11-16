@@ -1,6 +1,7 @@
-// A playing card: rank and suit symbol in the theme's four-color deck (--color-suit-*); face down where `card` is null.
-// `xs` lays the two side by side, to sit in a line of text. `raised` lifts the face off a surface-2 background (your own
-// cards in your seat).
+// A playing card: rank and suit symbol on a light face, black spades and clubs, red hearts and diamonds (--color-suit-*,
+// --color-card-face); face down where `card` is null.
+// `xs` lays the two side by side, to sit in a line of text. `raised` gives the face a stronger edge (your own cards in
+// your seat).
 const SUIT: Record<string, { sym: string; name: string; tone: string }> = {
   s: { sym: "♠", name: "spades", tone: "text-suit-s" },
   h: { sym: "♥", name: "hearts", tone: "text-suit-h" },
@@ -19,7 +20,7 @@ export function PlayingCard({ card, size = "md", raised = false }: { card: strin
     <span
       role="img"
       aria-label={`${RANK_NAME[r] ?? r} of ${s.name}`}
-      className={`inline-flex ${box} ${size === "xs" ? "" : "flex-col"} items-center justify-center rounded border ${raised ? "border-control bg-surface-3" : "border-border bg-surface-2"} font-semibold leading-none ${s.tone}`}
+      className={`inline-flex ${box} ${size === "xs" ? "" : "flex-col"} items-center justify-center rounded border bg-card-face ${raised ? "border-control" : "border-border"} font-semibold leading-none ${s.tone}`}
     >
       <span>{r === "T" ? "10" : r}</span>
       <span aria-hidden>{s.sym}</span>

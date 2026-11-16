@@ -355,18 +355,22 @@ def read_stored(key: str) -> Optional[bytes]:
     """A stored solve's file: in the browser from the site's pf/ (the worker's siteFetch), natively from engine/pf/."""
     if key not in STORED_KEYS:
         return None
+    blob: Optional[bytes] = None
     if sys.platform == "emscripten":
         try:
             import js   # noqa: F401
             r = js.siteFetch(f"pf/{key}.bin")
-            return None if r is None else r.to_bytes()
+            blob = None if r is None else r.to_bytes()
         except Exception:   # noqa: BLE001
             return None
-    try:
-        with open(os.path.join(STORE_DIR, key + ".bin"), "rb") as f:
-            return f.read()
-    except OSError:
-        return None
+    else:
+        try:
+            with open(os.path.join(STORE_DIR, key + ".bin"), "rb") as f:
+                blob = f.read()
+        except OSError:
+            return None
+    # (only a packed solve: a server that answers a missing file with a page, as a dev server's fallback does, has none)
+    return blob if blob is not None and blob[:4] == b"PFS1" else None
 
 
 # ----------------------------------------------------------------------------- a solve

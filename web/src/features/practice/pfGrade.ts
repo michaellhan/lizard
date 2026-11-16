@@ -40,12 +40,20 @@ const CHIP_EPS = 0.011;
 const chart = (why: string) => ({ why });
 const sizes = (xs: readonly { action: string; to?: number | null }[]) => xs.map((x) => (typeof x.to === "number" ? `${x.action} ${x.to}bb` : x.action)).join(", ");
 
+/** A failure's reason in words: a Python error's own message, not the traceback or the line that raised it. */
+export function plainReason(text: string): string {
+  const lines = text.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  const last = lines[lines.length - 1] ?? text;
+  const m = /(?:^|\s)(?:[A-Za-z_.]*(?:Error|Exception)): (.+)$/.exec(last);
+  return (m ? m[1]! : last).replace(/[.\s]+$/, "");
+}
+
 type NodeRead = { node: AdvisorResponse; provenance: Provenance; f: number[]; ev: number[] } | { why: string };
 
 /** The solve's answer for this class at the node asked, or why there's none to grade by. Nothing here reads the table. */
 function readNode(asked: PfAsked | undefined, seat: string, hole: string): NodeRead {
   if (!asked) return chart("The preflop solve wasn't asked here.");
-  if ("failed" in asked) return chart(`The preflop solve couldn't be read: ${asked.failed}.`);
+  if ("failed" in asked) return chart(`The preflop solve couldn't be read: ${plainReason(asked.failed)}.`);
   const { data: node, provenance } = asked;
   if (node.error) return chart(`The solve's tree doesn't hold this line: ${node.error}`);
   if (node.study !== "node" || provenance.source !== "preflop-solve") return chart("The preflop solve has no decision here.");

@@ -343,6 +343,20 @@ class StoredGrid(unittest.TestCase):
             s = P.Solve(spec, P.read_stored(spec.key))
             self.assertTrue(s.stored and s.done)
 
+    def test_a_page_in_place_of_a_stored_file_is_no_file(self):
+        # a dev server answers a missing file with the app's page (200, HTML): that's no stored solve, not a broken one
+        import tempfile
+        key = P.Spec(6, (100.0,)).key
+        real = P.STORE_DIR
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, key + ".bin").write_bytes(b"<!doctype html><html></html>")
+            P.STORE_DIR = d
+            try:
+                self.assertIsNone(P.read_stored(key))
+            finally:
+                P.STORE_DIR = real
+        self.assertIsNotNone(P.read_stored(key))
+
     def test_stored_iterations_are_the_builds(self):
         # a stored solve says the iterations it was built with: the build log's last line for its key
         import json

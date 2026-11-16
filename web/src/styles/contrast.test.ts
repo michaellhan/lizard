@@ -43,6 +43,15 @@ describe("contrast", () => {
     }
   });
 
+  it("keeps a card's suits at 4.5:1 on its face, and its face 3:1 from every surface", () => {
+    const face = rgb(token("card-face"));
+    for (const t of ["suit-s", "suit-h", "suit-d", "suit-c"]) expect(ratio(rgb(token(t)), face), t).toBeGreaterThanOrEqual(4.5);
+    for (const s of SURFACES) expect(ratio(face, s)).toBeGreaterThanOrEqual(3);
+    // (two colours, as on real cards: black suits alike, red suits alike)
+    expect(token("suit-s")).toBe(token("suit-c"));
+    expect(token("suit-h")).toBe(token("suit-d"));
+  });
+
   it("keeps a grade's text at 4.5:1 on its tint, on every surface", () => {
     const tags: [string, string, number][] = [
       ["accent", "accent", 0.2],

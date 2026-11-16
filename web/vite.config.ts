@@ -1,4 +1,6 @@
 /// <reference types="vitest/config" />
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -36,9 +38,43 @@ function csp(): Plugin {
   };
 }
 
+// The dev server's solver files (public/solver/, from scripts/build-solver-assets.mjs). They're built at start, as the
+// root `npm run dev` does (well under a second), so a dev server started in web/ alone never serves files from before
+// the engine's last change. A missing one is a 404 here as on the site: Vite's fallback would answer it with the app's
+// page, which the worker read as the file (a stored preflop solve "isn't this tree's").
+function solverFiles(): Plugin {
+  const pub = fileURLToPath(new URL("./public/", import.meta.url));
+  const pf = fileURLToPath(new URL("../engine/pf/", import.meta.url));
+  return {
+    name: "lizard-solver-files",
+    apply: "serve",
+    configureServer(server) {
+      // (not under Vitest, which starts a Vite server of its own and serves no solver files)
+      if (process.env.VITEST) return;
+      try {
+        execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build-solver-assets.mjs", import.meta.url))], { stdio: "pipe", timeout: 120_000 });
+      } catch (e) {
+        server.config.logger.warn(`lizard: building the solver files failed (${e instanceof Error ? e.message.split("\n")[0] : e})`);
+      }
+      try {
+        const stale = readdirSync(pf).filter((f) => f.endsWith(".bin") && (!existsSync(`${pub}solver/pf/${f}`) || statSync(`${pub}solver/pf/${f}`).size !== statSync(pf + f).size));
+        if (stale.length) server.config.logger.warn(`lizard: ${stale.length} stored preflop solves in engine/pf/ aren't in web/public/solver/pf/ as they are (e.g. ${stale[0]}): run \`npm run solver:assets\` at the repo root`);
+      } catch {
+        // (no engine/pf/ beside this checkout: nothing to compare)
+      }
+      server.middlewares.use((req, res, next) => {
+        const path = decodeURIComponent((req.url ?? "").split("?")[0]!);
+        if (!path.startsWith(`${BASE}solver/`) || existsSync(pub + path.slice(BASE.length))) return next();
+        res.statusCode = 404;
+        res.end("Not found");
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: BASE,
-  plugins: [react(), tailwindcss(), csp()],
+  plugins: [react(), tailwindcss(), csp(), solverFiles()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
