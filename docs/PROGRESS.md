@@ -5626,3 +5626,31 @@ their hand.
   "Preflop solve (class-level model)" chip, the same way on a clean export of HEAD 041c4f5, so not from this work: 7g
   because that build used old solver files in `web/public/solver` (a fresh root build passes it), and 7h because the
   test was stale after 516fe7b (fixed on branch `claude/clever-yonath-ed6d4c`, not merged here).
+
+
+### 2026-11-15: fewer pages in the menu (Progress, PLO and Settings as tab rows; Tournaments on Solve)
+
+Asked for: explain every page and merge or remove some. More held eight entries (Review, History, Saved, Reports, Ranges,
+Tournaments, PLO, PLO equity). It now holds four: Progress, Reports, Ranges and PLO.
+
+- `routes.ts` `SECTIONS`: pages that belong together, each at its own address, joined by a row of tabs drawn over the
+  page by `Shell.tsx` `SectionTabs` (outside the error boundary, so a page that throws keeps its neighbours): Progress
+  (Review, History, Saved), PLO (Solve, Equity), Settings (Settings, Engine, Library). A More entry stands for its whole
+  section and is marked on any of its pages (`pathsOf`; a plain Link with `aria-current`, since NavLink marks only its own
+  page).
+- Tournaments is Solve's Cash / Tournament switch (`SolvePage.tsx` `KindSwitch`). Each side is still its own address
+  (`/solve`, `/tournaments`) and carries the table, stacks, sizes and ranges typed so far. Cash leaves out the prizes and
+  bounties, and Tournament leaves out the rake. The tournament heading is "Solve a tournament spot".
+- Backup and restore moved from Saved to Settings (`features/settings/BackupPanel.tsx`). Saved has a line linking to
+  `/settings#backup`, which scrolls to the panel and focuses it. The backup reminder now hides on Settings, not Saved.
+  Settings' footer links to Engine and Library went, since they're tabs now.
+- Saved stays one page, not split across Study, Ranges and Settings as first proposed. It holds six kinds (spots,
+  drills, scenarios, reports, flop reports, ranges) under one search, and spreading them would hide drills and scenarios.
+- No address changed, so old links and bookmarks still work. `/plan` still goes to Review.
+- Checked: tsc and eslint clean; unit tests for app, settings, saved, solve and home 117 passed, including the new
+  `BackupPanel.test.tsx` (backup tests moved from `SavedPage.test.tsx`) and new Shell tests for the tab rows and the More
+  menu. In the browser on the dev server: tabs on History, Review and Saved; More's four entries with Progress marked on
+  History; Settings with backup; Saved's link landing on the panel; the switch carrying a 40bb stack both ways and Cash
+  dropping `pay=`; at 375 wide, no sideways scroll on Review. A Solve unit test for the switch (Solve's file 20 passed).
+  Browser tests on a web-only build: routes, saved, plo and content (desktop, tablet, phone) 72 passed; checks' Saved
+  test and qa 6, 12, 13 passed; after the last change, the backup ones again (4 passed). The full suites run in CI.

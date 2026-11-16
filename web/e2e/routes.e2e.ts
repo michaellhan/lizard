@@ -40,11 +40,11 @@ test("every link in the primary nav can be reached and goes where it says", asyn
   await page.goto("/lizard/");
   const nav = page.getByRole("navigation", { name: "Primary" });
   const links = await nav.getByRole("link").all();
-  // the four main pages in the bar at every width, and the other eight under More (on a phone, Settings too)
+  // the four main pages in the bar at every width, and four more under More: Progress, Reports, Ranges, PLO (on a phone, Settings too)
   expect(links.length).toBe(4);
   const more = nav.getByRole("button", { name: /More/ });
   await more.click();
-  await expect(nav.getByRole("list", { name: "More pages" }).getByRole("link")).toHaveCount(8 + (info.project.name === "phone" ? 1 : 0));
+  await expect(nav.getByRole("list", { name: "More pages" }).getByRole("link")).toHaveCount(4 + (info.project.name === "phone" ? 1 : 0));
   await more.click();
   for (const link of links) {
     const to = await link.getAttribute("href");

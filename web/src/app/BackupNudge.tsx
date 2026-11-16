@@ -1,6 +1,6 @@
 // The backup reminder (data/backupNudge.ts): rarely (many saves, weeks of them, no backup), one quiet line under the
 // header says that it's all in this browser only, with a link that downloads a backup and one that puts it off a month.
-// Not on the Saved page, whose backup panel says the same, and never once account sync is on (it keeps a copy).
+// Not on Settings, whose backup panel says the same, and never once account sync is on (it keeps a copy).
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { nudgeDue, nudgeState, onNudgeState, snoozeNudge, type NudgeState } from "@/data/backupNudge";
@@ -29,7 +29,7 @@ export function BackupNudge() {
       off();
     };
   }, []);
-  if (!s || !nudgeDue(s) || pathname === "/saved" || syncing()) return null;
+  if (!s || !nudgeDue(s) || pathname === "/settings" || syncing()) return null;
   return (
     <div role="region" aria-label="Backup reminder" className="border-b border-border px-4 py-1.5 text-center text-xs text-muted">
       Your saved work is only in this browser.{" "}

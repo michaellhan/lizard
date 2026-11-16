@@ -61,7 +61,23 @@ function BunchingField({ value, onChange, problem }: { value: BunchingSource | "
   );
 }
 
-const SIZE_LABEL: Record<SizeStreet, string> = { flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
+/** Cash or tournament, one page: each its own address (/solve, /tournaments), carrying the table, stacks, sizes and
+ * ranges typed so far, and leaving behind what the other kind doesn't have. */
+function KindSwitch({ tour, cash, tourney }: { tour: boolean; cash: string; tourney: string }) {
+  const tab = (on: boolean) => `whitespace-nowrap rounded-md px-3 py-1 text-sm ${on ? "bg-surface-3 text-text underline decoration-accent decoration-2 underline-offset-4" : "text-muted hover:bg-surface-2 hover:text-text"}`;
+  return (
+    <nav aria-label="Kind of game" className="segmented flex gap-1 rounded-lg border border-border p-1">
+      <Link to={cash} aria-current={tour ? undefined : "page"} className={tab(!tour)}>
+        Cash
+      </Link>
+      <Link to={tourney} aria-current={tour ? "page" : undefined} className={tab(tour)}>
+        Tournament
+      </Link>
+    </nav>
+  );
+}
+
+const SIZE_LABEL: Record<SizeStreet, string> ={ flop: "Flop bets", turn: "Turn bets", river: "River bets", raise: "Raises" };
 const str = (x: number | undefined) => (x === undefined ? "" : String(x));
 const numOf = (t: string) => (t.trim() ? Number(t) : undefined);
 
@@ -153,6 +169,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setup,
   };
   const line = keepLine ? describeLine(start) : [];
+  // the same spot as the other kind of game, for the switch: a cash game has no prizes or bounties, a tournament no rake
+  const cashLink = `/solve?${toSearch({ ...hand, setup: tidySetup({ ...typed, tournament: undefined }) })}`;
+  const tourneyLink = `/tournaments?${toSearch({ ...hand, setup: tidySetup({ ...typed, rake: undefined, rakeCap: undefined }) })}`;
   // the players left (this table's and the other tables'), for the 15%-paid shape
   const fN = Number(fieldN);
   const curve = tour ? paidCurve(players + (Number.isInteger(fN) && fN > 0 ? fN : 0)) : null;
@@ -216,8 +235,9 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">{tour ? "Tournaments" : "Solve"}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold">{tour ? "Solve a tournament spot" : "Solve"}</h1>
+        <KindSwitch tour={tour} cash={cashLink} tourney={tourneyLink} />
       </div>
 
       <form

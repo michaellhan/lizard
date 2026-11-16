@@ -18,10 +18,10 @@ describe("SettingsPage", () => {
     expect(document.documentElement.dataset.patterns).toBeUndefined();
   });
 
-  it("reaches Engine from here, as a phone hides the status pill", () => {
+  it("holds backup and restore, and none of the settings that went", () => {
     render(<SettingsPage />, { wrapper: MemoryRouter });
-    expect(screen.getByRole("link", { name: "Engine status" })).toHaveAttribute("href", "/engine");
-    expect(screen.getByRole("link", { name: "What’s precomputed" })).toHaveAttribute("href", "/library");
+    expect(screen.getByRole("region", { name: "Backup" })).toHaveAttribute("id", "backup");
+    expect(screen.getByRole("button", { name: "Download backup" })).toBeInTheDocument();
     for (const gone of ["Use its speed", "Clear"]) expect(screen.queryByRole("button", { name: gone })).toBeNull();
     expect(screen.queryByRole("checkbox", { name: "Keyboard shortcuts in Study" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Library source" })).toBeNull();

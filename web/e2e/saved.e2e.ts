@@ -85,7 +85,7 @@ test("An answer changed by hand can't call itself solved, and a missing one is a
 
 test("A backup carries the answer and the restore says it came from a file", async ({ page, problems }) => {
   await saveSpot(page, "Kd flop");
-  await page.goto("/lizard/saved");
+  await page.goto("/lizard/settings");
   const wait = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup" }).click();
   const path = await (await wait).path();
@@ -108,9 +108,12 @@ test("A backup carries the answer and the restore says it came from a file", asy
         };
       }),
   );
-  await page.reload();
-  await expect(page.getByRole("listitem", { name: "Kd flop" })).toBeHidden();
+  await page.goto("/lizard/saved");
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
+  await page.goto("/lizard/settings");
   await page.getByLabel("Backup file to restore").setInputFiles(path);
+  await expect(page.getByRole("region", { name: "Backup" }).getByRole("status")).toContainText("Restored");
+  await page.goto("/lizard/saved");
   const row = page.getByRole("listitem", { name: "Kd flop" });
   await expect(row).toBeVisible();
   await row.getByRole("link", { name: "Open in Study" }).click();
@@ -183,19 +186,21 @@ test("A spot deleted after a backup stays deleted through a restore of it, and t
   const row = page.getByRole("listitem", { name: "Old flop" });
   await expect(row).toBeVisible();
 
+  await page.goto("/lizard/settings");
   const wait = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download backup" }).click();
   const path = await (await wait).path();
 
+  await page.goto("/lizard/saved");
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   await row.getByRole("button", { name: "Delete spot", exact: true }).click();
   await expect(row).toBeHidden();
 
+  await page.goto("/lizard/settings");
   await page.getByLabel("Backup file to restore").setInputFiles(path);
   await expect(page.getByText(/1 left out because it was deleted after that copy/)).toBeVisible();
-  await expect(row).toBeHidden();
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Download backup" })).toBeVisible();
+  await page.goto("/lizard/saved");
+  await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
   await expect(row).toBeHidden();
   expect(problems.errors).toEqual([]);
 });

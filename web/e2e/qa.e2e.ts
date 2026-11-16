@@ -262,19 +262,24 @@ test("12. A spot saved, a backup taken, and everything restored from it", async 
   await page.goto("/lizard/saved/");
   await expect(page.getByRole("region", { name: "Saved spots" }).getByText("QA spot")).toBeVisible();
 
+  // (backup and restore are on Settings, reached from Saved's line about them)
+  await page.getByRole("link", { name: "Settings", exact: true }).last().click();
   const backup = page.getByRole("region", { name: "Backup" });
   const taken = page.waitForEvent("download");
   await backup.getByRole("button", { name: /Download/ }).click();
   const path = await (await taken).path();
 
+  await page.goto("/lizard/saved/");
   await page.getByRole("listitem", { name: "QA spot" }).getByRole("button", { name: "Delete" }).click();
   await page.getByRole("listitem", { name: "QA spot" }).getByRole("button", { name: /Delete|Yes/ }).first().click();
   await expect(page.getByRole("listitem", { name: "QA spot" })).toHaveCount(0);
 
   // deleted after that copy: it stays deleted, and the restore says so
+  await page.goto("/lizard/settings/");
   await backup.getByLabel("Backup file to restore").setInputFiles(path);
   await expect(page.getByText(/left out because (it was|they were) deleted after that copy/)).toBeVisible();
-  await expect(page.getByRole("listitem", { name: "QA spot" })).toHaveCount(0);
+  await page.goto("/lizard/saved/");
+  await expect(page.getByRole("region", { name: "Saved spots" })).toHaveCount(0);
 
   // a browser that never deleted it, as after moving to a new one, gets it all back
   await page.evaluate(
@@ -292,8 +297,10 @@ test("12. A spot saved, a backup taken, and everything restored from it", async 
         };
       }),
   );
-  await page.reload();
+  await page.goto("/lizard/settings/");
   await page.getByRole("region", { name: "Backup" }).getByLabel("Backup file to restore").setInputFiles(path);
+  await expect(page.getByRole("region", { name: "Backup" }).getByRole("status")).toContainText("Restored");
+  await page.goto("/lizard/saved/");
   await expect(page.getByRole("region", { name: "Saved spots" }).getByText("QA spot")).toBeVisible();
   await clean(page, problems);
 });

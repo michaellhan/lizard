@@ -27,6 +27,26 @@ const num = (name: string, value: string) => fireEvent.change(screen.getByRole("
 const problems = () => screen.queryByRole("alert", { name: "Setup problems" });
 
 describe("SolvePage", () => {
+  it("switches between cash and tournament, carrying the table and leaving what the other kind hasn't", () => {
+    open("p=6&s=100&rake=5");
+    const kinds = screen.getByRole("navigation", { name: "Kind of game" });
+    expect(within(kinds).getByRole("link", { name: "Cash" })).toHaveAttribute("aria-current", "page");
+    num("Table stack", "40");
+    const tour = within(kinds).getByRole("link", { name: "Tournament" });
+    expect(tour.getAttribute("href")).toMatch(/^\/tournaments\?/);
+    expect(tour.getAttribute("href")).toContain("s=40");
+    expect(tour.getAttribute("href")).not.toContain("rake");
+    fireEvent.click(tour);
+    expect(screen.getByRole("heading", { name: "Solve a tournament spot" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Table stack" })).toHaveValue(40);
+    type("Payouts", "50 30 20");
+    const cash = within(screen.getByRole("navigation", { name: "Kind of game" })).getByRole("link", { name: "Cash" });
+    expect(cash.getAttribute("href")).toMatch(/^\/solve\?/);
+    expect(cash.getAttribute("href")).not.toContain("pay");
+    fireEvent.click(cash);
+    expect(screen.getByRole("heading", { name: "Solve" })).toBeInTheDocument();
+  });
+
   it("sends no one to the classic app", () => {
     open("p=2&s=100");
     expect(screen.queryByRole("link", { name: /classic/i })).toBeNull();
@@ -141,7 +161,7 @@ describe("SolvePage", () => {
 
   it("sets up a tournament: payouts, other tables, bounties (each seat's and its own), no rake, into Study's URL", () => {
     open("p=6&s=25", "/tournaments");
-    expect(screen.getByRole("heading", { name: "Tournaments" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Solve a tournament spot" })).toBeInTheDocument();
     expect(screen.queryByRole("spinbutton", { name: "Rake" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Satellite, 5 seats" }));
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("1 1 1 1 1");

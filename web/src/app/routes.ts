@@ -93,31 +93,66 @@ export const ROUTES: RouteDef[] = [
   { path: "solve", label: "Solve", nav: true, status: "partial", summary: "A spot of your own: each seat's stack, bet sizes, rake, ante or straddle, and ranges, opened in Study.", rows: ["Preflop solves", "Postflop solves", "Heads-up", "Multiway", "Custom ranges", "Stacks & bet sizes", "Node locking", "Rake", "Automatic sizing", "Convergence display"] },
   { path: "reports", label: "Reports", nav: false, more: true, status: "partial", summary: "A library spot's flop strategy across its stored flops, by texture, with EV, equity and EQR.", rows: ["Aggregate reports"] },
   { path: "ranges", label: "Ranges", nav: false, more: true, status: "partial", summary: "Range matrix viewer and builder.", rows: ["Range matrices", "Custom ranges"] },
-  { path: "tournaments", label: "Tournaments", nav: false, more: true, status: "partial", summary: "A tournament spot, or a stage from the bubble to heads-up: the prizes left, each seat's stack, other tables and bounties, answered in prize equity in Study.", rows: ["ICM", "MTT / final table", "Satellites", "KO / PKO", "Mystery bounty", "Payout structures", "Bubble factors"] },
+  { path: "tournaments", label: "Solve a tournament spot", nav: false, status: "partial", summary: "A tournament spot, or a stage from the bubble to heads-up: the prizes left, each seat's stack, other tables and bounties, answered in prize equity in Study.", rows: ["ICM", "MTT / final table", "Satellites", "KO / PKO", "Mystery bounty", "Payout structures", "Bubble factors"] },
   { path: "compare", label: "Compare", nav: false, status: "partial", summary: "Two spots side by side (a tournament in chip EV, with and without rake, two stacks): the actions, the range and each hand class's change, each side with its own source.", rows: ["Solution comparisons"] },
   { path: "equity", label: "PLO equity", nav: false, status: "partial", summary: "PLO4 hand and range equity, exact or Monte Carlo, each number labelled as such: a calculator, not a solver.", rows: ["PLO4"] },
   { path: "plo", label: "PLO flop, turn and river", nav: false, more: true, status: "partial", summary: "One heads-up PLO4 river, a turn and every river after it, or a flop and every turn and river after it, solved exactly at the sizes you list, from ranges you type. Preflop isn't solved, and there's no rake.", rows: ["PLO4"] },
   { path: "library", label: "Library", nav: false, status: "working", summary: "Which spots are precomputed, and how much of each is built." },
-  { path: "history", label: "History", nav: false, more: true, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions.", rows: ["Session stats", "Preferences / progress"] },
+  { path: "history", label: "History", nav: false, status: "partial", summary: "Every session kept in this browser by day (full hands, drills, leak drills, range builds), lifetime totals, full hands by pot type, decisions by street, and the trend across sessions.", rows: ["Session stats", "Preferences / progress"] },
   { path: "plan", label: "Review", nav: false, status: "partial", summary: "The old address of the plan, now on Review: it goes there.", rows: ["Study plans"] },
   { path: "review", label: "Review", nav: false, more: true, status: "partial", summary: "What to work on: your mistakes kept across sessions, due to retry on a spaced schedule and graded again under the current answer's provenance; leaks and a Practice drill from what you've kept, by a plain rule; and 12 lessons, each a report to read and a drill.", rows: ["Study plans"] },
-  { path: "saved", label: "Saved", nav: false, more: true, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore.", rows: ["Saved solutions", "Saved hands"] },
+  { path: "saved", label: "Saved", nav: false, status: "partial", summary: "Spots saved from Study and ranges saved from Ranges, with backup and restore.", rows: ["Saved solutions", "Saved hands"] },
   { path: "engine", label: "Engine", nav: false, status: "working", summary: "Solver runtime status, threads, versions and diagnostics." },
   { path: "settings", label: "Settings", nav: false, status: "working", summary: "Solver mode, backend, library source and display." },
 ];
 
-/** The More menu, in this order: your own progress first, then the other tools. (Plan is part of Review now, /plan goes
- * there; Library is reached from Settings.) */
+/** Pages that belong together, each kept at its own address and joined by a row of tabs over the page (Shell's
+ * SectionTabs). The first tab is where the section opens from the More menu. */
+export interface Section {
+  /** names the tab row for a screen reader ("Progress pages") */
+  label: string;
+  tabs: { path: string; label: string }[];
+}
+export const SECTIONS: Section[] = [
+  {
+    label: "Progress",
+    tabs: [
+      { path: "review", label: "Review" },
+      { path: "history", label: "History" },
+      { path: "saved", label: "Saved" },
+    ],
+  },
+  {
+    label: "PLO",
+    tabs: [
+      { path: "plo", label: "Solve" },
+      { path: "equity", label: "Equity" },
+    ],
+  },
+  {
+    label: "Settings",
+    tabs: [
+      { path: "settings", label: "Settings" },
+      { path: "engine", label: "Engine" },
+      { path: "library", label: "Library" },
+    ],
+  },
+];
+
+/** The section a page is in, or none. */
+export const sectionOf = (path: string): Section | undefined => SECTIONS.find((s) => s.tabs.some((t) => t.path === path));
+
+/** The More menu, in this order: your own progress first, then the other tools. An entry is marked while you're on any
+ * page of its section. (Tournaments is Solve's Tournament switch; Plan is part of Review, /plan goes there.) */
 export const MORE: { path: string; label: string; blurb: string }[] = [
-  { path: "review", label: "Review", blurb: "What to work on: mistakes due to retry, a drill, and 12 lessons." },
-  { path: "history", label: "History", blurb: "Every session you've played, and your trend." },
-  { path: "saved", label: "Saved", blurb: "Spots and ranges you've saved; backup and restore." },
+  { path: "review", label: "Progress", blurb: "Mistakes to retry and lessons, every session you've played, and what you've saved." },
   { path: "reports", label: "Reports", blurb: "A spot's flop strategy across every stored flop." },
   { path: "ranges", label: "Ranges", blurb: "View and build ranges." },
-  { path: "tournaments", label: "Tournaments", blurb: "Tournament spots in prize equity (ICM, bounties)." },
-  { path: "plo", label: "PLO", blurb: "Heads-up Omaha flop, turn and river solves." },
-  { path: "equity", label: "PLO equity", blurb: "Omaha hand and range equity." },
+  { path: "plo", label: "PLO", blurb: "Heads-up Omaha flop, turn and river solves, and Omaha equity." },
 ];
+
+/** The pages a More entry stands for: its section's, or itself alone. */
+export const pathsOf = (path: string): string[] => sectionOf(path)?.tabs.map((t) => t.path) ?? [path];
 
 export const ROUTE_PATHS = ROUTES.map((r) => r.path).filter(Boolean);
 

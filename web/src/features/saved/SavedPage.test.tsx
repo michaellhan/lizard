@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { answerToKeep } from "@/data/answers";
 import { BACKUP_STORES, makeBackup, restoreBackup, type Backup } from "@/data/backup";
 import { db, kvGet, kvSet, type SavedSpot } from "@/data/db";
 import { filtersOf, putReport, reportWords } from "@/data/reports";
-import { deleteSpot, listDrills, listRanges, listSpots, putDrill, putRange, putSpot } from "@/data/saved";
+import { listDrills, listRanges, listSpots, putDrill, putRange, putSpot } from "@/data/saved";
 import { putScenario, type ScenarioSetup } from "@/data/scenarios";
 import { provenanceOf } from "@/solver/provenance";
 import { CHART_ANSWER, LIBRARY_ANSWER } from "@/test/answers";
@@ -117,56 +117,6 @@ describe("SavedPage", () => {
     expect(studyRequest(fromSearch(where.split("?")[1]!)!)).toEqual((await listSpots())[0]!.state);
   });
 
-  it("downloads a backup and restores one by merging", async () => {
-    await putSpot(spot("a", "Kept"));
-    const backup = await makeBackup();
-    const created: Blob[] = [];
-    URL.createObjectURL = vi.fn((b: Blob) => (created.push(b), "blob:x"));
-    URL.revokeObjectURL = vi.fn();
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    renderAt("/saved");
-    await screen.findByRole("listitem", { name: "Kept" });
-    fireEvent.click(screen.getByRole("button", { name: "Download backup" }));
-    expect(await screen.findByText("Backup made: 1 spots, 0 saved answers, 0 drills, 0 scenarios, 0 ranges, 0 saved reports, 0 flop reports, 0 sessions, 0 hands, 0 graded decisions, 0 kept mistakes.")).toBeInTheDocument();
-    expect(click).toHaveBeenCalledOnce();
-    expect(JSON.parse(await created[0]!.text()).stores.savedSpots[0].data.title).toBe("Kept");
-    expect(await screen.findByLabelText("Last backup")).toHaveTextContent(/^Last backup made here .+; 0 changes to your data since\.$/);
-
-    // a backup holding one more spot and a range: added, nothing here deleted
-    const more = { ...backup, stores: { ...backup.stores, savedSpots: [...backup.stores.savedSpots, { ...backup.stores.savedSpots[0]!, id: "b", data: spot("b", "From the file") }], savedRanges: [{ id: "r", v: 1, created: 1, updated: 1, dev: "d", data: { id: "r", name: "BB defend", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 1 } }] } };
-    const file = new File([JSON.stringify(more)], "lizard-backup.json", { type: "application/json" });
-    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [file] } });
-    expect(await screen.findByText(/^Restored: 2 added, 0 updated, 1 kept \(as new or newer here\)\. Nothing here was deleted\.$/)).toBeInTheDocument();
-    expect(await screen.findByRole("listitem", { name: "From the file" })).toBeInTheDocument();
-    expect(screen.getByRole("listitem", { name: "BB defend" })).toHaveTextContent("78.0 combos");
-
-    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [new File(["{"], "x.json")] } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("That file isn't JSON.");
-    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [new File(['{"format":"other"}'], "x.json")] } });
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("That isn't a Lizard backup file."));
-  });
-
-  it("refuses a file too big to read, before reading it", async () => {
-    renderAt("/saved");
-    const text = vi.fn();
-    const file = { name: "huge.json", size: 1100 * 1024 * 1024, text } as unknown as File;
-    fireEvent.change(await screen.findByLabelText("Backup file to restore"), { target: { files: [file] } });
-    expect(await screen.findByText(/^That's 1,100 MB, over the 1,024 MB one import can read\./)).toBeInTheDocument();
-    expect(text).not.toHaveBeenCalled();
-  });
-
-  it("says a restore keeps out what was deleted, and how many it left out", async () => {
-    await putSpot(spot("a", "Kept"));
-    await putSpot(spot("b", "Deleted"));
-    const b = await makeBackup();
-    await deleteSpot("b");
-    renderAt("/saved");
-    expect(await screen.findByText(/A restore merges/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [new File([JSON.stringify(b)], "backup.json")] } });
-    expect(await screen.findByText("Restored: 0 added, 0 updated, 1 kept (as new or newer here), 1 left out because it was deleted after that copy. Nothing here was deleted.")).toBeInTheDocument();
-    expect(screen.queryByRole("listitem", { name: "Deleted" })).toBeNull();
-  });
-
   it("lists saved drills of both kinds, opens one where it's dealt, renames and deletes", async () => {
     const at = { note: "", createdAt: 1 };
     await putDrill({ id: "l", name: "Monotone defence", kind: "library", to: "/practice?tab=drills&spot=srp_btn_bb&view=vsbet&suits=mono", about: "BTN vs BB · BB facing a bet · Monotone", ...at, updatedAt: 2 });
@@ -213,8 +163,10 @@ describe("SavedPage", () => {
     const b = await makeBackup();
     b.stores.savedSpots[0]!.data = { ...b.stores.savedSpots[0]!.data, title: "Restored", note: "from the file", updatedAt: 99 };
     b.stores.savedSpots[0]!.updated = 99;
-    const file = new File([JSON.stringify(b)], "b.json", { type: "application/json" });
-    fireEvent.change(screen.getByLabelText("Backup file to restore"), { target: { files: [file] } });
+    // (restored on Settings, then Saved opened again)
+    await restoreBackup(b);
+    cleanup();
+    renderAt("/saved");
     await screen.findByRole("listitem", { name: "Restored" });
     fireEvent.click((await row()).getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Restored");
@@ -268,10 +220,10 @@ describe("SavedPage", () => {
     await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Saved" })).toHaveFocus());
   });
 
-  it("shows the focus on the backup's file input through its label", async () => {
+  it("says backup and restore are on Settings", async () => {
     renderAt("/saved");
-    const input = (await screen.findByLabelText("Backup file to restore")) as HTMLInputElement;
-    expect(input.closest("label")?.className).toMatch(/focus-within:outline/);
+    expect(await screen.findByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings#backup");
+    expect(screen.queryByLabelText("Backup file to restore")).toBeNull();
   });
 
   it("says where saved things come from when there are none", async () => {

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Link } from "react-router";
+import { BackupPanel } from "./BackupPanel";
 import { capWords, TREE_CAPS, type TreeCap } from "@/solver/treeDepth";
 import { useSettings } from "@/state/settings";
 import { ModePicker } from "@/features/study/ModePicker";
@@ -54,15 +54,7 @@ export function SettingsPage() {
         </Suspense>
       )}
 
-      <p className="text-xs text-muted">
-        <Link to="/engine" className="underline hover:text-text">
-          Engine status
-        </Link>
-        {" · "}
-        <Link to="/library" className="underline hover:text-text">
-          What&rsquo;s precomputed
-        </Link>
-      </p>
+      <BackupPanel />
 
       <button type="button" onClick={s.reset} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
         Reset to defaults

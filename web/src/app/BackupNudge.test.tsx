@@ -50,9 +50,9 @@ describe("BackupNudge", () => {
     expect(await nudgeState()).toMatchObject({ saves: 0, lastBackupAt: expect.any(Number) });
   });
 
-  it("isn't shown on the Saved page, whose backup panel says it", async () => {
+  it("isn't shown on Settings, whose backup panel says it", async () => {
     await due();
-    at("/saved");
+    at("/settings");
     await act(() => nudgeState());
     expect(screen.queryByRole("region", { name: "Backup reminder" })).toBeNull();
   });

@@ -871,7 +871,11 @@ test("The Saved page: sort kept across a reload, tags edited and searched, and o
   );
   await page.reload();
   await expect(page.getByText(/^Nothing saved yet\./)).toBeVisible();
+  // (restored on Settings, where backup and restore are; then back on Saved)
+  await page.goto("/lizard/settings");
   await page.getByLabel("Backup file to restore").setInputFiles(path);
+  await expect(page.getByRole("region", { name: "Backup" }).getByRole("status")).toContainText("Restored");
+  await page.goto("/lizard/saved");
   await expect(page.getByRole("listitem", { name: "Charlie" })).toContainText("bluff");
   await expect(list).toHaveCount(1);
   await clean(page, problems);

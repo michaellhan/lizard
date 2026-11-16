@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { BASE_URL } from "@/config";
-import { MORE, ROUTES, routeTitle } from "./routes";
+import { MORE, pathsOf, ROUTES, routeTitle, sectionOf } from "./routes";
 import { EngineStatusPill } from "@/components/EngineStatusPill";
 import { DbRecovery } from "@/features/saved/DbRecovery";
 import { BackupNudge } from "./BackupNudge";
@@ -48,7 +48,10 @@ function MoreMenu({ items }: { items: NavItem[] }) {
       document.removeEventListener("keydown", esc);
     };
   }, [open]);
-  const here = items.some((m) => pathname.split("/").filter(Boolean)[0] === m.path);
+  const first = pathname.split("/").filter(Boolean)[0] ?? "";
+  // (an entry stands for its whole section: Progress is marked on History and Saved too)
+  const mine = (m: NavItem) => pathsOf(m.path).includes(first);
+  const here = items.some(mine);
   return (
     <div ref={box} className="relative shrink-0">
       <button type="button" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)} className={linkClass({ isActive: here })}>
@@ -59,13 +62,15 @@ function MoreMenu({ items }: { items: NavItem[] }) {
           <ul aria-label="More pages">
             {items.map((m) => (
               <li key={m.path}>
-                <NavLink
+                {/* (a Link, not a NavLink, which would mark only the entry's own page) */}
+                <Link
                   to={`/${m.path}`}
                   title={m.blurb}
-                  className={({ isActive }) => `block rounded-md px-3 py-2 text-sm ${isActive ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"}`}
+                  aria-current={mine(m) ? "page" : undefined}
+                  className={`block rounded-md px-3 py-2 text-sm ${mine(m) ? "bg-surface-3 text-text" : "text-muted hover:bg-surface-2 hover:text-text"}`}
                 >
                   {m.label}
-                </NavLink>
+                </Link>
               </li>
             ))}
             <li className="sm:hidden">
@@ -101,9 +106,28 @@ function PrimaryNav() {
 function Page() {
   const { pathname, search } = useLocation();
   return (
-    <ErrorBoundary resetKey={pathname + search}>
-      <Outlet />
-    </ErrorBoundary>
+    <>
+      <SectionTabs path={pathname.split("/").filter(Boolean)[0] ?? ""} />
+      <ErrorBoundary resetKey={pathname + search}>
+        <Outlet />
+      </ErrorBoundary>
+    </>
+  );
+}
+
+/** Over a page that's one of a section's (routes.ts SECTIONS: Progress, PLO, Settings), the row of its pages, the one
+ * you're on marked. Outside the error boundary, so a page that throws still has its neighbours a click away. */
+function SectionTabs({ path }: { path: string }) {
+  const section = sectionOf(path);
+  if (!section) return null;
+  return (
+    <nav aria-label={`${section.label} pages`} className="segmented mb-4 flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg border border-border p-1 [scrollbar-width:none]">
+      {section.tabs.map((t) => (
+        <NavLink key={t.path} to={`/${t.path}`} className={linkClass}>
+          {t.label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 

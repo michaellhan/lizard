@@ -49,6 +49,8 @@ In short, the engine covers most of the feature list, often in part. Lizard's Re
 
 ## Facts that apply to many rows
 
+- **Where the pages are (2026-11-15).** The More menu holds four entries: Progress (Review, History and Saved, one row of tabs over the three), Reports, Ranges and PLO (Solve and Equity as tabs). Settings has Engine and Library as tabs, and backup and restore moved there from Saved (`web/src/features/settings/BackupPanel.tsx`). Tournaments is Solve's Tournament switch. Every page keeps its address, so old links still work (`web/src/app/routes.ts` `SECTIONS`, `Shell.tsx` `SectionTabs`).
+
 - **The snapshot moved on 2026-11-05, and the grades were read before it.** `solver/` went from 9b907bd6 to 1a14605e. Line references into `solver/gto/advisor.py` and `solver/gto/static/*.js` were read at 9b907bd6 and may be some lines off. No Lizard grade changed. The classic app's work in that range (record a hand and review it once it's finished, your equity on a reviewed hand, Explain with AI on a reviewed decision) isn't in Lizard's UI, and the engine's `equity` request isn't sent by Lizard. An 8- or 9-handed pot that borrows a 6-max spot now reads it where it used to lose it (`scripts/engine/test_library_game.py`).
 - **Preflop numbers are mostly approximate.** The advice and Study use hand-written charts with no EV (`solver/gto/preflop.py:1-4`). A class-level preflop solver exists (`solver/gto/pf_study.py`, `pf_game.py`). It supports 2–6 players in the browser and 7 natively, equal stacks of 10–250bb, and no ICM. Its results are 2.4–3.0 points off published solves (`docs/research/03` §4). Classic Study can show it as a "Solver" source, and so can Lizard's Study (since 2026-11-03), labelled "Preflop solve (class-level model)".
 - **Postflop solves are real, but in an abstracted game.** Heads-up uses DCFR with an exact best-response exploitability (`solver/gto/solver.py:2170-2196`). That number is measured in the abstract game: flop solves bucket the later streets, and the bet menu is small. Three-way spots are solved, 4-way spots use a reduced game, and 5+ players on the flop or turn use betting rules (`docs/research/03` §5, §7).
@@ -138,7 +140,7 @@ Lizard's Analyze page (`App.tsx:37`, `web/src/features/analyze/`) imports and ke
 
 ## Tournaments
 
-Lizard's Tournaments page (`/tournaments`, `SolvePage.tsx` with `kind="tournament"`) sets up a spot and opens it in Study, which sends the engine's own tournament keys (`payouts`, `field`, `bounties`; `solver/README.md` Study section) and a tournament's rake as none. What Lizard adds is the setup form, the model named on each badge, and the Tournament panel; the numbers are the engine's.
+Lizard's Solve page, switched to Tournament (`/tournaments`, `SolvePage.tsx` with `kind="tournament"`; since 2026-11-15 a Cash / Tournament switch on Solve, no longer its own entry in the menu), sets up a spot and opens it in Study, which sends the engine's own tournament keys (`payouts`, `field`, `bounties`; `solver/README.md` Study section) and a tournament's rake as none. What Lizard adds is the setup form, the model named on each badge, and the Tournament panel; the numbers are the engine's.
 
 | Feature | GTO Wizard (public) | Engine / classic | Lizard UI | Evidence | Notes |
 |---|---|---|---|---|---|

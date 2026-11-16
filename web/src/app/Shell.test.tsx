@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from "react-router";
 import { describe, expect, it } from "vitest";
 import { routeTitle } from "./routes";
@@ -97,13 +97,43 @@ describe("Route changes", () => {
     expect(more).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(more);
     expect(more).toHaveAttribute("aria-expanded", "true");
-    expect(within(nav).getByRole("link", { name: /^Review/ })).toHaveAttribute("href", "/review");
+    expect(within(within(nav).getByRole("list", { name: "More pages" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Progress", "Reports", "Ranges", "PLO", "Settings"]);
+    expect(within(nav).getByRole("link", { name: "Progress" })).toHaveAttribute("href", "/review");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(more).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("marks More while you're on one of its pages", () => {
+  it("marks More while you're on one of its pages, and its entry for any page of the section", () => {
     show("/history");
     expect(screen.getByRole("button", { name: /More/ })).toHaveClass("underline", "decoration-accent");
+    fireEvent.click(screen.getByRole("button", { name: /More/ }));
+    expect(screen.getByRole("link", { name: "Progress" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "PLO" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("puts a section's pages in a row of tabs over each of them, the one you're on marked", () => {
+    show("/saved");
+    const tabs = screen.getByRole("navigation", { name: "Progress pages" });
+    expect(within(tabs).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Review", "/review"],
+      ["History", "/history"],
+      ["Saved", "/saved"],
+    ]);
+    expect(within(tabs).getByRole("link", { name: "Saved" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("reaches Engine and Library from Settings' tabs, as a phone hides the status pill", () => {
+    show("/settings");
+    const tabs = screen.getByRole("navigation", { name: "Settings pages" });
+    expect(within(tabs).getByRole("link", { name: "Engine" })).toHaveAttribute("href", "/engine");
+    expect(within(tabs).getByRole("link", { name: "Library" })).toHaveAttribute("href", "/library");
+  });
+
+  it("joins PLO's solve and equity, and draws no tabs on a page of no section", () => {
+    show("/equity");
+    expect(within(screen.getByRole("navigation", { name: "PLO pages" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Solve", "Equity"]);
+    cleanup();
+    show("/study");
+    expect(screen.queryByRole("navigation", { name: /pages$/ })).toBeNull();
   });
 });
