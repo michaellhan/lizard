@@ -5817,3 +5817,21 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
 - Checked: `test_profile_solve.py` (presets and bounds; the new test: the re-solve is the best response to it on the
   exact turn tree, either seat, and the street keys change the value); vitest exploit, study, SetupForm, scenarios and
   history (482 passed); in the browser on the real worker (see FEATURE_MATRIX, Exploit practice).
+
+## 2026-11-16: Settings that didn't stick (Practice 8-max and the like, every page)
+
+- Report: changing Practice from 6-max to 8-max "straight up doesn't work". The picker worked, but only on New session,
+  with nothing saying so, and the page opened at 6-max, 100bb on every visit (`Room` dealt `newHand(6, 100)`; at one
+  table nothing is kept). Study's New hand form had the same silent picker.
+- An audit of every page found the same class elsewhere. The main cause was shared: the top bar's links were bare paths,
+  so pages that keep their setup in the address (Study, Reports, Analyze, Drills) opened at their defaults from the bar.
+  Solve, Tournaments, /plo and PLO equity kept nothing at all.
+- Fixed: each page's last address kept and used by the bar, section tabs and home cards (`app/lastSearch.ts`); Practice
+  opens on the game last started; Solve, Tournaments, /plo and equity keep their setup in the address and the browser;
+  Ranges keeps its board and reopens a saved range on asking again; Combos keeps its range; Practice's tab switch keeps
+  the drill's parameters, and a change of drill spot off a turn drill to one without stored turns goes to its flop; the
+  custom report's tier follows Settings until picked. Practice and Study say when a table size or stack waits for New
+  session / New hand. A saved scenario now keeps live opponents (`readSetup`).
+- Left (minor, useState only): Analyze's grading scope and session kind, Reports' custom flop count and runout sort,
+  Study's hand filter, Saved's search box.
+- Checked: full web suite 3,767 passed, tsc and eslint clean; in the browser (see FEATURE_MATRIX, Preferences).

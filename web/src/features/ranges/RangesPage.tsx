@@ -8,16 +8,34 @@ import type { SavedRange } from "@/data/db";
 import { NOT_SAVED, getRange, listRanges, newId, putRange, stored } from "@/data/saved";
 import { formatRange, parseRange, rangeCombos, type ClassWeights } from "./rangeText";
 
+/** The range on the board as you left it, kept in this browser so the page opens on it, saved or not. */
+export const DRAFT_KEY = "lizard.rangeDraft.v1";
+const START = "22+,A2s+,K9s+,QTs+,JTs,ATo+,KJo+";
+
+function readDraft(): { weights: ClassWeights; name: string } {
+  try {
+    const x = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null") as { text?: unknown; name?: unknown } | null;
+    if (x && typeof x.text === "string") {
+      const r = parseRange(x.text);
+      if (!r.unknown.length) return { weights: r.weights, name: typeof x.name === "string" ? x.name : "" };
+    }
+  } catch {
+    // (unreadable: the starting range)
+  }
+  return { weights: parseRange(START).weights, name: "" };
+}
+
 export function RangesPage() {
   const [params, setParams] = useSearchParams();
-  const [weights, setWeights] = useState<ClassWeights>(() => parseRange("22+,A2s+,K9s+,QTs+,JTs,ATo+,KJo+").weights);
+  const [draft] = useState(readDraft);
+  const [weights, setWeights] = useState<ClassWeights>(draft.weights);
   const [brush, setBrush] = useState(1);
   const [text, setText] = useState("");
   const [unknown, setUnknown] = useState<string[]>([]);
   // single combos in the last text applied, each read as its share of its class
   const [combosRead, setCombosRead] = useState<string[]>([]);
   const [saved, setSaved] = useState<SavedRange[]>([]);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(draft.name);
   const [msg, setMsg] = useState<string | null>(null);
   const [n, setN] = useState(0);
   // the class last painted, said with what it did to the range
@@ -38,6 +56,16 @@ export function RangesPage() {
     let alive = true;
     void getRange(openId).then((r) => {
       if (!alive) return;
+      // (opening is done once: off the address, so opening the same range again reverts to it, and the bar's link back
+      // here, app/lastSearch.ts, brings the range as you left it rather than this one opened afresh)
+      setParams(
+        (p) => {
+          const q = new URLSearchParams(p);
+          q.delete("range");
+          return q;
+        },
+        { replace: true },
+      );
       if (!r) return setMsg("That saved range isn't in this browser.");
       setWeights(parseRange(r.text).weights);
       setName(r.name);
@@ -47,7 +75,15 @@ export function RangesPage() {
     return () => {
       alive = false;
     };
-  }, [openId]);
+  }, [openId, setParams]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ text: formatRange(weights), name }));
+    } catch {
+      // (a browser that won't store it opens on the starting range)
+    }
+  }, [weights, name]);
 
   const copy = async () => {
     try {

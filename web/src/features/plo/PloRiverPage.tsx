@@ -2,7 +2,8 @@
 // types (engine/plo/river/, engine/plo/turn/). That's all it is: no street before the one typed is solved, the ranges aren't anyone's solution, there's no rake, and pot-limit poker's other
 // sizes aren't in the tree. The page says so, and every number under it sits under the solve's provenance. Loaded with its
 // route, so no PLO code is in the first download; the work is done in a worker.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router";
 import { PhoneColumns } from "@/components/PhoneColumns";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { cardName, parseIds } from "@/engine/plo/cards";
@@ -16,7 +17,7 @@ import { StructureGrid } from "./StructureGrid";
 import { spotsFromHistory, type HistoryRead, type HistorySpot } from "./fromHistory";
 import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally } from "./drill";
 import type { Grade } from "@/grading/grade";
-import { DEFAULT_SPOT, requestOf, type PloSpot } from "./spot";
+import { DEFAULT_SPOT, requestOf, spotFromParams, spotToParams, type PloSpot } from "./spot";
 
 const inputClass = "w-full min-w-0 rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
 const buttonClass = "rounded border border-border px-3 py-1 text-sm hover:bg-surface-2 disabled:opacity-40";
@@ -42,9 +43,101 @@ export function progressWords(p: RiverProgress | null) {
   return `${p.iterations.toLocaleString("en-US")} iterations, ${far}, ${p.seconds.toFixed(1)} s`;
 }
 
+/** The solver's stopping rules as typed. */
+export interface PloStop {
+  target: string;
+  seconds: string;
+}
+
+export const DEFAULT_STOP: PloStop = { target: String(DEFAULT_TARGET_PCT), seconds: String(DEFAULT_SECONDS) };
+
+/** /plo's last spot in this browser, as its address's query, for a bare /plo (the address wins). */
+export const PLO_SPOT_KEY = "lizard.ploSpot.v1";
+
+export interface PloPage {
+  spot: PloSpot;
+  stop: PloStop;
+}
+
+/** /plo's spot and stopping rules as a query: Study's link format (spot.ts) with `target` and `secs`. */
+export function pageToParams({ spot, stop }: PloPage): URLSearchParams {
+  const q = spotToParams(spot);
+  q.set("target", stop.target.trim());
+  q.set("secs", stop.seconds.trim());
+  return q;
+}
+
+const positive = (v: string | null, fallback: string) => (v !== null && v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) > 0 ? v.trim() : fallback);
+const capOf = (n: number) => Math.min(Math.max(0, n), MAX_RAISE_CAP);
+
+/** /plo's spot read from a query, or null when it holds none (no board). Out-of-range caps are clamped and a stopping
+ * rule that isn't a positive number is the default's; the rest is the solve request's to check, as typed. */
+export function pageFromParams(q: URLSearchParams): PloPage | null {
+  const spot = spotFromParams(q);
+  if (!spot) return null;
+  for (const k of ["sizes", "turn", "river"] as const) spot[k] = { ...spot[k], cap: capOf(spot[k].cap) };
+  return { spot, stop: { target: positive(q.get("target"), DEFAULT_STOP.target), seconds: positive(q.get("secs"), DEFAULT_STOP.seconds) } };
+}
+
+function storedPage(): PloPage | null {
+  try {
+    const s = localStorage.getItem(PLO_SPOT_KEY);
+    return typeof s === "string" ? pageFromParams(new URLSearchParams(s)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storePage(search: string) {
+  try {
+    localStorage.setItem(PLO_SPOT_KEY, search);
+  } catch {
+    // (a browser that won't store it opens a bare /plo at the default)
+  }
+}
+
 export function PloRiverPage() {
+  const [params, setParams] = useSearchParams();
+  // the address's spot, else this browser's last, else the default
+  const [opening, setOpening] = useState<PloPage>(() => pageFromParams(params) ?? storedPage() ?? { spot: DEFAULT_SPOT, stop: DEFAULT_STOP });
+  const [gen, setGen] = useState(0);
+  // what the page wrote to the address, latest last (a navigation can land after the next edit's)
+  const [written, setWritten] = useState<string[]>([]);
+  const search = params.toString();
+
+  // every edit goes to the address (replacing it, so Back leaves the page) and to this browser
+  const keep = useCallback(
+    (spot: PloSpot, stop: PloStop) => {
+      const q = pageToParams({ spot, stop }).toString();
+      setWritten((w) => (w.at(-1) === q ? w : [...w.filter((x) => x !== q), q].slice(-20)));
+      storePage(q);
+      if (q !== search) setParams(q, { replace: true });
+    },
+    [search, setParams],
+  );
+
+  // a spot in an address the page didn't write (a link to /plo while on it) opens afresh
+  const [seen, setSeen] = useState(search);
+  if (search !== seen) {
+    setSeen(search);
+    const page = written.includes(search) ? null : pageFromParams(params);
+    if (page) {
+      setOpening(page);
+      setGen((g) => g + 1);
+    }
+  }
+  // and a bare one gets the spot back
+  const last = written.at(-1);
+  useEffect(() => {
+    if (last !== undefined && !written.includes(search) && !pageFromParams(new URLSearchParams(search))) setParams(last, { replace: true });
+  }, [search, last, written, setParams]);
+
   return (
     <PloSolver
+      key={gen}
+      initial={opening.spot}
+      initialStop={opening.stop}
+      onChange={keep}
       heading={
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">Heads-up PLO4 flop, turn and river solve</h1>
@@ -63,14 +156,18 @@ export interface PloSolverProps {
   autoSolve?: boolean;
   /** offer "Start from a hand you played" */
   fromHistory?: boolean;
+  /** the stopping rules the form starts on */
+  initialStop?: PloStop;
   /** told the spot whenever a solve starts */
   onSolve?: (spot: PloSpot) => void;
+  /** told the spot and stopping rules on opening and on every edit */
+  onChange?: (spot: PloSpot, stop: PloStop) => void;
   /** more under a solution, given the solution */
   extra?: (result: RiverResult, band: string | undefined) => ReactNode;
 }
 
 /** The PLO solve: its form, the solve in a worker, and the solution under its provenance (the /plo page and Study's PLO). */
-export function PloSolver({ heading, initial = DEFAULT_SPOT, autoSolve = false, fromHistory = true, onSolve, extra }: PloSolverProps) {
+export function PloSolver({ heading, initial = DEFAULT_SPOT, initialStop = DEFAULT_STOP, autoSolve = false, fromHistory = true, onSolve, onChange, extra }: PloSolverProps) {
   const [oop, setOop] = useState(initial.oop);
   const [ip, setIp] = useState(initial.ip);
   const [board, setBoard] = useState(initial.board);
@@ -94,8 +191,8 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, autoSolve = false, 
   const isFlop = cardCount === 3;
   const street = isFlop ? "Flop" : isTurn ? "Turn" : "";
   const [fromHand, setFromHand] = useState<string | null>(null);
-  const [target, setTarget] = useState(String(DEFAULT_TARGET_PCT));
-  const [seconds, setSeconds] = useState(String(DEFAULT_SECONDS));
+  const [target, setTarget] = useState(initialStop.target);
+  const [seconds, setSeconds] = useState(initialStop.seconds);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<RiverProgress | null>(null);
   const [result, setResult] = useState<RiverResult | null>(null);
@@ -111,6 +208,23 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, autoSolve = false, 
     [],
   );
 
+  const spot: PloSpot = {
+    oop,
+    ip,
+    board,
+    pot,
+    stacks: [stackOop, stackIp],
+    sizes: { bets, raises, cap: raiseCap, allIn },
+    turn: { bets: turnBets, raises: turnRaises, cap: turnCap, allIn: turnAllIn },
+    river: { bets: riverBets, raises: riverRaises, cap: riverCap, allIn: riverAllIn },
+  };
+  // (on what's typed, not on each render's new objects)
+  const typed = JSON.stringify([spot, target, seconds]);
+  useEffect(() => {
+    onChange?.(spot, { target, seconds });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typed]);
+
   // the latest run's number: an earlier one's outcome, cancelled by a newer run or an unmount, changes nothing
   const runId = useRef(0);
   const run = async () => {
@@ -119,16 +233,6 @@ export function PloSolver({ heading, initial = DEFAULT_SPOT, autoSolve = false, 
     setResult(null);
     setCancelledEmpty(false);
     setProgress(null);
-    const spot: PloSpot = {
-      oop,
-      ip,
-      board,
-      pot,
-      stacks: [stackOop, stackIp],
-      sizes: { bets, raises, cap: raiseCap, allIn },
-      turn: { bets: turnBets, raises: turnRaises, cap: turnCap, allIn: turnAllIn },
-      river: { bets: riverBets, raises: riverRaises, cap: riverCap, allIn: riverAllIn },
-    };
     const request = requestOf(spot, { targetPct: Number(target), seconds: Number(seconds) });
     if (typeof request === "string") {
       setError(request);

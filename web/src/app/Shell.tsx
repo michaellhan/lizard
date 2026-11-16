@@ -7,6 +7,7 @@ import { DbRecovery } from "@/features/saved/DbRecovery";
 import { BackupNudge } from "./BackupNudge";
 import { DbNotice } from "./DbNotice";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { pageLink, rememberSearch } from "./lastSearch";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `whitespace-nowrap rounded-md px-2 py-1.5 text-sm transition-colors sm:px-3 ${
@@ -30,7 +31,7 @@ function PrimaryNav() {
           const here = pathsOf(r.path).includes(first);
           return (
             // (a Link, not a NavLink, which would mark only the entry's own page)
-            <Link key={r.path} to={`/${r.path}`} title={r.blurb} aria-current={here ? "page" : undefined} className={linkClass({ isActive: here })}>
+            <Link key={r.path} to={pageLink(r.path)} title={r.blurb} aria-current={here ? "page" : undefined} className={linkClass({ isActive: here })}>
               {r.label}
             </Link>
           );
@@ -44,6 +45,8 @@ function PrimaryNav() {
  * so a change of the URL's search renders only this.) */
 function Page() {
   const { pathname, search } = useLocation();
+  // (each page's address as you leave it, for the bar's links back to it: lastSearch.ts)
+  useEffect(() => rememberSearch(pathname, search), [pathname, search]);
   return (
     <>
       <SectionTabs path={pathname.split("/").filter(Boolean)[0] ?? ""} />
@@ -62,7 +65,7 @@ function SectionTabs({ path }: { path: string }) {
   return (
     <nav aria-label={`${section.label} pages`} className="segmented mb-4 flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg border border-border p-1 [scrollbar-width:none]">
       {section.tabs.map((t) => (
-        <NavLink key={t.path} to={`/${t.path}`} className={linkClass}>
+        <NavLink key={t.path} to={pageLink(t.path)} className={linkClass}>
           {t.label}
         </NavLink>
       ))}

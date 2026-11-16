@@ -218,8 +218,11 @@ describe("StudyPage", () => {
     expect(within(form).getByRole("button", { name: "New hand" })).toBeDisabled();
     fireEvent.change(stack, { target: { value: "37.5" } });
     fireEvent.change(players, { target: { value: "9" } });
+    // (a change not started yet is said: the picker alone doesn't change the table)
+    expect(within(form).getByRole("status")).toHaveTextContent("9-max, 37.5bb starts with New hand.");
     fireEvent.click(within(form).getByRole("button", { name: "New hand" }));
     await waitFor(() => expect(within(form).getByRole("combobox", { name: "Players" })).toHaveValue("9"));
+    expect(within(screen.getByRole("form", { name: "New hand" })).queryByRole("status")).toBeNull();
     expect(within(screen.getByRole("form", { name: "New hand" })).getByRole("spinbutton", { name: "Stack in big blinds" })).toHaveValue(37.5);
   });
 

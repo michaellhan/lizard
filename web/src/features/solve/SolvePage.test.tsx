@@ -2,11 +2,16 @@
 // opened, each field into Study's URL, a saved range picked for a seat, and a new table size starting the line over.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { deleteRange, putRange } from "@/data/saved";
 import { fromSearch, studyRequest } from "@/features/study/studyState";
 import { useSettings } from "@/state/settings";
-import { SolvePage } from "./SolvePage";
+import { SOLVE_SETUP_KEY, SolvePage } from "./SolvePage";
+
+// (the page remembers its last setup in this browser: one test's mustn't open the next's)
+afterEach(() => {
+  for (const k of Object.values(SOLVE_SETUP_KEY)) localStorage.removeItem(k);
+});
 
 function Where() {
   const l = useLocation();

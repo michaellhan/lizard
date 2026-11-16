@@ -1041,6 +1041,12 @@ function NewHandForm({ players, stack, onStart }: { players: number; stack: numb
       <button type="submit" data-focus-first disabled={!ok} className="rounded-md border border-border px-2 py-1.5 hover:bg-surface-2 disabled:opacity-40">
         New hand
       </button>
+      {ok && (p !== players || n !== stack) && (
+        <span role="status" className="text-xs text-accent">
+          {p !== players ? (p === 2 ? "Heads-up" : `${p}-max`) : `${n}bb`}
+          {p !== players && n !== stack ? `, ${n}bb` : ""} starts with New hand.
+        </span>
+      )}
     </form>
   );
 }

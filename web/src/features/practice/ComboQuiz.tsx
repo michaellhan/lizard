@@ -62,14 +62,49 @@ function slipWords(q: Question, picked: number): string | null {
   return null;
 }
 
+/** Their range as you last chose it (the choice, and the text of a typed one), kept in this browser so the quiz opens on it,
+ * as the record beside it is kept. */
+export const RANGE_KEY = "lizard.comboRange.v1";
+const typedOf = (text: string): QuizRange => ({ key: TYPED, name: "Your range", text, source: "The range you typed." });
+
+function readChoice(): { choice: string; typed: string } {
+  try {
+    const x = JSON.parse(localStorage.getItem(RANGE_KEY) ?? "null") as { choice?: unknown; typed?: unknown } | null;
+    const typed = typeof x?.typed === "string" ? x.typed : "";
+    const c = typeof x?.choice === "string" ? x.choice : MIX;
+    // (a saved range is checked once the saved ranges are read; a typed one must still read as a range that deals)
+    const ok = c === MIX || c.startsWith("saved:") || SAMPLE_RANGES.some((r) => r.key === c) || (c === TYPED && !!rangeCombos(typed));
+    return { choice: ok ? c : MIX, typed };
+  } catch {
+    return { choice: MIX, typed: "" };
+  }
+}
+
+function keepChoice(choice: string, typed: string): void {
+  try {
+    localStorage.setItem(RANGE_KEY, JSON.stringify({ choice, typed }));
+  } catch {
+    // (a browser that won't store it opens on the sample ranges)
+  }
+}
+
 export function ComboQuiz({ rand = Math.random, active = true }: { rand?: () => number; active?: boolean }) {
+  const [kept] = useState(readChoice);
   const [saved, setSaved] = useState<QuizRange[]>([]);
-  const [choice, setChoice] = useState(MIX);
-  const [typed, setTyped] = useState("");
-  const [typedRange, setTypedRange] = useState<QuizRange | null>(null);
+  const [choice, setChoice] = useState(kept.choice);
+  const [typed, setTyped] = useState(kept.typed);
+  const [typedRange, setTypedRange] = useState<QuizRange | null>(() => (kept.choice === TYPED ? typedOf(kept.typed.trim()) : null));
   const [said, setSaid] = useState<string | null>(null);
-  const [q, setQ] = useState<Question | null>(() => makeQuestion(SAMPLE_RANGES[Math.floor(rand() * SAMPLE_RANGES.length)]!, rand));
+  const [q, setQ] = useState<Question | null>(() => {
+    const own = kept.choice === TYPED ? typedOf(kept.typed.trim()) : SAMPLE_RANGES.find((r) => r.key === kept.choice);
+    return (own && makeQuestion(own, rand)) ?? makeQuestion(SAMPLE_RANGES[Math.floor(rand() * SAMPLE_RANGES.length)]!, rand);
+  });
   const [picked, setPicked] = useState<number | null>(null);
+  // (whether this question is answered, for a saved range read late: it doesn't take a question you've answered away)
+  const picked0 = useRef(false);
+  useEffect(() => {
+    picked0.current = picked !== null;
+  }, [picked]);
   const [helped, setHelped] = useState(false);
   const [countsOpen, setCountsOpen] = useState(false);
   /** the "?": how a count is worked out, with examples (stays open from question to question) */
@@ -83,11 +118,22 @@ export function ComboQuiz({ rand = Math.random, active = true }: { rand?: () => 
       .then((s) => alive && setStats((now) => (answered(now.total) ? now : readStats(s))))
       .catch(() => undefined);
     void listRanges()
-      .then((rs) => alive && setSaved(rs.map((r) => ({ key: `saved:${r.id}`, name: r.name, text: r.text, source: "Your saved range, from Ranges." }))))
+      .then((rs) => {
+        if (!alive) return;
+        const list = rs.map((r) => ({ key: `saved:${r.id}`, name: r.name, text: r.text, source: "Your saved range, from Ranges." }));
+        setSaved(list);
+        // (the saved range you last chose: its first question once it's read, or the sample ranges where it's gone)
+        if (!kept.choice.startsWith("saved:")) return;
+        const mine = list.find((r) => r.key === kept.choice);
+        if (!mine) setChoice((c) => (c === kept.choice ? MIX : c));
+        else setQ((now) => (now && picked0.current ? now : (makeQuestion(mine, rand) ?? now)));
+      })
       .catch(() => undefined);
     return () => {
       alive = false;
     };
+    // (once, as the quiz opens: `kept` is the first render's, and `rand` deals only this first question)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const rangeFor = (key: string): QuizRange | null => {
@@ -151,6 +197,7 @@ export function ComboQuiz({ rand = Math.random, active = true }: { rand?: () => 
             value={choice}
             onChange={(e) => {
               setChoice(e.target.value);
+              keepChoice(e.target.value, typed);
               if (e.target.value !== TYPED) deal(rangeFor(e.target.value));
               else if (typedRange) deal(typedRange);
             }}
@@ -182,8 +229,9 @@ export function ComboQuiz({ rand = Math.random, active = true }: { rand?: () => 
             onSubmit={(e) => {
               e.preventDefault();
               if (!typedCheck?.length) return;
-              const r: QuizRange = { key: TYPED, name: "Your range", text: typed.trim(), source: "The range you typed." };
+              const r = typedOf(typed.trim());
               setTypedRange(r);
+              keepChoice(TYPED, typed);
               deal(r);
             }}
           >

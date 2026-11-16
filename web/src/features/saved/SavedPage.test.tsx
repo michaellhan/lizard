@@ -461,6 +461,23 @@ describe("saved ranges in the Ranges editor", () => {
     expect(field).toHaveAccessibleDescription(/^Not understood: xyz/);
   });
 
+  it("keeps the range on the board over a visit elsewhere, and opens a saved one again on asking twice", async () => {
+    await putRange({ id: "r1", name: "kept one", text: "22+", combos: 78, note: "", createdAt: 1, updatedAt: 2 });
+    const first = renderAt("/ranges");
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("gridcell", { name: "AA: not in range" }));
+    first.unmount();
+    renderAt("/ranges");
+    expect(screen.getByRole("gridcell", { name: "AA: 100% in range" })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: "KK: not in range" })).toBeInTheDocument();
+    const pick = await screen.findByRole("combobox", { name: "Open a saved range" });
+    fireEvent.change(pick, { target: { value: "r1" } });
+    expect(await screen.findByText("Opened “kept one”.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Open a saved range" }), { target: { value: "r1" } });
+    await waitFor(() => expect(screen.queryByRole("gridcell", { name: "AA: not in range" })).toBeNull());
+  });
+
   it("says when Ranges copied the text, and what to do when it couldn't", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

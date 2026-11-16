@@ -1,6 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { PloRiverPage } from "./PloRiverPage";
+import { fireEvent, render as renderPage, screen, waitFor, within } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { PLO_SPOT_KEY, PloRiverPage } from "./PloRiverPage";
+
+// (the page keeps its spot in the address and this browser: each test opens at the default)
+const render = (ui: ReactElement) => renderPage(<MemoryRouter>{ui}</MemoryRouter>);
+afterEach(() => localStorage.removeItem(PLO_SPOT_KEY));
 
 // jsdom has no Worker, so the page runs its slices on the page: the same job (engine/plo/river/run.test.ts has the worker)
 

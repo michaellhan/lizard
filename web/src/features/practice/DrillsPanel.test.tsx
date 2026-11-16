@@ -340,6 +340,14 @@ describe("DrillsPanel", () => {
     expect(asked.slice(before).filter((p) => p.endsWith(".bin"))).toEqual([]);
   });
 
+  it("moves off a turn drill to a spot with no stored turns at its flop, not on a street it lacks", async () => {
+    open("spot=srp_btn_bb&street=turn&view=oop");
+    const spot = await screen.findByRole("combobox", { name: "Spot" }, { timeout: 5000 });
+    fireEvent.change(spot, { target: { value: "srp_co_bb" } });
+    expect(screen.queryByText(/stores no turn in this library/)).toBeNull();
+    expect((screen.getByRole("combobox", { name: "Decision" }) as HTMLSelectElement).value.startsWith("flop|")).toBe(true);
+  });
+
   it("a hand filter: only those hands dealt, how many deals match said, on a flop and a turn", async () => {
     open("spot=srp_btn_bb&view=oop&hand=c:pairs");
     await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });

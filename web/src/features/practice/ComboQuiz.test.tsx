@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import { kvGet, kvSet } from "@/data/db";
 import { seeded } from "@/poker/table";
-import { ComboQuiz } from "./ComboQuiz";
+import { ComboQuiz, RANGE_KEY } from "./ComboQuiz";
 import { PracticePage } from "./PracticePage";
 import { categoryLabel, fmtCount, makeQuestion, readStats, SAMPLE_RANGES, STATS_KEY } from "./combos";
 
@@ -108,5 +108,34 @@ describe("ComboQuiz", () => {
     expect(screen.getByRole("tab", { name: "Combos" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel")).toHaveAttribute("id", "practice-panel-combos");
     expect(within(screen.getByRole("tabpanel")).getByRole("group", { name: "Choices" })).toBeInTheDocument();
+  });
+});
+
+describe("their range as last chosen", () => {
+  afterEach(() => localStorage.removeItem(RANGE_KEY));
+
+  it("opens the quiz on it, a sample range or one you typed, and deals the first question from it", () => {
+    const r = SAMPLE_RANGES[1]!;
+    render(<ComboQuiz rand={seeded(4)} />);
+    fireEvent.change(screen.getByLabelText("Their range"), { target: { value: r.key } });
+    cleanup();
+    render(<ComboQuiz rand={seeded(4)} />);
+    expect(screen.getByLabelText("Their range")).toHaveValue(r.key);
+    expect(document.body.textContent).toContain(r.name);
+    cleanup();
+    localStorage.setItem(RANGE_KEY, JSON.stringify({ choice: "typed", typed: "QQ+, AKs" }));
+    render(<ComboQuiz rand={seeded(4)} />);
+    expect(screen.getByLabelText("Their range")).toHaveValue("typed");
+    expect(screen.getByLabelText("Range text")).toHaveValue("QQ+, AKs");
+  });
+
+  it("opens on the sample ranges where what's kept doesn't read", () => {
+    localStorage.setItem(RANGE_KEY, JSON.stringify({ choice: "typed", typed: "not a range" }));
+    render(<ComboQuiz rand={seeded(4)} />);
+    expect(screen.getByLabelText("Their range")).toHaveValue("mix");
+    cleanup();
+    localStorage.setItem(RANGE_KEY, "{oops");
+    render(<ComboQuiz rand={seeded(4)} />);
+    expect(screen.getByLabelText("Their range")).toHaveValue("mix");
   });
 });

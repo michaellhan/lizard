@@ -68,7 +68,10 @@ function ReportSetup({ mine, from, set }: { mine: string; from: "study" | "solve
   const running = useRunningReport();
   const [check, setCheck] = useState<Check>({ st: "checking" });
   const [size, setSize] = useState<number>(25);
-  const [mode, setMode] = useState<SolveMode>(settingsMode === "accurate" ? "accurate" : "fast");
+  // (the Settings tier until you pick one here: settings load after the first render, so a tier read once at mount
+  // would be the default "fast" on a reload, whatever Settings says)
+  const [picked, setMode] = useState<SolveMode | null>(null);
+  const mode: SolveMode = picked ?? (settingsMode === "accurate" ? "accurate" : "fast");
   const [name, setName] = useState("");
   const [failed, setFailed] = useState<string | null>(null);
 

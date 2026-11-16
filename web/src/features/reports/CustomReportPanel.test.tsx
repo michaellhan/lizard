@@ -1,6 +1,6 @@
 // Your spot's flop report on the page: a Solve-page spot with no line gets a pot, then a set with its weights and a tier,
 // then its run (kept, finished, drawn as the library's reports are, with its provenance), and the Saved page lists it.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/data/db";
@@ -9,6 +9,7 @@ import { SavedPage } from "@/features/saved/SavedPage";
 import { freshHand, toSearch } from "@/features/study/studyState";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
 import type { Provenance, SolveResult } from "@/solver/types";
+import { useSettings } from "@/state/settings";
 import { ReportsPage } from "./ReportsPage";
 
 const ORDER = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
@@ -57,6 +58,32 @@ beforeEach(async () => {
 });
 
 describe("a flop report of a Solve-page spot", () => {
+  it("follows Settings' tier as it loads, until a tier is picked here", async () => {
+    const mode = useSettings.getState().mode;
+    try {
+      useSettings.setState({ mode: "fast" });
+      render(
+        <MemoryRouter initialEntries={[`/reports?mine=${encodeURIComponent(toSearch(freshHand(6, 100)))}&from=solve`]}>
+          <Routes>
+            <Route path="/reports" element={<ReportsPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      const pot = await screen.findByRole("form", { name: "Pick the pot" });
+      fireEvent.click(within(pot).getByRole("button", { name: "Set this pot" }));
+      const form = await screen.findByRole("form", { name: "Report setup" });
+      expect(within(form).getByRole("radio", { name: /Fast/ })).toBeChecked();
+      // (Settings read from the browser after the page drew: Accurate)
+      act(() => useSettings.setState({ mode: "accurate" }));
+      expect(within(form).getByRole("radio", { name: /Accurate/ })).toBeChecked();
+      fireEvent.click(within(form).getByRole("radio", { name: /Fast/ }));
+      act(() => useSettings.setState({ mode: "accurate" }));
+      expect(within(form).getByRole("radio", { name: /Fast/ })).toBeChecked();
+    } finally {
+      useSettings.setState({ mode });
+    }
+  });
+
   it("picks a pot, shows the set's weights, solves each flop, keeps the report and draws it with its provenance", async () => {
     const spot = toSearch(freshHand(6, 100));
     render(

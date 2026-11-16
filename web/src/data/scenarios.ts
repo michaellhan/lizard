@@ -80,6 +80,8 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   // don't belong to the profile named can't then be graded against under its name)
   const read = o.exploit === undefined || o.exploit === null ? null : isObj(o.exploit) && isProfile(o.exploit.profile) ? exploitOf(o.exploit.profile) : false;
   if (read === false || (read && !pot)) return null;
+  const opponents = o.opponents ?? "gto";
+  if (opponents !== "gto" && opponents !== "live") return null;
   const game = { pushFold, tournament: tournament ?? undefined, preflopOnly: preflop, pot, seat };
   const setup: SessionOptions = {
     seat,
@@ -96,6 +98,8 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
     ...(pushFold ? { pushFold: true } : {}),
     ...(tournament ? { tournament } : {}),
     ...(read ? { exploit: read } : {}),
+    // (the form offers live opponents outside a kind of pot only)
+    ...(opponents === "live" && !pot ? { opponents: "live" as const } : {}),
   };
   // (the option exists only where a stored solve does: one set anywhere else was never the form's)
   if (pfSolve && pfBlocked(players, stack, setup)) return null;

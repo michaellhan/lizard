@@ -82,7 +82,13 @@ function HoldemPractice({ pace = PACE, pause, guard }: { pace?: number; pause?: 
   const [handsOpened, setHandsOpened] = useState(tab === "hands");
   const open = (t: Tab) => {
     if (t === "hands") setHandsOpened(true);
-    setParams(t === "hands" ? {} : { tab: t });
+    // (only the tab changes: the drill's spot, decision and filters stay in the address for coming back to Drills)
+    setParams((p) => {
+      const q = new URLSearchParams(p);
+      if (t === "hands") q.delete("tab");
+      else q.set("tab", t);
+      return q;
+    });
   };
   const [help, setHelp] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});

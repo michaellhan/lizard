@@ -179,7 +179,12 @@ export function DrillsPanel({ files, rng = Math.random }: { files?: LibraryFiles
             <select
               aria-label="Spot"
               value={spot?.id ?? ""}
-              onChange={(e) => (e.target.value ? set("spot", e.target.value) : edit({ spot: null, street: null, view: null }))}
+              onChange={(e) => {
+                const next = spots.find((s) => s.id === e.target.value);
+                if (!next) edit({ spot: null, street: null, view: null });
+                // (off a turn or river drill to a spot with no stored turns: its flop, at the flop's default decision)
+                else edit({ spot: next.id, ...(street === "flop" || storedTurnFlops(next).length ? {} : { street: null, view: null }) });
+              }}
               className={`max-w-[18rem] ${select}`}
             >
               <option value="">Any spot</option>

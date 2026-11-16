@@ -19,7 +19,7 @@ import { candsFor, flopName, heldSpots, instantSpots } from "@/library/flops";
 import { ASK_AHEAD, readHabits, saveHabits } from "./ahead";
 import { practiceNumber } from "./history";
 import { DRILL_TRIES, newHand, optionsOf, type HandOptions, type PracticeHand } from "./practice";
-import { flopsNote, Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomFlops, type RoomOptions, type Spot } from "./room";
+import { flopsNote, LAST_SETUP_KEY, readLastSetup, Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomFlops, type RoomOptions, type Spot } from "./room";
 import { keyOf } from "./session";
 
 vi.mock("@/data/db", async (orig) => ({ ...(await orig<typeof import("@/data/db")>()), putSession: vi.fn(async () => {}) }));
@@ -870,6 +870,30 @@ describe("Room modes", () => {
     await flush();
     expect(asked).toHaveLength(1);
     expect(asked[0]!.mode).toBe("fast");
+  });
+});
+
+describe("the game last started", () => {
+  const open = () => new Room({ pace: 0, now: () => Date.now(), persist: true, seedOf: (n) => n + 1, readIndex: async () => null, readKept: async () => undefined });
+
+  it("opens the page on it: a New session at 8-max, 60bb is the next visit's table", () => {
+    const first = open();
+    expect(first.snapshot().session.players).toBe(6);
+    first.startSession(8, 60, { ...first.snapshot().session.opts, opponents: "live" });
+    expect(readLastSetup()).toMatchObject({ players: 8, stack: 60, opts: { opponents: "live" } });
+    const next = open();
+    expect(next.snapshot().session).toMatchObject({ players: 8, stack: 60, opts: { opponents: "live" } });
+    expect(next.snapshot().tables[0]!.hand.players).toBe(8);
+  });
+
+  it("opens the default where what's kept can't be played, or nothing is kept for a fixed or unsaved room", () => {
+    localStorage.setItem(LAST_SETUP_KEY, JSON.stringify({ players: 12, stack: 100, opts: {} }));
+    expect(open().snapshot().session.players).toBe(6);
+    localStorage.setItem(LAST_SETUP_KEY, "{not json");
+    expect(open().snapshot().session.players).toBe(6);
+    const unsaved = new Room({ pace: 0, now: () => Date.now(), persist: false, seedOf: (n) => n + 1, readIndex: async () => null });
+    unsaved.startSession(9, 100, unsaved.snapshot().session.opts);
+    expect(localStorage.getItem(LAST_SETUP_KEY)).toBe("{not json");
   });
 });
 

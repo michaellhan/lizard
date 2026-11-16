@@ -3,10 +3,12 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
-import { EquityPage } from "./EquityPage";
+import { afterEach, describe, expect, it } from "vitest";
+import { EQUITY_KEY, EquityPage } from "./EquityPage";
 
 const render = (ui: ReactElement) => renderPage(<MemoryRouter>{ui}</MemoryRouter>);
+// (the page keeps its inputs in this browser: each test opens at the defaults)
+afterEach(() => localStorage.removeItem(EQUITY_KEY));
 
 // jsdom has no Worker, so the page runs its slices on the page: the same job (engine/plo/equityRun.test.ts has the worker)
 

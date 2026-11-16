@@ -120,6 +120,15 @@ describe("readScenario", () => {
   });
 });
 
+describe("live opponents in a setup", () => {
+  it("are kept outside a kind of pot, dropped in one, and an unknown value refused", () => {
+    expect(read({ opponents: "live" })!.opts.opponents).toBe("live");
+    expect(read({ opponents: "gto" })!.opts.opponents).toBeUndefined();
+    expect(read({ opponents: "live", pot: "srp" })!.opts.opponents).toBeUndefined();
+    expect(read({ opponents: "fish" })).toBeNull();
+  });
+});
+
 describe("the store", () => {
   it("lists the latest changed first, gets one, deletes", async () => {
     await putScenario(scenario("a", 5));

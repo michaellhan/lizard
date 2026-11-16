@@ -632,6 +632,12 @@ export function SetupForm({
       >
         New session
       </button>
+      {(p !== players || n !== stack) && ok && (
+        <span role="status" className="text-xs text-accent">
+          {p !== players ? (p === 2 ? "Heads-up" : `${p}-max`) : `${n}bb`}
+          {p !== players && n !== stack ? `, ${n}bb` : ""} starts with New session.
+        </span>
+      )}
       <SaveScenario setup={setup && { players: p, stack: n, opts: setup }} />
       <details className="basis-full" open={!!opts.sizes}>
         <summary className="cursor-pointer text-muted">

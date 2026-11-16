@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { allSessions } from "@/data/db";
 import { deleteImport, listHands, PRACTICE_SITE } from "@/data/hands";
@@ -543,6 +543,20 @@ describe("PracticePage", () => {
     expect(screen.getByRole("tab", { name: "Drills" })).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(window, { key: "d" });
     expect(screen.getByRole("tab", { name: "Full hands" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps the drill's spot, decision and filters in the address over a visit to Full hands", () => {
+    const Where = () => <output aria-label="where">{useLocation().search}</output>;
+    render(
+      <MemoryRouter initialEntries={["/practice?tab=drills&spot=srp_btn_bb&street=turn&view=oop&suits=mono"]}>
+        <PracticePage pace={0} />
+        <Where />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Full hands" }));
+    expect(screen.getByRole("status", { name: "where" }).textContent).toBe("?spot=srp_btn_bb&street=turn&view=oop&suits=mono");
+    fireEvent.click(screen.getByRole("tab", { name: "Drills" }));
+    expect(screen.getByRole("status", { name: "where" }).textContent).toBe("?spot=srp_btn_bb&street=turn&view=oop&suits=mono&tab=drills");
   });
 
   it("keeps a finished hand in Analyze, and every hand once asked to", async () => {

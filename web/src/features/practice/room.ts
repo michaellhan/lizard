@@ -44,6 +44,7 @@
 // dead is stopped like any flight. A stop that ends a worker has cost the wait and every solve it held, so after one nothing
 // is asked ahead for the Room's life, whatever the box says, and the page says why.
 import { kvGet, kvSet, putSession } from "@/data/db";
+import { readSetup, type ScenarioSetup } from "@/data/scenarios";
 import { addHands } from "@/data/hands";
 import { keepMistake } from "@/data/mistakes";
 import { addHandToPot, addSource, emptyTally, type PotTally } from "@/features/history/history";
@@ -97,6 +98,27 @@ import { afterDeal, afterDecision, afterHand, atTables, freshSession, gradesOf, 
 
 /** ms an opponent's move and a new card take at least at one table, so the hand can be followed. */
 export const PACE = 450;
+
+/** The game last started (players, stack and options), kept in this browser so the page opens on it: at one table no
+ * session is kept (KEPT_KEY is for several), and without this every visit began at 6-max, 100bb. Read as a saved
+ * scenario's setup is (data/scenarios.ts readSetup), so one this build can't play opens the default instead. */
+export const LAST_SETUP_KEY = "lizard.practiceSetup.v1";
+
+export function readLastSetup(): ScenarioSetup | null {
+  try {
+    return readSetup(JSON.parse(localStorage.getItem(LAST_SETUP_KEY) ?? "null"));
+  } catch {
+    return null;
+  }
+}
+
+function saveLastSetup(s: ScenarioSetup): void {
+  try {
+    localStorage.setItem(LAST_SETUP_KEY, JSON.stringify(s));
+  } catch {
+    // (a browser that won't store it opens the default next time)
+  }
+}
 
 /** What the Room asks of a client (a test's is a fake). */
 export type RoomClient = Pick<SolverClient, "solve" | "play"> & Partial<Pick<SolverClient, "prefetch" | "stopCost" | "solverVersion">> & { transport?: Pick<SolverTransport, "kind"> };
@@ -460,8 +482,11 @@ export class Room {
     this.habits = this.persist ? readHabits() : {};
     this.holding = this.persist;
     this.played = this.mode;
-    const hands = o.hands ?? [newHand(6, 100, 0, this.seed(), o.first)];
-    this.session = atTables({ ...freshSession(6, 100, o.first), dealt: hands.length }, hands.length);
+    // (the game last started, as the page opens: a table's size, stack and options are yours until you change them)
+    const last = this.persist && !this.fixed ? readLastSetup() : null;
+    const [players, stack, first] = last ? [last.players, last.stack, last.opts] : [6, 100, o.first];
+    const hands = o.hands ?? [newHand(players, stack, 0, this.seed(), first)];
+    this.session = atTables({ ...freshSession(players, stack, first), dealt: hands.length }, hands.length);
     this.tables = hands.map((h) => this.table(h));
     this.snap = this.build();
     if (o.tables && !o.hands) this.setTables(o.tables);
@@ -642,6 +667,7 @@ export class Room {
 
   /** Every table starts again; what was set aside goes with the session it belonged to. */
   startSession(players: number, stack: number, opts: SessionOptions): void {
+    if (this.persist && !this.fixed) saveLastSetup({ players, stack, opts });
     this.session = atTables(freshSession(players, stack, opts), this.tables.length);
     this.spare = [];
     for (const t of this.tables) {

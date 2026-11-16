@@ -81,11 +81,34 @@ const SIZE_LABEL: Record<SizeStreet, string> ={ flop: "Flop bets", turn: "Turn b
 const str = (x: number | undefined) => (x === undefined ? "" : String(x));
 const numOf = (t: string) => (t.trim() ? Number(t) : undefined);
 
+// The setup last left on this page, kept in this browser for each kind of game, so a bare /solve or /tournaments (the
+// nav bar, a reload of one) opens on it; a setup in the address always comes first.
+export const SOLVE_SETUP_KEY = { cash: "lizard.solveSetup.v1.cash", tournament: "lizard.solveSetup.v1.tournament" } as const;
+function rememberedHand(kind: "cash" | "tournament"): StudyHand | null {
+  try {
+    const raw = localStorage.getItem(SOLVE_SETUP_KEY[kind]);
+    return raw ? fromSearch(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function remember(kind: "cash" | "tournament", search: string) {
+  try {
+    localStorage.setItem(SOLVE_SETUP_KEY[kind], search);
+  } catch {
+    // (no storage here: the address still carries it)
+  }
+}
+// the address's parameters that are the spot's (studyState toSearch, setup.ts setupToParams, tournamentToParams); any
+// other is left as it is
+const HAND_KEYS = new Set(["p", "s", "pre", "b", "flop", "turn", "river", "pf", "pfs", "stacks", "raises", "rake", "cap", "ante", "straddle", "bunch", "pay", "fld", "bty"]);
+const isHandKey = (k: string) => HAND_KEYS.has(k) || ["sz.", "rg.", "bs.", "bty."].some((x) => k.startsWith(x));
+
 export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  // (where it was opened from: read once)
-  const [start] = useState<StudyHand>(() => fromSearch(params.toString()) ?? freshHand(6, 100));
+  // (where it was opened from: read once; a bare address opens on the setup last left here)
+  const [start] = useState<StudyHand>(() => fromSearch(params.toString()) ?? rememberedHand(kind) ?? freshHand(6, 100));
   const s0 = start.setup;
   // a tournament's spot (opened from Tournaments, or a spot that has one)
   const tour = kind === "tournament" || !!s0?.tournament;
@@ -169,6 +192,19 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setup,
   };
   const line = keepLine ? describeLine(start) : [];
+  // the address and this browser kept in step with the setup, so a reload, Back from Study or the nav bar finds it again
+  const search = toSearch(hand);
+  const kept = toSearch({ ...hand, board: "", preflop: [], flop: [], turn: [], river: [] });
+  useEffect(() => {
+    const next = new URLSearchParams(search);
+    for (const [k, v] of params) if (!isHandKey(k)) next.append(k, v);
+    if (next.toString() !== params.toString()) setParams(next, { replace: true });
+  }, [search, params, setParams]);
+  // (a setup with a problem, a field half typed, isn't kept over the last good one)
+  const settled = !problems.length;
+  useEffect(() => {
+    if (settled) remember(kind, kept);
+  }, [kind, kept, settled]);
   // the same spot as the other kind of game, for the switch: a cash game has no prizes or bounties, a tournament no rake
   const cashLink = `/solve?${toSearch({ ...hand, setup: tidySetup({ ...typed, tournament: undefined }) })}`;
   const tourneyLink = `/tournaments?${toSearch({ ...hand, setup: tidySetup({ ...typed, rake: undefined, rakeCap: undefined }) })}`;

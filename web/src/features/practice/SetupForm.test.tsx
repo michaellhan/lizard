@@ -285,3 +285,17 @@ describe("live opponents", () => {
     expect(screen.getByRole("combobox", { name: "Opponents" })).toHaveDisplayValue("Live cash regulars");
   });
 });
+
+describe("a table size or stack not started yet", () => {
+  it("says it starts with New session, and starts it there", () => {
+    const start = open();
+    expect(screen.queryByText(/starts with New session/)).toBeNull();
+    pick("Players", "8");
+    expect(screen.getByRole("status")).toHaveTextContent("8-max starts with New session.");
+    fireEvent.change(screen.getByLabelText("Stack in big blinds"), { target: { value: "60" } });
+    expect(screen.getByRole("status")).toHaveTextContent("8-max, 60bb starts with New session.");
+    fireEvent.click(screen.getByRole("button", { name: "New session" }));
+    expect(start).toHaveBeenCalledWith(8, 60, expect.anything());
+    cleanup();
+  });
+});

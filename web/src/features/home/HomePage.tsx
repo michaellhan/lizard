@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { pageLink } from "@/app/lastSearch";
 
 /** The four main pages, each with what it's for in a line. */
 const MAIN: { path: string; label: string; blurb: string; cta: string }[] = [
@@ -19,7 +20,7 @@ export function HomePage() {
       </section>
       <section aria-label="Main pages" className="grid gap-3 sm:grid-cols-2">
         {MAIN.map((m) => (
-          <Link key={m.path} to={`/${m.path}`} className="group panel p-5 hover:border-accent/50">
+          <Link key={m.path} to={pageLink(m.path)} className="group panel p-5 hover:border-accent/50">
             <h2 className="text-lg font-semibold">{m.label}</h2>
             <p className="mt-1 text-sm text-muted">{m.blurb}</p>
             <span className="mt-3 inline-block text-sm text-accent group-hover:underline">{m.cta} →</span>
