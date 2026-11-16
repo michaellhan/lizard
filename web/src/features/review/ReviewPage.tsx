@@ -5,7 +5,7 @@
 // of answer the first grade stood on, the page says so and doesn't set the two side by side (mistakes.ts answerChange).
 // A decision from Analyze is retried against the answer kept with it, with no solve. All of it is kept in this browser,
 // and goes in the backup; an entry can be deleted, after a second press, as on the Saved page.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { DeleteButton } from "@/components/DeleteButton";
 import { PlayingCard } from "@/components/PlayingCard";
@@ -159,153 +159,148 @@ export function ReviewPage({ files }: { files?: LibraryFiles } = {}) {
   const tourney = useMemo(() => list.filter((m) => m.tournament), [list]);
   const exploited = useMemo(() => list.filter((m) => m.exploit), [list]);
   const onStreet = (ms: MistakeRecord[]) => (street ? ms.filter((m) => m.street === street) : ms);
-  const listed = onStreet(cash);
 
+  const listSection = (label: string, ms: MistakeRecord[], count: number, more: () => void, note?: string, filter?: ReactNode) =>
+    ms.length > 0 && (
+      <section aria-label={label} className="space-y-2">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="text-lg font-semibold">{label}</h2>
+          {filter}
+        </div>
+        {!onStreet(ms).length && <p className="text-sm text-muted">None on the {street}.</p>}
+        <Rows ms={onStreet(ms).slice(0, count)} now={now} current={current} onOpen={open} onDelete={remove} note={note} />
+        {onStreet(ms).length > count && (
+          <button type="button" onClick={more} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
+            Show {Math.min(LIST_PAGE, onStreet(ms).length - count)} more of {onStreet(ms).length - count}
+          </button>
+        )}
+      </section>
+    );
+
+  // (wide: the retry and your mistakes on the left, what to work on past them, the plan and the lessons, in a column on
+  // the right; narrow, the retry, then that column, as it's short and says what to do, then the lists)
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <h1 className="text-2xl font-semibold">Review</h1>
+        {data && list.length > 0 && <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />}
       </div>
       <p role="status" className="sr-only">
         {said}
       </p>
 
-      {current && <RetryPanel key={current.id} m={current} next={next} onChanged={reload} onOpen={open} />}
-
       {data == null ? (
         <p className="text-sm text-muted">Reading what&rsquo;s kept here…</p>
       ) : (
-        <>
-          {data.damaged > 0 && (
-            <p role="status" className="text-sm text-warn">
-              {many(data.damaged, "record")} kept here couldn&rsquo;t be read, and {data.damaged === 1 ? "is" : "are"} left out.
-            </p>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
+          {current && (
+            <div className="min-w-0 xl:col-start-1 xl:row-start-1">
+              <RetryPanel key={current.id} m={current} next={next} onChanged={reload} onOpen={open} />
+            </div>
           )}
-          {/* (with nothing kept, the plan's first step says where to start; the line says it once the plan has nothing to add) */}
-          {list.length > 0 ? (
-            <Queue list={list} queue={queue} now={now} current={current} next={next} onOpen={open} />
-          ) : plan?.first ? (
-            <StartHere first={plan.first} />
-          ) : (
-            (plan || planFailed) && (
-              <p className="text-sm text-muted">
-                No mistakes yet. Misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link> land here.
+          <aside aria-label="What to work on" className={`space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0 xl:block xl:space-y-4 xl:col-start-2 xl:row-start-1 ${current ? "xl:row-span-2" : ""}`}>
+            {/* (with nothing kept, the plan's first step says where to start; the line says it once the plan has nothing to add) */}
+            {list.length === 0 &&
+              (plan?.first ? (
+                <StartHere first={plan.first} />
+              ) : (
+                (plan || planFailed) && (
+                  <p className="text-sm text-muted">
+                    No mistakes yet. Misses from <Link to="/practice" className="underline">Practice</Link> and <Link to="/analyze" className="underline">Analyze</Link> land here.
+                  </p>
+                )
+              ))}
+            {plan && <PlanSteps plan={plan} />}
+            {planFailed && (
+              <p role="alert" className="text-sm text-danger">
+                Couldn&rsquo;t read the hands kept here, so there&rsquo;s no drill or leak to suggest.
               </p>
-            )
-          )}
-          {plan && <PlanSteps plan={plan} />}
-          {planFailed && (
-            <p role="alert" className="text-sm text-danger">
-              Couldn&rsquo;t read the hands kept here, so there&rsquo;s no drill or leak to suggest.
-            </p>
-          )}
-          {list.length > 0 && (
-            <>
-              {cash.length > 0 && (
-                <section aria-label="Past mistakes" className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold">Past mistakes</h2>
-                    <label className="text-sm">
-                      <span className="text-muted">Show</span>{" "}
-                      <select aria-label="Street" value={street ?? ""} onChange={(e) => setStreet(e.target.value)} className="rounded border border-border bg-surface-2 px-1 py-0.5">
-                        <option value="">Every street ({cash.length})</option>
-                        {STREET_ORDER.map((s) => (
-                          <option key={s} value={s}>
-                            {s} ({cash.filter((m) => m.street === s).length})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  {!listed.length && <p className="text-sm text-muted">None on the {street}.</p>}
-                  <Rows ms={listed.slice(0, shown)} now={now} current={current} onOpen={open} onDelete={remove} />
-                  <ProvenanceDetail ps={listed.slice(0, shown).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
-                  {listed.length > shown && (
-                    <button type="button" onClick={() => setShown((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
-                      Show {Math.min(LIST_PAGE, listed.length - shown)} more of {listed.length - shown}
-                    </button>
-                  )}
-                </section>
-              )}
-              {exploited.length > 0 && (
-                <section aria-label="Exploit mistakes" className="space-y-2">
-                  <h2 className="text-lg font-semibold">Exploit mistakes</h2>
-                  {!onStreet(exploited).length && <p className="text-sm text-muted">None on the {street}.</p>}
-                  <Rows ms={onStreet(exploited).slice(0, shownX)} now={now} current={current} onOpen={open} onDelete={remove} note="An assumed profile, not equilibrium" />
-                  <ProvenanceDetail ps={onStreet(exploited).slice(0, shownX).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
-                  {onStreet(exploited).length > shownX && (
-                    <button type="button" onClick={() => setShownX((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
-                      Show {Math.min(LIST_PAGE, onStreet(exploited).length - shownX)} more of {onStreet(exploited).length - shownX}
-                    </button>
-                  )}
-                </section>
-              )}
-              {tourney.length > 0 && (
-                <section aria-label="Tournament mistakes" className="space-y-2">
-                  <h2 className="text-lg font-semibold">Tournament mistakes</h2>
-                  {!onStreet(tourney).length && <p className="text-sm text-muted">None on the {street}.</p>}
-                  <Rows ms={onStreet(tourney).slice(0, shownT)} now={now} current={current} onOpen={open} onDelete={remove} note="EV in prize-equity chips, not bb" />
-                  <ProvenanceDetail ps={onStreet(tourney).slice(0, shownT).flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
-                  {onStreet(tourney).length > shownT && (
-                    <button type="button" onClick={() => setShownT((x) => x + LIST_PAGE)} className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-surface-2">
-                      Show {Math.min(LIST_PAGE, onStreet(tourney).length - shownT)} more of {onStreet(tourney).length - shownT}
-                    </button>
-                  )}
-                </section>
-              )}
-            </>
-          )}
-        </>
+            )}
+            <Lessons />
+          </aside>
+          <div className={`min-w-0 space-y-6 xl:col-start-1 ${current ? "xl:row-start-2" : "xl:row-start-1"}`}>
+            {data.damaged > 0 && (
+              <p role="status" className="text-sm text-warn">
+                {many(data.damaged, "record")} kept here couldn&rsquo;t be read, and {data.damaged === 1 ? "is" : "are"} left out.
+              </p>
+            )}
+            {listSection(
+              "Past mistakes",
+              cash,
+              shown,
+              () => setShown((x) => x + LIST_PAGE),
+              undefined,
+              <label className="text-sm">
+                <span className="sr-only">Show</span>
+                <select aria-label="Street" value={street ?? ""} onChange={(e) => setStreet(e.target.value)} className="rounded border border-border bg-surface-2 px-1 py-0.5">
+                  <option value="">Every street ({cash.length})</option>
+                  {STREET_ORDER.map((s) => (
+                    <option key={s} value={s}>
+                      {s} ({cash.filter((m) => m.street === s).length})
+                    </option>
+                  ))}
+                </select>
+              </label>,
+            )}
+            {listSection("Exploit mistakes", exploited, shownX, () => setShownX((x) => x + LIST_PAGE), "An assumed profile, not equilibrium")}
+            {listSection("Tournament mistakes", tourney, shownT, () => setShownT((x) => x + LIST_PAGE), "EV in prize-equity chips, not bb")}
+          </div>
+        </div>
       )}
-
-      <Lessons />
     </div>
   );
 }
 
-/** What's due, and what comes next. */
+/** What's due, and what comes next, on the heading's line. */
 function Queue({ list, queue, now, current, next, onOpen }: { list: MistakeRecord[]; queue: MistakeRecord[]; now: number; current: MistakeRecord | null; next: MistakeRecord | null; onOpen: (m: MistakeRecord) => void }) {
   const soon = list.filter((m) => m.due !== null && !isDue(m, now)).sort((a, b) => a.due! - b.due!)[0];
   return (
-    <section aria-label="Review queue" className="space-y-2 panel p-3 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">Due now</h2>
-        <span className="tabular-nums">{queue.length}</span>
-        {next && !current && (
-          <button type="button" onClick={() => onOpen(next)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">
-            Retry the next one
-          </button>
-        )}
-      </div>
-      {!queue.length && <p className="text-muted">Nothing is due today.{soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}</p>}
+    <section aria-label="Review queue" className="flex flex-wrap items-center gap-3 text-sm">
+      {queue.length > 0 ? (
+        <>
+          <h2 className="font-medium">
+            Due now <span className="ml-1 rounded-full bg-surface-2 px-2 py-0.5 tabular-nums">{queue.length}</span>
+          </h2>
+          {next && !current && (
+            <button type="button" onClick={() => onOpen(next)} className="rounded-md bg-accent px-3 py-1.5 font-medium text-bg hover:bg-accent-strong">
+              Retry the next one
+            </button>
+          )}
+        </>
+      ) : (
+        <p className="text-muted">Nothing is due today.{soon ? ` The next: ${dueWords(soon, now).toLowerCase()}.` : ""}</p>
+      )}
     </section>
   );
 }
 
-/** The mistake lists' columns, wide: when it was missed and on what street, the spot, your move with its grade and cost,
- * when it's next due, and what you can do; set once on a list, every row takes them (a subgrid), so they line up down the
- * list as History's sessions do. Narrow, a row is the spot on a line and the rest under it. */
-const COLS = "lg:grid lg:grid-cols-[6rem_minmax(0,1fr)_auto_auto_auto] lg:gap-x-4";
+/** The mistake lists' columns, wide: the spot, your move with its grade and cost, when it's next due, and what you can
+ * do; set once on a list, every row takes them (a subgrid), so they line up down the list as History's sessions do.
+ * Narrow, a row is the spot on a line and the rest under it. */
+const COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:gap-x-5";
 const ROW = "lg:col-span-full lg:grid lg:grid-cols-subgrid";
 
-/** A list of kept mistakes under one caption saying what graded them: the source most of them share, said once, and a
- * row graded by another saying its own. `note`: what the whole list is graded in, after it. */
+/** A list of kept mistakes under one caption saying what graded them and in what game: what most of them share, said
+ * once, and a row that differs saying its own. `note`: what the whole list is graded in, after it. */
 function Rows({ ms, now, current, onOpen, onDelete, note }: { ms: MistakeRecord[]; now: number; current: MistakeRecord | null; onOpen: (m: MistakeRecord) => void; onDelete: (m: MistakeRecord, from: HTMLElement) => void; note?: string }) {
   const common = commonSource(ms);
   const others = ms.some((m) => gradedSource(m) !== common);
+  const game = commonOf(ms.map((m) => m.game));
   return (
     <>
       {common !== null && (
         <p className="text-xs text-muted">
-          Graded against {common}
-          {others ? ", unless a row says otherwise" : ""}
-          .{note ? ` ${note}.` : ""}
+          {game && ms.length > 1 && <span>{ms.every((m) => m.game === game) ? `${game} · ` : `Mostly ${game} · `}</span>}
+          <span>
+            Graded against {common}
+            {others ? ", unless a row says otherwise" : ""}
+            .{note ? ` ${note}.` : ""}
+          </span>
         </p>
       )}
       {ms.length > 0 && (
         <div className={`panel px-3 ${COLS}`}>
           <div aria-hidden className={`hidden border-b border-border py-1.5 text-xs text-muted ${ROW}`}>
-            <span>Missed</span>
             <span>Spot</span>
             <span>You took</span>
             <span>Next</span>
@@ -313,25 +308,35 @@ function Rows({ ms, now, current, onOpen, onDelete, note }: { ms: MistakeRecord[
           </div>
           <ul className={`divide-y divide-border/60 ${ROW}`}>
             {ms.map((m) => (
-              <MistakeRow key={m.id} m={m} now={now} common={common} active={current?.id === m.id} onRetry={() => onOpen(m)} onDelete={(from) => onDelete(m, from)} />
+              <MistakeRow key={m.id} m={m} now={now} common={common} game={ms.length > 1 ? game : null} active={current?.id === m.id} onRetry={() => onOpen(m)} onDelete={(from) => onDelete(m, from)} />
             ))}
           </ul>
         </div>
       )}
+      <ProvenanceDetail ps={ms.flatMap((m) => m.provenance ?? [])} label="How these answers were produced" />
     </>
   );
 }
 
+/** The value most of a list shares (the first where tied); null with none. */
+function commonOf(xs: readonly string[]): string | null {
+  const n = new Map<string, number>();
+  for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
+  let best: string | null = null;
+  for (const [k, c] of n) if (best === null || c > n.get(best)!) best = k;
+  return best;
+}
+
 function Spot({ m }: { m: Pick<MistakeRecord, "hole" | "board" | "players" | "seat"> }) {
   return (
-    <span className="flex flex-wrap items-center gap-1">
-      <span>{seatLabel(m.seat, m.players)}</span>
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className="w-8 text-xs font-medium">{seatLabel(m.seat, m.players)}</span>
       <span className="flex gap-0.5">
         {m.hole.map((c) => (
           <PlayingCard key={c} card={c} size="sm" />
         ))}
       </span>
-      {m.board.length > 0 && (
+      {m.board.length > 0 ? (
         <>
           <span className="text-muted">on</span>
           <span className="flex gap-0.5">
@@ -340,6 +345,8 @@ function Spot({ m }: { m: Pick<MistakeRecord, "hole" | "board" | "players" | "se
             ))}
           </span>
         </>
+      ) : (
+        <span className="text-xs text-muted">preflop</span>
       )}
     </span>
   );
@@ -355,67 +362,58 @@ export function gradedSource(m: Pick<MistakeRecord, "provenance">): string {
 
 /** The source most of a list's mistakes were graded against (the first listed where tied); null with none. */
 export function commonSource(ms: readonly Pick<MistakeRecord, "provenance">[]): string | null {
-  const n = new Map<string, number>();
-  for (const m of ms) n.set(gradedSource(m), (n.get(gradedSource(m)) ?? 0) + 1);
-  let best: string | null = null;
-  for (const [k, c] of n) if (best === null || c > n.get(best)!) best = k;
-  return best;
+  return commonOf(ms.map(gradedSource));
 }
 
-function MistakeRow({ m, now, common, active, onRetry, onDelete }: { m: MistakeRecord; now: number; common: string | null; active: boolean; onRetry: () => void; onDelete: (from: HTMLElement) => void }) {
+function MistakeRow({ m, now, common, game, active, onRetry, onDelete }: { m: MistakeRecord; now: number; common: string | null; game: string | null; active: boolean; onRetry: () => void; onDelete: (from: HTMLElement) => void }) {
   const last = m.tries.at(-1);
   const source = gradedSource(m);
   const due = isDue(m, now);
+  // (under the spot: the action before you, and only what isn't the list's own: its game, what graded it, where it came from)
   const about = [
-    m.tournament ? "Tournament" : "",
+    m.line,
     m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed)` : "",
     ORIGIN_WORDS[m.from] ?? "",
-    m.game,
-    m.line,
+    m.game !== game ? m.game : "",
     source !== common ? `graded against ${source}` : "",
-  ].filter(Boolean);
-  const history = [
     m.times > 1 ? `missed ${m.times} times` : "",
-    last ? `last retry ${day(last.at)}: ${last.verdict}${last.like ? "" : `, against ${last.label}`}` : "",
   ].filter(Boolean);
   return (
-    <li tabIndex={-1} className={`flex flex-wrap items-start gap-x-3 gap-y-1 py-2 text-sm outline-none ${ROW} ${active ? "-mx-3 border-l-2 border-accent bg-surface-2 px-3" : ""}`}>
-      <span className="text-xs tabular-nums text-muted lg:pt-1">
-        {day(m.lastAt)}
-        <span className="lg:block">
-          <span className="lg:hidden"> · </span>
-          {m.street}
-        </span>
-      </span>
+    <li tabIndex={-1} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-sm outline-none ${ROW} ${active ? "-mx-3 border-l-2 border-accent bg-surface-2 px-3" : ""}`}>
       <span className="min-w-0 basis-full space-y-0.5 lg:basis-auto">
         <Spot m={m} />
         <span className="block text-xs text-muted">{about.join(" · ")}</span>
-        {history.length > 0 && <span className="block text-xs text-muted">{history.join(" · ")}</span>}
+        {last && (
+          <span className="block text-xs text-muted">
+            Last retry {day(last.at)}: {last.verdict}
+            {last.like ? "" : `, against ${last.label}`}
+          </span>
+        )}
         {m.grade.capped && <span className="block text-xs text-muted">{CAPPED_WORDS}</span>}
       </span>
-      <span className="space-y-0.5 lg:pt-0.5">
-        <span className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
+      <span className="space-y-0.5">
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
           <span className="font-mono">{m.chose}</span>
           <VerdictTag v={m.grade.verdict} />
         </span>
         <span className="block whitespace-nowrap text-xs tabular-nums text-muted">{costWords(m.grade, m.mix, m.provenance?.source, evUnit(m.provenance))}</span>
       </span>
       {/* (a row that's due says no date: its Retry button is the one lit) */}
-      <span className="whitespace-nowrap text-xs text-muted lg:pt-1">{due ? "" : dueWords(m, now)}</span>
-      <span className="flex basis-full flex-wrap items-center gap-3 text-xs lg:basis-auto lg:flex-nowrap lg:justify-end">
+      <span className="whitespace-nowrap text-xs text-muted">{due ? "" : dueWords(m, now)}</span>
+      <span className="flex basis-full flex-wrap items-center gap-2 text-xs lg:basis-auto lg:flex-nowrap lg:justify-end">
         <button type="button" onClick={onRetry} aria-label={`${due ? "Retry" : "Retry early"}: ${m.hole.join(" ")}, ${m.street}`} className={`rounded-md px-2.5 py-1 font-medium ${due ? "bg-accent text-bg hover:bg-accent-strong" : "border border-border hover:bg-surface-2"}`}>
           {due ? "Retry" : "Retry early"}
         </button>
         {m.study ? (
-          <Link to={`/study?${m.study}`} className="whitespace-nowrap text-accent hover:underline">
-            Open in Study →
+          <Link to={`/study?${m.study}`} aria-label="Open in Study" className="whitespace-nowrap rounded px-1.5 py-1 text-accent hover:bg-surface-2">
+            Study
           </Link>
         ) : (
           <span className="text-muted">Study can&rsquo;t set up this game</span>
         )}
         {m.ask.via === "kept" && (
-          <Link to={`/analyze?${new URLSearchParams({ hand: m.ask.hand })}`} className="whitespace-nowrap text-accent hover:underline">
-            Open the hand →
+          <Link to={`/analyze?${new URLSearchParams({ hand: m.ask.hand })}`} aria-label="Open the hand" className="whitespace-nowrap rounded px-1.5 py-1 text-accent hover:bg-surface-2">
+            Hand
           </Link>
         )}
         <DeleteButton what="this entry" name={`Delete: ${m.hole.join(" ")}, ${m.street}`} onDelete={onDelete} />
@@ -502,18 +500,15 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-medium">Retry</h2>
           <span className="text-muted">
-            {m.street} · missed {day(m.lastAt)}
+            {m.street} · missed {day(m.lastAt)} · {m.tournament ? "Tournament · " : ""}
+            {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
+            {m.game}
           </span>
           <span className="flex-1" />
           <button type="button" onClick={() => onOpen(null)} className="rounded border border-border px-2 py-0.5 hover:bg-surface-2">
             Close
           </button>
         </div>
-        <p className="text-xs text-muted">
-          {m.tournament ? "Tournament · " : ""}
-          {m.exploit ? `Exploiting ${profileName(m.exploit)} (assumed) · ` : ""}
-          {m.game}
-        </p>
         <div className="flex flex-wrap items-center gap-4">
           {m.board.length > 0 && (
             <div role="group" aria-label="Board" className="flex gap-1">

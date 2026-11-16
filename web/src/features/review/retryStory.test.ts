@@ -8,7 +8,7 @@ describe("retryStory", () => {
     const s = retryStory(at("p=2&s=100&pre=SB:r2.5,BB:c&b=6c5s3d&flop=BB:x,SB:b4.13", "flop", 9.63, "BB", 2))!;
     expect(s.steps.map((x) => x.street)).toEqual(["Preflop"]);
     expect(s.now).toMatchObject({ street: "Flop", pot: 5.5, hero: "BB", toCall: 4.13 });
-    expect(s.now.line).toBe("6c 5s 3d · BB checks, SB bets 4.13bb");
+    expect(s.now.line).toBe("BB checks, SB bets 4.13bb");
   });
 
   it("tells a preflop decision from the blinds", () => {
@@ -19,8 +19,8 @@ describe("retryStory", () => {
 
   it("gives the earlier streets a line each, with their cards", () => {
     const s = retryStory(at("p=6&s=100&pre=CO:r2.5,BB:c&b=Kd7s2cQh&flop=BB:x,CO:x&turn=BB:b3", "turn", 8.5, "CO"))!;
-    expect(s.steps.map((x) => x.text)).toEqual([expect.any(String), "Kd 7s 2c · BB checks, CO checks"]);
-    expect(s.now).toMatchObject({ street: "Turn", pot: 5.5, toCall: 3, line: "Qh · BB bets 3bb" });
+    expect(s.steps.map((x) => x.text)).toEqual([expect.any(String), "BB checks, CO checks"]);
+    expect(s.now).toMatchObject({ street: "Turn", pot: 5.5, toCall: 3, line: "BB bets 3bb" });
   });
 
   it("gives up where it can't tell the money: no line, or an all-in", () => {

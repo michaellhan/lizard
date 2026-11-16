@@ -5697,3 +5697,33 @@ Asked for: drop the More menu, and stop Progress opening at `/review`.
   view on `/equity`, and the page has no sideways scroll; at desktop width all eight entries fit beside the gear.
   Browser tests on a web-only build: routes (desktop, tablet, phone) with the new redirect test, and qa 14b and the
   Review flows, 70 passed; after the last change, the nav, redirect, Progress and PLO ones again, 15 passed.
+
+
+### 2026-11-16: Review fits on fewer screens
+
+Asked for: a cleaner Progress page. The retry repeated the board ("Qs 7s 6d" under the cards), the past-mistakes rows
+held too much, the lessons sat in a long block at the bottom, and the page was long and didn't hang together.
+
+- Two columns at 1280px and up (`ReviewPage.tsx`). The left holds the retry and the mistake lists; the right holds what
+  to work on: the plan's steps (leaks, rows too few to read, the Practice drill), then the lessons. On narrower screens
+  the retry comes first, then that column, since it's short and says what to do, then the lists. A retry opens in the
+  left column, so the right one doesn't move.
+- "Due now" with its count and "Retry the next one" sits on the heading's line, not in a panel of its own.
+- Mistake rows: four columns (spot, your move with grade and cost, next date, actions), not five. The missed date and
+  street column went: the board's cards give the street, and a preflop row says "preflop". The line under the spot is
+  the action before you, plus only what differs from the list: the game (the caption says the one most rows share),
+  what graded it (the caption already says the common source), where it came from, and how many times it was missed.
+  The links are short ("Study", "Hand"); screen readers still hear "Open in Study" and "Open the hand".
+- The plan's steps stack to fit the side column: what the step is, why, how far, then its buttons.
+- Lessons (`LessonsPanel.tsx`) is one card: "n of 12 done", a progress bar, the next lesson with its idea, Drill it and
+  Read the report, and its reading and drilling tips behind "What to look for". All 12 lessons by unit are behind a
+  disclosure, each one a line that opens.
+- The retry: the game moved onto the header line, and the story lines (`retryStory.ts`) say the action only. The board
+  and your cards are drawn just above them, so the card text was repeated.
+- Checked: tsc and eslint clean; review and plan unit tests 201 passed, with a new one for the shared-game caption and
+  updated lessons and retry-story tests. In the browser on the dev server at 1440 wide: the two columns, a preflop retry
+  graded in place (the grade beside the hand, the side column unmoved), a turn retry whose lines carry no card text; at
+  375 wide, the plan, a short lessons card and then the rows; at 1024 wide, the drill and the lessons side by side over
+  the list. On a fresh root build: the full unit suite 3,732 passed, with 1 failure in `pfStored.test.ts` from another
+  session's uncommitted preflop files in this checkout (not in this commit); browser tests routes, qa 10c and 10d and
+  the chains Review flow, 24 passed (desktop).

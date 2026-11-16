@@ -132,36 +132,38 @@ export function PlanSteps({ plan }: { plan: Plan }) {
 function Part({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <section aria-label={label} className="space-y-2">
-      <h2 className="text-lg font-semibold">{label}</h2>
+      <h2 className="text-sm font-semibold">{label}</h2>
       {children}
     </section>
   );
 }
 
+/** A step, stacked to fit Review's side column: what it is, why, how far, then where it's done. */
 function Row({ step, at, next }: { step: PlanStep; at: number | null; next: PlanStep | null }) {
   const isNext = next?.id === step.id;
   return (
-    <li aria-label={step.what} aria-current={isNext ? "step" : undefined} className="list-none space-y-1 panel px-3 py-2 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        {at !== null && <span className="text-muted tabular-nums">{at}.</span>}
-        {/* (a step whose link says what it is, as a drill's does, says it once) */}
-        {step.what !== step.title && <span className="font-medium">{step.what}</span>}
-        {step.done && <span className="rounded border border-border px-1.5 py-0.5 text-xs">Done</span>}
-        <span className="flex-1" />
-        <span className="flex flex-wrap items-center gap-2">
-          <Link to={step.to} className={isNext ? START : QUIET}>
-            {step.title}
-          </Link>
-          {step.kind === "thin" && (
-            <Link to={step.also.to} className={QUIET}>
-              {step.also.label}
-            </Link>
-          )}
-          {step.kind === "drill" && <KeepDrill step={step} />}
-        </span>
-      </div>
+    <li aria-label={step.what} aria-current={isNext ? "step" : undefined} className="list-none space-y-2 panel px-3 py-2.5 text-sm">
+      {/* (a step whose link says what it is, as a drill's does, says it once) */}
+      {(at !== null || step.what !== step.title || step.done) && (
+        <div className="flex flex-wrap items-baseline gap-2">
+          {at !== null && <span className="text-muted tabular-nums">{at}.</span>}
+          {step.what !== step.title && <span className="font-medium">{step.what}</span>}
+          {step.done && <span className="rounded border border-border px-1.5 py-0.5 text-xs">Done</span>}
+        </div>
+      )}
       {step.says[0] && <p className="text-muted">{step.says[0]}</p>}
       {step.progress && <p>{step.progress}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to={step.to} className={isNext ? START : QUIET}>
+          {step.title}
+        </Link>
+        {step.kind === "thin" && (
+          <Link to={step.also.to} className={QUIET}>
+            {step.also.label}
+          </Link>
+        )}
+        {step.kind === "drill" && <KeepDrill step={step} />}
+      </div>
       {step.says.length > 1 && (
         <About label="Details">
           {step.says.slice(1).map((x) => (

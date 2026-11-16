@@ -71,7 +71,7 @@ describe("ReviewPage", () => {
     expect(within(list).getByText("0.40bb lost · 7.3% pot")).toBeInTheDocument();
     expect(within(list).getByText("Graded against Live solve (Quick).")).toBeInTheDocument();
     expect(within(list).getByText(/^Due in \d days$/)).toBeInTheDocument();
-    expect(within(list).getByRole("link", { name: "Open in Study →" })).toHaveAttribute("href", "/study?p=6&s=100");
+    expect(within(list).getByRole("link", { name: "Open in Study" })).toHaveAttribute("href", "/study?p=6&s=100");
     expect(within(list).getByRole("button", { name: /^Retry early/ })).toBeInTheDocument();
     expect(screen.getByText(/Nothing is due today/)).toBeInTheDocument();
     expect(screen.queryByText(/graded by EV/)).toBeNull();
@@ -97,6 +97,17 @@ describe("ReviewPage", () => {
     expect(within(list).getByText(/· graded against ≈ Preflop charts \(not a solve\)/)).toBeInTheDocument();
     fireEvent.click(within(list).getByRole("button", { name: "How these answers were produced" }));
     expect(within(list).getByText(/Live solve \(Quick\) · 0\.40% pot from equilibrium/)).toBeInTheDocument();
+  });
+
+  it("says the game most rows share once, and a row in another game its own", async () => {
+    await seed(mistake({ id: "a" }), mistake({ id: "b", hole: ["Qh", "Qd"] }), mistake({ id: "c", hole: ["2h", "2d"], game: "Heads-up 40bb" }));
+    page();
+    const list = await screen.findByRole("region", { name: "Past mistakes" });
+    const game = mistake().game;
+    expect(within(list).getByText(`Mostly ${game} ·`)).toBeInTheDocument();
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows.filter((r) => r.textContent?.includes(game))).toHaveLength(0);
+    expect(rows.filter((r) => r.textContent?.includes("Heads-up 40bb"))).toHaveLength(1);
   });
 
   it("labels a chart's mistake by frequency, never EV lost or a solve", async () => {
@@ -240,7 +251,7 @@ describe("ReviewPage", () => {
       expect(screen.getByText(/missed 3 times/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "How these answers were produced" }));
       expect(screen.getAllByText(/Live solve \(Quick\) · medium confidence/).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole("link", { name: "Open the hand →" })[0]).toHaveAttribute("href", "/analyze?hand=h1");
+      expect(screen.getAllByRole("link", { name: "Open the hand" })[0]).toHaveAttribute("href", "/analyze?hand=h1");
     });
 
     it("retries against the answer kept, says so, and says it's the same answer", async () => {
@@ -365,7 +376,8 @@ describe("ReviewPage", () => {
       expect(screen.queryByRole("status", { name: "Next step" })).toBeNull();
       expect(screen.queryByText(/Nothing is waiting on more hands/)).toBeNull();
       expect(screen.getByRole("heading", { name: "Lessons" })).toBeInTheDocument();
-      expect(await screen.findAllByRole("link", { name: /^Drill it/ })).toHaveLength(LESSONS.length);
+      // (the next lesson's, and one for each in the list of them)
+      expect(await screen.findAllByRole("link", { name: /^Drill it/ })).toHaveLength(LESSONS.length + 1);
     });
   });
 });
