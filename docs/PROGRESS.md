@@ -5870,3 +5870,25 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
 - Owner: the cards should be coloured properly. `PlayingCard` drew a four-colour deck (green clubs, blue diamonds) on a dark
   face; a face-up card is now a light face (`--color-card-face`) with black spades and clubs and red hearts and diamonds,
   each 4.5:1 on the face and the face 3:1 from every surface (`contrast.test.ts`). Checked in Practice and on Study's board.
+
+## 2026-11-16: Preflop model lz3 (3bet pots in rank order)
+
+- Commit f47e779. The full write-up (method, the per-hand gaps, what isn't fixed and the tests) is in `docs/ACCURACY.md`
+  under lz3. In short, per-class 3bet and 4bet pot values are smoothed along each family of hands, so no pair is out of
+  order facing a 3bet in the stored 6-max 100bb games. The 4bet volume is still off by a few points, so every node at or
+  after a 3bet is labelled approximate (`pf_3bet`, `AFTER_3BET`). CI (unit, python, e2e, deploy) passed.
+
+## 2026-11-16: The 200bb depths build hung for 13 hours on its last entry
+
+- `library-build/runs/depths` (the 200bb batch: four heads-up spots on 184 flops) had 735 of 736 entries on disk. It
+  stopped at 03:52 with every process idle while it held a machine-wide `heavy` slot. That left gtosolver's heads-up
+  rebuild queued for 7.6 hours. The stacks showed the build waiting on a result while its fresh worker waited for a task.
+  `multiprocessing.Pool` had lost the entry: a worker was killed mid-solve (memory was tight then, per mem-guard's log)
+  and the pool replaced it without the task, so it waits forever.
+- Fixed in `depths_build.py`, which is a gitignored run tool that lives only in that folder. Its supervisor stops a job
+  that gains no CPU in an hour (`STALL_S`), unless a process is paused by the memory guard or `calm`, or the job is
+  queued for a slot. The stop counts as a retry, and entries on disk are kept. The hung job was stopped and started
+  again: the rebuild took the freed slot right away, and the last entry queues for the next one.
+- Same weakness, not changed: `library-build/sources/mw-every-flop/bin/build_mw_every_flop.py` (running and healthy,
+  ~990 of 6,280 left) and `scripts/library/build_srp_every_flop.py` (not running) use the same `Pool`. If either goes
+  quiet with idle processes, stop it and start it again; both keep entries on disk.
