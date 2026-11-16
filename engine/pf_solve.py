@@ -35,16 +35,16 @@ from . import pf_engine as E
 from . import pf_model as M
 
 MODEL = "calibrated class-level model"       # in every answer (pf_model) and the provenance label
-MODEL_TAG = "lz1"                           # key prefix: a change to the model or its calibration bumps it
+MODEL_TAG = "lz2"                           # key prefix: a change to the model or its calibration bumps it
 MAX_PLAYERS = 9
 STACK_RANGE = (5.0, 250.0)                  # a seat's stack, bb (the deepest at least 10)
 STORED_PLAYERS = (2, 3, 4, 5, 6)
 STORED_DEPTHS = (20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0, 125.0, 150.0, 200.0)
 STORED_RAKES = (None, (0.05, 3.0))
 # stored games solved past pf_study.STORED_ITERS (1,500) as they were over its 1.5 mbb target there; some level off just
-# above it (a live solve stops those by its stall rule too); each header holds the mbb shown (engine/pf/lz1_built.jsonl)
-STORED_ITERS_OF = {"lz1_4max_40bb": 3000, "lz1_5max_40bb": 3000, "lz1_5max_50bb": 3000, "lz1_6max_40bb": 3000,
-                   "lz1_6max_150bb": 3000, "lz1_6max_200bb": 3000, "lz1_6max_40bb_blind_3bet4": 6000}
+# above it (a live solve stops those by its stall rule too); each header holds the mbb shown (engine/pf/lz2_built.jsonl)
+STORED_ITERS_OF = {"lz2_4max_40bb": 3000, "lz2_5max_40bb": 3000, "lz2_5max_50bb": 3000, "lz2_6max_40bb": 3000,
+                   "lz2_6max_150bb": 3000, "lz2_6max_200bb": 3000, "lz2_6max_40bb_blind_3bet4": 6000}
 # the slowest of them, 6-max 40bb at the charts' 3bet size, levels off above 1.7: 1.793 mbb at 1,500 iterations, 1.759
 # at 3,000, 1.745 at 6,000 (doubling the work moved it 0.014). Its base game stops at 1.496; the 4x 3bet puts more of
 # the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a solve. 1.8 is the bound
@@ -146,7 +146,7 @@ class Spec:
 
     @property
     def key(self) -> str:
-        """File-name-safe: 'lz1_6max_100bb', 'lz1_6max_100bb_r5c3', 'lz1_6max_s100-35-220-60-15-100_a0.1'..."""
+        """File-name-safe: 'lz2_6max_100bb', 'lz2_6max_100bb_r5c3', 'lz2_6max_s100-35-220-60-15-100_a0.1'..."""
         k = f"{MODEL_TAG}_{self.players}max_"
         k += f"{self.stacks[0]:g}bb" if self.equal else "s" + "-".join(f"{s:g}" for s in self.seat_stacks())
         if self.ante:

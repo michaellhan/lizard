@@ -5780,3 +5780,24 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
   test_off_solution and test_rare_resolve passed; web/src/solver vitest passed with provenanceMw.test.ts. The full
   scripts/engine run had 253 tests with 2 failing, both in test_pf_engine.StoredGrid, which tests another session's
   uncommitted preflop store build, not this change.
+
+## 2026-11-16: QTo opened over QJo from the HJ: hands past a library range's edge (preflop model lz2)
+
+- Report: the 6-max 100bb solve opened QTo 100% from the HJ and folded QJo 100%. Not indexing, grid mapping, display
+  or convergence: CLASSES/hand_class put all 12 offsuit combos of each class in its cell, the page showed the stored
+  solve's frequencies exactly, and lz1_6max_100bb was at 1.17 mbb with the node's regret 0. The EVs agreed with the
+  strategy (QJo's raise -0.043 bb against folding, QTo's 0.000 and raised 97%), so the fault was in what the flop was
+  worth.
+- Cause: upstream's LibraryModel values a class outside a library spot's range by the measured model shifted to join
+  the library at the range's edge. Against the BB's defence QJo (inside the HJ's library range) met 0.535 of the pot
+  and QTo (just outside) 0.580. The same fault inverted A5o/A4o and QTo/Q9o from the CO, A3o/A2o and Q8o/Q7o from the
+  BTN and K7o/K6o from the SB.
+- Fix: `engine/pf_model.LowerEdgeLibraryModel` (Params.ext 2) takes, class by class, the lower of the join and
+  FeatureLibraryModel's smooth fit. Against the 26 published spots: 1.84 points off (was 2.85), 5 spots out (was 16),
+  12 of 15 hand facts off (was 11); held out 2.01 (was 2.85). The model key is now `lz2` and the stored grid was
+  rebuilt (132 games, `engine/pf/lz2_*.bin`; lz1 removed). lz2_6max_100bb opens QJo 87% from the HJ and folds QTo.
+  docs/ACCURACY.md section 18.6 has the measurements and what is left.
+- Tests: `test_pf_engine.RangeEdge` (no class past an edge meets more of the pot than its better kicker inside by
+  over 0.02, while ext 0 has more than 20 such; the audit's pairs keep their order in the stored 6-max 100bb game).
+  Checked: scripts/engine/test_pf_engine.py 29 passed (StoredGrid on the lz2 files, RangeEdge); vitest pfStored, provenance and pfSolve 46 passed. The gtosolver builds were left alone
+  (solves went through slot.sh).

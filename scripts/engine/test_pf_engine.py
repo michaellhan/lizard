@@ -128,9 +128,9 @@ class OwnStacks(unittest.TestCase):
         on, _ = P.spec_of({"players": 6, "stack": 100, "pf_sb_limp": True})
         self.assertTrue(on.key.endswith("_l"))
         self.assertIn("may complete", on.label())
-        self.assertEqual(P.spec_of({"players": 6, "stack": 100})[0].key, "lz1_6max_100bb")
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100})[0].key, "lz2_6max_100bb")
         self.assertFalse(P.spec_of({"players": 6, "stack": 100, "straddle": True, "pf_sb_limp": True})[0].key.endswith("_l"))
-        self.assertEqual(P.spec_of({"players": 2, "stack": 100, "pf_sb_limp": True})[0].key, "lz1_2max_100bb")
+        self.assertEqual(P.spec_of({"players": 2, "stack": 100, "pf_sb_limp": True})[0].key, "lz2_2max_100bb")
         # after the complete the big blind checks or raises to Sizes.iso
         root, pos = on.build()
         nd = root
@@ -166,7 +166,7 @@ class TreeOptions(unittest.TestCase):
             self.assertEqual(on.nodes(), P.Spec(n, (100.0,)).nodes())
         # the request's options at their table size's defaults are the default game (one key, one stored file)
         self.assertEqual(P.spec_of({"players": 6, "pf_tree": {"flop3": True, "cold": True, "opens": {"UTG": 2.5}}})[0].key,
-                         "lz1_6max_100bb")
+                         "lz2_6max_100bb")
 
     def test_open_limps(self):
         spec = P.Spec(4, (100.0,), open_limps=True)
@@ -229,7 +229,7 @@ class TreeOptions(unittest.TestCase):
     def test_chart_sizes(self):
         # the charts' blind 3bet (4x the open: 10bb over 2.5bb) in place of the tree's 4.8x, for Practice's grade; named
         c = P.chart_sized(P.Spec(6, (100.0,), rake=(0.05, 3.0)))
-        self.assertEqual(c.key, "lz1_6max_100bb_r5c3_blind_3bet4")
+        self.assertEqual(c.key, "lz2_6max_100bb_r5c3_blind_3bet4")
         self.assertIn(c, P.stored_games())
         self.assertIn("at the charts' raise sizes", " ".join(c.tree_notes()))
         self.assertEqual(P.Spec(6, (100.0,)).tree_notes(), [])
@@ -242,7 +242,7 @@ class TreeOptions(unittest.TestCase):
         self.assertAlmostEqual(btn.children[btn.names.index("raise")].line[-1][2], 23.0)
         # what the request asks: the sizes as Practice sends them reach the stored game's key
         self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_sizes": {"blind_3bet": 4}})[0].key,
-                         "lz1_6max_100bb_blind_3bet4")
+                         "lz2_6max_100bb_blind_3bet4")
 
     def test_memory_estimate(self):
         # the measured peaks it was fitted to (pf_solve.MB_BASE, MB_PER_WORK), within 20%
@@ -378,6 +378,53 @@ class AgainstPublished(unittest.TestCase):
         self.assertLess(m["mae_points"], m["base_mae_points"])
         self.assertLess(m["held_out_mae_points"], m["held_out_base_points"])
         self.assertEqual(M.load_params(), M.Params.of(pf_calib.PARAMS))
+
+
+class RangeEdge(unittest.TestCase):
+    """Classes outside a flop library spot's range aren't valued above the class with the next better kicker inside it
+    (pf_model.LowerEdgeLibraryModel; docs/ACCURACY.md section 18.6). Upstream's edge join had QTo meet 0.580 of the pot
+    against the BB's range where QJo met 0.535, and the 6-max 100bb solve opened QTo from the HJ and folded QJo."""
+    RK = "23456789TJQKA"
+
+    def inversions(self, params: M.Params, gap: float = 0.02):
+        from gto.pf_libvals import SPOTS
+        from gto.pf_classes import CLASSES, CLASS_INDEX, PAIR_COMPAT
+        m = M.flop_model(100.0, params)
+        out = []
+        for sid, v in SPOTS.items():
+            k = G.spot_key_of(v["line"], v["seats"])
+            S = m.lib.share(k)
+            side, other = ("ip", "oop") if k[1] else ("oop", "ip")
+            P_ = PAIR_COMPAT * np.asarray(v[other]["range"], float)[None, :]
+            fa = (P_ / P_.sum(1, keepdims=True) * S).sum(1)
+            inside = np.asarray(v[side]["w"]) > 0
+            for h in CLASSES:
+                if len(h) != 3 or self.RK.index(h[1]) + 1 >= self.RK.index(h[0]):
+                    continue
+                better = h[0] + self.RK[self.RK.index(h[1]) + 1] + h[2]
+                i, j = CLASS_INDEX[h], CLASS_INDEX[better]
+                if not inside[i] and inside[j] and fa[i] > fa[j] + gap:
+                    out.append((sid, h, better))
+        return out
+
+    def test_no_class_past_the_edge_beats_its_better_kicker(self):
+        import dataclasses
+        self.assertEqual(self.inversions(M.load_params()), [])
+        # upstream's join (ext 0) at the same corrections: the test sees the fault it guards against
+        self.assertGreater(len(self.inversions(dataclasses.replace(M.load_params(), ext=0.0))), 20)
+
+    def test_stored_first_in_ranges_keep_the_better_kicker(self):
+        # the inversions the 2026-11-16 audit found in lz1's 6-max 100bb solve (the better hand folded, the worse raised)
+        pairs = {"HJ": [("QJo", "QTo")], "CO": [("QTo", "Q9o"), ("K9o", "Q9o")],
+                 "BTN": [("A3o", "A2o"), ("Q8o", "Q7o"), ("K7o", "Q7o")], "SB": [("K7o", "K6o")]}
+        spec = P.Spec(6, (100.0,))
+        s = P.Solve(spec, P.read_stored(spec.key))
+        pos = spec.positions()
+        for seat, ps in pairs.items():
+            cells = s.node([{"pos": p, "action": "fold"} for p in pos[:pos.index(seat)]])["grid"]["cells"]
+            f = lambda h: cells[h]["f"][0] if h in cells else 0.0
+            for better, worse in ps:
+                self.assertGreaterEqual(f(better) + 0.1, f(worse), f"{seat} {better} {f(better):.2f} vs {worse} {f(worse):.2f}")
 
 
 if __name__ == "__main__":

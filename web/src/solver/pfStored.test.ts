@@ -23,11 +23,11 @@ describe("the stored preflop games", () => {
     expect(py).toMatch(new RegExp(`^MODEL_TAG = "${PF_MODEL_TAG}"`, "m"));
   });
   it("name their files as engine/pf_solve.Spec.key does", () => {
-    expect(pfKey(6, 100, false)).toBe("lz1_6max_100bb");
-    expect(pfKey(6, 100, true)).toBe("lz1_6max_100bb_r5c3");
-    expect(pfKey(2, 20, false)).toBe("lz1_2max_20bb");
-    expect(pfChartKey(6, 100, false)).toBe("lz1_6max_100bb_blind_3bet4");
-    expect(pfChartKey(6, 100, true)).toBe("lz1_6max_100bb_r5c3_blind_3bet4");
+    expect(pfKey(6, 100, false)).toBe("lz2_6max_100bb");
+    expect(pfKey(6, 100, true)).toBe("lz2_6max_100bb_r5c3");
+    expect(pfKey(2, 20, false)).toBe("lz2_2max_20bb");
+    expect(pfChartKey(6, 100, false)).toBe("lz2_6max_100bb_blind_3bet4");
+    expect(pfChartKey(6, 100, true)).toBe("lz2_6max_100bb_r5c3_blind_3bet4");
     expect(PF_KEYS).toHaveLength((PF_PLAYERS.length + PF_CHART_PLAYERS.length) * PF_DEPTHS.length * 2);
   });
   it("store the charts' blind 3bet size beside the tree's, for the table sizes engine/pf_solve.py does", () => {

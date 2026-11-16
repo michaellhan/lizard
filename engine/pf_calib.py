@@ -11,7 +11,7 @@ PARAMS = {
     "k3": 1.028598,
     "r1": 0.626328,
     "r2": 0.73449,
-    "ext": 0.0
+    "ext": 2.0
 }
 
 MEASURED = {
@@ -21,10 +21,10 @@ MEASURED = {
     "base_mae_points": 2.85,
     "base_out": 16,
     "base_facts_off": 11,
-    "mae_points": 2.37,
-    "out": 14,
-    "facts_off": 10,
+    "mae_points": 1.84,
+    "out": 5,
+    "facts_off": 12,
     "facts": 15,
-    "held_out_mae_points": 2.51,
+    "held_out_mae_points": 2.01,
     "held_out_base_points": 2.85
 }

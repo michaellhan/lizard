@@ -351,7 +351,7 @@ describe("Study's preflop Solver source", () => {
     const solve = client.solve;
     client.solve = async (r) =>
       r.state.preflop_solve === true
-        ? { ...(await solve(r)), data: { study: "pf_unsolved", street: "preflop", game: "9 players, 100bb", key: "lz1_9max_100bb_f3_c1", estimate_s: 900, estimate_mb: 18000, max_mb: 2048 } }
+        ? { ...(await solve(r)), data: { study: "pf_unsolved", street: "preflop", game: "9 players, 100bb", key: "lz2_9max_100bb_f3_c1", estimate_s: 900, estimate_mb: 18000, max_mb: 2048 } }
         : solve(r);
     try {
       renderAt(withPf(freshHand(9, 100), "solver"));

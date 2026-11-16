@@ -1318,6 +1318,89 @@ Not done: no straddle from a seat other than UTG, no 5bet rules, and the limp an
 measured against the published solves (none of them has limps or uneven opens, so there is nothing there to measure
 against). A limped 3-handed 40bb game converges under 1.5 mbb/hand in 1,500 iterations, which is all that is claimed.
 
+### 18.6 Hands past a library range's edge: QTo opened over QJo (2026-11-16)
+
+**The report.** The Solver source's HJ first-in range at 6-max 100bb opened QTo 97% and folded QJo 100%. That
+ordering is implausible: QJo has more equity than QTo against almost any range, and its kicker is higher and more connected.
+
+**What it wasn't [V].** The page showed the solve exactly. The stored `lz1_6max_100bb` answered QTo raise 97% at EV
+0.000bb and QJo fold 100% with a raise EV of −0.043bb, and the grid draws those numbers unchanged: cells are keyed by
+class name on both sides (`engine` `CLASSES`, `web/src/engine/nlhe/cards.ts` `classLabel`), with no numeric index to
+go wrong. Each offsuit class holds exactly its 12 combos (`gto.pf_classes`: 78 offsuit classes of 12, 78 suited of 4,
+13 pairs of 6, 1,326 in all). Equity against a random hand is right (QJo 56.4%, QTo 55.7%). The solve was converged:
+1.17 mbb/hand a seat, with the node's regret 0.
+
+**The cause [V].** The flop values. A preflop class meets a flop at a share of the pot taken from the flop library
+(`pf_game.LibraryModel`), which measured only the classes inside each spot's own range. In `srp_hj_bb`, HJ's library
+range holds QJo but not QTo. Upstream valued a class outside the range by its measured model's excess over equity,
+shifted to meet the library's values at the range's weakest classes. That join ran high just past the edge. At the
+calibrated corrections, against the BB's library range, QJo met 0.535 of the pot and QTo 0.580, though QTo has less
+equity (0.499 against 0.515). Against the CO the figures were QJo 0.338 and QTo 0.412. Opening QTo was simply the best
+response to those values.
+
+**The same fault elsewhere [V].** A dominance audit of every first-in range in the 6-max 100bb games (raked, unraked
+and chart-sized) flagged a better hand folding while a worse one raised. The clear cases all had the worse hand just
+outside the library range and the better one inside:
+- HJ: QTo over QJo and KTo;
+- CO: A4o over A5o, Q9o over QTo and K9o;
+- BTN: A2o over A3o, Q7o over Q8o and K7o;
+- SB: K6o over K7o.
+
+Over every library spot, 40 classes outside a range met more of the pot (by over 0.005) than the class with the next
+better kicker inside it.
+
+The audit also flagged connectors raised over one-gappers, like 65s over 75s, 98s over T8s and 64s over 74s. Those
+are inside the library's measured ranges, and a real solve opens connectors over gappers too, so they are not taken as
+faults.
+
+**The fix [V].** `ext = 2` (`pf_model.LowerEdgeLibraryModel`) values a class outside a spot's range at the lower of
+upstream's join and the smooth fit that section 18.4 tried as `ext = 1`. The fit is a nearest neighbour of the same
+shape inside the range, moved by a fit on hand shape and equity. Inside the range nothing changes. Against the BB,
+QTo now meets 0.505 of the pot, below QJo's 0.535; against the CO, 0.310 against 0.338. Over every library spot, 7
+classes outside a range still beat their better kicker, all by 0.016 of the pot or less, and 5 of them are ace-wheel
+hands (A2o, A4o).
+
+**Against the published solves [M]**, measured as section 18.4: 26 certain spots at their rake, 700 iterations
+(`scripts/pf/calibrate.py eval`, runs in `scripts/pf/calib_runs.jsonl`). The ten corrections were not refitted.
+
+| Model | Mean error | Spots out | Hand facts off |
+|---|---:|---:|---:|
+| Upstream's | 2.85 | 16 / 26 | 11 / 15 |
+| Upstream's with the lower edge (nothing else) | 2.69 | 13 / 26 | 10 / 15 |
+| Calibrated, `ext = 0` (lz1, as shipped until today) | 2.37 | 14 / 26 | 10 / 15 |
+| Calibrated, `ext = 1` (the smooth fit alone) | 2.30 | 8 / 26 | 11 / 15 |
+| **Calibrated, `ext = 2` (adopted, lz2)** | **1.84** | **5 / 26** | 12 / 15 |
+| Held out, `ext = 0` → `ext = 2` (each half scored in the solve fitted on the other) | 2.51 → 2.01 | 13 → 9 | — |
+
+Two hand facts went out, and none that held came in:
+- BB calls A2s against the BTN (99.7% → 0%);
+- UTG opens KTo at most 25% (0% → 28.5%).
+
+Two that were off moved most of the way: the BTN's A2o (100% → 13%, wanted at most 5%) and its A4o (0% → 38%, wanted
+60%+). UTG's 44 went from 75% to 0%, wanted 95%+; it was off before too.
+
+First-in opens at the references' rake, `ext = 0` → `ext = 2`: UTG 15.8% → 16.5%, HJ 19.0% → 21.5%, CO 25.5% → 29.0%,
+BTN 40.8% → 43.3%, SB 49.1% → 46.5%. Section 18.4 found the opens 3–4 points tight from UTG to CO; these close most of
+that.
+
+**The model's key is now `lz2`** (`engine/pf_solve.MODEL_TAG`, `web/src/solver/pfStored.ts`), so no stored file,
+browser cache entry or stamp mixes the two models' solves. The stored grid was rebuilt as `engine/pf/lz2_*.bin`
+(132 games, 8,319 s of solving through slot.sh; every game within the StoredGrid bounds, the farthest 1.605 mbb
+for lz2_6max_40bb_blind_3bet4 at 6,000 iterations and 1.257 mbb among the 1,500-iteration games). In lz2_6max_100bb
+the HJ opens QJo 87% and folds QTo (98% and 0% with rake), and none of the audit's kicker pairs is inverted; what
+the audit still flags is a lower card that is more connected (98s over T8s, 53s over 63s, A5o over A6o), as published
+solves have it, and one plain oddity: the SB folds Q8o and raises J8o (no rake).
+
+**Tests.** `scripts/engine/test_pf_engine.py` `RangeEdge`:
+- no class outside a library range meets more of the pot than its better kicker inside it by over 0.02 (`ext = 0`
+  fails this 20+ times);
+- the stored 6-max 100bb game keeps the audit's pairs in order: HJ QJo ≥ QTo; CO QTo and K9o ≥ Q9o; BTN A3o ≥ A2o and
+  Q8o, K7o ≥ Q7o; SB K7o ≥ K6o.
+
+**Not done.** The ten corrections were fitted with `ext = 0` and not refitted at `ext = 2`; a refit might gain more.
+Nothing here measures depths or table sizes other than 6-max 100bb, as section 18.4 says of the calibration. The
+charts stay the default (0.96 points).
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the

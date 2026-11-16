@@ -520,7 +520,7 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   // stored at the charts' own 3bet size (pfChartKey, _blind_3bet4), which is the size the charts' own decisions are
   // in; the tree's own 4.8x twin is what Study solves.
   expect(new Set(fetched).size).toBe(1);
-  expect(fetched[0]).toMatch(/lz1_6max_100bb_blind_3bet4\.bin$/);
+  expect(fetched[0]).toMatch(/lz2_6max_100bb_blind_3bet4\.bin$/);
   await openScoreNotes(page);
   await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
 
@@ -622,7 +622,7 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
   expect(bySolve).toBeGreaterThan(0);
   await expect(page.getByRole("region", { name: "Last decision" }).getByTitle(/not a full solve/).first()).toBeVisible();
   // (that game's file and no other: never the 6-max one read as if it were this game)
-  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz1_4max_40bb.bin"]);
+  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz2_4max_40bb.bin"]);
   await clean(page, problems);
 });
 
@@ -631,11 +631,11 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
 // name), a decision after the flop is graded too, and only that game's preflop file is read.
 const FORMATS = [
   // (6-max cash reads the chart-sized game, the charts' 4x blind 3bet, not the tree's 4.8x one: see 7g)
-  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz1_6max_100bb_r5c3_blind_3bet4.bin" },
+  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz2_6max_100bb_r5c3_blind_3bet4.bin" },
   { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
-  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz1_3max_25bb.bin" },
+  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz2_3max_25bb.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
-  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz1_2max_200bb.bin" },
+  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz2_2max_200bb.bin" },
   { name: "deep, 6 players at 250bb, past the stored depths", players: "6", stack: "250", file: null },
 ] as const;
 for (const f of FORMATS) {

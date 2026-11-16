@@ -34,7 +34,7 @@ describe("provenance", () => {
     const node: AdvisorResponse = {
       study: "node",
       street: "preflop",
-      pf_solve: { key: "lz1_9max_100bb", done: true, stored: false, mbb: 1.2 },
+      pf_solve: { key: "lz2_9max_100bb", done: true, stored: false, mbb: 1.2 },
       pf_model: "calibrated class-level model",
       pf_limits: "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet",
     };
@@ -52,7 +52,7 @@ describe("provenance", () => {
     const node: AdvisorResponse = {
       study: "node",
       street: "preflop",
-      pf_solve: { key: "lz1_3max_s40-18-60_L", done: true, stored: false, mbb: 0.4 },
+      pf_solve: { key: "lz2_3max_s40-18-60_L", done: true, stored: false, mbb: 0.4 },
       pf_model: "calibrated class-level model",
       pf_tree: ["each seat's own stack (side pots; not measured against a fuller solve)", "limps from any seat (not measured against a fuller solve)"],
     };
