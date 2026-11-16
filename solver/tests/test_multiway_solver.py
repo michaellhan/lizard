@@ -763,7 +763,11 @@ class TestAdvisor(unittest.TestCase):
         self.assertTrue(r["multiway"] and r["solved"])
         self.assertEqual([a["action"] for a in r["actions"]], ["check", "bet 33%"])
         self.assertIn("hand buckets", " ".join(r["notes"]))
-        self.assertGreater(r["actions"][1]["freq"], 0.6)
+        # (Lizard, 2026-11-16: AsKs isn't in the button's flat range, so its answer is its best response by the EVs
+        # shown; the regret-matching mix this asserted, bet over 60%, sat beside check's higher EV)
+        self.assertIn("isn't in your range", " ".join(r["notes"]))
+        top = max(r["actions"], key=lambda a: a["ev_bb"])
+        self.assertEqual(top["freq"], 1.0)
 
     def test_settled_solve_stops_early(self):
         # a 3-way solve stops at the first checkpoint (MW_CHECKS) where it is settled (MW_SETTLED) and isn't run again:

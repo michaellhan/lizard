@@ -213,7 +213,11 @@ class TestMWLibrary(unittest.TestCase):
                 self.assertEqual(r["position"], f"{i + 1} of 3 to act")
                 ci = pos[cmap[COMBO_INDEX[tuple(sorted(cards(hole)))]]]
                 want = ref.nodes[tuple("check" for _ in flops[seat])].avg_strategy()[0][:, ci]
-                np.testing.assert_allclose([a["freq"] for a in r["actions"]], want, atol=0.006)
+                if full:
+                    np.testing.assert_allclose([a["freq"] for a in r["actions"]], want, atol=0.006)
+                else:   # (Lizard, 2026-11-16: a hand off its range plays its best response by the EVs shown)
+                    top = max(r["actions"], key=lambda a: a["ev_bb"])
+                    self.assertEqual(top["freq"], 1.0, r["actions"])
                 self.assertEqual(any("isn't in your range" in n for n in r["notes"]), not full)
         # the next opponent's move, from the solve the hero's advice came from
         adv = self._advisor()

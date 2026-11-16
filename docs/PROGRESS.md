@@ -5739,3 +5739,44 @@ Asked for: less on the line you act on in a retry ("pot 8bb · BB checks, UTG be
 - Checked: tsc and eslint clean; review and practice unit tests 1,443 passed, with a new Review test for where the pot
   and the price are said. In the browser, a 6-max flop retry (UTG bets 4bb into 8bb) shows "pot 8bb" by the board, the
   bare line, and "call 4bb".
+
+
+### 2026-11-16: a 3-way flop raise that stood on the betting rules' ranges
+
+Asked for: is the advice to raise K7s right in 6-max 100bb, UTG opens 2.5, BTN calls with Kd7d, BB calls, Qs7s6d, BB
+checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong, why, and fix the like of it.
+
+- It was wrong, and the cause was the ranges, not the solve. The 3-way solve starts at the button's decision and
+  takes everyone's ranges as given. On the street being advised on, the actions before your first decision (BB's
+  check, UTG's bet) were narrowed by the betting rules, not a solve. The rules gave UTG's half-pot bet 60 combos (27%
+  of its opens): sets, AQ and overpairs whole, plus up to 40% of the range in hands they check at 0.14 each (22-55,
+  AJo, KJo, QJ, JJ). Against that, the solve has UTG fold half its range to a raise (60% of its top pairs) and BB 96%,
+  so raising K7s won +1.39 bb (call +0.04; reproduced locally at the worker's Fast config).
+- Checked independently. A solve of the flop from its start, settled (400 iterations, 0.0% of the pot), has UTG bet
+  half the pot with 23 combos (it checks 88%), and K7s then calls: +2.22 against a raise's +1.17. Against hand-built
+  ranges (UTG's bet as value and draws, a third of its opens; BTN's flat and BB's defence by hand) K7s is a fold
+  (call -2.37, raise -0.16), and only if UTG bets its whole range do call and raise tie (+2.51/+2.59). In none of
+  them is a pure raise right. The exploitability shown (0.07%) was the node's own solve, on the wrong ranges.
+- Fix (solver/gto/advisor.py, declared in solver/UPSTREAM.json): where someone bet or raised before your first decision
+  on a 3-way street and no solve or library line covers it, the street is solved from its start to narrow the ranges
+  (`mw_current_solve`, the full time budget at most, stopping once settled; not for Quick), with the bet made in its
+  tree in place of the menu's nearest size (`_mw_sized`: a half-pot bet was read as the menu's third). The node's own
+  solve keeps its whole budget. At Fast the spot now calls (+1.74, raise +1.44; narrowing 101 iterations, 0.8% of the
+  pot, followed 93%), in about 10 s natively where it took 3. 9s8s still raises, QhJh mixes, 88 mostly folds.
+- The like of it: a hand outside your range at a 3-way node (K7s isn't in BTN's flat range) showed the solve's
+  regret-matching mix (live, and as the 3-way library stores it), which could say call 100% beside a raise with a
+  higher EV. Both now show the best response by the EVs printed (`_best_response_mix`). And the
+  page didn't mark an answer approximate when a 3-way narrowing solve was followed only in part; it does now
+  (`provenance.ts`, the same words as the heads-up note).
+- Tried and dropped: retuning the rules' softening. Over 18 flops (three preflop lines, six flops;
+  `scripts/engine/measure_mw_rules_tv.py`, 150 iterations each) the rules' bet and raise ranges were 0.432 off a
+  solve's in total variation and their call ranges 0.411. Sweeping NARROW_SOFT (0.3, 0.15, 0.08, 0) and OFF_RULE_MAX
+  (0.4, 0.2, 0.1) left the bets at 0.429-0.453 (none better than 0.003); less softening brought the calls to 0.358
+  but the bets to 0.453. The rules are wrong in which hands they keep, not in how much filler they add, so nothing
+  there changed. Quick answers and 4-way and larger streets still narrow by the rules and say so.
+- Checked: scripts/engine/test_mw_narrowing.py 6 passed (the spot at fixed iterations calls, Quick and a check in front
+  keep the rules, the size swap, the best response); solver tests test_multiway_solver and test_mw_library passed with
+  the two declared edits; test_study, test_gto (169, 5 expected failures), test_triage, test_settled, test_instant,
+  test_off_solution and test_rare_resolve passed; web/src/solver vitest passed with provenanceMw.test.ts. The full
+  scripts/engine run had 253 tests with 2 failing, both in test_pf_engine.StoredGrid, which tests another session's
+  uncommitted preflop store build, not this change.

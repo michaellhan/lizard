@@ -2051,6 +2051,49 @@ def _mw_pick(node, a: dict) -> Optional[int]:
                                                                kind.index(node.names[i].split()[0])))
 
 
+# the current 3-way street's narrowing solve: at least this share of the time budget (Lizard; it stops once settled,
+# MW_SETTLED). On Qs7s6d (UTG opens, BTN and BB call; BB checks, UTG bets half the pot) Fast's 3 s ran 50-80 iterations
+# natively under load, 1.3-4% of the pot from equilibrium, followed 20-80%; 100 were under 1%, 400 settled
+MW_CURRENT_NARROW = 1.0
+MW_SIZE_NEAR = 0.05   # a narrowing solve's menu keeps its size when the street's first bet is within this share of the pot
+
+
+def _mw_sized(conf: dict, street: str, acts, pot: float) -> dict:
+    """A 3-way street solve's config (MWConfig fields) with the street's first bet (`acts`, into `pot`) in its menu in
+    place of the nearest size, where none is within MW_SIZE_NEAR of the pot of it (an all-in keeps the menu: the tree
+    has one). Lizard patch, 2026-11-16."""
+    first = next((a for a in acts if a.get("action") in ("bet", "raise", "all-in")), None)
+    if first is None or first.get("action") != "bet" or pot <= 1e-9:
+        return conf
+    to = first.get("to") if first.get("to") is not None else first.get("amount")
+    if to is None:
+        return conf
+    from . import multiway_solver as MW
+    f = round(float(to) / pot, 3)
+    bet = dict(conf.get("bet") or MW.MWConfig().bet)
+    menu = bet.get(street)
+    sizes = list(menu) if isinstance(menu, (list, tuple)) else [menu] if menu is not None else []
+    if not sizes or min(abs(x - f) for x in sizes) <= MW_SIZE_NEAR:
+        return conf
+    i = min(range(len(sizes)), key=lambda j: abs(sizes[j] - f))
+    sizes[i] = f
+    bet[street] = sorted(sizes) if isinstance(menu, (list, tuple)) else sizes[0]
+    return {**conf, "bet": bet}
+
+
+OFF_RANGE_NOTE = ("your hand isn't in your range for this line: the answer is its best response, the highest EV against the "
+                  "others' solved strategies (the solve gives a hand it never plays no mix of its own)")
+
+
+def _best_response_mix(ev) -> np.ndarray:
+    """A hand its range gives no weight at a multiway node: the action(s) with the highest EV (within a hundredth of a
+    bb), shared equally. The solve's own mix for it (live or stored in the 3-way library) is its regret-matching
+    strategy, which can put 100% on calling beside a raise with a higher EV. Lizard patch, 2026-11-16."""
+    ev = np.asarray(ev, dtype=np.float64)
+    m = (ev >= ev.max() - 0.005).astype(np.float64)
+    return m / m.sum()
+
+
 def _mw_follow(node, R, a: dict, players, rare: float = RARE_LINE):
     """One real action `a` down a multiway solve's root street from `node` (its tree's nearest: _mw_pick): its
     player's reach R[p] (per combo, in place) times the solve's average mix for it; the child. _NoInstant where the
@@ -2914,6 +2957,13 @@ class Advisor:
         # an earlier 3-way street with no solve from your advice on it: solve it from its start (prior_budget) to narrow
         # the ranges through (_mw_walk); off: the rules narrow it (native Accurate on: its 12 s settle a flop enough)
         self.mw_prior_solve = False
+        # ...and the street being advised on, where someone bet or raised before your first decision on it and nothing
+        # solved it (no advice of yours on the street, no 3-way library line): solve it from its start (prior_budget, at
+        # least MW_CURRENT_NARROW of the time budget; the bet made in its tree) to narrow the ranges, unless the answer
+        # is a quick one (Lizard patch, 2026-11-16: the rules alone put 40% filler in UTG's half-pot bet on Qs7s6d, and
+        # the button's solve raised K7s into it)
+        self.mw_current_solve = True
+        self._mw_narrow_s = 0.0   # (seconds the current street's narrowing solve took: the node's solve keeps its own)
         self._mw_cache: Dict[tuple, object] = {}
         self._mw_lines: Dict[tuple, tuple] = {}   # the hand's line up to a 3-way solve's root -> (solve, players)
         self.warm_from: Optional["Advisor"] = None   # another advisor (e.g. a faster config) whose solves seed ours
@@ -4814,6 +4864,7 @@ class Advisor:
                              f"{len(big[0].players_start)} players saw the {big[0].name}"}
         slow: Dict[str, np.ndarray] = {}
         by_rules = []
+        self._mw_narrow_s = 0.0
         for st in mw_streets:
             if self._showdown and not st.actions:
                 continue   # (everyone all-in: nothing to narrow by)
@@ -5392,8 +5443,7 @@ class Advisor:
         hi = COMBO_INDEX[(min(hole), max(hole))] if hole else None     # (Study: no cards of the actor's own)
         rs = [ranges.get(p, np.ones(N_COMBOS)) for p in players]
         if hi is not None and rs[hp][hi] <= 1e-9:
-            notes.append("your hand isn't in your range for this line: its mix is the solve's current (regret-matching) "
-                         "strategy for it, against the ranges as they are")
+            notes.append(OFF_RANGE_NOTE)
         pending = {i for i, p in enumerate(players) if p not in cur.acted}
         pending.add(hp)
         n_act = len(players) - len(shoved)
@@ -5473,7 +5523,8 @@ class Advisor:
                 return None
             self._mw_cache[key] = sol
         spent = sol.build_seconds + sol.seconds
-        left = min(budget - spent, budget - (time.time() - t0))
+        # (the current street's narrowing solve, _mw_walk, had its own prior_budget: this solve keeps its whole budget)
+        left = min(budget - spent, budget + getattr(self, "_mw_narrow_s", 0.0) - (time.time() - t0))
         self._mw_run(sol, left)
         self._keep("_mw_cache", key, sol)
         root = sol.root
@@ -5503,7 +5554,7 @@ class Advisor:
         shown = _mw_names(root.names, root.amounts, behind[hero], S_h, root.pot_now)
         if not self._study:   # (Study: no cards of the actor's own; the whole range's answer, _study_mw_node)
             ci = sol.combo_index(hole)
-            mine = sol.hand_strategy(ci, hp)
+            mine = sol.hand_strategy(ci, hp) if sol.reach0[hp, 0, ci] > 1e-12 else _best_response_mix(evs[:, ci])
             acts = []
             for a, name in enumerate(shown):
                 amt = root.amounts[a]
@@ -6615,9 +6666,20 @@ class Advisor:
                 hit, k, src = (lib, [p for p in st.order if p in st.players_start], lib.exploitability()), 0, \
                     "the precomputed 3-way solve"
         if hit is None:
-            if current or not self.mw_prior_solve or st.name not in self.mw_solve_streets:
+            # (the current street: only behind a bet or raise, which the rules narrow worst (their bet and call ranges
+            # were 0.43 and 0.41 off a solve's in total variation over 18 flops, scripts/engine/measure_mw_rules_tv.py);
+            # checks keep CHECK_SOFT's fit. Its solve gets MW_CURRENT_NARROW of the time budget where prior_budget is
+            # less)
+            aggr = any(a.get("action") in ("bet", "raise", "all-in") for a in acts)
+            if not acts or st.name not in self.mw_solve_streets or not (
+                    self.mw_current_solve and aggr and not getattr(self, "_quick", False) if current
+                    else self.mw_prior_solve):
                 return False
-            hit, k = self._mw_street_solve(bk, before, st, stk), 0
+            t_w = time.time()
+            hit, k = self._mw_street_solve(bk, before, st, stk, acts, budget=max(
+                self.prior_budget, MW_CURRENT_NARROW * self.time_budget) if current else None), 0
+            if current:
+                self._mw_narrow_s += time.time() - t_w
             src = "a solve from the street's start"
             if hit is None:
                 return False
@@ -6918,8 +6980,7 @@ class Advisor:
                                        min(stk[p] - cur.inv_start[p] for p in players), board, positions or [],
                                        notes, t0, None if self._study else hole)
         if ci is not None and sol.reach0[hp, 0, ci] <= 1e-12:
-            notes.append("your hand isn't in your range for this line: its mix is the solve's current (regret-matching) "
-                         "strategy for it, against the ranges as they are")
+            notes.append(OFF_RANGE_NOTE)
         R = sol.reach_at(path)
         expl = sol.exploitability()
         gains = sol.br_gains() / sol.root_pot() * 100
@@ -6940,7 +7001,7 @@ class Advisor:
             return self._study_mw_node(sol, node, R, players, hp, shown, strat, evs, 0.0, S, board, cur, positions or [],
                                        solver, notes + [lib_note, "best-response gains (% pot): " + ", ".join(
                                            f"{p} {g:.2f}" for p, g in zip(players, gains))], t0, precomputed=sol.info())
-        mine = strat[:, ci]
+        mine = strat[:, ci] if R[hp, 0, ci] > 1e-12 else _best_response_mix(evs[:, ci])
         acts = [{"action": name, "freq": round(float(mine[a]), 3), "ev_bb": round(float(evs[a, ci]), 2),
                  "amount_bb": None if node.amounts[a] is None else round(float(node.amounts[a]), 2)}
                 for a, name in enumerate(shown)]
@@ -6987,17 +7048,20 @@ class Advisor:
                 sol.settled = True
             left -= time.time() - t
 
-    def _mw_street_solve(self, board, ranges, st: StreetState, stk):
+    def _mw_street_solve(self, board, ranges, st: StreetState, stk, acts=(), budget=None):
         """(solve, players, exploitability % pot) of a 3-way street from its start, for narrowing (prior_budget), or
-        None (someone all-in at its start)."""
+        None (someone all-in at its start). `acts`: the street's actions, whose first bet takes the place of the
+        menu's nearest size where none is within MW_SIZE_NEAR of it (a half-pot bet read as the menu's third had UTG's
+        merged range betting where its half-pot bet is a stronger one)."""
         from . import multiway_solver as MW
         players = [p for p in st.order if p in st.players_start]
         stacks = tuple(round(float(stk[p] - st.inv_start[p]), 2) for p in players)    # (each its own: side pots)
         if min(stacks) <= 1e-9:
             return None
         rs = [ranges.get(p, np.ones(N_COMBOS)) for p in players]
-        mcfg = MW.MWConfig(rake_rate=self.cfg.rake_rate, rake_cap=self.cfg.rake_cap,
-                           **{**self.mw_street_config.get(st.name, {}), **(self.mw_config or {})})
+        conf = {**self.mw_street_config.get(st.name, {}), **(self.mw_config or {})}
+        conf = _mw_sized(conf, st.name, acts, st.pot_start)
+        mcfg = MW.MWConfig(rake_rate=self.cfg.rake_rate, rake_cap=self.cfg.rake_cap, **conf)
         model = getattr(self, "_icm", None)
         if model is not None:     # (a tournament's street narrows by its prize payoffs too: see _multiway_solve)
             from .icm import MWPayoffs
@@ -7008,7 +7072,7 @@ class Advisor:
         if sol is None:
             sol = self._mw_cache[key] = MW.MultiwaySolver(board, rs, st.pot_start,
                                                           stacks if len(set(stacks)) > 1 else stacks[0], cfg=mcfg)
-        self._mw_run(sol, self.prior_budget - sol.build_seconds - sol.seconds)
+        self._mw_run(sol, (self.prior_budget if budget is None else budget) - sol.build_seconds - sol.seconds)
         self._keep("_mw_cache", key, sol)
         gains = sol.br_gains() / sol.root_pot() * 100
         return sol, players, float(max(gains.mean(), 0.0))

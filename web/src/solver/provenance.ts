@@ -86,6 +86,9 @@ function borrowedOf(r: AdvisorResponse): string | null {
 const UNSETTLED_NOTE = /^(\w+): the solve that narrows ranges is ([\d.]+)% of the pot from equilibrium \((\d+) iterations\), so ranges follow it (\d+)%/;
 const RULES_NOTE = /^(\w+): ranges narrowed by simple betting rules/;
 const MW_RULES_NOTE = /^([\w, ]+): multiway, ranges narrowed by simple betting rules/;
+/** A 3-way street narrowed through a solve (your advice's, the 3-way library's, or one from the street's start) followed
+ * only in part, by how settled it was (advisor.py _mw_walk, trust_of): the rest is the betting rules'. */
+const MW_PARTIAL_NOTE = /^(\w+): 3-way, ranges narrowed through (.+?) \((\d+) iterations, ([\d.]+)% of the pot from equilibrium: followed (\d+)%/;
 
 /** The ranges behind an answer in words, where an earlier street narrowed them by the betting rules in part or whole;
  * null where every earlier street was solved and settled (or there was none). */
@@ -94,7 +97,9 @@ export function rangesOffOf(r: AdvisorResponse): string | null {
   for (const n of r.notes ?? []) {
     const u = UNSETTLED_NOTE.exec(n);
     const rules = RULES_NOTE.exec(n) ?? MW_RULES_NOTE.exec(n);
-    if (u) out.push(`the ${u[1]}'s narrowing solve stopped ${u[2]}% of the pot from equilibrium after ${u[3]} iterations on its time budget, so the ranges follow it ${u[4]}% and the betting rules the rest, and can differ from run to run`);
+    const mw = MW_PARTIAL_NOTE.exec(n);
+    if (mw && Number(mw[5]) < 100) out.push(`the ${mw[1]}'s 3-way narrowing solve stopped ${mw[4]}% of the pot from equilibrium after ${mw[3]} iterations, so the ranges follow it ${mw[5]}% and the betting rules the rest, and can differ from run to run`);
+    else if (u) out.push(`the ${u[1]}'s narrowing solve stopped ${u[2]}% of the pot from equilibrium after ${u[3]} iterations on its time budget, so the ranges follow it ${u[4]}% and the betting rules the rest, and can differ from run to run`);
     else if (rules) out.push(`ranges through the ${rules[1]} from the betting rules, not a solve`);
   }
   return out.length ? out.join("; ") : null;
