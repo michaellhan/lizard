@@ -6008,3 +6008,30 @@ decision: raise `MAX_FILES` (120,000 suggested). The note is in the session's sh
 
 **State.** The build was started at 18:13 and is queued for a heavy slot (both were taken by the depths build and an
 upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `heavy status`. Builds left alone.
+
+## 2026-11-17: Three finished library builds merged and published (53 spots)
+
+- Three builds had finished but sat on unmerged branches from 2026-11-11, so the 6-hourly publish kept saying "nothing
+  changed": the 3-way spots to every flop (`claude/lib-3way-every-flop-de5889`, 6,280 entries, done 2026-11-16), the
+  spots at 40bb and 200bb (`claude/lib-stack-depths-3d0a53`, 8 spots on 184 flops, done 2026-11-16) and the breadth
+  build (`claude/library-breadth-26407b`, 25 heads-up 100bb spots on 552 flops, done 2026-11-15).
+- Merged one at a time. Each branch had added its own source to `assemble.py` beside the srp-every-flop extension
+  that main gained meanwhile, so the conflicts were adjacent additions, kept together: sources (`EXTEND_SOURCES`,
+  `MW_SOURCES`, `FORMAT_SOURCES`, `BREADTH_SOURCES` under one `SOURCES`), their flags, the out-of-source check, and
+  the breadth step after the 3-way carry-over. The tests' `run` now points every default source (`--extend`, `--mw`,
+  `--formats`, `--breadth`) at a missing folder, so no test reads a real build. `depths_build.py` (in git now, from
+  the depths branch) keeps the stall watchdog added on 2026-11-16.
+- File cap: `MAX_FILES` 60,000 → 90,000. With 49,298 files already published, the 60,000 cap would have admitted about
+  one of the 25 breadth spots (the breadth step fills what is left, by value). It was the project's own figure: GitHub
+  Pages limits a site to 1 GB, not a file count, and its build took 80 s for 49,298 files on 2026-11-15. The byte cap
+  stays 900 MB.
+- Published: library `b3d8a40c`, 53 spots and 4 three-way spots, 78,565 files, 459 MB, no validation notes. Live:
+  `publish.sh` saw the site serve the new index and summary; `lizard-library.json` lists 53 spots and the four 3-way
+  spots at 1,755; `srp_utg_utg1_8max/report.json` and `mw_co_btn_bb/heads.json` are served.
+- CI's unit job failed on this merge (and on 59c8e40) with 3,797 tests passing: two unhandled "window is not defined"
+  errors from `SolvePage.persist.test.tsx`, the page's saved-range list arriving after the test's teardown and setting
+  state. `SolvePage` now ignores a list that arrives after it unmounts, as Ranges and the combo quiz already did.
+- Checked: `test_assemble.py` 31 passed; web tsc, eslint, and vitest on library, reports, study and solver (743
+  passed); a dry run against the real sources first; the live index (above).
+- Left: the heads-up limped build (`claude/lib-hu-limped-4f0ae6`) is still solving, so its branch stays unmerged until
+  it finishes; the new spots get nut shares on a later publish, once no heads-up build is running.

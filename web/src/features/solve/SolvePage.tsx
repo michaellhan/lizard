@@ -139,9 +139,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   const [fromStart, setFromStart] = useState(false);
   const [saved, setSaved] = useState<SavedRange[]>([]);
   useEffect(() => {
+    let live = true; // (a list that arrives after the page has gone sets nothing: a test's teardown, a fast navigation)
     void listRanges()
-      .then(setSaved)
-      .catch(() => setSaved([]));
+      .then((r) => live && setSaved(r))
+      .catch(() => live && setSaved([]));
+    return () => {
+      live = false;
+    };
   }, []);
 
   const seats = seatsOf(players);
