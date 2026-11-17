@@ -118,13 +118,37 @@ One merged format-2 library, because the solver worker reads a single base URL:
 - the 6-max library from `solver/gto/static/flop_library/` (gitignored here; a verified copy of
   `/gto-solver-library/`): 18 spots and 4 three-way spots;
 - the heads-up spots from the offline builds in `/Users/mhan/Desktop/projects/gtosolver/.work/hu-lib` and
-  `.work/hu-lp-lib`, as far as they have got. Whether or not a build is running, its output is only ever read.
+  `.work/hu-lp-lib`, as far as they have got. Whether or not a build is running, its output is only ever read;
+- the 3-way spots' flops beyond their 185 from Lizard's own build in `library-build/sources/mw-every-flop` (below),
+  added to the published 3-way spots in `mw_index.json` as they finish. Each 3-way spot also gets `heads.json`, its
+  entries' stored mixes in one file, which the Reports page reads instead of one entry per flop.
 
 `lizard-library.json` at the site root records what each publish contained: per-spot flop counts, file count, and any
 flops left out by validation. Each spot also has a `target`, the flop count it is being built to, which the app's
 Library page reads for its progress bars. It comes from the solver's `SPOT_FLOPS` (`solver/gto/flop_library.py`),
 overridden by `BUILD_PLANS` in `assemble.py`. That override is where the heads-up SRP's extension to all 1,755 flops
-is recorded. A spot with no plan gets `null`, and the page then shows only its count.
+is recorded. A spot with no plan gets `null`, and the page then shows only its count. The 3-way spots' targets are
+`multiwayTargets` (from `MW_BUILD_PLANS` in `assemble.py`: 1,755 each).
+
+### The 3-way build to every flop
+
+`scripts/library/build_mw_every_flop.py` solves the four 3-way spots on the 1,570 flops each that the published 185
+lack (6,280 entries), with the solver snapshot's own `build_mw_library.solve_entry` and settings (same ranges, tree and
+stopping rule: at least 200 iterations, then until under 0.1% of the pot, at most 800), nothing in `solver/` changed.
+It goes flop by flop over all four spots, the rest of `representative_flops(552)` first, then the other flops. It
+runs detached through `heavy -x` (2 worker processes, about 0.5 GB each) and writes into the main checkout's ignored
+`library-build/sources/mw-every-flop`, with a copy of the driver in its `bin/`:
+
+```bash
+scripts/library/mw_every_flop.sh status   # running or not, progress.json (done, left, mean s/entry, ETA), the log
+scripts/library/mw_every_flop.sh stop     # finished entries stay
+scripts/library/mw_every_flop.sh start    # resumes: every finished, current entry is kept
+```
+
+Measured 2026-11-11 at normal priority: 15 s and 0.52 GB for a 300-iteration entry (BTN open, SB and BB call, 4♣3♦2♥),
+55–80 ms an iteration, so about 20–30 s an entry at the stored 300–600 iterations: about 45 CPU hours in all, about a
+day with 2 workers on the performance cores. Under `heavy` it gets the efficiency cores at background priority beside
+another heavy job, so expect a few days once it holds a slot; `progress.json` has the measured rate.
 
 ### Publish
 
@@ -152,6 +176,8 @@ Guarantees, enforced by `assemble.py`:
   files, the report hash);
 - no spot ever has fewer flops than in the previous release;
 - a source on a different tree or format is skipped;
+- a 3-way build's flops join only a published 3-way spot of the same ranges, pot and stack, and the base's entry
+  wins a flop both hold;
 - the stage stays under 50 MB per file, 900 MB in total and 60,000 files.
 
 The tests are in `scripts/library/test_assemble.py`.

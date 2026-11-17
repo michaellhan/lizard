@@ -5892,3 +5892,31 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
 - Same weakness, not changed: `library-build/sources/mw-every-flop/bin/build_mw_every_flop.py` (running and healthy,
   ~990 of 6,280 left) and `scripts/library/build_srp_every_flop.py` (not running) use the same `Pool`. If either goes
   quiet with idle processes, stop it and start it again; both keep entries on disk.
+
+## 2026-11-11 — The 3-way spots' build to every flop
+
+- **Build.** `scripts/library/build_mw_every_flop.py` solves the 1,570 flops each of the four published 3-way spots
+  lacks (6,280 entries) with the snapshot's own `build_mw_library.solve_entry`, `current()` and default settings, so
+  each entry is one upstream's build would write (ranges, pot, stack and tree checked equal to the published spots'
+  before it starts). Flop by flop over all four spots, `representative_flops(552)`'s first; resumable (atomic writes,
+  `mw_index.json` rewritten after each entry, `progress.json`). `scripts/library/mw_every_flop.sh start|stop|status`
+  runs it detached (own session, nohup, pid file) through `heavy -x` with 2 workers into the main checkout's ignored
+  `library-build/sources/mw-every-flop`. Started 17:02, queued behind two other heavy jobs. Measured at normal priority:
+  15 s and 0.52 GB for one 300-iteration entry, 55–80 ms an iteration, so about 45 CPU hours in all. Stop and resume
+  checked on a scratch copy (all workers exit, the finished entry and the index stay).
+- **Assemble.** `assemble.py --mw DIR` (default that folder) adds a 3-way build's finished flops to the published 3-way
+  spots: same tree and same ranges, pot and stack only, each entry checked by its sha1, the base's entry winning a flop
+  both hold; a 3-way spot never has fewer flops than the previous release. Each 3-way spot gets `heads.json` (its
+  entries' header mixes, named in `mw_index.json` as `heads`), and `lizard-library.json` gets `multiwayTargets`.
+  Checked against the real library into a throwaway stage (43,268 files, 298 MB; heads.json 19 KB at 186 flops).
+- **Web.** The 3-way report read every entry (1,755 fetches at every flop); it now reads `heads.json` (falling back to
+  the entries), and weights flops by texture strata rather than assuming the 184-flop sample (each flop's own suit
+  count at 1,755). The Library page shows the 3-way spots' progress bars from `multiwayTargets`. The worker's 3-way
+  library and Study need no change for more flops.
+- **EVs.** The 3-way entries already store each hand's EV per action at the three stored decisions; only range totals
+  are missing from the headers (the Reports columns). They could be added from the stored entries with no new solving;
+  not done (format change left to the owner).
+- Tests: `python -m unittest discover -s scripts/library` 23 passed (8 new); `vitest run src/library
+  src/features/reports` passed (6 new in `mwReport.test.ts`; the snapshot checks also run against the main checkout's
+  library); `tsc -b`, eslint clean. Browser: Reports on a local stage read mw_btn_sb_bb from `heads.json` alone.
+- The gtosolver builds and the main checkout's publish were left alone; nothing published.

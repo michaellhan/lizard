@@ -28,6 +28,8 @@ export interface LibrarySpotIndex {
   report?: string;
   /** sha1(nuts.json)[:10], where the library has each flop's nut share (scripts/library/nuts.py) */
   nuts?: string;
+  /** a 3-way spot's sha1(heads.json)[:10]: its entries' stored mixes in one file (scripts/library/assemble.py) */
+  heads?: string;
 }
 
 /** the flops of a spot with a stored turn file */
@@ -64,6 +66,8 @@ export interface SpotCoverage {
 /** lizard-library.json: what a Lizard library publish contained (only the fields read here). */
 export interface LibraryPlan {
   spots?: Record<string, { flops: number; target?: number | null }>;
+  /** the 3-way spots' flop counts they are being built to (assemble.py MW_BUILD_PLANS) */
+  multiwayTargets?: Record<string, number | null>;
 }
 
 export interface LibraryCatalog {
@@ -103,7 +107,7 @@ export function summarize(index: LibraryIndex, mw?: LibraryIndex | null, plan?: 
       tableStack: s.game?.stack ?? 100,
       line: s.line,
       flops: n,
-      target: plan?.spots?.[s.id]?.target ?? null,
+      target: plan?.spots?.[s.id]?.target ?? plan?.multiwayTargets?.[s.id] ?? null,
       storedTurns: Boolean(s.turns),
       game: gameLabel(s),
     });

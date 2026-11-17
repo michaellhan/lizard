@@ -3,7 +3,7 @@ import type { LibraryIndex } from "@/library/catalog";
 import { LibraryFiles, withNuts, type LibraryNuts, type LibraryReport } from "@/library/files";
 import { fromSearch } from "@/features/study/studyState";
 import { decodeHead } from "@/library/entry";
-import { MW_EXTRA_FLOPS, reportFromHeads } from "@/library/mwReport";
+import { reportFromHeads } from "@/library/mwReport";
 import { hasSnapshot, libFile, libJson, snapshotFile, snapshotJson } from "@/test/library";
 import {
   ALL_FLOPS,
@@ -262,8 +262,9 @@ describe("flop reports", () => {
     const flops = Object.keys(sp.flops).sort();
     const rep = reportFromHeads(sp, await Promise.all(flops.map((f) => decodeHead(libFile(`${sp.id}/${f}.bin`)))));
     expect([rep.seats, rep.pot, rep.line]).toEqual([["SB", "BB", "BTN"], 7.5, "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:c,BB:c"]);
-    // (the fixture's five flops read as the sample, each standing for a fifth of the flops; the extra flop for none)
-    expect(rep.flops.map((x) => [x.f, x.w])).toEqual(flops.map((f) => [f, f === "Kc7d2h" ? 0 : 22100 / 5]));
+    // (the fixture's six flops weighted by texture, together standing for every flop: library/mwReport.test.ts)
+    expect(rep.flops.map((x) => x.f)).toEqual(flops);
+    expect(Math.abs(rep.flops.reduce((a, x) => a + x.w, 0) - 22100)).toBeLessThan(1e-6);
     expect(Object.keys(rep.nodes)).toEqual(["", "check", "check|check"]);
     expect(viewsOf(rep)).toEqual(["oop", "ip", "third"]);
     expect(viewsOf(rep).map((v) => viewLabel(v, rep.seats))).toEqual(["SB first", "BB vs check", "BTN vs two checks"]);
@@ -293,9 +294,8 @@ describe("flop reports", () => {
   it.skipIf(!hasSnapshot)("every 3-way spot of the snapshot's library builds a report whose decisions sum to 1", async () => {
     for (const sp of snapshotJson<LibraryIndex>("mw_index.json").spots) {
       const rep = reportFromHeads(sp, await Promise.all(Object.keys(sp.flops).map((f) => decodeHead(snapshotFile(`${sp.id}/${f}.bin`)))));
-      // the 184-flop sample, each a 184th of the flops, and the extra flop
-      expect(rep.flops.filter((x) => x.w > 0), sp.id).toHaveLength(184);
-      expect(rep.flops.filter((x) => x.w === 0).map((x) => x.f), sp.id).toEqual([...MW_EXTRA_FLOPS]);
+      // every stored flop weighs something (by texture: library/mwReport.test.ts)
+      expect(rep.flops.filter((x) => x.w > 0), sp.id).toHaveLength(Object.keys(sp.flops).length);
       expect(Math.abs(coverage(rep).share - 1), sp.id).toBeLessThan(1e-9);
       expect(viewsOf(rep), sp.id).toEqual(["oop", "ip", "third"]);
       for (const v of viewsOf(rep)) expect(Math.abs(average(rows(rep, v)).freqs!.reduce((x, y) => x + y, 0) - 1), `${sp.id} ${v}`).toBeLessThan(0.005);
