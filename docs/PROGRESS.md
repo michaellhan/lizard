@@ -5920,3 +5920,91 @@ checks, UTG bets 4 into 8 (raise to 16 at 100%, +1.77 bb, call +0.35)? If wrong,
   src/features/reports` passed (6 new in `mwReport.test.ts`; the snapshot checks also run against the main checkout's
   library); `tsc -b`, eslint clean. Browser: Reports on a local stage read mw_btn_sb_bb from `heads.json` alone.
 - The gtosolver builds and the main checkout's publish were left alone; nothing published.
+
+## 2026-11-11: Library breadth (plan, measurements, build started)
+
+Task: grow the presolved library toward GTO Wizard's breadth without repeating the running builds (srp-every-flop,
+mw-every-flop, depths, hu-limped). The gtosolver schedule says Lizard owns the feature race since 11-04, so upstream
+builds none of this.
+
+**What has the most value.** Ranked by the share of 6-max heads-up flops reached
+(`solver/scripts/flop_library_coverage.py`, `preflop_spots`). The base spots reach 90.4%. The missing three flats
+and five 3bet pots add 5.5 points (to 95.9%), and the top nine 4bet pots about 1.2 more. 8-max and 9-max have no
+exact spot at all. Eight 8-max opens reach about 65% of 8-max heads-up flops, and 9-max hands read them exactly:
+the ranges match seat for seat and `FlopLibrary.spot` keys on fp, pot and stack only. 25 spots, in this order:
+
+- **Flats (old tree):** `srp_hj_sb`, `srp_co_btn`, `srp_utg_sb`.
+- **3bet pots (river dealt):** `3bp_btn_utg`, `3bp_sb_utg`, `3bp_bb_hj`, `3bp_sb_hj`, `3bp_bb_utg`.
+- **8-max opens (old tree), first group:** `srp_{btn,sb,co,utg,hj}_bb_8max`.
+- **4bet pots (river dealt):** `4bp_utg_hj`, `4bp_hj_co`, `4bp_co_btn`, `4bp_utg_btn`, `4bp_utg_sb`, `4bp_btn_sb`,
+  `4bp_btn_bb`, `4bp_sb_bb`, `4bp_co_sb`. The 4bet is 2.3 times the 3bet, as the advisor sizes it.
+- **8-max opens (old tree), second group:** `srp_lj_bb_8max`, `srp_utg1_bb_8max`, `srp_utg_utg1_8max`.
+
+**Measured per flop.** One process, any core, through `slot.sh`; peak RSS polled every second.
+
+| Spot | Tree | Flop | Seconds | Peak MB |
+|---|---|---|---|---|
+| 4bp_hj_co | river dealt | Kc7d2h / JcTd8d | 14 / 15 | 504 / 850 |
+| 4bp_btn_bb | river dealt | Ac9d4d | 13 | 804 |
+| 3bp_bb_hj | river dealt | Kc7d2h / JcTd8d | 17 / 27 | 781 / 1,351 |
+| srp_co_btn | river dealt | Kc7d2h / JcTd8d | 64 / 118 | 1,495 / 1,870 |
+| srp_hj_sb | river dealt | 8d8c3h | 109 | 1,383 |
+| srp_btn_bb_8max | river dealt | Kc7d2h | 127 | 1,590 |
+| srp_co_btn | old | Kc7d2h / JcTd8d | 4 / 6 | 252 / 371 |
+| srp_hj_sb | old | 8d8c3h | 4 | 233 |
+| srp_btn_bb_8max | old | Kc7d2h / JcTd8d | 9 / 19 | 473 / 777 |
+| srp_sb_bb_8max | old | 7c6c5c | 24 | 946 |
+| 3bp_bb_hj | old | JcTd8d | 1 | 161 |
+
+Single-raised pots on the river-dealt tree need 1.4 to 1.9 GB, which breaks the 1 GB rule. So they go on the old tree,
+the same standard as the library's 9 older spots. 3bet and 4bet pots mostly fit under 1 GB with the river dealt and get
+turn files. The peak comes within about a second of the start, when the tree is allocated. So the build's watchdog
+stops any worker past 1,000 MB at almost no cost, and solves that flop again on the old tree.
+
+**CPU estimate.** These are any-core hours; the efficiency cores under `heavy` are about twice as slow.
+
+| Phase | Entries | Flats | 3bp | 8-max | 4bp | Total |
+|---|---|---|---|---|---|---|
+| 1 (184 flops) | 4,600 | ~0.8 h | ~5.6 h | ~6.1 h | ~6.4 h | ~19 core-h, ~19 h wall |
+| 2 (to 552) | 9,200 more | | | | | ~38 core-h more, ~38 h wall |
+
+Wall time assumes 2 workers in one heavy slot.
+
+**Not built, and why.**
+
+- **Turn files for the 9 older-tree spots.** River-dealt re-solves need 1.4 to 1.9 GB a process, about 15,800
+  entries at ~90 s each (~395 core-h), and they double those spots' file count. They are blocked on the memory rule and
+  the file cap. `build_breadth.py run --redo-old` does it for this build's own spots if more memory is allowed.
+- **Raked variants.** Rake is part of the tree key, so each rake is another tree. The advisor's unraked read loses only
+  0.15 to 0.18% of the pot (`RAKE_READ`). This needs engine work, not CPU.
+- **A single-size library.** It needs a new entry format and reader (engine and web work).
+- **Other stack depths.** The depths build covers them. **5bet pots** reach too few flops to be worth it.
+
+**The file cap.** `assemble.py` refuses a stage over 60,000 files. The running builds end near 59,200, and this
+build adds about 7,200 (phase 1) and 14,400 more (phase 2). The cap is Lizard's own choice (Pages limits size to
+1 GB, not file count), and size stays near 450 MB. So assemble.py now adds breadth spots last, in value order, and only
+while the stage stays 200 files under the cap; a spot that doesn't fit waits and never breaks a publish. Owner
+decision: raise `MAX_FILES` (120,000 suggested). The note is in the session's shared notes, `library-breadth-file-cap.md`.
+
+**Built.**
+
+- `scripts/library/build_breadth.py` does the solving. `plan` prints counts per phase, `run --jobs 2` is a
+  subprocess per entry with an RSS watchdog, and `one SPOT FLOP` measures one flop. It resumes from what is on disk,
+  removes `.tmp` leftovers, rewrites `index.json` every 20 entries, and records memory fallbacks in
+  `over-memory.json`.
+- `scripts/library/breadth.sh start|stop|status` runs the detached build. It is one `heavy` job writing to
+  `library-build/sources/breadth/`, with the runner copied there.
+- `assemble.py --breadth` is a new source: spot targets come from its `plan.json`, it never shrinks a spot below
+  its previous release, and it leaves a spot to another source that holds the same line.
+- New spots need no web change. The Library page groups them by game ("8-max"). The `4bp_` spots fall under "Other"
+  until `kindOf` learns the prefix.
+
+**Tests.**
+
+- `scripts/library/test_assemble.py`: 14 passed, 4 of them new for the breadth source.
+- An end-to-end run in scratch: old-tree flats were solved, then 4bet flops with `--max-mb 400` were stopped past
+  ~490 MB and re-solved on the old tree. The rerun resumed, and `plan` counted both trees.
+- `assemble.py --breadth` on that output staged the two spots with targets of 184.
+
+**State.** The build was started at 18:13 and is queued for a heavy slot (both were taken by the depths build and an
+upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `heavy status`. Builds left alone.

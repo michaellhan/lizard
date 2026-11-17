@@ -97,6 +97,9 @@ def make_mw(root: Path, spots: dict, tree=None, fp=None) -> dict:
     return idx
 
 
+NO_BREADTH = Path(tempfile.gettempdir()) / "assemble-test-no-breadth"  # (never created: no breadth source)
+
+
 def run(*args) -> subprocess.CompletedProcess:
     if "--extend" not in args:
         args = (*args, "--extend", NO_EXT)
@@ -104,7 +107,19 @@ def run(*args) -> subprocess.CompletedProcess:
         args = (*args, "--mw", NO_MW)
     if "--formats" not in args:
         args = (*args, "--formats", NO_FORMATS)
+    if "--breadth" not in args:
+        args = (*args, "--breadth", NO_BREADTH)
     return subprocess.run([sys.executable, str(HERE / "assemble.py"), *map(str, args)], capture_output=True, text=True)
+
+
+def add_spot(root: Path, sid: str, fp: list, flops: dict, pot=6.0, turns=True) -> dict:
+    """One more spot in root's library (make_lib's, keeping the spots already in its index)."""
+    idx = json.loads((root / "index.json").read_text()) if (root / "index.json").exists() else None
+    spot = make_lib(root, sid, fp, flops, turns=turns)
+    spot["pot"] = pot
+    spots = (idx["spots"] if idx else []) + [spot]
+    (root / "index.json").write_text(json.dumps({"format": 2, "tree": TREE, "spots": spots}))
+    return spot
 
 
 class AssembleTest(unittest.TestCase):
@@ -296,6 +311,80 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(run("--out", self.out, "--base", self.base, "--hu", self.hu).returncode, 0)
         after = {p: p.read_bytes() for p in self.hu.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
+
+
+    # ------------------------------------------------------------------ breadth sources (build_breadth.py)
+    def breadth(self) -> Path:
+        b = self.tmp / "breadth"
+        add_spot(b, "4bp_hj_co", ["e", "f"], {"Ks7d2c": b"4b-1", "Qh8d3c": b"4b-2"}, pot=36.0)
+        add_spot(b, "srp_btn_bb_8max", ["g", "h"], {"Ks7d2c": b"8m-1"}, pot=5.5, turns=False)
+        (b / "plan.json").write_text(json.dumps({"spots": {"4bp_hj_co": 552, "srp_btn_bb_8max": 552}}))
+        return b
+
+    def test_breadth_spots_go_in_with_their_plan(self):
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--breadth", self.breadth())
+        self.assertEqual(r.returncode, 0, r.stderr)
+        spots = {s["id"]: s for s in self.index()["spots"]}
+        self.assertEqual(sorted(spots["4bp_hj_co"]["flops"]), ["Ks7d2c", "Qh8d3c"])
+        self.assertIs(spots["4bp_hj_co"]["turns"], True)
+        self.assertNotIn("turns", spots["srp_btn_bb_8max"])
+        self.assertTrue((self.out / "4bp_hj_co" / "Qh8d3c.turn.bin").exists())
+        summary = json.loads((self.out / "lizard-library.json").read_text())
+        self.assertEqual(summary["spots"]["4bp_hj_co"]["target"], 552)
+        self.assertEqual(next(x for x in summary["sources"] if x["kind"] == "breadth build")["spots"],
+                         {"4bp_hj_co": 2, "srp_btn_bb_8max": 1})
+
+    def test_a_breadth_spot_another_source_holds_is_left_to_it(self):
+        b = self.breadth()
+        add_spot(b, "srp_btn_bb_copy", ["a", "b"], {"Ks7d2c": b"other", "2c2d2h": b"more", "3c3d3h": b"x"})
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--breadth", b)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ids = [s["id"] for s in self.index()["spots"]]
+        self.assertNotIn("srp_btn_bb_copy", ids)
+        self.assertIn("srp_btn_bb holds these ranges", r.stdout)
+
+    def test_breadth_spots_stop_short_of_the_file_cap(self):
+        sys.path.insert(0, str(HERE))
+        try:
+            import assemble
+        finally:
+            sys.path.remove(str(HERE))
+        self.out.mkdir()
+        for i in range(5):
+            (self.out / f"f{i}").write_text("x")
+        old = assemble.MAX_FILES
+        try:  # 5 files staged + 6 for 4bp_hj_co (2 entries, 2 turn files, report, ranges) fit; the 8-max spot's 3 don't
+            assemble.MAX_FILES = 5 + 6 + assemble.BREADTH_RESERVE + 2
+            log = []
+            merged, summary = assemble.add_breadth(self.breadth(), self.out, [], TREE, log)
+        finally:
+            assemble.MAX_FILES = old
+        self.assertEqual([s["id"] for s in merged], ["4bp_hj_co"])
+        self.assertEqual(summary["spots"], {"4bp_hj_co": 2})
+        self.assertTrue(any("srp_btn_bb_8max: left out" in x and "file cap" in x for x in log), log)
+        self.assertFalse((self.out / "srp_btn_bb_8max").exists())
+
+    def test_a_breadth_spot_grows_over_its_previous_release_and_never_shrinks(self):
+        prev = self.tmp / "prev"
+        b = self.breadth()
+        self.assertEqual(run("--out", prev, "--base", self.base, "--hu", self.hu, "--breadth", b).returncode, 0)
+        b2 = self.tmp / "breadth2"
+        add_spot(b2, "4bp_hj_co", ["e", "f"], {"Ks7d2c": b"4b-1", "Qh8d3c": b"4b-2", "9c5d2h": b"4b-3"}, pot=36.0)
+        r = run("--out", self.out, "--base", self.base, "--hu", self.hu, "--breadth", b2, "--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        spots = {s["id"]: s for s in self.index()["spots"]}
+        self.assertEqual(len(spots["4bp_hj_co"]["flops"]), 3)
+        self.assertEqual(len(spots["srp_btn_bb_8max"]["flops"]), 1)  # gone from the source: kept from the release
+        self.assertFalse(any(p.name.endswith(".held") for p in self.out.iterdir()))
+        # a breadth copy that fails validation keeps the previous release's
+        out3 = self.tmp / "stage3"
+        (b2 / "4bp_hj_co" / "9c5d2h.bin").write_bytes(b"tampered")
+        (b2 / "4bp_hj_co" / "Qh8d3c.bin").write_bytes(b"tampered")
+        r = run("--out", out3, "--base", self.base, "--hu", self.hu, "--breadth", b2, "--previous", prev)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = next(s for s in json.loads((out3 / "index.json").read_text())["spots"] if s["id"] == "4bp_hj_co")
+        self.assertEqual(sorted(s["flops"]), ["Ks7d2c", "Qh8d3c"])
+        self.assertEqual((out3 / "4bp_hj_co" / "Qh8d3c.bin").read_bytes(), b"4b-2")
 
 
 class ExtendTest(unittest.TestCase):

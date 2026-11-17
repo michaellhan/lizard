@@ -122,6 +122,10 @@ One merged format-2 library, because the solver worker reads a single base URL:
 - the 3-way spots' flops beyond their 185 from Lizard's own build in `library-build/sources/mw-every-flop` (below),
   added to the published 3-way spots in `mw_index.json` as they finish. Each 3-way spot also gets `heads.json`, its
   entries' stored mixes in one file, which the Reports page reads instead of one entry per flop.
+- new spots from Lizard's breadth build in `library-build/sources/breadth` (`scripts/library/breadth.sh`,
+  `build_breadth.py`: 6-max flats, 3bet and 4bet pots the base lacks, and 8-max spots, which also answer 9-max).
+  They go in last, in the build's value order, each only while the stage stays 200 files under the file cap, so the
+  build can't make a publish fail. Their targets come from the source's `plan.json`.
 
 `lizard-library.json` at the site root records what each publish contained: per-spot flop counts, file count, and any
 flops left out by validation. Each spot also has a `target`, the flop count it is being built to, which the app's
@@ -178,7 +182,7 @@ Guarantees, enforced by `assemble.py`:
 - a source on a different tree or format is skipped;
 - a 3-way build's flops join only a published 3-way spot of the same ranges, pot and stack, and the base's entry
   wins a flop both hold;
-- the stage stays under 50 MB per file, 900 MB in total and 60,000 files.
+- the stage stays under 50 MB per file, 900 MB in total and 90,000 files (raised from 60,000 on 2026-11-17: GitHub Pages limits a site to 1 GB, not a file count, and deployed 49,298 files in 80 s).
 
 The tests are in `scripts/library/test_assemble.py`.
 

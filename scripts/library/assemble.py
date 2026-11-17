@@ -28,8 +28,13 @@ Safety (the heads-up builds are still running and own their directories):
   - a spot (heads-up or 3-way) that fails or shrinks keeps its previous release (--previous), so a publish never
     loses flops.
 
+Breadth sources (--breadth; by default library-build/sources/breadth, scripts/library/build_breadth.py) are Lizard's
+builds of new spots (lines the other sources don't have). They go in last, each spot only while the stage stays under
+the file cap (MAX_FILES, less a reserve), in the source index's order (its value order), so a breadth build can never
+make a publish fail; a spot another source holds (by id or by ranges, pot and stack) is left to that source.
+
 Usage: assemble.py --out library-build/stage [--previous library-build/lizard-library] [--hu DIR ...] [--mw DIR ...]
-       [--formats DIR ...] [--extend DIR ...]
+       [--formats DIR ...] [--extend DIR ...] [--breadth DIR ...]
 Exit status 0 when the stage is complete and consistent; the summary goes to stdout and the stage's
 lizard-library.json.
 """
@@ -57,6 +62,8 @@ EXTEND_SOURCES = [SOURCES / "srp-every-flop"]
 MW_SOURCES = [SOURCES / "mw-every-flop"]  # scripts/library/mw_every_flop.sh
 # builds of other games' spots (flop_library.FORMAT_SPOTS, ids like srp_btn_bb_40bb), taken as the heads-up builds are
 FORMAT_SOURCES = [SOURCES / "depths"]
+BREADTH_SOURCES = [SOURCES / "breadth"]  # scripts/library/breadth.sh
+BREADTH_RESERVE = 200  # files the cap keeps free after the breadth spots (nuts.json, a spot carried from --previous)
 PROTECTED = Path("/Users/mhan/Desktop/projects/gtosolver")
 STAGE_MARK = ".lizard-stage"
 NUTS = ROOT / "library-build" / "nuts"
@@ -69,7 +76,7 @@ ENTRY_MAGIC = b"GTOFL3"  # gto/flop_library.py MAGIC
 HEADS_FORMAT = 1  # <mw spot>/heads.json (web/src/library/mwReport.ts reads it)
 MAX_FILE = 50 * 2**20
 MAX_TOTAL = 900 * 2**20
-MAX_FILES = 60_000
+MAX_FILES = 90_000  # (GitHub Pages: 1 GB a site, no file limit; 49,298 files deployed in 80 s on 2026-11-15)
 
 
 # Build plans that differ from the snapshot's SPOT_FLOPS (solver/gto/flop_library.py): the heads-up SRP build goes on
@@ -439,6 +446,67 @@ def extend_spots(src: Path, out: Path, spots: list[dict], base_root: Path, log: 
     return got
 
 
+def spot_files(s: dict) -> int:
+    """Files a staged spot holds: its entries, their turn files, report.json, ranges.json (nuts.json is reserved)."""
+    t = turns_set(s)
+    return len(s["flops"]) + (len(s["flops"]) if t is True else len(t)) + 2
+
+
+def add_breadth(src: Path, out: Path, merged: list[dict], tree: dict, log: list[str]) -> tuple[list[dict], dict | None]:
+    """Stage a breadth source's spots (new lines, built by scripts/library/build_breadth.py) after every other source:
+    each in the index's order while the stage stays within MAX_FILES - BREADTH_RESERVE; one another source holds (id
+    or lookup key) is left out, and one already staged (carried from --previous) is replaced only by a copy with more
+    flops. Returns the merged spots and the source's summary (None without a usable index)."""
+    ip = src / "index.json"
+    if not ip.exists():
+        log.append(f"{src}: no index.json yet")
+        return merged, None
+    idx = json.loads(ip.read_bytes())  # written by os.replace: never torn
+    if idx.get("format") != FORMAT or idx.get("tree") != tree:
+        log.append(f"{src}: index format or tree differs from the base, left out")
+        return merged, None
+    try:
+        plan = json.loads((src / "plan.json").read_bytes()).get("spots", {})
+    except (OSError, ValueError):
+        plan = {}
+    n_files = sum(1 for p in out.rglob("*") if p.is_file())
+    got: dict[str, int] = {}
+    for s in idx.get("spots", []):
+        by_id = {x["id"]: x for x in merged}
+        keys = {spot_key(x): x["id"] for x in merged}
+        cur = by_id.get(s["id"])
+        if keys.get(spot_key(s), s["id"]) != s["id"]:
+            log.append(f"{s['id']}: {keys[spot_key(s)]} holds these ranges, pot and stack; the breadth spot left out")
+            continue
+        if cur is not None and len(cur["flops"]) >= len(s.get("flops", {})):
+            continue
+        need = spot_files({"flops": s.get("flops", {}), "turns": s.get("turns")}) - (spot_files(cur) if cur else 0)
+        if n_files + need > MAX_FILES - BREADTH_RESERVE:
+            log.append(f"{s['id']}: left out, {need} more files would pass the {MAX_FILES:,} file cap")
+            continue
+        held = out / f".{s['id']}.held"  # the copy carried from --previous, put back if the new one falls short
+        if cur is not None:
+            os.replace(out / s["id"], held)
+        staged = copy_spot(src, out, s, link=False, log=log)
+        if staged is None or (cur is not None and len(staged["flops"]) <= len(cur["flops"])):
+            if (out / s["id"]).exists():
+                shutil.rmtree(out / s["id"])
+            if cur is not None:
+                os.replace(held, out / s["id"])
+            log.append(f"{s['id']}: breadth copy failed validation, "
+                       + ("the previous release kept" if cur is not None else "left out"))
+            continue
+        if cur is not None:
+            shutil.rmtree(held)
+            # (the carry-over's note is moot: the breadth build's own copy, with more flops, stands)
+            log[:] = [x for x in log if not x.startswith(f"{s['id']}: kept the previous release")]
+        n_files += spot_files(staged) - (spot_files(cur) if cur else 0)
+        merged = [staged if x["id"] == s["id"] else x for x in merged] if cur else [*merged, staged]
+        got[s["id"]] = len(staged["flops"])
+    return merged, {"path": str(src), "kind": "breadth build", "indexMtime": ip.stat().st_mtime, "spots": got,
+                    "plan": {k: int(v) for k, v in plan.items()}}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, type=Path)
@@ -447,6 +515,8 @@ def main() -> int:
     ap.add_argument("--extend", type=Path, action="append", help="a build of base spots on more flops (repeatable; "
                     "default: library-build/sources/srp-every-flop)")
     ap.add_argument("--mw", type=Path, action="append", help="a 3-way build directory (repeatable)")
+    ap.add_argument("--breadth", type=Path, action="append", help="a build of new spots (repeatable; default: "
+                    "library-build/sources/breadth)")
     ap.add_argument("--previous", type=Path, help="the last published release (to keep spots that fail or shrink)")
     ap.add_argument("--allow-shrink", action="store_true")
     ap.add_argument("--nuts", type=Path, default=NUTS, help="where nuts.py wrote each spot's nut shares")
@@ -457,10 +527,11 @@ def main() -> int:
     ext_sources = a.extend if a.extend else EXTEND_SOURCES
     mw_sources = a.mw if a.mw else MW_SOURCES
     format_sources = a.formats if a.formats else FORMAT_SOURCES
+    breadth_sources = a.breadth if a.breadth else BREADTH_SOURCES
     builds = [(p, "heads-up build") for p in hu_sources] + [(p, "format build") for p in format_sources]
 
     out = a.out.resolve()
-    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources]:
+    for p in [a.base, *hu_sources, *ext_sources, *mw_sources, *format_sources, *breadth_sources]:
         if out == p.resolve() or p.resolve() in out.parents:
             sys.exit(f"refusing: --out {out} is inside a source")
     if out == PROTECTED or PROTECTED in out.parents:
@@ -566,6 +637,13 @@ def main() -> int:
         for s in mw.get("spots", []):
             write_mw_heads(out, s, log)
 
+    breadth_plan: dict[str, int] = {}
+    for src in breadth_sources:
+        merged, summary = add_breadth(src, out, merged, tree, log)
+        if summary is not None:
+            breadth_plan.update(summary.pop("plan"))
+            sources.append(summary)
+
     nut_flops = {s["id"]: attach_nuts(a.nuts, out, s, log) for s in merged}
 
     index = {"format": FORMAT, "tree": tree, "spots": merged}
@@ -611,7 +689,7 @@ def main() -> int:
     if total > MAX_TOTAL or n > MAX_FILES:
         sys.exit(f"stage is {total} bytes in {n} files, over the limits")
 
-    planned = planned_flops()
+    planned = {**breadth_plan, **planned_flops()}
     summary = {
         "assembledAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "sources": sources,
