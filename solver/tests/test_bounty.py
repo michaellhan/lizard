@@ -282,7 +282,11 @@ class TestAdvisor(unittest.TestCase):
             self.assertNotIn("error", r)
             self.assertTrue(r.get("multiway"))
         f = lambda r, a: next(x["freq"] for x in r["actions"] if x["action"] == a)
-        self.assertGreater(f(ko, "all-in"), f(plain, "all-in") + 0.2)
+        ev = lambda r, a: next(x["ev_bb"] for x in r["actions"] if x["action"] == a)
+        # Lizard patch (2026-11-16): queens are outside SB's range here, so each answer is its best response, and
+        # without bounties raising and calling are within a few hundredths of a bb; the bounty is in the EVs.
+        self.assertGreater(f(ko, "all-in"), 0.2)
+        self.assertGreater(ev(ko, "all-in") - ev(ko, "call"), ev(plain, "all-in") - ev(plain, "call") + 0.5)
         b = ko["tournament"]["bounties"]
         self.assertTrue(b["you_bust"]["BTN"]["in_hand"])
         self.assertEqual(b["you_bust"]["BTN"]["cash"], 80.0)

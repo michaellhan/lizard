@@ -6035,3 +6035,29 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
   passed); a dry run against the real sources first; the live index (above).
 - Left: the heads-up limped build (`claude/lib-hu-limped-4f0ae6`) is still solving, so its branch stays unmerged until
   it finishes; the new spots get nut shares on a later publish, once no heads-up build is running.
+
+## 2026-11-17: Solver check beyond CI (one upstream test fixed for the 3-way patch)
+
+- The full solver suite in one process grew to about 5 GB and was killed by the machine's memory guard at 05:51
+  (`~/.mem-guard/actions.jsonl`), so it was run one module at a time through `slot.sh`, each watched and stopped at
+  1.5 GB, and the four modules over that one test at a time. 686 tests: 678 pass (5 of them expected failures), 3
+  fail on stale local data (below), and 5 single tests need more than 1.5 GB each and were not run
+  (`test_core` TestSameAsNumpy.test_solve_and_evaluations and two TestThreads tests, `test_gto`
+  TestFlopStrategy.test_published_frequencies, `test_pf_study` TestStored.test_heads_up_nodes).
+- Fixed: `test_bounty` TestAdvisor.test_three_way_river failed after the 2026-11-16 3-way patch (5b49b94) and passed
+  before it. SB's queens are off its range on that river, so the patch answers with their best response: without
+  bounties calling and jamming are 3.28 and 3.30 bb, so it jams 100% where upstream's regret-matching mix called
+  100%, and the test's "the bounty raises the jam frequency by 0.2" could not hold. The bounty's effect is in the
+  EVs (jam over call: +0.02 bb plain, +1.22 bb with 80 on BTN; −0.01 and +2.84 before the patch), so the test now
+  asserts that, and still that the bounty jams more than 20% of the time; it passes on the solver before and after
+  the patch. Declared in `solver/UPSTREAM.json` with the patch's other two test changes.
+- Not a code fault: `test_instant_near` (3 tests) looks up `srp_sb_bb_2max` in `solver/gto/static/flop_library`, a
+  gitignored partial copy of the classic library from 2026-11-03 that predates that spot. Lizard's own library has
+  it, but these tests assume upstream's stored flops, so pointing them at Lizard's fails 34. Refreshing the local copy
+  from upstream's library would settle them; left alone.
+- Also: solver-js 443/443, `checks.e2e.ts` 13/13, engine 258/258, the pyodide scripts 24/24, the library scripts
+  38/38; and on the live site every new library spot type read as a precomputed solution (40bb, 200bb, 8-max, a 4bet
+  pot, a breadth 3bet pot, a 3-way spot on a new flop).
+- Found: the classic library publishes four 3-way spots Lizard lacks (`mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb`,
+  `mw_utg_sb_bb`); its 3-way tree adds `bucket_power: 1.0`, which the snapshot at 1a14605e doesn't have, so taking
+  them needs a newer upstream import.
