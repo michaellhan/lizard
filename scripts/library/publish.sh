@@ -56,7 +56,9 @@ msg=$("$PY" - "$CLONE/lizard-library.json" <<'PY'
 import json, sys
 s = json.load(open(sys.argv[1]))
 hu = [f"{k} {v['flops']}" for k, v in s["spots"].items() if (v.get("game") or {}).get("players") == 2]
-print(f"lizard-library: {len(s['spots'])} spots, {s['files']} files" + (f"; heads-up: {', '.join(hu)}" if hu else ""))
+deep = [f"{k} {v['flops']}" for k, v in s["spots"].items() if (v.get("game") or {}).get("players") == 6]
+print(f"lizard-library: {len(s['spots'])} spots, {s['files']} files" + (f"; heads-up: {', '.join(hu)}" if hu else "")
+      + (f"; other depths: {', '.join(deep)}" if deep else ""))
 PY
 )
 "${G[@]}" commit --quiet -m "$msg"
