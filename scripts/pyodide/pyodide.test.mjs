@@ -215,7 +215,8 @@ test("the published worker imports Lizard's engine patches at start, before the 
   assert.ok(at("import engine.pf_icm_study;") < at("import engine.tree_depth;"));
   assert.ok(at("import engine.tree_depth;") < at("import engine.bunching;"));
   assert.ok(at("import engine.bunching;") < at("import engine.mw_near;"));
-  assert.ok(at("import engine.mw_near;") < at("from gto.advisor import Advisor;"));
+  assert.ok(at("import engine.mw_near;") < at("import engine.mw_quick;"));
+  assert.ok(at("import engine.mw_quick;") < at("from gto.advisor import Advisor;"));
 });
 
 test("hostsNamed sees URLs in comments and strings, and leaves the worker's own paths alone", () => {

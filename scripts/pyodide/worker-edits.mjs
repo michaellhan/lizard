@@ -86,10 +86,12 @@ const EDITS = [
   {
     // engine/mw_near.py: a 3-way pot whose ranges are what a published 3-way spot's preflop line gives today, near the
     // ranges it was built on (the charts moved under all four on 2026-11-17), reads that spot's stored solve, labelled
-    // approximate with the difference (precomputed.borrowed.built and .text). After bunching (this edit runs on that
-    // one's output).
+    // approximate with the difference (precomputed.borrowed.built and .text). engine/mw_quick.py: a quick answer's 3-way
+    // street behind a bet is narrowed through a short solve rather than the rules, its 3-way flop answer is marked
+    // approximate (the small game), and its solves are kept apart from Fast's. After bunching, so mw_quick wraps
+    // bunching's wrap of Advisor._advise_at (this edit runs on that one's output).
     from: "import engine.bunching; from gto.advisor import Advisor;",
-    to: "import engine.bunching; import engine.mw_near; from gto.advisor import Advisor;",
+    to: "import engine.bunching; import engine.mw_near; import engine.mw_quick; from gto.advisor import Advisor;",
   },
   {
     // A request's `cache_mb` (web/src/features/reports/customRun.ts: a custom flop report's solves): the most the solves

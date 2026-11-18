@@ -16,6 +16,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "solver"))
+sys.path.insert(0, str(ROOT))
 
 import gto.advisor as A  # noqa: E402
 from gto.advisor import MW_FAST_STREETS, MW4_FAST_STREETS, Advisor  # noqa: E402
@@ -88,9 +89,16 @@ class TheSpot(unittest.TestCase):
         self.assertGreater(acts["call"]["ev_bb"], raise_["ev_bb"])
 
     def test_a_quick_answer_keeps_the_rules(self):
-        a = worker_fast()
-        r = a.advise(dict(players=6, stack=100, hero="BTN", hole="Kd7d", board=BOARD, preflop=PRE, flop=FLOP,
-                          budget=1.5, prior_budget=0.3, quick=True))
+        """Upstream's Quick: the rules alone. (engine/mw_quick.py, which the worker imports, narrows a Quick answer's
+        street through a short solve: test_mw_quick.py. Off here, as discover imports it for every module.)"""
+        from engine import mw_quick as MQ
+        saved, MQ.QUICK_NARROW = MQ.QUICK_NARROW, {}
+        try:
+            a = worker_fast()
+            r = a.advise(dict(players=6, stack=100, hero="BTN", hole="Kd7d", board=BOARD, preflop=PRE, flop=FLOP,
+                              budget=1.5, prior_budget=0.3, quick=True))
+        finally:
+            MQ.QUICK_NARROW = saved
         self.assertFalse(any("a solve from the street's start" in n for n in r.get("notes", [])), r.get("notes"))
 
     def test_a_check_in_front_keeps_the_rules(self):
