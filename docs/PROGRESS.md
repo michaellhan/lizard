@@ -6314,7 +6314,7 @@ open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The j
   against Fast (90.7% of moves at live nodes the same verdict, 0.5% each way across a pass and a Mistake or Blunder;
   ACCURACY 30).
 
-## 2026-11-18 — Practice QA sweep merged: a review of its fixes, and the heads-up cap from 25bb
+## 2026-11-18 — Practice QA sweep merged: a review of its fixes, and the heads-up cap measured again
 
 - The sweep's checker: a converged band beside an approximate label that says where the ranges come from is a soft
   `prov.settled`, hard only with nothing beside it (the triage refuted it as a defect: the band is the solve's own
