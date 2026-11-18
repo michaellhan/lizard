@@ -40,7 +40,8 @@ describe("the solver's answer", () => {
       const solve = vi.fn(async () => ({ data, provenance: measured }));
       const a = await askSolver(ask, 5.5, async () => ({ solve }) as never, "quick");
       expect((solve.mock.calls[0] as unknown[])[0]).toMatchObject({ mode: "fast" });
-      expect(a).toMatchObject({ pot: 6, capped: false });
+      expect(a).toMatchObject({ pot: 6, basis: { source: "live", exploitabilityPct: 0.1 } });
+      expect(a.basis?.leans).toBeUndefined();
       await askSolver(ask, 5.5, async () => ({ solve }) as never, "accurate");
       expect((solve.mock.calls[1] as unknown[])[0]).toMatchObject({ mode: "accurate" });
     });
@@ -57,7 +58,7 @@ describe("the solver's answer", () => {
       const costly = { ...data, actions: [{ action: "check", freq: 0, ev_bb: -3 }, { action: "bet 33%", freq: 1, ev_bb: 3, amount_bb: 2 }] };
       const solve = vi.fn(async () => ({ data: costly, provenance: { ...measured, exploitabilityPct: 5, band: "approximate" as const } }));
       const a = await askSolver(ask, 5.5, async () => ({ solve }) as never, "quick");
-      expect(a.capped).toBe(true);
+      expect(a.basis).toMatchObject({ band: "approximate" });
       const r = retried({ ...mistake(), ask }, a, 0, 1);
       expect(r.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
     });

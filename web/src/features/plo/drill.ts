@@ -4,7 +4,7 @@
 // Lizard's one scale (grading/grade.ts). A decision is drawn by how often its line is
 // played (its reach over every matchup), then a combo of the player to act by how often it gets there (its weight at the
 // node, the start weight times the strategy along the line). Nothing here is solved again: every number is the solve's.
-import { capGrade, grade, type Grade } from "@/grading/grade";
+import { gradeAnswer, scored, type AnswerBasis, type Grade } from "@/grading/grade";
 import type { ResultNode } from "@/engine/plo/river/run";
 
 export interface DrillSpot {
@@ -57,11 +57,17 @@ export function mixAt(n: ResultNode, c: number): { freq: number; ev: number }[] 
   return n.actions.map((_, a) => ({ freq: n.strategy[a * size + c]!, ev: n.bestEv[a * size + c]! }));
 }
 
-/** Action `a` graded against the solve, by EV lost in bb and in % of the pot at the decision; a solve short of its target
- * or far from converged stops the verdict at an Inaccuracy (capGrade), as every trainer does. */
-export function gradeAt(n: ResultNode, c: number, a: number, streetPot: number, band: string | undefined): Grade {
+/** What grading knows of a PLO solve: its provenance's (grading/basis.ts basisOf), or just its band. */
+export type PloBasis = AnswerBasis | string | undefined;
+const basisFor = (b: PloBasis): AnswerBasis => (typeof b === "string" ? { source: "plo-river", band: b } : (b ?? { source: "plo-river" }));
+
+/** Action `a` graded against the solve, by EV lost in bb and in % of the pot at the decision, through the one entry point
+ * every trainer grades through (grade.ts gradeAnswer): within the solve's noise (its distance from equilibrium), and a solve
+ * short of its target or far from converged stops the verdict at an Inaccuracy. `basis`: the solve's (basisOf its
+ * provenance), or its band. */
+export function gradeAt(n: ResultNode, c: number, a: number, streetPot: number, basis: PloBasis): Grade {
   const mix = mixAt(n, c);
-  return capGrade(grade({ freqs: mix.map((x) => x.freq), evs: mix.map((x) => x.ev), pot: potAt(n, streetPot) }, a), band);
+  return gradeAnswer({ freqs: mix.map((x) => x.freq), evs: mix.map((x) => x.ev), pot: potAt(n, streetPot) }, a, basisFor(basis));
 }
 
 export interface DrillTally {
@@ -72,4 +78,5 @@ export interface DrillTally {
 
 export const EMPTY_TALLY: DrillTally = { hands: 0, ok: 0, loss: 0 };
 
-export const tallied = (t: DrillTally, g: Grade): DrillTally => ({ hands: t.hands + 1, ok: t.ok + (g.ok ? 1 : 0), loss: t.loss + g.loss });
+/** A tally with one more grade: its EV lost is what a score counts (grade.ts scored: past the solve's noise, below Correct). */
+export const tallied = (t: DrillTally, g: Grade): DrillTally => ({ hands: t.hands + 1, ok: t.ok + (g.ok ? 1 : 0), loss: t.loss + scored(g).loss });

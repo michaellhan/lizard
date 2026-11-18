@@ -8,7 +8,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { describe } from "@/solver/provenance";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import type { Verdict } from "@/grading/grade";
+import { CAPPED_WORDS, type Verdict } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
@@ -16,7 +16,8 @@ import { decisionProvenance } from "@/features/review/fromAnalyze";
 import { studyLinkAt, withMyHand } from "./analyze";
 import { decisionIndex, lineBefore, roughActions } from "./leakDrill";
 
-const pct = (x: number) => `${Math.round(x * 100)}%`;
+// (frequencies at one decimal, the words and the table alike: "never" only where it shows 0.0%)
+const pct = (x: number) => `${(Math.round(x * 1000) / 10).toFixed(1)}%`;
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 const readHand = (text: string) => {
   try {
@@ -105,6 +106,19 @@ function GradedBy({ d }: { d: DecisionRecord }) {
   );
 }
 
+/** The answer's best for the card: the grade's own (grade.ts Grade.best: by EV, of the actions within the answer's noise of
+ * the top the most played, never one it doesn't play where one it plays is that close; by frequency the most played, yours
+ * where you tie it), kept with the decision since 2026-11-18. An older record kept the most frequent, so its best is read
+ * again from its numbers: the top EV, or the most played. */
+export function bestOf(d: DecisionRecord): [string, number, number | null] | null {
+  const mix = d.mix ?? [];
+  if (!mix.length) return null;
+  const kept = (d.basis || d.noise !== undefined) && d.best ? mix.find((x) => x[0] === d.best) : undefined;
+  if (kept) return kept;
+  const byEv = mix.every((x) => x[2] !== null);
+  return [...mix].sort((a, b) => (byEv ? b[2]! - a[2]! : b[1] - a[1]))[0]!;
+}
+
 /** Why the answer differs, in a line, from the answer's own numbers: by EV, what the best action is worth and what yours
  * gave up; by frequency (the charts), how often each is played. */
 export function whyLine(d: DecisionRecord): string | null {
@@ -113,8 +127,8 @@ export function whyLine(d: DecisionRecord): string | null {
   const mine = mix.find((x) => x[0] === you);
   if (!mix.length) return d.best ? `The answer most often ${d.best}${d.bestFreq != null ? ` (${pct(d.bestFreq)})` : ""}.` : null;
   const byEv = mix.every((x) => x[2] !== null);
-  const top = [...mix].sort((a, b) => (byEv ? b[2]! - a[2]! : b[1] - a[1]))[0]!;
-  const often = (f: number) => (f < 0.005 ? "never played" : `played ${pct(f)} of the time`);
+  const top = bestOf(d)!;
+  const often = (f: number) => (pct(f) === "0.0%" ? "never played" : `played ${pct(f)} of the time`);
   if (byEv && mine && top[0] !== mine[0]) {
     const gap = top[2]! - mine[2]!;
     return `${cap(top[0])} is worth ${fmt(top[2]!)}bb with this hand, ${fmt(gap)}bb more than ${mine[0]}, which is ${often(mine[1])}.`;
@@ -137,12 +151,14 @@ function Card({ d, hand }: { d: DecisionRecord; hand: HandRecord | undefined }) 
   const rough = roughActions(d);
   const said = line?.streets.filter((s) => s.says.length) ?? [];
   const you = d.matched ?? d.action;
-  const best = mix.length ? [...mix].sort((a, b) => (byEv ? b[2]! - a[2]! : b[1] - a[1]))[0]![0] : null;
+  const best = bestOf(d)?.[0] ?? null;
   const why = whyLine(d);
+  // (a grade since 2026-11-18 says what of its loss is past the answer's noise: what the verdict and the score count)
+  const past = d.noise && d.past !== undefined ? ` · ${fmt(d.past)}bb past the answer's noise` : "";
   const lost =
     d.evLossBb != null
       ? d.evLossBb > 0
-        ? `−${d.roughEv ? "≈" : ""}${fmt(d.evLossBb)}bb${d.lossPct != null ? ` · ${d.lossPct}% of the pot` : ""}`
+        ? `−${d.roughEv ? "≈" : ""}${fmt(d.evLossBb)}bb${d.lossPct != null ? ` · ${d.lossPct}% of the pot` : ""}${past}`
         : "no EV lost"
       : "";
   return (
@@ -213,6 +229,7 @@ function Card({ d, hand }: { d: DecisionRecord; hand: HandRecord | undefined }) 
             </tbody>
           </table>
         )}
+        {d.capped && <p className="text-xs text-muted">{d.capWhy ?? CAPPED_WORDS}</p>}
         {d.note && <p className="text-xs text-muted">{d.note}</p>}
         <GradedBy d={d} />
       </div>

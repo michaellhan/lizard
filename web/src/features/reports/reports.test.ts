@@ -207,10 +207,10 @@ describe("flop reports", () => {
     expect(studyHandAt(REP, "Ac4d3h", "ip")?.flop).toEqual([{ pos: "BB", action: "check" }]);
     expect(studyHandAt(REP, "Ac4d3h", "vsbet")?.flop).toEqual([
       { pos: "BB", action: "check" },
-      { pos: "BTN", action: "bet", to: 4.13 },
+      { pos: "BTN", action: "bet", to: 4 },
     ]);
     expect(studyHandAt(REP, "Kc7d7h", "vsbet")).toBeNull();
-    expect(studyHandAt(REP, "Ac4d3h", "ipvsbet")?.flop).toEqual([{ pos: "BB", action: "bet", to: 4.13 }]);
+    expect(studyHandAt(REP, "Ac4d3h", "ipvsbet")?.flop).toEqual([{ pos: "BB", action: "bet", to: 4 }]);
     expect(studyHandAt(REP, "9c8c7c", "ipvsbet")).toBeNull();
     expect(studyHandAt(REP, "2c2d2h", "oop")).toBeNull();
     const link = studyLink(REP, "9c8c7c", "vsbet")!;
@@ -218,7 +218,7 @@ describe("flop reports", () => {
     expect(h.preflop.map((a) => `${a.pos}:${a.action}`)).toEqual(["UTG:fold", "HJ:fold", "CO:fold", "BTN:raise", "SB:fold", "BB:call"]);
     expect(h.flop).toEqual([
       { pos: "BB", action: "check" },
-      { pos: "BTN", action: "bet", to: 1.82 },
+      { pos: "BTN", action: "bet", to: 2 },
     ]);
     // an ante comes along as Study's setup; one over 1bb a seat Study can't set up
     expect(studyLink({ ...REP, game: { players: 6, stack: 40, ante: 0.125, straddle: false } }, "Ac4d3h", "oop")).toBe("/study?p=6&s=40&pre=UTG%3Af%2CHJ%3Af%2CCO%3Af%2CBTN%3Ar2.5%2CSB%3Af%2CBB%3Ac&b=Ac4d3h&ante=0.125");

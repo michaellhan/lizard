@@ -118,6 +118,9 @@ export interface AdvisorResponse {
   /** an answer to "triage": what read it, in the Advisor's words, and how far to trust the read (Advisor.triage) */
   triage?: { source?: "chart" | "library" | "approx" | "quick" | "rules" | string; confidence?: Confidence; label?: string };
   off_solution?: OffSolution[];
+  /** the seats whose range on this street comes from the betting rules on a line the solve rarely plays (advisor.py
+   * _walk), whether or not the play after it was solved again */
+  widened?: string[];
   street?: "preflop" | "flop" | "turn" | "river";
   /** Study: "node" | "deal" | "over" | "runouts" | "pf_unsolved" | "pf_none" | "pf_progress" | "pf_export"; a node lock:
    * "nodelock", and "nodelock_progress" on its way */

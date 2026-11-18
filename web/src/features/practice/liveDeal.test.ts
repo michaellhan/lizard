@@ -374,7 +374,8 @@ describe("what grades a live drill", () => {
     expect(liveRefusal(res())).toBeNull();
     const a = answered();
     expect(describeProvenance(a.provenance)).toBe("Live solve · 0.63% pot from equilibrium in the solved game (converged) · 111 iterations");
-    expect(a).toMatchObject({ pot: 16.5, toCall: 4.13, off: null, capped: false });
+    expect(a).toMatchObject({ pot: 16.5, toCall: 4.13, off: null });
+    expect(a.basis).toEqual({ source: "live", band: "converged", exploitabilityPct: 0.63 });
     expect(a.mix.map((x) => x.ev)).toEqual([0, 2.5, -1]);
   });
 
@@ -392,7 +393,7 @@ describe("what grades a live drill", () => {
     ["a rough solve that also reads as approximate, as these do past ten times their target", { solver: { iterations: 40, exploitability_pct: 25, approximate: true, target_pct: 0.3 } }, /^The solve stopped 25\.0% of the pot from equilibrium, too/],
     ["an earlier street from the rules", { off_solution: [{ street: "turn", pos: "BTN", why: "rules" }] }, /^This spot leans on the betting rules, so it isn't graded here: the turn is narrowed by the betting rules, not solved\.$/],
     ["an unresolved rare line", { off_solution: [{ street: "flop", pos: "BTN", why: "rare", action: "check", share: 0 }] }, /BTN's check on the flop is never in the solve/],
-    ["a widened range", { widened: ["BTN"] }, /an opponent's range comes from them/],
+    ["a widened range", { widened: ["BTN"] }, /BTN's range here comes from the betting rules on a line the solve rarely plays/],
     ["an empty range", { hero_range_combos: 0 }, /Almost no hands/],
     ["no opposing range", { villain_range_combos: 0.04 }, /Almost no hands/],
   ] as [string, Partial<AdvisorResponse>, RegExp][])("refuses %s, in words", (_, over, words) => {
@@ -406,15 +407,20 @@ describe("what grades a live drill", () => {
     expect(liveRefusal(res({}, true))).toBe("The solve was cut short, so this spot isn't graded.");
   });
 
-  it("says what's off a resolved line or a filled range, and caps its grade", () => {
+  it("says what's off a resolved line or a filled range, and caps a grade only where the answer's error can't be measured", () => {
+    // (a filled preflop range is the hands that take the line's last action, not the betting rules: it grades in full)
     const a = answered({ off_solution: [{ street: "preflop", pos: "BTN", why: "filled" }] });
     expect(a.off).toBe("BTN's preflop line isn't in the charts, so their range is the hands that take its last action");
-    expect(a.capped).toBe(true);
-    expect(gradeLive(a, 0)).toMatchObject({ verdict: "Inaccuracy", capped: true, loss: 2.5 });
+    expect(a.basis.leans).toBeUndefined();
+    expect(gradeLive(a, 0)).toMatchObject({ verdict: "Blunder", loss: 2.5 });
+    // (a rare line solved again from there, its seat's range not widened: the solve's from there on)
     const rare = answered({ off_solution: [{ street: "flop", pos: "BTN", why: "rare", action: "check", share: 3, resolved: true }] });
     expect(rare.off).toContain("solved again from there");
-    expect(rare.capped).toBe(true);
-    expect(answered({ solver: { iterations: 80, exploitability_pct: 1, approximate: true } }).capped).toBe(true);
+    expect(gradeLive(rare, 0).capped).toBeUndefined();
+    // (a solve short of its target can't condemn a line)
+    const approx = gradeLive(answered({ solver: { iterations: 80, exploitability_pct: 1, approximate: true } }), 0);
+    expect(approx).toMatchObject({ verdict: "Inaccuracy", capped: true, loss: 2.5 });
+    expect(approx.capWhy).toBeTruthy();
   });
 
   it("grades on the one scale: EV lost in % of the answer's pot, uncapped on a clean solve", () => {

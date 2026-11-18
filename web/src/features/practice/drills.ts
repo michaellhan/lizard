@@ -13,7 +13,7 @@
 // those are dealt from these files and answered live (liveDeal.ts).
 import { gameSetup } from "@/features/solve/setup";
 import { parseLine, toSearch, type StudyHand } from "@/features/study/studyState";
-import { grade, type Grade } from "@/grading/grade";
+import { gradeAnswer, type AnswerBasis, type Grade } from "@/grading/grade";
 import { bandOf } from "@/solver/provenance";
 import type { Provenance, SolveMode } from "@/solver/types";
 import { COMBOS, cardInt, cardStr, flopCards, handWeights, nodeAt, SUITS, type Entry, type LibraryRanges } from "@/library/entry";
@@ -114,10 +114,22 @@ export function shuffle(rng: () => number): number[] {
 }
 export const relabel = (c: string, perm: readonly number[]) => c[0]! + SUITS[perm[SUITS.indexOf(c[1]!)]!]!;
 
+/** The chips a stored bet ("bet 33%") puts in at a pot, as the solver's tree sizes it (solver.py: the pot share rounded
+ * to the half big blind, a half to the even one as Python rounds, and at least 1bb): 33% of a 5.5bb pot is 2bb, not
+ * 1.82bb. Undefined for anything but a bet. */
+export function treeBet(name: string, pot: number): number | undefined {
+  const m = /^bet ([\d.]+)%/.exec(name);
+  if (!m || !(pot > 0)) return undefined;
+  const x = (Number(m[1]) / 100) * pot * 2;
+  const f = Math.floor(x);
+  const half = Math.abs(x - f - 0.5) < 1e-9;
+  return Math.max((half ? (f % 2 === 0 ? f : f + 1) : Math.round(x)) / 2, 1);
+}
+
 /** pot at the node and the bet faced (bb): the bet sizes are fractions of the pot ("bet 33%") */
 export function potAt(rep: Pick<LibraryReport, "pot">, path: readonly string[]): { pot: number; bet: number } {
   const b = path.find((x) => /^bet /.test(x));
-  const bet = b ? Math.round((parseFloat(b.slice(4)) / 100) * rep.pot * 100) / 100 : 0;
+  const bet = b ? (treeBet(b, rep.pot) ?? 0) : 0;
   return { pot: Math.round((rep.pot + bet) * 100) / 100, bet };
 }
 
@@ -309,14 +321,25 @@ export function sampleFlops(cands: readonly Candidate[], n: number): string[] {
   return Array.from({ length: n }, (_, i) => flops[Math.floor((i * flops.length) / n)]!);
 }
 
-/** your pick graded against the stored mix and EVs for your hand */
-export const gradeDrill = (pr: DrillProblem, a: number): Grade => grade({ freqs: pr.freqs, evs: pr.evs, pot: pr.pot }, a);
+/** What grading knows of a drill's stored answer (grading/basis.ts): a flop's, the stored solve's distance from equilibrium
+ * and the flop's pot (its EVs are stored in steps of 1% of it); a turn's, read from the flop solve, approximate. */
+export function drillBasis(pr: Pick<DrillProblem, "pot" | "bet" | "turn" | "names">, e?: Pick<Entry, "head">): AnswerBasis {
+  if (pr.turn) return { source: "library-turn", approximate: true };
+  const expl = e && typeof e.head.expl === "number" ? e.head.expl : undefined;
+  return { source: "library", flopPot: Math.round((pr.pot - pr.bet) * 100) / 100, ...(expl !== undefined ? { exploitabilityPct: expl, band: bandOf(expl, false) } : {}) };
+}
+
+/** your pick graded against the stored mix and EVs for your hand, through the one entry point (grade.ts gradeAnswer):
+ * within the stored answer's noise (its EV steps, its distance from equilibrium), as Practice grades the same answer.
+ * `e`: the entry, for the stored solve's distance. */
+export const gradeDrill = (pr: DrillProblem, a: number, e?: Pick<Entry, "head">): Grade => gradeAnswer({ freqs: pr.freqs, evs: pr.evs, pot: pr.pot }, a, drillBasis(pr, e));
 
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 
-/** "bet 33% (1.82bb)", "call 1.82bb": the stored name with the chips it puts in */
+/** "bet 33% (2bb)", "call 2bb": the stored name with the chips it puts in, as the tree bets them (treeBet) */
 export function drillActionLabel(pr: Pick<DrillProblem, "pot" | "bet">, name: string): string {
-  if (/^bet /.test(name)) return `${name} (${fmt((parseFloat(name.slice(4)) / 100) * pr.pot)}bb)`;
+  const bet = treeBet(name, pr.pot);
+  if (bet !== undefined) return `${name} (${fmt(bet)}bb)`;
   if (name === "call") return `call ${fmt(pr.bet)}bb`;
   return name;
 }
@@ -373,14 +396,15 @@ export function preflopWords(line: string): string {
   return `${folds}${out.join(", ")}`;
 }
 
-/** what each player has put in on a street's line, and the pot after it (the bet sizes are fractions of the pot) */
+/** what each player has put in on a street's line, and the pot after it (the bet sizes are fractions of the pot, put in
+ * as the tree bets them: treeBet) */
 function streetPut(startPot: number, path: readonly string[]): { pot: number; put: [number, number] } {
   let pot = startPot;
   const put: [number, number] = [0, 0];
   path.forEach((x, i) => {
     const w = (i % 2) as 0 | 1;
     if (/^bet /.test(x)) {
-      const b = Math.round((parseFloat(x.slice(4)) / 100) * pot * 100) / 100;
+      const b = treeBet(x, pot) ?? 0;
       put[w] += b;
       pot += b;
     } else if (/^raise to /.test(x)) {

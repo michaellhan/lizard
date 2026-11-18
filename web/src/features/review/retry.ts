@@ -1,6 +1,6 @@
 // A kept mistake asked again: a full hand's spot of the solver, by the request Practice sent, and a drill's of the
 // library, read in the page as the drill was. A live drill's goes to the solver on the drill's terms: at Fast at least,
-// and refused or capped as the drill would (liveDeal.ts). What comes back is the current answer, with its own provenance. A decision
+// and refused or capped as the drill would (liveDeal.ts); every answer comes back with its basis for grading (grading/basis.ts). What comes back is the current answer, with its own provenance. A decision
 // from Analyze has its answer in the record: nothing is asked.
 import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
@@ -16,6 +16,7 @@ import type { TurnFile } from "@/library/turns";
 import type { SolverClient } from "@/solver/client";
 import type { SolveMode } from "@/solver/types";
 import { useSettings } from "@/state/settings";
+import { basisOf } from "@/grading/basis";
 import { betAmount, type RetryAnswer } from "./mistakes";
 
 /** As Practice's tables play it: a Fast setting plays Quick's budgets (room.ts). */
@@ -30,8 +31,8 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
   if (ask.live) {
     const read = readLive(await client.solve({ state: ask.state, mode: liveMode(mode), signal }), { pot, bet: 0 });
     if (read.st === "refused") throw new Error(read.words.replace(/\.$/, ""));
-    const { mix, pot: at, provenance, capped, off } = read.answer;
-    return { mix, pot: at, provenance, capped, ...(off ? { off } : {}) };
+    const { mix, pot: at, provenance, basis, off } = read.answer;
+    return { mix, pot: at, provenance, basis, ...(off ? { off } : {}) };
   }
   if (ask.state.preflop_solve) {
     const asked = await client.solve({ state: ask.state, mode, signal, untimed: true });
@@ -44,7 +45,7 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
   const mix = mixOf(data);
   // (exploit practice: an answer without the read is an equilibrium's, which this spot was never graded against)
   if (ask.state.locks && !isBestResponse(mix, provenance)) throw new Error("the engine gave no best response to the assumed profile here");
-  return { mix, pot: typeof data.pot_bb === "number" ? data.pot_bb : pot, provenance };
+  return { mix, pot: typeof data.pot_bb === "number" ? data.pot_bb : pot, provenance, basis: basisOf(provenance, { res: data }) };
 }
 
 /** Your combo's stored answer in an entry; null where the entry holds no node or no hand there. */
@@ -61,7 +62,8 @@ export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pic
     const amount = betAmount(action, pot);
     return { action, freq: nd.strat[i]?.[j] ?? 0, ev: nd.evs[i]?.[j] ?? null, ...(amount !== undefined ? { amount } : {}) };
   });
-  return { mix, pot, provenance: drillProvenance(e, mode, undefined, libraryVersion) };
+  const provenance = drillProvenance(e, mode, undefined, libraryVersion);
+  return { mix, pot, provenance, basis: basisOf(provenance, { flopPot: rep.pot }) };
 }
 
 /** Your hand's stored mix on a stored turn: `null` where the turn file no longer has it. No file holds a hand's EV at a
@@ -109,11 +111,11 @@ export async function askLibrary(ask: Extract<MistakeAsk, { via: "library" }>, m
 }
 
 /** The answer kept in the record, with the grade's own provenance. */
-export function keptAnswer(m: Pick<MistakeRecord, "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance">>): RetryAnswer {
+export function keptAnswer(m: Pick<MistakeRecord, "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance" | "basis">>): RetryAnswer {
   if (!m.provenance || !m.mix?.length) throw new Error("what answered it wasn't kept");
-  return { mix: m.mix, pot: m.pot, provenance: m.provenance };
+  return { mix: m.mix, pot: m.pot, provenance: m.provenance, ...(m.basis ? { basis: m.basis } : {}) };
 }
 
 /** The current answer at a kept mistake's spot. */
-export const askAgain = async (m: Pick<MistakeRecord, "ask" | "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance">>, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
+export const askAgain = async (m: Pick<MistakeRecord, "ask" | "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance" | "basis">>, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
   m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, retryMode(), signal, m.mix) : askLibrary(m.ask, retryMode());

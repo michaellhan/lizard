@@ -10,7 +10,7 @@ import { VerdictTag } from "@/components/VerdictTag";
 import { getSession, putSession, type DecisionRecord, type HandRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { addGradeWay, GRADE_WAYS, tallySplit, WAY_WORDS, wayFigures } from "@/features/history/history";
-import { addScore, emptyScore, summary, type Grade, type Verdict } from "@/grading/grade";
+import { addScore, emptyScore, noiseTail, SCORE_LOSS_WORDS, summary, type Grade, type Verdict } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
@@ -192,6 +192,7 @@ function DrillScore({ prog, done, total, onRestart }: { prog: DrillProgress; don
           {s.n ? `: ${s.ok} in the mix (${pct(m.acc)})` : ""}
           {m.loss != null ? `, ${fmt(s.loss)}bb lost over ${s.ne} graded by ${ways.solve ? "the preflop solve" : "EV"}` : ""}
         </>}.
+        {s.ne > 0 ? ` ${SCORE_LOSS_WORDS}` : ""}
       </span>
       {prog.done.length > 0 && (
         <button type="button" onClick={onRestart} className="rounded border border-border px-2 py-0.5 text-xs hover:bg-surface-2">
@@ -288,7 +289,7 @@ function Problem({
             <span>
               {answer.g.byEv
                 ? answer.g.loss > 0
-                  ? `${roughly(mix[answer.a]?.[0] ?? "") || roughly(mix[answer.g.best]?.[0] ?? "")}${fmt(answer.g.loss)}bb lost (${Math.round(answer.g.lossPct * 10) / 10}% of the pot)`
+                  ? `${roughly(mix[answer.a]?.[0] ?? "") || roughly(mix[answer.g.best]?.[0] ?? "")}${fmt(answer.g.loss)}bb lost (${Math.round(answer.g.lossPct * 10) / 10}% of the pot)${noiseTail(answer.g)}`
                   : "no EV lost"
                 : `your hand takes it ${pct(mix[answer.a]?.[1] ?? 0)} of the time`}
             </span>

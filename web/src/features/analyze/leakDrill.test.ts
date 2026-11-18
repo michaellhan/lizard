@@ -69,7 +69,8 @@ describe("leakDrill", () => {
   it("grades a pick by EV where the mix has every EV, else by frequency", () => {
     const lib = d({ street: "flop", pot: 5.5, mix: [["check", 0.48, 3.1], ["bet 33%", 0.09, 3.0], ["bet 75%", 0.43, 3.12]] });
     const g = gradePick(lib, 1)!;
-    expect([g.byEv, g.verdict, Math.round(g.loss * 100) / 100]).toEqual([true, "Mistake", 0.12]);
+    // (a library answer's two stored EV steps, 0.11bb of this 5.5bb pot, are its noise: 0.01bb is past them)
+    expect([g.byEv, g.verdict, Math.round(g.loss * 100) / 100]).toEqual([true, "Inaccuracy", 0.12]);
     expect(gradePick(lib, 2)).toMatchObject({ byEv: true, verdict: "Best", ok: true });
     const chart = d({ mix: [["fold", 0.2, null], ["raise", 0.8, null], ["call", 0, null]] });
     expect(gradePick(chart, 1)).toMatchObject({ byEv: false, ok: true });

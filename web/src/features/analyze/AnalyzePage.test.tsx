@@ -202,9 +202,10 @@ describe("AnalyzePage", () => {
     const hand = screen.getByRole("region", { name: "Hand" });
     expect(within(hand).getByLabelText("Grade of preflop decision 4")).toHaveTextContent("Best");
     const flop = within(hand).getByLabelText("Grade of flop decision 2");
-    expect(flop).toHaveTextContent("Mistake");
+    // (0.12bb is 0.01bb past the library's two stored EV steps of this 5.5bb flop pot: an Inaccuracy)
+    expect(flop).toHaveTextContent("Inaccuracy");
     expect(flop).toHaveTextContent("−0.12bb");
-    expect(flop.getAttribute("title")).toMatch(/0\.12bb lost \(2\.2% of the pot\) · Precomputed solution · srp_btn_bb/);
+    expect(flop.getAttribute("title")).toMatch(/0\.12bb lost \(2\.2% of the pot\), 0\.01bb past the answer's noise · Precomputed solution · srp_btn_bb/);
     expect(within(hand).getByLabelText("Grade of preflop decision 4").getAttribute("title")).toMatch(/preflop charts, by frequency \(not a solve\)/);
 
     // (the report follows a moment after the grades: it's counted after what you're doing)
@@ -341,14 +342,14 @@ describe("AnalyzePage", () => {
     expect(within(options).getAllByRole("button").map((b) => b.textContent)).toEqual(["check", "bet 33%", "bet 75%"]);
     fireEvent.click(within(options).getByRole("button", { name: "bet 33%" }));
     const answer = within(drill).getByLabelText("Answer");
-    expect(answer).toHaveTextContent("Mistake0.12bb lost (2.2% of the pot)");
+    expect(answer).toHaveTextContent("Inaccuracy0.12bb lost (2.2% of the pot), 0.01bb past the answer's noise");
     expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("bet 75%43%3.12bb");
     expect(answer).toHaveTextContent("In the hand you played bet 1.8");
     expect(answer).toHaveTextContent("From Precomputed solution · srp_btn_bb · this flop model gave up 0.6% pot on average, up to 2.1%, against the full game on 3 narrow test spots.");
     expect(within(answer).getByRole("link", { name: "Open in Study" }).getAttribute("href")).toMatch(/&b=Qs8d3c&flop=BB%3Ax$/);
     const handHref = within(answer).getByRole("link", { name: "Open the hand" }).getAttribute("href")!;
     expect([...new URLSearchParams(handHref.split("?")[1])]).toEqual([["pos", "BTN"], ["drill", "spot:SRP · IP · checked to"], ["hand", "PokerStars|249012345678|AhQd"]]);
-    expect(within(drill).getByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled: 0 in the mix (0%), 0.12bb lost over 1 graded by EV.");
+    expect(within(drill).getByLabelText("Drill score")).toHaveTextContent("1 of 1 drilled: 0 in the mix (0%), 0.01bb lost over 1 graded by EV.");
     fireEvent.click(within(drill).getByRole("button", { name: "Finish" }));
     expect(within(drill).getByRole("status")).toHaveTextContent("Every decision of this leak in these hands is drilled.");
     view.unmount();

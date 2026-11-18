@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { GRADE_WAYS, WAY_HEADS, WAY_WORDS } from "@/features/history/history";
-import type { Verdict } from "@/grading/grade";
+import { MIX, type Verdict } from "@/grading/grade";
 import type { BreakRow } from "./breakdown";
 import { worstFirst } from "./breakdown";
 import { withParams } from "./leakDrill";
@@ -194,11 +194,24 @@ export function DecisionList({ title, ds, byId }: { title: string; ds: readonly 
   );
 }
 
+/** The EV a graded decision lost, in words: as measured, and how much of it the verdict counts (a grade kept since
+ * 2026-11-18 keeps the answer's noise: within it, or part of the hand's mix, nothing; past it, the excess). */
+function lostWords(d: DecisionRecord): string {
+  const head = `${d.roughEv ? "≈" : ""}${bbs(d.evLossBb)} lost (${d.lossPct}% of the pot)`;
+  if (!d.basis && d.noise === undefined) return head;
+  if (d.verdict === "Best" || d.verdict === "Correct") return `${head}, ${d.verdict === "Correct" && (d.freq ?? 0) >= MIX ? "part of the hand's mix" : "within the answer's noise"}, not counted`;
+  return d.noise && d.past !== undefined ? `${head}, ${bbs(d.past)} past the answer's noise` : head;
+}
+
+/** The answer's best in words: the grade's (by EV, of the actions within its noise the most played) since 2026-11-18;
+ * before, the most frequent. */
+const bestWords = (d: DecisionRecord, word: string) => (d.best && d.best !== d.matched ? `, ${d.basis || d.noise !== undefined ? "best" : word} ${d.best} ${pct(d.bestFreq)}` : "");
+
 /** A decision on one line: the EV it lost (or the answer's frequency where nothing weighs EV) and the answer's best. */
 export function decisionBrief(d: DecisionRecord): string {
   if (!isGraded(d)) return `not graded: ${d.why ?? ""}`;
-  const best = d.best && d.best !== d.matched ? `, best ${d.best} ${pct(d.bestFreq)}` : "";
-  if (d.evLossBb != null && d.evLossBb > 0) return `${d.roughEv ? "≈" : ""}${bbs(d.evLossBb)} lost (${d.lossPct}% of the pot)${best}`;
+  const best = bestWords(d, "best");
+  if (d.evLossBb != null && d.evLossBb > 0) return `${lostWords(d)}${best}`;
   return `the answer ${d.matched ?? d.action} ${pct(d.freq)}${best}`;
 }
 
@@ -212,10 +225,10 @@ export function sourceBrief(d: DecisionRecord): string {
 /** A graded decision in brief: what the answer does with your hand, and what it stands on. */
 export function decisionNote(d: DecisionRecord): string {
   if (!isGraded(d)) return `not graded: ${d.why ?? ""}`;
-  const parts = [`the answer ${d.matched ?? d.action} ${pct(d.freq)}${d.best && d.best !== d.matched ? `, most often ${d.best} ${pct(d.bestFreq)}` : ""}`];
-  if (d.evLossBb != null) parts.push(d.evLossBb > 0 ? `${d.roughEv ? "≈" : ""}${bbs(d.evLossBb)} lost (${d.lossPct}% of the pot)` : "no EV lost");
+  const parts = [`the answer ${d.matched ?? d.action} ${pct(d.freq)}${bestWords(d, "most often")}`];
+  if (d.evLossBb != null) parts.push(d.evLossBb > 0 ? lostWords(d) : "no EV lost");
   if (d.roughEv) parts.push("a move the range almost never takes, so its EV is rough");
-  if (d.capped) parts.push("a rough solve can't condemn a line, so this stops at Inaccuracy");
+  if (d.capped) parts.push(d.capWhy ? d.capWhy.replace(/\.$/, "") : "a rough solve can't condemn a line, so this stops at Inaccuracy");
   if (d.note) parts.push(d.note);
   if (d.pfWhy) parts.push(`not by the preflop solve here: ${d.pfWhy}`);
   if (d.off) parts.push(d.off);

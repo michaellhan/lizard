@@ -162,14 +162,17 @@ export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
 ];
 
 const STREET_NAME: Record<string, string> = { flop: "Flop", turn: "Turn", river: "River" };
-/** A spot after the flop, with its street ("Turn · SRP · IP · checked to"): a pot's flop, turn and river are different
- * spots. Null preflop. */
-/** Your misses, worst first: a graded decision outside the mix (Inaccuracy, Mistake, Blunder), by verdict, then by EV lost. */
+const pastOf = (d: DecisionRecord) => d.past ?? d.evLossBb ?? 0;
+
+/** Your misses, worst first: a graded decision outside the mix (Inaccuracy, Mistake, Blunder), by verdict, then by the EV
+ * lost past the answer's noise (what the verdict is on; the EV lost as measured for a grade kept before noise was). */
 export const missesOf = (ds: readonly DecisionRecord[]): DecisionRecord[] =>
   ds
     .filter((d) => isGraded(d) && !isOk(d))
-    .sort((x, y) => VERDICTS.indexOf(y.verdict as (typeof VERDICTS)[number]) - VERDICTS.indexOf(x.verdict as (typeof VERDICTS)[number]) || (y.evLossBb ?? 0) - (x.evLossBb ?? 0));
+    .sort((x, y) => VERDICTS.indexOf(y.verdict as (typeof VERDICTS)[number]) - VERDICTS.indexOf(x.verdict as (typeof VERDICTS)[number]) || pastOf(y) - pastOf(x));
 
+/** A spot after the flop, with its street ("Turn · SRP · IP · checked to"): a pot's flop, turn and river are different
+ * spots. Null preflop. */
 export const spotOf = (d: DecisionRecord) => (d.street === "preflop" ? null : `${STREET_NAME[d.street]} · ${d.situation}`);
 
 /** What a grade stands on, the most solid first. */

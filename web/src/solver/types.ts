@@ -54,6 +54,9 @@ export interface Provenance {
   fallbackReason?: string;
   /** the solver's own words for what an approximate answer was read from */
   approximateLabel?: string;
+  /** the ranges the answer stands on lean on the betting rules, in part or whole (provenance.ts rangesOffOf), in words:
+   * an earlier street they narrowed or an opponent's rare line they read. Also in approximateLabel. */
+  rangesOff?: string;
   /** a 3+-way answer: its exploitability figure is the players' mean best-response gain */
   multiway?: boolean;
   /** a tournament answer: the model its numbers are in (provenance.ts tournamentModelOf) */

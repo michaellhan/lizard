@@ -7,6 +7,8 @@ import { Link, useSearchParams } from "react-router";
 import { GamePicker, NotForGame } from "@/components/GamePicker";
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { basisOf } from "@/grading/basis";
+import { CAPPED_WORDS, lossBrief, SCORE_LOSS_WORDS } from "@/grading/grade";
 import { VerdictTag } from "@/components/VerdictTag";
 import { PLO4 } from "@/engine/registry";
 import { cardName, parseIds } from "@/engine/plo/cards";
@@ -146,7 +148,7 @@ export function PloPractice() {
 
 function Table({ result, seat, ask }: { result: RiverResult; seat: "random" | "0" | "1"; ask: PlayContext["ask"] }) {
   const provenance = useMemo(() => resultProvenance(result), [result]);
-  const ctx: PlayContext = { result, band: provenance.band, ask };
+  const ctx: PlayContext = { result, band: basisOf(provenance), ask };
   const [play, setPlay] = useState<Play | null>(null);
   const [none, setNone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -200,8 +202,8 @@ function Table({ result, seat, ask }: { result: RiverResult; seat: "random" | "0
                       <>
                         {" "}
                         <VerdictTag v={l.grade.verdict} />
-                        {l.grade.loss > 0 ? ` ${chips(l.grade.loss)}bb given up, ${l.grade.lossPct.toFixed(1)}% of the pot` : ""}
-                        {l.grade.capped ? " (capped: the solve is short of converged)" : ""}
+                        {l.grade.loss > 0 ? ` ${lossBrief(l.grade)}` : ""}
+                        {l.grade.capped ? ` ${l.grade.capWhy ?? CAPPED_WORDS}` : ""}
                       </>
                     ) : (
                       <span className="text-muted"> (ungraded: {l.why})</span>
@@ -239,7 +241,7 @@ function Table({ result, seat, ask }: { result: RiverResult; seat: "random" | "0
         <p aria-label="Your tally" className="text-xs text-muted">
           {tally.hands} hand{tally.hands === 1 ? "" : "s"}, {tally.decisions} decision{tally.decisions === 1 ? "" : "s"} graded: {tally.ok} Best or Correct, {chips(tally.loss)}bb given up
           {tally.decisions ? ` (${(tally.lossPct / tally.decisions).toFixed(1)}% of the pot a decision)` : ""}, {tally.net >= 0 ? "+" : "−"}
-          {chips(Math.abs(tally.net))}bb won. Not saved to History.
+          {chips(Math.abs(tally.net))}bb won. {SCORE_LOSS_WORDS} Not saved to History.
         </p>
       )}
     </section>

@@ -23,6 +23,7 @@ import {
   lineReach,
   pick,
   potAt,
+  treeBet,
   problem,
   sampleFlops,
   preflopWords,
@@ -208,12 +209,16 @@ describe("a problem's spot", () => {
 
   it("the pot and the bet faced, the action said, sizes in bb", () => {
     expect(potAt(REP, [])).toEqual({ pot: 5.5, bet: 0 });
-    expect(potAt(REP, ["check", "bet 75%"])).toEqual({ pot: 9.63, bet: 4.13 });
+    // (the tree bets a pot share to the half big blind: 75% of 5.5bb is 4bb, 33% is 2bb)
+    expect(potAt(REP, ["check", "bet 75%"])).toEqual({ pot: 9.5, bet: 4 });
     expect(situation(REP, pr)).toBe("BB checks, BTN bets 75% (4.13bb) · pot 9.63bb");
     expect(situation(REP, { path: [], pot: 5.5, bet: 0 })).toBe("BB to act first · pot 5.5bb");
     expect(situation(REP, { path: ["bet 75%"], pot: 9.63, bet: 4.13 })).toBe("BB bets 75% (4.13bb) · pot 9.63bb");
     expect(drillActionLabel(pr, "call")).toBe("call 4.13bb");
-    expect(drillActionLabel({ pot: 5.5, bet: 0 }, "bet 33%")).toBe("bet 33% (1.82bb)");
+    expect(drillActionLabel({ pot: 5.5, bet: 0 }, "bet 33%")).toBe("bet 33% (2bb)");
+    expect([treeBet("bet 50%", 5), treeBet("bet 50%", 7), treeBet("bet 33%", 1.5), treeBet("call", 5)]).toEqual([2.5, 3.5, 1, undefined]);
+    // (a half goes to the even half big blind, as Python rounds: 25% of 5bb is 1.25bb, 2.5 halves, so 1bb; 75% of 5bb, 7.5 halves, 4bb)
+    expect([treeBet("bet 25%", 5), treeBet("bet 75%", 5)]).toEqual([1, 4]);
     expect(drillActionLabel(pr, "raise to 11")).toBe("raise to 11");
   });
 
@@ -227,7 +232,7 @@ describe("a problem's spot", () => {
     const h = studyHandOf(REP, pr);
     expect(h.flop).toEqual([
       { pos: "BB", action: "check" },
-      { pos: "BTN", action: "bet", to: 4.13 },
+      { pos: "BTN", action: "bet", to: 4 },
     ]);
     expect(h.preflop.slice(3)).toEqual([
       { pos: "BTN", action: "raise", to: 2.5 },
@@ -235,7 +240,7 @@ describe("a problem's spot", () => {
       { pos: "BB", action: "call" },
     ]);
     expect([h.players, h.stack, h.board]).toEqual([6, 100, "QhTh4h"]);
-    expect(studyHandOf(REP, { ...pr, path: ["bet 75%"], player: 1, hero: "BTN" }).flop).toEqual([{ pos: "BB", action: "bet", to: 4.13 }]);
+    expect(studyHandOf(REP, { ...pr, path: ["bet 75%"], player: 1, hero: "BTN" }).flop).toEqual([{ pos: "BB", action: "bet", to: 4 }]);
     expect(fromSearch(studyLink(REP, pr)!.slice("/study?".length))).toEqual(h);
     // a spot of another game is played in that game; one Study can't set up has no link
     expect(studyHandOf({ ...REP, game: { players: 2, stack: 100, ante: 0, straddle: false } }, pr).players).toBe(2);
@@ -453,12 +458,12 @@ describe("turn drills", () => {
     expect(situation(REP, pr)).toBe("On the flop BB checks, BTN bets 33%, BB raises to 7, BTN calls. BB checks the turn · pot 19.5bb");
     expect(situation(REP, { ...pr, path: ["check", "check"], turn: { ...pr.turn!, at: [] }, pot: 5.5 })).toBe("On the flop BB and BTN check. BB to act first on the turn · pot 5.5bb");
     expect(situation(REP, { ...pr, path: ["bet 75%", "call"], turn: { ...pr.turn!, at: [] }, pot: 13.5 })).toBe("On the flop BB bets 75%, BTN calls. BB to act first on the turn · pot 13.5bb");
-    expect(drillActionLabel(pr, "bet 75%")).toBe("bet 75% (14.63bb)");
+    expect(drillActionLabel(pr, "bet 75%")).toBe("bet 75% (14.5bb)");
     const h = studyHandOf(REP, pr);
     expect(h.board).toBe("Ah4c3d9s");
     expect(h.flop).toEqual([
       { pos: "BB", action: "check" },
-      { pos: "BTN", action: "bet", to: 1.82 },
+      { pos: "BTN", action: "bet", to: 2 },
       { pos: "BB", action: "raise", to: 7 },
       { pos: "BTN", action: "call" },
     ]);

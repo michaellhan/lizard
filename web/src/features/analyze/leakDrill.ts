@@ -1,13 +1,14 @@
 // A leak drilled: the decisions behind it dealt again one by one, each as it stood in your hand (your cards, the
 // board, the actions before it), answered from the mix kept with its grade, so nothing is asked of the solver (the
 // classic analyzer's drillSet: "the spot as it stood, the answer's mix and EVs, misses first"). A pick is graded on
-// the one scale (grading/grade.ts) as the decision was: by EV where the mix has EVs, else by frequency, and capped where
-// the decision was. Every street keeps what graded it (grading.ts gradeDecision: a read, a stored turn or a solve at Quick
-// or Fast keeps your hand's mix, its EVs where it has them, and the pot), so a turn or river decision is dealt like a flop
-// one. One kept without its mix isn't dealt, and the drill says how many (notDealt).
+// the one scale (grading/grade.ts gradeAnswer) on the basis kept with the decision: by EV where the mix has EVs, else by
+// frequency, within the same noise and capped where the decision was. Every street keeps what graded it (grading.ts
+// gradeDecision: a read, a stored turn or a solve at Quick or Fast keeps your hand's mix, its EVs where it has them, and
+// the pot), so a turn or river decision is dealt like a flop one. One kept without its mix isn't dealt, and the drill
+// says how many (notDealt).
 import type { DecisionRecord, HandRecord, SessionRecord } from "@/data/db";
 import { readWays, type Ways } from "@/features/history/history";
-import { capGrade, CAPPED_WORDS, grade, type Grade, type Score } from "@/grading/grade";
+import { CAPPED_WORDS, gradeAnswer, type AnswerBasis, type Grade, type Score } from "@/grading/grade";
 import { versionWords } from "@/grading/version";
 import type { ReplayedHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
@@ -143,12 +144,24 @@ export function lineBefore(r: ReplayedHand, street: Street, i: number): { board:
   return { board: h.board.slice(0, NEED[street]), streets };
 }
 
-/** A pick among the kept mix's actions, graded as the decision was: by EV where the mix has EVs for every action, else
- * by frequency (the charts, a stored turn, a read at once), and stopping at an Inaccuracy where a rough or cut-short solve
- * answered it. Null where its EVs have no pot to be measured against. */
+/** What a kept decision's grade stood on (grade.ts AnswerBasis): kept with it since 2026-11-18; before, its source, band
+ * and rough EVs. */
+export function pickBasis(d: DecisionRecord): AnswerBasis {
+  if (d.basis) return d.basis;
+  const rough = roughActions(d);
+  const flags = (d.mix ?? []).map((x) => rough.has(x[0]));
+  return { source: d.source, ...(d.band ? { band: d.band } : {}), ...(flags.some(Boolean) ? { rough: flags } : {}) };
+}
+
+/** A pick among the kept mix's actions, graded as the decision was, through the one entry point (grade.ts gradeAnswer)
+ * on the basis kept with it: by EV where the mix has EVs for every action, else by frequency (the charts, a stored turn,
+ * a read at once), within the answer's noise, and stopping at an Inaccuracy where the answer's error can't be measured.
+ * Null where its EVs have no pot to be measured against. */
 export function gradePick(d: DecisionRecord, a: number): Grade | null {
   if (!canGradePick(d)) return null;
-  return capGrade(grade({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0, source: d.source }, a), d.capped ? "rough" : d.band);
+  const g = gradeAnswer({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0 }, a, pickBasis(d));
+  // (a grade kept capped before its basis was: capped as it was)
+  return d.capped && !d.basis && (g.verdict === "Mistake" || g.verdict === "Blunder") ? { ...g, verdict: "Inaccuracy", capped: true } : g;
 }
 
 /** The actions whose EV is rough. A grade kept before `roughEvs` was can say it only of the move made. */
@@ -162,14 +175,14 @@ const CONFIDENCE_MEANS: Record<string, string> = {
 
 /** What a drill's answer stands on beyond its label: the grade's confidence and version, and what kept it from being read
  * at face value. All of it is the original grade's, as nothing is solved here. */
-export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | "best">): string[] {
+export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | "best"> & Partial<Pick<Grade, "capWhy">>): string[] {
   const name = (k: number) => d.mix?.[k]?.[0] ?? "";
   const rough = roughActions(d);
   return [
     d.read ? `Checked at Fast: the read before it said ${d.read.verdict}${d.read.confidence ? `, at ${d.read.confidence} confidence` : ""}.` : "",
     !d.read && d.confidence ? `A Quick triage read at ${d.confidence} confidence: ${CONFIDENCE_MEANS[d.confidence]}.` : "",
     d.notChecked !== undefined ? `Fast couldn't grade it (${d.notChecked}), so the read stands.` : "",
-    g.capped ? CAPPED_WORDS : "",
+    g.capped ? (g.capWhy ?? CAPPED_WORDS) : "",
     rough.has(name(g.a)) || rough.has(name(g.best)) ? "The range almost never takes that move, so its EV is rough." : "",
     d.off ?? "",
     `Version: ${versionWords(d.version)}.`,

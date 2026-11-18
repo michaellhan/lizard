@@ -97,7 +97,7 @@ describe("a live drill", () => {
     const said = screen.getByRole("region", { name: "Answer" });
     expect(within(said).getByText("Blunder")).toBeInTheDocument();
     expect(within(said).getByText("Live solve · 0.63% pot from equilibrium in the solved game (converged) · 111 iterations")).toBeInTheDocument();
-    expect(within(said).getByText(/^The solver plays this only 2% of the time; its best by EV is check \(98% of the time\)\.$/)).toBeInTheDocument();
+    expect(within(said).getByText(/^The solver plays this only 2\.0% of the time; its best by EV is check \(98\.0% of the time\)\. Graded on the 1\.88bb past what the answer's EVs can tell apart here \(0\.12bb\)\.$/)).toBeInTheDocument();
     expect(within(said).getByText(/EV given up: 2(\.0+)?bb, 21\.1% of the 9\.50?bb pot\./)).toBeInTheDocument();
     expect(within(said).getByRole("row", { name: /^bet 75% \(7bb\) ← you/ })).toBeInTheDocument();
     expect(within(said).getByRole("link", { name: "Open in Study →" }).getAttribute("href")).toMatch(/&b=([2-9TJQKA][shdc]){5}/);
@@ -182,8 +182,9 @@ describe("a live drill", () => {
     expect(screen.getByText("1 revealed pick not graded.")).toBeInTheDocument();
   });
 
-  it("caps a grade on an answer off the solve, and says so", async () => {
-    stub.solve = answer({ ...RIVER, off_solution: [{ street: "preflop", pos: "BTN", why: "filled" }] });
+  it("caps a grade on a solve short of its target, says so, and says what's off the solve", async () => {
+    // (a filled preflop range alone doesn't cap: liveDeal.test.ts; a solve short of its target does)
+    stub.solve = answer({ ...RIVER, solver: { iterations: 80, exploitability_pct: 1, approximate: true }, off_solution: [{ street: "preflop", pos: "BTN", why: "filled" }] });
     open("spot=srp_btn_bb&street=river&view=oop");
     fireEvent.click(within(await options()).getByRole("button", { name: /bet 75%/ }));
     const said = screen.getByRole("region", { name: "Answer" });

@@ -492,7 +492,13 @@ describe("your range at a decision", () => {
   const p = (source: "charts" | "live" | "rules" | "equity") => ({ source, approximate: source === "charts", mode: "quick", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0 }) as const;
   it("the answer's grid, named by street, your seat and who's still in; none from the rules or an equity estimate", () => {
     const h = fixed(3, "BTN", { BTN: "AdKc", SB: "2c3d", BB: "4c5d" }, "Ks7d2c9h3s");
-    expect(rangeAt(h, { ...CHART, grid: GRID }, p("charts"))).toEqual({ grid: GRID, cls: "AKo", label: "Your range · preflop · BTN vs SB, BB" });
+    // (with your own combo's mix, the one your decision is graded on, beside the class's average)
+    expect(rangeAt(h, { ...CHART, grid: GRID }, p("charts"))).toEqual({
+      grid: GRID,
+      cls: "AKo",
+      label: "Your range · preflop · BTN vs SB, BB",
+      own: { combo: "AdKc", mix: [{ a: "fold", f: 0.3 }, { a: "call", f: 0.05 }, { a: "raise 2.5", f: 0.65 }] },
+    });
     expect(rangeAt(h, CHART, p("charts"))).toBeNull();
     expect(rangeAt(h, { ...CHART, grid: GRID }, p("rules"))).toBeNull();
     expect(rangeAt(h, { ...CHART, grid: GRID }, p("equity"))).toBeNull();

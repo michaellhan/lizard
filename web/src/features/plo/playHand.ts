@@ -4,12 +4,12 @@
 // gradeAt, Lizard's one scale). When a street closes with chips behind, a card is dealt from those the solve has a game
 // for and the next street's strategies are asked of the job that solved it (RiverClient.river): nothing is solved again,
 // nothing is guessed. A hand ends on a fold or at showdown, the board run out if it's short (an all-in).
-import type { Grade } from "@/grading/grade";
+import { scored, type Grade } from "@/grading/grade";
 import { cardName, cardsText, parseIds } from "@/engine/plo/cards";
 import { handAt } from "@/engine/plo/combos";
 import { bestOmaha } from "@/engine/plo/evaluate";
 import { SEAT_NAMES, type ResultNode, type RiverResult, type RiverView, type ViewPath } from "@/engine/plo/river/run";
-import { gradeAt } from "./drill";
+import { gradeAt, type PloBasis } from "./drill";
 
 type Seat = 0 | 1;
 
@@ -67,7 +67,8 @@ export interface Play {
 
 export interface PlayContext {
   result: RiverResult;
-  band: string | undefined;
+  /** what grading knows of the solve (drill.ts PloBasis): its provenance's basis, or its band */
+  band: PloBasis;
   ask: (path: ViewPath) => Promise<RiverView | null>;
   rand?: () => number;
 }
@@ -159,7 +160,7 @@ async function run(play: Play, ctx: PlayContext): Promise<Play> {
   return p;
 }
 
-function gradeMine(p: Play, n: ResultNode, k: number, band: string | undefined): { grade: Grade | null; why?: string } {
+function gradeMine(p: Play, n: ResultNode, k: number, band: PloBasis): { grade: Grade | null; why?: string } {
   const c = combo(p.street, p.hero, p.cards[p.hero]);
   const size = n.weight.length;
   if (c < 0 || !(n.weight[c]! > 0)) return { grade: null, why: "the solve doesn't bring your hand here" };
@@ -248,8 +249,9 @@ export function tallyPlay(t: PlayTally, p: Play): PlayTally {
     hands: t.hands + 1,
     decisions: t.decisions + graded.length,
     ok: t.ok + graded.filter((g) => g.ok).length,
-    loss: t.loss + graded.reduce((s, g) => s + g.loss, 0),
-    lossPct: t.lossPct + graded.reduce((s, g) => s + g.lossPct, 0),
+    // (what a score counts: grade.ts scored, past the solve's noise and below Correct)
+    loss: t.loss + graded.reduce((s, g) => s + scored(g).loss, 0),
+    lossPct: t.lossPct + graded.reduce((s, g) => s + scored(g).lossPct, 0),
     net: t.net + (p.end?.net ?? 0),
   };
 }

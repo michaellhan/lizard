@@ -38,17 +38,48 @@ describe("MissCards", () => {
     expect(answer).toHaveTextContent("Blunder");
     expect(answer).toHaveTextContent("−1.5bb · 12% of the pot");
     expect(answer).toHaveTextContent("Fold is worth 0bb with this hand, 1.5bb more than call, which is never played.");
-    expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("call(you)0%-1.5bbfold100%0bb");
+    expect(within(answer).getByRole("table", { name: "The answer for your hand" })).toHaveTextContent("call(you)0.0%-1.5bbfold100.0%0bb");
     expect(within(box).queryByRole("link", { name: "Open the hand" })).toBeNull();
   });
 
   it("says why in a line: by EV what the best is worth over yours, by frequency how often each is played", () => {
     expect(whyLine(ds[2]!)).toBe("Fold is worth 0bb with this hand, 1.5bb more than call, which is never played.");
-    expect(whyLine(ds[1]!)).toBe("With this hand fold is played 100% of the time and raise is never played.");
+    expect(whyLine(ds[1]!)).toBe("With this hand fold is played 100.0% of the time and raise is never played.");
     expect(whyLine(dec("d", "Inaccuracy", "bet 3", 0.4, { matched: "bet 3", mix: [["check", 0.7, 1.2], ["bet 3", 0.3, 0.8]] }))).toBe(
-      "Check is worth 1.2bb with this hand, 0.4bb more than bet 3, which is played 30% of the time.",
+      "Check is worth 1.2bb with this hand, 0.4bb more than bet 3, which is played 30.0% of the time.",
     );
-    expect(whyLine(dec("e", "Mistake", "fold", null, { matched: undefined, mix: [], best: "raise", bestFreq: 0.8 }))).toBe("The answer most often raise (80%).");
+    expect(whyLine(dec("e", "Mistake", "fold", null, { matched: undefined, mix: [], best: "raise", bestFreq: 0.8 }))).toBe("The answer most often raise (80.0%).");
+  });
+
+  it("names the grade's best, says a rare play at one decimal, and what of the loss is past the answer's noise", () => {
+    // (the top EV is a bet the hand never makes, a hair over the check it plays: the grade's best is the check)
+    const d = dec("f", "Mistake", "fold", 0.6, {
+      street: "flop",
+      matched: "fold",
+      source: "library",
+      label: "Precomputed solution · srp_btn_bb",
+      lossPct: 9.1,
+      best: "check",
+      noise: 0.13,
+      past: 0.47,
+      basis: { source: "library", flopPot: 6.5 },
+      mix: [["fold", 0.004, 0], ["check", 0.9, 0.58], ["bet 2", 0.096, 0.6]],
+    });
+    expect(whyLine(d)).toBe("Check is worth 0.58bb with this hand, 0.58bb more than fold, which is played 0.4% of the time.");
+    const r = render(
+      <MemoryRouter>
+        <MissCards misses={[d]} byId={new Map([["f", hand("f", "7c2d")]])} k={0} setK={() => {}} onClose={() => {}} />
+      </MemoryRouter>,
+    );
+    const answer = within(r.container).getByRole("group", { name: "The answer" });
+    expect(answer).toHaveTextContent("−0.6bb · 9.1% of the pot · 0.47bb past the answer's noise");
+    expect(within(answer).getByRole("row", { name: /check/ })).toHaveClass("text-accent");
+    // (a record kept before then names the top EV, as it did)
+    expect(whyLine({ ...d, basis: undefined, noise: undefined })).toMatch(/^Bet 2 is worth 0\.6bb/);
+    // (within a verdict, the miss with more past the noise comes first, whatever was measured; a record kept before: its loss)
+    const wide = { ...d, id: "w", evLossBb: 0.9, noise: 0.6, past: 0.3 };
+    const old = { ...d, id: "o", evLossBb: 0.4, noise: undefined, past: undefined };
+    expect(missesOf([wide, d, old]).map((x) => x.id)).toEqual(["f", "o", "w"]);
   });
 
   it("moves by the arrows and the buttons, and closes by Escape or Finish", () => {

@@ -6,8 +6,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
-import { bb } from "@/components/actions";
-import { CAPPED_WORDS, whoOf, whyText, type Grade } from "@/grading/grade";
+import { CAPPED_WORDS, lossWords, whoOf, whyText, type Grade } from "@/grading/grade";
+import { basisOf } from "@/grading/basis";
 import { gameLabel, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryFiles } from "@/library/files";
 import { evUnit } from "@/solver/provenance";
@@ -89,8 +89,8 @@ export function PreflopDrill({ files, spot, rng, shared }: { files: LibraryFiles
   const choose = useCallback(
     (a: number) => {
       if (!d || picked) return;
-      // (every grade by this solve is capped: it's no full solve)
-      const g = gradeLive({ mix: d.mix, pot: d.pot, capped: true, provenance: { source: "preflop-solve" } }, a);
+      // (graded as Practice grades the same answer: within the model's measured noise, grade.ts pfNoisePct)
+      const g = gradeLive({ mix: d.mix, pot: d.pot, basis: basisOf(d.provenance, { res: d.node }) }, a);
       setPicked({ a, g });
       setSession((s) => addGraded(s, g, "preflop", "preflop-solve"));
     },
@@ -189,9 +189,9 @@ export function PreflopDrill({ files, spot, rng, shared }: { files: LibraryFiles
             )}
           </p>
           <p className="text-muted">
-            {picked.g.loss > 0 ? `EV given up: ${bb(picked.g.loss)}bb, ${picked.g.lossPct.toFixed(1)}% of the ${bb(state.d.pot)}bb pot.` : "No EV given up."}
+            {lossWords(picked.g, state.d.pot, evUnit(provenance)) ?? "No EV given up."}
             {picked.g.mixed && " This hand mixes actions here."}
-            {picked.g.capped && ` ${CAPPED_WORDS}`}
+            {picked.g.capped && ` ${picked.g.capWhy ?? CAPPED_WORDS}`}
           </p>
           <MixTable mix={mix} hasEv={mix.every((a) => a.ev !== null)} labelOf={label} chose={mix[picked.a]!.action} unit={evUnit(provenance)} />
           <button ref={nextRef} type="button" onClick={next} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-bg hover:bg-accent-strong">

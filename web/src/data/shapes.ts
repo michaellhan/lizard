@@ -58,6 +58,18 @@ export const validRange = (d: Record<string, unknown>): boolean =>
 
 /** A pot as a decision or a hand is named: History's order. */
 export const POT_NAMES: readonly string[] = ["Unopened", "Limped", "SRP", "3bet pot", "4bet+ pot"];
+/** A grade's basis as kept (grading/grade.ts AnswerBasis): every field optional, each of its type. */
+export const isBasis = (x: unknown): boolean =>
+  x === undefined ||
+  (typeof x === "object" &&
+    x !== null &&
+    !Array.isArray(x) &&
+    ((b: Record<string, unknown>) =>
+      [b.source, b.band].every(isOptStr) &&
+      [b.exploitabilityPct, b.flopPot, b.noise].every(isOptNum) &&
+      [b.partial, b.approximate, b.leans].every(isOptBool) &&
+      (b.rough === undefined || (Array.isArray(b.rough) && b.rough.every(isBool))))(x as Record<string, unknown>));
+
 export const isPotName = (x: unknown): x is string => isStr(x) && POT_NAMES.includes(x);
 /** A seat at any table, in action order: every table's seats are among the nine-handed one's. */
 export const SEAT_NAMES: readonly string[] = SEATS[9]!;
@@ -166,6 +178,9 @@ export function validDecision(d: Record<string, unknown>): boolean {
     [d.situation, d.potType, d.role, d.matched, d.best, d.note, d.why, d.version, d.band, d.off, d.confidence, d.triageSource, d.notChecked].every(isOptStr) &&
     isMix(d.mix) &&
     (d.roughEvs === undefined || isStrs(d.roughEvs)) &&
+    [d.noise, d.past, d.pastPct].every(isOptNum) &&
+    isOptStr(d.capWhy) &&
+    isBasis(d.basis) &&
     isRead(d.read)
   );
 }

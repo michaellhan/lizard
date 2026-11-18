@@ -73,6 +73,7 @@ describe("a decision graded", () => {
   it("keeps a tally", () => {
     const n = node({ id: 0 });
     const t = tallied(tallied(EMPTY_TALLY, gradeAt(n, 2, 0, 20, "converged")), gradeAt(n, 0, 0, 20, "converged"));
-    expect(t).toEqual({ hands: 2, ok: 1, loss: 3 });
+    // (the tally counts what a miss gave up past the answer's noise: of 3bb, 2.9bb past half a percent of the 20bb pot)
+    expect(t).toEqual({ hands: 2, ok: 1, loss: 2.9 });
   });
 });

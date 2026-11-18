@@ -13,7 +13,7 @@ import { isPotDrill, POT_DRILLS } from "@/features/practice/practice";
 import { isTextureFilter } from "@/features/practice/texture";
 import { describeLock, type Lock } from "@/features/study/locks";
 import { fromSearch } from "@/features/study/studyState";
-import type { Grade } from "@/grading/grade";
+import { scored, type Grade } from "@/grading/grade";
 import { spotVersion } from "@/grading/version";
 import { describeTournament } from "@/features/tournaments/tournament";
 import { PRIZE_UNIT, sourceLabel } from "@/solver/provenance";
@@ -84,9 +84,12 @@ const mergeWays = (a: Ways, b: Ways): Ways => GRADE_WAYS.reduce((w, way) => (b[w
 export const mergeSplit = (a: Split, b: Split): Split => ({ ways: mergeWays(a.ways, b.ways), apart: a.apart + b.apart });
 const waysCount = (w: Ways) => GRADE_WAYS.reduce((n, way) => n + (w[way]?.n ?? 0), 0);
 
+/** What a tally reads of a grade. Its EV lost is what the score counts (grade.ts scored): since 2026-11-18 only what a
+ * decision below Correct gave up past its answer's noise; a tally kept before counted every decision's whole loss. */
+type Counted = Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> & Partial<Pick<Grade, "past" | "pastPct">>;
+
 /** A grade added to its way, for a tally that keeps no cells (a leak drill's). */
-export const addGradeWay = (w: Ways | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">, source: string | undefined): Ways =>
-  addWay(w, wayOf(g.byEv, source), { n: 1, ok: g.ok ? 1 : 0, loss: g.byEv ? g.loss : 0, lossPct: g.byEv ? g.lossPct : 0 });
+export const addGradeWay = (w: Ways | undefined, g: Counted, source: string | undefined): Ways => addWay(w, wayOf(g.byEv, source), { n: 1, ok: g.ok ? 1 : 0, ...scored(g) });
 
 /** Ways as kept, read defensively: one whose counts don't stand isn't one. */
 export function readWays(x: unknown): Ways {
@@ -149,19 +152,20 @@ export function handPot(preflop: readonly SeatMove[], sim: { streets: { preflop?
 export const linePot = (preflop: readonly SeatMove[]) => handPot(preflop, { streets: { preflop: { nRaises: preflop.filter((m) => m.action === "raise" || m.action === "bet" || m.action === "all-in").length } } });
 
 /** A finished hand added to its pot type's tally: its graded decisions, and its net (null preflop only). */
-export function addHandToPot(t: PotTally | undefined, grades: readonly ((Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> & { source?: string }) | null)[], net: number | null): PotTally {
+export function addHandToPot(t: PotTally | undefined, grades: readonly ((Counted & { source?: string }) | null)[], net: number | null): PotTally {
   const out = { ...(t ?? emptyTally()) };
   out.hands++;
   for (const g of grades) {
     if (!g) continue;
     out.n++;
     if (g.ok) out.ok++;
+    const lost = scored(g);
     if (g.byEv) {
       out.ne++;
-      out.loss += g.loss;
-      out.lossPct += g.lossPct;
+      out.loss += lost.loss;
+      out.lossPct += lost.lossPct;
     }
-    out.ways = addWay(out.ways, wayOf(g.byEv, g.source), { n: 1, ok: g.ok ? 1 : 0, loss: g.byEv ? g.loss : 0, lossPct: g.byEv ? g.lossPct : 0 });
+    out.ways = addWay(out.ways, wayOf(g.byEv, g.source), { n: 1, ok: g.ok ? 1 : 0, ...lost });
   }
   if (net != null) {
     out.played++;
@@ -199,11 +203,12 @@ export interface GradeCell {
 }
 
 /** A graded decision added to its cell. */
-export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Pick<Grade, "ok" | "loss" | "lossPct" | "byEv">, version?: string, at?: CellAt): Record<string, GradeCell> {
+export function addCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Counted, version?: string, at?: CellAt): Record<string, GradeCell> {
   const src = source ?? "unknown";
+  const lost = scored(g);
   const key = `${street}|${src}|${g.byEv ? "ev" : "freq"}${at ? `|${at.seat}|${at.pot}` : ""}`;
   const c = cells?.[key] ?? { street, source: src, byEv: g.byEv, ...at, n: 0, ok: 0, loss: 0, lossPct: 0 };
-  return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + (g.byEv ? g.loss : 0), lossPct: c.lossPct + (g.byEv ? g.lossPct : 0), ...(version || c.versions ? { versions: addVersion(c.versions, version) } : {}) } };
+  return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + lost.loss, lossPct: c.lossPct + lost.lossPct, ...(version || c.versions ? { versions: addVersion(c.versions, version) } : {}) } };
 }
 
 /** A grade counted under its version; one with none, as it was. */

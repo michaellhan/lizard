@@ -75,7 +75,7 @@ describe("a drill's mistake", () => {
     expect(m).toMatchObject({ from: "drill", street: "flop", study: "p=6&s=100", chose: "check", hole: ["Kh", "Qs"], seat: "BB", game: REP.label });
     expect(m.ask).toEqual({ via: "library", spot: "srp_btn_bb", flop: "Ac8c6c", path: [], combo: [10, 20], version: "abc" });
     expect(drillMistake("d1", REP, PROBLEM, grade({ ok: true, verdict: "Best" }), STORED, null, "abc", DAY_ONE)).toBeNull();
-    expect(drillMix(PROBLEM)).toEqual([{ action: "check", freq: 0.05, ev: 3 }, { action: "bet 33%", freq: 0.95, ev: 3.6, amount: 1.82 }]);
+    expect(drillMix(PROBLEM)).toEqual([{ action: "check", freq: 0.05, ev: 3 }, { action: "bet 33%", freq: 0.95, ev: 3.6, amount: 2 }]); // (the tree's bet: 33% of 5.5bb to the half bb)
   });
 
   it("keeps a turn drill's street, card and line, as a separate spot, with no EV", () => {

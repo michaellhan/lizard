@@ -167,7 +167,7 @@ describe("DrillsPanel", () => {
   it("deals a hand at the spot's node, grades your pick against the stored answer, and deals again on a key", async () => {
     open("spot=srp_btn_bb&view=oop");
     const options = await screen.findByRole("group", { name: "Your options" }, { timeout: 5000 });
-    expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""))).toEqual(["check", "bet 33% (1.82bb)", "bet 75% (4.13bb)"]);
+    expect(within(options).getAllByRole("button").map((b) => b.textContent?.replace(/^\d/, ""))).toEqual(["check", "bet 33% (2bb)", "bet 75% (4bb)"]);
     expect(within(screen.getByRole("group", { name: "Board" })).getAllByRole("img")).toHaveLength(3);
     expect(within(screen.getByRole("group", { name: "Your cards" })).getAllByRole("img")).toHaveLength(2);
     expect(told()).toEqual(["PreflopFolds to BTN. BTN raises to 2.5bb, BB calls", "Floppot 5.5bb · BB to act · 97.5bb behind"]);
@@ -201,7 +201,7 @@ describe("DrillsPanel", () => {
     await screen.findByRole("group", { name: "Your options" });
     await waitFor(() => expect(within(screen.getByRole("group", { name: "Your options" })).getAllByRole("button")[0]).toBeEnabled());
     fireEvent.keyDown(window, { key: "2" });
-    expect(within(await screen.findByRole("region", { name: "Answer" })).getByRole("row", { name: /^bet 33% \(1\.82bb\) ← you/ })).toBeInTheDocument();
+    expect(within(await screen.findByRole("region", { name: "Answer" })).getByRole("row", { name: /^bet 33% \(2bb\) ← you/ })).toBeInTheDocument();
   });
 
   it("Hint gives the spot, and a pick after Reveal isn't scored, kept or graded, and says so", async () => {
