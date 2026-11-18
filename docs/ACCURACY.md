@@ -2213,3 +2213,109 @@ chart itself 3bets K9s 78% and KTs 1% (the moves data: a pure class-level solve'
   correction above takes it as exact, so its error remains, and it feeds the heads-up re-pricing, push/fold and the
   class-level preflop solve. An exact table moves the stored preflop solves' model (a new model tag and a rebuild).
 - The format charts' moves (`gto/pf_format_data.py`) carry the class-level solves' pure choices between neighbours.
+
+## 28. The 3-way library after a chart change, and Quick's 3-way answers (2026-11-18)
+
+Measured natively on this Mac (no browser), through `slot.sh` beside two library builds, so the times are a busy
+machine's. `scripts/engine/test_mw_near.py`, `test_mw_quick.py` and `scripts/library/test_published_fps.py` hold what
+follows.
+
+**The 3-way library went unread.** A 3-way spot is found by the fingerprints of the three ranges its preflop line gives
+entering the flop. b10afc8 (2026-11-17, section 26) moved the big blind's range in all four spots, so from then on no
+pot matched one and every 3-way flop was solved live (Quick in its small game). Nothing said so.
+
+The spots are now served as built (`engine/mw_near.py`). The ranges they were built on come from the solver at the
+build's commit, 5b49b94 (2026-11-16): `scripts/library/mw_built_ranges.py` recomputes them offline, checks them against
+the published fingerprints and writes `engine/mw_built.py`. A pot whose ranges are what the spot's own line gives today
+reads the stored entries when today's ranges are near the built ones. Near means the three distances
+(`flop_approx.range_dist`, 0-2; half of it is the share of weight that moved) sum to at most `NEAR_DIST` = 0.25, and
+each built range holds at least `NEAR_COVER` = 0.9 of today's weight. Upstream borrows another table's pot at up to
+0.5 (`MW_BORROW_DIST`); 0.25 is half again the largest move here (0.165) and well inside that.
+
+| Spot | Range that moved | Distance | Weight moved | Cover |
+|---|---|---|---|---|
+| CO opens, BTN and BB call | BB | 0.150 | 7.5% | 96.6% |
+| BTN opens, SB and BB call | BB | 0.144 | 7.2% | 98.5% |
+| HJ opens, BTN and BB call | BB | 0.165 | 8.2% | 97.9% |
+| UTG opens, BTN and BB call | BB | 0.142 | 7.1% | 97.7% |
+
+The other two ranges of each spot are unchanged.
+
+Priced as `solver/scripts/bench_mw_formats.py` prices a borrowed spot, on 6 stored flops a spot (KcTd5h, AcQd5h,
+KcQcJd, QcTc3d, JcTd4h, AcJd3h). Each seat's first decision with checks in front of it gives 72 decisions. Today's
+ranges were solved on the library's game until settled (300-400 iterations, 0.05-0.10% of the pot from equilibrium).
+Each mix was then priced by that solve's EVs, as the share of the pot it gives up:
+
+| Mix played | Mean | Max |
+|---|---|---|
+| The stored entry, as built | 0.010% | 0.044% |
+| The live Fast solve at 200 iterations (what answered without the library) | 0.057% | 0.16% |
+| Floor: the built ranges' own re-solve against the entry | 0.0001% | 0.005% |
+
+By spot, the stored entries' means are 0.0098-0.0108%. Only first decisions behind checks were priced, not lines with
+a bet or raise in them, and only 6 flops a spot.
+
+The answer carries `precomputed.borrowed` with `built` ({commit, date, seats}). Its text reads, for example, "this spot
+as built on the charts of 2026-11-16, which have changed since: BB's range differs from this pot's by 7.5% of its
+weight; CO and BTN's are the same". Until the web reads `built`, the badge shows "another table's spot read as this
+one (...)". It is approximate, the stored solve's numbers are hidden, and Practice caps its grades at Inaccuracy.
+
+`scripts/library/test_published_fps.py` recomputes every published spot's fingerprints (53 heads-up, 4 three-way) from
+today's code in under a second, so CI fails a chart change that moves a spot. The four stale spots are held to today's
+fingerprints, and must stay within `NEAR_DIST`. The rebuild on today's ranges is written, not run
+(`docs/DEPLOYMENT.md`, "Rebuilding the 3-way spots after a chart change"). One entry took 16 s and 0.52 GB (300
+iterations, 0.086% of the pot), so all 7,020 come to about 38 CPU hours.
+
+**Quick 3-way streets behind a bet.** Before, when someone bet or raised before your decision on a 3-way street, Quick
+narrowed that street by the betting rules alone; Fast solves it from its start (`mw_current_solve`, section 26's
+Qs7s6d). Now Quick solves it too (`engine/mw_quick.py`), in Quick's own small game (6 buckets on the flop, 8 on the
+turn, the river's own game). The solve runs for at most 2.0 s on the flop, 1.5 s on the turn and 0.6 s on the river. It
+stops early once the narrowing would follow it fully (0.5% of the pot on the flop, 2% on the turn and river), checked at
+25, 50, 100, 150, 200, 300, 400 and 700 iterations. The node's own solve keeps its whole budget after it.
+
+That first version broke Quick at narrowing budgets of 1.2 s and up. Upstream's build deadline for a Quick 3-way solve
+(0.75 of 1.8 s from the request's start) passed during the narrowing, so the rules answered. The deadline now counts
+from the narrowing's end.
+
+Six-max 100bb, two runs each (the times are the runs' range):
+
+| Decision (BTN's) | Answer time, before → now | Narrowing solve | Answer, before → now |
+|---|---|---|---|
+| Qs7s6d, UTG opens, BTN and BB call; BB checks, UTG bets 4. Kh7h | 1.8 → 3.8 s | 69-70 iterations, 0.8%, followed 92-93%, 2.0 s | raise 100% (+0.52bb, call -1.23) → fold (raise -0.20, call -0.71; Fast folds too) |
+| Kd7s2c, CO opens, BTN and BB call; BB checks, CO bets 2.64. KhQh | 1.5 → 3.6 s | 103-108, 0.8%, 92-94%, 2.0 s | raise 100% → raise 100% |
+| 9h8d3c, CO opens, BTN and BB call; BB checks, CO bets 3. Tc9c | 1.4 → 3.5 s | 100, 0.5%, 100%, 1.6-1.7 s | raise 100% → raise 100% |
+| Turn 2h after the flop checks through; BB checks, UTG bets 5.5. Kh7h | 0.9-1.1 → 2.7 s | 48-50, 1.3-1.4%, 100%, 1.5 s | raise 100% → raise 100% (call -0.26 → +1.36) |
+| River 4c; BB bets 6, UTG calls. Kh7h | 0.76 → 0.86 s | 25, 0.9%, 100%, 0.2 s | raise 100% (+0.57) → fold (raise -0.17) |
+
+So a Quick 3-way decision behind a bet takes about 2 s longer on the flop, 1.7 s on the turn and 0.1 s on the river.
+On the flop that is about twice Quick's usual time. This wasn't measured in a browser. The narrowing stops on time, not
+at a number of iterations, so a slower browser should add about the same time and run fewer iterations. Those leave
+it less settled and followed less (`trust_of`), and the note says by how much. Upstream measured a 3-way flop solve in
+the browser at about native speed (`advisor.py` above `MW_FAST_STREETS`: 203 iterations in 8 s against 111-125 in
+5 s natively on a loaded machine), so a browser 2-3x slower is the worst case. Peak RSS rose
+from 252-265 MB to 254-303 MB. The narrowing solves sit in the worker's 3-way cache under `cache_mb`. 4-way and larger
+streets are unchanged (upstream solves only 3-way streets from their start), so the 1.36 GB a 4-way Quick turn reached
+in the audit is untouched.
+
+**Fast after Quick at the same node stood on the rules.** The hand's 3-way solves are kept by their place in the hand,
+not by mode. A Quick answer stored its node solve there, and a Fast request at that node then took it as its own line
+and skipped the street's narrowing. On the turn decision above, Fast after Quick answered in 0.67 s by the rules. Now
+it narrows through a 183-iteration solve (0.1% of the pot) in 9.3 s. On the Qs7s6d flop, Fast after Quick raised K7s
+100% (+0.89); now it folds, as a fresh Fast request does. A Quick request's keys now carry the mode. The street being
+advised on never takes the node's own solve for its narrowing, so a repeated request narrows as the first did.
+
+**A rare earlier line at Quick.** After a line an earlier heads-up street's solve rarely takes (3% or less), Fast solves
+the street again from that node; Quick used the rules' range. Quick now re-solves too, for at most 0.5 s. That reaches
+a library flop, or a street already solved in the hand; a street Quick doesn't solve keeps the rules and says so. Two
+library-flop lines (BTN's 33% bet on Qs8d4c, which the stored solve plays 3%; BTN's 33% bet on JhTc4s before a
+check-raise, 0%) were re-solved in 300 iterations. The answer took 1.94-1.96 s instead of 1.86, and 1.92-1.93 s instead
+of 1.87. The node's own solve ran 81-91 iterations instead of 105 (0.46-0.54% of the pot instead of 0.26%), and 74-76
+instead of 83 (0.77-0.82% instead of 0.48%). The Qs8d4c answer still checks; the JhTc4s one moves from bet 75% 57% to
+bet 33% 53%.
+
+**Quick's 3-way flop game is small.** A Quick 3-way flop is solved with 6 hand buckets a player on the turn and river
+and one bet size of half the pot. Upstream measured those buckets' values 5.3-10.9% of the pot from a 32-bucket
+game's, against 2.2-3.1 for Fast's 12. Its distance from equilibrium is measured in that small game, so a full run read
+"converged". The answer now carries `solver.approximate` (the provenance band "approximate"; Practice caps its grades
+at Inaccuracy) and a note that starts with "Approximate: a quick answer's 3-way flop is solved in a small game". The
+web doesn't show that note yet. Quick's 3-way turn game (8 buckets) isn't marked.
