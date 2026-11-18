@@ -39,6 +39,10 @@ from gto.pf_classes import CLASSES, PAIR_COMPAT, equity_matrix
 
 K = len(CLASSES)
 JAM_OPEN = 25.0        # an unopened pot can be jammed beside the open from this effective stack (bb) or less
+# the flop model's tag, hashed into every game's key (pf_icm_study.Spec.key), so no stored file or browser keep mixes two
+# models' solves: "cal1" engine/pf_model's calibrated model (2026-11-18; the keys before it had none: upstream's
+# pf_study.flop_model). A change to the model or engine/pf_calib.py bumps it
+FLOP_MODEL_TAG = "cal1"
 EPS = 1e-9
 
 
@@ -457,9 +461,14 @@ class ICMGame(G.Game):
 
 # ----------------------------------------------------------------------------- a spot
 def flop_model(stack: float) -> G.EQRModel:
-    """The flop valuation the preflop solve uses (pf_study.flop_model), at the effective depth."""
-    from gto import pf_study
-    return pf_study.flop_model(max(10.0, min(250.0, stack)))
+    """The flop valuation the cash grid's solve uses (engine/pf_model.py's calibrated model, engine/pf_calib.py's
+    corrections), at the effective depth. It was upstream's (pf_study.flop_model), whose join at a library range's edge
+    valued a class just outside it above its neighbours inside, so the Early preset's hijack opened QTo and folded QJo
+    (docs/ACCURACY.md section 18.6 has the cash grid's case). The same shares a pot, the same keys (pot type, position,
+    seats) and the same depth factors (pf_study.depth_scale, held to 20-200bb), so it drops in; the corrections were
+    calibrated on chip games (6-max 100bb), which a prize-equity game takes as its flop's chip shares."""
+    from . import pf_model
+    return pf_model.flop_model(max(10.0, min(250.0, stack)))
 
 
 def game(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[float] = (), icm_model=None,

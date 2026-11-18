@@ -70,6 +70,7 @@ class Spec:
         game = [dataclasses.asdict(I.Sizes()), I.JAM_OPEN]     # (the sizes too: a file of other sizes never loads)
         if not self.cold4:
             game.append("no cold 4bets")       # (7 or more players' smaller tree; 2-6 players' keys as they were)
+        game.append(I.FLOP_MODEL_TAG)          # (the flop model's: a file solved on another never loads)
         h = hashlib.sha1(json.dumps([self.players, self.stacks, self.antes, self.prize_key, game]).encode()).hexdigest()[:16]
         return f"icm{self.players}_{h}"
 

@@ -2,7 +2,7 @@
  {
   "name": "Final-table bubble",
   "set": "stage",
-  "key": "icm5_537c59c9ee3a5a68",
+  "key": "icm5_2af0c8630a3e0dcb",
   "request": {
    "players": 5,
    "stack": 40,
@@ -32,22 +32,22 @@
   "players": 5,
   "nodes": 895,
   "iterations": 1500,
-  "mbb": 0.952,
+  "mbb": 0.596,
   "mbb_seats": [
-   0.356,
-   0.405,
-   2.647,
-   0.935,
-   0.415
+   0.257,
+   0.396,
+   1.131,
+   0.734,
+   0.463
   ],
-  "seconds": 20.1,
-  "bytes": 7276,
+  "seconds": 16.8,
+  "bytes": 7605,
   "label": "5 players, stacks HJ 20 \u00b7 CO 40 \u00b7 BTN 8 \u00b7 SB 28 \u00b7 BB 14bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Three left",
   "set": "stage",
-  "key": "icm3_9b41af870049f4af",
+  "key": "icm3_7f1f4a95c45b0e5a",
   "request": {
    "players": 3,
    "stack": 55,
@@ -65,20 +65,20 @@
   "players": 3,
   "nodes": 78,
   "iterations": 1500,
-  "mbb": 0.115,
+  "mbb": 0.166,
   "mbb_seats": [
-   0.123,
-   0.192,
-   0.029
+   0.244,
+   0.242,
+   0.013
   ],
-  "seconds": 2.2,
-  "bytes": 1108,
+  "seconds": 1.5,
+  "bytes": 1028,
   "label": "3 players, stacks BTN 30 \u00b7 SB 55 \u00b7 BB 15bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Heads-up",
   "set": "stage",
-  "key": "icm2_60cc277c8dee7c1d",
+  "key": "icm2_4fbe74424c05b3c7",
   "request": {
    "players": 2,
    "stack": 60,
@@ -94,19 +94,19 @@
   "players": 2,
   "nodes": 22,
   "iterations": 1500,
-  "mbb": 0.015,
+  "mbb": 0.01,
   "mbb_seats": [
-   0.019,
+   0.01,
    0.01
   ],
-  "seconds": 0.8,
-  "bytes": 449,
+  "seconds": 0.5,
+  "bytes": 613,
   "label": "heads-up, stacks SB 40 \u00b7 BB 60bb, 0.5bb ante each, prize equity (ICM, Malmuth-Harville): 2 paid in the model (30/20), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Sit & go bubble",
   "set": "stage",
-  "key": "icm4_e0d82a5ac3a11175",
+  "key": "icm4_7977fc0c5f2aab6e",
   "request": {
    "players": 4,
    "stack": 24,
@@ -125,21 +125,21 @@
   "players": 4,
   "nodes": 202,
   "iterations": 1500,
-  "mbb": 1.279,
+  "mbb": 1.285,
   "mbb_seats": [
-   0.196,
-   0.331,
-   0.411,
-   4.176
+   0.155,
+   0.394,
+   0.206,
+   4.383
   ],
-  "seconds": 4.8,
-  "bytes": 2305,
+  "seconds": 3.6,
+  "bytes": 2243,
   "label": "4 players, stacks CO 24 \u00b7 BTN 16 \u00b7 SB 9 \u00b7 BB 18bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (50/30/20), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Sit & go, 6 players",
   "set": "stage",
-  "key": "icm6_c90e6c239eb2fcda",
+  "key": "icm6_77fc5445965a1fe2",
   "request": {
    "players": 6,
    "stack": 75,
@@ -151,23 +151,23 @@
   "players": 6,
   "nodes": 7542,
   "iterations": 1500,
-  "mbb": 1.13,
+  "mbb": 1.033,
   "mbb_seats": [
-   0.551,
-   0.88,
-   1.596,
-   2.039,
-   1.242,
-   0.469
+   0.233,
+   0.744,
+   1.37,
+   2.279,
+   1.336,
+   0.237
   ],
-  "seconds": 175.6,
-  "bytes": 50775,
+  "seconds": 138.4,
+  "bytes": 46575,
   "label": "6 players, stacks UTG 75 \u00b7 HJ 75 \u00b7 CO 75 \u00b7 BTN 75 \u00b7 SB 75 \u00b7 BB 75bb, prize equity (ICM, Malmuth-Harville): 2 paid in the model (65/35), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Double or nothing",
   "set": "stage",
-  "key": "icm6_30cdcd37a890364b",
+  "key": "icm6_c04bba4775d14baa",
   "request": {
    "players": 6,
    "stack": 50,
@@ -180,23 +180,23 @@
   "players": 6,
   "nodes": 4667,
   "iterations": 1500,
-  "mbb": 0.565,
+  "mbb": 0.538,
   "mbb_seats": [
-   0.257,
-   0.37,
-   0.806,
-   1.094,
-   0.626,
-   0.236
+   0.145,
+   0.3,
+   0.629,
+   1.338,
+   0.708,
+   0.106
   ],
-  "seconds": 86.9,
-  "bytes": 23520,
+  "seconds": 93.2,
+  "bytes": 20087,
   "label": "6 players, stacks UTG 50 \u00b7 HJ 50 \u00b7 CO 50 \u00b7 BTN 50 \u00b7 SB 50 \u00b7 BB 50bb, prize equity (ICM, Malmuth-Harville): 3 paid in the model (1/1/1), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Early",
   "set": "stage",
-  "key": "icm8_7dd4458f6c268b48",
+  "key": "icm8_28d33d6554521604",
   "request": {
    "players": 8,
    "stack": 60,
@@ -361,25 +361,25 @@
   "players": 8,
   "nodes": 2148,
   "iterations": 1500,
-  "mbb": 0.121,
+  "mbb": 0.174,
   "mbb_seats": [
-   0.093,
-   0.074,
-   0.122,
-   0.109,
-   0.176,
-   0.129,
-   0.19,
-   0.075
+   0.081,
+   0.084,
+   0.067,
+   0.097,
+   0.133,
+   0.388,
+   0.462,
+   0.08
   ],
-  "seconds": 49.3,
-  "bytes": 14943,
+  "seconds": 41.1,
+  "bytes": 16766,
   "label": "8 players, stacks UTG 60 \u00b7 UTG1 60 \u00b7 LJ 60 \u00b7 HJ 60 \u00b7 CO 60 \u00b7 BTN 60 \u00b7 SB 60 \u00b7 BB 60bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 2 paid in the model (1.002/0.1932), 1000 players modelled by 12, opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Bubble",
   "set": "stage",
-  "key": "icm8_7cf42a99af59e8ec",
+  "key": "icm8_e00ec782d7ec1a65",
   "request": {
    "players": 8,
    "stack": 48,
@@ -518,25 +518,25 @@
   "players": 8,
   "nodes": 1310,
   "iterations": 1500,
-  "mbb": 0.243,
+  "mbb": 0.214,
   "mbb_seats": [
-   0.112,
-   0.119,
-   0.197,
-   0.368,
-   0.078,
-   0.456,
-   0.207,
-   0.405
+   0.038,
+   0.088,
+   0.133,
+   0.362,
+   0.059,
+   0.341,
+   0.34,
+   0.347
   ],
-  "seconds": 31.8,
-  "bytes": 8578,
+  "seconds": 35.5,
+  "bytes": 8537,
   "label": "8 players, stacks UTG 22 \u00b7 UTG1 48 \u00b7 LJ 10 \u00b7 HJ 35 \u00b7 CO 6 \u00b7 BTN 28 \u00b7 SB 14 \u00b7 BB 18bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 12 paid in the model (4.28966/1.37586/0.913793/\u2026), 116 players modelled by 12, opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table",
   "set": "stage",
-  "key": "icm9_68a50f93a72f8fa4",
+  "key": "icm9_c261337ded1f6129",
   "request": {
    "players": 9,
    "stack": 62,
@@ -566,26 +566,26 @@
   "players": 9,
   "nodes": 2096,
   "iterations": 1500,
-  "mbb": 0.2,
+  "mbb": 0.158,
   "mbb_seats": [
-   0.024,
-   0.028,
-   0.037,
    0.031,
-   0.062,
-   0.038,
-   0.072,
-   0.058,
-   1.449
+   0.039,
+   0.028,
+   0.051,
+   0.056,
+   0.029,
+   0.063,
+   0.045,
+   1.081
   ],
-  "seconds": 55.1,
-  "bytes": 12611,
+  "seconds": 46.6,
+  "bytes": 13004,
   "label": "9 players, stacks UTG 27 \u00b7 UTG1 9 \u00b7 UTG2 62 \u00b7 LJ 16 \u00b7 HJ 34 \u00b7 CO 6 \u00b7 BTN 45 \u00b7 SB 12 \u00b7 BB 21bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Sit & go, 9 players",
   "set": "stage",
-  "key": "icm9_fae88fa117be9df7",
+  "key": "icm9_471377294e83be34",
   "request": {
    "players": 9,
    "stack": 75,
@@ -598,26 +598,26 @@
   "players": 9,
   "nodes": 3318,
   "iterations": 1500,
-  "mbb": 0.082,
+  "mbb": 0.063,
   "mbb_seats": [
-   0.077,
-   0.078,
    0.097,
-   0.067,
-   0.078,
-   0.092,
-   0.088,
-   0.087,
-   0.07
+   0.054,
+   0.105,
+   0.049,
+   0.047,
+   0.043,
+   0.054,
+   0.049,
+   0.072
   ],
-  "seconds": 65.4,
-  "bytes": 17805,
+  "seconds": 69.7,
+  "bytes": 20573,
   "label": "9 players, stacks UTG 75 \u00b7 UTG1 75 \u00b7 UTG2 75 \u00b7 LJ 75 \u00b7 HJ 75 \u00b7 CO 75 \u00b7 BTN 75 \u00b7 SB 75 \u00b7 BB 75bb, prize equity (ICM, Malmuth-Harville): 3 paid in the model (50/30/20), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 3 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm3_ed828c082920a114",
+  "key": "icm3_32d63554fc52aee2",
   "request": {
    "players": 3,
    "stack": 10.0,
@@ -631,20 +631,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 0.04,
+  "mbb": 0.039,
   "mbb_seats": [
-   0.009,
-   0.067,
-   0.044
+   0.017,
+   0.043,
+   0.057
   ],
-  "seconds": 1.0,
-  "bytes": 987,
+  "seconds": 1.1,
+  "bytes": 1279,
   "label": "3 players, stacks BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm3_ebf450bfd7e6377a",
+  "key": "icm3_a8e4ba29f50cafbe",
   "request": {
    "players": 3,
    "stack": 20.0,
@@ -662,20 +662,20 @@
   "players": 3,
   "nodes": 42,
   "iterations": 1500,
-  "mbb": 0.292,
+  "mbb": 0.317,
   "mbb_seats": [
-   0.004,
-   0.234,
-   0.636
+   0.007,
+   0.191,
+   0.752
   ],
   "seconds": 0.9,
-  "bytes": 499,
+  "bytes": 584,
   "label": "3 players, stacks BTN 20 \u00b7 SB 5 \u00b7 BB 5bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm3_7b2ed2fbacb97126",
+  "key": "icm3_c2e484e532d0d4d6",
   "request": {
    "players": 3,
    "stack": 13.0,
@@ -692,20 +692,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 1.619,
+  "mbb": 2.086,
   "mbb_seats": [
-   2.203,
-   2.608,
-   0.046
+   2.96,
+   3.203,
+   0.097
   ],
-  "seconds": 1.1,
-  "bytes": 1323,
+  "seconds": 1.2,
+  "bytes": 1324,
   "label": "3 players, stacks BTN 13 \u00b7 SB 13 \u00b7 BB 4bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm3_3d879865920ecec4",
+  "key": "icm3_25b2b526e616a114",
   "request": {
    "players": 3,
    "stack": 15.0,
@@ -721,18 +721,18 @@
   "iterations": 1500,
   "mbb": 0.136,
   "mbb_seats": [
-   0.093,
-   0.258,
+   0.124,
+   0.227,
    0.057
   ],
-  "seconds": 1.0,
-  "bytes": 1208,
+  "seconds": 1.1,
+  "bytes": 1187,
   "label": "3 players, stacks BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm3_f5f87f8a801c125a",
+  "key": "icm3_d80a7fb1c420bb5e",
   "request": {
    "players": 3,
    "stack": 30.0,
@@ -750,20 +750,20 @@
   "players": 3,
   "nodes": 42,
   "iterations": 1500,
-  "mbb": 0.227,
+  "mbb": 0.179,
   "mbb_seats": [
-   0.013,
-   0.455,
-   0.214
+   0.019,
+   0.32,
+   0.199
   ],
   "seconds": 0.9,
-  "bytes": 574,
+  "bytes": 672,
   "label": "3 players, stacks BTN 30 \u00b7 SB 7.5 \u00b7 BB 7.5bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm3_cd3b236887739c4f",
+  "key": "icm3_f47288e26ee219b7",
   "request": {
    "players": 3,
    "stack": 19.5,
@@ -780,20 +780,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 0.362,
+  "mbb": 0.423,
   "mbb_seats": [
-   0.584,
-   0.06,
-   0.441
+   0.738,
+   0.1,
+   0.43
   ],
   "seconds": 1.1,
-  "bytes": 752,
+  "bytes": 1028,
   "label": "3 players, stacks BTN 19.5 \u00b7 SB 19.5 \u00b7 BB 6bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm3_1e51ad4b34b444ad",
+  "key": "icm3_c3d1da662937db68",
   "request": {
    "players": 3,
    "stack": 20.0,
@@ -807,20 +807,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 0.309,
+  "mbb": 0.193,
   "mbb_seats": [
-   0.396,
-   0.431,
-   0.101
+   0.205,
+   0.301,
+   0.073
   ],
-  "seconds": 1.0,
-  "bytes": 1186,
+  "seconds": 1.1,
+  "bytes": 1077,
   "label": "3 players, stacks BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm3_93ea4574b8951743",
+  "key": "icm3_156c08b3f34e394e",
   "request": {
    "players": 3,
    "stack": 40.0,
@@ -838,20 +838,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 0.193,
+  "mbb": 0.149,
   "mbb_seats": [
-   0.043,
-   0.274,
-   0.262
+   0.02,
+   0.107,
+   0.318
   ],
-  "seconds": 1.0,
-  "bytes": 983,
+  "seconds": 1.1,
+  "bytes": 877,
   "label": "3 players, stacks BTN 40 \u00b7 SB 10 \u00b7 BB 10bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm3_34d34840c2de2484",
+  "key": "icm3_beb2dd43d8fccc73",
   "request": {
    "players": 3,
    "stack": 26.0,
@@ -868,20 +868,20 @@
   "players": 3,
   "nodes": 47,
   "iterations": 1500,
-  "mbb": 0.359,
+  "mbb": 0.47,
   "mbb_seats": [
-   0.593,
-   0.201,
-   0.283
+   0.957,
+   0.116,
+   0.338
   ],
-  "seconds": 1.0,
-  "bytes": 700,
+  "seconds": 1.1,
+  "bytes": 795,
   "label": "3 players, stacks BTN 26 \u00b7 SB 26 \u00b7 BB 8bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm3_4299863b52666b40",
+  "key": "icm3_db8df0ea807c9034",
   "request": {
    "players": 3,
    "stack": 30.0,
@@ -895,20 +895,20 @@
   "players": 3,
   "nodes": 47,
   "iterations": 1500,
-  "mbb": 0.266,
+  "mbb": 0.157,
   "mbb_seats": [
-   0.522,
-   0.231,
-   0.045
+   0.072,
+   0.357,
+   0.043
   ],
-  "seconds": 1.0,
-  "bytes": 982,
+  "seconds": 1.1,
+  "bytes": 956,
   "label": "3 players, stacks BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm3_eeda27f398736b47",
+  "key": "icm3_a6b56663b3c00834",
   "request": {
    "players": 3,
    "stack": 60.0,
@@ -926,20 +926,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 0.191,
+  "mbb": 0.196,
   "mbb_seats": [
-   0.056,
-   0.302,
-   0.214
+   0.117,
+   0.257,
+   0.215
   ],
-  "seconds": 1.0,
-  "bytes": 990,
+  "seconds": 1.1,
+  "bytes": 1068,
   "label": "3 players, stacks BTN 60 \u00b7 SB 15 \u00b7 BB 15bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm3_bf4321bb601c0d4a",
+  "key": "icm3_49f2ed8236169a14",
   "request": {
    "players": 3,
    "stack": 39.0,
@@ -956,20 +956,20 @@
   "players": 3,
   "nodes": 61,
   "iterations": 1500,
-  "mbb": 0.164,
+  "mbb": 0.182,
   "mbb_seats": [
-   0.163,
-   0.299,
-   0.03
+   0.079,
+   0.449,
+   0.018
   ],
   "seconds": 1.3,
-  "bytes": 1023,
+  "bytes": 917,
   "label": "3 players, stacks BTN 39 \u00b7 SB 39 \u00b7 BB 12bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm3_a33ad932c9e0a770",
+  "key": "icm3_02f94c1f0da33daf",
   "request": {
    "players": 3,
    "stack": 40.0,
@@ -983,20 +983,20 @@
   "players": 3,
   "nodes": 82,
   "iterations": 1500,
-  "mbb": 0.301,
+  "mbb": 0.179,
   "mbb_seats": [
-   0.635,
-   0.204,
-   0.063
+   0.458,
+   0.047,
+   0.032
   ],
-  "seconds": 1.6,
-  "bytes": 1371,
+  "seconds": 1.5,
+  "bytes": 1298,
   "label": "3 players, stacks BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm3_8a5deb363fe62104",
+  "key": "icm3_7665779f5e1ef73c",
   "request": {
    "players": 3,
    "stack": 80.0,
@@ -1014,20 +1014,20 @@
   "players": 3,
   "nodes": 54,
   "iterations": 1500,
-  "mbb": 0.351,
+  "mbb": 0.348,
   "mbb_seats": [
-   0.127,
-   0.66,
-   0.265
+   0.106,
+   0.657,
+   0.28
   ],
-  "seconds": 1.2,
-  "bytes": 1105,
+  "seconds": 1.1,
+  "bytes": 991,
   "label": "3 players, stacks BTN 80 \u00b7 SB 20 \u00b7 BB 20bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 3 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm3_83751a69359736a2",
+  "key": "icm3_2c9034a42dd64036",
   "request": {
    "players": 3,
    "stack": 52.0,
@@ -1044,20 +1044,20 @@
   "players": 3,
   "nodes": 78,
   "iterations": 1500,
-  "mbb": 0.197,
+  "mbb": 0.163,
   "mbb_seats": [
-   0.17,
-   0.375,
-   0.045
+   0.145,
+   0.313,
+   0.029
   ],
   "seconds": 1.5,
-  "bytes": 1106,
+  "bytes": 1050,
   "label": "3 players, stacks BTN 52 \u00b7 SB 52 \u00b7 BB 16bb, 0.33bb ante each, prize equity (ICM, Malmuth-Harville): 3 paid in the model (30/20/14), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm4_56096d1e28ce8f5e",
+  "key": "icm4_8c8fc668d690d2f8",
   "request": {
    "players": 4,
    "stack": 10.0,
@@ -1072,21 +1072,21 @@
   "players": 4,
   "nodes": 149,
   "iterations": 1500,
-  "mbb": 0.075,
+  "mbb": 0.073,
   "mbb_seats": [
-   0.053,
-   0.051,
-   0.113,
-   0.085
+   0.062,
+   0.068,
+   0.068,
+   0.093
   ],
-  "seconds": 2.6,
-  "bytes": 1749,
+  "seconds": 3.2,
+  "bytes": 1916,
   "label": "4 players, stacks CO 10 \u00b7 BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm4_5b4f33ae578a131a",
+  "key": "icm4_e82c064522a62f69",
   "request": {
    "players": 4,
    "stack": 20.0,
@@ -1106,21 +1106,21 @@
   "players": 4,
   "nodes": 137,
   "iterations": 1500,
-  "mbb": 0.209,
+  "mbb": 0.191,
   "mbb_seats": [
-   0.029,
-   0.013,
-   0.263,
-   0.532
+   0.031,
+   0.008,
+   0.286,
+   0.439
   ],
-  "seconds": 2.2,
-  "bytes": 1333,
+  "seconds": 2.3,
+  "bytes": 1446,
   "label": "4 players, stacks CO 6.6 \u00b7 BTN 20 \u00b7 SB 6.6 \u00b7 BB 6.6bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm4_4a3328386bf9349a",
+  "key": "icm4_fa655dc178b74a7e",
   "request": {
    "players": 4,
    "stack": 12.0,
@@ -1138,21 +1138,21 @@
   "players": 4,
   "nodes": 188,
   "iterations": 1500,
-  "mbb": 0.753,
+  "mbb": 0.45,
   "mbb_seats": [
-   1.075,
-   1.113,
-   0.711,
-   0.115
+   0.871,
+   0.45,
+   0.409,
+   0.07
   ],
-  "seconds": 3.2,
-  "bytes": 2618,
+  "seconds": 3.4,
+  "bytes": 2879,
   "label": "4 players, stacks CO 12 \u00b7 BTN 12 \u00b7 SB 12 \u00b7 BB 4bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm4_9131424b018f6e60",
+  "key": "icm4_7ab597d427290cc1",
   "request": {
    "players": 4,
    "stack": 15.0,
@@ -1167,21 +1167,21 @@
   "players": 4,
   "nodes": 149,
   "iterations": 1500,
-  "mbb": 0.291,
+  "mbb": 0.241,
   "mbb_seats": [
-   0.172,
-   0.482,
-   0.396,
-   0.115
+   0.104,
+   0.242,
+   0.411,
+   0.206
   ],
-  "seconds": 2.5,
-  "bytes": 2221,
+  "seconds": 2.6,
+  "bytes": 2659,
   "label": "4 players, stacks CO 15 \u00b7 BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm4_87060b531a486676",
+  "key": "icm4_0471012bf7afd5e1",
   "request": {
    "players": 4,
    "stack": 30.0,
@@ -1201,21 +1201,21 @@
   "players": 4,
   "nodes": 197,
   "iterations": 1500,
-  "mbb": 0.209,
+  "mbb": 0.159,
   "mbb_seats": [
-   0.111,
-   0.067,
-   0.237,
-   0.42
+   0.07,
+   0.047,
+   0.092,
+   0.427
   ],
-  "seconds": 3.3,
-  "bytes": 1992,
+  "seconds": 3.2,
+  "bytes": 2011,
   "label": "4 players, stacks CO 10 \u00b7 BTN 30 \u00b7 SB 10 \u00b7 BB 10bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm4_e3602bdece58b43f",
+  "key": "icm4_ce9f706cd665a522",
   "request": {
    "players": 4,
    "stack": 18.0,
@@ -1233,21 +1233,21 @@
   "players": 4,
   "nodes": 188,
   "iterations": 1500,
-  "mbb": 0.503,
+  "mbb": 0.507,
   "mbb_seats": [
-   0.74,
-   0.554,
-   0.262,
-   0.457
+   0.862,
+   0.571,
+   0.166,
+   0.428
   ],
-  "seconds": 3.3,
-  "bytes": 1906,
+  "seconds": 3.2,
+  "bytes": 2424,
   "label": "4 players, stacks CO 18 \u00b7 BTN 18 \u00b7 SB 18 \u00b7 BB 6bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm4_4ae525ebd7051444",
+  "key": "icm4_89620a19ac169202",
   "request": {
    "players": 4,
    "stack": 20.0,
@@ -1262,21 +1262,21 @@
   "players": 4,
   "nodes": 197,
   "iterations": 1500,
-  "mbb": 0.437,
+  "mbb": 0.435,
   "mbb_seats": [
-   0.605,
-   0.646,
-   0.436,
+   0.393,
+   0.653,
+   0.636,
    0.059
   ],
-  "seconds": 3.5,
-  "bytes": 2141,
+  "seconds": 3.2,
+  "bytes": 2275,
   "label": "4 players, stacks CO 20 \u00b7 BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm4_08c60288861cb0df",
+  "key": "icm4_5783064c6773a4db",
   "request": {
    "players": 4,
    "stack": 40.0,
@@ -1296,21 +1296,21 @@
   "players": 4,
   "nodes": 197,
   "iterations": 1500,
-  "mbb": 0.25,
+  "mbb": 0.254,
   "mbb_seats": [
-   0.309,
-   0.111,
-   0.309,
-   0.27
+   0.311,
+   0.163,
+   0.287,
+   0.254
   ],
-  "seconds": 3.4,
-  "bytes": 2053,
+  "seconds": 3.2,
+  "bytes": 2304,
   "label": "4 players, stacks CO 13.3 \u00b7 BTN 40 \u00b7 SB 13.3 \u00b7 BB 13.3bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm4_06dd265ab67818e4",
+  "key": "icm4_add777b5fbd6973d",
   "request": {
    "players": 4,
    "stack": 24.0,
@@ -1328,21 +1328,21 @@
   "players": 4,
   "nodes": 269,
   "iterations": 1500,
-  "mbb": 0.512,
+  "mbb": 0.65,
   "mbb_seats": [
-   0.701,
-   0.897,
-   0.349,
-   0.101
+   0.91,
+   1.305,
+   0.263,
+   0.121
   ],
-  "seconds": 5.0,
-  "bytes": 3110,
+  "seconds": 5.1,
+  "bytes": 3035,
   "label": "4 players, stacks CO 24 \u00b7 BTN 24 \u00b7 SB 24 \u00b7 BB 8bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm4_557c2d5780ac0110",
+  "key": "icm4_656948b66dead82b",
   "request": {
    "players": 4,
    "stack": 30.0,
@@ -1357,21 +1357,21 @@
   "players": 4,
   "nodes": 176,
   "iterations": 1500,
-  "mbb": 0.593,
+  "mbb": 0.541,
   "mbb_seats": [
-   0.589,
-   1.19,
-   0.527,
-   0.065
+   0.392,
+   0.973,
+   0.741,
+   0.058
   ],
-  "seconds": 3.2,
-  "bytes": 1885,
+  "seconds": 3.8,
+  "bytes": 1752,
   "label": "4 players, stacks CO 30 \u00b7 BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm4_4c29dbf5cdb14cf0",
+  "key": "icm4_013578ed96e6c7a8",
   "request": {
    "players": 4,
    "stack": 60.0,
@@ -1391,21 +1391,21 @@
   "players": 4,
   "nodes": 197,
   "iterations": 1500,
-  "mbb": 0.504,
+  "mbb": 0.375,
   "mbb_seats": [
-   1.124,
-   0.154,
-   0.518,
-   0.22
+   0.45,
+   0.462,
+   0.378,
+   0.211
   ],
-  "seconds": 3.4,
-  "bytes": 2078,
+  "seconds": 4.0,
+  "bytes": 2396,
   "label": "4 players, stacks CO 20 \u00b7 BTN 60 \u00b7 SB 20 \u00b7 BB 20bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm4_fedf6993857e4d7e",
+  "key": "icm4_2446f868917b72d3",
   "request": {
    "players": 4,
    "stack": 36.0,
@@ -1423,21 +1423,21 @@
   "players": 4,
   "nodes": 267,
   "iterations": 1500,
-  "mbb": 0.287,
+  "mbb": 0.433,
   "mbb_seats": [
-   0.388,
-   0.29,
-   0.433,
-   0.037
+   0.415,
+   0.734,
+   0.553,
+   0.031
   ],
-  "seconds": 4.5,
-  "bytes": 2565,
+  "seconds": 5.7,
+  "bytes": 2357,
   "label": "4 players, stacks CO 36 \u00b7 BTN 36 \u00b7 SB 36 \u00b7 BB 12bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm4_7dbba5bf9a75eea4",
+  "key": "icm4_0e1a8fe617d3cad4",
   "request": {
    "players": 4,
    "stack": 40.0,
@@ -1452,21 +1452,21 @@
   "players": 4,
   "nodes": 310,
   "iterations": 1500,
-  "mbb": 0.72,
+  "mbb": 0.594,
   "mbb_seats": [
-   0.844,
-   1.558,
-   0.423,
-   0.055
+   0.974,
+   1.138,
+   0.208,
+   0.057
   ],
-  "seconds": 4.7,
-  "bytes": 3118,
+  "seconds": 5.8,
+  "bytes": 3325,
   "label": "4 players, stacks CO 40 \u00b7 BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm4_e303567ccb8cb0a7",
+  "key": "icm4_6741d29833266ca9",
   "request": {
    "players": 4,
    "stack": 80.0,
@@ -1486,21 +1486,21 @@
   "players": 4,
   "nodes": 176,
   "iterations": 1500,
-  "mbb": 0.564,
+  "mbb": 0.39,
   "mbb_seats": [
-   1.197,
-   0.487,
-   0.499,
-   0.073
+   0.22,
+   0.431,
+   0.855,
+   0.055
   ],
-  "seconds": 3.1,
-  "bytes": 1794,
+  "seconds": 3.4,
+  "bytes": 1785,
   "label": "4 players, stacks CO 26.6 \u00b7 BTN 80 \u00b7 SB 26.6 \u00b7 BB 26.6bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 4 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm4_ba5036cdc826d6f5",
+  "key": "icm4_035ba1bc7c22754d",
   "request": {
    "players": 4,
    "stack": 48.0,
@@ -1518,21 +1518,21 @@
   "players": 4,
   "nodes": 401,
   "iterations": 1500,
-  "mbb": 0.496,
+  "mbb": 0.385,
   "mbb_seats": [
-   0.568,
-   0.712,
-   0.657,
-   0.045
+   0.258,
+   0.664,
+   0.588,
+   0.03
   ],
-  "seconds": 6.5,
-  "bytes": 3392,
+  "seconds": 7.8,
+  "bytes": 3253,
   "label": "4 players, stacks CO 48 \u00b7 BTN 48 \u00b7 SB 48 \u00b7 BB 16bb, 0.25bb ante each, prize equity (ICM, Malmuth-Harville): 4 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm5_57688b42e35f7351",
+  "key": "icm5_fd7ac367b230b00c",
   "request": {
    "players": 5,
    "stack": 10.0,
@@ -1548,22 +1548,22 @@
   "players": 5,
   "nodes": 390,
   "iterations": 1500,
-  "mbb": 0.108,
+  "mbb": 0.07,
   "mbb_seats": [
-   0.116,
-   0.089,
-   0.098,
-   0.135,
-   0.101
+   0.037,
+   0.043,
+   0.085,
+   0.058,
+   0.127
   ],
-  "seconds": 6.2,
-  "bytes": 3130,
+  "seconds": 7.2,
+  "bytes": 3494,
   "label": "5 players, stacks HJ 10 \u00b7 CO 10 \u00b7 BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm5_1d070e01e72c02cb",
+  "key": "icm5_1a89eb32957bdf64",
   "request": {
    "players": 5,
    "stack": 20.0,
@@ -1585,22 +1585,22 @@
   "players": 5,
   "nodes": 378,
   "iterations": 1500,
-  "mbb": 0.177,
+  "mbb": 0.105,
   "mbb_seats": [
-   0.047,
-   0.033,
-   0.043,
-   0.394,
-   0.367
+   0.034,
+   0.03,
+   0.018,
+   0.126,
+   0.319
   ],
-  "seconds": 11.8,
-  "bytes": 2841,
+  "seconds": 6.2,
+  "bytes": 2478,
   "label": "5 players, stacks HJ 7.5 \u00b7 CO 7.5 \u00b7 BTN 20 \u00b7 SB 7.5 \u00b7 BB 7.5bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm5_28982b2ffef2071d",
+  "key": "icm5_b20cc7c0e5ddc499",
   "request": {
    "players": 5,
    "stack": 11.5,
@@ -1619,22 +1619,22 @@
   "players": 5,
   "nodes": 528,
   "iterations": 1500,
-  "mbb": 0.539,
+  "mbb": 0.346,
   "mbb_seats": [
-   0.635,
-   0.769,
-   0.597,
-   0.444,
-   0.25
+   0.496,
+   0.477,
+   0.358,
+   0.318,
+   0.079
   ],
-  "seconds": 13.1,
-  "bytes": 5677,
+  "seconds": 9.7,
+  "bytes": 4797,
   "label": "5 players, stacks HJ 11.5 \u00b7 CO 11.5 \u00b7 BTN 11.5 \u00b7 SB 11.5 \u00b7 BB 4bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm5_1e763f0bbf6735ef",
+  "key": "icm5_a80530a77ec5d3f1",
   "request": {
    "players": 5,
    "stack": 15.0,
@@ -1650,22 +1650,22 @@
   "players": 5,
   "nodes": 390,
   "iterations": 1500,
-  "mbb": 0.332,
+  "mbb": 0.189,
   "mbb_seats": [
-   0.238,
-   0.273,
-   0.561,
-   0.472,
-   0.119
+   0.083,
+   0.145,
+   0.313,
+   0.292,
+   0.11
   ],
-  "seconds": 6.8,
-  "bytes": 3184,
+  "seconds": 6.7,
+  "bytes": 4028,
   "label": "5 players, stacks HJ 15 \u00b7 CO 15 \u00b7 BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm5_526b961bddb845d5",
+  "key": "icm5_804776a8136d768c",
   "request": {
    "players": 5,
    "stack": 30.0,
@@ -1687,22 +1687,22 @@
   "players": 5,
   "nodes": 599,
   "iterations": 1500,
-  "mbb": 0.177,
+  "mbb": 0.146,
   "mbb_seats": [
-   0.124,
-   0.145,
-   0.163,
-   0.192,
-   0.262
+   0.106,
+   0.092,
+   0.144,
+   0.122,
+   0.264
   ],
-  "seconds": 13.6,
-  "bytes": 3909,
+  "seconds": 9.4,
+  "bytes": 3874,
   "label": "5 players, stacks HJ 11.2 \u00b7 CO 11.2 \u00b7 BTN 30 \u00b7 SB 11.2 \u00b7 BB 11.2bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm5_b01fa86219bde8b5",
+  "key": "icm5_3c4af1adf9f559de",
   "request": {
    "players": 5,
    "stack": 17.2,
@@ -1721,22 +1721,22 @@
   "players": 5,
   "nodes": 528,
   "iterations": 1500,
-  "mbb": 0.606,
+  "mbb": 0.486,
   "mbb_seats": [
-   0.735,
-   0.781,
-   0.672,
-   0.385,
-   0.456
+   0.686,
+   0.712,
+   0.445,
+   0.395,
+   0.191
   ],
-  "seconds": 12.0,
-  "bytes": 4040,
+  "seconds": 7.9,
+  "bytes": 4949,
   "label": "5 players, stacks HJ 17.2 \u00b7 CO 17.2 \u00b7 BTN 17.2 \u00b7 SB 17.2 \u00b7 BB 6bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm5_7a8dc647dec3922b",
+  "key": "icm5_3ff211bf2e6e5ea2",
   "request": {
    "players": 5,
    "stack": 20.0,
@@ -1752,22 +1752,22 @@
   "players": 5,
   "nodes": 599,
   "iterations": 1500,
-  "mbb": 0.556,
+  "mbb": 0.387,
   "mbb_seats": [
-   0.498,
-   0.73,
-   0.864,
-   0.625,
-   0.062
+   0.094,
+   0.397,
+   0.824,
+   0.54,
+   0.08
   ],
-  "seconds": 13.9,
-  "bytes": 4219,
+  "seconds": 9.1,
+  "bytes": 4480,
   "label": "5 players, stacks HJ 20 \u00b7 CO 20 \u00b7 BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm5_8d909dc2eadb6cd1",
+  "key": "icm5_037fe211febc73a5",
   "request": {
    "players": 5,
    "stack": 40.0,
@@ -1789,22 +1789,22 @@
   "players": 5,
   "nodes": 599,
   "iterations": 1500,
-  "mbb": 0.281,
+  "mbb": 0.286,
   "mbb_seats": [
-   0.248,
-   0.339,
-   0.108,
-   0.493,
-   0.218
+   0.084,
+   0.397,
+   0.295,
+   0.447,
+   0.207
   ],
-  "seconds": 11.8,
-  "bytes": 4931,
+  "seconds": 9.1,
+  "bytes": 4129,
   "label": "5 players, stacks HJ 15 \u00b7 CO 15 \u00b7 BTN 40 \u00b7 SB 15 \u00b7 BB 15bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm5_ef010cf57af63fe0",
+  "key": "icm5_de93ac500314c2f1",
   "request": {
    "players": 5,
    "stack": 23.0,
@@ -1823,22 +1823,22 @@
   "players": 5,
   "nodes": 863,
   "iterations": 1500,
-  "mbb": 0.612,
+  "mbb": 0.668,
   "mbb_seats": [
-   0.558,
-   1.019,
-   0.996,
-   0.4,
-   0.085
+   0.454,
+   0.76,
+   1.518,
+   0.54,
+   0.07
   ],
-  "seconds": 21.5,
-  "bytes": 7562,
+  "seconds": 13.1,
+  "bytes": 7265,
   "label": "5 players, stacks HJ 23 \u00b7 CO 23 \u00b7 BTN 23 \u00b7 SB 23 \u00b7 BB 8bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm5_80fa23171a212fa9",
+  "key": "icm5_fbd11567448f423a",
   "request": {
    "players": 5,
    "stack": 30.0,
@@ -1854,22 +1854,22 @@
   "players": 5,
   "nodes": 666,
   "iterations": 1500,
-  "mbb": 0.687,
+  "mbb": 0.628,
   "mbb_seats": [
-   0.665,
-   0.79,
-   1.099,
-   0.806,
-   0.077
+   0.145,
+   0.962,
+   1.155,
+   0.813,
+   0.064
   ],
-  "seconds": 12.6,
-  "bytes": 4796,
+  "seconds": 8.9,
+  "bytes": 4408,
   "label": "5 players, stacks HJ 30 \u00b7 CO 30 \u00b7 BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm5_69b0996559b57318",
+  "key": "icm5_e0b2af2755dc36e8",
   "request": {
    "players": 5,
    "stack": 60.0,
@@ -1891,22 +1891,22 @@
   "players": 5,
   "nodes": 825,
   "iterations": 1500,
-  "mbb": 0.617,
+  "mbb": 0.451,
   "mbb_seats": [
-   0.731,
-   0.991,
-   0.404,
-   0.869,
-   0.093
+   0.231,
+   0.502,
+   0.595,
+   0.81,
+   0.12
   ],
-  "seconds": 17.1,
-  "bytes": 6280,
+  "seconds": 11.8,
+  "bytes": 5811,
   "label": "5 players, stacks HJ 22.5 \u00b7 CO 22.5 \u00b7 BTN 60 \u00b7 SB 22.5 \u00b7 BB 22.5bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm5_ffa9a8fbd2025873",
+  "key": "icm5_53e81af1e4deed1d",
   "request": {
    "players": 5,
    "stack": 34.5,
@@ -1925,22 +1925,22 @@
   "players": 5,
   "nodes": 1059,
   "iterations": 1500,
-  "mbb": 0.411,
+  "mbb": 0.64,
   "mbb_seats": [
-   0.375,
-   0.609,
-   0.46,
-   0.574,
-   0.037
+   0.346,
+   0.9,
+   1.304,
+   0.616,
+   0.035
   ],
-  "seconds": 22.4,
-  "bytes": 7249,
+  "seconds": 16.1,
+  "bytes": 7403,
   "label": "5 players, stacks HJ 34.5 \u00b7 CO 34.5 \u00b7 BTN 34.5 \u00b7 SB 34.5 \u00b7 BB 12bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm5_3950bd3f167f385a",
+  "key": "icm5_d84a0dd6e869e9da",
   "request": {
    "players": 5,
    "stack": 40.0,
@@ -1956,22 +1956,22 @@
   "players": 5,
   "nodes": 963,
   "iterations": 1500,
-  "mbb": 0.799,
+  "mbb": 0.904,
   "mbb_seats": [
-   0.693,
-   1.378,
-   1.421,
-   0.431,
-   0.069
+   0.814,
+   1.554,
+   1.691,
+   0.41,
+   0.054
   ],
-  "seconds": 16.5,
-  "bytes": 7877,
+  "seconds": 15.6,
+  "bytes": 6204,
   "label": "5 players, stacks HJ 40 \u00b7 CO 40 \u00b7 BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm5_1084c383274904e8",
+  "key": "icm5_d5f6aa0ebaab05f5",
   "request": {
    "players": 5,
    "stack": 80.0,
@@ -1993,22 +1993,22 @@
   "players": 5,
   "nodes": 779,
   "iterations": 1500,
-  "mbb": 0.778,
+  "mbb": 0.691,
   "mbb_seats": [
-   1.011,
-   1.337,
-   0.549,
-   0.908,
-   0.086
+   0.292,
+   1.254,
+   0.569,
+   1.246,
+   0.094
   ],
-  "seconds": 13.7,
-  "bytes": 5508,
+  "seconds": 12.7,
+  "bytes": 5043,
   "label": "5 players, stacks HJ 30 \u00b7 CO 30 \u00b7 BTN 80 \u00b7 SB 30 \u00b7 BB 30bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 5 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm5_1bce662533098d19",
+  "key": "icm5_6bed0ec3f3f3107f",
   "request": {
    "players": 5,
    "stack": 46.0,
@@ -2027,22 +2027,22 @@
   "players": 5,
   "nodes": 1552,
   "iterations": 1500,
-  "mbb": 0.672,
+  "mbb": 0.531,
   "mbb_seats": [
-   0.71,
-   0.916,
-   0.931,
-   0.756,
-   0.045
+   0.371,
+   0.743,
+   0.968,
+   0.54,
+   0.035
   ],
-  "seconds": 32.3,
-  "bytes": 9925,
+  "seconds": 28.5,
+  "bytes": 10431,
   "label": "5 players, stacks HJ 46 \u00b7 CO 46 \u00b7 BTN 46 \u00b7 SB 46 \u00b7 BB 16bb, 0.2bb ante each, prize equity (ICM, Malmuth-Harville): 5 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm6_4c0dffff7f39ce86",
+  "key": "icm6_3de610650f5a4797",
   "request": {
    "players": 6,
    "stack": 10.0,
@@ -2059,23 +2059,23 @@
   "players": 6,
   "nodes": 924,
   "iterations": 1500,
-  "mbb": 0.153,
+  "mbb": 0.079,
   "mbb_seats": [
-   0.095,
-   0.146,
-   0.175,
-   0.188,
-   0.174,
-   0.14
+   0.067,
+   0.064,
+   0.063,
+   0.099,
+   0.077,
+   0.104
   ],
-  "seconds": 23.1,
-  "bytes": 5797,
+  "seconds": 17.1,
+  "bytes": 5300,
   "label": "6 players, stacks UTG 10 \u00b7 HJ 10 \u00b7 CO 10 \u00b7 BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm6_14739071f88b4f7c",
+  "key": "icm6_96f83144dada84d4",
   "request": {
    "players": 6,
    "stack": 20.0,
@@ -2099,23 +2099,23 @@
   "players": 6,
   "nodes": 1062,
   "iterations": 1500,
-  "mbb": 0.148,
+  "mbb": 0.113,
   "mbb_seats": [
-   0.078,
-   0.064,
-   0.077,
-   0.109,
-   0.211,
-   0.35
+   0.038,
+   0.051,
+   0.043,
+   0.053,
+   0.122,
+   0.374
   ],
-  "seconds": 22.0,
-  "bytes": 5577,
+  "seconds": 21.2,
+  "bytes": 5003,
   "label": "6 players, stacks UTG 8 \u00b7 HJ 8 \u00b7 CO 8 \u00b7 BTN 20 \u00b7 SB 8 \u00b7 BB 8bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm6_e30d741890314df4",
+  "key": "icm6_567246f425d78b1f",
   "request": {
    "players": 6,
    "stack": 11.2,
@@ -2135,23 +2135,23 @@
   "players": 6,
   "nodes": 1248,
   "iterations": 1500,
-  "mbb": 0.483,
+  "mbb": 0.298,
   "mbb_seats": [
+   0.416,
+   0.364,
    0.4,
-   0.518,
-   0.715,
-   0.621,
-   0.346,
-   0.296
+   0.341,
+   0.186,
+   0.078
   ],
-  "seconds": 32.6,
-  "bytes": 10551,
+  "seconds": 32.1,
+  "bytes": 8710,
   "label": "6 players, stacks UTG 11.2 \u00b7 HJ 11.2 \u00b7 CO 11.2 \u00b7 BTN 11.2 \u00b7 SB 11.2 \u00b7 BB 4bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm6_3117325f478c5bad",
+  "key": "icm6_9a2381f3ee41a285",
   "request": {
    "players": 6,
    "stack": 15.0,
@@ -2168,23 +2168,23 @@
   "players": 6,
   "nodes": 924,
   "iterations": 1500,
-  "mbb": 0.382,
+  "mbb": 0.199,
   "mbb_seats": [
-   0.184,
-   0.321,
-   0.375,
-   0.708,
-   0.577,
-   0.126
+   0.031,
+   0.204,
+   0.26,
+   0.328,
+   0.28,
+   0.09
   ],
-  "seconds": 23.6,
-  "bytes": 4787,
+  "seconds": 19.6,
+  "bytes": 5591,
   "label": "6 players, stacks UTG 15 \u00b7 HJ 15 \u00b7 CO 15 \u00b7 BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm6_0f7b5de13efa551f",
+  "key": "icm6_451a1ca135ec5b6b",
   "request": {
    "players": 6,
    "stack": 30.0,
@@ -2208,23 +2208,23 @@
   "players": 6,
   "nodes": 1407,
   "iterations": 1500,
-  "mbb": 0.21,
+  "mbb": 0.156,
   "mbb_seats": [
-   0.089,
-   0.179,
-   0.324,
-   0.17,
-   0.287,
-   0.21
+   0.123,
+   0.155,
+   0.164,
+   0.183,
+   0.161,
+   0.148
   ],
-  "seconds": 40.9,
-  "bytes": 6977,
+  "seconds": 29.7,
+  "bytes": 6797,
   "label": "6 players, stacks UTG 12 \u00b7 HJ 12 \u00b7 CO 12 \u00b7 BTN 30 \u00b7 SB 12 \u00b7 BB 12bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm6_884829a4f5fd9f64",
+  "key": "icm6_5475fa7f5075def3",
   "request": {
    "players": 6,
    "stack": 16.8,
@@ -2244,23 +2244,23 @@
   "players": 6,
   "nodes": 1248,
   "iterations": 1500,
-  "mbb": 0.528,
+  "mbb": 0.487,
   "mbb_seats": [
-   0.416,
-   0.703,
-   0.555,
-   0.612,
-   0.515,
-   0.365
+   0.493,
+   0.639,
+   0.663,
+   0.506,
+   0.414,
+   0.204
   ],
-  "seconds": 23.9,
-  "bytes": 8120,
+  "seconds": 22.9,
+  "bytes": 9860,
   "label": "6 players, stacks UTG 16.8 \u00b7 HJ 16.8 \u00b7 CO 16.8 \u00b7 BTN 16.8 \u00b7 SB 16.8 \u00b7 BB 6bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm6_2148b9128528cc92",
+  "key": "icm6_c1cdc491ca9c01bc",
   "request": {
    "players": 6,
    "stack": 20.0,
@@ -2277,23 +2277,23 @@
   "players": 6,
   "nodes": 1525,
   "iterations": 1500,
-  "mbb": 0.631,
+  "mbb": 0.464,
   "mbb_seats": [
-   0.19,
-   0.527,
-   1.064,
-   1.21,
-   0.709,
-   0.084
+   0.14,
+   0.28,
+   0.529,
+   1.068,
+   0.691,
+   0.078
   ],
-  "seconds": 29.5,
-  "bytes": 7989,
+  "seconds": 26.3,
+  "bytes": 8429,
   "label": "6 players, stacks UTG 20 \u00b7 HJ 20 \u00b7 CO 20 \u00b7 BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm6_ecb5d9623e561206",
+  "key": "icm6_3fb9ba831e3ea6e3",
   "request": {
    "players": 6,
    "stack": 40.0,
@@ -2317,23 +2317,23 @@
   "players": 6,
   "nodes": 1638,
   "iterations": 1500,
-  "mbb": 0.351,
+  "mbb": 0.311,
   "mbb_seats": [
-   0.315,
-   0.41,
-   0.436,
-   0.293,
-   0.46,
-   0.196
+   0.096,
+   0.138,
+   0.422,
+   0.507,
+   0.519,
+   0.187
   ],
-  "seconds": 27.2,
-  "bytes": 8792,
+  "seconds": 25.6,
+  "bytes": 7937,
   "label": "6 players, stacks UTG 16 \u00b7 HJ 16 \u00b7 CO 16 \u00b7 BTN 40 \u00b7 SB 16 \u00b7 BB 16bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm6_64f0a405e2fb43e1",
+  "key": "icm6_125d089fa8db27f2",
   "request": {
    "players": 6,
    "stack": 22.4,
@@ -2353,23 +2353,23 @@
   "players": 6,
   "nodes": 2155,
   "iterations": 1500,
-  "mbb": 0.69,
+  "mbb": 0.699,
   "mbb_seats": [
-   0.55,
-   0.815,
-   1.037,
-   1.243,
-   0.4,
-   0.096
+   0.333,
+   0.578,
+   1.074,
+   1.562,
+   0.519,
+   0.125
   ],
-  "seconds": 39.8,
-  "bytes": 15231,
+  "seconds": 49.0,
+  "bytes": 15590,
   "label": "6 players, stacks UTG 22.4 \u00b7 HJ 22.4 \u00b7 CO 22.4 \u00b7 BTN 22.4 \u00b7 SB 22.4 \u00b7 BB 8bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm6_77bdaa9f770042bd",
+  "key": "icm6_d52b1ed6cd9f8000",
   "request": {
    "players": 6,
    "stack": 30.0,
@@ -2386,23 +2386,23 @@
   "players": 6,
   "nodes": 2008,
   "iterations": 1500,
-  "mbb": 0.632,
+  "mbb": 0.774,
   "mbb_seats": [
-   0.235,
-   0.729,
-   0.794,
-   1.081,
-   0.839,
-   0.112
+   0.424,
+   0.459,
+   1.288,
+   1.433,
+   0.96,
+   0.077
   ],
-  "seconds": 39.5,
-  "bytes": 10665,
+  "seconds": 43.7,
+  "bytes": 10305,
   "label": "6 players, stacks UTG 30 \u00b7 HJ 30 \u00b7 CO 30 \u00b7 BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm6_efd067b968b2c0aa",
+  "key": "icm6_65e70562810b8d52",
   "request": {
    "players": 6,
    "stack": 60.0,
@@ -2426,23 +2426,23 @@
   "players": 6,
   "nodes": 2434,
   "iterations": 1500,
-  "mbb": 0.681,
+  "mbb": 0.588,
   "mbb_seats": [
-   0.316,
-   0.804,
-   1.542,
-   0.511,
-   0.827,
+   0.37,
+   0.518,
+   0.885,
+   0.822,
+   0.846,
    0.086
   ],
-  "seconds": 46.7,
-  "bytes": 12715,
+  "seconds": 54.5,
+  "bytes": 12366,
   "label": "6 players, stacks UTG 24 \u00b7 HJ 24 \u00b7 CO 24 \u00b7 BTN 60 \u00b7 SB 24 \u00b7 BB 24bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm6_6493c39bcbd92d45",
+  "key": "icm6_f5d1ba5c47e7e8ef",
   "request": {
    "players": 6,
    "stack": 33.6,
@@ -2462,23 +2462,23 @@
   "players": 6,
   "nodes": 3338,
   "iterations": 1500,
-  "mbb": 0.563,
+  "mbb": 0.775,
   "mbb_seats": [
-   0.369,
-   0.698,
-   0.961,
-   0.809,
-   0.503,
-   0.037
+   0.551,
+   0.755,
+   1.198,
+   1.447,
+   0.653,
+   0.045
   ],
-  "seconds": 80.4,
-  "bytes": 22022,
+  "seconds": 68.2,
+  "bytes": 18559,
   "label": "6 players, stacks UTG 33.6 \u00b7 HJ 33.6 \u00b7 CO 33.6 \u00b7 BTN 33.6 \u00b7 SB 33.6 \u00b7 BB 12bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm6_f290456fb76c9783",
+  "key": "icm6_a81bdff8babf867b",
   "request": {
    "players": 6,
    "stack": 40.0,
@@ -2495,23 +2495,23 @@
   "players": 6,
   "nodes": 2763,
   "iterations": 1500,
-  "mbb": 0.795,
+  "mbb": 0.954,
   "mbb_seats": [
-   0.416,
-   0.87,
-   1.303,
-   1.514,
-   0.602,
-   0.063
+   0.355,
+   1.246,
+   1.72,
+   1.836,
+   0.495,
+   0.07
   ],
-  "seconds": 62.9,
-  "bytes": 16323,
+  "seconds": 71.7,
+  "bytes": 13113,
   "label": "6 players, stacks UTG 40 \u00b7 HJ 40 \u00b7 CO 40 \u00b7 BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm6_7231c93ddad26ce6",
+  "key": "icm6_f1141148c1e111ff",
   "request": {
    "players": 6,
    "stack": 80.0,
@@ -2535,23 +2535,23 @@
   "players": 6,
   "nodes": 3122,
   "iterations": 1500,
-  "mbb": 0.733,
+  "mbb": 0.742,
   "mbb_seats": [
-   0.458,
-   0.936,
-   1.596,
-   0.497,
-   0.842,
-   0.073
+   0.941,
+   0.651,
+   1.437,
+   0.683,
+   0.627,
+   0.11
   ],
-  "seconds": 46.1,
-  "bytes": 15165,
+  "seconds": 57.3,
+  "bytes": 15387,
   "label": "6 players, stacks UTG 32 \u00b7 HJ 32 \u00b7 CO 32 \u00b7 BTN 80 \u00b7 SB 32 \u00b7 BB 32bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 6 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm6_9870cd855398cc94",
+  "key": "icm6_6200d713bc2a0dcc",
   "request": {
    "players": 6,
    "stack": 44.8,
@@ -2571,23 +2571,23 @@
   "players": 6,
   "nodes": 5002,
   "iterations": 1500,
-  "mbb": 0.715,
+  "mbb": 0.712,
   "mbb_seats": [
-   0.395,
-   0.711,
-   1.164,
-   1.239,
-   0.745,
+   0.435,
+   0.664,
+   1.059,
+   1.371,
+   0.709,
    0.036
   ],
-  "seconds": 120.0,
-  "bytes": 28545,
+  "seconds": 105.9,
+  "bytes": 28055,
   "label": "6 players, stacks UTG 44.8 \u00b7 HJ 44.8 \u00b7 CO 44.8 \u00b7 BTN 44.8 \u00b7 SB 44.8 \u00b7 BB 16bb, 0.17bb ante each, prize equity (ICM, Malmuth-Harville): 6 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds"
  },
  {
   "name": "Final table, 7 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm7_4b82307779e8614e",
+  "key": "icm7_aaffb597351454ad",
   "request": {
    "players": 7,
    "stack": 10.0,
@@ -2605,24 +2605,24 @@
   "players": 7,
   "nodes": 632,
   "iterations": 1500,
-  "mbb": 0.027,
+  "mbb": 0.049,
   "mbb_seats": [
-   0.012,
-   0.016,
-   0.011,
-   0.014,
-   0.015,
-   0.021,
-   0.098
+   0.024,
+   0.04,
+   0.027,
+   0.029,
+   0.044,
+   0.06,
+   0.12
   ],
-  "seconds": 10.8,
-  "bytes": 3511,
+  "seconds": 14.1,
+  "bytes": 4881,
   "label": "7 players, stacks UTG 10 \u00b7 LJ 10 \u00b7 HJ 10 \u00b7 CO 10 \u00b7 BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm7_29a6ce7170036afa",
+  "key": "icm7_5f134c5d785965d4",
   "request": {
    "players": 7,
    "stack": 20.0,
@@ -2648,24 +2648,24 @@
   "players": 7,
   "nodes": 638,
   "iterations": 1500,
-  "mbb": 0.057,
+  "mbb": 0.079,
   "mbb_seats": [
-   0.007,
-   0.006,
-   0.008,
-   0.014,
-   0.02,
-   0.081,
-   0.259
+   0.021,
+   0.065,
+   0.031,
+   0.032,
+   0.041,
+   0.087,
+   0.278
   ],
-  "seconds": 17.0,
-  "bytes": 3464,
+  "seconds": 17.9,
+  "bytes": 4286,
   "label": "7 players, stacks UTG 8.3 \u00b7 LJ 8.3 \u00b7 HJ 8.3 \u00b7 CO 8.3 \u00b7 BTN 20 \u00b7 SB 8.3 \u00b7 BB 8.3bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm7_c1cd15e6ac3dab9e",
+  "key": "icm7_cc6421071f04a969",
   "request": {
    "players": 7,
    "stack": 11.0,
@@ -2686,24 +2686,24 @@
   "players": 7,
   "nodes": 716,
   "iterations": 1500,
-  "mbb": 0.097,
+  "mbb": 0.126,
   "mbb_seats": [
-   0.075,
-   0.094,
-   0.08,
-   0.094,
-   0.162,
-   0.059,
-   0.116
+   0.072,
+   0.063,
+   0.12,
+   0.155,
+   0.232,
+   0.15,
+   0.087
   ],
-  "seconds": 14.0,
-  "bytes": 4510,
+  "seconds": 14.2,
+  "bytes": 7464,
   "label": "7 players, stacks UTG 11 \u00b7 LJ 11 \u00b7 HJ 11 \u00b7 CO 11 \u00b7 BTN 11 \u00b7 SB 11 \u00b7 BB 4bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm7_8161188b8f067559",
+  "key": "icm7_6708d77960e8f9b1",
   "request": {
    "players": 7,
    "stack": 15.0,
@@ -2721,24 +2721,24 @@
   "players": 7,
   "nodes": 632,
   "iterations": 1500,
-  "mbb": 0.02,
+  "mbb": 0.264,
   "mbb_seats": [
-   0.004,
-   0.004,
-   0.012,
-   0.017,
-   0.017,
-   0.028,
-   0.058
+   0.516,
+   0.587,
+   0.117,
+   0.143,
+   0.143,
+   0.184,
+   0.157
   ],
-  "seconds": 12.4,
-  "bytes": 3621,
+  "seconds": 12.2,
+  "bytes": 6025,
   "label": "7 players, stacks UTG 15 \u00b7 LJ 15 \u00b7 HJ 15 \u00b7 CO 15 \u00b7 BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm7_8a7342fab41dad7a",
+  "key": "icm7_0cf96b8eb384e0ab",
   "request": {
    "players": 7,
    "stack": 30.0,
@@ -2764,24 +2764,24 @@
   "players": 7,
   "nodes": 740,
   "iterations": 1500,
-  "mbb": 0.032,
+  "mbb": 0.047,
   "mbb_seats": [
-   0.012,
-   0.007,
-   0.016,
+   0.043,
+   0.03,
+   0.04,
+   0.028,
    0.015,
-   0.015,
-   0.044,
-   0.114
+   0.046,
+   0.123
   ],
-  "seconds": 17.2,
-  "bytes": 4455,
+  "seconds": 17.6,
+  "bytes": 5268,
   "label": "7 players, stacks UTG 12.5 \u00b7 LJ 12.5 \u00b7 HJ 12.5 \u00b7 CO 12.5 \u00b7 BTN 30 \u00b7 SB 12.5 \u00b7 BB 12.5bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm7_4217104d29f2e245",
+  "key": "icm7_742a393ef9f93338",
   "request": {
    "players": 7,
    "stack": 16.5,
@@ -2802,24 +2802,24 @@
   "players": 7,
   "nodes": 716,
   "iterations": 1500,
-  "mbb": 0.075,
+  "mbb": 0.125,
   "mbb_seats": [
-   0.032,
-   0.074,
-   0.107,
+   0.042,
+   0.161,
    0.061,
-   0.083,
-   0.052,
-   0.117
+   0.129,
+   0.168,
+   0.21,
+   0.101
   ],
-  "seconds": 15.2,
-  "bytes": 4231,
+  "seconds": 17.0,
+  "bytes": 6427,
   "label": "7 players, stacks UTG 16.5 \u00b7 LJ 16.5 \u00b7 HJ 16.5 \u00b7 CO 16.5 \u00b7 BTN 16.5 \u00b7 SB 16.5 \u00b7 BB 6bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm7_b9c7c969bc3cee6e",
+  "key": "icm7_b9d5fbe30735d841",
   "request": {
    "players": 7,
    "stack": 20.0,
@@ -2837,24 +2837,24 @@
   "players": 7,
   "nodes": 662,
   "iterations": 1500,
-  "mbb": 0.044,
+  "mbb": 0.05,
   "mbb_seats": [
-   0.031,
-   0.041,
-   0.036,
-   0.043,
-   0.052,
-   0.06,
-   0.047
+   0.013,
+   0.009,
+   0.021,
+   0.022,
+   0.132,
+   0.085,
+   0.069
   ],
-  "seconds": 17.6,
-  "bytes": 5490,
+  "seconds": 17.5,
+  "bytes": 5696,
   "label": "7 players, stacks UTG 20 \u00b7 LJ 20 \u00b7 HJ 20 \u00b7 CO 20 \u00b7 BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm7_9755837e4b2ae48f",
+  "key": "icm7_c06556c98f9a1d3c",
   "request": {
    "players": 7,
    "stack": 40.0,
@@ -2880,24 +2880,24 @@
   "players": 7,
   "nodes": 740,
   "iterations": 1500,
-  "mbb": 0.054,
+  "mbb": 0.042,
   "mbb_seats": [
-   0.019,
-   0.01,
-   0.021,
-   0.028,
-   0.061,
-   0.053,
-   0.188
+   0.008,
+   0.016,
+   0.03,
+   0.013,
+   0.013,
+   0.054,
+   0.163
   ],
-  "seconds": 14.1,
-  "bytes": 5304,
+  "seconds": 15.3,
+  "bytes": 5589,
   "label": "7 players, stacks UTG 16.6 \u00b7 LJ 16.6 \u00b7 HJ 16.6 \u00b7 CO 16.6 \u00b7 BTN 40 \u00b7 SB 16.6 \u00b7 BB 16.6bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm7_9854ef7f11d26010",
+  "key": "icm7_9f2fd8a1ae8e2011",
   "request": {
    "players": 7,
    "stack": 22.0,
@@ -2918,24 +2918,24 @@
   "players": 7,
   "nodes": 746,
   "iterations": 1500,
-  "mbb": 0.045,
+  "mbb": 0.073,
   "mbb_seats": [
-   0.03,
+   0.025,
+   0.014,
    0.031,
-   0.071,
-   0.071,
-   0.047,
-   0.034,
-   0.03
+   0.189,
+   0.109,
+   0.097,
+   0.045
   ],
-  "seconds": 13.7,
-  "bytes": 5233,
+  "seconds": 16.4,
+  "bytes": 6977,
   "label": "7 players, stacks UTG 22 \u00b7 LJ 22 \u00b7 HJ 22 \u00b7 CO 22 \u00b7 BTN 22 \u00b7 SB 22 \u00b7 BB 8bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm7_8e4a3fea0dac724a",
+  "key": "icm7_c7fef20e3822c8ad",
   "request": {
    "players": 7,
    "stack": 30.0,
@@ -2953,24 +2953,24 @@
   "players": 7,
   "nodes": 672,
   "iterations": 1500,
-  "mbb": 0.046,
+  "mbb": 0.044,
   "mbb_seats": [
-   0.009,
    0.027,
-   0.032,
-   0.044,
-   0.016,
-   0.135,
-   0.06
+   0.024,
+   0.025,
+   0.04,
+   0.027,
+   0.096,
+   0.069
   ],
-  "seconds": 11.1,
-  "bytes": 5698,
+  "seconds": 14.7,
+  "bytes": 5588,
   "label": "7 players, stacks UTG 30 \u00b7 LJ 30 \u00b7 HJ 30 \u00b7 CO 30 \u00b7 BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm7_d1aed8f03e5343e0",
+  "key": "icm7_4150bf1a63220e3f",
   "request": {
    "players": 7,
    "stack": 60.0,
@@ -2996,24 +2996,24 @@
   "players": 7,
   "nodes": 758,
   "iterations": 1500,
-  "mbb": 0.039,
+  "mbb": 0.035,
   "mbb_seats": [
+   0.016,
+   0.017,
    0.019,
-   0.036,
-   0.021,
-   0.023,
-   0.032,
-   0.093,
-   0.049
+   0.027,
+   0.009,
+   0.127,
+   0.031
   ],
-  "seconds": 13.7,
-  "bytes": 5794,
+  "seconds": 17.8,
+  "bytes": 5748,
   "label": "7 players, stacks UTG 25 \u00b7 LJ 25 \u00b7 HJ 25 \u00b7 CO 25 \u00b7 BTN 60 \u00b7 SB 25 \u00b7 BB 25bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm7_1839483e93936c11",
+  "key": "icm7_dbb328a6777264ad",
   "request": {
    "players": 7,
    "stack": 33.0,
@@ -3034,24 +3034,24 @@
   "players": 7,
   "nodes": 780,
   "iterations": 1500,
-  "mbb": 0.047,
+  "mbb": 0.041,
   "mbb_seats": [
-   0.03,
-   0.059,
-   0.078,
-   0.039,
-   0.042,
-   0.05,
-   0.033
+   0.048,
+   0.048,
+   0.04,
+   0.056,
+   0.051,
+   0.026,
+   0.018
   ],
-  "seconds": 19.8,
-  "bytes": 6669,
+  "seconds": 19.9,
+  "bytes": 6463,
   "label": "7 players, stacks UTG 33 \u00b7 LJ 33 \u00b7 HJ 33 \u00b7 CO 33 \u00b7 BTN 33 \u00b7 SB 33 \u00b7 BB 12bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm7_b16ec6f008f71fec",
+  "key": "icm7_aef35f6d0d8bac8f",
   "request": {
    "players": 7,
    "stack": 40.0,
@@ -3069,24 +3069,24 @@
   "players": 7,
   "nodes": 1102,
   "iterations": 1500,
-  "mbb": 0.042,
+  "mbb": 0.034,
   "mbb_seats": [
+   0.036,
+   0.039,
+   0.038,
+   0.042,
+   0.035,
    0.025,
-   0.026,
-   0.059,
-   0.024,
-   0.025,
-   0.08,
-   0.056
+   0.025
   ],
   "seconds": 21.6,
-  "bytes": 9883,
+  "bytes": 8851,
   "label": "7 players, stacks UTG 40 \u00b7 LJ 40 \u00b7 HJ 40 \u00b7 CO 40 \u00b7 BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm7_7c9c1b8d0752ab51",
+  "key": "icm7_829d2e92e11ddb3e",
   "request": {
    "players": 7,
    "stack": 80.0,
@@ -3112,24 +3112,24 @@
   "players": 7,
   "nodes": 708,
   "iterations": 1500,
-  "mbb": 0.036,
+  "mbb": 0.03,
   "mbb_seats": [
+   0.034,
+   0.023,
+   0.055,
+   0.025,
    0.019,
    0.023,
-   0.017,
-   0.031,
-   0.028,
-   0.106,
-   0.03
+   0.032
   ],
-  "seconds": 12.4,
-  "bytes": 6412,
+  "seconds": 14.5,
+  "bytes": 5567,
   "label": "7 players, stacks UTG 33.3 \u00b7 LJ 33.3 \u00b7 HJ 33.3 \u00b7 CO 33.3 \u00b7 BTN 80 \u00b7 SB 33.3 \u00b7 BB 33.3bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 7 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm7_10c2a8f98e688289",
+  "key": "icm7_e6e382456fbcb868",
   "request": {
    "players": 7,
    "stack": 44.0,
@@ -3150,24 +3150,24 @@
   "players": 7,
   "nodes": 970,
   "iterations": 1500,
-  "mbb": 0.06,
+  "mbb": 0.026,
   "mbb_seats": [
-   0.048,
-   0.054,
-   0.051,
-   0.066,
-   0.099,
-   0.076,
-   0.029
+   0.028,
+   0.026,
+   0.032,
+   0.033,
+   0.033,
+   0.013,
+   0.017
   ],
-  "seconds": 17.4,
-  "bytes": 7675,
+  "seconds": 20.6,
+  "bytes": 7455,
   "label": "7 players, stacks UTG 44 \u00b7 LJ 44 \u00b7 HJ 44 \u00b7 CO 44 \u00b7 BTN 44 \u00b7 SB 44 \u00b7 BB 16bb, 0.14bb ante each, prize equity (ICM, Malmuth-Harville): 7 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm8_04bdd2ec8cff9e84",
+  "key": "icm8_4831b5b4c1fd727b",
   "request": {
    "players": 8,
    "stack": 10.0,
@@ -3186,25 +3186,25 @@
   "players": 8,
   "nodes": 985,
   "iterations": 1500,
-  "mbb": 0.023,
+  "mbb": 0.061,
   "mbb_seats": [
-   0.003,
-   0.019,
-   0.013,
-   0.01,
-   0.009,
-   0.019,
-   0.022,
-   0.092
+   0.066,
+   0.057,
+   0.068,
+   0.039,
+   0.035,
+   0.047,
+   0.055,
+   0.122
   ],
-  "seconds": 21.0,
-  "bytes": 4650,
+  "seconds": 31.0,
+  "bytes": 6810,
   "label": "8 players, stacks UTG 10 \u00b7 UTG1 10 \u00b7 LJ 10 \u00b7 HJ 10 \u00b7 CO 10 \u00b7 BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm8_fe4e99fd3f02cdf2",
+  "key": "icm8_dc94cd6ce8b7bc68",
   "request": {
    "players": 8,
    "stack": 20.0,
@@ -3232,25 +3232,25 @@
   "players": 8,
   "nodes": 994,
   "iterations": 1500,
-  "mbb": 0.05,
+  "mbb": 0.092,
   "mbb_seats": [
-   0.004,
-   0.007,
-   0.017,
-   0.02,
-   0.014,
-   0.022,
-   0.056,
-   0.258
+   0.052,
+   0.083,
+   0.043,
+   0.031,
+   0.035,
+   0.046,
+   0.088,
+   0.359
   ],
-  "seconds": 18.3,
-  "bytes": 4935,
+  "seconds": 29.0,
+  "bytes": 6447,
   "label": "8 players, stacks UTG 8.5 \u00b7 UTG1 8.5 \u00b7 LJ 8.5 \u00b7 HJ 8.5 \u00b7 CO 8.5 \u00b7 BTN 20 \u00b7 SB 8.5 \u00b7 BB 8.5bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm8_68e338d08a5d8728",
+  "key": "icm8_6ecbd4b7039b69bf",
   "request": {
    "players": 8,
    "stack": 10.8,
@@ -3272,25 +3272,25 @@
   "players": 8,
   "nodes": 1105,
   "iterations": 1500,
-  "mbb": 0.102,
+  "mbb": 0.135,
   "mbb_seats": [
-   0.048,
-   0.093,
-   0.112,
-   0.083,
-   0.096,
-   0.152,
-   0.086,
-   0.147
+   0.089,
+   0.076,
+   0.078,
+   0.116,
+   0.163,
+   0.25,
+   0.216,
+   0.091
   ],
-  "seconds": 20.2,
-  "bytes": 6237,
+  "seconds": 24.3,
+  "bytes": 9742,
   "label": "8 players, stacks UTG 10.8 \u00b7 UTG1 10.8 \u00b7 LJ 10.8 \u00b7 HJ 10.8 \u00b7 CO 10.8 \u00b7 BTN 10.8 \u00b7 SB 10.8 \u00b7 BB 4bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm8_f18b9570f8e2820d",
+  "key": "icm8_c4d957e54fa0dbc1",
   "request": {
    "players": 8,
    "stack": 15.0,
@@ -3309,25 +3309,25 @@
   "players": 8,
   "nodes": 985,
   "iterations": 1500,
-  "mbb": 0.024,
+  "mbb": 0.05,
   "mbb_seats": [
-   0.004,
-   0.009,
-   0.009,
-   0.02,
-   0.024,
-   0.041,
-   0.035,
-   0.046
+   0.022,
+   0.04,
+   0.03,
+   0.07,
+   0.045,
+   0.053,
+   0.061,
+   0.08
   ],
-  "seconds": 19.3,
-  "bytes": 5852,
+  "seconds": 20.6,
+  "bytes": 6752,
   "label": "8 players, stacks UTG 15 \u00b7 UTG1 15 \u00b7 LJ 15 \u00b7 HJ 15 \u00b7 CO 15 \u00b7 BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm8_4fee7b1d77fca33c",
+  "key": "icm8_24adbb6cc90ca759",
   "request": {
    "players": 8,
    "stack": 30.0,
@@ -3355,25 +3355,25 @@
   "players": 8,
   "nodes": 1160,
   "iterations": 1500,
-  "mbb": 0.033,
+  "mbb": 0.052,
   "mbb_seats": [
-   0.008,
-   0.006,
-   0.02,
-   0.012,
-   0.02,
-   0.024,
-   0.032,
-   0.142
+   0.026,
+   0.027,
+   0.044,
+   0.075,
+   0.034,
+   0.023,
+   0.048,
+   0.143
   ],
-  "seconds": 22.0,
-  "bytes": 6529,
+  "seconds": 22.7,
+  "bytes": 7761,
   "label": "8 players, stacks UTG 12.8 \u00b7 UTG1 12.8 \u00b7 LJ 12.8 \u00b7 HJ 12.8 \u00b7 CO 12.8 \u00b7 BTN 30 \u00b7 SB 12.8 \u00b7 BB 12.8bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm8_29b06754b4ba5612",
+  "key": "icm8_d9b37e9b3920514f",
   "request": {
    "players": 8,
    "stack": 16.2,
@@ -3395,25 +3395,25 @@
   "players": 8,
   "nodes": 1105,
   "iterations": 1500,
-  "mbb": 0.067,
+  "mbb": 0.084,
   "mbb_seats": [
-   0.033,
-   0.06,
-   0.068,
-   0.067,
-   0.048,
-   0.084,
-   0.049,
-   0.124
+   0.042,
+   0.03,
+   0.05,
+   0.058,
+   0.082,
+   0.133,
+   0.188,
+   0.091
   ],
-  "seconds": 24.8,
-  "bytes": 5633,
+  "seconds": 21.5,
+  "bytes": 8575,
   "label": "8 players, stacks UTG 16.2 \u00b7 UTG1 16.2 \u00b7 LJ 16.2 \u00b7 HJ 16.2 \u00b7 CO 16.2 \u00b7 BTN 16.2 \u00b7 SB 16.2 \u00b7 BB 6bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm8_d9ef91c77bb9883d",
+  "key": "icm8_2f2160b7545b14fe",
   "request": {
    "players": 8,
    "stack": 20.0,
@@ -3432,25 +3432,25 @@
   "players": 8,
   "nodes": 1030,
   "iterations": 1500,
-  "mbb": 0.054,
+  "mbb": 0.069,
   "mbb_seats": [
-   0.019,
-   0.02,
-   0.023,
-   0.041,
-   0.048,
-   0.133,
-   0.081,
-   0.07
+   0.026,
+   0.024,
+   0.027,
+   0.049,
+   0.056,
+   0.107,
+   0.163,
+   0.099
   ],
-  "seconds": 20.0,
-  "bytes": 7948,
+  "seconds": 22.4,
+  "bytes": 9622,
   "label": "8 players, stacks UTG 20 \u00b7 UTG1 20 \u00b7 LJ 20 \u00b7 HJ 20 \u00b7 CO 20 \u00b7 BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm8_4fe5c4dde1294f09",
+  "key": "icm8_e1683b727242cba8",
   "request": {
    "players": 8,
    "stack": 40.0,
@@ -3478,25 +3478,25 @@
   "players": 8,
   "nodes": 1160,
   "iterations": 1500,
-  "mbb": 0.03,
+  "mbb": 0.062,
   "mbb_seats": [
-   0.015,
-   0.009,
-   0.012,
-   0.024,
-   0.02,
-   0.067,
-   0.03,
-   0.064
+   0.026,
+   0.032,
+   0.018,
+   0.054,
+   0.062,
+   0.055,
+   0.066,
+   0.179
   ],
-  "seconds": 21.8,
-  "bytes": 7578,
+  "seconds": 28.9,
+  "bytes": 8844,
   "label": "8 players, stacks UTG 17.1 \u00b7 UTG1 17.1 \u00b7 LJ 17.1 \u00b7 HJ 17.1 \u00b7 CO 17.1 \u00b7 BTN 40 \u00b7 SB 17.1 \u00b7 BB 17.1bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm8_92badbbbdce0af3c",
+  "key": "icm8_b364db5da334b54f",
   "request": {
    "players": 8,
    "stack": 21.7,
@@ -3518,25 +3518,25 @@
   "players": 8,
   "nodes": 1150,
   "iterations": 1500,
-  "mbb": 0.047,
+  "mbb": 0.102,
   "mbb_seats": [
-   0.022,
-   0.031,
-   0.039,
-   0.068,
-   0.067,
-   0.059,
-   0.056,
-   0.033
+   0.025,
+   0.033,
+   0.02,
+   0.041,
+   0.269,
+   0.196,
+   0.122,
+   0.106
   ],
-  "seconds": 21.8,
-  "bytes": 7719,
+  "seconds": 29.3,
+  "bytes": 10317,
   "label": "8 players, stacks UTG 21.7 \u00b7 UTG1 21.7 \u00b7 LJ 21.7 \u00b7 HJ 21.7 \u00b7 CO 21.7 \u00b7 BTN 21.7 \u00b7 SB 21.7 \u00b7 BB 8bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm8_54635e33e6ac554c",
+  "key": "icm8_dde3161a711870e0",
   "request": {
    "players": 8,
    "stack": 30.0,
@@ -3555,25 +3555,25 @@
   "players": 8,
   "nodes": 1108,
   "iterations": 1500,
-  "mbb": 0.042,
+  "mbb": 0.054,
   "mbb_seats": [
-   0.027,
-   0.02,
-   0.023,
+   0.044,
+   0.041,
+   0.045,
+   0.037,
    0.026,
-   0.035,
-   0.034,
-   0.11,
-   0.063
+   0.031,
+   0.074,
+   0.132
   ],
-  "seconds": 19.3,
-  "bytes": 8147,
+  "seconds": 24.9,
+  "bytes": 8155,
   "label": "8 players, stacks UTG 30 \u00b7 UTG1 30 \u00b7 LJ 30 \u00b7 HJ 30 \u00b7 CO 30 \u00b7 BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm8_d21870e9392164e7",
+  "key": "icm8_874d8e93e65390e4",
   "request": {
    "players": 8,
    "stack": 60.0,
@@ -3601,25 +3601,25 @@
   "players": 8,
   "nodes": 1105,
   "iterations": 1500,
-  "mbb": 0.033,
+  "mbb": 0.038,
   "mbb_seats": [
-   0.01,
-   0.025,
-   0.019,
-   0.026,
-   0.026,
-   0.022,
-   0.108,
-   0.026
+   0.062,
+   0.036,
+   0.024,
+   0.03,
+   0.023,
+   0.013,
+   0.086,
+   0.032
   ],
-  "seconds": 19.1,
-  "bytes": 7925,
+  "seconds": 20.0,
+  "bytes": 8750,
   "label": "8 players, stacks UTG 25.7 \u00b7 UTG1 25.7 \u00b7 LJ 25.7 \u00b7 HJ 25.7 \u00b7 CO 25.7 \u00b7 BTN 60 \u00b7 SB 25.7 \u00b7 BB 25.7bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm8_e05f5b7d16c47cbd",
+  "key": "icm8_afc6541df00e6635",
   "request": {
    "players": 8,
    "stack": 32.5,
@@ -3641,25 +3641,25 @@
   "players": 8,
   "nodes": 1255,
   "iterations": 1500,
-  "mbb": 0.048,
+  "mbb": 0.043,
   "mbb_seats": [
+   0.044,
    0.034,
-   0.032,
-   0.054,
    0.042,
-   0.05,
-   0.069,
-   0.065,
-   0.034
+   0.058,
+   0.051,
+   0.06,
+   0.028,
+   0.024
   ],
-  "seconds": 23.4,
-  "bytes": 9954,
+  "seconds": 26.5,
+  "bytes": 9510,
   "label": "8 players, stacks UTG 32.5 \u00b7 UTG1 32.5 \u00b7 LJ 32.5 \u00b7 HJ 32.5 \u00b7 CO 32.5 \u00b7 BTN 32.5 \u00b7 SB 32.5 \u00b7 BB 12bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm8_1c3fc425b5c50e4e",
+  "key": "icm8_bd9712a2ae731fe4",
   "request": {
    "players": 8,
    "stack": 40.0,
@@ -3678,25 +3678,25 @@
   "players": 8,
   "nodes": 1720,
   "iterations": 1500,
-  "mbb": 0.042,
+  "mbb": 0.035,
   "mbb_seats": [
+   0.029,
    0.033,
-   0.042,
-   0.053,
-   0.047,
-   0.032,
-   0.022,
-   0.074,
-   0.036
+   0.04,
+   0.046,
+   0.058,
+   0.04,
+   0.018,
+   0.017
   ],
-  "seconds": 29.4,
-  "bytes": 13660,
+  "seconds": 34.6,
+  "bytes": 11891,
   "label": "8 players, stacks UTG 40 \u00b7 UTG1 40 \u00b7 LJ 40 \u00b7 HJ 40 \u00b7 CO 40 \u00b7 BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm8_466b484767d44488",
+  "key": "icm8_ec574975513efac3",
   "request": {
    "players": 8,
    "stack": 80.0,
@@ -3724,25 +3724,25 @@
   "players": 8,
   "nodes": 1150,
   "iterations": 1500,
-  "mbb": 0.073,
+  "mbb": 0.044,
   "mbb_seats": [
-   0.024,
-   0.028,
-   0.137,
-   0.145,
+   0.056,
+   0.051,
+   0.064,
+   0.042,
    0.041,
-   0.023,
-   0.141,
-   0.045
+   0.022,
+   0.034,
+   0.038
   ],
-  "seconds": 21.5,
-  "bytes": 9602,
+  "seconds": 25.9,
+  "bytes": 8744,
   "label": "8 players, stacks UTG 34.2 \u00b7 UTG1 34.2 \u00b7 LJ 34.2 \u00b7 HJ 34.2 \u00b7 CO 34.2 \u00b7 BTN 80 \u00b7 SB 34.2 \u00b7 BB 34.2bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 8 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm8_6753c35e0efc47cf",
+  "key": "icm8_b8479d593038275b",
   "request": {
    "players": 8,
    "stack": 43.4,
@@ -3764,25 +3764,25 @@
   "players": 8,
   "nodes": 1540,
   "iterations": 1500,
-  "mbb": 0.077,
+  "mbb": 0.042,
   "mbb_seats": [
-   0.049,
-   0.051,
-   0.064,
-   0.056,
-   0.078,
-   0.148,
-   0.124,
-   0.045
+   0.072,
+   0.099,
+   0.034,
+   0.048,
+   0.032,
+   0.016,
+   0.012,
+   0.025
   ],
-  "seconds": 30.8,
-  "bytes": 11650,
+  "seconds": 36.4,
+  "bytes": 11288,
   "label": "8 players, stacks UTG 43.4 \u00b7 UTG1 43.4 \u00b7 LJ 43.4 \u00b7 HJ 43.4 \u00b7 CO 43.4 \u00b7 BTN 43.4 \u00b7 SB 43.4 \u00b7 BB 16bb, 0.13bb ante each, prize equity (ICM, Malmuth-Harville): 8 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 10bb average, equal stacks",
   "set": "final table",
-  "key": "icm9_1a2e5c6770f24c22",
+  "key": "icm9_f6b9341aed80a704",
   "request": {
    "players": 9,
    "stack": 10.0,
@@ -3802,26 +3802,26 @@
   "players": 9,
   "nodes": 1464,
   "iterations": 1500,
-  "mbb": 0.022,
+  "mbb": 0.051,
   "mbb_seats": [
-   0.005,
-   0.005,
-   0.01,
-   0.006,
-   0.015,
    0.021,
-   0.022,
-   0.024,
-   0.09
+   0.053,
+   0.043,
+   0.045,
+   0.039,
+   0.037,
+   0.047,
+   0.05,
+   0.128
   ],
-  "seconds": 29.5,
-  "bytes": 6184,
+  "seconds": 37.6,
+  "bytes": 8368,
   "label": "9 players, stacks UTG 10 \u00b7 UTG1 10 \u00b7 UTG2 10 \u00b7 LJ 10 \u00b7 HJ 10 \u00b7 CO 10 \u00b7 BTN 10 \u00b7 SB 10 \u00b7 BB 10bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 10bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm9_4fd297ff8f369b6a",
+  "key": "icm9_578284837221ec02",
   "request": {
    "players": 9,
    "stack": 20.0,
@@ -3851,26 +3851,26 @@
   "players": 9,
   "nodes": 1476,
   "iterations": 1500,
-  "mbb": 0.045,
+  "mbb": 0.073,
   "mbb_seats": [
-   0.01,
-   0.004,
-   0.026,
-   0.013,
-   0.016,
-   0.014,
-   0.023,
-   0.059,
-   0.237
+   0.032,
+   0.035,
+   0.049,
+   0.037,
+   0.033,
+   0.039,
+   0.038,
+   0.085,
+   0.305
   ],
-  "seconds": 31.0,
-  "bytes": 6144,
+  "seconds": 33.8,
+  "bytes": 8099,
   "label": "9 players, stacks UTG 8.7 \u00b7 UTG1 8.7 \u00b7 UTG2 8.7 \u00b7 LJ 8.7 \u00b7 HJ 8.7 \u00b7 CO 8.7 \u00b7 BTN 20 \u00b7 SB 8.7 \u00b7 BB 8.7bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 10bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm9_f8fba9db22de0cc6",
+  "key": "icm9_83f63a51cc4ebf2c",
   "request": {
    "players": 9,
    "stack": 10.7,
@@ -3893,26 +3893,26 @@
   "players": 9,
   "nodes": 1626,
   "iterations": 1500,
-  "mbb": 0.079,
+  "mbb": 0.122,
   "mbb_seats": [
-   0.038,
-   0.064,
-   0.065,
-   0.052,
-   0.071,
-   0.074,
-   0.152,
-   0.061,
-   0.129
+   0.049,
+   0.078,
+   0.082,
+   0.087,
+   0.116,
+   0.179,
+   0.254,
+   0.183,
+   0.071
   ],
-  "seconds": 31.3,
-  "bytes": 7883,
+  "seconds": 34.3,
+  "bytes": 12530,
   "label": "9 players, stacks UTG 10.7 \u00b7 UTG1 10.7 \u00b7 UTG2 10.7 \u00b7 LJ 10.7 \u00b7 HJ 10.7 \u00b7 CO 10.7 \u00b7 BTN 10.7 \u00b7 SB 10.7 \u00b7 BB 4bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 15bb average, equal stacks",
   "set": "final table",
-  "key": "icm9_cc2a27df1ac50311",
+  "key": "icm9_57b4395501d4f0f9",
   "request": {
    "players": 9,
    "stack": 15.0,
@@ -3932,26 +3932,26 @@
   "players": 9,
   "nodes": 1464,
   "iterations": 1500,
-  "mbb": 0.018,
+  "mbb": 0.044,
   "mbb_seats": [
-   0.002,
-   0.004,
-   0.012,
-   0.005,
-   0.023,
-   0.021,
-   0.021,
-   0.034,
-   0.044
+   0.028,
+   0.025,
+   0.027,
+   0.041,
+   0.053,
+   0.04,
+   0.037,
+   0.066,
+   0.077
   ],
-  "seconds": 28.7,
-  "bytes": 7458,
+  "seconds": 28.9,
+  "bytes": 9102,
   "label": "9 players, stacks UTG 15 \u00b7 UTG1 15 \u00b7 UTG2 15 \u00b7 LJ 15 \u00b7 HJ 15 \u00b7 CO 15 \u00b7 BTN 15 \u00b7 SB 15 \u00b7 BB 15bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 15bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm9_61f62c92a690299c",
+  "key": "icm9_20ac129e4e6102d2",
   "request": {
    "players": 9,
    "stack": 30.0,
@@ -3981,26 +3981,26 @@
   "players": 9,
   "nodes": 1722,
   "iterations": 1500,
-  "mbb": 0.027,
+  "mbb": 0.082,
   "mbb_seats": [
-   0.01,
-   0.008,
-   0.007,
-   0.014,
-   0.012,
-   0.024,
-   0.037,
-   0.035,
-   0.092
+   0.021,
+   0.108,
+   0.171,
+   0.071,
+   0.065,
+   0.062,
+   0.044,
+   0.056,
+   0.139
   ],
-  "seconds": 33.2,
-  "bytes": 8631,
+  "seconds": 42.0,
+  "bytes": 10698,
   "label": "9 players, stacks UTG 13.1 \u00b7 UTG1 13.1 \u00b7 UTG2 13.1 \u00b7 LJ 13.1 \u00b7 HJ 13.1 \u00b7 CO 13.1 \u00b7 BTN 30 \u00b7 SB 13.1 \u00b7 BB 13.1bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 15bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm9_8a8f3ebd1d6fb6a5",
+  "key": "icm9_4a248ff6f122bf16",
   "request": {
    "players": 9,
    "stack": 16.1,
@@ -4023,26 +4023,26 @@
   "players": 9,
   "nodes": 1626,
   "iterations": 1500,
-  "mbb": 0.051,
+  "mbb": 0.218,
   "mbb_seats": [
-   0.033,
-   0.029,
-   0.033,
-   0.044,
-   0.073,
-   0.052,
-   0.066,
-   0.048,
-   0.086
+   0.02,
+   0.461,
+   0.375,
+   0.111,
+   0.154,
+   0.201,
+   0.247,
+   0.282,
+   0.107
   ],
-  "seconds": 32.2,
-  "bytes": 7596,
+  "seconds": 63.0,
+  "bytes": 11930,
   "label": "9 players, stacks UTG 16.1 \u00b7 UTG1 16.1 \u00b7 UTG2 16.1 \u00b7 LJ 16.1 \u00b7 HJ 16.1 \u00b7 CO 16.1 \u00b7 BTN 16.1 \u00b7 SB 16.1 \u00b7 BB 6bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 20bb average, equal stacks",
   "set": "final table",
-  "key": "icm9_67d9c8af1b74c631",
+  "key": "icm9_3f174f3b1be0b183",
   "request": {
    "players": 9,
    "stack": 20.0,
@@ -4062,26 +4062,26 @@
   "players": 9,
   "nodes": 1527,
   "iterations": 1500,
-  "mbb": 0.046,
+  "mbb": 0.054,
   "mbb_seats": [
-   0.013,
-   0.019,
-   0.028,
-   0.029,
-   0.037,
-   0.051,
-   0.117,
-   0.063,
-   0.057
+   0.021,
+   0.043,
+   0.025,
+   0.03,
+   0.052,
+   0.049,
+   0.056,
+   0.107,
+   0.101
   ],
-  "seconds": 32.1,
-  "bytes": 10037,
+  "seconds": 43.9,
+  "bytes": 12801,
   "label": "9 players, stacks UTG 20 \u00b7 UTG1 20 \u00b7 UTG2 20 \u00b7 LJ 20 \u00b7 HJ 20 \u00b7 CO 20 \u00b7 BTN 20 \u00b7 SB 20 \u00b7 BB 20bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 20bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm9_d39029f7f9217226",
+  "key": "icm9_1d5c79a48fb5a765",
   "request": {
    "players": 9,
    "stack": 40.0,
@@ -4111,26 +4111,26 @@
   "players": 9,
   "nodes": 1722,
   "iterations": 1500,
-  "mbb": 0.032,
+  "mbb": 0.038,
   "mbb_seats": [
-   0.009,
+   0.024,
+   0.026,
+   0.02,
+   0.021,
+   0.05,
+   0.042,
    0.018,
-   0.011,
-   0.008,
-   0.045,
-   0.022,
-   0.069,
-   0.039,
-   0.068
+   0.054,
+   0.089
   ],
-  "seconds": 37.5,
-  "bytes": 10109,
+  "seconds": 36.6,
+  "bytes": 10820,
   "label": "9 players, stacks UTG 17.5 \u00b7 UTG1 17.5 \u00b7 UTG2 17.5 \u00b7 LJ 17.5 \u00b7 HJ 17.5 \u00b7 CO 17.5 \u00b7 BTN 40 \u00b7 SB 17.5 \u00b7 BB 17.5bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 20bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm9_eb234c17335fedd0",
+  "key": "icm9_425b4da6a8bf1fe5",
   "request": {
    "players": 9,
    "stack": 21.5,
@@ -4153,26 +4153,26 @@
   "players": 9,
   "nodes": 1689,
   "iterations": 1500,
-  "mbb": 0.047,
+  "mbb": 0.063,
   "mbb_seats": [
-   0.027,
-   0.034,
-   0.037,
-   0.055,
-   0.075,
-   0.059,
-   0.058,
-   0.054,
-   0.023
+   0.038,
+   0.017,
+   0.031,
+   0.024,
+   0.036,
+   0.12,
+   0.131,
+   0.094,
+   0.075
   ],
-  "seconds": 36.7,
-  "bytes": 10154,
+  "seconds": 39.5,
+  "bytes": 13025,
   "label": "9 players, stacks UTG 21.5 \u00b7 UTG1 21.5 \u00b7 UTG2 21.5 \u00b7 LJ 21.5 \u00b7 HJ 21.5 \u00b7 CO 21.5 \u00b7 BTN 21.5 \u00b7 SB 21.5 \u00b7 BB 8bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 30bb average, equal stacks",
   "set": "final table",
-  "key": "icm9_4db2769ee7a7ea03",
+  "key": "icm9_e0f0b16d71b31311",
   "request": {
    "players": 9,
    "stack": 30.0,
@@ -4192,26 +4192,26 @@
   "players": 9,
   "nodes": 1716,
   "iterations": 1500,
-  "mbb": 0.048,
+  "mbb": 0.054,
   "mbb_seats": [
-   0.019,
-   0.029,
-   0.055,
-   0.066,
-   0.065,
-   0.038,
-   0.051,
-   0.057,
-   0.05
+   0.068,
+   0.049,
+   0.058,
+   0.041,
+   0.035,
+   0.028,
+   0.043,
+   0.077,
+   0.083
   ],
-  "seconds": 32.9,
-  "bytes": 12172,
+  "seconds": 39.5,
+  "bytes": 11770,
   "label": "9 players, stacks UTG 30 \u00b7 UTG1 30 \u00b7 UTG2 30 \u00b7 LJ 30 \u00b7 HJ 30 \u00b7 CO 30 \u00b7 BTN 30 \u00b7 SB 30 \u00b7 BB 30bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 30bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm9_583a18472a4e020e",
+  "key": "icm9_24c5c173a5c94a52",
   "request": {
    "players": 9,
    "stack": 60.0,
@@ -4241,26 +4241,26 @@
   "players": 9,
   "nodes": 1713,
   "iterations": 1500,
-  "mbb": 0.033,
+  "mbb": 0.045,
   "mbb_seats": [
-   0.009,
-   0.027,
-   0.049,
-   0.037,
-   0.03,
-   0.029,
+   0.077,
+   0.053,
    0.04,
-   0.045,
-   0.031
+   0.038,
+   0.024,
+   0.028,
+   0.025,
+   0.088,
+   0.029
   ],
-  "seconds": 33.6,
-  "bytes": 11947,
+  "seconds": 41.1,
+  "bytes": 12036,
   "label": "9 players, stacks UTG 26.2 \u00b7 UTG1 26.2 \u00b7 UTG2 26.2 \u00b7 LJ 26.2 \u00b7 HJ 26.2 \u00b7 CO 26.2 \u00b7 BTN 60 \u00b7 SB 26.2 \u00b7 BB 26.2bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 30bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm9_823f8724065bc38d",
+  "key": "icm9_04f04ac83fb72125",
   "request": {
    "players": 9,
    "stack": 32.2,
@@ -4283,26 +4283,26 @@
   "players": 9,
   "nodes": 1908,
   "iterations": 1500,
-  "mbb": 0.046,
+  "mbb": 0.044,
   "mbb_seats": [
-   0.03,
-   0.028,
-   0.043,
    0.054,
-   0.042,
-   0.064,
-   0.05,
-   0.078,
-   0.028
+   0.067,
+   0.038,
+   0.04,
+   0.033,
+   0.046,
+   0.07,
+   0.026,
+   0.027
   ],
-  "seconds": 38.7,
-  "bytes": 13947,
+  "seconds": 46.5,
+  "bytes": 12774,
   "label": "9 players, stacks UTG 32.2 \u00b7 UTG1 32.2 \u00b7 UTG2 32.2 \u00b7 LJ 32.2 \u00b7 HJ 32.2 \u00b7 CO 32.2 \u00b7 BTN 32.2 \u00b7 SB 32.2 \u00b7 BB 12bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 40bb average, equal stacks",
   "set": "final table",
-  "key": "icm9_ea5b050c3174b31c",
+  "key": "icm9_130d332fb24a25a4",
   "request": {
    "players": 9,
    "stack": 40.0,
@@ -4322,26 +4322,26 @@
   "players": 9,
   "nodes": 2542,
   "iterations": 1500,
-  "mbb": 0.045,
+  "mbb": 0.047,
   "mbb_seats": [
-   0.04,
-   0.035,
-   0.054,
-   0.065,
-   0.053,
-   0.034,
-   0.026,
    0.046,
-   0.048
+   0.045,
+   0.055,
+   0.056,
+   0.064,
+   0.064,
+   0.051,
+   0.024,
+   0.021
   ],
-  "seconds": 50.3,
-  "bytes": 18387,
+  "seconds": 56.3,
+  "bytes": 16363,
   "label": "9 players, stacks UTG 40 \u00b7 UTG1 40 \u00b7 UTG2 40 \u00b7 LJ 40 \u00b7 HJ 40 \u00b7 CO 40 \u00b7 BTN 40 \u00b7 SB 40 \u00b7 BB 40bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 40bb average, chip leader on the button",
   "set": "final table",
-  "key": "icm9_a373cb33e9ca3b81",
+  "key": "icm9_f734b8bfb07ce586",
   "request": {
    "players": 9,
    "stack": 80.0,
@@ -4371,26 +4371,26 @@
   "players": 9,
   "nodes": 1764,
   "iterations": 1500,
-  "mbb": 0.057,
+  "mbb": 0.042,
   "mbb_seats": [
-   0.048,
-   0.064,
-   0.09,
-   0.077,
-   0.051,
-   0.039,
-   0.024,
-   0.081,
-   0.036
+   0.05,
+   0.053,
+   0.056,
+   0.04,
+   0.047,
+   0.044,
+   0.023,
+   0.029,
+   0.038
   ],
-  "seconds": 32.9,
-  "bytes": 12800,
+  "seconds": 42.8,
+  "bytes": 12252,
   "label": "9 players, stacks UTG 35 \u00b7 UTG1 35 \u00b7 UTG2 35 \u00b7 LJ 35 \u00b7 HJ 35 \u00b7 CO 35 \u00b7 BTN 80 \u00b7 SB 35 \u00b7 BB 35bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  },
  {
   "name": "Final table, 9 left, 40bb average, short stack in the big blind",
   "set": "final table",
-  "key": "icm9_50e302994f71d2af",
+  "key": "icm9_e6181bd95b26eda1",
   "request": {
    "players": 9,
    "stack": 43.0,
@@ -4413,20 +4413,20 @@
   "players": 9,
   "nodes": 2244,
   "iterations": 1500,
-  "mbb": 0.054,
+  "mbb": 0.047,
   "mbb_seats": [
+   0.042,
+   0.05,
    0.041,
+   0.048,
+   0.057,
    0.068,
-   0.031,
-   0.08,
-   0.043,
-   0.073,
-   0.069,
-   0.06,
-   0.024
+   0.082,
+   0.012,
+   0.021
   ],
-  "seconds": 47.1,
-  "bytes": 17138,
+  "seconds": 55.8,
+  "bytes": 13527,
   "label": "9 players, stacks UTG 43 \u00b7 UTG1 43 \u00b7 UTG2 43 \u00b7 LJ 43 \u00b7 HJ 43 \u00b7 CO 43 \u00b7 BTN 43 \u00b7 SB 43 \u00b7 BB 16bb, 0.11bb ante each, prize equity (ICM, Malmuth-Harville): 9 paid in the model (30/20/14/\u2026), opens 2.5bb, SB 3x or limp, a jam beside the open from 25bb, 3bets 3x / 4.8x from the blinds, 7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
  }
 ]
