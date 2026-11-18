@@ -2,7 +2,9 @@
 // a hand history from PokerStars, GGPoker/Natural8, 888poker, partypoker, Winamax, WPN/ACR, Ignition/Bovada or
 // iPoker (XML) becomes the hand: its seats in the page's names, each seat's stack, the cards and every action as the
 // seat's street total, in big blinds. The other sites' text is rewritten into PokerStars-like lines first (norm),
-// which one parser reads. Pure: the golden tests (hh/parse.test.ts) hold it to the classic parser's output.
+// which one parser reads. Pure: the golden tests (hh/parse.test.ts) hold it to the classic parser's output, but for one
+// declared difference: a blind or straddle posted all-in for less (Practice's own histories write a short seat's post so,
+// "posts straddle 1.85 and is all-in") is read as the table plays it, the straddle kept and no warning about the size.
 import { SEATS } from "@/poker/seats";
 
 export type HhStreet = "preflop" | "flop" | "turn" | "river";
@@ -317,6 +319,8 @@ interface Post {
   name: string;
   kind: PostKind;
   amt: number;
+  /** posted all-in ("posts small blind 0.2 and is all-in") */
+  allIn?: boolean;
 }
 /** an action as written: what it adds (`amt`), or a raise's total (`to`) */
 interface Act {
@@ -417,6 +421,7 @@ export function parseHandHistory(text: string, opts: { omaha?: boolean } = {}): 
           name,
           kind: k === "ante" ? "ante" : k.startsWith("small &") ? "dead" : k === "small blind" ? "sb" : k === "big blind" ? "bb" : "straddle",
           amt,
+          ...(allIn ? { allIn } : {}),
         });
     } else if (!street) continue;
     else if (/^folds/i.test(rest)) acts.push({ street, name, act: "fold" });
@@ -451,7 +456,8 @@ export function parseHandHistory(text: string, opts: { omaha?: boolean } = {}): 
   })();
   if (!(bb > 0)) throw new HandHistoryError('Couldn\'t find the big blind (neither the stakes, "($0.50/$1)", nor a "posts big blind" line).');
   const sbPost = posts.find((p) => p.kind === "sb");
-  if (sbPost && Math.abs(sbPost.amt / bb - 0.5) > 0.01)
+  // (a small blind posted all-in for less is a short stack's half big blind, as the table plays it)
+  if (sbPost && Math.abs(sbPost.amt / bb - 0.5) > 0.01 && !(sbPost.allIn && sbPost.amt / bb < 0.5))
     warnings.push(`The small blind is ${r2(sbPost.amt / bb)}bb: the page plays a half-big-blind small blind.`);
 
   // seats: clockwise from the button, the big blind is the first player after it who posted one (a new player
@@ -505,7 +511,8 @@ export function parseHandHistory(text: string, opts: { omaha?: boolean } = {}): 
     left[p.name]! -= p.amt;
     put[p.name] = Math.max(put[p.name] ?? 0, live);
     if (p.kind === "straddle") {
-      if (n >= 3 && pos[p.name] === names9[0] && Math.abs(p.amt / bb - 2) < 0.01) straddle = true;
+      // (one posted all-in for less, or for nothing after the ante, is the 2bb straddle of a short stack, as the table plays it)
+      if (n >= 3 && pos[p.name] === names9[0] && (Math.abs(p.amt / bb - 2) < 0.01 || (p.allIn && p.amt / bb < 2))) straddle = true;
       else warnings.push(`${pos[p.name]}'s straddle isn't a 2bb straddle from the first seat, the only kind the page plays: it's left out.`);
     } else if (p.kind === "dead" || (p.kind === "bb" && pos[p.name] !== "BB")) warnings.push(`${pos[p.name]} posted a blind out of turn: the page leaves it out.`);
   }

@@ -352,16 +352,17 @@ export function situation(rep: Pick<LibraryReport, "seats">, pr: Pick<DrillProbl
 
 /** A preflop line in words: the folds before the first voluntary action said once, later folds left out, raises
  * counted ("BTN raises to 2.5bb", "BB 3-bets to 10bb"). "UTG:f,HJ:f,CO:f,BTN:r2.5,SB:f,BB:c" is "Folds to BTN.
- * BTN raises to 2.5bb, BB calls". */
-export function preflopWords(line: string): string {
+ * BTN raises to 2.5bb, BB calls". `calls`: where in the line an all-in only calls (not counted as a raise). */
+export function preflopWords(line: string, calls?: ReadonlySet<number>): string {
   const acts = parseLine(line);
   const first = acts.findIndex((a) => a.action !== "fold");
   if (first < 0) return "";
   const out: string[] = [];
   let raises = 0;
-  for (const a of acts.slice(first)) {
+  for (const [j, a] of acts.slice(first).entries()) {
     if (a.action === "fold") continue;
-    if (a.action === "raise" || a.action === "bet" || a.action === "all-in") {
+    if (a.action === "all-in" && calls?.has(first + j)) out.push(`${a.pos} calls all-in`);
+    else if (a.action === "raise" || a.action === "bet" || a.action === "all-in") {
       raises++;
       const to = a.to ? ` to ${fmt(a.to)}bb` : "";
       out.push(a.action === "all-in" ? `${a.pos} goes all-in` : raises === 1 ? `${a.pos} raises${to}` : `${a.pos} ${raises + 1}-bets${to}`);

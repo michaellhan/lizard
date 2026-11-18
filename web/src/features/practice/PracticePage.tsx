@@ -32,7 +32,7 @@ import { AheadLine, AskAhead, Carried, DecisionView, FallbackMoves, fmt, HandLin
 import { gradedOn, optionsAt } from "./pfGrade";
 import { aheadOption, isNextKey, optionFromKey, shownOrder } from "./keys";
 import { KeysHelp } from "./KeysHelp";
-import { boardShown, gameLabel, mixOf, othersPlay, modelled, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
+import { boardShown, gameLabel, mixOf, othersPlay, modelled, pfByDefault, phaseOf, playsOn, potLabel, rangeAt, runKind, seeking, simOf } from "./practice";
 import { keptNote, PACE, Room, type RoomSnapshot } from "./room";
 import { FIRST_OPTS, keyOf, setupKey } from "./session";
 import { readSetupLink, SETUP_PARAMS, setupLinkKey } from "./setupLink";
@@ -217,7 +217,8 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
     const opening = async () => {
       const kept = scenario ? await getScenario(scenario).catch(() => undefined) : undefined;
       if (!alive) return;
-      const s = scenario ? kept : readSetupLink(new URLSearchParams(linked!));
+      // (a scenario that says nothing of the grade is graded as the form shows it: by the solve where the game is stored)
+      const s = scenario ? kept && { ...kept, opts: pfByDefault(kept.players, kept.stack, kept.opts) } : readSetupLink(new URLSearchParams(linked!));
       if (s && room.snapshot().underWay) {
         setAsking({ setup: s, name: kept?.name ?? scenarioWords(s) });
       } else {

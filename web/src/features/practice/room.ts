@@ -78,6 +78,7 @@ import {
   needsIndex,
   newHand,
   offDrill,
+  pfByDefault,
   phaseOf,
   rangeAt,
   redeal,
@@ -106,7 +107,9 @@ export const LAST_SETUP_KEY = "lizard.practiceSetup.v1";
 
 export function readLastSetup(): ScenarioSetup | null {
   try {
-    return readSetup(JSON.parse(localStorage.getItem(LAST_SETUP_KEY) ?? "null"));
+    const s = readSetup(JSON.parse(localStorage.getItem(LAST_SETUP_KEY) ?? "null"));
+    // (one that says nothing of the grade is graded as the form shows it: by the solve where the game is stored)
+    return s && { ...s, opts: pfByDefault(s.players, s.stack, s.opts) };
   } catch {
     return null;
   }

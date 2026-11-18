@@ -8,14 +8,18 @@
 // float with nothing a good part of the time, and bet more. You're dealt hands worth playing (`worthPlaying`, practice.ts
 // `newHand`). Also hand-set rules, graded against the equilibrium.
 //
+// Both look at the price (the call, no more than the chips behind): a call with nothing (`noPairCall`) or with a weak pair
+// or a draw (`weakCall`) is made at the profile's rate facing a bet of a third of the pot or less, less often as the bet
+// grows, and seldom with the stack at stake (with nothing on the river, seldom at any price).
+//
 // The move is the solver's or the chart's draw (what a GTO player would do) changed by the rules. Drawn by the hand's
 // seed and its place in the hand, so the same spot always gets the same move (ahead.ts plays the hand on before the
 // table does, and the two must agree). Sizes come from the move's own mix where it has one, so a pot stays on the
 // solver's tree where it can.
 import { kindOf } from "@/components/actions";
 import { classOf } from "@/engine/nlhe/cards";
-import { rank7 } from "@/poker/evaluate";
-import { seeded, type Sim } from "@/poker/table";
+import { cmp, rank7 } from "@/poker/evaluate";
+import { DECK, seeded, type Sim } from "@/poker/table";
 import type { AdvisorActionStat, PlayMove } from "@/solver/protocol";
 import type { PracticeHand } from "./practice";
 
@@ -68,10 +72,14 @@ export function looseCalls(cls: string): boolean {
 }
 
 /** How a live player sees their hand after the flop: 3 two pair or better made with their cards, 2 top pair or an
- * overpair, 1 a weaker pair, 0 nothing; `draw`, a flush draw or an open-ended straight draw with a card to come. */
+ * overpair, 1 a weaker pair, 0 nothing; `draw`, a flush draw or an open-ended straight draw with a card to come. On the
+ * river, against the board's own straight or better, by how many two-card holdings beat it: a hand better than the
+ * board's is 3 where under a tenth of them do, 2 under a quarter, else 1 (a kicker on a quads board that loses to every
+ * higher card); playing the board is 2 where none do (a split at worst, never folded), else 1. */
 export function handTier(hole: readonly string[], board: readonly string[]): { tier: 0 | 1 | 2 | 3; draw: boolean } {
   const all = [...hole, ...board];
-  const cat = rank7(all)[0]!;
+  const v = rank7(all);
+  const cat = v[0]!;
   const boardCat = boardCategory(board);
   const top = Math.max(...board.map(val));
   const [h1, h2] = [val(hole[0]!), val(hole[1]!)];
@@ -79,12 +87,36 @@ export function handTier(hole: readonly string[], board: readonly string[]): { t
   let tier: 0 | 1 | 2 | 3 = 0;
   // (a pair of the board's paired with one of yours is a pair, not two pair)
   const pairOnly = cat === 1 || (cat === 2 && boardCat === 1);
+  // (a pair of yours as a pair: an overpair or top pair 2, else 1)
+  const pairTier = (r: number): 1 | 2 => (h1 === h2 ? (r > top ? 2 : 1) : r === top ? 2 : 1);
   if (cat >= 2 && cat > boardCat && !pairOnly) tier = 3;
   else if (pairOnly && cat > boardCat) {
     if (h1 === h2) tier = h1 > top ? 2 : 1;
     else tier = (boardVals.has(h1) && h1 === top) || (boardVals.has(h2) && h2 === top) ? 2 : boardVals.has(h1) || boardVals.has(h2) ? 1 : 0;
+  } else if (cat === 2 && boardCat === 2) {
+    // (the board's two pair: yours only where a pair of yours plays, over the board's lower pair)
+    const boardPairs = new Set([...boardVals].filter((r) => board.filter((c) => val(c) === r).length >= 2));
+    const mine = [v[1]!, v[2]!].find((r) => !boardPairs.has(r));
+    if (mine !== undefined) tier = pairTier(mine);
+  }
+  if (board.length === 5 && boardCat >= 4) {
+    const beat = beatenShare(v, hole, board);
+    tier = cmp(v, rank7(board)) > 0 ? (beat < 0.1 ? 3 : beat < 0.25 ? 2 : 1) : beat === 0 ? 2 : 1;
   }
   return { tier, draw: board.length < 5 && (flushDraw(hole, board) || openEnded(hole, board)) };
+}
+
+/** The share of two-card holdings from the cards left (your own aside) that make a better hand than `v` on the river. */
+function beatenShare(v: ReturnType<typeof rank7>, hole: readonly string[], board: readonly string[]): number {
+  const rest = DECK.filter((c) => !board.includes(c) && !hole.includes(c));
+  let n = 0;
+  let beat = 0;
+  for (let i = 0; i < rest.length; i++)
+    for (let j = i + 1; j < rest.length; j++) {
+      n++;
+      if (cmp(rank7([rest[i]!, rest[j]!, ...board]), v) > 0) beat++;
+    }
+  return beat / n;
 }
 
 /** The board's own made hand by rank alone (a flop or turn can't hold a straight or flush). */
@@ -117,6 +149,34 @@ function sizesOf(mv: OppMove, kind: "bet" | "raise"): number[] {
 }
 
 const movesSoFar = (h: PracticeHand) => h.lines.preflop.length + h.lines.flop.length + h.lines.turn.length + h.lines.river.length;
+
+/** The price of a call after the flop: what the call puts in (no more than the chips behind: a short stack facing a big
+ * bet calls its last chips) as a share of the pot before the bet, and whether it stakes the stack (all-in, or half or more
+ * of the chips behind). */
+function priceOf(h: PracticeHand, sim: Sim, seat: string): { toCall: number; frac: number; stake: boolean } {
+  const cur = sim.cur!;
+  const toCall = cur.curBet - (cur.bets[seat] ?? 0);
+  const left = (h.stacks?.[seat] ?? h.stack) - (sim.invested[seat] ?? 0) - (cur.bets[seat] ?? 0);
+  const call = Math.min(toCall, Math.max(left, 0));
+  return { toCall, frac: call / Math.max(sim.pot - toCall, 1e-9), stake: call >= left * 0.5 - 1e-9 };
+}
+
+/** A call with nothing (no pair, no draw): `rate` facing a third of the pot or less, then falling with the square of
+ * the price (a pot-size bet keeps a ninth of it); at most 2% where the stack is at stake past a third of the pot, or on
+ * the river at any price (with nothing left to come, a hand with no pair seldom wins). */
+export function noPairCall(rate: number, frac: number, stake: boolean, river = false): number {
+  if (frac <= 1 / 3 + 1e-9) return stake && river ? Math.min(rate, 0.02) : rate;
+  const r = rate / (9 * frac * frac);
+  return stake ? Math.min(r, 0.02) : r;
+}
+
+/** A call with a weak pair or a draw: `small` facing a third of the pot or less, `pot` facing a pot-size bet (in a line
+ * between), less past it; at most `stakeCap` where the stack is at stake past a third of the pot. */
+export function weakCall(small: number, pot: number, stakeCap: number, frac: number, stake: boolean): number {
+  if (frac <= 1 / 3 + 1e-9) return small;
+  const r = frac <= 1 ? small + (pot - small) * (frac - 1 / 3) * 1.5 : pot / frac;
+  return stake ? Math.min(r, stakeCap) : r;
+}
 
 /** The seat to act's move as a live regular (or, More action, a loose player) would make it, from the solver's (or
  * chart's) `mv`. Unchanged outside such a session, at your own seat (a drill's preflop played for you), in a drill's pot
@@ -171,14 +231,13 @@ function postflop(h: PracticeHand, mv: OppMove, sim: Sim, seat: string, r: numbe
   const board = h.board.slice(0, h.shown);
   if (board.length < 3) return null;
   const { tier, draw } = handTier(h.hands[seat]!, board);
-  const toCall = cur.curBet - (cur.bets[seat] ?? 0);
-  const before = sim.pot - toCall;
+  const { toCall, frac, stake } = priceOf(h, sim, seat);
   if (toCall > 1e-9) {
-    const big = toCall >= before - 1e-9;
     if (tier === 3) return r < 0.35 ? { action: "raise", to: sizesOf(mv, "raise")[0] ?? cur.curBet * 3 } : { action: "call" };
     if (tier === 2) return { action: "call" };
-    if (tier === 1 || draw) return r < (big ? 0.6 : 0.85) ? { action: "call" } : { action: "fold" };
-    return r < (board.length === 3 ? 0.2 : 0.1) ? { action: "call" } : { action: "fold" };
+    // (a draw's cap with the stack at stake is the higher, a pair with a draw included)
+    if (tier === 1 || draw) return r < weakCall(0.85, 0.6, draw ? 0.45 : 0.3, frac, stake) ? { action: "call" } : { action: "fold" };
+    return r < noPairCall(board.length === 3 ? 0.2 : 0.1, frac, stake, board.length === 5) ? { action: "call" } : { action: "fold" };
   }
   const bets = sizesOf(mv, "bet");
   const small = bets[0] ?? Math.round(sim.pot * 0.5 * 100) / 100;
@@ -232,16 +291,14 @@ function loosePostflop(h: PracticeHand, mv: OppMove, sim: Sim, seat: string, r: 
   const board = h.board.slice(0, h.shown);
   if (board.length < 3) return null;
   const { tier, draw } = handTier(h.hands[seat]!, board);
-  const toCall = cur.curBet - (cur.bets[seat] ?? 0);
-  const before = sim.pot - toCall;
+  const { toCall, frac, stake } = priceOf(h, sim, seat);
   if (toCall > 1e-9) {
-    const big = toCall >= before - 1e-9;
     const raise = (): OppMove => ({ action: "raise", to: sizesOf(mv, "raise")[0] ?? cur.curBet * 3 });
     if (tier === 3) return r < 0.4 ? raise() : { action: "call" };
     if (tier === 2) return r < 0.12 ? raise() : { action: "call" };
-    if (tier === 1 || draw) return r < (big ? 0.85 : 0.97) ? { action: "call" } : { action: "fold" };
-    // (a float with nothing: more on the flop, less by the river)
-    return r < (board.length === 3 ? 0.4 : board.length === 4 ? 0.25 : 0.12) ? { action: "call" } : { action: "fold" };
+    if (tier === 1 || draw) return r < weakCall(0.97, 0.85, draw ? 0.6 : 0.45, frac, stake) ? { action: "call" } : { action: "fold" };
+    // (a float with nothing: more on the flop, less by the river, and less the bigger the bet)
+    return r < noPairCall(board.length === 3 ? 0.4 : board.length === 4 ? 0.25 : 0.12, frac, stake, board.length === 5) ? { action: "call" } : { action: "fold" };
   }
   const bets = sizesOf(mv, "bet");
   const small = bets[0] ?? Math.round(sim.pot * 0.5 * 100) / 100;

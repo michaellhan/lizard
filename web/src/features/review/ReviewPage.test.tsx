@@ -118,10 +118,11 @@ describe("ReviewPage", () => {
     page();
     fireEvent.click(await screen.findByRole("button", { name: "Retry the next one" }));
     const retry = await screen.findByRole("region", { name: "Retry" });
-    expect(within(retry).getByText("5.5bb")).toBeInTheDocument();
+    // (the flop's pot as the table has it: 2.5 each preflop)
+    expect(within(retry).getByText("5bb")).toBeInTheDocument();
     const line = within(retry).getByRole("list", { name: "The hand so far" });
     expect(line).not.toHaveTextContent(/pot|to call/);
-    expect(line).toHaveTextContent("BB checks, SB bets 4.13bb · BB to act");
+    expect(line).toHaveTextContent("BB checks, BTN/SB bets 4.13bb · BB to act");
     expect(await within(retry).findByRole("button", { name: /^call 4\.13bb$/ })).toBeInTheDocument();
   });
 

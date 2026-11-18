@@ -12,7 +12,7 @@ import { heroDecisions, recordOf } from "@/features/analyze/analyze";
 import { sessionImport } from "@/features/analyze/sessions";
 import { importHand } from "@/hh/replay";
 import { seatsOf } from "@/poker/seats";
-import { noLines, simulate, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
+import { noLines, simulate, toCallOf, withMove, NEED, STREETS, type Move, type Sim, type Street, type TableSetup } from "@/poker/table";
 import { prizesOf, rakeSetup, runEnd, setupOf, shownCards, type PracticeHand } from "./practice";
 
 export { PRACTICE_SITE };
@@ -29,15 +29,16 @@ const stamp = (d: Date) =>
 export const practiceNumber = (h: Pick<PracticeHand, "n">, startedAt: number) => `L${startedAt}-${h.n + 1}`;
 
 /** One move as a history writes it: what a call or bet adds, a raise's size and total, "and is all-in". */
-function moveText(m: Move, sim: Sim, street: Street, stack: number): string {
+function moveText(m: Move, sim: Sim, street: Street, t: TableSetup): string {
   const info = sim.streets[street]!;
   const mine = info.bets[m.pos] ?? 0;
   // (the street total that puts every chip in)
-  const cap = stack - (sim.invested[m.pos] ?? 0);
+  const cap = (t.stacks[m.pos] ?? 0) - (sim.invested[m.pos] ?? 0);
   const all = (to: number) => (to >= cap - EPS ? " and is all-in" : "");
   if (m.action === "fold") return "folds";
   if (m.action === "check") return "checks";
-  const to = m.action === "all-in" ? cap : m.action === "call" ? Math.min(info.curBet, cap) : m.to!;
+  // (a call: what the table takes, no more than the all-in players facing it have in)
+  const to = m.action === "all-in" ? cap : m.action === "call" ? mine + toCallOf(t, sim, m.pos) : m.to!;
   if (m.action === "call" || to <= info.curBet + EPS) return `calls ${amt(to - mine)}${all(to)}`;
   if (info.curBet <= EPS) return `bets ${amt(to)}${all(to)}`;
   return `raises ${amt(to - info.curBet)} to ${amt(to)}${all(to)}`;
@@ -54,15 +55,23 @@ export function practiceHistory(h: PracticeHand, startedAt: number, at: Date): s
 export function handHistory(h: PracticeHand, head: { site: string; number: string; at: Date }, t: TableSetup = setupOf(h)): string {
   const pos = seatsOf(h.players);
   const name = (p: string) => (p === h.hero ? YOU : p);
+  // (a blind as the table takes it: no more than the seat has after its ante, all-in where that's all; none with nothing
+  // left, but for the straddle, which the table still plays: "posts straddle 0 and is all-in" keeps it in the hand read back)
+  const posted = (p: string, what: string, blind: number): string[] => {
+    const stack = t.stacks[p] ?? h.stack;
+    const had = stack - Math.min(t.ante ?? 0, stack);
+    const x = Math.max(0, Math.min(blind, had));
+    return x > EPS || what === "straddle" ? [`${name(p)}: posts ${what} ${amt(x)}${x >= had - EPS ? " and is all-in" : ""}`] : [];
+  };
   const button = h.players === 2 ? "SB" : "BTN";
   const out = [
     `${head.site} Hand #${head.number}: Hold'em No Limit (0.5/1) - ${stamp(head.at)}`,
     `Table '${head.site}' ${h.players}-max Seat #${pos.indexOf(button) + 1} is the button`,
     ...pos.map((p, i) => `Seat ${i + 1}: ${name(p)} (${amt(t.stacks[p] ?? h.stack)} in chips)`),
     ...(t.ante ? pos.map((p) => `${name(p)}: posts the ante ${amt(Math.min(t.ante!, t.stacks[p] ?? h.stack))}`) : []),
-    `${name("SB")}: posts small blind 0.5`,
-    `${name("BB")}: posts big blind 1`,
-    ...(t.straddle && h.players >= 3 ? [`${name(pos[0]!)}: posts straddle 2`] : []),
+    ...posted("SB", "small blind", t.smallBlind ?? 0.5),
+    ...posted("BB", "big blind", 1),
+    ...(t.straddle && h.players >= 3 ? posted(pos[0]!, "straddle", 2) : []),
     "*** HOLE CARDS ***",
     ...pos.map((p) => (p === h.hero ? `Dealt to ${YOU} [${h.hands[p]!.join(" ")}]` : `Dealt to ${p}`)),
   ];
@@ -74,7 +83,7 @@ export function handHistory(h: PracticeHand, head: { site: string; number: strin
     if (s === "turn") out.push(`*** TURN *** [${board.slice(0, 3).join(" ")}] [${board[3]}]`);
     if (s === "river") out.push(`*** RIVER *** [${board.slice(0, 4).join(" ")}] [${board[4]}]`);
     for (const m of h.lines[s]) {
-      out.push(`${name(m.pos)}: ${moveText(m, simulate(t, lines, NEED[s]), s, t.stacks[m.pos]!)}`);
+      out.push(`${name(m.pos)}: ${moveText(m, simulate(t, lines, NEED[s]), s, t)}`);
       lines = withMove(lines, s, m);
     }
     // (the bet nobody matched, back to its bettor as the street closes: the table leaves it out of the pot)

@@ -548,7 +548,7 @@ export const setupOf = (h: Pick<PracticeHand, "players" | "stack" | "ante" | "st
 const gameOf = (h: Pick<PracticeHand, "ante" | "straddle">) => ({ ...(h.ante ? { ante: h.ante } : {}), ...(h.straddle ? { straddle: true } : {}) });
 
 /** The hand's rake: in the engine's keys (a fraction of the pot), and in Study's setup (%). */
-const rakeOf = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: Math.round(h.rake.pct * 10) / 1000, ...(h.rake.cap ? { rake_cap: h.rake.cap } : {}) } : {});
+const rakeOf = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.rake.pct / 100, ...(h.rake.cap ? { rake_cap: h.rake.cap } : {}) } : {});
 export const rakeSetup = (h: Pick<PracticeHand, "rake">) => (h.rake ? { rake: h.rake.pct, ...(h.rake.cap ? { rakeCap: h.rake.cap } : {}) } : {});
 
 /** The hand's prizes, in the engine's keys and in Study's setup. A chip EV session has none to send. */

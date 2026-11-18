@@ -97,6 +97,34 @@ describe("simulate", () => {
     expect(recordOf(t, s, { action: "raise", to: 10, clamp: true })).toEqual({ pos: "BTN", action: "call" });
   });
 
+  // TDA Rules 43-B and 49-A: a seat that has acted may raise again only where the raises since come to a full raise
+  describe("reopening the betting", () => {
+    // (four-handed, every seat in for 1bb; CO and BTN short on the flop, SB acts first)
+    const t = table(4, { CO: 16, BTN: 21 });
+    const flop = (f: string) => simulate(t, lines({ preflop: "CO c, BTN c, SB c, BB x", flop: f }), 3);
+
+    it("one short all-in doesn't reopen it", () => {
+      const s = flop("SB b10, BB c, CO a, BTN c");
+      expect(legal(t, s)).toMatchObject({ toAct: "SB", toCall: 5, canRaise: false });
+      expect(recordOf(t, s, { action: "raise", to: 40 })).toBe("SB can't raise: the all-in for less than a full raise doesn't reopen the betting.");
+    });
+
+    it("two that add up to a full raise do, for each seat they come to a full raise over", () => {
+      const s = flop("SB b10, BB c, CO a, BTN a");
+      expect(legal(t, s)).toMatchObject({ toAct: "SB", toCall: 10, canRaise: true, minTo: 30 });
+      expect(recordOf(t, s, { action: "raise", to: 40 })).toEqual({ pos: "SB", action: "raise", to: 40 });
+      // (BB, having called 10, faces 10 more as well)
+      const bb = flop("SB b10, BB c, CO a, BTN a, SB c");
+      expect(legal(t, bb)).toMatchObject({ toAct: "BB", toCall: 10, canRaise: true });
+    });
+
+    it("a seat yet to act may raise over a short all-in, and a full raise reopens it", () => {
+      expect(legal(t, flop("SB b10, BB c, CO a"))).toMatchObject({ toAct: "BTN", toCall: 15, canRaise: true, minTo: 20 }); // (its all-in: a full raise is to 25)
+      expect(legal(t, flop("SB b10, BB r30"))).toMatchObject({ toAct: "CO", canRaise: true });
+      expect(legal(t, flop("SB b10, BB r30, CO f, BTN f"))).toMatchObject({ toAct: "SB", toCall: 20, canRaise: true, minTo: 50 });
+    });
+  });
+
   it("a straddle: the first seat posts 2bb and acts last preflop, a raise is to 4 or more (not heads-up)", () => {
     const t = { ...table(6), straddle: true };
     const s = simulate(t, noLines(), 0);
@@ -111,6 +139,37 @@ describe("simulate", () => {
 });
 
 describe("recordOf", () => {
+  it("takes the smallest raise and the all-in as typed to the cent, and says what's wrong with an amount", () => {
+    // (BTN raises to 2.3: the smallest re-raise is to 3.6, which half big blinds would round to 3.5 and refuse)
+    const t = table(6, { SB: 30.37 });
+    const s = simulate(t, lines({ preflop: "UTG f, HJ f, CO f, BTN r2.3" }), 0);
+    expect(legal(t, s)).toMatchObject({ toAct: "SB", minTo: 3.6 });
+    expect(recordOf(t, s, { action: "raise", to: 3.6 })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
+    expect(recordOf(t, s, { action: "raise", to: 30.37 })).toEqual({ pos: "SB", action: "all-in" });
+    expect(recordOf(t, s, { action: "raise", to: 2 })).toBe("2bb isn't a raise, the bet is 2.3bb.");
+    expect(recordOf(t, s, { action: "raise" })).toBe("Enter an amount.");
+    // (an opponent's: lifted to the smallest raise; with no size at all it's still refused, and played as a call)
+    expect(recordOf(t, s, { action: "raise", to: 2, clamp: true })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
+    expect(recordOf(t, s, { action: "raise", to: 0.2, clamp: true })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
+    expect(recordOf(t, s, { action: "raise", clamp: true })).toBe("Enter an amount.");
+    // (a size over the smallest raise that the half below would refuse is the smallest raise)
+    expect(recordOf(t, s, { action: "raise", to: 3.7 })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
+  });
+
+  it("takes a smallest raise that half big blinds would round up as typed, not the half above or all-in", () => {
+    // (BTN raises to 2.4: the smallest re-raise is to 3.8, which half big blinds would make 4)
+    const t = table(6);
+    const s = simulate(t, lines({ preflop: "UTG f, HJ f, CO f, BTN r2.4" }), 0);
+    expect(legal(t, s)).toMatchObject({ toAct: "SB", minTo: 3.8 });
+    expect(recordOf(t, s, { action: "raise", to: 3.8 })).toEqual({ pos: "SB", action: "raise", to: 3.8 });
+    // (with 3.85 behind, the smallest raise is still a raise to 3.8, and all-in is 3.85)
+    const short = table(6, { SB: 3.85 });
+    const ss = simulate(short, lines({ preflop: "UTG f, HJ f, CO f, BTN r2.4" }), 0);
+    expect(legal(short, ss)).toMatchObject({ toAct: "SB", minTo: 3.8, allInTo: 3.85 });
+    expect(recordOf(short, ss, { action: "raise", to: 3.8 })).toEqual({ pos: "SB", action: "raise", to: 3.8 });
+    expect(recordOf(short, ss, { action: "raise", to: 3.85 })).toEqual({ pos: "SB", action: "all-in" });
+  });
+
   it("rounds sizes to half a big blind, refuses one under the minimum, lifts an opponent's", () => {
     const t = table(6);
     const s = simulate(t, noLines(), 0);
@@ -283,12 +342,15 @@ describe("a big blind all-in for under half a big blind", () => {
     expect(call.invested).toEqual({ SB: 0.3, BB: 0.3 });
   });
 
-  it("leaves every stack from half a big blind up as it was: the small blind is asked", () => {
-    for (const BB of [0.5, 0.75, 1]) {
-      const s = simulate(table(2, { SB: 100, BB }), noLines(), 0);
-      expect(s.toAct).toBe("SB");
-      expect(legal(table(2, { SB: 100, BB }), s)?.toCall).toBeCloseTo(0.5);
-    }
+  it("asks the small blind only for what the big blind's chips match", () => {
+    // (all-in for half a big blind, the small blind has matched it: nobody is asked; for 0.75, the call is 0.25)
+    expect(simulate(table(2, { SB: 100, BB: 0.5 }), noLines(), 0).toAct).toBeNull();
+    const short = table(2, { SB: 100, BB: 0.75 });
+    const s = simulate(short, noLines(), 0);
+    expect(legal(short, s)).toMatchObject({ toAct: "SB", toCall: 0.25, canRaise: false });
+    expect(recordOf(short, s, { action: "call" })).toEqual({ pos: "SB", action: "call" });
+    expect(simulate(short, lines({ preflop: "SB c" }), 5).invested).toEqual({ SB: 0.75, BB: 0.75 });
+    expect(legal(table(2, { SB: 100, BB: 1 }), simulate(table(2, { SB: 100, BB: 1 }), noLines(), 0))?.toCall).toBeCloseTo(0.5);
     // (a raise is a bet to face, however short the blind)
     expect(simulate(table(3, { BTN: 100, SB: 100, BB: 0.3 }), lines({ preflop: "BTN r2.5" }), 0).toAct).toBe("SB");
   });
