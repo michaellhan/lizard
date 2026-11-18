@@ -7,9 +7,13 @@
 #   start   copy the driver beside the output (so it outlives a worktree) and start it, unless it is running
 #   stop    SIGTERM the job's process group: the workers stop, every finished entry stays, `start` resumes
 #   status  running or not, progress.json, the log's last lines
+# MW_REBUILD=1 before any of them: the rebuild of the spots on today's ranges (--rebuild, sources/mw-rebuild) instead
 set -euo pipefail
 MAIN=${LIZARD_MAIN:-/Users/mhan/Desktop/projects/lizard}
-OUT=${MW_OUT:-$MAIN/library-build/sources/mw-every-flop}
+# MW_REBUILD=1: the spots rebuilt on today's ranges (build_mw_every_flop.py --rebuild) into sources/mw-rebuild
+REBUILD=()
+if [ "${MW_REBUILD:-0}" = 1 ]; then REBUILD=(--rebuild); fi
+OUT=${MW_OUT:-$MAIN/library-build/sources/$([ "${MW_REBUILD:-0}" = 1 ] && echo mw-rebuild || echo mw-every-flop)}
 PY=$MAIN/.venv/bin/python
 HERE=$(cd "$(dirname "$0")" && pwd)
 PIDF=$OUT/build.pid
@@ -24,7 +28,7 @@ start)
   echo "$(date '+%F %T') start: waiting for a heavy slot" >> build.log
   nohup /usr/bin/python3 -I -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
     "$HOME/.local/bin/heavy" -x "$PY" "$OUT/bin/build_mw_every_flop.py" \
-    --out "$OUT" --solver "$MAIN/solver" --jobs 2 >> build.log 2>&1 < /dev/null &
+    --out "$OUT" --solver "$MAIN/solver" --jobs 2 ${REBUILD[@]+"${REBUILD[@]}"} >> build.log 2>&1 < /dev/null &
   echo $! > "$PIDF"
   echo "started (pid $!), log $OUT/build.log"
   ;;

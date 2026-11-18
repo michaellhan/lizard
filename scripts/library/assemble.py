@@ -23,7 +23,8 @@ Safety (the heads-up builds are still running and own their directories):
   - each spot's nuts.json comes from library-build/nuts (scripts/library/nuts.py), only for the ranges and flops the
     index lists, with its hash in the index as `nuts`; a spot with none just has no Nut adv column;
   - a 3-way source's flops go into a published 3-way spot only on the same tree and the same ranges, pot and stack
-    (the base's entry wins a flop both hold); each 3-way spot gets heads.json, its entries' stored mixes in one file
+    (the base's entry wins a flop both hold); a rebuild of the spot on other ranges (library-build/sources/mw-rebuild)
+    replaces it whole, only once it holds every flop the published spot does; each 3-way spot gets heads.json, its entries' stored mixes in one file
     (named in mw_index.json by hash as `heads`), so the Reports page reads one file, not one per flop;
   - a spot (heads-up or 3-way) that fails or shrinks keeps its previous release (--previous), so a publish never
     loses flops.
@@ -59,7 +60,9 @@ WORK = Path("/Users/mhan/Desktop/projects/gtosolver/.work")
 HU_SOURCES = [WORK / "hu-lib", WORK / "hu-lp-lib"]
 SOURCES = ROOT / "library-build" / "sources"  # Lizard's own library builds (gitignored), one folder each
 EXTEND_SOURCES = [SOURCES / "srp-every-flop"]
-MW_SOURCES = [SOURCES / "mw-every-flop"]  # scripts/library/mw_every_flop.sh
+# scripts/library/mw_every_flop.sh, then the 3-way spots rebuilt on today's ranges (build_mw_every_flop.py --rebuild),
+# which replace a published spot once complete (replace_mw); in this order, so the rebuild has the last word
+MW_SOURCES = [SOURCES / "mw-every-flop", SOURCES / "mw-rebuild"]
 # builds of other games' spots (flop_library.FORMAT_SPOTS, ids like srp_btn_bb_40bb), taken as the heads-up builds are
 FORMAT_SOURCES = [SOURCES / "depths"]
 BREADTH_SOURCES = [SOURCES / "breadth"]  # scripts/library/breadth.sh
@@ -279,7 +282,15 @@ def merge_mw(src: Path, stage: Path, mw: dict | None, log: list[str]) -> dict | 
             log.append(f"{src}: {s['id']} is not a published 3-way spot, left out")
             continue
         if not mw_same_spot(cur, s):
-            log.append(f"{src}: {s['id']} has other ranges, pot or stack than the published spot, left out")
+            missing = set(cur["flops"]) - set(s.get("flops", {}))
+            if missing:
+                log.append(f"{src}: {s['id']} has other ranges, pot or stack than the published spot, left out "
+                           f"(a rebuild replaces the spot once it holds every flop the published one does: "
+                           f"{len(missing)} to go)")
+                continue
+            got = replace_mw(src, stage, cur, s, log)
+            if got is not None:
+                added[s["id"]] = got
             continue
         n = bad = 0
         for flop, h in s.get("flops", {}).items():
@@ -301,6 +312,41 @@ def merge_mw(src: Path, stage: Path, mw: dict | None, log: list[str]) -> dict | 
         cur["flops"] = dict(sorted(cur["flops"].items()))
         added[s["id"]] = n
     return added
+
+
+def replace_mw(src: Path, stage: Path, cur: dict, s: dict, log: list[str]) -> int | None:
+    """A rebuild of a published 3-way spot on other ranges (the charts moved under it: scripts/library/
+    build_mw_every_flop.py --rebuild), holding every flop the published spot does: it replaces the staged spot, ranges,
+    pot, stack and every entry, all or nothing. Each entry is checked by its sha1 in the source's index; one missing or
+    failing leaves the published spot as it was. The staged base files are hard links into the base, so each is
+    unlinked and replaced by rename, never written through. The number of flops, or None where it was left out."""
+    tmp = stage / f".{s['id']}.rebuild"
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    flops = {}
+    for flop, h in sorted(s["flops"].items()):
+        sp = src / s["id"] / f"{flop}.bin"
+        if not sp.exists() or sha(place(sp, tmp / f"{flop}.bin", link=False), 10) != h:
+            shutil.rmtree(tmp)
+            log.append(f"{src}: {s['id']} rebuild: {flop} missing or failing its hash, the published spot kept")
+            return None
+        flops[flop] = h
+    d = stage / cur["id"]
+    d.mkdir(parents=True, exist_ok=True)
+    for old in d.glob("*.bin"):
+        old.unlink()
+    for flop in flops:
+        os.replace(tmp / f"{flop}.bin", d / f"{flop}.bin")
+    tmp.rmdir()
+    was = cur["fp"]
+    for k in ("fp", "pot", "stack", "seats", "line", "label"):
+        if k in s:
+            cur[k] = s[k]
+    cur["flops"] = flops
+    cur.pop("heads", None)
+    log.append(f"{cur['id']}: replaced by the rebuild in {src} on new ranges ({len(flops)} flops; fingerprints "
+               f"{was} -> {cur['fp']})")
+    return len(flops)
 
 
 def keep_previous_mw(prev: Path, stage: Path, mw: dict, allow_shrink: bool, log: list[str]) -> None:

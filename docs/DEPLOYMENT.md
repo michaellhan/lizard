@@ -154,6 +154,41 @@ Measured 2026-11-11 at normal priority: 15 s and 0.52 GB for a 300-iteration ent
 day with 2 workers on the performance cores. Under `heavy` it gets the efficiency cores at background priority beside
 another heavy job, so expect a few days once it holds a slot; `progress.json` has the measured rate.
 
+### Rebuilding the 3-way spots after a chart change
+
+A 3-way spot is found by the fingerprints of the ranges its preflop line gives entering the flop, so when the charts
+move under it the spot is never found again. b10afc8 (2026-11-17) moved the big blind's range in all four. Until a
+spot is rebuilt, `engine/mw_near.py` serves its stored entries as built, labelled approximate with how far each range
+moved (`precomputed.borrowed.built`), while today's ranges are within `NEAR_DIST` of the built ones
+(`engine/mw_built.py` holds those). CI's `scripts/library/test_published_fps.py` fails on any further move.
+
+The rebuild solves every flop of each moved spot on today's ranges: 4 x 1,755 = 7,020 entries, into the main
+checkout's ignored `library-build/sources/mw-rebuild`, with the same settings as the build above:
+
+```bash
+cd /Users/mhan/Desktop/projects/lizard            # the main checkout
+git status --short solver/                         # must be empty: the build solves on $MAIN/solver's charts
+MW_REBUILD=1 scripts/library/mw_every_flop.sh start    # status and stop the same way; start resumes
+```
+
+The log's first lines give each spot's new fingerprints. They must equal its `now` in
+`scripts/library/published_fps.json`; if they don't, the charts moved again since the fixture was written.
+
+Cost: the build above averaged 19.5 s an entry (its `progress.json`, 2026-11-16), and a worker uses about 0.52 GB. One
+rebuild entry (`--limit 1`, through slot.sh, 2026-11-18) took 16 s and 0.52 GB: CO open, BTN and BB call, 4c3d2h,
+300 iterations, 0.086% of the pot. That makes 7,020 entries about 38 CPU hours. The last build did 5,374 entries in
+29 hours on 2 heavy jobs, so expect about 38 hours of wall time, more beside another heavy job.
+
+Publish: `assemble.py` reads `mw-rebuild` after `mw-every-flop`. It swaps a rebuilt spot in whole (`replace_mw`: the
+new fingerprints, pot and every flop) only once the rebuild holds every flop the published spot does. Until then it
+logs how many flops are still to go and keeps the published spot. Then run `scripts/library/publish.sh` as below.
+Once it is live:
+
+1. Run `.venv/bin/python scripts/library/published_fps.py` (no spot is stale now, so no `--reason`) and commit the
+   fixture.
+2. Delete the rebuilt spots from `SPOTS` in `engine/mw_built.py`. `test_published_fps.py` fails until both are done.
+3. Note it in `docs/FEATURE_MATRIX.md` and `docs/ACCURACY.md` section 28.
+
 ### Publish
 
 ```bash
