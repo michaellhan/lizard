@@ -43,6 +43,7 @@ from gto.preflop import SEATS
 
 from engine import pf_icm as I
 from engine import pf_icm_stored as ST
+from engine.pf_offpath import OffPathValues
 
 K = len(CLASSES)
 BROWSER_WORK = 70_000      # nodes x seats a solve may hold in the browser (pf_study's 6-max 100bb is 66k: ~60 MB)
@@ -185,9 +186,10 @@ def prize_words(model) -> str:
 
 
 # ----------------------------------------------------------------------------- a solve
-class Solve(PS.Solve):
+class Solve(OffPathValues, PS.Solve):
     """pf_study's Solve on the tournament's game: its chunks, status, packing and stall rule as they are; the node's answer
-    with each seat's own stack and ante and its EVs against folding in prize equity."""
+    with each seat's own stack and ante and its EVs against folding in prize equity, a move for a class that never makes
+    it valued by the class's best response after it (engine/pf_offpath.py), not the stored fold."""
 
     def status(self) -> dict:
         out = super().status()

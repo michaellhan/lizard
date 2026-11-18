@@ -136,6 +136,9 @@ def cash_games() -> list:
 class Rule(unittest.TestCase):
     def test_constants_are_the_pages(self):
         self.assertEqual((SHARE, LOSS), (0.005, 0.5))
+        # (engine/pf_offpath.py fills a seat's later nodes only behind moves the solve trained, by the same share)
+        from engine import pf_offpath
+        self.assertEqual(pf_offpath.UNTRAINED_SHARE, SHARE)
 
     def test_the_hijacks_3bet_at_40bb_is_caught_and_a_trap_is_not(self):
         spec = next(s for s in PSV.stored_games() if s.key == f"{PSV.MODEL_TAG}_6max_40bb_blind_3bet4")

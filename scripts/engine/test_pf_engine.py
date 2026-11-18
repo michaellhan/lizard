@@ -504,6 +504,103 @@ class HandOrder(unittest.TestCase):
             self.assertLessEqual(sum(map(len, bad.values())), MAX_OUT_OF_ORDER, f"{spec.key}: {bad}")
 
 
+
+class OffPathValues(unittest.TestCase):
+    """A move a class never makes is valued by the class's best response after it (engine/pf_offpath.py), not by the fold
+    pf_study.pack stores for it at its later nodes. The heads-up 100bb solve raises T8s and never limps it, so its limp was
+    priced as limp-then-fold to the big blind's 3.5bb iso-raise: 0.352bb against its raise's 1.0, and Practice graded the
+    chart's 99% limp a 0.65bb Blunder; AA's limp read 1.19bb, barely above QTo's 0.863 (QTo limps). The QA sweep found it
+    (docs/QA.md, issue B). Only those EVs move: the mixes, the EVs of moves a class makes and the range's are the same."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = P.Spec(2, (100.0,))
+        cls.hu = P.Solve(spec, P.read_stored(spec.key))
+
+    @staticmethod
+    def stored(s, line):
+        """The node as pf_study.Solve reads it, the stored fold kept (what the answers were before pf_offpath)."""
+        s._vals = None
+        s._values = PS.Solve._values.__get__(s)
+        s._at = PS.Solve._at.__get__(s)
+        try:
+            return s.node(line)
+        finally:
+            del s._values, s._at
+            s._vals = None
+
+    def test_a_limp_the_solve_never_makes_is_worth_its_best_response(self):
+        n = self.hu.node([])
+        self.assertEqual(n["grid"]["actions"], ["raise", "call", "fold"])
+        ev = lambda h, a: n["grid"]["cells"][h]["ev"][a]
+        self.assertGreater(ev("AA", 1), ev("QTo", 1) + 1.0)          # (3.263 against 0.863; stored 1.19)
+        self.assertLess(ev("T8s", 0) - ev("T8s", 1), 0.15)          # (0.100; stored 0.648)
+        old = self.stored(self.hu, [])["grid"]["cells"]
+        self.assertGreater(old["T8s"]["ev"][0] - old["T8s"]["ev"][1], 0.6)   # (the fault itself, read the old way)
+
+    def test_only_the_evs_of_moves_not_made_change(self):
+        lines = [[], [{"pos": "SB", "action": "raise", "to": 3}],
+                 [{"pos": "SB", "action": "call"}, {"pos": "BB", "action": "raise", "to": 3.5}]]
+        for line in lines:
+            a, b = self.hu.node(line), self.stored(self.hu, line)
+            with self.subTest(line=line):
+                self.assertEqual(a["range_ev_bb"], b["range_ev_bb"])
+                for x, y in zip(a["actions"], b["actions"]):
+                    self.assertEqual((x["action"], x["freq"], x["combos"]), (y["action"], y["freq"], y["combos"]))
+                    if x["ev_bb"] is not None:
+                        self.assertAlmostEqual(x["ev_bb"], y["ev_bb"], delta=0.002)
+                self.assertEqual(a["grid"]["cells"].keys(), b["grid"]["cells"].keys())
+                for c, x in a["grid"]["cells"].items():
+                    y = b["grid"]["cells"][c]
+                    self.assertEqual(x["f"], y["f"], c)
+                    for i, f in enumerate(x["f"]):
+                        if f * x["w"] >= 0.01:
+                            self.assertAlmostEqual(x["ev"][i], y["ev"][i], delta=0.002, msg=f"{c} {i}")
+
+    def test_a_move_no_one_makes_keeps_its_stored_value(self):
+        """The seats behind a move under UNTRAINED_SHARE of the range never trained against it, so the hands after it aren't
+        filled (pfGrade.ts untrainedMoves leaves such a move to the chart by the pattern its stored value gives): the small
+        blind's limp-3bet over the big blind's iso-raise (0.0% of its range)."""
+        line = [{"pos": "SB", "action": "call"}, {"pos": "BB", "action": "raise", "to": 3.5}]
+        a, b = self.hu.node(line), self.stored(self.hu, line)
+        self.assertEqual(a["grid"]["actions"][0], "raise")
+        self.assertLess(a["actions"][0]["freq"], 0.005)
+        for c, x in a["grid"]["cells"].items():
+            self.assertAlmostEqual(x["ev"][0], b["grid"]["cells"][c]["ev"][0], delta=1e-9, msg=c)
+
+    def test_a_call_with_a_squeeze_behind_is_within_the_noise(self):
+        """6-max 20bb at the charts' sizes, the small blind with AJo facing the CO's open (the big blind can squeeze behind):
+        the chart calls 97.8%, the solve jams, and the stored jam-call gap of 0.446bb in a 4bb pot (past the preflop solve's
+        noise, web/src/grading/grade.ts pfNoisePct) was graded a Mistake; filled, it is 0.288bb."""
+        spec = P.chart_sized(P.Spec(6, (20.0,)))
+        s = P.Solve(spec, P.read_stored(spec.key))
+        n = s.node([{"pos": "UTG", "action": "fold"}, {"pos": "HJ", "action": "fold"},
+                    {"pos": "CO", "action": "raise", "to": 2.5}, {"pos": "BTN", "action": "fold"}])
+        self.assertEqual(n["grid"]["actions"], ["all-in", "call", "fold"])
+        ev = n["grid"]["cells"]["AJo"]["ev"]
+        pot = n["pot_bb"]
+        noise = pot * (4 + 2.75 * np.log(pot)) / 100
+        self.assertLess(ev[0] - ev[1], noise)
+
+    def test_the_tournament_solve_reads_the_same_values(self):
+        from engine import pf_icm_study, pf_offpath
+        self.assertTrue(issubclass(pf_icm_study.Solve, pf_offpath.OffPathValues))
+        self.assertTrue(issubclass(P.Solve, pf_offpath.OffPathValues))
+
+    def test_solving_and_exploitability_are_the_games_own(self):
+        """values() runs only while an answer is read: a pass that updates regrets or best-responds is Game._up's."""
+        from engine import pf_offpath
+        g = self.hu.game
+        s = g.average()
+        reach = g._down(s, skip=0)
+        with pf_offpath.answering(g):
+            a = g._up(reach, s, br=0)
+            filled = g._up(g._down(s), s)
+        np.testing.assert_array_equal(a, G.Game._up(g, reach, s, br=0))
+        self.assertNotIn("_up", g.__dict__)
+        self.assertFalse(np.array_equal(filled, G.Game._up(g, g._down(s), s)))
+
+
 # lz3: 3 unraked (A9s over ATs facing a blind 3bet, twice; A8s), 4 at 5% capped at 3bb (A9s); lz2 had 12 and 7
 MAX_OUT_OF_ORDER = 4
 
