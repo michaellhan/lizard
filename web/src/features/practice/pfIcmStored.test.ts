@@ -1,47 +1,56 @@
-// The page's stored tournament spots against the worker's: each preset and each spot of the final-table set, set up as
+// The page's stored tournament spots against the worker's: each preset and each spot of the stored sets, set up as
 // Practice's form sets it (stageDraft, readDraft), dealt, and asked of the preflop solve (pfState), sends exactly the
-// request engine/pf_icm/stages.json was stored for, and has its file; a session that isn't the spot as stored is refused,
-// saying why.
-import { existsSync, readFileSync } from "node:fs";
+// request engine/pf_icm/sets.json lists for it (engine/pf_icm_stored.py request); a session that isn't the spot as stored
+// is refused, saying why. Every spot is taken as built here (pfIcmBuilt.json mocked): pfIcmBuilt.test.ts holds the real
+// list to the manifest and the files.
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
-import { FINAL_TABLE_SET, finalTableStacks, FORMAT_PRESETS, FT_DEPTHS, FT_PLAYERS, FT_SHAPES, STAGE_PRESETS } from "@/features/tournaments/tournament";
+import { describe, expect, it, vi } from "vitest";
+import { BOUNTY_SET, CHIP_SET, FINAL_TABLE_SET, finalTableStacks, FT_DEPTHS, FT_MORE_SHAPES, FT_PAY_KEYS, FT_PLAYERS, FT_SHAPES, SATELLITE_SET } from "@/features/tournaments/tournament";
 import nodes from "@/test/fixtures/pf_nodes.json";
 import type { AdvisorResponse } from "@/solver/protocol";
 import { provenanceOf } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
 import { gradedOn, optionsAt, type HeldAnswer } from "./pfGrade";
-import { PF_ICM_PRESETS, PF_ICM_STAGES, pfIcmStage } from "./pfIcmStored";
+import { PF_ICM_PRESETS, PF_ICM_STAGES, PF_ICM_STORED, pfIcmStage } from "./pfIcmStored";
 import { decide, newHand, pfBlocked, pfState, stateFor, withVillain, type PracticeHand, type TournamentOptions } from "./practice";
-import { readDraft, stageDraft } from "./TournamentFields";
+import { ALL_PRESETS, readDraft, stageDraft } from "./TournamentFields";
+
+vi.mock("./pfIcmBuilt.json", () => ({ default: { model: "test", equity: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
 
 const ROOT = resolve(__dirname, "../../../..");
-const manifest = JSON.parse(readFileSync(resolve(ROOT, "engine/pf_icm/stages.json"), "utf8")) as { name: string; set: string; key: string; request: Record<string, unknown>; players: number; mbb: number }[];
+const sets = JSON.parse(readFileSync(resolve(ROOT, "engine/pf_icm/sets.json"), "utf8")) as { name: string; set: string; request: Record<string, unknown> }[];
 
 function session(name: string) {
-  const st = [...STAGE_PRESETS, ...FORMAT_PRESETS, ...FINAL_TABLE_SET].find((p) => p.name === name)!;
+  const st = ALL_PRESETS.find((p) => p.name === name)!;
   const { players, stack, ante, draft } = stageDraft(st);
   const { value, problems } = readDraft(draft, players, stack, 250);
   expect(problems).toEqual([]);
   return { players, stack, ante, tournament: value! };
 }
+const blocked = (name: string) => {
+  const s = session(name);
+  return pfBlocked(s.players, s.stack, { ante: s.ante, tournament: s.tournament });
+};
 
 describe("the stored tournament presets", () => {
-  it("are the manifest's, in its order, every one with its file", () => {
-    expect(manifest.map((e) => e.name)).toEqual(PF_ICM_PRESETS.map((p) => p.name));
+  it("are the engine's sets, in its order", () => {
+    expect(PF_ICM_PRESETS.map((p) => p.name)).toEqual(sets.map((e) => e.name));
     expect(PF_ICM_PRESETS.slice(0, PF_ICM_STAGES.length).map((p) => p.name)).toEqual([...PF_ICM_STAGES]);
-    expect(manifest.filter((e) => e.set === "final table").map((e) => e.name)).toEqual(FINAL_TABLE_SET.map((p) => p.name));
-    expect(manifest.filter((e) => !existsSync(resolve(ROOT, "engine/pf_icm", `${e.key}.bin`)))).toEqual([]);
-    const py = readFileSync(resolve(ROOT, "engine/pf_icm_stored.py"), "utf8");
-    for (const e of manifest) expect(py).toContain(`'${e.key}': '${e.name}'`);
+    const of = (set: string) => sets.filter((e) => e.set === set).map((e) => e.name);
+    expect(of("final table")).toEqual(FINAL_TABLE_SET.map((p) => p.name));
+    expect(of("bounty")).toEqual(BOUNTY_SET.map((p) => p.name));
+    expect(of("satellite")).toEqual(SATELLITE_SET.map((p) => p.name));
+    expect(of("chips")).toEqual(CHIP_SET.map((p) => p.name));
+    expect(PF_ICM_STORED).toHaveLength(PF_ICM_PRESETS.length);
   });
 
-  it("send, set up and dealt in Practice, the very request each was stored for", () => {
-    for (const e of manifest) {
+  it("send, set up and dealt in Practice, the very request each is stored for", () => {
+    const keys = ["players", "stack", "stacks", "ante", "payouts", "field", "bounties"];
+    for (const e of sets) {
       const s = session(e.name);
       const h = newHand(s.players, s.stack, 0, 7, { ante: s.ante, tournament: s.tournament });
       const asked = pfState(h) as unknown as Record<string, unknown>;
-      const keys = ["players", "stack", "stacks", "ante", "payouts", "field"];
       const mine = Object.fromEntries(keys.filter((k) => asked[k] !== undefined).map((k) => [k, asked[k]]));
       expect(mine, e.name).toEqual(e.request);
       expect(asked).toMatchObject({ study: true, preflop_solve: true });
@@ -49,35 +58,53 @@ describe("the stored tournament presets", () => {
   });
 
   it("are graded by the solve, and nothing else a tournament is", () => {
-    for (const name of PF_ICM_STAGES) {
-      const s = session(name);
-      expect(pfBlocked(s.players, s.stack, { ante: s.ante, tournament: s.tournament }), name).toBeNull();
-    }
+    for (const name of PF_ICM_STAGES) expect(blocked(name), name).toBeNull();
     const ft = session("Final-table bubble");
     const words = (o: Parameters<typeof pfBlocked>[2]) => pfBlocked(ft.players, ft.stack, o) ?? "";
-    // a seat's chips changed, a bounty added, or played out: not the game stored
+    // a seat's chips changed, a bounty not stored, or played out: not the game stored
     expect(words({ ante: ft.ante, tournament: { ...ft.tournament, stacks: { ...ft.tournament.stacks, BB: 15 } } })).toMatch(/stored only for these spots/);
     const ko: TournamentOptions = { ...ft.tournament, bounty: { format: "ko", seats: { HJ: 10, CO: 10, BTN: 10, SB: 10, BB: 10 }, field: 10 } };
     expect(pfIcmStage(ft.players, ft.stack, ft.ante, ko)).toBeNull();
     expect(words({ ante: ft.ante, tournament: ft.tournament, carry: true, seat: "moves" })).toMatch(/Played out/);
     expect(words({ ante: 0, tournament: ft.tournament })).toMatch(/stored only for these spots/);
-    // the 8-player bubble is stored since 2026-11-13; one seat's chips off it isn't, and the reason names what is
+    // one seat's chips off the 8-player bubble isn't stored, and the reason names what is
     const bubble = session("Bubble");
-    expect(pfBlocked(bubble.players, bubble.stack, { ante: bubble.ante, tournament: bubble.tournament })).toBeNull();
     const off = { ...bubble.tournament, stacks: { ...bubble.tournament.stacks, BB: 19 } };
-    expect(pfBlocked(bubble.players, bubble.stack, { ante: bubble.ante, tournament: off })).toMatch(/Double or nothing.*final-table set/);
+    expect(pfBlocked(bubble.players, bubble.stack, { ante: bubble.ante, tournament: off })).toMatch(/Double or nothing.*final-table set.*bounty set/);
   });
 
-  it("include the 8- and 9-player presets and the final-table set, each graded and near equilibrium", () => {
-    for (const name of ["Early", "Bubble", "Final table", "Sit & go, 9 players", "Final table, 9 left, 40bb average, chip leader on the button"]) {
-      const s = session(name);
-      expect(pfBlocked(s.players, s.stack, { ante: s.ante, tournament: s.tournament }), name).toBeNull();
-    }
-    expect(FINAL_TABLE_SET).toHaveLength(FT_PLAYERS.length * FT_DEPTHS.length * FT_SHAPES.length);
-    // (2.5: on the calibrated flop model, 2026-11-18, the 3-left 10bb short big blind ends at 2.09; the rest under 1.5)
-    for (const e of manifest) expect(e.mbb, e.name).toBeLessThan(2.5);
-    // the shapes: the button twice the average, or the big blind 0.4 of it, the rest sharing what's left (to 0.1bb, down)
+  it("include the bounty set: a KO or PKO session at its bounty is graded, another bounty isn't", () => {
+    for (const name of ["Final-table bubble, PKO 2.5 a head", "Early, KO 0.05 a head", "Final table, 9 left, 30bb average, short stack in the big blind, PKO 5 a head"]) expect(blocked(name), name).toBeNull();
+    const s = session("Final-table bubble, PKO 2.5 a head");
+    expect(s.tournament.bounty).toEqual({ format: "pko", seats: { HJ: 2.5, CO: 2.5, BTN: 2.5, SB: 2.5, BB: 2.5 }, field: 2.5 });
+    const other = { ...s.tournament, bounty: { ...s.tournament.bounty!, field: 1 } };
+    expect(pfIcmStage(s.players, s.stack, s.ante, other)).toBeNull();
+    const ko = { ...s.tournament, bounty: { ...s.tournament.bounty!, format: "ko" as const } };
+    expect(pfIcmStage(s.players, s.stack, s.ante, ko)?.name).toBe("Final-table bubble, KO 2.5 a head");
+  });
+
+  it("include the satellite set and the chip EV set, chip EV asked as one prize", () => {
+    expect(blocked("Satellite, 4 seats for 6 left, 15bb average, chip leader on the button")).toBeNull();
+    const name = "Final table, 6 left, 20bb average, chip leader on the button, chip EV";
+    expect(blocked(name)).toBeNull();
+    const s = session(name);
+    expect(s.tournament.model).toBe("chips");
+    const h = newHand(s.players, s.stack, 0, 7, { ante: s.ante, tournament: s.tournament, pfSolve: true });
+    expect(h.pfOptions).toBe(true);
+    expect(stateFor(h)).toMatchObject({ pf_play: true, payouts: [1] });
+    expect(stateFor({ ...h, shown: 3 }).payouts).toBeUndefined();
+    // the same stacks in prize equity aren't the chip EV spot, nor chip EV with a seat's chips changed
+    const uneven: TournamentOptions = { model: "chips", stacks: { ...s.tournament.stacks, BB: 19 } };
+    expect(pfBlocked(s.players, s.stack, { ante: s.ante, tournament: uneven })).toMatch(/equal stacks only in chip EV, besides the chip EV set/);
+  });
+
+  it("cover the final-table set's structures and shapes, each graded", () => {
+    for (const name of ["Final table, 9 left, 40bb average, chip leader on the button", "Final table, 5 left, 10bb average, equal stacks, top-heavy payouts", "Final table, 7 left, 30bb average, short stack on the button"]) expect(blocked(name), name).toBeNull();
+    expect(FINAL_TABLE_SET).toHaveLength(FT_PLAYERS.length * FT_DEPTHS.length * (FT_SHAPES.length * FT_PAY_KEYS.length + FT_MORE_SHAPES.length));
+    // the shapes: one seat twice the average or 0.4 of it, the rest sharing what's left (to 0.1bb, down)
     expect(finalTableStacks(6, 20, "leader")).toEqual([16, 16, 16, 40, 16, 16]);
+    expect(finalTableStacks(6, 20, "leader_bb")).toEqual([16, 16, 16, 16, 16, 40]);
+    expect(finalTableStacks(6, 20, "short_btn")).toEqual([22.4, 22.4, 22.4, 8, 22.4, 22.4]);
     expect(finalTableStacks(3, 15, "short")).toEqual([19.5, 19.5, 6]);
     expect(finalTableStacks(4, 10, "equal")).toEqual([10, 10, 10, 10]);
   });
@@ -86,6 +113,8 @@ describe("the stored tournament presets", () => {
     const spin = session("Spin, 3 players");
     expect(spin.tournament.model).toBe("chips");
     expect(pfBlocked(spin.players, spin.stack, { ante: spin.ante, tournament: spin.tournament })).toBeNull();
+    const h = newHand(spin.players, spin.stack, 0, 7, { ante: spin.ante, tournament: spin.tournament });
+    expect(pfState(h).payouts).toBeUndefined();
     const uneven: TournamentOptions = { model: "chips", stacks: { BTN: 25, SB: 20, BB: 25 } };
     expect(pfBlocked(3, 25, { tournament: uneven })).toMatch(/equal stacks only in chip EV/);
   });

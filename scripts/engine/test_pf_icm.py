@@ -2,6 +2,8 @@
 
 What it checks:
 - in chips it is pf_game's game exactly (same tree, same strategies), and a winner-take-all prize model is chips;
+- the calibrated game (engine/pf_icm_calib.py, Study's and the stored spots' since 2026-11-17): winner-take-all is chips,
+  its one-pass pricing of folded seats is pf_engine's loop, heads-up push/fold, a bust's bounty to the right seat;
 - heads-up push/fold matches pf_classes.push_fold, and a bubble's push/fold matches the advisor's equilibrium in prize
   equity where the two models are the same game (no overcalls, folded seats paid nothing);
 - it converges: exploitability, in mbb/hand of prize equity a seat, falls with iterations to well under a live solve's
@@ -23,8 +25,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "solver"))
 sys.path.insert(0, str(ROOT))
 
+from engine import pf_engine as E  # noqa: E402
 from engine import pf_icm as I  # noqa: E402
+from engine import pf_icm_calib as C  # noqa: E402
 from engine import pf_icm_study as IS  # noqa: E402
+from engine import pf_model as M  # noqa: E402
 from gto import icm  # noqa: E402
 from gto import pf_classes as PC  # noqa: E402
 from gto import pf_game as G  # noqa: E402
@@ -130,6 +135,64 @@ class Chips(unittest.TestCase):
             gc.iterate(t)
             gw.iterate(t)
         self.assertLess(np.abs(gc.average() - gw.average()).max(), 1e-8)
+
+
+class Calibrated(unittest.TestCase):
+    """engine/pf_icm_calib.py: pf_icm's tree on pf_engine's game with the calibrated flop values (Study's tournament
+    solve and every stored spot since 2026-11-17)."""
+
+    def test_winner_take_all_is_chips(self):
+        pos = SEATS[4]
+        stacks, antes = [25, 12, 40, 18], [0.125] * 4
+        gc = C.game(pos, stacks, antes)
+        gw = C.game(pos, stacks, antes, icm_model=icm.Model(dict(zip(pos, stacks)), [100]))
+        for t in range(1, 16):
+            gc.iterate(t)
+            gw.iterate(t)
+        self.assertLess(np.abs(gc.average() - gw.average()).max(), 1e-6)
+
+    def test_folded_seats_priced_in_one_pass_as_pf_engines_loop(self):
+        # pf_engine.Game prices a heads-up pot's folded seats in a Python loop; pf_icm_calib.Game in one pass: the same
+        # numbers (a push/fold tree, which pf_engine's three-action arrays hold)
+        pos, stacks, pay = ["BTN", "SB", "BB"], [10.0, 14.0, 6.0], [50, 30, 20]
+        model = icm.Model(dict(zip(pos, stacks)), pay)
+        root = I.build(pos, stacks, [0.1] * 3, max_players=3, cold4=True, pushfold=True)
+        p = M.load_params() or M.Params()
+        at = lambda d: M.flop_model(max(10.0, min(250.0, d)), p)  # noqa: E731
+        g0 = E.Game(root, pos, at, stacks, payoff=C.PrizePayoff(model, pos), ante=0.1)
+        g1 = C.Game(I.build(pos, stacks, [0.1] * 3, max_players=3, cold4=True, pushfold=True), pos, at, stacks,
+                    payoff=C.PrizePayoff(model, pos), ante=0.1)
+        for t in range(1, 21):
+            g0.iterate(t)
+            g1.iterate(t)
+        self.assertLess(np.abs(g0.average() - g1.average()).max(), 1e-9)
+
+    def test_heads_up_matches_push_fold(self):
+        for st in (5, 10):
+            with self.subTest(stack=st):
+                g = C.game(["SB", "BB"], [st, st], [0.0, 0.0], pushfold=True)
+                s = run(g, 2500)
+                jam = freq(g, s, [], "all-in")
+                pf = PC.push_fold(np.ones(1326), np.ones(1326), st, 0.5, 1.0, 1.5, 1, iters=2500)
+                pfc = np.bincount(CLASS_OF, weights=pf, minlength=169) / N_IN
+                self.assertAlmostEqual(share(jam), share(pfc), delta=0.005)
+
+    def test_a_bust_pays_its_bounty_to_the_seat_that_won_its_chips(self):
+        pos, stacks = ["BTN", "SB", "BB"], [10.0, 20.0, 30.0]
+        model = icm.Model(dict(zip(pos, stacks)), [50, 30, 20], bounties=icm.Bounties("ko", {p: 5.0 for p in pos}))
+        pp = C.PrizePayoff(model, pos)
+        put = np.array([10.0, 0.5, 10.0])
+        self.assertEqual(pp.kos(put, np.array([-10.0, -0.5, 10.5])), [("BTN", {"BB": 1.0})])
+        self.assertEqual(pp.kos(put, np.array([10.5, -0.5, -10.0])), [])       # BB lost 10 of its 30: no bust
+        v = pp.values(put[None, :], np.array([[0.0, 0.0, 20.5]]), [[(0, 2)]])
+        w = pp.values(put[None, :], np.array([[0.0, 0.0, 20.5]]), [[]])
+        self.assertGreater(v[0, 2], w[0, 2])                                     # the bounty, in chip equivalents
+
+    def test_study_solves_on_it(self):
+        spec, why = IS.spec_of(Advisor(), {"players": 3, "bb": 1.0, "stack": 15, "payouts": [50, 30, 20]})
+        self.assertIsNone(why)
+        self.assertIsInstance(spec.game(), C.Game)
+        self.assertIn("calibrated", IS.MODEL_NAME)
 
 
 class PushFold(unittest.TestCase):

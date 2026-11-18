@@ -1,11 +1,18 @@
-"""Builds the stored tournament preflop solves (engine/pf_icm_stored.py ALL: the stage and format presets, then the
-final-table set) into engine/pf_icm/<key>.bin, the manifest engine/pf_icm/stages.json and pf_icm_stored.KEYS, as
-scripts/pf/build_stored.py builds the cash grid: STORED_ITERS iterations of the same DCFR, one file a game, a line a game
-in the log (engine/pf_icm/built.jsonl: name, key, nodes, iterations, seconds, mbb/hand a seat, bytes).
+"""Builds the stored tournament preflop solves (engine/pf_icm_stored.py ALL: the stage and format presets, the
+final-table set, the bounty set, the satellite set and the chip EV set; on the calibrated game, engine/pf_icm_calib.py)
+into engine/pf_icm/<key>.bin, the manifest engine/pf_icm/stages.json and pf_icm_stored.KEYS, as scripts/pf/build_stored.py
+builds the cash grid: STORED_ITERS iterations of the same DCFR, one file a game, a line a game in the log
+(engine/pf_icm/built.jsonl: name, key, nodes, iterations, seconds, mbb/hand a seat, bytes).
 
-    .venv/bin/python scripts/pf_icm/build_stored.py all [--missing] [--set stage|final]   # every game, one process each
+    .venv/bin/python scripts/pf_icm/build_stored.py all [--missing] [--set stage|final|bounty|satellite|chips] [--jobs 2]
+                                                        # every game (of a set), one process each, up to --jobs at once
     .venv/bin/python scripts/pf_icm/build_stored.py stage NAME                          # one game, in this process
-    .venv/bin/python scripts/pf_icm/build_stored.py index                               # KEYS from the manifest
+    .venv/bin/python scripts/pf_icm/build_stored.py index    # KEYS, the page's list of built spots, old files deleted
+    .venv/bin/python scripts/pf_icm/build_stored.py sets     # engine/pf_icm/sets.json: every spot's name, set, request
+
+`index` also writes web/src/features/practice/pfIcmBuilt.json: the game tag, the class equity table's tag and the spots
+(indexes into ALL) whose files are built on both, the only ones the page matches; and `sets` the list the page's tests
+hold its presets to (pfIcmStored.test.ts), every spot whether built or not.
 
 Checkpointed by game: each file is written whole (to a temporary name, then moved), then its manifest entry and log line,
 so `all --missing` after a stop builds only the games with no file yet (a game takes seconds to about 3 minutes; none is
@@ -13,7 +20,12 @@ checkpointed inside its solve). Each game is solved in its own process so its ar
 at 75bb, 7,542 nodes; 9 at 75bb, 3,318) hold under 1 GB. Over a minute of CPU in all: run it through the shared slot,
 
     /Users/mhan/Desktop/projects/gtosolver/.work/bin/slot.sh .venv/bin/python scripts/pf_icm/build_stored.py all --missing
+
+A game whose manifest entry names another game (pf_icm_calib.MODEL_TAG) or class equity table (equity_tag) rebuilds
+under --missing; `index` deletes the
+files no manifest entry names (a changed game's old key). A game that fails is said and skipped; the rest go on.
 """
+import fcntl
 import json
 import os
 import re
@@ -29,6 +41,7 @@ sys.path.insert(0, str(ROOT))
 from engine import pf_icm_stored as ST  # noqa: E402
 
 LOG = Path(ST.DIR, "built.jsonl")
+WEB_BUILT = ROOT / "web/src/features/practice/pfIcmBuilt.json"
 
 
 def manifest() -> list:
@@ -36,6 +49,19 @@ def manifest() -> list:
         return json.loads(Path(ST.MANIFEST).read_text())
     except (OSError, ValueError):
         return []
+
+
+class _Locked:
+    """The manifest's read-modify-write under a lock file (--jobs: games finish at once)."""
+
+    def __enter__(self):
+        os.makedirs(ST.DIR, exist_ok=True)
+        self.f = open(Path(ST.DIR, ".lock"), "w")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+
+    def __exit__(self, *a):
+        fcntl.flock(self.f, fcntl.LOCK_UN)
+        self.f.close()
 
 
 def write_manifest(m: list) -> None:
@@ -48,6 +74,7 @@ def write_manifest(m: list) -> None:
 
 def build(name: str) -> dict:
     import gto.native  # noqa: F401  (BLAS held to one thread, as scripts/pf/build_stored.py)
+    from engine import pf_icm_calib as C
     from engine import pf_icm_study as IS
     from gto import pf_study as PS
     from gto.advisor import Advisor
@@ -71,10 +98,13 @@ def build(name: str) -> dict:
     entry = {"name": name, "set": ST.set_of(name), "key": spec.key, "request": req, "players": spec.players,
              "nodes": g.N, "iterations": PS.STORED_ITERS, "mbb": round(mbb, 3),
              "mbb_seats": [round(1000 * x, 3) for x in expl], "seconds": round(time.time() - t0, 1), "bytes": len(blob),
-             "label": spec.label()}
-    write_manifest([e for e in manifest() if e["name"] != name] + [entry])
-    with open(LOG, "a") as f:
-        f.write(json.dumps({k: entry[k] for k in ("name", "key", "nodes", "iterations", "seconds", "mbb", "bytes")}) + "\n")
+             "label": spec.label(), "model": C.MODEL_TAG, "equity": C.equity_tag()}
+    if len(stage) > 6 and stage[6]:
+        entry["bounty"] = dict(stage[6])
+    with _Locked():
+        write_manifest([e for e in manifest() if e["name"] != name] + [entry])
+        with open(LOG, "a") as f:
+            f.write(json.dumps({k: entry[k] for k in ("name", "key", "nodes", "iterations", "seconds", "mbb", "bytes")}) + "\n")
     print(f"{name}: {spec.key}, {g.N} nodes, {mbb:.3f} mbb/hand a seat, {entry['seconds']} s, {len(blob)} bytes", flush=True)
     return entry
 
@@ -92,7 +122,30 @@ def index() -> None:
     if k != 1:
         raise SystemExit("couldn't find KEYS in engine/pf_icm_stored.py")
     p.write_text(new)
-    print(f"KEYS: {len(m)} stored games")
+    keep = {e["key"] + ".bin" for e in m}
+    gone = [f for f in os.listdir(ST.DIR) if f.endswith(".bin") and f not in keep]
+    for f in gone:
+        os.remove(Path(ST.DIR, f))
+    size = sum(Path(ST.DIR, f).stat().st_size for f in keep if Path(ST.DIR, f).exists())
+    from engine import pf_icm_calib as C
+    cur = [names.index(e["name"]) for e in m if current(e)]
+    out = {"model": C.MODEL_TAG, "equity": C.equity_tag(), "built": sorted(cur)}
+    WEB_BUILT.write_text(json.dumps(out) + "\n")
+    print(f"KEYS: {len(m)} stored games, {len(cur)} on the current game and equity table, {size / 1e6:.2f} MB; "
+          f"{len(gone)} files no entry names deleted", flush=True)
+
+
+def sets() -> None:
+    """engine/pf_icm/sets.json: every spot of ALL, built or not (its name, set and request), for the page's tests."""
+    out = [{"name": s[0], "set": ST.set_of(s[0]), "request": ST.request(s)} for s in ST.ALL]
+    Path(ST.DIR, "sets.json").write_text(json.dumps(out, separators=(",", ":")) + "\n")
+    print(f"sets.json: {len(out)} spots")
+
+
+def current(e: dict) -> bool:
+    """A manifest entry built on this game and class equity table, with its file."""
+    from engine import pf_icm_calib as C
+    return e.get("model") == C.MODEL_TAG and e.get("equity") == C.equity_tag() and Path(ST.DIR, e["key"] + ".bin").exists()
 
 
 def key_of(req: dict) -> str:
@@ -107,7 +160,7 @@ def have(name: str) -> bool:
     """A game built already: its manifest entry and its file, under the key the game has now (a changed game, or the
     same game on other equities or calibration, rebuilds)."""
     e = next((e for e in manifest() if e["name"] == name), None)
-    if e is None or not Path(ST.DIR, e["key"] + ".bin").exists():
+    if e is None or not current(e):
         return False
     stage = next(s for s in ST.ALL if s[0] == name)
     req = ST.request(stage)
@@ -121,14 +174,29 @@ if __name__ == "__main__":
         build(args[1])
     elif cmd == "index":
         index()
+    elif cmd == "sets":
+        sets()
     elif cmd == "all":
         which = args[args.index("--set") + 1] if "--set" in args else None
         games = [s for s in ST.ALL if which is None or ST.set_of(s[0]).startswith(which)]
+        jobs = max(1, min(2, int(args[args.index("--jobs") + 1]))) if "--jobs" in args else 1   # (at most 2: the budget)
         games.sort(key=lambda s: s[1])          # fewest players first: the quick games land first
-        for s in games:
-            if "--missing" in args and have(s[0]):
-                continue
-            subprocess.run([sys.executable, __file__, "stage", s[0]], check=True)
+        todo = [s[0] for s in games if not ("--missing" in args and have(s[0]))]
+        print(f"{len(todo)} of {len(games)} games to build, {jobs} at once", flush=True)
+        running, failed = [], []
+        while todo or running:
+            while todo and len(running) < jobs:
+                nm = todo.pop(0)
+                running.append((nm, subprocess.Popen([sys.executable, __file__, "stage", nm])))
+            time.sleep(0.5)
+            for nm, pr in list(running):
+                if pr.poll() is not None:
+                    running.remove((nm, pr))
+                    if pr.returncode:
+                        failed.append(nm)
+                        print(f"FAILED ({pr.returncode}): {nm}", flush=True)
         index()
+        if failed:
+            raise SystemExit(f"{len(failed)} games failed: {failed}")
     else:
         raise SystemExit(__doc__)

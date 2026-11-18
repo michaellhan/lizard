@@ -55,3 +55,6 @@ web/.vitest/
 
 # --- benchmark caches (large, regenerated) ---
 scripts/benchmarks/results/abstraction/
+
+# build_stored.py --jobs: the manifest lock
+engine/pf_icm/.lock

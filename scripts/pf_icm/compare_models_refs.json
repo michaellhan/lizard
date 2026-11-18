@@ -1,0 +1,165 @@
+{
+ "iterations": 1000,
+ "refs": [
+  {
+   "name": "40bb MTT SB vs CO open",
+   "hero": "SB",
+   "want": {
+    "fold": 0.726,
+    "call": 0.144,
+    "raise": 0.131
+   },
+   "source": "Poker Academy 40bb MTT (9-handed, 2.3bb opens, 1bb BB ante, chip EV)",
+   "old": {
+    "got": {
+     "fold": 0.608,
+     "call": 0.302,
+     "raise": 0.09
+    },
+    "err_points": {
+     "fold": -11.8,
+     "call": 15.8,
+     "raise": -4.1
+    },
+    "mae_points": 10.57,
+    "mbb": 0.324,
+    "seconds": 48.0,
+    "nodes": 2605
+   },
+   "new": {
+    "got": {
+     "fold": 0.649,
+     "call": 0.257,
+     "raise": 0.094
+    },
+    "err_points": {
+     "fold": -7.7,
+     "call": 11.3,
+     "raise": -3.7
+    },
+    "mae_points": 7.57,
+    "mbb": 0.247,
+    "seconds": 47.1,
+    "nodes": 2605
+   }
+  },
+  {
+   "name": "40bb MTT SB vs BTN open",
+   "hero": "SB",
+   "want": {
+    "fold": 0.714,
+    "call": 0.116,
+    "raise": 0.171
+   },
+   "source": "Poker Academy 40bb MTT (9-handed, 2.3bb opens, 1bb BB ante, chip EV)",
+   "old": {
+    "got": {
+     "fold": 0.493,
+     "call": 0.401,
+     "raise": 0.105
+    },
+    "err_points": {
+     "fold": -22.1,
+     "call": 28.5,
+     "raise": -6.6
+    },
+    "mae_points": 19.07,
+    "mbb": 0.324,
+    "seconds": 46.8,
+    "nodes": 2605
+   },
+   "new": {
+    "got": {
+     "fold": 0.546,
+     "call": 0.298,
+     "raise": 0.156
+    },
+    "err_points": {
+     "fold": -16.8,
+     "call": 18.2,
+     "raise": -1.5
+    },
+    "mae_points": 12.17,
+    "mbb": 0.247,
+    "seconds": 47.8,
+    "nodes": 2605
+   }
+  },
+  {
+   "name": "HU 50bb SB first in",
+   "hero": "SB",
+   "want": {
+    "fold": 0.04,
+    "call": 0.32,
+    "raise": 0.64
+   },
+   "source": "GTO Wizard HU 50bb (chip EV, 0.12bb ante)",
+   "old": {
+    "got": {
+     "fold": 0.009,
+     "call": 0.456,
+     "raise": 0.535
+    },
+    "err_points": {
+     "fold": -3.1,
+     "call": 13.6,
+     "raise": -10.5
+    },
+    "mae_points": 9.07,
+    "mbb": 0.176,
+    "seconds": 0.4,
+    "nodes": 22
+   },
+   "new": {
+    "got": {
+     "fold": 0.043,
+     "call": 0.384,
+     "raise": 0.573
+    },
+    "err_points": {
+     "fold": 0.3,
+     "call": 6.4,
+     "raise": -6.7
+    },
+    "mae_points": 4.47,
+    "mbb": 0.177,
+    "seconds": 0.4,
+    "nodes": 22
+   }
+  },
+  {
+   "name": "HU 50bb BB vs SB limp",
+   "hero": "BB",
+   "want": {
+    "raise": 0.34
+   },
+   "source": "GTO Wizard HU 50bb (chip EV, 0.12bb ante)",
+   "old": {
+    "got": {
+     "call": 0.489,
+     "raise": 0.511
+    },
+    "err_points": {
+     "raise": 17.1
+    },
+    "mae_points": 17.1,
+    "mbb": 0.176,
+    "seconds": 0.5,
+    "nodes": 22
+   },
+   "new": {
+    "got": {
+     "call": 0.541,
+     "raise": 0.459
+    },
+    "err_points": {
+     "raise": 11.9
+    },
+    "mae_points": 11.9,
+    "mbb": 0.177,
+    "seconds": 0.4,
+    "nodes": 22
+   }
+  }
+ ]
+}

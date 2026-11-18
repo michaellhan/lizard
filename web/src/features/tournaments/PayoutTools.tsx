@@ -1,10 +1,23 @@
 // The Tournaments page's ways to fill the payouts beyond typing them: a room-style structure of Lizard's own (an MTT's by
 // its entrants, trimmed to the players left), a payout table imported from a CSV or text file (checked, and said what it
-// read), or the payouts of a saved spot (a spot saved from Study keeps its tournament: that's how a table is kept).
+// read), a room's own posted table (roomPayouts.ts: each with its public source and the date it was read), or the payouts
+// of a saved spot (a spot saved from Study keeps its tournament: that's how a table is kept).
 import { useEffect, useState } from "react";
 import type { SavedSpot } from "@/data/db";
 import { listSpots } from "@/data/saved";
+import { postedBy, ROOM_PAYOUTS, roomMtt, type RoomPayout } from "./roomPayouts";
 import { PAYOUT_STRUCTURES, prizesLeft, readPayoutTable } from "./tournament";
+
+const MTT_SHARE = /top (\d+)% paid/;
+
+/** The room tables offered: each sit & go's own, and an MTT's by its share paid (the table for the entrants typed). */
+export const ROOM_CHOICES: readonly { key: string; label: string; mtt?: { room: string; pct: number } }[] = [
+  ...ROOM_PAYOUTS.flatMap((p, i) => (MTT_SHARE.test(p.name) ? [] : [{ key: `room:${i}`, label: `${p.source.room}: ${p.name} (${p.payouts.length} paid)` }])),
+  ...[...new Set(ROOM_PAYOUTS.filter((p) => MTT_SHARE.test(p.name)).map((p) => `${p.source.room}|${MTT_SHARE.exec(p.name)![1]}`))].map((k) => {
+    const [room, pct] = k.split("|");
+    return { key: `roommtt:${k}`, label: `${room}: MTT, top ${pct}% paid, by entrants`, mtt: { room: room!, pct: Number(pct) } };
+  }),
+];
 
 /** A saved spot's payouts, where it has a tournament's (its Advisor state's `payouts`). */
 export const spotPayouts = (s: Pick<SavedSpot, "state">): number[] | null => {
@@ -18,7 +31,9 @@ const SEL = "rounded-md border border-border bg-surface-2 px-2 py-1 text-xs";
 export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; onPayouts: (text: string) => void }) {
   const [which, setWhich] = useState("");
   const [entrants, setEntrants] = useState("1000");
-  const [said, setSaid] = useState<{ note: string; problems: string[] } | null>(null);
+  const [said, setSaid] = useState<{ note: string; problems: string[]; source?: RoomPayout["source"] } | null>(null);
+  const [room, setRoom] = useState("");
+  const [roomEntrants, setRoomEntrants] = useState("150");
   const [spots, setSpots] = useState<SavedSpot[]>([]);
   useEffect(() => {
     // (a list that arrives after the form has gone sets nothing)
@@ -45,6 +60,21 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
     });
   };
 
+  const rc = ROOM_CHOICES.find((x) => x.key === room);
+  const re = Number(roomEntrants);
+  const roomTable: RoomPayout | null = !rc ? null : rc.mtt ? (Number.isInteger(re) ? roomMtt(rc.mtt.room, rc.mtt.pct, re) : null) : ROOM_PAYOUTS[Number(rc.key.slice(5))]!;
+  const roomMissing = !!rc?.mtt && !roomTable;
+  const applyRoom = () => {
+    if (!roomTable) return;
+    const left = prizesLeft(roomTable.payouts, playersLeft);
+    onPayouts(left.join(" "));
+    setSaid({
+      note: `${roomTable.source.room}, ${roomTable.name}, ${postedBy(roomTable)}: ${roomTable.payouts.length} places paid; ${left.length < roomTable.payouts.length ? `the first ${left.length}, for the ${playersLeft} players left` : "all of them still to pay"}${roomTable.source.note ? `. ${roomTable.source.note}` : ""}`,
+      problems: [],
+      source: roomTable.source,
+    });
+  };
+
   const imported = async (f: File | undefined) => {
     if (!f) return;
     if (f.size > 200_000) {
@@ -53,7 +83,7 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
     }
     const r = readPayoutTable(await f.text());
     if (r.payouts.length) onPayouts(r.text);
-    setSaid({ note: `${f.name}: ${r.note}`, problems: r.problems });
+    setSaid({ note: `${f.name}: ${r.note}${r.facts ? `. ${r.facts}.` : ""}`, problems: r.problems });
   };
 
   return (
@@ -76,6 +106,23 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
         )}
         <button type="button" disabled={!st || (st.byEntrants && !entrantsOk)} onClick={apply} className={`${BTN} disabled:opacity-40`}>
           Use
+        </button>
+        <select aria-label="A room's posted payouts" className={`${SEL} min-w-0 max-w-full`} value={room} onChange={(ev) => setRoom(ev.target.value)}>
+          <option value="">As a room posts it…</option>
+          {ROOM_CHOICES.map((x) => (
+            <option key={x.key} value={x.key}>
+              {x.label}
+            </option>
+          ))}
+        </select>
+        {rc?.mtt && (
+          <label className="flex items-center gap-1">
+            <span className="text-muted">Entrants</span>
+            <input aria-label="Entrants (room table)" type="number" inputMode="numeric" min={2} step={1} value={roomEntrants} onChange={(ev) => setRoomEntrants(ev.target.value)} aria-invalid={roomMissing} className={`${SEL} w-20`} />
+          </label>
+        )}
+        <button type="button" disabled={!roomTable} onClick={applyRoom} className={`${BTN} disabled:opacity-40`}>
+          Use posted
         </button>
         <label className={`${BTN} cursor-pointer`} title="A CSV or text file: a place and a prize a line">
           Import a file
@@ -113,9 +160,18 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
         )}
       </div>
       {st?.byEntrants && !entrantsOk && <p className="text-xs text-danger">The entrants must be a whole number from {Math.max(2, playersLeft)} (the players left) to 100,000.</p>}
+      {roomMissing && <p className="text-xs text-danger">{rc!.mtt!.room}'s posted tables here cover 2 to 1,000 entrants at top {rc!.mtt!.pct}% paid.</p>}
       {said && (
         <p className="text-xs text-muted" aria-live="polite">
           {said.note}
+          {said.source && (
+            <>
+              {" "}
+              <a href={said.source.url} target="_blank" rel="noreferrer noopener" className="underline">
+                Source: {said.source.title}
+              </a>
+            </>
+          )}
           {said.problems.length > 0 && <span className="text-danger"> — {said.problems.join("; ")}</span>}
         </p>
       )}

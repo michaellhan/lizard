@@ -1,4 +1,5 @@
-"""Study's preflop Solver source for a tournament: the spot's own preflop solved in prize equity (engine/pf_icm.py),
+"""Study's preflop Solver source for a tournament: the spot's own preflop solved in prize equity (engine/pf_icm.py's tree
+on the calibrated solver, engine/pf_icm_calib.py),
 browsed node by node as pf_study's solves are (the same requests and answers: "pf_unsolved", "pf_progress", "node",
 "pf_export", "load"), with the tournament's notes for the player to act.
 
@@ -42,6 +43,7 @@ from gto.pf_classes import CLASSES, N_IN
 from gto.preflop import SEATS
 
 from engine import pf_icm as I
+from engine import pf_icm_calib as C
 from engine import pf_icm_stored as ST
 from engine.pf_offpath import OffPathValues
 
@@ -50,7 +52,7 @@ BROWSER_WORK = 70_000      # nodes x seats a solve may hold in the browser (pf_s
 MAX_WORK = 300_000         # ... and natively
 MIN_STACK = 1.5            # bb: a seat with less can't post its blind and act (and push/fold below that is all in)
 MAX_STACK = 250.0
-MODEL_NAME = "preflop solve in prize equity (class-level model)"
+MODEL_NAME = "preflop solve in prize equity (calibrated class-level model)"
 LIMITS_7UP = "7 or more players: at most two see a flop, nobody cold 4bets or cold-calls a 3bet"
 
 
@@ -68,7 +70,7 @@ class Spec:
     @property
     def key(self) -> str:
         """A file-name-safe id: 'icm6_<hash>' (pf_study's Spec.key for the browser's keep)."""
-        game = [dataclasses.asdict(I.Sizes()), I.JAM_OPEN]     # (the sizes too: a file of other sizes never loads)
+        game = [dataclasses.asdict(I.Sizes()), I.JAM_OPEN, C.MODEL_TAG, C.equity_tag()]   # (sizes, game, equity table: a file of others never loads)
         if not self.cold4:
             game.append("no cold 4bets")       # (7 or more players' smaller tree; 2-6 players' keys as they were)
         game.append(I.FLOP_MODEL_TAG)          # (the flop model's: a file solved on another never loads)
@@ -113,9 +115,10 @@ class Spec:
         pos = self.positions()
         return I.build(pos, self.stacks, self.antes, max_players=3 if self.players <= 6 else 2, cold4=self.cold4), pos
 
-    def game(self) -> I.ICMGame:
+    def game(self) -> C.Game:
+        """The calibrated game (engine/pf_icm_calib.py: pf_icm's tree on pf_engine with pf_model's flop values)."""
         pos = self.positions()
-        g = I.game(pos, list(self.stacks), list(self.antes), icm_model=self.model, cold4=self.cold4)
+        g = C.game(pos, list(self.stacks), list(self.antes), icm_model=self.model, cold4=self.cold4)
         g.avg_power = PS.AVG_POWER
         return g
 
@@ -382,9 +385,10 @@ def load(spec: Spec, blob: str, iterations: int) -> Solve:
 
 
 def estimate_seconds(spec: Spec, per_iter: Optional[float] = None) -> float:
-    """pf_study.estimate_seconds' rule on this tree (its iteration time in proportion to nodes x seats)."""
+    """pf_study.estimate_seconds' rule on this tree (its iteration time in proportion to nodes x seats). The calibrated
+    game in prize equity takes about twice upstream's game's time (1.6-2.2x measured, docs/ACCURACY.md 20.7)."""
     w = work_of(spec)
-    base = per_iter if per_iter is not None else (0.21 if sys.platform == "emscripten" else 0.12)
+    base = per_iter if per_iter is not None else (0.21 if sys.platform == "emscripten" else 0.12) * (2.0 if spec.prize_key else 1.0)
     it = base * w / (11010 * 6)
     n = PS.MAX_ITERS if w < PS.SMALL_WORK else 800
     return it * n + it * 1.2 * spec.players * (n // PS.CHECK_EVERY)

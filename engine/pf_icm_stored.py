@@ -61,11 +61,26 @@ STAGES = (
     ("Sit & go, 9 players", 9, (75,) * 9, [50, 30, 20], None, 0.0),
 )
 
-# the final-table set: players left of a 9-paid final table, average stack (bb), and stack shapes
+# the final-table set: players left of a 9-paid final table, average stack (bb), stack shapes and payout structures
 FT_PLAYERS = (3, 4, 5, 6, 7, 8, 9)
 FT_DEPTHS = (10, 15, 20, 30, 40)
-FT_SHAPES = ("equal", "leader", "short")
-FT_SHAPE_WORDS = {"equal": "equal stacks", "leader": "chip leader on the button", "short": "short stack in the big blind"}
+FT_SHAPES = ("equal", "leader", "short")              # with every payout structure
+FT_MORE_SHAPES = ("leader_bb", "short_btn")           # with Lizard's own structure only (2026-11-17)
+FT_SHAPE_WORDS = {"equal": "equal stacks", "leader": "chip leader on the button", "short": "short stack in the big blind",
+                  "leader_bb": "chip leader in the big blind", "short_btn": "short stack on the button"}
+# the payout structures (2026-11-17): Lizard's own 9-paid final table, and the first nine places of three of WSOP Online's
+# posted MTT tables (https://wsoponline.com/nj/how-to-play-poker/mtt-tournament-payouts/, read 2026-11-17; the page's
+# tables are copied in web/src/features/tournaments/roomPayouts.ts), first place over ninth 8.4, 15.9 and 17.7 times
+FT_PAYS: Dict[str, Tuple[List[float], str]] = {
+    "": (FINAL_TABLE, "Lizard's 9-paid final table"),
+    "flat": ([31, 19, 9.8, 8.8, 7.8, 6.8, 5.5, 4.4, 3.7],
+             "flat: WSOP Online's top 20% paid at 41-50 entrants, its first nine places, as posted on 2026-11-17"),
+    "standard": ([27, 15.75, 9, 7, 6, 5, 3.8, 2.4, 1.7],
+                 "standard: WSOP Online's top 15% paid at 151-200 entrants, its first nine places, as posted on 2026-11-17"),
+    "top-heavy": ([23, 13.5, 8.5, 6.5, 5.5, 3.9, 2.9, 1.9, 1.3],
+                  "top-heavy: WSOP Online's top 10% paid at 801-1,000 entrants, its first nine places, as posted on 2026-11-17"),
+}
+FT_PAY_KEYS = tuple(FT_PAYS)
 
 
 def _tenth(x: float) -> float:
@@ -75,22 +90,78 @@ def _tenth(x: float) -> float:
 
 
 def ft_stacks(players: int, avg: float, shape: str) -> Tuple[float, ...]:
-    """Each seat's chips in seat order (SEATS[players]: the button third from the end, the big blind last)."""
+    """Each seat's chips in seat order (SEATS[players]: the button third from the end, the big blind last): equal, or one
+    seat with twice the average (leader: the button; leader_bb: the big blind) or 0.4 of it (short: the big blind;
+    short_btn: the button), the rest sharing what's left."""
     if shape == "equal":
         return (float(avg),) * players
-    special = 2.0 * avg if shape == "leader" else _tenth(0.4 * avg)
+    special = 2.0 * avg if shape.startswith("leader") else _tenth(0.4 * avg)
     rest = _tenth((players * avg - special) / (players - 1))
-    at = players - 3 if shape == "leader" else players - 1
+    at = players - 3 if shape in ("leader", "short_btn") else players - 1
     return tuple(special if i == at else rest for i in range(players))
 
 
-def ft_name(players: int, avg: float, shape: str) -> str:
-    return f"Final table, {players} left, {avg:g}bb average, {FT_SHAPE_WORDS[shape]}"
+def ft_name(players: int, avg: float, shape: str, pay: str = "") -> str:
+    return f"Final table, {players} left, {avg:g}bb average, {FT_SHAPE_WORDS[shape]}" + (f", {pay} payouts" if pay else "")
 
 
-FINAL_TABLE_SET = tuple((ft_name(n, d, sh), n, ft_stacks(n, d, sh), FINAL_TABLE[:n], None, None)
-                        for n in FT_PLAYERS for d in FT_DEPTHS for sh in FT_SHAPES)
-ALL = STAGES + FINAL_TABLE_SET
+# an entry: (name, players, each seat's chips, payouts (None: tournament.ts's curve; CHIPS: chip EV), field, ante, bounty)
+CHIPS = "chips"
+FINAL_TABLE_SET = tuple(
+    [(ft_name(n, d, sh), n, ft_stacks(n, d, sh), FINAL_TABLE[:n], None, None) for n in FT_PLAYERS for d in FT_DEPTHS
+     for sh in FT_SHAPES]
+    + [(ft_name(n, d, sh, pk), n, ft_stacks(n, d, sh), FT_PAYS[pk][0][:n], None, None) for pk in FT_PAY_KEYS[1:]
+       for n in FT_PLAYERS for d in FT_DEPTHS for sh in FT_SHAPES]
+    + [(ft_name(n, d, sh), n, ft_stacks(n, d, sh), FINAL_TABLE[:n], None, None) for n in FT_PLAYERS for d in FT_DEPTHS
+       for sh in FT_MORE_SHAPES])
+
+# the bounty set (2026-11-17): KO and PKO bounties on stage presets and on final-table spots, every head the same bounty
+# (as Practice's session sets it: each seat's, the other tables' average the same), in the prizes' units, which are % of
+# the prize pool. Early: 0.05 or 0.1 a head over 1,000 players is half the prizes or as much as them in bounties; Bubble:
+# 0.4 or 0.8 over 116, about half or nine tenths; the final tables: 2.5 or 5 a head
+BOUNTY_FORMAT_WORDS = {"ko": "KO", "pko": "PKO"}
+BOUNTY_STAGES = (("Early", (("pko", 0.05), ("pko", 0.1), ("ko", 0.05))),
+                 ("Bubble", (("pko", 0.4), ("pko", 0.8), ("ko", 0.4))),
+                 ("Final-table bubble", (("pko", 2.5), ("pko", 5.0), ("ko", 2.5))),
+                 ("Final table", (("pko", 2.5), ("pko", 5.0), ("ko", 2.5))))
+BOUNTY_FT = {"players": (6, 9), "depths": (15, 30), "levels": (("pko", 2.5), ("pko", 5.0))}
+
+
+def bounty_name(base: str, fmt: str, each: float) -> str:
+    return f"{base}, {BOUNTY_FORMAT_WORDS[fmt]} {each:g} a head"
+
+
+BOUNTY_SET = tuple(
+    [(bounty_name(nm, f, e),) + next(s for s in STAGES if s[0] == nm)[1:] + ({"format": f, "each": e},)
+     for nm, levels in BOUNTY_STAGES for f, e in levels]
+    + [(bounty_name(ft_name(n, d, sh), f, e), n, ft_stacks(n, d, sh), FINAL_TABLE[:n], None, None, {"format": f, "each": e})
+       for n in BOUNTY_FT["players"] for d in BOUNTY_FT["depths"] for sh in FT_SHAPES for f, e in BOUNTY_FT["levels"]])
+
+# the satellite set (2026-11-17): the last players of a satellite at one table, N seats (equal prizes) for N+1 or N+2
+# players left, at an average of SAT_DEPTHS bb, in the final-table set's three shapes, a 1bb big-blind ante
+SAT_PLAYERS = (3, 4, 5, 6, 7, 8, 9)
+SAT_DEPTHS = (10, 15, 25)
+
+
+def sat_name(players: int, seats: int, avg: float, shape: str) -> str:
+    return f"Satellite, {seats} seats for {players} left, {avg:g}bb average, {FT_SHAPE_WORDS[shape]}"
+
+
+SATELLITE_SET = tuple((sat_name(n, k, d, sh), n, ft_stacks(n, d, sh), [1] * k, None, None)
+                      for n in SAT_PLAYERS for k in (n - 1, n - 2) if k >= 2 for d in SAT_DEPTHS for sh in FT_SHAPES)
+
+# the chip EV set (2026-11-17): the stage and format presets, and the final-table set's stacks with its three shapes,
+# played for chips (no prizes): what Practice's chip EV session grades its preflop by. Not the double or nothing (equal
+# 50bb stacks, 6 players, no ante): the cash grid holds that game (web/src/solver/pfStored.ts), and Practice asks it there
+CHIP_NAME = "{}, chip EV"
+CHIP_SET = tuple((CHIP_NAME.format(s[0]), s[1], s[2], CHIPS, None, s[5]) for s in STAGES if s[0] != "Double or nothing") + tuple(
+    (CHIP_NAME.format(ft_name(n, d, sh)), n, ft_stacks(n, d, sh), CHIPS, None, None)
+    for n in FT_PLAYERS for d in FT_DEPTHS for sh in FT_SHAPES)
+
+ALL = STAGES + FINAL_TABLE_SET + BOUNTY_SET + SATELLITE_SET + CHIP_SET
+_SET_OF = {**{s[0]: "stage" for s in STAGES}, **{s[0]: "final table" for s in FINAL_TABLE_SET},
+           **{s[0]: "bounty" for s in BOUNTY_SET}, **{s[0]: "satellite" for s in SATELLITE_SET},
+           **{s[0]: "chips" for s in CHIP_SET}}
 
 
 def curve_of(places: int) -> List[float]:
@@ -102,8 +173,8 @@ def curve_of(places: int) -> List[float]:
 
 
 def set_of(name: str) -> str:
-    """'stage' (a stage or format preset) or 'final table' (the final-table set)."""
-    return "stage" if any(s[0] == name for s in STAGES) else "final table"
+    """'stage' (a stage or format preset), 'final table' (the final-table set), 'bounty', 'satellite' or 'chips'."""
+    return _SET_OF.get(name, "final table")
 
 
 def stage_ante(players: int) -> float:
@@ -114,20 +185,26 @@ def stage_ante(players: int) -> float:
 
 def request(stage) -> dict:
     """The preflop-solve request Practice sends at a hand of a session set to this preset (practice.ts stateFor and
-    pfState: the hand's stack the biggest, ownStacks the seats with other chips, the ante, tournamentRequest's prizes)."""
-    name, n, stacks, pay, field, ante = stage
+    pfState: the hand's stack the biggest, ownStacks the seats with other chips, the ante, tournamentRequest's prizes and
+    bounties; a chip EV session's preflop solve one prize, winner takes all, which is chips)."""
+    name, n, stacks, pay, field, ante = stage[:6]
+    bounty = stage[6] if len(stage) > 6 else None
+    base = name.split(",")[0] if bounty else name
     if pay is None:     # (Early and Bubble: tournament.ts's curveOf over the places paid)
-        pay = curve_of(150 if name == "Early" else 115)
+        pay = curve_of(150 if base == "Early" else 115)
     top = max(stacks)
     a = stage_ante(n) if ante is None else ante
-    st = {"players": n, "stack": top, "payouts": list(pay)}
+    st = {"players": n, "stack": top, "payouts": [1] if pay == CHIPS else list(pay)}
     own = {p: s for p, s in zip(SEATS[n], stacks) if s != top}
     if own:
         st["stacks"] = own
     if a:
         st["ante"] = a
-    if field:
+    if field and pay != CHIPS:
         st["field"] = {"players": field[0], "chips": round(field[0] * field[1] * 100) / 100}
+    if bounty:
+        st["bounties"] = {"format": bounty["format"], "seats": {p: bounty["each"] for p in SEATS[n]},
+                          "field": bounty["each"]}
     return st
 
 

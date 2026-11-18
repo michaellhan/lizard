@@ -346,7 +346,7 @@ describe("StudyPage", () => {
     const q = "p=6&s=25&stacks=CO%3A8&pay=50%2C30%2C20&bty=ko&bty.each=5";
     renderAt(q);
     const panel = await screen.findByLabelText("Tournament");
-    expect(screen.getByText(/^Live solve · prize-equity solve \(ICM\), KO bounties, proportional model · /)).toBeInTheDocument();
+    expect(screen.getByText(/^Live solve · prize-equity solve \(ICM\), KO bounties, proportional model \(EV only: no bounty variance\) · /)).toBeInTheDocument();
     expect(stub.asked.at(-1)).toMatchObject({ players: 6, stack: 25, stacks: { CO: 8 }, payouts: [50, 30, 20], bounties: { format: "ko", seats: { UTG: 5, BB: 5 } }, study: true });
     expect(stub.asked.at(-1)).not.toHaveProperty("rake");
     expect(panel).toHaveTextContent("Prize equity: CO 7.2% of what's left to pay.");

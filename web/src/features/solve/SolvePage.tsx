@@ -14,9 +14,9 @@ import { describeLine, freshHand, fromSearch, toSearch, type StudyHand } from "@
 import { BubbleTable } from "@/features/tournaments/BubbleTable";
 import { FinalTableSet, storedSpotLink } from "@/features/tournaments/FinalTableSet";
 import { PayoutTools } from "@/features/tournaments/PayoutTools";
-import { pfIcmStage } from "@/features/practice/pfIcmStored";
+import { pfIcmStage, presetGame } from "@/features/practice/pfIcmStored";
 import { bubbleTableOf } from "@/features/tournaments/icm";
-import { BOUNTY_FORMATS, BOUNTY_NAME, csvPayouts, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
+import { BOUNTY_FORMATS, BOUNTY_NAME, csvPayouts, paidCurve, parsePayouts, pastedPayouts, PAYOUT_PRESETS, anteWords, FORMAT_PRESETS, presetAnte, satellitePayouts, STAGE_PRESETS, tournamentFileFacts, type BountyFormat, type StagePreset, type TournamentSetup } from "@/features/tournaments/tournament";
 import { useSettings } from "@/state/settings";
 import { capWords, TREE_CAPS } from "@/solver/treeDepth";
 import type { BunchingSource } from "@/solver/bunching";
@@ -247,6 +247,8 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
   };
   // a stage of an MTT, set up at once: the table's stack is the biggest, the seats with fewer chips have their own
   const [stage, setStage] = useState<StagePreset | null>(null);
+  // what a pasted tournament summary or hand history said besides its prizes (tournamentFileFacts)
+  const [pasteFacts, setPasteFacts] = useState<string | null>(null);
   const setUpStage = (st: StagePreset) => {
     clear();
     const top = Math.max(...st.stacks);
@@ -258,6 +260,12 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
     setPayouts(st.payouts.join(" "));
     setFieldN(st.field ? String(st.field.players) : "");
     setFieldAvg(st.field ? String(st.field.avg) : "");
+    // (the bounty set: every head the same bounty, the other tables' too)
+    if (st.bounty) {
+      setBFormat(st.bounty.format);
+      setBEach(String(st.bounty.each));
+      setBField(String(st.bounty.each));
+    }
     setFromStart(true);
     setStage(st);
   };
@@ -348,7 +356,7 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
               <FinalTableSet onSetUp={setUpStage} onOpen={(st) => void navigate(storedSpotLink(st))} />
               <p className="text-xs text-muted" aria-live="polite">
                 {stage
-                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.${pfIcmStage(stage.players, Math.max(...stage.stacks), presetAnte(stage), { model: "icm", stacks: Object.fromEntries(seatsOf(stage.players).map((p, i) => [p, stage.stacks[i]!])), payouts: stage.payouts, ...(stage.field ? { field: stage.field } : {}) }) ? " Its preflop solve in prize equity is stored: Study's Solver source answers it at once." : ""}`
+                  ? `Set up: ${stage.name}. ${stage.about}; ${anteWords(stage)}.${pfIcmStage(stage.players, Math.max(...stage.stacks), presetAnte(stage), presetGame(stage)) ? ` Its preflop solve ${stage.payouts.length > 1 ? "in prize equity" : "in chip EV"} is stored: Study's Solver source answers it at once.` : ""}`
                   : "A stage, format or final-table spot fills in the form."}
               </p>
             </div>
@@ -363,6 +371,13 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   onChange={(e) => setPayouts(e.target.value)}
                   onPaste={(e) => {
                     const raw = e.clipboardData.getData("text");
+                    const facts = tournamentFileFacts(raw);
+                    setPasteFacts(facts);
+                    // (a hand history's numbers are chips, not prizes: said, and the box left as it was)
+                    if (facts?.startsWith("A tournament hand history")) {
+                      e.preventDefault();
+                      return;
+                    }
                     const t = csvPayouts(raw) ?? pastedPayouts(raw);
                     if (t === null) return;
                     e.preventDefault();
@@ -370,6 +385,11 @@ export function SolvePage({ kind = "cash" }: { kind?: "cash" | "tournament" }) {
                   }}
                   {...flag("the payouts must", "places paid")} className={`${field} min-w-0 flex-1 basis-48`} />
               </label>
+              {pasteFacts && (
+                <p className="text-xs text-muted" aria-live="polite">
+                  {pasteFacts}.
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="text-muted">Shapes:</span>
                 {PAYOUT_PRESETS.map((pr) => (

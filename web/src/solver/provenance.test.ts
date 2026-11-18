@@ -211,16 +211,16 @@ describe("provenance", () => {
     expect(describeProvenance(chart)).toBe("Preflop charts · chip chart with a risk premium · approximate");
     expect(provenanceOf({ street: "river", fallback: "rules", tournament: ICM, notes: [] }, ctx).tournament).toBe("a tournament, but the fallback plays chips");
     const mystery = { ...ICM, bounties: { format: "mystery" } };
-    expect(provenanceOf({ street: "turn", tournament: mystery, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (ICM), mystery bounties at the average envelope");
+    expect(provenanceOf({ street: "turn", tournament: mystery, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (ICM), mystery bounties at the average envelope (EV only: the draw's spread isn't modelled)");
     // a large field modelled by stand-ins (advisor.py _tournament_info's note)
     const big = { ...ICM, note: "tournament: ICM (54 players modelled by 12), CO's prize equity 1.9% of what's left to pay; bubble factor up to 1.31" };
     expect(provenanceOf({ street: "flop", tournament: big, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (ICM), 54 players modelled by 12");
     const pko = { ...ICM, note: "tournament: no payouts given, so chip EV: …", bounties: { format: "pko" } };
     expect(provenanceOf({ street: "turn", tournament: pko, solver: { iterations: 300 } }, ctx).tournament).toBe(
-      "chip-EV solve with bounties (no payouts given: the prizes taken as the bounties in play), PKO bounties, proportional model",
+      "chip-EV solve with bounties (no payouts given: the prizes taken as the bounties in play), PKO bounties, proportional model (EV only: no bounty variance)",
     );
     const wta = { ...ICM, note: "tournament: winner-take-all (prize equity is chips), BB's equity 40.0% of the prize pool left", bounties: { format: "ko" } };
-    expect(provenanceOf({ street: "flop", tournament: wta, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (winner takes all: chips are prizes), KO bounties, proportional model");
+    expect(provenanceOf({ street: "flop", tournament: wta, solver: { iterations: 300 } }, ctx).tournament).toBe("prize-equity solve (winner takes all: chips are prizes), KO bounties, proportional model (EV only: no bounty variance)");
     // a cash answer has none; a chip answer's own all-in from the push/fold equilibrium says so
     expect(provenanceOf({ street: "flop", solver: { iterations: 300 } }, ctx).tournament).toBeUndefined();
     const chipJam = provenanceOf({ street: "preflop", notes: ["a raise here commits too much of a 10bb stack: all-in, range from the push/fold equilibrium against 5 players"] }, ctx);
@@ -353,7 +353,7 @@ describe("the push/fold model (advisor.py _push and _vs_jam, as the engine says 
     expect(describeProvenance(icm)).toContain("Preflop solve (class-level model)");
     expect(evUnit(icm)).toBe(PRIZE_UNIT);
     const pko = provenanceOf(node("tournament: ICM, BTN's prize equity 20.0% (40 players modelled by 9)", { tournament: { note: "tournament: ICM, BTN's prize equity 20.0% (40 players modelled by 9)", bounties: { format: "pko" } } }), ctx);
-    expect(pko.tournament).toBe("every outcome paid in prize equity (ICM, Malmuth-Harville), folded seats included, 40 players modelled by 9, PKO bounties, proportional model");
+    expect(pko.tournament).toBe("every outcome paid in prize equity (ICM, Malmuth-Harville), folded seats included, 40 players modelled by 9, PKO bounties, proportional model (EV only: no bounty variance)");
     expect(provenanceOf(node("tournament: winner-take-all, chips are prizes"), ctx).tournament).toBe("every outcome paid in chips (winner takes all: chips are prizes)");
   });
 });

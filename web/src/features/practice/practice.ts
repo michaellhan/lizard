@@ -42,7 +42,7 @@ import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { worthPlaying } from "./live";
 import { flopsLike, type TextureFilter } from "./texture";
 import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, PF_PLAYERS, PF_STORED_RAKE, pfGradeSizes } from "@/solver/pfStored";
-import { pfIcmStage, PF_ICM_WORDS } from "./pfIcmStored";
+import { PF_ICM_PRESETS, pfIcmStage, PF_ICM_WORDS } from "./pfIcmStored";
 
 export interface Decision {
   street: Street;
@@ -350,12 +350,19 @@ export function pfBlocked(players: number, stack: number, o: Pick<HandOptions, "
   if (o.tournament?.model === "icm") {
     // (a stored tournament preset, engine/pf_icm_stored.py: solved in prize equity, as Practice sends the preset)
     if (playsOn(o as HandOptions & GameOptions)) return "Played out, the stacks and prizes move on from the preset's, and the preflop solve is stored for the preset as it starts.";
-    if (!pfIcmStage(players, stack, o.ante, o.tournament)) return `A tournament's preflop solve is stored only for these spots, as they set the table, with no bounties: ${PF_ICM_WORDS}. ${solveFirst}`;
+    if (!pfIcmStage(players, stack, o.ante, o.tournament)) return `A tournament's preflop solve is stored only for these spots, as they set the table: ${PF_ICM_WORDS}. ${solveFirst}`;
+    if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
+    return null;
+  }
+  // (a chip EV session at a stored chip EV spot, engine/pf_icm_stored.py CHIP_SET: its stacks and ante on the tournament
+  // tree, played for chips; asked with one prize, `chipStored`)
+  if (o.tournament?.model === "chips" && pfIcmStage(players, stack, o.ante, o.tournament)) {
+    if (playsOn(o as HandOptions & GameOptions)) return "Played out, the stacks move on from the preset's, and the preflop solve is stored for the preset as it starts.";
     if (o.sizes && Object.keys(o.sizes).length) return "The preflop solve prices its flops by the engine's bet sizes, not your own.";
     return null;
   }
   // (a chip EV tournament is sent as a cash game: stored where every seat has the table's stack and the grid has it)
-  if (o.tournament && Object.values(o.tournament.stacks).some((v) => Math.abs(v - stack) > 1e-9)) return `${stored} equal stacks only in chip EV. ${solveFirst}`;
+  if (o.tournament && Object.values(o.tournament.stacks).some((v) => Math.abs(v - stack) > 1e-9)) return `${stored} equal stacks only in chip EV, besides the chip EV set's spots as they set the table (on the Tournaments page). ${solveFirst}`;
   if (!(PF_PLAYERS as readonly number[]).includes(players)) return `${stored} 2 to ${PF_PLAYERS.at(-1)} players only. ${solveFirst}`;
   if (!(PF_DEPTHS as readonly number[]).includes(stack)) return `${stored} stacks of ${PF_DEPTHS_WORDS} only; the nearest is ${nearestDepth(stack)}bb. ${solveFirst}`;
   if (o.ante || o.straddle) return `${stored} no ante and no straddle only. ${solveFirst}`;
@@ -449,7 +456,7 @@ export function newHand(players: number, stack: number, n: number, seed: number,
     ...(opts.exploit ? { exploit: opts.exploit } : {}),
     ...(othersPlay(opts) ? { opponents: othersPlay(opts)! } : {}),
     ...(opts.pfSolve && !pfBlocked(players, stack, opts)
-      ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}), ...(opts.tournament?.model === "icm" ? { pfOptions: true as const } : {}) }
+      ? { pfSolve: true as const, ...(opts.pfSizes ? { pfSizes: true as const } : {}), ...(opts.tournament && pfIcmStage(players, stack, opts.ante, opts.tournament) ? { pfOptions: true as const } : {}) }
       : {}),
   };
 }
@@ -644,9 +651,14 @@ export function stateFor(h: PracticeHand, seat: string = h.hero): AdvisorState {
     // answer is the same)
     ...(h.sizes && h.shown >= 3 ? { sizes: h.sizes } : {}),
     // (a stored tournament preset's preflop: the opponents' moves from the solve, engine/pf_icm_study.play)
-    ...(h.pfOptions && h.shown < 3 ? { pf_play: true } : {}),
+    ...(h.pfOptions && h.shown < 3 ? { pf_play: true, ...(chipStored(h) ? { payouts: [1] } : {}) } : {}),
   };
 }
+
+/** Whether a chip EV hand is a stored chip EV spot (engine/pf_icm_stored.py CHIP_SET): its preflop solve is asked with
+ * one prize, winner takes all, which the worker plays as chips on the tournament tree (engine/pf_icm_study.py). */
+export const chipStored = (h: Pick<PracticeHand, "tournament" | "players" | "stack" | "stacks" | "ante">): boolean =>
+  h.tournament?.model === "chips" && !!pfIcmStage(h.players, h.stack, h.ante, { ...h.tournament, stacks: h.stacks ?? {} }, PF_ICM_PRESETS);
 
 /** Your advice's request. In exploit practice, heads up after the flop, it carries the read on your opponent, and so does
  * their move's (flow.ts `needOf`), with `profile_solve`: on the worker your advice is the profile re-solve (the read held
@@ -662,7 +674,7 @@ export function adviceState(h: PracticeHand, sim: Sim = simOf(h)): AdvisorState 
 /** The request of the preflop solve at your spot. The engine drops your seat and cards (Advisor.study): a retry reads them. */
 export const pfState = (h: PracticeHand): AdvisorState => {
   const st = stateFor(h);
-  return { ...st, study: true, preflop_solve: true, ...pfGradeSizes(st) };
+  return { ...st, ...(chipStored(h) ? { payouts: [1] } : {}), study: true, preflop_solve: true, ...pfGradeSizes(st) };
 };
 
 /** The request that answers a decision again: what it was graded on. */

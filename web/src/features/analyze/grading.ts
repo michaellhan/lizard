@@ -237,7 +237,7 @@ export function pfOut(hand: Pick<HandRecord, "tournament" | "setup"> & Partial<P
     if (!t?.payouts) return "A tournament's stacks and prizes aren't kept with this hand, so no stored preflop solve can be matched to it.";
     const stack = Math.max(...Object.values(r.setup.stacks));
     if (!pfIcmStage(h.players, stack, h.ante, { model: "icm", stacks: r.setup.stacks, payouts: t.payouts, ...(t.field ? { field: t.field } : {}), ...(t.bounty ? { bounty: t.bounty } : {}) }))
-      return `A tournament's preflop solve is stored only for these spots, as they set the table, with no bounties: ${PF_ICM_WORDS}.`;
+      return `A tournament's preflop solve is stored only for these spots, as they set the table: ${PF_ICM_WORDS}.`;
     return null;
   }
   if (r.setup.limit === "pot" || h.hole.length !== 2) return "The preflop solve is of no-limit hold'em.";

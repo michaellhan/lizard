@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setupProblems, setupRequest } from "@/features/solve/setup";
 import { freshHand, fromSearch, studyRequest, toSearch, type StudyHand } from "@/features/study/studyState";
-import { anteWords, csvPayouts, describeTournament, FORMAT_PRESETS, mttPayouts, paidCurve, PAYOUT_STRUCTURES, payoutProblems, prizesLeft, readPayoutTable, presetAnte, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
+import { anteWords, csvPayouts, describeTournament, FORMAT_PRESETS, mttPayouts, paidCurve, PAYOUT_STRUCTURES, payoutProblems, prizesLeft, readPayoutTable, presetAnte, parsePayouts, pastedPayouts, PAYOUT_PRESETS, satellitePayouts, STAGE_PRESETS, stageAnte, tidyTournament, tournamentFileFacts, tournamentProblems, tournamentRequest, type TournamentSetup } from "./tournament";
 
 const KO: TournamentSetup = { payouts: [50, 30, 20], field: { players: 12, avg: 40 }, bounty: { format: "ko", each: 10, seats: { BTN: 20 }, field: 8 } };
 
@@ -47,6 +47,29 @@ describe("a pasted payout table", () => {
     expect(pastedPayouts(stars)).toBe("1540 360 180");
     const gg = ["Tournament #123456, Daily $10, Hold'em No Limit", "Buy-in: $9.2+$0.8", "1,000 Players", "Total Prize Pool: $10,000", "1st : Player1, $2,000", "2nd : Player2, $1,200", "3rd : Hero, $800", "You finished the tournament in 3rd place.", "You received a total of $800."].join("\n");
     expect(pastedPayouts(gg)).toBe("2000 1200 800");
+    // what else they say: the entrants and your finish, and that the players left and the other tables aren't in them
+    expect(tournamentFileFacts(stars)).toBe("A tournament summary: 180 entrants; you finished 4th. It doesn't say how many players are left or what the other tables' stacks are: type those as the other tables");
+    expect(readPayoutTable(gg).facts).toMatch(/^A tournament summary: 1,000 entrants; you finished 3rd\./);
+  });
+
+  it("reads a tournament hand history's table, in big blinds, and no prizes from it", () => {
+    const hh = [
+      "PokerStars Hand #250000000001: Tournament #3456789012, $10+$1 USD Hold'em No Limit - Level VI (100/200) - 2026/10/01 19:00:00 ET",
+      "Table '3456789012 12' 9-max Seat #3 is the button",
+      "Seat 1: alpha (4,000 in chips)",
+      "Seat 3: hero (10,000 in chips)",
+      "Seat 5: beta (2,500 in chips)",
+      "beta: posts small blind 100",
+      "*** HOLE CARDS ***",
+      "",
+      "PokerStars Hand #250000000002: Tournament #3456789012, $10+$1 USD Hold'em No Limit - Level VI (100/200) - 2026/10/01 19:01:00 ET",
+      "Seat 1: alpha (9,000 in chips)",
+    ].join("\n");
+    expect(tournamentFileFacts(hh)).toBe(
+      "A tournament hand history: this table's first hand: 3 seats, alpha 20bb, hero 50bb, beta 12.5bb (at a 200 big blind). It doesn't say how many players are left or what the other tables' stacks are: type those as the other tables",
+    );
+    expect(readPayoutTable(hh)).toMatchObject({ payouts: [], note: "no prizes read" });
+    expect(tournamentFileFacts("1st $500\n2nd $300")).toBeNull();
   });
 });
 

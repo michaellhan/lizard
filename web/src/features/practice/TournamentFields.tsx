@@ -3,7 +3,7 @@
 // every seat starts with the same KO or PKO bounty (played out, a bounty follows its player, and a PKO's grows), and a
 // mystery's envelopes are typed one by one ("500, 100x4, 25x20"), as played out each knockout draws one.
 import { LIMITS } from "@/features/solve/setup";
-import { csvPayouts, FINAL_TABLE_SET, FORMAT_PRESETS, FT_PLAYERS, PAYOUT_PRESETS, PAYOUT_STRUCTURES, parsePayouts, pastedPayouts, presetAnte, STAGE_PRESETS, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
+import { BOUNTY_SET, CHIP_SET, csvPayouts, FINAL_TABLE_SET, FORMAT_PRESETS, SATELLITE_SET, FT_PLAYERS, PAYOUT_PRESETS, PAYOUT_STRUCTURES, parsePayouts, pastedPayouts, presetAnte, STAGE_PRESETS, tournamentProblems, type StagePreset } from "@/features/tournaments/tournament";
 import { seatLabel, seatsOf } from "@/poker/seats";
 import type { TournamentOptions } from "./practice";
 
@@ -109,13 +109,17 @@ export function stageDraft(st: StagePreset): { players: number; stack: number; a
       stacks: Object.fromEntries(seats.flatMap((p, i) => (st.stacks[i] !== top ? [[p, String(st.stacks[i])]] : []))),
       others: st.field ? String(st.field.players) : "",
       avg: st.field ? String(st.field.avg) : "",
-      bounty: "",
-      each: "",
+      // (the bounty set: every seat's bounty the same, the other tables' average left blank, which is the same)
+      bounty: st.bounty?.format ?? "",
+      each: st.bounty ? String(st.bounty.each) : "",
       bountyField: "",
       envelopes: "",
     },
   };
 }
+
+/** Every preset the Stage list offers: the stages and formats, then the stored sets. */
+export const ALL_PRESETS: readonly StagePreset[] = [...STAGE_PRESETS, ...FORMAT_PRESETS, ...FINAL_TABLE_SET, ...BOUNTY_SET, ...SATELLITE_SET, ...CHIP_SET];
 
 const INPUT = "rounded border border-border bg-surface-2 px-1.5 py-1";
 const PRESETS = PAYOUT_PRESETS.filter((p) => p.payouts.length > 1);
@@ -158,7 +162,7 @@ export function TournamentFields({
           title="Table, stacks, ante and prizes at once"
           value=""
           onChange={(e) => {
-            const st = [...STAGE_PRESETS, ...FORMAT_PRESETS, ...FINAL_TABLE_SET].find((x) => x.name === e.target.value);
+            const st = ALL_PRESETS.find((x) => x.name === e.target.value);
             if (st) onStage(st);
           }}
           className={INPUT}
@@ -182,11 +186,32 @@ export function TournamentFields({
             <optgroup key={n} label={`Final table set, ${n} left`}>
               {FINAL_TABLE_SET.filter((st) => st.players === n).map((st) => (
                 <option key={st.name} value={st.name} title={st.about}>
-                  {st.about.replace(/^\d+ left of a 9-paid final table, /, "")}
+                  {st.name.replace(/^Final table, \d+ left, /, "")}
                 </option>
               ))}
             </optgroup>
           ))}
+          <optgroup label="Bounty set (KO, PKO)">
+            {BOUNTY_SET.map((st) => (
+              <option key={st.name} value={st.name} title={st.about}>
+                {st.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Satellite set">
+            {SATELLITE_SET.map((st) => (
+              <option key={st.name} value={st.name} title={st.about}>
+                {st.name.replace(/^Satellite, /, "")}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Chip EV set">
+            {CHIP_SET.map((st) => (
+              <option key={st.name} value={st.name} title={st.about}>
+                {st.name.replace(/, chip EV$/, "")}
+              </option>
+            ))}
+          </optgroup>
         </select>
       )}
       <label className="flex items-center gap-1">

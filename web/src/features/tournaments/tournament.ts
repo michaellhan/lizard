@@ -82,6 +82,8 @@ export interface StagePreset {
   field?: { players: number; avg: number };
   /** each seat's ante, bb: 0 for none (unset: a 1bb big-blind ante, `stageAnte`) */
   ante?: number;
+  /** KO or PKO bounties, every head the same (each seat's, and the other tables' average), in the prizes' units */
+  bounty?: { format: "ko" | "pko"; each: number };
 }
 
 const FINAL_TABLE = PAYOUT_PRESETS[2]!.payouts;
@@ -196,46 +198,147 @@ export const FORMAT_PRESETS: readonly StagePreset[] = [
 
 /**
  * The final-table set: preflop solves in prize equity stored for the last 3 to 9 players of a 9-paid final table (its last
- * places' prizes), at an average stack of FT_DEPTHS bb, in three shapes of stacks (FT_SHAPES), with a 1bb big-blind ante
- * as each seat's share and no other tables. Lizard's own shapes, as engine/pf_icm_stored.py FINAL_TABLE_SET builds them
- * (pfIcmStored.test.ts holds the two to the manifest).
+ * places' prizes), at an average stack of FT_DEPTHS bb, in shapes of stacks (FT_SHAPES with every payout structure,
+ * FT_MORE_SHAPES with Lizard's own), with a 1bb big-blind ante as each seat's share and no other tables. Lizard's own
+ * shapes, as engine/pf_icm_stored.py FINAL_TABLE_SET builds them (pfIcmStored.test.ts holds the two to the manifest).
  */
 export const FT_PLAYERS = [3, 4, 5, 6, 7, 8, 9] as const;
 export const FT_DEPTHS = [10, 15, 20, 30, 40] as const;
 export const FT_SHAPES = ["equal", "leader", "short"] as const;
-export type FtShape = (typeof FT_SHAPES)[number];
-export const FT_SHAPE_WORDS: Record<FtShape, string> = { equal: "equal stacks", leader: "chip leader on the button", short: "short stack in the big blind" };
+export const FT_MORE_SHAPES = ["leader_bb", "short_btn"] as const;
+export type FtShape = (typeof FT_SHAPES)[number] | (typeof FT_MORE_SHAPES)[number];
+export const FT_SHAPE_WORDS: Record<FtShape, string> = {
+  equal: "equal stacks",
+  leader: "chip leader on the button",
+  short: "short stack in the big blind",
+  leader_bb: "chip leader in the big blind",
+  short_btn: "short stack on the button",
+};
+
+/** The final-table set's payout structures: Lizard's own 9-paid final table, and the first nine places of three of WSOP
+ * Online's posted MTT tables (roomPayouts.ts has the tables, the page and the date read), as engine/pf_icm_stored.py
+ * FT_PAYS. "" is Lizard's. */
+export const FT_PAYS: Record<"" | "flat" | "standard" | "top-heavy", { payouts: number[]; about: string }> = {
+  "": { payouts: FINAL_TABLE, about: "Lizard's 9-paid final table" },
+  flat: { payouts: [31, 19, 9.8, 8.8, 7.8, 6.8, 5.5, 4.4, 3.7], about: "flat: WSOP Online's top 20% paid at 41-50 entrants, its first nine places, as posted by WSOP Online on 2026-11-17" },
+  standard: { payouts: [27, 15.75, 9, 7, 6, 5, 3.8, 2.4, 1.7], about: "standard: WSOP Online's top 15% paid at 151-200 entrants, its first nine places, as posted by WSOP Online on 2026-11-17" },
+  "top-heavy": { payouts: [23, 13.5, 8.5, 6.5, 5.5, 3.9, 2.9, 1.9, 1.3], about: "top-heavy: WSOP Online's top 10% paid at 801-1,000 entrants, its first nine places, as posted by WSOP Online on 2026-11-17" },
+};
+export type FtPay = keyof typeof FT_PAYS;
+export const FT_PAY_KEYS = Object.keys(FT_PAYS) as FtPay[];
+export const FT_PAY_SOURCE = "https://wsoponline.com/nj/how-to-play-poker/mtt-tournament-payouts/";
 
 /** Down to 0.1bb (floor, as the engine's list: the two agree to the bit). */
 const tenth = (x: number) => Math.floor(x * 10 + 1e-9) / 10;
 
-/** Each seat's chips in seat order: equal; the button with twice the average and the rest sharing what's left; the big
- * blind with 0.4 of it and the rest sharing what's left. */
+/** Each seat's chips in seat order: equal, or one seat with twice the average (leader: the button; leader_bb: the big
+ * blind) or 0.4 of it (short: the big blind; short_btn: the button), the rest sharing what's left. */
 export function finalTableStacks(players: number, avg: number, shape: FtShape): number[] {
   if (shape === "equal") return Array<number>(players).fill(avg);
-  const special = shape === "leader" ? 2 * avg : tenth(0.4 * avg);
+  const special = shape.startsWith("leader") ? 2 * avg : tenth(0.4 * avg);
   const rest = tenth((players * avg - special) / (players - 1));
-  const at = shape === "leader" ? players - 3 : players - 1;
+  const at = shape === "leader" || shape === "short_btn" ? players - 3 : players - 1;
   return Array.from({ length: players }, (_, i) => (i === at ? special : rest));
 }
 
-export const finalTableName = (players: number, avg: number, shape: FtShape) => `Final table, ${players} left, ${avg}bb average, ${FT_SHAPE_WORDS[shape]}`;
+export const finalTableName = (players: number, avg: number, shape: FtShape, pay: FtPay = "") =>
+  `Final table, ${players} left, ${avg}bb average, ${FT_SHAPE_WORDS[shape]}${pay ? `, ${pay} payouts` : ""}`;
 
 /** One spot of the final-table set, as a preset (it sets up as a stage does). */
-export function finalTableSpot(players: number, avg: number, shape: FtShape): StagePreset {
+export function finalTableSpot(players: number, avg: number, shape: FtShape, pay: FtPay = ""): StagePreset {
   return {
-    name: finalTableName(players, avg, shape),
-    about: `${players} left of a 9-paid final table, ${avg}bb on average, ${FT_SHAPE_WORDS[shape]}`,
+    name: finalTableName(players, avg, shape, pay),
+    about: `${players} left of a 9-paid final table, ${avg}bb on average, ${FT_SHAPE_WORDS[shape]}${pay ? `, ${FT_PAYS[pay].about}` : ""}`,
     players,
     stacks: finalTableStacks(players, avg, shape),
-    payouts: FINAL_TABLE.slice(0, players),
+    payouts: FT_PAYS[pay].payouts.slice(0, players),
   };
 }
 
-export const FINAL_TABLE_SET: readonly StagePreset[] = FT_PLAYERS.flatMap((n) => FT_DEPTHS.flatMap((d) => FT_SHAPES.map((sh) => finalTableSpot(n, d, sh))));
+const grid = <T>(f: (n: number, d: number) => T[]): T[] => FT_PLAYERS.flatMap((n) => FT_DEPTHS.flatMap((d) => f(n, d)));
+
+export const FINAL_TABLE_SET: readonly StagePreset[] = [
+  ...grid((n, d) => FT_SHAPES.map((sh) => finalTableSpot(n, d, sh))),
+  ...FT_PAY_KEYS.slice(1).flatMap((pk) => grid((n, d) => FT_SHAPES.map((sh) => finalTableSpot(n, d, sh, pk)))),
+  ...grid((n, d) => FT_MORE_SHAPES.map((sh) => finalTableSpot(n, d, sh))),
+];
 
 /** The set's coverage, in words, for the page. */
-export const FT_COVERAGE = `${FINAL_TABLE_SET.length} spots: ${FT_PLAYERS[0]} to ${FT_PLAYERS.at(-1)} players left of a 9-paid final table (${FINAL_TABLE.join("/")}), averages of ${FT_DEPTHS.join(", ")}bb, each with ${FT_SHAPES.map((s) => FT_SHAPE_WORDS[s]).join(", ")}, a 1bb big-blind ante, no other tables`;
+export const FT_COVERAGE = `${FINAL_TABLE_SET.length} spots: ${FT_PLAYERS[0]} to ${FT_PLAYERS.at(-1)} players left of a 9-paid final table, averages of ${FT_DEPTHS.join(", ")}bb, each with ${FT_SHAPES.map((s) => FT_SHAPE_WORDS[s]).join(", ")} on four payout structures (Lizard's ${FINAL_TABLE.join("/")}, and the first nine places of WSOP Online's flat, standard and top-heavy MTT tables), and with ${FT_MORE_SHAPES.map((s) => FT_SHAPE_WORDS[s]).join(" or ")} on Lizard's; a 1bb big-blind ante, no other tables`;
+
+/** The bounty set: KO and PKO bounties stored on stage presets and on final-table spots, every head the same bounty (each
+ * seat's and the other tables' average), in the prizes' units (% of the prize pool), as engine/pf_icm_stored.py
+ * BOUNTY_SET. Early: 0.05 or 0.1 a head over 1,000 players (half the prizes or as much again in bounties); Bubble: 0.4 or
+ * 0.8 over 116; the final tables 2.5 or 5. */
+const BOUNTY_STAGES: readonly (readonly [string, readonly (readonly ["ko" | "pko", number])[]])[] = [
+  ["Early", [["pko", 0.05], ["pko", 0.1], ["ko", 0.05]]],
+  ["Bubble", [["pko", 0.4], ["pko", 0.8], ["ko", 0.4]]],
+  ["Final-table bubble", [["pko", 2.5], ["pko", 5], ["ko", 2.5]]],
+  ["Final table", [["pko", 2.5], ["pko", 5], ["ko", 2.5]]],
+];
+export const BOUNTY_FT = { players: [6, 9], depths: [15, 30], levels: [["pko", 2.5], ["pko", 5]] } as const;
+const withBounty = (st: StagePreset, format: "ko" | "pko", each: number): StagePreset => ({
+  ...st,
+  name: `${st.name}, ${BOUNTY_NAME[format]} ${each} a head`,
+  about: `${st.about}; ${BOUNTY_NAME[format]} bounties of ${each} a head (in the prizes' units), the other tables' the same`,
+  bounty: { format, each },
+});
+export const BOUNTY_SET: readonly StagePreset[] = [
+  ...BOUNTY_STAGES.flatMap(([nm, levels]) => levels.map(([f, e]) => withBounty(STAGE_PRESETS.find((s) => s.name === nm)!, f, e))),
+  ...BOUNTY_FT.players.flatMap((n) => BOUNTY_FT.depths.flatMap((d) => FT_SHAPES.flatMap((sh) => BOUNTY_FT.levels.map(([f, e]) => withBounty(finalTableSpot(n, d, sh), f, e))))),
+];
+
+/** The satellite set: the last players of a satellite at one table, N seats (equal prizes) for N+1 or N+2 players left, at
+ * an average of SAT_DEPTHS bb, in the final-table set's three shapes, a 1bb big-blind ante (engine/pf_icm_stored.py
+ * SATELLITE_SET). */
+export const SAT_PLAYERS = [3, 4, 5, 6, 7, 8, 9] as const;
+export const SAT_DEPTHS = [10, 15, 25] as const;
+export const satelliteName = (players: number, seats: number, avg: number, shape: FtShape) => `Satellite, ${seats} seats for ${players} left, ${avg}bb average, ${FT_SHAPE_WORDS[shape]}`;
+export const SATELLITE_SET: readonly StagePreset[] = SAT_PLAYERS.flatMap((n) =>
+  [n - 1, n - 2]
+    .filter((k) => k >= 2)
+    .flatMap((k) =>
+      SAT_DEPTHS.flatMap((d) =>
+        FT_SHAPES.map((sh) => ({
+          name: satelliteName(n, k, d, sh),
+          about: `${n} left of a satellite paying ${k} equal seats, ${d}bb on average, ${FT_SHAPE_WORDS[sh]}`,
+          players: n,
+          stacks: finalTableStacks(n, d, sh),
+          payouts: Array<number>(k).fill(1),
+        })),
+      ),
+    ),
+);
+
+/** The chip EV set: the stage and format presets (not the double or nothing and the spin, whose games the cash grid
+ * holds) and the final-table set's stacks in its three shapes, played for chips: one prize, which is chip EV
+ * (engine/pf_icm_stored.py CHIP_SET). What a Practice session in chip EV at these stacks has its preflop graded by. */
+export const chipName = (name: string) => `${name}, chip EV`;
+const chipSpot = (st: StagePreset): StagePreset => {
+  // (no other tables: chip EV has no prizes for them to change)
+  const rest: StagePreset = { ...st };
+  delete rest.field;
+  return { ...rest, name: chipName(st.name), about: `${st.about}; in chip EV (no prizes)`, payouts: [100] };
+};
+/** The stage and format presets stored, in engine/pf_icm_stored.py STAGES' order (the spin isn't: one prize, the grid's). */
+export const STORED_STAGES = [
+  "Final-table bubble",
+  "Three left",
+  "Heads-up",
+  "Sit & go bubble",
+  "Sit & go, 6 players",
+  "Double or nothing",
+  "Early",
+  "Bubble",
+  "Final table",
+  "Sit & go, 9 players",
+] as const;
+export const storedStage = (name: string): StagePreset => [...STAGE_PRESETS, ...FORMAT_PRESETS].find((p) => p.name === name)!;
+
+export const CHIP_SET: readonly StagePreset[] = [
+  ...STORED_STAGES.filter((n) => n !== "Double or nothing").map((n) => chipSpot(storedStage(n))),
+  ...grid((n, d) => FT_SHAPES.map((sh) => chipSpot(finalTableSpot(n, d, sh)))),
+];
 
 /** Money as people write it, made plain: no currency sign or percent sign, no thousands commas ("$1,000" -> "1000"). */
 const plainMoney = (t: string) => t.replace(/[$€£¥%]/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
@@ -352,8 +455,43 @@ export function csvPayouts(text: string): string | null {
   return pastedPayouts(lines.join("\n"));
 }
 
+const num = (s: string) => Number(s.replace(/,/g, ""));
+const nth = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+
+/**
+ * What a room's tournament summary or tournament hand history says of the tournament besides its prizes, in words, or
+ * null for text that's neither. A summary: its entrants ("1000 players", "Entrants: 1000") and where you finished; a
+ * hand history: its first hand's table (the seats and their chips, in big blinds at the level's blind where it says it).
+ * Neither says how many players are left or what the other tables hold, so the line says that too: those are typed.
+ */
+export function tournamentFileFacts(text: string): string | null {
+  const summary = SUMMARY.test(text);
+  const hand = /tournament\s*#?\s*\d+/i.test(text) && /^Seat \d+: .+\((?:[$€£]?[\d,.]+) in chips/im.test(text);
+  if (!summary && !hand) return null;
+  const bits: string[] = [];
+  const entrants = /(\d[\d,]*)\s+(?:players|entrants)\b/i.exec(text) ?? /\b(?:players|entrants)\s*:\s*(\d[\d,]*)/i.exec(text);
+  if (entrants) bits.push(`${num(entrants[1]!).toLocaleString("en-US")} entrants`);
+  const fin = /you finished (?:the tournament )?in (\d+)(?:st|nd|rd|th)?\s*place/i.exec(text);
+  if (fin) bits.push(`you finished ${nth(Number(fin[1]))}`);
+  if (hand) {
+    // (the first hand only: a file of many hands has the table as it was at each)
+    const first = text.split(/\r?\n\s*\r?\n/).find((b) => /^Seat \d+: /m.test(b)) ?? text;
+    const seats = [...first.matchAll(/^Seat \d+: (.+?) \(([\d,]+)(?:\.\d+)? in chips/gm)].map((m) => ({ name: m[1]!, chips: num(m[2]!) }));
+    const lvl = /\((\d[\d,]*)\/(\d[\d,]*)(?:\/\d[\d,]*)?\)/.exec(first);
+    const bb = lvl ? num(lvl[2]!) : 0;
+    if (seats.length)
+      bits.push(
+        `this table's first hand: ${seats.length} seats, ${bb ? seats.map((s) => `${s.name} ${Math.round((s.chips / bb) * 10) / 10}bb`).join(", ") + ` (at a ${bb.toLocaleString("en-US")} big blind)` : seats.map((s) => `${s.name} ${s.chips.toLocaleString("en-US")} chips`).join(", ")}`,
+      );
+  }
+  return `${summary ? "A tournament summary" : "A tournament hand history"}${bits.length ? `: ${bits.join("; ")}` : ""}. It doesn't say how many players are left or what the other tables' stacks are: type those as the other tables`;
+}
+
 /** A payout table read from a file or a paste, with what's wrong with it and a line saying what it is. */
-export function readPayoutTable(text: string): { text: string; payouts: number[]; problems: string[]; note: string } {
+export function readPayoutTable(text: string): { text: string; payouts: number[]; problems: string[]; note: string; facts: string | null } {
+  const facts = tournamentFileFacts(text);
+  // (a hand history has no payout table: its numbers are chips and blinds)
+  if (facts?.startsWith("A tournament hand history")) return { text: "", payouts: [], problems: ["a hand history has no payout table: import the tournament's summary or its lobby's table"], note: "no prizes read", facts };
   const t = csvPayouts(text) ?? pastedPayouts(text) ?? text.trim();
   const payouts = parsePayouts(t);
   const problems = payoutProblems(payouts);
@@ -361,7 +499,7 @@ export function readPayoutTable(text: string): { text: string; payouts: number[]
   const note = payouts.length
     ? `${payouts.length} place${payouts.length === 1 ? "" : "s"} paid, ${Math.round(total * 100) / 100} in all, 1st ${payouts[0]}${payouts.length > 1 ? `, last ${payouts.at(-1)}` : ""}`
     : "no prizes read";
-  return { text: t, payouts, problems, note };
+  return { text: t, payouts, problems, note, facts };
 }
 
 /** What's wrong with a list of prizes, first place first: a gap or a word, a prize of 0 or less, too many places, or a

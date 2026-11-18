@@ -5,14 +5,15 @@
 // kept, its provenance included.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { importHand, type ReplayedHand } from "@/hh/replay";
 import nodes from "@/test/fixtures/pf_nodes.json";
 import { practiceRecord } from "@/features/practice/history";
 import { gradedOn, PF_MODEL } from "@/features/practice/pfGrade";
 import { decide, finish, newHand, setupOf, withVillain, type PracticeHand, type TournamentOptions } from "@/features/practice/practice";
-import { readDraft, stageDraft } from "@/features/practice/TournamentFields";
-import { FINAL_TABLE_SET, FORMAT_PRESETS, STAGE_PRESETS } from "@/features/tournaments/tournament";
+import { ALL_PRESETS, readDraft, stageDraft } from "@/features/practice/TournamentFields";
+// (every stored tournament spot taken as built: pfIcmBuilt.test.ts holds the real list to the files)
+vi.mock("@/features/practice/pfIcmBuilt.json", () => ({ default: { model: "test", equity: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
 import { seatsOf } from "@/poker/seats";
 import type { Move } from "@/poker/table";
 import { SolverError, type Provenance } from "@/solver/types";
@@ -587,7 +588,7 @@ describe("preflop by the stored solve", () => {
 describe("a Practice hand of a stored tournament spot", () => {
   /** a hand of a session set to this preset, everyone folding to the big blind, kept as Practice keeps it */
   const keptHand = (name: string, bounty?: TournamentOptions["bounty"]) => {
-    const st = [...STAGE_PRESETS, ...FORMAT_PRESETS, ...FINAL_TABLE_SET].find((p) => p.name === name)!;
+    const st = ALL_PRESETS.find((p) => p.name === name)!;
     const { players, stack, ante, draft } = stageDraft(st);
     const tournament = { ...readDraft(draft, players, stack, 250).value!, ...(bounty ? { bounty } : {}) };
     let h = newHand(players, stack, 0, 7, { ante, tournament, pfSolve: true });
@@ -597,7 +598,7 @@ describe("a Practice hand of a stored tournament spot", () => {
   };
 
   it("keeps its prizes, asks its answers in prize equity, and is graded by the stored solve", () => {
-    for (const name of ["Sit & go bubble", "Final table", "Final table, 6 left, 20bb average, chip leader on the button"]) {
+    for (const name of ["Sit & go bubble", "Final table", "Final table, 6 left, 20bb average, chip leader on the button", "Final-table bubble, PKO 2.5 a head", "Satellite, 2 seats for 4 left, 10bb average, equal stacks"]) {
       const { rec, replayed } = keptHand(name);
       expect(rec.setup?.tournament?.payouts, name).toBeTruthy();
       expect(pfOut(rec, replayed), name).toBeNull();

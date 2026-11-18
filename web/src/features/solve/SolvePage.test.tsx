@@ -2,11 +2,14 @@
 // opened, each field into Study's URL, a saved range picked for a seat, and a new table size starting the line over.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { deleteRange, putRange } from "@/data/saved";
 import { fromSearch, studyRequest } from "@/features/study/studyState";
 import { useSettings } from "@/state/settings";
 import { SOLVE_SETUP_KEY, SolvePage } from "./SolvePage";
+
+// (every stored tournament spot taken as built: pfIcmBuilt.test.ts holds the real list to the files)
+vi.mock("@/features/practice/pfIcmBuilt.json", () => ({ default: { model: "test", equity: "test", built: Array.from({ length: 5000 }, (_, i) => i) } }));
 
 // (the page remembers its last setup in this browser: one test's mustn't open the next's)
 afterEach(() => {
@@ -282,8 +285,8 @@ describe("SolvePage", () => {
     fireEvent.change(within(ft).getByRole("combobox", { name: "Players left" }), { target: { value: "3" } });
     fireEvent.change(within(ft).getByRole("combobox", { name: "Average stack" }), { target: { value: "15" } });
     fireEvent.change(within(ft).getByRole("combobox", { name: "Stacks" }), { target: { value: "short" } });
-    expect(ft).toHaveTextContent("Stacks BTN 19.5 · SB 19.5 · BB 6bb.");
-    expect(ft).toHaveTextContent(/105 spots/);
+    expect(ft).toHaveTextContent("Stacks BTN 19.5 · SB 19.5 · BB 6bb; prizes 30/20/14.");
+    expect(ft).toHaveTextContent(/490 spots/);
     fireEvent.click(within(ft).getByRole("button", { name: "Set up" }));
     expect(screen.getByRole("combobox", { name: "Players" })).toHaveValue("3");
     expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("30 20 14");
@@ -295,6 +298,34 @@ describe("SolvePage", () => {
     expect(h.pf).toBe("solver");
     expect(h.setup?.stacks).toEqual({ BB: 6 });
     expect(h.setup?.tournament?.payouts).toEqual([30, 20, 14]);
+  });
+
+  it("sets up the final-table set's structures, its PKO spots and its chip EV, and says what isn't in the set", () => {
+    open("p=6&s=100", "/tournaments");
+    const ft = screen.getByRole("group", { name: "Final-table set" });
+    const pick = (name: string, value: string) => fireEvent.change(within(ft).getByRole("combobox", { name }), { target: { value } });
+    pick("Players left", "6");
+    pick("Average stack", "15");
+    pick("Payout structure (final-table set)", "top-heavy");
+    expect(ft).toHaveTextContent(/prizes 23\/13\.5\/8\.5\/6\.5\/5\.5\/3\.9\. top-heavy: WSOP Online's top 10% paid/);
+    // a PKO on another structure isn't stored: said, and nothing to set up
+    pick("Game (final-table set)", "pko2.5");
+    expect(ft).toHaveTextContent(/Not in the set: PKO bounties are stored at 6 and 9 left/);
+    expect(within(ft).getAllByRole("button", { name: "Set up" })[0]).toBeDisabled();
+    pick("Payout structure (final-table set)", "");
+    fireEvent.click(within(ft).getAllByRole("button", { name: "Set up" })[0]!);
+    expect(screen.getByRole("combobox", { name: "Bounties" })).toHaveValue("pko");
+    expect(screen.getByRole("spinbutton", { name: "Each seat's bounty" })).toHaveValue(2.5);
+    expect(screen.getByText(/^Set up: Final table, 6 left, 15bb average, equal stacks, PKO 2\.5 a head\..*Its preflop solve in prize equity is stored/)).toBeInTheDocument();
+    pick("Game (final-table set)", "chips");
+    fireEvent.click(within(ft).getAllByRole("button", { name: "Set up" })[0]!);
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("100");
+    expect(screen.getByText(/^Set up: Final table, 6 left, 15bb average, equal stacks, chip EV\..*Its preflop solve in chip EV is stored/)).toBeInTheDocument();
+    // the satellite set
+    const sat = screen.getByRole("group", { name: "Satellite set" });
+    fireEvent.change(within(sat).getByRole("combobox", { name: "Players left (satellite)" }), { target: { value: "5" } });
+    fireEvent.click(within(sat).getByRole("button", { name: "Set up" }));
+    expect(screen.getByRole("textbox", { name: "Payouts" })).toHaveValue("1 1 1");
   });
 
   it("fills the payouts from a room-style structure, trimmed to the players left", () => {
