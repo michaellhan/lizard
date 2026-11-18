@@ -15,6 +15,7 @@ import {
   checkGrades,
   checkHand,
   checkPot,
+  uncalledOf,
   checkPreflop,
   checkProvenance,
   compareAll,
@@ -234,6 +235,18 @@ describe("provenance honesty", () => {
     const sim = simulate(t, noLines(), 0);
     expect(checkPot(res({ pot_bb: 1.5, to_call_bb: 0.5 }), t, sim, "SB")).toEqual([]);
     expect(checksOf(checkPot(res({ pot_bb: 2, to_call_bb: 1 }), t, sim, "SB"))).toEqual(["soft table.answer-pot", "soft table.answer-pot"]);
+  });
+
+  it("lets the answer's pot leave out a shove's uncalled excess", () => {
+    // the final-table bubble's stacks (tournament.ts), 0.2bb antes: BTN opens to 2.5, SB shoves 28 into BB's 14
+    const t = { players: 5, stacks: { HJ: 20, CO: 40, BTN: 8, SB: 28, BB: 14 }, ante: 0.2 };
+    const lines: Lines = { ...noLines(), preflop: [{ pos: "HJ", action: "fold" }, { pos: "CO", action: "fold" }, { pos: "BTN", action: "raise", to: 2.5 }, { pos: "SB", action: "all-in" }] };
+    const sim = simulate(t, lines, 0);
+    expect(sim.pot).toBeCloseTo(32.3, 6);
+    expect(uncalledOf(t, sim)).toBeCloseTo(14, 6);
+    expect(checksOf(checkPot(res({ pot_bb: 18.3 }), t, sim, "BB"))).toEqual([]);
+    expect(checksOf(checkPot(res({ pot_bb: 32.3 }), t, sim, "BB"))).toEqual([]);
+    expect(checksOf(checkPot(res({ pot_bb: 25 }), t, sim, "BB"))).toEqual(["soft table.answer-pot"]);
   });
 });
 

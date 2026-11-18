@@ -196,10 +196,23 @@ export function checkHistory(h: PracticeHand, sim: Sim = simOf(h)): Violation[] 
   return out;
 }
 
-/** The pot and the price the answer graded on against the table's (the grade's % of the pot is of the answer's pot_bb). */
+/** What of the biggest commitment no other player still in can match (each seat's stack is all it can put in): it goes
+ * back to the bettor, and the engine's pot leaves it out (a 28bb shove into a 14bb stack is a 14bb bet). */
+export function uncalledOf(t: TableSetup, sim: Sim): number {
+  const live = [...sim.active];
+  if (live.length < 2) return 0;
+  const inn = (p: string) => (sim.invested[p] ?? 0) + (sim.cur?.bets[p] ?? 0);
+  const top = live.reduce((a, b) => (inn(b) > inn(a) ? b : a));
+  const most = Math.max(...live.filter((p) => p !== top).map((p) => t.stacks[p] ?? 0));
+  return Math.max(0, Math.round((inn(top) - most) * 100) / 100);
+}
+
+/** The pot and the price the answer graded on against the table's (the grade's % of the pot is of the answer's pot_bb).
+ * The answer's pot may leave out a bet's uncalled excess (uncalledOf); the table's counts it. */
 export function checkPot(res: AdvisorResponse, t: TableSetup, sim: Sim, seat: string): Violation[] {
   const out: Violation[] = [];
-  if (finite(res.pot_bb) && Math.abs(res.pot_bb - sim.pot) > 0.011) out.push(v("table.answer-pot", `the answer's pot is ${res.pot_bb}bb, the table's ${sim.pot}bb`, "soft"));
+  const pots = [sim.pot, sim.pot - uncalledOf(t, sim)];
+  if (finite(res.pot_bb) && pots.every((p) => Math.abs(res.pot_bb! - p) > 0.011)) out.push(v("table.answer-pot", `the answer's pot is ${res.pot_bb}bb, the table's ${sim.pot}bb`, "soft"));
   const tc = (res as { to_call_bb?: unknown }).to_call_bb;
   const want = toCallOf(t, sim, seat);
   if (finite(tc) && Math.abs(tc - want) > 0.011) out.push(v("table.answer-pot", `the answer's price is ${tc}bb, the table's ${want}bb`, "soft"));

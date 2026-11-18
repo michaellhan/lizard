@@ -5,6 +5,7 @@
 // returns the summary; run.mjs exits non-zero where a hard invariant failed.
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { kindOf as kindOfName } from "@/components/actions";
 import * as P from "@/features/practice/practice";
 import { moveOf, needOf } from "@/features/practice/flow";
 import { gradedOn, type HeldAnswer, type PfAsked } from "@/features/practice/pfGrade";
@@ -246,7 +247,11 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           if (flags.riverNutFold) violations.push(K.violation("opp.nutFold", `${seat} folds the nuts on the river`, "soft"));
           if (flags.strongFold) violations.push(K.violation("opp.strongFold", `${seat} folds ${h.hands[seat]!.join("")}, two pair or better with its own cards, to at most 75% of the pot on the ${street}`, "soft"));
           oppMoves += 1;
-          put({ t: "opp", ...tag({ street, seat }), line, secs: took(), rss: main.last.rss, action, flags, violations });
+          // (the move made, which a live or loose opponent picks over the answer's draw: live.ts liveMove; the draw kept
+          // beside it where they differ)
+          const made = `${move.action}${typeof move.to === "number" && move.action !== "call" ? ` ${move.to}` : ""}`;
+          const drawn = action.startsWith("(") || kindOfName(action) === move.action ? {} : { drawn: action };
+          put({ t: "opp", ...tag({ street, seat }), line, secs: took(), rss: main.last.rss, action: action.startsWith("(") ? action : made, ...drawn, flags, violations });
           h = P.withVillain(h, move, sim);
           continue;
         }

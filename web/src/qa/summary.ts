@@ -68,7 +68,10 @@ export interface OppRecord extends Base {
   line: string;
   secs: number;
   rss?: number;
+  /** the move made ("raise 7.5", "fold") */
   action: string;
+  /** the answer's own draw, where a live or loose opponent played something else (live.ts liveMove) */
+  drawn?: string;
   flags?: OppFlags;
 }
 
