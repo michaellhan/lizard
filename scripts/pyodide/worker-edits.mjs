@@ -96,6 +96,15 @@ const EDITS = [
     to: "import engine.bunching; import engine.mw_near; import engine.mw_quick; from gto.advisor import Advisor;",
   },
   {
+    // engine/size_match.py: a bet of the tree's own amount for one of the street's sizes is read as that size, not
+    // swapped for its share of the pot (the heads-up limped pot's 33% flop bet is 1bb, which reads back as 50% of 2bb,
+    // more than 15% off 33%, so Advisor._cfg_with_real_sizes built a tree the library doesn't store and every decision
+    // after it was solved live). Last, after mw_quick (this edit runs on that one's output); it wraps nothing the others
+    // hold.
+    from: "import engine.mw_quick; from gto.advisor import Advisor;",
+    to: "import engine.mw_quick; import engine.size_match; from gto.advisor import Advisor;",
+  },
+  {
     // engine/pf_charts.py: the preflop charts as served, repaired. 13 to 19bb play the 20bb game's moves (they played the
     // 100bb charts), and no hand continues less than one it dominates, nor does a premium flat while the next hand down
     // raises; the chart nodes that feed a published flop library spot are left as they were. Between tree_depth and
