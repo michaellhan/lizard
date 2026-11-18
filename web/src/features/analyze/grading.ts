@@ -202,7 +202,7 @@ export const jamOffTree = (res: AdvisorResponse, m: Move) =>
 /** The grade of your move against an answer, with the mix it is graded against; null where the move isn't in it, or
  * where an answer with EVs gives no pot: EV lost is graded as a share of the pot, and against none every loss would
  * read as an Inaccuracy, however large. */
-export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean; roughEvs?: string[] } | null {
+export function gradeAgainst(res: AdvisorResponse, m: Move, source?: string): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean; roughEvs?: string[] } | null {
   const hit = matchMove(res, m);
   if (!hit) return null;
   const freqs = hit.actions.map((a) => a.freq ?? 0);
@@ -210,7 +210,7 @@ export function gradeAgainst(res: AdvisorResponse, m: Move): { grade: Grade; mix
   const evs = evList.every((x) => x !== null) ? (evList as number[]) : null;
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : 0;
   if (evs && !(pot > 0)) return null;
-  const g = grade({ freqs, evs, pot }, hit.index);
+  const g = grade({ freqs, evs, pot, source }, hit.index);
   const rough = hit.actions.filter((a) => a.rough_ev).map((a) => a.action);
   return {
     grade: g,
@@ -387,7 +387,7 @@ export async function gradeDecision(
   // (a fallback's rules or an equity guess is never graded against)
   if (!GRADED_SOURCES[scope].includes(source))
     return ungraded(`answered by ${label}, ${GRADED_SOURCES[scope] === SOLVING ? "which isn't graded against" : "not the charts or the library"}`, source, label, tri);
-  const g = gradeAgainst(ans.data, m);
+  const g = gradeAgainst(ans.data, m, source);
   // (the site's words beside any the grade has)
   const note = [g?.note, pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
   if (!g) return ungraded(matchMove(ans.data, m) ? "the answer gave no pot to measure the EV lost against" : `your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);

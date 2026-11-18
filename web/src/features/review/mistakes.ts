@@ -225,7 +225,8 @@ const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
 export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number): Retried {
   const answer = answerIn(m, asked);
   const { mix, pot, provenance } = answer;
-  const grading = (k: number) => (m.ask.via === "kept" ? capGrade(gradeMix(mix, pot, k), provenance.band) : answer.capped ? capGrade(gradeMix(mix, pot, k), "approximate") : gradeMix(mix, pot, k));
+  const graded = (k: number) => gradeMix(mix, pot, k, provenance.source);
+  const grading = (k: number) => (m.ask.via === "kept" ? capGrade(graded(k), provenance.band) : answer.capped ? capGrade(graded(k), "approximate") : graded(k));
   const g = grading(i);
   const was = mix.findIndex((a) => a.action === m.chose);
   const change = answerChange(m, answer);

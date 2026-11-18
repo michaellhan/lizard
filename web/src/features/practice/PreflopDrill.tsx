@@ -90,7 +90,7 @@ export function PreflopDrill({ files, spot, rng, shared }: { files: LibraryFiles
     (a: number) => {
       if (!d || picked) return;
       // (every grade by this solve is capped: it's no full solve)
-      const g = gradeLive({ mix: d.mix, pot: d.pot, capped: true }, a);
+      const g = gradeLive({ mix: d.mix, pot: d.pot, capped: true, provenance: { source: "preflop-solve" } }, a);
       setPicked({ a, g });
       setSession((s) => addGraded(s, g, "preflop", "preflop-solve"));
     },

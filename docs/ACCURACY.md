@@ -1515,6 +1515,25 @@ for lz3_6max_40bb_blind_3bet4 at 6,000 iterations and 1.149 mbb among the 1,500-
   export's 1/255 steps; it had compared mixes exactly and passed on lz2 by chance of rounding.
 - `web/src/solver/provenance.test.ts`: the node is marked approximate with the text.
 
+### 18.8 EV gaps the model can't tell apart (2026-11-18)
+
+A preflop grade said "Inaccuracy, 0.02bb lost" for folding 8d7s on the button at 6-max 100bb, folded to. The stored game
+(lz3_6max_100bb_blind_3bet4, the one Practice grades by) raises 87o 100% at an EV of 0.022bb over folding; the charts,
+from the published solves, fold it half the time (`solver/gto/preflop.py` RFI, `87o:0.5`), so there raising and folding
+are worth the same. The grade followed its rules; the rules took the class-level model's EVs as finer than they are.
+
+How fine they are, measured: on the 31 opens that the charts weight between 15% and 85% (UTG to SB, folded to; hands
+the published solves play both ways, so their raise and fold EVs are equal), the stored game's raise and fold EVs differ
+by 0.046bb on average, 0.051bb at the median, 0.064bb at the 75th percentile and 0.079bb at the 90th (largest: BTN K5o
+0.125bb, K6o 0.091bb, 22 from UTG 0.082bb). The lz4 rebuild's game gives the same (median 0.051bb, 90th 0.079bb).
+
+So a grade by the preflop solve now counts an action within `PF_MODEL_TOL` = 0.08bb of its best as Correct, not an
+Inaccuracy (`web/src/grading/grade.ts` `closeTol`; the source is passed in by Practice, the live and preflop drills,
+Review's retries, Analyze and its leak drill). The EV lost is still shown as measured, and the "why" says the gap is
+closer than the model's EVs can tell apart. A gap over 0.08bb is graded as before, and every other source's EVs keep
+the 0.011bb tie. The measurement is of opens at 100bb; deeper in the tree, and at other depths, the model's error is
+unmeasured and the same 0.08bb is used.
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the

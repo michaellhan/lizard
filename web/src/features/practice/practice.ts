@@ -749,10 +749,11 @@ export function modelled(h: Pick<PracticeHand, "tournament" | "exploit">, p: Pro
  * Anything else (it can drop a lock and say so) isn't what the session is graded against, so it goes ungraded. */
 export const isBestResponse = (mix: Decision["mix"], p: Pick<Provenance, "lock"> | null | undefined): boolean => !!p?.lock && mix.length > 0 && mix.every((a) => a.ev !== null);
 
-/** The mix's i-th action graded: by EV where it has EVs for every action, else by frequency (the preflop charts). */
-export function gradeMix(mix: Decision["mix"], pot: number, i: number): Grade {
+/** The mix's i-th action graded: by EV where it has EVs for every action, else by frequency (the preflop charts).
+ * `source`: the answer's (provenance.ts), for the EV gaps it can't tell apart (grade.ts closeTol). */
+export function gradeMix(mix: Decision["mix"], pot: number, i: number, source?: string): Grade {
   const evs = mix.every((x) => x.ev !== null) ? mix.map((x) => x.ev!) : null;
-  return grade({ freqs: mix.map((x) => x.freq), evs, pot }, i);
+  return grade({ freqs: mix.map((x) => x.freq), evs, pot, source }, i);
 }
 
 /** Your decision: the answer's i-th action taken, graded against the answer (by EV where it has EVs for every
@@ -777,7 +778,7 @@ export function decide(
     street: sim.current!,
     chose: a.action,
     move: m,
-    grade: h.revealed || offProfile ? null : gradeMix(mix, pot, i),
+    grade: h.revealed || offProfile ? null : gradeMix(mix, pot, i, provenance?.source),
     mix,
     pot,
     provenance: modelled(h, provenance),

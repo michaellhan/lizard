@@ -354,8 +354,8 @@ export function readLive(res: SolveResult, pr: Pick<LiveProblem, "pot" | "bet">)
 
 /** The i-th action graded as a hand's decision is, on the same scale; an answer that leaned on anything but its own solve
  * can't condemn a line (capGrade). */
-export function gradeLive(a: Pick<LiveAnswer, "mix" | "pot" | "capped">, i: number): Grade {
-  const g = gradeMix(a.mix, a.pot, i);
+export function gradeLive(a: Pick<LiveAnswer, "mix" | "pot" | "capped"> & { provenance?: Pick<Provenance, "source"> }, i: number): Grade {
+  const g = gradeMix(a.mix, a.pot, i, a.provenance?.source);
   return a.capped ? capGrade(g, "approximate") : g;
 }
 

@@ -148,7 +148,7 @@ export function lineBefore(r: ReplayedHand, street: Street, i: number): { board:
  * answered it. Null where its EVs have no pot to be measured against. */
 export function gradePick(d: DecisionRecord, a: number): Grade | null {
   if (!canGradePick(d)) return null;
-  return capGrade(grade({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0 }, a), d.capped ? "rough" : d.band);
+  return capGrade(grade({ freqs: (d.mix ?? []).map((x) => x[1]), evs: evsOf(d), pot: d.pot ?? 0, source: d.source }, a), d.capped ? "rough" : d.band);
 }
 
 /** The actions whose EV is rough. A grade kept before `roughEvs` was can say it only of the move made. */

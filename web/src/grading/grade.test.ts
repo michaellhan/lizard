@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addScore, capGrade, emptyScore, grade, summary, whoOf, whyText } from "./grade";
+import { addScore, capGrade, emptyScore, grade, PF_MODEL_TOL, summary, whoOf, whyText } from "./grade";
 
 // cases ported from solver/tests/js/drills.test.js ("grading: ...", "score bookkeeping: ...")
 describe("grade", () => {
@@ -119,5 +119,25 @@ describe("grade: actions tied on EV", () => {
   });
   it("else names the most played of the tied actions, not the first by a fraction of a cent", () => {
     expect(grade(spot, 3).best).toBe(2);
+  });
+});
+
+describe("grade: the preflop solve's precision", () => {
+  // BTN 87o, 6-max 100bb, folded to: the stored game raises it 100% for 0.022bb, where the published solves fold it half
+  // the time (the charts' 87o:0.5); the model's EVs can't tell a gap that small apart
+  const btn87o = { pot: 1.5, freqs: [1, 0], evs: [0.022, 0], source: "preflop-solve" };
+  it("calls a fold within PF_MODEL_TOL of the best Correct, its EV lost as measured", () => {
+    const g = grade(btn87o, 1);
+    expect([g.verdict, g.ok, g.close, g.best]).toEqual(["Correct", true, true, 0]);
+    expect(g.loss).toBeCloseTo(0.022, 9);
+    expect(whyText(g, ["raise", "fold"], btn87o.freqs, whoOf("preflop-solve"))).toBe(
+      `The preflop solve never plays this, but it gives up only 0.02bb against raise (100% of the time): closer than this model's EVs can tell apart (${PF_MODEL_TOL}bb).`,
+    );
+  });
+  it("grades a gap past it, and any other source's, as before", () => {
+    expect(grade({ ...btn87o, evs: [PF_MODEL_TOL + 0.01, 0] }, 1).verdict).toBe("Mistake");
+    const solver = grade({ ...btn87o, source: "solver" }, 1);
+    expect([solver.verdict, solver.close]).toEqual(["Inaccuracy", undefined]);
+    expect(grade(btn87o, 0)).toMatchObject({ verdict: "Best", loss: 0 });
   });
 });
