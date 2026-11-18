@@ -54,6 +54,9 @@ export interface Provenance {
   fallbackReason?: string;
   /** the solver's own words for what an approximate answer was read from */
   approximateLabel?: string;
+  /** the solver's own reason an answer is approximate where it fell short of no target (solver.approximate_reason: a
+   * Quick 3-way flop's small game, ranges from a 3-way spot solved on older charts), in words. Also in approximateLabel */
+  approximateReason?: string;
   /** the ranges the answer stands on lean on the betting rules, in part or whole (provenance.ts rangesOffOf), in words:
    * an earlier street they narrowed or an opponent's rare line they read. Also in approximateLabel. */
   rangesOff?: string;

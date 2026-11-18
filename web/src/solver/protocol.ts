@@ -491,6 +491,9 @@ export interface SolverDiagnostics {
   iterations?: number | null;
   exploitability_pct?: number | null;
   approximate?: boolean;
+  /** why the answer is approximate where it fell short of no target, in words (engine/mw_quick.py: a Quick 3-way flop's
+   * small game; engine/mw_near.py: ranges narrowed through a 3-way spot solved on older charts) */
+  approximate_reason?: string;
   target_pct?: number;
   seconds?: number;
   solve_seconds?: number;

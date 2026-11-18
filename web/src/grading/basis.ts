@@ -6,7 +6,7 @@ import type { Provenance } from "@/solver/types";
 import type { AnswerBasis } from "./grade";
 
 /** The provenance fields a grade reads; a kept record may carry only some of them. */
-export type BasisProvenance = Pick<Provenance, "source"> & Partial<Pick<Provenance, "band" | "exploitabilityPct" | "partial" | "approximate" | "leansOnRules" | "iterations">>;
+export type BasisProvenance = Pick<Provenance, "source"> & Partial<Pick<Provenance, "band" | "exploitabilityPct" | "partial" | "approximate" | "leansOnRules" | "iterations" | "approximateReason">>;
 
 /** What the answer's provenance tells its grade: its source, band and measured distance from equilibrium, its iterations
  * (which size a rough EV's error), whether it was cut short or is approximate, and whether its ranges lean on the betting
@@ -24,6 +24,7 @@ export function basisOf(p: BasisProvenance | null | undefined, more: Omit<Answer
   if (typeof p.iterations === "number" && b.iterations === undefined) b.iterations = p.iterations;
   if (p.partial) b.partial = true;
   if (p.approximate) b.approximate = true;
+  if (p.approximateReason) b.approximateReason = p.approximateReason;
   if (leans) b.leans = true;
   return b;
 }

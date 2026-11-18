@@ -79,6 +79,14 @@ function borrowedOf(r: AdvisorResponse): string | null {
   return typeof text === "string" ? text : "";
 }
 
+/** The borrowed spot is this pot's own spot as built on older charts (engine/mw_near.py: precomputed.borrowed.built), not
+ * another table's: its text says so in full ("this spot as built on the charts of 2026-11-16, which have changed since:
+ * BB's range differs from this pot's by 7.5% of its weight; ..."). */
+function builtOf(r: AdvisorResponse): boolean {
+  const b = r.precomputed?.borrowed;
+  return !!b && typeof b === "object" && !!(b as { built?: unknown }).built;
+}
+
 /** advisor.py's notes on how an earlier street narrowed the ranges this answer starts from, when it wasn't (only) a
  * settled solve. An earlier street's narrowing solve runs on a time budget, so on a slow or busy device it stops short and
  * the ranges lean on the rules, by how short: the same spot then gives different ranges from one run to the next (a
@@ -224,7 +232,15 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (r.precomputed && typeof r.precomputed.spot === "string") p.librarySpot = r.precomputed.spot;
   if (typeof r.fallback_reason === "string") p.fallbackReason = r.fallback_reason;
   if (typeof approx?.label === "string") p.approximateLabel = approx.label;
-  else if (borrowed !== null) p.approximateLabel = `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
+  else if (borrowed !== null)
+    p.approximateLabel = builtOf(r) && borrowed ? borrowed : `another table's spot read as this one${borrowed ? ` (${borrowed})` : ""}`;
+  // (why it's approximate where no target was missed: a Quick 3-way flop's small game, ranges from a spot built on older
+  // charts; engine/mw_quick.py, mw_near.py)
+  const why = typeof r.solver?.approximate_reason === "string" ? r.solver.approximate_reason.trim() : "";
+  if (why && r.solver?.approximate) {
+    p.approximateReason = why;
+    if (!p.approximateLabel?.includes(why)) p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${why}` : why;
+  }
   if (r.multiway) p.multiway = true;
   // ranges entering this street that are partly or wholly the betting rules: the answer stands on them, so it's approximate
   const off = rangesOffOf(r);

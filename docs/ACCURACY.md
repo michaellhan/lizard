@@ -2433,12 +2433,12 @@ a bet or raise in them, and only 6 flops a spot.
 The answer carries `precomputed.borrowed` with `built` ({commit, date, seats, pot_seats}). Its text reads, for example,
 "this spot as built on the charts of 2026-11-16, which have changed since: BB's range differs from this pot's by 7.5% of
 its weight; CO and BTN's are the same". It names the pot's seats. HJ's open called by CO and BB reads the HJ, BTN and BB
-spot, and its text ends "HJ and CO's are the same; CO sits where the spot's BTN did". Until the web reads `built`, the
-badge shows "another table's spot read as this one (...)", which is wrong here: the table is the same, the charts are
-older. The answer is approximate. The stored solve's iterations and distance from equilibrium aren't shown, since they
-were measured on the built ranges. Its mix and per-action EVs are shown, and graded, as stored. The live drill
-(`liveDeal.ts`) caps an approximate answer's grades at Inaccuracy; a Practice hand (`practice.ts` `decide`) doesn't cap
-them today.
+spot, and its text ends "HJ and CO's are the same; CO sits where the spot's BTN did". The web's badge is that text
+(`provenance.ts` reads `built`; another table's spot still reads "another table's spot read as this one (...)"). The
+answer is approximate. The stored solve's iterations and distance from equilibrium aren't shown, since they were
+measured on the built ranges. Its mix and per-action EVs are shown, and graded, as stored, and every surface grades it
+as a read of another solution (section 27): a verdict stops at Inaccuracy short of a clear blunder (20% of the pot past
+the noise), and says why (test `provenance.approxReason.test.ts`).
 
 `scripts/library/test_published_fps.py` recomputes every published spot's fingerprints (53 heads-up, 4 three-way) from
 today's code in under a second, so CI fails a chart change that moves a spot. The four stale spots are held to today's
@@ -2532,8 +2532,11 @@ kept; the answer took 1.87-1.89 s over three runs and still checks.
 **Quick's 3-way flop game is small.** A Quick 3-way flop is solved with 6 hand buckets a player on the turn and river
 and one bet size of half the pot. Upstream measured those buckets' values 5.3-10.9% of the pot from a 32-bucket
 game's, against 2.2-3.1 for Fast's 12. Its distance from equilibrium is measured in that small game, so a full run read
-"converged". The answer now carries `solver.approximate` (the provenance band "approximate"; the live drill caps its
-grades at Inaccuracy, a Practice hand doesn't today), `solver.approximate_reason` and a note that starts with
-"Approximate: a quick answer's 3-way flop is solved in a small game". The reason is there because the answer has no
-`target_pct`, so the band's "short of its target" reading doesn't fit it. The web doesn't show the note or the reason
-yet. Quick's 3-way turn game (8 buckets) isn't marked.
+"converged". The answer now carries `solver.approximate` (the provenance band "approximate"), `solver.approximate_reason`
+and a note that starts with "Approximate: a quick answer's 3-way flop is solved in a small game". The reason is there
+because the answer has no `target_pct`, so the band's "short of its target" reading doesn't fit it. The web keeps it
+(`Provenance.approximateReason`), says it in the approximate label, and a grade on the answer stops at Inaccuracy short
+of a clear blunder with that reason ("This answer is approximate: a quick answer's 3-way flop is solved in a small
+game ..."), not "short of its target" (`grade.ts` `capGist`; test `provenance.approxReason.test.ts`). The same goes for
+a later street narrowed through a spot served as built (`ranges_built`). Quick's 3-way turn game (8 buckets) isn't
+marked.

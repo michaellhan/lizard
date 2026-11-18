@@ -227,6 +227,8 @@ export interface AnswerBasis {
   partial?: boolean;
   /** the answer is labelled approximate */
   approximate?: boolean;
+  /** why, where the solver gave a reason other than a missed target (Provenance.approximateReason) */
+  approximateReason?: string;
   /** a flop library answer: the flop's starting pot, bb (the entry's pot: one stored EV step is 1% of it) */
   flopPot?: number;
   /** per action, aligned with the spot's: the engine marks its EV rough (advisor.py rough_ev, a move the range almost
@@ -267,6 +269,8 @@ function capGist(b: AnswerBasis, byEv: boolean): string | null {
   if (src && UNSOLVED.has(src)) return `${whoOf(src)} is no solve`;
   if (b.partial && !finite(b.exploitabilityPct)) return "The solve was cut short before it measured how close it got";
   if (b.leans) return "This answer's ranges lean on the betting rules";
+  // (approximate for a reason of its own, not a missed target: a Quick 3-way flop's small game, older charts' ranges)
+  if (b.band === "approximate" && b.approximateReason) return `This answer is approximate: ${b.approximateReason}`;
   if (b.band === "rough" || b.band === "approximate")
     return `The solve stopped ${finite(b.exploitabilityPct) ? `${b.exploitabilityPct.toFixed(2)}% of the pot from equilibrium, ` : ""}${b.band === "rough" ? "too far to trust" : "short of its target"}`;
   if (!byEv) return null;
