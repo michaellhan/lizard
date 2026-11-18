@@ -179,9 +179,14 @@ both were asked)
   - the answer must be approximate and carry a label;
   - another spot's solver numbers are not shown;
   - a built or borrowed answer has no settled band;
-  - and never a `converged` band (hard).
+  - and a `converged` band only beside that approximate label: soft there, measured, since the band is the solve's
+    convergence in the game it solved ("in the solved game", ACCURACY section 21's rule under "Surfaced", as upstream
+    badges an off-solution answer converged beside its qualifier); hard with nothing beside it saying so.
 
-  A converged band after an opponent's rare line that was solved again is only soft.
+  A converged band after an opponent's rare line that was solved again is only soft. (Until 2026-11-18 a converged band
+  there was hard whatever stood beside it; the triage's skeptic showed the badge already says "approximate" and why,
+  and that a band of "approximate" would make the grade's cap say the solve stopped "short of its target", which it
+  didn't, so the check was what was wrong.)
 - `prov.lean`: where those fields lean on the rules (what `leansOnRules` counts), the grade's basis says so.
 
 **Grade sanity** (every decision, grading every action at your node with the basis built exactly as `practice.ts`

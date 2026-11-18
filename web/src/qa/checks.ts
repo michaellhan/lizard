@@ -312,8 +312,8 @@ export interface Asked {
 
 /** The answer's provenance against its own fields: the source what answered (library, live, rules, charts, preflop-solve,
  * push-fold) and none "Unlabelled", an approximate answer saying why, and an answer whose ranges or numbers aren't its own
- * solve's labelled approximate with why, its grade's basis leaning where its ranges lean on the rules, and never a
- * converged band. */
+ * solve's labelled approximate with why, its grade's basis leaning where its ranges lean on the rules, and a converged
+ * band there only beside that label (soft: the band is the solved game's). */
 export function checkProvenance(res: AdvisorResponse, p: Provenance, basis: AnswerBasis | null, ask: Asked): Violation[] {
   const out: Violation[] = [];
   const src = p.source;
@@ -337,7 +337,13 @@ export function checkProvenance(res: AdvisorResponse, p: Provenance, basis: Answ
     if (!p.approximate || !p.approximateLabel) out.push(v("prov.honesty", `ranges or numbers from ${off.join(", ")} but the answer is ${p.approximate ? "approximate with no label" : "not approximate"}`));
     if (m.borrowed && (p.exploitabilityPct !== undefined || p.iterations !== undefined)) out.push(v("prov.band", "another spot's solver numbers shown as this answer's"));
     if ((m.built || m.borrowed) && p.band && p.band !== "approximate") out.push(v("prov.band", `a ${p.band} band on an answer from ${m.built ? "a spot served as built" : "another table's spot"}`));
-    if (p.band === "converged") out.push(v("prov.settled", `a converged band (${p.exploitabilityPct}% of the pot) on an answer whose ranges come from ${off.join(", ")}`));
+    // The band is the solve's convergence in the game it solved (types.ts, describe(): "in the solved game"; ACCURACY's
+    // rule, as upstream badges an off-solution answer converged beside its qualifier), so beside an approximate label
+    // that says where the ranges come from it is measured, soft; with no such label it reads as a settled answer, hard.
+    if (p.band === "converged") {
+      const said = p.approximate === true && !!p.approximateLabel;
+      out.push(v("prov.settled", `a converged band (${p.exploitabilityPct}% of the pot) on an answer whose ranges come from ${off.join(", ")}${said ? ", beside its approximate label" : ", with nothing beside it saying so"}`, said ? "soft" : "hard"));
+    }
   } else if (m.rare && !SAYS_ITSELF.has(src) && p.band === "converged") out.push(v("prov.settled", "a converged band on an answer with an opponent's rare line (solved again after it)", "soft"));
   if (m.leans && basis && !basis.leans && !SAYS_ITSELF.has(src)) out.push(v("prov.lean", `ranges from ${off.join(", ")} lean on the rules, but the grade's basis doesn't say so (it can condemn a line)`));
   return out;

@@ -198,11 +198,14 @@ describe("provenance honesty", () => {
     expect(checkProvenance(res({ street: "flop", actions: [] }), p, { source: "library" }, flop)).toEqual([]);
   });
 
-  it("fails a converged band on ranges from an unsettled narrowing (the --quick run's river)", () => {
+  it("measures a converged band beside an approximate label on ranges from an unsettled narrowing as soft (the --quick run's river)", () => {
     const p = prov({ source: "live", approximate: true, approximateLabel: "the turn's narrowing solve stopped 39.3% of the pot from equilibrium", band: "converged", exploitabilityPct: 0.09, iterations: 200 });
-    expect(checksOf(checkProvenance(res({ street: "river", notes: [UNSETTLED] }), p, { source: "live", leans: true }, river))).toEqual(["hard prov.settled"]);
+    expect(checksOf(checkProvenance(res({ street: "river", notes: [UNSETTLED] }), p, { source: "live", leans: true }, river))).toEqual(["soft prov.settled"]);
     // (and a basis that doesn't lean where the ranges do)
-    expect(checksOf(checkProvenance(res({ street: "river", notes: [UNSETTLED] }), p, { source: "live" }, river))).toEqual(["hard prov.lean", "hard prov.settled"]);
+    expect(checksOf(checkProvenance(res({ street: "river", notes: [UNSETTLED] }), p, { source: "live" }, river))).toEqual(["hard prov.lean", "soft prov.settled"]);
+    // with nothing beside the band saying the ranges aren't the solve's, it's hard (and so is the honesty check)
+    const bare = prov({ source: "live", band: "converged", exploitabilityPct: 0.09, iterations: 200 });
+    expect(checksOf(checkProvenance(res({ street: "river", notes: [UNSETTLED] }), bare, { source: "live", leans: true }, river))).toEqual(["hard prov.honesty", "hard prov.settled"]);
   });
 
   it("fails ranges from the rules shown as no approximation, and another spot's numbers shown as this one's", () => {
@@ -210,7 +213,7 @@ describe("provenance honesty", () => {
     expect(checksOf(checkProvenance(rules, prov({ source: "live", band: "rough", exploitabilityPct: 3, iterations: 50 }), { leans: true }, { asked: "advice", street: "turn" }))).toEqual(["hard prov.honesty"]);
     const borrowed = res({ street: "flop", precomputed: { spot: "x", borrowed: { spot: "y" } } });
     const p = prov({ source: "library", approximate: true, approximateLabel: "another table's spot", band: "converged", exploitabilityPct: 0.2 });
-    expect(checksOf(checkProvenance(borrowed, p, null, flop))).toEqual(["hard prov.band", "hard prov.band", "hard prov.settled"]);
+    expect(checksOf(checkProvenance(borrowed, p, null, flop))).toEqual(["hard prov.band", "hard prov.band", "soft prov.settled"]);
   });
 
   it("fails an approximate answer that doesn't say why, and a chart not marked approximate", () => {
