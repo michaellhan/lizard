@@ -84,9 +84,10 @@ const EDITS = [
     to: "import engine.tree_depth; import engine.bunching; from gto.advisor import Advisor;",
   },
   {
-    // engine/pf_charts.py: the preflop charts as served, repaired: 13 to 19bb play the 20bb game's moves (they played the
-    // 100bb charts unmoved). After bunching (this edit runs on that one's output), so its wraps are in place before any
-    // request.
+    // engine/pf_charts.py: the preflop charts as served, repaired. 13 to 19bb play the 20bb game's moves (they played the
+    // 100bb charts), and no hand continues less than one it dominates, nor does a premium flat while the next hand down
+    // raises; the chart nodes that feed a published flop library spot are left as they were. After bunching (this edit
+    // runs on that one's output), so its wraps are in place before any request.
     from: "import engine.bunching; from gto.advisor import Advisor;",
     to: "import engine.bunching; import engine.pf_charts; from gto.advisor import Advisor;",
   },
