@@ -6,7 +6,7 @@ import type { Grade } from "@/grading/grade";
 import { parseIds } from "@/engine/plo/cards";
 import { handIndex, sortHand } from "@/engine/plo/combos";
 import type { ResultNode, RiverResult } from "@/engine/plo/river/run";
-import { gradeAt, potAt } from "./drill";
+import { gradeAt, potAt, type PloBasis } from "./drill";
 
 export interface Mine {
   /** your four cards */
@@ -69,7 +69,7 @@ export function matchAction(node: ResultNode, token: string, streetPot: number):
 }
 
 /** The solve's tree walked along the line played, your decisions graded where the solve can say. */
-export function walkMine(result: Pick<RiverResult, "hands" | "nodes" | "pot">, mine: Mine, band: string | undefined): MyWalk {
+export function walkMine(result: Pick<RiverResult, "hands" | "nodes" | "pot">, mine: Mine, band: PloBasis): MyWalk {
   const ids = parseIds(mine.hand, 4)!;
   const want = handIndex(sortHand(ids));
   const hands = result.hands[mine.seat];

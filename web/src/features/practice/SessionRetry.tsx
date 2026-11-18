@@ -17,7 +17,8 @@ type Asked = { st: "asking" } | { st: "ready"; answer: RetryAnswer } | { st: "fa
 export function retrySpot(e: Reviewed): (RetrySpot & { pot: number; grade: NonNullable<Reviewed["d"]["grade"]> }) | null {
   const { d, state } = e;
   if (!state || !d.grade) return null;
-  return { ask: { via: "solver", state }, provenance: d.provenance, mix: d.mix, street: d.street, study: d.study, chose: d.chose, pot: d.pot, grade: d.grade };
+  // (with the basis it was graded on: a flop library answer asked again keeps the flop's pot the first grade knew)
+  return { ask: { via: "solver", state }, provenance: d.provenance, mix: d.mix, street: d.street, study: d.study, chose: d.chose, pot: d.pot, grade: d.grade, ...(d.basis ? { basis: d.basis } : {}) };
 }
 
 /** `e`, an earlier decision of this session, asked again. `getClient`: the Room's, which uses an answer still held. */

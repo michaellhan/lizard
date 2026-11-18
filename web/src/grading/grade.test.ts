@@ -41,9 +41,12 @@ describe("grade", () => {
 
   it("thresholds sit where documented: 2% and 8% of the pot", () => {
     const at = (lossPct: number) => grade({ pot: 100, freqs: [1, 0], evs: [10, 10 - lossPct] }, 1).verdict;
-    expect(at(1.99)).toBe("Inaccuracy");
+    // (at the precision shown, one decimal of the pot: 1.99% shows as 2.0%, a Mistake beside it)
+    expect(at(1.94)).toBe("Inaccuracy");
+    expect(at(1.99)).toBe("Mistake");
     expect(at(2)).toBe("Mistake");
-    expect(at(7.99)).toBe("Mistake");
+    expect(at(7.94)).toBe("Mistake");
+    expect(at(7.99)).toBe("Blunder");
     expect(at(8)).toBe("Blunder");
   });
 });
@@ -55,18 +58,18 @@ describe("why", () => {
     const pot = 10;
     const evs = [2, 2.005, 1.2];
     expect(whyText(grade({ freqs: [1, 0, 0], evs: [2, 1.5, 1], pot }, 0), names, [1, 0, 0])).toBe("The solver always plays this here.");
-    expect(whyText(grade({ freqs: [0.6, 0.4, 0], evs, pot }, 0), names, [0.6, 0.4, 0])).toBe("The solver picks this most often here: 60% of the time.");
+    expect(whyText(grade({ freqs: [0.6, 0.4, 0], evs, pot }, 0), names, [0.6, 0.4, 0])).toBe("The solver picks this most often here: 60.0% of the time.");
     // best by EV but less often played: a mix's actions are worth about the same
-    expect(whyText(grade({ freqs: [0.6, 0.4, 0], evs, pot }, 1), names, [0.6, 0.4, 0])).toBe("The solver plays this 40% of the time, and its EV is as high as any action's here.");
+    expect(whyText(grade({ freqs: [0.6, 0.4, 0], evs, pot }, 1), names, [0.6, 0.4, 0])).toBe("The solver plays this 40.0% of the time, and its EV is as high as any action's here.");
     const mix = { freqs: [0.55, 0.3, 0.15], evs: [2.2, 2, 1.9], pot };
-    expect(whyText(grade(mix, 1), names, mix.freqs)).toBe("The solver mixes this in 30% of the time; its best by EV is check (55% of the time).");
+    expect(whyText(grade(mix, 1), names, mix.freqs)).toBe("The solver mixes this in 30.0% of the time; its best by EV is check (55.0% of the time).");
     const never = { freqs: [1, 0, 0], evs: [2, 1.5, 1], pot };
-    expect(whyText(grade(never, 2), names, never.freqs)).toBe("The solver never plays this; its best by EV is check (100% of the time).");
+    expect(whyText(grade(never, 2), names, never.freqs)).toBe("The solver never plays this; its best by EV is check (100.0% of the time).");
     const rare = { freqs: [0.96, 0.04, 0], evs: [2, 1.9, 1], pot };
-    expect(whyText(grade(rare, 1), names, rare.freqs)).toBe("The solver plays this only 4% of the time; its best by EV is check (96% of the time).");
+    expect(whyText(grade(rare, 1), names, rare.freqs)).toBe("The solver plays this only 4.0% of the time; its best by EV is check (96.0% of the time).");
     // the charts by frequency, in their name: not a solver
     const pf = { freqs: [0.7, 0.3, 0], evs: null, pot: 1.5 };
-    expect(whyText(grade(pf, 1), ["raise", "call", "fold"], pf.freqs, whoOf("charts"))).toBe("The chart mixes this in 30% of the time; its best is raise (70% of the time).");
+    expect(whyText(grade(pf, 1), ["raise", "call", "fold"], pf.freqs, whoOf("charts"))).toBe("The chart mixes this in 30.0% of the time; its best is raise (70.0% of the time).");
     expect(whoOf("library")).toBe("The solver");
     expect(whoOf("rules")).toBe("The rule-based model");
   });
@@ -136,7 +139,7 @@ describe("grade: the preflop solve's noise", () => {
     expect([g.verdict, g.ok, g.close, g.best]).toEqual(["Correct", true, true, 0]);
     expect(g.loss).toBeCloseTo(0.022, 9);
     expect(whyText(g, ["raise", "fold"], btn87o.freqs, whoOf("preflop-solve"))).toBe(
-      "The preflop solve never plays this, but it gives up only 0.02bb against raise (100% of the time): closer than this model's EVs can tell apart here (0.08bb).",
+      "The preflop solve never plays this, but it gives up only 0.02bb against the top EV, raise (100.0% of the time): within what the answer's EVs can tell apart here (0.08bb).",
     );
   });
   it("grades only the EV lost past the noise, so a gap just over it isn't a Blunder", () => {
@@ -146,7 +149,7 @@ describe("grade: the preflop solve's noise", () => {
     expect([g.verdict, g.close, g.loss]).toEqual(["Inaccuracy", undefined, 1.6]);
     expect(g.lossPct).toBeCloseTo((1.6 / 13) * 100, 9);
     expect(whyText(g, ["fold", "call", "raise"], vs3bet.freqs, whoOf("preflop-solve"))).toBe(
-      "The preflop solve never plays this; its best by EV is call (100% of the time). Graded on the 0.16bb past what this model's EVs can tell apart here (1.44bb).",
+      "The preflop solve never plays this; its best by EV is call (100.0% of the time). Graded on the 0.16bb past what the answer's EVs can tell apart here (1.44bb).",
     );
     expect(grade({ ...vs3bet, evs: [0, 1.44 + 0.13 * 8, 0] }, 0).verdict).toBe("Blunder");
     // folding aces first in is still a Blunder: 8.25bb is far past 0.08bb

@@ -1,6 +1,7 @@
 // Asking a kept spot again: the solver by the request Practice sent, the library read as the drill was.
 import { describe, expect, it, vi } from "vitest";
-import { COMBOS, nodeAt } from "@/library/entry";
+import { roughAt } from "@/features/practice/drills";
+import { COMBOS, handWeights, nodeAt } from "@/library/entry";
 import { LibraryFiles } from "@/library/files";
 import { libFile } from "@/test/library";
 import { LIVE, mistake } from "@/test/mistake";
@@ -40,7 +41,8 @@ describe("the solver's answer", () => {
       const solve = vi.fn(async () => ({ data, provenance: measured }));
       const a = await askSolver(ask, 5.5, async () => ({ solve }) as never, "quick");
       expect((solve.mock.calls[0] as unknown[])[0]).toMatchObject({ mode: "fast" });
-      expect(a).toMatchObject({ pot: 6, capped: false });
+      expect(a).toMatchObject({ pot: 6, basis: { source: "live", exploitabilityPct: 0.1 } });
+      expect(a.basis?.leans).toBeUndefined();
       await askSolver(ask, 5.5, async () => ({ solve }) as never, "accurate");
       expect((solve.mock.calls[1] as unknown[])[0]).toMatchObject({ mode: "accurate" });
     });
@@ -54,10 +56,11 @@ describe("the solver's answer", () => {
     });
 
     it("is capped where the solve was short of its target, as the drill's was", async () => {
-      const costly = { ...data, actions: [{ action: "check", freq: 0, ev_bb: -3 }, { action: "bet 33%", freq: 1, ev_bb: 3, amount_bb: 2 }] };
+      // (1.40bb of the 5.5bb pot, 15.5% past the solve's noise: a Blunder where it's measured, short of a clear blunder)
+      const costly = { ...data, actions: [{ action: "check", freq: 0, ev_bb: 1.6 }, { action: "bet 33%", freq: 1, ev_bb: 3, amount_bb: 2 }] };
       const solve = vi.fn(async () => ({ data: costly, provenance: { ...measured, exploitabilityPct: 5, band: "approximate" as const } }));
       const a = await askSolver(ask, 5.5, async () => ({ solve }) as never, "quick");
-      expect(a.capped).toBe(true);
+      expect(a.basis).toMatchObject({ band: "approximate" });
       const r = retried({ ...mistake(), ask }, a, 0, 1);
       expect(r.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
     });
@@ -87,6 +90,10 @@ describe("the library's answer", () => {
     expect(a.mix[0]!.freq).toBeCloseTo(nd.strat[0]![j]!);
     expect(a.mix[0]!.ev).toBeCloseTo(nd.evs[0]![j]!);
     expect(a.pot).toBeGreaterThan(0);
+    // (the actions the range at the node almost never takes are marked rough, as the drill marked them)
+    const { ranges } = await f.spot(spot);
+    const rough = roughAt(nd.strat, handWeights(e, [], ranges)!);
+    expect(a.mix.map((m) => m.rough === true)).toEqual(rough);
   });
 
   it("says so where the library no longer holds the spot or your hand", async () => {

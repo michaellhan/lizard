@@ -14,19 +14,19 @@
 // score. A live drill's session is kept as a Practice session, as History reads every "drill" session as the stored
 // library's; its mistakes retry through the solver, as a hand's do, under these same terms (review/retry.ts).
 import type { MistakeRecord, SessionRecord } from "@/data/db";
-import { offText } from "@/features/analyze/grading";
 import { addCell, addSource, linePot, type GradeCell } from "@/features/history/history";
 import { gradeOf } from "@/features/review/mistakes";
 import { dueAfter } from "@/features/review/schedule";
 import { gameSetup } from "@/features/solve/setup";
 import { parseLine, toSearch, type StudyHand } from "@/features/study/studyState";
-import { addScore, capGrade, emptyScore, type Grade, type Score } from "@/grading/grade";
+import { addScore, emptyScore, type AnswerBasis, type Grade, type Score } from "@/grading/grade";
+import { basisOf } from "@/grading/basis";
 import { versionOf } from "@/grading/version";
 import { cardInt, cardStr, COMBOS, flopCards, type Entry, type LibraryRanges } from "@/library/entry";
 import type { LibraryReport } from "@/library/files";
 import type { TurnFile, TurnLine, TurnNode } from "@/library/turns";
 import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
-import { bandOf, sourceLabel } from "@/solver/provenance";
+import { bandOf, leansOnRules, offText, sourceLabel } from "@/solver/provenance";
 import type { Provenance, ResultSource, SolveMode, SolveResult } from "@/solver/types";
 import { flopWords, lineReach, pick, preflopWords, relabel, shuffle, type Story, type StoryStep } from "./drills";
 import { handTest } from "./handFilter";
@@ -311,8 +311,7 @@ export function liveRefusal(res: SolveResult): string | null {
   if (r.skipped) return `The solver skipped this spot${typeof r.skipped === "string" ? `: ${r.skipped}` : "."}`;
   if (!optionsOf(r).length) return "The solver gave no actions here, so there's nothing to grade.";
   if (p.source !== "live") return `This answer is from ${sourceLabel(p.source)}, not a live solve of this spot, so it isn't graded here.`;
-  const off = Array.isArray(r.off_solution) ? r.off_solution : [];
-  if (off.some((o) => o.why === "rules" || (o.why === "rare" && !o.resolved)) || (Array.isArray(r.widened) && r.widened.length)) return `This spot leans on the betting rules, so it isn't graded here: ${offText(r) ?? "an opponent's range comes from them"}.`;
+  if (leansOnRules(r)) return `This spot leans on the betting rules, so it isn't graded here: ${offText(r) ?? p.rangesOff ?? "an opponent's range comes from them"}.`;
   if (p.partial) return "The solve was cut short, so this spot isn't graded.";
   if (mixOf(r).some((a) => a.ev === null) || p.evIn === "chips") return "The solve gave no EV for every action here, so this spot isn't graded.";
   if (typeof p.exploitabilityPct !== "number") return "The solve measured no distance from equilibrium here, so this spot isn't graded.";
@@ -322,14 +321,15 @@ export function liveRefusal(res: SolveResult): string | null {
   return null;
 }
 
-/** An answer a drill can grade on. `off`: what the ranges leaned on, said beside it; a grade under it is capped. */
+/** An answer a drill can grade on. `off`: how its ranges aren't all the solve's, said beside it; `basis`: what grading
+ * knows of it (grading/basis.ts), so a grade under ranges that lean on the betting rules stops at Inaccuracy. */
 export interface LiveAnswer {
   mix: Decision["mix"];
   pot: number;
   toCall: number;
   provenance: Provenance;
   off: string | null;
-  capped: boolean;
+  basis: AnswerBasis;
 }
 
 export type LiveRead = { st: "answer"; answer: LiveAnswer } | { st: "refused"; words: string };
@@ -347,16 +347,16 @@ export function readLive(res: SolveResult, pr: Pick<LiveProblem, "pot" | "bet">)
       toCall: typeof r.to_call_bb === "number" ? r.to_call_bb : pr.bet,
       provenance,
       off,
-      capped: !!off || provenance.approximate || provenance.band === "approximate",
+      basis: basisOf(provenance, { res: r }),
     },
   };
 }
 
-/** The i-th action graded as a hand's decision is, on the same scale; an answer that leaned on anything but its own solve
- * can't condemn a line (capGrade). */
-export function gradeLive(a: Pick<LiveAnswer, "mix" | "pot" | "capped"> & { provenance?: Pick<Provenance, "source"> }, i: number): Grade {
-  const g = gradeMix(a.mix, a.pot, i, a.provenance?.source);
-  return a.capped ? capGrade(g, "approximate") : g;
+/** The i-th action graded as a hand's decision is, on the same scale and through the same entry point (grade.ts
+ * gradeAnswer): the answer's noise, and a verdict that stops at Inaccuracy where it can't condemn a line. `basis`: what's
+ * known of the answer; else its provenance's. */
+export function gradeLive(a: Pick<LiveAnswer, "mix" | "pot"> & { basis?: AnswerBasis; provenance?: Parameters<typeof basisOf>[0] }, i: number): Grade {
+  return gradeMix(a.mix, a.pot, i, a.basis ?? basisOf(a.provenance));
 }
 
 /** An action in words: a call by what it costs (an answer's call amount is rounded to the half big blind), a bet by its
@@ -443,6 +443,7 @@ export function liveMistake(sessionId: string, rep: LibraryReport, pr: LiveProbl
     mix: a.mix,
     pot: a.pot,
     grade: gradeOf(g),
+    basis: a.basis,
     provenance: a.provenance,
     step: 0,
     due: dueAfter(now, 0),

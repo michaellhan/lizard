@@ -22,7 +22,7 @@ import { DecisionList, GroupTable, RangeCell } from "./DecisionTables";
 import { answeredIds, gradeHands, SCOPES, type Ask, type GradeScope } from "./grading";
 import { leakParam, withParams } from "./leakDrill";
 import { isEquilibriumHand } from "./sessions";
-import { basisOf, isGraded, isPfSolve, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
+import { basisOf, COUNTED_WORDS, isGraded, isPfSolve, leakTest, missesOf, PF_ROW, report, spotOf, toCSV, toJSON, VERDICTS, type Leak } from "./report";
 import { deepenPlan, fmtDur, secondsLeft, toAsk, type Timing } from "./triage";
 
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
@@ -296,7 +296,7 @@ export function GradeReport({ decisions, hands, of, exploits = NO_EXPLOITS }: { 
         </p>
         {rp.spotEv.n > 0 && (
           <p>
-            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} of solver EV lost in all, {rp.spotEv.avgPct}% of the pot per decision.
+            Graded by EV: {nDecisions(rp.spotEv.n)}, {bbs(rp.spotEv.lost)} of solver EV lost in all, {rp.spotEv.avgPct}% of the pot per decision. <span className="text-muted">{COUNTED_WORDS}</span>
           </p>
         )}
         {rp.pfEv.n > 0 && (

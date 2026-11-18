@@ -10,7 +10,7 @@ import { VerdictTag } from "@/components/VerdictTag";
 import { actionFills, bb, pct } from "@/components/actions";
 import { ActionLegend, RangeMatrix } from "@/components/RangeMatrix";
 import { cellWays, GRADE_WAYS, sourcesText, WAY_HEADS, wayFigures } from "@/features/history/history";
-import { whoOf, whyText } from "@/grading/grade";
+import { CAPPED_WORDS, lossWords, SCORE_LOSS_WORDS, whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
 import { behind, legal, STREETS, type Move, type Sim } from "@/poker/table";
 import type { GetClient } from "@/features/review/retry";
@@ -124,6 +124,7 @@ export function ScoreStrip({ session, acc, loss, lossPct, children }: { session:
     session.opts.exploit && exploitNote(session.opts.exploit),
     session.opts.exploit && !!session.read?.off && `${many(session.read.off, "hand")} left out of Net against the profile.`,
     !!session.revealed && `${session.revealed} revealed decision${session.revealed === 1 ? "" : "s"} not graded.`,
+    s.ne > 0 && SCORE_LOSS_WORDS,
   ].filter((x): x is string => !!x);
   return (
     <section aria-label="Score" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 panel px-3 py-2 text-sm">
@@ -326,7 +327,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
                   </span>
                   <span className="font-mono">{e.d.chose}</span>
                   <VerdictTag v={g.verdict} />
-                  <span className="font-mono text-xs">{g.byEv ? (g.loss > 0.005 ? `${bb(g.loss)}${evUnit(p)} lost` : "no EV lost") : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
+                  <span className="font-mono text-xs">{g.byEv ? (g.loss > 0.005 ? `${bb(g.loss)}${evUnit(p)} lost${g.ok ? " (not counted)" : ""}` : "no EV lost") : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
                   {p && (
                     <span className="text-xs text-muted" title={describeProvenance(p)}>
                       {p.approximate && "≈ "}
@@ -551,14 +552,11 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
       )}
       {g && (
         <p className="text-muted">
-          {g.byEv
-            ? g.loss > 0
-              ? `EV given up: ${d.mix[g.a]?.rough || d.mix[g.best]?.rough ? "≈" : ""}${bb(g.loss)}${evUnit(d.provenance)}, ${g.lossPct.toFixed(1)}% of the ${fmt(d.pot)}bb pot.`
-              : "No EV given up."
-            : byFrequency(d.provenance)}
+          {g.byEv ? lossWords(g, d.pot, evUnit(d.provenance), d.mix[g.a]?.rough || d.mix[g.best]?.rough ? "≈" : "") : byFrequency(d.provenance)}
           {g.mixed && " This hand mixes actions here."}
         </p>
       )}
+      {g?.capped && <p className="text-muted">{g.capWhy ?? CAPPED_WORDS}</p>}
       {d.mix.length > 0 && <MixTable mix={d.mix} hasEv={hasEv} labelOf={(a) => optionLabel(a.action, a.amount)} chose={d.chose} unit={evUnit(d.provenance)} />}
       {children}
       {g && spot && <CopyForAi key={`${spot.n}|${d.study}|${d.chose}`} text={() => reviewedText(spot)} />}
@@ -573,6 +571,32 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
     </section>
   );
 }
+
+const SUIT_GLYPHS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
+/** "AhKd" as "A♥K♦" */
+const comboText = (c: string) => c.replace(/([shdc])/g, (s) => SUIT_GLYPHS[s] ?? s);
+const mixWords = (mix: readonly { a: string; f: number }[]) => {
+  const shown = mix.filter((x) => x.f >= 0.0005);
+  return shown.length ? shown.map((x) => `${x.a} ${pct(x.f)}`).join(", ") : "no frequency given";
+};
+
+/** The picked cell's mix in words, after its name. The cell is a class's average over its combos in the range, and your
+ * own combo can play otherwise (a blocker, a backdoor): on your class both are said, and which one your decision is
+ * graded on ("AKo, all combos: … · your A♥K♦: … (graded on this)"). */
+export function cellTail(r: RangeAt, sel: string, mix: readonly { a: string; f: number }[]): string {
+  const all = mix.length ? mixWords(mix) : "not in your range here";
+  if (sel !== r.cls || !r.own) return `: ${all}`;
+  return `, all combos: ${all} · your ${comboText(r.own.combo)}: ${mixWords(r.own.mix)} (graded on this)`;
+}
+export const cellWords = (r: RangeAt, sel: string, mix: readonly { a: string; f: number }[]): string => `${sel}${cellTail(r, sel, mix)}`;
+
+/** The picked cell's words, its name in the grid's type. */
+const CellLine = ({ r, sel, mix }: { r: RangeAt; sel: string; mix: readonly { a: string; f: number }[] }) => (
+  <>
+    <span className="font-mono">{sel}</span>
+    {cellTail(r, sel, mix)}
+  </>
+);
 
 /** Your whole range at your last decision, as the same answer plays it (the badge above): each hand's mix, yours
  * picked; a hand picked says its mix in words. Shown once asked for (kept from decision to decision). */
@@ -589,9 +613,7 @@ export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; on
         <RangeMatrix cells={r.grid.cells} actions={r.grid.actions} colors={colors} selected={sel} onSelect={setSel} caption={r.label} />
       </div>
       <p className="text-xs">
-        <span className="font-mono">{sel}</span>
-        {sel === r.cls && " (your hand)"}:{" "}
-        {mix.length ? mix.map((x) => `${x.a} ${pct(x.f)}`).join(", ") : "not in your range here"}
+        <CellLine r={r} sel={sel} mix={mix} />
         {cell && cell.w < 0.999 && <span className="text-muted"> · {pct(cell.w)} of its combos in the range</span>}
       </p>
     </details>
@@ -657,9 +679,14 @@ export function SpotRange({ r, provenance, strategy, look, onLook, empty }: { r:
         <RangeMatrix cells={weights} actions={[]} colors={[]} view="weight" selected={pick} onSelect={setSel} caption={r.label} />
       )}
       <p className="text-xs">
-        <span className="font-mono">{pick}</span>
-        {pick === r.cls && " (your hand)"}:{" "}
-        {!cell || cell.w <= 0 ? "not in your range here" : mixOn ? mix.map((x) => `${x.a} ${pct(x.f)}`).join(", ") : `${pct(cell.w)} of its combos in your range`}
+        {mixOn && cell && cell.w > 0 ? (
+          <CellLine r={r} sel={pick} mix={mix} />
+        ) : (
+          <>
+            <span className="font-mono">{pick}</span>
+            {pick === r.cls && " (your hand's class)"}: {!cell || cell.w <= 0 ? "not in your range here" : `${pct(cell.w)} of its combos in your range`}
+          </>
+        )}
         {mixOn && cell && cell.w > 0 && cell.w < 0.999 && <span className="text-muted"> · {pct(cell.w)} of its combos in the range</span>}
       </p>
       {/* (under the grid: what produced it, by name, its whole description a click away) */}

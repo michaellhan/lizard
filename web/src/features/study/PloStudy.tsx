@@ -84,7 +84,7 @@ export function PloStudy() {
           setOwn(next);
           setParams(next, { replace: true });
         }}
-        extra={mine ? (result, band) => <MyHand mine={mine} result={result} band={band} ranges={ranges} /> : undefined}
+        extra={mine ? (result, basis) => <MyHand mine={mine} result={result} basis={basis} ranges={ranges} /> : undefined}
       />
     </div>
   );

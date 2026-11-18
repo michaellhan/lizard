@@ -2,7 +2,7 @@
 // on decisions made up for it.
 import { describe, expect, it } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { agreement, basisOf, BASES, COLS, freqs, groupBy, isPfSolve, leakIsRead, leaks, leakTest, lostByKind, meanRange, MIN_READ, mixByClass, PF_ROW, readLeaks, report, rowsOf, spotOf, tally, toCSV, toJSON, type Leak } from "./report";
+import { agreement, basisOf, BASES, COLS, COUNTED_WORDS, countedBb, freqs, groupBy, isPfSolve, leakIsRead, leaks, leakTest, lostByKind, meanRange, MIN_READ, mixByClass, PF_ROW, readLeaks, report, rowsOf, spotOf, tally, toCSV, toJSON, type Leak } from "./report";
 import { wilson } from "./stats";
 
 let k = 0;
@@ -419,5 +419,22 @@ describe("report", () => {
     expect(r.spotEv).toEqual({ n: 1, lost: 2, avgPct: 40 });
     expect(r.pfEv).toEqual({ n: 1, lost: 0.5 });
     expect(lostByKind([pf, spot], h)[0]).toMatchObject({ ev: 1, lost: 2, pfEv: 1, pfLost: 0.5 });
+  });
+
+  it("counts in every total what the verdicts count: past the answer's noise, below Correct; a grade kept before, all of it", () => {
+    const h = new Map([["h1", { id: "h1", tournament: undefined } as unknown as HandRecord]]);
+    // (a miss 1.50bb past the noise of its 2bb; a Correct within the noise of its 0.10bb; a grade kept before noise was)
+    const miss = cbet({ handId: "h1", evLossBb: 2, lossPct: 40, past: 1.5, pastPct: 30, noise: 0.5 });
+    const close = cbet({ handId: "h1", verdict: "Correct", evLossBb: 0.1, lossPct: 1.8, past: 0, pastPct: 0, noise: 0.11 });
+    const old = cbet({ handId: "h1", evLossBb: 0.6, lossPct: 10.9 });
+    const pf = open({ handId: "h1", source: "preflop-solve", byEv: true, verdict: "Mistake", evLossBb: 0.5, lossPct: 10, past: 0.2, pastPct: 4 });
+    expect([countedBb(miss), countedBb(close), countedBb(old)]).toEqual([1.5, 0, 0.6]);
+    const r = report([miss, close, old, pf]);
+    expect(r.spotEv).toEqual({ n: 3, lost: 2.1, avgPct: Math.round(((30 + 0 + 10.9) / 3) * 10) / 10 });
+    expect(r.pfEv).toEqual({ n: 1, lost: 0.2 });
+    expect(r.mistakes.map((x) => x.evLossBb)).toEqual([2, 0.6, 0.5]);
+    expect(lostByKind([miss, close, old, pf], h)[0]).toMatchObject({ ev: 3, lost: 2.1, pfEv: 1, pfLost: 0.2 });
+    expect(tally([miss, close, old])).toMatchObject({ lost: 2.1 });
+    expect(COUNTED_WORDS).toMatch(/only what each decision below Correct gave up past its answer's noise/);
   });
 });

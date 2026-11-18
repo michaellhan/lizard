@@ -12,7 +12,7 @@ import { heldDecisions } from "@/data/mistakes";
 import { scenarioWords, type ScenarioSetup } from "@/data/scenarios";
 import { GAME_EQUILIBRIUM } from "@/features/analyze/analyze";
 import { canDrill, drillSessionId, fromSession, leakDrillLink, leakParam, type LeakRef } from "@/features/analyze/leakDrill";
-import { BASES, basisOf, isGraded, isOk, isPfSolve, leakTest, MIN_READ, readLeaks, type Leak } from "@/features/analyze/report";
+import { BASES, basisOf, countedBb, isGraded, isOk, isPfSolve, leakTest, MIN_READ, readLeaks, type Leak } from "@/features/analyze/report";
 import { exploitImports, isEquilibriumHand } from "@/features/analyze/sessions";
 import { STREET_ORDER } from "@/features/history/progress";
 import type { DrillStreet, DrillView } from "@/features/practice/drills";
@@ -220,10 +220,10 @@ function tallyRows(rows: readonly Leak[], ds: readonly DecisionRecord[], session
       t.n++;
       if (hasEv && isPfSolve(d)) {
         t.pfEv++;
-        t.pfLost += d.evLossBb ?? 0;
+        t.pfLost += countedBb(d);
       } else if (hasEv) {
         t.ev++;
-        t.lost += d.evLossBb ?? 0;
+        t.lost += countedBb(d);
         if (d.roughEv) t.rough++;
       }
       add(t.bases, (basis ??= basisOf(d)));
@@ -248,7 +248,8 @@ function readingOf(l: Leak, t: RowTally): string {
 function costOf(t: RowTally): string {
   if (!t.ev && !t.pfEv) return `No EV: all ${many(t.n, "decision")} graded by frequency.`;
   const rest = t.n - t.ev - t.pfEv;
-  const parts = [t.ev ? `${bbs(t.lost)} of solver EV given up over ${many(t.ev, "decision")} graded by EV` : "", t.pfEv ? `${bbs(t.pfLost)} given up by the preflop solve's EV over ${many(t.pfEv, "decision")}` : ""].filter(Boolean);
+  // (as the verdicts count it: past each answer's noise, below Correct; report.ts countedBb)
+  const parts = [t.ev ? `${bbs(t.lost)} of solver EV given up past the answers' noise over ${many(t.ev, "decision")} graded by EV` : "", t.pfEv ? `${bbs(t.pfLost)} given up past the noise by the preflop solve's EV over ${many(t.pfEv, "decision")}` : ""].filter(Boolean);
   return `${parts.join("; apart from that, ")}${rest ? `; ${rest.toLocaleString()} more by frequency` : ""}.`;
 }
 

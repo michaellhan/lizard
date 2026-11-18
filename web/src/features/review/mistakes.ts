@@ -3,17 +3,18 @@
 // exactly as the decision was (practice.ts gradeMix: by EV where the answer has EVs for every action, else by
 // frequency), against the answer there is now. If that isn't the kind of answer the first grade stood on, `answerChange`
 // says how, and the two grades aren't set side by side. A decision from Analyze (fromAnalyze.ts) is retried against the
-// mix kept with it, capped as its grade was, so its answer can't change.
+// mix kept with it, on the basis kept with its grade (its noise, and what capped it), so its answer can't change.
 import { bb, pct } from "@/components/actions";
 import type { MistakeRecord, MistakeTry } from "@/data/db";
 import { heldDecisions } from "@/data/mistakes";
 import { describeSetup, setupToParams, tidySetup } from "@/features/solve/setup";
 import { describeLine, fromSearch, STREETS } from "@/features/study/studyState";
-import { capGrade, whoOf, type Grade } from "@/grading/grade";
+import { whoOf, type AnswerBasis, type Grade } from "@/grading/grade";
+import { basisOf } from "@/grading/basis";
 import { storedMoved, versionOf } from "@/grading/version";
 import { describe as describeProvenance, sourceLabel } from "@/solver/provenance";
 import type { Provenance } from "@/solver/types";
-import { situation, type DrillProblem } from "@/features/practice/drills";
+import { situation, treeBet, type DrillProblem } from "@/features/practice/drills";
 import { bestResponse } from "@/features/practice/exploit";
 import { askOf, CHIP_MODEL, gradable, gradeMix, type Decision, type PracticeHand } from "@/features/practice/practice";
 import { reviewed } from "@/features/practice/review";
@@ -25,7 +26,21 @@ import { afterRetry, dueAfter } from "./schedule";
 export const TRIES_KEPT = 20;
 
 export const gameWords = (players: number, stack: number) => `${players === 2 ? "HU" : `${players}-max`} ${stack}bb`;
-export const gradeOf = (g: Grade): MistakeRecord["grade"] => ({ a: g.a, best: g.best, verdict: g.verdict, ok: false, mixed: g.mixed, loss: g.loss, lossPct: g.lossPct, byEv: g.byEv, ...(g.capped ? { capped: true } : {}) });
+export const gradeOf = (g: Grade): MistakeRecord["grade"] => ({
+  a: g.a,
+  best: g.best,
+  verdict: g.verdict,
+  ok: false,
+  mixed: g.mixed,
+  loss: g.loss,
+  lossPct: g.lossPct,
+  byEv: g.byEv,
+  ...(g.capped ? { capped: true } : {}),
+  ...(g.capWhy ? { capWhy: g.capWhy } : {}),
+  ...(g.clearWhy ? { clearWhy: g.clearWhy } : {}),
+  ...(g.noise !== undefined ? { noise: g.noise } : {}),
+  ...(g.past !== undefined ? { past: g.past, pastPct: g.pastPct ?? 0 } : {}),
+});
 
 const cents = (x: number) => Math.round(x * 100) / 100;
 
@@ -82,6 +97,7 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
     mix: d.mix,
     pot: d.pot,
     grade: gradeOf(g),
+    ...(d.basis ? { basis: d.basis } : {}),
     provenance: d.provenance,
     step: 0,
     due: dueAfter(now, 0),
@@ -122,17 +138,15 @@ export function drillMistake(sessionId: string, rep: LibraryReport, pr: DrillPro
   };
 }
 
-/** A bet's chips: what the drills' labels show, "bet 33%" being 33% of the pot. */
-export const betAmount = (name: string, pot: number) => {
-  const m = /^bet ([\d.]+)%/.exec(name);
-  return m ? Math.round((Number(m[1]) / 100) * pot * 100) / 100 : undefined;
-};
+/** A stored bet's chips at a pot: what the drills' labels show, as the tree bets them (drills.ts treeBet). */
+export const betAmount = (name: string, pot: number) => treeBet(name, pot);
 
 /** A drill's stored answer for your hand, as a mix. */
-export function drillMix(pr: Pick<DrillProblem, "names" | "freqs" | "evs" | "pot">): MistakeRecord["mix"] {
+export function drillMix(pr: Pick<DrillProblem, "names" | "freqs" | "evs" | "pot"> & Partial<Pick<DrillProblem, "rough">>): MistakeRecord["mix"] {
   return pr.names.map((action, i) => {
     const amount = betAmount(action, pr.pot);
-    return { action, freq: pr.freqs[i]!, ev: pr.evs?.[i] ?? null, ...(amount !== undefined ? { amount } : {}) };
+    // (a rough EV kept as the drill graded it: a retry of the kept answer allows it the same)
+    return { action, freq: pr.freqs[i]!, ev: pr.evs?.[i] ?? null, ...(amount !== undefined ? { amount } : {}), ...(pr.evs && pr.rough?.[i] ? { rough: true as const } : {}) };
   });
 }
 
@@ -158,9 +172,10 @@ export interface RetryAnswer {
   provenance: Provenance;
   /** a library entry's version, by the library's index */
   version?: string;
-  /** a live drill's answer that leaned on something other than its own solve: it can't condemn a line (capGrade) */
-  capped?: boolean;
-  /** and what it leaned on, in words */
+  /** what grading knows of the answer (grading/basis.ts): a live drill's, its ranges; a kept decision's, as it was graded.
+   * Unset: its provenance's (basisOf) */
+  basis?: AnswerBasis;
+  /** how its ranges aren't all the solve's, in words */
   off?: string;
 }
 
@@ -204,7 +219,7 @@ export interface Retried {
 }
 
 /** What a retry reads of the spot: a kept mistake's, or one of this session's decisions (the Practice page's). */
-export type RetrySpot = Pick<MistakeRecord, "ask" | "provenance" | "mix" | "street" | "study" | "chose">;
+export type RetrySpot = Pick<MistakeRecord, "ask" | "provenance" | "mix" | "street" | "study" | "chose"> & Partial<Pick<MistakeRecord, "basis">>;
 
 /** The answer as the spot's game has it: a chip EV tournament's says so, and a fallback's chips aren't graded beside prize
  * equity, as at the table (practice.ts `modelled`, `gradable`), and a locked answer asked again is the best response it was. */
@@ -225,8 +240,12 @@ const answerIn = (m: RetrySpot, answer: RetryAnswer): RetryAnswer => {
 export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number): Retried {
   const answer = answerIn(m, asked);
   const { mix, pot, provenance } = answer;
-  const graded = (k: number) => gradeMix(mix, pot, k, provenance.source);
-  const grading = (k: number) => (m.ask.via === "kept" ? capGrade(graded(k), provenance.band) : answer.capped ? capGrade(graded(k), "approximate") : graded(k));
+  // (the one entry point every surface grades through: the answer's noise, and its cap where it can't condemn a line; a flop
+  // library answer asked again keeps the flop's pot the first grade knew, as its EV steps are 1% of it)
+  const asked0 = answer.basis ?? basisOf(provenance);
+  const flopPot = asked0.source === "library" && asked0.flopPot === undefined ? m.basis?.flopPot : undefined;
+  const basis = flopPot !== undefined ? { ...asked0, flopPot } : asked0;
+  const grading = (k: number) => gradeMix(mix, pot, k, basis);
   const g = grading(i);
   const was = mix.findIndex((a) => a.action === m.chose);
   const change = answerChange(m, answer);
@@ -253,11 +272,17 @@ export const KEPT_RETRY_WORDS = "Against the answer kept in Analyze; nothing sol
 /** Where a kept mistake came from, in words; nothing for Practice's own. */
 export const ORIGIN_WORDS: Partial<Record<MistakeRecord["from"], string>> = { analyze: "Added from Analyze", leak: "From a leak drill" };
 
-/** What a grade cost, in words: EV by the answer, or, graded by frequency, how often it's played and never an EV. */
-export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a" | "best">, mix: MistakeRecord["mix"], source: string | undefined, unit = "bb"): string {
+/** What a grade cost, in words: EV by the answer, and where the answer has a noise, how much of it is past that (all the
+ * verdict and the score count), or that it's within it or part of the mix; graded by frequency, how often it's played and
+ * never an EV. */
+export function costWords(g: Pick<Grade, "byEv" | "loss" | "lossPct" | "a" | "best"> & Partial<Pick<Grade, "verdict" | "noise" | "past" | "close">>, mix: MistakeRecord["mix"], source: string | undefined, unit = "bb"): string {
   const rough = mix[g.a]?.rough || mix[g.best]?.rough ? "≈" : "";
-  if (g.byEv) return g.loss > 0 ? `${rough}${bb(g.loss)}${unit} lost · ${g.lossPct.toFixed(1)}% pot` : "no EV lost";
-  return `by frequency, no EV: ${whoOf(source).replace(/^The /, "the ")} plays it ${pct(mix[g.a]?.freq ?? 0)}`;
+  if (!g.byEv) return `by frequency, no EV: ${whoOf(source).replace(/^The /, "the ")} plays it ${pct(mix[g.a]?.freq ?? 0)}`;
+  if (!(g.loss > 0)) return "no EV lost";
+  const lost = `${rough}${bb(g.loss)}${unit} lost · ${g.lossPct.toFixed(1)}% pot`;
+  if (g.verdict === "Best" || g.close) return `${lost} (within the answer's noise, not counted)`;
+  if (g.verdict === "Correct") return `${lost} (part of the mix, not counted)`;
+  return g.noise && g.past !== undefined ? `${lost}, ${bb(g.past)}${unit} past the answer's noise` : lost;
 }
 
 /** The hand up to the spot, in words, where its line can be read. */

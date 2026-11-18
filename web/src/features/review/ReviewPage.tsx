@@ -390,7 +390,8 @@ function MistakeRow({ m, now, common, game, active, onRetry, onDelete }: { m: Mi
             {last.like ? "" : `, against ${last.label}`}
           </span>
         )}
-        {m.grade.capped && <span className="block text-xs text-muted">{CAPPED_WORDS}</span>}
+        {m.grade.capped && <span className="block text-xs text-muted">{m.grade.capWhy ?? CAPPED_WORDS}</span>}
+        {m.grade.clearWhy && <span className="block text-xs text-muted">{m.grade.clearWhy}</span>}
       </span>
       <span className="space-y-0.5">
         <span className="flex items-center gap-1.5 whitespace-nowrap">
@@ -593,7 +594,6 @@ function RetryPanel({ m, next, onChanged, onOpen }: { m: MistakeRecord; next: Mi
       {done && (
         <DecisionView d={done.decision} players={m.players} title="This retry">
           <Compare m={m} r={done} />
-          {done.grade.capped && <p className="text-muted">{CAPPED_WORDS}</p>}
           <Moved kept={kept} now={done.tried.at} />
           {nextButton}
         </DecisionView>

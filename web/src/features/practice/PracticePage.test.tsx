@@ -106,7 +106,7 @@ describe("PracticePage", () => {
     expect(within(last).getByText("Best")).toBeInTheDocument();
     expect(within(last).getByText(/Graded by chart frequency: charts have no EVs\./)).toBeInTheDocument();
     // the rule-based why, in the chart's name (not a solver's)
-    expect(within(last).getByText(/^The chart (always plays this here|picks this most often here: \d+% of the time)\.$/)).toBeInTheDocument();
+    expect(within(last).getByText(/^The chart (always plays this here|picks this most often here: \d+\.\d% of the time)\.$/)).toBeInTheDocument();
     // (the source a chip, its whole description the first line of its tooltip and of what it opens to)
     expect(within(last).getByTitle((t) => t.startsWith(describeProvenance(prov("charts"))))).toHaveTextContent("Preflop charts");
     // the spot in Study: heads-up at 100bb, nothing before your decision
@@ -120,7 +120,7 @@ describe("PracticePage", () => {
     last = screen.getByRole("region", { name: "Last decision" });
     expect(within(last).getByText("Best")).toBeInTheDocument();
     expect(within(last).getByText(/^No EV given up\. This hand mixes actions here\.$/)).toBeInTheDocument();
-    expect(within(last).getByText("The solver picks this most often here: 60% of the time.")).toBeInTheDocument();
+    expect(within(last).getByText("The solver picks this most often here: 60.0% of the time.")).toBeInTheDocument();
     expect(within(last).getByTitle((t) => t.startsWith(describeProvenance(LIVE)))).toHaveTextContent("Live solve");
     expect(within(last).getByRole("row", { name: /bet 33% \(1\.6bb\) ← you 60\.0% 2\.20/ })).toBeInTheDocument();
     // (your raise, its call, the big blind's check, the flop)
@@ -376,14 +376,17 @@ describe("PracticePage", () => {
       expect(within(matrix).getAllByRole("gridcell")).toHaveLength(169);
       expect(within(matrix).getByRole("gridcell", { name: new RegExp(`^${mine}:`) })).toHaveAttribute("aria-selected", "true");
       expect(within(matrix).getByRole("gridcell", { name: new RegExp(`^${mine}:`) }).getAttribute("aria-label")).not.toMatch(/raise/);
-      expect(panel).toHaveTextContent(`${mine} (your hand): 100.0% of its combos in your range`);
+      expect(panel).toHaveTextContent(`${mine} (your hand's class): 100.0% of its combos in your range`);
       expect(panel).not.toHaveTextContent(/raise 2\.5 70\.0%/);
       expect(within(panel).getByRole("button", { name: "Strategy" })).toBeDisabled();
       // once the answer is out (revealed here; acting does the same): the strategy, your hand's mix in words
       fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
       await waitFor(() => expect(within(screen.getByRole("region", { name: "Your range" })).getByRole("button", { name: "Strategy" })).toBeEnabled());
       panel = screen.getByRole("region", { name: "Your range" });
-      expect(within(panel).getByText(/\(your hand\): fold 10\.0%, call 20\.0%, raise 2\.5 70\.0%$/).textContent).toBe(`${mine} (your hand): fold 10.0%, call 20.0%, raise 2.5 70.0%`);
+      // (the cell is the class's average; your own combo's mix, the one graded, is said beside it)
+      expect(within(panel).getByText(/^, all combos: fold 10\.0%, call 20\.0%, raise 2\.5 70\.0% · your .+ \(graded on this\)$/).textContent).toMatch(
+        new RegExp(`^${mine}, all combos: fold 10\\.0%, call 20\\.0%, raise 2\\.5 70\\.0% · your [2-9TJQKA][♠♥♦♣][2-9TJQKA][♠♥♦♣]: .+ \\(graded on this\\)$`),
+      );
       // another hand picked: its mix, and its share of combos
       matrix = within(panel).getByRole("grid", { name: "Your range · preflop · BTN/SB vs BB" });
       fireEvent.click(within(matrix).getByRole("gridcell", { name: new RegExp(`^${other}`) }));

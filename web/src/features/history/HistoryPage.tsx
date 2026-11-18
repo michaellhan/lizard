@@ -15,6 +15,8 @@ import { BASIS_WORDS, MIN_SHARE, shareText, splitTotals, streetTotals, trends, t
 const isKind = (k: string | null): k is SessionKind => KINDS.some((x) => x.id === k);
 const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x * 100) / 100)}`;
 const lossText = (bbPer: number | null, pctPer: number | null, unit = "bb") => (bbPer == null ? "–" : `${bb(bbPer)}${unit}${pctPer == null ? "" : ` · ${pctPer.toFixed(1)}% pot`}`);
+/** What the history's EV lost counts, and since when (grade.ts scored, the score's rule). */
+const HISTORY_LOSS_WORDS = "Since 2026-11-18 it counts only what a decision below Correct gave up past its answer's noise, so a stretch before then reads higher.";
 const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
 const okText = (ok: number, n: number) => (!n ? "–" : pct(ok / n, 0));
 /** A way's figures for a session's row, a line of their own: the share Best or Correct, then (graded by EV) what a
@@ -468,7 +470,7 @@ function Trends({ lines }: { lines: BasisTrend[] }) {
           {end(t) && <p>{end(t)}</p>}
           {t.basis === "ev" && t.line && (
             <p className="text-xs text-muted">
-              EV lost per decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot.
+              EV lost per decision by stretch, oldest first: {t.blocks.map((b) => `${(b.lossPct / b.ne).toFixed(1)}%`).join(", ")} of the pot. {HISTORY_LOSS_WORDS}
             </p>
           )}
           <p className="text-xs text-muted">

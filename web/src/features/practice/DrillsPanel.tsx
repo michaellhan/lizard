@@ -20,7 +20,7 @@ import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { addVersion } from "@/features/history/history";
 import { drillMistake, drillMix, missedAgain } from "@/features/review/mistakes";
-import { addScore, summary, whyText, type Grade } from "@/grading/grade";
+import { addScore, CAPPED_WORDS, lossWords, SCORE_LOSS_WORDS, summary, whyText, type Grade } from "@/grading/grade";
 import { gameLabel, isDrillable, resolveLibrarySource, storedTurnFlops, type LibraryIndex, type LibrarySpotIndex } from "@/library/catalog";
 import type { Entry, LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
@@ -336,6 +336,7 @@ function ScoreBar({ session }: { session: DrillSession }) {
           {session.revealed} revealed pick{session.revealed === 1 ? "" : "s"} not graded.
         </p>
       )}
+      {s.ne > 0 && <p className="basis-full text-xs text-muted">{SCORE_LOSS_WORDS}</p>}
     </section>
   );
 }
@@ -608,7 +609,7 @@ function SpotDrill({
         setSession((s) => ({ ...s, revealed: (s.revealed ?? 0) + 1 }));
         return;
       }
-      const g = gradeDrill(pr, a);
+      const g = gradeDrill(pr, a, deal.st === "ready" ? deal.entry : undefined);
       setAnswer({ key: dealKey, a, g });
       const version = spotStamp(spot, tree, pr.flop);
       const dk = dealtFrom(filter, hand);
@@ -793,13 +794,10 @@ function SpotDrill({
                 )}
               </p>
               <p className="text-muted">
-                {!graded.g.byEv
-                  ? "Graded by frequency: no EV stored."
-                  : graded.g.loss > 0
-                    ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(pr.pot)}bb pot.`
-                    : "No EV given up."}
+                {!graded.g.byEv ? "Graded by frequency: no EV stored." : lossWords(graded.g, pr.pot)}
                 {graded.g.mixed && " This hand mixes actions here."}
               </p>
+              {graded.g.capped && <p className="text-muted">{graded.g.capWhy ?? CAPPED_WORDS}</p>}
             </>
           ) : (
             <p role="status" className="text-muted">

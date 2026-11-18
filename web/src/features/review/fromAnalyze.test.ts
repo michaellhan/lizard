@@ -221,7 +221,8 @@ describe("a retry of an entry from Analyze", () => {
   });
 
   it("holds a rough solve's retry at an Inaccuracy, as the first grade was", async () => {
-    const d = turn({ band: "rough", verdict: "Inaccuracy", capped: true, label: "Live solve · rough", mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] });
+    // (1.40bb of a 9.1bb pot: a Blunder where it's measured, short of a clear blunder)
+    const d = turn({ band: "rough", verdict: "Inaccuracy", capped: true, label: "Live solve · rough", mix: [["check", 0.95, 3], ["bet 33%", 0.05, 1.6]] });
     const m = addedMistake(d, hand, r, NOW)!;
     const t = retried(m, keptAnswer(m), 1, NOW);
     expect(t.grade).toMatchObject({ verdict: "Inaccuracy", capped: true });

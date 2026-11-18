@@ -91,6 +91,7 @@ const entry = (d: DecisionRecord, hand: HandRecord, r: ReplayedHand | null, a: n
     }),
     pot,
     grade: { ...gradeOf(g), verdict },
+    ...(d.basis ? { basis: d.basis } : {}),
     provenance: decisionProvenance(d),
     step: 0,
     due: dueAfter(now, 0),

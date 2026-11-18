@@ -11,7 +11,7 @@ import { bb, pct } from "@/components/actions";
 import { putSession, recentSessions, type SessionRecord } from "@/data/db";
 import { keepMistake } from "@/data/mistakes";
 import { missedAgain } from "@/features/review/mistakes";
-import { CAPPED_WORDS, summary, whoOf, whyText, type Grade } from "@/grading/grade";
+import { CAPPED_WORDS, lossWords, SCORE_LOSS_WORDS, summary, whoOf, whyText, type Grade } from "@/grading/grade";
 import { gameLabel, storedTurnFlops, type LibrarySpotIndex } from "@/library/catalog";
 import type { LibraryRanges } from "@/library/entry";
 import type { LibraryFiles, LibraryReport } from "@/library/files";
@@ -237,6 +237,7 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
             {session.revealed} revealed pick{session.revealed === 1 ? "" : "s"} not graded.
           </p>
         )}
+        {s.ne > 0 && <p className="basis-full text-xs text-muted">{SCORE_LOSS_WORDS}</p>}
       </section>
       )}
 
@@ -351,9 +352,9 @@ export function LiveDrill({ files, spot, street, view, filter, hand, rng, source
                 )}
               </p>
               <p className="text-muted">
-                {graded.g.loss > 0 ? `EV given up: ${bb(graded.g.loss)}bb, ${graded.g.lossPct.toFixed(1)}% of the ${bb(answer.pot)}bb pot.` : "No EV given up."}
+                {lossWords(graded.g, answer.pot, evUnit(answer.provenance)) ?? "No EV given up."}
                 {graded.g.mixed && " This hand mixes actions here."}
-                {graded.g.capped && ` ${CAPPED_WORDS}`}
+                {graded.g.capped && ` ${graded.g.capWhy ?? CAPPED_WORDS}`}
               </p>
             </>
           ) : (

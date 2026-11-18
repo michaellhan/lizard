@@ -5,7 +5,7 @@ import { deleteDB, openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStor
 import type { SessionOptions } from "@/features/practice/practice";
 import type { SpotSetup } from "@/features/solve/setup";
 import type { TournamentSetup } from "@/features/tournaments/tournament";
-import type { Verdict } from "@/grading/grade";
+import type { AnswerBasis, Verdict } from "@/grading/grade";
 import type { AdvisorState } from "@/solver/protocol";
 import type { Confidence, ConvergenceBand, Provenance, ResultSource, SolveMode } from "@/solver/types";
 
@@ -241,9 +241,22 @@ export interface DecisionRecord {
   /** the answer's action your move was graded as, and how often your hand takes it */
   matched?: string;
   freq?: number;
-  /** the answer's most frequent action and its frequency */
+  /** the grade's best action (grade.ts Grade.best: the top EV's, or of the actions within the answer's noise of it the
+   * most played; the most frequent by frequency) and its frequency. A grade kept before 2026-11-18 has the most frequent */
   best?: string;
   bestFreq?: number;
+  /** the answer's EV noise at the decision, bb (grade.ts answerNoise), and the EV lost past it, bb and % of the pot: what
+   * the verdict and a score count (since 2026-11-18; an older grade has none, and its whole loss counts) */
+  noise?: number;
+  past?: number;
+  pastPct?: number;
+  /** why the verdict stopped at Inaccuracy, in words (grade.ts capReason; since 2026-11-18) */
+  capWhy?: string;
+  /** why an answer that can't condemn a line still graded this a Blunder: a clear blunder, CLEAR_PCT of the pot or more
+   * past the noise (grade.ts gradeAnswer) */
+  clearWhy?: string;
+  /** what grading knew of the answer (grade.ts AnswerBasis), so a drill or a retry of this decision grades it the same */
+  basis?: AnswerBasis;
   /** the answer's actions for your hand: [action, frequency, EV bb or null] */
   mix?: [string, number, number | null][];
   /** your move graded as another ("your all-in, graded as the chart's raise") */
@@ -358,7 +371,10 @@ export interface MistakeRecord {
   chose: string;
   mix: { action: string; freq: number; ev: number | null; amount?: number; rough?: true }[];
   pot: number;
-  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean; capped?: boolean };
+  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean; capped?: boolean; capWhy?: string; clearWhy?: string; noise?: number; past?: number; pastPct?: number };
+  /** what grading knew of the answer (grade.ts AnswerBasis), so a retry against the kept answer grades it the same; a
+   * record from before 2026-11-18 has none */
+  basis?: AnswerBasis;
   /** what graded it; null where none was kept */
   provenance: Provenance | null;
   /** how far along the schedule, and the day it's next due (null: finished) */

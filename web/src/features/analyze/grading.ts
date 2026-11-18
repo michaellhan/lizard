@@ -16,12 +16,13 @@ import { PF_ICM_WORDS, pfIcmStage } from "@/features/practice/pfIcmStored";
 import { pfBlocked } from "@/features/practice/practice";
 import { tournamentRequest } from "@/features/tournaments/tournament";
 import { pfGradeSizes } from "@/solver/pfStored";
-import { capGrade, grade, type Grade, type Verdict } from "@/grading/grade";
+import { gradeAnswer, type AnswerBasis, type Grade, type Verdict } from "@/grading/grade";
+import { basisOf } from "@/grading/basis";
 import { versionOf } from "@/grading/version";
 import { importHand, type ReplayedHand } from "@/hh/replay";
 import { simulate, type Lines, type Move, type Street } from "@/poker/table";
-import type { AdvisorActionStat, AdvisorResponse, AdvisorState, OffSolution } from "@/solver/protocol";
-import { describe as describeProvenance } from "@/solver/provenance";
+import type { AdvisorActionStat, AdvisorResponse, AdvisorState } from "@/solver/protocol";
+import { describe as describeProvenance, offText } from "@/solver/provenance";
 import { SolverError, type Provenance, type ResultSource } from "@/solver/types";
 import { heroDecisions, potType, preflopRaises, preflopSituation, STREETS } from "./analyze";
 
@@ -139,21 +140,8 @@ export function situationAt(
   return { situation: `${multi ? "Multiway" : pt} · ${ip ? "IP" : "OOP"} · ${facing ? "facing bet" : ip ? "checked to" : "first to act"}`, potType: pt, facing, ip, multi };
 }
 
-/** Why the ranges behind an answer aren't all the solve's (index.html offText); null where they are. */
-export function offText(res: AdvisorResponse): string | null {
-  const off = Array.isArray(res.off_solution) ? res.off_solution : [];
-  const one = (o: OffSolution) =>
-    o.why === "rare"
-      ? `${o.pos}'s ${o.action} on the ${o.street} is ${(o.share ?? 0) < 0.5 ? "never" : `only ${o.share}%`} in the solve, so their range from there is the betting rules'${o.resolved ? " and the play after it is solved again from there" : ""}`
-      : o.why === "filled"
-        ? o.street === "preflop"
-          ? `${o.pos}'s preflop line isn't in the charts, so their range is the hands that take its last action`
-          : `${o.pos}'s ${o.street} line left ${o.combos} combos, so their range is filled out with the rest of their ${o.street} range`
-        : o.why === "rules"
-          ? `the ${o.street} is narrowed by the betting rules, not solved`
-          : `the ${o.street} solve hadn't settled, so ranges follow it ${o.trust}% and the betting rules the rest`;
-  return off.length ? [...new Set(off.map(one))].join("; ") : null;
-}
+/** Why the ranges behind an answer aren't all the solve's: provenance.ts offText, said here as it always was. */
+export { offText };
 
 /** Your role after the flop: the last preflop raiser, a caller of it, or a limped pot. */
 export function roleOf(r: ReplayedHand): "PFR" | "caller" | "limped" {
@@ -201,8 +189,14 @@ export const jamOffTree = (res: AdvisorResponse, m: Move) =>
 
 /** The grade of your move against an answer, with the mix it is graded against; null where the move isn't in it, or
  * where an answer with EVs gives no pot: EV lost is graded as a share of the pot, and against none every loss would
- * read as an Inaccuracy, however large. */
-export function gradeAgainst(res: AdvisorResponse, m: Move, source?: string): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean; roughEvs?: string[] } | null {
+ * read as an Inaccuracy, however large. `basis`: what's known of the answer (grading/basis.ts), or just its source; the
+ * grade goes through the one entry point (grade.ts gradeAnswer), the answer's rough EVs added, and `basis` is what it
+ * stood on, as a drill or a retry of the decision grades it again. */
+export function gradeAgainst(
+  res: AdvisorResponse,
+  m: Move,
+  basis?: AnswerBasis | string,
+): { grade: Grade; mix: [string, number, number | null][]; matched: string; note?: string; pot: number; roughEv?: boolean; roughEvs?: string[]; basis: AnswerBasis } | null {
   const hit = matchMove(res, m);
   if (!hit) return null;
   const freqs = hit.actions.map((a) => a.freq ?? 0);
@@ -210,9 +204,13 @@ export function gradeAgainst(res: AdvisorResponse, m: Move, source?: string): { 
   const evs = evList.every((x) => x !== null) ? (evList as number[]) : null;
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : 0;
   if (evs && !(pot > 0)) return null;
-  const g = grade({ freqs, evs, pot, source }, hit.index);
+  const given: AnswerBasis = typeof basis === "string" ? { source: basis } : (basis ?? {});
+  const flags = hit.actions.map((a) => a.rough_ev === true);
+  const b: AnswerBasis = flags.some(Boolean) ? { ...given, rough: flags } : given;
+  const g = gradeAnswer({ freqs, evs, pot }, hit.index, b);
   const rough = hit.actions.filter((a) => a.rough_ev).map((a) => a.action);
   return {
+    basis: b,
     grade: g,
     mix: hit.actions.map((a, k) => [a.action, freqs[k]!, evList[k]!]),
     matched: hit.actions[hit.index]!.action,
@@ -387,22 +385,30 @@ export async function gradeDecision(
   // (a fallback's rules or an equity guess is never graded against)
   if (!GRADED_SOURCES[scope].includes(source))
     return ungraded(`answered by ${label}, ${GRADED_SOURCES[scope] === SOLVING ? "which isn't graded against" : "not the charts or the library"}`, source, label, tri);
-  const g = gradeAgainst(ans.data, m, source);
+  // (a flop library answer's EVs are stored in steps of 1% of the flop's starting pot)
+  const flopPot = source === "library" && street === "flop" ? potBefore(r, "flop", 0) : undefined;
+  const g = gradeAgainst(ans.data, m, basisOf(ans.provenance, { res: ans.data, ...(flopPot ? { flopPot } : {}) }));
   // (the site's words beside any the grade has)
   const note = [g?.note, pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
   if (!g) return ungraded(matchMove(ans.data, m) ? "the answer gave no pot to measure the EV lost against" : `your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);
-  // (the answer's most frequent action, as the classic analyzer reports it; the grade's best is by EV)
-  const best = g.mix.reduce((b, x) => (x[1] > b[1] ? x : b));
+  // (the grade's best: by EV, of the actions within the answer's noise of the top the most played; by frequency the most
+  // played, yours where you tie it)
+  const best = g.mix[g.grade.best]!;
   const off = offText(ans.data);
-  // (a rough or cut-short solve can't condemn a line, as the classic gradeClass has it: its EV is kept, as measured)
-  const { verdict, capped } = capGrade(g.grade, ans.provenance.band);
+  // (where the answer's error can't be measured the verdict stops at Inaccuracy, its EV kept as measured: grade.ts capReason)
+  const { verdict, capped, capWhy, clearWhy, noise, past, pastPct } = g.grade;
   const version = versionOf(ans.provenance);
   return {
     ...base,
     verdict,
     ...(capped ? { capped: true } : {}),
+    ...(capWhy ? { capWhy } : {}),
+    ...(clearWhy ? { clearWhy } : {}),
     evLossBb: g.grade.byEv ? r2(g.grade.loss) : null,
     lossPct: g.grade.byEv ? Math.round(g.grade.lossPct * 10) / 10 : null,
+    ...(g.grade.byEv && noise ? { noise: Math.round(noise * 1000) / 1000 } : {}),
+    ...(g.grade.byEv && past !== undefined ? { past: Math.round(past * 1000) / 1000, pastPct: Math.round((pastPct ?? 0) * 100) / 100 } : {}),
+    basis: g.basis,
     byEv: g.grade.byEv,
     freq: g.mix[g.grade.a]![1],
     matched: g.matched,

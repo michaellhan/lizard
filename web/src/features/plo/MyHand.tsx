@@ -2,17 +2,18 @@
 // against this solve for your combo, under the solve's provenance like every other number on the page.
 import { useEffect, useState } from "react";
 import { putPloGrade } from "@/data/ploHands";
-import type { Verdict } from "@/grading/grade";
+import { CAPPED_WORDS, lossBrief, type Verdict } from "@/grading/grade";
 import { SEAT_NAMES, type RiverResult } from "@/engine/plo/river/run";
 import { VerdictTag } from "@/components/VerdictTag";
-import { mixAt } from "./drill";
+import { mixAt, type PloBasis } from "./drill";
 import { walkMine, type Mine } from "./mine";
 
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 const chips = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : "–");
 
-export function MyHand({ mine, result, band, ranges }: { mine: Mine; result: RiverResult; band: string | undefined; ranges?: [string, string] }) {
-  const walk = walkMine(result, mine, band);
+export function MyHand({ mine, result, basis, ranges }: { mine: Mine; result: RiverResult; basis: PloBasis; ranges?: [string, string] }) {
+  const walk = walkMine(result, mine, basis);
+  const band = typeof basis === "string" ? basis : basis?.band;
   const me = SEAT_NAMES[mine.seat];
   // a hand kept in Analyze keeps this street's grade, with what graded it
   const [kept, setKept] = useState(false);
@@ -61,8 +62,9 @@ export function MyHand({ mine, result, band, ranges }: { mine: Mine; result: Riv
                   {s.grade ? (
                     <>
                       <VerdictTag v={s.grade.verdict} />
-                      {s.grade.loss > 0 ? ` ${chips(s.grade.loss)}bb given up, ${s.grade.lossPct.toFixed(1)}% of the pot` : ""}
-                      {s.grade.capped ? " (capped: the solve is short of converged)" : ""}
+                      {s.grade.loss > 0 ? ` ${lossBrief(s.grade)}` : ""}
+                      {s.grade.capped ? ` ${s.grade.capWhy ?? CAPPED_WORDS}` : ""}
+                      {s.grade.clearWhy ? ` ${s.grade.clearWhy}` : ""}
                     </>
                   ) : (
                     <span className="text-muted">ungraded: {s.why}</span>

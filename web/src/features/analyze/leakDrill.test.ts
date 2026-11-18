@@ -69,7 +69,8 @@ describe("leakDrill", () => {
   it("grades a pick by EV where the mix has every EV, else by frequency", () => {
     const lib = d({ street: "flop", pot: 5.5, mix: [["check", 0.48, 3.1], ["bet 33%", 0.09, 3.0], ["bet 75%", 0.43, 3.12]] });
     const g = gradePick(lib, 1)!;
-    expect([g.byEv, g.verdict, Math.round(g.loss * 100) / 100]).toEqual([true, "Mistake", 0.12]);
+    // (a library answer's two stored EV steps, 0.11bb of this 5.5bb pot, are its noise: 0.01bb is past them)
+    expect([g.byEv, g.verdict, Math.round(g.loss * 100) / 100]).toEqual([true, "Inaccuracy", 0.12]);
     expect(gradePick(lib, 2)).toMatchObject({ byEv: true, verdict: "Best", ok: true });
     const chart = d({ mix: [["fold", 0.2, null], ["raise", 0.8, null], ["call", 0, null]] });
     expect(gradePick(chart, 1)).toMatchObject({ byEv: false, ok: true });
@@ -113,16 +114,21 @@ describe("leakDrill", () => {
       expect(canDrill(ds[1]!)).toBe(false);
     });
 
-    it("grades by the same cap as the grade: a rough solve's pick stops at an Inaccuracy, kept grades and old alike", () => {
-      const big = { mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] as NonNullable<DecisionRecord["mix"]> };
+    it("grades by the same cap as the grade: a rough solve's pick stops at an Inaccuracy, kept grades and old alike, short of a clear blunder", () => {
+      // (1.40bb of a 9.1bb pot: 15.4%, a Blunder where it's measured)
+      const big = { mix: [["check", 0.95, 3], ["bet 33%", 0.05, 1.6]] as NonNullable<DecisionRecord["mix"]> };
       expect(gradePick(turn({ ...big }), 1)).toMatchObject({ verdict: "Blunder" });
       expect(gradePick(turn({ ...big, band: "rough" }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
       expect(gradePick(turn({ ...big, band: "approximate" }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
       expect(gradePick(turn({ ...big, band: undefined, capped: true }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
+      // (8bb of it, 87% of the pot past the noise: a clear blunder, a Blunder on a rough solve too, and says why)
+      const clear = gradePick(turn({ mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]], band: "rough" }), 1)!;
+      expect(clear).toMatchObject({ verdict: "Blunder" });
+      expect(clear.clearWhy).toMatch(/^The solve stopped too far to trust, but this gives up 87\.4% of the pot past its noise, 20% or more: a clear blunder/);
     });
 
     it("says what it carries from the grade: how it was checked, its confidence, the cap and the version", () => {
-      const quick = turn({ confidence: "low", triageSource: "quick", version: "build:abc/123", band: "rough", mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] });
+      const quick = turn({ confidence: "low", triageSource: "quick", version: "build:abc/123", band: "rough", mix: [["check", 0.95, 3], ["bet 33%", 0.05, 1.6]] });
       const words = carriedWords(quick, gradePick(quick, 1)!).join(" ");
       expect(words).toMatch(/A Quick triage read at low confidence/);
       expect(words).toMatch(/stops at Inaccuracy/);

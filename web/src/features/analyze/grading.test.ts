@@ -129,8 +129,10 @@ describe("your move among the answer's actions", () => {
 
   it("after the flop: the nearest size, by EV; an all-in the answer has no all-in for is asked again", () => {
     const g = gradeAgainst(LIB, { pos: "BTN", action: "bet", to: 1.8 })!;
-    expect([g.matched, g.grade.verdict, g.grade.byEv, g.pot]).toEqual(["bet 33%", "Mistake", true, 5.5]);
+    // (0.12bb is 2.2% of the pot; 0.09bb of it past the noise floor, half a percent of the pot: an Inaccuracy)
+    expect([g.matched, g.grade.verdict, g.grade.byEv, g.pot]).toEqual(["bet 33%", "Inaccuracy", true, 5.5]);
     expect(g.grade.loss).toBeCloseTo(0.12, 9);
+    expect(g.grade.noise).toBeCloseTo(0.0275, 9);
     expect(gradeAgainst(LIB, { pos: "BTN", action: "bet", to: 4 })!.grade.verdict).toBe("Best");
     expect(matchMove(LIB, { pos: "BTN", action: "all-in" })).toBeNull();
     expect(jamOffTree(LIB, { pos: "BTN", action: "all-in" })).toBe(true);
@@ -158,7 +160,9 @@ describe("gradeDecision", () => {
       source: "charts", label: "Preflop charts · approximate", gradedAt: 7,
     });
     const flop = await gradeDecision({ id: "h1" }, r, "flop", 1, ask, 7);
-    expect(flop).toMatchObject({ verdict: "Mistake", evLossBb: 0.12, lossPct: 2.2, byEv: true, matched: "bet 33%", best: "check", bestFreq: 0.48, source: "library", situation: "SRP · IP · checked to", facing: false, ip: true, multi: false, role: "PFR" });
+    // (the library's EVs are stored in steps of 1% of the flop's pot, 5.5bb: 0.12bb lost is 0.01bb past two of them)
+    expect(flop).toMatchObject({ verdict: "Inaccuracy", evLossBb: 0.12, lossPct: 2.2, noise: 0.11, past: 0.01, byEv: true, matched: "bet 33%", best: "check", bestFreq: 0.48, source: "library", situation: "SRP · IP · checked to", facing: false, ip: true, multi: false, role: "PFR" });
+    expect(flop.basis).toEqual({ source: "library", flopPot: 5.5 });
     expect(flop.label).toMatch(/^Precomputed solution · srp_btn_bb/);
     expect(flop.mix).toEqual([["check", 0.48, 3.1], ["bet 33%", 0.09, 3], ["bet 75%", 0.43, 3.12]]);
   });
@@ -213,11 +217,15 @@ describe("gradeDecision", () => {
     });
     const scoped = (a: AdvisorResponse) => gradeDecision({ id: "h" }, r, "flop", 1, asking([a]).ask, 7, "all");
     const settled = await scoped(solve({ iterations: 300, exploitability_pct: 2 }));
-    expect([settled.verdict, settled.capped, settled.evLossBb]).toEqual(["Blunder", undefined, 0.5]);
-    // (fair isn't rough: under 10% of the pot it may still condemn)
-    expect((await scoped(solve({ iterations: 300, exploitability_pct: 9 }))).verdict).toBe("Blunder");
-    const rough = await scoped(solve({ iterations: 300, exploitability_pct: 14 }));
-    expect([rough.verdict, rough.capped, rough.evLossBb, rough.band]).toEqual(["Inaccuracy", true, 0.5, "rough"]);
+    // (its noise is twice its measured distance, 0.22bb: of the 0.5bb lost 0.28bb is past it, 5.1% of the pot)
+    expect([settled.verdict, settled.capped, settled.evLossBb, settled.past]).toEqual(["Mistake", undefined, 0.5, 0.28]);
+    // (fair isn't rough: under 10% of the pot it may still condemn a gap past its noise, 18% of the pot here)
+    const far = (solver: AdvisorResponse["solver"]) => ({ ...solve(solver), actions: [{ action: "check", freq: 0.98, ev_bb: 3 }, { action: "bet 33%", freq: 0.02, ev_bb: 0.5, amount_bb: 1.8 }] });
+    expect((await scoped(far({ iterations: 300, exploitability_pct: 9 }))).verdict).toBe("Blunder");
+    expect((await scoped(solve({ iterations: 300, exploitability_pct: 9 }))).verdict).toBe("Correct");
+    // (a rough solve can't condemn even a gap past its noise)
+    const rough = await scoped(far({ iterations: 300, exploitability_pct: 14 }));
+    expect([rough.verdict, rough.capped, rough.evLossBb, rough.band]).toEqual(["Inaccuracy", true, 2.5, "rough"]);
     const short = await scoped(solve({ iterations: 40, exploitability_pct: 2, approximate: true }));
     expect([short.verdict, short.capped, short.band]).toEqual(["Inaccuracy", true, "approximate"]);
     // (a grade already milder stays what it is)

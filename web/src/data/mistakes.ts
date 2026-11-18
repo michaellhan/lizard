@@ -5,7 +5,7 @@
 import type { Verdict } from "@/grading/grade";
 import type { Provenance, ResultSource } from "@/solver/types";
 import { db, deleteRecord, type MistakeAsk, type MistakeRecord, type MistakeTry } from "./db";
-import { isCard, isWellFormed } from "./shapes";
+import { isBasis, isCard, isWellFormed } from "./shapes";
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const isStr = (x: unknown): x is string => typeof x === "string";
@@ -30,12 +30,13 @@ const isProvenance = (p: unknown): p is Provenance =>
   Object.hasOwn(SOURCES, p.source) &&
   isBool(p.approximate) &&
   isBool(p.partial) &&
+  (p.leansOnRules === undefined || isBool(p.leansOnRules)) &&
   isStr(p.mode) &&
   isStr(p.transport) &&
   isStr(p.solverVersion) &&
   isNum(p.receivedAt) &&
   [p.exploitabilityPct, p.targetPct, p.iterations, p.seconds, p.mbbPerHand].every(isOptNum) &&
-  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.bunching, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
+  [p.band, p.librarySpot, p.libraryVersion, p.fallbackReason, p.approximateLabel, p.rangesOff, p.tournament, p.view, p.lock, p.lockRange, p.exploit, p.sizing, p.bunching, p.confidence, p.evIn, p.keptLabel].every(isOptStr);
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;
@@ -49,7 +50,7 @@ const isMix = (x: unknown): x is MistakeRecord["mix"] =>
   Array.isArray(x) && x.length > 0 && x.every((m) => isObj(m) && isStr(m.action) && isNum(m.freq) && (m.ev === null || isNum(m.ev)) && isOptNum(m.amount) && (m.rough === undefined || m.rough === true));
 
 const isGrade = (g: unknown, mix: readonly unknown[]): g is MistakeRecord["grade"] =>
-  isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv) && (g.capped === undefined || isBool(g.capped));
+  isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv) && (g.capped === undefined || isBool(g.capped)) && isOptStr(g.capWhy) && isOptStr(g.clearWhy) && [g.noise, g.past, g.pastPct].every(isOptNum);
 
 /** The decisions a record says it holds: each named, missed at least once, and no more of them than its misses. */
 const isHeld = (x: unknown, times: number) => {
@@ -64,11 +65,11 @@ const isTry = (t: unknown): t is MistakeTry =>
 /** A stored or restored record, whole and of the types it says, else null. Nothing here throws. */
 export function readMistake(x: unknown): MistakeRecord | null {
   if (!isObj(x)) return null;
-  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, decisions, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, provenance, step, due, tries } = x;
+  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, decisions, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, basis, provenance, step, due, tries } = x;
   const fits =
     isStr(id) && !!id && (from === "hand" || from === "drill" || from === "analyze" || from === "leak") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) && (decisions === undefined || isHeld(decisions, times as number)) &&
     isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && hole.every(isCard) && isStrs(board) && board.every(isCard) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
-    isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && (provenance === null ? (ask as MistakeAsk).via !== "kept" : isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
+    isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && isBasis(basis) && (provenance === null ? (ask as MistakeAsk).via !== "kept" : isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
     Array.isArray(tries) && tries.every(isTry);
   return fits ? (x as unknown as MistakeRecord) : null;
 }

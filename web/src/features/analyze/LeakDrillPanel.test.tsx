@@ -125,7 +125,8 @@ describe("a leak drill on the turn", () => {
   });
 
   it("marks a rough solve's cap and a rough EV", async () => {
-    drill([turn({ band: "rough", roughEvs: ["check"], mix: [["check", 0.05, 1], ["bet 75%", 0.95, 9]] })]);
+    // (2.2bb of the 10bb pot, 15.5% past the noise and the rough EV's error: a Blunder where it's measured, short of a clear one)
+    drill([turn({ band: "rough", roughEvs: ["check"], mix: [["check", 0.05, 6.8], ["bet 75%", 0.95, 9]] })]);
     fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
     expect(await screen.findByRole("group", { name: "What graded it" })).toHaveTextContent(/stops at Inaccuracy/);
     expect(screen.getByText(/≈/, { selector: "td" })).toBeInTheDocument();
@@ -135,7 +136,8 @@ describe("a leak drill on the turn", () => {
   it("gives one way's score as a line, and names the preflop solve where that's what graded it", async () => {
     drill([turn()]);
     fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
-    await waitFor(() => expect(screen.getByRole("group", { name: "Drill score" })).toHaveTextContent(/^1 of 1 drilled: 0 in the mix \(0%\), 0\.5bb lost over 1 graded by EV\./));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Drill score" })).toHaveTextContent(/^1 of 1 drilled: 0 in the mix \(0%\), 0\.45bb lost over 1 graded by EV\. EV lost counts only the decisions graded below Correct/));
+    // (the score counts the 0.45bb of the 0.5bb lost past the answer's noise floor, half a percent of the 10bb pot)
   });
 
   it("gives a drill graded two ways a figure each, none added, and keeps them for History", async () => {
@@ -145,9 +147,9 @@ describe("a leak drill on the turn", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Next decision" }));
     fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
     const score = await screen.findByRole("group", { name: "Drill score" });
-    await waitFor(() => expect(score).toHaveTextContent(/^2 of 2 drilled: by EV: 0% of 1 · 0\.50bb lost · 5\.0% pot; by frequency: 100% of 1\./));
+    await waitFor(() => expect(score).toHaveTextContent(/^2 of 2 drilled: by EV: 0% of 1 · 0\.45bb lost · 4\.5% pot; by frequency: 100% of 1\./));
     expect(score).not.toHaveTextContent(/in the mix|50%/);
-    await waitFor(async () => expect((await getSession(drillSessionId(LEAK)))?.meta.ways).toEqual({ ev: { n: 1, ok: 0, loss: 0.5, lossPct: 5 }, freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } }));
+    await waitFor(async () => expect((await getSession(drillSessionId(LEAK)))?.meta.ways).toEqual({ ev: { n: 1, ok: 0, loss: expect.closeTo(0.45, 9), lossPct: expect.closeTo(4.5, 9) }, freq: { n: 1, ok: 1, loss: 0, lossPct: 0 } }));
   });
 
   it("says the picks of a drill kept before ways, of two kinds, are in no figure", async () => {

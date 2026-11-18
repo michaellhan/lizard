@@ -12,11 +12,12 @@ import { RiverClient } from "@/engine/plo/river/client";
 import { DEFAULT_SECONDS, DEFAULT_TARGET_PCT, MAX_SECONDS, MIN_TARGET_PCT, SEAT_NAMES, type ResultNode, type RiverProgress, type RiverResult, type RiverView, type StopReason, type ViewPath } from "@/engine/plo/river/run";
 import { MAX_BET_SIZES, MAX_RAISE_CAP, MAX_RAISE_SIZES } from "@/engine/plo/river/tree";
 import { ploRiverProvenance } from "@/solver/provenance";
+import { basisOf } from "@/grading/basis";
 import { byClass } from "./classes";
 import { StructureGrid } from "./StructureGrid";
 import { spotsFromHistory, type HistoryRead, type HistorySpot } from "./fromHistory";
-import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally } from "./drill";
-import type { Grade } from "@/grading/grade";
+import { deal, EMPTY_TALLY, gradeAt, mixAt, potAt, tallied, toCall, type DrillSpot, type DrillTally, type PloBasis } from "./drill";
+import { CAPPED_WORDS, lossBrief, SCORE_LOSS_WORDS, type Grade } from "@/grading/grade";
 import { DEFAULT_SPOT, requestOf, spotFromParams, spotToParams, type PloSpot } from "./spot";
 
 const inputClass = "w-full min-w-0 rounded border border-border bg-surface px-2 py-1 font-mono text-sm";
@@ -163,7 +164,7 @@ export interface PloSolverProps {
   /** told the spot and stopping rules on opening and on every edit */
   onChange?: (spot: PloSpot, stop: PloStop) => void;
   /** more under a solution, given the solution */
-  extra?: (result: RiverResult, band: string | undefined) => ReactNode;
+  extra?: (result: RiverResult, basis: PloBasis) => ReactNode;
 }
 
 /** The PLO solve: its form, the solve in a worker, and the solution under its provenance (the /plo page and Study's PLO). */
@@ -498,8 +499,8 @@ function Results({ result, onView, extra }: { result: RiverResult; onView: AskVi
       <ShapeGrid hands={result.hands[node.player]!} start={result.weights[node.player]!} node={node} />
       <ClassTable hands={result.hands[node.player]!} board={result.board} node={node} />
       <ComboTable key={node.id} hands={result.hands[node.player]!} start={result.weights[node.player]!} byEv={later} node={node} />
-      {extra?.(result, provenance.band)}
-      <Drill result={result} band={provenance.band} />
+      {extra?.(result, basisOf(provenance))}
+      <Drill result={result} basis={basisOf(provenance)} />
       {later && (
         <After
           next={flop ? "turn" : "river"}
@@ -637,7 +638,8 @@ function FromHistory({ onUse }: { onUse: (spot: HistorySpot, read: HistoryRead) 
 
 /** Practice on the solve (drill.ts): a hand dealt as play brings it, at a decision of the street solved first, your action
  * graded against this combo's mix and EVs in the solve, with a running tally. Every number is the solve's, under its badge. */
-function Drill({ result, band }: { result: RiverResult; band: string | undefined }) {
+function Drill({ result, basis }: { result: RiverResult; basis: PloBasis }) {
+  const band = typeof basis === "string" ? basis : basis?.band;
   const [spot, setSpot] = useState<DrillSpot | null>(null);
   const [answer, setAnswer] = useState<Grade | null>(null);
   const [tally, setTally] = useState<DrillTally>(EMPTY_TALLY);
@@ -660,7 +662,7 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
   };
   const choose = (a: number) => {
     if (!node || !spot || answer) return;
-    const g = gradeAt(node, spot.combo, a, result.pot, band);
+    const g = gradeAt(node, spot.combo, a, result.pot, basis);
     setAnswer(g);
     setTally((t) => tallied(t, g));
   };
@@ -671,7 +673,7 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
     <section aria-label="Practice this solve" className="space-y-2 rounded border border-border p-3 text-sm">
       <h2 className="font-semibold">Practice this solve</h2>
       <p className="text-xs text-muted">
-        Graded against this solve&apos;s mix and EVs{band === "rough" || band === "approximate" ? "; not converged, so no verdict past Inaccuracy" : ""}.
+        Graded against this solve&apos;s mix and EVs{band === "rough" || band === "approximate" ? "; not converged, so no verdict past Inaccuracy short of a clear blunder (20% of the pot past the noise)" : ""}.
       </p>
       <button type="button" className={buttonClass} onClick={next}>
         {spot ? "Next hand" : "Deal a hand"}
@@ -694,10 +696,11 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
             <div role="status" className="space-y-1">
               <p>
                 <span className="font-semibold">{answer.verdict}</span>
-                {answer.loss > 0 ? `: ${chips(answer.loss)}bb given up, ${answer.lossPct.toFixed(1)}% of the pot` : ""}
-                {answer.capped ? " (capped: the solve is short of converged)" : ""}. The solve&apos;s best here is {node.actions[answer.best]!.label}
+                {answer.loss > 0 ? `: ${lossBrief(answer)}` : ""}. The solve&apos;s best here is {node.actions[answer.best]!.label}
                 {answer.mixed ? ", and this hand mixes" : ""}.
               </p>
+              {answer.capped && <p className="text-muted">{answer.capWhy ?? CAPPED_WORDS}</p>}
+              {answer.clearWhy && <p className="text-muted">{answer.clearWhy}</p>}
               <table aria-label="This hand in the solve" className="w-full text-sm">
                 <thead className="text-left text-muted">
                   <tr>
@@ -722,7 +725,7 @@ function Drill({ result, band }: { result: RiverResult; band: string | undefined
       )}
       {tally.hands > 0 && (
         <p aria-label="Your tally" className="text-xs text-muted">
-          {tally.hands} hand{tally.hands === 1 ? "" : "s"}: {tally.ok} Best or Correct, {chips(tally.loss)}bb given up. Not saved.
+          {tally.hands} hand{tally.hands === 1 ? "" : "s"}: {tally.ok} Best or Correct, {chips(tally.loss)}bb given up. Not saved. {SCORE_LOSS_WORDS}
         </p>
       )}
     </section>

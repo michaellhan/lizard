@@ -1,7 +1,8 @@
 // A preflop drill's spot: a decision on a library spot's preflop line (every seat's, the folds before the pot's raise
 // too), asked of the stored preflop solve (solver/gto/pf_study.py through the worker, `study` and `preflop_solve`), and a
 // hand dealt from the range that reaches it. The solve is an equilibrium of a simplified class-level game, never a full
-// solve: every answer carries pfGrade.ts's PF_MODEL label, and a grade under it stops at Inaccuracy (capGrade). Only the
+// solve: every answer carries pfGrade.ts's PF_MODEL label, and a grade under it allows the model's measured EV noise
+// (grade.ts pfNoisePct) as Practice's does, through the same entry point (gradeAnswer). Only the
 // games the worker stores are asked (pfStored.ts); a node the solve's tree doesn't hold at the line's own sizes is refused
 // by pfNodeRead and not dealt again.
 import { kindOf } from "@/components/actions";

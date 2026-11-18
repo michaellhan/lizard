@@ -1,7 +1,7 @@
 // Derive an answer's provenance from the Advisor's response. The rule: never present a number without saying
 // what produced it (library / live solve / charts / heuristic rules) and how close to equilibrium it is.
 import { describeLock, type Lock } from "@/features/study/locks";
-import type { AdvisorResponse } from "./protocol";
+import type { AdvisorResponse, OffSolution } from "./protocol";
 import { abstractionWords, flopModelOf } from "./abstraction";
 import { bunchingWords } from "./bunching";
 import { treeWords } from "./treeDepth";
@@ -90,19 +90,89 @@ const MW_RULES_NOTE = /^([\w, ]+): multiway, ranges narrowed by simple betting r
  * only in part, by how settled it was (advisor.py _mw_walk, trust_of): the rest is the betting rules'. */
 const MW_PARTIAL_NOTE = /^(\w+): 3-way, ranges narrowed through (.+?) \((\d+) iterations, ([\d.]+)% of the pot from equilibrium: followed (\d+)%/;
 
-/** The ranges behind an answer in words, where an earlier street narrowed them by the betting rules in part or whole;
- * null where every earlier street was solved and settled (or there was none). */
+/** One line the answer's ranges left the solves on (advisor.py off_solution), in words (index.html offText). */
+function offOne(o: OffSolution): string {
+  return o.why === "rare"
+    ? `${o.pos}'s ${o.action} on the ${o.street} is ${(o.share ?? 0) < 0.5 ? "never" : `only ${o.share}%`} in the solve, so their range from there is the betting rules'${o.resolved ? " and the play after it is solved again from there" : ""}`
+    : o.why === "filled"
+      ? o.street === "preflop"
+        ? `${o.pos}'s preflop line isn't in the charts, so their range is the hands that take its last action`
+        : `${o.pos}'s ${o.street} line left ${o.combos} combos, so their range is filled out with the rest of their ${o.street} range`
+      : o.why === "rules"
+        ? `the ${o.street} is narrowed by the betting rules, not solved`
+        : `the ${o.street} solve hadn't settled, so ranges follow it ${o.trust}% and the betting rules the rest`;
+}
+
+const offOf = (r: AdvisorResponse): OffSolution[] => (Array.isArray(r.off_solution) ? r.off_solution.filter((o) => o && typeof o === "object") : []);
+const widenedOf = (r: AdvisorResponse): string[] => (Array.isArray(r.widened) ? r.widened.filter((w): w is string => typeof w === "string") : []);
+
+/** Why the ranges behind an answer aren't all the solve's (index.html offText); null where they are. */
+export function offText(r: AdvisorResponse): string | null {
+  const off = offOf(r);
+  return off.length ? [...new Set(off.map(offOne))].join("; ") : null;
+}
+
+/** A narrowing solve that hadn't settled, its ranges followed less than this (%), leaves them mostly the betting rules'
+ * (advisor.py trust_of): the answer leans on the rules. Followed this much or more, they're mostly the solve's. */
+export const LEAN_TRUST = 50;
+
+/** A line read by the betting rules with nothing solved after it: a street they narrowed (a Quick answer's earlier
+ * street), a line the solve rarely plays whose play after it wasn't solved again, or a narrowing solve followed under
+ * LEAN_TRUST. */
+const byRules = (o: OffSolution) => o.why === "rules" || (o.why === "rare" && !o.resolved) || (o.why === "unsettled" && typeof o.trust === "number" && o.trust < LEAN_TRUST);
+
+/** advisor.py's notes that say the same where off_solution doesn't list it (a 3-way street's narrowing): a street the
+ * rules narrowed, or a narrowing solve followed under LEAN_TRUST. */
+function notedRules(n: string): boolean {
+  if (RULES_NOTE.test(n) || MW_RULES_NOTE.test(n)) return true;
+  const u = UNSETTLED_NOTE.exec(n);
+  if (u) return Number(u[4]) < LEAN_TRUST;
+  const mw = MW_PARTIAL_NOTE.exec(n);
+  return mw ? Number(mw[5]) < LEAN_TRUST : false;
+}
+
+/** Whether the ranges this answer is solved on lean on the betting rules where the solves don't reach (advisor.py
+ * off_solution, widened, notes): a street they narrowed, an opponent's line the solve rarely plays whose range is theirs,
+ * or an earlier street's narrowing solve that settled so little its ranges are mostly theirs. The answer can still be a
+ * settled solve, but of a spot its own solve never reaches as these ranges have it. The one test of it: the live drill
+ * refuses such an answer and every grade stops at Inaccuracy on it short of a clear blunder (grading/basis.ts). A narrowing
+ * followed LEAN_TRUST% or more is said (rangesOffOf) but doesn't lean. */
+export function leansOnRules(r: AdvisorResponse): boolean {
+  return offOf(r).some(byRules) || widenedOf(r).length > 0 || (Array.isArray(r.notes) ? r.notes : []).some((n) => typeof n === "string" && notedRules(n));
+}
+
+/** The ranges behind an answer in words, where an earlier street or an opponent's rare line had them narrowed by the
+ * betting rules in part or whole; null where every street before was solved and settled (or there was none) and every
+ * line on the way is one the solve plays. */
 export function rangesOffOf(r: AdvisorResponse): string | null {
   const out: string[] = [];
+  // streets the notes already say the rules narrowed, which off_solution lists again
+  const ruled = new Set<string>();
   for (const n of r.notes ?? []) {
     const u = UNSETTLED_NOTE.exec(n);
     const rules = RULES_NOTE.exec(n) ?? MW_RULES_NOTE.exec(n);
     const mw = MW_PARTIAL_NOTE.exec(n);
     if (mw && Number(mw[5]) < 100) out.push(`the ${mw[1]}'s 3-way narrowing solve stopped ${mw[4]}% of the pot from equilibrium after ${mw[3]} iterations, so the ranges follow it ${mw[5]}% and the betting rules the rest, and can differ from run to run`);
     else if (u) out.push(`the ${u[1]}'s narrowing solve stopped ${u[2]}% of the pot from equilibrium after ${u[3]} iterations on its time budget, so the ranges follow it ${u[4]}% and the betting rules the rest, and can differ from run to run`);
-    else if (rules) out.push(`ranges through the ${rules[1]} from the betting rules, not a solve`);
+    else if (rules) {
+      ruled.add(rules[1]!);
+      out.push(`ranges through the ${rules[1]} from the betting rules, not a solve`);
+    }
   }
-  return out.length ? out.join("; ") : null;
+  // the lines read by the rules (off_solution), where a note didn't say so already: a street they narrowed, a rare line
+  // with nothing solved after it, and any rare line of a seat whose range here they widened (advisor.py `widened`)
+  const widened = widenedOf(r);
+  const rare = new Set<string>();
+  for (const o of offOf(r)) {
+    if (o.why === "rules" && !(o.street && ruled.has(o.street))) out.push(offOne(o));
+    else if (o.why === "rare" && (!o.resolved || (o.pos !== undefined && widened.includes(o.pos)))) {
+      out.push(offOne(o));
+      if (o.pos !== undefined) rare.add(o.pos);
+    }
+  }
+  const unsaid = widened.filter((w) => !rare.has(w));
+  if (unsaid.length) out.push(`${[...new Set(unsaid)].join(" and ")}'s range here comes from the betting rules on a line the solve rarely plays`);
+  return out.length ? [...new Set(out)].join("; ") : null;
 }
 
 /** Band of a measured exploitability (% of the pot), as the classic app draws it (index.html convergence()). */
@@ -161,7 +231,11 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (off && source !== "rules" && source !== "charts" && source !== "push-fold") {
     p.approximate = true;
     p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${off}` : off;
+    // (kept on its own as well, said beside a grade)
+    p.rangesOff = off;
   }
+  // (a grade can't condemn a line on ranges the rules gave, short of a clear blunder: grading/basis.ts)
+  if (source !== "rules" && source !== "charts" && source !== "push-fold" && leansOnRules(r)) p.leansOnRules = true;
   // a true node lock (engine/study_lock.py): the lock in words and what the tree it's solved on abstracts
   if (r.node_lock) {
     p.lock = [r.node_lock.words, ...(r.node_lock.also ?? []).map((x) => x.words)].join("; ");

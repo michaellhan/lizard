@@ -19,6 +19,13 @@ export const VERDICTS = ["Best", "Correct", "Inaccuracy", "Mistake", "Blunder"] 
 export const isGraded = (d: DecisionRecord) => d.verdict !== "Not graded";
 export const isOk = (d: DecisionRecord) => OK.has(d.verdict);
 const hasEv = (d: DecisionRecord) => isGraded(d) && d.evLossBb != null;
+/** What a decision's EV lost adds to a total, bb and % of the pot: what its verdict counts (grade.ts scored: past the
+ * answer's noise, below Correct; nothing for a Best or a Correct), as Practice's score and History count it. A grade kept
+ * before noise was (2026-11-18) has its whole loss as measured. */
+export const countedBb = (d: Pick<DecisionRecord, "past" | "evLossBb">): number => d.past ?? d.evLossBb ?? 0;
+export const countedPct = (d: Pick<DecisionRecord, "pastPct" | "lossPct">): number => d.pastPct ?? d.lossPct ?? 0;
+/** The words that say what those totals count, wherever they're shown. */
+export const COUNTED_WORDS = "This counts only what each decision below Correct gave up past its answer's noise; each decision still shows the EV it lost as measured. Grades from before 2026-11-18 count all of it.";
 const isLow = (d: DecisionRecord) => isGraded(d) && d.confidence === "low";
 /** graded by the stored preflop solve, an equilibrium of a class-level model, and not a chart or a solve of your spot */
 export const isPfSolve = (d: Pick<DecisionRecord, "source">) => d.source === "preflop-solve";
@@ -32,7 +39,8 @@ export interface Tally {
   graded: number;
   /** of them Best or Correct */
   ok: number;
-  /** graded by EV by a solve of the spot, the EV they lost (bb) and its average per decision (bb, and % of the pot) */
+  /** graded by EV by a solve of the spot, the EV they lost (bb: what the verdicts count, countedBb) and its average per
+   * decision (bb, and % of the pot) */
   ev: number;
   lost: number;
   avg: number | null;
@@ -64,8 +72,8 @@ export function tally(ds: readonly DecisionRecord[]): Tally {
     if (!hasEv(d)) continue;
     const t = isPfSolve(d) ? pf : spot;
     t.n++;
-    t.bb += d.evLossBb ?? 0;
-    t.pct += d.lossPct ?? 0;
+    t.bb += countedBb(d);
+    t.pct += countedPct(d);
   }
   const s = lossOf(spot.n, spot.bb, spot.pct);
   const p = lossOf(pf.n, pf.bb, pf.pct);
@@ -162,14 +170,17 @@ export const FREQS: readonly [string, Cls, (d: DecisionRecord) => boolean][] = [
 ];
 
 const STREET_NAME: Record<string, string> = { flop: "Flop", turn: "Turn", river: "River" };
-/** A spot after the flop, with its street ("Turn · SRP · IP · checked to"): a pot's flop, turn and river are different
- * spots. Null preflop. */
-/** Your misses, worst first: a graded decision outside the mix (Inaccuracy, Mistake, Blunder), by verdict, then by EV lost. */
+const pastOf = countedBb;
+
+/** Your misses, worst first: a graded decision outside the mix (Inaccuracy, Mistake, Blunder), by verdict, then by the EV
+ * lost past the answer's noise (what the verdict is on; the EV lost as measured for a grade kept before noise was). */
 export const missesOf = (ds: readonly DecisionRecord[]): DecisionRecord[] =>
   ds
     .filter((d) => isGraded(d) && !isOk(d))
-    .sort((x, y) => VERDICTS.indexOf(y.verdict as (typeof VERDICTS)[number]) - VERDICTS.indexOf(x.verdict as (typeof VERDICTS)[number]) || (y.evLossBb ?? 0) - (x.evLossBb ?? 0));
+    .sort((x, y) => VERDICTS.indexOf(y.verdict as (typeof VERDICTS)[number]) - VERDICTS.indexOf(x.verdict as (typeof VERDICTS)[number]) || pastOf(y) - pastOf(x));
 
+/** A spot after the flop, with its street ("Turn · SRP · IP · checked to"): a pot's flop, turn and river are different
+ * spots. Null preflop. */
 export const spotOf = (d: DecisionRecord) => (d.street === "preflop" ? null : `${STREET_NAME[d.street]} · ${d.situation}`);
 
 /** What a grade stands on, the most solid first. */
@@ -285,7 +296,7 @@ export function readLeaks(ds: readonly DecisionRecord[]): { leaks: Leak[]; thin:
     if (r.graded >= MIN_THIN && r.ok / r.graded < LEAK.pf[0]) out.push({ kind: "pf", key: r.key, n: r.graded, inMix: r.ok / r.graded, range: wilson(r.ok, r.graded), score: (1 - r.ok / r.graded) * Math.sqrt(r.graded), ...none });
   for (const r of groupBy(ds, spotOf))
     if (r.ev >= MIN_THIN && (r.avg ?? 0) >= LEAK.spot[0]) {
-      const range = meanRange(ds.filter((d) => spotOf(d) === r.key && hasEv(d)).map((d) => d.evLossBb ?? 0))!;
+      const range = meanRange(ds.filter((d) => spotOf(d) === r.key && hasEv(d)).map(countedBb))!;
       out.push({ kind: "spot", key: r.key, n: r.ev, avg: r.avg!, lost: r.lost, range, score: (r.avg! / 2) * Math.sqrt(r.ev), ...none });
     }
   const full = out.sort((a, b) => b.score - a.score).map((l) => {
@@ -352,10 +363,10 @@ export function lostByKind(ds: readonly DecisionRecord[], hands: ReadonlyMap<str
     k.graded++;
     if (hasEv(d) && isPfSolve(d)) {
       k.pfEv++;
-      k.pfLost += d.evLossBb ?? 0;
+      k.pfLost += countedBb(d);
     } else if (hasEv(d)) {
       k.ev++;
-      k.lost += d.evLossBb ?? 0;
+      k.lost += countedBb(d);
     }
     m.set(kind, k);
   }
@@ -415,14 +426,14 @@ export function report(ds: readonly DecisionRecord[], top = 20, leakFrom: readon
     bySpot: groupBy(ds, spotOf),
     byBasis: groupBy(ds.filter(isGraded), basisOf, BASES),
     versions: versionSummary(countVersions(ds.filter(isGraded).map((d) => d.version))),
-    low: { n: low.length, lost: r2(low.reduce((t, d) => t + (d.evLossBb ?? 0), 0)) },
-    pfEv: { n: pfEv.length, lost: r2(pfEv.reduce((t, d) => t + (d.evLossBb ?? 0), 0)) },
+    low: { n: low.length, lost: r2(low.reduce((t, d) => t + countedBb(d), 0)) },
+    pfEv: { n: pfEv.length, lost: r2(pfEv.reduce((t, d) => t + countedBb(d), 0)) },
     spotEv: { n: spotEv.ev, lost: spotEv.lost, avgPct: spotEv.avgPct },
     agree: agreement(ds),
     freqs: freqs(ds),
     leaks: found,
     thin,
-    mistakes: ds.filter((d) => hasEv(d) && (d.evLossBb ?? 0) > 0.005).sort((a, b) => (b.evLossBb ?? 0) - (a.evLossBb ?? 0)).slice(0, top),
+    mistakes: ds.filter((d) => hasEv(d) && countedBb(d) > 0.005).sort((a, b) => countedBb(b) - countedBb(a)).slice(0, top),
     offChart: unweighed.filter((d) => d.source === "charts").slice(0, top),
     offRead: unweighed.filter((d) => d.source !== "charts").slice(0, top),
     notGraded: [...why].map(([w, n]) => ({ why: w, n })).sort((a, b) => b.n - a.n),

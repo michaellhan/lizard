@@ -11,7 +11,8 @@ import { classOf } from "@/engine/nlhe/cards";
 import type { SizeStreet } from "@/features/solve/setup";
 import { tournamentRequest, type TournamentSetup } from "@/features/tournaments/tournament";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
-import { grade, type Grade } from "@/grading/grade";
+import { gradeAnswer, type AnswerBasis, type Grade } from "@/grading/grade";
+import { basisOf, roughOf } from "@/grading/basis";
 import { lineToken } from "@/library/flops";
 import { cmp, handName } from "@/poker/evaluate";
 import { seatLabel, seatsOf } from "@/poker/seats";
@@ -62,6 +63,8 @@ export interface Decision {
   study: string;
   /** in a session graded by the preflop solve, why this decision took the chart's grade instead, in words (pfGrade.ts) */
   pfWhy?: string;
+  /** what grading knew of the answer (grading/basis.ts), where it was graded: a retry of it grades on the same terms */
+  basis?: AnswerBasis;
 }
 
 export interface HandResult {
@@ -694,6 +697,9 @@ export interface RangeAt {
   cls: string;
   /** "Your range · flop · BTN vs BB" */
   label: string;
+  /** your own combo ("AhKd") and its mix in the answer: what your decision is graded on, where the class's cell is the
+   * average over all its combos in the range */
+  own?: { combo: string; mix: { a: string; f: number }[] };
 }
 
 /** Your range at your spot from the answer there: none without a grid, or from the betting rules or an equity
@@ -704,7 +710,10 @@ export function rangeAt(h: PracticeHand, res: AdvisorResponse, provenance: Prove
   const vs = [...sim.active].filter((p) => p !== h.hero).map((p) => seatLabel(p, h.players));
   const against = vs.length ? ` vs ${vs.length <= 2 ? vs.join(", ") : `${vs.length} players`}` : "";
   const read = h.exploit && provenance?.lock ? " · its best response to the assumed profile" : "";
-  return { grid: res.grid, cls: classOf(h.hands[h.hero]!.join("")), label: `Your range · ${sim.current} · ${seatLabel(h.hero, h.players)}${against}${read}` };
+  const hole = h.hands[h.hero]!;
+  const acts = optionsOf(res);
+  const own = hole.length === 2 && acts.length ? { combo: hole.join(""), mix: acts.map((a) => ({ a: a.action, f: typeof a.freq === "number" && Number.isFinite(a.freq) ? a.freq : 0 })) } : undefined;
+  return { grid: res.grid, cls: classOf(hole.join("")), label: `Your range · ${sim.current} · ${seatLabel(h.hero, h.players)}${against}${read}`, ...(own ? { own } : {}) };
 }
 
 /** Your options: the answer's actions at your spot. */
@@ -750,11 +759,26 @@ export function modelled(h: Pick<PracticeHand, "tournament" | "exploit">, p: Pro
 export const isBestResponse = (mix: Decision["mix"], p: Pick<Provenance, "lock"> | null | undefined): boolean => !!p?.lock && mix.length > 0 && mix.every((a) => a.ev !== null);
 
 /** The mix's i-th action graded: by EV where it has EVs for every action, else by frequency (the preflop charts).
- * `source`: the answer's (provenance.ts), for the EV gaps it can't tell apart (grade.ts noiseOf). */
-export function gradeMix(mix: Decision["mix"], pot: number, i: number, source?: string): Grade {
+ * `basis`: what's known of the answer (grade.ts gradeAnswer: its noise, and where it can't condemn a line), or just its
+ * source (provenance.ts); the mix's own rough EVs are added to it. */
+export function gradeMix(mix: Decision["mix"], pot: number, i: number, basis?: AnswerBasis | string): Grade {
   const evs = mix.every((x) => x.ev !== null) ? mix.map((x) => x.ev!) : null;
-  return grade({ freqs: mix.map((x) => x.freq), evs, pot, source }, i);
+  const b: AnswerBasis = typeof basis === "string" ? { source: basis } : (basis ?? {});
+  const rough = b.rough ?? roughOf(mix);
+  return gradeAnswer({ freqs: mix.map((x) => x.freq), evs, pot }, i, rough ? { ...b, rough } : b);
 }
+
+/** The pot the flop began with, while it's the street being played (a flop library answer's EV steps are 1% of it). */
+export function flopPotOf(sim: Sim): number | undefined {
+  if (sim.current !== "flop") return undefined;
+  const t = Object.values(sim.invested).reduce((x, y) => x + y, 0);
+  return t > 0 ? t : undefined;
+}
+
+/** What Practice knows of an answer it grades against (grading/basis.ts): its provenance, whether its ranges lean on the
+ * betting rules, and a flop library answer's flop pot. */
+export const practiceBasis = (res: AdvisorResponse, provenance: Provenance | null, sim: Sim): AnswerBasis =>
+  basisOf(provenance, { res, ...(provenance?.source === "library" ? { flopPot: flopPotOf(sim) } : {}) });
 
 /** Your decision: the answer's i-th action taken, graded against the answer (by EV where it has EVs for every
  * action, else by frequency: the preflop charts). `pfWhy`: why a session graded by the preflop solve took this answer
@@ -774,11 +798,13 @@ export function decide(
   const mix = gradable(mixOf(res), provenance);
   const pot = typeof res.pot_bb === "number" ? res.pot_bb : sim.pot;
   const offProfile = !!h.exploit && !isBestResponse(mix, provenance);
+  const basis = h.revealed || offProfile ? null : practiceBasis(res, provenance, sim);
   const decision: Decision = {
     street: sim.current!,
     chose: a.action,
     move: m,
-    grade: h.revealed || offProfile ? null : gradeMix(mix, pot, i, provenance?.source),
+    grade: basis ? gradeMix(mix, pot, i, basis) : null,
+    ...(basis ? { basis } : {}),
     mix,
     pot,
     provenance: modelled(h, provenance),
