@@ -159,13 +159,19 @@ def read(solve, t, hero, hole, opts, own_sizes):
     return "answered", "", r
 
 
+def noise(pot):
+    """web/src/grading/grade.ts noiseOf for the preflop solve: its EV noise, bb, at a decision with this pot."""
+    return pot * (4 + 2.75 * math.log(max(pot, 1.0))) / 100 if pot > 0 else 0.0
+
+
 def verdict(evs, freqs, a, pot):
+    """web/src/grading/grade.ts grade with source "preflop-solve": within the noise Correct, past it only the excess."""
     raw = max(0.0, max(evs) - evs[a])
-    pct = raw / pot * 100
     if raw <= TOL:
         return "Best", 0.0
-    if freqs[a] >= MIX:
+    if freqs[a] >= MIX or raw <= noise(pot):
         return "Correct", raw
+    pct = (raw - noise(pot)) / pot * 100
     return ("Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"), raw
 
 

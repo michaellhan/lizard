@@ -10,7 +10,7 @@ export interface DecisionSpot {
   evs: readonly number[] | null;
   /** the pot in bb at the decision (EV lost is also reported in % of it) */
   pot: number;
-  /** the answer's source (provenance.ts): the preflop solve's EVs can't tell gaps under PF_MODEL_TOL apart (closeTol) */
+  /** the answer's source (provenance.ts): the preflop solve's EVs can't tell small gaps apart (noiseOf) */
   source?: string;
 }
 
@@ -34,8 +34,10 @@ export interface Grade {
   byEv: boolean;
   /** a rough or cut-short solve graded it, so the verdict stopped at an Inaccuracy (capGrade) */
   capped?: boolean;
-  /** Correct though rarely played: its EV is within the answer's precision of the best (closeTol); `loss` is as measured */
+  /** Correct though rarely played: its EV is within the answer's noise of the best (noiseOf); `loss` is as measured */
   close?: boolean;
+  /** the answer's EV noise here, bb (noiseOf), where it has one: the verdict is on the EV lost past it */
+  noise?: number;
 }
 
 /** An action played at least this often is a real part of the hand's mix: Correct whatever its EV gap. */
@@ -47,15 +49,17 @@ export const RARE = 0.03;
 /** EV lost in % of the pot: under INACCURACY_PCT an Inaccuracy, under MISTAKE_PCT a Mistake, else a Blunder. */
 export const INACCURACY_PCT = 2;
 export const MISTAKE_PCT = 8;
-/** The preflop solve's EV precision, bb. It is a calibrated class-level model, not a full solve: on the 31 opens that the
- * published 6-max 100bb solves mix (the charts' weighted hands, solver/gto/preflop.py RFI, where raising and folding are
- * worth the same), its stored game's raise and fold EVs differ by 0.051bb at the median and 0.079bb at the 90th percentile
- * (lz3_6max_100bb_blind_3bet4, 2026-11-18). A gap under this is the model's noise, not a mistake: BTN 87o raises 100% for
- * 0.022bb where the published solves fold it half the time. */
-export const PF_MODEL_TOL = 0.08;
+/** The preflop solve's EV noise at a decision, in % of the pot (bb) there. It is a calibrated class-level model, not a full
+ * solve, and its EVs are coarser than they look: where the published 6-max 100bb solves play a hand both ways (the charts'
+ * weights of 15% to 85%, so the two actions are worth the same), its stored game still puts the chart's play behind its
+ * best by up to 5.1% of the pot first in, 7.9% facing an open, 11% facing a 3-bet and 13% facing a 4-bet (the 90th
+ * percentile, at pots of 1.5, 4, 13 and 34bb; 30,000 hands of chart play, scripts/pf_practice_coverage.py, 2026-11-18).
+ * 4 + 2.75 ln(pot) gives 5.1, 7.8, 11.1 and 13.7. Other depths and table sizes are unmeasured and use the same curve. */
+export const pfNoisePct = (pot: number): number => 4 + 2.75 * Math.log(Math.max(pot, 1));
 
-/** EV gaps up to this count as within the answer's precision: Correct, not an Inaccuracy (0 where the EVs are a solve's). */
-export const closeTol = (source: string | undefined): number => (source === "preflop-solve" ? PF_MODEL_TOL : 0);
+/** The EV gap, bb, an answer's EVs can't tell from none at a decision with this pot: the preflop solve's noise
+ * (pfNoisePct), else 0 (a solve's EVs, to TOL). Under it an action is Correct; past it only the excess is graded. */
+export const noiseOf = (source: string | undefined, pot: number): number => (source === "preflop-solve" && pot > 0 ? (pot * pfNoisePct(pot)) / 100 : 0);
 
 export function grade(spot: DecisionSpot, a: number): Grade {
   const { freqs } = spot;
@@ -70,9 +74,12 @@ export function grade(spot: DecisionSpot, a: number): Grade {
   const bestEv = Math.max(...evs);
   const raw = Math.max(0, bestEv - (evs[a] ?? bestEv));
   const rawPct = spot.pot > 0 ? (raw / spot.pot) * 100 : 0;
-  const close = raw > TOL && f < MIX && raw <= closeTol(spot.source);
+  // (an answer's noise: a gap within it is Correct, and past it only the excess counts, so a gap just over it isn't a Blunder)
+  const noise = noiseOf(spot.source, spot.pot);
+  const close = raw > TOL && f < MIX && raw <= noise;
+  const pastPct = spot.pot > 0 ? (Math.max(0, raw - noise) / spot.pot) * 100 : 0;
   const verdict: Verdict =
-    raw <= TOL ? "Best" : f >= MIX || close ? "Correct" : rawPct < INACCURACY_PCT ? "Inaccuracy" : rawPct < MISTAKE_PCT ? "Mistake" : "Blunder";
+    raw <= TOL ? "Best" : f >= MIX || close ? "Correct" : pastPct < INACCURACY_PCT ? "Inaccuracy" : pastPct < MISTAKE_PCT ? "Mistake" : "Blunder";
   // the best: among the actions within TOL of the top EV (worth the same, as a mix's are), yours if it's one, else the one
   // played most; not the first to hold the top by a fraction of a cent
   const tied = evs.map((e, i) => (bestEv - e <= TOL ? i : -1)).filter((i) => i >= 0);
@@ -87,6 +94,7 @@ export function grade(spot: DecisionSpot, a: number): Grade {
     lossPct: raw <= TOL ? 0 : rawPct,
     byEv: true,
     ...(close ? { close: true } : {}),
+    ...(noise > 0 ? { noise } : {}),
   };
 }
 
@@ -103,7 +111,7 @@ export const CAPPED_WORDS = "A rough or cut-short solve can't condemn a line, so
 /** The thresholds in words, for the page that shows grades. */
 export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
   { verdict: "Best", rule: `the highest-EV action (within ${TOL}bb); without EVs, the hand's most frequent action` },
-  { verdict: "Correct", rule: `an action the hand plays ${MIX * 100}% of the time or more; graded by the preflop solve, also one within ${PF_MODEL_TOL}bb of its best (closer than that model's EVs can tell apart)` },
+  { verdict: "Correct", rule: `an action the hand plays ${MIX * 100}% of the time or more; graded by the preflop solve, also one closer to its best than that model's EVs can tell apart (about 5% of the pot first in, 8% facing an open, 11% facing a 3-bet), and past that only the excess is graded` },
   { verdict: "Inaccuracy", rule: `gives up under ${INACCURACY_PCT}% of the pot; without EVs, played ${RARE * 100}–${MIX * 100}% of the time` },
   { verdict: "Mistake", rule: `gives up ${INACCURACY_PCT}–${MISTAKE_PCT}% of the pot; without EVs, played under ${RARE * 100}% of the time` },
   { verdict: "Blunder", rule: `gives up ${MISTAKE_PCT}% of the pot or more (graded by EV only)` },
@@ -127,9 +135,11 @@ export function whyText(g: Grade, names: readonly string[], freqs: readonly numb
     // (best by EV, not by frequency: a mix's actions are worth about the same)
     return f < 0.005 ? `${who} never plays this, though its EV is as high as any action's here.` : `${who} plays this ${p(f)} of the time, and its EV is as high as any action's here.`;
   }
-  if (g.close) return `${who} ${f < 0.005 ? "never plays this" : `plays this only ${p(f)} of the time`}, but it gives up only ${g.loss.toFixed(2)}bb against ${names[g.best] ?? "?"} (${p(freqs[g.best] ?? 0)} of the time): closer than this model's EVs can tell apart (${PF_MODEL_TOL}bb).`;
+  const bb = (x: number) => `${x.toFixed(2)}bb`;
+  if (g.close) return `${who} ${f < 0.005 ? "never plays this" : `plays this only ${p(f)} of the time`}, but it gives up only ${bb(g.loss)} against ${names[g.best] ?? "?"} (${p(freqs[g.best] ?? 0)} of the time): closer than this model's EVs can tell apart here (${bb(g.noise ?? 0)}).`;
   if (g.verdict === "Correct") return `${who} mixes this in ${p(f)} of the time; ${best}.`;
-  return `${who} ${f < 0.005 ? "never plays this" : `plays this only ${p(f)} of the time`}; ${best}.`;
+  const past = g.noise ? ` Graded on the ${bb(g.loss - g.noise)} past what this model's EVs can tell apart here (${bb(g.noise)}).` : "";
+  return `${who} ${f < 0.005 ? "never plays this" : `plays this only ${p(f)} of the time`}; ${best}.${past}`;
 }
 
 // ---- running scores (drills.js emptyScore / addScore / summary)

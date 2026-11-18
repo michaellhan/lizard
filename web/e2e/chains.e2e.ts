@@ -143,7 +143,9 @@ test("Practice's rates by seat and pot come back in History", async ({ page, pro
   await expect(rates).toBeVisible();
   await expect(rates.getByRole("table", { name: /seat/i }).first()).toContainText(/BTN|SB|BB/);
   await expect(rates.getByRole("table", { name: /pot/i }).first()).toContainText(/Unopened|SRP|Limped|3bet pot/);
-  await expect(rates).toContainText(/Preflop charts/);
+  // (the stored preflop solve grades this game by default; a hand it can't grade falls back to the charts, so 12 random
+  // hands show either or both)
+  await expect(rates).toContainText(/Preflop charts|Preflop solve \(class-level model\)/);
   await expect(rates).not.toContainText(/solved/i);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
   expect(problems.errors).toEqual([]);

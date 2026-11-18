@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addScore, capGrade, emptyScore, grade, PF_MODEL_TOL, summary, whoOf, whyText } from "./grade";
+import { addScore, capGrade, emptyScore, grade, noiseOf, pfNoisePct, summary, whoOf, whyText } from "./grade";
 
 // cases ported from solver/tests/js/drills.test.js ("grading: ...", "score bookkeeping: ...")
 describe("grade", () => {
@@ -122,22 +122,39 @@ describe("grade: actions tied on EV", () => {
   });
 });
 
-describe("grade: the preflop solve's precision", () => {
+describe("grade: the preflop solve's noise", () => {
   // BTN 87o, 6-max 100bb, folded to: the stored game raises it 100% for 0.022bb, where the published solves fold it half
   // the time (the charts' 87o:0.5); the model's EVs can't tell a gap that small apart
   const btn87o = { pot: 1.5, freqs: [1, 0], evs: [0.022, 0], source: "preflop-solve" };
-  it("calls a fold within PF_MODEL_TOL of the best Correct, its EV lost as measured", () => {
+  it("grows with the pot as measured: about 5% of it first in, 8% facing an open, 11% facing a 3-bet, 13% a 4-bet", () => {
+    expect([1.5, 4, 13, 34].map((p) => Math.round(pfNoisePct(p)))).toEqual([5, 8, 11, 14]);
+    expect(noiseOf("preflop-solve", 1.5)).toBeCloseTo(0.0767, 3);
+    expect([noiseOf("solver", 13), noiseOf("preflop-solve", 0)]).toEqual([0, 0]);
+  });
+  it("calls a fold within the noise of the best Correct, its EV lost as measured", () => {
     const g = grade(btn87o, 1);
     expect([g.verdict, g.ok, g.close, g.best]).toEqual(["Correct", true, true, 0]);
     expect(g.loss).toBeCloseTo(0.022, 9);
     expect(whyText(g, ["raise", "fold"], btn87o.freqs, whoOf("preflop-solve"))).toBe(
-      `The preflop solve never plays this, but it gives up only 0.02bb against raise (100% of the time): closer than this model's EVs can tell apart (${PF_MODEL_TOL}bb).`,
+      "The preflop solve never plays this, but it gives up only 0.02bb against raise (100% of the time): closer than this model's EVs can tell apart here (0.08bb).",
     );
   });
-  it("grades a gap past it, and any other source's, as before", () => {
-    expect(grade({ ...btn87o, evs: [PF_MODEL_TOL + 0.01, 0] }, 1).verdict).toBe("Mistake");
+  it("grades only the EV lost past the noise, so a gap just over it isn't a Blunder", () => {
+    // facing a 3-bet, pot 13bb: noise 1.44bb; 1.6bb lost is 12% of the pot, but 0.16bb (1.2%) past the noise
+    const vs3bet = { pot: 13, freqs: [0, 1, 0], evs: [0, 1.6, 0], source: "preflop-solve" };
+    const g = grade(vs3bet, 0);
+    expect([g.verdict, g.close, g.loss]).toEqual(["Inaccuracy", undefined, 1.6]);
+    expect(g.lossPct).toBeCloseTo((1.6 / 13) * 100, 9);
+    expect(whyText(g, ["fold", "call", "raise"], vs3bet.freqs, whoOf("preflop-solve"))).toBe(
+      "The preflop solve never plays this; its best by EV is call (100% of the time). Graded on the 0.16bb past what this model's EVs can tell apart here (1.44bb).",
+    );
+    expect(grade({ ...vs3bet, evs: [0, 1.44 + 0.13 * 8, 0] }, 0).verdict).toBe("Blunder");
+    // folding aces first in is still a Blunder: 8.25bb is far past 0.08bb
+    expect(grade({ ...btn87o, evs: [8.25, 0] }, 1).verdict).toBe("Blunder");
+  });
+  it("keeps every other source's grade as it was", () => {
     const solver = grade({ ...btn87o, source: "solver" }, 1);
-    expect([solver.verdict, solver.close]).toEqual(["Inaccuracy", undefined]);
+    expect([solver.verdict, solver.close, solver.noise]).toEqual(["Inaccuracy", undefined, undefined]);
     expect(grade(btn87o, 0)).toMatchObject({ verdict: "Best", loss: 0 });
   });
 });

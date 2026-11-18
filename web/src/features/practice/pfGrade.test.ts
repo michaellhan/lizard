@@ -398,7 +398,7 @@ describe("kept apart", () => {
     const t = retried(m, answer, 2, 5);
     expect(t.grade.byEv).toBe(true);
     expect(t.tried).toMatchObject({ source: "preflop-solve", like: true, byEv: true });
-    expect(t.first).toEqual(gradeMix(answer.mix, answer.pot, 1));
+    expect(t.first).toEqual(gradeMix(answer.mix, answer.pot, 1, "preflop-solve"));
   });
   it("says it can't, in words, where the solve won't answer the same way", async () => {
     const h = btn();

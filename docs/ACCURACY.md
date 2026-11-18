@@ -1522,17 +1522,49 @@ A preflop grade said "Inaccuracy, 0.02bb lost" for folding 8d7s on the button at
 from the published solves, fold it half the time (`solver/gto/preflop.py` RFI, `87o:0.5`), so there raising and folding
 are worth the same. The grade followed its rules; the rules took the class-level model's EVs as finer than they are.
 
-How fine they are, measured: on the 31 opens that the charts weight between 15% and 85% (UTG to SB, folded to; hands
-the published solves play both ways, so their raise and fold EVs are equal), the stored game's raise and fold EVs differ
-by 0.046bb on average, 0.051bb at the median, 0.064bb at the 75th percentile and 0.079bb at the 90th (largest: BTN K5o
-0.125bb, K6o 0.091bb, 22 from UTG 0.082bb). The lz4 rebuild's game gives the same (median 0.051bb, 90th 0.079bb).
+The same thing, larger, is section 18's own table: playing the charts exactly was graded below Correct 8.9% of the time,
+2.4% of it Blunders. Measured again (30,000 hands of chart play, 6-max 100bb at the charts' sizes,
+`scripts/pf_practice_coverage.py --policy chart --chart-sizes --seed 7`), the chart's play lost to the stored game's best
+by a median 0.05bb first in, 0.16bb facing an open and 0.83bb facing a 3-bet where it was graded below Correct; the
+largest, 4-betting QQ against a 3-bet (the chart 90%), "lost" 8.8bb.
 
-So a grade by the preflop solve now counts an action within `PF_MODEL_TOL` = 0.08bb of its best as Correct, not an
-Inaccuracy (`web/src/grading/grade.ts` `closeTol`; the source is passed in by Practice, the live and preflop drills,
-Review's retries, Analyze and its leak drill). The EV lost is still shown as measured, and the "why" says the gap is
-closer than the model's EVs can tell apart. A gap over 0.08bb is graded as before, and every other source's EVs keep
-the 0.011bb tie. The measurement is of opens at 100bb; deeper in the tree, and at other depths, the model's error is
-unmeasured and the same 0.08bb is used.
+**How fine the model's EVs are [M].** Where the charts weight a hand's action between 15% and 85%, the published solves
+play it both ways, so its EV equals the alternative's. On those plays, the chart's action trails the stored game's best
+action by, at the 90th percentile:
+
+| Decision | Plays | Median pot | 90th percentile, bb | % of the pot |
+|---|---:|---:|---:|---:|
+| First in | 553 | 1.5bb | 0.076 | 5.1% |
+| Facing an open | 1,719 | 4bb | 0.32 | 7.9% |
+| Facing a 3-bet | 217 | 13bb | 1.47 | 10.9% |
+| Facing a 4-bet | 29 (lz4) | 34bb | 4.37 | 13.3% |
+
+(lz3; the lz4 rebuild's game gives 5.1%, 7.9%, 11.0% and 13.3%.) Measured by class instead of by play, on the 31 opens
+the charts mix, raise and fold differ by 0.051bb at the median and 0.079bb at the 90th percentile.
+
+**The rule.** The noise grows with the pot, and 4 + 2.75 ln(pot) % of the pot fits it (5.1%, 7.8%, 11.1%, 13.7% at those
+pots). A grade by the preflop solve (`web/src/grading/grade.ts` `pfNoisePct`, `noiseOf`) now calls an action within that
+of its best Correct, and past it grades only the excess against the 2% and 8% thresholds, so a gap just over the noise is
+an Inaccuracy, not a Blunder; folding aces first in (8.25bb) is still a Blunder. The EV lost is shown as measured, and the
+"why" says what the model can tell apart there. Practice, the live and preflop drills, Review's retries, Analyze and its
+leak drill all pass the answer's source in. Every other source's EVs keep the 0.011bb tie.
+
+**What it does [M].** The same 30,000 hands, graded by the rule:
+
+| You play | Rule | Best | Correct | Inaccuracy | Mistake | Blunder | Below Correct |
+|---|---|---:|---:|---:|---:|---:|---:|
+| The charts | before | 92.5% | 0.1% | 2.0% | 4.1% | 1.3% | 7.4% |
+| The charts | noise | 92.5% | 6.0% | 0.7% | 0.6% | 0.1% | 1.4% |
+| At random | before | 44.1% | 0.1% | 2.4% | 8.9% | 44.4% | 55.7% |
+| At random | noise | 44.1% | 9.8% | 3.0% | 8.9% | 34.3% | 46.2% |
+
+(lz4, the game being rebuilt now, seed 7; 30,617 and 32,725 decisions. The EV lost a decision is unchanged, 0.0185bb and
+0.3801bb: only the verdicts move.) Playing the published solves' charts is called below Correct one time in 70 instead of
+one in 14, and random play is still graded below Correct almost half the time.
+
+**Not established.** The noise is measured at 6-max 100bb only; other depths and table sizes use the same curve. It
+treats the charts' weights as the published solves' indifference, which they are only to the charts' rounding (many are
+written 0.5). The preflop drill still stops every grade at an Inaccuracy (`PreflopDrill.tsx`), as before.
 
 ## 19. Nut advantage on Reports (2026-11-06)
 
