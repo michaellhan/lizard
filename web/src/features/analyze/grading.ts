@@ -396,13 +396,14 @@ export async function gradeDecision(
   const best = g.mix[g.grade.best]!;
   const off = offText(ans.data);
   // (where the answer's error can't be measured the verdict stops at Inaccuracy, its EV kept as measured: grade.ts capReason)
-  const { verdict, capped, capWhy, noise, past, pastPct } = g.grade;
+  const { verdict, capped, capWhy, clearWhy, noise, past, pastPct } = g.grade;
   const version = versionOf(ans.provenance);
   return {
     ...base,
     verdict,
     ...(capped ? { capped: true } : {}),
     ...(capWhy ? { capWhy } : {}),
+    ...(clearWhy ? { clearWhy } : {}),
     evLossBb: g.grade.byEv ? r2(g.grade.loss) : null,
     lossPct: g.grade.byEv ? Math.round(g.grade.lossPct * 10) / 10 : null,
     ...(g.grade.byEv && noise ? { noise: Math.round(noise * 1000) / 1000 } : {}),

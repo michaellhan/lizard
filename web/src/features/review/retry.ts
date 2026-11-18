@@ -5,12 +5,12 @@
 import { LIBRARY_SOURCES } from "@/config";
 import type { MistakeAsk, MistakeRecord } from "@/data/db";
 import { spotStamp } from "@/library/version";
-import { drillProvenance, potAt } from "@/features/practice/drills";
+import { drillProvenance, potAt, roughAt } from "@/features/practice/drills";
 import { liveMode, readLive } from "@/features/practice/liveDeal";
 import { pfAgain } from "@/features/practice/pfGrade";
 import { isBestResponse, mixOf, optionsOf } from "@/features/practice/practice";
 import { resolveLibrarySource } from "@/library/catalog";
-import { cardInt, COMBOS, nodeAt, type Entry } from "@/library/entry";
+import { cardInt, COMBOS, handWeights, nodeAt, type Entry, type LibraryRanges } from "@/library/entry";
 import { LibraryFiles, type LibraryReport } from "@/library/files";
 import type { TurnFile } from "@/library/turns";
 import type { SolverClient } from "@/solver/client";
@@ -48,8 +48,9 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
   return { mix, pot: typeof data.pot_bb === "number" ? data.pot_bb : pot, provenance, basis: basisOf(provenance, { res: data }) };
 }
 
-/** Your combo's stored answer in an entry; null where the entry holds no node or no hand there. */
-export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pick<Extract<MistakeAsk, { via: "library" }>, "path" | "combo">, mode: SolveMode, libraryVersion?: string): Omit<RetryAnswer, "version"> | null {
+/** Your combo's stored answer in an entry; null where the entry holds no node or no hand there. `ranges`: the spot's, which
+ * mark the actions the range at the node almost never takes, whose EVs are rough (drills.ts roughAt), as the drill did. */
+export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pick<Extract<MistakeAsk, { via: "library" }>, "path" | "combo">, mode: SolveMode, libraryVersion?: string, ranges?: LibraryRanges): Omit<RetryAnswer, "version"> | null {
   const nd = nodeAt(e, ask.path);
   if (!nd) return null;
   const j = (e.combos[nd.player] ?? []).findIndex((k) => {
@@ -58,9 +59,12 @@ export function storedAnswer(rep: Pick<LibraryReport, "pot">, e: Entry, ask: Pic
   });
   if (j < 0) return null;
   const { pot } = potAt(rep, ask.path);
+  const w = ranges ? handWeights(e, ask.path, ranges) : null;
+  const rough = w ? roughAt(nd.strat, w) : [];
   const mix = nd.names.map((action, i) => {
     const amount = betAmount(action, pot);
-    return { action, freq: nd.strat[i]?.[j] ?? 0, ev: nd.evs[i]?.[j] ?? null, ...(amount !== undefined ? { amount } : {}) };
+    const ev = nd.evs[i]?.[j] ?? null;
+    return { action, freq: nd.strat[i]?.[j] ?? 0, ev, ...(amount !== undefined ? { amount } : {}), ...(ev !== null && rough[i] ? { rough: true as const } : {}) };
   });
   const provenance = drillProvenance(e, mode, undefined, libraryVersion);
   return { mix, pot, provenance, basis: basisOf(provenance, { flopPot: rep.pot }) };
@@ -97,14 +101,14 @@ export async function askLibrary(ask: Extract<MistakeAsk, { via: "library" }>, m
   const index = await f.index();
   const spot = index.spots.find((s) => s.id === ask.spot);
   if (!spot || !(ask.flop in (spot.flops ?? {}))) throw new Error(`this library doesn't hold ${ask.spot} on ${ask.flop} any more`);
-  const [{ report }, entry] = await Promise.all([f.spot(spot), f.entry(spot, ask.flop)]);
+  const [{ report, ranges }, entry] = await Promise.all([f.spot(spot), f.entry(spot, ask.flop)]);
   const turns = ask.turn
     ? await f.turns(spot, ask.flop).catch(() => {
         throw new Error(`this library doesn't hold ${ask.flop}'s turns in ${ask.spot} any more`);
       })
     : null;
   const stamp = spotStamp(spot, index.tree, ask.flop);
-  const a = turns ? storedTurnAnswer(entry, turns, ask, mode, stamp) : storedAnswer(report, entry, ask, mode, stamp);
+  const a = turns ? storedTurnAnswer(entry, turns, ask, mode, stamp) : storedAnswer(report, entry, ask, mode, stamp, ranges);
   if (!a) throw new Error(`the library no longer stores your hand at this node of ${ask.spot}`);
   const version = spot.flops[ask.flop];
   return { ...a, ...(version !== undefined ? { version } : {}) };

@@ -153,9 +153,23 @@ export interface DrillProblem {
   evs: number[] | null;
   pot: number;
   bet: number;
+  /** a flop drill's: per action, whether the range reaching the node takes it under RARE_BRANCH, so its EV is rough
+   * (roughAt), as the same answer in Practice marks it */
+  rough?: boolean[];
   /** a turn drill's: the stored turn card, the turn actions to the node, and each action's EV over the range's hands
    * that take it (a format-2 file's, the class's: shown, never graded on) */
   turn?: { card: string; at: string[]; rangeEvs: (number | null)[] | null };
+}
+
+/** advisor.py RARE_BRANCH: an action the range at a node takes less often than this has a rough EV (rough_ev). */
+export const RARE_BRANCH = 0.01;
+
+/** Per action at a stored node, whether the range reaching it takes it under RARE_BRANCH, so its EV is rough: as the
+ * Advisor marks the same node's actions (advisor.py rough_ev, the node's strategy over the range's reach). `w`: the
+ * range's weights at the node (handWeights). */
+export function roughAt(strat: readonly (readonly number[])[], w: readonly number[]): boolean[] {
+  const total = w.reduce((x, y) => x + y, 0);
+  return strat.map((row) => row.reduce((t, f, j) => t + f * (w[j] ?? 0), 0) < RARE_BRANCH * Math.max(total, 1e-12));
 }
 
 /** one problem: a hand dealt at a drawn (flop, node), of the filter `hand` if there's one; null if the entry has no
@@ -187,6 +201,7 @@ export function problem(rep: LibraryReport, e: Entry, cand: Candidate, ranges: L
     evs: nd.evs.map((r) => r[j]!),
     pot,
     bet,
+    rough: roughAt(nd.strat, all),
   };
 }
 
@@ -322,11 +337,19 @@ export function sampleFlops(cands: readonly Candidate[], n: number): string[] {
 }
 
 /** What grading knows of a drill's stored answer (grading/basis.ts): a flop's, the stored solve's distance from equilibrium
- * and the flop's pot (its EVs are stored in steps of 1% of it); a turn's, read from the flop solve, approximate. */
-export function drillBasis(pr: Pick<DrillProblem, "pot" | "bet" | "turn" | "names">, e?: Pick<Entry, "head">): AnswerBasis {
+ * and iterations, the flop's pot (its EVs are stored in steps of 1% of it) and the actions with rough EVs; a turn's, read
+ * from the flop solve, approximate. As Practice's basis for the same answer (practice.ts practiceBasis). */
+export function drillBasis(pr: Pick<DrillProblem, "pot" | "bet" | "turn" | "names" | "rough">, e?: Pick<Entry, "head">): AnswerBasis {
   if (pr.turn) return { source: "library-turn", approximate: true };
   const expl = e && typeof e.head.expl === "number" ? e.head.expl : undefined;
-  return { source: "library", flopPot: Math.round((pr.pot - pr.bet) * 100) / 100, ...(expl !== undefined ? { exploitabilityPct: expl, band: bandOf(expl, false) } : {}) };
+  const iters = e && typeof e.head.iters === "number" ? e.head.iters : undefined;
+  return {
+    source: "library",
+    flopPot: Math.round((pr.pot - pr.bet) * 100) / 100,
+    ...(expl !== undefined ? { exploitabilityPct: expl, band: bandOf(expl, false) } : {}),
+    ...(iters !== undefined ? { iterations: iters } : {}),
+    ...(pr.rough?.some(Boolean) ? { rough: pr.rough } : {}),
+  };
 }
 
 /** your pick graded against the stored mix and EVs for your hand, through the one entry point (grade.ts gradeAnswer):

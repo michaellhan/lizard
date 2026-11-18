@@ -64,6 +64,7 @@ export function MyHand({ mine, result, basis, ranges }: { mine: Mine; result: Ri
                       <VerdictTag v={s.grade.verdict} />
                       {s.grade.loss > 0 ? ` ${lossBrief(s.grade)}` : ""}
                       {s.grade.capped ? ` ${s.grade.capWhy ?? CAPPED_WORDS}` : ""}
+                      {s.grade.clearWhy ? ` ${s.grade.clearWhy}` : ""}
                     </>
                   ) : (
                     <span className="text-muted">ungraded: {s.why}</span>

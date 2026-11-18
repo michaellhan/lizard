@@ -112,15 +112,33 @@ export function offText(r: AdvisorResponse): string | null {
   return off.length ? [...new Set(off.map(offOne))].join("; ") : null;
 }
 
+/** A narrowing solve that hadn't settled, its ranges followed less than this (%), leaves them mostly the betting rules'
+ * (advisor.py trust_of): the answer leans on the rules. Followed this much or more, they're mostly the solve's. */
+export const LEAN_TRUST = 50;
+
 /** A line read by the betting rules with nothing solved after it: a street they narrowed (a Quick answer's earlier
- * street), or a line the solve rarely plays whose play after it wasn't solved again. */
-const byRules = (o: OffSolution) => o.why === "rules" || (o.why === "rare" && !o.resolved);
+ * street), a line the solve rarely plays whose play after it wasn't solved again, or a narrowing solve followed under
+ * LEAN_TRUST. */
+const byRules = (o: OffSolution) => o.why === "rules" || (o.why === "rare" && !o.resolved) || (o.why === "unsettled" && typeof o.trust === "number" && o.trust < LEAN_TRUST);
+
+/** advisor.py's notes that say the same where off_solution doesn't list it (a 3-way street's narrowing): a street the
+ * rules narrowed, or a narrowing solve followed under LEAN_TRUST. */
+function notedRules(n: string): boolean {
+  if (RULES_NOTE.test(n) || MW_RULES_NOTE.test(n)) return true;
+  const u = UNSETTLED_NOTE.exec(n);
+  if (u) return Number(u[4]) < LEAN_TRUST;
+  const mw = MW_PARTIAL_NOTE.exec(n);
+  return mw ? Number(mw[5]) < LEAN_TRUST : false;
+}
 
 /** Whether the ranges this answer is solved on lean on the betting rules where the solves don't reach (advisor.py
- * off_solution, widened): an earlier street they narrowed, or an opponent's line the solve rarely plays whose range is
- * theirs. The answer can still be a settled solve, but of a spot its own solve never reaches as these ranges have it. */
+ * off_solution, widened, notes): a street they narrowed, an opponent's line the solve rarely plays whose range is theirs,
+ * or an earlier street's narrowing solve that settled so little its ranges are mostly theirs. The answer can still be a
+ * settled solve, but of a spot its own solve never reaches as these ranges have it. The one test of it: the live drill
+ * refuses such an answer and every grade stops at Inaccuracy on it short of a clear blunder (grading/basis.ts). A narrowing
+ * followed LEAN_TRUST% or more is said (rangesOffOf) but doesn't lean. */
 export function leansOnRules(r: AdvisorResponse): boolean {
-  return offOf(r).some(byRules) || widenedOf(r).length > 0;
+  return offOf(r).some(byRules) || widenedOf(r).length > 0 || (Array.isArray(r.notes) ? r.notes : []).some((n) => typeof n === "string" && notedRules(n));
 }
 
 /** The ranges behind an answer in words, where an earlier street or an opponent's rare line had them narrowed by the
@@ -213,9 +231,11 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   if (off && source !== "rules" && source !== "charts" && source !== "push-fold") {
     p.approximate = true;
     p.approximateLabel = p.approximateLabel ? `${p.approximateLabel}; ${off}` : off;
-    // (kept on its own as well: a grade can't condemn a line on ranges the rules gave, grading/basis.ts)
+    // (kept on its own as well, said beside a grade)
     p.rangesOff = off;
   }
+  // (a grade can't condemn a line on ranges the rules gave, short of a clear blunder: grading/basis.ts)
+  if (source !== "rules" && source !== "charts" && source !== "push-fold" && leansOnRules(r)) p.leansOnRules = true;
   // a true node lock (engine/study_lock.py): the lock in words and what the tree it's solved on abstracts
   if (r.node_lock) {
     p.lock = [r.node_lock.words, ...(r.node_lock.also ?? []).map((x) => x.words)].join("; ");

@@ -16,6 +16,7 @@ import {
   candidates,
   DRILL_VIEWS,
   drillActionLabel,
+  drillBasis,
   drillProvenance,
   flopDeals,
   gradeDrill,
@@ -25,6 +26,8 @@ import {
   potAt,
   treeBet,
   problem,
+  RARE_BRANCH,
+  roughAt,
   sampleFlops,
   preflopWords,
   situation,
@@ -161,6 +164,8 @@ describe("the drills' draws", () => {
           pr.board.forEach((x, t) => expect(x[0]).toBe(canon[t]![0]));
           expect(pr.freqs).toEqual(nd.strat.map((row) => row[j]));
           expect(pr.evs).toEqual(nd.evs.map((row) => row[j]));
+          // (the actions the range at the node almost never takes, whose EVs are rough, as the Advisor marks them)
+          expect(pr.rough).toEqual(roughAt(nd.strat, w));
           counts.set(j, (counts.get(j) ?? 0) + 1);
         }
         // the most common hand comes up about as often as its weight says
@@ -220,6 +225,26 @@ describe("a problem's spot", () => {
     // (a half goes to the even half big blind, as Python rounds: 25% of 5bb is 1.25bb, 2.5 halves, so 1bb; 75% of 5bb, 7.5 halves, 4bb)
     expect([treeBet("bet 25%", 5), treeBet("bet 75%", 5)]).toEqual([1, 4]);
     expect(drillActionLabel(pr, "raise to 11")).toBe("raise to 11");
+  });
+
+  it("marks an action rough where the range at the node takes it under 1%, as the Advisor does", () => {
+    // (two hands, weights 3 and 1: the raise is 0.4% of the range, the call 75%)
+    const strat = [
+      [0.2, 0.2],
+      [0.8, 0.6],
+      [0, 0.016],
+    ];
+    expect(roughAt(strat, [3, 1])).toEqual([false, false, true]);
+    expect(RARE_BRANCH).toBe(0.01);
+    expect(roughAt(strat, [0, 0])).toEqual([true, true, true]);
+    // (the basis grading reads: the solve's iterations size the rough EV's error, grade.ts roughErrPct)
+    const e = { head: { expl: 0.3, iters: 300 } } as Parameters<typeof drillBasis>[1];
+    expect(drillBasis({ ...pr, rough: [false, false, true] }, e)).toEqual({ source: "library", flopPot: 5.5, exploitabilityPct: 0.3, band: "converged", iterations: 300, rough: [false, false, true] });
+    expect(drillBasis({ ...pr, rough: [false, false, false] }, e).rough).toBeUndefined();
+    // (a rough raise giving up 0.3bb of 9.63: within the library's 0.11bb noise and its 2.4% error, 0.23bb, so Correct)
+    const rough = { ...pr, freqs: [0.2, 0.795, 0.005], evs: [0, 1.5, 1.2], rough: [false, false, true] };
+    expect(gradeDrill(rough, 2, e)).toMatchObject({ verdict: "Correct", rough: true });
+    expect(gradeDrill({ ...rough, rough: undefined }, 2, e).verdict).toBe("Mistake");
   });
 
   it("graded on the one scale, by EV given up", () => {

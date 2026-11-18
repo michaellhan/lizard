@@ -175,7 +175,7 @@ const CONFIDENCE_MEANS: Record<string, string> = {
 
 /** What a drill's answer stands on beyond its label: the grade's confidence and version, and what kept it from being read
  * at face value. All of it is the original grade's, as nothing is solved here. */
-export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | "best"> & Partial<Pick<Grade, "capWhy">>): string[] {
+export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | "best"> & Partial<Pick<Grade, "capWhy" | "clearWhy">>): string[] {
   const name = (k: number) => d.mix?.[k]?.[0] ?? "";
   const rough = roughActions(d);
   return [
@@ -183,6 +183,7 @@ export function carriedWords(d: DecisionRecord, g: Pick<Grade, "capped" | "a" | 
     !d.read && d.confidence ? `A Quick triage read at ${d.confidence} confidence: ${CONFIDENCE_MEANS[d.confidence]}.` : "",
     d.notChecked !== undefined ? `Fast couldn't grade it (${d.notChecked}), so the read stands.` : "",
     g.capped ? (g.capWhy ?? CAPPED_WORDS) : "",
+    g.clearWhy ?? "",
     rough.has(name(g.a)) || rough.has(name(g.best)) ? "The range almost never takes that move, so its EV is rough." : "",
     d.off ?? "",
     `Version: ${versionWords(d.version)}.`,

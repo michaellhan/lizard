@@ -211,7 +211,8 @@ describe("AnalyzePage", () => {
     // (the report follows a moment after the grades: it's counted after what you're doing)
     const rep = await screen.findByRole("region", { name: "Report" });
     await waitFor(() => expect(within(rep).getByLabelText("Summary")).toHaveTextContent("5 of your decisions graded in 4 hands: 60% in the mix (Best or Correct)."));
-    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.12bb of solver EV lost in all, 2.2% of the pot per decision.");
+    // (what the verdict counts: the 0.01bb past the answer's noise of the 0.12bb lost, and the summary says so)
+    expect(within(rep).getByLabelText("Summary")).toHaveTextContent("1 decision, 0.01bb of solver EV lost in all, 0.2% of the pot per decision. This counts only what each decision below Correct gave up past its answer's noise");
     expect(within(rep).getByText("4 not graded")).toBeInTheDocument();
     // the mtt hand's call is one CO's chart leaves out: off the chart
     const off = within(rep).getByRole("list", { name: /^Off the chart/ });

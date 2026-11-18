@@ -375,7 +375,8 @@ describe("what grades a live drill", () => {
     const a = answered();
     expect(describeProvenance(a.provenance)).toBe("Live solve · 0.63% pot from equilibrium in the solved game (converged) · 111 iterations");
     expect(a).toMatchObject({ pot: 16.5, toCall: 4.13, off: null });
-    expect(a.basis).toEqual({ source: "live", band: "converged", exploitabilityPct: 0.63 });
+    // (its iterations size a rough EV's error: grade.ts roughErrPct)
+    expect(a.basis).toEqual({ source: "live", band: "converged", exploitabilityPct: 0.63, iterations: 111 });
     expect(a.mix.map((x) => x.ev)).toEqual([0, 2.5, -1]);
   });
 

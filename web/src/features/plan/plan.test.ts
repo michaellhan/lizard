@@ -149,14 +149,17 @@ describe("leaks", () => {
 
   it("says what EV it gave up and over what, and what's graded with no EV counts none", () => {
     const leak = buildPlan(input({ decisions: times(40, () => flop("SRP · IP · checked to", 1)) })).leaks.find((l) => l.leak.kind === "spot")!;
-    expect(leak.says.join(" ")).toMatch(/40\.00bb of solver EV given up over 40 decisions graded by EV/);
+    expect(leak.says.join(" ")).toMatch(/40\.00bb of solver EV given up past the answers' noise over 40 decisions graded by EV/);
+    // (what the verdicts count: past each answer's noise)
+    const past = buildPlan(input({ decisions: times(40, () => flop("SRP · IP · checked to", 1, { past: 0.75, pastPct: 13.6 })) })).leaks.find((l) => l.leak.kind === "spot")!;
+    expect(past.says.join(" ")).toMatch(/30\.00bb of solver EV given up past the answers' noise over 40 decisions/);
     expect(leak.says.join(" ")).toMatch(/Graded against: Library, 40|Graded against: .*40/);
   });
 
   it("says the preflop solve's EV apart from a spot's, and still ranks a row that has only that", () => {
     const pf = () => open({ source: "preflop-solve", byEv: true, evLossBb: 0.5, lossPct: 10, mix: [["fold", 1, 0], ["raise", 0, -0.5]] });
     const leak = buildPlan(input({ decisions: times(40, pf) })).leaks.find((l) => l.leak.kind === "pf")!;
-    expect(leak.says.join(" ")).toMatch(/20\.00bb given up by the preflop solve's EV over 40 decisions/);
+    expect(leak.says.join(" ")).toMatch(/20\.00bb given up past the noise by the preflop solve's EV over 40 decisions/);
     expect(leak.says.join(" ")).not.toMatch(/No EV to weigh|of solver EV given up/);
     expect(leak.lost).toBeNull();
     expect(leak.pfLost).toBe(20);

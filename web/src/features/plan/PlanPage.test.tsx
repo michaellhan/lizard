@@ -102,7 +102,7 @@ describe("the plan", () => {
     expect(screen.queryByText(/Nothing is waiting on more hands/)).toBeNull();
     const link = within(leaks).getAllByRole("link", { name: /^Drill this leak: / })[0]!;
     expect(link.getAttribute("href")).toMatch(/^\/analyze\?drill=.*game=equilibrium/);
-    expect(within(leaks).getAllByText(/of solver EV given up over 40 decisions graded by EV/).length).toBeGreaterThan(0);
+    expect(within(leaks).getAllByText(/of solver EV given up past the answers' noise over 40 decisions graded by EV/).length).toBeGreaterThan(0);
     const drill = screen.getByRole("region", { name: "Practice drill" });
     expect(within(drill).getByRole("link", { name: "Practice the flop from BTN" })).toHaveAttribute("href", "/practice?play=srp&seat=BTN&players=6&stack=100");
     expect(within(drill).getAllByText("Practice the flop from BTN")).toHaveLength(1);

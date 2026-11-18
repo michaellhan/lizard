@@ -673,7 +673,7 @@ function Drill({ result, basis }: { result: RiverResult; basis: PloBasis }) {
     <section aria-label="Practice this solve" className="space-y-2 rounded border border-border p-3 text-sm">
       <h2 className="font-semibold">Practice this solve</h2>
       <p className="text-xs text-muted">
-        Graded against this solve&apos;s mix and EVs{band === "rough" || band === "approximate" ? "; not converged, so no verdict past Inaccuracy" : ""}.
+        Graded against this solve&apos;s mix and EVs{band === "rough" || band === "approximate" ? "; not converged, so no verdict past Inaccuracy short of a clear blunder (20% of the pot past the noise)" : ""}.
       </p>
       <button type="button" className={buttonClass} onClick={next}>
         {spot ? "Next hand" : "Deal a hand"}
@@ -700,6 +700,7 @@ function Drill({ result, basis }: { result: RiverResult; basis: PloBasis }) {
                 {answer.mixed ? ", and this hand mixes" : ""}.
               </p>
               {answer.capped && <p className="text-muted">{answer.capWhy ?? CAPPED_WORDS}</p>}
+              {answer.clearWhy && <p className="text-muted">{answer.clearWhy}</p>}
               <table aria-label="This hand in the solve" className="w-full text-sm">
                 <thead className="text-left text-muted">
                   <tr>

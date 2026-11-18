@@ -114,16 +114,21 @@ describe("leakDrill", () => {
       expect(canDrill(ds[1]!)).toBe(false);
     });
 
-    it("grades by the same cap as the grade: a rough solve's pick stops at an Inaccuracy, kept grades and old alike", () => {
-      const big = { mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] as NonNullable<DecisionRecord["mix"]> };
+    it("grades by the same cap as the grade: a rough solve's pick stops at an Inaccuracy, kept grades and old alike, short of a clear blunder", () => {
+      // (1.40bb of a 9.1bb pot: 15.4%, a Blunder where it's measured)
+      const big = { mix: [["check", 0.95, 3], ["bet 33%", 0.05, 1.6]] as NonNullable<DecisionRecord["mix"]> };
       expect(gradePick(turn({ ...big }), 1)).toMatchObject({ verdict: "Blunder" });
       expect(gradePick(turn({ ...big, band: "rough" }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
       expect(gradePick(turn({ ...big, band: "approximate" }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
       expect(gradePick(turn({ ...big, band: undefined, capped: true }), 1)).toMatchObject({ verdict: "Inaccuracy", capped: true });
+      // (8bb of it, 87% of the pot past the noise: a clear blunder, a Blunder on a rough solve too, and says why)
+      const clear = gradePick(turn({ mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]], band: "rough" }), 1)!;
+      expect(clear).toMatchObject({ verdict: "Blunder" });
+      expect(clear.clearWhy).toMatch(/^The solve stopped too far to trust, but this gives up 87\.4% of the pot past its noise, 20% or more: a clear blunder/);
     });
 
     it("says what it carries from the grade: how it was checked, its confidence, the cap and the version", () => {
-      const quick = turn({ confidence: "low", triageSource: "quick", version: "build:abc/123", band: "rough", mix: [["check", 0.95, 9], ["bet 33%", 0.05, 1]] });
+      const quick = turn({ confidence: "low", triageSource: "quick", version: "build:abc/123", band: "rough", mix: [["check", 0.95, 3], ["bet 33%", 0.05, 1.6]] });
       const words = carriedWords(quick, gradePick(quick, 1)!).join(" ");
       expect(words).toMatch(/A Quick triage read at low confidence/);
       expect(words).toMatch(/stops at Inaccuracy/);

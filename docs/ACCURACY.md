@@ -2253,26 +2253,55 @@ answer, built from the answer's provenance by `basisOf` (`web/src/grading/basis.
   is Correct, and past it only the excess is graded against the 2% and 8% thresholds. The EV given up is shown as
   measured.
 - **Best.** Yours where it holds the top EV to 0.011bb; else, of the actions within the noise of the top, the most
-  played, so an action played 0% is never named over one the hand plays that close.
+  played, so an action played 0% is never named over one the hand plays that close. The EV lost is measured against the
+  top EV (yours where you hold it, else the most played of the actions at it), and the words name that action, so the
+  loss said is its EV less yours to the cent; where the best named differs, both are named, the best as the most played
+  within the answer's noise of the top EV. Analyze's miss cards and tables add "(top EV raise)" the same way.
+- **A rough move.** A move the engine marks `rough_ev` (the range at the node takes it under 1%, `advisor.py`
+  `RARE_BRANCH`) has its measured error added to its noise: 6.0% of the pot at 100 iterations, 2.4% at 300, 1.6% at 400,
+  0.6% at 1,000, between them by the log of the iterations (`grade.ts` `roughErrPct`; the mean gap of such actions'
+  EVs to postflop-solver's on single-raised heads-up turns, `docs/cfr_research.md`). Past both, the excess is graded as
+  any other. The stored flop drills mark rough the same way, from the range reaching the node (`drills.ts` `roughAt`),
+  and so do Review's retries of a stored answer, so a drill and Practice grade a pick alike. The engine marks
+  `rough_ev` on heads-up answers and on Study's 3-way reads (`advisor.py` `_postflop`, `_study_node`,
+  `_study_mw_node`), not on 3-way advice (`_multiway_solve`), so a 3-way Practice answer's rare moves get no allowance;
+  the library drills are heads-up (two seats), so no drill differs from Practice there.
 - **What can't condemn a line.** Where the answer's error isn't measured the verdict stops at Inaccuracy and says why:
-  the rules or equity fallback; a solve cut short before it measured itself; ranges that lean on the betting rules (an
-  opponent's rare line read by the rules and not resolved, a range the rules widened, an earlier street narrowed by them:
-  `provenance.ts` `rangesOffOf`, which now also reads the answer's `off_solution` and `widened`, so the provenance label
-  says so too); a rough or short-of-target band; a read of another solution whose error is unmeasured; a move the engine
-  marks `rough_ev` (the range almost never takes it). A filled range and a resolved rare line no longer cap: the solve
-  measured those. The preflop drill's blanket cap is gone, so its grades match Practice's.
+  the rules or equity fallback; a solve cut short before it measured itself; ranges that lean on the betting rules; a
+  rough or short-of-target band; a read of another solution whose error is unmeasured. A filled range and a resolved rare
+  line don't cap: the solve measured those. The preflop drill's blanket cap is gone, so its grades match Practice's.
+- **A clear blunder still counts.** Past the noise, a loss of 20% of the pot or more is a Blunder even from an answer
+  that can't condemn a line (`grade.ts` `CLEAR_PCT`), with its reason kept ("… but this gives up 39.2% of the pot past
+  its noise, 20% or more: a clear blunder, graded as measured") and shown in Practice, the drills, Review, Analyze's
+  miss cards and tables, the leak drill and PLO. 20% was set by judgment, not measured: it is well past the gaps
+  measured between a quick answer and a reference (below: under 1.4% of the pot at the 95th percentile; a rough EV's
+  mean error, 6% at 100 iterations).
+- **Leaning on the rules: one test.** `provenance.ts` `leansOnRules`, kept on the provenance and read by `basisOf`: an
+  opponent's rare line the rules read and nothing resolved, a range the rules widened, an earlier street narrowed by the
+  rules, or one narrowed by a solve followed under half the time (`LEAN_TRUST`, 50); the answer's notes are read where it
+  gives no structured flags. A narrowing followed half the time or more is said in the provenance label but doesn't cap.
+  Before, any unsettled narrowing capped, whatever its trust.
 - **The score.** A Best or Correct counts nothing, and a decision below Correct counts only what it gave up past the
-  noise. Each decision still shows the loss as measured, labelled "within the answer's noise, not counted" or "part of
-  the hand's mix, not counted". The score's help says so, and History says its EV lost per stretch counted all of it
-  before this date.
+  noise. Each decision still shows the loss as measured, labelled "within the answer's noise, not counted", "just past
+  the answer's noise, too little to grade, not counted" (where the two rounded numbers read the loss larger but the
+  excess is under 0.01bb or 0.1% of the pot), or "part of the hand's mix, not counted". The score's help says so, and
+  History says its EV lost per stretch counted all of it before this date. Analyze's report totals (EV lost, mean per
+  decision, by kind, the mistakes list and its order), its Winnings card and the Plan count the same past-the-noise loss
+  (`report.ts` `countedBb`), and say so; a decision graded before this date counts all of it. The hands list's "EV lost"
+  filter still searches each decision's loss as measured, the number the hand shows.
 - **Words.** One decimal, as the tables; "never" and "always" only at 0.0% and 100.0%; frequencies within half a point
   of the top are all Best. Analyze's tables and miss cards use the grade's best and the noise. Practice's range line
   reads "AKo, all combos: … · your A♥K♦: … (graded on this)".
+- **Retries keep the answer's basis.** Practice's "retry this spot" grades with the basis the spot was first graded on
+  (`SessionRetry.tsx`), so a rough or capped answer grades the same the second time.
 - **Drill bets** follow the tree's rounding everywhere a drill prices one (labels, pots, the hand so far, study links).
 
 `web/src/grading/crossSurface.test.ts` grades one answer through all eight surfaces' paths and checks they agree on the
-verdict, the cap, the EV lost and what the score counts. `grade.props.test.ts` checks 15 invariants over 12,000 seeded
-answers of every kind and the odd inputs.
+verdict, the cap, the EV lost and what the score counts. Each surface is driven through its own entry point, not a copy
+of it: Practice's `practiceBasis` and `flopPotOf` (the flop's pot off the table), Analyze's `gradeDecision` on an
+imported hand (the pot off the hand) with what it keeps, the drill's stored pot less the bet, the session retry's
+`retrySpot`, and a PLO solve's own provenance (`ploRiverProvenance`, converged and cut short). `grade.props.test.ts`
+checks 15 invariants over 12,000 seeded answers of every kind and the odd inputs.
 
 **How the live noise was set [M].** Four heads-up turn spots (single-raised: BB first to act, BTN facing a check, BB
 facing a bet; 3-bet: CO first), each solved at Fast (169-305 iterations, 0.09-0.28% of the pot from equilibrium; the
@@ -2318,14 +2347,42 @@ left past it is graded on the excess.
 **Preflop [M].** Section 18.8's measure stands (the charts graded below Correct 7.4% → 1.4%); the drill now gives the
 same grades.
 
+**Fixes after review (2026-11-18) [M].** A review of the change found the caps too blunt and some surfaces still apart.
+Measured after the fixes (`web/src/grading` tests; the scratch scripts graded through `gradeAnswer` itself):
+
+- **Caps on 244 recorded Practice decisions** (real Advisor answers from three audit sessions: live solves, loose
+  play, Quick on any spot; each of their 784 actions graded as a pick): capped 137 → 128 (leaning on the rules 98 → 89,
+  as narrowings followed half the time or more no longer cap; the rules or equity fallback 39). Picks giving up 8% of
+  the pot or more graded Blunder: 27 → 117 of 190; 20% or more: 10 → 89 of 89. Of the 73 picks past 8% still short
+  of Blunder (63 Inaccuracy, 9 Mistake, 1 Correct), 37 lean on the rules, 25 are the fallback, 6 are inside a rough
+  move's allowance and 5 inside the answer's noise.
+- **Rough moves on the four live turns above** (2,435 picks of moves Fast marks rough, against the 1,000-iteration
+  reference graded uncapped): the old cap at Inaccuracy agreed with the reference on 982, the allowance on 986. Of the
+  reference's 51 Blunders the cap called all 51 Inaccuracy; the allowance calls 10 Blunder and 41 Mistake. Of its 1,183
+  Mistakes the cap called all Inaccuracy; the allowance 580 Mistake, 462 Inaccuracy and 141 Correct. Where the
+  reference calls a pick OK, the cap graded 95 below Correct and the allowance none. Over all 6,819 pairs, of the
+  reference's 724 Blunders Fast gives 674 Blunder, 45 Mistake and 5 Inaccuracy, none capped.
+- **The drill against Practice** on the same stored answers (`srp_hj_bb`, up to 400 flops, the first decision and
+  facing a bet, every combo and action): 62,237 picks, 0 graded differently, against 5,430 before the drill marked rough
+  moves.
+- **One-off checks:** an unsettled narrowing followed 95% of the time no longer caps a clear blunder (it read
+  Inaccuracy); a Correct whose loss reads larger than its noise by a rounding says "just past", not "within"; a loss is
+  named against the action it's measured from; a Practice retry of a capped spot is capped again (it was graded
+  uncapped); Analyze's totals no longer add losses its decisions label "not counted".
+
 **Not established.**
 - The live noise is measured on four heads-up turn spots at Fast, all within 0.3% of equilibrium. Solves further out
   (the fair band, 3-10%, where twice the distance is 6-20% of the pot), rivers, 3-way pots and Quick are unmeasured; the
   factor and the floor are tuned on those four spots, not derived.
 - The library's two steps are measured on 4-5 flops a spot, and facing a bet a fold the library itself plays 0.5-10% is
   still past two steps 23-35% of the time.
-- Analyze's report totals, its hands' EV lost, and the Plan still sum each decision's EV lost as measured
-  (`report.ts`, `analyze.ts` `lostByHand`, `plan.ts`), not the excess past the noise that Practice's, the drills' and
-  History's scores count.
+- The clear-blunder line (20% of the pot past the noise) is set by judgment, not derived; between 8% and 20% an answer
+  that can't condemn a line still stops at Inaccuracy (62 of the 73 picks above short of Blunder).
+- A rough move's error is measured on single-raised heads-up turns (`solver/docs/cfr_research.md`); 3-bet pots ran
+  lower (0.2-0.6% of the pot), rivers and the flop library's stored rare moves are unmeasured, and the allowance calls
+  141 of the reference's 1,183 Mistakes among rough moves Correct.
+- A 3-way answer marks no rough moves on the advice path, so its rare moves get no allowance in Practice.
+- Decisions graded and kept before 2026-11-18 carry no basis; the leak drill still caps those by their old `capped`
+  flag, clear blunders included, and Analyze's totals count all of their loss.
 - History's EV lost before 2026-11-18 counted all of it, so an older stretch reads higher; the page says so.
 - The cross-surface test drives each surface's grading code with one answer, not each page in a browser.

@@ -8,7 +8,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { describe } from "@/solver/provenance";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
-import { CAPPED_WORDS, type Verdict } from "@/grading/grade";
+import { CAPPED_WORDS, topIndex, type Verdict } from "@/grading/grade";
 import { importHand } from "@/hh/replay";
 import { seatLabel } from "@/poker/seats";
 import type { Street } from "@/poker/table";
@@ -119,19 +119,34 @@ export function bestOf(d: DecisionRecord): [string, number, number | null] | nul
   return [...mix].sort((a, b) => (byEv ? b[2]! - a[2]! : b[1] - a[1]))[0]!;
 }
 
-/** Why the answer differs, in a line, from the answer's own numbers: by EV, what the best action is worth and what yours
- * gave up; by frequency (the charts), how often each is played. */
+/** The top-EV action of a kept mix, that the decision's EV lost is measured against (grade.ts topIndex); null without
+ * EVs. */
+export function topOf(d: Pick<DecisionRecord, "mix" | "matched" | "action">): [string, number, number | null] | null {
+  const mix = d.mix ?? [];
+  const k = topIndex(
+    mix.map((x) => x[1]),
+    mix.map((x) => x[2]),
+    mix.findIndex((x) => x[0] === (d.matched ?? d.action)),
+  );
+  return k >= 0 ? mix[k]! : null;
+}
+
+/** Why the answer differs, in a line, from the answer's own numbers: by EV, what the top-EV action is worth and what yours
+ * gave up against it (the EV lost the card shows), and the action the answer mostly plays where that's another within its
+ * noise; by frequency (the charts), how often each is played. */
 export function whyLine(d: DecisionRecord): string | null {
   const mix = d.mix ?? [];
   const you = d.matched ?? d.action;
   const mine = mix.find((x) => x[0] === you);
   if (!mix.length) return d.best ? `The answer most often ${d.best}${d.bestFreq != null ? ` (${pct(d.bestFreq)})` : ""}.` : null;
   const byEv = mix.every((x) => x[2] !== null);
-  const top = bestOf(d)!;
+  const best = bestOf(d)!;
+  const top = (byEv ? topOf(d) : null) ?? best;
   const often = (f: number) => (pct(f) === "0.0%" ? "never played" : `played ${pct(f)} of the time`);
   if (byEv && mine && top[0] !== mine[0]) {
     const gap = top[2]! - mine[2]!;
-    return `${cap(top[0])} is worth ${fmt(top[2]!)}bb with this hand, ${fmt(gap)}bb more than ${mine[0]}, which is ${often(mine[1])}.`;
+    const most = best[0] !== top[0] && best[0] !== mine[0] ? ` The answer mostly plays ${best[0]} (${pct(best[1])}), within its noise of that.` : "";
+    return `${cap(top[0])} is worth ${fmt(top[2]!)}bb with this hand, ${fmt(gap)}bb more than ${mine[0]}, which is ${often(mine[1])}.${most}`;
   }
   if (mine && top[0] !== mine[0]) return `With this hand ${top[0]} is ${often(top[1])} and ${mine[0]} is ${often(mine[1])}.`;
   if (!mine) return `With this hand ${top[0]} is ${often(top[1])}; ${you} isn't one of the answer's actions here.`;
@@ -230,6 +245,7 @@ function Card({ d, hand }: { d: DecisionRecord; hand: HandRecord | undefined }) 
           </table>
         )}
         {d.capped && <p className="text-xs text-muted">{d.capWhy ?? CAPPED_WORDS}</p>}
+        {d.clearWhy && <p className="text-xs text-muted">{d.clearWhy}</p>}
         {d.note && <p className="text-xs text-muted">{d.note}</p>}
         <GradedBy d={d} />
       </div>

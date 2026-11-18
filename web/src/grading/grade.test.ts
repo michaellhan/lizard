@@ -139,7 +139,7 @@ describe("grade: the preflop solve's noise", () => {
     expect([g.verdict, g.ok, g.close, g.best]).toEqual(["Correct", true, true, 0]);
     expect(g.loss).toBeCloseTo(0.022, 9);
     expect(whyText(g, ["raise", "fold"], btn87o.freqs, whoOf("preflop-solve"))).toBe(
-      "The preflop solve never plays this, but it gives up only 0.02bb against raise (100.0% of the time): closer than the answer's EVs can tell apart here (0.08bb).",
+      "The preflop solve never plays this, but it gives up only 0.02bb against the top EV, raise (100.0% of the time): within what the answer's EVs can tell apart here (0.08bb).",
     );
   });
   it("grades only the EV lost past the noise, so a gap just over it isn't a Blunder", () => {

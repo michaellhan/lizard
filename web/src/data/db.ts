@@ -252,6 +252,9 @@ export interface DecisionRecord {
   pastPct?: number;
   /** why the verdict stopped at Inaccuracy, in words (grade.ts capReason; since 2026-11-18) */
   capWhy?: string;
+  /** why an answer that can't condemn a line still graded this a Blunder: a clear blunder, CLEAR_PCT of the pot or more
+   * past the noise (grade.ts gradeAnswer) */
+  clearWhy?: string;
   /** what grading knew of the answer (grade.ts AnswerBasis), so a drill or a retry of this decision grades it the same */
   basis?: AnswerBasis;
   /** the answer's actions for your hand: [action, frequency, EV bb or null] */
@@ -368,7 +371,7 @@ export interface MistakeRecord {
   chose: string;
   mix: { action: string; freq: number; ev: number | null; amount?: number; rough?: true }[];
   pot: number;
-  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean; capped?: boolean; capWhy?: string; noise?: number; past?: number; pastPct?: number };
+  grade: { a: number; best: number; verdict: Verdict; ok: false; mixed: boolean; loss: number; lossPct: number; byEv: boolean; capped?: boolean; capWhy?: string; clearWhy?: string; noise?: number; past?: number; pastPct?: number };
   /** what grading knew of the answer (grade.ts AnswerBasis), so a retry against the kept answer grades it the same; a
    * record from before 2026-11-18 has none */
   basis?: AnswerBasis;

@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { missesOf } from "./report";
+import { decisionBrief } from "./DecisionTables";
 import { MissCards, whyLine } from "./MissCards";
 
 const hand = (id: string, hole: string) => ({ id, site: "PokerStars", number: id, played: "2026-11-08 13:35", players: 6, hole, board: "", text: "" }) as unknown as HandRecord;
@@ -65,7 +66,8 @@ describe("MissCards", () => {
       basis: { source: "library", flopPot: 6.5 },
       mix: [["fold", 0.004, 0], ["check", 0.9, 0.58], ["bet 2", 0.096, 0.6]],
     });
-    expect(whyLine(d)).toBe("Check is worth 0.58bb with this hand, 0.58bb more than fold, which is played 0.4% of the time.");
+    // (the gap said is the one the card shows, against the top EV, and the check the hand plays is named beside it)
+    expect(whyLine(d)).toBe("Bet 2 is worth 0.6bb with this hand, 0.6bb more than fold, which is played 0.4% of the time. The answer mostly plays check (90.0%), within its noise of that.");
     const r = render(
       <MemoryRouter>
         <MissCards misses={[d]} byId={new Map([["f", hand("f", "7c2d")]])} k={0} setK={() => {}} onClose={() => {}} />
@@ -74,8 +76,14 @@ describe("MissCards", () => {
     const answer = within(r.container).getByRole("group", { name: "The answer" });
     expect(answer).toHaveTextContent("−0.6bb · 9.1% of the pot · 0.47bb past the answer's noise");
     expect(within(answer).getByRole("row", { name: /check/ })).toHaveClass("text-accent");
+    // (the one-line brief: the grade's best, and the top EV the loss is measured against beside it)
+    expect(decisionBrief({ ...d, bestFreq: 0.9 })).toBe("0.6bb lost (9.1% of the pot), 0.47bb past the answer's noise, best check 90% (top EV bet 2)");
+    // (a loss shown larger than the noise shown, by too little to grade, is "just past" it, not "within")
+    const hair = { ...d, bestFreq: 0.9, verdict: "Correct" as const, evLossBb: 0.12, lossPct: 2.2, noise: 0.11, past: 0, freq: 0.004, mix: [["fold", 0.004, 3], ["check", 0.9, 3.12], ["bet 2", 0.096, 3.1]] as DecisionRecord["mix"] };
+    expect(decisionBrief(hair)).toBe("0.12bb lost (2.2% of the pot), just past the answer's noise, too little to grade, not counted, best check 90%");
+    expect(decisionBrief({ ...hair, evLossBb: 0.11 })).toMatch(/, within the answer's noise, not counted/);
     // (a record kept before then names the top EV, as it did)
-    expect(whyLine({ ...d, basis: undefined, noise: undefined })).toMatch(/^Bet 2 is worth 0\.6bb/);
+    expect(whyLine({ ...d, basis: undefined, noise: undefined })).toBe("Bet 2 is worth 0.6bb with this hand, 0.6bb more than fold, which is played 0.4% of the time.");
     // (within a verdict, the miss with more past the noise comes first, whatever was measured; a record kept before: its loss)
     const wide = { ...d, id: "w", evLossBb: 0.9, noise: 0.6, past: 0.3 };
     const old = { ...d, id: "o", evLossBb: 0.4, noise: undefined, past: undefined };

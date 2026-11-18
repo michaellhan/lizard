@@ -82,6 +82,7 @@ describe("ranges that lean on the betting rules", () => {
       off_solution: [{ street: "flop", why: "unsettled", trust: 70 }],
     });
     expect(leansOnRules(unsettled)).toBe(false);
+    expect(prov({ ...unsettled }).leansOnRules).toBeUndefined();
     expect(rangesOffOf(unsettled)).toBe("the flop's narrowing solve stopped 4.2% of the pot from equilibrium after 60 iterations on its time budget, so the ranges follow it 70% and the betting rules the rest, and can differ from run to run");
   });
 
@@ -99,16 +100,56 @@ describe("ranges that lean on the betting rules", () => {
   });
 });
 
-describe("a grade on ranges that lean on the betting rules", () => {
-  const spot = { freqs: [0, 1], evs: [0, 3], pot: 7.5 };
-  it("can't condemn a line: folding is graded Inaccuracy, its EV as measured, and says why", () => {
-    const g = gradeAnswer(spot, 0, basisOf(prov({ off_solution: [RARE_BET], widened: ["BTN"] })));
-    expect(g).toMatchObject({ verdict: "Inaccuracy", capped: true, loss: 3 });
-    expect(g.capWhy).toMatch(/ranges lean on the betting rules/);
+describe("one test of ranges that lean on the betting rules: the provenance keeps it, every grade and the live drill read it", () => {
+  const followed = (trust: number, why: "unsettled" = "unsettled"): Partial<AdvisorResponse> => ({
+    street: "turn",
+    notes: [`flop: the solve that narrows ranges is 4.2% of the pot from equilibrium (60 iterations), so ranges follow it ${trust}% and simple betting rules the rest`],
+    off_solution: [{ street: "flop", why, trust }],
+  });
+  it("a narrowing solve followed under half leans; followed half or more it's said but doesn't", () => {
+    expect([leansOnRules(at(followed(30))), leansOnRules(at(followed(49))), leansOnRules(at(followed(50))), leansOnRules(at(followed(95)))]).toEqual([true, true, false, false]);
+    expect(prov(followed(30)).leansOnRules).toBe(true);
+    expect(prov(followed(95))).toMatchObject({ approximate: true });
+    expect(prov(followed(95)).leansOnRules).toBeUndefined();
   });
 
-  it("condemns it on the solve's own ranges", () => {
+  it("reads advisor.py's notes where off_solution doesn't list it: a 3-way street the rules narrowed, a 3-way narrowing followed under half", () => {
+    expect(leansOnRules(at({ notes: ["BTN, BB: multiway, ranges narrowed by simple betting rules"] }))).toBe(true);
+    expect(leansOnRules(at({ notes: ["flop: ranges narrowed by simple betting rules (a quick answer: the street isn't solved)"] }))).toBe(true);
+    const mw = (f: number) => at({ notes: [`flop: 3-way, ranges narrowed through your advice (80 iterations, 3.1% of the pot from equilibrium: followed ${f}%`] });
+    expect([leansOnRules(mw(40)), leansOnRules(mw(70))]).toEqual([true, false]);
+    expect(leansOnRules(at({ notes: ["anything else"] }))).toBe(false);
+  });
+
+  it("isn't set on an answer that is the rules, the charts or push/fold: those are capped by their source", () => {
+    expect(prov({ fallback: "rules", solver: undefined, off_solution: [RARE_BET], widened: ["BTN"] }).leansOnRules).toBeUndefined();
+  });
+});
+
+describe("a grade on ranges that lean on the betting rules", () => {
+  // (1.20bb of a 7.5bb pot: 16%, a Blunder where it's measured, short of a clear blunder)
+  const spot = { freqs: [0, 1], evs: [0, 1.2], pot: 7.5 };
+  it("can't condemn a line: folding is graded Inaccuracy, its EV as measured, and says why", () => {
+    const g = gradeAnswer(spot, 0, basisOf(prov({ off_solution: [RARE_BET], widened: ["BTN"] })));
+    expect(g).toMatchObject({ verdict: "Inaccuracy", capped: true, loss: 1.2 });
+    expect(g.capWhy).toMatch(/ranges lean on the betting rules/);
+    // (read off the kept provenance alone, as a kept decision has it)
+    const kept = prov({ off_solution: [RARE_BET], widened: ["BTN"] });
+    expect(basisOf({ source: kept.source, leansOnRules: kept.leansOnRules, exploitabilityPct: kept.exploitabilityPct }).leans).toBe(true);
+  });
+
+  it("but a clear blunder stays one: folding the nuts for 3bb of the 7.5bb pot", () => {
+    const g = gradeAnswer({ ...spot, evs: [0, 3] }, 0, basisOf(prov({ off_solution: [RARE_BET], widened: ["BTN"] })));
+    expect(g).toMatchObject({ verdict: "Blunder", loss: 3 });
+    expect(g.clearWhy).toMatch(/^This answer's ranges lean on the betting rules, but this gives up 39\.2% of the pot past its noise, 20% or more: a clear blunder, graded as measured\.$/);
+  });
+
+  it("condemns it on the solve's own ranges, and on a narrowing solve followed half or more", () => {
     expect(gradeAnswer(spot, 0, basisOf(prov({}))).verdict).toBe("Blunder");
     expect(gradeAnswer(spot, 0, basisOf(prov({ off_solution: [{ street: "preflop", pos: "BTN", why: "filled" }] }))).verdict).toBe("Blunder");
+    const narrowed = at({ street: "turn", off_solution: [{ street: "flop", why: "unsettled", trust: 95 }] });
+    expect(gradeAnswer(spot, 0, basisOf(provenanceOf(narrowed, ctx), { res: narrowed })).verdict).toBe("Blunder");
+    const loose = at({ street: "turn", off_solution: [{ street: "flop", why: "unsettled", trust: 30 }] });
+    expect(gradeAnswer(spot, 0, basisOf(provenanceOf(loose, ctx), { res: loose })).verdict).toBe("Inaccuracy");
   });
 });

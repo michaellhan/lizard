@@ -125,7 +125,8 @@ describe("a leak drill on the turn", () => {
   });
 
   it("marks a rough solve's cap and a rough EV", async () => {
-    drill([turn({ band: "rough", roughEvs: ["check"], mix: [["check", 0.05, 1], ["bet 75%", 0.95, 9]] })]);
+    // (2.2bb of the 10bb pot, 15.5% past the noise and the rough EV's error: a Blunder where it's measured, short of a clear one)
+    drill([turn({ band: "rough", roughEvs: ["check"], mix: [["check", 0.05, 6.8], ["bet 75%", 0.95, 9]] })]);
     fireEvent.click(await screen.findByRole("button", { name: /^check/i }));
     expect(await screen.findByRole("group", { name: "What graded it" })).toHaveTextContent(/stops at Inaccuracy/);
     expect(screen.getByText(/≈/, { selector: "td" })).toBeInTheDocument();

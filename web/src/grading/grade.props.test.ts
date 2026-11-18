@@ -3,8 +3,10 @@
 // broken. (Adapted from the grading audit of 2026-11-18: docs/ACCURACY.md section 27.)
 import { describe, expect, it } from "vitest";
 import {
+  actionNoise,
   answerNoise,
   capReason,
+  CLEAR_PCT,
   FREQ_TIE,
   gradeAnswer,
   INACCURACY_PCT,
@@ -49,7 +51,10 @@ function* cases(n = 12000, seed = 1): Generator<Case> {
     }
     if (source === "library" && r() < 0.5) basis.flopPot = pot * pick([1, 0.6]);
     if (r() < 0.05) basis.leans = true;
-    if (evs && r() < 0.1) basis.rough = freqs.map((f) => f < 0.01 && r() < 0.5);
+    if (evs && r() < 0.1) {
+      basis.rough = freqs.map((f) => f < 0.01 && r() < 0.5);
+      if (r() < 0.5) basis.iterations = pick([60, 150, 300, 800, 2000]);
+    }
     yield { spot: { freqs, evs, pot }, basis };
   }
 }
@@ -68,6 +73,11 @@ const broken = (f: (c: Case, g: Grade, why: string, a: number) => string | null)
   return bad;
 };
 const tie = (c: Case) => Math.max(TOL, answerNoise(c.basis, c.spot.pot));
+/** What the verdict allows action `a`: the answer's noise, and a rough EV's measured error on top (actionNoise). */
+const allow = (c: Case, a: number) => {
+  const { noise, extra } = actionNoise(c.basis, c.spot.pot, a);
+  return noise + extra;
+};
 const pct1 = (x: number) => Math.round(x * 10) / 10;
 const shown = (f: number) => Math.round(f * 1000) / 10;
 
@@ -96,15 +106,15 @@ describe("the verdict and the best", () => {
     expect(broken((c, g, _w, a) => (!g.byEv && g.verdict !== "Best" && Math.max(...c.spot.freqs) - c.spot.freqs[a]! <= FREQ_TIE ? "tie graded below Best" : null))).toEqual([]);
   });
 
-  it("a loss within the answer's noise is never graded below Correct", () => {
-    expect(broken((c, g) => (g.byEv && !g.ok && g.loss <= answerNoise(c.basis, c.spot.pot) ? "below Correct within the noise" : null))).toEqual([]);
+  it("a loss within the answer's noise (with a rough EV's error on top) is never graded below Correct", () => {
+    expect(broken((c, g, _w, a) => (g.byEv && !g.ok && g.loss <= allow(c, a) ? "below Correct within the noise" : null))).toEqual([]);
   });
 
   it("a gap clearly past the noise on an action the hand doesn't play is never Best or Correct", () => {
     expect(
       broken((c, g, _w, a) => {
         if (!g.byEv || g.best === a || shown(c.spot.freqs[a]!) >= MIX * 100) return null;
-        const past = g.loss - answerNoise(c.basis, c.spot.pot);
+        const past = g.loss - allow(c, a);
         return g.ok && past >= 0.01 && pct1((past / c.spot.pot) * 100) >= 0.1 ? "a clear miss graded OK" : null;
       }),
     ).toEqual([]);
@@ -122,14 +132,19 @@ describe("the verdict and the best", () => {
     ).toEqual([]);
   });
 
-  it("where the answer's error can't be measured the verdict stops at Inaccuracy, says why, and keeps the loss as measured", () => {
+  it("where the answer's error can't be measured the verdict stops at Inaccuracy, says why, and keeps the loss as measured, short of a clear blunder", () => {
     expect(
       broken((c, g, _w, a) => {
         if (!capReason(c.basis, a, g.byEv)) return null;
+        if (g.verdict === "Blunder" && pct1(g.pastPct ?? 0) >= CLEAR_PCT) return g.clearWhy ? null : "a clear blunder without its reason";
         if (g.verdict === "Mistake" || g.verdict === "Blunder") return "condemned on an unmeasured answer";
         return g.capped && !g.capWhy ? "capped without a reason" : null;
       }),
     ).toEqual([]);
+  });
+
+  it("a clear blunder, CLEAR_PCT of the pot or more past the noise, is a Blunder whatever answered", () => {
+    expect(broken((c, g, _w, a) => (g.byEv && g.verdict !== "Blunder" && pct1(((g.loss - allow(c, a)) / c.spot.pot) * 100) >= CLEAR_PCT ? `${g.verdict} for a clear blunder` : null))).toEqual([]);
   });
 });
 
@@ -166,7 +181,34 @@ describe("the words beside it", () => {
   });
 
   it("a miss counts only what's past the noise", () => {
-    expect(broken((c, g) => (g.byEv && !g.ok && Math.abs(scored(g).loss - Math.max(0, g.loss - answerNoise(c.basis, c.spot.pot))) > 1e-9 ? "counted more than the excess" : null))).toEqual([]);
+    expect(broken((c, g, _w, a) => (g.byEv && !g.ok && Math.abs(scored(g).loss - Math.max(0, g.loss - allow(c, a))) > 1e-9 ? "counted more than the excess" : null))).toEqual([]);
+  });
+
+  it("a loss said against an action is that action's EV less yours, to the cent", () => {
+    expect(
+      broken((c, _g, why, a) => {
+        const m = /gives up only ([\d.]+)bb against the top EV, (a\d)/.exec(why);
+        if (!m || !c.spot.evs) return null;
+        const vs = Number(m[2]!.slice(1));
+        return (c.spot.evs[vs]! - c.spot.evs[a]!).toFixed(2) === m[1] && Math.max(...c.spot.evs) - c.spot.evs[vs]! <= 1e-9 ? null : `says ${m[1]}bb against ${m[2]}`;
+      }),
+    ).toEqual([]);
+  });
+
+  it("'within' the noise only where the loss shown is no larger than the noise shown, 'just past' where it is", () => {
+    expect(
+      broken((c, g, why) => {
+        const w = `${why} ${lossWords(g, c.spot.pot) ?? ""}`;
+        const m = /(within|just past) [^(]*\(([\d.]+)bb\)/.exec(w);
+        if (!m) return null;
+        const over = Number(g.loss.toFixed(2)) > Number(m[2]);
+        return m[1] === "within" && over ? "within, but the loss shown is larger" : m[1] === "just past" && !over ? "just past, but the loss shown isn't larger" : null;
+      }),
+    ).toEqual([]);
+  });
+
+  it("'graded on' says the excess the verdict is on", () => {
+    expect(broken((_c, g, why) => { const m = /Graded on the ([\d.]+)bb past/.exec(why); return m && m[1] !== (g.past ?? NaN).toFixed(2) ? `graded on ${m[1]}, past ${g.past}` : null; })).toEqual([]);
   });
 });
 

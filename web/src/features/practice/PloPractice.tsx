@@ -204,6 +204,7 @@ function Table({ result, seat, ask }: { result: RiverResult; seat: "random" | "0
                         <VerdictTag v={l.grade.verdict} />
                         {l.grade.loss > 0 ? ` ${lossBrief(l.grade)}` : ""}
                         {l.grade.capped ? ` ${l.grade.capWhy ?? CAPPED_WORDS}` : ""}
+                        {l.grade.clearWhy ? ` ${l.grade.clearWhy}` : ""}
                       </>
                     ) : (
                       <span className="text-muted"> (ungraded: {l.why})</span>

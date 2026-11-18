@@ -111,8 +111,10 @@ export const GAME_WORDS = "no tournaments or exploit sessions";
 /** The EV-lost filter's steps, bb. */
 export const LOST_STEPS = ["0.1", "0.5", "1", "2", "5", "10"] as const;
 
-/** The EV your graded decisions gave up in each hand, bb (graded by EV only: the preflop charts' grades have none). The
- * preflop solve's is added up on its own, and a hand stands at the larger: the two are of different models, so never summed. */
+/** The EV your graded decisions gave up in each hand, bb, as measured: the number each decision shows, which the EV-lost
+ * filter searches (the report's totals count only what's past each answer's noise: report.ts countedBb). Graded by EV only:
+ * the preflop charts' grades have none. The preflop solve's is added up on its own, and a hand stands at the larger: the
+ * two are of different models, so never summed. */
 export function lostByHand(decisions: readonly DecisionRecord[]): Map<string, number> {
   const spot = new Map<string, number>();
   const pf = new Map<string, number>();

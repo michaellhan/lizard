@@ -66,7 +66,7 @@ export const isBasis = (x: unknown): boolean =>
     !Array.isArray(x) &&
     ((b: Record<string, unknown>) =>
       [b.source, b.band].every(isOptStr) &&
-      [b.exploitabilityPct, b.flopPot, b.noise].every(isOptNum) &&
+      [b.exploitabilityPct, b.flopPot, b.noise, b.iterations].every(isOptNum) &&
       [b.partial, b.approximate, b.leans].every(isOptBool) &&
       (b.rough === undefined || (Array.isArray(b.rough) && b.rough.every(isBool))))(x as Record<string, unknown>));
 
@@ -180,6 +180,7 @@ export function validDecision(d: Record<string, unknown>): boolean {
     (d.roughEvs === undefined || isStrs(d.roughEvs)) &&
     [d.noise, d.past, d.pastPct].every(isOptNum) &&
     isOptStr(d.capWhy) &&
+    isOptStr(d.clearWhy) &&
     isBasis(d.basis) &&
     isRead(d.read)
   );

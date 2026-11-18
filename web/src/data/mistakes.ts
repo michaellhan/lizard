@@ -30,6 +30,7 @@ const isProvenance = (p: unknown): p is Provenance =>
   Object.hasOwn(SOURCES, p.source) &&
   isBool(p.approximate) &&
   isBool(p.partial) &&
+  (p.leansOnRules === undefined || isBool(p.leansOnRules)) &&
   isStr(p.mode) &&
   isStr(p.transport) &&
   isStr(p.solverVersion) &&
@@ -49,7 +50,7 @@ const isMix = (x: unknown): x is MistakeRecord["mix"] =>
   Array.isArray(x) && x.length > 0 && x.every((m) => isObj(m) && isStr(m.action) && isNum(m.freq) && (m.ev === null || isNum(m.ev)) && isOptNum(m.amount) && (m.rough === undefined || m.rough === true));
 
 const isGrade = (g: unknown, mix: readonly unknown[]): g is MistakeRecord["grade"] =>
-  isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv) && (g.capped === undefined || isBool(g.capped)) && isOptStr(g.capWhy) && [g.noise, g.past, g.pastPct].every(isOptNum);
+  isObj(g) && isCount(g.a) && g.a < mix.length && isCount(g.best) && g.best < mix.length && isMiss(g.verdict) && g.ok === false && isBool(g.mixed) && isNum(g.loss) && isNum(g.lossPct) && isBool(g.byEv) && (g.capped === undefined || isBool(g.capped)) && isOptStr(g.capWhy) && isOptStr(g.clearWhy) && [g.noise, g.past, g.pastPct].every(isOptNum);
 
 /** The decisions a record says it holds: each named, missed at least once, and no more of them than its misses. */
 const isHeld = (x: unknown, times: number) => {

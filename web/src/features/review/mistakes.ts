@@ -37,6 +37,7 @@ export const gradeOf = (g: Grade): MistakeRecord["grade"] => ({
   byEv: g.byEv,
   ...(g.capped ? { capped: true } : {}),
   ...(g.capWhy ? { capWhy: g.capWhy } : {}),
+  ...(g.clearWhy ? { clearWhy: g.clearWhy } : {}),
   ...(g.noise !== undefined ? { noise: g.noise } : {}),
   ...(g.past !== undefined ? { past: g.past, pastPct: g.pastPct ?? 0 } : {}),
 });
@@ -141,10 +142,11 @@ export function drillMistake(sessionId: string, rep: LibraryReport, pr: DrillPro
 export const betAmount = (name: string, pot: number) => treeBet(name, pot);
 
 /** A drill's stored answer for your hand, as a mix. */
-export function drillMix(pr: Pick<DrillProblem, "names" | "freqs" | "evs" | "pot">): MistakeRecord["mix"] {
+export function drillMix(pr: Pick<DrillProblem, "names" | "freqs" | "evs" | "pot"> & Partial<Pick<DrillProblem, "rough">>): MistakeRecord["mix"] {
   return pr.names.map((action, i) => {
     const amount = betAmount(action, pr.pot);
-    return { action, freq: pr.freqs[i]!, ev: pr.evs?.[i] ?? null, ...(amount !== undefined ? { amount } : {}) };
+    // (a rough EV kept as the drill graded it: a retry of the kept answer allows it the same)
+    return { action, freq: pr.freqs[i]!, ev: pr.evs?.[i] ?? null, ...(amount !== undefined ? { amount } : {}), ...(pr.evs && pr.rough?.[i] ? { rough: true as const } : {}) };
   });
 }
 

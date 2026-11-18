@@ -6,10 +6,11 @@ import { Link, useSearchParams } from "react-router";
 import { VerdictTag } from "@/components/VerdictTag";
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { GRADE_WAYS, WAY_HEADS, WAY_WORDS } from "@/features/history/history";
-import { MIX, type Verdict } from "@/grading/grade";
+import { justPast, MIX, type Verdict } from "@/grading/grade";
 import type { BreakRow } from "./breakdown";
 import { worstFirst } from "./breakdown";
 import { withParams } from "./leakDrill";
+import { topOf } from "./MissCards";
 import { isGraded, MIN_READ, type Group, type Tally } from "./report";
 import { wilson } from "./stats";
 import { flagged } from "./triage";
@@ -199,13 +200,19 @@ export function DecisionList({ title, ds, byId }: { title: string; ds: readonly 
 function lostWords(d: DecisionRecord): string {
   const head = `${d.roughEv ? "≈" : ""}${bbs(d.evLossBb)} lost (${d.lossPct}% of the pot)`;
   if (!d.basis && d.noise === undefined) return head;
-  if (d.verdict === "Best" || d.verdict === "Correct") return `${head}, ${d.verdict === "Correct" && (d.freq ?? 0) >= MIX ? "part of the hand's mix" : "within the answer's noise"}, not counted`;
+  if (d.verdict === "Best" || d.verdict === "Correct")
+    return `${head}, ${d.verdict === "Correct" && Math.round((d.freq ?? 0) * 1000) / 1000 >= MIX ? "part of the hand's mix" : justPast(d.evLossBb ?? 0, d.noise) ? "just past the answer's noise, too little to grade" : "within the answer's noise"}, not counted`;
   return d.noise && d.past !== undefined ? `${head}, ${bbs(d.past)} past the answer's noise` : head;
 }
 
-/** The answer's best in words: the grade's (by EV, of the actions within its noise the most played) since 2026-11-18;
- * before, the most frequent. */
-const bestWords = (d: DecisionRecord, word: string) => (d.best && d.best !== d.matched ? `, ${d.basis || d.noise !== undefined ? "best" : word} ${d.best} ${pct(d.bestFreq)}` : "");
+/** The answer's best in words: the grade's (by EV, of the actions within its noise the most played) since 2026-11-18, and
+ * the top EV, that the EV lost is measured against, where that's another action; before, the most frequent. */
+function bestWords(d: DecisionRecord, word: string): string {
+  if (!d.best || d.best === d.matched) return "";
+  const kept = !!d.basis || d.noise !== undefined;
+  const top = kept ? topOf(d)?.[0] : undefined;
+  return `, ${kept ? "best" : word} ${d.best} ${pct(d.bestFreq)}${top && top !== d.best && top !== (d.matched ?? d.action) ? ` (top EV ${top})` : ""}`;
+}
 
 /** A decision on one line: the EV it lost (or the answer's frequency where nothing weighs EV) and the answer's best. */
 export function decisionBrief(d: DecisionRecord): string {
@@ -229,6 +236,7 @@ export function decisionNote(d: DecisionRecord): string {
   if (d.evLossBb != null) parts.push(d.evLossBb > 0 ? lostWords(d) : "no EV lost");
   if (d.roughEv) parts.push("a move the range almost never takes, so its EV is rough");
   if (d.capped) parts.push(d.capWhy ? d.capWhy.replace(/\.$/, "") : "a rough solve can't condemn a line, so this stops at Inaccuracy");
+  if (d.clearWhy) parts.push(d.clearWhy.replace(/\.$/, ""));
   if (d.note) parts.push(d.note);
   if (d.pfWhy) parts.push(`not by the preflop solve here: ${d.pfWhy}`);
   if (d.off) parts.push(d.off);
