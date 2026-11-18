@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { Move } from "@/poker/table";
 import { moveOf } from "./flow";
-import { handTier, liveMove, looseCalls, playable, worthPlaying, type OppMove } from "./live";
+import { handTier, liveMove, looseCalls, noPairCall, playable, weakCall, worthPlaying, type OppMove } from "./live";
 import { classOf } from "@/engine/nlhe/cards";
 import { dealNext, newHand, simOf, withVillain, type PracticeHand } from "./practice";
 
@@ -40,6 +40,33 @@ describe("handTier", () => {
     // (the board's two pair, played with an ace: nothing of yours)
     expect(handTier(cards("AhQd"), cards("KsKc5c5d2h")).tier).toBe(0);
     expect(handTier(cards("AhQh"), cards("Kh7h2d3c4s")).draw).toBe(false);
+  });
+
+  it("reads the river against the board's own hand: a better one is strong, the board's nuts is never folded", () => {
+    // (an ace-high straight over the board's king-high one)
+    expect(handTier(cards("AcQc"), cards("QsKdJcTd9s")).tier).toBe(3);
+    // (playing the board's broadway: the nuts with no flush possible, a split at worst; else a weak showdown hand)
+    expect(handTier(cards("2c3d"), cards("AsKdQcJsTh")).tier).toBe(2);
+    expect(handTier(cards("2c3d"), cards("AsKdQsJsTh")).tier).toBe(1);
+    expect(handTier(cards("2c3d"), cards("AhKhQhJhTh")).tier).toBe(2);
+    // (the board's two pair: an overpair over it is yours, a kicker isn't)
+    expect(handTier(cards("ThTc"), cards("4d9h3s4s9s")).tier).toBe(2);
+    expect(handTier(cards("AhKc"), cards("4d9h3s4s9s")).tier).toBe(0);
+  });
+});
+
+describe("the price of a call", () => {
+  it("keeps the rate facing a third of the pot, cuts it facing more, and seldom calls the stack with nothing", () => {
+    expect(noPairCall(0.4, 1 / 3, false)).toBe(0.4);
+    expect(noPairCall(0.4, 0.2, true)).toBe(0.4);
+    expect(noPairCall(0.4, 1, false)).toBeCloseTo(0.4 / 9);
+    expect(noPairCall(0.4, 1, true)).toBeLessThanOrEqual(0.02);
+    expect(noPairCall(0.2, 3, true)).toBeLessThanOrEqual(0.02);
+    // (a weak pair or a draw: the profile's rate small, its pot-size rate facing the pot, its cap with the stack at stake)
+    expect(weakCall(0.85, 0.6, 0.3, 1 / 3, false)).toBe(0.85);
+    expect(weakCall(0.85, 0.6, 0.3, 1, false)).toBeCloseTo(0.6);
+    expect(weakCall(0.85, 0.6, 0.3, 2, false)).toBeCloseTo(0.3);
+    expect(weakCall(0.97, 0.85, 0.45, 1, true)).toBe(0.45);
   });
 });
 
