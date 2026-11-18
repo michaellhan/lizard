@@ -18,7 +18,7 @@ export interface Reviewed {
   players: number;
   hole: [string, string];
   board: string[];
-  /** the street's action before you: "UTG raises to 2.5, CO calls"; "folded to you"; "first to act" */
+  /** the street's action before you: "UTG raises to 2.5, CO calls"; "folded to you" (only folds); "first to act" (none) */
   line: string;
   d: Decision;
   /** the request your spot was answered by, to ask it again (a doc written before it was kept has none) */
@@ -37,7 +37,7 @@ export function reviewed(h: PracticeHand, d: Decision, n: number, table?: number
     players: h.players,
     hole: h.hands[h.hero]!,
     board: h.board.slice(0, h.shown),
-    line: before.length ? before.map((m) => sayMove(m, h.hero, h.players)).join(", ") : d.street === "preflop" ? "folded to you" : "first to act",
+    line: before.length ? before.map((m) => sayMove(m, h.hero, h.players)).join(", ") : h.lines[d.street].length ? "folded to you" : "first to act",
     d,
     state: askOf(h, d),
     ...(h.dealtTo ? { dealtTo: h.dealtTo } : {}),

@@ -21,6 +21,9 @@ const EPS = 1e-9;
 export function replay(h: ParsedHand): ReplayedHand {
   const warnings = [...h.warnings];
   const stacks = { ...h.stacks };
+  // (a seat all-in on a short ante: its stack is to the cent and the ante, an average, to 1e-4, so the rounding can leave
+  // it 0.004 behind, a decision the history never has; it has nothing behind)
+  for (const p of Object.keys(stacks)) if (stacks[p]! > h.ante && stacks[p]! - h.ante <= 0.005 + EPS) stacks[p] = h.ante;
   const setup: TableSetup = { players: h.players, stacks, ante: h.ante, ...(h.straddle ? { straddle: true } : {}), ...(h.game === "plo4" ? { limit: "pot" as const } : {}) };
   let lines = noLines();
   let stopped: ReplayedHand["stopped"] = null;

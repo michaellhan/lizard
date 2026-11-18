@@ -81,7 +81,7 @@ const entry = (d: DecisionRecord, hand: HandRecord, r: ReplayedHand | null, a: n
     game: r ? [gameWords(hand.players, Math.round(r.hand.effective * 100) / 100), ...describeSetup(study ? fromSearch(study)?.setup : undefined)].join(" · ") : `${hand.players === 2 ? "HU" : `${hand.players}-max`} ${hand.site}`,
     hole: [hole[0]!, hole[1]!],
     board: (hand.board.match(/../g) ?? []).slice(0, NEED[street]),
-    line: r ? (before.length ? before.map((m) => sayMove(m, hand.hero, hand.players)).join(", ") : street === "preflop" ? "folded to you" : "first to act") : (d.situation ?? ""),
+    line: r ? (before.length ? before.map((m) => sayMove(m, hand.hero, hand.players)).join(", ") : i > 0 ? "folded to you" : "first to act") : (d.situation ?? ""),
     study,
     ask: { via: "kept", hand: hand.id, decision: d.id },
     chose,

@@ -52,8 +52,11 @@ const entry = (d: Decision, n = 1): Reviewed => ({ n, seat: "BB", players: 2, ho
 describe("Review mistakes", () => {
   it("keeps a decision with its spot: your seat and cards, the board out, the street's action before you", () => {
     let h = fixed(6, "BTN", { UTG: "2c3d", HJ: "4c5d", CO: "6c7d", BTN: "AhKd", SB: "8c9d", BB: "TcJd" }, "Ks7d2c9h3s");
-    expect(reviewed(h, dec("Best", 0, 0.7, "preflop"), 3)).toMatchObject({ n: 3, seat: "BTN", players: 6, hole: ["Ah", "Kd"], board: [], line: "folded to you" });
     const mv = (pos: string, action: Move["action"], to?: number): Move => ({ pos, action, ...(to !== undefined ? { to } : {}) });
+    // nobody before you: first to act; only folds: folded to you
+    expect(reviewed({ ...h, hero: "UTG" }, dec("Best", 0, 0.7, "preflop"), 3).line).toBe("first to act");
+    const folded = [mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold")].reduce((x, m) => withVillain(x, m), h);
+    expect(reviewed(folded, dec("Best", 0, 0.7, "preflop"), 3)).toMatchObject({ n: 3, seat: "BTN", players: 6, hole: ["Ah", "Kd"], board: [], line: "folded to you" });
     h = [mv("UTG", "raise", 2.5), mv("HJ", "fold"), mv("CO", "call")].reduce((x, m) => withVillain(x, m), h);
     expect(reviewed(h, dec("Best", 0, 0.7, "preflop"), 3).line).toBe("UTG raises to 2.5, CO calls");
     expect(reviewed(h, dec("Best", 0, 0.7, "preflop"), 3)).not.toHaveProperty("dealtTo");
