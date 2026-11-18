@@ -33,6 +33,12 @@ describe("readScenario", () => {
     }
   });
 
+  it("keeps preflop grading chosen off, so the form and the session agree", () => {
+    expect(readScenario(withOpts({ pfSolve: false }))?.opts.pfSolve).toBe(false);
+    expect(readScenario(withOpts({ pfSolve: true }))?.opts.pfSolve).toBe(true);
+    expect(readScenario(withOpts({}))?.opts).not.toHaveProperty("pfSolve");
+  });
+
   it("reads an older record, giving what it never had the default", () => {
     const old = { id: "a", name: "old", players: 6, stack: 100, opts: { seat: "BTN" }, createdAt: 1, updatedAt: 2 };
     expect(readScenario(old)).toEqual({ ...old, note: "", opts: { ...OPTS, seat: "BTN" } });

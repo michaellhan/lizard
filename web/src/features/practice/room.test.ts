@@ -981,6 +981,18 @@ describe("the game last started", () => {
     unsaved.startSession(9, 100, unsaved.snapshot().session.opts);
     expect(localStorage.getItem(LAST_SETUP_KEY)).toBe("{not json");
   });
+
+  it("grades preflop as the form shows it: off where chosen off, by the solve where nothing was said and it's stored", () => {
+    const opts = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
+    localStorage.setItem(LAST_SETUP_KEY, JSON.stringify({ players: 6, stack: 100, opts: { ...opts, pfSolve: false } }));
+    expect(readLastSetup()?.opts.pfSolve).toBe(false);
+    localStorage.setItem(LAST_SETUP_KEY, JSON.stringify({ players: 6, stack: 100, opts }));
+    expect(readLastSetup()?.opts.pfSolve).toBe(true);
+    // (a game with no stored solve: nothing to grade by)
+    localStorage.setItem(LAST_SETUP_KEY, JSON.stringify({ players: 6, stack: 100, opts: { ...opts, ante: 0.25 } }));
+    expect(readLastSetup()?.opts).not.toHaveProperty("pfSolve");
+    localStorage.removeItem(LAST_SETUP_KEY);
+  });
 });
 
 describe("Room lifecycle", () => {

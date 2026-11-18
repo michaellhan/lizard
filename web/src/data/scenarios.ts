@@ -65,6 +65,8 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   const ante = numOr(o.ante, 0), rake = numOr(o.rake, 0), rakeCap = numOr(o.rakeCap, 0);
   if (preflop === null || pushFold === null || straddle === null || carry === null || pfSolve === null || pfSizes === null || ante === null || rake === null || rakeCap === null) return null;
   if (!(ante >= 0 && ante <= LIMITS.ante) || !(rake >= 0 && rake <= LIMITS.rakePct) || !(rakeCap >= 0)) return null;
+  // (the ante to the cent, as the form takes it: a part of a cent made chips at the table)
+  const anteCents = Math.round(ante * 100) / 100;
   const tournament = o.tournament === undefined || o.tournament === null ? null : readTournament(o.tournament, players, stack);
   if (o.tournament !== undefined && o.tournament !== null && !tournament) return null;
   // (the Play select is one choice)
@@ -87,7 +89,7 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
     seat,
     preflopOnly: preflop,
     pot,
-    ante,
+    ante: anteCents,
     straddle: straddle && players >= 3 && !tournament,
     carry: carries({ ...game, carry }),
     sizes: noFlop ? null : sizes,
@@ -103,7 +105,8 @@ function readOpts(o: unknown, players: number, stack: number): SessionOptions | 
   };
   // (the option exists only where a stored solve does: one set anywhere else was never the form's)
   if (pfSolve && pfBlocked(players, stack, setup)) return null;
-  return pfSolve ? { ...setup, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : setup;
+  // (chosen off is kept off: left out, a session takes the default, the solve where it's stored)
+  return pfSolve ? { ...setup, pfSolve: true, ...(pfSizes ? { pfSizes: true } : {}) } : o.pfSolve === false ? { ...setup, pfSolve: false } : setup;
 }
 
 /** A setup as it's stored, whole and playable, else null. */

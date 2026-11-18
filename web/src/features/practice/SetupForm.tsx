@@ -162,7 +162,8 @@ export function SetupForm({
       });
   const n = Number(s);
   const a = ante.trim() === "" ? 0 : Number(ante);
-  const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante;
+  // (to the cent: a part of a cent makes chips at the table)
+  const anteOk = Number.isFinite(a) && a >= 0 && a <= LIMITS.ante && Math.abs(a * 100 - Math.round(a * 100)) < 1e-6;
   const rk = rake.trim() === "" ? 0 : Number(rake);
   const rc = cap.trim() === "" ? 0 : Number(cap);
   const rakeOk =
@@ -483,7 +484,7 @@ export function SetupForm({
       )}
       <label
         className="flex items-center gap-1"
-        title={`Each seat's ante, 0–${LIMITS.ante}bb`}
+        title={`Each seat's ante, 0–${LIMITS.ante}bb, to the cent`}
       >
         <span className="text-muted">Ante</span>
         <input
@@ -492,7 +493,7 @@ export function SetupForm({
           inputMode="decimal"
           min={0}
           max={LIMITS.ante}
-          step="any"
+          step={0.01}
           placeholder="0"
           value={ante}
           onChange={(e) => setAnte(e.target.value)}
