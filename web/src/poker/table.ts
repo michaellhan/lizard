@@ -92,15 +92,24 @@ function blindsShort(t: TableSetup, POS: readonly string[]): number {
  * call. `pot`: every chip in, as counted for the limit. To the cent, down (chips are whole cents, see `settle`). */
 const potLimitTo = (pot: number, curBet: number, bet: number) => Math.floor((curBet + pot + (curBet - bet)) * 100 + 1e-6) / 100;
 
-/** Before any raise, the one seat with chips left has in at least all that anyone still in has, and they all have under
- * half a big blind in: a big blind all-in for less than the small blind's post. It has nothing left to call whatever the
- * bet stands at (the excess goes back as a bet nobody matched), so it isn't asked: folding would give away chips already
- * covered. Held under half a big blind: every other short stack plays as it did. */
+/** Before any raise, the one seat with chips left has in at least all that anyone still in has: a big blind all-in for
+ * no more than the small blind's post, a straddle all-in for less than the big blind. It has nothing left to call whatever
+ * the bet stands at (the excess goes back as a bet nobody matched), so it isn't asked: folding would give away chips
+ * already covered. */
 function blindCovered(actors: readonly string[], active: ReadonlySet<string>, bets: Readonly<Record<string, number>>): boolean {
   const alone = actors.length === 1 ? actors[0]! : null;
   if (alone === null) return false;
   const top = Math.max(0, ...[...active].filter((p) => p !== alone).map((p) => bets[p]!));
-  return top < 0.5 - EPS && bets[alone]! >= top - EPS;
+  return bets[alone]! >= top - EPS;
+}
+
+/** The street total a call by p comes to, before its chips run out: the bet, or, where everyone else still in is all-in,
+ * no more than the most any of them has in (a big blind all-in for 0.7 asks the small blind for 0.2, not 0.5: the rest
+ * would only come back). */
+function coverTo(p: string, active: ReadonlySet<string>, allin: ReadonlySet<string>, bets: Readonly<Record<string, number>>, curBet: number): number {
+  const others = [...active].filter((q) => q !== p);
+  if (!others.length || others.some((q) => !allin.has(q))) return curBet;
+  return Math.min(curBet, Math.max(bets[p]!, ...others.map((q) => bets[q]!)));
 }
 
 /** The hand's state after the actions recorded, with `boardCount` cards out. */
@@ -155,7 +164,7 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
       const remaining = STACK(p) - inv[p]! - bets[p]!;
       if (a.action === "fold") active.delete(p);
       else if (a.action === "check" || a.action === "call") {
-        bets[p] = Math.min(curBet, bets[p]! + remaining);
+        bets[p] = Math.min(coverTo(p, active, allin, bets, curBet), bets[p]! + remaining);
         if (bets[p]! + inv[p]! >= STACK(p) - EPS) allin.add(p);
         acted.add(p);
         locked.add(p);
@@ -179,9 +188,9 @@ export function simulate(t: TableSetup, lines: Lines, boardCount: number): Sim {
       }
       lastActor = p;
     }
-    // under pot limit, short all-ins that add up to a full raise reopen the betting for a seat facing that much (TDA Rule
-    // 49-A); no limit takes each short all-in on its own, as the classic page does
-    if (t.limit === "pot") for (const p of [...locked]) if (curBet - bets[p]! >= minRaise - EPS) locked.delete(p);
+    // a seat that has acted may raise again only facing a full raise since: short all-ins that add up to one reopen the
+    // betting for it (TDA Rules 43-B and 49-A), one on its own doesn't
+    for (const p of [...locked]) if (curBet - bets[p]! >= minRaise - EPS) locked.delete(p);
     let actors = [...active].filter((p) => !allin.has(p));
     // (one player left with chips who has matched the bet has nobody to bet against)
     const closed =
@@ -249,7 +258,13 @@ export function canRaise(sim: Sim, p: string): boolean {
   return !!sim.cur && !sim.cur.locked.has(p) && [...sim.active].some((q) => q !== p && !sim.allin.has(q));
 }
 
-export const minRaiseTo = (info: StreetInfo) => info.curBet + info.minRaise;
+/** The smallest raise, as the street total (to the cent where it's a cent off by float noise: 2.3 + 1.3 is 3.6, not
+ * 3.5999999999999996). */
+export const minRaiseTo = (info: StreetInfo) => {
+  const x = info.curBet + info.minRaise;
+  const c = Math.round(x * 100) / 100;
+  return Math.abs(c - x) < 1e-9 ? c : x;
+};
 
 /** The largest bet or raise of the seat to act, as the street total: all-in under no limit, or what the pot allows. */
 export function maxRaiseTo(t: TableSetup, sim: Sim): number {
@@ -275,6 +290,14 @@ export interface Legal {
   maxTo?: number;
 }
 
+/** The chips p (to act) puts in to call: the bet, no more than its chips, and where everyone else still in is all-in,
+ * no more than the most any of them has in. */
+export function toCallOf(t: TableSetup, sim: Sim, p: string): number {
+  const info = sim.cur;
+  if (!info) return 0;
+  return Math.max(0, Math.min(coverTo(p, sim.active, sim.allin, info.bets, info.curBet) - info.bets[p]!, behind(t, sim, p)));
+}
+
 /** What the seat to act may do, or null when nobody is to act. */
 export function legal(t: TableSetup, sim: Sim): Legal | null {
   const p = sim.toAct;
@@ -284,7 +307,7 @@ export function legal(t: TableSetup, sim: Sim): Legal | null {
   const allInTo = info.bets[p]! + rem;
   return {
     toAct: p,
-    toCall: Math.min(info.curBet - info.bets[p]!, rem),
+    toCall: toCallOf(t, sim, p),
     canRaise: canRaise(sim, p),
     minTo: Math.min(minRaiseTo(info), allInTo),
     allInTo,
@@ -295,9 +318,10 @@ export function legal(t: TableSetup, sim: Sim): Legal | null {
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
 
 /** The record of an action by whoever is to act, or why it can't be taken. A size is rounded to half a big
- * blind (to the cent under pot limit, whose largest raise rarely falls on a half); `clamp` (an opponent's move) lifts a
- * size under the minimum to it, cuts one over the pot limit to it, and turns a raise that isn't allowed to a call,
- * rather than refuse them. */
+ * blind (to the cent under pot limit, whose largest raise rarely falls on a half), except one typed to the cent at the
+ * smallest raise or at all-in, which is taken as it is; `clamp` (an opponent's move) lifts a size under the minimum (one
+ * that rounds to nothing, or no more than the bet) to it, cuts one over the pot limit to it, and turns a raise that isn't
+ * allowed to a call, rather than refuse them. */
 export function recordOf(
   t: TableSetup,
   sim: Sim,
@@ -306,7 +330,7 @@ export function recordOf(
   if (!sim.cur || !sim.toAct) return sim.waiting ? "Deal the next card first." : "The hand is over.";
   const p = sim.toAct;
   const info = sim.cur;
-  const toCall = info.curBet - info.bets[p]!;
+  const toCall = coverTo(p, sim.active, sim.allin, info.bets, info.curBet) - info.bets[p]!;
   const remaining = behind(t, sim, p);
   const facing = toCall > EPS;
   const raiseOk = canRaise(sim, p);
@@ -325,9 +349,18 @@ export function recordOf(
     return { pos: p, action: "all-in" };
   }
   const step = pot ? 100 : 2;
-  let to = Math.round((a.to ?? 0) * step) / step;
-  if (!(to > 0)) return "Enter an amount.";
-  if (to <= info.curBet + EPS && to < allInTo - EPS) return `${fmt(to)}bb isn't a raise, the bet is ${fmt(info.curBet)}bb.`;
+  const typed = a.to ?? 0;
+  let to = Math.round(typed * step) / step;
+  // (the smallest raise or the all-in typed to the cent: the half below would refuse it, or stop short of all-in)
+  if (to < minRaiseTo(info) - EPS && typed >= minRaiseTo(info) - 0.005) to = minRaiseTo(info);
+  if (typed >= allInTo - 0.005) to = Math.max(to, allInTo);
+  // (no size at all is refused even for an opponent, whose move then falls back to a check or call; a size that rounds
+  // to nothing or to no more than the bet is lifted)
+  if (!(typed > 0)) return "Enter an amount.";
+  if (!(to > 0) || (to <= info.curBet + EPS && to < allInTo - EPS)) {
+    if (!a.clamp) return !(to > 0) ? "Enter an amount." : `${fmt(to)}bb isn't a raise, the bet is ${fmt(info.curBet)}bb.`;
+    to = minRaiseTo(info);
+  }
   if (!raiseOk) {
     if (!a.clamp)
       return info.locked.has(p)
