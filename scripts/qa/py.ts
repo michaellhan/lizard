@@ -44,6 +44,10 @@ export class PyAdvisor implements SolverTransport {
   /** the last request's advisor seconds and RSS */
   last: Took = { secs: 0, rss: 0 };
   private p: ChildProcess | null = null;
+  /** whether a process is up (false before the first request, and after one said goodbye or was killed: the next starts afresh) */
+  get alive(): boolean {
+    return this.p !== null;
+  }
   private ready: Promise<void> | null = null;
   private waiting: ((r: Reply) => void) | null = null;
   private n = 0;

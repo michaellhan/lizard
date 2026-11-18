@@ -115,13 +115,23 @@ export function sessionOf(cfg: QaConfig): { players: number; stack: number; opts
 }
 
 interface RefJob {
-  base: Omit<RefRecord, "t" | "mode" | "secs" | "source" | "cmp" | "all" | "violations">;
+  base: Omit<RefRecord, "t" | "mode" | "secs" | "source" | "cmp" | "all" | "violations" | "warmed" | "band" | "approximate" | "label">;
   mode: "fast" | "accurate";
   state: AdvisorState;
   sim: Sim;
   chose: string;
   quick: { mix: P.Decision["mix"]; grade: Grade; grades: Grade[] };
+  /** the hand (config|hand) and this decision's place among the hand's postflop requests (HandRequest) */
+  hand: string;
+  at: number;
 }
+
+/** A postflop request the main process made in a hand, in order: an opponent's move or your decision. The reference asks a
+ * hand's earlier ones again at its own speed before a decision of it (runRef), so it answers with the hand's earlier
+ * streets solved as a player at that speed would have them: an answer stands on the solves its process holds from the
+ * hand (a 3-way turn narrows the flop through your flop decision's solve, else by the rules), and a decision asked cold
+ * is another question. */
+type HandRequest = { kind: "solve"; state: AdvisorState } | { kind: "play"; state: AdvisorState; play: Parameters<SolverClient["play"]>[1] };
 
 export async function sweep(o: SweepOptions): Promise<Summary> {
   mkdirSync(o.out, { recursive: true });
@@ -147,17 +157,61 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
   let fastAsked = 0;
 
   const refMark = { restarts: -1, rss: 0 };
+  const handReqs = new Map<string, HandRequest[]>();
+  // (how far the reference process has been asked each hand at each speed: the requests before it; gone with a restart)
+  const warm = { restarts: -1, done: new Map<string, number>() };
+  const doneOf = (j: RefJob) => {
+    if (warm.restarts !== refAdv.restarts) warm.done.clear(), (warm.restarts = refAdv.restarts);
+    return warm.done.get(`${j.hand}|${j.mode}`) ?? 0;
+  };
+  const warmUp = async (j: RefJob): Promise<number> => {
+    const reqs = handReqs.get(j.hand) ?? [];
+    let asked = 0;
+    for (let tries = 0; tries < 2 && doneOf(j) < j.at; tries++) {
+      for (let i = doneOf(j); i < j.at; i++) {
+        const q = reqs[i]!;
+        try {
+          if (q.kind === "play") await refClient.play(q.state, q.play, { mode: j.mode });
+          else await refClient.solve({ state: q.state, mode: j.mode });
+        } catch {
+          // (an earlier request that fails leaves its street unsolved, as it would in the page)
+        }
+        asked += 1;
+        // (a restart during the request: the process holds none of the hand, so start it again)
+        if (warm.restarts !== refAdv.restarts) break;
+        warm.done.set(`${j.hand}|${j.mode}`, i + 1);
+      }
+    }
+    return asked;
+  };
   const runRef = async (j: RefJob) => {
-    const took = clock(refAdv);
+    let warmed = 0;
+    let secs = 0;
+    let cold = false;
     const violations: K.Violation[] = [];
+    let prov: Pick<RefRecord, "band" | "approximate" | "label"> = {};
     let source = "error";
     let cmp: RefRecord["cmp"] = null;
     let all: RefRecord["all"];
     try {
-      const r = await refClient.solve({ state: j.state, mode: j.mode });
+      let r!: SolveResult;
+      // (a process that restarts for the answer itself holds none of the hand: warm it again and ask again, once)
+      for (let tries = 0; tries < 2; tries++) {
+        warmed += await warmUp(j);
+        const before = refAdv.restarts;
+        const took = clock(refAdv);
+        try {
+          r = await refClient.solve({ state: j.state, mode: j.mode });
+        } finally {
+          secs = took();
+        }
+        cold = j.at > 0 && refAdv.restarts !== before;
+        if (!cold) break;
+      }
       if (r.data.error) violations.push(K.violation("ref.error", `the ${j.mode} reference answered with an error: ${r.data.error}`, "soft"));
       else {
         source = r.provenance.source;
+        prov = { ...(r.provenance.band ? { band: r.provenance.band } : {}), approximate: r.provenance.approximate, ...(r.provenance.approximateLabel ? { label: r.provenance.approximateLabel.slice(0, 240) } : {}) };
         const mix = P.gradable(P.mixOf(r.data), r.provenance);
         const pot = typeof r.data.pot_bb === "number" ? r.data.pot_bb : j.sim.pot;
         const basis = P.practiceBasis(r.data, r.provenance, j.sim);
@@ -171,7 +225,9 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
       violations.push(K.violation("ref.error", `the ${j.mode} reference failed: ${message(e).slice(0, 300)}`, "soft"));
     }
     if (crossed(refAdv, refMark)) violations.push(rssViolation(refAdv));
-    put({ t: "ref", ...j.base, mode: j.mode, secs: took(), rss: refAdv.last.rss, source, cmp, ...(all ? { all } : {}), violations });
+    // (the reference's own request is the one asked last: its done is past it)
+    if (warm.restarts === refAdv.restarts) warm.done.set(`${j.hand}|${j.mode}`, Math.max(doneOf(j), j.at + 1));
+    put({ t: "ref", ...j.base, mode: j.mode, secs, rss: refAdv.last.rss, source, ...prov, warmed, ...(cold ? { cold } : {}), cmp, ...(all ? { all } : {}), violations });
   };
 
   for (const cfg of o.configs) {
@@ -184,6 +240,29 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     let oppMoves = 0;
     const cfgViolations: K.Violation[] = [];
     const mark = { restarts: -1, rss: 0 };
+    const reqsOf = (n: number): HandRequest[] => {
+      const k = `${cfg.name}|${n}`;
+      if (!handReqs.has(k)) handReqs.set(k, []);
+      return handReqs.get(k)!;
+    };
+    // (the main process said goodbye mid-hand (its RSS cap): ask a fresh one the hand's earlier postflop requests first, so
+    // the next answer stands on the hand's earlier streets as the page's own process, which doesn't restart, would have them)
+    const keep = async (n: number): Promise<number> => {
+      const reqs = reqsOf(n);
+      let asked = 0;
+      for (let tries = 0; tries < 2 && reqs.length && !main.alive; tries++)
+        for (const q of reqs) {
+          try {
+            if (q.kind === "play") await client.play(q.state, q.play, { mode: cfg.mode });
+            else await client.solve({ state: q.state, mode: cfg.mode });
+          } catch {
+            // (as the page's: a request that fails leaves its street unsolved)
+          }
+          asked += 1;
+          if (!main.alive) break;
+        }
+      return asked;
+    };
     o.log(`\n[${o.label}] ${cfg.name}: ${players} players, ${stack}bb, ${cfg.hands} hands, ${cfg.mode}${opts.pfSolve ? ", preflop solve" : ""}\n`);
     const last = o.onlyHands?.length ? Math.max(...o.onlyHands) + 1 : cfg.hands;
     for (let n = 0; n < last; n++) {
@@ -225,12 +304,15 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         if (need.kind === "opp") {
           // ---- an opponent's move (your own preflop in a drill too, played for you)
           const seat = need.play!.seat;
-          const took = clock(main);
           const violations: K.Violation[] = [];
           let move: Move;
           let action: string;
+          const play = { ...need.play!, seed: Math.floor(rnd() * 2147483647) };
+          const kept = street !== "preflop" ? await keep(n) : 0;
+          if (street !== "preflop") reqsOf(n).push({ kind: "play", state: need.state, play });
+          const took = clock(main);
           try {
-            const r: SolveResult<PlayMove> = await client.play(need.state, { ...need.play!, seed: Math.floor(rnd() * 2147483647) }, { mode: cfg.mode });
+            const r: SolveResult<PlayMove> = await client.play(need.state, play, { mode: cfg.mode });
             if (r.data.error) throw new Error(r.data.error);
             const m = moveOf(h, r.data, sim);
             move = m.move;
@@ -251,11 +333,14 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           // beside it where they differ)
           const made = `${move.action}${typeof move.to === "number" && move.action !== "call" ? ` ${move.to}` : ""}`;
           const drawn = action.startsWith("(") || kindOfName(action) === move.action ? {} : { drawn: action };
-          put({ t: "opp", ...tag({ street, seat }), line, secs: took(), rss: main.last.rss, action: action.startsWith("(") ? action : made, ...drawn, flags, violations });
+          put({ t: "opp", ...tag({ street, seat }), ...(kept ? { kept } : {}), line, secs: took(), rss: main.last.rss, action: action.startsWith("(") ? action : made, ...drawn, flags, violations });
           h = P.withVillain(h, move, sim);
           continue;
         }
         // ---- your decision: the answer asked as the room asks it (and the preflop solve's node beside the chart's)
+        const kept = street !== "preflop" ? await keep(n) : 0;
+        const at = reqsOf(n).length;
+        if (street !== "preflop") reqsOf(n).push({ kind: "solve", state: need.state });
         const took = clock(main);
         const violations: K.Violation[] = [];
         let held: HeldAnswer | null = null;
@@ -278,7 +363,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         }
         const secs = took();
         if (crossed(main, mark)) violations.push(rssViolation(main));
-        const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), line, spot: spotOf(h, sim), mode: cfg.mode, secs, rss: main.last.rss, ...(pfSecs !== undefined ? { pfSecs } : {}) };
+        const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), ...(kept ? { kept } : {}), line, spot: spotOf(h, sim), mode: cfg.mode, secs, rss: main.last.rss, ...(pfSecs !== undefined ? { pfSecs } : {}) };
         if (held?.data.error) violations.push(K.violation("answer.error", `your ${street} answer is an error: ${String(held.data.error).slice(0, 300)}`));
         const actions = held && !held.data.error ? P.optionsOf(held.data) : [];
         if (held && !held.data.error && !actions.length) violations.push(K.violation("answer.empty", `your ${street} answer has no actions`));
@@ -339,7 +424,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         });
         // a seeded share of your postflop Quick decisions asked again at Fast (and a few at Accurate) on the reference advisor
         if (street !== "preflop" && cfg.mode === "quick" && g && (left.fast > 0 || left.accurate > 0) && fnv(`${o.seed}|${cfg.name}|${n}|${step}`) / 2 ** 32 < o.refs.share) {
-          const job = { base: { ...tag({ street }), line, spot: spotOf(h, sim), quickSource: on.provenance.source }, state: need.state, sim, chose: d.decision.chose, quick: { mix, grade: g, grades: gr.grades } };
+          const job = { base: { ...tag({ street }), line, spot: spotOf(h, sim), quickSource: on.provenance.source }, state: need.state, sim, chose: d.decision.chose, quick: { mix, grade: g, grades: gr.grades }, hand: `${cfg.name}|${n}`, at };
           if (left.fast > 0) {
             left.fast -= 1;
             fastAsked += 1;

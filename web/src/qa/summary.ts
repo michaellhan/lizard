@@ -22,6 +22,8 @@ interface Base {
   /** the hand's seed (newHand's), and its number in the config */
   seed: number;
   hand: number;
+  /** the hand's earlier postflop requests asked again first, because the process restarted mid-hand (sweep.ts keep) */
+  kept?: number;
   violations: Violation[];
 }
 
@@ -96,6 +98,14 @@ export interface RefRecord extends Base {
   secs: number;
   rss?: number;
   source: string;
+  /** the reference's band, whether it's approximate, and why (its provenance) */
+  band?: string;
+  approximate?: boolean;
+  label?: string;
+  /** the hand's earlier postflop requests asked of the reference first, at its speed (sweep.ts runRef) */
+  warmed?: number;
+  /** the reference answered in a process that had just restarted, so without the hand's earlier streets */
+  cold?: boolean;
   quickSource: string;
   cmp: RefCompare | null;
   /** every action at the node graded on both answers (compareAll) */
