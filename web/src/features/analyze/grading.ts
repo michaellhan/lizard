@@ -8,14 +8,17 @@
 // Preflop at every scope: in a game the preflop solve is stored for, by EV against that solve wherever it holds the spot
 // (the file Practice reads, read and never run), under its own label; anywhere else against the charts, by frequency, with
 // `pfWhy` saying why. A hand played in Practice is read by the table's own rule (pfGrade.ts pfReadAt), so one decision
-// has one grade. Any other game is asked what it always was.
+// has one grade. A site's hand is rarely at a stored game's stacks: each of its decisions is read against the stored game
+// nearest the stacks of the seats still in, where every one is within PF_DEPTH_TOL of its depth (pfDepthAt, measured in
+// docs/ACCURACY.md section 18.8), and the decision's note names that game and how far off the stacks were; past it the
+// charts grade it, and `pfWhy` says how far. Any other game is asked what it always was.
 import type { DecisionRecord, HandRecord } from "@/data/db";
 import { PRACTICE_SITE } from "@/data/hands";
 import { pfPlayed, pfReadAt, type PfAsked, type PfSpot } from "@/features/practice/pfGrade";
 import { PF_ICM_WORDS, pfIcmStage } from "@/features/practice/pfIcmStored";
 import { pfBlocked } from "@/features/practice/practice";
 import { tournamentRequest } from "@/features/tournaments/tournament";
-import { pfGradeSizes } from "@/solver/pfStored";
+import { nearestDepth, PF_DEPTHS, PF_DEPTHS_WORDS, pfGradeSizes } from "@/solver/pfStored";
 import { gradeAnswer, type AnswerBasis, type Grade, type Verdict } from "@/grading/grade";
 import { basisOf } from "@/grading/basis";
 import { versionOf } from "@/grading/version";
@@ -226,7 +229,7 @@ export type Ask = (state: AdvisorState) => Promise<{ data: AdvisorResponse; prov
 
 /** Why a hand's game isn't one the preflop solve is stored for, in words; null where it is. A site's history says no rake
  * or cap (`adviceStateAt`), so it's asked as the game with none, and a decision says so (`PF_NO_RAKE`). */
-export function pfOut(hand: Pick<HandRecord, "tournament" | "setup">, r: Pick<ReplayedHand, "hand" | "setup">): string | null {
+export function pfOut(hand: Pick<HandRecord, "tournament" | "setup"> & Partial<Pick<HandRecord, "site">>, r: Pick<ReplayedHand, "hand" | "setup">): string | null {
   const h = r.hand;
   if (hand.tournament !== undefined) {
     // (a Practice hand of a stored tournament spot, in prize equity: engine/pf_icm_stored.py, as Practice grades it)
@@ -238,13 +241,49 @@ export function pfOut(hand: Pick<HandRecord, "tournament" | "setup">, r: Pick<Re
     return null;
   }
   if (r.setup.limit === "pot" || h.hole.length !== 2) return "The preflop solve is of no-limit hold'em.";
-  if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks only.";
   const { sizes, rake = 0, rakeCap = 0 } = hand.setup ?? {};
+  // (a site's hand is read against the stored depth nearest its stacks, decision by decision: pfDepthAt)
+  if (hand.site !== PRACTICE_SITE) return pfBlocked(h.players, nearestDepth(h.stack), { ante: h.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
+  if (Object.values(r.setup.stacks).some((v) => Math.abs(v - h.stack) > EPS)) return "The preflop solve is stored for equal stacks only.";
   return pfBlocked(h.players, h.stack, { ante: h.ante, straddle: !!h.straddle, sizes, rake, rakeCap });
 }
 
 /** What a site's hand graded by the solve says with it. */
 export const PF_NO_RAKE = "this history doesn't say its rake or cap, so it's read against the stored game with no rake";
+
+/** How far a seat's effective stack may be from the stored game's depth for a site's decision to be read against that game
+ * (a share of the depth). Measured by scripts/pf_depth_tolerance.py (docs/ACCURACY.md section 18.8): within it the stored
+ * game's verdict is the one a solve at the table's own stacks gives on most decisions; past it they part more often. */
+export const PF_DEPTH_TOL = 0.15;
+
+/** The stored game a site's preflop decision is read against: the depth nearest your effective stack (by ratio), where every
+ * seat still in has an effective stack (its own, or the deepest other one still in, whichever is less) within
+ * PF_DEPTH_TOL of it; else why not, in words. `exact`: the table is that game, every seat at its depth. */
+export function pfDepthAt(
+  stacks: Readonly<Record<string, number>>,
+  live: readonly string[],
+  hero: string,
+): { depth: number; eff: number; dev: number; exact: boolean } | { why: string } {
+  const eff = (q: string) => {
+    const others = live.filter((x) => x !== q).map((x) => stacks[x] ?? 0);
+    return others.length ? Math.min(stacks[q] ?? 0, Math.max(...others)) : (stacks[q] ?? 0);
+  };
+  const mine = eff(hero);
+  const depth = PF_DEPTHS.reduce((a, b) => (Math.abs(Math.log(mine / b)) < Math.abs(Math.log(mine / a)) ? b : a));
+  const worst = live.map((q) => ({ q, e: eff(q), dev: Math.abs(eff(q) / depth - 1) })).reduce((a, b) => (b.dev > a.dev ? b : a));
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  if (worst.dev > PF_DEPTH_TOL + EPS) {
+    const whose = worst.q === hero ? "yours" : `${worst.q}'s`;
+    return {
+      why: `The stacks are too far from the stored games' (${PF_DEPTHS_WORDS}): the nearest to your ${r2(mine)}bb effective is ${depth}bb, and ${whose} ${r2(worst.e)}bb effective is ${pct(worst.dev)} off it, past the ${pct(PF_DEPTH_TOL)} the grade takes.`,
+    };
+  }
+  return { depth, eff: r2(mine), dev: worst.dev, exact: Object.values(stacks).every((v) => Math.abs(v - depth) <= EPS) };
+}
+
+/** What a site's decision read against a stored game at other stacks says with it. */
+export const pfDepthNote = (d: { depth: number; eff: number; dev: number }) =>
+  `read against the stored ${d.depth}bb game, the nearest your stacks: you have ${d.eff}bb effective, and every seat still in is within ${Math.max(1, Math.round(d.dev * 100))}% of ${d.depth}bb (the grade takes ${Math.round(PF_DEPTH_TOL * 100)}% or less)`;
 
 /** The stored solve's node at a decision: read and never run, as the request has no `run` (Advisor._study_pf). Anything but
  * a stop leaves the chart's grade, with why. */
@@ -368,16 +407,24 @@ export async function gradeDecision(
     if (!again.data.error && !again.data.skipped && Array.isArray(again.data.actions)) ans = again;
   }
   const tri = read(ans.data);
-  let pf: { pfWhy?: string; noRake?: boolean } = {};
+  let pf: { pfWhy?: string; noRake?: boolean; depth?: { depth: number; eff: number; dev: number } } = {};
   if (street === "preflop" && !pfOut(hand, r)) {
     const practice = hand.site === PRACTICE_SITE;
     const spot: PfSpot = { hero: r.hand.hero, hole: r.hand.hole.join(""), sim: simulate(r.setup, linesBefore(r, street, i), 0), table: r.setup, ownSizes: !!hand.setup?.pfSizes, ownOptions: !!hand.setup?.pfOptions };
-    const asked = await askPf(state, ask);
-    const by = practice ? pfReadAt(spot, ans.data, asked) : pfPlayed(spot, m, asked, ans.data);
-    if ("why" in by) pf = { pfWhy: by.why };
+    // (a site's hand: the stored game nearest its stacks, asked as that game, equal stacks at its depth; the chips in are
+    // still checked against the hand's own, so a line past an all-in at other stacks stays with the chart)
+    const at = practice ? null : pfDepthAt(r.setup.stacks, [...spot.sim.active], r.hand.hero);
+    if (at && "why" in at) pf = { pfWhy: at.why };
     else {
-      ans = by;
-      pf = { noRake: !practice };
+      const equal: AdvisorState = { ...state, stack: at?.depth ?? state.stack };
+      delete equal.stacks;
+      const asked = await askPf(at && !at.exact ? equal : state, ask);
+      const by = practice ? pfReadAt(spot, ans.data, asked) : pfPlayed(spot, m, asked, ans.data);
+      if ("why" in by) pf = { pfWhy: by.why };
+      else {
+        ans = by;
+        pf = { noRake: !practice, ...(at && !at.exact ? { depth: at } : {}) };
+      }
     }
   }
   const source = ans.provenance.source;
@@ -389,7 +436,7 @@ export async function gradeDecision(
   const flopPot = source === "library" && street === "flop" ? potBefore(r, "flop", 0) : undefined;
   const g = gradeAgainst(ans.data, m, basisOf(ans.provenance, { res: ans.data, ...(flopPot ? { flopPot } : {}) }));
   // (the site's words beside any the grade has)
-  const note = [g?.note, pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
+  const note = [g?.note, pf.depth ? pfDepthNote(pf.depth) : "", pf.noRake ? PF_NO_RAKE : ""].filter(Boolean).join("; ");
   if (!g) return ungraded(matchMove(ans.data, m) ? "the answer gave no pot to measure the EV lost against" : `your ${moveLabel(m)} isn't among the answer's actions`, source, label, tri);
   // (the grade's best: by EV, of the actions within the answer's noise of the top the most played; by frequency the most
   // played, yours where you tie it)
@@ -418,6 +465,7 @@ export async function gradeDecision(
     mix: g.mix,
     ...(note ? { note } : {}),
     ...(pf.pfWhy ? { pfWhy: pf.pfWhy } : {}),
+    ...(pf.depth ? { pfDepth: pf.depth.depth } : {}),
     ...(g.roughEv ? { roughEv: true } : {}),
     ...(g.roughEvs ? { roughEvs: g.roughEvs } : {}),
     ...(off ? { off } : {}),

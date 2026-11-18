@@ -265,6 +265,9 @@ export interface DecisionRecord {
   why?: string;
   /** a preflop decision of a stored game the charts graded: why the preflop solve didn't (features/practice/pfGrade.ts) */
   pfWhy?: string;
+  /** a site's preflop decision the preflop solve graded at other stacks than the table's: the stored game's depth it was read
+   * against, in bb (features/analyze/grading.ts pfDepthAt; `note` says so in words) */
+  pfDepth?: number;
   /** the answer graded against: its source and its provenance line */
   source: string;
   label: string;

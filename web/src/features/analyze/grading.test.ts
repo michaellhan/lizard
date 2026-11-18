@@ -34,6 +34,8 @@ import {
   jamOffTree,
   matchMove,
   offText,
+  pfDepthAt,
+  PF_DEPTH_TOL,
   pfOut,
   roleOf,
   situationAt,
@@ -438,10 +440,10 @@ describe("preflop by the stored solve", () => {
   };
   const yours = (r: ReplayedHand) => r.lines.preflop.findIndex((m) => m.pos === r.hand.hero);
   // a site's hand of the stored game (only what the grading reads)
-  const site = (line: Move[], hero = "BTN"): ReplayedHand =>
+  const site = (line: Move[], hero = "BTN", stacks?: Record<string, number>): ReplayedHand =>
     ({
-      hand: { players: 6, hero, hole: ["Ah", "Kd"], board: [], stack: 100, ante: 0, straddle: false },
-      setup: setupOf(newHand(6, 100, 0, 7)),
+      hand: { players: 6, hero, hole: ["Ah", "Kd"], board: [], stack: stacks?.[hero] ?? 100, ante: 0, straddle: false },
+      setup: { ...setupOf(newHand(6, 100, 0, 7)), ...(stacks ? { stacks } : {}) },
       lines: { preflop: line, flop: [], turn: [], river: [] },
       stopped: null,
       warnings: [],
@@ -499,8 +501,56 @@ describe("preflop by the stored solve", () => {
     expect(g.byEv).toBe(false);
     expect(g.pfWhy).toMatch(/no such move here.*raise 9bb.*raise 7\.5bb/);
   });
+  it("reads a site's hand at other stacks against the stored game nearest them, and says which", async () => {
+    const even = (v: number) => Object.fromEntries(["UTG", "HJ", "CO", "BTN", "SB", "BB"].map((p) => [p, v]));
+    const line = [...OPEN, { pos: "BTN", action: "raise", to: 7.5 } as Move];
+    // everyone at 87bb: nearer 80bb than 100bb by ratio (87/80 = 1.09, 100/87 = 1.15), so the 80bb game, every seat 9% off
+    const { ask, asked } = pair(CHART_OPENED, NODES.opened);
+    const g = await gradeDecision({ id: "x", site: "PokerStars" }, site(line, "BTN", even(87)), "preflop", 3, ask);
+    expect(asked[1]).toMatchObject({ preflop_solve: true, stack: 80 });
+    expect(asked[1]).not.toHaveProperty("stacks");
+    expect(g).toMatchObject({ source: "preflop-solve", byEv: true, pfDepth: 80 });
+    expect(g.note).toContain("read against the stored 80bb game, the nearest your stacks: you have 87bb effective, and every seat still in is within 9% of 80bb");
+    expect(g.note).toContain("stored game with no rake");
+    // unequal: the seats folded before you don't count, and a seat's effective stack is at most the deepest other's
+    const mixed = { UTG: 104, HJ: 30, CO: 250, BTN: 96, SB: 100, BB: 110 };
+    const two = pair(CHART_OPENED, NODES.opened);
+    const m = await gradeDecision({ id: "x", site: "PokerStars" }, site(line, "BTN", mixed), "preflop", 3, two.ask);
+    expect(two.asked[1]).toMatchObject({ preflop_solve: true, stack: 100 });
+    expect(two.asked[1]).not.toHaveProperty("stacks");
+    expect(m).toMatchObject({ source: "preflop-solve", pfDepth: 100 });
+    // (UTG 104 and the big blind's 110 are 104 effective, the small blind 100, you 96: each within 4% of 100bb)
+    expect(m.note).toContain("you have 96bb effective, and every seat still in is within 4% of 100bb");
+    // a game at the stored stacks says nothing of them
+    const exact = await gradeDecision({ id: "x", site: "PokerStars" }, site(line, "BTN", even(100)), "preflop", 3, pair(CHART_OPENED, NODES.opened).ask);
+    expect(exact).not.toHaveProperty("pfDepth");
+    expect(exact.note).not.toContain("the nearest your stacks");
+  });
+  it("leaves a site's decision to the chart where a seat still in is too far from every stored game, and says how far", async () => {
+    const short = { UTG: 100, HJ: 100, CO: 100, BTN: 100, SB: 100, BB: 60 };
+    const { ask, asked } = pair(CHART_OPENED, NODES.opened);
+    const g = await gradeDecision({ id: "x", site: "PokerStars" }, site([...OPEN, { pos: "BTN", action: "raise", to: 7.5 }], "BTN", short), "preflop", 3, ask);
+    expect(asked).toHaveLength(1);
+    expect(g).toMatchObject({ source: "charts", byEv: false });
+    expect(g.pfWhy).toBe("The stacks are too far from the stored games' (20, 25, 30, 40, 50, 60, 80, 100, 125, 150 or 200bb): the nearest to your 100bb effective is 100bb, and BB's 60bb effective is 40% off it, past the 15% the grade takes.");
+  });
+  it("finds the stored depth and how far each seat still in is from it", () => {
+    expect(PF_DEPTH_TOL).toBe(0.15);
+    const st = { UTG: 40, HJ: 100, CO: 100, BTN: 200, SB: 100, BB: 100 };
+    // the 200bb button covers everyone: its effective stack is the deepest other's, 100bb
+    expect(pfDepthAt(st, ["HJ", "CO", "BTN", "SB", "BB"], "BTN")).toEqual({ depth: 100, eff: 100, dev: 0, exact: false });
+    expect(pfDepthAt(st, ["UTG", "BTN", "BB"], "BTN")).toMatchObject({ why: expect.stringContaining("UTG's 40bb effective is 60% off it") });
+    // heads-up between the 40bb seat and a deeper one: 40bb each, the 40bb game
+    expect(pfDepthAt(st, ["UTG", "BB"], "BB")).toEqual({ depth: 40, eff: 40, dev: 0, exact: false });
+    // the depths by ratio: 35bb is nearer 40 than 30; past 200bb, 230bb is 15% off and the 200bb game takes it, 240bb not
+    expect(pfDepthAt({ A: 35, B: 35 }, ["A", "B"], "A")).toMatchObject({ depth: 40 });
+    expect(pfDepthAt({ A: 230, B: 230 }, ["A", "B"], "A")).toMatchObject({ depth: 200 });
+    expect(pfDepthAt({ A: 240, B: 240 }, ["A", "B"], "A")).toHaveProperty("why");
+  });
   it("changes nothing for a hand that isn't one of the stored games: one question, the chart's answer, no word of the solve", async () => {
-    const heads = hu({ SB: 90, BB: 90 }, [{ pos: "SB", action: "raise", to: 2.5 }, { pos: "BB", action: "fold" }] as never);
+    // (heads-up with an ante: the stored games have none)
+    const plain = hu({ SB: 90, BB: 90 }, [{ pos: "SB", action: "raise", to: 2.5 }, { pos: "BB", action: "fold" }] as never);
+    const heads = { ...plain, hand: { ...plain.hand, ante: 0.1 } } as ReplayedHand;
     const { ask, asked } = pair({ ...CHART, pot_bb: 3 }, NODES.opened);
     const g = await gradeDecision({ id: "x", site: "PokerStars" }, heads, "preflop", 1, ask);
     expect(asked).toHaveLength(1);

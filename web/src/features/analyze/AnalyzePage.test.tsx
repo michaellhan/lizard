@@ -193,9 +193,16 @@ describe("AnalyzePage", () => {
     fireEvent.change(within(panel).getByRole("combobox", { name: "Grade" }), { target: { value: "library" } });
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 5 decisions graded in this run, 4 without a grade\.$/)).toBeInTheDocument();
-    // 4 preflop decisions and 5 flop ones asked; the flops of the library only, nothing past the flop
+    // 4 preflop decisions and 5 flop ones asked; the flops of the library only, nothing past the flop. One preflop
+    // decision is near enough a stored game's stacks (the 3bet pot's big blind, 120bb, against a 100bb opener, the
+    // others folded: 100bb effective each), so the preflop solve is asked there too, as the stored 5-handed 100bb game,
+    // equal stacks; it keeps the chart's grade, as the stub's answer is no stored solve's
     const boards = stub.asked.map((s) => s.board || "preflop");
-    expect([boards.filter((b) => b === "preflop").length, boards.filter((b) => b.length === 6).length]).toEqual([4, 5]);
+    expect([boards.filter((b) => b === "preflop").length, boards.filter((b) => b.length === 6).length]).toEqual([5, 5]);
+    const pf = stub.asked.filter((s) => s.preflop_solve);
+    expect(pf).toHaveLength(1);
+    expect(pf[0]).toMatchObject({ players: 5, hero: "BB", stack: 100, pf_tree: { sizing: "chart" } });
+    expect(pf[0]).not.toHaveProperty("stacks");
     expect(boards).toContain("Qs8d3c");
     expect(stub.asked.filter((s) => s.board).every((s) => s.library_only)).toBe(true);
 
@@ -256,7 +263,9 @@ describe("AnalyzePage", () => {
     expect(await within(panel).findByText(/17 decisions to ask: about \d+ s in this browser\./)).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Grade 4 hands" }));
     expect(await within(panel).findByText(/^Done: 17 decisions graded in this run\.$/)).toBeInTheDocument();
-    expect(stub.asked.every((s) => s.triage === true && !s.library_only)).toBe(true);
+    // (the stored preflop solve is read as it is at every scope, with no triage)
+    expect(stub.asked.filter((s) => !s.preflop_solve).every((s) => s.triage === true && !s.library_only)).toBe(true);
+    expect(stub.asked.filter((s) => s.preflop_solve).every((s) => !s.triage)).toBe(true);
     expect(stub.asked.map((s) => s.board?.length ?? 0).sort((a, b) => a - b).at(-1)).toBe(10);
 
     const hand = screen.getByRole("region", { name: "Hand" });
@@ -279,7 +288,8 @@ describe("AnalyzePage", () => {
     stub.asked = [];
     fireEvent.click(go);
     expect(await within(panel).findByText(new RegExp(`^Done: ${n} checked at Fast\\.$`))).toBeInTheDocument();
-    expect(stub.asked).toHaveLength(n);
+    // (one question each, and the stored preflop solve read again where a preflop decision is near a stored game)
+    expect(stub.asked.filter((s) => !s.preflop_solve)).toHaveLength(n);
     expect(stub.asked.some((s) => s.triage)).toBe(false);
     await waitFor(() => expect(within(hand).getByLabelText("Grade of river decision 2").getAttribute("title")).toContain("checked at Fast: the read said"));
     await waitFor(() => expect(within(rep).getByLabelText("Checked at Fast")).toHaveTextContent(new RegExp(`^${n} reads? checked at Fast: `)));
