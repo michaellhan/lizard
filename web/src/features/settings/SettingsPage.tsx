@@ -48,6 +48,15 @@ export function SettingsPage() {
         <p className="text-xs text-muted">Dots and stripes that tell close colours apart without colour.</p>
       </fieldset>
 
+      <fieldset className="space-y-2 panel p-4">
+        <legend className="font-medium">Rake</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.pfRake} onChange={(e) => s.set({ pfRake: e.target.checked })} />
+          Study preflop with rake (5%, cap 3bb)
+        </label>
+        <p className="text-xs text-muted">Off: no rake, with the charts moved to no rake. A spot&apos;s own rake (Solve, Practice) still applies.</p>
+      </fieldset>
+
       {SyncPanel && (
         <Suspense fallback={null}>
           <SyncPanel />

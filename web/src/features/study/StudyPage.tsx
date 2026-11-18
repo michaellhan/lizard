@@ -218,7 +218,9 @@ function HoldemStudy() {
   const game = pfGame(hand);
   const onPf = hand.pf === "solver" && streetOf(hand) === "preflop";
 
-  const requestKey = `${toSearch(hand)}|${mode}`;
+  // (Settings' "Preflop with rake" changes the preflop request: studyRequest's pfRakeRequest)
+  const pfRake = useSettings((s) => s.pfRake);
+  const requestKey = `${toSearch(hand)}|${mode}${pfRake && streetOf(hand) === "preflop" ? "|rake" : ""}`;
   const askKey = `${requestKey}|${attempt}`;
   // a saved spot opened with its answer (?saved=): that answer stands until Re-solve, another node or another mode
   const kept = useSavedAnswer(params.get("saved"), toSearch(hand), requestKey);

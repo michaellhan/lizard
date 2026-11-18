@@ -42,6 +42,10 @@ export interface Settings {
   treeCap: TreeCap;
   /** Practice's sound effects (features/practice/sounds.ts) */
   sounds: boolean;
+  /** Study's preflop (the Charts and Solver sources) at 5% rake capped at 3bb where the spot sets no rake of its own (off,
+   * the default: no rake, so the charts are moved to no rake, gto/pf_norake.py, and the Solver source reads the no-rake
+   * stored game) */
+  pfRake: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -62,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   actionPatterns: false,
   treeCap: "standard",
   sounds: true,
+  pfRake: false,
 };
 
 const KEY = "settings.v1";
@@ -75,8 +80,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds, pfRake } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds, pfRake };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
