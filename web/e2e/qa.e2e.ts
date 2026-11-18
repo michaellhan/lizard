@@ -817,7 +817,7 @@ test("7d. An exploit drill against an assumed profile, on the real worker, and t
   // (a move the read can't draw, their hand off their range for the line, is the equilibrium's and says why; never "can't
   // play a read", which is a solver with no engine/)
   await expect(page.getByText(/can't play a read/)).toHaveCount(0);
-  await expect(page.getByText("Net against the profile")).toBeVisible();
+  await expect(page.getByText("Net against the profile", { exact: true })).toBeVisible();
 
   await page.goto("/lizard/saved/");
   await page.getByRole("link", { name: "Start QA station" }).click();
