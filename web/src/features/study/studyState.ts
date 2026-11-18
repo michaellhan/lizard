@@ -6,6 +6,7 @@ import { kindOf } from "@/components/actions";
 import { parseCards } from "@/engine/nlhe/cards";
 import { setupFromParams, setupRequest, setupToParams, tidySetup, type SpotSetup } from "@/features/solve/setup";
 import { encodePfSizes, parsePfSizes, pfSizesRequest, tidyPfSizes, type PfSizes } from "./pfSizes";
+import { useSettings } from "@/state/settings";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export const STREETS: readonly Street[] = ["preflop", "flop", "turn", "river"];
@@ -35,6 +36,13 @@ export function streetOf(h: Pick<StudyHand, "board">): Street {
   return n >= 5 ? "river" : n === 4 ? "turn" : n === 3 ? "flop" : "preflop";
 }
 
+/** The rake Study's preflop is asked at when the spot sets none: Settings' "Preflop with rake" (pfRake) on, 5% capped at
+ * 3bb (the stored raked game's; the charts' raked fit is 5% capped at 4bb); off, the default, none. */
+export const PF_RAKE = { rake: 0.05, rake_cap: 3 } as const;
+export function pfRakeRequest(h: StudyHand, on = useSettings.getState().pfRake): Partial<AdvisorState> {
+  return on && streetOf(h) === "preflop" && !h.setup?.rake && !h.setup?.tournament ? { ...PF_RAKE } : {};
+}
+
 /** The Advisor request for the node: Study mode, at equilibrium, no hero cards; preflop with the Solver source, the
  * preflop solve's node ("preflop_solve", as study.js request). */
 export function studyRequest(h: StudyHand): AdvisorState {
@@ -47,6 +55,7 @@ export function studyRequest(h: StudyHand): AdvisorState {
     turn: h.turn,
     river: h.river,
     ...setupRequest(h.setup, h.players),
+    ...pfRakeRequest(h),
     study: true,
     ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...pfSizesRequest(h.pfSizes) } : {}),
     // (bunching from the preflop solve's folds: its game, sizes and all, so the folds are read off the solve that played the line)

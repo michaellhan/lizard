@@ -220,3 +220,18 @@ describe("changing the cards on screen", () => {
     for (let i = 0; i < 52; i += 1) expect(["Ks", "7d", "2c"]).not.toContain(randomReplacement(turn, 1, () => i / 52));
   });
 });
+
+describe("pfRakeRequest (Settings' Study preflop with rake)", () => {
+  it("adds 5% capped at 3bb to a preflop node only when on and the spot sets no rake of its own", async () => {
+    const { pfRakeRequest, PF_RAKE } = await import("./studyState");
+    const h = freshHand();
+    expect(pfRakeRequest(h, false)).toEqual({});
+    expect(pfRakeRequest(h, true)).toEqual(PF_RAKE);
+    expect(pfRakeRequest({ ...h, board: "Ks7d2c" }, true)).toEqual({});
+    expect(pfRakeRequest({ ...h, setup: { rake: 10, rakeCap: 5 } }, true)).toEqual({});
+  });
+  it("leaves the default request without rake", async () => {
+    const { studyRequest } = await import("./studyState");
+    expect(studyRequest(freshHand()).rake).toBeUndefined();
+  });
+});
