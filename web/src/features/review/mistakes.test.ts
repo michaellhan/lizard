@@ -5,7 +5,7 @@ import type { DrillProblem } from "@/features/practice/drills";
 import { newHand, type Decision } from "@/features/practice/practice";
 import type { LibraryReport } from "@/library/files";
 import { CHART, chartMistake, DAY_ONE, LIVE, mistake, STORED } from "@/test/mistake";
-import { answerChange, costWords, drillMistake, drillMix, gradeOf, handMistake, missedAgain, retried, TRIES_KEPT, withTry, type RetryAnswer } from "./mistakes";
+import { answerChange, costWords, drillMistake, drillMix, gradeOf, handMistake, missedAgain, recheckedMiss, retried, TRIES_KEPT, withTry, type RetryAnswer } from "./mistakes";
 
 const grade = (x: Partial<Grade>): Grade => ({ a: 0, best: 1, verdict: "Mistake", ok: false, mixed: false, loss: 0.5, lossPct: 8, byEv: true, ...x }) as Grade;
 const decision = (g: Grade | null, x: Partial<Decision> = {}): Decision => ({
@@ -59,6 +59,20 @@ describe("a mistake kept from play", () => {
     const m = handMistake("s", newHand(6, 100, 0, 1), decision(grade({ byEv: false, loss: 0, lossPct: 0, verdict: "Inaccuracy" }), { street: "preflop", provenance: CHART, mix: chartMistake().mix, chose: "call" }), 1)!;
     expect(m.grade.byEv).toBe(false);
     expect(m.provenance?.source).toBe("charts");
+  });
+
+  it("asks a grade re-checked at Fast again at Fast, and keeps it re-graded as the same miss, not another", () => {
+    const h = newHand(6, 100, 0, 1);
+    const quick = handMistake("s", h, decision(grade({})), DAY_ONE)!;
+    expect(quick.ask).not.toHaveProperty("fast");
+    const fastProv = { ...LIVE, mode: "fast" as const };
+    const quickRead = { verdict: "Mistake" as const, ok: false, best: "bet 33%", byEv: true, loss: 0.5, lossPct: 8, source: "live" as const };
+    const fresh = handMistake("s", h, decision(grade({ verdict: "Blunder", loss: 2 }), { provenance: fastProv, quick: quickRead }), DAY_ONE + 9)!;
+    expect(fresh.ask).toMatchObject({ via: "solver", fast: true });
+    const was = { ...quick, times: 2, step: 3, due: 999, tries: [] };
+    const m = recheckedMiss(was, fresh);
+    expect(m).toMatchObject({ id: was.id, at: was.at, lastAt: was.lastAt, times: 2, step: 3, due: 999, grade: { verdict: "Blunder", loss: 2 }, provenance: { mode: "fast" }, ask: { fast: true }, updatedAt: DAY_ONE + 9 });
+    expect(recheckedMiss({ ...was, basis: { kind: "x" } as never }, fresh)).not.toHaveProperty("basis");
   });
 
   it("counts the same spot missed again as one record, back at the start of the schedule, with its first day kept", () => {

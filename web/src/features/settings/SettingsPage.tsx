@@ -32,6 +32,17 @@ export function SettingsPage() {
       </fieldset>
 
       <fieldset className="space-y-2 panel p-4">
+        <legend className="font-medium">Practice</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.recheckFast} onChange={(e) => s.set({ recheckFast: e.target.checked })} />
+          Re-check Quick grades at Fast when the solver is idle
+        </label>
+        <p className="text-xs text-muted">
+          Practice grades at Quick unless set to Accurate. With this on, it asks your graded decisions again at Fast when nothing else needs the solver, and a re-checked grade is Fast&rsquo;s everywhere, said so. Only where a solve can be stopped at once; never in Accurate.
+        </p>
+      </fieldset>
+
+      <fieldset className="space-y-2 panel p-4">
         <legend className="font-medium">Display</legend>
         <label className="flex items-center gap-2 text-sm">
           EV in

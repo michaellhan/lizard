@@ -2,7 +2,7 @@
 // the queue, the front, and what happens to the flight. The Room's side of each is room.test.ts's.
 import { describe, expect, it } from "vitest";
 import type { AdvisorState } from "@/solver/protocol";
-import { byPriority, estimate, group, plan, queue, refocus, SHORT, streetKey, type Front, type Job, type Waiter } from "./scheduler";
+import { byPriority, estimate, group, plan, queue, RECHECK, refocus, SHORT, streetKey, type Front, type Job, type Waiter } from "./scheduler";
 
 const state = (o: Partial<AdvisorState> = {}): AdvisorState => ({ players: 6, hero: "BTN", board: "", preflop: [], flop: [], turn: [], river: [], ...o });
 const FLOP = "Kd7s2c";
@@ -347,5 +347,47 @@ describe("plan", () => {
     it("sends nothing past a flight it won't stop", () => {
       expect(plan(flying(), [job("b")], "kills").launch).toBeNull();
     });
+  });
+});
+
+describe("a re-check at Fast (recheck.ts)", () => {
+  const RE = (rank = 0) => ({ recheck: { rank } });
+  const flying = (o: Partial<Job> = {}, stopping = false) => ({ job: job("re", o), stopping });
+
+  it("goes last of all: after a long solve and the other tables' look-aheads", () => {
+    expect(group({ est: 0.05, seeking: false, ...RE() })).toBe(RECHECK);
+    const jobs = [job("re", { est: 0.05, ...RE() }), job("long", { est: 60 }), job("look5", { est: 0.2, ahead: { g: 5, rank: 0 } }), job("instant", { est: 0.05 })];
+    expect(keys(jobs)).toEqual(["instant", "long", "look5", "re"]);
+  });
+
+  it("goes in the backlog's order among re-checks", () => {
+    expect(keys([job("second", RE(1)), job("first", { ...RE(0), since: 9 })])).toEqual(["first", "second"]);
+  });
+
+  it("is sent only with nothing else wanted", () => {
+    expect(plan(null, [job("re", RE()), job("look", { est: 0.2, ahead: { g: 5, rank: 0 } })], "cheap").launch?.need.key).toBe("look");
+    expect(plan(null, [job("re", RE())], "cheap").launch?.need.key).toBe("re");
+  });
+
+  it("gives way at once to anything real, a long solve too, and to a look-ahead", () => {
+    expect(plan(flying(RE()), [job("re", RE()), job("long", { est: 60 })], "cheap")).toMatchObject({ stop: true, same: { need: { key: "re" } }, launch: null });
+    expect(plan(flying(RE()), [job("re", RE()), job("look", { est: 0.2, ahead: { g: 5, rank: 0 } })], "cheap").stop).toBe(true);
+    expect(plan(flying(RE()), [job("re", RE()), job("opp", { kind: "opp", est: 0.2 })], "cheap").stop).toBe(true);
+  });
+
+  it("runs on with only re-checks behind it, whatever their order: it's never stopped for another", () => {
+    expect(plan(flying(RE(3)), [job("re", RE(3)), job("other", RE(0))], "cheap")).toMatchObject({ stop: false, same: { need: { key: "re" } }, launch: null });
+    expect(plan(flying(RE()), [job("re", RE())], "cheap", true).stop).toBe(false);
+  });
+
+  it("isn't stopped where a stop costs a worker (the Room sends none there), and goes when nobody wants it", () => {
+    expect(plan(flying(RE()), [job("re", RE()), job("b", { est: 0.05 })], "kills").stop).toBe(false);
+    expect(plan(flying(RE()), [], "cheap").stop).toBe(true);
+  });
+
+  it("never makes a late look-ahead give way: only a real request does", () => {
+    const LOOK = { ahead: { g: 3 as const, rank: 0 } };
+    const look = { ...job("a", { est: 0.2, ...LOOK }) };
+    expect(plan({ job: look, stopping: false }, [look, job("re", RE())], "cheap", true).stop).toBe(false);
   });
 });

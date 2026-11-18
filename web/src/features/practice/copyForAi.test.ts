@@ -77,6 +77,16 @@ describe("reviewedText", () => {
     expect(reviewedText(flopSpot("equity", false))).toContain("This equity estimate is a fallback. It is not a solved answer.");
   });
 
+  it("says a grade was re-checked at Fast, from Quick's, and that Fast isn't converged; or that it couldn't be", () => {
+    const e = flopSpot("live");
+    const fast = { ...e, d: { ...e.d, provenance: prov("live", { mode: "fast" }), quick: { verdict: "Blunder" as const, ok: false, best: "check", byEv: true, loss: 2, lossPct: 40, source: "live" as const } } };
+    const t = reviewedText(fast);
+    expect(t).toContain("Re-checked at Fast: a Quick solve first graded it Blunder (its best: check), and the grade and strategy here are from the Fast solve. Fast is a short solve too, not a converged one.");
+    expect(reviewedText({ ...fast, d: { ...fast.d, quick: { ...fast.d.quick, verdict: "Mistake" as const } } })).toContain("from the Fast solve, which gave the same grade.");
+    expect(reviewedText({ ...e, d: { ...e.d, recheckFailed: "no such node" } })).toContain("(Graded on a Quick solve; a re-check at Fast couldn't grade it: no such node.)");
+    expect(reviewedText(e)).not.toContain("Fast");
+  });
+
   it("says what isn't known, where a spot didn't keep its line", () => {
     const e = flopSpot("live");
     const t = reviewedText({ ...e, d: { ...e.d, study: "" } });

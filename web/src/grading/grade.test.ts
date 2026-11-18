@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addScore, capGrade, emptyScore, grade, noiseOf, pfNoisePct, summary, whoOf, whyText } from "./grade";
+import { addScore, capGrade, emptyScore, grade, noiseOf, pfNoisePct, RECENT, regradeScore, summary, whoOf, whyText } from "./grade";
 
 // cases ported from solver/tests/js/drills.test.js ("grading: ...", "score bookkeeping: ...")
 describe("grade", () => {
@@ -159,5 +159,47 @@ describe("grade: the preflop solve's noise", () => {
     const solver = grade({ ...btn87o, source: "solver" }, 1);
     expect([solver.verdict, solver.close, solver.noise]).toEqual(["Inaccuracy", undefined, undefined]);
     expect(grade(btn87o, 0)).toMatchObject({ verdict: "Best", loss: 0 });
+  });
+});
+
+describe("regradeScore (a Quick grade re-checked at Fast)", () => {
+  const ok = { ok: true, loss: 0, lossPct: 0, byEv: true };
+  const miss = { ok: false, loss: 1, lossPct: 10, byEv: true, past: 0.8, pastPct: 8 };
+  const freq = { ok: false, loss: 0, lossPct: 0, byEv: false };
+  const scoreOf = (gs: (typeof ok | typeof miss | typeof freq)[]) => gs.reduce((s, g) => addScore(s, g), emptyScore());
+
+  it("is the score as though the decision had been graded the new way from the first", () => {
+    const before = [ok, ok, miss, ok, ok, ok, miss, ok];
+    for (let i = 0; i < before.length; i++) {
+      for (const now of [ok, miss, freq]) {
+        const after = before.map((g, j) => (j === i ? now : g));
+        const s = regradeScore(scoreOf(before), before[i]!, now, i + 1);
+        const want = scoreOf(after);
+        expect(s).toEqual({ ...want, loss: expect.closeTo(want.loss, 9), lossPct: expect.closeTo(want.lossPct, 9) });
+      }
+    }
+  });
+
+  it("counts EV lost as the score does: past the noise, by EV only", () => {
+    const s = regradeScore(scoreOf([miss, ok]), miss, ok, 1);
+    expect(s).toMatchObject({ ok: 2, loss: 0, lossPct: 0, ne: 2 });
+    expect(regradeScore(scoreOf([ok, ok]), ok, freq, 2)).toMatchObject({ ok: 1, ne: 1 });
+  });
+
+  it("moves only the totals where its place isn't known, or it's older than the recent run", () => {
+    const base = scoreOf([miss, ok, ok]);
+    const s = regradeScore(base, miss, ok);
+    expect(s).toMatchObject({ ok: 3, recent: base.recent, streak: base.streak, best: base.best });
+    const long = scoreOf([miss, ...Array.from({ length: RECENT }, () => ok)]);
+    const old = regradeScore(long, miss, ok, 1);
+    expect(old).toMatchObject({ ok: RECENT + 1, recent: long.recent, streak: RECENT, best: RECENT });
+  });
+
+  it("past the recent run, a streak or best only ever grows by what's known", () => {
+    const long = scoreOf([...Array.from({ length: RECENT }, () => ok), miss, ok]);
+    const s = regradeScore(long, miss, ok, RECENT + 1);
+    expect(s.streak).toBe(RECENT);
+    expect(s.best).toBe(RECENT);
+    expect(regradeScore(long, ok, miss, RECENT + 2)).toMatchObject({ streak: 0, best: RECENT });
   });
 });

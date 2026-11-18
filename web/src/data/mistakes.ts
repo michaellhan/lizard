@@ -40,7 +40,7 @@ const isProvenance = (p: unknown): p is Provenance =>
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;
-  if (x.via === "solver") return isObj(x.state) && isCount(x.state.players);
+  if (x.via === "solver") return isObj(x.state) && isCount(x.state.players) && (x.fast === undefined || x.fast === true);
   // (`hand` goes in a link)
   if (x.via === "kept") return isWellFormed(x.hand) && !!x.hand && isStr(x.decision) && !!x.decision;
   return x.via === "library" && isStr(x.spot) && isStr(x.flop) && isStrs(x.path) && Array.isArray(x.combo) && x.combo.length === 2 && x.combo.every(isCount) && isOptStr(x.version) && (x.turn === undefined || (isObj(x.turn) && isStr(x.turn.card) && isStrs(x.turn.at)));
@@ -117,6 +117,20 @@ export async function addMistake(fresh: MistakeRecord, keyOf: SpotKey = noKey): 
   if (!there) await tx.store.put(fresh);
   await tx.done;
   return there ? "there" : "added";
+}
+
+/** A miss taken back, for a grade a re-check at Fast found Best or Correct (features/practice/recheck.ts): the record is
+ * missed once less, or, where that was its only miss, from `sessionId`, and it hasn't been retried, it goes. One that
+ * counts its misses by decision isn't touched where that count would no longer stand. Whether there was one to take back. */
+export async function takeBackMiss(id: string, sessionId: string): Promise<boolean> {
+  const d = await db();
+  if (!d) return false;
+  const tx = d.transaction("mistakes", "readwrite");
+  const was = readMistake(await tx.store.get(id));
+  if (was && was.times <= 1 && !was.tries.length && was.sessionId === sessionId) await tx.store.delete(id);
+  else if (was && was.times > 1 && (was.decisions === undefined || isHeld(was.decisions, was.times - 1))) await tx.store.put({ ...was, times: was.times - 1, updatedAt: Date.now() });
+  await tx.done;
+  return !!was;
 }
 
 /** A record taken out of the queue, its retries with it. Whether this browser could: a damaged one goes the same way. */

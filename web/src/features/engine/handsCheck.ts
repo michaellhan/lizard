@@ -260,6 +260,8 @@ class HandsRun {
       spot: "any",
       seat: "random",
       askAhead: o.askAhead,
+      // (it judges the hands as played: a grade re-checked at Fast would be another answer's)
+      recheck: false,
       watch: {
         ended: (h, s, table) => this.ended(h, s, table),
         refused: (h, why, table) => this.fail("move", `${where(table, h)}: the table couldn't take an opponent's answer: ${why}`, studyOf(h)),

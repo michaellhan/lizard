@@ -87,6 +87,13 @@ export function aiText(s: AiSpot): string {
 }
 
 /** One of your graded decisions in a full hand. */
+/** A grade re-checked at Fast, in a sentence: what Quick said, and that what follows is Fast's answer. */
+function recheckNote(d: Reviewed["d"]): string {
+  if (!d.quick || !d.grade) return d.recheckFailed ? ` (Graded on a Quick solve; a re-check at Fast couldn't grade it: ${d.recheckFailed}.)` : "";
+  const same = d.quick.verdict === d.grade.verdict;
+  return ` Re-checked at Fast: a Quick solve first graded it ${d.quick.verdict}${d.quick.best && d.quick.best !== d.chose ? ` (its best: ${d.quick.best})` : ""}, and the grade and strategy here are from the Fast solve${same ? ", which gave the same grade" : ""}. Fast is a short solve too, not a converged one.`;
+}
+
 export function reviewedText(e: Reviewed): string {
   const h = fromSearch(e.d.study);
   const g = e.d.grade;
@@ -98,7 +105,7 @@ export function reviewedText(e: Reviewed): string {
     you: `${seatLabel(e.seat, e.players)}, holding ${e.hole.join(" ")}`,
     at: `${e.d.street}, pot ${fmt(e.d.pot)}bb`,
     ...(e.dealtTo ? { dealt: `This hand was dealt under a hand filter: ${handLabel(e.dealtTo)}. The filter picks what's dealt; the answer below is the strategy for every hand you could hold here, not one fitted to these hands.` } : {}),
-    ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source, evUnit(e.d.provenance))}.` } : {}),
+    ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source, evUnit(e.d.provenance))}.${recheckNote(e.d)}` } : {}),
     mix: e.d.mix,
     labelOf: (a) => optionLabel(a.action, a.amount),
     provenance: e.d.provenance,

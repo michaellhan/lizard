@@ -2664,3 +2664,44 @@ of a clear blunder with that reason ("This answer is approximate: a quick answer
 game ..."), not "short of its target" (`grade.ts` `capGist`; test `provenance.approxReason.test.ts`). The same goes for
 a later street narrowed through a spot served as built (`ranges_built`). Quick's 3-way turn game (8 buckets) isn't
 marked.
+
+## 29. Practice's Quick grades re-checked at Fast (2026-11-18)
+
+Practice plays at Quick unless the setting is Accurate (a Fast setting plays Quick's budgets after the flop, as the
+classic trainer does). Quick's answer is a shorter solve, and Advisor's own measure over 1,000 hands against Fast gave
+the same grade 88% of the time for a Quick read within 1% of the pot, and 62% for nearest flops and earlier-street
+reads (section 3, and FEATURE_MATRIX's Decision grading row). So a Practice grade at Quick is wrong about one time in
+eight where its solve settled, and more often where it didn't.
+
+**What changes.** While the solver has nothing else to do, the Room asks each graded decision of this session again at
+Fast and grades your same move against that answer (`web/src/features/practice/recheck.ts`, `room.ts`). It goes
+through the one grading entry point every Practice grade uses (`practice.ts` `decide`, so `gradeAnswer` on
+`practiceBasis`), on Fast's answer with Fast's own provenance: mode `fast`, its distance from equilibrium and band, its
+caps. Fast's grade then replaces Quick's everywhere: the decision and its hand, the session's score, cells and sources,
+History's record, the table's tally once the hand has ended, Review, Retry and Copy for AI. The decision keeps what
+Quick said (`quick`: verdict, best action, EV lost, source), so every surface says "Re-checked at Fast: Mistake →
+Correct" or "Re-checked at Fast: same grade". Fast is a short solve too: nothing here calls it converged, and its band
+says how settled it was. A retry of a re-checked spot is asked at Fast at least (`retry.ts` `askedAt`), so a Quick
+answer never stands beside a Fast grade. A kept miss moves with the grade (still a miss: Fast's answer and grade, the
+same record; now Best or Correct: taken back, `data/mistakes.ts` `takeBackMiss`).
+
+**What isn't asked.** Anything Fast answers the same way: the charts, the preflop solve, push/fold, the library's own
+spot (a borrowed one is approximate and is asked), and the betting rules where Fast also leaves the spot to them (five
+or more players in before the river, six or more on it). Nor a decision after Reveal, off a read's profile, ungraded,
+partial, or answered at Fast or Accurate already. Nothing is re-checked in Accurate, nor with the setting off
+(Settings, "Re-check Quick grades at Fast when the solver is idle", on by default), nor where a stop isn't cheap.
+
+**Order and priority.** Flagged reads first, as Analyze's triage checks its flagged reads first (below Correct or
+capped, rough or approximate, leaning on the rules, low confidence, or 2% of the pot given up: `triage.ts`'s
+`DEEP_LOSS`, held equal by a test), then the latest hands, a hand's decisions in street order; at most 60 wait, the
+oldest hands dropped. A re-check is the scheduler's lowest group (`scheduler.ts` `RECHECK`, below your spot, a short or
+long one and every look-ahead). It's offered only while no table has anything coming on its timer, and it's stopped
+the moment anything else wants the solver, then asked again later. One that fails, or that something outside the Room
+cancels twice, is marked (the decision keeps why, "this grade is Quick's") and never asked again.
+
+**What it doesn't do.** The backlog is in memory: a reload rebuilds it only from the hands still on the tables (above
+one table), so older hands of a reloaded session keep Quick's grade. A hand kept in Analyze holds the moves and cards,
+not the grades (`practice/history.ts` `practiceRecord`), so it has nothing to update and is never kept twice. Measured
+only on a fake client (tests `recheck.test.ts`, `room.test.ts`, `scheduler.test.ts`, `session.test.ts`,
+`grade.test.ts`): how often Fast changes a Practice grade on the real worker, and how many re-checks a session gets
+through while you think, are not yet measured.

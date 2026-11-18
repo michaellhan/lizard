@@ -13,6 +13,7 @@ import { behind, type Sim } from "@/poker/table";
 import { describe as describeProvenance, evUnit, sourceLabel } from "@/solver/provenance";
 import { fmt, signed } from "./PracticeParts";
 import { boardShown, needsIndex, phaseOf, potLabel, runEnd, seeking, setupOf, shownCards, simOf, type Decision, type HandResult, type PracticeHand } from "./practice";
+import { recheckWords } from "./recheck";
 import type { RoomTable } from "./room";
 import { useHandSounds } from "./sounds";
 
@@ -32,7 +33,8 @@ export function verdictLine(d: Decision): { text: string; title?: string } {
   const p = d.provenance;
   const source = p ? `${p.approximate ? "≈ " : ""}${describeProvenance(p).split(" · ")[0]}` : sourceLabel("unknown");
   const gave = !g.byEv ? "by frequency" : g.loss > 0.005 ? `−${bb(g.loss)}${evUnit(p)}` : "no EV lost";
-  return { text: `${g.verdict} · ${d.street} · ${d.chose} · ${gave} · ${source}`, ...(p ? { title: describeProvenance(p) } : {}) };
+  const again = recheckWords(d);
+  return { text: `${g.verdict} · ${d.street} · ${d.chose} · ${gave} · ${source}${again ? ` · ${again}` : ""}`, ...(p ? { title: describeProvenance(p) } : {}) };
 }
 
 /** What a table is doing, for its tile, its tab and the dock. `place`: its place in the queue, where there is one. */

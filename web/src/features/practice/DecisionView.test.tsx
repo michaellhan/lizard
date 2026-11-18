@@ -82,4 +82,26 @@ describe("DecisionView", () => {
     show("charts");
     expect(screen.queryByText(/preflop solve/)).toBeNull();
   });
+  it("says a grade was re-checked at Fast, what Quick said, and never that Fast converged", () => {
+    const d = decision("live");
+    d.grade = { a: 0, best: 0, byEv: true, loss: 0, lossPct: 0, verdict: "Correct", ok: true, mixed: false } as never;
+    d.mix = [{ action: "check", freq: 0.7, ev: 1 }, { action: "bet", freq: 0.3, ev: 0.9, amount: 7.13 }];
+    d.quick = { verdict: "Mistake", ok: false, best: "bet", byEv: true, loss: 0.8, lossPct: 8.4, source: "live" };
+    const { unmount } = render(
+      <MemoryRouter>
+        <DecisionView d={d} players={2} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/Re-checked at Fast: Mistake → Correct\./)).toBeTruthy();
+    expect(screen.getByText(/Quick.s answer graded this Mistake \(its best: bet\)/)).toBeTruthy();
+    expect(screen.getByText(/not a converged one/)).toBeTruthy();
+    unmount();
+    render(
+      <MemoryRouter>
+        <DecisionView d={{ ...decision("live"), recheckFailed: "Stopped twice." }} players={2} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/Not re-checked at Fast \(Stopped twice\.\): this grade is Quick.s\./)).toBeTruthy();
+    expect(screen.queryByText(/Re-checked at Fast:/)).toBeNull();
+  });
 });

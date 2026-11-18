@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { chartMistake, DAY_ONE, LIVE, mistake, STORED } from "@/test/mistake";
 import { db } from "./db";
-import { addMistake, changeMistake, deleteMistake, heldDecisions, keepMistake, listMistakes, readMistake } from "./mistakes";
+import { addMistake, changeMistake, deleteMistake, heldDecisions, keepMistake, listMistakes, readMistake, takeBackMiss } from "./mistakes";
 
 const wipe = async () => (await db())!.clear("mistakes");
 
@@ -18,6 +18,8 @@ describe("a kept record, read", () => {
 
   it("takes a whole one, of either kind of answer", () => {
     expect(readMistake(mistake())).toEqual(mistake());
+    // (a grade re-checked at Fast is asked again at Fast)
+    expect(readMistake(mistake({ ask: { via: "solver", state: { players: 6 } as never, fast: true } }))).not.toBeNull();
     expect(readMistake(chartMistake())).toEqual(chartMistake());
     expect(readMistake(mistake({ provenance: null, study: null, due: null, step: 4 }))).not.toBeNull();
     const turn = { via: "library", spot: "x", flop: "Ac8c6c", path: [], combo: [1, 2], turn: { card: "2h", at: [] } } as const;
@@ -39,6 +41,7 @@ describe("a kept record, read", () => {
     ["an unknown provenance", { ...mistake(), provenance: { ...mistake().provenance, source: "guess" } }],
     ["a provenance with no mode", { ...mistake(), provenance: { source: "live", approximate: false } }],
     ["no way to ask it", { ...mistake(), ask: { via: "post" } }],
+    ["a re-check's ask that isn't marked true", { ...mistake(), ask: { via: "solver", state: { players: 6 }, fast: false } }],
     ["a damaged turn", { ...mistake(), ask: { via: "library", spot: "x", flop: "y", path: [], combo: [1, 2], turn: { card: 3, at: [] } } }],
     ["one hole card", { ...mistake(), hole: ["Ah"] }],
     ["a damaged retry", { ...mistake(), tries: [{ at: 1 }] }],
@@ -77,6 +80,29 @@ describe("the mistakes store", () => {
     expect((await changeMistake("a", (m) => ({ ...m, step: m.step + 1 })))?.step).toBe(2);
     expect((await listMistakes()).list[0]?.step).toBe(2);
     expect(await changeMistake("none", (m) => m)).toBeUndefined();
+  });
+});
+
+describe("a miss taken back (a re-check at Fast found it Best or Correct)", () => {
+  it("deletes this session's only miss, never retried", async () => {
+    await wipe();
+    await keepMistake(mistake({ id: "a" }), (_, f) => f);
+    expect(await takeBackMiss("a", "practice-1")).toBe(true);
+    expect((await listMistakes()).list).toEqual([]);
+    expect(await takeBackMiss("a", "practice-1")).toBe(false);
+  });
+
+  it("keeps a miss retried or from another session, and counts one missed again once less", async () => {
+    await wipe();
+    const tried = { at: 1, chose: "check", verdict: "Best", ok: true, byEv: true, loss: 0, lossPct: 0, source: "live", label: "x", like: true, moved: true } as const;
+    await keepMistake(mistake({ id: "tried", tries: [tried] }), (_, f) => f);
+    await keepMistake(mistake({ id: "old", sessionId: "practice-0" }), (_, f) => f);
+    await keepMistake(mistake({ id: "twice", times: 2 }), (_, f) => f);
+    await keepMistake(mistake({ id: "held", times: 2, decisions: { "practice-1:1:0": 1, "practice-1:2:0": 1 } }), (_, f) => f);
+    for (const id of ["tried", "old", "twice", "held"]) expect(await takeBackMiss(id, "practice-1")).toBe(true);
+    const by = Object.fromEntries((await listMistakes()).list.map((m) => [m.id, m.times]));
+    // (a count by decision that would no longer stand is left as it was)
+    expect(by).toEqual({ tried: 1, old: 1, twice: 1, held: 2 });
   });
 });
 

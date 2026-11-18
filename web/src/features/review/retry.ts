@@ -120,6 +120,10 @@ export function keptAnswer(m: Pick<MistakeRecord, "pot"> & Partial<Pick<MistakeR
   return { mix: m.mix, pot: m.pot, provenance: m.provenance, ...(m.basis ? { basis: m.basis } : {}) };
 }
 
+/** The mode a solver's spot is asked again at: as Practice plays, but a grade re-checked at Fast at Fast at least
+ * (features/practice/recheck.ts), as a retry at Quick would set Quick's answer beside a grade that's Fast's. */
+export const askedAt = (ask: Extract<MistakeAsk, { via: "solver" }>, mode: SolveMode = retryMode()): SolveMode => (ask.fast ? liveMode(mode) : mode);
+
 /** The current answer at a kept mistake's spot. */
 export const askAgain = async (m: Pick<MistakeRecord, "ask" | "pot"> & Partial<Pick<MistakeRecord, "mix" | "provenance" | "basis">>, getClient: GetClient, signal?: AbortSignal): Promise<RetryAnswer> =>
-  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, retryMode(), signal, m.mix) : askLibrary(m.ask, retryMode());
+  m.ask.via === "kept" ? keptAnswer(m) : m.ask.via === "solver" ? askSolver(m.ask, m.pot, getClient, askedAt(m.ask), signal, m.mix) : askLibrary(m.ask, retryMode());

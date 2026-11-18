@@ -6061,3 +6061,36 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
 - Found: the classic library publishes four 3-way spots Lizard lacks (`mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb`,
   `mw_utg_sb_bb`); its 3-way tree adds `bucket_power: 1.0`, which the snapshot at 1a14605e doesn't have, so taking
   them needs a newer upstream import.
+
+## 2026-11-18: Practice re-checks Quick's grades at Fast while the solver is idle
+
+- Why: Practice plays at Quick unless the setting is Accurate, and Quick gives Fast's grade about 88% of the time where
+  it settled and 62% for its other reads (Advisor's measure on 1,000 hands). Analyze already re-checks its flagged
+  reads at Fast; Practice didn't.
+- What: `web/src/features/practice/recheck.ts` (new, pure): which decisions are worth asking again (graded at Quick
+  after the flop, not Reveal or off a profile, not ungraded or partial, and not what Fast answers the same: the charts,
+  the preflop solve, push/fold, the library's own spot, the rules where Fast leaves the spot to them too), the order
+  (flagged first as `triage.ts` flags, then the latest hands, street order within a hand; at most 60), the hand as it
+  stood at the decision (`handAt`), and the same move graded again through `practice.ts` `decide` against Fast's answer
+  with Fast's provenance (`regraded`). The decision keeps Quick's read as `quick`, or why Fast couldn't grade it as
+  `recheckFailed`. `scheduler.ts`: group 6 (`RECHECK`), below every look-ahead; a re-check in flight gives way to
+  anything else wanted where a stop is cheap, and nothing gives way to it. `room.ts`: the backlog (in memory; a session
+  read back rebuilds it from the hands on its tables), offered only with re-checking on, not Accurate, a cheap stop, no
+  restart, the tab active and visible, and no table timer pending; asked at Fast under a key of its own, its answer kept
+  for a Fast retry; a stop of ours retries it, a failure or a second foreign cancel marks it. Fast's grade then moves
+  every total over (`grade.ts` `regradeScore`, `session.ts` `afterRecheck`, `history.ts` `regradePot`, `dropCell`,
+  `dropSource`), swaps into the hand, the table's last decision and Review, and moves the kept miss
+  (`recheckedMiss`, `data/mistakes.ts` `takeBackMiss`; a retry of a re-checked miss asks at Fast, `retry.ts` `askedAt`).
+  Settings: "Re-check Quick grades at Fast when the solver is idle", on by default (and for settings saved before it).
+  The score strip says "Re-checking at Fast: 3 left · 1 changed"; the decision, a tile's foot, Review's list and Copy
+  for AI say "Re-checked at Fast: Mistake → Correct" or "same grade", and that Fast is a short solve, not a converged one.
+  `keep.ts` reads the new fields back and refuses spoiled ones. A kept Analyze hand holds no grades, so nothing there
+  changes and nothing is kept twice (test). Docs: ACCURACY section 29, FEATURE_MATRIX's Full-hand play row (statuses
+  unchanged).
+- Checked: `npm run typecheck`, `npm run lint` clean; the touched files (13, 867 tests) pass; the full vitest run
+  through `slot.sh` (238 files passed, 2 skipped; 3,971 tests passed, 9 skipped, 79 s); `npm run build` passes (with
+  `PYTHON` set to the main checkout's `.venv`, as the worktree has none). All on a fake client.
+- Left: not checked in a browser or on the real worker, so how often Fast changes a Practice grade and how many
+  re-checks a session gets through while you think are unmeasured; the backlog doesn't survive a reload at one table
+  (nothing is kept there) nor for hands gone from the tables; a miss counted by decision (`decisions` on the record) isn't
+  taken back where the count would no longer stand.

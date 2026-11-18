@@ -92,7 +92,8 @@ export function handMistake(sessionId: string, h: PracticeHand, d: Decision, now
     board: r.board,
     line: r.line,
     study: d.study,
-    ask: { via: "solver", state: askOf(h, d) },
+    // (a grade re-checked at Fast is asked again at Fast at least: review/retry.ts)
+    ask: { via: "solver", state: askOf(h, d), ...(d.quick ? { fast: true as const } : {}) },
     chose: d.chose,
     mix: d.mix,
     pot: d.pot,
@@ -164,6 +165,15 @@ export function missedAgain(was: MistakeRecord, fresh: MistakeRecord): MistakeRe
     ...(was.ask.via === "solver" && fresh.ask.via === "kept" ? { ask: was.ask } : {}),
     ...(held.size ? { decisions: Object.fromEntries(held) } : {}),
   };
+}
+
+/** A kept miss whose grade was re-checked at Fast and is still a miss (features/practice/recheck.ts): the same miss, not
+ * another, so its times, dates and retries stay, and what it's graded on is Fast's: the move's name, the answer, the pot,
+ * the grade, its basis and provenance, and the request a retry asks. */
+export function recheckedMiss(was: MistakeRecord, fresh: MistakeRecord): MistakeRecord {
+  const { basis: _b, ...rest } = was;
+  void _b;
+  return { ...rest, chose: fresh.chose, mix: fresh.mix, pot: fresh.pot, grade: fresh.grade, ...(fresh.basis ? { basis: fresh.basis } : {}), provenance: fresh.provenance, ask: fresh.ask, updatedAt: fresh.updatedAt };
 }
 
 export interface RetryAnswer {

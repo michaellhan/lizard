@@ -18,7 +18,8 @@ export function retrySpot(e: Reviewed): (RetrySpot & { pot: number; grade: NonNu
   const { d, state } = e;
   if (!state || !d.grade) return null;
   // (with the basis it was graded on: a flop library answer asked again keeps the flop's pot the first grade knew)
-  return { ask: { via: "solver", state }, provenance: d.provenance, mix: d.mix, street: d.street, study: d.study, chose: d.chose, pot: d.pot, grade: d.grade, ...(d.basis ? { basis: d.basis } : {}) };
+  // (a grade re-checked at Fast is asked again at Fast at least: review/retry.ts askedAt)
+  return { ask: { via: "solver", state, ...(d.quick ? { fast: true as const } : {}) }, provenance: d.provenance, mix: d.mix, street: d.street, study: d.study, chose: d.chose, pot: d.pot, grade: d.grade, ...(d.basis ? { basis: d.basis } : {}) };
 }
 
 /** `e`, an earlier decision of this session, asked again. `getClient`: the Room's, which uses an answer still held. */

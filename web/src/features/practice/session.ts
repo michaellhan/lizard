@@ -3,8 +3,8 @@
 // them all. Decisions count as they're graded and a hand as it ends, so `score.n` runs ahead of the tallies mid-hand.
 import type { SessionRecord } from "@/data/db";
 import { versionOf } from "@/grading/version";
-import { addCell, addHandToPot, addSource, handPot, type GradeCell, type PotTally } from "@/features/history/history";
-import { addScore, emptyScore, type Score } from "@/grading/grade";
+import { addCell, addHandToPot, addSource, dropCell, dropSource, handPot, regradePot, type GradeCell, type PotTally } from "@/features/history/history";
+import { addScore, emptyScore, regradeScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
 import { PRIZE_UNIT } from "@/solver/provenance";
 import { playedByRead } from "./exploit";
@@ -85,6 +85,31 @@ export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, 
     sources: addSource(s.sources, d.provenance?.source),
     cells: addCell(s.cells, d.street, d.provenance?.source, d.grade, versionOf(d.provenance), { seat: h.hero, pot: handPot(h.lines.preflop, simOf(h)) }),
     review: withReviewed(s.review, reviewed(h, d, h.n + 1, table)),
+  };
+}
+
+/** One decision the same as another: the same object, or as it was written down (a session read back holds its hands and
+ * its Review list apart, so a decision in both is two objects alike). */
+export const sameDecision = (a: Decision | null | undefined, b: Decision | null | undefined): boolean => !!a && !!b && (a === b || JSON.stringify(a) === JSON.stringify(b));
+
+/** The session after your decision `was`, graded at Quick at the hand `h` as it stood when you decided, was re-checked at
+ * Fast as `now` (recheck.ts). Every total it went into moves from the one grade to the other, as though it had been graded
+ * at Fast from the first: the score (`place`, its place among the decisions graded, from 1, puts it in the recent run and
+ * the streak where it's still in them), what graded it, its cell, its entry in Review, and once its hand has ended
+ * (`ended`), its pot's tally. A total it can't be found in is left as it is, so nothing is counted twice. */
+export function afterRecheck(s: PracticeSession, h: PracticeHand, was: Decision, now: Decision, o: { place?: number; ended: boolean }): PracticeSession {
+  if (!was.grade || !now.grade) return s;
+  const at = { seat: h.hero, pot: handPot(h.lines.preflop, simOf(h)) };
+  const less = dropSource(s.sources, was.provenance?.source);
+  const cells = dropCell(s.cells, was.street, was.provenance?.source, was.grade, versionOf(was.provenance), at);
+  const tally = s.byPot[at.pot];
+  return {
+    ...s,
+    score: regradeScore(s.score, was.grade, now.grade, o.place),
+    sources: less ? addSource(less, now.provenance?.source) : s.sources,
+    cells: cells ? addCell(cells, now.street, now.provenance?.source, now.grade, versionOf(now.provenance), at) : s.cells,
+    review: s.review.map((e) => (e.n === h.n + 1 && sameDecision(e.d, was) ? { ...e, d: now } : e)),
+    byPot: o.ended && tally ? { ...s.byPot, [at.pot]: regradePot(tally, { ...was.grade, source: was.provenance?.source }, { ...now.grade, source: now.provenance?.source }) } : s.byPot,
   };
 }
 

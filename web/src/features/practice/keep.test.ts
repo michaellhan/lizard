@@ -550,6 +550,26 @@ describe("keptTables", () => {
     }
   });
 
+  it("reads a re-check's decision back, Quick's read beside Fast's grade, or why Fast couldn't grade it; a spoiled one loses the session", () => {
+    const h = newHand(2, 100, 0, 7, OPTS);
+    const r = decide(h, BAD, CALL, { ...prov("live"), mode: "fast" });
+    if ("error" in r) throw new Error(r.error);
+    const quick = { verdict: "Mistake" as const, ok: false, best: "fold", byEv: true, loss: 1, lossPct: 12.5, source: "live" as const, capped: true as const };
+    const fast = { ...r.decision, quick };
+    const e = { n: 1, table: 2, seat: h.hero, players: 2, hole: h.hands[h.hero], board: ["Ah", "Kd", "2c"], line: "first to act", d: fast };
+    expect(keptTables(structuredClone(spoiled({ review: [e] })))?.session.review[0]!.d).toEqual(fast);
+    const failed = { ...r.decision, recheckFailed: "Stopped twice." };
+    expect(keptTables(spoiled({ review: [{ ...e, d: failed }] }))?.session.review[0]!.d.recheckFailed).toBe("Stopped twice.");
+    expect(keptTables(doc({ tables: [kept(hand(0), { last: fast }), kept(hand(1))] }))!.tables[0]!.last).toEqual(fast);
+    expect(keptHand(structuredClone({ ...r.hand, decisions: [fast] }))?.decisions[0]).toEqual(fast);
+    for (const q of [{ ...quick, verdict: "Fine" }, { ...quick, ok: "no" }, { ...quick, best: 1 }, { ...quick, loss: "1" }, { ...quick, source: "guessed" }, { ...quick, capped: false }, "Mistake", null]) {
+      expect(keptTables(spoiled({ review: [{ ...e, d: { ...fast, quick: q } }] }))).toBeNull();
+    }
+    expect(keptTables(spoiled({ review: [{ ...e, d: { ...r.decision, recheckFailed: 2 } }] }))).toBeNull();
+    // (Quick's read only beside a grade)
+    expect(keptHand({ ...r.hand, decisions: [{ ...fast, grade: null, provenance: null }] })).toBeNull();
+  });
+
   it("loses only the hand that won't replay, its table's results kept", () => {
     const stats = { ...emptyTally(), hands: 5, n: 7, ok: 6, played: 5, net: 12.5 };
     const lost = kept({ ...hand(1), board: [] }, { stats });
