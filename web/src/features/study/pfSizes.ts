@@ -10,6 +10,10 @@
 // And the tree builder's options (2026-11-13; engine/pf_solve.py Spec, sent as "pf_tree"): `limps`, any seat may limp
 // first in or over-limp (pfs=L); `opens`, a position's own open size (pfs=o.UTG:2.2); `flop3`, up to three see a flop,
 // and `cold`, cold calls of a 3bet and cold 4bets, each on up to 6 players and off from 7 by default (pfs=f3:1,cold:0).
+// Since 2026-11-17 one more: `five`, the 5bet's rule (pfs=5x:0 for none, 5x:2.2 for a raise to 2.2 times the 4bet; unset,
+// the 5bet is all-in; sent as pf_tree "five"). The engine also solves a straddle from another seat than the first
+// (pf_tree "straddler", a Mississippi straddle), but this page's table and the charts play the first seat's only, so the
+// form doesn't offer it.
 // None of these is in a stored game, so each solves in the browser, within the device's memory (pfCap.ts).
 import { SEATS } from "@/poker/seats";
 
@@ -25,7 +29,12 @@ export type PfSizes = Partial<Record<PfSizeKey, number>> & {
   flop3?: boolean;
   /** cold calls of a 3bet and cold 4bets (unset: on up to 6 players) */
   cold?: boolean;
+  /** the 5bet: 0 none (facing a 4bet, call or fold), else a raise to this many times the 4bet (unset: all-in) */
+  five?: number;
 };
+
+/** A sized 5bet's range, times the 4bet (engine/pf_solve.py FIVE_LIMITS). */
+export const PF_FIVE = { lo: 1.8, hi: 3.5 };
 
 /** The seats that can open at a table (everyone but the big blind). */
 export const openers = (players: number): string[] => (SEATS[players] ?? []).slice(0, -1);
@@ -64,6 +73,9 @@ export function tidyPfSizes(s: PfSizes | undefined, players?: number): PfSizes |
     .filter(([p, v]) => Math.abs(v - (sbOf(p) ? (out.sb_open ?? PF_SIZE.sb_open.def) : (out.open ?? PF_SIZE.open.def))) > 1e-9);
   if (kept.length) out.opens = Object.fromEntries(kept);
   for (const k of ["flop3", "cold"] as const) if (typeof s?.[k] === "boolean" && (players === undefined || s[k] !== fullTreeAt(players))) out[k] = s[k];
+  const five = s?.five;
+  if (five === 0) out.five = 0;
+  else if (typeof five === "number" && five >= PF_FIVE.lo && five <= PF_FIVE.hi) out.five = Math.round(five * 100) / 100;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -73,7 +85,9 @@ export const pfSizeProblems = (s: PfSizes): string[] =>
     const v = s[k];
     const { label, lo, hi, unit } = PF_SIZE[k];
     return v === undefined || inRange(k, v) ? [] : [`${label} must be ${lo}–${hi}${unit === "bb" ? "bb" : "×"}`];
-  }).concat(Object.entries(s.opens ?? {}).flatMap(([p, v]) => (inRange("open", v) ? [] : [`${p}'s open must be ${PF_SIZE.open.lo}–${PF_SIZE.open.hi}bb`])));
+  })
+    .concat(Object.entries(s.opens ?? {}).flatMap(([p, v]) => (inRange("open", v) ? [] : [`${p}'s open must be ${PF_SIZE.open.lo}–${PF_SIZE.open.hi}bb`])))
+    .concat(s.five === undefined || s.five === 0 || (Number.isFinite(s.five) && s.five >= PF_FIVE.lo && s.five <= PF_FIVE.hi) ? [] : [`A 5bet must be ${PF_FIVE.lo}–${PF_FIVE.hi}×`]);
 
 export const encodePfSizes = (s: PfSizes): string =>
   [
@@ -83,6 +97,7 @@ export const encodePfSizes = (s: PfSizes): string =>
     ...Object.entries(s.opens ?? {}).map(([p, v]) => `o.${p}:${v}`),
     ...(s.flop3 !== undefined ? [`f3:${s.flop3 ? 1 : 0}`] : []),
     ...(s.cold !== undefined ? [`cold:${s.cold ? 1 : 0}`] : []),
+    ...(s.five !== undefined ? [`5x:${s.five}`] : []),
   ].join(",");
 
 export function parsePfSizes(t: string | null, players?: number): PfSizes | undefined {
@@ -95,6 +110,7 @@ export function parsePfSizes(t: string | null, players?: number): PfSizes | unde
     else if (k?.startsWith("o.") && k.length > 2) out.opens = { ...out.opens, [k.slice(2).toUpperCase()]: Number(v) };
     else if (k === "f3") out.flop3 = v === "1";
     else if (k === "cold") out.cold = v === "1";
+    else if (k === "5x") out.five = Number(v);
     else if ((PF_SIZE_KEYS as readonly string[]).includes(k ?? "")) out[k as PfSizeKey] = Number(v);
   }
   return tidyPfSizes(out, players);
@@ -109,6 +125,7 @@ export const describePfSizes = (s: PfSizes | undefined): string =>
     ...Object.entries(s?.opens ?? {}).map(([p, v]) => `${p} opens ${v}bb`),
     ...(s?.flop3 !== undefined ? [s.flop3 ? "3-way flops" : "2 to a flop"] : []),
     ...(s?.cold !== undefined ? [s.cold ? "cold calls" : "no cold calls"] : []),
+    ...(s?.five !== undefined ? [s.five === 0 ? "no 5bet" : `5bet ${s.five}×`] : []),
   ].join(", ");
 
 export interface PfTree {
@@ -116,14 +133,21 @@ export interface PfTree {
   opens?: Record<string, number>;
   flop3?: boolean;
   cold?: boolean;
+  five?: number | "none";
 }
 
 /** The request's fields for them: the sizes as "pf_sizes", the complete apart as "pf_sb_limp", the tree's options as
  * "pf_tree" (engine/pf_solve.py spec_of). */
 export function pfSizesRequest(s: PfSizes | undefined): { pf_sizes?: Partial<Record<PfSizeKey, number>>; pf_sb_limp?: true; pf_tree?: PfTree } {
   if (!s) return {};
-  const { limp, limps, opens, flop3, cold, ...sizes } = s;
-  const tree: PfTree = { ...(limps ? { open_limps: true as const } : {}), ...(opens && Object.keys(opens).length ? { opens } : {}), ...(flop3 !== undefined ? { flop3 } : {}), ...(cold !== undefined ? { cold } : {}) };
+  const { limp, limps, opens, flop3, cold, five, ...sizes } = s;
+  const tree: PfTree = {
+    ...(limps ? { open_limps: true as const } : {}),
+    ...(opens && Object.keys(opens).length ? { opens } : {}),
+    ...(flop3 !== undefined ? { flop3 } : {}),
+    ...(cold !== undefined ? { cold } : {}),
+    ...(five !== undefined ? { five: five === 0 ? ("none" as const) : five } : {}),
+  };
   return {
     ...(Object.keys(sizes).length ? { pf_sizes: sizes } : {}),
     ...(limp ? { pf_sb_limp: true as const } : {}),

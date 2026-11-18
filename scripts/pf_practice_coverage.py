@@ -17,7 +17,8 @@ the table's half big blind). Anywhere else your raise stays the chart's, and tha
 
     .venv/bin/python scripts/pf_practice_coverage.py --hands 30000 --policy chart,uniform,solve [--rake] [--own-sizes]
         [--players 2..6] [--stack 20..200]   (a game of engine/pf_solve.py's grid; 6 players at 100bb by default)
-        [--chart-sizes]   (the grid's game at the charts' raise sizes: what Practice's grade asks at 6-max since 11-13)
+        [--chart-sizes]   (the grid's game at the charts' raise sizes, engine/pf_solve.py chart_sized: what Practice's
+                           grade asks, at 2 to 6 players since 2026-11-17; at 6-max the 4x blind 3bet alone from 11-13)
         [--upstream]      (pf_study's stored grid, what ACCURACY sections 18 to 18.3 measured)
         [--upstream-flat] (a short-stack jam's flat alternative as upstream's, raises and all: before ACCURACY 18.11's fix)
 """
@@ -217,10 +218,12 @@ def verdict(evs, freqs, a, pot, capped=True, chart=None):
 def held_solve(rake, upstream, sizes=()):
     """The stored solve Practice's grade reads: Lizard's (engine/pf_solve.py, the worker's since 2026-11-11) or, with
     --upstream, pf_study's (what sections 18 to 18.3 measured). `sizes`: a Spec's sizes, for a stored game at other
-    raise sizes."""
+    raise sizes, or "chart" for the game at the charts' raise sizes (pf_solve.chart_sized)."""
     r = (0.05, 3.0) if rake else None
     if upstream:
         return pf_study.held(pf_study.Spec(len(SEATS), STACK, 0.0, False, r))
+    if sizes == "chart":
+        return LZ.held(LZ.chart_sized(LZ.Spec(len(SEATS), (STACK,), rake=r)))
     return LZ.held(LZ.Spec(len(SEATS), (STACK,), rake=r, sizes=tuple(sizes)))
 
 
@@ -316,7 +319,7 @@ def main():
     ap.add_argument("--stack", type=float, default=100.0)
     ap.add_argument("--upstream", action="store_true", help="pf_study's stored solve (before 2026-11-11), not Lizard's")
     ap.add_argument("--chart-sizes", action="store_true", help="the stored game at the charts' raise sizes "
-                    "(engine/pf_solve.py CHART_SIZES), as Practice's grade asks it at 6-max since 2026-11-13")
+                    "(engine/pf_solve.py chart_sized), as Practice's grade asks it since 2026-11-17")
     ap.add_argument("--upstream-flat", action="store_true", help="a short-stack jam's flat alternative as upstream's "
                     "(engine/pf_charts.py _upstream_flat): the charts before ACCURACY 18.11's fix")
     a = ap.parse_args()
@@ -328,7 +331,8 @@ def main():
     SEATS, STACK = list(TABLES[a.players]), a.stack
     for pol in a.policy.split(","):
         t0 = time.time()
-        o = run(pol, a.hands, a.seed, a.rake, a.own_sizes, a.upstream, LZ.CHART_SIZES if a.chart_sizes else ())
+        sizes = "chart" if a.chart_sizes else ()
+        o = run(pol, a.hands, a.seed, a.rake, a.own_sizes, a.upstream, sizes)
         n = sum(o["seen"].values())
         print(f"== {a.players} players {a.stack:g}bb {pol}{' raked' if a.rake else ''}{' own-sizes' if a.own_sizes else ''}{' upstream' if a.upstream else ''}{' chart-sizes' if a.chart_sizes else ''}{' upstream-flat' if a.upstream_flat else ''}: {a.hands} hands, {n} decisions, {time.time() - t0:.0f}s", flush=True)
         for k, v in o["seen"].most_common():

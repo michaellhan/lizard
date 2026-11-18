@@ -97,8 +97,8 @@ describe("what's asked", () => {
     const h = first();
     const need = needOf(h, "quick");
     if (need.kind !== "you") throw new Error(need.kind);
-    // (at 6-max, the stored game at the charts' raise sizes: engine/pf_solve.py CHART_SIZES)
-    expect(need.pf).toEqual({ ...stateFor(h), study: true, preflop_solve: true, ...(h.players === 6 ? { pf_sizes: { blind_3bet: 4 } } : {}) });
+    // (at 2 to 6 players, the stored game at the charts' raise sizes: engine/pf_solve.py chart_sized)
+    expect(need.pf).toEqual({ ...stateFor(h), study: true, preflop_solve: true, ...(h.players >= 2 && h.players <= 6 ? { pf_tree: { sizing: "chart" } } : {}) });
     expect(need.pf).not.toHaveProperty("run");
     expect(need.key).toBe(pfKey("quick", stateFor(h)));
     expect(need.key).not.toBe(adviceKey("quick", stateFor(h)));

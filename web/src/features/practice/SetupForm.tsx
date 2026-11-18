@@ -54,6 +54,18 @@ import {
   TournamentFields,
 } from "./TournamentFields";
 
+/** How many hands hold a preflop decision the stored solve can't grade, at 100bb, playing the charts, by table size: the
+ * games at the charts' own raise sizes, lz3 (scripts/pf_practice_coverage.py --chart-sizes, 10,000 hands at 2 to 5 players and
+ * 30,000 at 6: 204 of 9,452 hands with a decision, 64 of 8,984, 75 of 9,482, 79 of 9,692, 244 of 29,371; docs/ACCURACY.md
+ * section 18.8). */
+const PF_UNGRADED: Record<number, string> = {
+  2: "about 1 hand in 45",
+  3: "about 1 hand in 140",
+  4: "about 1 hand in 125",
+  5: "about 1 hand in 120",
+  6: "about 1 hand in 120",
+};
+
 const setTexture = (
   f: TextureFilter,
   key: TextureKey,
@@ -670,9 +682,10 @@ export function SetupForm({
             className="basis-full text-xs text-muted"
           >
             Not a full solve.{" "}
-            {p === 6
-              ? // (6-max grades ask the games stored at the charts' own 3bet and 4bet sizes, so the second box moves no button)
-                "Spots it can\u2019t answer (about 7% of hands at 100bb) keep the chart\u2019s grade. At 6 players its raise sizes are the charts\u2019 own."
+            {PF_UNGRADED[p] && game?.tournament?.model !== "icm"
+              ? // (a cash grade at 2 to 6 players asks the game stored at the charts' own raise sizes, so the second box
+                // moves no button)
+                `Spots it can\u2019t answer (${PF_UNGRADED[p]} at 100bb) keep the chart\u2019s grade. Its raise sizes are the charts\u2019 own.`
               : pfSizes
                 ? "Your raise uses its size where it answers; those hands leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."
                 : "Spots it can\u2019t answer keep the chart\u2019s grade. Its sizes answer more of them but leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."}

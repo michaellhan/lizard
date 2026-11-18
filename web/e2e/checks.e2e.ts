@@ -644,8 +644,8 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   await sizes.focus();
   await page.keyboard.press("Space");
   await expect(sizes).toBeChecked();
-  // (at 6 players the stored games are at the charts' own sizes, so the second box moves no button: SetupForm's note)
-  await expect(page.locator("#pf-note")).toContainText("At 6 players its raise sizes are the charts\u2019 own.");
+  // (at 6 players the grade's game is at the charts' own raise sizes, so the box moves no button, and the note says so)
+  await expect(page.locator("#pf-note")).toContainText("raise sizes are the charts’ own");
   await page.screenshot({ path: "e2e-results/shots/tablet/pf-both-boxes-form.png" });
   expect(await overflow(page), "sideways scroll with both boxes, px").toBeLessThanOrEqual(0);
   const start = await page.getByRole("button", { name: "New session" }).boundingBox();

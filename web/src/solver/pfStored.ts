@@ -15,15 +15,16 @@ export const PF_MODEL_TAG = "lz4";
 export const pfKey = (players: number, stack: number, raked: boolean) =>
   `${PF_MODEL_TAG}_${players}max_${stack}bb${raked ? `_r${PF_STORED_RAKE.pct}c${PF_STORED_RAKE.cap}` : ""}`;
 
-/** The charts' raise sizes (engine/pf_solve.py CHART_SIZES): the charts' blinds 3bet to 4x the open, the tree's default
- * to 4.8x. The same games at the charts' size are stored for these table sizes (STORED_CHART_PLAYERS), and Practice's and
- * Analyze's grade asks them (`pfGradeSizes`), so a blind's chart 3bet stays on the tree; Study's Solver source keeps the
- * tree's own sizes. */
-export const PF_CHART_SIZES = { blind_3bet: 4 } as const;
-export const PF_CHART_PLAYERS = [6] as const;
+/** The charts' raise sizes (engine/pf_solve.py chart_sized, pf_engine.build sizing="chart"): every raise as the charts
+ * size it (a blind's 3bet to 4x the open where the tree's is 4.8x, a cold 4bet adding the opener's chips, each size to the
+ * half big blind, all-in where it would commit the stack). The same games at the charts' sizes are stored for these table
+ * sizes (STORED_CHART_PLAYERS), and Practice's and Analyze's grade asks them (`pfGradeSizes`), so a chart's raise stays on
+ * the tree; Study's Solver source keeps the tree's own sizes. Until 2026-11-17 only the 4x blind 3bet, at 6 players. */
+export const PF_CHART_TREE = { sizing: "chart" } as const;
+export const PF_CHART_PLAYERS = [2, 3, 4, 5, 6] as const;
 
-/** A stored game at the charts' raise sizes' key (Spec.key: the sizes after the rake). */
-export const pfChartKey = (players: number, stack: number, raked: boolean) => `${pfKey(players, stack, raked)}_blind_3bet${PF_CHART_SIZES.blind_3bet}`;
+/** A stored game at the charts' raise sizes' key (Spec.key: "_ch" last). */
+export const pfChartKey = (players: number, stack: number, raked: boolean) => `${pfKey(players, stack, raked)}_ch`;
 
 /** Every stored game's key. */
 export const PF_KEYS: readonly string[] = [
@@ -33,8 +34,8 @@ export const PF_KEYS: readonly string[] = [
 
 /** What a grade's request adds to ask the stored game at the charts' raise sizes, where one is stored for the table size
  * (nothing for a tournament's request, whose stored presets are of the tree's own sizes). */
-export const pfGradeSizes = (state: { players?: number; payouts?: unknown; bounties?: unknown }): { pf_sizes?: typeof PF_CHART_SIZES } =>
-  (PF_CHART_PLAYERS as readonly number[]).includes(state.players ?? 0) && !state.payouts && !state.bounties ? { pf_sizes: PF_CHART_SIZES } : {};
+export const pfGradeSizes = (state: { players?: number; payouts?: unknown; bounties?: unknown }): { pf_tree?: typeof PF_CHART_TREE } =>
+  (PF_CHART_PLAYERS as readonly number[]).includes(state.players ?? 0) && !state.payouts && !state.bounties ? { pf_tree: PF_CHART_TREE } : {};
 
 /** The stored depths in words: "20, 25, 30, … or 200bb". */
 export const PF_DEPTHS_WORDS = `${PF_DEPTHS.slice(0, -1).join(", ")} or ${PF_DEPTHS.at(-1)}bb`;

@@ -169,6 +169,23 @@ describe("the preflop Solver source's state", () => {
     expect(tidyPfSizes({ limps: true }, 2)).toBeUndefined();
   });
 
+  it("keeps the 5bet's rule: none or a size times the 4bet, sent as pf_tree five, in the link and the label", () => {
+    const none = withPfSizes(withPf(freshHand(6, 200), "solver"), { five: 0 });
+    expect(none.pfSizes).toEqual({ five: 0 });
+    expect(studyRequest(none)).toMatchObject({ pf_tree: { five: "none" } });
+    expect(toSearch(none)).toContain("pfs=5x%3A0");
+    expect(fromSearch(toSearch(none))).toEqual(none);
+    expect(describePfSizes(none.pfSizes)).toBe("no 5bet");
+    const sized = withPfSizes(withPf(freshHand(6, 200), "solver"), { five: 2.234 });
+    expect(sized.pfSizes).toEqual({ five: 2.23 });
+    expect(studyRequest(sized)).toMatchObject({ pf_tree: { five: 2.23 } });
+    expect(parsePfSizes("5x:2.2")).toEqual({ five: 2.2 });
+    expect(describePfSizes({ five: 2.2 })).toBe("5bet 2.2×");
+    // out of range: refused in the form, dropped from the setup (the all-in 5bet, the default)
+    expect(pfSizeProblems({ five: 5 })).toEqual(["A 5bet must be 1.8–3.5×"]);
+    expect(tidyPfSizes({ five: 5 }, 6)).toBeUndefined();
+  });
+
   it("sets each seat's own stack into the setup, the table's stack left out", () => {
     const h = withPfStacks(withPf(freshHand(3, 40), "solver"), { BTN: 40, SB: 18, BB: 60 });
     expect(h.setup).toEqual({ stacks: { SB: 18, BB: 60 } });
@@ -344,6 +361,24 @@ describe("Study's preflop Solver source", () => {
     await waitFor(() => expect(pf.asked.at(-1)?.pf_tree).toEqual({ open_limps: true, opens: { UTG: 2.2 }, flop3: false }));
     expect(pf.asked.at(-1)?.stacks).toEqual({ BTN: 40 });
     expect(screen.getByText("Tree: limps, UTG opens 2.2bb, 2 to a flop, own stacks")).toBeInTheDocument();
+  });
+
+  it("sends the 5bet's rule on Apply: a size times the 4bet, or none", async () => {
+    renderAt(withPf(freshHand(6, 200), "solver"));
+    await screen.findByRole("region", { name: "Solve this game's preflop" });
+    const form = screen.getByRole("form", { name: "Preflop solve tree" });
+    fireEvent.change(within(form).getByLabelText("5bet rule"), { target: { value: "sized" } });
+    fireEvent.change(within(form).getByLabelText("5bet size"), { target: { value: "2.5" } });
+    pf.asked = [];
+    fireEvent.click(within(form).getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(pf.asked.at(-1)?.pf_tree).toEqual({ five: 2.5 }));
+    expect(screen.getByText("Tree: 5bet 2.5×")).toBeInTheDocument();
+    // (the form is new for the new tree: it opens at the rule just applied)
+    const again = screen.getByRole("form", { name: "Preflop solve tree" });
+    expect(within(again).getByLabelText("5bet size")).toHaveValue(2.5);
+    fireEvent.change(within(again).getByLabelText("5bet rule"), { target: { value: "none" } });
+    fireEvent.click(within(again).getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(pf.asked.at(-1)?.pf_tree).toEqual({ five: "none" }));
   });
 
   it("refuses to offer a solve past this device's memory, saying how much it needs and what to take off", async () => {

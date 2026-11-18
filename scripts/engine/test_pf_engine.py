@@ -227,22 +227,134 @@ class TreeOptions(unittest.TestCase):
         self.assertEqual(P.Spec(9, (100.0,)).limits(), P.LIMITS_7UP)
 
     def test_chart_sizes(self):
-        # the charts' blind 3bet (4x the open: 10bb over 2.5bb) in place of the tree's 4.8x, for Practice's grade; named
+        # every raise as the charts size it (pf_engine.build sizing="chart"), for Practice's and Analyze's grade; named
         c = P.chart_sized(P.Spec(6, (100.0,), rake=(0.05, 3.0)))
-        self.assertEqual(c.key, "lz4_6max_100bb_r5c3_blind_3bet4")
+        self.assertEqual(c.key, "lz4_6max_100bb_r5c3_ch")
         self.assertIn(c, P.stored_games())
         self.assertIn("at the charts' raise sizes", " ".join(c.tree_notes()))
         self.assertEqual(P.Spec(6, (100.0,)).tree_notes(), [])
-        nd, pos = self.first_in(c, "BTN")
-        o = nd.children[nd.names.index("raise")]
-        o = o.children[o.names.index("fold")]                  # the SB folds, the BB 3bets to 10bb, the BTN 4bets to 23bb
-        btn = o.children[o.names.index("raise")]
+        root, pos = c.build()
+
+        def at(nd, *moves):
+            for m in moves:
+                nd = nd.children[nd.names.index(m)]
+            return nd
+        # the BTN opens 2.5, the SB folds, the BB 3bets to 10bb (4x), the BTN 4bets to 23bb
+        btn = at(self.first_in(c, "BTN")[0], "raise", "fold", "raise")
         self.assertAlmostEqual(btn.line[-1][2], 10.0)
-        self.assertEqual(pos[btn.player], "BTN")
-        self.assertAlmostEqual(btn.children[btn.names.index("raise")].line[-1][2], 23.0)
-        # what the request asks: the sizes as Practice sends them reach the stored game's key
-        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_sizes": {"blind_3bet": 4}})[0].key,
-                         "lz4_6max_100bb_blind_3bet4")
+        self.assertAlmostEqual(at(btn, "raise").line[-1][2], 23.0)
+        # UTG opens, the BTN 3bets to 7.5bb: UTG's 4bet is 17bb (2.3x to the half big blind, half to even), and the
+        # small blind's cold 4bet adds UTG's 2.5bb: 20bb (the tree's own: 17.25bb either way)
+        utg = at(root, "raise", "fold", "fold", "raise")
+        self.assertEqual(utg.line[-1][:2], ("BTN", "raise"))
+        self.assertAlmostEqual(utg.line[-1][2], 7.5)
+        self.assertEqual(pos[utg.player], "SB")
+        self.assertAlmostEqual(at(utg, "raise").line[-1][2], 20.0)
+        self.assertAlmostEqual(at(utg, "fold", "fold", "raise").line[-1][2], 17.0)
+        # a squeeze adds a caller's chips beyond its blind: the SB calls UTG's open, the BB squeezes to 12bb (not 12.5);
+        # a 4bet over it would leave under 1.25 pots behind once called, so the charts go all-in there, and so does this
+        sq = at(root, "raise", "fold", "fold", "fold", "call", "raise")
+        self.assertAlmostEqual(sq.line[-1][2], 12.0)
+        self.assertNotIn("raise", sq.names)
+        self.assertEqual(at(sq, "all-in").line[-1][2], 100.0)
+        # what the request asks: the tree option as Practice sends it reaches the stored game's key; sizes go with it
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_tree": {"sizing": "chart"}})[0].key, "lz4_6max_100bb_ch")
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_sizes": {"open": 2.2},
+                                    "pf_tree": {"sizing": "chart"}})[0].key, "lz4_6max_100bb_ch")
+        self.assertIn("'tree' or 'chart'", P.spec_of({"players": 6, "pf_tree": {"sizing": "odd"}})[1])
+
+    def test_chart_sizes_are_the_charts(self):
+        # each raise and all-in of the chart-sized trees is the charts' own (gto/advisor.py's preflop answer), on a sample
+        # of nodes at four table sizes and depths: the size to the cent, an all-in where the charts go all-in
+        import random
+        from gto.advisor import Advisor
+        adv = Advisor()
+        rnd = random.Random(1)
+        for n, stack in ((6, 100.0), (6, 200.0), (5, 40.0), (2, 100.0)):
+            root, pos = P.chart_sized(P.Spec(n, (stack,))).build()
+            decs = [nd for nd in G.walk(root) if nd.kind == "dec" and ("raise" in nd.names or "all-in" in nd.names)]
+            for nd in rnd.sample(decs, min(40, len(decs))):
+                pre = [dict(pos=p, action=a, **({"to": to} if a == "raise" else {})) for p, a, to in nd.line]
+                r = adv.advise(dict(players=n, stack=stack, board="", preflop=pre, flop=[], turn=[], river=[],
+                                    hero=pos[nd.player], hole="7c2d"))
+                theirs = next(a for a in r["actions"] if a["action"] in ("raise", "all-in"))
+                name = "raise" if "raise" in nd.names else "all-in"
+                self.assertEqual(theirs["action"], name, nd.line)
+                if name == "raise":
+                    to = nd.children[nd.names.index(name)].line[-1][2]
+                    self.assertAlmostEqual(theirs["amount_bb"], to, places=2, msg=nd.line)
+
+    def test_straddle_from_any_seat(self):
+        # on the first seat it is pf_game's straddle exactly; on another (a Mississippi straddle) the straddler posts 2bb,
+        # the action starts left of the big blind with it skipped, and it acts last once everyone else has had a move
+        self.assertEqual(sorted(nd.line for nd in G.walk(P.Spec(6, (100.0,), straddle=True).build()[0])),
+                         sorted(nd.line for nd in G.walk(G.build(G.SIX, 100.0, straddle=True))))
+        spec, why = P.spec_of({"players": 6, "stack": 100, "straddle": "btn"})
+        self.assertIsNone(why)
+        self.assertEqual((spec.straddler, spec.key), ("BTN", "lz4_6max_100bb_sBTN"))
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "straddle": "UTG"})[0].key, "lz4_6max_100bb_s")
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "straddle": True})[0].key, "lz4_6max_100bb_s")
+        # the tree option names the seat where the setup has a straddle; without one it's ignored
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "straddle": True,
+                                    "pf_tree": {"straddler": "CO"}})[0].key, "lz4_6max_100bb_sCO")
+        self.assertEqual(P.spec_of({"players": 6, "stack": 100, "pf_tree": {"straddler": "CO"}})[0].key, "lz4_6max_100bb")
+        self.assertIn("can't straddle", P.spec_of({"players": 6, "straddle": "BB"})[1])
+        self.assertIn("a straddle from the BTN", " ".join(spec.tree_notes()))
+        self.assertIn("straddle from the BTN, acting last", spec.label())
+        root, pos = spec.build()
+        nd, order = root, []
+        while nd.kind == "dec":
+            order.append(pos[nd.player])
+            nd = nd.children[nd.names.index("fold")]
+        self.assertEqual(order, ["UTG", "HJ", "CO", "SB", "BB"])      # folded to the straddler, who wins
+        self.assertEqual(nd.active, (pos.index("BTN"),))
+        o = root.children[root.names.index("raise")]
+        self.assertAlmostEqual(o.line[-1][2], 5.0)                     # 2.5x the straddle
+        while pos[o.player] != "BB":
+            o = o.children[o.names.index("fold")]
+        x = o.children[o.names.index("raise")]                        # the BB 3bets UTG's open: the BTN is next, then UTG
+        self.assertEqual(pos[x.player], "BTN")
+        self.assertEqual(pos[x.children[x.names.index("fold")].player], "UTG")
+        for spec in (P.Spec(4, (40.0,), straddle=True, straddler="BTN"), P.Spec(5, (60.0,), straddle=True, straddler="CO")):
+            g = spec.game()
+            g.solve(1500)
+            self.assertLess(1000 * sum(g.exploitability(per_seat=True)) / spec.players, 1.5, spec.key)
+
+    def test_five_bet_rules(self):
+        # the 5bet: all-in (the default, the tree before), none (facing a 4bet, call or fold), or a size x the 4bet with
+        # the 6bet all-in; each converges
+        def most(spec):
+            return max(sum(1 for _, a, _ in nd.line if a in ("raise", "all-in")) for nd in G.walk(spec.build()[0]))
+        self.assertEqual(P.spec_of({"players": 6, "pf_tree": {"five": "jam"}})[0].key, "lz4_6max_100bb")
+        none = P.spec_of({"players": 3, "stack": 200, "pf_tree": {"five": "none"}})[0]
+        sized = P.spec_of({"players": 3, "stack": 200, "pf_tree": {"five": 2.2}})[0]
+        self.assertEqual((none.key, sized.key), ("lz4_3max_200bb_5x0", "lz4_3max_200bb_5x2.2"))
+        self.assertEqual((most(P.Spec(3, (200.0,))), most(none), most(sized)), (4, 3, 5))
+        self.assertIn("no 5bet", " ".join(none.tree_notes()))
+        self.assertIn("a 5bet to 2.2x the 4bet", " ".join(sized.tree_notes()))
+        fives = [nd for nd in G.walk(sized.build()[0])
+                 if sum(1 for _, a, _ in nd.line if a in ("raise", "all-in")) == 4 and nd.line[-1][1] == "raise"]
+        self.assertTrue(fives)
+        for nd in fives:
+            tos = [to for _, a, to in nd.line if a in ("raise", "all-in")]
+            self.assertGreaterEqual(tos[-1], tos[-2] * 2.2 - 1e-9, nd.line)
+        self.assertIn("1.8 to 3.5x", P.spec_of({"players": 6, "pf_tree": {"five": 9}})[1])
+        for spec in (none, sized):
+            g = spec.game()
+            g.solve(1500)
+            self.assertLess(1000 * sum(g.exploitability(per_seat=True)) / spec.players, 1.5, spec.key)
+
+    def test_no_raise_over_three_all_ins(self):
+        # at unequal stacks a deeper seat could raise over three shorter all-ins (the charts' sizes go all-in sooner),
+        # a 4-way showdown the terminal values don't price: up to three go to a showdown, as a call's cap has it; equal
+        # stacks never reach it, so their trees (and every stored game) are unchanged
+        for stacks in ((100.0, 90.0, 110.0, 100.0, 85.0, 120.0), (40.0, 60.0, 80.0, 100.0, 120.0, 140.0)):
+            for chart in (False, True):
+                spec = P.Spec(6, stacks, chart=chart)
+                root, _ = spec.build()
+                self.assertEqual([nd.line for nd in G.walk(root) if nd.kind != "dec" and len(nd.active) > 3], [], spec.key)
+                spec.game()                                   # (built and priced)
+        self.assertEqual(P.chart_sized(P.Spec(6, (100.0,))).nodes(), 5091)
 
     def test_memory_estimate(self):
         # the measured peaks it was fitted to (pf_solve.MB_BASE, MB_PER_WORK), within 20%
@@ -337,8 +449,8 @@ class StoredGrid(unittest.TestCase):
     def test_every_stored_game_has_a_file_near_equilibrium(self):
         # the strategy as stored (quantized) within the 1.5 mbb a live solve stops at, each file unpacking on its own tree;
         # the games solved longer (STORED_ITERS_OF) within 1.8: 4-max and 5-max 40bb level off at 1.60 and 1.65 (3,000
-        # iterations moved them 0.05 mbb, where a live solve's stall rule stops too), and 6-max 40bb at the charts' 3bet
-        # size at 1.745 after 6,000 (see STORED_ITERS_OF); the figure in their header shown
+        # iterations moved them 0.05 mbb, where a live solve's stall rule stops too; see STORED_ITERS_OF); the figure in
+        # their header shown. The games at the charts' raise sizes (`_ch`, 110 of them) are within 1.5 at 1,500
         for spec in P.stored_games():
             blob = P.read_stored(spec.key)
             self.assertIsNotNone(blob, spec.key)

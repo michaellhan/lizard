@@ -8,7 +8,7 @@ import type { AdvisorResponse } from "@/solver/protocol";
 import { pfFraction, pfMinutes, pfStalled, pfStatusOf, type PfRun } from "./pfSolve";
 import { SEATS } from "@/poker/seats";
 import { overCap } from "./pfCap";
-import { describePfSizes, fullTreeAt, openers, PF_SIZE, PF_SIZE_KEYS, pfSizeProblems, type PfSizeKey, type PfSizes } from "./pfSizes";
+import { describePfSizes, fullTreeAt, openers, PF_FIVE, PF_SIZE, PF_SIZE_KEYS, pfSizeProblems, type PfSizeKey, type PfSizes } from "./pfSizes";
 
 export type PfSource = "charts" | "solver";
 
@@ -64,6 +64,9 @@ export function PfSizesForm({
   const full = fullTreeAt(players);
   const [flop3, setFlop3] = useState(value?.flop3 ?? full);
   const [cold, setCold] = useState(value?.cold ?? full);
+  // the 5bet: all-in (the default), none, or a raise to so many times the 4bet
+  const [fiveRule, setFiveRule] = useState<"jam" | "none" | "sized">(value?.five === undefined ? "jam" : value.five === 0 ? "none" : "sized");
+  const [fiveX, setFiveX] = useState(value?.five ? String(value.five) : "");
   const seats = openers(players);
   const [opens, setOpens] = useState<Record<string, string>>(() => Object.fromEntries(seats.map((p) => [p, value?.opens?.[p] !== undefined ? String(value.opens[p]) : ""])));
   const all = SEATS[players] ?? [];
@@ -76,6 +79,7 @@ export function PfSizesForm({
     ...(Object.keys(typedOpens).length ? { opens: typedOpens } : {}),
     ...(flop3 !== full ? { flop3 } : {}),
     ...(cold !== full ? { cold } : {}),
+    ...(fiveRule === "none" ? { five: 0 } : fiveRule === "sized" ? { five: Number(fiveX || PF_FIVE.lo) } : {}),
   };
   const ownStacks = Object.fromEntries(all.filter((p) => stk[p]?.trim()).map((p) => [p, Number(stk[p])]));
   const problems = [
@@ -121,6 +125,35 @@ export function PfSizesForm({
                 </label>
               );
             })}
+          </div>
+        </fieldset>
+        <fieldset className="space-y-1.5">
+          <legend className="text-xs font-medium text-muted">5bet</legend>
+          <div className="flex flex-wrap items-center gap-2">
+            <select aria-label="5bet rule" value={fiveRule} onChange={(e) => setFiveRule(e.target.value as typeof fiveRule)} className="rounded-md border border-border bg-surface-2 px-2 py-1">
+              <option value="jam">All-in</option>
+              <option value="none">None (facing a 4bet, call or fold)</option>
+              <option value="sized">A raise, times the 4bet</option>
+            </select>
+            {fiveRule === "sized" && (
+              <label className="flex items-center gap-1.5">
+                <input
+                  aria-label="5bet size"
+                  type="number"
+                  inputMode="decimal"
+                  step={0.1}
+                  min={PF_FIVE.lo}
+                  max={PF_FIVE.hi}
+                  placeholder={String(PF_FIVE.lo)}
+                  value={fiveX}
+                  onChange={(e) => setFiveX(e.target.value)}
+                  className={`${input} w-20`}
+                />
+                <span className="text-xs text-muted">
+                  × ({PF_FIVE.lo}–{PF_FIVE.hi}); the 6bet is all-in
+                </span>
+              </label>
+            )}
           </div>
         </fieldset>
         <fieldset className="space-y-1.5">

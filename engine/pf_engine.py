@@ -23,6 +23,16 @@ What is new:
   the seat's open plus 1bb a limper (the small blind's sb_open, the big blind's Sizes.iso, plus 1bb a limper past the
   first); never with a straddle. `opens` gives a seat its own open size (bb, first in; the 3bet sizes then scale from
   it). Both off, the tree is the one before (tests/test_pf_engine.py).
+* **More tree options** (2026-11-17): `sizing="chart"` sizes every raise as the charts do (gto/advisor.py
+  _default_size and _legal_to: an open at 2.5bb, the small blind's 3bb; a 3bet 3x the bet, 4x from a seat that posted,
+  the big blind's over a small-blind open 10/3x; a 4bet or more 2.3x; each plus every other live player's chips beyond
+  what they posted, save the last raiser's; to the nearest half big blind, half to even, at least the smallest full
+  raise), so a cold 4bet over an open and a 3bet goes to 20bb, not the tree's 17.25bb. `straddler` puts the straddle on
+  another seat than the first (a Mississippi straddle from the button, or any seat but the blinds): it posts 2bb, the
+  action starts left of the big blind with the straddler skipped, and it acts last once everyone else has acted.
+  `five` is the 5bet's rule: None all-in (as before; with the charts' sizes, theirs: 2.3x, all-in where it would
+  commit the stack), 0 no 5bet (facing a 4bet, call or fold), x > 0 a 5bet to x times the 4bet with the 6bet all-in.
+  A 5bet pot that sees a flop is valued as a 4bet pot.
 * **The payoff** (`payoff`, ChipPayoff by default): a function of each seat's chip result at a terminal outcome. Chip
   EV is linear and exact. A nonlinear payoff (prize equity) is evaluated per outcome: at a heads-up terminal each of
   the two winners (a folded seat's utility weighted by the pot's chance to go each way, taken over the two players'
@@ -56,27 +66,56 @@ class ChipPayoff:
 def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.Sizes] = None,
           max_players: int = 3, max_players_raised: int = 2, sb_limp: bool = False, ante: float = 0.0,
           straddle: bool = False, cold4: bool = True, limps: bool = False,
-          opens: Optional[Dict[str, float]] = None) -> G.Node:
+          opens: Optional[Dict[str, float]] = None, sizing: str = "tree", straddler: Optional[str] = None,
+          five: Optional[float] = None) -> G.Node:
     """pf_game.build with each seat's own stack (`stacks`, bb before the ante, in `positions` order), `cold4`
     (False: from the 3bet on, a player who hasn't put chips in voluntarily only folds), `limps` (any seat may limp
-    first in or over-limp; not with a straddle) and `opens` (a position's own open size, bb)."""
+    first in or over-limp; not with a straddle), `opens` (a position's own open size, bb), `sizing` ("tree" or
+    "chart": the charts' raise sizes), `straddler` (the straddle's seat, the first by default; not a blind) and
+    `five` (the 5bet: None all-in, 0 none, x > 0 a raise to x times the 4bet)."""
     sizes = sizes or G.Sizes()
     n = len(positions)
     pos = list(positions)
     sb, bb = (n - 2, n - 1) if n > 2 else (0, 1)
     straddle = bool(straddle) and n >= 3
+    st_seat = pos.index(straddler) if straddle and straddler in pos else 0
+    if straddle and st_seat in (sb, bb):
+        raise ValueError("a blind can't straddle")
     limps = bool(limps) and not straddle
-    open_of = {pos.index(p): float(v) for p, v in (opens or {}).items() if p in pos}
+    chart = sizing == "chart"
+    open_of = {} if chart else {pos.index(p): float(v) for p, v in (opens or {}).items() if p in pos}
+    # raises allowed in all: open, 3bet, 4bet, then a 5bet all-in; with a sized 5bet (or the charts' rule, which sizes
+    # a 5bet as a 4bet and jams it when it would commit the stack) a 6bet all-in too
+    max_raises = 3 if five == 0 else 5 if (five or chart) else 4
+    jam_5bet = five is None and not chart
     stk = [float(s) - ante for s in stacks]       # what each has to bet after the ante
     rank = G.post_rank(pos)
     posted = [0.0] * n
     posted[sb] += 0.5
     posted[bb] += 1.0
     if straddle:
-        posted[0] += 2.0
+        posted[st_seat] += 2.0
     posted = [min(p, s) for p, s in zip(posted, stk)]
+    blinds = {sb, bb} | ({st_seat} if straddle else set())
+
+    def chart_to(p, cur, n_raises, last, bets, live, min_raise):
+        """gto/advisor.py _default_size, then _legal_to's rounding (half to even) and smallest raise."""
+        extra = sum(max(0.0, bets[r] - posted[r]) for r in live if r != p and r != last)
+        if n_raises == 0:
+            to = cur * (4.0 if p in blinds else 3.0) + extra if extra > 0 else (3.0 if p == sb else 2.5) * cur
+        elif n_raises == 1:
+            if p == bb and last == sb and extra == 0:
+                to = cur * (10.0 / 3.0)
+            else:
+                to = cur * (4.0 if p in blinds else 3.0) + extra
+        else:
+            to = cur * 2.3 + extra
+        lo = np.ceil((cur + min_raise) * 2 - 1e-9) / 2
+        return max(round(float(to) * 2) / 2, lo)
 
     def raise_to(p, cur, n_raises, last, callers, bets, limpers=0):
+        if n_raises == 3 and five:
+            return cur * five + callers * cur
         if n_raises == 0:
             if p == bb and not straddle:
                 return sizes.iso + max(0, limpers - 1) * cur
@@ -107,6 +146,16 @@ def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.S
             return G.Node("fold", inv=np.array(bets) + ante, active=tuple(live), n_raises=n_raises, line=line)
         cur = max(bets)
         order = [(p + k) % n for k in range(n)]
+        if straddle and st_seat != 0:
+            # the straddler is skipped until everyone else has had a move, then acts at once (Mississippi rules); with
+            # the straddle on the first seat that is the seat order itself, so that tree is unchanged
+            moved = {m[0] for m in line}
+            if pos[st_seat] not in moved:
+                waiting = [r for r in range(n) if r != st_seat and r not in folded and not allin(r, bets)
+                           and pos[r] not in moved]
+                order = [q for q in order if q != st_seat]
+                if not waiting:
+                    order = [st_seat] + order
         nxt = next((q for q in order if q not in folded and not allin(q, bets)
                     and (q not in acted or bets[q] < cur - 1e-9)), None)
         behind = [q for q in live if not allin(q, bets)]
@@ -151,11 +200,25 @@ def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.S
         others = [r for r in live if r != q]
         reach_max = max(stk[r] for r in others)     # nobody can call more than this
         eff = min(stk[q], reach_max)                # the most this raise can put at risk
-        if not cold and cur < stk[q] - 1e-9 and n_raises < 4 and reach_max > cur + 1e-9:
+        # (no raise over three all-ins: up to three go to a showdown, as a call's cap has it; only unequal stacks get here)
+        three_in = sum(1 for r in others if allin(r, bets)) >= 3
+        if not cold and cur < stk[q] - 1e-9 and n_raises < max_raises and reach_max > cur + 1e-9 and not three_in:
             callers = sum(1 for r in live if r != last and r != q and bets[r] >= cur - 1e-9) if n_raises > 0 else 0
             limpers = sum(1 for r in live if r != q and r in vol) if n_raises == 0 else 0
-            to = raise_to(q, cur, n_raises, last, callers, bets, limpers)
-            if to >= sizes.jam_frac * eff or n_raises == 3:
+            if chart:
+                tos = [m[2] for m in line if m[1] in ("raise", "all-in")]
+                to = chart_to(q, cur, n_raises, last, bets, live, max([1.0] + [y - x for x, y in zip([1.0] + tos, tos)]))
+                # the charts' all-in (gto/advisor.py Advisor's preflop answer): a raise putting in COMMIT (0.4) of the
+                # stack, or leaving under JAM_SPR pots behind once called (JAM_SPR_DEEP at 80bb and deeper), or an
+                # open at PUSH_FOLD_STACK (12bb) or shorter
+                pot_called = sum(bets) + ante * n + 2 * to - bets[q] - cur
+                spr_bar = 1.25 if stk[q] + ante >= 80.0 - 1e-9 else 1.5
+                jam = (to >= sizes.jam_frac * stk[q] or stk[q] - to < spr_bar * pot_called
+                       or (n_raises == 0 and stk[q] + ante <= 12.0 + 1e-9))
+            else:
+                to = raise_to(q, cur, n_raises, last, callers, bets, limpers)
+                jam = to >= sizes.jam_frac * eff
+            if jam or to >= eff - 1e-9 or (n_raises == 3 and jam_5bet) or n_raises == 4:
                 to = eff
             to = min(to, eff)
             if to > cur + 1e-9:
@@ -167,7 +230,7 @@ def build(positions: Sequence[str], stacks: Sequence[float], sizes: Optional[G.S
         return G.Node("dec", player=q, names=names, children=kids, n_raises=n_raises, line=line)
 
     first = 0 if n > 2 else sb
-    if straddle:
+    if straddle and st_seat == 0:
         first = 1
     return rec(list(posted), frozenset(), frozenset(), frozenset(), 0, -1, first, ())
 

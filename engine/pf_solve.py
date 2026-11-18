@@ -47,11 +47,10 @@ STORED_RAKES = (None, (0.05, 3.0))
 # (engine/pf/<tag>_built.jsonl)
 STORED_ITERS_OF = {f"{MODEL_TAG}_{k}": v for k, v in {
     "4max_40bb": 3000, "5max_40bb": 3000, "5max_50bb": 3000, "6max_40bb": 3000, "6max_150bb": 3000,
-    "6max_200bb": 3000, "6max_40bb_blind_3bet4": 6000}.items()}
-# the slowest of them, 6-max 40bb at the charts' 3bet size, levels off above 1.7: 1.793 mbb at 1,500 iterations, 1.759
-# at 3,000, 1.745 at 6,000 (doubling the work moved it 0.014). Its base game stops at 1.496; the 4x 3bet puts more of
-# the tree in 3bet pots at 40bb, where a class-level model's flop values are furthest from a solve. 1.8 is the bound
-# the test holds these to; nothing else in the grid is above 1.65
+    "6max_200bb": 3000}.items()}
+# 1.8 is the bound the test holds these to (4-max and 5-max 40bb level off at 1.60 and 1.65); every game at the charts'
+# raise sizes (`_ch`) is within 1.5 at 1,500 iterations. Until 2026-11-17 the 6-max games at the charts' 3bet size alone
+# (`_blind_3bet4`) stood here too, 6-max 40bb at 6,000 iterations (1.745 mbb); the `_ch` games replace them
 # every node at or after a 3bet (docs/ACCURACY.md section 18.7): the page marks it approximate with these words.
 # Measured on the stored 6-max 100bb games against the published solves (the opener facing a 3bet) and, hand by hand,
 # against a full solve at matching rake; the class-level model's 3bet and 4bet pots are its least certain values
@@ -66,7 +65,9 @@ MB_BASE, MB_PER_WORK = 90.0, 0.0118
 # the most the worker builds in the browser, whatever the device (Pyodide's 32-bit heap is 4 GB at most, and a tab
 # near 2 GB is at risk on most devices); the page sets a lower cap a device (web/src/features/study/pfCap.ts)
 MAX_MB_BROWSER = 2048.0
-OPTION_KEYS = ("open_limps", "opens", "flop3", "cold")
+OPTION_KEYS = ("open_limps", "opens", "flop3", "cold", "sizing", "five", "straddler")
+# the 5bet's own size, x the 4bet (pf_tree "five": a number in this range; 0 or "none": no 5bet; "jam": all-in)
+FIVE_LIMITS = (1.8, 3.5)
 HERE = os.path.dirname(os.path.abspath(__file__))
 STORE_DIR = os.path.join(HERE, "pf")
 
@@ -94,6 +95,12 @@ class Spec:
     opens: Tuple[Tuple[str, float], ...] = ()
     flop3: Optional[bool] = None
     cold: Optional[bool] = None
+    # (2026-11-17) every raise at the charts' sizes (pf_engine.build sizing="chart"; `sizes` and `opens` then unused),
+    # the straddle's seat when it isn't the first (a Mississippi straddle: it acts last), and the 5bet's rule (None:
+    # all-in, 0: none, x > 0: a raise to x times the 4bet, the 6bet all-in)
+    chart: bool = False
+    straddler: Optional[str] = None
+    five: Optional[float] = None
 
     @property
     def three_way(self) -> bool:
@@ -115,9 +122,15 @@ class Spec:
             out.append("limps from any seat (not measured against a fuller solve)")
         if self.opens:
             out.append("opens by position: " + ", ".join(f"{p} {v:g}bb" for p, v in self.opens))
-        if self.sizes == CHART_SIZES:
-            out.append("at the charts' raise sizes (a blind's 3bet to 4x the open, where the published solves' is "
-                       "4.8x: measured against them only where the sizes are alike)")
+        if self.chart:
+            out.append(CHART_WORDS)
+        if self.straddle and self.straddler:
+            out.append(f"a straddle from the {self.straddler}, acting last before the flop (not measured against a "
+                       "fuller solve)")
+        if self.five is not None:
+            out.append("no 5bet (facing a 4bet, call or fold)" if self.five == 0 else
+                       f"a 5bet to {self.five:g}x the 4bet, the 6bet all-in (a 5bet pot's flop valued as a 4bet "
+                       "pot's; not measured against a fuller solve)")
         if self.players > 6 and (self.three_way or self.cold_calls):
             out.append("a 7-9 handed tree with " + " and ".join(
                 x for x, on in (("3-way flops", self.three_way), ("cold calls", self.cold_calls)) if on))
@@ -161,7 +174,7 @@ class Spec:
         if self.ante:
             k += f"_a{self.ante:g}"
         if self.straddle:
-            k += "_s"
+            k += "_s" + (self.straddler or "")
         if self.rake:
             k += f"_r{self.rake[0] * 100:g}" + (f"c{self.rake[1]:g}" if self.rake[1] else "")
         for n, v in self.sizes:
@@ -176,6 +189,10 @@ class Spec:
             k += "_f3" if self.three_way else "_f2"
         if self.cold is not None and self.cold_calls != (self.players <= 6):
             k += "_c1" if self.cold_calls else "_c0"
+        if self.chart:
+            k += "_ch"
+        if self.five is not None:
+            k += f"_5x{self.five:g}"
         return k
 
     def label(self) -> str:
@@ -187,12 +204,18 @@ class Spec:
         if self.ante:
             bits.append(f"{self.ante:g}bb ante")
         if self.straddle:
-            bits.append("straddle")
+            bits.append(f"straddle from the {self.straddler}, acting last" if self.straddler else "straddle")
         bits.append(f"rake {self.rake[0] * 100:g}%" + (f" cap {self.rake[1]:g}bb" if self.rake[1] else " no cap")
                     if self.rake else "no rake")
         sz = self.sizes_obj()
-        bits.append(f"opens {sz.open:g}bb (SB {sz.sb_open:g}), 3bets {sz.ip_3bet:g}x / {sz.blind_3bet:g}x from the blinds, "
-                    f"4bets {sz.four_x:g}x")
+        if self.chart:
+            bits.append("the charts' raise sizes (opens 2.5bb, SB 3bb, 3bets 3x / 4x from the blinds, 4bets 2.3x, each "
+                        "plus the chips others put in, to the half big blind)")
+        else:
+            bits.append(f"opens {sz.open:g}bb (SB {sz.sb_open:g}), 3bets {sz.ip_3bet:g}x / {sz.blind_3bet:g}x from the "
+                        f"blinds, 4bets {sz.four_x:g}x")
+        if self.five is not None:
+            bits.append("no 5bet" if self.five == 0 else f"5bets {self.five:g}x")
         if self.opens:
             bits.append("opens " + ", ".join(f"{p} {v:g}bb" for p, v in self.opens))
         if self.open_limps:
@@ -218,7 +241,8 @@ class Spec:
         pos = self.positions()
         root = E.build(pos, self.seat_stacks(), sizes=self.sizes_obj(), max_players=3 if self.three_way else 2,
                        ante=self.ante, straddle=self.straddle, sb_limp=self.limps and not self.open_limps,
-                       cold4=self.cold_calls, limps=self.open_limps, opens=dict(self.opens))
+                       cold4=self.cold_calls, limps=self.open_limps, opens=dict(self.opens),
+                       sizing="chart" if self.chart else "tree", straddler=self.straddler, five=self.five)
         return root, pos
 
     def nodes(self) -> int:
@@ -282,8 +306,18 @@ def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
     ante = float(state.get("ante") or 0.0) / bb
     if ante >= min(vals) * 0.5:
         return None, "the ante must be under half the shortest stack"
-    straddle = bool(state.get("straddle")) and n >= 3
-    if straddle and vals[0] < 4.0:
+    raw_st = state.get("straddle")
+    straddle = bool(raw_st) and n >= 3
+    straddler = None
+    tree0 = state.get("pf_tree") if isinstance(state.get("pf_tree"), dict) else {}
+    if straddle and not isinstance(raw_st, str) and tree0.get("straddler"):
+        raw_st = str(tree0["straddler"])           # (the tree form's seat, where the setup has a straddle)
+    if straddle and isinstance(raw_st, str):
+        st_pos = raw_st.upper()
+        if st_pos not in pos or st_pos in pos[-2:]:
+            return None, f"straddle: {st_pos} can't straddle at this table (seats: {', '.join(pos[:-2])})"
+        straddler = None if st_pos == pos[0] else st_pos
+    if straddle and vals[pos.index(straddler or pos[0])] < 4.0:
         return None, "the straddler needs more than 4bb"
     rate = max(0.0, min(0.25, float(state.get("rake") or 0.0)))
     cap = state.get("rake_cap")
@@ -331,25 +365,46 @@ def spec_of(state: dict) -> Tuple[Optional[Spec], Optional[str]]:
     cold = tree.get("cold")
     flop3 = None if flop3 is None or bool(flop3) == (n <= 6) else bool(flop3)
     cold = None if cold is None or bool(cold) == (n <= 6) else bool(cold)
+    sizing = tree.get("sizing") or "tree"
+    if sizing not in ("tree", "chart"):
+        return None, "sizing: 'tree' or 'chart'"
+    chart = sizing == "chart"
+    if chart:
+        sizes, opens = [], []                   # the charts' rule sizes every raise
+    five = tree.get("five")
+    if five in (None, "jam"):
+        five = None
+    elif five in (0, "0", "none", False):
+        five = 0.0
+    else:
+        try:
+            five = round(float(five), 2)
+        except (TypeError, ValueError):
+            return None, "five: 'jam', 'none' or a size, x the 4bet"
+        if not FIVE_LIMITS[0] <= five <= FIVE_LIMITS[1]:
+            return None, f"five: a 5bet of {FIVE_LIMITS[0]:g} to {FIVE_LIMITS[1]:g}x the 4bet"
     return Spec(n, stacks, round(ante, 4), straddle, (rate, cap) if rate > 0 else None, tuple(sizes),
-                sb_limp and not open_limps, open_limps, tuple(opens), flop3, cold), None
+                sb_limp and not open_limps, open_limps, tuple(opens), flop3, cold, chart, straddler, five), None
 
 
 # ----------------------------------------------------------------------------- the stored solves
-# The charts' raise sizes (2026-11-13): the charts' blinds 3bet to 4x the open (gto/advisor.py _default_size: 10bb over
-# 2.5bb), the tree's default to 4.8x (12bb, the published solves' size). Practice's opponents play the charts, so at
-# the tree's size a blind's 3bet leaves the tree and the decisions after it, and your own 3bet from a blind, have no EV
-# (about 30% of 6-max decisions; docs/ACCURACY.md section 18.5). The same game at the charts' 3bet size is stored
-# beside it, for Practice's and Analyze's grade (web/src/features/practice/pfGrade.ts); Study's Solver source keeps the
-# tree's own sizes. Every other size of the tree already is the charts' (opens 2.5bb, SB 3bb, 3bets 3x in position,
-# BvB 10bb, 4bets 2.3x, a caller adding its bet).
-CHART_SIZES: Tuple[Tuple[str, float], ...] = (("blind_3bet", 4.0),)
-STORED_CHART_PLAYERS = (6,)
+# The charts' raise sizes. Practice's opponents play the charts, so where the tree's size differs from theirs the line
+# leaves the tree, and the decisions after it have no EV. 2026-11-13: the charts' blinds 3bet to 4x the open
+# (gto/advisor.py _default_size: 10bb over 2.5bb) where the tree's default is 4.8x (12bb, the published solves' size),
+# about 30% of 6-max decisions (docs/ACCURACY.md section 18.5), so 6-max was stored at blind_3bet 4 too. 2026-11-17
+# (section 18.8): the rest of the charts' rule, which the 4x alone left out: a cold 4bet adds the opener's chips (20bb
+# over an open and a 3bet to 7.5bb, where the tree's is 17.25bb), a squeeze adds a caller's chips beyond its blind
+# (12bb, not 12.5bb), and every size goes to the half big blind (17bb, not 17.25bb). The games are stored with the
+# whole rule (pf_engine.build sizing="chart", key suffix "_ch") at 2 to 6 players, for Practice's and Analyze's grade
+# (web/src/features/practice/pfGrade.ts); Study's Solver source keeps the tree's own sizes.
+CHART_WORDS = ("at the charts' raise sizes (a blind's 3bet to 4x the open and a cold 4bet adding the opener's chips, "
+               "where the published solves' 3bet is 4.8x: measured against them only where the sizes are alike)")
+STORED_CHART_PLAYERS = (2, 3, 4, 5, 6)
 
 
 def chart_sized(spec: Spec) -> Spec:
     """The game at the charts' raise sizes."""
-    return Spec(spec.players, spec.stacks, spec.ante, spec.straddle, spec.rake, CHART_SIZES)
+    return Spec(spec.players, spec.stacks, spec.ante, spec.straddle, spec.rake, (), chart=True)
 
 
 def stored_games() -> List[Spec]:

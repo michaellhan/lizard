@@ -517,17 +517,17 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
   }
   expect(bySolve, "preflop graded by the stored solve").toBeGreaterThan(0);
   // The stored solve came down once, and is no custom solve. At 6 players in a cash game the grade asks for the game
-  // stored at the charts' own 3bet size (pfChartKey, _blind_3bet4), which is the size the charts' own decisions are
-  // in; the tree's own 4.8x twin is what Study solves.
+  // stored at the charts' own raise sizes (pfChartKey, _ch), which are the sizes the charts' own decisions are
+  // in; the tree's own twin is what Study solves.
   expect(new Set(fetched).size).toBe(1);
-  expect(fetched[0]).toMatch(/lz4_6max_100bb_blind_3bet4\.bin$/);
+  expect(fetched[0]).toMatch(/lz4_6max_100bb_ch\.bin$/);
   await openScoreNotes(page);
   await expect(page.getByText(/Preflop so far: \d+ by the preflop solve/)).toBeVisible();
 
   // The charts grade where no game is stored. They are met in a session of their own (6 players at 250bb, past the
-  // stored depths) rather than waited for inside the stored one: since the grade started asking the 6-max games at
-  // the charts' own 3bet size, a stored game answers 93% of its spots and nearly all of the ones this loop reaches
-  // (the first decision, facing an open, 99%), so a chart fallback there is too rare to wait on.
+  // stored depths) rather than waited for inside the stored one: since the grade asks the games stored at the charts'
+  // own raise sizes, a stored game answers 99% of its spots (6-max 100bb playing the charts, ACCURACY section 18.8), so
+  // a chart fallback there is too rare to wait on.
   await session(page, "preflop", async () => {
     await page.getByLabel("Stack in big blinds").fill("250");
     await expect(page.getByLabel("Grade preflop by the preflop solve")).toHaveCount(0);
@@ -557,18 +557,17 @@ test("7g. Preflop graded by the stored solve where it's that very spot, by the c
 });
 
 
-test("7h. The solve's raise sizes are offered with the first box, ticked by default, and are off by default, with what they cost said; a raise goes in at the solve's size", async ({ page, problems }) => {
-  // At 5 players, not 6: a 6-max cash grade asks the game stored at the charts' own sizes (pfGradeSizes, see 7g), where
-  // every 3bet and 4bet the charts make is the solve's too (10bb from a blind, 7.5bb in position, 2.3x 4bets), so no
-  // button there is the solve's alone. At 5 players the stored game is the tree's own, whose blinds 3bet 4.8x (12bb over
-  // a 2.5bb open) where the charts 3bet 4x (10bb).
+test("7h. The solve's raise sizes are offered with the first box, ticked by default, and are off by default; at 2 to 6 players they're the charts' own, and a blind's 10bb 3bet is graded by the solve", async ({ page, problems }) => {
+  // Since 2026-11-17 every stored cash game the grade asks is the one at the charts' own sizes (pfGradeSizes, see 7g),
+  // at 2 to 6 players, so the second box moves no button: a blind's 3bet over a 2.5bb open is the charts' 10bb, and the
+  // solve grades it. Until then 5 players read the tree's own game, whose blinds 3bet 12bb, and this step clicked that.
   await session(page, "preflop", async () => {
     await page.getByLabel("Players", { exact: true }).selectOption("5");
     const sizes = page.getByLabel("Offer the solve's raise sizes");
     await expect(page.getByLabel("Grade preflop by the preflop solve")).toBeChecked();
     await expect(sizes).not.toBeChecked();
-    await expect(page.locator("#pf-note")).toContainText("leave the flop library");
     await sizes.check();
+    await expect(page.locator("#pf-note")).toContainText("raise sizes are the charts’ own");
   });
   await expect(page.getByText(/preflop graded by the preflop solve, at its raise sizes/).first()).toBeVisible();
   const next = page.getByRole("button", { name: "Next hand" });
@@ -579,11 +578,9 @@ test("7h. The solve's raise sizes are offered with the first box, ticked by defa
       await next.click();
       continue;
     }
-    // (a blind's 3bet over a lone open, 4.8x a 2.5bb open: a size the charts don't have, so the button is offered at it
-    // only where the solve reads the spot, your hand's class included. Not over a caller: the charts' big blind squeezes an
-    // open the small blind called to 10bb plus the 2bb it added, 12bb too. The 4bets are left out: 2.3x the 3bet in both,
-    // so a 4bet button is the chart's own and either may grade it.)
-    const raise = options(page).filter({ hasText: /raise\D*12(?![\d.])/ }).first();
+    // (a blind's 3bet over a lone open, 4x a 2.5bb open, the charts' size and the stored game's; not over a caller, as the
+    // big blind's squeeze adds the caller's chips)
+    const raise = options(page).filter({ hasText: /raise\D*10(?![\d.])/ }).first();
     const line = (await page.getByRole("list", { name: "Actions so far" }).allInnerTexts()).join(" ");
     if ((await raise.isVisible()) && !/call|limp/i.test(line)) {
       await raise.click();
@@ -622,7 +619,7 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
   expect(bySolve).toBeGreaterThan(0);
   await expect(page.getByRole("region", { name: "Last decision" }).getByTitle(/not a full solve/).first()).toBeVisible();
   // (that game's file and no other: never the 6-max one read as if it were this game)
-  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz4_4max_40bb.bin"]);
+  expect([...new Set(fetched)].map((u) => u.split("/").pop())).toEqual(["lz4_4max_40bb_ch.bin"]);
   await clean(page, problems);
 });
 
@@ -630,12 +627,12 @@ test("7j. A game of Lizard's stored grid, 4 players at 40bb: graded by the prefl
 // is graded by the stored solve of that very game where one is stored and by the charts where none is (each under its own
 // name), a decision after the flop is graded too, and only that game's preflop file is read.
 const FORMATS = [
-  // (6-max cash reads the chart-sized game, the charts' 4x blind 3bet, not the tree's 4.8x one: see 7g)
-  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz4_6max_100bb_r5c3_blind_3bet4.bin" },
+  // (a cash grade at 2 to 6 players reads the game at the charts' own raise sizes, _ch, not the tree's own: see 7g)
+  { name: "cash at 5% capped at 3bb, 6 players at 100bb", players: "6", stack: "100", rake: ["5", "3"], file: "lz4_6max_100bb_r5c3_ch.bin" },
   { name: "9 players at 100bb, where nothing is stored", players: "9", stack: "100", file: null },
-  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz4_3max_25bb.bin" },
+  { name: "short, 3 players at 25bb", players: "3", stack: "25", file: "lz4_3max_25bb_ch.bin" },
   { name: "short, 6 players at 15bb, between push/fold and the stored depths", players: "6", stack: "15", file: null },
-  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz4_2max_200bb.bin" },
+  { name: "deep, heads-up at 200bb", players: "2", stack: "200", file: "lz4_2max_200bb_ch.bin" },
   { name: "deep, 6 players at 250bb, past the stored depths", players: "6", stack: "250", file: null },
 ] as const;
 for (const f of FORMATS) {

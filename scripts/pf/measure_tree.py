@@ -8,6 +8,7 @@ line by action, not size, so a game whose blind 3bets are to 10bb is scored on t
 them: that is the question asked (how near the published solves is the game Practice would grade by).
 
     slot.sh .venv/bin/python scripts/pf/measure_tree.py --sizes '{"blind_3bet": 4.0}' --out runs.jsonl
+    slot.sh .venv/bin/python scripts/pf/measure_tree.py --chart     (the game at the charts' raise sizes, pf_solve.chart_sized)
 """
 import argparse
 import json
@@ -22,6 +23,7 @@ sys.path[:0] = [os.path.join(ROOT, "solver"), os.path.join(ROOT, "solver", "scri
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sizes", default="{}", help="Spec sizes, e.g. '{\"blind_3bet\": 4.0}'")
+    ap.add_argument("--chart", action="store_true", help="the charts' raise sizes (pf_solve.chart_sized)")
     ap.add_argument("--iters", type=int, default=700)
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
@@ -31,11 +33,13 @@ def main():
     from calibrate import measure, score, facts_off, RAKE
     sizes = tuple(sorted(json.loads(a.sizes).items()))
     spec = P.Spec(6, (100.0,), rake=RAKE, sizes=sizes)
+    if a.chart:
+        spec = P.chart_sized(spec)
     t0 = time.time()
     g = spec.game()
     g.solve(a.iters)
     m = measure(g)
-    run = {"sizes": dict(sizes), "iters": a.iters, "seconds": round(time.time() - t0, 1),
+    run = {"sizes": "chart" if a.chart else dict(sizes), "iters": a.iters, "seconds": round(time.time() - t0, 1),
            "mbb": 1000 * sum(g.exploitability(per_seat=True)) / g.n, **m}
     sc = score(run)
     run["score"] = sc

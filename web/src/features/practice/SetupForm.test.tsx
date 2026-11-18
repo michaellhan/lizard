@@ -239,24 +239,19 @@ describe("grading preflop by the preflop solve", () => {
       expect(start.mock.calls[1]![2]).toMatchObject({ pfSolve: false });
       expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSizes");
     });
-    it("says its cost in plain words before you tick it, and what it is once you have", () => {
-      // (at 5 players: the stored game there is the tree's own, whose blind 3bet is 12bb)
-      open(OPTS, vi.fn(), 5);
-      const note = document.getElementById("pf-note")!;
-      expect(sizes()).toHaveAccessibleDescription(/Not a full solve/);
-      expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
-      expect(note).toHaveTextContent("leave the flop library");
-      fireEvent.click(sizes()!);
-      expect(note).toHaveTextContent("Your raise uses its size where it answers");
-      expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
-      expect(note).toHaveTextContent("leave the flop library");
-    });
-    it("at 6 players, says its sizes are the charts' own and what's left ungraded", () => {
-      open();
-      const note = document.getElementById("pf-note")!;
-      expect(note).toHaveTextContent("about 7% of hands at 100bb");
-      expect(note).toHaveTextContent("At 6 players its raise sizes are the charts\u2019 own.");
-      expect(note).not.toHaveTextContent("12bb");
+    it("at 2 to 6 players, says its sizes are the charts' own and how much that table size leaves ungraded, ticked or not", () => {
+      // (since 2026-11-17 every stored cash game the grade asks is at the charts' own raise sizes: no 12bb blind 3bet)
+      for (const [n, said] of [[6, "about 1 hand in 120 at 100bb"], [5, "about 1 hand in 120 at 100bb"], [2, "about 1 hand in 45 at 100bb"]] as const) {
+        open(OPTS, vi.fn(), n);
+        const note = document.getElementById("pf-note")!;
+        expect(sizes()).toHaveAccessibleDescription(/Not a full solve/);
+        expect(note, `${n}`).toHaveTextContent(said);
+        expect(note).toHaveTextContent("Its raise sizes are the charts\u2019 own.");
+        fireEvent.click(sizes()!);
+        expect(note).toHaveTextContent("Its raise sizes are the charts\u2019 own.");
+        expect(note).not.toHaveTextContent("12bb");
+        cleanup();
+      }
     });
     it("doesn't go on into a game with no stored solve", () => {
       const start = open();

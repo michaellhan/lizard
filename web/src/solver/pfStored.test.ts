@@ -26,15 +26,18 @@ describe("the stored preflop games", () => {
     expect(pfKey(6, 100, false)).toBe("lz4_6max_100bb");
     expect(pfKey(6, 100, true)).toBe("lz4_6max_100bb_r5c3");
     expect(pfKey(2, 20, false)).toBe("lz4_2max_20bb");
-    expect(pfChartKey(6, 100, false)).toBe("lz4_6max_100bb_blind_3bet4");
-    expect(pfChartKey(6, 100, true)).toBe("lz4_6max_100bb_r5c3_blind_3bet4");
+    expect(pfChartKey(6, 100, false)).toBe("lz4_6max_100bb_ch");
+    expect(pfChartKey(6, 100, true)).toBe("lz4_6max_100bb_r5c3_ch");
+    expect(pfChartKey(2, 20, false)).toBe("lz4_2max_20bb_ch");
     expect(PF_KEYS).toHaveLength((PF_PLAYERS.length + PF_CHART_PLAYERS.length) * PF_DEPTHS.length * 2);
   });
-  it("store the charts' blind 3bet size beside the tree's, for the table sizes engine/pf_solve.py does", () => {
-    expect(py).toMatch(/^CHART_SIZES: Tuple\[Tuple\[str, float\], \.\.\.\] = \(\("blind_3bet", 4\.0\),\)$/m);
+  it("store the charts' raise sizes beside the tree's, for the table sizes engine/pf_solve.py does", () => {
+    expect(py).toMatch(/^def chart_sized\(spec: Spec\) -> Spec:$/m);
+    expect(py).toMatch(/k \+= "_ch"/);
     expect(tuple("STORED_CHART_PLAYERS")).toEqual([...PF_CHART_PLAYERS]);
-    expect(pfGradeSizes({ players: 6 })).toEqual({ pf_sizes: { blind_3bet: 4 } });
-    expect(pfGradeSizes({ players: 5 })).toEqual({});
+    expect(pfGradeSizes({ players: 6 })).toEqual({ pf_tree: { sizing: "chart" } });
+    expect(pfGradeSizes({ players: 2 })).toEqual({ pf_tree: { sizing: "chart" } });
+    expect(pfGradeSizes({ players: 7 })).toEqual({});
     expect(pfGradeSizes({ players: 6, payouts: [50, 30, 20] })).toEqual({});
   });
   it("each have a file in engine/pf/, and none is upstream's", () => {
