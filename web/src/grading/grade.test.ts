@@ -108,3 +108,16 @@ describe("scores", () => {
     expect(whoOf("instant")).toBe("The read at once");
   });
 });
+
+describe("grade: actions tied on EV", () => {
+  // (the turn of 2026-11-17: check, bet 33% and bet 75% all 1.02bb, bet 125% 0.96)
+  const spot = { freqs: [0.236, 0.329, 0.435, 0], evs: [1.0204, 1.0201, 1.0199, 0.96], pot: 6 };
+  it("names your action best when it ties the top", () => {
+    const g = grade(spot, 1);
+    expect(g.verdict).toBe("Best");
+    expect(g.best).toBe(1);
+  });
+  it("else names the most played of the tied actions, not the first by a fraction of a cent", () => {
+    expect(grade(spot, 3).best).toBe(2);
+  });
+});

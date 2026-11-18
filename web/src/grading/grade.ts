@@ -17,7 +17,7 @@ export type Verdict = "Best" | "Correct" | "Inaccuracy" | "Mistake" | "Blunder";
 export interface Grade {
   /** the action graded */
   a: number;
-  /** the best action: highest EV, or the most frequent without EVs */
+  /** the best action: highest EV (of actions tied within TOL, the one graded, else the most frequent), or the most frequent without EVs */
   best: number;
   verdict: Verdict;
   /** Best or Correct */
@@ -59,9 +59,13 @@ export function grade(spot: DecisionSpot, a: number): Grade {
   const rawPct = spot.pot > 0 ? (raw / spot.pot) * 100 : 0;
   const verdict: Verdict =
     raw <= TOL ? "Best" : f >= MIX ? "Correct" : rawPct < INACCURACY_PCT ? "Inaccuracy" : rawPct < MISTAKE_PCT ? "Mistake" : "Blunder";
+  // the best: among the actions within TOL of the top EV (worth the same, as a mix's are), yours if it's one, else the one
+  // played most; not the first to hold the top by a fraction of a cent
+  const tied = evs.map((e, i) => (bestEv - e <= TOL ? i : -1)).filter((i) => i >= 0);
+  const best = tied.includes(a) ? a : tied.reduce((x, y) => ((freqs[y] ?? 0) > (freqs[x] ?? 0) ? y : x));
   return {
     a,
-    best: evs.indexOf(bestEv),
+    best,
     verdict,
     ok: verdict === "Best" || verdict === "Correct",
     mixed,
