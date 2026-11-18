@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The Practice QA sweep, from one command (docs/QA.md):
 //   node scripts/qa/run.mjs --quick      about 3-5 minutes: 4 configs, 26 Fast references and 2 Accurate
-//   node scripts/qa/run.mjs              the default matrix, about 30-45 minutes on this Mac
+//   node scripts/qa/run.mjs              the default matrix, about 20 minutes on this Mac (18 measured)
 // Options: --seed N (default 1), --hands N (every config), --only TEXT (configs whose name has it), --out DIR,
 // --explore X (share of your moves taken off the mix, default 0.12). Env: QA_LIBRARY (the flop library, read only),
 // QA_PYTHON, QA_SLOT (the CPU slot wrapper the advisors run under; empty to run them directly), QA_THREADS (native solver

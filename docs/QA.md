@@ -17,7 +17,7 @@ From the repository root:
 
 ```sh
 npm run qa:sweep:quick        # node scripts/qa/run.mjs --quick: 4 configs, about 3-5 minutes
-npm run qa:sweep              # node scripts/qa/run.mjs: the default matrix, 21 configs, about 30-45 minutes
+npm run qa:sweep              # node scripts/qa/run.mjs: the default matrix, 21 configs, about 20 minutes
 ```
 
 | Option | Meaning |
@@ -103,7 +103,7 @@ The default matrix covers:
 - Pots: srp, 3bet and any hand.
 - Rake 5% capped at 3bb on one config, a 0.12bb ante on one, and the straddle on one.
 - The preflop solve on (the default) and off.
-- One stored tournament preset: Final-table bubble, 5 players at 25bb, with ICM.
+- One stored tournament preset: Final-table bubble, 5 players at 40bb with a 0.2bb ante, graded with ICM on the preflop solve's own options.
 
 `--quick` covers:
 
@@ -180,7 +180,8 @@ builds it, not only the action taken)
 **Coverage.** What answered each spot type is tallied: library, live, rules, charts, preflop solve, push-fold. Two
 shares are flagged:
 
-- heads-up 6-max 100bb single-raised flops against GTO opponents answered by the library (want 50% or more);
+- heads-up 6-max 100bb single-raised flops against GTO opponents, with no rake, ante or straddle, answered by the
+  library (want 50% or more);
 - 3-way flops served by the library or a live solve (want 80% or more).
 
 **Quick against a reference.** A seeded sample of your postflop Quick decisions (26 in `--quick`, 220 in the matrix)
@@ -198,7 +199,9 @@ Rates are tallied by opponent kind (`live.sim.test.ts`'s measures, on real answe
 is a hard `opp.refused`.
 
 **Performance.** Wall time per decision by mode and street (soft `perf.slow` for Quick over 15 s), and each advisor's
-peak RSS per config.
+peak RSS per config. A decision's time leaves out the time the slot wrapper held a new process before it could answer
+(the config's first request, or the first after a restart at the RSS cap). That time is counted in the config's
+"waiting to start" instead.
 
 **Plumbing.** These are hard:
 
@@ -209,36 +212,36 @@ peak RSS per config.
 
 ## Measured
 
-`--quick`, seed 1, on 2026-11-18 (this Mac, with the library builds running):
+Both runs used seed 1, on 2026-11-18, on this Mac with the library builds running. The slot wrapper starts a process at
+once when a CPU slot is free; otherwise it polls every 15 s until one is.
 
-The run took 214 s of wall time, about 110 s of it waiting for the slot wrapper to start a process: a fresh process
-waits at least one 15 s poll, and the first waited 31 s for a slot held by another session. It played:
+### `--quick`
+
+The run took 181 s of wall time, 77 s of it waiting for the slot wrapper to start a process. It played:
 
 - 4 configs and 42 hands;
 - 71 of your decisions, all graded;
 - 288 opponent moves;
 - 28 reference answers (26 Fast and 2 Accurate).
 
-The advisor's peak RSS was 1004-1137 MB, reached during a 3-way flop solve or a postflop solve right after a
-preflop-solve read. The process restarted right after each, and the memory guard never acted on it.
+The advisor's peak RSS was 548-1205 MB, and the reference's was 843 MB. Twice a process went over the 900 MB cap after a
+request and was restarted. The 1205 MB was reached inside one request, in the loose-opponent config's multiway pots. The
+memory guard never acted on the sweep.
 
-Three hard violations, the same in two runs:
+Three hard violations, the same in three runs:
 
 | check | count | where |
 |---|---|---|
-| `prov.settled` | 2 | 6max-100bb-gto-srp, hands 0 and 1, turn. The ranges come from the rules after an opponent's rare bet or raise (BB's turn bet of 125% is 9.3% in the solve; BB's turn raise to 14 is 5.8%), and the answer still shows a converged band (0.04% of the pot) next to its approximate label. |
+| `prov.settled` | 2 | 6max-100bb-gto-srp, hands 0 and 1, turn. The ranges come from the rules after an opponent's rare bet or raise (BB's turn bet of 125% is 8.7% in the solve; BB's turn raise to 14 is 5.9%), and the answer still shows a converged band (0.03-0.04% of the pot) next to its approximate label. |
 | `pf.follow` | 1 | 3max-100bb-live-any, hand 0, BTN 8cJd first in. The chart raises 50% and folds 50%; the preflop solve folds 100% and grades the raise Inaccuracy (0.08bb, 0.4% of the pot past its noise). |
 
-Other runs of the same seed also found `prov.settled` on a river answer whose earlier streets were narrowed by the
-rules, or by a narrowing solve followed 0% (39.3% of the pot from equilibrium after 10 iterations). Each was again shown
-with a converged band of 0.09%.
+Earlier runs of the same seed also found `prov.settled` on river answers whose earlier streets were narrowed by the rules,
+or by a narrowing solve followed 0%. Those also showed a converged band (0.09%).
 
 Soft, measured:
 
 - 4 converged bands after an opponent's rare line was solved again.
-- One chart move mixed at 25% (BB 8sJh calling a HJ open) graded Inaccuracy by the solve.
-- Two Quick preflop decisions over 15 s, both in multiway preflop pots (SB 4c2c facing a UTG open and a BTN call, 16.0
-  s; BTN 8cJd first in at 3-max, 15.3 s).
+- One chart move mixed at 25% (BB 8sJh calling a HJ open), graded Inaccuracy by the solve.
 
 What answered:
 
@@ -246,16 +249,91 @@ What answered:
 - 3-way flops: live solves, 2 of 2.
 - 4-way flops: the rules, 2 of 2.
 - Turns and rivers: live solves.
-- Preflop: the charts' answer at every spot. The preflop solve graded 28 of the 37 decisions; the charts graded 9,
+- Preflop: the charts' answer at every spot. The preflop solve graded 28 of the 37 decisions. The charts graded 9,
   because the solve's tree doesn't hold the line (6) or its options aren't yours (3).
 
-Quick against Fast agreed on 24 of 26, and against Accurate on 2 of 2. Neither ever condemned what the other passed.
-No opponent folded when checking was free, folded the nuts on the river, or called with nothing facing a pot-size bet.
-Quick took 0.02-1.2 s a decision on average by street, because an opponent's move on the same street has usually just
-solved the spot. Fast references took 0.2-3 s on average, with a maximum of 15.3 s, and the Accurate turn took 17.8 s.
+Quick against Fast agreed on 25 of 26, and against Accurate on 2 of 2. Neither ever condemned what the other passed.
 
-The default matrix was not run for this note; its 30-45 minutes is estimated from these per-hand times and the
-15 s per process start (22 starts).
+No opponent:
+
+- folded when checking was free;
+- folded the nuts on the river;
+- called with nothing facing a pot-size bet.
+
+Timing:
+
+- No Quick decision took over 15 s.
+- Quick averaged 0.03-0.85 s a decision by street (preflop 0.4 s, at most 1.9 s), because an opponent's move on the same
+  street has usually just solved the spot.
+- Fast references averaged 0.07-2.7 s by street, at most 6.2 s.
+- The Accurate turn took 16.5 s.
+
+### The default matrix
+
+The run took 1096 s (18 minutes) of wall time. 608 s of it was spent waiting for the slot wrapper to start a process: at
+each config's start, at each of 20 restarts at the RSS cap, and for the reference process. It played:
+
+- 21 configs and 324 hands;
+- 518 of your decisions, all graded;
+- 3185 opponent moves;
+- 160 reference answers (151 Fast and 9 Accurate).
+
+The number of references is what the sampling found: 70% of the postflop decisions, up to 220.
+
+Peak RSS stayed under 1 GB in 19 of the 22 peaks (one per config, and the reference process). The three that went over
+were:
+
+- 6max-100bb-loose-any: 1238 MB, during a hand from a 4-way 3-bet pot;
+- the reference process: 1196 MB;
+- 3max-40bb-live-any: 1077 MB.
+
+**25 hard violations**, 21 `prov.settled` and 4 `pf.follow`.
+
+`prov.settled` (21, in 11 of the 21 configs):
+
+- A converged band (0-1.95% of the pot) on an answer whose ranges come from the rules after an opponent's rare line (12).
+- The same on ranges narrowed by the rules on an earlier street (8).
+- Both (1).
+
+They come up wherever live solves answer: heads-up and 9-max, 20bb to 200bb, with rake, with an ante, and at Fast. They never
+come up on the library's answers.
+
+`pf.follow` (4): the chart's most played move graded below Correct by the preflop solve.
+
+| config | spot | chart | solve's grade of it |
+|---|---|---|---|
+| 2max-100bb-gto-any | SB 8dTd first in | limps 99% | Blunder: the solve raises 100% (EV 1.0 against the limp's 0.35), 0.65bb given up |
+| 2max-20bb-gto-any | SB 2h3s first in | folds 100% | Inaccuracy, 0.10bb |
+| 2max-20bb-gto-any | BB 9cAh facing a raise to 3 | calls 97% | Mistake, 0.45bb |
+| 3max-100bb-gto-any | BTN Kc6d first in | raises 50% | Inaccuracy, 0.09bb |
+
+26 soft violations:
+
+- 15 converged bands after a rare line was solved again.
+- 2 mixed chart moves graded down by the solve. One was BB QcTs folding 50% to a 2-max SB raise, graded Mistake
+  (0.61bb).
+- 2 `ref.missing`: Fast had no 50% bet where Quick offered one.
+- 1 `ref.passes`, in a 3-way turn: UTG QsQd calling BB's 6.5bb bet. Quick says Best (EV 7.52); Fast says Blunder (EV
+  -5.78).
+- 6 `perf.slow`. Each was the first request after a process started, so the time included the slot wrapper's wait. The
+  sweep now leaves that wait out of a decision's time; the `--quick` run above was measured that way and had none.
+
+What answered:
+
+- Preflop: the charts 98.7% (push-fold 1.3%) of 305 decisions. The preflop solve graded 137 of them and the charts 167.
+- Heads-up 6-max 100bb single-raised flops against GTO opponents: the library, 18 of 19. The run's summary said 62% of
+  29, because it also counted the 10 such flops from the rake, ante and straddle configs, all live solves; the library
+  was built for none of them, and the share now leaves them out. Single-raised flops at other depths were live solves,
+  with a few from the library (2-max and 3-max 100bb, 9-max 100bb, 6-max 40bb).
+- 3-way flops: live solves, 11 of 11.
+- 4-way flops: the rules, 2 of 2.
+
+Quick against Fast agreed on 141 of 149, and against Accurate on 8 of 9. Quick never condemned what Fast passed. Fast
+condemned once what Quick passed: the 3-way call above. No opponent folded when checking was free or folded the nuts
+on the river.
+
+The matrix's decision times were measured before the slot wait was left out, so the waits are still in them. Even so,
+Quick averaged 0.04-0.94 s a decision by street, and Fast references 1.1-2.9 s. Accurate's turns took 3.7-23 s.
 
 ## What it doesn't cover
 

@@ -40,6 +40,13 @@ const fnv = (s: string) => {
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const now = () => performance.now() / 1000;
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
+/** A request's time from now on, less what the slot wrapper spent holding a new process (a restart at the RSS cap, or the
+ * config's first request): the time the advisor took, not the queue for a CPU slot. */
+const clock = (adv: PyAdvisor) => {
+  const at = now();
+  const w = adv.waited;
+  return () => r3(Math.max(0, now() - at - (adv.waited - w)));
+};
 
 /** The hand in a line: your seat and cards, the board out, and each street's moves. */
 export function lineOf(h: P.PracticeHand): string {
@@ -122,7 +129,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
   let fastAsked = 0;
 
   const runRef = async (j: RefJob) => {
-    const at = now();
+    const took = clock(refAdv);
     const violations: K.Violation[] = [];
     let source = "error";
     let cmp: RefRecord["cmp"] = null;
@@ -141,7 +148,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     } catch (e) {
       violations.push(K.violation("ref.error", `the ${j.mode} reference failed: ${message(e).slice(0, 300)}`, "soft"));
     }
-    put({ t: "ref", ...j.base, mode: j.mode, secs: r3(now() - at), source, cmp, violations });
+    put({ t: "ref", ...j.base, mode: j.mode, secs: took(), source, cmp, violations });
   };
 
   for (const cfg of o.configs) {
@@ -158,7 +165,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     for (let n = 0; n < cfg.hands; n++) {
       const seed = (base + n * 7919) % 2147483647;
       let h = P.newHand(players, stack, n, seed, opts);
-      const table: TableTag = { players, stack, opponents: h.opponents ?? "gto", pot: cfg.pot ?? "any" };
+      const table: TableTag = { players, stack, opponents: h.opponents ?? "gto", pot: cfg.pot ?? "any", plain: !(cfg.rake || cfg.ante || cfg.straddle) };
       const tag = <X extends { street?: Street; seat?: string }>(x: X) => ({ config: cfg.name, seed: h.seed, hand: n, table, ...x });
       let tries = 0;
       let abandoned: string | null = null;
@@ -190,7 +197,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         if (need.kind === "opp") {
           // ---- an opponent's move (your own preflop in a drill too, played for you)
           const seat = need.play!.seat;
-          const at = now();
+          const took = clock(main);
           const violations: K.Violation[] = [];
           let move: Move;
           let action: string;
@@ -210,12 +217,12 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           if (flags.freeFold) violations.push(K.violation("opp.freeFold", `${seat} folds where checking is free`));
           if (flags.riverNutFold) violations.push(K.violation("opp.nutFold", `${seat} folds the nuts on the river`, "soft"));
           oppMoves += 1;
-          put({ t: "opp", ...tag({ street, seat }), line, secs: r3(now() - at), action, flags, violations });
+          put({ t: "opp", ...tag({ street, seat }), line, secs: took(), action, flags, violations });
           h = P.withVillain(h, move, sim);
           continue;
         }
         // ---- your decision: the answer asked as the room asks it (and the preflop solve's node beside the chart's)
-        const at = now();
+        const took = clock(main);
         const violations: K.Violation[] = [];
         let held: HeldAnswer | null = null;
         let pfSecs: number | undefined;
@@ -223,19 +230,19 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           const r = await client.solve({ state: need.state, mode: cfg.mode });
           if (need.pf && !r.data.error) {
             let pf: PfAsked;
-            const pt = now();
+            const pfTook = clock(main);
             try {
               pf = await client.solve({ state: need.pf, mode: cfg.mode, untimed: true });
             } catch (e) {
               pf = { failed: message(e) };
             }
-            pfSecs = r3(now() - pt);
+            pfSecs = pfTook();
             held = { ...r, pf };
           } else held = r;
         } catch (e) {
           violations.push(K.violation("answer.error", `your ${street} answer failed: ${message(e).slice(0, 400)}`));
         }
-        const secs = r3(now() - at);
+        const secs = took();
         const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), line, spot: spotOf(h, sim), mode: cfg.mode, secs, ...(pfSecs !== undefined ? { pfSecs } : {}) };
         if (held?.data.error) violations.push(K.violation("answer.error", `your ${street} answer is an error: ${String(held.data.error).slice(0, 300)}`));
         const actions = held && !held.data.error ? P.optionsOf(held.data) : [];

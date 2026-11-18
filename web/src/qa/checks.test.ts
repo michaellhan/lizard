@@ -418,6 +418,8 @@ describe("the summary", () => {
     const recs: QaRecord[] = [
       hero({ secs: 2 }),
       hero({ secs: 20, source: "live", graded: "live", verdict: "Mistake", violations: [{ check: "prov.settled", severity: "hard", detail: "a converged band" }] }),
+      // (a raked table: counted in the coverage, left out of the library's share, which is for the games it was built for)
+      hero({ secs: 1, source: "live", graded: "live", table: { ...table, plain: false } }),
       hero({ street: "preflop", spot: "preflop", source: "charts", graded: "preflop-solve", pfWhy: "the solve's node has 2 moves", secs: 0.4 }),
       { t: "opp", config: "6max-100bb-live-any", seed: 1, hand: 0, violations: [], table: { ...table, opponents: "live" }, street: "river", seat: "BB", line: "", secs: 0.1, action: "call", flags: { freeFold: false, riverNutFold: false, nothingPot: { called: true } } },
       { t: "hand", config: "6max-100bb-gto-srp", seed: 7, hand: 0, violations: [{ check: "drill.spent", severity: "soft", detail: "x" }], table, net: 1, folded: false, shown: 5, decisions: 2, tries: 1 },
@@ -426,16 +428,16 @@ describe("the summary", () => {
       { t: "config", config: "(reference advisor)", hands: 0, heroDecisions: 0, oppMoves: 0, secs: 0, rssPeak: 600, restarts: 0, violations: [] },
     ];
     const s = summarize(recs, 42);
-    expect(s).toMatchObject({ configs: 1, hands: 1, heroDecisions: 3, graded: 3, oppMoves: 1, refs: 1, secs: 42, hard: 1, soft: 1 });
+    expect(s).toMatchObject({ configs: 1, hands: 1, heroDecisions: 4, graded: 4, oppMoves: 1, refs: 1, secs: 42, hard: 1, soft: 1 });
     expect(s.checks.map((c) => `${c.severity} ${c.check} ${c.count}`)).toEqual(["hard prov.settled 1", "soft drill.spent 1"]);
     expect(s.checks[0]!.examples[0]).toMatchObject({ config: "6max-100bb-gto-srp", seed: 7, street: "flop", source: "live", verdict: "Mistake" });
-    expect(s.coverage.find((c) => c.spot === "flop hu srp")).toEqual({ spot: "flop hu srp", n: 2, sources: { library: 1, live: 1 } });
+    expect(s.coverage.find((c) => c.spot === "flop hu srp")).toEqual({ spot: "flop hu srp", n: 3, sources: { library: 1, live: 2 } });
     expect(s.coverageAlerts[0]).toMatchObject({ n: 2, share: 0.5, ok: true });
     expect(s.coverageAlerts[1]).toMatchObject({ n: 0, share: null, ok: null });
     expect(s.preflop).toEqual({ solve: 1, charts: 0, other: 0, pfWhy: { "the solve's node has # moves": 1 } });
     expect(s.quickVsRef).toEqual([{ mode: "fast", n: 1, compared: 1, agree: 1, condemns: 0, passes: 0 }]);
     expect(s.opponents).toEqual([{ opponents: "live", moves: 1, freeFolds: 0, riverNutFolds: 0, nothingPotSpots: 1, nothingPotCalls: 1 }]);
-    expect(s.perf.find((p) => p.mode === "quick" && p.street === "flop")).toMatchObject({ n: 2, p50: 2, max: 20, over15: 1 });
+    expect(s.perf.find((p) => p.mode === "quick" && p.street === "flop")).toMatchObject({ n: 3, p50: 2, max: 20, over15: 1 });
     const md = markdown(s, "QA test");
     expect(md).toMatch(/^# QA test/);
     expect(md).toContain("**Hard violations: 1.**");

@@ -1,4 +1,4 @@
-// The QA sweep's configs: the default matrix (about 30-45 minutes on this Mac) and --quick (about 3-5). Each is a
+// The QA sweep's configs: the default matrix (about 20 minutes on this Mac) and --quick (about 3-5). Each is a
 // Practice session's setup as the page would start it, played for `hands` hands from its own seed. Most hands of an
 // "any hand" config end with your preflop fold in a second, so those configs deal more hands than a drill's.
 import type { PotDrill } from "@/features/practice/practice";
@@ -54,7 +54,7 @@ export const MATRIX: QaConfig[] = [
   { ...base, name: "6max-100bb-gto-any-rake5cap3", rake: 5, rakeCap: 3, hands: 20 },
   { ...base, name: "6max-100bb-gto-any-ante", ante: 0.12, hands: 20 },
   { ...base, name: "6max-100bb-gto-any-straddle", straddle: true, hands: 20 },
-  { ...base, name: "tournament-final-table-bubble", players: 5, stack: 25, tournament: "Final-table bubble", hands: 20 },
+  { ...base, name: "tournament-final-table-bubble", players: 5, stack: 40, tournament: "Final-table bubble", hands: 20 },
 ];
 
 /** How many of your postflop decisions in Quick are asked again at a reference mode: Fast, and Accurate for a few. */

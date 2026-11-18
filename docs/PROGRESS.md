@@ -6075,26 +6075,39 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
   - The checks: legal moves, chips, the hand history read back, provenance honesty, every action's grade, preflop
     chart and solve agreement, coverage by source, Quick against Fast and Accurate, the opponents' absurd moves, and
     time and memory.
-- Run it with `npm run qa:sweep:quick` (4 configs, about 3.5 minutes) or `npm run qa:sweep` (21 configs, estimated at
-  30-45 minutes). Output goes to `qa-out/` (gitignored), and the exit code is 1 on a hard violation. The checkers are
-  pure TypeScript (`web/src/qa/checks.ts`, `summary.ts`), with 27 vitest cases on hand-made fixtures
-  (`checks.test.ts`, no solver). Each advisor runs under gtosolver's `slot.sh`, one process at a time.
-- First `--quick` run (seed 1, 214 s): 71 decisions and 288 opponent moves, with 3 hard violations, the same in two
-  runs. None were fixed here.
-  - `prov.settled` ×2: live turn answers whose ranges come from the betting rules after an opponent's rare bet or
-    raise still show a converged band (0.04% of the pot) next to their approximate label. Other runs found the same on
-    rivers after rule-narrowed or 0%-followed streets (0.09%). `provenance.ts` takes the band from the solve's own
-    exploitability whatever `rangesOff` says.
+- Run it with `npm run qa:sweep:quick` (4 configs, about 3 minutes) or `npm run qa:sweep` (21 configs, 18 minutes
+  measured). Output goes to `qa-out/` (gitignored), and the exit code is 1 on a hard violation. The checkers are pure
+  TypeScript (`web/src/qa/checks.ts`, `summary.ts`), with 27 vitest cases on hand-made fixtures (`checks.test.ts`, no
+  solver). Each advisor runs under gtosolver's `slot.sh`, one process at a time.
+- `--quick` (seed 1, 181 s, 77 s of it waiting for a CPU slot) played 71 decisions and 288 opponent moves. It found 3
+  hard violations, the same in three runs:
+  - `prov.settled` ×2: live turn answers whose ranges come from the betting rules after an opponent's rare bet or raise
+    still show a converged band (0.03-0.04% of the pot) next to their approximate label. `provenance.ts` takes the band
+    from the solve's own exploitability whatever `rangesOff` says.
   - `pf.follow` ×1: at 3-max 100bb, BTN 8cJd first in, the chart raises 50% and the preflop solve folds 100%. A
     chart-following raise is graded Inaccuracy (0.08bb).
+- The default matrix (seed 1, 1096 s, 608 s of it waiting for CPU slots) played 324 hands: 518 decisions, 3185 opponent
+  moves and 160 references. It found 25 hard violations, none fixed here:
+  - `prov.settled` ×21, in 11 configs, wherever live solves answer after rule-made ranges (heads-up to 9-max, 20bb to
+    200bb, rake, ante, Fast). None came on library answers.
+  - `pf.follow` ×4. The worst is at 2-max 100bb: SB 8dTd first in, the chart limps 99% while the preflop solve raises
+    100%, so following the chart is graded Blunder (0.65bb). There are also three smaller ones at 2-max 20bb and 3-max
+    100bb (0.09-0.45bb).
 - Measured, not failing:
-  - Two Quick preflop decisions in multiway preflop pots took 15-16 s natively.
-  - A stored 6-max preflop solve holds about 580 MB once read, and the worker keeps it. With it resident, one
-    postflop solve took the native process past 1 GB, so the sweep drops it after each request (`QA_DROP_PF`).
-  - 3-way flop solves peaked at 1.0-1.14 GB natively.
-  - Quick agreed with Fast on 24 of 26 sampled decisions and with Accurate on 2 of 2, never condemning what the
-    other passed.
-  - Opponents: no free folds, river nut folds or pot-size calls with nothing.
+  - The 6-max 100bb heads-up single-raised flops against GTO opponents came from the library 18 of 19 times in the
+    matrix and 9 of 10 in `--quick`. 3-way flops were all live solves (11 of 11), and 4-way flops the rules.
+  - Quick agreed with Fast on 141 of 149 sampled decisions and with Accurate on 8 of 9. Quick never condemned what a
+    reference passed. Fast condemned one 3-way turn call that Quick graded Best.
+  - Opponents: no free folds and no river nut folds.
+  - A stored 6-max preflop solve holds about 580 MB once read, and the worker keeps it. The sweep drops it after each
+    request (`QA_DROP_PF`).
+  - Three of the matrix's 22 advisor peaks passed 1 GB: 1238 MB in a 4-way 3-bet pot's hand, 1196 MB in the reference
+    process and 1077 MB at 3-max 40bb. Each was inside one request; the process restarted after it, and the memory
+    guard never acted.
+- A harness fix found by the matrix:
+  - The first `perf.slow` flags (Quick over 15 s) were the slot wrapper holding a fresh process, not the advisor's work.
+    A decision's time now leaves that wait out; with it out, `--quick`'s slowest Quick decision took 1.9 s.
+  - The library share now leaves out raked, anted and straddled tables, which the library wasn't built for.
 - Not covered: what the browser draws, Pyodide's speed and memory, exploit play and node locks, multi-table charts,
   library drills and the run-out after a fold. `docs/FEATURE_MATRIX.md` links `docs/QA.md` from "How this was
   graded"; no grade moved.

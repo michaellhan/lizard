@@ -13,6 +13,8 @@ export interface TableTag {
   opponents: "gto" | "live" | "loose";
   /** the drill's pot, or "any" */
   pot: string;
+  /** false where the table has rake, an ante or a straddle, which the flop library wasn't built for (unset counts as true) */
+  plain?: boolean;
 }
 
 interface Base {
@@ -199,7 +201,7 @@ export function summarize(records: readonly QaRecord[], secs = 0): Summary {
     cov.set(r.spot, c);
   }
   const share = (rs: HeroRecord[], ok: (r: HeroRecord) => boolean) => (rs.length ? rs.filter(ok).length / rs.length : null);
-  const huLib = heroes.filter((r) => r.table.players === 6 && r.table.stack === 100 && r.table.opponents === "gto" && r.spot === "flop hu srp");
+  const huLib = heroes.filter((r) => r.table.players === 6 && r.table.stack === 100 && r.table.opponents === "gto" && r.table.plain !== false && r.spot === "flop hu srp");
   const threeWay = heroes.filter((r) => r.spot.startsWith("flop 3way"));
   const libShare = share(huLib, (r) => r.source === "library");
   const served = share(threeWay, (r) => r.source === "library" || r.source === "live");
@@ -237,7 +239,7 @@ export function summarize(records: readonly QaRecord[], secs = 0): Summary {
     checks,
     coverage: [...cov.values()].sort((a, b) => b.n - a.n),
     coverageAlerts: [
-      { what: "6-max 100bb heads-up SRP flops against GTO opponents answered by the library", n: huLib.length, share: libShare, want: "mostly (50% or more)", ok: libShare === null ? null : libShare >= 0.5 },
+      { what: "6-max 100bb heads-up SRP flops against GTO opponents, with no rake, ante or straddle, answered by the library", n: huLib.length, share: libShare, want: "mostly (50% or more)", ok: libShare === null ? null : libShare >= 0.5 },
       { what: "3-way flops served (library or live solve, not rules or an error)", n: threeWay.length, share: served, want: "80% or more", ok: served === null ? null : served >= 0.8 },
     ],
     verdicts,
