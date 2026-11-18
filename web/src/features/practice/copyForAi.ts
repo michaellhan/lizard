@@ -15,6 +15,7 @@ import { drillActionLabel, situation, studyHandOf, studyLink, type DrillProblem 
 import { handLabel } from "./handFilter";
 import { liveActionLabel, liveStudyHand, type LiveAnswer, type LiveProblem } from "./liveDeal";
 import { mixOf, optionLabel, type Decision } from "./practice";
+import { recheckNote } from "./recheck";
 import type { Reviewed } from "./review";
 
 const fmt = (x: number) => String(Math.round(x * 100) / 100);
@@ -86,6 +87,14 @@ export function aiText(s: AiSpot): string {
   ].join("\n");
 }
 
+/** A grade re-checked at Fast, or one that couldn't be, in sentences named by what answered each time (recheck.ts
+ * recheckNote): never a solve where it was the betting rules. */
+function recheckNoteOf(d: Reviewed["d"]): string {
+  const said = recheckNote(d);
+  if (!said) return "";
+  return d.quick ? ` Re-checked at Fast. ${said}` : ` (${said})`;
+}
+
 /** One of your graded decisions in a full hand. */
 export function reviewedText(e: Reviewed): string {
   const h = fromSearch(e.d.study);
@@ -98,7 +107,7 @@ export function reviewedText(e: Reviewed): string {
     you: `${seatLabel(e.seat, e.players)}, holding ${e.hole.join(" ")}`,
     at: `${e.d.street}, pot ${fmt(e.d.pot)}bb`,
     ...(e.dealtTo ? { dealt: `This hand was dealt under a hand filter: ${handLabel(e.dealtTo)}. The filter picks what's dealt; the answer below is the strategy for every hand you could hold here, not one fitted to these hands.` } : {}),
-    ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source, evUnit(e.d.provenance))}.` } : {}),
+    ...(g ? { took: `You took: ${e.d.chose}. Lizard's grade: ${g.verdict}, ${costWords(g, e.d.mix, e.d.provenance?.source, evUnit(e.d.provenance))}.${recheckNoteOf(e.d)}` } : {}),
     mix: e.d.mix,
     labelOf: (a) => optionLabel(a.action, a.amount),
     provenance: e.d.provenance,

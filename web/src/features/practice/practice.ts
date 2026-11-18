@@ -11,7 +11,7 @@ import { classOf } from "@/engine/nlhe/cards";
 import type { SizeStreet } from "@/features/solve/setup";
 import { tournamentRequest, type TournamentSetup } from "@/features/tournaments/tournament";
 import { toSearch, type StudyHand } from "@/features/study/studyState";
-import { gradeAnswer, type AnswerBasis, type Grade } from "@/grading/grade";
+import { gradeAnswer, type AnswerBasis, type Grade, type Verdict } from "@/grading/grade";
 import { basisOf, roughOf } from "@/grading/basis";
 import { lineToken } from "@/library/flops";
 import { cmp, handName } from "@/poker/evaluate";
@@ -36,7 +36,7 @@ import {
   type TableSetup,
 } from "@/poker/table";
 import type { AdvisorActionStat, AdvisorResponse, AdvisorState, PlayMove, RangeGridData } from "@/solver/protocol";
-import type { Provenance } from "@/solver/types";
+import type { Provenance, ResultSource } from "@/solver/types";
 import { assumedWords, bestResponse, type Exploit, type ReadTally } from "./exploit";
 import { drawFit, HAND_DRAWS, handLabel, isHandKey } from "./handFilter";
 import { worthPlaying } from "./live";
@@ -65,6 +65,27 @@ export interface Decision {
   pfWhy?: string;
   /** what grading knew of the answer (grading/basis.ts), where it was graded: a retry of it grades on the same terms */
   basis?: AnswerBasis;
+  /** graded at Quick and asked again at Fast while the solver was idle (recheck.ts): the grade, mix, pot, provenance and
+   * basis above are Fast's, and this is what Quick said */
+  quick?: QuickRead;
+  /** the re-check at Fast couldn't grade your move (why, in words): the grade above is still Quick's, and it isn't asked again */
+  recheckFailed?: string;
+}
+
+/** What Quick said of a decision that was then re-checked at Fast (recheck.ts): its verdict, the action it named best, the
+ * EV it measured as given up (bb and % of the pot, by EV only) and what answered it. */
+export interface QuickRead {
+  verdict: Verdict;
+  ok: boolean;
+  /** the action Quick's answer named best */
+  best: string;
+  byEv: boolean;
+  loss: number;
+  lossPct: number;
+  /** Quick's answer's source (provenance.ts) */
+  source: ResultSource;
+  /** Quick's verdict stopped at Inaccuracy as its answer couldn't condemn a line */
+  capped?: true;
 }
 
 export interface HandResult {

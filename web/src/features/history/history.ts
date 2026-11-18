@@ -84,6 +84,16 @@ const mergeWays = (a: Ways, b: Ways): Ways => GRADE_WAYS.reduce((w, way) => (b[w
 export const mergeSplit = (a: Split, b: Split): Split => ({ ways: mergeWays(a.ways, b.ways), apart: a.apart + b.apart });
 const waysCount = (w: Ways) => GRADE_WAYS.reduce((n, way) => n + (w[way]?.n ?? 0), 0);
 
+/** A tally's way less one decision's (a re-checked grade taken out: features/practice/recheck.ts); a way it isn't in
+ * stays as it is, and one left empty goes. */
+function takeWay(w: Ways | undefined, way: GradeWay, t: WayTally): Ways | undefined {
+  const b = w?.[way];
+  if (!w || !b || b.n < t.n) return w;
+  const { [way]: _gone, ...rest } = w;
+  void _gone;
+  return b.n === t.n ? rest : { ...w, [way]: { n: b.n - t.n, ok: Math.max(0, b.ok - t.ok), loss: Math.max(0, b.loss - t.loss), lossPct: Math.max(0, b.lossPct - t.lossPct) } };
+}
+
 /** What a tally reads of a grade. Its EV lost is what the score counts (grade.ts scored): since 2026-11-18 only what a
  * decision below Correct gave up past its answer's noise; a tally kept before counted every decision's whole loss. */
 type Counted = Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> & Partial<Pick<Grade, "past" | "pastPct">>;
@@ -174,6 +184,21 @@ export function addHandToPot(t: PotTally | undefined, grades: readonly ((Counted
   return out;
 }
 
+/** A finished hand's pot tally with one of its decisions graded again (a Quick grade re-checked at Fast,
+ * features/practice/recheck.ts): its count, share and EV lost moved from `was` to `now`, as though it had been graded
+ * `now` from the first. Its hands and net don't move. */
+export function regradePot(t: PotTally, was: Counted & { source?: string }, now: Counted & { source?: string }): PotTally {
+  const [a, b] = [scored(was), scored(now)];
+  const out = { ...t, ok: Math.max(0, t.ok - (was.ok ? 1 : 0)) + (now.ok ? 1 : 0), ne: Math.max(0, t.ne - (was.byEv ? 1 : 0)) + (now.byEv ? 1 : 0) };
+  out.loss = Math.max(0, t.loss - (was.byEv ? a.loss : 0) + (now.byEv ? b.loss : 0));
+  out.lossPct = Math.max(0, t.lossPct - (was.byEv ? a.lossPct : 0) + (now.byEv ? b.lossPct : 0));
+  if (t.ways) {
+    const taken = takeWay(t.ways, wayOf(was.byEv, was.source), { n: 1, ok: was.ok ? 1 : 0, ...a });
+    out.ways = taken === t.ways ? t.ways : addWay(taken, wayOf(now.byEv, now.source), { n: 1, ok: now.ok ? 1 : 0, ...b });
+  }
+  return out;
+}
+
 /** Where a graded decision was made: your seat in that hand, and its pot as it stood when you decided, your own move
  * not yet in it (`handPot` on the hand before the move). So an open is Unopened, facing an open is SRP and facing a 3-bet
  * is a 3bet pot; from the flop on it's the pot the preflop made. */
@@ -211,6 +236,22 @@ export function addCell(cells: Record<string, GradeCell> | undefined, street: st
   return { ...cells, [key]: { ...c, n: c.n + 1, ok: c.ok + (g.ok ? 1 : 0), loss: c.loss + lost.loss, lossPct: c.lossPct + lost.lossPct, ...(version || c.versions ? { versions: addVersion(c.versions, version) } : {}) } };
 }
 
+/** The cells less one graded decision, as `addCell` put it in (a Quick grade re-checked at Fast,
+ * features/practice/recheck.ts); null where it isn't in them, so nothing is put in its place. */
+export function dropCell(cells: Record<string, GradeCell> | undefined, street: string, source: ResultSource | undefined, g: Counted, version?: string, at?: CellAt): Record<string, GradeCell> | null {
+  const src = source ?? "unknown";
+  const key = `${street}|${src}|${g.byEv ? "ev" : "freq"}${at ? `|${at.seat}|${at.pot}` : ""}`;
+  const c = cells?.[key];
+  if (!cells || !c || c.n < 1) return null;
+  const { [key]: _gone, ...rest } = cells;
+  void _gone;
+  if (c.n === 1) return rest;
+  const lost = scored(g);
+  const k = version ? spotVersion(version) : null;
+  const versions = c.versions && k && (c.versions[k] ?? 0) > 0 ? (c.versions[k] === 1 ? Object.fromEntries(Object.entries(c.versions).filter(([v]) => v !== k)) : { ...c.versions, [k]: c.versions[k]! - 1 }) : c.versions;
+  return { ...cells, [key]: { ...c, n: c.n - 1, ok: Math.max(0, c.ok - (g.ok ? 1 : 0)), loss: Math.max(0, c.loss - lost.loss), lossPct: Math.max(0, c.lossPct - lost.lossPct), ...(versions ? { versions } : {}) } };
+}
+
 /** A grade counted under its version; one with none, as it was. */
 export function addVersion(kept: Record<string, number> | undefined, version: string | undefined): Record<string, number> {
   if (!version) return kept ?? {};
@@ -222,6 +263,17 @@ export function addVersion(kept: Record<string, number> | undefined, version: st
 export const addSource = (s: Partial<Record<ResultSource, number>>, src: ResultSource | undefined): Partial<Record<ResultSource, number>> => {
   const k = src ?? "unknown";
   return { ...s, [k]: (s[k] ?? 0) + 1 };
+};
+
+/** The counts by source less one decision's; where its source isn't counted, null, so nothing is put in its place. */
+export const dropSource = (s: Partial<Record<ResultSource, number>>, src: ResultSource | undefined): Partial<Record<ResultSource, number>> | null => {
+  const k = src ?? "unknown";
+  const n = s[k] ?? 0;
+  if (n < 1) return null;
+  if (n > 1) return { ...s, [k]: n - 1 };
+  const { [k]: _gone, ...rest } = s;
+  void _gone;
+  return rest;
 };
 
 const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);

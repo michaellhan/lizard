@@ -1,8 +1,10 @@
 // What the solver is asked next, and which table is in front. The solver answers one request at a time, so the Room
 // keeps one in flight, and this says, from what the tables want, whether that one goes on, whether it stops, and what
 // goes out once it's gone (multitable.js:263-276, :316-322, :381-391): what's instant first, then short solves, then a
-// look-ahead at the table in front, then long solves, then the other tables' look-aheads. Everything waits on an
-// estimate, which only ever orders the queue. Pure: the flight, its promise and the clock stay with the Room.
+// look-ahead at the table in front, then long solves, then the other tables' look-aheads, and last of all a Quick grade
+// asked again at Fast (recheck.ts), which goes out only when nothing else is wanted and gives way to anything that is.
+// Everything waits on an estimate, which only ever orders the queue. Pure: the flight, its promise and the clock stay
+// with the Room.
 import type { AdvisorAction, AdvisorState } from "@/solver/protocol";
 import type { SolveMode, StopCost, TransportKind } from "@/solver/types";
 import type { Need } from "./flow";
@@ -25,6 +27,9 @@ export interface Job {
   since: number;
   /** a look-ahead: its group, and its line's place among your likeliest (ahead.ts) */
   ahead?: { g: 3 | 5; rank: number };
+  /** a decision of yours graded at Quick, asked again at Fast (recheck.ts): its place in the backlog's order. No table
+   * waits on it, so it goes last, and only while nothing else is wanted */
+  recheck?: { rank: number };
 }
 
 /** The request in flight, as far as a plan reads it. `stopping`: stopped already, and not settled. */
@@ -75,18 +80,22 @@ export function estimate(q: AdvisorState, mode: SolveMode, solved: ReadonlySet<s
   return (transport === "http" ? 30 : 60) * (street === "river" ? 0.4 : 1);
 }
 
+/** A re-check's group: after everything a table wants. */
+export const RECHECK = 6;
+
 /** A request's priority group: 1 instant, 2 a short solve, 3 a look-ahead at the table in front, 4 a long solve, 5 the
- * other tables' look-aheads. A table still dealing a drill's pot is 2, however quick its moves are: it asks seat by seat
- * until its pot comes up, and would hold back everyone else's short solves. */
-export const group = (j: Pick<Job, "est" | "seeking" | "ahead">) => (j.ahead ? j.ahead.g : j.seeking ? 2 : j.est < INSTANT ? 1 : j.est < SHORT ? 2 : 4);
+ * other tables' look-aheads, 6 a re-check at Fast. A table still dealing a drill's pot is 2, however quick its moves are:
+ * it asks seat by seat until its pot comes up, and would hold back everyone else's short solves. */
+export const group = (j: Pick<Job, "est" | "seeking" | "ahead" | "recheck">) =>
+  j.recheck ? RECHECK : j.ahead ? j.ahead.g : j.seeking ? 2 : j.est < INSTANT ? 1 : j.est < SHORT ? 2 : 4;
 
 const KIND = { you: 0, opp: 1, chart: 1 };
 
-/** By group; then yours before an opponent's (look-aheads: the quickest, then your likeliest line); then the longest
- * wanted; then the table's place. */
+/** By group; then yours before an opponent's (look-aheads: the quickest, then your likeliest line; re-checks: the
+ * backlog's order); then the longest wanted; then the table's place. */
 export const byPriority = (a: Job, b: Job) =>
   group(a) - group(b) ||
-  (a.ahead && b.ahead ? a.est - b.est || a.ahead.rank - b.ahead.rank : KIND[a.need.kind] - KIND[b.need.kind]) ||
+  (a.recheck && b.recheck ? a.recheck.rank - b.recheck.rank : a.ahead && b.ahead ? a.est - b.est || a.ahead.rank - b.ahead.rank : KIND[a.need.kind] - KIND[b.need.kind]) ||
   a.since - b.since ||
   a.table - b.table;
 
@@ -122,7 +131,9 @@ export function refocus(f: Front, tables: readonly Waiter[], now: number): Front
 /** What happens to the flight, from what's wanted. A stop that costs a worker (`kills`) is paid only to get out of a
  * long solve nobody needs: a needed flight runs on, whatever waits behind it, and a short dead one runs out, as a
  * reboot would cost more. `late`: it went out as short and has run past SHORT, as a rare line the estimate can't see
- * coming does, so as a look-ahead it gives way to any real request, not just a short one. */
+ * coming does, so as a look-ahead it gives way to any real request, not just a short one. A re-check gives way to
+ * anything else wanted, real or a look-ahead, where the stop is cheap (the Room only sends one where it is), and nothing
+ * gives way to a re-check. */
 export function plan(flight: InFlight | null, jobs: readonly Job[], cost: StopCost, late = false): Plan {
   const all = [...jobs].sort(byPriority);
   if (!flight) return { stop: false, same: null, launch: all[0] ?? null };
@@ -130,7 +141,8 @@ export function plan(flight: InFlight | null, jobs: readonly Job[], cost: StopCo
   const { key } = flight.job.need;
   const same = all.find((j) => j.need.key === key) ?? null;
   if (!same) return { stop: cost === "cheap" || flight.job.est >= SHORT, same, launch: null };
+  if (same.recheck) return { stop: cost === "cheap" && all.some((j) => !j.recheck), same, launch: null };
   const best = all.find((j) => j.need.key !== key);
-  const yields = (!!best && group(best) <= 2 && group(same) >= 3) || (late && !!same.ahead && all.some((j) => !j.ahead));
+  const yields = (!!best && group(best) <= 2 && group(same) >= 3) || (late && !!same.ahead && all.some((j) => !j.ahead && !j.recheck));
   return { stop: yields && cost === "cheap", same, launch: null };
 }

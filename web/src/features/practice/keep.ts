@@ -103,6 +103,10 @@ const isGame = (x: unknown): x is HandTournament =>
   opt(x.won, isNum) &&
   opt(x.news, (n) => isList(n, isStr));
 
+/** What Quick said of a decision re-checked at Fast (recheck.ts), as the page says it beside Fast's grade. */
+const isQuickRead = (x: unknown) =>
+  isObj(x) && GRADE_RULES.some((r) => r.verdict === x.verdict) && isBool(x.ok) && isStr(x.best) && isBool(x.byEv) && isNum(x.loss) && isNum(x.lossPct) && isSource(x.source) && opt(x.capped, (c) => c === true);
+
 /** A decision as it was taken. A graded one must say what graded it: no number is shown without its source. One made
  * after Reveal has no grade, and keeps the answer that was seen with that answer's source. */
 const isDecision = (x: unknown): x is Decision =>
@@ -116,6 +120,9 @@ const isDecision = (x: unknown): x is Decision =>
   opt(x.revealed, (r) => r === true) &&
   opt(x.offProfile, (r) => r === true) &&
   opt(x.pfWhy, isStr) &&
+  // (a re-check's: Quick's read beside a grade that's Fast's, so only on a graded one; or why Fast couldn't grade it)
+  opt(x.quick, (q) => x.grade !== null && isQuickRead(q)) &&
+  opt(x.recheckFailed, isStr) &&
   (x.grade === null ? x.provenance === null || ((x.revealed === true || x.offProfile === true) && isProvenance(x.provenance)) : x.revealed === undefined && isGrade(x.grade) && isProvenance(x.provenance));
 
 const isHand = (x: unknown): x is PracticeHand =>
@@ -234,7 +241,8 @@ const isSession = (x: unknown): x is PracticeSession =>
   isSources(x.sources) &&
   opt(x.cells, isCells) &&
   isList(x.review, isReviewed) &&
-  opt(x.revealed, isCount);
+  opt(x.revealed, isCount) &&
+  opt(x.rechecked, (r) => isObj(r) && [r.done, r.changed, r.failed].every(isCount) && (r.changed as number) <= (r.done as number));
 
 /** A place in the doc: a hand of another game is as lost as one that won't replay, since the table deals on from it. */
 function keptTable(x: unknown, s: PracticeSession): KeptTable | null {

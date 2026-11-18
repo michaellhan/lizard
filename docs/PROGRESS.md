@@ -6132,3 +6132,70 @@ open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The j
   worker-configured advisor and checks every decision.
 - Practice re-checks its Quick grades at Fast while idle: Quick agrees with Fast on the grade 88% of the time when
   settled and 62% otherwise.
+
+## 2026-11-18: Practice re-checks Quick's grades at Fast while the solver is idle
+
+- Why: Practice plays at Quick unless the setting is Accurate, and Quick gives Fast's grade about 88% of the time where
+  it settled and 62% for its other reads (Advisor's measure on 1,000 hands). Analyze already re-checks its flagged
+  reads at Fast; Practice didn't.
+- What: `web/src/features/practice/recheck.ts` (new, pure): which decisions are worth asking again (graded at Quick
+  after the flop, not Reveal or off a profile, not ungraded or partial, and not what Fast answers the same: the charts,
+  the preflop solve, push/fold, the library's own spot, the rules where Fast leaves the spot to them too), the order
+  (flagged first as `triage.ts` flags, then the latest hands, street order within a hand; at most 60), the hand as it
+  stood at the decision (`handAt`), and the same move graded again through `practice.ts` `decide` against Fast's answer
+  with Fast's provenance (`regraded`). The decision keeps Quick's read as `quick`, or why Fast couldn't grade it as
+  `recheckFailed`. `scheduler.ts`: group 6 (`RECHECK`), below every look-ahead; a re-check in flight gives way to
+  anything else wanted where a stop is cheap, and nothing gives way to it. `room.ts`: the backlog (in memory; a session
+  read back rebuilds it from the hands on its tables), offered only with re-checking on, not Accurate, a cheap stop, no
+  restart, the tab active and visible, and no table timer pending; asked at Fast under a key of its own, its answer kept
+  for a Fast retry; a stop of ours retries it, a failure or a second foreign cancel marks it. Fast's grade then moves
+  every total over (`grade.ts` `regradeScore`, `session.ts` `afterRecheck`, `history.ts` `regradePot`, `dropCell`,
+  `dropSource`), swaps into the hand, the table's last decision and Review, and moves the kept miss
+  (`recheckedMiss`, `data/mistakes.ts` `takeBackMiss`; a retry of a re-checked miss asks at Fast, `retry.ts` `askedAt`).
+  Settings: "Re-check Quick grades at Fast when the solver is idle", on by default (and for settings saved before it).
+  The score strip says "Re-checking at Fast: 3 left · 1 changed"; the decision, a tile's foot, Review's list and Copy
+  for AI say "Re-checked at Fast: Mistake → Correct" or "same grade", and that Fast is a short solve, not a converged one.
+  `keep.ts` reads the new fields back and refuses spoiled ones. A kept Analyze hand holds no grades, so nothing there
+  changes and nothing is kept twice (test). Docs: ACCURACY section 29, FEATURE_MATRIX's Full-hand play row (statuses
+  unchanged).
+- Checked: `npm run typecheck`, `npm run lint` clean; the touched files (13, 867 tests) pass; the full vitest run
+  through `slot.sh` (238 files passed, 2 skipped; 3,971 tests passed, 9 skipped, 79 s); `npm run build` passes (with
+  `PYTHON` set to the main checkout's `.venv`, as the worktree has none). All on a fake client.
+- Left: not checked in a browser or on the real worker, so how often Fast changes a Practice grade and how many
+  re-checks a session gets through while you think are unmeasured; the backlog doesn't survive a reload at one table
+  (nothing is kept there) nor for hands gone from the tables; a miss counted by decision (`decisions` on the record) isn't
+  taken back where the count would no longer stand.
+
+### Review of the re-check (three reviewers, 11 findings, all confirmed and fixed)
+
+- Hands still in play aren't asked. Quick and Fast share the Advisor and its solve cache, and a solve's key has no
+  budget, so Fast's request for a hand in play ran its Quick street solve on and the hand's next street read another
+  solve. Now only hands that have ended are asked (`room.ts` `recheckJobs`, matched by hand and decision); test.
+- Order is hand by hand: flagged hands first, then the latest, and a hand's decisions in street order
+  (`recheck.ts` `recheckQueue`, replacing `recheckOrder`, which put a flagged turn ahead of its flop); test.
+- A solver that can't be reached, a worker that didn't start, or a stuck one no longer marks every waiting decision
+  "not re-checked": re-checks pause, unmarked, until a table's request has an answer; the score strip says so; tests.
+- At your turn a re-check starts only after you've waited 5 s (`RECHECK_IDLE`), between hands at once; the Settings
+  text says a move waits the moment the stop takes. Tests: before the 5 s nothing goes, a raise then asks at once; after
+  it, a raise waits only for the stop.
+- A miss taken back is found as `keepMistake` found it, by spot as well as id (`takeBackMiss` takes the record), and a
+  miss that went into an earlier record brings that record back as it was (`prior`, kept by `missedAgain` beside a
+  Practice miss at Quick), with the retries made since; tests.
+- The sentence beside a re-checked grade names each answer by its source ("a Quick solve", or "Quick's answer, Heuristic
+  rules (not a solve)"), and a Fast answer from the rules or an equity estimate where Quick's was a solve isn't taken
+  (`regraded`); tests.
+- A retry open as its decision's re-check lands starts again at Fast (keyed by the decision's mode), and isn't asked
+  again on a render that changes nothing (`SessionRetry.tsx`); new `SessionRetry.test.tsx`.
+- No more "not a converged one": how settled Fast's solve is, is its badge's to say; the sentence points there.
+- Settings and the notes give only the measured figures (88% settled, 62% nearest-flop and earlier-street reads), and
+  say an unsettled Quick solve and the rules weren't measured.
+- The counts (done, changed, couldn't be graded) are kept in the session (`session.ts` `rechecked`, read back by
+  `keep.ts`), so a reload above one table keeps them; tests.
+- Docs: ACCURACY section 29 and FEATURE_MATRIX's Full-hand play row rewritten (statuses unchanged).
+- Checked: `npm run typecheck`, `npm run lint` clean; the touched files (9, 766 tests) pass; the full vitest run through
+  `slot.sh` (239 files passed, 2 skipped; 3,992 tests passed, 9 skipped, 93 s); `npm run build` passes. Six of the new
+  Room tests and the retry test fail on the code before the fixes. All on a fake client.
+- Left: not checked in a browser or on the real worker; a re-check run while you think adds Fast's solves to the shared
+  700 MB cache and could push out the hand in play's earlier street (traced in `advisor.py` `_keep`, not measured;
+  re-checking only between hands would close it); the backlog is in memory; the Review page's queue has no "Re-checked"
+  label; a record whose only miss this was but that you've retried keeps Quick's grade.

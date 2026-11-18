@@ -476,6 +476,41 @@ export function addScore(s: Score | undefined, g: Pick<Grade, "ok" | "loss" | "l
   };
 }
 
+type Scored = Pick<Grade, "ok" | "loss" | "lossPct" | "byEv"> & Partial<Pick<Grade, "past" | "pastPct">>;
+
+/** The longest run of 1s in a list of them. */
+const longestRun = (xs: readonly number[]) => xs.reduce<[number, number]>(([best, run], x) => (x === 1 ? [Math.max(best, run + 1), run + 1] : [best, 0]), [0, 0])[0];
+
+/** The score with one decision's grade changed from `was` to `now`, as a Quick grade re-checked at Fast is
+ * (features/practice/recheck.ts): its counts and EV lost as though it had been graded `now` from the first. `place`, its
+ * place among the decisions graded (1, the first), puts it in `recent` and the streak where it's still in them. Where it
+ * isn't known, or the decision is older than the last RECENT, only the totals move. The streak is the run of 1s that ends
+ * `recent` (where that run reaches back past `recent`, the most that can be said of it), and the best streak is worked out
+ * again where the whole session is in `recent`; past that it only rises. */
+export function regradeScore(s: Score, was: Scored, now: Scored, place?: number): Score {
+  const [a, b] = [scored(was), scored(now)];
+  const out: Score = {
+    ...s,
+    ok: s.ok - (was.ok ? 1 : 0) + (now.ok ? 1 : 0),
+    // (a sum taken apart again can land a hair under zero)
+    loss: Math.max(0, s.loss - a.loss + b.loss),
+    lossPct: Math.max(0, s.lossPct - a.lossPct + b.lossPct),
+    ne: s.ne - (was.byEv ? 1 : 0) + (now.byEv ? 1 : 0),
+  };
+  if (was.ok === now.ok || place === undefined || !Number.isInteger(place) || place < 1 || place > s.n) return out;
+  const j = s.recent.length - (s.n - place) - 1;
+  if (j < 0) return out;
+  const recent = [...s.recent];
+  recent[j] = now.ok ? 1 : 0;
+  let streak = 0;
+  for (let i = recent.length - 1; i >= 0 && recent[i] === 1; i -= 1) streak += 1;
+  const whole = s.recent.length === s.n;
+  // (a run that reaches back past `recent` is at least as long as the one known)
+  if (!whole && streak === recent.length) streak = Math.max(streak, s.streak);
+  const best = whole ? longestRun(recent) : Math.max(s.best, streak);
+  return { ...out, recent, streak, best };
+}
+
 export function summary(s: Score): { acc: number; loss: number | null; lossPct: number | null } {
   return {
     acc: s.n ? s.ok / s.n : 0,

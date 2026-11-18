@@ -1,7 +1,7 @@
 // A decision from this session asked again: your options, then a grade, as the Review page's retry is (features/review/
 // retry.ts, mistakes.ts), against the answer there is now and under its own provenance. It changes nothing: not the
 // score, not History, not Review's schedule, and not the hand you played, as there's no undo of a move.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Compare } from "@/features/review/Compare";
 import { retried, type RetryAnswer, type Retried, type RetrySpot } from "@/features/review/mistakes";
 import { askAgain, type GetClient } from "@/features/review/retry";
@@ -18,12 +18,16 @@ export function retrySpot(e: Reviewed): (RetrySpot & { pot: number; grade: NonNu
   const { d, state } = e;
   if (!state || !d.grade) return null;
   // (with the basis it was graded on: a flop library answer asked again keeps the flop's pot the first grade knew)
-  return { ask: { via: "solver", state }, provenance: d.provenance, mix: d.mix, street: d.street, study: d.study, chose: d.chose, pot: d.pot, grade: d.grade, ...(d.basis ? { basis: d.basis } : {}) };
+  // (a grade re-checked at Fast is asked again at Fast at least: review/retry.ts askedAt)
+  return { ask: { via: "solver", state, ...(d.quick ? { fast: true as const } : {}) }, provenance: d.provenance, mix: d.mix, street: d.street, study: d.study, chose: d.chose, pot: d.pot, grade: d.grade, ...(d.basis ? { basis: d.basis } : {}) };
 }
 
-/** `e`, an earlier decision of this session, asked again. `getClient`: the Room's, which uses an answer still held. */
+/** `e`, an earlier decision of this session, asked again. `getClient`: the Room's, which uses an answer still held. The
+ * list keys it by what `e`'s grade stands on, so a re-check at Fast landing while it's open starts it again (PracticeParts
+ * ReviewMistakes). */
 export function SessionRetry({ e, getClient, onClose }: { e: Reviewed; getClient: GetClient; onClose: () => void }) {
-  const spot = retrySpot(e);
+  // (one spot for one entry: a new `ask` each render would ask again at every render of the page)
+  const spot = useMemo(() => retrySpot(e), [e]);
   const [asked, setAsked] = useState<Asked>({ st: "asking" });
   const [attempt, setAttempt] = useState(0);
   const [done, setDone] = useState<Retried | null>(null);
@@ -65,6 +69,7 @@ export function SessionRetry({ e, getClient, onClose }: { e: Reviewed; getClient
         </button>
       </div>
       <p className="text-muted">A retry is graded and shown here. It doesn&rsquo;t change your score, your streak, History or Review, and the hand stays as you played it. The table&rsquo;s keys are off while this is open.</p>
+      {e.d.quick && <p className="text-muted">This grade was re-checked at Fast, so the retry is asked at Fast too.</p>}
       {asked.st === "asking" && (
         <p role="status" className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />

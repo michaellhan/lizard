@@ -326,7 +326,7 @@ function FullHands({ pace, pause, guard, active }: { pace: number; pause?: numbe
   );
 
   const score = (
-    <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct}>
+    <ScoreStrip session={session} acc={sum.acc} loss={sum.loss} lossPct={sum.lossPct} recheck={snap.recheck}>
       <AheadLine on={snap.ahead.on && snap.stopCost !== "kills"} meter={snap.ahead.meter} />
     </ScoreStrip>
   );

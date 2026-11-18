@@ -2668,3 +2668,69 @@ of a clear blunder with that reason ("This answer is approximate: a quick answer
 game ..."), not "short of its target" (`grade.ts` `capGist`; test `provenance.approxReason.test.ts`). The same goes for
 a later street narrowed through a spot served as built (`ranges_built`). Quick's 3-way turn game (8 buckets) isn't
 marked.
+
+## 29. Practice's Quick grades re-checked at Fast (2026-11-18)
+
+Practice plays at Quick unless the setting is Accurate (a Fast setting plays Quick's budgets after the flop, as the
+classic trainer does). Quick's answer is a shorter solve. Advisor's own measure over 1,000 hands against Fast gave the
+same grade 88% of the time for a Quick solve within 1% of the pot (settled), and 62% for nearest-flop and
+earlier-street reads (section 3, and FEATURE_MATRIX's Decision grading row). An unsettled Quick solve and the betting
+rules weren't measured. So a settled Practice grade at Quick reads differently at Fast about one time in eight; for the
+rest the rate isn't known.
+
+**What changes.** While the solver has nothing else to do, the Room asks each graded decision of this session again at
+Fast and grades your same move against that answer (`web/src/features/practice/recheck.ts`, `room.ts`). It goes
+through the one grading entry point every Practice grade uses (`practice.ts` `decide`, so `gradeAnswer` on
+`practiceBasis`), on Fast's answer with Fast's own provenance: mode `fast`, its distance from equilibrium and band, its
+caps. Fast's grade then replaces Quick's in the decision and its hand, the session's score, cells and sources,
+History's record, the table's tally, Review's list, Retry and Copy for AI. The decision keeps what Quick said (`quick`:
+verdict, best action, EV lost, source), so those surfaces say "Re-checked at Fast: Mistake → Correct" or "Re-checked at
+Fast: same grade", and the sentence beside it names each answer by its source: "a Quick solve" or "the Fast solve" only
+for a solve, otherwise what it was ("Quick's answer, Heuristic rules (not a solve)"). How settled Fast's solve is, is
+its band's to say (the badge: "(converged)" under 3% of the pot, as for any answer); the sentence says Fast's is a short
+solve too and points to the badge, never "converged" or "not converged" by itself. A retry of a re-checked spot is
+asked at Fast at least (`retry.ts` `askedAt`), and a retry open when its decision's re-check lands starts again at
+Fast, so a Quick answer never stands beside a Fast grade. A kept miss moves with the grade: still a miss, the same
+record gets Fast's answer and grade (`recheckedMiss`); now Best or Correct, the miss is taken back from the record it
+went into, found by id or, as `keepMistake` found it, by spot (`data/mistakes.ts` `takeBackMiss`, `takenBack`). The
+record goes where that miss was its only one; where it went into an earlier record, that record comes back as it was
+before (`prior`, which `missedAgain` keeps beside a Practice miss at Quick), with any retries made since. A record
+whose only miss it was but that you've retried keeps it as it was. The Review page's queue shows a re-checked miss with
+Fast's provenance, without the "Re-checked" words.
+
+**What isn't asked.** Anything Fast answers the same way: the charts, the preflop solve, push/fold, the library's own
+spot (a borrowed one is approximate and is asked), and the betting rules where Fast also leaves the spot to them (five
+or more players in before the river, six or more on it). Nor a decision after Reveal, off a read's profile, ungraded,
+partial, or answered at Fast or Accurate already. Nothing is re-checked in Accurate, nor with the setting off
+(Settings, "Re-check Quick grades at Fast when the solver is idle", on by default), nor where a stop isn't cheap. A
+Fast answer that falls back to the betting rules or an equity estimate where Quick's answer didn't isn't taken: the
+decision is marked with why, and Quick's grade stands.
+
+**Order and priority.** Only hands that have ended are asked. Quick and Fast share one Advisor and its solve cache, and
+a solve's key has no budget, so Fast's request for a hand still played would find that hand's Quick street solve and
+run it on, and the hand's later streets would then read a different solve (measured natively by the reviewers: the
+turn spot's call EV went from -2.68 to -5.22 and it was solved again). Order is hand by hand: the hands with a flagged
+read first, as Analyze's triage checks its flagged reads first (below Correct or capped, rough or approximate, leaning
+on the rules, low confidence, or 2% of the pot given up: `triage.ts`'s `DEEP_LOSS`, held equal by a test), then the
+other hands, each the latest first, and a hand's decisions in street order, as Analyze asks them, since a flop's solve
+narrows its turn (`recheck.ts` `recheckQueue`); at most 60 wait, the oldest hands dropped. A re-check is the
+scheduler's lowest group (`scheduler.ts` `RECHECK`, below your spot, a short or long one and every look-ahead). A new
+one starts only while no table has anything coming on its timer and every table is between hands or has waited for you
+at your turn for 5 s (`RECHECK_IDLE`): a move of yours stops it, and what the move asks waits for that stop (about
+0.1 s on the worker, more where the solver doesn't read the stop flag). It's stopped the moment anything else wants the
+solver, then asked again later. One that fails for its spot, or that something outside the Room cancels twice, is
+marked (the decision keeps why: "Not re-checked at Fast (...): this grade is on ...") and never asked again. A solver
+that can't be reached, or a worker that didn't start, says nothing of the spot: every re-check waits, unmarked, and
+none goes until a table's request has an answer ("Re-checks at Fast paused" in the score strip).
+
+**What it doesn't do.** The backlog is in memory: a reload rebuilds it only from the hands still on the tables (above
+one table), so older hands of a reloaded session keep Quick's grade. Its counts (done, changed, couldn't be graded) are
+kept with the session (`session.ts` `rechecked`), so a reload above one table keeps them. A re-check run while you
+think at your turn adds Fast's solves to the cache the tables share (700 MB in the worker, least recently used out
+first, the latest two always kept), so under memory pressure it can push out an earlier street's solve of the hand in
+play, which that hand's next street would then solve again or narrow by the betting rules (traced in `advisor.py`
+`_keep`, not measured). A hand kept in Analyze holds the moves and cards, not the grades (`practice/history.ts`
+`practiceRecord`), so it has nothing to update and is never kept twice. Measured only on a fake client (tests
+`recheck.test.ts`, `room.test.ts`, `scheduler.test.ts`, `session.test.ts`, `grade.test.ts`, `SessionRetry.test.tsx`,
+`data/mistakes.test.ts`): how often Fast changes a Practice grade on the real worker, and how many re-checks a session
+gets through, are not yet measured.

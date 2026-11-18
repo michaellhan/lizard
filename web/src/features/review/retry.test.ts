@@ -7,7 +7,7 @@ import { libFile } from "@/test/library";
 import { LIVE, mistake } from "@/test/mistake";
 import type { MistakeAsk } from "@/data/db";
 import { retried } from "./mistakes";
-import { askLibrary, askSolver, storedTurnAnswer } from "./retry";
+import { askedAt, askLibrary, askSolver, storedTurnAnswer } from "./retry";
 
 const fakeFetch = (async (url: string) => {
   const path = String(url).replace(/^lib\//, "").split("?")[0]!;
@@ -20,6 +20,13 @@ const fakeFetch = (async (url: string) => {
 const lib = () => new LibraryFiles("lib/", fakeFetch);
 
 describe("the solver's answer", () => {
+  it("is asked at the page's mode, and a grade re-checked at Fast at Fast at least", () => {
+    const ask = mistake().ask as Extract<MistakeAsk, { via: "solver" }>;
+    expect(askedAt(ask, "quick")).toBe("quick");
+    expect(askedAt({ ...ask, fast: true }, "quick")).toBe("fast");
+    expect(askedAt({ ...ask, fast: true }, "accurate")).toBe("accurate");
+  });
+
   it("asks by the kept request, and gives the current answer's own provenance", async () => {
     const data = { actions: [{ action: "check", freq: 0.2, ev_bb: 1 }, { action: "bet 33%", freq: 0.8, ev_bb: 1.2, amount_bb: 2 }], pot_bb: 6 };
     const solve = vi.fn(async () => ({ data, provenance: { ...LIVE, seconds: 2 } }));

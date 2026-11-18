@@ -309,8 +309,9 @@ export interface DecisionRecord {
  * the entry's, as the library's index gave it), or, for a decision graded in Analyze, nothing: the record's own mix is
  * the answer (`hand`, `decision`: where it came from, which can be gone since; the record needs neither to be retried). */
 export type MistakeAsk =
-  /** live: a live drill's, asked again on the drill's terms (review/retry.ts) */
-  | { via: "solver"; state: AdvisorState; live?: true }
+  /** live: a live drill's, asked again on the drill's terms (review/retry.ts); fast: a Practice grade re-checked at Fast
+   * (features/practice/recheck.ts), asked again at Fast at least, as its grade was */
+  | { via: "solver"; state: AdvisorState; live?: true; fast?: true }
   | { via: "library"; spot: string; flop: string; path: string[]; combo: [number, number]; version?: string; turn?: { card: string; at: string[] } }
   | { via: "kept"; hand: string; decision: string };
 
@@ -381,6 +382,9 @@ export interface MistakeRecord {
   step: number;
   due: number | null;
   tries: MistakeTry[];
+  /** the record as it was before its latest miss went into it, where that miss was a Practice grade at Quick, which a
+   * re-check at Fast can take back (data/mistakes.ts takeBackMiss): only the one before, never its own `prior` */
+  prior?: Omit<MistakeRecord, "prior">;
 }
 
 export interface LizardDB extends DBSchema {

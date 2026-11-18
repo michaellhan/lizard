@@ -40,7 +40,7 @@ const isProvenance = (p: unknown): p is Provenance =>
 
 const isAsk = (x: unknown): x is MistakeAsk => {
   if (!isObj(x)) return false;
-  if (x.via === "solver") return isObj(x.state) && isCount(x.state.players);
+  if (x.via === "solver") return isObj(x.state) && isCount(x.state.players) && (x.fast === undefined || x.fast === true);
   // (`hand` goes in a link)
   if (x.via === "kept") return isWellFormed(x.hand) && !!x.hand && isStr(x.decision) && !!x.decision;
   return x.via === "library" && isStr(x.spot) && isStr(x.flop) && isStrs(x.path) && Array.isArray(x.combo) && x.combo.length === 2 && x.combo.every(isCount) && isOptStr(x.version) && (x.turn === undefined || (isObj(x.turn) && isStr(x.turn.card) && isStrs(x.turn.at)));
@@ -65,12 +65,13 @@ const isTry = (t: unknown): t is MistakeTry =>
 /** A stored or restored record, whole and of the types it says, else null. Nothing here throws. */
 export function readMistake(x: unknown): MistakeRecord | null {
   if (!isObj(x)) return null;
-  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, decisions, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, basis, provenance, step, due, tries } = x;
+  const { id, from, tournament, exploit, sessionId, street, at, lastAt, updatedAt, times, decisions, seat, players, game, hole, board, line, study, ask, chose, mix, pot, grade, basis, provenance, step, due, tries, prior } = x;
   const fits =
     isStr(id) && !!id && (from === "hand" || from === "drill" || from === "analyze" || from === "leak") && (tournament === undefined || tournament === "icm" || tournament === "chips") && (exploit === undefined || isWellFormed(exploit)) && isStr(sessionId) && isStr(street) && isNum(at) && isNum(lastAt) && isNum(updatedAt) && isCount(times) && (decisions === undefined || isHeld(decisions, times as number)) &&
     isStr(seat) && isCount(players) && isStr(game) && isStrs(hole) && hole.length === 2 && hole.every(isCard) && isStrs(board) && board.every(isCard) && isStr(line) && (study === null || isStr(study)) && isAsk(ask) &&
     isStr(chose) && isMix(mix) && isNum(pot) && isGrade(grade, mix) && isBasis(basis) && (provenance === null ? (ask as MistakeAsk).via !== "kept" : isProvenance(provenance)) && isCount(step) && (due === null || isNum(due)) &&
-    Array.isArray(tries) && tries.every(isTry);
+    Array.isArray(tries) && tries.every(isTry) &&
+    (prior === undefined || (isObj(prior) && prior.prior === undefined && prior.id === id && readMistake(prior) !== null));
   return fits ? (x as unknown as MistakeRecord) : null;
 }
 
@@ -117,6 +118,44 @@ export async function addMistake(fresh: MistakeRecord, keyOf: SpotKey = noKey): 
   if (!there) await tx.store.put(fresh);
   await tx.done;
   return there ? "there" : "added";
+}
+
+/** Whether what a record shows is the miss `old`: the move, the line, the grade and the answer it was graded on. */
+const showing = (m: MistakeRecord, old: MistakeRecord) =>
+  m.chose === old.chose && m.study === old.study && m.grade.verdict === old.grade.verdict && m.provenance?.mode === old.provenance?.mode && m.provenance?.receivedAt === old.provenance?.receivedAt && m.provenance?.source === old.provenance?.source;
+
+/** The record `was` once the miss `old` is taken back, for a grade a re-check at Fast found Best or Correct
+ * (features/practice/recheck.ts): "gone" where that miss, from its own session, was its only one and it hasn't been
+ * retried; the record as it was before that miss went into it (`prior`, missedAgain's), where it shows that miss still,
+ * with the retries made since and the schedule they moved; else missed once less, where its count by decision still
+ * stands. Null where nothing's to change: a record that shows another miss keeps it, and one whose only miss is this one
+ * but has been retried is left as it is (its tries are yours). */
+export function takenBack(was: MistakeRecord, old: MistakeRecord, now: number): MistakeRecord | "gone" | null {
+  const latest = showing(was, old);
+  if (latest && was.times <= 1 && !was.tries.length && was.sessionId === old.sessionId) return "gone";
+  if (latest && was.prior) {
+    const p = was.prior;
+    const since = was.tries.length > p.tries.length;
+    return { ...p, id: was.id, tries: was.tries, ...(since ? { step: was.step, due: was.due } : {}), updatedAt: now };
+  }
+  if (was.times > 1 && (was.decisions === undefined || isHeld(was.decisions, was.times - 1))) return { ...was, times: was.times - 1, updatedAt: now };
+  return null;
+}
+
+/** A miss taken back (`takenBack`) from the record it went into, found as keepMistake found it: by `old`'s id, else by
+ * `keyOf`, so a miss saved into a record of another id (an Analyze record of the same spot, say) is taken back from
+ * there. Whether there was a record to look at. */
+export async function takeBackMiss(old: MistakeRecord, keyOf: SpotKey = noKey): Promise<boolean> {
+  const d = await db();
+  if (!d) return false;
+  const tx = d.transaction("mistakes", "readwrite");
+  const key = keyOf(old);
+  const was = readMistake(await tx.store.get(old.id)) ?? (key === null ? null : sameSpot(await tx.store.getAll(), key, keyOf));
+  const next = was && takenBack(was, old, Date.now());
+  if (next === "gone") await tx.store.delete(was!.id);
+  else if (next) await tx.store.put(next);
+  await tx.done;
+  return !!was;
 }
 
 /** A record taken out of the queue, its retries with it. Whether this browser could: a damaged one goes the same way. */

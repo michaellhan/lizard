@@ -3,8 +3,8 @@
 // them all. Decisions count as they're graded and a hand as it ends, so `score.n` runs ahead of the tallies mid-hand.
 import type { SessionRecord } from "@/data/db";
 import { versionOf } from "@/grading/version";
-import { addCell, addHandToPot, addSource, handPot, type GradeCell, type PotTally } from "@/features/history/history";
-import { addScore, emptyScore, type Score } from "@/grading/grade";
+import { addCell, addHandToPot, addSource, dropCell, dropSource, handPot, regradePot, type GradeCell, type PotTally } from "@/features/history/history";
+import { addScore, emptyScore, regradeScore, type Score } from "@/grading/grade";
 import type { ResultSource } from "@/solver/types";
 import { PRIZE_UNIT } from "@/solver/provenance";
 import { playedByRead } from "./exploit";
@@ -38,7 +38,19 @@ export interface PracticeSession {
   /** an exploit session's chips over the hands where every move of the opponent's after the flop was the read's (`hands`,
    * `net` in bb), and the hands left out, where one wasn't (`off`): exploit.ts `playedByRead` */
   read?: ReadNet;
+  /** this session's Quick grades re-checked at Fast (recheck.ts): how many, how many of them changed the verdict, and how
+   * many Fast couldn't grade. Kept with the session, so a reload doesn't count only what's still in Review (none: nothing
+   * re-checked yet) */
+  rechecked?: Rechecked;
 }
+
+export interface Rechecked {
+  done: number;
+  changed: number;
+  failed: number;
+}
+
+export const NONE_RECHECKED: Rechecked = { done: 0, changed: 0, failed: 0 };
 
 export interface ReadNet {
   hands: number;
@@ -86,6 +98,40 @@ export function afterDecision(s: PracticeSession, h: PracticeHand, d: Decision, 
     cells: addCell(s.cells, d.street, d.provenance?.source, d.grade, versionOf(d.provenance), { seat: h.hero, pot: handPot(h.lines.preflop, simOf(h)) }),
     review: withReviewed(s.review, reviewed(h, d, h.n + 1, table)),
   };
+}
+
+/** One decision the same as another: the same object, or as it was written down (a session read back holds its hands and
+ * its Review list apart, so a decision in both is two objects alike). */
+export const sameDecision = (a: Decision | null | undefined, b: Decision | null | undefined): boolean => !!a && !!b && (a === b || JSON.stringify(a) === JSON.stringify(b));
+
+/** The session after your decision `was`, graded at Quick at the hand `h` as it stood when you decided, was re-checked at
+ * Fast as `now` (recheck.ts). Every total it went into moves from the one grade to the other, as though it had been graded
+ * at Fast from the first: the score (`place`, its place among the decisions graded, from 1, puts it in the recent run and
+ * the streak where it's still in them), what graded it, its cell, its entry in Review, and once its hand has ended
+ * (`ended`), its pot's tally. A total it can't be found in is left as it is, so nothing is counted twice. */
+export function afterRecheck(s: PracticeSession, h: PracticeHand, was: Decision, now: Decision, o: { place?: number; ended: boolean }): PracticeSession {
+  if (!was.grade || !now.grade) return s;
+  const at = { seat: h.hero, pot: handPot(h.lines.preflop, simOf(h)) };
+  const less = dropSource(s.sources, was.provenance?.source);
+  const cells = dropCell(s.cells, was.street, was.provenance?.source, was.grade, versionOf(was.provenance), at);
+  const tally = s.byPot[at.pot];
+  const r = s.rechecked ?? NONE_RECHECKED;
+  return {
+    ...s,
+    rechecked: { ...r, done: r.done + 1, changed: r.changed + (was.grade.verdict !== now.grade.verdict ? 1 : 0) },
+    score: regradeScore(s.score, was.grade, now.grade, o.place),
+    sources: less ? addSource(less, now.provenance?.source) : s.sources,
+    cells: cells ? addCell(cells, now.street, now.provenance?.source, now.grade, versionOf(now.provenance), at) : s.cells,
+    review: s.review.map((e) => (e.n === h.n + 1 && sameDecision(e.d, was) ? { ...e, d: now } : e)),
+    byPot: o.ended && tally ? { ...s.byPot, [at.pot]: regradePot(tally, { ...was.grade, source: was.provenance?.source }, { ...now.grade, source: now.provenance?.source }) } : s.byPot,
+  };
+}
+
+/** The session after your decision `was` at the hand `h` couldn't be re-checked at Fast: its entry in Review is `failed`
+ * (Quick's grade, with why), and it's counted as one Fast couldn't grade. No total moves. */
+export function afterRecheckFailed(s: PracticeSession, h: Pick<PracticeHand, "n">, was: Decision, failed: Decision): PracticeSession {
+  const r = s.rechecked ?? NONE_RECHECKED;
+  return { ...s, rechecked: { ...r, failed: r.failed + 1 }, review: s.review.map((e) => (e.n === h.n + 1 && sameDecision(e.d, was) ? { ...e, d: failed } : e)) };
 }
 
 /** A hand's grades, each with what answered it, for its pot's tally: the preflop solve's EV is kept apart from a postflop solve's. */

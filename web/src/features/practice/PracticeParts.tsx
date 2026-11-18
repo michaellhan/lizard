@@ -25,6 +25,7 @@ const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 
 import { pfWords } from "./pfGrade";
 import { CopyForAi, Kbd, MixTable, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
+import { RECHECK_WORDS, recheckLine, recheckNote, recheckWords, type RecheckStatus } from "./recheck";
 import { mistakes, recent, type Reviewed } from "./review";
 import { LEVEL_HANDS, leftOf, levelOf } from "./tournamentPlay";
 import { sessionUnit, type Kept, type PracticeSession } from "./session";
@@ -107,7 +108,7 @@ export function byFrequency(p: Provenance | null | undefined): string {
 /** The score in one line, and what it rests on folded under it (the sources it was graded against on the fold's own line;
  * how the two ways of grading preflop split, the game's notes and `children`, the ask-ahead meter, inside): the numbers stay
  * on the first screen beside the table, and where they come from is a line under them. */
-export function ScoreStrip({ session, acc, loss, lossPct, children }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; children?: ReactNode }) {
+export function ScoreStrip({ session, acc, loss, lossPct, recheck, children }: { session: PracticeSession; acc: number; loss: number | null; lossPct: number | null; recheck?: RecheckStatus; children?: ReactNode }) {
   const s = session.score;
   // (graded more than one way, a single rate or EV figure would add unlike things: each way gets its own, as in History)
   const ways = cellWays(Object.values(session.cells ?? {}));
@@ -125,7 +126,9 @@ export function ScoreStrip({ session, acc, loss, lossPct, children }: { session:
     session.opts.exploit && !!session.read?.off && `${many(session.read.off, "hand")} left out of Net against the profile.`,
     !!session.revealed && `${session.revealed} revealed decision${session.revealed === 1 ? "" : "s"} not graded.`,
     s.ne > 0 && SCORE_LOSS_WORDS,
+    !!recheck && (recheck.on || recheck.done > 0 || recheck.failed > 0) && RECHECK_WORDS,
   ].filter((x): x is string => !!x);
+  const rechecking = recheck && recheckLine(recheck);
   return (
     <section aria-label="Score" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 panel px-3 py-2 text-sm">
       {item("Hands", String(session.hands))}
@@ -143,7 +146,10 @@ export function ScoreStrip({ session, acc, loss, lossPct, children }: { session:
       {session.opts.exploit && item("Net against the profile", session.read?.hands ? `${signed(session.read.net)}bb · ${many(session.read.hands, "hand")}` : "–")}
       {/* (always there and one line high, so nothing under it moves as the first grade or look-ahead comes in) */}
       <details className="basis-full text-xs text-muted">
-        <summary className="cursor-pointer">{s.n > 0 ? `Graded against: ${sourcesText(session.sources)}` : "Nothing graded yet"}</summary>
+        <summary className="cursor-pointer">
+          {s.n > 0 ? `Graded against: ${sourcesText(session.sources)}` : "Nothing graded yet"}
+          {rechecking && <span role="status"> · {rechecking}</span>}
+        </summary>
         <div className="mt-1 space-y-1">
           {notes.map((n) => (
             <p key={n}>{n}</p>
@@ -209,6 +215,11 @@ function RetryOpener({ back, onClick }: { back: boolean; onClick: () => void }) 
 /** Your decisions this session (review.ts): the last few, newest first, or your biggest mistakes once asked for,
  * each opening its spot and verdict. `retry`, at one table: Previous and Later step through all of them, and any can be
  * retried; `onOpen` says when a retry is open, as the table's keys would play a real move under it. */
+/** One entry of the list and another for the same decision: its hand, table, street, Study line and move (the move made,
+ * not the answer's name for it, which a re-check's answer can name otherwise). */
+const sameSpot = (a: Reviewed, b: Reviewed) =>
+  a.n === b.n && a.table === b.table && a.d.street === b.d.street && a.d.study === b.d.study && a.d.move.action === b.d.move.action && Math.abs((a.d.move.to ?? 0) - (b.d.move.to ?? 0)) < 1e-6;
+
 export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: { getClient: GetClient; onOpen: (open: boolean) => void } }) {
   // (folded to one quiet line until opened: the table and your range come first)
   const [unfolded, setUnfolded] = useState(false);
@@ -223,9 +234,12 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
     onOpen?.(retrying !== null);
     return () => onOpen?.(false);
   }, [retrying, onOpen]);
+  // (an entry re-checked at Fast is a new one in the list: what's open stays open as the same spot, now Fast's)
+  const now = (x: Reviewed | null) => (x ? (review.find((e) => e === x) ?? review.find((e) => sameSpot(e, x)) ?? x) : null);
+  const [picked, retried, back] = [now(pick), now(retrying), now(closed)];
   const bad = mistakes(review);
   const xs = open ? bad : recent(review);
-  const at = pick ? review.indexOf(pick) : -1;
+  const at = picked ? review.indexOf(picked) : -1;
   const show = (e: Reviewed | null) => {
     setPick(e);
     setRetrying(null);
@@ -246,13 +260,15 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
       </p>
       <DecisionView d={e.d} players={e.players} title={e.table ? `Table ${e.table}, hand ${e.n}, ${e.d.street}` : `Hand ${e.n}, ${e.d.street}`} spot={e} />
       {retry &&
-        (retrying === e ? (
-          <SessionRetry key={`${e.n}|${e.d.study}`} e={e} getClient={retry.getClient} onClose={() => {
+        (retried === e ? (
+          // (keyed by what the grade stands on too: a re-check landing under an open retry starts it again, asked at Fast, as a
+          // pick graded on Quick's answer would sit beside Fast's grade)
+          <SessionRetry key={`${e.n}|${e.d.study}|${e.d.provenance?.mode ?? ""}|${e.d.quick ? "rechecked" : ""}`} e={e} getClient={retry.getClient} onClose={() => {
             setRetrying(null);
             setClosed(e);
           }} />
         ) : retrySpot(e) ? (
-          <RetryOpener back={closed === e} onClick={() => setRetrying(e)} />
+          <RetryOpener back={back === e} onClick={() => setRetrying(e)} />
         ) : (
           <p className="text-xs text-muted">Can&rsquo;t retry: spot not kept.</p>
         ))}
@@ -301,7 +317,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
           <span className="text-xs text-muted">{at >= 0 ? `Decision ${at + 1} of ${review.length}` : `Last ${review.length} graded decision${review.length === 1 ? "" : "s"}`}</span>
         </div>
       )}
-      {pick && !xs.some((x) => x.e === pick) && detail(pick)}
+      {picked && !xs.some((x) => x.e === picked) && detail(picked)}
       {xs.length === 0 ? (
         <p className="text-muted">No mistakes in your last {review.length} decisions so far.</p>
       ) : (
@@ -313,9 +329,9 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
               <li key={i} className="space-y-2">
                 <button
                   type="button"
-                  aria-expanded={pick === e}
-                  onClick={() => show(pick === e ? null : e)}
-                  className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${pick === e ? "border-accent" : "border-border"}`}
+                  aria-expanded={picked === e}
+                  onClick={() => show(picked === e ? null : e)}
+                  className={`flex w-full flex-wrap items-center gap-2 rounded-md border px-2 py-1 text-left hover:bg-surface-2 ${picked === e ? "border-accent" : "border-border"}`}
                 >
                   <span className="font-mono text-xs text-muted">
                     {e.table ? `Table ${e.table} · ` : ""}Hand {e.n} · {e.d.street}
@@ -327,6 +343,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
                   </span>
                   <span className="font-mono">{e.d.chose}</span>
                   <VerdictTag v={g.verdict} />
+                  {recheckWords(e.d) && <span className="text-xs text-muted">{recheckWords(e.d)}</span>}
                   <span className="font-mono text-xs">{g.byEv ? (g.loss > 0.005 ? `${bb(g.loss)}${evUnit(p)} lost${g.ok ? " (not counted)" : ""}` : "no EV lost") : `played ${pct(e.d.mix[g.a]?.freq ?? 0)}`}</span>
                   {p && (
                     <span className="text-xs text-muted" title={describeProvenance(p)}>
@@ -335,7 +352,7 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
                     </span>
                   )}
                 </button>
-                {pick === e && detail(e)}
+                {picked === e && detail(e)}
               </li>
             );
           })}
@@ -529,6 +546,12 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
         </span>
         {d.provenance && <ProvenanceBadge p={d.provenance} short />}
       </div>
+      {g && d.quick && (
+        <p className="text-xs text-muted">
+          <span className="font-medium">{recheckWords(d)}.</span> {recheckNote(d)}
+        </p>
+      )}
+      {g && !d.quick && d.recheckFailed !== undefined && <p className="text-xs text-muted">{recheckNote(d)}</p>}
       {d.revealed && (
         <p role="status" className="text-muted">
           {REVEAL_NOTE}

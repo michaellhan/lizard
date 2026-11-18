@@ -410,6 +410,18 @@ describe("what's said of a decision", () => {
     expect(text).toContain("bb of prize equity");
   });
 
+  it("says beside the score how re-checking at Fast is going, and nothing where it's had nothing to do", () => {
+    const s = freshSession(2, 100, OPTS);
+    const { unmount } = render(<ScoreStrip session={s} acc={1} loss={0.1} lossPct={2} recheck={{ on: true, left: 3, done: 2, changed: 1, failed: 0 }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Re-checking at Fast: 3 left · 1 changed");
+    unmount();
+    const off = render(<ScoreStrip session={s} acc={1} loss={0.1} lossPct={2} recheck={{ on: false, left: 4, done: 0, changed: 0, failed: 0 }} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    off.unmount();
+    render(<ScoreStrip session={s} acc={1} loss={0.1} lossPct={2} recheck={{ on: true, left: 0, done: 2, changed: 0, failed: 1 }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Re-checked at Fast: 2 done · 1 couldn't be graded");
+  });
+
   it("shows a tournament's score without a net", () => {
     const s = { ...freshSession(3, 20, { ...OPTS, tournament: ICM }), hands: 3, net: 5 };
     render(<ScoreStrip session={s} acc={1} loss={0.1} lossPct={2} />);

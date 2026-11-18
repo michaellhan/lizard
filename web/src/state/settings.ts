@@ -21,6 +21,9 @@ export interface Settings {
    * the library can deal it, else Any hand), and your seat there */
   practiceSpot: Spot | null;
   practiceSeat: string;
+  /** Practice: ask your Quick-graded decisions again at Fast while the solver is idle, and grade them on Fast's answer
+   * (features/practice/recheck.ts). Added 2026-11-18, on by default: a setting saved before has none, and reads the default */
+  recheckFast: boolean;
   /** Practice: ask ahead for your likeliest lines while you decide (null: not chosen, read as the measured default, ahead.ts's
    * `ASK_AHEAD`, which a saved `false` would hide when it changes) */
   askAhead: boolean | null;
@@ -58,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   practiceSpot: null,
   practiceSeat: "random",
   askAhead: null,
+  recheckFast: true,
   studyView: "mix",
   studyTab: "hand",
   breakdownPart: "made",
@@ -80,8 +84,8 @@ interface SettingsState extends Settings {
 
 function pick(s: SettingsState): Settings {
   // (a key saved by an older version and since removed, such as colorByAction, is dropped here)
-  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds, pfRake } = s;
-  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds, pfRake };
+  const { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, recheckFast, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds, pfRake } = s;
+  return { mode, transport, localSolverUrl, librarySource, evUnit, keepHands, practiceSpot, practiceSeat, askAhead, recheckFast, studyView, studyTab, breakdownPart, studySplit, studyKeys, actionPatterns, treeCap, sounds, pfRake };
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({

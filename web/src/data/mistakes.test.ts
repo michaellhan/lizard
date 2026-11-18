@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { chartMistake, DAY_ONE, LIVE, mistake, STORED } from "@/test/mistake";
 import { db } from "./db";
-import { addMistake, changeMistake, deleteMistake, heldDecisions, keepMistake, listMistakes, readMistake } from "./mistakes";
+import { missedAgain, spotKey } from "@/features/review/mistakes";
+import { addMistake, changeMistake, deleteMistake, heldDecisions, keepMistake, listMistakes, readMistake, takeBackMiss, takenBack } from "./mistakes";
 
 const wipe = async () => (await db())!.clear("mistakes");
 
@@ -18,6 +19,8 @@ describe("a kept record, read", () => {
 
   it("takes a whole one, of either kind of answer", () => {
     expect(readMistake(mistake())).toEqual(mistake());
+    // (a grade re-checked at Fast is asked again at Fast)
+    expect(readMistake(mistake({ ask: { via: "solver", state: { players: 6 } as never, fast: true } }))).not.toBeNull();
     expect(readMistake(chartMistake())).toEqual(chartMistake());
     expect(readMistake(mistake({ provenance: null, study: null, due: null, step: 4 }))).not.toBeNull();
     const turn = { via: "library", spot: "x", flop: "Ac8c6c", path: [], combo: [1, 2], turn: { card: "2h", at: [] } } as const;
@@ -39,6 +42,7 @@ describe("a kept record, read", () => {
     ["an unknown provenance", { ...mistake(), provenance: { ...mistake().provenance, source: "guess" } }],
     ["a provenance with no mode", { ...mistake(), provenance: { source: "live", approximate: false } }],
     ["no way to ask it", { ...mistake(), ask: { via: "post" } }],
+    ["a re-check's ask that isn't marked true", { ...mistake(), ask: { via: "solver", state: { players: 6 }, fast: false } }],
     ["a damaged turn", { ...mistake(), ask: { via: "library", spot: "x", flop: "y", path: [], combo: [1, 2], turn: { card: 3, at: [] } } }],
     ["one hole card", { ...mistake(), hole: ["Ah"] }],
     ["a damaged retry", { ...mistake(), tries: [{ at: 1 }] }],
@@ -77,6 +81,86 @@ describe("the mistakes store", () => {
     expect((await changeMistake("a", (m) => ({ ...m, step: m.step + 1 })))?.step).toBe(2);
     expect((await listMistakes()).list[0]?.step).toBe(2);
     expect(await changeMistake("none", (m) => m)).toBeUndefined();
+  });
+});
+
+describe("a miss taken back (a re-check at Fast found it Best or Correct)", () => {
+  const tried = { at: 1, chose: "check", verdict: "Best", ok: true, byEv: true, loss: 0, lossPct: 0, source: "live", label: "x", like: true, moved: true } as const;
+
+  it("deletes this session's only miss, never retried", async () => {
+    await wipe();
+    const m = mistake({ id: "a" });
+    await keepMistake(m, (_, f) => f);
+    expect(await takeBackMiss(m)).toBe(true);
+    expect((await listMistakes()).list).toEqual([]);
+    expect(await takeBackMiss(m)).toBe(false);
+  });
+
+  it("keeps a miss retried or from another session, and counts one missed again once less", async () => {
+    await wipe();
+    await keepMistake(mistake({ id: "tried", tries: [tried] }), (_, f) => f);
+    await keepMistake(mistake({ id: "old", sessionId: "practice-0" }), (_, f) => f);
+    await keepMistake(mistake({ id: "twice", times: 2 }), (_, f) => f);
+    await keepMistake(mistake({ id: "held", times: 2, decisions: { "practice-1:1:0": 1, "practice-1:2:0": 1 } }), (_, f) => f);
+    for (const id of ["tried", "old", "twice", "held"]) expect(await takeBackMiss(mistake({ id }))).toBe(true);
+    const by = Object.fromEntries((await listMistakes()).list.map((m) => [m.id, m.times]));
+    // (a count by decision that would no longer stand is left as it was)
+    expect(by).toEqual({ tried: 1, old: 1, twice: 1, held: 2 });
+  });
+
+  it("puts back the record as it was before a Quick miss went into it: its grade, answer and schedule, not Quick's", async () => {
+    await wipe();
+    const earlier = mistake({ sessionId: "practice-0", grade: { ...mistake().grade, verdict: "Inaccuracy", loss: 0.1, lossPct: 1.8 }, provenance: { ...LIVE, mode: "accurate", receivedAt: 1 }, step: 3, due: DAY_ONE + 9e8 });
+    await keepMistake(earlier, missedAgain);
+    const quick = mistake({ grade: { ...mistake().grade, verdict: "Blunder", loss: 2, lossPct: 36 }, provenance: { ...LIVE, receivedAt: 7 }, lastAt: DAY_ONE + 5, updatedAt: DAY_ONE + 5 });
+    await keepMistake(quick, missedAgain);
+    const merged = (await listMistakes()).list[0]!;
+    expect(merged).toMatchObject({ times: 2, grade: { verdict: "Blunder" }, provenance: { mode: "quick" }, step: 0 });
+    expect(merged.prior).toMatchObject({ times: 1, grade: { verdict: "Inaccuracy" } });
+    expect(readMistake(merged)).not.toBeNull();
+
+    expect(await takeBackMiss(quick)).toBe(true);
+    const back = (await listMistakes()).list;
+    expect(back).toHaveLength(1);
+    const { updatedAt: _u, ...was } = earlier;
+    void _u;
+    expect(back[0]).toMatchObject({ ...was, times: 1 });
+    expect(back[0]!.prior).toBeUndefined();
+  });
+
+  it("keeps the retries made since and the schedule they moved", async () => {
+    const was = mistake({ sessionId: "practice-0", step: 3, provenance: { ...LIVE, mode: "accurate" } });
+    const quick = mistake({ provenance: { ...LIVE, receivedAt: 7 } });
+    const merged = { ...missedAgain(was, quick), tries: [tried], step: 1, due: DAY_ONE + 1 };
+    expect(takenBack(merged, quick, 9)).toMatchObject({ times: 1, provenance: { mode: "accurate" }, tries: [tried], step: 1, due: DAY_ONE + 1, updatedAt: 9 });
+    // (one that shows another miss since keeps it, missed once less)
+    const since = missedAgain(merged, mistake({ from: "analyze", provenance: { ...LIVE, mode: "fast", receivedAt: 8 } }));
+    expect(takenBack(since, quick, 9)).toMatchObject({ times: 2, provenance: { mode: "fast" } });
+  });
+
+  it("finds a Quick miss saved into a record of another id by the spot, as keepMistake did", async () => {
+    await wipe();
+    const analyze = mistake({ id: "analyze|imp|3|0", from: "analyze", sessionId: "import-3", provenance: { ...LIVE, mode: "fast", receivedAt: 1 } });
+    await keepMistake(analyze, missedAgain, spotKey);
+    const practice = mistake({ provenance: { ...LIVE, receivedAt: 7 } });
+    expect(spotKey(practice)).not.toBeNull();
+    expect(spotKey(practice)).toBe(spotKey(analyze));
+    await keepMistake(practice, missedAgain, spotKey);
+    expect((await listMistakes()).list).toMatchObject([{ id: "analyze|imp|3|0", times: 2, from: "hand" }]);
+
+    expect(await takeBackMiss(practice)).toBe(false);
+    expect(await takeBackMiss(practice, spotKey)).toBe(true);
+    const { updatedAt: _u, ...was } = analyze;
+    void _u;
+    expect((await listMistakes()).list).toMatchObject([{ ...was, times: 1 }]);
+  });
+
+  it("reads a record's prior only whole, of its own id, and one deep", () => {
+    const merged = missedAgain(mistake({ sessionId: "practice-0" }), mistake());
+    expect(readMistake(merged)).not.toBeNull();
+    expect(readMistake({ ...merged, prior: { ...merged.prior!, id: "other" } })).toBeNull();
+    expect(readMistake({ ...merged, prior: { ...merged.prior!, grade: { ...merged.grade, verdict: "Best" } } })).toBeNull();
+    expect(readMistake({ ...merged, prior: { ...merged.prior!, prior: merged.prior } as never })).toBeNull();
   });
 });
 
