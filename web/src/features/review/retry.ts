@@ -38,7 +38,8 @@ export async function askSolver(ask: Extract<MistakeAsk, { via: "solver" }>, pot
     const asked = await client.solve({ state: ask.state, mode, signal, untimed: true });
     const read = pfAgain(asked, ask.state, kept, pot);
     if ("why" in read) throw new Error(read.why);
-    return { mix: mixOf(read.data), pot: read.data.pot_bb ?? pot, provenance: read.provenance };
+    // (its basis from the answer, as Practice's: the table's size it gives, heads-up the grade's cap, grade.ts HEADS_UP_PF)
+    return { mix: mixOf(read.data), pot: read.data.pot_bb ?? pot, provenance: read.provenance, basis: basisOf(read.provenance, { res: read.data }) };
   }
   const { data, provenance } = await client.solve({ state: ask.state, mode, signal });
   if (!optionsOf(data).length) throw new Error(data.error ?? "the answer has no actions at this spot");

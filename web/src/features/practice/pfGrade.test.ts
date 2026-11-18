@@ -15,6 +15,7 @@ import { addCell, rowOf } from "@/features/history/history";
 import { streetTotals } from "@/features/history/progress";
 import { answerChange, handMistake, retried, spotKey } from "@/features/review/mistakes";
 import { askAgain, askSolver } from "@/features/review/retry";
+import { basisOf } from "@/grading/basis";
 import { readSetup, scenarioWords } from "@/data/scenarios";
 import { SolverClient } from "@/solver/client";
 import type { Move } from "@/poker/table";
@@ -487,6 +488,25 @@ describe("kept apart", () => {
     expect(t.grade.byEv).toBe(true);
     expect(t.tried).toMatchObject({ source: "preflop-solve", like: true, byEv: true });
     expect(t.first).toEqual(gradeMix(answer.mix, answer.pot, 1, "preflop-solve"));
+  });
+  it("retries a heads-up miss by the solve with its cap, as Practice graded it (grade.ts HEADS_UP_PF)", async () => {
+    const h = btn();
+    const d = solveD();
+    const m = handMistake("s", h, { ...d, grade: { ...d.grade!, ok: false } }, 1)!;
+    if (m.ask.via !== "solver") throw new Error(m.ask.via);
+    const hu = { ...NODES.opened, players: 2 };
+    const answer = await askSolver(m.ask, m.pot, async () => ({ solve: async () => asked(hu) }), "quick", undefined, m.mix);
+    expect(answer.basis).toMatchObject({ source: "preflop-solve", players: 2 });
+    // every pick graded on the retry as Practice grades it
+    for (let k = 0; k < answer.mix.length; k++) expect(retried(m, answer, k, 5).grade).toEqual(gradeMix(answer.mix, answer.pot, k, basisOf(answer.provenance, { res: hu })));
+    // the 65o limp of gradeAnswer.test.ts (the solve raises for 0.304bb, values the limp at 0.161bb in a 1.5bb pot): a
+    // Mistake at 6-max, an Inaccuracy heads-up, on a retry as at the table
+    const limp = { ...answer, mix: [{ action: "raise", freq: 1, ev: 0.304 }, { action: "call", freq: 0, ev: 0.161 }, { action: "fold", freq: 0, ev: 0 }], pot: 1.5 };
+    expect(retried(m, limp, 1, 5).grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    // an answer that comes back without its table's size keeps the one the first grade knew
+    const bare = { ...limp, basis: undefined };
+    expect(retried({ ...m, basis: { source: "preflop-solve", players: 2 } }, bare, 1, 5).grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    expect(retried({ ...m, basis: { source: "preflop-solve", players: 6 } }, bare, 1, 5).grade.verdict).toBe("Mistake");
   });
   it("says it can't, in words, where the solve won't answer the same way", async () => {
     const h = btn();
