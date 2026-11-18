@@ -1564,7 +1564,8 @@ one in 14, and random play is still graded below Correct almost half the time.
 
 **Not established.** The noise is measured at 6-max 100bb only; other depths and table sizes use the same curve. It
 treats the charts' weights as the published solves' indifference, which they are only to the charts' rounding (many are
-written 0.5). The preflop drill still stops every grade at an Inaccuracy (`PreflopDrill.tsx`), as before.
+written 0.5). The preflop drill stopped every grade at an Inaccuracy (`PreflopDrill.tsx`) until section 27 took the
+cap off, and every other source's EVs kept the 0.011bb tie until section 27 gave each answer a noise of its own.
 
 ## 19. Nut advantage on Reports (2026-11-06)
 
@@ -2213,3 +2214,118 @@ chart itself 3bets K9s 78% and KTs 1% (the moves data: a pure class-level solve'
   correction above takes it as exact, so its error remains, and it feeds the heads-up re-pricing, push/fold and the
   class-level preflop solve. An exact table moves the stored preflop solves' model (a new model tag and a rebuild).
 - The format charts' moves (`gto/pf_format_data.py`) carry the class-level solves' pure choices between neighbours.
+
+## 27. One grading rule for every surface (2026-11-18)
+
+An audit went over every place Lizard grades a decision: Practice, the live drill, Review's retries (asked again and
+kept), Analyze and its leak drill, the stored flop drills, the preflop drill and PLO. What it found:
+
+- **One answer, three verdicts.** The same river answer and pick (a live solve's 2% bet giving up 4.5% of the pot)
+  graded through each surface's own path:
+
+  | Answer | Practice | Live drill | Retry, asked again | Retry, kept | Analyze |
+  |---|---|---|---|---|---|
+  | Converged (0.25%) | Mistake | Mistake | Mistake | Mistake | Mistake |
+  | Rough band (12%) | Mistake | refused | Mistake | Inaccuracy | Inaccuracy |
+  | Short of target | Mistake | Inaccuracy | Mistake | Inaccuracy | Inaccuracy |
+  | Ranges partly from the rules | Mistake | Inaccuracy | Mistake | Mistake | Mistake |
+  | Rules fallback | Mistake | refused | Mistake | Mistake | not graded |
+
+  A preflop-solve Blunder in Practice was an Inaccuracy in the preflop drill, which capped every grade.
+- **A tie of 0.011bb, far finer than the answers.** Every answer but the preflop solve called a gap over a cent a miss,
+  so the solve's own noise was graded as your mistake (below).
+- **Words against the tables.** The "why" rounded to whole percents ("never plays this" beside 0.4%, "always" beside
+  another action at 0.4%, "only 10%" on a grade below Correct); a 50/50 chart hand's other half was graded below Best;
+  an action played 0% was named best over the hand's main play by a cent; a Correct printed its loss and added it to the
+  score; Practice's range line called the class's average "your hand"; Analyze named the most frequent action best and
+  sorted misses by raw EV; empty, NaN and all-zero answers threw or printed "?". A property check over random answers
+  found 20 invariants broken.
+- **Drill bets priced off the tree.** A library drill labelled "bet 33% (1.82bb)" where the tree bets 2bb (the solver
+  rounds a bet to the half big blind, 1bb at least: `solver/gto/solver.py:1244`), and the pots and study links after it
+  carried the difference.
+
+**The rule [V].** Every surface now grades through `gradeAnswer` (`web/src/grading/grade.ts`) with what it knows of the
+answer, built from the answer's provenance by `basisOf` (`web/src/grading/basis.ts`):
+
+- **Noise.** The preflop solve keeps its own (section 18.8). Any other answer with EVs: at least 0.5% of the pot (the
+  engine's own tie, `advisor.py` `BR_TIE_MIN`), at least twice the solve's measured distance from equilibrium, and for
+  the flop library at least two stored EV steps (2% of the flop's starting pot). An action within the noise of the best
+  is Correct, and past it only the excess is graded against the 2% and 8% thresholds. The EV given up is shown as
+  measured.
+- **Best.** Yours where it holds the top EV to 0.011bb; else, of the actions within the noise of the top, the most
+  played, so an action played 0% is never named over one the hand plays that close.
+- **What can't condemn a line.** Where the answer's error isn't measured the verdict stops at Inaccuracy and says why:
+  the rules or equity fallback; a solve cut short before it measured itself; ranges that lean on the betting rules (an
+  opponent's rare line read by the rules and not resolved, a range the rules widened, an earlier street narrowed by them:
+  `provenance.ts` `rangesOffOf`, which now also reads the answer's `off_solution` and `widened`, so the provenance label
+  says so too); a rough or short-of-target band; a read of another solution whose error is unmeasured; a move the engine
+  marks `rough_ev` (the range almost never takes it). A filled range and a resolved rare line no longer cap: the solve
+  measured those. The preflop drill's blanket cap is gone, so its grades match Practice's.
+- **The score.** A Best or Correct counts nothing, and a decision below Correct counts only what it gave up past the
+  noise. Each decision still shows the loss as measured, labelled "within the answer's noise, not counted" or "part of
+  the hand's mix, not counted". The score's help says so, and History says its EV lost per stretch counted all of it
+  before this date.
+- **Words.** One decimal, as the tables; "never" and "always" only at 0.0% and 100.0%; frequencies within half a point
+  of the top are all Best. Analyze's tables and miss cards use the grade's best and the noise. Practice's range line
+  reads "AKo, all combos: … · your A♥K♦: … (graded on this)".
+- **Drill bets** follow the tree's rounding everywhere a drill prices one (labels, pots, the hand so far, study links).
+
+`web/src/grading/crossSurface.test.ts` grades one answer through all eight surfaces' paths and checks they agree on the
+verdict, the cap, the EV lost and what the score counts. `grade.props.test.ts` checks 15 invariants over 12,000 seeded
+answers of every kind and the odd inputs.
+
+**How the live noise was set [M].** Four heads-up turn spots (single-raised: BB first to act, BTN facing a check, BB
+facing a bet; 3-bet: CO first), each solved at Fast (169-305 iterations, 0.09-0.28% of the pot from equilibrium; the
+3-bet spot ran to 1,000 iterations, 0.01%) and at 1,000 iterations as the reference (0.01-0.02%). Every combo and action,
+6,819 pairs. Fast's EV gap from an action to the best is off the reference's by 0.11-0.18% of the pot at the median and
+0.32-1.09% at the 90th percentile, 2.3-3.9 times the solve's distance from equilibrium (95th: 0.42-1.39%, 3.0-5.0 times);
+on actions either solve plays 0.5% or more, 0.11-0.12% at the 90th and 0.21-0.36% at the 95th. Fast's grades against the
+reference's, each at its own noise (the first and third columns are shares of all 6,819 pairs, played or not):
+
+| Rule | Fast below Correct | of them, the reference OK | Fast OK, the reference below | Played picks below Correct | Picks played 0.5-10% below Correct |
+|---|---:|---:|---:|---:|---:|
+| Before (0.011bb) | 60.5% | 5.3% | 1.0% | 2.6% | 20.5% |
+| 2×, floor 0.25% | 55.9% | 2.7% | 1.3% | 0.8% | 6.4% |
+| **2×, floor 0.5%** | **51.5%** | **5.0%** | **0.6%** | **0.5%** | **4.3%** |
+| 3×, floor 0.5% | 51.0% | 4.5% | 0.9% | 0.4% | 3.1% |
+| 2×, floor 1% | 45.3% | 3.2% | 0.7% | 0.2% | 1.2% |
+
+(Played picks: actions Fast plays 0.5% or more, 2,569 of the pairs; 0.5-10%, 327.) Nowhere does Fast call OK what the
+reference grades Mistake or worse. The verdict differs from the reference's on 9.3% of pairs against 7.4% before: the
+new Correct/Inaccuracy line sits where Fast and the reference differ by a few hundredths of a bb. At these solves'
+distances twice the exploitability is under the floor in three spots of four, so the floor does the work and the factor
+of 2 moved nothing measurable (0×, 1× and 2× give the same table row to 0.1 point); the factor was set from the ratio
+above, for solves further out.
+
+**The flop library [M].** The library's own answers played exactly, 4-5 flops from each of its 22 spots (`index.json`;
+multiway spots included), every node short of a raise (the first column weighted by how often a hand reaches the
+node, the others counting hand and action pairs):
+
+| Noise | Playing the stored mix, below Correct | Picks played 0.5-10% below Correct (20,862) | of them facing a bet (8,689) |
+|---|---:|---:|---:|
+| Before (0.011bb) | 0.23% | 30.5% | 46.8% |
+| 1 step | 0.09% | 9.9% | 21.9% |
+| **2 steps** | **0.04%** | **5.5%** | **12.7%** |
+| 3 steps | 0.03% | 3.4% | 8.2% |
+
+(Single-raised at 2 steps: 4.9% and 12.7%; 3-bet: 7.3% and 12.6%.) An equilibrium plays only actions of equal EV, so a
+stored action's gap to the best is the library's own error. First to act, actions played 0.5-10% sit within one step
+98.0-98.8% of the time and within two 99.5-99.9%. Facing a bet they sit further: a call within one step 65-79% and
+within two 80-87%, a raise 84-86% and 92-93%, a fold 42-64% and 65-77%, an all-in in a 3-bet pot 6% and 16% (150
+plays); the 90th percentile is 2-6 steps (12 for that all-in). Two steps covers nearly all of the first and most of the second, and what's
+left past it is graded on the excess.
+
+**Preflop [M].** Section 18.8's measure stands (the charts graded below Correct 7.4% → 1.4%); the drill now gives the
+same grades.
+
+**Not established.**
+- The live noise is measured on four heads-up turn spots at Fast, all within 0.3% of equilibrium. Solves further out
+  (the fair band, 3-10%, where twice the distance is 6-20% of the pot), rivers, 3-way pots and Quick are unmeasured; the
+  factor and the floor are tuned on those four spots, not derived.
+- The library's two steps are measured on 4-5 flops a spot, and facing a bet a fold the library itself plays 0.5-10% is
+  still past two steps 23-35% of the time.
+- Analyze's report totals, its hands' EV lost, and the Plan still sum each decision's EV lost as measured
+  (`report.ts`, `analyze.ts` `lostByHand`, `plan.ts`), not the excess past the noise that Practice's, the drills' and
+  History's scores count.
+- History's EV lost before 2026-11-18 counted all of it, so an older stretch reads higher; the page says so.
+- The cross-surface test drives each surface's grading code with one answer, not each page in a browser.
