@@ -182,7 +182,8 @@ Guarantees, enforced by `assemble.py`:
 - a source on a different tree or format is skipped;
 - a 3-way build's flops join only a published 3-way spot of the same ranges, pot and stack, and the base's entry
   wins a flop both hold;
-- the stage stays under 50 MB per file, 900 MB in total and 90,000 files (raised from 60,000 on 2026-11-17: GitHub Pages limits a site to 1 GB, not a file count, and deployed 49,298 files in 80 s).
+- the stage stays under 50 MB per file, 900 MB in total and 120,000 files (raised from 60,000 to 90,000 on 2026-11-17, then to 120,000 for the single-size library's about 35,000: GitHub Pages limits a site to 1 GB, not a file count, and deployed 49,298 files in 80 s);
+- the single-size library (`library-build/sources/single-size`, `docs/single-size-library.md`) goes in last, as its own `ss_index.json`: a flop once 90% of its spots hold it, within its own 250 MB.
 
 The tests are in `scripts/library/test_assemble.py`.
 

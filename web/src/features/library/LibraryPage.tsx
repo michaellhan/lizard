@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { LIBRARY_SOURCES, type LibrarySourceId } from "@/config";
-import { loadCatalog, type LibraryCatalog, type SpotCoverage } from "@/library/catalog";
+import { loadCatalog, type LibraryCatalog, type SingleSizeCoverage, type SpotCoverage } from "@/library/catalog";
 import { parseLine } from "@/features/study/studyState";
 
 const KIND: Record<SpotCoverage["kind"], string> = {
@@ -123,7 +123,70 @@ function SourceSection({ label, base, cat }: { label: string; base: string; cat:
           </table>
         </div>
       ))}
+      {cat?.singleSize && <SingleSizeSection ss={cat.singleSize} />}
     </section>
+  );
+}
+
+const SS_LISTED = 40;
+
+/** The single-size library beside this one (ss_index.json): its own source, one bet size a node, on fewer flops. */
+function SingleSizeSection({ ss }: { ss: SingleSizeCoverage }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? ss.flops : ss.flops.slice(0, SS_LISTED);
+  return (
+    <div className="space-y-2">
+      <div className="scroll-x rounded-lg border border-border">
+        <table className="w-full min-w-[560px] text-sm">
+          <caption className="bg-surface-2 px-3 py-1.5 text-left font-medium">
+            Single-size library: 6-max 100bb, one bet size a node, the flop&apos;s chosen for each flop by the solver&apos;s automatic sizing
+          </caption>
+          <thead className="text-xs text-muted">
+            <tr>
+              <th className="px-3 py-1.5 text-left font-normal">Spot</th>
+              <th className="px-3 py-1.5 text-left font-normal">Flops</th>
+              <th className="px-3 py-1.5 font-normal">
+                <span className="sr-only">Open in Study</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ss.spots.map((s) => (
+              <tr key={s.id} className="border-t border-border/60">
+                <td className="px-3 py-1.5">
+                  <div>{s.label}</div>
+                  <div className="font-mono text-xs text-faint">{s.id}</div>
+                </td>
+                <td className="px-3 py-1.5 font-mono text-xs">
+                  {s.flops}
+                  {ss.target ? ` / ${ss.target}` : ""}
+                </td>
+                <td className="px-3 py-1.5 text-right">
+                  {parseLine(s.line).length > 0 && (
+                    <Link to={`/study?${new URLSearchParams({ p: "6", s: "100", pre: s.line, lib: "ss" }).toString()}`} className="text-accent hover:underline">
+                      Study →
+                    </Link>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted">
+        Flops covered on every spot ({ss.flops.length}
+        {ss.target ? ` of ${ss.target} planned` : ""}): <span className="font-mono">{shown.join(" ")}</span>
+        {ss.flops.length > SS_LISTED && (
+          <>
+            {all ? "" : " …"}{" "}
+            <button type="button" onClick={() => setAll(!all)} className="underline hover:text-text">
+              {all ? "Fewer" : `All ${ss.flops.length}`}
+            </button>
+          </>
+        )}
+        . Any other flop is asked from the library or solved live.
+      </p>
+    </div>
   );
 }
 

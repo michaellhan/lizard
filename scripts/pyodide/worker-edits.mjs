@@ -84,6 +84,14 @@ const EDITS = [
     to: "import engine.tree_depth; import engine.bunching; from gto.advisor import Advisor;",
   },
   {
+    // engine/single_size.py: a request's `single_size` (Study's single-size flop source) reads its flop from the
+    // single-size library (the library base's ss_index.json) instead of index.json, its tree the flop's own one size;
+    // a request without it is upstream's. After bunching, so it wraps bunching's wrap of Advisor._advise_at (this edit
+    // runs on that one's output).
+    from: "import engine.bunching; from gto.advisor import Advisor;",
+    to: "import engine.bunching; import engine.single_size; from gto.advisor import Advisor;",
+  },
+  {
     // A request's `cache_mb` (web/src/features/reports/customRun.ts: a custom flop report's solves): the most the solves
     // kept for reuse may hold while it's answered, below the worker's own 700 MB (cache_mb, set at start), which comes back
     // with the next request that doesn't say. A report solves flop after flop and reuses none of them, so without this its

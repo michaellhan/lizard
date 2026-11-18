@@ -38,13 +38,16 @@ import {
   studyKeyFrom,
   studyRequest,
   toSearch,
-  samePf,
+  sameSources,
+  withLib,
   withPf,
   withPfSizes,
   withBunchingOn,
   withPfStacks,
   type StudyHand,
 } from "./studyState";
+import { FlopSource, offersFlopSource, SingleSizeNote, useSingleSize } from "./FlopSource";
+import { ssMatch, ssRequest } from "@/library/singleSize";
 import { encodePfSizes } from "./pfSizes";
 import { BreakdownPanel } from "./BreakdownPanel";
 import { BuildMode, type BuildSaved } from "./BuildMode";
@@ -218,7 +221,13 @@ function HoldemStudy() {
   const game = pfGame(hand);
   const onPf = hand.pf === "solver" && streetOf(hand) === "preflop";
 
-  const requestKey = `${toSearch(hand)}|${mode}`;
+  // the single-size flop source (FlopSource.tsx): its index read once picked, and the request's part for this node (the
+  // flop's own size), asked once the index is in (a node waits for it, not asked twice)
+  const ssOn = hand.lib === "ss" && offersFlopSource(hand);
+  const ssIdx = useSingleSize(ssOn);
+  const ssPart = ssOn ? ssRequest(ssMatch(ssIdx, hand)) : null;
+  const ssWait = ssOn && streetOf(hand) !== "preflop" && ssIdx === undefined;
+  const requestKey = `${toSearch(hand)}|${mode}${ssOn ? `|ss:${ssWait ? "wait" : JSON.stringify(ssPart)}` : ""}`;
   const askKey = `${requestKey}|${attempt}`;
   // a saved spot opened with its answer (?saved=): that answer stands until Re-solve, another node or another mode
   const kept = useSavedAnswer(params.get("saved"), toSearch(hand), requestKey);
@@ -282,7 +291,7 @@ function HoldemStudy() {
         ? answer.phase
         : { kind: "loading" };
   useEffect(() => {
-    if (problems.length || kept.result || kept.reading) return;
+    if (problems.length || kept.result || kept.reading || ssWait) return;
     const ac = new AbortController();
     abortRef.current = ac;
     let alive = true;
@@ -304,7 +313,7 @@ function HoldemStudy() {
                 if (alive) setPhase({ kind: "loading", partial: p });
               },
             }),
-          studyRequest(hand),
+          studyRequest(hand, ssPart),
           client.solverVersion,
         );
         if (alive) setPhase({ kind: "done", result });
@@ -520,6 +529,7 @@ function HoldemStudy() {
         <div className="flex flex-wrap items-center gap-2">
           <GamePicker page="study" current="nlhe" />
           {streetOf(hand) === "preflop" && <PreflopSource value={hand.pf ?? "charts"} onChange={(v) => setHand(withPf(hand, v))} />}
+          {offersFlopSource(hand) && <FlopSource value={hand.lib === "ss" ? "ss" : "library"} onChange={(v) => setHand(withLib(hand, v))} />}
           {streetOf(hand) === "preflop" && hand.pf === "solver" && (
             <PfSizesForm
               key={`${encodePfSizes(hand.pfSizes ?? {})}|${JSON.stringify(hand.setup?.stacks ?? {})}|${hand.players}`}
@@ -532,7 +542,7 @@ function HoldemStudy() {
           )}
           <ModePicker modes={["fast", "accurate"]} />
           <div {...newHandBox}>
-            <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(samePf(hand, freshHand(p, st)))} />
+            <NewHandForm key={`${hand.players}/${hand.stack}`} players={hand.players} stack={hand.stack} onStart={(p, st) => setHand(sameSources(hand, freshHand(p, st)))} />
           </div>
         </div>
       </div>
@@ -564,7 +574,7 @@ function HoldemStudy() {
           >
             Forward →
           </button>
-          <button type="button" onClick={() => setHand(samePf(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
+          <button type="button" onClick={() => setHand(sameSources(hand, { ...freshHand(hand.players, hand.stack), setup: hand.setup }))} className="rounded px-2 py-0.5 text-muted hover:bg-surface-2">
             Reset
           </button>
           <ChangeCards key={`cards|${requestKey}`} hand={hand} onChange={setHand} />
@@ -595,6 +605,7 @@ function HoldemStudy() {
               Bunching{hand.setup?.bunching ? ` (${BUNCHING_SOURCES[hand.setup.bunching]})` : ""}
             </label>
           )}
+          {ssOn && <SingleSizeNote hand={hand} idx={ssIdx} />}
           {raw?.bunching && nextCardWords(raw.bunching) && (
             <p aria-label="Bunching" className="text-xs text-muted">
               {nextCardWords(raw.bunching)}; the solve still deals them evenly.

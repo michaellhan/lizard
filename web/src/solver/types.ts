@@ -78,6 +78,9 @@ export interface Provenance {
   tree?: string;
   /** the ranges weighed by the hands the preflop folders held (engine/bunching.py): whose folds, how; in words */
   bunching?: string;
+  /** a single-size answer (engine/single_size.py): its one-size tree, the flop's size chosen by automatic sizing, and
+   * whether it was read from the single-size library; in words */
+  singleSize?: string;
   /** a heads-up flop answer: what its flop model gave up in the full game on the benchmark's spots (abstraction.ts) */
   abstraction?: string;
   /** the preflop solve's distance from equilibrium: mbb/hand a seat gains by best-responding, on average */

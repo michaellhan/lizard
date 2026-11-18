@@ -4,6 +4,7 @@ import { describeLock, type Lock } from "@/features/study/locks";
 import type { AdvisorResponse } from "./protocol";
 import { abstractionWords, flopModelOf } from "./abstraction";
 import { bunchingWords } from "./bunching";
+import { singleSizeWords } from "./singleSize";
 import { treeWords } from "./treeDepth";
 import type { ConvergenceBand, Provenance, ResultSource, SolveMode, TransportKind } from "./types";
 
@@ -201,6 +202,9 @@ export function provenanceOf(r: AdvisorResponse, ctx: ProvenanceContext): Proven
   // the ranges entering the flop weighed by the preflop folds (engine/bunching.py): which folds, and that runouts aren't
   const bunch = source === "live" || source === "node-lock" ? bunchingWords(r.bunching) : null;
   if (bunch) p.bunching = bunch;
+  // a single-size answer (engine/single_size.py): the one-size tree it's on, whether stored or solved live on it
+  const ss = singleSizeWords(r.single_size, r.street);
+  if (ss) p.singleSize = ss;
   // a heads-up flop's figure is in its own smaller game: what that game's flop gave up in the full one (ACCURACY section 21)
   const abs = abstractionWords(flopModelOf(r, source, p.mode, ctx.transport));
   if (abs) p.abstraction = abs;
@@ -347,6 +351,7 @@ export function describe(p: Provenance): string {
   if (p.lock) parts.push(p.lock);
   if (p.lockRange) parts.push(p.lockRange);
   if (p.sizing) parts.push(p.sizing);
+  if (p.singleSize) parts.push(p.singleSize);
   if (p.tree) parts.push(p.tree);
   if (p.bunching) parts.push(p.bunching);
   if (p.librarySpot) parts.push(p.librarySpot);

@@ -6061,3 +6061,24 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
 - Found: the classic library publishes four 3-way spots Lizard lacks (`mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb`,
   `mw_utg_sb_bb`); its 3-way tree adds `bucket_power: 1.0`, which the snapshot at 1a14605e doesn't have, so taking
   them needs a newer upstream import.
+
+## 2026-11-17: Single-size library (W4): built in code, solving, not published
+
+- New: a library of every heads-up 6-max 100bb line with one bet size a node, the flop's chosen per flop by the
+  solver's automatic sizing (upstream `_optimize_sizes`, unchanged); turn and river bets 75%. 38 spots plus 7 alias
+  lines, flop by flop over every spot: the 184 representative flops, then on to 552. Design, numbers and integration
+  steps are in `docs/single-size-library.md`.
+- The build: `scripts/library/build_single_size.py`, started 22:19 detached through `slot.sh` from
+  `library-build/runs/single-size/` (a frozen copy of the script and `solver/`), 2 workers, a supervisor that restarts
+  lost workers, a 48 h deadline. First 244 entries: 6 s and 4.6 KB an entry, peak 842 MB. About 16–23 h for all 20,976.
+  Single-raised pots use the classic tree, since on the dealt tree they took 1.2–1.4 GB in the trial.
+- Lizard side: `engine/single_size.py` (the reader, and a `single_size: true` request; the worker imports it, declared
+  in `solver/UPSTREAM.json`); `assemble.py` stages it as `ss_index.json` (a flop once 90% of spots hold it, 250 MB of
+  its own, never fewer flops than before; `MAX_FILES` 90,000 to 120,000); Study's flop source picker (Library /
+  Single size) with the covered flops; the provenance "single-size tree with solver-chosen sizes"; the Library page's
+  table.
+- Checked: `test_assemble.py` 37, `test_single_size.py` 10 (through `slot.sh`), the pyodide scripts 24, vitest on the
+  touched files, typecheck, lint and `npm run build`. The advisor read stored single-size entries from a locally
+  assembled stage. Not checked in a browser.
+- Left: merge the branch, check the stage's size, publish (`publish.sh` or the 6-hourly run), deploy the app, then
+  grade the matrix row (NOT IMPLEMENTED until then).

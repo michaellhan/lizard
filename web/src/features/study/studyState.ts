@@ -24,6 +24,8 @@ export interface StudyHand {
   pf?: "solver";
   /** the preflop solve's raise sizes where they aren't the defaults (pfSizes.ts; the Solver source only) */
   pfSizes?: PfSizes;
+  /** the flop's source: the library (the default) or the single-size library (library/singleSize.ts; lib=ss) */
+  lib?: "ss";
 }
 
 export function freshHand(players = 6, stack = 100): StudyHand {
@@ -36,8 +38,9 @@ export function streetOf(h: Pick<StudyHand, "board">): Street {
 }
 
 /** The Advisor request for the node: Study mode, at equilibrium, no hero cards; preflop with the Solver source, the
- * preflop solve's node ("preflop_solve", as study.js request). */
-export function studyRequest(h: StudyHand): AdvisorState {
+ * preflop solve's node ("preflop_solve", as study.js request). `ss`: the single-size part (library/singleSize.ts
+ * ssRequest), sent with the single-size source after the flop: `single_size` and the flop's own size. */
+export function studyRequest(h: StudyHand, ss?: Pick<AdvisorState, "sizes" | "single_size"> | null): AdvisorState {
   return {
     players: h.players,
     stack: h.stack,
@@ -51,7 +54,15 @@ export function studyRequest(h: StudyHand): AdvisorState {
     ...(h.pf === "solver" && streetOf(h) === "preflop" ? { preflop_solve: true, ...pfSizesRequest(h.pfSizes) } : {}),
     // (bunching from the preflop solve's folds: its game, sizes and all, so the folds are read off the solve that played the line)
     ...(h.setup?.bunching === "solve" && streetOf(h) !== "preflop" ? pfSizesRequest(h.pfSizes) : {}),
+    ...(h.lib === "ss" && ss && streetOf(h) !== "preflop" ? ss : {}),
   };
+}
+
+/** The hand with the flop's source set: the library (no `lib`) or the single-size library (lib=ss in the URL). */
+export function withLib(h: StudyHand, v: "library" | "ss"): StudyHand {
+  const rest = { ...h };
+  delete rest.lib;
+  return v === "ss" ? { ...rest, lib: "ss" } : rest;
 }
 
 /** The hand with bunching on or off (engine/bunching.py): on, from the preflop source in use, the preflop solve's folds
@@ -95,6 +106,9 @@ export function withPfStacks(h: StudyHand, stacks: Record<string, number> | unde
 
 /** A new hand (to) with from's preflop source and the solve's sizes. */
 export const samePf = (from: StudyHand, to: StudyHand): StudyHand => withPfSizes(withPf(to, from.pf ?? "charts"), from.pf === "solver" ? from.pfSizes : undefined);
+
+/** A new hand (to) with from's sources: preflop's (samePf) and the flop's. */
+export const sameSources = (from: StudyHand, to: StudyHand): StudyHand => withLib(samePf(from, to), from.lib === "ss" ? "ss" : "library");
 
 /** The hand after the actor takes one of the node's actions. */
 export function play(h: StudyHand, res: AdvisorResponse, a: AdvisorActionStat): StudyHand {
@@ -196,6 +210,7 @@ export function toSearch(h: StudyHand): string {
   setupToParams(h.setup, q);
   if (h.pf === "solver") q.set("pf", "solver");
   if (h.pf === "solver" && h.pfSizes) q.set("pfs", encodePfSizes(h.pfSizes));
+  if (h.lib === "ss") q.set("lib", "ss");
   return q.toString();
 }
 
@@ -220,6 +235,7 @@ export function fromSearch(search: string): StudyHand | null {
     river: parseLine(q.get("river") ?? ""),
     ...(setup ? { setup } : {}),
     ...(q.get("pf") === "solver" ? { pf: "solver" as const, ...((s) => (s ? { pfSizes: s } : {}))(parsePfSizes(q.get("pfs"), players)) } : {}),
+    ...(q.get("lib") === "ss" ? { lib: "ss" as const } : {}),
   };
 }
 
