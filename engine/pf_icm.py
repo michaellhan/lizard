@@ -40,9 +40,30 @@ from gto.pf_classes import CLASSES, PAIR_COMPAT, equity_matrix
 K = len(CLASSES)
 JAM_OPEN = 25.0        # an unopened pot can be jammed beside the open from this effective stack (bb) or less
 # the flop model's tag, hashed into every game's key (pf_icm_study.Spec.key), so no stored file or browser keep mixes two
-# models' solves: "cal1" engine/pf_model's calibrated model (2026-11-18; the keys before it had none: upstream's
-# pf_study.flop_model). A change to the model or engine/pf_calib.py bumps it
-FLOP_MODEL_TAG = "cal1"
+# models' solves: "cal1" is engine/pf_model's calibrated model (2026-11-18; the keys before it had none: upstream's
+# pf_study.flop_model) on the equities (gto/pf_equity.py) and calibration (engine/pf_calib.py) whose digest is
+# MODEL_DIGEST, which the stored presets were solved on. Other equities or calibration key as "cal1-<their digest>", so
+# every preset's key moves with them and test_pf_icm_stored fails until the presets are solved again
+# (scripts/pf_icm/build_stored.py all --missing) under the new keys; MODEL_DIGEST stays as it is. A change to pf_model's
+# code bumps "cal1" by hand (and MODEL_DIGEST to the digest then).
+MODEL_DIGEST = "3b4b09a3b06f"
+
+
+def model_digest() -> str:
+    """A short hash of what the flop model is computed from: the class equities and the calibrated corrections."""
+    import hashlib
+    import json
+    from gto.pf_equity import DATA
+    h = hashlib.sha1("".join(DATA).encode())
+    try:
+        from . import pf_calib
+        h.update(json.dumps(pf_calib.PARAMS, sort_keys=True).encode())
+    except ImportError:
+        h.update(b"no calibration")
+    return h.hexdigest()[:12]
+
+
+FLOP_MODEL_TAG = "cal1" if model_digest() == MODEL_DIGEST else f"cal1-{model_digest()}"
 EPS = 1e-9
 
 

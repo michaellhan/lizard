@@ -8,8 +8,10 @@ A hand dominates the one below it in its chain: it never does worse holding the 
 - Continue frequency is pooled where it breaks a chain's order (pool adjacent violators, weighted by the combos arriving
   at the node). A pooled block plays its combo-weighted mix, so each action keeps its share of the range.
 - The premiums' raises are pooled, by the same weights, where a stronger hand raises less than its weaker neighbour
-  (JJ-QQ-KK-AA, AQs-AKs, AQo-AKo, AKo-AKs). The range keeps its raises and each hand its continue frequency: what it no
-  longer raises, it calls.
+  (JJ-QQ-KK-AA, AQs-AKs, AQo-AKo, AKo-AKs): the weighted isotonic regression over that order, solved at once for the
+  overlapping AK and AQ steps (the min-max formula over its few upper and lower sets), not one chain after another,
+  which left AQs at 0.375 where the order allows its 0.70. The range keeps its raises and each hand its continue
+  frequency: what it no longer raises, it calls (a hand's raises stay within its continue frequency).
 """
 from __future__ import annotations
 
@@ -39,9 +41,24 @@ def families() -> list:
     return [[CLASS_INDEX[c] for c in ch] for ch in chains if len(ch) > 1]
 
 
-PREMIUM_CHAINS = [["JJ", "QQ", "KK", "AA"], ["AQs", "AKs"], ["AQo", "AKo"], ["AKo", "AKs"]]
+PREMIUM_ORDER = [("JJ", "QQ"), ("QQ", "KK"), ("KK", "AA"), ("AQs", "AKs"), ("AQo", "AKo"), ("AKo", "AKs")]  # (weaker, stronger)
 CHAINS = families()
-PREMIUM = [[CLASS_INDEX[c] for c in ch] for ch in PREMIUM_CHAINS]
+
+
+def _groups(order) -> list:
+    """[(class indices, [(weaker, stronger) as positions in them])]: the connected parts of a (weaker, stronger) order."""
+    parts: list = []
+    for a, b in order:
+        hit = [p for p in parts if a in p or b in p]
+        merged: list = []
+        for c in [c for p in hit for c in p] + [a, b]:
+            if c not in merged:
+                merged.append(c)
+        parts = [p for p in parts if p not in hit] + [merged]
+    return [([CLASS_INDEX[c] for c in p], [(p.index(a), p.index(b)) for a, b in order if a in p]) for p in parts]
+
+
+PREMIUM = _groups(PREMIUM_ORDER)
 WHEEL = frozenset(CLASS_INDEX["A" + k + s] for k in "2345" for s in "so")
 
 
@@ -70,6 +87,30 @@ def _blocks(v: np.ndarray, wt: np.ndarray) -> list:
     return [b for b in blocks if b[1] - b[0] > 1]
 
 
+def isotonic(v: np.ndarray, wt: np.ndarray, edges: list) -> np.ndarray:
+    """The weighted isotonic regression of v (a few values) under (weaker, stronger) index pairs: each value's
+    max over the upper sets holding it of the min over the lower sets holding it of the weighted mean of their meet
+    (the min-max formula; exact, and cheap for a handful of hands)."""
+    n = len(v)
+    below = [0] * n          # bitmask: i and every value under it
+    above = [0] * n
+    for i in range(n):
+        below[i] = above[i] = 1 << i
+    for _ in range(n):
+        for a, b in edges:
+            below[b] |= below[a]
+            above[a] |= above[b]
+    sets = range(1, 1 << n)
+    upper = [m for m in sets if all(not (m >> i) & 1 or (m & above[i]) == above[i] for i in range(n))]
+    lower = [m for m in sets if all(not (m >> i) & 1 or (m & below[i]) == below[i] for i in range(n))]
+
+    vw, w = [float(x) * float(y) for x, y in zip(v, wt)], [float(y) for y in wt]
+    mean = {m: sum(vw[i] for i in range(n) if (m >> i) & 1) / sum(w[i] for i in range(n) if (m >> i) & 1)
+            for m in sets}
+    return np.array([max(min(mean[u & lo] for lo in lower if (lo >> i) & 1) for u in upper if (u >> i) & 1)
+                     for i in range(n)])
+
+
 def repair_classes(M: np.ndarray, names: list, wt: np.ndarray, passes: int = 60) -> np.ndarray:
     """The class-level strategy M ((actions, 169), rows in `names`' order) repaired (the module's step 2) under weights
     wt (169: the combos arriving)."""
@@ -92,21 +133,13 @@ def repair_classes(M: np.ndarray, names: list, wt: np.ndarray, passes: int = 60)
     passive = "call" if "call" in names else "check" if "check" in names else None
     if "raise" in names and passive is not None:
         r, c = names.index("raise"), names.index(passive)
-        for _ in range(passes):
-            moved = False
-            for ch in PREMIUM:
-                rv = M[r, ch]
-                if np.all(np.diff(rv) >= -TOL):
-                    continue
-                for s0, e0 in _blocks(rv, wt[ch]):
-                    ix = ch[s0:e0]
-                    cont = M[r, ix] + M[c, ix]
-                    pooled = (M[r, ix] * wt[ix]).sum() / wt[ix].sum()
-                    M[r, ix] = np.minimum(pooled, cont)
-                    M[c, ix] = cont - M[r, ix]
-                    moved = True
-            if not moved:
-                break
+        for ix, edges in PREMIUM:
+            rv = M[r, ix]
+            if all(rv[a] <= rv[b] + TOL for a, b in edges):
+                continue
+            cont = M[r, ix] + M[c, ix]
+            M[r, ix] = np.minimum(isotonic(rv, wt[ix], edges), cont)
+            M[c, ix] = cont - M[r, ix]
     return M
 
 
