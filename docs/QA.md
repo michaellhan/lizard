@@ -401,7 +401,9 @@ pass and a Mistake or Blunder, at three nodes:
   28.14 against 20.17; neither plays it).
 - 6-max ante turn (BB 6d6s): 33% and 75% bets, Quick Mistake and Fast Correct (EV 1.14 and 1.07 against 1.40 and 1.33).
 
-These are Quick's rates as Practice serves it; a Quick grade isn't re-checked at Fast here (ACCURACY 28).
+These are Quick's grades as Practice first gives them. While the solver is idle, Practice re-checks them at Fast and
+shows Fast's grade in their place (ACCURACY 29); the sweep asks each reference in its own process and doesn't run that
+re-check, and ACCURACY 30 has this comparison.
 
 The first matrix run on the new harness showed three serious flips at one 3-way hand (6max-100bb-loose-any hand 9,
 UTG QsQd on Kd9h8s4s facing BB's 6.5bb turn bet). Fast said fold Best and call Blunder (EV -5.78), against Quick's
