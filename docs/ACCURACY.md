@@ -1588,42 +1588,85 @@ hand continued 0.25 or more less often than one it dominates (the pairs, each hi
 offsuit hand below its suited twin; both hands arriving at 5% or more), K4o continuing over K5o. The charts as served are
 now repaired outside `solver/` (`engine/pf_charts.py`, `engine/pf_dominance.py`, imported by the worker at start):
 continue frequency pooled along each chain where it breaks the order, and AA-KK-QQ-JJ, AKs-AQs, AKo-AQo and AKs-AKo's
-raises pooled where the stronger raises less, each weighted by the combos arriving, so every action keeps its share of
-the range. The nodes that feed a published flop library spot (109 of the sweep's) are left as they were [M]:
+raises, where the stronger raises less, set to the isotonic regression over that order, each weighted by the combos
+arriving, so every action keeps its share of the range. A local server runs upstream without `engine/`, so there the
+charts are upstream's (13 to 19bb on the 100bb charts, hands out of order as before); the published site and Practice
+run the worker, which has them.
 
-| Over the sweep | Before | After | Of them at library nodes |
+**How a node is repaired (reworked after review, 2026-11-18) [M].** Each node's answer is upstream's (its re-priced
+calls, `Advisor._priced`, or a tournament's open, `_icm_open`), priced against upstream's ranges, and then repaired by
+the combos the served ranges bring. The first version priced against the repaired ranges, so one node's repair could
+tip another's knife-edge re-draw: at 9-max 100bb, with the small blind squeezing more AA (0.09 to 0.71), UTG's AKs
+folded 98.8% to the squeeze where it had jammed 83.4%. Over the review's 14-game sweep, 44 premium class-nodes not
+facing an all-in folded 0.3 or more more often than upstream (AA, KK, QQ, JJ, AKs, AKo arriving at 20% or more; 171
+with the calls of a jam, which follow the jams as below); now none do, and that AKs jams 83.4% again (`test_pf_charts.py` `test_no_premium_folds_more_than_upstream_has_it`, over
+9-max 100bb with up to three players in and 7-max 100bb). A hand that reaches a node only through an earlier repair
+(upstream's ranges bring under 1% of its combos there) plays the chart's own answer there: at 6-max 200bb J9s 3-bets
+over UTG's open only because the repair pools it with JTs, and facing the 5-bet upstream's re-draw had given it a call it
+never weighed, which pooled with JTs went all-in for 200bb. Both fold there now
+(`test_a_hand_only_a_repair_brings_plays_the_charts_answer`). The premiums' overlapping steps are solved at once: one
+chain after another had left AQs at 0.375 where the order allows its 0.70 (AKs, AKo and AQo 0.864).
+
+**Jams.** The jams (`Advisor._push`) are repaired too, and an open- or 3-bet-jam's range, which the later streets and
+the calls of it read (`_jam_range`), is now the advice's own jams. Upstream's split from its own advice even unrepaired,
+its push/fold flatting alternative reading the chart's calls rather than the re-priced ones: at 6-max 15bb the big
+blind jammed 33 100% over a HJ open and a CO call while the range held none, and at 6-max 40bb the CO's 3-bet jam over
+UTG's open and the HJ's call held A8s 88%, which the advice never jams. Over 6-max 10, 15 and 25bb, 9-max 15bb with an
+ante and heads-up 15bb, the advice's jam frequency and the range now agree to the grid's rounding (`test_pf_charts.py`
+`Jams`). Facing a jam, a call is by equity against that range, so the calls move with it: over the review's 14 games,
+10,230 jam-facing nodes, 1,639 class-nodes call 0.05 or more less often and 1,841 more often (premiums 643 and 523).
+That CO jam is one: the small blind's AKs had 45.3% against the old range and calls 35% of the time, 44.0% against the
+jams the advice makes, and calls 3%, with 45.9% needed.
+
+**Library nodes.** The nodes that feed a published flop library spot are left as they were: the decisions of the
+players who reach its flop, on its line, at its table size and at the decider's effective depth, with no ante or
+straddle, whatever a folded or deeper seat holds. (The first version bailed out on any table with unequal stacks and
+repaired those nodes too, moving 26 of the 57 spots' ranges there.) The list is the 57 heads-up spots the repo builds
+(`flop_library` `SPOTS` and `FORMAT_SPOTS`, `scripts/library/build_breadth.py` `SPOTS`; `test_pf_charts.py` holds it to
+them): the library's 53, and four `FORMAT_SPOTS` not built yet (HJ and UTG against the big blind at 40 and 200bb) [M]:
+
+| Over the sweep (41,889 nodes) | Before | After | Of them at library nodes |
 |---|---:|---:|---:|
-| Continue inversions | 6,267 | 108 | 70 (70 before) |
+| Continue inversions | 6,267 | 115 | 77 (77 before) |
 | AA or KK flatting over 60% while the next hand down raises more | 469 | 2 | 2 (2 before) |
-| Raise inversions (0.5 or more, the weaker not a wheel ace; not repaired outside the premiums) | 2,151 | 894 | 66 (66 before) |
+| Raise inversions (0.5 or more, the weaker not a wheel ace; not repaired outside the premiums) | 2,151 | 851 | 66 (66 before) |
 
 Before, by node: 185 first in, 3,998 facing an open, 1,995 facing a 3-bet, 58 a 4-bet, 9 a 5-bet, 22 over limps. The 38
 left away from library nodes: 14 are the big blind's check or raise over a heads-up limp (2-max 20 and 40bb, offsuit
 kings raising more than suited), which has no fold to continue against; 24 face an all-in, where the call is by equity
 against the jam in `Advisor._vs_jam` and, inline, in `preflop_ranges`, so repairing the advice alone would split it from
-the ranges the later streets play (each within 1.3% equity). The 2 flats left: 8-max 100bb, the big blind's KK over UTG's
-and UTG1's opens (`srp_utg_bb_8max`, `srp_utg1_bb_8max`).
+the ranges the later streets play. The 2 flats left: 8-max 100bb, the big blind's KK over UTG's and UTG1's opens
+(`srp_utg_bb_8max`, `srp_utg1_bb_8max`). The first version's sweep counted 108, 2 and 894; the 7 more continue
+inversions are the four unbuilt spots' nodes, now left as they were.
 
-**Fingerprints [M].** All 53 published heads-up spots' ranges are the same with the repair as without, and match the
-library index's fingerprints before and after (`scripts/engine/test_pf_charts.py` `LibrarySpots`). Repairing every node
-would have changed 22: srp_co_bb, 3bp_bb_btn, 3bp_sb_btn, 3bp_bb_co, srp_sb_bb_2max, lp_sb_bb_2max, srp_btn_bb_40bb,
-srp_co_bb_40bb, srp_sb_bb_40bb, 3bp_bb_btn_40bb, srp_co_bb_200bb, 3bp_bb_btn_200bb, srp_btn_bb_8max, srp_sb_bb_8max,
-srp_co_bb_8max, srp_utg_bb_8max, srp_hj_bb_8max, 4bp_utg_hj, 4bp_co_btn, 4bp_btn_sb, srp_lj_bb_8max and srp_utg1_bb_8max.
-The four 3-way spots (mw_co_btn_bb, mw_btn_sb_bb, mw_hj_ip_bb, mw_utg_btn_bb) did not match before and still don't; the
-repair moves only the big blind's range in each, by 2.86, 0.98, 2.41 and 2.25 combos of 384 to 428, and no opener's or
-caller's.
+**Fingerprints [M].** All 57 heads-up spots' ranges are the same with the repair as without, also at a table where a
+seat that folds has another stack and the player who closes the action is deeper (`test_pf_charts.py` `LibrarySpots`).
+The library index's 53 fingerprints, recomputed with `engine/pf_charts.py` imported in the worker's order, all match.
+Repairing every node would have changed 26: srp_co_bb, 3bp_bb_btn, 3bp_sb_btn, 3bp_bb_co, srp_sb_bb_2max,
+lp_sb_bb_2max, srp_btn_bb_40bb, srp_co_bb_40bb, srp_sb_bb_40bb, 3bp_bb_btn_40bb, srp_co_bb_200bb, 3bp_bb_btn_200bb,
+srp_btn_bb_8max, srp_sb_bb_8max, srp_co_bb_8max, srp_utg_bb_8max, srp_hj_bb_8max, 4bp_utg_hj, 4bp_co_btn, 4bp_btn_sb,
+srp_lj_bb_8max and srp_utg1_bb_8max (22 of the library's), and the four unbuilt ones. The four 3-way spots
+(mw_co_btn_bb, mw_btn_sb_bb, mw_hj_ip_bb, mw_utg_btn_bb) did not match before and still don't; the repair moves only the
+big blind's range in each, by 2.86, 0.98, 2.41 and 2.25 combos of 384 to 428, and no opener's or caller's. Measured
+against the ranges each spot was built on (`engine/mw_built.py` on claude/postflop-engine), the big blind's
+`flop_approx.range_dist` goes from 0.1495 to 0.1495, 0.1437 to 0.1437, 0.1648 to 0.1647 and 0.1419 to 0.1417: a hair
+closer, nowhere further.
 
 **13 to 19bb.** Above push/fold (12bb) and below the shallowest moved chart (20bb) the charts were the 100bb ones,
 unmoved: the 6-max button opened 45.1% at 13 to 19bb, as at 100bb, and 36.6% at 20bb. Those depths now play the 20bb
-game's moves, re-priced to the table's depth as any chart's are, and the answer's note names the 20bb chart: the button
-opens 36.6%, and the big blind defends its open 53.4% at 15bb (48.4% before; 53.4% at 20bb). 12bb is push/fold as
+game's moves, re-priced to the table's depth as any chart's are: the button opens 36.6%, and the big blind defends its
+open 53.4% at 15bb (48.4% before; 53.4% at 20bb). The answer's note says so: "the 20bb chart, played at 15bb (the 100bb
+chart moved by solves of the 20bb game)" (upstream's wording, "of this game", was wrong at 15bb). 12bb is push/fold as
 before. No flop library spot is at these depths (`test_pf_charts.py` `Shallow`).
 
 **Tournament presets.** The 115 stored presets were solved on upstream's flop model (`pf_study.flop_model`), whose join
 at a library range's edge valued a class just outside it above its neighbours inside (section 18.6 has the cash grid's
 case): the Early preset's hijack opened QTo 100% and folded QJo. They are re-solved on the cash grid's calibrated model
 (`engine/pf_model.py`; `engine/pf_icm.py` `flop_model`, the key tagged `cal1` so no cached solve of the old model is
-read), 1,500 iterations each as before. Now the hijack opens QJo 51% and folds QTo. [M] Over every preset's non-rough
+read), 1,500 iterations each as before. The tag carries the model's inputs: `pf_icm.model_digest` hashes the class
+equities (`gto/pf_equity.py`) and the calibration (`engine/pf_calib.py`), and with any other digest every game keys as
+`cal1-<digest>`, so the stored presets stop being read and `test_pf_icm_stored.py` fails until they are solved again
+(`scripts/pf_icm/build_stored.py all --missing`). Now the hijack opens QJo 51% and folds QTo. [M] Over every preset's non-rough
 nodes (the same thresholds, an inversion EV-backed where the weaker hand's best EV over folding is 0.05bb or more above
 the stronger's):
 
