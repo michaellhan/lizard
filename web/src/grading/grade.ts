@@ -243,18 +243,25 @@ export interface AnswerBasis {
   /** the answer's noise, bb, as a grade kept it: used as it is (a kept decision's) */
   noise?: number;
   /** the table's size, where the preflop solve answered (its answer's `players`): heads-up, it can't condemn a line
-   * (HEADS_UP_PF) */
+   * deeper than HEADS_UP_PF_DEPTH (HEADS_UP_PF) */
   players?: number;
+  /** a heads-up cash preflop solve's depth, bb: the actor's stack behind plus half the pot left after the call faced
+   * (basis.ts basisOf), the table's stack. Unknown, the heads-up cap holds at any depth. */
+  depth?: number;
 }
 
-/** Why the heads-up preflop solve can't condemn a line. Where the published solves play a hand one way, the heads-up
- * stored game often plays it another, by more than its noise: at 100bb it raises 32o, 42o and 43o first in where their
- * charts fold them, and limps QTo and 92s where they raise. Playing the charts exactly was graded a Mistake or Blunder on
- * 7.0% of heads-up 100bb decisions and 2.2% at 20bb, against 0.7% at 6-max, and it isn't noise at the hands the charts mix
- * (there the gap's 90th percentile is 6-max's at 20bb and 1.5 to 2 times it at 100bb): 69% of those 100bb verdicts were at
- * hands the charts play 85% one way (30,000 hands of chart play each, scripts/pf_practice_coverage.py, 2026-11-18;
- * docs/ACCURACY.md section 18.10). */
+/** Why the heads-up preflop solve can't condemn a line deeper than 20bb. Where the published solves play a hand one way,
+ * the heads-up stored game often plays it another, by more than its noise: at 100bb it raises 32o, 42o and 43o first in
+ * where their charts fold them, and limps QTo and 92s where they raise. Played exactly, the no-rake charts were graded a
+ * Mistake or Blunder on 2.4% of heads-up decisions at 25bb, 8.6% at 30bb, 2.7% at 40bb, 3.8% at 60bb and 6.1% at 100bb,
+ * against 0.9% at 3-max and 0.4% at 6-max, and it isn't noise at the hands the charts mix (there the gap's 90th
+ * percentile is 6-max's at 20bb and 1.5 to 2 times it at 100bb). At 20bb it was 0.8%, as 3-max's, which isn't capped,
+ * so there it isn't either (HEADS_UP_PF_DEPTH). 30,000 hands of chart play each, scripts/pf_practice_coverage.py,
+ * 2026-11-18; docs/ACCURACY.md section 18.10. */
 export const HEADS_UP_PF = "The heads-up preflop solve often parts from the published solves' charts, by more than its noise";
+/** The deepest heads-up preflop solve that can condemn a line, bb: its stored 20bb game (HEADS_UP_PF). The next stored
+ * game is 25bb, so the test allows half a big blind for rounding. */
+export const HEADS_UP_PF_DEPTH = 20;
 
 /** Sources whose numbers come from no solve. */
 const UNSOLVED = new Set(["rules", "equity", "unknown"]);
@@ -276,7 +283,7 @@ export function answerNoise(b: AnswerBasis, pot: number): number {
 /** Why an answer can't condemn action `a`, short (the verdict then stops at Inaccuracy, short of a clear blunder); null
  * where it can. Only what's measured condemns: a fallback's numbers, a solve cut short before it measured itself, ranges
  * from the betting rules, a rough or approximate band and a read of another solution are not, nor is the heads-up preflop
- * solve, measured to part from the published solves past its noise (HEADS_UP_PF). (A rough EV isn't here: its error is
+ * solve deeper than 20bb, measured to part from the published solves past its noise (HEADS_UP_PF). (A rough EV isn't here: its error is
  * measured, and added to its noise: roughErrPct.) */
 function capGist(b: AnswerBasis, byEv: boolean): string | null {
   const src = b.source;
@@ -288,7 +295,7 @@ function capGist(b: AnswerBasis, byEv: boolean): string | null {
   if (b.band === "rough" || b.band === "approximate")
     return `The solve stopped ${finite(b.exploitabilityPct) ? `${b.exploitabilityPct.toFixed(2)}% of the pot from equilibrium, ` : ""}${b.band === "rough" ? "too far to trust" : "short of its target"}`;
   if (!byEv) return null;
-  if (src === "preflop-solve" && b.players === 2) return HEADS_UP_PF;
+  if (src === "preflop-solve" && b.players === 2 && !(finite(b.depth) && b.depth <= HEADS_UP_PF_DEPTH + 0.5)) return HEADS_UP_PF;
   if (b.approximate && src !== "preflop-solve" && !finite(b.exploitabilityPct)) return "This answer is read from another solution, its error unmeasured";
   return null;
 }

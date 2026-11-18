@@ -45,6 +45,7 @@ SIZE_EPS = 0.051                         # pf_study.Solve.walk's, and pfGrade.ts
 CHIP_EPS = 0.011                         # pfGrade.ts CHIP_EPS
 TOL, MIX, INACCURACY_PCT, MISTAKE_PCT = 0.011, 0.1, 2.0, 8.0     # web/src/grading/grade.ts
 CLEAR_PCT = 20.0                         # grade.ts CLEAR_PCT: past the noise, a Blunder even where a grade is capped
+HEADS_UP_PF_DEPTH = 20.0                 # grade.ts HEADS_UP_PF_DEPTH: heads-up deeper than this, the solve's grade is capped
 
 
 def class_of(hole: str) -> str:
@@ -165,9 +166,10 @@ def noise(pot):
     return pot * (4 + 2.75 * math.log(max(pot, 1.0))) / 100 if pot > 0 else 0.0
 
 
-def verdict(evs, freqs, a, pot):
+def verdict(evs, freqs, a, pot, capped=True):
     """web/src/grading/grade.ts gradeAnswer with source "preflop-solve": within the noise Correct, past it only the
-    excess; heads-up, short of a clear blunder, no worse than Inaccuracy (grade.ts HEADS_UP_PF)."""
+    excess; heads-up deeper than 20bb, short of a clear blunder, no worse than Inaccuracy (grade.ts HEADS_UP_PF), unless
+    `capped` is off (the verdict the cap stands in front of, which the run also counts)."""
     raw = max(0.0, max(evs) - evs[a])
     if raw <= TOL:
         return "Best", 0.0
@@ -175,7 +177,7 @@ def verdict(evs, freqs, a, pot):
         return "Correct", raw
     pct = (raw - noise(pot)) / pot * 100
     v = "Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"
-    if len(SEATS) == 2 and v != "Inaccuracy" and round(pct, 1) < CLEAR_PCT:
+    if capped and len(SEATS) == 2 and STACK > HEADS_UP_PF_DEPTH + 0.5 and v != "Inaccuracy" and round(pct, 1) < CLEAR_PCT:
         v = "Inaccuracy"
     return v, raw
 
@@ -198,7 +200,7 @@ def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
     if solve is None or not solve.stored:
         raise SystemExit("no stored solve")
     seen, why, by = collections.Counter(), collections.Counter(), collections.defaultdict(collections.Counter)
-    verdicts, handsseen, loss, seats = collections.Counter(), collections.Counter(), [0.0, 0], collections.defaultdict(collections.Counter)
+    verdicts, uncapped, handsseen, loss, seats = collections.Counter(), collections.Counter(), collections.Counter(), [0.0, 0], collections.defaultdict(collections.Counter)
     for h in range(hands):
         deck = DECK[:]
         rnd.shuffle(deck)
@@ -237,6 +239,7 @@ def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
                 order = [r["grid"]["actions"].index(n) for n in names]
                 v, raw = verdict([cell["ev"][k] for k in order], [cell["f"][k] for k in order], opts.index(pick), r["pot_bb"])
                 verdicts[v] += 1
+                uncapped[verdict([cell["ev"][k] for k in order], [cell["f"][k] for k in order], opts.index(pick), r["pot_bb"], False)[0]] += 1
                 loss[0] += raw
                 loss[1] += 1
             name = pick["action"].split()[0]
@@ -255,7 +258,7 @@ def run(policy, hands, seed, rake, own_sizes, upstream=False, sizes=()):
             handsseen["with a decision"] += 1
             if kinds_here != {"answered"}:
                 handsseen["a decision the solve can't grade"] += 1
-    return dict(policy=policy, hands=hands, seen=seen, why=why, by=by, verdicts=verdicts, loss=loss, handsseen=handsseen, seats=seats)
+    return dict(policy=policy, hands=hands, seen=seen, why=why, by=by, verdicts=verdicts, uncapped=uncapped, loss=loss, handsseen=handsseen, seats=seats)
 
 
 def main():
@@ -293,6 +296,8 @@ def main():
         vn = sum(o["verdicts"].values())
         if vn:
             print("  verdicts by the solve:", {k: f"{v / vn:.1%}" for k, v in o["verdicts"].most_common()}, f"EV lost per decision {o['loss'][0] / max(o['loss'][1], 1):.4f}bb")
+            if o["uncapped"] != o["verdicts"]:
+                print("  without the heads-up cap:", {k: f"{v / vn:.1%}" for k, v in o["uncapped"].most_common()})
         for (k, d), v in o["why"].most_common(14):
             print(f"    {v:6d} {k}: {d}")
         print(flush=True)
