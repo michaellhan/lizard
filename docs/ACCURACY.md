@@ -1566,6 +1566,87 @@ one in 14, and random play is still graded below Correct almost half the time.
 treats the charts' weights as the published solves' indifference, which they are only to the charts' rounding (many are
 written 0.5). The preflop drill still stops every grade at an Inaccuracy (`PreflopDrill.tsx`), as before.
 
+### 18.9 Untrained moves, hand order, 13 to 19bb, and the tournament presets (2026-11-18)
+
+**Moves the stored solve never makes.** pf_study.pack stores each hand a player never brings to a node as folding there,
+so a move no hand in the range makes is priced against seats that never trained against it: its EV is that of folding to
+whatever comes next. At 6-max 40bb at the charts' sizes the HJ never 3-bets UTG's 2.5bb open, and the stored EV of the
+3-bet is -7.5bb for AA as for 72o, so the grade called the chart's AA 3-bet a 12.8bb Blunder. Now a move the range makes
+under 0.5% of the time (`UNTRAINED_SHARE`) that even its strongest hand loses 0.5bb or more by, against folding
+(`UNTRAINED_LOSS`), leaves the whole spot to the chart, and the grade says why (`web/src/features/practice/pfGrade.ts`
+`untrainedMoves`, tests `pfGrade.test.ts` on real stored answers, `web/src/test/fixtures/pf_untrained.json`). That is
+8,856 of the grid's 47,018 graded nodes, 1.6% of decisions by reach. Folding AA first in at 40bb is still a Blunder by
+the solve, and AA's trap call facing a squeeze at 50bb (0.46% of UTG's range, +9.1bb) is learned and stays graded.
+[M] The audit's never-trained moves (under 0.5% of the range, EVs flat across the live classes within 0.5bb, even the
+strongest class losing over 0.5bb): 3,266 in the cash grid's 132 games and 488 in the 115 tournament presets, every one
+graded by its EV before, none now. `scripts/engine/test_pf_offpath.py` holds that at 0 (CI's quick set by default,
+every game with `PF_OFFPATH_ALL=1`).
+
+**The charts' hand order.** Over the audit's sweep of the charts as served (moved by `pf_formats`, re-priced by
+`Advisor._priced`, jams from push/fold; 2 to 9 players, 10 to 200bb, antes, straddles and rake; about 41,900 nodes), a
+hand continued 0.25 or more less often than one it dominates (the pairs, each high card's kickers with A2-A5 apart, each
+offsuit hand below its suited twin; both hands arriving at 5% or more), K4o continuing over K5o. The charts as served are
+now repaired outside `solver/` (`engine/pf_charts.py`, `engine/pf_dominance.py`, imported by the worker at start):
+continue frequency pooled along each chain where it breaks the order, and AA-KK-QQ-JJ, AKs-AQs, AKo-AQo and AKs-AKo's
+raises pooled where the stronger raises less, each weighted by the combos arriving, so every action keeps its share of
+the range. The nodes that feed a published flop library spot (109 of the sweep's) are left as they were [M]:
+
+| Over the sweep | Before | After | Of them at library nodes |
+|---|---:|---:|---:|
+| Continue inversions | 6,267 | 108 | 70 (70 before) |
+| AA or KK flatting over 60% while the next hand down raises more | 469 | 2 | 2 (2 before) |
+| Raise inversions (0.5 or more, the weaker not a wheel ace; not repaired outside the premiums) | 2,151 | 894 | 66 (66 before) |
+
+Before, by node: 185 first in, 3,998 facing an open, 1,995 facing a 3-bet, 58 a 4-bet, 9 a 5-bet, 22 over limps. The 38
+left away from library nodes: 14 are the big blind's check or raise over a heads-up limp (2-max 20 and 40bb, offsuit
+kings raising more than suited), which has no fold to continue against; 24 face an all-in, where the call is by equity
+against the jam in `Advisor._vs_jam` and, inline, in `preflop_ranges`, so repairing the advice alone would split it from
+the ranges the later streets play (each within 1.3% equity). The 2 flats left: 8-max 100bb, the big blind's KK over UTG's
+and UTG1's opens (`srp_utg_bb_8max`, `srp_utg1_bb_8max`).
+
+**Fingerprints [M].** All 53 published heads-up spots' ranges are the same with the repair as without, and match the
+library index's fingerprints before and after (`scripts/engine/test_pf_charts.py` `LibrarySpots`). Repairing every node
+would have changed 22: srp_co_bb, 3bp_bb_btn, 3bp_sb_btn, 3bp_bb_co, srp_sb_bb_2max, lp_sb_bb_2max, srp_btn_bb_40bb,
+srp_co_bb_40bb, srp_sb_bb_40bb, 3bp_bb_btn_40bb, srp_co_bb_200bb, 3bp_bb_btn_200bb, srp_btn_bb_8max, srp_sb_bb_8max,
+srp_co_bb_8max, srp_utg_bb_8max, srp_hj_bb_8max, 4bp_utg_hj, 4bp_co_btn, 4bp_btn_sb, srp_lj_bb_8max and srp_utg1_bb_8max.
+The four 3-way spots (mw_co_btn_bb, mw_btn_sb_bb, mw_hj_ip_bb, mw_utg_btn_bb) did not match before and still don't; the
+repair moves only the big blind's range in each, by 2.86, 0.98, 2.41 and 2.25 combos of 384 to 428, and no opener's or
+caller's.
+
+**13 to 19bb.** Above push/fold (12bb) and below the shallowest moved chart (20bb) the charts were the 100bb ones,
+unmoved: the 6-max button opened 45.1% at 13 to 19bb, as at 100bb, and 36.6% at 20bb. Those depths now play the 20bb
+game's moves, re-priced to the table's depth as any chart's are, and the answer's note names the 20bb chart: the button
+opens 36.6%, and the big blind defends its open 53.4% at 15bb (48.4% before; 53.4% at 20bb). 12bb is push/fold as
+before. No flop library spot is at these depths (`test_pf_charts.py` `Shallow`).
+
+**Tournament presets.** The 115 stored presets were solved on upstream's flop model (`pf_study.flop_model`), whose join
+at a library range's edge valued a class just outside it above its neighbours inside (section 18.6 has the cash grid's
+case): the Early preset's hijack opened QTo 100% and folded QJo. They are re-solved on the cash grid's calibrated model
+(`engine/pf_model.py`; `engine/pf_icm.py` `flop_model`, the key tagged `cal1` so no cached solve of the old model is
+read), 1,500 iterations each as before. Now the hijack opens QJo 51% and folds QTo. [M] Over every preset's non-rough
+nodes (the same thresholds, an inversion EV-backed where the weaker hand's best EV over folding is 0.05bb or more above
+the stronger's):
+
+| 115 presets | Before | After |
+|---|---:|---:|
+| Hands out of order | 13,726 | 11,019 |
+| EV-backed | 8,823 | 6,275 |
+| Raising first in | 544 | 87 |
+| Raising first in, EV-backed | 240 (in 59 presets) | 0 |
+| mbb/hand from equilibrium, median and most | 0.18, 1.62 | 0.16, 2.09 |
+
+The most is the 3-left, 10bb-average final table with the short stack in the big blind. `scripts/engine/test_pf_icm_order.py`
+holds the EV-backed first-in count at 0 over all 575 first-in nodes. A hand's EV for a move it never takes is read off
+the replies to the hands that do take it, so "EV-backed" is the solve's own reading, not a measured price.
+
+**Not re-solved: the cash grid.** The stored cash grid (`engine/pf/lz3_*.bin`) is not rebuilt here, and its hands out of
+order stay. Its audit (the same thresholds, non-rough nodes): 9,600 inversions in 114 of the 132 games, 7,914
+EV-backed. None raising first in; 192 heads-up facing an open; 1,416 heads-up in 3-bet and bigger pots (facing a 3-bet
+949, a 4-bet 338, a 5-bet 128, a 3-bet over a limp 1); 6,306 multiway (facing an open and a call 1,991, a 3-bet 1,087, a
+4-bet 2,798, a 5-bet 430). In the 6-max games at the charts' sizes, which Practice grades 6-max by: 2,872 (71 facing an
+open, 318, 116 and 42 heads-up facing a 3-bet, 4-bet and 5-bet, 2,325 multiway). A grade there takes the solve's EVs as
+they are, within section 18.8's noise allowance; nodes at or after a 3-bet are labelled approximate (section 18.7).
+
 ## 19. Nut advantage on Reports (2026-11-06)
 
 Reports' Nut adv is each range's nut share and the lead between them, by flop: a range's weight at 80% equity or more against the
