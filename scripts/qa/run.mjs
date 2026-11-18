@@ -7,10 +7,12 @@
 // seed, so a hand replays alone; a replay of a summary's example), --out DIR, --explore X (share of your moves taken off
 // the mix, default 0.12). Env: QA_LIBRARY (the flop library, read only),
 // QA_PYTHON, QA_SLOT (the CPU slot wrapper the advisors run under; empty to run them directly), QA_THREADS (native solver
-// threads per advisor, default 2), QA_CACHE_MB (the solve cache, default 150), QA_RSS_CAP_MB (an advisor restarts past
-// it, default 900), QA_DROP_PF (0 keeps the stored preflop solves read, as the worker does; default 1 drops them after
-// each request). Writes qa-out/<profile>-<time>/{decisions.jsonl,summary.json,summary.md}; exits 1 where a hard
-// invariant failed, 2 on a harness error.
+// threads per advisor, default 2), QA_CACHE_MB (the solve cache, default 150), QA_RSS_CAP_MB (an advisor restarts once
+// its RSS is past it after a reply, default 700), QA_PF_CAP_MB (and before a preflop request, default 500), QA_DROP_PF
+// (0 keeps the stored preflop solves read, as the worker does; default 1 drops them after each request), QA_RSS_LOG (a
+// file each advisor appends every request's memory before and after to). Writes
+// qa-out/<profile>-<time>/{decisions.jsonl,summary.json,summary.md}; exits 1 where a hard invariant failed, 2 on a
+// harness error.
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

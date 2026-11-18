@@ -584,4 +584,23 @@ describe("the summary", () => {
     ]);
     expect(markdown(s)).toContain("| fast | 4 | 3 (1, 1, 1) | 1 | 0/1 (0.0%) | 0/1 (0.0%) | 1/1 (100.0%) |");
   });
+
+  it("gives each config's peak RSS and, beside it, its peak physical footprint", () => {
+    // (the RSS also counts pages the process freed that the system hasn't taken back: 1166 MB of RSS, 571 MB held)
+    const s = summarize(
+      [
+        { t: "config", config: "6max-100bb-loose-any", hands: 20, heroDecisions: 60, oppMoves: 90, secs: 900, rssPeak: 1166, memPeak: 571, restarts: 0, violations: [] },
+        { t: "config", config: "(an older record)", hands: 1, heroDecisions: 1, oppMoves: 0, secs: 9, rssPeak: 700, restarts: 1, violations: [] },
+      ],
+      1,
+    );
+    expect(s.rss.map((r) => [r.config, r.peak, r.held])).toEqual([
+      ["6max-100bb-loose-any", 1166, 571],
+      ["(an older record)", 700, null],
+    ]);
+    const md = markdown(s);
+    expect(md).toContain("| advisor peak RSS MB | advisor peak physical footprint MB | restarts |");
+    expect(md).toContain("| 6max-100bb-loose-any | 20 | 900 | 0 | 1166 | 571 | 0 |");
+    expect(md).toContain("| (an older record) | 1 | 9 | 0 | 700 | n/a | 1 |");
+  });
 });

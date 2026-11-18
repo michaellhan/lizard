@@ -6145,3 +6145,33 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
   - No absurd opponent moves, and no Quick decision over 15 s (slowest 1.88 s).
 - Tests: `web/src/qa` vitest 31 passed; `npm run qa:typecheck` clean; eslint on `web/src/qa` clean. The gtosolver
   builds were left alone; everything ran through `slot.sh`.
+
+## 2026-11-18 — Practice QA sweep: fixes
+
+- The heads-up preflop solve's chart play (`pf.follow`; ACCURACY 18.10):
+  - A class the solve never brings to a later node of its own now plays its best response there, not the stored fold
+    (`engine/pf_offpath.py`, mixed into `pf_solve.py`'s and `pf_icm_study.py`'s Solve; nothing on-path moves). Heads-up
+    100bb T8s's limp read 0.35bb against its raise's 1.0 (a 0.65bb Blunder); 0.90bb now.
+  - Chart play graded Mistake or Blunder over 30,000 hands: heads-up 100bb 9.8% → 7.0%, 20bb 2.6% → 2.2%, against
+    6-max's 0.7%. Most of it is at hands the charts play one way, so scaling the noise doesn't reach it. A heads-up
+    preflop-solve grade now stops at Inaccuracy short of a clear blunder (`grade.ts` `HEADS_UP_PF`): 0.12% and 0.0%.
+  - `--pf-agree`: no heads-up spot has a Mistake or Blunder now (14.0% of the 100bb small blind's hands before). 3-max
+    (1.3% of decisions) isn't capped; the tournament presets' heads-up answers are capped the same way, unmeasured.
+  - An Inaccuracy is a soft `pf.follow`: no hard ones in the matrix (4 before).
+- The heads-up limped pot's 33% flop bet (1bb into 2bb, which reads back as 50%) now reads as the tree's size
+  (`engine/size_match.py`, imported by the worker after `engine.mw_quick`, mirrored in `scripts/qa/advserver.py`,
+  declared in `solver/UPSTREAM.json`): `lp_sb_bb_2max` answers that line, and the big blind's own 1bb lead, from the
+  library. Tests `scripts/engine/test_size_match.py`.
+- The harness keeps answers in the hand's context: the advisor reports the 3-way solves its cache evicted, the sweep
+  asks those hands again once and marks a record cold or evicted, Fast references run back to back and Accurate in its
+  own process, and a reference whose rules-narrowed streets aren't Quick's is left out (`ref.context`). Matrix: 0 cold,
+  4 evicted.
+- Memory: the advisor runs with `MallocLargeCache=0` on macOS (it starts itself again with it), restarts past 700 MB of
+  RSS after a reply and 500 MB before a preflop request, and reports its physical footprint beside its RSS
+  (`proc_pid_rusage`). Freed small-block pages stay in the RSS until the system takes them, which is what stacked a
+  stored preflop solve's read on earlier solves. Matrix: every config's process under 1 GB (at most 867 MB, from 1236),
+  `--quick` 754 (from 1205); the Accurate reference reached 1130 MB once on a 6-way turn asked to warm the hand.
+  `perf.rss` (soft) now reads every process's peak, so a crossing just before a restart is counted.
+- Left as they were (refuted): `prov.settled` (19, the band is the solve's own, the label says approximate), and Quick
+  against Fast (90.7% of moves at live nodes the same verdict, 0.5% each way across a pass and a Mistake or Blunder;
+  ACCURACY 29).

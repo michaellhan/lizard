@@ -44,9 +44,11 @@ export interface HeroRecord extends Base {
   /** the wall time of the answer (both of a preflop-solve session's requests), and of the preflop solve's alone */
   secs: number;
   pfSecs?: number;
-  /** the advisor process's peak RSS, MB, after this request (a process's peak only grows, so the first request past a
-   * figure is the one that took it there) */
+  /** the advisor process's peak RSS and peak physical footprint (what it holds), MB, after this request (a process's peak
+   * only grows, so the first request past a figure is the one that took it there); the RSS also counts pages it freed that
+   * the system hasn't taken back (scripts/qa/advserver.py memory()) */
   rss?: number;
+  mem?: number;
   /** what answered your spot, and what the decision was graded against (the chart's answer or the preflop solve's) */
   source: string;
   graded: string;
@@ -74,6 +76,7 @@ export interface OppRecord extends Base {
   line: string;
   secs: number;
   rss?: number;
+  mem?: number;
   /** the move made ("raise 7.5", "fold") */
   action: string;
   /** the answer's own draw, where a live or loose opponent played something else (live.ts liveMove) */
@@ -101,6 +104,7 @@ export interface RefRecord extends Base {
   mode: "fast" | "accurate";
   secs: number;
   rss?: number;
+  mem?: number;
   source: string;
   /** the reference's band, whether it's approximate, and why (its provenance) */
   band?: string;
@@ -126,8 +130,10 @@ export interface ConfigRecord {
   heroDecisions: number;
   oppMoves: number;
   secs: number;
-  /** the advisor's peak RSS, MB, and how often it was started again (over the cap, or a crash) */
+  /** the advisor's peak RSS and peak physical footprint, MB (records before 2026-11-18 have the RSS alone), and how often it
+   * was started again (over its RSS cap, before a preflop request past QA_PF_CAP_MB, or a crash) */
   rssPeak: number;
+  memPeak?: number;
   restarts: number;
   /** seconds its advisor waited to be ready (a CPU slot from the machine's wrapper, the imports) */
   waited?: number;
@@ -199,7 +205,7 @@ export interface Summary {
   }[];
   opponents: { opponents: string; moves: number; freeFolds: number; riverNutFolds: number; strongFolds: number; nothingPotSpots: number; nothingPotCalls: number }[];
   perf: { mode: string; street: string; n: number; mean: number; p50: number; p90: number; max: number; over15: number }[];
-  rss: { config: string; peak: number; restarts: number; secs: number; waited: number; hands: number }[];
+  rss: { config: string; peak: number; held: number | null; restarts: number; secs: number; waited: number; hands: number }[];
 }
 
 const EXAMPLES = 5;
@@ -343,7 +349,7 @@ export function summarize(records: readonly QaRecord[], secs = 0, seed?: number)
         return { mode, street, n: xs.length, mean: r2(xs.reduce((a, b) => a + b, 0) / xs.length), p50: r2(q(xs, 0.5)), p90: r2(q(xs, 0.9)), max: r2(Math.max(...xs)), over15: mode === "quick" ? xs.filter((x) => x > 15).length : 0 };
       })
       .sort((a, b) => (a.mode === b.mode ? ["preflop", "flop", "turn", "river"].indexOf(a.street) - ["preflop", "flop", "turn", "river"].indexOf(b.street) : a.mode < b.mode ? -1 : 1)),
-    rss: configs.map((c) => ({ config: c.config, peak: c.rssPeak, restarts: c.restarts, secs: r2(c.secs), waited: r2(c.waited ?? 0), hands: c.hands })),
+    rss: configs.map((c) => ({ config: c.config, peak: c.rssPeak, held: c.memPeak ?? null, restarts: c.restarts, secs: r2(c.secs), waited: r2(c.waited ?? 0), hands: c.hands })),
   };
 }
 
@@ -413,8 +419,8 @@ export function markdown(s: Summary, title = "Practice QA sweep"): string {
   for (const o of s.opponents) L.push(`| ${o.opponents} | ${o.moves} | ${o.freeFolds} | ${o.riverNutFolds} | ${o.strongFolds ?? 0} | ${rate(o.nothingPotCalls, o.nothingPotSpots)} |`);
   L.push("", "## Time per decision (s, this Mac, native Python)", "", "| mode | street | n | mean | p50 | p90 | max | Quick over 15 s |", "|---|---|---|---|---|---|---|---|");
   for (const p of s.perf) L.push(`| ${p.mode} | ${p.street} | ${p.n} | ${p.mean} | ${p.p50} | ${p.p90} | ${p.max} | ${p.over15} |`);
-  L.push("", "## Configs", "", "| config | hands | wall s | of it waiting to start s | advisor peak RSS MB | restarts |", "|---|---|---|---|---|---|");
-  for (const r of s.rss) L.push(`| ${r.config} | ${r.hands} | ${Math.round(r.secs)} | ${Math.round(r.waited)} | ${r.peak} | ${r.restarts} |`);
+  L.push("", "## Configs", "", "| config | hands | wall s | of it waiting to start s | advisor peak RSS MB | advisor peak physical footprint MB | restarts |", "|---|---|---|---|---|---|---|");
+  for (const r of s.rss) L.push(`| ${r.config} | ${r.hands} | ${Math.round(r.secs)} | ${Math.round(r.waited)} | ${r.peak} | ${r.held ?? "n/a"} | ${r.restarts} |`);
   L.push("");
   return L.join("\n");
 }

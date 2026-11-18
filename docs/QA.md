@@ -43,21 +43,33 @@ the stored solve) and library answers replay exactly.
 | `QA_SLOT` | CPU slot wrapper each advisor process runs under. Default gtosolver's `.work/bin/slot.sh`; set it empty to run them directly. |
 | `QA_THREADS` | Native solver threads per advisor (default 2). |
 | `QA_CACHE_MB` | Solve cache size (default 150; the worker's is 700). |
-| `QA_RSS_CAP_MB` | An advisor restarts once its current RSS passes this after a request (default 900). |
+| `QA_RSS_CAP_MB` | An advisor restarts once its current RSS passes this after a request (default 700; 900 before 2026-11-18). |
+| `QA_PF_CAP_MB` | Before a preflop request, an advisor whose current RSS is past this is started afresh (default 500). A preflop request can read a stored preflop solve, the largest request; the hand has no earlier street to lose there. |
+| `QA_RSS_LOG` | A file each advisor appends a line to per request: its physical footprint and RSS before and after, their peaks, the solves its cache holds. For finding what holds the memory. |
 | `QA_DROP_PF` | `1` (default) drops the stored preflop solves read for a request once it is answered; `0` keeps them, as the worker does. |
+| `MallocLargeCache` | Set to `0` for every advisor process (`py.ts`; `advserver.py` run by hand starts itself again with it on macOS). macOS's allocator otherwise keeps freed large blocks resident, so a dropped stored preflop solve stayed in the RSS. Not for you to set. |
 
 One advisor process runs at a time, under the slot wrapper:
 
-- The main one is started fresh for each config, so each config has a clean cache and its own peak RSS. It also
-  restarts mid-config if its RSS passes the cap. A restart in the middle of a hand is followed by the hand's earlier
-  postflop requests asked again (`kept` on the next record), so the next answer stands on the hand's earlier streets as
-  the page's own process, which doesn't restart, would have them.
-- After every config has played, a reference process re-asks the sampled decisions at Fast and Accurate. Before each
-  one it asks the hand's earlier postflop requests (each opponent's move with its seed, and your decisions) at the
-  reference's speed (`warmed`), and if its process restarts for the answer itself it does so again (`cold` if that
-  happens twice). A later street's answer depends on what its process solved earlier in the hand: a 3-way turn narrows
-  the flop through the flop's solve, or else by the betting rules, so a reference asked cold answers a different
-  question from the one Quick answered.
+- The main one is started fresh for each config, so each config has a clean cache and its own peak RSS. It also restarts
+  mid-config if its RSS passes the cap after a request, and before a preflop request where its RSS is past
+  `QA_PF_CAP_MB` (the memory section below says why). A later street's answer depends on what its process solved earlier
+  in the hand: a 3-way turn narrows the flop through the flop's solve, or else by the betting rules. So where the
+  process lost the hand's earlier streets, the hand's earlier postflop requests are asked again before the next answer
+  (`kept` on its record): after a restart in the middle of a hand, and after a request whose solve cache evicted a 3-way
+  solve of one of the hand's streets (the advisor's reply names the boards it evicted, `dropped`; the cache holds 150 MB
+  here). Where asking them again doesn't hold either (twice a restart or an eviction on the way), the record says
+  `evicted`. The page's own worker keeps 700 MB of solves and starts again only where it fails or is stopped
+  (`worker-transport.ts` `endWorker`), so it loses a hand's streets far less often, but it can.
+- After every config has played, a reference process re-asks the sampled decisions: the Fast ones back to back, then
+  the Accurate ones in a fresh process of their own (asked in between, an Accurate hand's solves pushed the Fast hands'
+  earlier streets out of the shared cache). Before each one it asks the hand's earlier postflop requests (each
+  opponent's move with its seed, and your decisions) at the reference's speed (`warmed`), again from the hand's start
+  where an eviction took one of its streets. If its process restarts for the answer itself, it does it all again
+  (`cold` if that happens twice; `evicted` if the warm-up didn't hold twice). A reference that narrowed a street by the
+  betting rules where Quick's answer had a solve stood on less of the hand than Quick did (`outOfContext`, the
+  streets): it answers a different question. Cold, evicted and out-of-context references are a soft `ref.context`,
+  counted apart in the summary and compared nowhere.
 
 The slot wrapper can hold a new process until a CPU slot is free. When that happens the sweep logs "waiting for a CPU
 slot" every 30 s, and the summary's Configs table shows how long each config waited. The Node side is light; it needs
@@ -70,7 +82,8 @@ Output, under `qa-out/<profile>-<time>/`:
   - `opp`: an opponent's move, with its flags.
   - `hand`: a finished hand.
   - `ref`: a reference comparison.
-  - `config`: one config, with its wall time, the advisor's peak RSS and how many times it restarted.
+  - `config`: one config, with its wall time, the advisor's peak RSS and peak physical footprint, and how many times
+    it restarted.
 
   Every record carries its config, the hand's seed, the hand number, and the violations found on it. Hero, opponent
   and reference records also carry the street and the line.
@@ -187,8 +200,9 @@ builds it, not only the action taken)
 **Preflop**
 
 - `pf.follow`, graded by the solve: the solve's own most played move, and the chart's most played move, are Best or
-  Correct (hard). The chart's other moves at MIX or more are soft. Where two or more moves tie for the chart's most
-  played (a 50/50 hand), they are hard only if the solve grades every one of them below Correct, otherwise each one
+  Correct (hard where graded a Mistake or Blunder; an Inaccuracy, under 2% of the pot past the noise, is soft: before
+  2026-11-18 it was hard). The chart's other moves at MIX or more are soft. Where two or more moves tie for the chart's
+  most played (a 50/50 hand), they are hard only if the solve grades every one of them below Correct, otherwise each one
   graded down is soft: before 2026-11-18 whichever the chart listed first was hard and the other soft. Graded by the
   charts: the chart's most played move is Best.
 - `pf.untrained`: a node with a move the solve never learned an EV for (`untrainedMoves`) is never graded by EV.
@@ -203,7 +217,9 @@ shares are flagged:
 **Quick against a reference.** A seeded sample of your postflop Quick decisions (26 in `--quick`, 220 in the matrix)
 is asked again at Fast, and a smaller subset (2 and 12) at Accurate, on the reference advisor. The same action is
 graded on both answers, and the summary counts agreement, "Quick condemns, the reference passes" and "Quick passes,
-the reference condemns" (soft `ref.condemns` and `ref.passes`, with both answers' frequency and EV).
+the reference condemns" (soft `ref.condemns` and `ref.passes`, with both answers' frequency and EV). A reference that
+stood on less of the hand than Quick did (cold, evicted, or a street narrowed by the betting rules where Quick's had a
+solve: `outOfContext`) answers another question, so it is a soft `ref.context` instead and counted apart (`outside`).
 
 Your move is mostly drawn from Quick's own mix, which Quick grades Best or Correct by frequency alone, so the move made
 says little about the grade a player choosing anything else would see. So every action at the node is also graded on
@@ -222,9 +238,11 @@ Rates are tallied by opponent kind (`live.sim.test.ts`'s measures, on real answe
 is a hard `opp.refused`.
 
 **Performance.** Wall time per decision by mode and street (soft `perf.slow` for Quick over 15 s), and each advisor's
-peak RSS per config. Every record carries the advisor's peak RSS after its request, and the request that takes a
-process past 1 GB (the project's rule for one process) is a soft `perf.rss`. A decision's time leaves out the time the slot wrapper held a new process before it could answer
-(the config's first request, or the first after a restart at the RSS cap). That time is counted in the config's
+peak RSS and peak physical footprint per config. Every record carries the advisor's peak RSS (`rss`) and peak footprint
+(`mem`) after its request, and the request that takes a process's RSS past 1 GB (the project's rule for one process) is
+a soft `perf.rss`. The footprint is what the process holds; the RSS also counts pages it freed that macOS hasn't taken
+back yet (the memory section below). A decision's time leaves out the time the slot wrapper held a new process before
+it could answer (the config's first request, or the first after a restart). That time is counted in the config's
 "waiting to start" instead.
 
 **Plumbing.** These are hard:
@@ -236,47 +254,46 @@ process past 1 GB (the project's rule for one process) is a soft `perf.rss`. A d
 
 ## Measured
 
-Both runs used seed 1, on 2026-11-18, on this Mac with the library builds running. The slot wrapper starts a process at
-once when a CPU slot is free; otherwise it polls every 15 s until one is.
+Both runs used seed 1, on 2026-11-18, on this Mac with the library builds running, after the QA sweep's fixes of that
+day (the heads-up preflop cap, the preflop solve's off-path fill, the library's own bet sizes, the hand's context kept
+through evictions, and the advisor's memory caps). The slot wrapper starts a process at once when a CPU slot is free;
+otherwise it polls every 15 s until one is.
 
 ### `--quick`
 
-The run took 181 s of wall time, 77 s of it waiting for the slot wrapper to start a process. It played:
+The run took 177 s of wall time, 107 s of it waiting for the slot wrapper to start a process. It played:
 
 - 4 configs and 42 hands;
-- 71 of your decisions, all graded;
-- 288 opponent moves;
+- 72 of your decisions, all graded;
+- 296 opponent moves;
 - 28 reference answers (26 Fast and 2 Accurate).
 
-The advisor's peak RSS was 548-1205 MB, and the reference's was 843 MB. Twice a process went over the 900 MB cap after a
-request and was restarted. The 1205 MB was reached inside one request, in the loose-opponent config's multiway pots. The
-memory guard never acted on the sweep.
+The advisor's peak RSS was 336-754 MB (physical footprint 175-676 MB), and the Fast reference's 601 MB. Twice the main
+process was started afresh before a preflop request (its RSS 510 and 691 MB, past 500). The memory guard never acted on
+the sweep. Before the day's fixes the same profile peaked at 1205 MB.
 
-Three hard violations, the same in three runs:
-
-| check | count | where |
-|---|---|---|
-| `prov.settled` | 2 | 6max-100bb-gto-srp, hands 0 and 1, turn. The ranges come from the rules after an opponent's rare bet or raise (BB's turn bet of 125% is 8.7% in the solve; BB's turn raise to 14 is 5.9%), and the answer still shows a converged band (0.03-0.04% of the pot) next to its approximate label. |
-| `pf.follow` | 1 | 3max-100bb-live-any, hand 0, BTN 8cJd first in. The chart raises 50% and folds 50%; the preflop solve folds 100% and grades the raise Inaccuracy (0.08bb, 0.4% of the pot past its noise). |
-
-Earlier runs of the same seed also found `prov.settled` on river answers whose earlier streets were narrowed by the rules,
-or by a narrowing solve followed 0%. Those also showed a converged band (0.09%).
+Three hard violations, all `prov.settled` (6max-100bb-gto-srp, hands 0, 2 and 4, turn). The ranges come from the rules
+after an opponent's rare bet or raise, and the answer still shows a converged band (0.03-0.06% of the pot) next to its
+approximate label. Earlier runs of the same seed also found it on river answers whose earlier streets were narrowed by
+the rules, or by a narrowing solve followed 0%. The `pf.follow` the earlier runs counted hard (3max-100bb-live-any hand
+0, BTN 8cJd raising 50%, graded Inaccuracy by the solve) is soft now: an Inaccuracy is.
 
 Soft, measured:
 
-- 4 converged bands after an opponent's rare line was solved again.
-- One chart move mixed at 25% (BB 8sJh calling a HJ open), graded Inaccuracy by the solve.
+- 6 converged bands after an opponent's rare line was solved again.
+- 2 chart moves the solve grades Inaccuracy: BB 8sJh calling a HJ open (the chart's 25%), and the BTN 8cJd raise above.
 
 What answered:
 
-- Heads-up 6-max 100bb single-raised flops against GTO opponents: the library, 9 of 10.
+- Heads-up 6-max 100bb single-raised flops against GTO opponents: the library, 11 of 11.
 - 3-way flops: live solves, 2 of 2.
 - 4-way flops: the rules, 2 of 2.
 - Turns and rivers: live solves.
 - Preflop: the charts' answer at every spot. The preflop solve graded 28 of the 37 decisions. The charts graded 9,
   because the solve's tree doesn't hold the line (6) or its options aren't yours (3).
 
-Quick against Fast agreed on 25 of 26, and against Accurate on 2 of 2. Neither ever condemned what the other passed.
+Quick against Fast agreed on 26 of 26 moves made, and against Accurate on 2 of 2; at live nodes, every action got the
+same verdict 49 times in 55, and none crossed between a pass and a Mistake or Blunder.
 
 No opponent:
 
@@ -287,70 +304,65 @@ No opponent:
 Timing:
 
 - No Quick decision took over 15 s.
-- Quick averaged 0.03-0.85 s a decision by street (preflop 0.4 s, at most 1.9 s), because an opponent's move on the same
-  street has usually just solved the spot.
-- Fast references averaged 0.07-2.7 s by street, at most 6.2 s.
-- The Accurate turn took 16.5 s.
+- Quick averaged 0.08-0.66 s a decision by street (preflop 0.47 s, at most 1.83 s on a turn), because an opponent's move
+  on the same street has usually just solved the spot.
+- Fast references averaged 0-0.73 s by street, at most 3.5 s.
 
 ### The default matrix
 
-Re-run on 2026-11-18 after the triage's harness fixes, so its hands draw differently from the first run's. The fixes:
-each hand on its own random stream, every action compared with the reference, RSS per request, the tie and pot
-fixes, and every answer asked in the hand's context (the reference warmed, the main process kept). The first run, on
-the old harness, found the same two kinds of hard violation.
+Re-run on 2026-11-18 after the day's fixes, on the harness that asks every answer in the hand's context. Each hand draws
+on its own random stream, so hands repeat across runs until an answer stopped on its time budget comes out differently.
 
-The run took 1169 s (19.5 minutes) of wall time, no config cut. 595 s of it was spent waiting for the slot wrapper to
-start a process: at each config's start, at each of 18 restarts at the RSS cap, and for the reference process. It
-played:
+The run took 1324 s (22 minutes) of wall time, no config cut. 597 s of it was spent waiting for the slot wrapper to
+start a process: at each config's start, at each restart, and for the two reference processes. It played:
 
 - 21 configs and 324 hands;
-- 496 of your decisions, all graded;
-- 3303 opponent moves;
-- 147 reference answers (139 Fast and 8 Accurate).
+- 497 of your decisions, all graded;
+- 3305 opponent moves;
+- 148 reference answers (140 Fast and 8 Accurate).
 
-The number of references is what the sampling found: 70% of the postflop decisions, up to 220. Before 114 of them the
-reference was asked 195 earlier requests of the hand (none answered cold). Three times the main process restarted in
-the middle of a hand, and the next request came after 11 requests asked again.
+The number of references is what the sampling found: 70% of the postflop decisions, up to 220. Before 115 of them the
+reference was asked 257 earlier requests of the hand. None was answered cold ("cold" counts only a restart during the
+answer itself: the reference restarted 10 times, each time between requests, and asked the hand again); 4 were out of
+the hand's context because the solve cache evicted one of its 3-way streets twice on the way (`evicted`, a soft
+`ref.context`). The main process restarted 10 times, 9 of them before a preflop request (its RSS past 500 MB), where a
+hand has nothing on earlier streets; once in the middle of a hand, and the next request came after 3 requests asked
+again.
 
-**23 hard violations**, 19 `prov.settled` and 4 `pf.follow`. Each comes from one of two product defects.
+**19 hard violations, all `prov.settled`** (in 11 of the 21 configs, live answers only, never the library): a
+converged band (0-0.3% of the pot) on an answer whose ranges are not the solve's own. The reasons:
 
-`prov.settled` (19, in 11 of the 21 configs, live answers only, never the library): a converged band (0-0.3% of the
-pot) on an answer whose ranges are not the solve's own. The reasons:
-
-- 11: an opponent's rare line was not solved again (with the seat's range widened in 7).
+- 12: an opponent's rare line was not solved again (with the seat's range widened in 8).
 - 5: the rules narrowed a street.
 - 1: both of those.
-- 2: a turn's narrowing solve stopped unsettled on its time budget (3.6% and 2.2% of the pot), so the ranges follow it
-  80-97%.
+- 1: a turn's narrowing solve stopped unsettled on its time budget, so the ranges follow it in part.
 
-The cause is `web/src/solver/provenance.ts`: `provenanceOf` sets the band from the solve's own exploitability (lines
-223-226) and then marks the answer approximate for its ranges (`rangesOffOf`, lines 246-252) without revisiting the
-band. The badge reads "0.04% pot from equilibrium in the solved game (converged) · approximate". The grade is not
-affected: the same answers lean on the rules (`leansOnRules`), and their grades stop at Inaccuracy.
-`node scripts/qa/repro/prov-settled.mjs` shows it on a minimal answer, with no solver.
+The badge reads "0.04% pot from equilibrium in the solved game (converged) · approximate": `provenanceOf`
+(`web/src/solver/provenance.ts`) sets the band from the solve's own exploitability and then marks the answer
+approximate for its ranges (`rangesOffOf`) without revisiting the band. The grade is not affected: the same answers lean
+on the rules (`leansOnRules`), and their grades stop at Inaccuracy. `node scripts/qa/repro/prov-settled.mjs` shows it on
+a minimal answer, with no solver. Left as it is (the triage's call: the band is the solve's own, the label says the
+ranges aren't).
 
-`pf.follow` (4, the same four as the first run): the chart's most played move graded below Correct by the preflop
-solve, in a preflop-solve session (the default where the solve applies: `practice.ts` `pfByDefault`):
+No hard `pf.follow` now (4 before the day's fixes). The heads-up ones are capped (`grade.ts` `HEADS_UP_PF`, ACCURACY
+18.10), and an Inaccuracy is soft:
 
-- Heads-up SB 8dTd at 100bb: the chart limps 99%, the solve raises 100% (EV 1.0 against 0.35), so the limp is a
-  Blunder (0.65bb).
-- 2-max 20bb SB 2h3s folding: Inaccuracy, 0.10bb.
-- 2-max 20bb BB 9cAh calling a raise to 3: Mistake, 0.45bb.
-- 6-max 20bb SB AcJd facing a CO open: Mistake, 0.45bb.
+- Heads-up SB 8dTd at 100bb limping (the chart's 99%): was a Blunder (0.65bb), now an Inaccuracy (0.10bb past the
+  off-path fill, and capped there).
+- 2-max 20bb SB 2h3s folding: Inaccuracy, 0.10bb, now soft.
+- 2-max 20bb BB 9cAh calling a raise to 3: was a Mistake (0.45bb), now capped at Inaccuracy.
+- 6-max 20bb SB AcJd facing a CO open: this run's explore picked the all-in, Best.
 
 "Preflop: the chart against the solve" below has the rates over every class.
 
-18 soft violations:
+21 soft violations:
 
 - 8 converged bands after a rare line was solved again.
-- 3 chart moves the solve grades down:
-  - a mixed one (BB 8sJh calling 25%, Inaccuracy);
-  - two of a 50/50 tie whose other move the solve grades Best (2-max BB QcTs folding to a raise, Mistake 0.61bb; 3-max
-    BTN Kc6d raising, Inaccuracy).
-- 4 `perf.rss`:
-  - an opponent's flop move in a 5-way pot took the main process to 1169 MB (6max-100bb-loose-any hand 4);
-  - the reference went to 1037-1061 MB on three Fast answers, two of them heads-up limped turns.
+- 6 chart moves the solve grades Inaccuracy: the three above, BB 8sJh calling 25% at 6-max, and two of a 50/50 tie
+  (2-max BB QcTs folding to a raise, 0.61bb, a Mistake before the cap; 3-max BTN Kc6d raising).
+- 4 `ref.context` (evicted, above).
 - 3 `ref.missing`: Fast had no 50% bet where Quick's small 3-way flop game offered one.
+- No `perf.rss` (memory, below).
 
 What answered:
 
@@ -358,29 +370,33 @@ What answered:
   169. The charts graded the rest because the solve's tree doesn't hold the line (18), its options aren't yours (13), it
   never plays the size (5), or the line left its sizes (4).
 - Heads-up 6-max 100bb single-raised flops against GTO opponents with no rake, ante or straddle: the library, 18 of 18.
-- At a library spot's preflop line, every live answer but one came where the library has nothing:
-  - a flop the spot hasn't built (40bb and 200bb hold 184 flops, the heads-up limped pot 208);
-  - or a line the entry doesn't store (a raise the other player reaches with under 5% of their range).
-- The one is a hole (2max-100bb-gto-any hand 3). The heads-up limped pot's tree bets 33% and 75% of a 2bb pot, and
-  33% (0.66bb) is under the smallest bet. `_legal_to` (`solver/gto/advisor.py`) lifts it to 1bb, a size the tree
-  doesn't hold, so after "SB bet 1" on a flop the library holds (Ac5d3h), the answer was solved live.
+- At a library spot's preflop line, every live answer came where the library has nothing: a flop the spot hasn't built
+  (40bb and 200bb hold 184 flops, the heads-up limped pot 208), or a line the entry doesn't store (a raise the other
+  player reaches with under 5% of their range).
+- The hole the first runs found is closed: in the heads-up limped pot (2bb) the tree's 33% bet is 1bb (0.66bb rounded
+  to the 1bb minimum), which reads back as 50% of the pot, so the line left the stored tree and 2max-100bb-gto-any hand
+  3's flop after "BB check, SB bet 1" (Ac5d3h) was solved live. The advisor now reads a bet of the tree's own amount as
+  the tree's size (`engine/size_match.py`), and that decision is the library's.
 - 3-way flops: live solves, 9 of 9. 4-way flops: the rules, 4 of 4.
 
 Quick against the reference, where either answer was a live solve:
 
 | reference | the move made: agree | Quick condemns | Quick passes | every action: agree | Best/Correct or not agree | Quick condemns | Quick passes |
 |---|---|---|---|---|---|---|---|
-| Fast | 99/110 (90.0%) | 0 | 0 | 342/388 (88.1%) | 361/388 (93.0%) | 2 (0.5%) | 2 (0.5%) |
-| Accurate | 5/5 | 0 | 0 | 14/19 | 19/19 | 0 | 0 |
+| Fast | 97/107 (90.7%) | 0 | 0 | 333/378 (88.1%) | 351/378 (92.9%) | 2 (0.5%) | 2 (0.5%) |
+| Accurate | 4/5 | 0 | 0 | 8/16 | 13/16 | 0 | 0 |
 
-So Quick and Fast give a different verdict to about one action in eight at a live node, and one in fourteen crosses
-between Best/Correct and the rest; most are Best or Correct against Inaccuracy. Four cross between a pass and a Mistake
-or Blunder, at three nodes and all small in big blinds:
+Over every reference compared, library flops included, Quick and Fast agree on 124 of 134 moves made (92.5%) and
+Accurate on 6 of 7. So Quick and Fast give a different verdict to about one action in eight at a live node, and one in
+fourteen crosses between Best/Correct and the rest; most are Best or Correct against Inaccuracy. Four cross between a
+pass and a Mistake or Blunder, at three nodes:
 
-- 2-max 100bb limped river (BB 3sAd): a 125% bet, Quick Best and Fast Mistake (EV 0.07 against 0.03). Quick's river
-  stood on a turn narrowing that stopped unsettled.
-- 2-max 100bb turn (SB TdAc): a 75% bet, Quick Correct and Fast Mistake (EV 3.27 against Fast's 3.07, best 3.26).
+- 2-max 100bb limped river (BB 3sAd): a 125% bet, Quick Best and Fast Mistake (EV 0.07 against 0.03).
+- 6-max 200bb river (HJ, after BB's called turn bet and river check): a 33% bet, Quick Correct and Fast Mistake (EV
+  28.14 against 20.17; neither plays it).
 - 6-max ante turn (BB 6d6s): 33% and 75% bets, Quick Mistake and Fast Correct (EV 1.14 and 1.07 against 1.40 and 1.33).
+
+These are Quick's rates as Practice serves it; a Quick grade isn't re-checked at Fast here (ACCURACY 28).
 
 The first matrix run on the new harness showed three serious flips at one 3-way hand (6max-100bb-loose-any hand 9,
 UTG QsQd on Kd9h8s4s facing BB's 6.5bb turn bet). Fast said fold Best and call Blunder (EV -5.78), against Quick's
@@ -390,42 +406,51 @@ process had the same fault after a restart at the RSS cap. Replaying that hand w
 after a restart, said "ranges through the flop from the betting rules", and graded fold Best.
 
 No opponent folded when checking was free, folded the nuts on the river, folded two pair or better to three quarters
-of the pot or less, or called with nothing facing a pot-size bet (0 of 6).
+of the pot or less, or called with nothing facing a pot-size bet (0 of 7).
 
-Timing: no Quick decision took over 15 s (the slowest 1.88 s; by street 0.03-0.68 s on average). Fast references
-averaged 0.35-1.54 s by street, at most 11 s. The Accurate references sampled only flops and rivers, at most 1.9 s.
+Timing: no Quick decision took over 15 s (the slowest 1.87 s; by street 0.04-0.62 s on average). Fast references
+averaged 0.37-1.5 s by street, at most 11 s. The Accurate references took at most 7.9 s (a turn).
 
-Peak RSS stayed under 1 GB in 20 of the 22 peaks:
-
-- 6max-100bb-loose-any reached 1236 MB, on a preflop-solve decision after the 5-way flop move above had taken it to
-  1169 MB.
-- The reference process reached 1126 MB.
-
-Each was reached inside one request; the process restarted at the cap afterwards. A peak depends on what the process
-did earlier. Hand 4 alone peaks at 736 MB, and hands 0-4 together reach 1229 MB on the same opponent move:
-`node scripts/qa/run.mjs --seed 1 --config 6max-100bb-loose-any --hand 0,1,2,3,4`. A peak reached while earlier
-requests are asked again is in the config's peak but on no record.
+Memory: every config's process stayed under 1 GB of RSS, at most 867 MB (6max-100bb-gto-any, a stored preflop solve's
+read; its physical footprint peaked at 707 MB), against 1236 MB before the day's fixes. The Fast reference peaked at 812
+MB. The Accurate reference reached 1130 MB of RSS twice, on one 6-way hand of 9max-40bb-loose-any (hand 5): its turn
+(6h2h3s4h) added 611 MB on top of what the hand's flop solve had freed, to a 718 MB footprint, inside a request asked to
+warm the hand for a later street. The check credited that to no record then (the process restarted at the cap right
+after, and the record came from the fresh one); it now does (`sweep.ts` `crossed` reads every process's peak; not yet
+exercised by a crossing, as the matrix wasn't re-run after it). Avoiding it would mean asking that turn without its
+flop. Replayed alone (`--config 9max-40bb-loose-any --hand 5`, fresh processes), the hand's references peaked at 430 MB
+(Fast) and 525 MB (Accurate, asked the flop only), so the crossing needs what the process freed on the hands before it.
+The trace (`QA_RSS_LOG`): a stored preflop solve's read added up to 494 MB to the RSS at its peak, a config's postflop
+request up to 431 MB, a Fast reference's 566 MB, an Accurate one's 611 MB.
 
 ### Preflop: the chart against the solve
 
 `node scripts/qa/run.mjs --pf-agree` asks every one of the 169 classes at nine spots through the Practice path, and
-grades the chart's most played move by the solve. It took about 13 minutes. Share of the hands dealt (by combos) where
-the move the chart plays most is graded below Correct, and Mistake or Blunder:
+grades the chart's most played move by the solve (about 13 minutes). Share of the hands dealt (by combos) where the move
+the chart plays most is graded below Correct, and Mistake or Blunder, after the fixes (the first run's in brackets):
 
 | spot | below Correct | Mistake or Blunder | worst |
 |---|---|---|---|
-| 2-max 100bb, SB first in | 16.4% | 14.0% | QJs: limps 71%, the solve raises; Blunder 1.11bb. A8s, 22, A7s, A6s limped 97-100%: Blunder 0.84-1.02bb |
-| 2-max 100bb, BB facing a raise to 3 | 2.7% | 2.7% | 77 and 88 3-bet 100%, the solve calls: Blunder 1.46 and 1.16bb |
-| 2-max 20bb, SB first in | 3.9% | 0.6% | A5s limps 98%, the solve raises: Blunder 0.38bb |
-| 2-max 20bb, BB facing a raise to 3 | 2.6% | 1.7% | A9o calls 97%, the solve shoves: Mistake 0.45bb |
-| 3-max 100bb, BTN first in | 2.7% | 0.9% | K5o: raises 50% (a tie), the solve folds: Mistake 0.12bb |
-| 6-max 100bb, UTG first in | 0.5% | 0.0% | 22 raises 80%: Inaccuracy 0.09bb |
-| 6-max 100bb, BTN first in | 1.8% | 0.9% | K5o raises 50%: Mistake 0.13bb |
-| 6-max 100bb, SB first in | 3.6% | 3.6% | 98o, T8o, 87o fold 100%, the solve raises; A2o raises 100%, the solve folds: Mistake 0.11-0.18bb |
-| 6-max 100bb, BB facing a BTN open to 2.5 | 3.0% | 2.7% | AJo and A5o 3-bet 60%, AQo 100%, the solve calls: Mistake 0.41-0.46bb |
+| 2-max 100bb, SB first in | 12.5% (16.4%) | 0.0% (14.0%) | 92o raises 83%, the solve folds: 0.29bb, 14% of the pot past the noise; QJs limps 71%, the solve raises: 0.24bb, 11% |
+| 2-max 100bb, BB facing a raise to 3 | 2.3% (2.7%) | 0.0% (2.7%) | 77 3-bets 100%, the solve calls: 0.87bb, 14% past the noise |
+| 2-max 20bb, SB first in | 3.6% (3.9%) | 0.0% (0.6%) | 42o folds, the solve limps: 0.11bb, under 2% past the noise |
+| 2-max 20bb, BB facing a raise to 3 | 2.6% (2.6%) | 0.0% (1.7%) | A9o calls 97%, the solve shoves: 0.45bb, 3.4% past the noise |
+| 3-max 100bb, BTN first in | 2.7% (2.7%) | 0.9% (0.9%) | K5o raises 50% (a tie), the solve folds: Mistake 0.12bb |
+| 6-max 100bb, UTG first in | 0.0% (0.5%) | 0.0% (0.0%) | none |
+| 6-max 100bb, BTN first in | 1.8% (1.8%) | 0.9% (0.9%) | K5o raises 50%: Mistake 0.13bb |
+| 6-max 100bb, SB first in | 3.6% (3.6%) | 3.6% (3.6%) | 98o, T8o, 87o fold 100%, the solve raises; A2o raises 100%, the solve folds: Mistake 0.11-0.18bb |
+| 6-max 100bb, BB facing a BTN open to 2.5 | 2.1% (3.0%) | 1.8% (2.7%) | AJo and A5o 3-bet 60%, the solve calls: Mistake 0.41-0.46bb |
 
-The heads-up 100bb small blind is where they part most: the charts limp a wide range the solve raises, and the solve
-values the raise up to a big blind more, so following the chart there is a Mistake or Blunder on one hand in seven.
+Two changes moved the heads-up rows (docs/ACCURACY.md section 18.10). The solve's off-path classes, the ones its own
+equilibrium never brings to a node, now play a best response there instead of whatever the iterations left
+(`engine/pf_offpath.py`): that is what put 77 and 88's 3-bet and the small blind's limps of A8s-A6s and 22 a big blind
+behind. And the heads-up preflop solve still parts from the published solves past its noise more often than any other
+answer (section 18.8: a chart move graded Mistake or Blunder at 7.0% of heads-up 100bb decisions after the fill, against
+0.7% at 6-max), so a heads-up preflop-solve grade now stops at Inaccuracy short of a clear blunder (20% of the pot past
+the noise; `HEADS_UP_PF` in `web/src/grading/grade.ts`). Without that cap, by each class's loss past the noise, the
+chart's move would still be a Mistake on 9.4% of the heads-up 100bb small blind's hands, 2.3% of the big blind's, 1.7%
+of the 20bb big blind's and none of the 20bb small blind's. The 3-max and 6-max rows aren't capped: at 6-max the
+remaining Mistakes are 50/50 chart hands and calls of a 3-bet the published solves mix, worth under half a big blind.
 
 ## What it doesn't cover
 
@@ -434,11 +459,23 @@ values the raise up to a big blind more, so following the chart there is a Mista
 - **Pyodide speed.** The advisor runs natively on 2 threads. The browser runs wasm on its helpers, which is several
   times slower, so the times measure the engine's work, not what a phone or laptop waits. Quick's time budget also
   stops a native solve later in the solve than a wasm one, so some answers differ from the browser's.
-- **The worker's memory.** The solve cache is 150 MB instead of 700. The stored preflop solve read for a request is
-  dropped once it is answered, then read again (0.4 s) at the next preflop-solve request, to the same answer. A 6-max
-  one holds about 580 MB, and with it resident a postflop solve took the process to 1.0-1.2 GB. The worker keeps it, so
-  a browser playing a 6-max preflop-solve session holds that much more than the sweep does. Nothing is stopped part
-  way or answered progressively; Practice asks untimed in any case.
+- **The worker's memory.** The solve cache is 150 MB instead of 700, so the sweep's processes lose a hand's earlier
+  3-way solves more often than the page's worker (the sweep asks them again, above). The stored preflop solve read for a
+  request is dropped once it is answered, then read again (0.4 s) at the next preflop-solve request, to the same answer.
+  A 6-max one holds about 380 MB of live arrays once it has answered a node (110 MB loaded, 520 MB at the peak of the
+  first request: tracemalloc, 2026-11-18). The 1.1-1.2 GB peaks the first runs measured were mostly not live data, for
+  two reasons. macOS's allocator kept the freed large blocks of a dropped solve for reuse; the advisor now runs with
+  `MallocLargeCache=0`, and a dropped solve's memory goes back (RSS 484 MB to 154). And the pages it frees in its
+  small-block regions stay resident, and in the RSS, until the system wants them, which it takes without writing
+  anything out: vmmap showed 262 MB of "MALLOC_SMALL (empty)" resident with 336 KB of it dirty after a run of 5-way
+  solves. A big read's arrays don't reuse them, so they stack: a 6-max stored solve read after two 5-way solves peaked
+  at 1084 MB of RSS and a 570 MB physical footprint (what the process holds). Nothing stops the RSS counting them short
+  of a fresh process, so the advisor restarts past a lower RSS: 700 MB after any request, and 500 MB before a preflop
+  request (a stored solve's read added at most 494 MB at its peak in the matrix; a config's postflop request, 431). Each
+  record carries the footprint beside the RSS. The worker keeps the stored solve, so a browser playing a 6-max
+  preflop-solve session holds about 380 MB more than the sweep does; the browser's budget is the wasm heap's 2 GB, not
+  the sweep's 1 GB a process, and a wasm heap reuses freed memory itself.
+  Nothing is stopped part way or answered progressively; Practice asks untimed in any case.
 - **Your opponents' draws.** The page asks `play` with no seed; the sweep passes a seeded one so a run repeats. Quick
   and Fast solves stopped on a time budget are not exactly repeatable across runs, so two runs of one seed can part
   after the first time-budget answer.

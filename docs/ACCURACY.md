@@ -1562,9 +1562,10 @@ leak drill all pass the answer's source in. Every other source's EVs keep the 0.
 0.3801bb: only the verdicts move.) Playing the published solves' charts is called below Correct one time in 70 instead of
 one in 14, and random play is still graded below Correct almost half the time.
 
-**Not established.** The noise is measured at 6-max 100bb only; other depths and table sizes use the same curve. It
-treats the charts' weights as the published solves' indifference, which they are only to the charts' rounding (many are
-written 0.5). The preflop drill stopped every grade at an Inaccuracy (`PreflopDrill.tsx`) until section 27 took the
+**Not established.** The noise is measured at 6-max 100bb, and since section 18.10 at heads-up 100 and 20bb and 3-max
+100bb, where the curve stays (heads-up, the grade is capped instead); other depths and table sizes use the same curve.
+It treats the charts' weights as the published solves' indifference, which they are only to the charts' rounding (many
+are written 0.5). The preflop drill stopped every grade at an Inaccuracy (`PreflopDrill.tsx`) until section 27 took the
 cap off, and every other source's EVs kept the 0.011bb tie until section 27 gave each answer a noise of its own.
 
 ### 18.9 Untrained moves, hand order, 13 to 19bb, and the tournament presets (2026-11-18)
@@ -1690,6 +1691,84 @@ EV-backed. None raising first in; 192 heads-up facing an open; 1,416 heads-up in
 4-bet 2,798, a 5-bet 430). In the 6-max games at the charts' sizes, which Practice grades 6-max by: 2,872 (71 facing an
 open, 318, 116 and 42 heads-up facing a 3-bet, 4-bet and 5-bet, 2,325 multiway). A grade there takes the solve's EVs as
 they are, within section 18.8's noise allowance; nodes at or after a 3-bet are labelled approximate (section 18.7).
+
+### 18.10 Heads-up: moves a hand never makes, and where the solve parts from the charts (2026-11-18)
+
+The Practice QA sweep (`docs/QA.md`) found the heads-up 100bb small blind's chart play graded a Mistake or Blunder on
+one hand in seven: SB 8dTd limped as the chart does 99%, and the solve called it a 0.65bb Blunder (its raise 1.0bb, its
+limp 0.35bb). Two causes, two fixes.
+
+**A move a hand never makes was valued as that move and then folding [M].** `pf_study.pack` stores every class a player
+never brings to a node as folding there, and the node's EVs are read off the stored strategy, so the limp of a class the
+solve never limps was the limp and then a fold to the big blind's iso-raise. T8s's limp read 0.352bb against its raise's
+1.0; AA's limp 1.19bb. Now each player's classes with no reach at a node of theirs play their best response there,
+against the others' strategies, on a line the solve trained the others against (every move of the seat's own on the way
+made by at least 0.5% of its range, pfGrade.ts `UNTRAINED_SHARE`), taking only moves the solve trained, a fold, or a
+move that ends the betting (`engine/pf_offpath.py`, mixed into `engine/pf_solve.py`'s and `engine/pf_icm_study.py`'s
+Solve; tests `scripts/engine/test_pf_engine.py` `OffPathValues`). Nothing else moves: those classes have no reach, so no
+other player's value changes, nor the solve's mixes, its on-path EVs or the range's EV; solving, exploitability and the
+stored files are untouched. T8s's limp reads 0.90bb now and AA's 3.26. Over 30,000 hands of chart play
+(`scripts/pf_practice_coverage.py --policy chart`, seed 20261105), graded by section 18.8's rule:
+
+| Table | Best | Correct | Inaccuracy | Mistake | Blunder | Mistake or Blunder | EV lost a decision |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Heads-up 100bb, before | 74.8% | 13.2% | 2.2% | 5.1% | 4.7% | 9.8% | 0.0614bb |
+| Heads-up 100bb, the fill | 75.3% | 15.0% | 2.7% | 5.0% | 2.0% | 7.0% | 0.0421bb |
+| Heads-up 20bb, before | 80.3% | 13.6% | 3.5% | 1.9% | 0.7% | 2.6% | 0.0204bb |
+| Heads-up 20bb, the fill | 80.3% | 13.8% | 3.7% | 1.9% | 0.3% | 2.2% | 0.0190bb |
+| 6-max 100bb (charts' sizes), the fill | 92.1% | 6.6% | 0.5% | 0.6% | 0.1% | 0.7% | 0.0181bb |
+
+**Where it parts from the charts, it isn't noise [M].** Measured as section 18.8 measured 6-max (where the charts play a
+hand 15-85% one way, the 90th percentile of the stored game's gap, % of the pot), against 4 + 2.75 ln(pot):
+
+| Decision | 6-max 100bb (again) | Heads-up 100bb | Heads-up 20bb | 3-max 100bb | The curve |
+|---|---:|---:|---:|---:|---:|
+| First in (1.5bb) | 4.7% | 7.6% | 5.7% | 6.0% | 5.1% |
+| Facing an open (4bb) | 7.8% | 15.7% | 6.5% | 11.6% | 7.8% |
+| Facing a 3-bet (13bb; 23bb at 20bb) | 11.9% | 12.2% | 2.9% | 16.3% | 11.1% |
+| Facing a 4-bet (33bb) | 14.1% | 9.9% | - | 7.0% | 13.6% |
+
+(Plays at mixed hands: 536, 1,703, 212 and 26 at 6-max; 1,943, 827, 141 and 29 heads-up at 100bb; 3,875, 246 and 28 at
+20bb; 592, 94, 89 and 12 at 3-max.) At 20bb heads-up the curve fits; at 100bb the gap is 1.5 to 2 times it. But most of
+the heads-up verdicts aren't at mixed hands: of the 1,742 Mistakes and Blunders at 100bb, 1,209 (69%) are at hands the
+charts play 85% or more one way, where the stored game plays them another. It raises 32o, 42o and 43o first in where the
+charts fold them (by 0.11-0.20bb), raises 65o and 54o where they limp, and limps QTo and 92s where they raise; its small
+blind raises 52% and limps 41% where the charts raise 59% and limp 30%. Scaling the noise doesn't reach that: twice the
+curve still leaves 2.4% Mistake or Blunder at 100bb (three times, 0.8%).
+
+**The rule.** A grade by the heads-up preflop solve can't condemn a line (`web/src/grading/grade.ts` `HEADS_UP_PF`, read
+off the answer's `players` by `grading/basis.ts` `basisOf`): past the noise it stops at Inaccuracy, the EV lost shown as
+measured, and says "The heads-up preflop solve often parts from the published solves' charts, by more than its noise, so
+it can't condemn a line"; a clear blunder (20% of the pot or more past the noise) is still a Blunder, so folding aces
+first in still is. Every surface that grades a preflop-solve answer passes the answer in (Practice, the preflop and live
+drills, Review's retries, Analyze). The same 30,000 hands:
+
+| Table | Best | Correct | Inaccuracy | Mistake | Blunder | Mistake or Blunder |
+|---|---:|---:|---:|---:|---:|---:|
+| Heads-up 100bb | 75.3% | 15.0% | 9.6% | 0.0% | 0.1% | 0.12% |
+| Heads-up 20bb | 80.3% | 13.8% | 5.9% | 0.0% | 0.0% | 0.00% |
+
+The sweep's `--pf-agree` (every class at nine spots through the Practice path, the chart's most played move graded by
+the solve; `docs/QA.md`, "Preflop: the chart against the solve") by combos, before and after both fixes. The heads-up
+rows now have no Mistake or Blunder; by each class's loss past the noise, without the cap, they would have 9.4% (100bb
+small blind: 92o's raise 14% of the pot past the noise, QJs's limp 11%, 43o's fold 8.5%), 2.3% (100bb big blind: 77's
+3-bet, 14%), 0% and 1.7% (20bb). 3-max and 6-max are as they were, up to the 6-max small blind's 3.6% (98o, T8o and 87o
+folded where the solve raises, A2o raised where it folds; 0.11-0.18bb).
+
+| Spot | Below Correct, before → now | Mistake or Blunder, before → now |
+|---|---:|---:|
+| Heads-up 100bb, SB first in | 16.4% → 12.5% | 14.0% → 0.0% |
+| Heads-up 100bb, BB facing a raise to 3 | 2.7% → 2.3% | 2.7% → 0.0% |
+| Heads-up 20bb, SB first in | 3.9% → 3.6% | 0.6% → 0.0% |
+| Heads-up 20bb, BB facing a raise to 3 | 2.6% → 2.6% | 1.7% → 0.0% |
+| 3-max 100bb, BTN first in | 2.7% → 2.7% | 0.9% → 0.9% |
+| 6-max 100bb, four spots | 0.5-3.6% → 0.0-3.6% | 0.0-3.6% → 0.0-3.6% |
+
+**Not established.** 3-max 100bb is not capped: its chart play is a Mistake or Blunder 1.3% of the time (12,274
+decisions), twice 6-max's and a fifth of heads-up's, and its mixed-hand gap is 1.2-1.5 times the curve on under 100
+plays facing an open or a 3-bet. 4 and 5 players and other depths are unmeasured. The tournament presets' heads-up
+answers (`engine/pf_icm_study.py`) are capped the same way without a measure of their own. Heads-up chart play is now
+graded Inaccuracy one decision in ten at 100bb: what the heads-up model says is shown, not counted against you.
 
 ## 19. Nut advantage on Reports (2026-11-06)
 
@@ -2664,3 +2743,37 @@ of a clear blunder with that reason ("This answer is approximate: a quick answer
 game ..."), not "short of its target" (`grade.ts` `capGist`; test `provenance.approxReason.test.ts`). The same goes for
 a later street narrowed through a spot served as built (`ranges_built`). Quick's 3-way turn game (8 buckets) isn't
 marked.
+
+## 29. Quick against Fast and Accurate in Practice (2026-11-18)
+
+The Practice QA sweep (`docs/QA.md`, seed 1, natively through `slot.sh`) asks a sample of your postflop decisions again
+at Fast, and a few at Accurate, in a process of their own that is first asked the hand's earlier requests at that speed,
+then grades every action of the decision by both. Measured after the day's fixes, on the harness that asks each
+reference in the hand's context. A reference whose context was lost on the way (the solve cache evicted a 3-way street
+it narrows through, or its rules-narrowed streets aren't among Quick's) is left out (`ref.context`, 4 in the matrix),
+and one without the move Quick graded (`ref.missing`, 3: Fast had no 50% bet where Quick's small 3-way flop game offers
+one) has nothing to compare. Where either answer was a live solve:
+
+| Run | Reference | The move made: same verdict | Every action: same verdict | Same side of Correct | Quick condemns what the reference passes | Quick passes what it condemns |
+|---|---|---:|---:|---:|---:|---:|
+| Default matrix (21 configs, 324 hands) | Fast | 97/107 (90.7%) | 333/378 (88.1%) | 351/378 (92.9%) | 2 (0.5%) | 2 (0.5%) |
+| | Accurate | 4/5 | 8/16 | 13/16 | 0 | 0 |
+| `--quick` (4 configs, 42 hands) | Fast | 14/14 | 49/55 | 50/55 | 0 | 0 |
+
+(Library flops included, the matrix's moves agree 124 of 134 times at Fast, 92.5%, and 6 of 7 at Accurate; `--quick`'s
+26 of 26 at Fast and 2 of 2 at Accurate, both of those at library flops.) "Condemns" is a Mistake or Blunder against a
+Best or Correct. So Quick and Fast give a different verdict to about one action in eight at a live node and one in
+fourteen crosses between Best/Correct and the rest, mostly Best or Correct against Inaccuracy. The four crossings were
+at three nodes: a 125% river bet in a heads-up 100bb limped pot (Quick Best, Fast Mistake), a 6-max 200bb river 33% bet
+neither plays (Quick Correct, Fast Mistake), and two turn bets in a 6-max ante pot (Quick Mistake, Fast Correct; EVs
+1.14 and 1.07 against 1.40 and 1.33).
+
+The triage's three serious flips (6max-100bb-loose-any hand 9: QsQd facing a 3-way turn bet, Fast fold Best and call
+Blunder against Quick's call Best) were the harness, not Quick: the Fast reference was asked cold, so the rules narrowed
+the hand's flop. Asked in context, Fast says call Best, as Quick does. Nothing in Quick was changed for it; a Quick
+grade is shown as Quick's and not re-checked at Fast here.
+
+**Not established.** One seed: 107 moves at live nodes against Fast and 5 against Accurate, so a rate of 0.5% each way
+is two decisions. The times are native; Quick stops on a time budget, so in a slower browser it runs fewer iterations
+and may part from Fast more often than this. Library flops agree by construction (both read the same entry) and are
+counted only in the bracketed totals.

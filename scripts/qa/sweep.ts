@@ -51,20 +51,24 @@ const clock = (adv: PyAdvisor) => {
   return () => r3(Math.max(0, now() - at - (adv.waited - w)));
 };
 
-/** The project's memory rule for any one process (about 1 GB), MB. */
+/** The project's memory rule for any one process (about 1 GB of RSS), MB. Each record keeps the process's physical
+ * footprint beside its RSS: the RSS also counts pages it freed that the system hasn't taken back (advserver.py memory()). */
 const RSS_RULE_MB = 1024;
-/** Whether the request just answered took its process's peak RSS past RSS_RULE_MB: a process's peak only grows, so it's the
- * first request past it since the process started (`mark` follows one advisor; reset it where a fresh process starts). */
-const crossed = (adv: PyAdvisor, mark: { restarts: number; rss: number }) => {
-  if (adv.restarts !== mark.restarts) {
-    mark.restarts = adv.restarts;
-    mark.rss = 0;
-  }
-  const was = mark.rss;
-  mark.rss = adv.last.rss;
-  return adv.last.rss > RSS_RULE_MB && was <= RSS_RULE_MB;
+/** The processes whose peak RSS passed RSS_RULE_MB since the last call, once each (`seen` follows one advisor: clear it
+ * where `fresh` starts it over), by the record checked next: the request just answered, or one asked before it on the
+ * same process (the hand's earlier requests asked again), or one a process answered before a restart took it away. The
+ * worst of them, or null. */
+const crossed = (adv: PyAdvisor, seen: Set<number>): { rss: number; mem: number } | null => {
+  let worst: { rss: number; mem: number } | null = null;
+  adv.procs.forEach((p, i) => {
+    if (p.rss <= RSS_RULE_MB || seen.has(i)) return;
+    seen.add(i);
+    if (!worst || p.rss > worst.rss) worst = p;
+  });
+  return worst;
 };
-const rssViolation = (adv: PyAdvisor) => K.violation("perf.rss", `this request took the advisor's peak RSS to ${adv.last.rss} MB, over the ~1 GB a process may use`, "soft");
+const rssViolation = (p: { rss: number; mem: number }) =>
+  K.violation("perf.rss", `this request, or one asked before it for the hand's earlier streets, took the advisor's peak RSS to ${p.rss} MB (its physical footprint at most ${p.mem} MB), over the ~1 GB a process may use`, "soft");
 
 /** The hand in a line: your seat and cards, the board out, and each street's moves. */
 export function lineOf(h: P.PracticeHand): string {
@@ -160,7 +164,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
   const jobs: RefJob[] = [];
   let fastAsked = 0;
 
-  const refMark = { restarts: -1, rss: 0 };
+  const refSeen = new Set<number>();
   const handReqs = new Map<string, HandRequest[]>();
   /** each hand's boards asked, for the hands a drop names (checks.ts handsOn) */
   const boardsOf = (only?: string) => new Map([...handReqs.entries()].filter(([k]) => only === undefined || k === only).map(([k, rs]) => [k, rs.map((q) => q.state.board ?? "")] as const));
@@ -253,10 +257,11 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     } catch (e) {
       violations.push(K.violation("ref.error", `the ${j.mode} reference failed: ${message(e).slice(0, 300)}`, "soft"));
     }
-    if (crossed(refAdv, refMark)) violations.push(rssViolation(refAdv));
+    const over = crossed(refAdv, refSeen);
+    if (over) violations.push(rssViolation(over));
     // (the reference's own request is the one asked last: its done is past it)
     if (warm.restarts === refAdv.restarts && !evicted && !lostOwn) warm.done.set(`${j.hand}|${j.mode}`, Math.max(doneOf(j), j.at + 1));
-    put({ t: "ref", ...j.base, mode: j.mode, secs, rss: refAdv.last.rss, source, ...prov, warmed, ...(cold ? { cold } : {}), ...(evicted ? { evicted } : {}), ...(outside.length ? { outOfContext: outside } : {}), cmp, ...(all ? { all } : {}), violations });
+    put({ t: "ref", ...j.base, mode: j.mode, secs, rss: refAdv.last.rss, mem: refAdv.last.mem, source, ...prov, warmed, ...(cold ? { cold } : {}), ...(evicted ? { evicted } : {}), ...(outside.length ? { outOfContext: outside } : {}), cmp, ...(all ? { all } : {}), violations });
   };
 
   for (const cfg of o.configs) {
@@ -268,7 +273,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     let heroDecisions = 0;
     let oppMoves = 0;
     const cfgViolations: K.Violation[] = [];
-    const mark = { restarts: -1, rss: 0 };
+    const seen = new Set<number>();
     const reqsOf = (n: number): HandRequest[] => {
       const k = `${cfg.name}|${n}`;
       if (!handReqs.has(k)) handReqs.set(k, []);
@@ -366,7 +371,8 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
             move = P.checkOrCall(h, sim);
             action = `(${move.action}: the answer failed)`;
           }
-          if (crossed(main, mark)) violations.push(rssViolation(main));
+          const over = crossed(main, seen);
+          if (over) violations.push(rssViolation(over));
           if (street !== "preflop" && lost(n)) lostHand = n;
           const flags = K.oppFlags(h, sim, seat, move);
           if (flags.freeFold) violations.push(K.violation("opp.freeFold", `${seat} folds where checking is free`));
@@ -377,7 +383,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           // beside it where they differ)
           const made = `${move.action}${typeof move.to === "number" && move.action !== "call" ? ` ${move.to}` : ""}`;
           const drawn = action.startsWith("(") || kindOfName(action) === move.action ? {} : { drawn: action };
-          put({ t: "opp", ...tag({ street, seat }), ...(kept ? { kept } : {}), ...(!inHand ? { evicted: true } : {}), line, secs: took(), rss: main.last.rss, action: action.startsWith("(") ? action : made, ...drawn, flags, violations });
+          put({ t: "opp", ...tag({ street, seat }), ...(kept ? { kept } : {}), ...(!inHand ? { evicted: true } : {}), line, secs: took(), rss: main.last.rss, mem: main.last.mem, action: action.startsWith("(") ? action : made, ...drawn, flags, violations });
           h = P.withVillain(h, move, sim);
           continue;
         }
@@ -406,9 +412,10 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           violations.push(K.violation("answer.error", `your ${street} answer failed: ${message(e).slice(0, 400)}`));
         }
         const secs = took();
-        if (crossed(main, mark)) violations.push(rssViolation(main));
+        const over = crossed(main, seen);
+        if (over) violations.push(rssViolation(over));
         if (street !== "preflop" && lost(n)) lostHand = n;
-        const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), ...(kept ? { kept } : {}), ...(!inHand ? { evicted: true } : {}), line, spot: spotOf(h, sim), mode: cfg.mode, secs, rss: main.last.rss, ...(pfSecs !== undefined ? { pfSecs } : {}) };
+        const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), ...(kept ? { kept } : {}), ...(!inHand ? { evicted: true } : {}), line, spot: spotOf(h, sim), mode: cfg.mode, secs, rss: main.last.rss, mem: main.last.mem, ...(pfSecs !== undefined ? { pfSecs } : {}) };
         if (held?.data.error) violations.push(K.violation("answer.error", `your ${street} answer is an error: ${String(held.data.error).slice(0, 300)}`));
         const actions = held && !held.data.error ? P.optionsOf(held.data) : [];
         if (held && !held.data.error && !actions.length) violations.push(K.violation("answer.empty", `your ${street} answer has no actions`));
@@ -489,9 +496,9 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
       if (!spent) violations.push(...K.checkHand(h));
       put({ t: "hand", ...tag({}), net: h.result ? h.result.net : null, folded: !!h.result?.folded, shown: h.shown, decisions: h.decisions.length, tries, violations });
       const hard = violations.filter((x) => x.severity === "hard").length;
-      o.log(`  hand ${n + 1}/${last} (seed ${h.seed}${tries ? `, ${tries} redeals` : ""}): ${h.decisions.length} decisions${h.result ? `, ${h.result.net}bb` : ""}${abandoned ? `, abandoned: ${abandoned}` : ""}${hard ? `, ${hard} hard` : ""} [${Math.round(now() - t0)} s, RSS ${main.peak} MB]\n`);
+      o.log(`  hand ${n + 1}/${last} (seed ${h.seed}${tries ? `, ${tries} redeals` : ""}): ${h.decisions.length} decisions${h.result ? `, ${h.result.net}bb` : ""}${abandoned ? `, abandoned: ${abandoned}` : ""}${hard ? `, ${hard} hard` : ""} [${Math.round(now() - t0)} s, RSS ${main.peak} MB, held ${main.memPeak} MB]\n`);
     }
-    put({ t: "config", config: cfg.name, hands: o.onlyHands?.length || cfg.hands, heroDecisions, oppMoves, secs: r3(now() - ct), rssPeak: main.peak, restarts: main.restarts, waited: r3(main.waited), violations: cfgViolations });
+    put({ t: "config", config: cfg.name, hands: o.onlyHands?.length || cfg.hands, heroDecisions, oppMoves, secs: r3(now() - ct), rssPeak: main.peak, memPeak: main.memPeak, restarts: main.restarts, waited: r3(main.waited), violations: cfgViolations });
   }
   main.close();
   o.log(`\n[${o.label}] ${jobs.length} reference answers (${jobs.filter((j) => j.mode === "fast").length} Fast, ${jobs.filter((j) => j.mode === "accurate").length} Accurate)\n`);
@@ -503,14 +510,14 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     refAdv.fresh();
     warm.done.clear();
     warm.restarts = -1;
-    refMark.restarts = -1;
+    refSeen.clear();
     const rt = now();
     for (const j of these) {
       await runRef(j);
       const r = records[records.length - 1] as RefRecord;
-      o.log(`  ${++k}/${jobs.length} ${j.mode} ${j.base.street}: ${r.source}, ${r.cmp ? `${r.cmp.quick} / ${r.cmp.ref}` : "not compared"}${r.cold ? " (cold)" : r.evicted ? " (evicted)" : r.outOfContext ? ` (out of context: ${r.outOfContext.join(", ")})` : ""} (${r.secs} s) [${Math.round(now() - t0)} s, RSS ${refAdv.peak} MB]\n`);
+      o.log(`  ${++k}/${jobs.length} ${j.mode} ${j.base.street}: ${r.source}, ${r.cmp ? `${r.cmp.quick} / ${r.cmp.ref}` : "not compared"}${r.cold ? " (cold)" : r.evicted ? " (evicted)" : r.outOfContext ? ` (out of context: ${r.outOfContext.join(", ")})` : ""} (${r.secs} s) [${Math.round(now() - t0)} s, RSS ${refAdv.peak} MB, held ${refAdv.memPeak} MB]\n`);
     }
-    put({ t: "config", config: `(reference advisor, ${mode === "fast" ? "Fast" : "Accurate"})`, hands: 0, heroDecisions: 0, oppMoves: 0, secs: r3(now() - rt), rssPeak: refAdv.peak, restarts: refAdv.restarts, waited: r3(refAdv.waited), violations: [] });
+    put({ t: "config", config: `(reference advisor, ${mode === "fast" ? "Fast" : "Accurate"})`, hands: 0, heroDecisions: 0, oppMoves: 0, secs: r3(now() - rt), rssPeak: refAdv.peak, memPeak: refAdv.memPeak, restarts: refAdv.restarts, waited: r3(refAdv.waited), violations: [] });
   }
   refAdv.close();
   const s = summarize(records, now() - t0, o.seed);

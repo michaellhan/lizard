@@ -20,17 +20,23 @@ gitignored) on QA_THREADS threads (default 2) rather than wasm on the browser's 
 (should_stop is never true). Run with -B so no bytecode lands in the repo.
 
 On macOS it runs with MallocLargeCache=0 in its environment (scripts/qa/py.ts sets it; run directly, it starts itself
-again with it set): libmalloc otherwise keeps freed large blocks resident, so a stored preflop solve dropped after a request
-(QA_DROP_PF, about 380 MB of live arrays) stayed in the process's RSS and the next big solve's working set stacked on top
-of it: 1.2 GB peaks that were freed memory, not live data (docs/QA.md, issue C). libmalloc reads the variable when the
-process starts, so it can't be set from here. A browser's wasm heap reuses freed memory and has no such cache.
+again with it set): libmalloc otherwise keeps freed large blocks resident for reuse, so a stored preflop solve dropped
+after a request (QA_DROP_PF, about 380 MB of live arrays) stayed resident and the next big solve's working set stacked on
+top of it (docs/QA.md, issue C). libmalloc reads the variable when the process starts, so it can't be set from here. A
+browser's wasm heap reuses freed memory and has no such cache. The freed pages of libmalloc's small-block regions still
+count in the RSS until the system takes them back, so the process restarts past a lower cap (CAP) and reports its
+physical footprint beside its RSS (memory()).
 
 stdin, one JSON object a line: {"id", "op": "answer", "state", "play"?: {"seat", "hole", "seed"?}}
 stdout, one a line: {"ready": true, ...} once, then {"id", "json": <the answer as the worker posts it, a string>,
-"secs", "rss_mb", "dropped"?} or {"id", "error", "secs", "rss_mb"} (an exception: the worker posts {error} and the page
-fails the request). "dropped": the boards of the hands' 3-way solves (Advisor._mw_lines, which a later street's ranges are
-narrowed through) the solve cache evicted while the request was answered (Advisor._keep, least recently used past
-QA_CACHE_MB), so the sweep knows a hand's earlier streets are gone without a restart and asks them again.
+"secs", "mem_mb", "mem_now_mb", "rss_mb", "cur_mb", "dropped"?, "bye"?} or the same with "error" in place of "json" (an
+exception: the worker posts {error} and the page fails the request). "rss_mb" and "cur_mb": the process's RSS at its most
+and now, which also counts pages it freed that the system hasn't taken back yet; "mem_mb" and "mem_now_mb": its physical
+footprint at its most and now, what it holds (macOS; elsewhere its RSS) (memory(), below). "bye": its RSS is over
+QA_RSS_CAP_MB (default 700, CAP below) and it exits after this reply. "dropped": the boards of the hands' 3-way solves
+(Advisor._mw_lines, which a later street's ranges are narrowed through) the solve cache evicted while the request was
+answered (Advisor._keep, least recently used past QA_CACHE_MB), so the sweep knows a hand's earlier streets are gone
+without a restart and asks them again.
 """
 import json
 import os
@@ -179,10 +185,44 @@ def cur_mb() -> float:
         return rss_mb()
 
 
+# The RSS counts more than the process holds: libmalloc hands the empty pages of its small-block regions back with
+# madvise(MADV_FREE), and they stay resident, and counted in the RSS, until the system needs them, when it takes them
+# without writing anything out. Large blocks don't reuse them, so a big read's arrays land on top. vmmap showed 262 MB of
+# "MALLOC_SMALL (empty)" resident with 336 KB of it dirty after a run of 5-way solves; a stored 6-max preflop solve read
+# after two of them peaked at 1084 MB of RSS and a 570 MB physical footprint (the pages the process has written and still
+# holds: what Activity Monitor's Memory column and top's MEM show), and the same sequence run again at 711 MB and 590 MB
+# (how much freed memory the RSS still counts moves with how much the rest of the machine wants). memory() gives both; the
+# cap below and the sweep's perf.rss rule read the RSS, the project's rule, and the footprint says what of it is held.
+if sys.platform == "darwin":
+    import ctypes
+
+    class _RusageV4(ctypes.Structure):
+        # rusage_info_v4 (sys/resource.h): a 16-byte uuid, then 64-bit counters, ri_resident_size the 7th,
+        # ri_phys_footprint the 8th and ri_lifetime_max_phys_footprint the 29th (40 slots: room past its 35)
+        _fields_ = [("uuid", ctypes.c_uint8 * 16), ("f", ctypes.c_uint64 * 40)]
+
+    _libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+    _libc.proc_pid_rusage.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
+else:
+    _libc = None
+
+
+def memory() -> dict:
+    """The process's memory, MB: `now` and `peak` its physical footprint now and the most it has been (macOS; the RSS
+    elsewhere), `rss_now` and `rss_peak` its RSS."""
+    if _libc is not None:
+        r = _RusageV4()
+        if _libc.proc_pid_rusage(os.getpid(), 4, ctypes.byref(r)) == 0:
+            return {"now": r.f[7] / 2 ** 20, "peak": r.f[28] / 2 ** 20, "rss_now": r.f[6] / 2 ** 20, "rss_peak": rss_mb()}
+    now, peak = cur_mb(), rss_mb()
+    return {"now": now, "peak": peak, "rss_now": now, "rss_peak": peak}
+
+
 # The stored preflop solves read for a request (pf_study, Lizard's pf_solve and pf_icm_study keep each in _HELD, a 6-max
 # one about 380 MB of live arrays) are dropped after it, so a postflop solve after a preflop-solve read doesn't take the
-# process past ~1 GB (with MallocLargeCache=0, above, the freed blocks go back to the system). They are read again (0.4 s) at the next preflop-solve request, to the same answer; the browser's worker keeps
-# them. QA_DROP_PF=0 keeps them, as the worker does. A solve run here, not read from the store, is kept either way.
+# process past ~1 GB (with MallocLargeCache=0, above, the freed large blocks go back to the system). They are read
+# again (0.4 s) at the next preflop-solve request, to the same answer; the browser's worker keeps them. QA_DROP_PF=0
+# keeps them, as the worker does. A solve run here, not read from the store, is kept either way.
 DROP_PF = os.environ.get("QA_DROP_PF", "1") != "0"
 
 
@@ -200,20 +240,40 @@ def drop_stored() -> int:
     return n
 
 
-CAP = float(os.environ.get("QA_RSS_CAP_MB", "900"))
+# Past the cap by its RSS after a reply, the process exits and the bridge starts a fresh one for what comes next (a fresh
+# one holds none of the pages libmalloc freed; the sweep asks a hand's earlier streets again where its process restarted,
+# sweep.ts). In the default matrix (2026-11-18, QA_RSS_LOG) the request that added most to the RSS was a stored preflop
+# solve's read, up to 494 MB at its peak, and the bridge starts a process afresh before a preflop request past
+# QA_PF_CAP_MB (500, py.ts), where the hand has no earlier street to lose; a postflop request added up to 431 MB in the
+# configs' processes. With 700 here each config's process stayed under 1 GB (867 MB at most). It isn't a bound: an
+# Accurate reference's turn added 611 MB on top of its hand's flop, to 1130 MB (a 718 MB footprint).
+CAP = float(os.environ.get("QA_RSS_CAP_MB", "700"))
+# (a file to append each request's memory before and after to, for finding what holds it)
+TRACE = os.environ.get("QA_RSS_LOG", "")
+
+
+def over_cap(m: dict):
+    """The reply's "bye" where the process's RSS now (memory()) is over CAP, else None."""
+    if m["rss_now"] > CAP:
+        return (f"rss {m['rss_now']:.0f} MB over the cap {CAP:.0f} (peak {m['rss_peak']:.0f}; held {m['now']:.0f}): "
+                "exiting")
+    return None
 
 
 def main() -> None:
     out = sys.stdout
+    m = memory()
     print(json.dumps({"ready": True, "threaded": THREADED, "nolib": NOLIB, "core": not _slow, "cache_mb": KEEP_MB,
                       "drop_pf": DROP_PF, "large_cache": os.environ.get("MallocLargeCache", ""),
-                      "secs": round(time.time() - T0, 2), "rss_mb": round(rss_mb())}), file=out, flush=True)
+                      "secs": round(time.time() - T0, 2), "mem_mb": round(m["peak"]), "rss_mb": round(m["rss_peak"])}),
+          file=out, flush=True)
     for line in sys.stdin:
         line = line.strip()
         if not line:
             continue
         req = json.loads(line)
         t = time.time()
+        before = memory() if TRACE else None
         EVICTED.clear()
         try:
             text = answer(req.get("state") or {}, req.get("play"))
@@ -225,16 +285,25 @@ def main() -> None:
             msg["dropped"] = sorted(EVICTED)
         if DROP_PF:
             drop_stored()
-        msg["rss_mb"] = round(rss_mb())
-        now_mb = cur_mb()
-        msg["cur_mb"] = round(now_mb)
-        # (over the cap, by its RSS now, the reply says so, and the bridge sends what comes next to a fresh process, so no
-        # request is sent to one about to exit)
-        over = now_mb > CAP
-        if over:
-            msg["bye"] = f"rss {now_mb:.0f} MB over the cap {CAP:.0f} (peak {rss_mb():.0f}): exiting"
+        m = memory()
+        msg.update(mem_mb=round(m["peak"]), mem_now_mb=round(m["now"]), rss_mb=round(m["rss_peak"]),
+                   cur_mb=round(m["rss_now"]))
+        if TRACE:
+            st = req.get("state") or {}
+            kind = "pf" if st.get("preflop_solve") else "play" if req.get("play") else "advise"
+            held = round(sum(advs['fast']._held.values()) / 2 ** 20)
+            with open(TRACE, "a") as f:
+                f.write(json.dumps({"pid": os.getpid(), "kind": kind, "board": st.get("board"),
+                                    "before": round(before["now"]), "after": msg["mem_now_mb"], "peak": msg["mem_mb"],
+                                    "rss_before": round(before["rss_now"]), "rss_after": msg["cur_mb"],
+                                    "rss_peak": msg["rss_mb"], "held_mb": held, "secs": msg["secs"]}) + "\n")
+        # (over the cap the reply says so, and the bridge sends what comes next to a fresh process, so no request is sent
+        # to one about to exit)
+        bye = over_cap(m)
+        if bye:
+            msg["bye"] = bye
         print(json.dumps(msg), file=out, flush=True)
-        if over:
+        if bye:
             sys.exit(3)
 
 

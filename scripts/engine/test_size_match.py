@@ -113,9 +113,22 @@ class TheLimpedLibrarySpot(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        os.environ["QA_LIBRARY"] = LIB
+        # imported afresh with the library: advserver reads QA_LIBRARY and QA_NOLIB at import, and test_qa_advserver.py
+        # imports it without the library
         sys.path.insert(0, str(ROOT / "scripts" / "qa"))
-        import advserver
+        sys.modules.pop("advserver", None)
+        was = {k: os.environ.get(k) for k in ("QA_LIBRARY", "QA_NOLIB")}
+        os.environ["QA_LIBRARY"] = LIB
+        os.environ.pop("QA_NOLIB", None)
+        try:
+            import advserver
+        finally:
+            for k, v in was.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        sys.modules.pop("advserver", None)
         cls.answer = staticmethod(advserver.answer)
 
     def ask(self, hero, hole, board, flop_):
