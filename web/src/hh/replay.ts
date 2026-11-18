@@ -2,6 +2,7 @@
 // importHand (solver/gto/static/hh.js): every seat with its own stack, the actions one by one as if entered at the
 // table, so a short all-in, its side pot and a bet nobody could call in full play out as at the table. Where the
 // two disagree the hand stops there, with a warning.
+import { seatsOf } from "@/poker/seats";
 import { noLines, simulate, withMove, type Lines, type Move, type Sim, type TableSetup } from "@/poker/table";
 import { parseHandHistory, type HhStreet, type ParsedHand } from "./parse";
 
@@ -15,15 +16,20 @@ export interface ReplayedHand {
   warnings: string[];
 }
 
-const r2 = (x: number) => Math.round(x * 100) / 100;
+// (to the ante's own precision: an averaged ante is to 1e-4, and a stack rounded to the cent around it can leave an all-in
+// seat 0.004 behind)
+const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
 const EPS = 1e-9;
 
 export function replay(h: ParsedHand): ReplayedHand {
   const warnings = [...h.warnings];
   const stacks = { ...h.stacks };
-  // (a seat all-in on a short ante: its stack is to the cent and the ante, an average, to 1e-4, so the rounding can leave
-  // it 0.004 behind, a decision the history never has; it has nothing behind)
-  for (const p of Object.keys(stacks)) if (stacks[p]! > h.ante && stacks[p]! - h.ante <= 0.005 + EPS) stacks[p] = h.ante;
+  // (a seat all-in on a short ante, or on its blind or straddle after one: its stack is to the cent and the ante, an
+  // average, to 1e-4, so the rounding can leave it 0.004 behind, a decision the history never has; it has nothing behind)
+  const straddler = h.straddle && h.players >= 3 ? seatsOf(h.players)[0]! : null;
+  const blindOf = (p: string) => (p === "SB" ? 0.5 : p === "BB" ? 1 : p === straddler ? 2 : 0);
+  for (const p of Object.keys(stacks))
+    for (const owed of [h.ante, h.ante + blindOf(p)]) if (stacks[p]! > owed && stacks[p]! - owed <= 0.005 + EPS) stacks[p] = owed;
   const setup: TableSetup = { players: h.players, stacks, ante: h.ante, ...(h.straddle ? { straddle: true } : {}), ...(h.game === "plo4" ? { limit: "pot" as const } : {}) };
   let lines = noLines();
   let stopped: ReplayedHand["stopped"] = null;
@@ -37,7 +43,7 @@ export function replay(h: ParsedHand): ReplayedHand {
     const info = sim.cur;
     const toCall = info.curBet - info.bets[a.pos]!;
     // an all-in is the stack: one the table has a little off the site's (rounding, a blind it leaves out) is set to it
-    if (a.allIn && a.to !== undefined && a.to > 0) stacks[a.pos] = r2(sim.invested[a.pos]! + a.to);
+    if (a.allIn && a.to !== undefined && a.to > 0) stacks[a.pos] = r4(sim.invested[a.pos]! + a.to);
     const cap = stacks[a.pos]! - sim.invested[a.pos]!;
     const passive: Move = { pos: a.pos, action: toCall > EPS ? "call" : "check" };
     const to = a.to ?? 0;

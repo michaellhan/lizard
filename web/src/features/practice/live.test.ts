@@ -53,6 +53,19 @@ describe("handTier", () => {
     expect(handTier(cards("ThTc"), cards("4d9h3s4s9s")).tier).toBe(2);
     expect(handTier(cards("AhKc"), cards("4d9h3s4s9s")).tier).toBe(0);
   });
+
+  it("reads a hand that beats the board's straight or better by how many holdings beat it in turn", () => {
+    // (quads on the board: the ace kicker is the nuts, the king loses to an ace (17%), the four to any card over it (96%))
+    expect(handTier(cards("Ad3d"), cards("7c7d7h7s2c")).tier).toBe(3);
+    expect(handTier(cards("KdQd"), cards("7c7d7h7s2c")).tier).toBe(2);
+    expect(handTier(cards("4d3d"), cards("7c7d7h7s2c")).tier).toBe(1);
+    // (five hearts on the board: the queen of hearts is beaten by nothing but a straight flush, the three by any higher heart)
+    expect(handTier(cards("Qh4c"), cards("AhKh9h5h2h")).tier).toBe(3);
+    expect(handTier(cards("3h4c"), cards("AhKh9h5h2h")).tier).toBe(1);
+    // (a better straight than the board's: strong where nothing else can be made, weak with four hearts out)
+    expect(handTier(cards("Tc2d"), cards("5s6d7c8h9s")).tier).toBe(3);
+    expect(handTier(cards("TcJc"), cards("5h6h7h8h9c")).tier).toBe(1);
+  });
 });
 
 describe("the price of a call", () => {
@@ -62,11 +75,47 @@ describe("the price of a call", () => {
     expect(noPairCall(0.4, 1, false)).toBeCloseTo(0.4 / 9);
     expect(noPairCall(0.4, 1, true)).toBeLessThanOrEqual(0.02);
     expect(noPairCall(0.2, 3, true)).toBeLessThanOrEqual(0.02);
+    // (on the river, an all-in or a call of half the chips with nothing is 2% at most at any price; the flop keeps its float)
+    expect(noPairCall(0.12, 0.2, true, true)).toBe(0.02);
+    expect(noPairCall(0.12, 0.2, false, true)).toBe(0.12);
     // (a weak pair or a draw: the profile's rate small, its pot-size rate facing the pot, its cap with the stack at stake)
     expect(weakCall(0.85, 0.6, 0.3, 1 / 3, false)).toBe(0.85);
     expect(weakCall(0.85, 0.6, 0.3, 1, false)).toBeCloseTo(0.6);
     expect(weakCall(0.85, 0.6, 0.3, 2, false)).toBeCloseTo(0.3);
     expect(weakCall(0.97, 0.85, 0.45, 1, true)).toBe(0.45);
+  });
+});
+
+describe("liveMove, the price", () => {
+  // (BTN 200, SB 200, BB 12: after a raise to 3 called twice and a flop bet of 6 called twice, BB has 3 behind in a 27bb pot,
+  // and the turn's 191bb shove costs it those 3)
+  const shoved = (kind: "live" | "loose", seed: number, hole: string): PracticeHand => {
+    const h = newHand(3, 100, 0, seed, { opponents: kind, carry: true }, { stacks: { BTN: 200, SB: 200, BB: 12 }, rebuys: [], hero: "BTN" });
+    const pre = played({ ...h, board: cards("Ks9d4c2s3h") }, [mv("BTN", "raise", 3), mv("SB", "call"), mv("BB", "call")]);
+    const flop = played(dealNext(pre, "flop"), [mv("SB", "check"), mv("BB", "check"), mv("BTN", "bet", 6), mv("SB", "call"), mv("BB", "call")]);
+    return holding(played(dealNext(flop, "turn"), [mv("SB", "check"), mv("BB", "check"), mv("BTN", "all-in"), mv("SB", "fold")]), "BB", hole);
+  };
+  const folds = (kind: "live" | "loose", hole: string) =>
+    Array.from({ length: 200 }, (_, s) => at(shoved(kind, s + 1, hole), { action: "call" }).action).filter((a) => a === "fold").length / 200;
+
+  it("prices a short stack's call as its last chips, not the whole bet", () => {
+    expect(simOf(shoved("live", 1, "7h7c")).toAct).toBe("BB");
+    // (a weak pair calls its last 3bb into 27 at the small-bet rate: 85% live, 97% loose)
+    expect(folds("live", "7h7c")).toBeLessThan(0.25);
+    expect(folds("loose", "7h7c")).toBeLessThan(0.1);
+  });
+
+  it("calls a big bet that stakes the stack with a pair and a draw at least as often as with the draw alone", () => {
+    // (BB has 6 behind after calling a raise to 2.5, and the flop bet of 6 into 6 puts it all-in)
+    const jam = (seed: number, hole: string) => {
+      const h = newHand(6, 100, 0, seed, { opponents: "live", carry: true }, { stacks: { UTG: 100, HJ: 100, CO: 100, BTN: 100, SB: 100, BB: 8.5 }, rebuys: [], hero: "BTN" });
+      const pre = played({ ...h, board: cards("Kh7c2hQs3d") }, [mv("UTG", "fold"), mv("HJ", "fold"), mv("CO", "fold"), mv("BTN", "raise", 2.5), mv("SB", "fold"), mv("BB", "call")]);
+      return holding(played(dealNext(pre, "flop"), [mv("BB", "check"), mv("BTN", "bet", 6)]), "BB", hole);
+    };
+    const calls = (hole: string) => Array.from({ length: 300 }, (_, s) => at(jam(s + 1, hole), { action: "fold" }).action).filter((a) => a === "call").length / 300;
+    // (8h7h: a pair of sevens and a flush draw; Ah5h: the draw alone; both at the draw's cap of 45%)
+    expect(calls("8h7h")).toBeGreaterThan(0.38);
+    expect(calls("8h7h")).toBeGreaterThan(calls("Ah5h") - 0.08);
   });
 });
 

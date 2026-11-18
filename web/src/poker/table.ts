@@ -350,9 +350,11 @@ export function recordOf(
   }
   const step = pot ? 100 : 2;
   const typed = a.to ?? 0;
-  let to = Math.round(typed * step) / step;
-  // (the smallest raise or the all-in typed to the cent: the half below would refuse it, or stop short of all-in)
-  if (to < minRaiseTo(info) - EPS && typed >= minRaiseTo(info) - 0.005) to = minRaiseTo(info);
+  // (the smallest raise or the all-in typed to the cent is taken as it is, before any rounding: the half below would
+  // refuse it, the half above would raise more than typed, or go all-in where the stack sits just over the minimum)
+  const least = minRaiseTo(info);
+  let to = Math.abs(typed - least) <= 0.005 ? least : Math.round(typed * step) / step;
+  if (to < least - EPS && typed >= least) to = least;
   if (typed >= allInTo - 0.005) to = Math.max(to, allInTo);
   // (no size at all is refused even for an opponent, whose move then falls back to a check or call; a size that rounds
   // to nothing or to no more than the bet is lifted)

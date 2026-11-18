@@ -152,6 +152,22 @@ describe("recordOf", () => {
     expect(recordOf(t, s, { action: "raise", to: 2, clamp: true })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
     expect(recordOf(t, s, { action: "raise", to: 0.2, clamp: true })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
     expect(recordOf(t, s, { action: "raise", clamp: true })).toBe("Enter an amount.");
+    // (a size over the smallest raise that the half below would refuse is the smallest raise)
+    expect(recordOf(t, s, { action: "raise", to: 3.7 })).toEqual({ pos: "SB", action: "raise", to: 3.6 });
+  });
+
+  it("takes a smallest raise that half big blinds would round up as typed, not the half above or all-in", () => {
+    // (BTN raises to 2.4: the smallest re-raise is to 3.8, which half big blinds would make 4)
+    const t = table(6);
+    const s = simulate(t, lines({ preflop: "UTG f, HJ f, CO f, BTN r2.4" }), 0);
+    expect(legal(t, s)).toMatchObject({ toAct: "SB", minTo: 3.8 });
+    expect(recordOf(t, s, { action: "raise", to: 3.8 })).toEqual({ pos: "SB", action: "raise", to: 3.8 });
+    // (with 3.85 behind, the smallest raise is still a raise to 3.8, and all-in is 3.85)
+    const short = table(6, { SB: 3.85 });
+    const ss = simulate(short, lines({ preflop: "UTG f, HJ f, CO f, BTN r2.4" }), 0);
+    expect(legal(short, ss)).toMatchObject({ toAct: "SB", minTo: 3.8, allInTo: 3.85 });
+    expect(recordOf(short, ss, { action: "raise", to: 3.8 })).toEqual({ pos: "SB", action: "raise", to: 3.8 });
+    expect(recordOf(short, ss, { action: "raise", to: 3.85 })).toEqual({ pos: "SB", action: "all-in" });
   });
 
   it("rounds sizes to half a big blind, refuses one under the minimum, lifts an opponent's", () => {

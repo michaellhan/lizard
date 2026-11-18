@@ -141,10 +141,10 @@ describe("a hand's records against the table", () => {
     expect(Math.min(lines.first, lines.folded, lines.words)).toBeGreaterThan(30);
   });
 
-  it("writes a blind its seat can't cover as the all-in it is, and reads it back", () => {
-    // (after a 0.1bb ante, the small blind has 0.2bb and the big blind 0.5bb: both all-in on their blinds)
-    let h: PracticeHand = { ...newHand(3, 100, 0, 11, { ante: 0.1 }), stacks: { BTN: 100, SB: 0.3, BB: 0.6 } };
-    for (let step = 0; step < 20; step++) {
+  // (every seat checks or calls to the end; the history written and read back)
+  const roundTrip = (start: PracticeHand) => {
+    let h = start;
+    for (let step = 0; step < 40; step++) {
       const sim = simOf(h);
       const ph = phaseOf(h, sim);
       if (ph.kind === "over") break;
@@ -153,11 +153,46 @@ describe("a hand's records against the table", () => {
     }
     h = { ...h, result: finish(h) };
     const text = practiceHistory(h, 1700000000000, new Date(2026, 0, 1));
+    const rep = importHand(text);
+    const rs = simulate(rep.setup, rep.lines, rep.hand.board.length);
+    const inC = (sim: Sim) => Object.fromEntries(Object.entries(sim.invested).map(([p, x]) => [p, C(x)]));
+    return { text, rep, read: inC(rs), table: inC(simOf(h)) };
+  };
+
+  it("writes a blind its seat can't cover as the all-in it is, and reads it back", () => {
+    // (after a 0.1bb ante, the small blind has 0.2bb and the big blind 0.5bb: both all-in on their blinds)
+    const { text, rep, read, table } = roundTrip({ ...newHand(3, 100, 0, 11, { ante: 0.1 }), stacks: { BTN: 100, SB: 0.3, BB: 0.6 } });
     expect(text).toMatch(/: posts small blind 0\.2 and is all-in$/m);
     expect(text).toMatch(/: posts big blind 0\.5 and is all-in$/m);
-    const rep = importHand(text);
     expect(rep.stopped).toBeNull();
-    const rs = simulate(rep.setup, rep.lines, rep.hand.board.length);
-    expect(rs.invested).toEqual(simOf(h).invested);
+    expect(rep.warnings).toEqual([]);
+    expect(read).toEqual(table);
+  });
+
+  it("writes a short straddle as posted, and reads the hand back as straddled", () => {
+    // (a carried 10bb game with a 0.75bb ante: the straddling CO has 2.6bb, 1.85bb after its ante)
+    const game = { ante: 0.75, straddle: true, carry: true, seat: "moves" as const };
+    const short = roundTrip(newHand(4, 10, 1, 6, game, { stacks: { CO: 2.6, BTN: 10, SB: 10, BB: 10 }, rebuys: [] }));
+    expect(short.text).toMatch(/: posts straddle 1\.85 and is all-in$/m);
+    expect(short.rep.hand.straddle).toBe(true);
+    expect([short.rep.stopped, short.rep.warnings]).toEqual([null, []]);
+    expect(short.read).toEqual(short.table);
+    // (with no more than its ante, the CO straddles nothing, all-in; the hand is still the straddled one the table played)
+    const none = roundTrip(newHand(4, 10, 1, 6, game, { stacks: { CO: 0.75, BTN: 10, SB: 10, BB: 10 }, rebuys: [] }));
+    expect(none.text).toMatch(/: posts straddle 0 and is all-in$/m);
+    expect(none.rep.hand.straddle).toBe(true);
+    expect([none.rep.stopped, none.rep.warnings]).toEqual([null, []]);
+    expect(none.read).toEqual(none.table);
+  });
+
+  it("reads back a blind posted all-in under an uneven ante", () => {
+    // (BTN has less than the 0.1bb ante, so the history's ante averages to 0.0875bb, and SB is all-in on its blind)
+    const { rep, read, table } = roundTrip({ ...newHand(4, 100, 0, 3, { ante: 0.1 }), stacks: { CO: 214.48, BTN: 0.05, SB: 0.6, BB: 23.67 } });
+    expect(rep.hand.ante).toBe(0.0875);
+    expect(rep.stopped).toBeNull();
+    // (the pot is the table's; each seat's chips in differ only by its ante's difference from the average, 0.0375bb at most)
+    const total = (x: Record<string, number>) => Object.values(x).reduce((a, b) => a + b, 0);
+    expect(Math.abs(total(read) - total(table))).toBeLessThanOrEqual(1);
+    for (const p of Object.keys(table)) expect(Math.abs(read[p]! - table[p]!), p).toBeLessThanOrEqual(4);
   });
 });

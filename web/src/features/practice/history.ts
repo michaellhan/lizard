@@ -55,12 +55,13 @@ export function practiceHistory(h: PracticeHand, startedAt: number, at: Date): s
 export function handHistory(h: PracticeHand, head: { site: string; number: string; at: Date }, t: TableSetup = setupOf(h)): string {
   const pos = seatsOf(h.players);
   const name = (p: string) => (p === h.hero ? YOU : p);
-  // (a blind as the table takes it: no more than the seat has after its ante, all-in where that's all; none with nothing left)
+  // (a blind as the table takes it: no more than the seat has after its ante, all-in where that's all; none with nothing
+  // left, but for the straddle, which the table still plays: "posts straddle 0 and is all-in" keeps it in the hand read back)
   const posted = (p: string, what: string, blind: number): string[] => {
     const stack = t.stacks[p] ?? h.stack;
     const had = stack - Math.min(t.ante ?? 0, stack);
-    const x = Math.min(blind, had);
-    return x > EPS ? [`${name(p)}: posts ${what} ${amt(x)}${x >= had - EPS ? " and is all-in" : ""}`] : [];
+    const x = Math.max(0, Math.min(blind, had));
+    return x > EPS || what === "straddle" ? [`${name(p)}: posts ${what} ${amt(x)}${x >= had - EPS ? " and is all-in" : ""}`] : [];
   };
   const button = h.players === 2 ? "SB" : "BTN";
   const out = [

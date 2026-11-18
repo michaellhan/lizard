@@ -146,6 +146,21 @@ describe("parseHandHistory", () => {
     expect(() => parseHandHistory(HH("stars_6max_srp").replace("Dealt to HeroName", "Dealt to Hero Name"))).toThrow(/no "Seat N: Hero Name/);
   });
 
+  it("reads a straddle or small blind posted all-in for less as the table plays it (the one declared difference)", () => {
+    // (the classic importer leaves a short straddle out and warns of a short small blind; Practice writes a short seat's
+    // posts so, and the table plays the straddle, its seat all-in)
+    const gg = HH("gg_straddle");
+    const short = parseHandHistory(gg.replace("posts straddle $0.2", "posts straddle $0.15 and is all-in"));
+    expect([short.straddle, short.warnings]).toEqual([true, []]);
+    const none = parseHandHistory(gg.replace("posts straddle $0.2", "posts straddle $0 and is all-in"));
+    expect([none.straddle, none.warnings]).toEqual([true, []]);
+    // (not all-in, or from another seat, it's still left out with the warning)
+    expect(parseHandHistory(gg.replace("posts straddle $0.2", "posts straddle $0.15")).straddle).toBe(false);
+    const sb = parseHandHistory(gg.replace("posts small blind $0.05", "posts small blind $0.03 and is all-in"));
+    expect(sb.warnings).toEqual([]);
+    expect(parseHandHistory(gg.replace("posts small blind $0.05", "posts small blind $0.03")).warnings[0]).toMatch(/small blind is 0.3bb/);
+  });
+
   it("errors: no hero cards, not Hold'em, not a hand history, each a HandHistoryError", () => {
     const err = (t: string) => {
       try {

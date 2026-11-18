@@ -26,6 +26,7 @@ describe("the table against the cents reference", () => {
     const bug = (what: string) => bugs.length < 10 && bugs.push(what);
     let showdowns = 0;
     let shortAllIns = 0;
+    let typedMins = 0;
     for (let n = 0; n < HANDS && bugs.length < 10; n++) {
       const players = 2 + Math.floor(rnd() * 8);
       const seats = seatsOf(players);
@@ -89,6 +90,12 @@ describe("the table against the cents reference", () => {
             break;
           }
         }
+        // (the smallest raise, typed as it is, is recorded at that size, not the half big blind above it or all-in)
+        const typedMin = a.action === "raise" && a.to === lg.minTo && lg.canRaise && lg.minTo > s.cur!.curBet + 1e-9 && lg.minTo < lg.allInTo - 1e-9;
+        if (typedMin && !((m.action === "raise" || m.action === "bet") && C(m.to!) === C(lg.minTo))) {
+          bug(`smallest raise ${lg.minTo} recorded as ${JSON.stringify(m)}: ${tag()}`);
+        }
+        if (typedMin) typedMins++;
         if ((m.action === "bet" || m.action === "raise") && m.to !== undefined) {
           if (!rl.canRaise) bug(`a raise where none is allowed ${JSON.stringify(m)}: ${tag()}`);
           if (C(m.to) < rl.minTo && C(m.to) < rl.allInTo) bug(`a raise under the smallest ${JSON.stringify(m)}: ${tag()}`);
@@ -128,5 +135,6 @@ describe("the table against the cents reference", () => {
     // (the hands reach what's being checked: showdowns with side pots, short all-ins)
     expect(showdowns).toBeGreaterThan(HANDS / 2);
     expect(shortAllIns).toBeGreaterThan(50);
+    expect(typedMins).toBeGreaterThan(500);
   });
 });
