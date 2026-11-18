@@ -84,6 +84,14 @@ const EDITS = [
     to: "import engine.tree_depth; import engine.bunching; from gto.advisor import Advisor;",
   },
   {
+    // engine/mw_near.py: a 3-way pot whose ranges are what a published 3-way spot's preflop line gives today, near the
+    // ranges it was built on (the charts moved under all four on 2026-11-17), reads that spot's stored solve, labelled
+    // approximate with the difference (precomputed.borrowed.built and .text). After bunching (this edit runs on that
+    // one's output).
+    from: "import engine.bunching; from gto.advisor import Advisor;",
+    to: "import engine.bunching; import engine.mw_near; from gto.advisor import Advisor;",
+  },
+  {
     // A request's `cache_mb` (web/src/features/reports/customRun.ts: a custom flop report's solves): the most the solves
     // kept for reuse may hold while it's answered, below the worker's own 700 MB (cache_mb, set at start), which comes back
     // with the next request that doesn't say. A report solves flop after flop and reuses none of them, so without this its
