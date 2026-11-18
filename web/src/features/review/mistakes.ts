@@ -260,12 +260,11 @@ export function retried(m: RetrySpot, asked: RetryAnswer, i: number, now: number
   const { mix, pot, provenance } = answer;
   // (the one entry point every surface grades through: the answer's noise, and its cap where it can't condemn a line; a flop
   // library answer asked again keeps the flop's pot the first grade knew, as its EV steps are 1% of it)
-  // (and a preflop-solve answer without its table's size keeps the size and depth the first grade knew, so heads-up its cap
-  // holds where it did)
+  // (and a preflop-solve answer without its table's size keeps the size the first grade knew, so heads-up its cap holds)
   const asked0 = answer.basis ?? basisOf(provenance);
   const flopPot = asked0.source === "library" && asked0.flopPot === undefined ? m.basis?.flopPot : undefined;
-  const kept = asked0.source === "preflop-solve" && asked0.players === undefined && m.basis?.source === "preflop-solve" ? m.basis : undefined;
-  const basis = { ...asked0, ...(flopPot !== undefined ? { flopPot } : {}), ...(kept?.players !== undefined ? { players: kept.players } : {}), ...(kept?.depth !== undefined ? { depth: kept.depth } : {}) };
+  const players = asked0.source === "preflop-solve" && asked0.players === undefined && m.basis?.source === "preflop-solve" ? m.basis.players : undefined;
+  const basis = { ...asked0, ...(flopPot !== undefined ? { flopPot } : {}), ...(players !== undefined ? { players } : {}) };
   const grading = (k: number) => gradeMix(mix, pot, k, basis);
   const g = grading(i);
   const was = mix.findIndex((a) => a.action === m.chose);

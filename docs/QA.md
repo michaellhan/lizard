@@ -350,8 +350,7 @@ a minimal answer, with no solver. Left as it is (the triage's call: the band is 
 ranges aren't).
 
 No hard `pf.follow` now (4 before the day's fixes). The heads-up ones are capped (`grade.ts` `HEADS_UP_PF`, ACCURACY
-18.10; since later on 2026-11-18 only deeper than 20bb, so a 2-max 20bb Mistake is hard again), and an Inaccuracy is
-soft:
+18.10), and an Inaccuracy is soft:
 
 - Heads-up SB 8dTd at 100bb limping (the chart's 99%): was a Blunder (0.65bb), now an Inaccuracy (0.10bb past the
   off-path fill, and capped there).
@@ -449,18 +448,26 @@ the chart plays most is graded below Correct, and Mistake or Blunder, after the 
 | 6-max 100bb, SB first in | 3.6% (3.6%) | 3.6% (3.6%) | 98o, T8o, 87o fold 100%, the solve raises; A2o raises 100%, the solve folds: Mistake 0.11-0.18bb |
 | 6-max 100bb, BB facing a BTN open to 2.5 | 2.1% (3.0%) | 1.8% (2.7%) | AJo and A5o 3-bet 60%, the solve calls: Mistake 0.41-0.46bb |
 
+Run again on the merged tree (later 2026-11-18, the charts at no rake, jam ranges following the advice): by combos,
+below Correct and Mistake or Blunder, 11.6% and 0.0% at the 2-max 100bb small blind, 2.3% and 0.0% at its big blind,
+3.6% and 0.0% at the 20bb small blind, 2.6% and 0.0% at the 20bb big blind, 0.9% and 0.0% at the 3-max button, 0.0% at
+the 6-max UTG and button, 1.8% and 1.8% at the 6-max small blind (A2o raised where the solve folds, 87o folded 71% where
+it raises: 0.11-0.15bb), 2.1% and 1.8% at the 6-max big blind (AJo and A5o 3-bet 60%, the solve calls). Hard
+`pf.follow`: those four 6-max classes, so `--pf-agree` exits 1, as before. With the heads-up cap off at 20bb, as tried
+(ACCURACY 18.10), the 20bb big blind would add three hard ones (A9o and 77 calling a raise to 3 where the solve shoves,
+KQs shoving where it calls: 0.42-0.45bb, 1.7% of its hands), and the matrix's 2max-20bb config would fail on hand 3 (the
+A9o); the cap stays.
+
 Two changes moved the heads-up rows (docs/ACCURACY.md section 18.10). The solve's off-path classes, the ones its own
 equilibrium never brings to a node, now play a best response there instead of whatever the iterations left
 (`engine/pf_offpath.py`): that is what put 77 and 88's 3-bet and the small blind's limps of A8s-A6s and 22 a big blind
 behind. And the heads-up preflop solve still parts from the published solves past its noise more often than any other
 answer (section 18.10: a chart move graded Mistake or Blunder at 7.0% of heads-up 100bb decisions after the fill, against
 0.7% at 6-max; on the no-rake charts 6.1% at 100bb, 2.4% to 8.6% from 25bb, and 0.8% at 20bb, against 0.9% at 3-max and
-0.4% at 6-max), so a heads-up preflop-solve grade deeper than 20bb now stops at Inaccuracy short of a clear blunder (20%
-of the pot past the noise; `HEADS_UP_PF` and `HEADS_UP_PF_DEPTH` in `web/src/grading/grade.ts`; at 20bb it condemns as
-3-max's does). Without that cap, by each class's loss past the noise, the
+0.4% at 6-max), so a heads-up preflop-solve grade now stops at Inaccuracy short of a clear blunder (20% of the pot past
+the noise; `HEADS_UP_PF` in `web/src/grading/grade.ts`). Without that cap, by each class's loss past the noise, the
 chart's move would still be a Mistake on 9.4% of the heads-up 100bb small blind's hands, 2.3% of the big blind's, 1.7%
-of the 20bb big blind's and none of the 20bb small blind's (measured on the charts before they moved to no rake; the
-20bb rows are no longer capped). The 3-max and 6-max rows aren't capped: at 6-max the
+of the 20bb big blind's and none of the 20bb small blind's. The 3-max and 6-max rows aren't capped: at 6-max the
 remaining Mistakes are 50/50 chart hands and calls of a 3-bet the published solves mix, worth under half a big blind.
 
 ## What it doesn't cover

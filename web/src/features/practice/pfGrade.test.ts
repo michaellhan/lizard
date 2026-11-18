@@ -507,13 +507,6 @@ describe("kept apart", () => {
     const bare = { ...limp, basis: undefined };
     expect(retried({ ...m, basis: { source: "preflop-solve", players: 2 } }, bare, 1, 5).grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
     expect(retried({ ...m, basis: { source: "preflop-solve", players: 6 } }, bare, 1, 5).grade.verdict).toBe("Mistake");
-    // and its depth: heads-up at 20bb the solve condemns a line, at the table and on the retry (grade.ts HEADS_UP_PF_DEPTH)
-    expect(retried({ ...m, basis: { source: "preflop-solve", players: 2, depth: 20 } }, bare, 1, 5).grade.verdict).toBe("Mistake");
-    expect(retried({ ...m, basis: { source: "preflop-solve", players: 2, depth: 25 } }, bare, 1, 5).grade).toMatchObject({ verdict: "Inaccuracy", capped: true });
-    const hu20 = { ...hu, stack_bb: 19.25 };   // (4bb in, 2.5bb to call: 19.25 + 0.75)
-    const at20 = await askSolver(m.ask, m.pot, async () => ({ solve: async () => asked(hu20) }), "quick", undefined, m.mix);
-    expect(at20.basis).toMatchObject({ source: "preflop-solve", players: 2, depth: 20 });
-    expect(retried(m, { ...at20, mix: limp.mix, pot: 1.5 }, 1, 5).grade.verdict).toBe("Mistake");
   });
   it("says it can't, in words, where the solve won't answer the same way", async () => {
     const h = btn();

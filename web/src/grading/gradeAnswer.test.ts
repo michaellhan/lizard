@@ -2,9 +2,8 @@
 // beside a grade, and what grading reads off an answer's provenance (basis.ts).
 import { describe, expect, it } from "vitest";
 import type { AdvisorResponse } from "@/solver/protocol";
-import { isBasis } from "@/data/shapes";
-import { basisOf, headsUpDepth, roughOf } from "./basis";
-import { actionNoise, answerNoise, capReason, CLEAR_PCT, gradeAnswer, HEADS_UP_PF_DEPTH, lossBrief, lossWords, noiseTail, roughErrPct, scored, SCORE_LOSS_WORDS, whyText } from "./grade";
+import { basisOf, roughOf } from "./basis";
+import { actionNoise, answerNoise, capReason, CLEAR_PCT, gradeAnswer, lossBrief, lossWords, noiseTail, roughErrPct, scored, SCORE_LOSS_WORDS, whyText } from "./grade";
 
 describe("an answer's noise", () => {
   it("is half a percent of the pot at least, twice a solve's measured distance from equilibrium, and two stored EV steps of a library flop", () => {
@@ -98,14 +97,14 @@ describe("what an answer can't condemn", () => {
     expect(aa.clearWhy).toMatch(/^The heads-up preflop solve often parts from the published solves' charts, by more than its noise, but this gives up/);
   });
 
-  it("but at 20bb the heads-up preflop solve condemns a line, as 3-max's does (HEADS_UP_PF_DEPTH)", () => {
-    // playing the no-rake charts exactly, 0.8% of heads-up 20bb decisions were a Mistake or Blunder, 3-max 100bb's 0.9%;
-    // at 25bb 2.4% and deeper more (ACCURACY 18.10)
-    const limp = { freqs: [1, 0, 0], evs: [0.304, 0.161, 0], pot: 1.5 };
-    expect(HEADS_UP_PF_DEPTH).toBe(20);
-    const at20 = gradeAnswer(limp, 1, { source: "preflop-solve", players: 2, depth: 20 });
-    expect([at20.verdict, at20.capped, at20.capWhy]).toEqual(["Mistake", undefined, undefined]);
-    for (const depth of [25, 30, 100, undefined, NaN]) expect(gradeAnswer(limp, 1, { source: "preflop-solve", players: 2, depth })).toMatchObject({ verdict: "Inaccuracy", capped: true });
+  it("the heads-up cap holds at 20bb too, where the solve condemns the chart's main move at hands it plays one way", () => {
+    // 2-max 20bb, BB 9cAh facing a raise to 3: the chart calls 97%, the solve shoves; the call gives up 0.45bb, 3.4% of the
+    // pot past the noise (the QA sweep's 2max-20bb-gto-any hand 3; ACCURACY 18.10)
+    const shove = { freqs: [0, 0, 1], evs: [0, 1.0, 1.45], pot: 4 };
+    const call = gradeAnswer(shove, 1, { source: "preflop-solve", players: 2 });
+    expect(call).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    expect(call.loss).toBeCloseTo(0.45, 9);
+    expect(gradeAnswer(shove, 1, { source: "preflop-solve", players: 3 }).verdict).toBe("Mistake");
   });
 
   it("leaves a grade already milder as it is", () => {
@@ -189,23 +188,6 @@ describe("what grading reads off an answer's provenance", () => {
     expect(basisOf({ source: "preflop-solve" }, { res: { ...node, players: 6 } }).players).toBe(6);
     expect(basisOf({ source: "preflop-solve" }).players).toBeUndefined();
     expect(basisOf({ source: "charts" }, { res: node }).players).toBeUndefined();
-  });
-
-  it("and heads-up, its depth: the stack behind plus half the pot left after the call (grade.ts HEADS_UP_PF_DEPTH)", () => {
-    const sb: AdvisorResponse = { study: "node", street: "preflop", players: 2, stack_bb: 19.5, pot_bb: 1.5, to_call_bb: 0.5 };
-    expect(basisOf({ source: "preflop-solve" }, { res: sb })).toEqual({ source: "preflop-solve", players: 2, depth: 20 });
-    // the big blind facing a raise to 2.5, and the raiser facing a 3bet to 8
-    expect(basisOf({ source: "preflop-solve" }, { res: { ...sb, stack_bb: 19, pot_bb: 3.5, to_call_bb: 1.5 } }).depth).toBe(20);
-    expect(basisOf({ source: "preflop-solve" }, { res: { ...sb, stack_bb: 97.5, pot_bb: 10.5, to_call_bb: 5.5 } }).depth).toBe(100);
-    // none for a tournament's (each seat's own stack), another table size, or another source
-    expect(headsUpDepth({ ...sb, pf_icm: true } as AdvisorResponse)).toBeUndefined();
-    expect(basisOf({ source: "preflop-solve" }, { res: { ...sb, pf_icm: true } }).depth).toBeUndefined();
-    expect(basisOf({ source: "preflop-solve" }, { res: { ...sb, players: 3 } }).depth).toBeUndefined();
-    expect(basisOf({ source: "charts" }, { res: sb }).depth).toBeUndefined();
-    expect(basisOf({ source: "preflop-solve" }, { res: { ...sb, stack_bb: undefined } }).depth).toBeUndefined();
-    // kept with a record: a number, or nothing
-    expect(isBasis({ source: "preflop-solve", players: 2, depth: 20 })).toBe(true);
-    expect(isBasis({ source: "preflop-solve", players: 2, depth: "20" })).toBe(false);
   });
 
   it("and off the answer itself where its provenance didn't say: a rules-read line, a widened range, a narrowing followed under half", () => {

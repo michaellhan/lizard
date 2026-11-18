@@ -26,23 +26,9 @@ export function basisOf(p: BasisProvenance | null | undefined, more: Omit<Answer
   if (p.approximate) b.approximate = true;
   if (p.approximateReason) b.approximateReason = p.approximateReason;
   if (leans) b.leans = true;
-  // (the preflop solve's table size: heads-up, it can't condemn a line deeper than 20bb: grade.ts HEADS_UP_PF)
+  // (the preflop solve's table size: heads-up, it can't condemn a line: grade.ts HEADS_UP_PF)
   if (p.source === "preflop-solve" && b.players === undefined && typeof res?.players === "number") b.players = res.players;
-  if (p.source === "preflop-solve" && b.depth === undefined && b.players === 2 && res) {
-    const d = headsUpDepth(res);
-    if (d !== undefined) b.depth = d;
-  }
   return b;
-}
-
-/** A heads-up cash preflop solve's depth, bb, from its node: the actor's stack behind plus half the pot left after the
- * call faced (each has put in half of it), which is the table's stack, antes included. A tournament's (`pf_icm`), whose
- * stacks differ, has none. */
-export function headsUpDepth(res: Pick<AdvisorResponse, "pot_bb" | "to_call_bb"> & { stack_bb?: unknown; pf_icm?: unknown }): number | undefined {
-  const { stack_bb: s, pot_bb: pot, to_call_bb: call } = res;
-  if (res.pf_icm === true || typeof s !== "number" || typeof pot !== "number" || typeof call !== "number") return undefined;
-  const d = s + (pot - call) / 2;
-  return Number.isFinite(d) ? Math.round(d * 100) / 100 : undefined;
 }
 
 /** Per action, whether the engine marked its EV rough (advisor.py rough_ev; practice.ts mixOf carries it as `rough`). */

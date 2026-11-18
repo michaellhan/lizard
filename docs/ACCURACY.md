@@ -1740,9 +1740,9 @@ charts fold them (by 0.11-0.20bb), raises 65o and 54o where they limp, and limps
 blind raises 52% and limps 41% where the charts raise 59% and limp 30%. Scaling the noise doesn't reach that: twice the
 curve still leaves 2.4% Mistake or Blunder at 100bb (three times, 0.8%).
 
-**The rule.** A grade by the heads-up preflop solve deeper than 20bb can't condemn a line (`web/src/grading/grade.ts`
-`HEADS_UP_PF`, read off the answer's `players` and depth by `grading/basis.ts` `basisOf`; 20bb and shallower, below):
-past the noise it stops at Inaccuracy, the EV lost shown as measured, and says "The heads-up preflop solve often parts from the published solves' charts, by more than its noise, so
+**The rule.** A grade by the heads-up preflop solve can't condemn a line (`web/src/grading/grade.ts` `HEADS_UP_PF`, read
+off the answer's `players` by `grading/basis.ts` `basisOf`): past the noise it stops at Inaccuracy, the EV lost shown as
+measured, and says "The heads-up preflop solve often parts from the published solves' charts, by more than its noise, so
 it can't condemn a line"; a clear blunder (20% of the pot or more past the noise) is still a Blunder, so folding aces
 first in still is. Every surface that grades a preflop-solve answer passes the answer in (Practice, the preflop and live
 drills, Review's retries, Analyze). The same 30,000 hands:
@@ -1774,10 +1774,10 @@ plays facing an open or a 3-bet. 4 and 5 players and other depths are unmeasured
 answers (`engine/pf_icm_study.py`) are capped the same way without a measure of their own. Heads-up chart play is now
 graded Inaccuracy one decision in ten at 100bb: what the heads-up model says is shown, not counted against you.
 
-**Measured again on the no-rake charts, and the cap stops at 20bb (later 2026-11-18) [M].** The tables above were taken
-before the charts moved to no rake where the game has none (section 18.9) and jam ranges followed the advice's own
-jams. The same 30,000 hands of chart play each (`scripts/pf_practice_coverage.py --policy chart`, seed 20261105, the
-chart's own sizes where they're the solve's), every verdict here without the heads-up cap:
+**Measured again on the no-rake charts; the cap holds at every depth (later 2026-11-18) [M].** The tables above were
+taken before the charts moved to no rake where the game has none (section 18.9) and jam ranges followed the advice's
+own jams. The same 30,000 hands of chart play each (`scripts/pf_practice_coverage.py --policy chart`, seed 20261105,
+the chart's own sizes where they're the solve's; the script now also counts each verdict without the heads-up cap):
 
 | Table | Best | Correct | Inaccuracy | Mistake | Blunder | Mistake or Blunder | EV lost a decision |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -1791,26 +1791,18 @@ chart's own sizes where they're the solve's), every verdict here without the hea
 | 3-max 100bb | 93.5% | 4.8% | 0.8% | 0.8% | 0.1% | 0.9% | 0.0175bb |
 | 6-max 100bb (charts' sizes) | 93.6% | 5.7% | 0.3% | 0.3% | 0.1% | 0.4% | 0.0136bb |
 
-At 20bb the heads-up solve condemns the charts' play no more often than 3-max's does (0.8%, and 0.3% raked, against
-0.9%), and 3-max isn't capped; from 25bb it's 2.4% to 8.6%, three to ten times 3-max's. So the cap now holds only deeper
-than 20bb (`grade.ts` `HEADS_UP_PF_DEPTH`): the answer's depth is its actor's stack behind plus half the pot left after
-the call faced (`basis.ts` `headsUpDepth`), which is the table's stack at every node of the stored heads-up games
-(checked at 20, 25 and 100bb, with and without rake, first in, facing a raise and facing a 3-bet). Practice and Analyze
-read the preflop solve only at the stored depths, so 20bb and shallower is the 20bb game. An answer with no depth (a
-kept record from before, a tournament's, whose stacks differ) stays capped. A retry keeps the depth the first grade
-knew where its answer comes back without one. With the cap where it now is:
+(Without the cap; the 3-max and 6-max rows have none.) With the cap, every heads-up row has no Mistake, and Blunders,
+clear ones (20% of the pot or more past the noise), on 0.5% of 30bb decisions, 0.2% at 60bb, 0.1% at 100bb and none at
+20, 25 or 40bb.
 
-| Table | Inaccuracy | Mistake | Blunder | Mistake or Blunder |
-|---|---:|---:|---:|---:|
-| Heads-up 20bb | 3.5% | 0.8% | 0.0% | 0.8% (not capped) |
-| Heads-up 25bb | 5.4% | 0.0% | 0.0% | 0.0% |
-| Heads-up 30bb | 13.4% | 0.0% | 0.5% | 0.5% |
-| Heads-up 40bb | 5.8% | 0.0% | 0.0% | 0.0% |
-| Heads-up 60bb | 8.2% | 0.0% | 0.2% | 0.2% |
-| Heads-up 100bb | 8.4% | 0.0% | 0.1% | 0.1% |
-
-(The Blunders left are clear ones, 20% of the pot or more past the noise.) Not measured: 50, 80 and 125 to 200bb heads-up,
-capped as the rest deeper than 20bb; the 3-way spots below 100bb.
+By its rate, heads-up 20bb (0.8%, 0.3% raked) is 3-max's (0.9%), which isn't capped, so the cap was tried there off
+(only deeper than 20bb, by the answer's depth). It was put back: at 20bb what the solve condemns is still the chart's
+main move at hands the charts play one way. The sweep's `--pf-agree` (`docs/QA.md`) found three, all the big blind
+facing a raise to 3: A9o calling (the chart's 97%) where the solve shoves, 0.45bb; 77 calling (98%) where it shoves,
+0.42bb; KQs shoving (100%) where it calls, 0.43bb: 1.7% of the hands dealt there. The matrix's 2max-20bb hand 3 is the
+A9o, graded a Mistake with the cap off: the one grade the change moved in that config. Nothing says the solve is right
+there over the charts, so the grade would condemn the chart's own advice on a disagreement of two models, which is what
+the cap is for. 3-max's rate stays a question of its own (above). Not measured: 50, 80 and 125 to 200bb heads-up.
 
 ## 19. Nut advantage on Reports (2026-11-06)
 

@@ -6326,7 +6326,12 @@ open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The j
   - With Practice's own bet sizes 33 and 66 in the heads-up limped pot, a 1bb bet (the tree's 33%, which reads back as
     50%) was walked down the 1.5bb bet, nearer 66% by share: the answer facing it was call 1.5 and raise to 4.
     `engine/size_match.py` `_tree_action_name` takes the tree's bet of exactly that amount; declared in UPSTREAM.json.
-- The heads-up cap measured again on the no-rake charts (ACCURACY 18.10): playing them exactly, the solve condemns 0.8%
-  of heads-up 20bb decisions (0.3% raked), 3-max's rate (0.9%, not capped), and 2.4% to 8.6% from 25bb to 100bb. The cap
-  now holds only deeper than 20bb (`grade.ts` `HEADS_UP_PF_DEPTH`, the depth off the answer, `basis.ts` `headsUpDepth`).
-  An answer with no depth (an older kept record, a tournament's) stays capped.
+- The heads-up cap measured again on the no-rake charts (ACCURACY 18.10): without it, playing them exactly, the solve
+  condemns 0.8% of heads-up 20bb decisions (0.3% raked) and 2.4% to 8.6% from 25bb to 100bb, against 3-max's 0.9% and
+  6-max's 0.4%. By rate 20bb is 3-max's, so the cap was tried off there (only deeper than 20bb, by the answer's depth)
+  and put back: the matrix's 2max-20bb config then failed on the big blind's A9o calling a raise to 3 (the chart's 97%,
+  the solve shoves, a 0.45bb Mistake), the one grade the change moved there, and `--pf-agree` found 77's call and KQs's
+  shove beside it. The cap holds at every depth; `scripts/pf_practice_coverage.py` now also counts verdicts without it.
+- The merged tree: the full matrix exits 0 (0 hard, 45 soft: 34 `prov.settled`, 5 `pf.follow`, 3 `ref.missing`,
+  3 `ref.context`); `--pf-agree` has no Mistake or Blunder at any heads-up spot, and its four hard `pf.follow` are the
+  6-max ones it had before (A2o and 87o at the small blind, AJo and A5o's 3-bet at the big blind).

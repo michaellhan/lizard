@@ -45,7 +45,6 @@ SIZE_EPS = 0.051                         # pf_study.Solve.walk's, and pfGrade.ts
 CHIP_EPS = 0.011                         # pfGrade.ts CHIP_EPS
 TOL, MIX, INACCURACY_PCT, MISTAKE_PCT = 0.011, 0.1, 2.0, 8.0     # web/src/grading/grade.ts
 CLEAR_PCT = 20.0                         # grade.ts CLEAR_PCT: past the noise, a Blunder even where a grade is capped
-HEADS_UP_PF_DEPTH = 20.0                 # grade.ts HEADS_UP_PF_DEPTH: heads-up deeper than this, the solve's grade is capped
 
 
 def class_of(hole: str) -> str:
@@ -168,8 +167,8 @@ def noise(pot):
 
 def verdict(evs, freqs, a, pot, capped=True):
     """web/src/grading/grade.ts gradeAnswer with source "preflop-solve": within the noise Correct, past it only the
-    excess; heads-up deeper than 20bb, short of a clear blunder, no worse than Inaccuracy (grade.ts HEADS_UP_PF), unless
-    `capped` is off (the verdict the cap stands in front of, which the run also counts)."""
+    excess; heads-up, short of a clear blunder, no worse than Inaccuracy (grade.ts HEADS_UP_PF), unless `capped` is off
+    (the verdict the cap stands in front of, which the run also counts)."""
     raw = max(0.0, max(evs) - evs[a])
     if raw <= TOL:
         return "Best", 0.0
@@ -177,7 +176,7 @@ def verdict(evs, freqs, a, pot, capped=True):
         return "Correct", raw
     pct = (raw - noise(pot)) / pot * 100
     v = "Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"
-    if capped and len(SEATS) == 2 and STACK > HEADS_UP_PF_DEPTH + 0.5 and v != "Inaccuracy" and round(pct, 1) < CLEAR_PCT:
+    if capped and len(SEATS) == 2 and v != "Inaccuracy" and round(pct, 1) < CLEAR_PCT:
         v = "Inaccuracy"
     return v, raw
 
