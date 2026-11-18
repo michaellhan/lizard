@@ -13,7 +13,7 @@ export type BasisProvenance = Pick<Provenance, "source"> & Partial<Pick<Provenan
  * rules: provenance.ts leansOnRules, the one test of it, which the provenance keeps as `leansOnRules` and the answer
  * itself (`res`) is read by where its provenance wasn't derived from it. (A narrowing solve followed half or more is said
  * in the provenance's rangesOff but doesn't lean.) `more` adds what the provenance doesn't hold: the actions with rough
- * EVs, the flop library's starting pot, a kept noise. */
+ * EVs, the flop library's starting pot, a kept noise; and for the preflop solve, the table's size its answer gives. */
 export function basisOf(p: BasisProvenance | null | undefined, more: Omit<AnswerBasis, "source"> & { res?: AdvisorResponse } = {}): AnswerBasis {
   const { res, ...rest } = more;
   const leans = rest.leans || p?.leansOnRules === true || (res ? leansOnRules(res) : false);
@@ -26,6 +26,8 @@ export function basisOf(p: BasisProvenance | null | undefined, more: Omit<Answer
   if (p.approximate) b.approximate = true;
   if (p.approximateReason) b.approximateReason = p.approximateReason;
   if (leans) b.leans = true;
+  // (the preflop solve's table size: heads-up, it can't condemn a line: grade.ts HEADS_UP_PF)
+  if (p.source === "preflop-solve" && b.players === undefined && typeof res?.players === "number") b.players = res.players;
   return b;
 }
 

@@ -26,6 +26,8 @@ coverage/
 # --- generated build output ---
 web/dist/
 web/e2e-results/
+# the Practice QA sweep's output (scripts/qa/run.mjs, docs/QA.md)
+qa-out/
 dist/
 web/public/solver/
 web/public/library/

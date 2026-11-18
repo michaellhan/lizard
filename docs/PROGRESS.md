@@ -6199,3 +6199,117 @@ open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The j
   700 MB cache and could push out the hand in play's earlier street (traced in `advisor.py` `_keep`, not measured;
   re-checking only between hands would close it); the backlog is in memory; the Review page's queue has no "Re-checked"
   label; a record whose only miss this was but that you've retried keeps Quick's grade.
+
+## 2026-11-18: A Practice QA sweep
+
+- Why: the owner kept finding Practice errors by hand, one hand at a time. Examples were a converged badge on
+  rule-made ranges, a grade contradicting its own words, and a chart move condemned by the solve. `scripts/qa/` now
+  plays seeded Practice hands through the page's own code and checks every decision against the invariants in
+  `docs/QA.md`:
+  - The page code it runs: `practice.ts`, `flow.ts` `needOf`/`moveOf`, `pfGrade.ts` `gradedOn` and `client.ts`
+    `SolverClient` with its modes and provenance.
+  - The solver side: the browser worker's Advisor run natively (`scripts/qa/advserver.py`: the worker's imports in
+    order, its Fast and Accurate configs, both libraries read only).
+  - The checks: legal moves, chips, the hand history read back, provenance honesty, every action's grade, preflop
+    chart and solve agreement, coverage by source, Quick against Fast and Accurate, the opponents' absurd moves, and
+    time and memory.
+- Run it with `npm run qa:sweep:quick` (4 configs, about 3 minutes) or `npm run qa:sweep` (21 configs, 18 minutes
+  measured). Output goes to `qa-out/` (gitignored), and the exit code is 1 on a hard violation. The checkers are pure
+  TypeScript (`web/src/qa/checks.ts`, `summary.ts`), with 27 vitest cases on hand-made fixtures (`checks.test.ts`, no
+  solver). Each advisor runs under gtosolver's `slot.sh`, one process at a time.
+- `--quick` (seed 1, 181 s, 77 s of it waiting for a CPU slot) played 71 decisions and 288 opponent moves. It found 3
+  hard violations, the same in three runs:
+  - `prov.settled` ×2: live turn answers whose ranges come from the betting rules after an opponent's rare bet or raise
+    still show a converged band (0.03-0.04% of the pot) next to their approximate label. `provenance.ts` takes the band
+    from the solve's own exploitability whatever `rangesOff` says.
+  - `pf.follow` ×1: at 3-max 100bb, BTN 8cJd first in, the chart raises 50% and the preflop solve folds 100%. A
+    chart-following raise is graded Inaccuracy (0.08bb).
+- The default matrix (seed 1, 1096 s, 608 s of it waiting for CPU slots) played 324 hands: 518 decisions, 3185 opponent
+  moves and 160 references. It found 25 hard violations, none fixed here:
+  - `prov.settled` ×21, in 11 configs, wherever live solves answer after rule-made ranges (heads-up to 9-max, 20bb to
+    200bb, rake, ante, Fast). None came on library answers.
+  - `pf.follow` ×4. The worst is at 2-max 100bb: SB 8dTd first in, the chart limps 99% while the preflop solve raises
+    100%, so following the chart is graded Blunder (0.65bb). There are also three smaller ones at 2-max 20bb and 3-max
+    100bb (0.09-0.45bb).
+- Measured, not failing:
+  - The 6-max 100bb heads-up single-raised flops against GTO opponents came from the library 18 of 19 times in the
+    matrix and 9 of 10 in `--quick`. 3-way flops were all live solves (11 of 11), and 4-way flops the rules.
+  - Quick agreed with Fast on 141 of 149 sampled decisions and with Accurate on 8 of 9. Quick never condemned what a
+    reference passed. Fast condemned one 3-way turn call that Quick graded Best.
+  - Opponents: no free folds and no river nut folds.
+  - A stored 6-max preflop solve holds about 580 MB once read, and the worker keeps it. The sweep drops it after each
+    request (`QA_DROP_PF`).
+  - Three of the matrix's 22 advisor peaks passed 1 GB: 1238 MB in a 4-way 3-bet pot's hand, 1196 MB in the reference
+    process and 1077 MB at 3-max 40bb. Each was inside one request; the process restarted after it, and the memory
+    guard never acted.
+- A harness fix found by the matrix:
+  - The first `perf.slow` flags (Quick over 15 s) were the slot wrapper holding a fresh process, not the advisor's work.
+    A decision's time now leaves that wait out; with it out, `--quick`'s slowest Quick decision took 1.9 s.
+  - The library share now leaves out raked, anted and straddled tables, which the library wasn't built for.
+- Not covered: what the browser draws, Pyodide's speed and memory, exploit play and node locks, multi-table charts,
+  library drills and the run-out after a fold. `docs/FEATURE_MATRIX.md` links `docs/QA.md` from "How this was
+  graded"; no grade moved.
+
+## 2026-11-18 — Practice QA sweep: triage of the default matrix
+
+- What changed (QA harness only; no product code):
+  - Every hand replays alone (`--config NAME --hand N`, each hand on its own random stream).
+  - The reference grades every action, not only the move made.
+  - RSS is attributed to the request that raised it.
+  - `pf.follow` knows a chart tie, and the opponents gained a strong-fold flag.
+  - `--pf-agree` grades the chart's most played move by the preflop solve over all 169 classes at nine spots.
+  - The pot check allows an answer's pot without a shove's uncalled excess.
+  - Opponent records say the move made.
+  - `scripts/qa/repro/prov-settled.mjs` reproduces the band defect with no solver.
+- The harness bug that mattered: answers were asked out of the hand's context. A later street's answer stands on what
+  its process solved earlier in the hand (a 3-way turn narrows the flop through the flop's solve, else by the rules).
+  - The Fast reference was asked cold, and so was the main process after a restart at its RSS cap.
+  - Together they made the only serious Quick-against-Fast flips: 6max-100bb-loose-any hand 9, QsQd's 3-way turn. Cold,
+    Fast said call was a Blunder (EV -5.78); in context, Fast says call Best (EV 7.94), as Quick does.
+  - Now the reference is asked the hand's earlier postflop requests at its own speed first (`warmed`), and a restarted
+    main process is asked them again (`kept`).
+- Default matrix, seed 1, re-run on the fixed harness: 1169 s (595 s waiting for slots), 21 configs, 324 hands, 496
+  decisions, 3303 opponent moves, 147 references. 23 hard violations, from the same two open defects (`docs/QA.md`
+  "Measured"):
+  - `prov.settled` ×19: `provenance.ts` keeps the solve's converged band on an answer marked approximate for its
+    ranges.
+  - `pf.follow` ×4: the preflop-solve default grades by the class-level solve while the buttons and opponents follow
+    the charts. `--pf-agree` puts it at 14% of the heads-up 100bb small blind's hands graded Mistake or Blunder.
+- Also measured:
+  - Quick against Fast at live nodes: the move made 99/110 agree, with none condemned or passed. Every action: 88.1%
+    the same verdict, 0.5% each way across a pass and a Mistake or Blunder, all small in big blinds.
+  - One library hole: the heads-up limped pot's 33% flop bet is 0.66bb, lifted to 1bb, off the tree.
+  - Main-process and reference peaks of 1236 and 1126 MB.
+  - No absurd opponent moves, and no Quick decision over 15 s (slowest 1.88 s).
+- Tests: `web/src/qa` vitest 31 passed; `npm run qa:typecheck` clean; eslint on `web/src/qa` clean. The gtosolver
+  builds were left alone; everything ran through `slot.sh`.
+
+## 2026-11-18 — Practice QA sweep: fixes
+
+- The heads-up preflop solve's chart play (`pf.follow`; ACCURACY 18.10):
+  - A class the solve never brings to a later node of its own now plays its best response there, not the stored fold
+    (`engine/pf_offpath.py`, mixed into `pf_solve.py`'s and `pf_icm_study.py`'s Solve; nothing on-path moves). Heads-up
+    100bb T8s's limp read 0.35bb against its raise's 1.0 (a 0.65bb Blunder); 0.90bb now.
+  - Chart play graded Mistake or Blunder over 30,000 hands: heads-up 100bb 9.8% → 7.0%, 20bb 2.6% → 2.2%, against
+    6-max's 0.7%. Most of it is at hands the charts play one way, so scaling the noise doesn't reach it. A heads-up
+    preflop-solve grade now stops at Inaccuracy short of a clear blunder (`grade.ts` `HEADS_UP_PF`): 0.12% and 0.0%.
+  - `--pf-agree`: no heads-up spot has a Mistake or Blunder now (14.0% of the 100bb small blind's hands before). 3-max
+    (1.3% of decisions) isn't capped; the tournament presets' heads-up answers are capped the same way, unmeasured.
+  - An Inaccuracy is a soft `pf.follow`: no hard ones in the matrix (4 before).
+- The heads-up limped pot's 33% flop bet (1bb into 2bb, which reads back as 50%) now reads as the tree's size
+  (`engine/size_match.py`, imported by the worker after `engine.mw_quick`, mirrored in `scripts/qa/advserver.py`,
+  declared in `solver/UPSTREAM.json`): `lp_sb_bb_2max` answers that line, and the big blind's own 1bb lead, from the
+  library. Tests `scripts/engine/test_size_match.py`.
+- The harness keeps answers in the hand's context: the advisor reports the 3-way solves its cache evicted, the sweep
+  asks those hands again once and marks a record cold or evicted, Fast references run back to back and Accurate in its
+  own process, and a reference whose rules-narrowed streets aren't Quick's is left out (`ref.context`). Matrix: 0 cold,
+  4 evicted.
+- Memory: the advisor runs with `MallocLargeCache=0` on macOS (it starts itself again with it), restarts past 700 MB of
+  RSS after a reply and 500 MB before a preflop request, and reports its physical footprint beside its RSS
+  (`proc_pid_rusage`). Freed small-block pages stay in the RSS until the system takes them, which is what stacked a
+  stored preflop solve's read on earlier solves. Matrix: every config's process under 1 GB (at most 867 MB, from 1236),
+  `--quick` 754 (from 1205); the Accurate reference reached 1130 MB once on a 6-way turn asked to warm the hand.
+  `perf.rss` (soft) now reads every process's peak, so a crossing just before a restart is counted.
+- Left as they were (refuted): `prov.settled` (19, the band is the solve's own, the label says approximate), and Quick
+  against Fast (90.7% of moves at live nodes the same verdict, 0.5% each way across a pass and a Mistake or Blunder;
+  ACCURACY 30).

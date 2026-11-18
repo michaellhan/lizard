@@ -78,6 +78,25 @@ describe("what an answer can't condemn", () => {
     expect([at(19.9).verdict, at(CLEAR_PCT).verdict]).toEqual(["Inaccuracy", "Blunder"]);
   });
 
+  it("the heads-up preflop solve: it parts from the published solves past its noise, so it stops at Inaccuracy", () => {
+    // heads-up 100bb, SB 65o first in (the stored game, lz4_2max_100bb): the solve raises 100% for 0.304bb and values the
+    // limp the charts play 93% at 0.161bb; 0.143bb is 4.4% of the 1.5bb pot past its noise, a Mistake at 6-max
+    const limp = { freqs: [1, 0, 0], evs: [0.304, 0.161, 0], pot: 1.5 };
+    const hu = gradeAnswer(limp, 1, { source: "preflop-solve", players: 2 });
+    expect(hu).toMatchObject({ verdict: "Inaccuracy", capped: true });
+    expect(hu.loss).toBeCloseTo(0.143, 9);
+    expect(hu.capWhy).toBe(
+      "The heads-up preflop solve often parts from the published solves' charts, by more than its noise, so it can't condemn a line: this grade stops at Inaccuracy, short of a clear blunder (20% of the pot past the noise).",
+    );
+    for (const players of [3, 6, undefined]) expect(gradeAnswer(limp, 1, { source: "preflop-solve", players }).verdict).toBe("Mistake");
+    // (and only the preflop solve's: another answer at a heads-up table condemns as it did)
+    expect(gradeAnswer(fold, 0, { source: "live", band: "converged", exploitabilityPct: 0.2, players: 2 }).verdict).toBe("Blunder");
+    // folding aces first in is still a clear blunder heads-up
+    const aa = gradeAnswer({ freqs: [1, 0, 0], evs: [2.4, 1.9, 0], pot: 1.5 }, 2, { source: "preflop-solve", players: 2 });
+    expect([aa.verdict, aa.capped]).toEqual(["Blunder", undefined]);
+    expect(aa.clearWhy).toMatch(/^The heads-up preflop solve often parts from the published solves' charts, by more than its noise, but this gives up/);
+  });
+
   it("leaves a grade already milder as it is", () => {
     const g = gradeAnswer({ freqs: [0.5, 0.5], evs: [3, 2.5], pot: 7.5 }, 1, { source: "rules" });
     expect([g.verdict, g.capped]).toEqual(["Correct", undefined]);
@@ -151,6 +170,14 @@ describe("what grading reads off an answer's provenance", () => {
     expect(basisOf({ ...live, partial: true })).toMatchObject({ partial: true });
     expect(basisOf({ source: "library" }, { flopPot: 5.5 })).toEqual({ source: "library", flopPot: 5.5 });
     expect(basisOf(null)).toEqual({});
+  });
+
+  it("and the preflop solve's table size, off its answer (heads-up, it can't condemn a line)", () => {
+    const node: AdvisorResponse = { study: "node", street: "preflop", players: 2 };
+    expect(basisOf({ source: "preflop-solve" }, { res: node })).toEqual({ source: "preflop-solve", players: 2 });
+    expect(basisOf({ source: "preflop-solve" }, { res: { ...node, players: 6 } }).players).toBe(6);
+    expect(basisOf({ source: "preflop-solve" }).players).toBeUndefined();
+    expect(basisOf({ source: "charts" }, { res: node }).players).toBeUndefined();
   });
 
   it("and off the answer itself where its provenance didn't say: a rules-read line, a widened range, a narrowing followed under half", () => {

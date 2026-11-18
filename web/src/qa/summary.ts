@@ -1,0 +1,426 @@
+// The Practice QA sweep's records and their summary (scripts/qa/run.mjs, docs/QA.md): one record a decision, an opponent's
+// move, a finished hand, a reference comparison and a config, as JSON lines; and the summary of them all, as JSON and as
+// markdown. Pure, so checks.test.ts can hold it to fixtures.
+import type { Verdict } from "@/grading/grade";
+import type { PracticeHand } from "@/features/practice/practice";
+import type { Sim, Street } from "@/poker/table";
+import type { OppFlags, RefAction, RefCompare, Violation } from "./checks";
+
+/** The table a record was played at. */
+export interface TableTag {
+  players: number;
+  stack: number;
+  opponents: "gto" | "live" | "loose";
+  /** the drill's pot, or "any" */
+  pot: string;
+  /** false where the table has rake, an ante or a straddle, which the flop library wasn't built for (unset counts as true) */
+  plain?: boolean;
+}
+
+interface Base {
+  config: string;
+  /** the hand's seed (newHand's), and its number in the config */
+  seed: number;
+  hand: number;
+  /** the hand's earlier postflop requests asked again first, because the process restarted mid-hand or its solve cache
+   * evicted a 3-way solve of one of the hand's streets (sweep.ts keep, warmUp) */
+  kept?: number;
+  /** answered without all of the hand's earlier streets: asking them again didn't hold (twice a restart or an eviction on
+   * the way), so a later street stood on the rules where a solve was (sweep.ts) */
+  evicted?: boolean;
+  violations: Violation[];
+}
+
+export interface HeroRecord extends Base {
+  t: "hero";
+  table: TableTag;
+  street: Street;
+  seat: string;
+  /** the line to the decision (Study's line) */
+  line: string;
+  /** "flop hu srp" (spotOf) */
+  spot: string;
+  mode: string;
+  /** the wall time of the answer (both of a preflop-solve session's requests), and of the preflop solve's alone */
+  secs: number;
+  pfSecs?: number;
+  /** the advisor process's peak RSS and peak physical footprint (what it holds), MB, after this request (a process's peak
+   * only grows, so the first request past a figure is the one that took it there); the RSS also counts pages it freed that
+   * the system hasn't taken back (scripts/qa/advserver.py memory()) */
+  rss?: number;
+  mem?: number;
+  /** what answered your spot, and what the decision was graded against (the chart's answer or the preflop solve's) */
+  source: string;
+  graded: string;
+  band?: string;
+  exploitabilityPct?: number;
+  approximate: boolean;
+  label?: string;
+  chose: string;
+  /** null: ungraded (no answer, or the answer was an error) */
+  verdict: Verdict | null;
+  loss?: number;
+  lossPct?: number;
+  byEv?: boolean;
+  capped?: boolean;
+  pfWhy?: string;
+  /** every action's verdict at the node, in the answer's order */
+  all?: { action: string; freq: number; ev: number | null; verdict: Verdict }[];
+}
+
+export interface OppRecord extends Base {
+  t: "opp";
+  table: TableTag;
+  street: Street;
+  seat: string;
+  line: string;
+  secs: number;
+  rss?: number;
+  mem?: number;
+  /** the move made ("raise 7.5", "fold") */
+  action: string;
+  /** the answer's own draw, where a live or loose opponent played something else (live.ts liveMove) */
+  drawn?: string;
+  flags?: OppFlags;
+}
+
+export interface HandRecord extends Base {
+  t: "hand";
+  table: TableTag;
+  net: number | null;
+  folded: boolean;
+  /** board cards out at the end, decisions of yours, and deals a drill took to reach its pot */
+  shown: number;
+  decisions: number;
+  tries: number;
+}
+
+export interface RefRecord extends Base {
+  t: "ref";
+  table: TableTag;
+  street: Street;
+  line: string;
+  spot: string;
+  mode: "fast" | "accurate";
+  secs: number;
+  rss?: number;
+  mem?: number;
+  source: string;
+  /** the reference's band, whether it's approximate, and why (its provenance) */
+  band?: string;
+  approximate?: boolean;
+  label?: string;
+  /** the hand's earlier postflop requests asked of the reference first, at its speed (sweep.ts runRef) */
+  warmed?: number;
+  /** the reference answered in a process that had just restarted, so without the hand's earlier streets */
+  cold?: boolean;
+  /** the streets the reference narrowed by the betting rules where Quick's answer had a solve (checks.ts outOfContext):
+   * it stood on less of the hand than Quick did */
+  outOfContext?: string[];
+  quickSource: string;
+  cmp: RefCompare | null;
+  /** every action at the node graded on both answers (compareAll) */
+  all?: RefAction[];
+}
+
+export interface ConfigRecord {
+  t: "config";
+  config: string;
+  hands: number;
+  heroDecisions: number;
+  oppMoves: number;
+  secs: number;
+  /** the advisor's peak RSS and peak physical footprint, MB (records before 2026-11-18 have the RSS alone), and how often it
+   * was started again (over its RSS cap, before a preflop request past QA_PF_CAP_MB, or a crash) */
+  rssPeak: number;
+  memPeak?: number;
+  restarts: number;
+  /** seconds its advisor waited to be ready (a CPU slot from the machine's wrapper, the imports) */
+  waited?: number;
+  violations: Violation[];
+}
+
+export type QaRecord = HeroRecord | OppRecord | HandRecord | RefRecord | ConfigRecord;
+
+/** A decision's spot by street, players in and pot: "flop hu srp", "turn 3way 3bet", "preflop". */
+export function spotOf(h: Pick<PracticeHand, "lines">, sim: Pick<Sim, "current" | "active">): string {
+  const st = sim.current ?? "preflop";
+  if (st === "preflop") return "preflop";
+  const n = sim.active.size;
+  const ways = n <= 2 ? "hu" : n === 3 ? "3way" : "4way+";
+  const raises = h.lines.preflop.filter((m) => m.action === "raise" || m.action === "bet" || m.action === "all-in").length;
+  const pot = raises === 0 ? "limped" : raises === 1 ? "srp" : raises === 2 ? "3bet" : "4bet+";
+  return `${st} ${ways} ${pot}`;
+}
+
+/** The violations found by one check, with the first few where they were. */
+export interface CheckTally {
+  check: string;
+  severity: "hard" | "soft";
+  count: number;
+  examples: { config: string; seed: number; hand: number; street?: string; line?: string; source?: string; verdict?: string | null; detail: string }[];
+}
+
+export interface Summary {
+  /** the run's base seed (--seed) */
+  seed?: number;
+  configs: number;
+  hands: number;
+  heroDecisions: number;
+  graded: number;
+  oppMoves: number;
+  refs: number;
+  secs: number;
+  hard: number;
+  soft: number;
+  checks: CheckTally[];
+  /** by spot, what answered your decisions */
+  coverage: { spot: string; n: number; sources: Record<string, number> }[];
+  /** the shares the sweep looks for: heads-up 6-max 100bb single-raised flops against the equilibrium answered by the
+   * library; 3-way flops served (library or live, not rules or an error) */
+  coverageAlerts: { what: string; n: number; share: number | null; want: string; ok: boolean | null }[];
+  verdicts: Record<string, Record<string, number>>;
+  /** preflop decisions graded by the solve and by the charts */
+  preflop: { solve: number; charts: number; other: number; pfWhy: Record<string, number> };
+  /** the move you made graded on both (compared, agree, condemns, passes); the same where either answer was a live solve
+   * (a library flop is the same entry at every speed, so library-library pairs always agree); and every action at the node
+   * graded on both, where either was live (`actions`: compared; `okAgree`: both Best/Correct or both not; `actCondemns`:
+   * Quick says Mistake or Blunder, the reference Best or Correct; `actPasses`: the other way). A reference out of the
+   * hand's context (`cold`, `evicted`, `outOfContext`) answers another question: counted in `outside`, compared nowhere. */
+  quickVsRef: {
+    mode: string;
+    n: number;
+    /** asked out of the hand's context, not compared: a restart, an eviction, a street narrowed by the rules alone */
+    outside?: { cold: number; evicted: number; rules: number };
+    compared: number;
+    agree: number;
+    condemns: number;
+    passes: number;
+    live: { compared: number; agree: number; condemns: number; passes: number };
+    actions: number;
+    actAgree: number;
+    okAgree: number;
+    actCondemns: number;
+    actPasses: number;
+  }[];
+  opponents: { opponents: string; moves: number; freeFolds: number; riverNutFolds: number; strongFolds: number; nothingPotSpots: number; nothingPotCalls: number }[];
+  perf: { mode: string; street: string; n: number; mean: number; p50: number; p90: number; max: number; over15: number }[];
+  rss: { config: string; peak: number; held: number | null; restarts: number; secs: number; waited: number; hands: number }[];
+}
+
+const EXAMPLES = 5;
+const q = (xs: number[], p: number) => {
+  if (!xs.length) return 0;
+  const ys = [...xs].sort((a, b) => a - b);
+  // (nearest rank: the p50 of two is the lower)
+  return ys[Math.min(ys.length - 1, Math.max(0, Math.ceil(p * ys.length) - 1))]!;
+};
+const r2 = (x: number) => Math.round(x * 100) / 100;
+const bump = (o: Record<string, number>, k: string, by = 1) => {
+  o[k] = (o[k] ?? 0) + by;
+};
+/** pfWhy's reason, its first words, so like reasons count together */
+const gist = (s: string) => s.replace(/\d+(\.\d+)?/g, "#").split(/[:,]/)[0]!.slice(0, 70);
+
+export function summarize(records: readonly QaRecord[], secs = 0, seed?: number): Summary {
+  const heroes = records.filter((r): r is HeroRecord => r.t === "hero");
+  const opps = records.filter((r): r is OppRecord => r.t === "opp");
+  const hands = records.filter((r): r is HandRecord => r.t === "hand");
+  const refs = records.filter((r): r is RefRecord => r.t === "ref");
+  const configs = records.filter((r): r is ConfigRecord => r.t === "config");
+  const tallies = new Map<string, CheckTally>();
+  for (const r of records)
+    for (const x of r.violations) {
+      const key = `${x.severity}|${x.check}`;
+      const t = tallies.get(key) ?? { check: x.check, severity: x.severity, count: 0, examples: [] };
+      t.count += 1;
+      if (t.examples.length < EXAMPLES)
+        t.examples.push({
+          config: r.config,
+          seed: "seed" in r ? r.seed : 0,
+          hand: "hand" in r ? r.hand : 0,
+          ...("street" in r ? { street: r.street } : {}),
+          ...("line" in r ? { line: r.line } : {}),
+          ...("source" in r ? { source: r.source } : {}),
+          ...(r.t === "hero" ? { verdict: r.verdict } : {}),
+          detail: x.detail,
+        });
+      tallies.set(key, t);
+    }
+  const checks = [...tallies.values()].sort((a, b) => (a.severity === b.severity ? b.count - a.count : a.severity === "hard" ? -1 : 1));
+  const cov = new Map<string, { spot: string; n: number; sources: Record<string, number> }>();
+  for (const r of heroes) {
+    const c = cov.get(r.spot) ?? { spot: r.spot, n: 0, sources: {} };
+    c.n += 1;
+    bump(c.sources, r.source);
+    cov.set(r.spot, c);
+  }
+  const share = (rs: HeroRecord[], ok: (r: HeroRecord) => boolean) => (rs.length ? rs.filter(ok).length / rs.length : null);
+  const huLib = heroes.filter((r) => r.table.players === 6 && r.table.stack === 100 && r.table.opponents === "gto" && r.table.plain !== false && r.spot === "flop hu srp");
+  const threeWay = heroes.filter((r) => r.spot.startsWith("flop 3way"));
+  const libShare = share(huLib, (r) => r.source === "library");
+  const served = share(threeWay, (r) => r.source === "library" || r.source === "live");
+  const verdicts: Record<string, Record<string, number>> = {};
+  for (const r of heroes) {
+    const row = (verdicts[r.street] ??= {});
+    bump(row, r.verdict ?? "ungraded");
+  }
+  const pre = heroes.filter((r) => r.street === "preflop");
+  const pfWhy: Record<string, number> = {};
+  for (const r of pre) if (r.pfWhy) bump(pfWhy, gist(r.pfWhy));
+  const modes = [...new Set(refs.map((r) => r.mode))].sort();
+  const oppKinds = [...new Set(opps.map((r) => r.table.opponents))].sort();
+  const perfKeys = new Map<string, number[]>();
+  for (const r of heroes) {
+    const k = `${r.mode}|${r.street}`;
+    perfKeys.set(k, [...(perfKeys.get(k) ?? []), r.secs]);
+  }
+  for (const r of refs) {
+    const k = `${r.mode} (reference)|${r.street}`;
+    perfKeys.set(k, [...(perfKeys.get(k) ?? []), r.secs]);
+  }
+  const hard = checks.filter((c) => c.severity === "hard").reduce((a, c) => a + c.count, 0);
+  const soft = checks.filter((c) => c.severity === "soft").reduce((a, c) => a + c.count, 0);
+  return {
+    ...(seed !== undefined ? { seed } : {}),
+    configs: configs.filter((c) => !c.config.startsWith("(")).length,
+    hands: hands.length,
+    heroDecisions: heroes.length,
+    graded: heroes.filter((r) => r.verdict !== null).length,
+    oppMoves: opps.length,
+    refs: refs.length,
+    secs: r2(secs),
+    hard,
+    soft,
+    checks,
+    coverage: [...cov.values()].sort((a, b) => b.n - a.n),
+    coverageAlerts: [
+      { what: "6-max 100bb heads-up SRP flops against GTO opponents, with no rake, ante or straddle, answered by the library", n: huLib.length, share: libShare, want: "mostly (50% or more)", ok: libShare === null ? null : libShare >= 0.5 },
+      { what: "3-way flops served (library or live solve, not rules or an error)", n: threeWay.length, share: served, want: "80% or more", ok: served === null ? null : served >= 0.8 },
+    ],
+    verdicts,
+    preflop: {
+      solve: pre.filter((r) => r.graded === "preflop-solve").length,
+      charts: pre.filter((r) => r.graded === "charts").length,
+      other: pre.filter((r) => r.graded !== "preflop-solve" && r.graded !== "charts").length,
+      pfWhy,
+    },
+    quickVsRef: modes.map((mode) => {
+      const asked = refs.filter((r) => r.mode === mode);
+      const out = (r: RefRecord) => !!r.cold || !!r.evicted || !!r.outOfContext?.length;
+      const rs = asked.filter((r) => !out(r));
+      const cs = rs.map((r) => r.cmp).filter((c): c is RefCompare => !!c);
+      const lv = rs.filter((r) => r.cmp && (r.quickSource === "live" || r.source === "live")).map((r) => r.cmp!);
+      const acts = rs.filter((r) => r.quickSource === "live" || r.source === "live").flatMap((r) => (r.all ?? []).filter((a) => a.ref !== null));
+      const ok = (x: Verdict | null) => x === "Best" || x === "Correct";
+      const bad = (x: Verdict | null) => x === "Mistake" || x === "Blunder";
+      return {
+        mode,
+        n: asked.length,
+        outside: { cold: asked.filter((r) => r.cold).length, evicted: asked.filter((r) => !r.cold && r.evicted).length, rules: asked.filter((r) => !r.cold && !r.evicted && r.outOfContext?.length).length },
+        compared: cs.length,
+        agree: cs.filter((c) => c.agree).length,
+        condemns: cs.filter((c) => c.condemns).length,
+        passes: cs.filter((c) => c.passes).length,
+        live: { compared: lv.length, agree: lv.filter((c) => c.agree).length, condemns: lv.filter((c) => c.condemns).length, passes: lv.filter((c) => c.passes).length },
+        actions: acts.length,
+        actAgree: acts.filter((a) => a.quick === a.ref).length,
+        okAgree: acts.filter((a) => ok(a.quick) === ok(a.ref)).length,
+        actCondemns: acts.filter((a) => bad(a.quick) && ok(a.ref)).length,
+        actPasses: acts.filter((a) => ok(a.quick) && bad(a.ref)).length,
+      };
+    }),
+    opponents: oppKinds.map((k) => {
+      const rs = opps.filter((r) => r.table.opponents === k);
+      const np = rs.filter((r) => r.flags?.nothingPot);
+      return {
+        opponents: k,
+        moves: rs.length,
+        freeFolds: rs.filter((r) => r.flags?.freeFold).length,
+        riverNutFolds: rs.filter((r) => r.flags?.riverNutFold).length,
+        strongFolds: rs.filter((r) => r.flags?.strongFold).length,
+        nothingPotSpots: np.length,
+        nothingPotCalls: np.filter((r) => r.flags!.nothingPot!.called).length,
+      };
+    }),
+    perf: [...perfKeys.entries()]
+      .map(([k, xs]) => {
+        const [mode, street] = k.split("|") as [string, string];
+        return { mode, street, n: xs.length, mean: r2(xs.reduce((a, b) => a + b, 0) / xs.length), p50: r2(q(xs, 0.5)), p90: r2(q(xs, 0.9)), max: r2(Math.max(...xs)), over15: mode === "quick" ? xs.filter((x) => x > 15).length : 0 };
+      })
+      .sort((a, b) => (a.mode === b.mode ? ["preflop", "flop", "turn", "river"].indexOf(a.street) - ["preflop", "flop", "turn", "river"].indexOf(b.street) : a.mode < b.mode ? -1 : 1)),
+    rss: configs.map((c) => ({ config: c.config, peak: c.rssPeak, held: c.memPeak ?? null, restarts: c.restarts, secs: r2(c.secs), waited: r2(c.waited ?? 0), hands: c.hands })),
+  };
+}
+
+const pc = (x: number | null) => (x === null ? "n/a" : `${(x * 100).toFixed(1)}%`);
+const rate = (a: number, b: number) => (b ? `${a}/${b} (${((a / b) * 100).toFixed(1)}%)` : "0/0");
+const cell = (s: unknown) => String(s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+
+/** The summary as markdown (summary.md). */
+export function markdown(s: Summary, title = "Practice QA sweep"): string {
+  const L: string[] = [];
+  L.push(`# ${title}`, "");
+  L.push(`${s.configs} configs, ${s.hands} hands, ${s.heroDecisions} of your decisions (${s.graded} graded), ${s.oppMoves} opponent moves, ${s.refs} reference answers, ${Math.round(s.secs)} s.`, "");
+  L.push(`**Hard violations: ${s.hard}.** Soft (measured, not failing): ${s.soft}.`, "");
+  L.push("## Violations by check", "");
+  if (!s.checks.length) L.push("None.", "");
+  else {
+    L.push("| check | severity | count | first example |", "|---|---|---|---|");
+    for (const c of s.checks) {
+      const e = c.examples[0];
+      L.push(`| ${c.check} | ${c.severity} | ${c.count} | ${e ? cell(`${e.config} seed ${e.seed} hand ${e.hand} ${e.street ?? ""} ${e.line ? `[${e.line}]` : ""} ${e.source ? `(${e.source}${e.verdict ? `, ${e.verdict}` : ""})` : ""}: ${e.detail}`) : ""} |`);
+    }
+    L.push("");
+    // (each hand deals and draws from its own seed, so one replays alone; a Quick or Fast answer stops on a time budget, so
+    // a replay's later streets can part from the run's)
+    const hard = s.checks.filter((c) => c.severity === "hard");
+    if (hard.length) {
+      L.push(`Replay a hard example (base seed ${s.seed ?? 1}; \`--config\` is the exact name):`, "");
+      const seen = new Set<string>();
+      for (const c of hard)
+        for (const e of c.examples) {
+          const cmd = `node scripts/qa/run.mjs --seed ${s.seed ?? 1} --config ${e.config} --hand ${e.hand}`;
+          if (seen.has(cmd)) continue;
+          seen.add(cmd);
+          L.push(`- ${c.check}: \`${cmd}\``);
+        }
+      L.push("");
+    }
+  }
+  L.push("## Coverage: what answered your decisions", "", "| spot | n | sources |", "|---|---|---|");
+  for (const c of s.coverage) L.push(`| ${c.spot} | ${c.n} | ${Object.entries(c.sources).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${pc(n / c.n)}`).join(", ")} |`);
+  L.push("");
+  for (const a of s.coverageAlerts) L.push(`- ${a.what}: ${pc(a.share)} of ${a.n} (want ${a.want})${a.ok === false ? " **below**" : ""}`);
+  L.push("", "## Verdicts by street", "", "| street | Best | Correct | Inaccuracy | Mistake | Blunder | ungraded |", "|---|---|---|---|---|---|---|");
+  for (const st of ["preflop", "flop", "turn", "river"]) {
+    const v = s.verdicts[st];
+    if (v) L.push(`| ${st} | ${v.Best ?? 0} | ${v.Correct ?? 0} | ${v.Inaccuracy ?? 0} | ${v.Mistake ?? 0} | ${v.Blunder ?? 0} | ${v.ungraded ?? 0} |`);
+  }
+  L.push("", `Preflop graded by the preflop solve: ${s.preflop.solve}; by the charts: ${s.preflop.charts}; other: ${s.preflop.other}.`);
+  const why = Object.entries(s.preflop.pfWhy).sort((a, b) => b[1] - a[1]);
+  if (why.length) L.push("", "Why a preflop-solve session's decision took the chart's grade:", "", ...why.map(([k, n]) => `- ${n} x ${k}`));
+  L.push("", "## Quick against a reference (the same action graded on both)", "");
+  if (!s.quickVsRef.length) L.push("None asked.");
+  else {
+    L.push("| reference | asked | out of the hand's context (cold, evicted, rules) | compared | verdicts agree | Quick condemns, reference passes | Quick passes, reference condemns |", "|---|---|---|---|---|---|---|");
+    for (const r of s.quickVsRef) {
+      const o = r.outside ?? { cold: 0, evicted: 0, rules: 0 };
+      L.push(`| ${r.mode} | ${r.n} | ${o.cold + o.evicted + o.rules} (${o.cold}, ${o.evicted}, ${o.rules}) | ${r.compared} | ${rate(r.agree, r.compared)} | ${rate(r.condemns, r.compared)} | ${rate(r.passes, r.compared)} |`);
+    }
+    L.push("", "Where either answer was a live solve (a library flop is the same entry at every speed):", "");
+    L.push("| reference | the move made: compared | agree | Quick condemns | Quick passes | every action: compared | verdicts agree | Best/Correct or not agree | Quick condemns | Quick passes |", "|---|---|---|---|---|---|---|---|---|---|");
+    for (const r of s.quickVsRef) {
+      const lv = r.live ?? { compared: 0, agree: 0, condemns: 0, passes: 0 };
+      L.push(`| ${r.mode} | ${lv.compared} | ${rate(lv.agree, lv.compared)} | ${rate(lv.condemns, lv.compared)} | ${rate(lv.passes, lv.compared)} | ${r.actions ?? 0} | ${rate(r.actAgree ?? 0, r.actions ?? 0)} | ${rate(r.okAgree ?? 0, r.actions ?? 0)} | ${rate(r.actCondemns ?? 0, r.actions ?? 0)} | ${rate(r.actPasses ?? 0, r.actions ?? 0)} |`);
+    }
+  }
+  L.push("", "## Opponents", "", "| opponents | moves | folds where checking was free | river folds of the nuts | flop or turn folds of two pair or better to 75% of the pot or less | calls with nothing facing a pot-size bet or more |", "|---|---|---|---|---|---|");
+  for (const o of s.opponents) L.push(`| ${o.opponents} | ${o.moves} | ${o.freeFolds} | ${o.riverNutFolds} | ${o.strongFolds ?? 0} | ${rate(o.nothingPotCalls, o.nothingPotSpots)} |`);
+  L.push("", "## Time per decision (s, this Mac, native Python)", "", "| mode | street | n | mean | p50 | p90 | max | Quick over 15 s |", "|---|---|---|---|---|---|---|---|");
+  for (const p of s.perf) L.push(`| ${p.mode} | ${p.street} | ${p.n} | ${p.mean} | ${p.p50} | ${p.p90} | ${p.max} | ${p.over15} |`);
+  L.push("", "## Configs", "", "| config | hands | wall s | of it waiting to start s | advisor peak RSS MB | advisor peak physical footprint MB | restarts |", "|---|---|---|---|---|---|---|");
+  for (const r of s.rss) L.push(`| ${r.config} | ${r.hands} | ${Math.round(r.secs)} | ${Math.round(r.waited)} | ${r.peak} | ${r.held ?? "n/a"} | ${r.restarts} |`);
+  L.push("");
+  return L.join("\n");
+}

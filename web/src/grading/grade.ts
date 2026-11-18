@@ -9,7 +9,8 @@
 //    `roughErrPct`): an action within that of the best is Correct, and past it only the excess is graded against the 2%
 //    and 8% thresholds;
 //  - where the error can't be measured (`capReason`: a fallback, a cut-short solve, ranges from the betting rules, a rough or
-//    approximate band, a read of another solution), the verdict stops at Inaccuracy and says why;
+//    approximate band, a read of another solution, the heads-up preflop solve), the verdict stops at Inaccuracy and says
+//    why;
 //  - except a clear blunder: past the noise, CLEAR_PCT of the pot or more is a Blunder whatever answered.
 // The words (`whyText`, `lossWords`) use the page's own precision: one decimal of a percent, two of a big blind, and name
 // the top-EV action wherever they say what a loss is measured against.
@@ -241,7 +242,19 @@ export interface AnswerBasis {
   leans?: boolean;
   /** the answer's noise, bb, as a grade kept it: used as it is (a kept decision's) */
   noise?: number;
+  /** the table's size, where the preflop solve answered (its answer's `players`): heads-up, it can't condemn a line
+   * (HEADS_UP_PF) */
+  players?: number;
 }
+
+/** Why the heads-up preflop solve can't condemn a line. Where the published solves play a hand one way, the heads-up
+ * stored game often plays it another, by more than its noise: at 100bb it raises 32o, 42o and 43o first in where their
+ * charts fold them, and limps QTo and 92s where they raise. Playing the charts exactly was graded a Mistake or Blunder on
+ * 7.0% of heads-up 100bb decisions and 2.2% at 20bb, against 0.7% at 6-max, and it isn't noise at the hands the charts mix
+ * (there the gap's 90th percentile is 6-max's at 20bb and 1.5 to 2 times it at 100bb): 69% of those 100bb verdicts were at
+ * hands the charts play 85% one way (30,000 hands of chart play each, scripts/pf_practice_coverage.py, 2026-11-18;
+ * docs/ACCURACY.md section 18.10). */
+export const HEADS_UP_PF = "The heads-up preflop solve often parts from the published solves' charts, by more than its noise";
 
 /** Sources whose numbers come from no solve. */
 const UNSOLVED = new Set(["rules", "equity", "unknown"]);
@@ -262,8 +275,9 @@ export function answerNoise(b: AnswerBasis, pot: number): number {
 
 /** Why an answer can't condemn action `a`, short (the verdict then stops at Inaccuracy, short of a clear blunder); null
  * where it can. Only what's measured condemns: a fallback's numbers, a solve cut short before it measured itself, ranges
- * from the betting rules, a rough or approximate band and a read of another solution are not. (A rough EV isn't here: its
- * error is measured, and added to its noise: roughErrPct.) */
+ * from the betting rules, a rough or approximate band and a read of another solution are not, nor is the heads-up preflop
+ * solve, measured to part from the published solves past its noise (HEADS_UP_PF). (A rough EV isn't here: its error is
+ * measured, and added to its noise: roughErrPct.) */
 function capGist(b: AnswerBasis, byEv: boolean): string | null {
   const src = b.source;
   if (src && UNSOLVED.has(src)) return `${whoOf(src)} is no solve`;
@@ -274,6 +288,7 @@ function capGist(b: AnswerBasis, byEv: boolean): string | null {
   if (b.band === "rough" || b.band === "approximate")
     return `The solve stopped ${finite(b.exploitabilityPct) ? `${b.exploitabilityPct.toFixed(2)}% of the pot from equilibrium, ` : ""}${b.band === "rough" ? "too far to trust" : "short of its target"}`;
   if (!byEv) return null;
+  if (src === "preflop-solve" && b.players === 2) return HEADS_UP_PF;
   if (b.approximate && src !== "preflop-solve" && !finite(b.exploitabilityPct)) return "This answer is read from another solution, its error unmeasured";
   return null;
 }
@@ -325,7 +340,7 @@ export const GRADE_RULES: readonly { verdict: Verdict; rule: string }[] = [
     verdict: "Correct",
     rule: `an action the hand plays ${MIX * 100}% of the time or more, or one within the answer's noise of the best: ${NOISE_FLOOR_PCT}% of the pot at least, ${NOISE_K} times a solve's distance from equilibrium, two stored EV steps (2% of the flop's pot) for the flop library, and for the preflop solve about 5% of the pot first in, 8% facing an open, 11% facing a 3-bet; a move the range almost never takes, whose EV is rough, has that EV's measured error on top (6% of the pot at 100 iterations, 2.4% at 300, 0.6% at 1,000); past the noise only the excess is graded`,
   },
-  { verdict: "Inaccuracy", rule: `gives up under ${INACCURACY_PCT}% of the pot past the noise; without EVs, played ${RARE * 100}–${MIX * 100}% of the time; the most an answer whose error can't be measured gives, short of a clear blunder` },
+  { verdict: "Inaccuracy", rule: `gives up under ${INACCURACY_PCT}% of the pot past the noise; without EVs, played ${RARE * 100}–${MIX * 100}% of the time; the most an answer whose error can't be measured gives, or the heads-up preflop solve, short of a clear blunder` },
   { verdict: "Mistake", rule: `gives up ${INACCURACY_PCT}–${MISTAKE_PCT}% of the pot past the noise; without EVs, played under ${RARE * 100}% of the time` },
   { verdict: "Blunder", rule: `gives up ${MISTAKE_PCT}% of the pot or more past the noise (graded by EV only); ${CLEAR_PCT}% or more is a clear blunder, a Blunder even where the answer's error can't be measured` },
 ];

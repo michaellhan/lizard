@@ -33,6 +33,7 @@ from gto import pf_study as PS
 
 from . import pf_engine as E
 from . import pf_model as M
+from .pf_offpath import OffPathValues
 
 MODEL = "calibrated class-level model"       # in every answer (pf_model) and the provenance label
 MODEL_TAG = "lz3"                           # key prefix: a change to the model or its calibration bumps it
@@ -382,8 +383,9 @@ def read_stored(key: str) -> Optional[bytes]:
 
 
 # ----------------------------------------------------------------------------- a solve
-class Solve(PS.Solve):
-    """pf_study.Solve on this game; its answers name the model and give the player's own stack."""
+class Solve(OffPathValues, PS.Solve):
+    """pf_study.Solve on this game; its answers name the model and give the player's own stack, and value a move for a
+    class that never makes it by the class's best response after it (engine/pf_offpath.py), not the stored fold."""
 
     def __init__(self, spec: "Spec", stored: Optional[bytes] = None):
         super().__init__(spec, stored)

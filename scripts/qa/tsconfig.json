@@ -1,0 +1,8 @@
+{
+  "extends": "../../web/tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": null,
+    "types": ["node", "vite/client"]
+  },
+  "include": ["./*.ts"]
+}

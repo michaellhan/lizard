@@ -44,6 +44,7 @@ STACK = 100.0
 SIZE_EPS = 0.051                         # pf_study.Solve.walk's, and pfGrade.ts SIZE_EPS
 CHIP_EPS = 0.011                         # pfGrade.ts CHIP_EPS
 TOL, MIX, INACCURACY_PCT, MISTAKE_PCT = 0.011, 0.1, 2.0, 8.0     # web/src/grading/grade.ts
+CLEAR_PCT = 20.0                         # grade.ts CLEAR_PCT: past the noise, a Blunder even where a grade is capped
 
 
 def class_of(hole: str) -> str:
@@ -165,14 +166,18 @@ def noise(pot):
 
 
 def verdict(evs, freqs, a, pot):
-    """web/src/grading/grade.ts grade with source "preflop-solve": within the noise Correct, past it only the excess."""
+    """web/src/grading/grade.ts gradeAnswer with source "preflop-solve": within the noise Correct, past it only the
+    excess; heads-up, short of a clear blunder, no worse than Inaccuracy (grade.ts HEADS_UP_PF)."""
     raw = max(0.0, max(evs) - evs[a])
     if raw <= TOL:
         return "Best", 0.0
     if freqs[a] >= MIX or raw <= noise(pot):
         return "Correct", raw
     pct = (raw - noise(pot)) / pot * 100
-    return ("Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"), raw
+    v = "Inaccuracy" if pct < INACCURACY_PCT else "Mistake" if pct < MISTAKE_PCT else "Blunder"
+    if len(SEATS) == 2 and v != "Inaccuracy" and round(pct, 1) < CLEAR_PCT:
+        v = "Inaccuracy"
+    return v, raw
 
 
 def held_solve(rake, upstream, sizes=()):
