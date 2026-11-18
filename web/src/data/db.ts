@@ -382,6 +382,9 @@ export interface MistakeRecord {
   step: number;
   due: number | null;
   tries: MistakeTry[];
+  /** the record as it was before its latest miss went into it, where that miss was a Practice grade at Quick, which a
+   * re-check at Fast can take back (data/mistakes.ts takeBackMiss): only the one before, never its own `prior` */
+  prior?: Omit<MistakeRecord, "prior">;
 }
 
 export interface LizardDB extends DBSchema {

@@ -46,12 +46,16 @@
 //
 // Last of all, where re-checking is on (Settings, unless the options say), the mode isn't Accurate and asking ahead could
 // run, the session's decisions graded at Quick are asked again at Fast (recheck.ts) while the solver has nothing else to
-// do: no table wants a request or has one coming on its timer, and no look-ahead is left. One goes out at a time, as
-// group 6 (scheduler.ts), and anything else wanted stops it, as a stop costs little here: what's stopped waits and goes
-// again later; what fails, or is cancelled twice by nobody here, is marked on the decision and never asked again. Fast's
-// grade then goes everywhere Quick's was (`recheckApply`): the hand at its table, the table's last decision and tallies,
-// the session's totals and Review, and the kept mistake. The backlog is this session's only, in memory, at most
-// RECHECK_KEEP; a session read back rebuilds it from the hands on its tables.
+// do: no table wants a request or has one coming on its timer, no look-ahead is left, and every table's hand is over or
+// has been waiting for you RECHECK_IDLE s (a move of yours stops a re-check, and what it asks waits for the stop). Only
+// hands that have ended are asked: one still played would have its own street solves run on by Fast's and read them on
+// later streets. One goes out at a time, as group 6 (scheduler.ts), and anything else wanted stops it, as a stop costs
+// little here: what's stopped waits and goes again later; what fails for its spot, or is cancelled twice by nobody here,
+// is marked on the decision and never asked again; a solver that can't be reached pauses them all, untouched, until a
+// table's request has an answer. Fast's grade then goes everywhere Quick's was (`recheckApply`): the hand at its table,
+// the table's last decision and tallies, the session's totals and Review, and the kept mistake. The backlog is this
+// session's only, in memory, at most RECHECK_KEEP; a session read back rebuilds it from the hands on its tables, and its
+// counts are the session's.
 import { kvGet, kvSet, putSession } from "@/data/db";
 import { readSetup, type ScenarioSetup } from "@/data/scenarios";
 import { addHands } from "@/data/hands";
@@ -103,9 +107,9 @@ import {
   type RangeAt,
   type SeatChoice,
 } from "./practice";
-import { activeAt, bounded, flagged, handAt, recheckable, recheckAsk, recheckChanged, recheckOrder, regraded, type RecheckStatus, type Waiting as RecheckWaiting } from "./recheck";
+import { activeAt, bounded, flagged, handAt, RECHECK_IDLE, recheckable, recheckAsk, recheckQueue, regraded, type RecheckStatus, type Waiting as RecheckWaiting } from "./recheck";
 import { estimate, plan, queue, refocus, SHORT, streetKey, type Asked, type Front, type Job, type Waiter } from "./scheduler";
-import { afterDeal, afterDecision, afterHand, afterRecheck, atTables, freshSession, gradesOf, keyOf, sameDecision, setupKey, toRecord, type Kept, type PracticeSession } from "./session";
+import { afterDeal, afterDecision, afterHand, afterRecheck, afterRecheckFailed, atTables, freshSession, gradesOf, keyOf, NONE_RECHECKED, sameDecision, setupKey, toRecord, type Kept, type PracticeSession } from "./session";
 
 /** ms an opponent's move and a new card take at least at one table, so the hand can be followed. */
 export const PACE = 450;
@@ -487,7 +491,10 @@ export class Room {
   private readonly aheadHeld = new Map<string, number>();
   /** this session's Quick grades waiting to be asked again at Fast, and how those asked went (recheck.ts) */
   private rechecks: Recheck[] = [];
-  private rechecked = { done: 0, changed: 0, failed: 0 };
+  /** the solver couldn't be reached by a re-check: none goes until a table's request has an answer */
+  private recheckPaused = false;
+  /** comes back as the tables have waited RECHECK_IDLE for you */
+  private recheckTimer: ReturnType<typeof setTimeout> | undefined;
   private habits: Habits;
   private meter: AheadMeter = NO_METER;
   private restarts = 0;
@@ -596,6 +603,7 @@ export class Room {
     clearTimeout(this.holdTimer);
     clearTimeout(this.guardTimer);
     clearTimeout(this.lateTimer);
+    clearTimeout(this.recheckTimer);
     for (const t of this.tables) this.clearTimer(t);
     this.stopFlight();
   }
@@ -606,6 +614,7 @@ export class Room {
   setSolver(solver: RoomSolver): void {
     if (solver === this.solver) return;
     this.solver = solver;
+    this.recheckPaused = false;
     if (this.flight) this.spend(this.flight);
     this.flight?.ac.abort();
     this.flight = null;
@@ -691,7 +700,7 @@ export class Room {
   }
 
   /** The backlog of a session read back, from the hands on its tables, in play or set aside (those gone from them were
-   * never kept, so they aren't asked again), and what's been done, from Review's list. */
+   * never kept, so they aren't asked again). What's been done is the session's own count. */
   private rebuildRechecks(): void {
     const out: Recheck[] = [];
     for (const t of [...this.tables, ...this.spare]) {
@@ -702,8 +711,6 @@ export class Room {
       });
     }
     this.rechecks = bounded(out);
-    const review = this.session.review;
-    this.rechecked = { done: review.filter((e) => e.d.quick).length, changed: review.filter((e) => recheckChanged(e.d)).length, failed: review.filter((e) => e.d.recheckFailed !== undefined).length };
   }
 
   /** A table from the doc. A hand that's lost is dealt again as any new hand, its results kept, and the table says so. */
@@ -773,7 +780,6 @@ export class Room {
     this.unasked.clear();
     this.aheadBad.clear();
     this.rechecks = [];
-    this.rechecked = { done: 0, changed: 0, failed: 0 };
     this.front = FREE;
     this.resetStacks = false;
     this.endedAt = null;
@@ -1220,19 +1226,41 @@ export class Room {
     return (this.fixedRecheck ?? useSettings.getState().recheckFast ?? true) && this.mode !== "accurate" && this.stopCost === "cheap" && this.restarts === 0;
   }
 
-  /** The re-check to ask, last of all (scheduler.ts RECHECK): the one in flight while it still waits, else, where no table
-   * has anything coming on its timer, the first in the backlog's order. `plan` sends it only with nothing else wanted. */
+  /** The re-check to ask, last of all (scheduler.ts RECHECK): the one in flight while it still waits; else, the first in
+   * the backlog's order (recheck.ts recheckQueue) of the hands that have ended everywhere, where nothing is in flight, no
+   * table has anything coming on its timer, and each table's hand is over or has waited for you RECHECK_IDLE s (else the
+   * pump comes back as it has). `plan` sends it only with nothing else wanted. A hand still played isn't asked: Fast's
+   * request would find its Quick street solves in the Advisor's cache and run them on, and its later streets would read
+   * those. */
   private recheckJobs(mode: SolveMode): Job[] {
-    if (!this.recheckOn || mode === "accurate" || !this.active || document.visibilityState !== "visible" || !this.rechecks.length) return [];
-    const order = [...this.rechecks].sort(recheckOrder);
+    clearTimeout(this.recheckTimer);
+    if (!this.recheckOn || this.recheckPaused || mode === "accurate" || !this.active || document.visibilityState !== "visible" || !this.rechecks.length) return [];
+    const playing = [...this.tables, ...this.spare].flatMap((t) => (t && !t.hand.result ? [t.hand] : []));
+    const order = recheckQueue(this.rechecks.filter((x) => !playing.some((h) => h.n === x.n && sameDecision(h.decisions[x.k], x.d))));
     const f = this.flight?.job.recheck ? this.flight.job.need.key : null;
-    const flying = f ? order.find((r) => r.key === f) : undefined;
-    const idle = this.tables.every((t) => t.timer === null);
-    const go = flying ?? (idle && !f ? order[0] : undefined);
-    if (!go) return [];
-    const table = Math.max(0, this.tables.indexOf(go.table));
-    const est = estimate(go.state, "fast", new Set(), this.client?.transport?.kind ?? "worker");
-    return [{ need: { kind: "you", key: go.key, state: go.state, street: go.street }, table, est, seeking: false, since: go.n, recheck: { rank: order.indexOf(go) } }];
+    const job = (go: Recheck): Job[] => {
+      const table = Math.max(0, this.tables.indexOf(go.table));
+      const est = estimate(go.state, "fast", new Set(), this.client?.transport?.kind ?? "worker");
+      return [{ need: { kind: "you", key: go.key, state: go.state, street: go.street }, table, est, seeking: false, since: go.n, recheck: { rank: order.indexOf(go) } }];
+    };
+    if (f) {
+      const flying = order.find((r) => r.key === f);
+      return flying ? job(flying) : [];
+    }
+    if (this.flight || !order.length) return [];
+    let left = 0;
+    for (const t of this.tables) {
+      if (t.timer !== null) return [];
+      if (t.hand.result || t.spent) continue;
+      // (a hand in play not waiting for you wants something first, or shows a failure)
+      if (t.waiting === null) return [];
+      left = Math.max(left, t.waiting + RECHECK_IDLE * 1000 - this.now());
+    }
+    if (left > 0) {
+      this.recheckTimer = setTimeout(() => this.pump(), Math.ceil(left));
+      return [];
+    }
+    return job(order[0]!);
   }
 
   /** What you did, for your likeliest lines next time. */
@@ -1436,6 +1464,7 @@ export class Room {
   private useClient(client: RoomClient): void {
     if (client === this.client) return;
     this.client = client;
+    this.recheckPaused = false;
     this.adv.clear();
     this.moves.clear();
     this.failed.clear();
@@ -1462,6 +1491,8 @@ export class Room {
       this.recheckTook(fl, r as SolveResult);
       return this.pump();
     }
+    // (the solver answers: re-checks a failure to reach it paused go on)
+    this.recheckPaused = false;
     const { need, table } = fl.job;
     const s = (this.now() - fl.at) / 1000;
     const ahead = fl.ahead;
@@ -1542,13 +1573,20 @@ export class Room {
     for (const x of waiting) this.recheckApply(x, r.data, r.provenance);
   }
 
-  /** A re-check rejected. Our own stop leaves it waiting, to go again once the solver is free; a failure marks it; a cancel
-   * nobody here made is asked again, and a second marks it, or it would go round for ever. */
+  /** A re-check rejected. Our own stop leaves it waiting, to go again once the solver is free. A solver that couldn't be
+   * reached, didn't start or stopped answering says nothing of the spot: it waits too, and every re-check is paused until
+   * a table's request has an answer, or the whole backlog would be marked in a moment (a worker ended for not answering
+   * is a restart, which turns re-checks off anyway). Any other failure is the spot's, and marks it; a cancel nobody here
+   * made is asked again, and a second marks it, or it would go round for ever. */
   private recheckLost(fl: Flight, e: unknown, kind: string | null): void {
     if (fl.stopping) return;
+    if (kind === "unreachable" || kind === "boot-failed" || kind === "stuck") {
+      this.recheckPaused = true;
+      return;
+    }
     const waiting = this.rechecks.filter((x) => x.key === fl.job.need.key);
     for (const x of waiting) {
-      if (kind !== "cancelled" && kind !== "stuck") this.recheckGone(x, message(e));
+      if (kind !== "cancelled") this.recheckGone(x, message(e));
       else if ((x.cancels += 1) >= 2) this.recheckGone(x, "Stopped twice.");
     }
   }
@@ -1595,7 +1633,6 @@ export class Room {
       const less = dropSource(t.sources, x.d.provenance?.source);
       if (less) t.sources = addSource(less, now.provenance?.source);
     }
-    this.rechecked = { ...this.rechecked, done: this.rechecked.done + 1, changed: this.rechecked.changed + (recheckChanged(now) ? 1 : 0) };
     this.saveNow = true;
     if (this.persist) this.recheckMistake(x.at, x.d, now);
   }
@@ -1605,20 +1642,20 @@ export class Room {
     this.rechecks = this.rechecks.filter((y) => y !== x);
     const failed: Decision = { ...x.d, recheckFailed: why };
     this.recheckSwap(x, failed);
-    this.session = { ...this.session, review: this.session.review.map((e) => (e.n === x.n + 1 && sameDecision(e.d, x.d) ? { ...e, d: failed } : e)) };
-    this.rechecked = { ...this.rechecked, failed: this.rechecked.failed + 1 };
+    this.session = afterRecheckFailed(this.session, x.at, x.d, failed);
     this.saveNow = true;
   }
 
   /** The review queue after a re-check: a miss still a miss has Fast's grade, answer and request; a grade that's now a miss
-   * is kept as any miss is; a miss that's now Best or Correct is taken back (missedAgain counted it, so once less, or gone
-   * where it was its only miss). Nothing's lost at the table if the browser refuses it. */
+   * is kept as any miss is; a miss that's now Best or Correct is taken back from the record it went into, found as
+   * keepMistake found it (by id, else by spot): gone where it was its only miss, else the record as it was before it
+   * (data/mistakes.ts takeBackMiss). Nothing's lost at the table if the browser refuses it. */
   private recheckMistake(at: PracticeHand, was: Decision, now: Decision): void {
     const stamp = Date.now();
     const fresh = handMistake(this.session.id, at, now, stamp);
     const old = handMistake(this.session.id, at, was, stamp);
     if (fresh) void keepMistake(fresh, old ? recheckedMiss : missedAgain, spotKey).catch(() => {});
-    else if (old) void takeBackMiss(old.id, this.session.id).catch(() => {});
+    else if (old) void takeBackMiss(old, spotKey).catch(() => {});
   }
 
   /** What a request that failed leaves. A look-ahead's is for `walk` alone: it marks no table and nobody was waiting on it.
@@ -1761,7 +1798,7 @@ export class Room {
       stopCost: this.client ? this.stopCost : null,
       flops: this.flops,
       ahead: { on: this.askAhead, meter: this.meter },
-      recheck: { on: this.recheckOn, left: this.rechecks.length, ...this.rechecked },
+      recheck: { on: this.recheckOn, left: this.rechecks.length, ...(this.session.rechecked ?? NONE_RECHECKED), ...(this.recheckPaused ? { paused: true as const } : {}) },
       keptRead: this.keptRead,
       holding: this.holding,
       underWay: this.keptRead === "waiting" || this.session.hands > 0 || this.tables.some((t) => t.hand.decisions.length > 0),

@@ -77,14 +77,32 @@ describe("reviewedText", () => {
     expect(reviewedText(flopSpot("equity", false))).toContain("This equity estimate is a fallback. It is not a solved answer.");
   });
 
-  it("says a grade was re-checked at Fast, from Quick's, and that Fast isn't converged; or that it couldn't be", () => {
+  it("says a grade was re-checked at Fast, from Quick's, pointing to Fast's own measure; or that it couldn't be", () => {
     const e = flopSpot("live");
     const fast = { ...e, d: { ...e.d, provenance: prov("live", { mode: "fast" }), quick: { verdict: "Blunder" as const, ok: false, best: "check", byEv: true, loss: 2, lossPct: 40, source: "live" as const } } };
     const t = reviewedText(fast);
-    expect(t).toContain("Re-checked at Fast: a Quick solve first graded it Blunder (its best: check), and the grade and strategy here are from the Fast solve. Fast is a short solve too, not a converged one.");
-    expect(reviewedText({ ...fast, d: { ...fast.d, quick: { ...fast.d.quick, verdict: "Mistake" as const } } })).toContain("from the Fast solve, which gave the same grade.");
-    expect(reviewedText({ ...e, d: { ...e.d, recheckFailed: "no such node" } })).toContain("(Graded on a Quick solve; a re-check at Fast couldn't grade it: no such node.)");
+    expect(t).toContain(
+      "Re-checked at Fast. A Quick solve graded this Blunder (its best: check); asked again at Fast while the solver was idle, the grade, strategy and EVs here are from the Fast solve, and it's counted that way. Fast's is a short solve too: how close it came to equilibrium is in its badge.",
+    );
+    expect(t).not.toMatch(/converged one/);
+    expect(reviewedText({ ...fast, d: { ...fast.d, quick: { ...fast.d.quick, verdict: "Mistake" as const } } })).toContain("from the Fast solve, which gave the same grade, and it's counted that way.");
+    expect(reviewedText({ ...e, d: { ...e.d, recheckFailed: "no such node" } })).toContain("(Not re-checked at Fast (no such node): this grade is on a Quick solve.)");
     expect(reviewedText(e)).not.toContain("Fast");
+  });
+
+  it("never calls the betting rules a solve, Quick's or Fast's, nor doubles a stop", () => {
+    const e = flopSpot("rules");
+    const quick = { verdict: "Mistake" as const, ok: false, best: "check", byEv: true, loss: 2, lossPct: 40, source: "rules" as const };
+    const t = reviewedText({ ...e, d: { ...e.d, provenance: prov("live", { mode: "fast" }), quick } });
+    expect(t).toContain("Quick's answer, Heuristic rules (not a solve), graded this Mistake");
+    expect(t).not.toContain("a Quick solve");
+    const both = reviewedText({ ...e, d: { ...e.d, provenance: prov("rules", { mode: "fast", approximate: true }), quick } });
+    expect(both).toContain("are from Fast's answer, Heuristic rules (not a solve)");
+    expect(both).not.toMatch(/Fast solve|Quick solve|short solve/);
+    expect(both).toContain("Heuristic rules (not a solve)");
+    const failed = reviewedText({ ...e, d: { ...e.d, recheckFailed: "Stopped twice." } });
+    expect(failed).toContain("(Not re-checked at Fast (Stopped twice): this grade is on Quick's answer, Heuristic rules (not a solve).)");
+    expect(failed).not.toMatch(/\.\./);
   });
 
   it("says what isn't known, where a spot didn't keep its line", () => {

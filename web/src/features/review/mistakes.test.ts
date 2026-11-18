@@ -227,6 +227,18 @@ describe("what a merge keeps", () => {
     // (a name that means something to an object is a name)
     expect(Object.entries(missedAgain(mistake(), kept({ ask: { ...ask, decision: "__proto__" } })).decisions!)).toEqual([["__proto__", 1]]);
   });
+
+  it("keeps the record as it was beside a Practice miss at Quick, which a re-check at Fast can take back, and only the one before", () => {
+    const was = mistake({ id: "old", from: "analyze", provenance: { ...mistake().provenance!, mode: "fast" }, grade: { ...mistake().grade, verdict: "Inaccuracy" } });
+    const quick = missedAgain(was, mistake({ id: "new" }));
+    expect(quick.prior).toEqual(was);
+    const again = missedAgain(quick, mistake({ id: "new", lastAt: 9 }));
+    expect(again.prior).toEqual({ ...quick, prior: undefined } satisfies typeof quick);
+    expect(again.prior).not.toHaveProperty("prior");
+    // (a miss no re-check takes back keeps none: not one at Quick, not Practice's)
+    expect(missedAgain(quick, mistake({ provenance: { ...mistake().provenance!, mode: "fast" } }))).not.toHaveProperty("prior");
+    expect(missedAgain(quick, kept())).not.toHaveProperty("prior");
+  });
 });
 
 describe("the words for a kept grade", () => {

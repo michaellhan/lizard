@@ -241,7 +241,8 @@ const isSession = (x: unknown): x is PracticeSession =>
   isSources(x.sources) &&
   opt(x.cells, isCells) &&
   isList(x.review, isReviewed) &&
-  opt(x.revealed, isCount);
+  opt(x.revealed, isCount) &&
+  opt(x.rechecked, (r) => isObj(r) && [r.done, r.changed, r.failed].every(isCount) && (r.changed as number) <= (r.done as number));
 
 /** A place in the doc: a hand of another game is as lost as one that won't replay, since the table deals on from it. */
 function keptTable(x: unknown, s: PracticeSession): KeptTable | null {

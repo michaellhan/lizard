@@ -25,7 +25,7 @@ const many = (n: number, one: string) => `${n.toLocaleString()} ${one}${n === 1 
 import { pfWords } from "./pfGrade";
 import { CopyForAi, Kbd, MixTable, REVEAL_NOTE } from "./HintReveal";
 import { chipsAfter, optionLabel, runEnd, sayMove, setupOf, shownCards, simOf, type Decision, type HandTournament, type PracticeHand, type RangeAt } from "./practice";
-import { RECHECK_WORDS, recheckLine, recheckWords, type RecheckStatus } from "./recheck";
+import { RECHECK_WORDS, recheckLine, recheckNote, recheckWords, type RecheckStatus } from "./recheck";
 import { mistakes, recent, type Reviewed } from "./review";
 import { LEVEL_HANDS, leftOf, levelOf } from "./tournamentPlay";
 import { sessionUnit, type Kept, type PracticeSession } from "./session";
@@ -215,8 +215,10 @@ function RetryOpener({ back, onClick }: { back: boolean; onClick: () => void }) 
 /** Your decisions this session (review.ts): the last few, newest first, or your biggest mistakes once asked for,
  * each opening its spot and verdict. `retry`, at one table: Previous and Later step through all of them, and any can be
  * retried; `onOpen` says when a retry is open, as the table's keys would play a real move under it. */
-/** One entry of the list and another for the same decision: its hand, table, street, Study line and move. */
-const sameSpot = (a: Reviewed, b: Reviewed) => a.n === b.n && a.table === b.table && a.d.street === b.d.street && a.d.study === b.d.study && a.d.chose === b.d.chose;
+/** One entry of the list and another for the same decision: its hand, table, street, Study line and move (the move made,
+ * not the answer's name for it, which a re-check's answer can name otherwise). */
+const sameSpot = (a: Reviewed, b: Reviewed) =>
+  a.n === b.n && a.table === b.table && a.d.street === b.d.street && a.d.study === b.d.study && a.d.move.action === b.d.move.action && Math.abs((a.d.move.to ?? 0) - (b.d.move.to ?? 0)) < 1e-6;
 
 export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: { getClient: GetClient; onOpen: (open: boolean) => void } }) {
   // (folded to one quiet line until opened: the table and your range come first)
@@ -259,7 +261,9 @@ export function ReviewMistakes({ review, retry }: { review: Reviewed[]; retry?: 
       <DecisionView d={e.d} players={e.players} title={e.table ? `Table ${e.table}, hand ${e.n}, ${e.d.street}` : `Hand ${e.n}, ${e.d.street}`} spot={e} />
       {retry &&
         (retried === e ? (
-          <SessionRetry key={`${e.n}|${e.d.study}`} e={e} getClient={retry.getClient} onClose={() => {
+          // (keyed by what the grade stands on too: a re-check landing under an open retry starts it again, asked at Fast, as a
+          // pick graded on Quick's answer would sit beside Fast's grade)
+          <SessionRetry key={`${e.n}|${e.d.study}|${e.d.provenance?.mode ?? ""}|${e.d.quick ? "rechecked" : ""}`} e={e} getClient={retry.getClient} onClose={() => {
             setRetrying(null);
             setClosed(e);
           }} />
@@ -544,11 +548,10 @@ export function DecisionView({ d, title = "Your last decision", spot, children }
       </div>
       {g && d.quick && (
         <p className="text-xs text-muted">
-          <span className="font-medium">{recheckWords(d)}.</span> Quick&rsquo;s answer graded this {d.quick.verdict}
-          {d.quick.best && d.quick.best !== d.chose ? ` (its best: ${d.quick.best})` : ""}; asked again at Fast while the solver was idle, it&rsquo;s graded on Fast&rsquo;s answer, shown here, and counted that way. Fast is a short solve too, not a converged one.
+          <span className="font-medium">{recheckWords(d)}.</span> {recheckNote(d)}
         </p>
       )}
-      {g && !d.quick && d.recheckFailed && <p className="text-xs text-muted">Not re-checked at Fast ({d.recheckFailed}): this grade is Quick&rsquo;s.</p>}
+      {g && !d.quick && d.recheckFailed !== undefined && <p className="text-xs text-muted">{recheckNote(d)}</p>}
       {d.revealed && (
         <p role="status" className="text-muted">
           {REVEAL_NOTE}

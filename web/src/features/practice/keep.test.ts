@@ -570,6 +570,13 @@ describe("keptTables", () => {
     expect(keptHand({ ...r.hand, decisions: [{ ...fast, grade: null, provenance: null }] })).toBeNull();
   });
 
+  it("reads the session's re-check counts back, so a reload counts every one this session did, not only Review's last", () => {
+    const rechecked = { done: 75, changed: 9, failed: 2 };
+    expect(keptTables(structuredClone(spoiled({ rechecked })))?.session.rechecked).toEqual(rechecked);
+    expect(keptTables(doc())?.session.rechecked).toBeUndefined();
+    for (const bad of [{ ...rechecked, done: -1 }, { ...rechecked, failed: 1.5 }, { ...rechecked, changed: 76 }, { done: 1 }, 3]) expect(keptTables(spoiled({ rechecked: bad }))).toBeNull();
+  });
+
   it("loses only the hand that won't replay, its table's results kept", () => {
     const stats = { ...emptyTally(), hands: 5, n: 7, ok: 6, played: 5, net: 12.5 };
     const lost = kept({ ...hand(1), board: [] }, { stats });

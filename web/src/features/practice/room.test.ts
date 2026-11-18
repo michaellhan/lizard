@@ -20,6 +20,7 @@ import { ASK_AHEAD, readHabits, saveHabits } from "./ahead";
 import { practiceNumber } from "./history";
 import { DRILL_TRIES, newHand, optionsOf, type HandOptions, type PracticeHand } from "./practice";
 import { flopsNote, LAST_SETUP_KEY, readLastSetup, Room, seatOf, seatsFor, spotOf, type RoomClient, type RoomFlops, type RoomOptions, type Spot } from "./room";
+import { RECHECK_IDLE } from "./recheck";
 import { keyOf } from "./session";
 
 vi.mock("@/data/db", async (orig) => ({ ...(await orig<typeof import("@/data/db")>()), putSession: vi.fn(async () => {}) }));
@@ -5017,11 +5018,14 @@ describe("Room re-checking Quick's grades at Fast", () => {
     await flush();
     expect(asked[1]!.signal!.aborted).toBe(true);
     await pass(100);
-    // (the next hand played to where it waits for you, or to its end)
+    // (the next hand played to where it waits for you, or to its end; at your turn a re-check starts once you've been
+    // there RECHECK_IDLE s)
     for (let i = 0; i < 30 && asked.at(-1)!.mode !== "fast"; i += 1) {
       const a = asked.at(-1)!;
+      const n = asked.length;
       a.answer(a.play ? move("fold") : CHART);
       await flush();
+      if (asked.length === n) await pass(RECHECK_IDLE * 1000);
     }
     const again = asked.at(-1)!;
     expect(asked.indexOf(again)).toBeGreaterThan(2);
@@ -5094,7 +5098,8 @@ describe("Room re-checking Quick's grades at Fast", () => {
     const kept = vi.mocked(keepMistake).mock.calls[0]![0];
     back.asked[1]!.answer(FINE);
     await flush();
-    expect(takeBackMiss).toHaveBeenCalledWith(kept.id, back.room.snapshot().session.id);
+    // (found as keepMistake found it: by id, else by the spot)
+    expect(takeBackMiss).toHaveBeenCalledWith(expect.objectContaining({ id: kept.id, sessionId: back.room.snapshot().session.id, provenance: kept.provenance }), spotKey);
     expect(keepMistake).toHaveBeenCalledTimes(1);
 
     const again = await folded({ persist: true, readKept: async () => undefined });
@@ -5112,5 +5117,133 @@ describe("Room re-checking Quick's grades at Fast", () => {
     await flush();
     expect(keepMistake).toHaveBeenCalledTimes(4);
     expect(vi.mocked(keepMistake).mock.calls[3]![1]).toBe(missedAgain);
+  });
+
+  it("counts what it did with the session, so a reload counts them all", async () => {
+    const { room, asked } = await folded();
+    asked[1]!.answer(FINE);
+    await flush();
+    expect(room.snapshot().session.rechecked).toEqual({ done: 1, changed: 1, failed: 0 });
+    const two = await folded();
+    two.asked[1]!.answer({ error: "no such node" });
+    await flush();
+    expect(two.room.snapshot().session.rechecked).toEqual({ done: 0, changed: 0, failed: 1 });
+    expect(two.room.snapshot().recheck).toMatchObject({ done: 0, failed: 1 });
+  });
+
+  /** Fast's answer facing BB's turn bet: a fold gives up 1bb. */
+  const TURN_BET: AdvisorResponse = { street: "turn", pot_bb: 17.5, actions: [{ action: "fold", freq: 0.3, ev_bb: 0 }, { action: "call", freq: 0.7, ev_bb: 1 }] };
+
+  it("asks nothing of the hand still played, which would run its own street solves on, and asks it in street order once it's over", async () => {
+    const { room, asked } = several([betYou(1)], { recheck: true });
+    await flush();
+    asked[0]!.answer(MISS);
+    await flush();
+    // (you call BB's flop bet: graded at Quick, and the hand goes on)
+    press(room, 0, 1);
+    await flush();
+    expect(asked[1]).toMatchObject({ play: { seat: "BB" } });
+    asked[1]!.answer(move("bet", 6));
+    await flush();
+    expect(asked[2]!.state.board).toHaveLength(8);
+    asked[2]!.answer(TURN_BET);
+    await flush();
+    // (at your turn spot long past RECHECK_IDLE: the flop's re-check waits for the hand's end)
+    await pass(60_000);
+    expect(asked).toHaveLength(3);
+    expect(table(room).hand.result).toBeNull();
+    expect(room.snapshot().recheck).toMatchObject({ on: true, left: 1 });
+    // (you fold the turn: it's over, so its decisions go, the flop's first, though the turn's is the one flagged)
+    press(room, 0, 0);
+    await flush();
+    expect(table(room).hand.result).not.toBeNull();
+    expect(asked).toHaveLength(4);
+    expect(asked[3]).toMatchObject({ mode: "fast", state: asked[0]!.state });
+    asked[3]!.answer(MISS);
+    await flush();
+    expect(asked[4]).toMatchObject({ mode: "fast", state: asked[2]!.state });
+  });
+
+  it("starts at your turn only once you've been there RECHECK_IDLE s, so a quick move doesn't wait for a stop", async () => {
+    useSettings.setState({ recheckFast: false });
+    const { room, asked } = await folded({ recheck: undefined });
+    room.nextHand();
+    await flush();
+    // (the next hand to your first spot)
+    for (let i = 0; i < 30 && !table(room).answer; i += 1) {
+      const a = asked.at(-1)!;
+      a.answer(a.play ? move("fold") : CHART);
+      await flush();
+    }
+    expect(table(room).answer).not.toBeNull();
+    const n = asked.length;
+    useSettings.setState({ recheckFast: true });
+    await flush();
+    await pass(RECHECK_IDLE * 1000 - 600);
+    expect(asked).toHaveLength(n);
+    // (your raise now: what it asks goes at once, as there's no re-check to stop)
+    room.choose(2);
+    await flush();
+    expect(asked.length).toBeGreaterThan(n);
+    expect(asked[n]!.mode).not.toBe("fast");
+  });
+
+  it("goes once you've waited at your turn RECHECK_IDLE s, and your move then waits only for its stop", async () => {
+    useSettings.setState({ recheckFast: false });
+    const { room, asked } = await folded({ recheck: undefined });
+    room.nextHand();
+    await flush();
+    for (let i = 0; i < 30 && !table(room).answer; i += 1) {
+      const a = asked.at(-1)!;
+      a.answer(a.play ? move("fold") : CHART);
+      await flush();
+    }
+    const n = asked.length;
+    useSettings.setState({ recheckFast: true });
+    await flush();
+    await pass(RECHECK_IDLE * 1000);
+    expect(asked).toHaveLength(n + 1);
+    expect(asked[n]).toMatchObject({ mode: "fast", state: asked[0]!.state });
+    // (your raise: the re-check stops, and what the raise asks goes as the stop settles, about 0.1 s here as on the worker)
+    room.choose(2);
+    await flush();
+    expect(asked[n]!.signal!.aborted).toBe(true);
+    expect(asked).toHaveLength(n + 1);
+    await pass(100);
+    expect(asked).toHaveLength(n + 2);
+    expect(asked[n + 1]!.mode).not.toBe("fast");
+    expect(room.snapshot().recheck).toMatchObject({ left: 1, failed: 0 });
+  });
+
+  it("leaves every re-check waiting where the solver can't be reached, paused, and goes on once a table's request has an answer", async () => {
+    const { room, asked } = await folded();
+    asked[1]!.reject(new SolverError("unreachable", "could not reach the solver at http://127.0.0.1:8000"));
+    await flush();
+    expect(table(room).last!.recheckFailed).toBeUndefined();
+    expect(room.snapshot().recheck).toEqual({ on: true, left: 1, done: 0, changed: 0, failed: 0, paused: true });
+    await pass(60_000);
+    expect(asked).toHaveLength(2);
+    // (the next hand's request answered: the solver's back)
+    room.nextHand();
+    await flush();
+    for (let i = 0; i < 30 && asked.at(-1)!.mode !== "fast"; i += 1) {
+      const a = asked.at(-1)!;
+      const k = asked.length;
+      a.answer(a.play ? move("fold") : CHART);
+      await flush();
+      if (asked.length === k) await pass(RECHECK_IDLE * 1000);
+    }
+    expect(room.snapshot().recheck.paused).toBeUndefined();
+    expect(asked.at(-1)).toMatchObject({ mode: "fast", state: asked[0]!.state });
+    asked.at(-1)!.answer(FINE);
+    await flush();
+    expect(room.snapshot().recheck).toMatchObject({ left: 0, done: 1, failed: 0 });
+  });
+
+  it("pauses for a worker that couldn't start too, marking nothing", async () => {
+    const { room, asked } = await folded();
+    asked[1]!.reject(new SolverError("boot-failed", "the solver didn't load"));
+    await flush();
+    expect(room.snapshot().recheck).toMatchObject({ left: 1, failed: 0, paused: true });
   });
 });

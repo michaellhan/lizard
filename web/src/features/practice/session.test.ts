@@ -6,7 +6,7 @@ import type { ResultSource } from "@/solver/types";
 import { practiceNumber } from "./history";
 import { handPot } from "@/features/history/history";
 import { following, newHand, redeal, simOf, withVillain, type Decision, type HandOptions, type HandResult, type PracticeHand } from "./practice";
-import { afterDeal, afterDecision, afterHand, afterRecheck, atTables, freshSession, keyOf, sameDecision, toRecord } from "./session";
+import { afterDeal, afterDecision, afterHand, afterRecheck, afterRecheckFailed, atTables, freshSession, keyOf, sameDecision, toRecord } from "./session";
 
 const OPTS: Required<HandOptions> = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
 
@@ -318,6 +318,26 @@ describe("a decision re-checked at Fast (recheck.ts)", () => {
     const r2 = afterRecheck(bare, h, quick, now, { place: 1, ended: false });
     expect(r2.sources).toEqual({});
     expect(r2.cells).toEqual({});
+  });
+
+  it("counts what it did with the session, so a reload keeps every one, not only Review's last 60", () => {
+    const h = played(newHand(6, 100, 0, 1), SRP);
+    const quick = flopDec(grade({ verdict: "Mistake", ok: false, loss: 1, lossPct: 10 }), "instant");
+    let s = afterDecision(freshSession(6, 100, OPTS), h, quick);
+    expect(s.rechecked).toBeUndefined();
+    s = afterRecheck(s, h, quick, fast(quick, grade({ verdict: "Correct" })), { place: 1, ended: false });
+    expect(s.rechecked).toEqual({ done: 1, changed: 1, failed: 0 });
+    s = { ...s, review: [] };
+    const same = flopDec(grade({ verdict: "Mistake", ok: false, loss: 1, lossPct: 10 }), "live");
+    s = afterRecheck(afterDecision(s, h, same), h, same, fast(same, grade({ verdict: "Mistake", ok: false, loss: 0.8, lossPct: 8 })), { place: 2, ended: false });
+    expect(s.rechecked).toEqual({ done: 2, changed: 1, failed: 0 });
+    const gone = flopDec(grade({ verdict: "Inaccuracy", ok: false, loss: 0.3, lossPct: 3 }), "live");
+    s = afterDecision(s, h, gone);
+    const failed = { ...gone, recheckFailed: "no such node" };
+    s = afterRecheckFailed(s, h, gone, failed);
+    expect(s.rechecked).toEqual({ done: 2, changed: 1, failed: 1 });
+    expect(s.review.at(-1)!.d).toBe(failed);
+    expect(s.score.n).toBe(3);
   });
 
   it("finds a decision in Review by what it is, where a session read back holds it apart from its hand", () => {

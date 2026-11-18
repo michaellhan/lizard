@@ -82,10 +82,11 @@ describe("DecisionView", () => {
     show("charts");
     expect(screen.queryByText(/preflop solve/)).toBeNull();
   });
-  it("says a grade was re-checked at Fast, what Quick said, and never that Fast converged", () => {
+  it("says a grade was re-checked at Fast and what Quick said, and leaves how settled Fast is to its badge", () => {
     const d = decision("live");
     d.grade = { a: 0, best: 0, byEv: true, loss: 0, lossPct: 0, verdict: "Correct", ok: true, mixed: false } as never;
     d.mix = [{ action: "check", freq: 0.7, ev: 1 }, { action: "bet", freq: 0.3, ev: 0.9, amount: 7.13 }];
+    d.provenance = { source: "live", approximate: false, mode: "fast", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0, exploitabilityPct: 0.4, iterations: 300, band: "converged" };
     d.quick = { verdict: "Mistake", ok: false, best: "bet", byEv: true, loss: 0.8, lossPct: 8.4, source: "live" };
     const { unmount } = render(
       <MemoryRouter>
@@ -93,15 +94,32 @@ describe("DecisionView", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText(/Re-checked at Fast: Mistake → Correct\./)).toBeTruthy();
-    expect(screen.getByText(/Quick.s answer graded this Mistake \(its best: bet\)/)).toBeTruthy();
-    expect(screen.getByText(/not a converged one/)).toBeTruthy();
+    expect(screen.getByText(/A Quick solve graded this Mistake \(its best: bet\)/)).toBeTruthy();
+    expect(screen.getByText(/how close it came to equilibrium is in its badge/)).toBeTruthy();
+    // (its band says converged, measured: nothing here says otherwise)
+    expect(screen.queryByText(/not a converged one/)).toBeNull();
     unmount();
     render(
       <MemoryRouter>
         <DecisionView d={{ ...decision("live"), recheckFailed: "Stopped twice." }} players={2} />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/Not re-checked at Fast \(Stopped twice\.\): this grade is Quick.s\./)).toBeTruthy();
+    expect(screen.getByText(/Not re-checked at Fast \(Stopped twice\): this grade is on a Quick solve\./)).toBeTruthy();
     expect(screen.queryByText(/Re-checked at Fast:/)).toBeNull();
+  });
+
+  it("never calls a rules answer a solve beside its badge", () => {
+    const d = decision("rules");
+    d.grade = { a: 0, best: 0, byEv: true, loss: 0, lossPct: 0, verdict: "Correct", ok: true, mixed: false } as never;
+    d.mix = [{ action: "check", freq: 0.7, ev: 1 }, { action: "bet", freq: 0.3, ev: 0.9, amount: 7.13 }];
+    d.provenance = { source: "rules", approximate: true, mode: "fast", transport: "worker", solverVersion: "t", partial: false, receivedAt: 0 };
+    d.quick = { verdict: "Correct", ok: true, best: "check", byEv: true, loss: 0, lossPct: 0, source: "rules" };
+    render(
+      <MemoryRouter>
+        <DecisionView d={d} players={2} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/Quick.s answer, Heuristic rules \(not a solve\), graded this Correct/)).toBeTruthy();
+    expect(screen.queryByText(/short solve|Fast solve|Quick solve/)).toBeNull();
   });
 });

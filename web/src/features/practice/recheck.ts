@@ -4,12 +4,13 @@
 // session's flagged reads (features/analyze/triage.ts), the Room asks this session's Quick-graded decisions again at Fast
 // once nothing else wants the solver, and the move you made is graded again against Fast's answer by the one entry point
 // every Practice grade goes through (practice.ts decide, gradeAnswer on practiceBasis), with the Fast answer's own
-// provenance (mode "fast", its band and caps), never called converged. Fast's grade then stands in Quick's place
+// provenance (mode "fast", its band and caps: its band says how close it came, nothing here says more). Fast's grade then stands in Quick's place
 // everywhere, and the decision keeps what Quick said (`quick`), so a page can say it was re-checked. Pure: the backlog,
 // the flight and the totals are the Room's and session.ts's.
 import { NEED, type Lines } from "@/poker/table";
 import type { AdvisorResponse, AdvisorState } from "@/solver/protocol";
-import type { Provenance } from "@/solver/types";
+import { sourceLabel } from "@/solver/provenance";
+import type { Provenance, ResultSource } from "@/solver/types";
 import { adviceKey } from "./flow";
 import { adviceState, decide, moveOfOption, optionsOf, simOf, type Decision, type PracticeHand, type QuickRead } from "./practice";
 
@@ -78,10 +79,19 @@ export interface Waiting {
   flagged: boolean;
 }
 
-/** The backlog's order: the flagged reads first, as Analyze checks its flagged reads before the rest (triage.ts
- * deepenPlan), then the others; each the latest hands first, and a hand's decisions in the order they were made, which is
- * street order. */
-export const recheckOrder = (a: Waiting, b: Waiting) => Number(b.flagged) - Number(a.flagged) || b.n - a.n || a.k - b.k;
+/** The backlog's order, hand by hand, as Analyze checks a hand's decisions in the order played (triage.ts deepenPlan: its
+ * flop's solve narrows the turn, so the turn asked first would read a flop less solved than Fast's and get another
+ * answer): the hands with a flagged read first, then the others, each the latest hands first, and a hand's decisions in
+ * the order they were made, which is street order. */
+export function recheckQueue<T extends Waiting>(xs: readonly T[]): T[] {
+  const hot = new Set(xs.filter((x) => x.flagged).map((x) => x.n));
+  return [...xs].sort((a, b) => Number(hot.has(b.n)) - Number(hot.has(a.n)) || b.n - a.n || a.k - b.k);
+}
+
+/** seconds you've been at your turn, its answer in hand, before a re-check starts while you think: one that runs is
+ * stopped by your move, and what your move asks waits for that stop (about 0.1 s on the worker), so a quick move
+ * shouldn't pay it. Between hands one starts at once. */
+export const RECHECK_IDLE = 5;
 
 /** The backlog bounded to RECHECK_KEEP: the latest hands' kept, the oldest dropped. */
 export function bounded<T extends Waiting>(xs: readonly T[], keep = RECHECK_KEEP): T[] {
@@ -116,6 +126,12 @@ export function recheckAsk(at: PracticeHand): { state: AdvisorState; key: string
   return { state, key: `recheck|${adviceKey("fast", state)}` };
 }
 
+/** What answers without solving: the betting rules, an equity estimate, or nothing said. */
+const FALLBACKS: ReadonlySet<ResultSource> = new Set(["rules", "equity", "unknown"]);
+
+/** What solves the spot as it's asked, Quick's budget or Fast's: a live solve, and a solve against a read or a lock. */
+const SOLVES: ReadonlySet<ResultSource> = new Set(["live", "best-response", "profile-solve", "node-lock", "plo-river"]);
+
 const sameMove = (a: { action: string; to?: number }, b: { action: string; to?: number }) => a.action === b.action && Math.abs((a.to ?? 0) - (b.to ?? 0)) < 1e-6;
 
 /** Your move graded again against Fast's answer at the hand `at` as it stood when you made it, through `decide` (so
@@ -125,6 +141,9 @@ export function regraded(at: PracticeHand, d: Decision, res: AdvisorResponse, pr
   const quick = quickOf(d);
   if (!quick) return { why: "it wasn't graded" };
   if (res.error) return { why: res.error };
+  // (Fast falling back to the betting rules where Quick's answer wasn't theirs: no better an answer, so Quick's stands)
+  const to = provenance?.source ?? "unknown";
+  if (FALLBACKS.has(to) && !FALLBACKS.has(quick.source)) return { why: `Fast's answer here is ${sourceLabel(to)}` };
   const sim = simOf(at);
   const opts = optionsOf(res);
   const records = (i: number) => {
@@ -150,9 +169,36 @@ export function recheckWords(d: Pick<Decision, "grade" | "quick">): string | nul
 /** Whether a re-check changed the verdict. */
 export const recheckChanged = (d: Pick<Decision, "grade" | "quick">) => !!d.quick && !!d.grade && d.quick.verdict !== d.grade.verdict;
 
-/** What re-checking is, in words, beside the session's totals. */
+/** An answer of `mode`'s in words for a re-check's sentence: a solve's as one ("a Quick solve"), anything else as what it
+ * is ("Quick's answer, Heuristic rules (not a solve)"), so the betting rules are never called a solve. */
+export function answerWords(mode: "Quick" | "Fast", source: ResultSource | undefined): string {
+  const s = source ?? "unknown";
+  return SOLVES.has(s) ? `${mode === "Quick" ? "a" : "the"} ${mode} solve` : `${mode}'s answer, ${sourceLabel(s)}`;
+}
+
+const noDot = (s: string) => s.replace(/\.+$/, "");
+
+/** What a decision's re-check says beside its grade, in sentences built from what answered each time (Quick's source,
+ * kept in `quick`, and Fast's, the decision's provenance); for one that couldn't be re-checked, why, and that the grade is
+ * Quick's. Null where neither. Fast's band is the answer's own measure (the badge), so this never says how settled it is:
+ * where Fast solved, it says Fast's is a short solve too and points to the badge. */
+export function recheckNote(d: Pick<Decision, "grade" | "quick" | "recheckFailed" | "chose" | "provenance">): string | null {
+  if (!d.grade) return null;
+  if (!d.quick) return d.recheckFailed !== undefined ? `Not re-checked at Fast (${noDot(d.recheckFailed)}): this grade is on ${answerWords("Quick", d.provenance?.source)}.` : null;
+  const q = d.quick;
+  const to = d.provenance?.source;
+  const said = answerWords("Quick", q.source);
+  const by = SOLVES.has(q.source) ? `A${said.slice(1)}` : `${said},`;
+  const best = q.best && q.best !== d.chose ? ` (its best: ${q.best})` : "";
+  const same = q.verdict === d.grade.verdict ? ", which gave the same grade" : "";
+  const short = to && SOLVES.has(to) ? " Fast's is a short solve too: how close it came to equilibrium is in its badge." : "";
+  return `${by} graded this ${q.verdict}${best}; asked again at Fast while the solver was idle, the grade, strategy and EVs here are from ${answerWords("Fast", to)}${same}, and it's counted that way.${short}`;
+}
+
+/** What re-checking is, in words, beside the session's totals. The measure is the Advisor's (advisor.py triage, 1,000
+ * hands against Fast): said for the reads it was taken on, and not for the ones it wasn't. */
 export const RECHECK_WORDS =
-  "Decisions graded at Quick are asked again at Fast while the solver is idle (Quick gives Fast's grade about 88% of the time where its solve settled, 62% for its other reads). A re-checked grade, its EVs and its place in these totals are Fast's answer's, which is a short solve too, not a converged one; anything the tables need comes first.";
+  `Decisions graded at Quick are asked again at Fast while the solver is idle: between hands, or once you've been at your turn for ${RECHECK_IDLE} seconds. Measured against Fast, Quick gave the same grade about 88% of the time where its solve settled, and nearest-flop and earlier-street reads 62%; an unsettled Quick solve and the betting rules weren't measured. A re-checked grade, its EVs and its place in these totals are Fast's answer's, whose badge says how close to equilibrium it came. Anything the tables need stops a re-check, and waits the moment the stop takes.`;
 
 /** The Room's re-checks as a page says them: on, how many wait, how many were done this session and of them how many
  * changed the verdict, and how many Fast couldn't grade. */
@@ -162,6 +208,8 @@ export interface RecheckStatus {
   done: number;
   changed: number;
   failed: number;
+  /** the solver couldn't be reached: what waits goes once a table's request has an answer again */
+  paused?: true;
 }
 
 export const NO_RECHECK: RecheckStatus = { on: false, left: 0, done: 0, changed: 0, failed: 0 };
@@ -170,6 +218,7 @@ export const NO_RECHECK: RecheckStatus = { on: false, left: 0, done: 0, changed:
 export function recheckLine(s: RecheckStatus): string | null {
   if (!s.on && !s.done && !s.failed) return null;
   const tail = [s.changed ? `${s.changed} changed` : "", s.failed ? `${s.failed} couldn't be graded` : ""].filter(Boolean);
+  if (s.left > 0 && s.on && s.paused) return [`Re-checks at Fast paused, the solver couldn't be reached: ${s.left} left`, ...tail].join(" · ");
   if (s.left > 0 && s.on) return [`Re-checking at Fast: ${s.left} left`, ...tail].join(" · ");
   if (s.done || s.failed) return [`Re-checked at Fast: ${s.done} done`, ...tail].join(" · ");
   return null;

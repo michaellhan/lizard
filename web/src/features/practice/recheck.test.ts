@@ -13,11 +13,14 @@ import {
   handAt,
   quickOf,
   RECHECK_DEEP,
+  RECHECK_IDLE,
   RECHECK_KEEP,
+  RECHECK_WORDS,
   recheckable,
   recheckAsk,
   recheckLine,
-  recheckOrder,
+  recheckNote,
+  recheckQueue,
   recheckWords,
   regraded,
   sameAtFast,
@@ -144,10 +147,12 @@ describe("flagged first", () => {
     expect(flagged({ ...correct, grade: { ...correct.grade!, loss: 0.019 * correct.pot } })).toBe(false);
   });
 
-  it("orders the flagged first, then the latest hands first, a hand's decisions in street order", () => {
+  it("orders hand by hand: the hands with a flagged read first, then the latest hands first, a hand's decisions in street order", () => {
     const w = (n: number, k: number, f: boolean): Waiting & { id: string } => ({ n, k, flagged: f, id: `${n}.${k}${f ? "!" : ""}` });
     const xs = [w(1, 0, false), w(3, 1, false), w(3, 0, false), w(2, 2, true), w(2, 1, true), w(1, 1, true)];
-    expect([...xs].sort(recheckOrder).map((x) => x.id)).toEqual(["2.1!", "2.2!", "1.1!", "3.0", "3.1", "1.0"]);
+    expect(recheckQueue(xs).map((x) => x.id)).toEqual(["2.1!", "2.2!", "1.0", "1.1!", "3.0", "3.1"]);
+    // (a flagged turn never goes before its own flop: Fast's turn reads the flop's solve, which its own re-check runs on)
+    expect(recheckQueue([w(7, 1, true), w(7, 0, false)]).map((x) => x.id)).toEqual(["7.0", "7.1!"]);
   });
 
   it("bounds the backlog, the oldest hands' dropped", () => {
@@ -210,6 +215,16 @@ describe("graded again at Fast", () => {
     expect(regraded(at, d1, { error: "the solver failed" }, prov("live", "fast"))).toEqual({ why: "the solver failed" });
   });
 
+  it("leaves Quick's solve standing where Fast falls back to the betting rules, and takes Fast's rules where Quick's were rules too", () => {
+    const { h, d1 } = played();
+    const at = handAt(h, 1)!;
+    expect(regraded(at, d1, FACING, prov("rules", "fast", { approximate: true }))).toEqual({ why: "Fast's answer here is Heuristic rules (not a solve)" });
+    expect(regraded(at, d1, FACING, prov("equity", "fast"))).toEqual({ why: "Fast's answer here is Equity estimate (not a solve)" });
+    const rules = { ...d1, provenance: prov("rules", "quick", { approximate: true }) };
+    const out = regraded(at, rules, FACING, prov("rules", "fast", { approximate: true }));
+    expect("decision" in out && out.decision.quick?.source).toBe("rules");
+  });
+
   it("says a grade that didn't move", () => {
     const { h, d1 } = played();
     const out = regraded(handAt(h, 1)!, d1, FACING, prov("live", "fast"));
@@ -219,7 +234,46 @@ describe("graded again at Fast", () => {
   });
 });
 
+describe("what a page says of it", () => {
+  const { h, d0 } = played();
+  const graded = (quick: Provenance, fast: Provenance) => {
+    const out = regraded(handAt(h, 0)!, { ...d0, provenance: quick }, FAST_FLOP, fast);
+    if ("why" in out) throw new Error(out.why);
+    return out.decision;
+  };
+
+  it("names each answer by what it was: a solve as one, the betting rules as not one, and points to Fast's badge, never calling it converged or not", () => {
+    const solved = recheckNote(graded(prov("live"), prov("live", "fast", { band: "converged", exploitabilityPct: 0.4 })))!;
+    expect(solved).toBe(
+      `A Quick solve graded this ${d0.grade!.verdict} (its best: bet 33%); asked again at Fast while the solver was idle, the grade, strategy and EVs here are from the Fast solve, and it's counted that way. Fast's is a short solve too: how close it came to equilibrium is in its badge.`,
+    );
+    expect(solved).not.toMatch(/converged/);
+    const ruled = recheckNote(graded(prov("rules", "quick", { approximate: true }), prov("live", "fast")))!;
+    expect(ruled).toMatch(/^Quick's answer, Heuristic rules \(not a solve\), graded this /);
+    expect(ruled).not.toMatch(/Quick solve/);
+    const both = recheckNote(graded(prov("rules", "quick", { approximate: true }), prov("rules", "fast", { approximate: true })))!;
+    expect(both).toMatch(/are from Fast's answer, Heuristic rules \(not a solve\)[,.]/);
+    expect(both).not.toMatch(/solve too|Fast solve|Quick solve/);
+  });
+
+  it("says one that couldn't be re-checked, without a doubled stop, by what answered it", () => {
+    expect(recheckNote({ ...d0, recheckFailed: "Stopped twice." })).toBe("Not re-checked at Fast (Stopped twice): this grade is on a Quick solve.");
+    expect(recheckNote({ ...d0, provenance: prov("rules", "quick"), recheckFailed: "no such node" })).toBe("Not re-checked at Fast (no such node): this grade is on Quick's answer, Heuristic rules (not a solve).");
+    expect(recheckNote(d0)).toBeNull();
+  });
+
+  it("gives the measure only for the reads it was taken on, and when one starts", () => {
+    expect(RECHECK_WORDS).toContain("88% of the time where its solve settled, and nearest-flop and earlier-street reads 62%; an unsettled Quick solve and the betting rules weren't measured");
+    expect(RECHECK_WORDS).toContain(`at your turn for ${RECHECK_IDLE} seconds`);
+    expect(RECHECK_WORDS).not.toMatch(/converged|62% for its other reads/);
+  });
+});
+
 describe("the status line", () => {
+  it("says it's paused where the solver couldn't be reached", () => {
+    expect(recheckLine({ on: true, left: 3, done: 1, changed: 1, failed: 0, paused: true })).toBe("Re-checks at Fast paused, the solver couldn't be reached: 3 left · 1 changed");
+  });
+
   it("says what's left and what changed while it runs, and what was done once it's off", () => {
     expect(recheckLine({ on: true, left: 3, done: 2, changed: 1, failed: 0 })).toBe("Re-checking at Fast: 3 left · 1 changed");
     expect(recheckLine({ on: true, left: 0, done: 2, changed: 0, failed: 1 })).toBe("Re-checked at Fast: 2 done · 1 couldn't be graded");
