@@ -6,7 +6,7 @@ import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useId, useMemo,
 import { Link, useSearchParams } from "react-router";
 import { GamePicker } from "@/components/GamePicker";
 import { gameOf } from "@/engine/registry";
-import { cellLabel, cellValue, RangeMatrix } from "@/components/RangeMatrix";
+import { cellLabel, cellValue, RangeMatrix, rangeMix } from "@/components/RangeMatrix";
 import { ProvenanceBadge, ProvenanceDetail } from "@/components/ProvenanceBadge";
 import { useFocusHold } from "@/components/useFocusHold";
 import { actionFills, evIn, evUnitLabel, kindOf, pct, type EvUnit } from "@/components/actions";
@@ -345,6 +345,8 @@ function HoldemStudy() {
   // (the panels that work on the actor's hands get none picked in the opponent's grid)
   const myCls = vsOpp && pickedIn === "opponent" ? null : selected;
   const grid = opp ? opp.grid : res?.grid;
+  // (each action's share of the range drawn, beside its button)
+  const legendMix = useMemo(() => (grid && !opp ? rangeMix(grid.cells, grid.actions.length) : null), [grid, opp]);
   const views = res ? viewsOf(res) : (["mix"] as GridView[]);
   const view = views.includes(chosenView) ? chosenView : "mix";
   const focusIdx = focus !== null && names.includes(focus) ? names.indexOf(focus) : null;
@@ -770,6 +772,7 @@ function HoldemStudy() {
                         >
                           <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
                           {nm}
+                          {legendMix && <span className="font-mono text-muted">{pct(legendMix[i])}</span>}
                         </button>
                       ))}
                       {focusIdx !== null && (

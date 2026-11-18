@@ -5,7 +5,7 @@
 // actions' fills (actionFills), whose patterns and the gap between shares keep a mix readable without its colours.
 // Rendered as a DOM grid (169 cells) — cheap enough, and accessible: every cell is a labelled button, one tab stop in all.
 import { memo } from "react";
-import { classLabel, RANKS } from "@/engine/nlhe/cards";
+import { classCombos, classLabel, RANKS } from "@/engine/nlhe/cards";
 import type { GridCell } from "@/solver/protocol";
 import { pct } from "./actions";
 import { useRovingGrid } from "./rovingGrid";
@@ -43,6 +43,35 @@ export function cellValue(
   if (view === "ev") return ev;
   const eq = cell.eq;
   return ev != null && eq != null && eq > 0 && potBb ? ev / (eq * potBb) : null;
+}
+
+/** The whole range's share taking each action: every class's mix weighted by its combos in the range (null with no combos). */
+export function rangeMix(cells: RangeMatrixProps["cells"], n: number): number[] | null {
+  const out = new Array<number>(n).fill(0);
+  let total = 0;
+  for (const [cls, c] of Object.entries(cells)) {
+    const w = Math.max(0, Math.min(1, c.w)) * classCombos(cls);
+    if (!(w > 0)) continue;
+    total += w;
+    for (let i = 0; i < n; i++) out[i]! += w * (c.f[i] ?? 0);
+  }
+  return total > 0 ? out.map((x) => x / total) : null;
+}
+
+/** The actions' swatches, each with its share of the whole range (rangeMix) where the grid has one. */
+export function ActionLegend({ cells, actions, colors }: { cells: RangeMatrixProps["cells"]; actions: readonly string[]; colors: readonly string[] }) {
+  const mix = rangeMix(cells, actions.length);
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+      {actions.map((a, i) => (
+        <span key={a} className="inline-flex items-center gap-1">
+          <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
+          {a}
+          {mix && <span className="font-mono text-muted">{pct(mix[i])}</span>}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** A cell in words, as a reader meets it in the grid and as a page says the hand class just picked. */

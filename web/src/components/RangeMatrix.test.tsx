@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { cellValue, RangeMatrix } from "./RangeMatrix";
+import { cellValue, RangeMatrix, rangeMix } from "./RangeMatrix";
 import { gridMove } from "./rovingGrid";
 
 describe("RangeMatrix", () => {
@@ -136,5 +136,17 @@ describe("the grid's keyboard", () => {
     expect(gridMove(14, "Home", false)).toBe(13);
     expect(gridMove(14, "End", false)).toBe(25);
     expect(gridMove(14, "x", false)).toBeNull();
+  });
+});
+
+describe("rangeMix", () => {
+  it("weights each class's mix by its combos in the range", () => {
+    // AA: 6 combos all raise; AKo: 12 combos, half in range, all fold; 72o out
+    const mix = rangeMix({ AA: { w: 1, f: [1, 0] }, AKo: { w: 0.5, f: [0, 1] }, "72o": { w: 0, f: [1, 0] } }, 2);
+    expect(mix![0]).toBeCloseTo(0.5);
+    expect(mix![1]).toBeCloseTo(0.5);
+  });
+  it("is null for an empty range", () => {
+    expect(rangeMix({}, 2)).toBeNull();
   });
 });

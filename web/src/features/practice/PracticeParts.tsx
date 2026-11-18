@@ -8,7 +8,7 @@ import { PlayingCard } from "@/components/PlayingCard";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { VerdictTag } from "@/components/VerdictTag";
 import { actionFills, bb, pct } from "@/components/actions";
-import { RangeMatrix } from "@/components/RangeMatrix";
+import { ActionLegend, RangeMatrix } from "@/components/RangeMatrix";
 import { cellWays, GRADE_WAYS, sourcesText, WAY_HEADS, wayFigures } from "@/features/history/history";
 import { whoOf, whyText } from "@/grading/grade";
 import { seatLabel } from "@/poker/seats";
@@ -584,14 +584,7 @@ export function RangeView({ r, open, onToggle }: { r: RangeAt; open: boolean; on
   return (
     <details open={open} onToggle={(e) => onToggle(e.currentTarget.open)} className="space-y-2">
       <summary className="cursor-pointer text-accent">{r.label}</summary>
-      <div className="flex flex-wrap gap-2 text-xs">
-        {r.grid.actions.map((a, i) => (
-          <span key={a} className="inline-flex items-center gap-1">
-            <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
-            {a}
-          </span>
-        ))}
-      </div>
+      <ActionLegend cells={r.grid.cells} actions={r.grid.actions} colors={colors} />
       <div className="max-w-md">
         <RangeMatrix cells={r.grid.cells} actions={r.grid.actions} colors={colors} selected={sel} onSelect={setSel} caption={r.label} />
       </div>
@@ -654,14 +647,7 @@ export function SpotRange({ r, provenance, strategy, look, onLook, empty }: { r:
       </div>
       <p className="text-xs text-muted">{r.label.replace(/^Your range · /, "")}</p>
       {mixOn ? (
-        <div className="flex flex-wrap gap-2 text-xs">
-          {r.grid.actions.map((a, i) => (
-            <span key={a} className="inline-flex items-center gap-1">
-              <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: colors[i] }} />
-              {a}
-            </span>
-          ))}
-        </div>
+        <ActionLegend cells={r.grid.cells} actions={r.grid.actions} colors={colors} />
       ) : (
         <p className="text-xs text-muted">Each hand filled to how much of it is still in your range{strategy ? "" : "; the strategy shows once you act"}.</p>
       )}
