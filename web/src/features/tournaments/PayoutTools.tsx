@@ -21,9 +21,14 @@ export function PayoutTools({ playersLeft, onPayouts }: { playersLeft: number; o
   const [said, setSaid] = useState<{ note: string; problems: string[] } | null>(null);
   const [spots, setSpots] = useState<SavedSpot[]>([]);
   useEffect(() => {
+    // (a list that arrives after the form has gone sets nothing)
+    let live = true;
     void listSpots()
-      .then((xs) => setSpots(xs.filter((s) => spotPayouts(s))))
-      .catch(() => setSpots([]));
+      .then((xs) => live && setSpots(xs.filter((s) => spotPayouts(s))))
+      .catch(() => live && setSpots([]));
+    return () => {
+      live = false;
+    };
   }, []);
   const st = PAYOUT_STRUCTURES.find((x) => x.name === which);
   const e = Number(entrants);

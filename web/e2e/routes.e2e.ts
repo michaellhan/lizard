@@ -48,7 +48,9 @@ test("every link in the primary nav can be reached and goes where it says", asyn
   for (const link of links) {
     const to = await link.getAttribute("href");
     await link.click();
-    await expect(page).toHaveURL(new RegExp(`${to}/?$`));
+    // (a page that keeps its setup in the address, such as Solve, adds a query of its own on arrival)
+    const path = (to ?? "").split("?")[0]!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(page).toHaveURL(new RegExp(`${path}/?(\\?.*)?$`));
     await expect(page.locator("main")).toBeVisible();
   }
   expect(problems.errors).toEqual([]);
