@@ -84,6 +84,13 @@ const EDITS = [
     to: "import engine.tree_depth; import engine.bunching; from gto.advisor import Advisor;",
   },
   {
+    // engine/pf_charts.py: the preflop charts as served, repaired: 13 to 19bb play the 20bb game's moves (they played the
+    // 100bb charts unmoved). After bunching (this edit runs on that one's output), so its wraps are in place before any
+    // request.
+    from: "import engine.bunching; from gto.advisor import Advisor;",
+    to: "import engine.bunching; import engine.pf_charts; from gto.advisor import Advisor;",
+  },
+  {
     // A request's `cache_mb` (web/src/features/reports/customRun.ts: a custom flop report's solves): the most the solves
     // kept for reuse may hold while it's answered, below the worker's own 700 MB (cache_mb, set at start), which comes back
     // with the next request that doesn't say. A report solves flop after flop and reuses none of them, so without this its
