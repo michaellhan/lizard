@@ -18,6 +18,9 @@
     "test:engine": ".venv/bin/python -m unittest discover -s scripts/engine",
     "test:scripts": "node --test 'scripts/pyodide/*.test.mjs'",
     "solver:assets": "node scripts/build-solver-assets.mjs",
+    "qa:sweep": "node scripts/qa/run.mjs",
+    "qa:sweep:quick": "node scripts/qa/run.mjs --quick",
+    "qa:typecheck": "tsc -p scripts/qa/tsconfig.json --noEmit",
     "check": "npm run typecheck && npm run lint && npm test && npm run test:scripts && npm run build"
   },
   "engines": {

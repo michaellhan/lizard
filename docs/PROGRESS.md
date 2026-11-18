@@ -6061,3 +6061,40 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
 - Found: the classic library publishes four 3-way spots Lizard lacks (`mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb`,
   `mw_utg_sb_bb`); its 3-way tree adds `bucket_power: 1.0`, which the snapshot at 1a14605e doesn't have, so taking
   them needs a newer upstream import.
+
+## 2026-11-18: A Practice QA sweep
+
+- Why: the owner kept finding Practice errors by hand, one hand at a time. Examples were a converged badge on
+  rule-made ranges, a grade contradicting its own words, and a chart move condemned by the solve. `scripts/qa/` now
+  plays seeded Practice hands through the page's own code and checks every decision against the invariants in
+  `docs/QA.md`:
+  - The page code it runs: `practice.ts`, `flow.ts` `needOf`/`moveOf`, `pfGrade.ts` `gradedOn` and `client.ts`
+    `SolverClient` with its modes and provenance.
+  - The solver side: the browser worker's Advisor run natively (`scripts/qa/advserver.py`: the worker's imports in
+    order, its Fast and Accurate configs, both libraries read only).
+  - The checks: legal moves, chips, the hand history read back, provenance honesty, every action's grade, preflop
+    chart and solve agreement, coverage by source, Quick against Fast and Accurate, the opponents' absurd moves, and
+    time and memory.
+- Run it with `npm run qa:sweep:quick` (4 configs, about 3.5 minutes) or `npm run qa:sweep` (21 configs, estimated at
+  30-45 minutes). Output goes to `qa-out/` (gitignored), and the exit code is 1 on a hard violation. The checkers are
+  pure TypeScript (`web/src/qa/checks.ts`, `summary.ts`), with 27 vitest cases on hand-made fixtures
+  (`checks.test.ts`, no solver). Each advisor runs under gtosolver's `slot.sh`, one process at a time.
+- First `--quick` run (seed 1, 214 s): 71 decisions and 288 opponent moves, with 3 hard violations, the same in two
+  runs. None were fixed here.
+  - `prov.settled` ×2: live turn answers whose ranges come from the betting rules after an opponent's rare bet or
+    raise still show a converged band (0.04% of the pot) next to their approximate label. Other runs found the same on
+    rivers after rule-narrowed or 0%-followed streets (0.09%). `provenance.ts` takes the band from the solve's own
+    exploitability whatever `rangesOff` says.
+  - `pf.follow` ×1: at 3-max 100bb, BTN 8cJd first in, the chart raises 50% and the preflop solve folds 100%. A
+    chart-following raise is graded Inaccuracy (0.08bb).
+- Measured, not failing:
+  - Two Quick preflop decisions in multiway preflop pots took 15-16 s natively.
+  - A stored 6-max preflop solve holds about 580 MB once read, and the worker keeps it. With it resident, one
+    postflop solve took the native process past 1 GB, so the sweep drops it after each request (`QA_DROP_PF`).
+  - 3-way flop solves peaked at 1.0-1.14 GB natively.
+  - Quick agreed with Fast on 24 of 26 sampled decisions and with Accurate on 2 of 2, never condemning what the
+    other passed.
+  - Opponents: no free folds, river nut folds or pot-size calls with nothing.
+- Not covered: what the browser draws, Pyodide's speed and memory, exploit play and node locks, multi-table charts,
+  library drills and the run-out after a fold. `docs/FEATURE_MATRIX.md` links `docs/QA.md` from "How this was
+  graded"; no grade moved.
