@@ -99,6 +99,32 @@ class TheTreesOwnBet(unittest.TestCase):
         A._swap_nearest(sizes, 0.5)
         self.assertEqual(sizes, [0.5, 0.75])
 
+    def test_the_walk_takes_the_trees_bet_of_that_amount(self):
+        # 33% and 66% into 2bb are 1bb and 1.5bb; a 1bb bet reads back as 50%, nearer 66% than 33% by share, so
+        # match_action alone walked it down the 1.5bb bet while the street's read kept 0.33 for it
+        from types import SimpleNamespace as N
+        node = N(names=["check", "bet 33%", "bet 66%"], children=[N(bets=[0.0, 0.0]), N(bets=[0.0, 1.0]), N(bets=[0.0, 1.5])])
+        name = A.Advisor._tree_action_name
+        self.assertEqual(name(node, bet("SB", 1), 1, [0.0, 0.0], 2.0), "bet 33%")
+        self.assertEqual(name(node, bet("SB", 1.5), 1, [0.0, 0.0], 2.0), "bet 66%")
+        self.assertEqual(name(node, bet("SB", 1.2), 1, [0.0, 0.0], 2.0), "bet 60%")    # no tree bet of 1.2bb: upstream's name
+        # two tree bets of the same amount: the nearer by share
+        two = N(names=["bet 20%", "bet 33%"], children=[N(bets=[0.0, 1.0]), N(bets=[0.0, 1.0])])
+        self.assertEqual(name(two, bet("SB", 1), 1, [0.0, 0.0], 2.0), "bet 33%")
+        self.assertEqual(name(node, {"pos": "SB", "action": "raise", "to": 3}, 1, [0.0, 1.0], 2.0), "raise to 3")
+
+    def test_custom_sizes_answer_the_1bb_bet_as_the_1bb_bet(self):
+        # Practice's "Your own bet sizes" 33 and 66 in the heads-up limped pot: facing 1bb, call 1 and the raise over 1bb
+        # (it was call 1.5 and raise to 4, the 1.5bb bet's, with the note "mapped 'bet 50%' to tree action 'bet 66%'")
+        adv = Advisor(Config(bet_sizes={"flop": [0.33, 0.66], "turn": [0.33, 0.75], "river": [0.33, 0.75]},
+                             raise_sizes={"flop": [0.5], "turn": [0.75], "river": [0.75]}))
+        r = adv.advise(dict(players=2, stack=100, hero="BB", hole="4s8c", board="Kd7h2c", turn=[], river=[],
+                            flop=[{"pos": "BB", "action": "check"}, bet("SB", 1)],
+                            preflop=[{"pos": "SB", "action": "call"}, {"pos": "BB", "action": "check"}],
+                            speed="fast", budget=1.0, prior_budget=0.3, quick=True))
+        self.assertFalse([n for n in r["notes"] if "tree action" in n], r["notes"])
+        self.assertEqual([(a["action"], a.get("amount_bb")) for a in r["actions"]], [("fold", None), ("call", 1.0), ("raise to 3", 3.0)])
+
     def test_installed_once(self):
         f = A.Advisor._cfg_with_real_sizes
         SM.install()
