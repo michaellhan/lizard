@@ -61,4 +61,6 @@ export const MATRIX: QaConfig[] = [
 export const REFS = {
   quick: { fast: 26, accurate: 2, share: 1 },
   full: { fast: 220, accurate: 12, share: 0.7 },
+  /** --hand: every postflop decision of the hands replayed, at Fast and the first two at Accurate */
+  replay: { fast: 100, accurate: 2, share: 1 },
 };

@@ -18,13 +18,21 @@ From the repository root:
 ```sh
 npm run qa:sweep:quick        # node scripts/qa/run.mjs --quick: 4 configs, about 3-5 minutes
 npm run qa:sweep              # node scripts/qa/run.mjs: the default matrix, 21 configs, about 20 minutes
+node scripts/qa/run.mjs --seed 1 --config 6max-100bb-gto-srp --hand 0   # one hand of one config, a replay
+node scripts/qa/run.mjs --pf-agree                                      # the chart against the preflop solve, every class
 ```
+
+A Quick or Fast answer stops on a time budget, so a replay deals the same cards and draws the same moves, but where an
+answer near a frequency boundary came out differently the line can part from the run's after it. Preflop (the charts and
+the stored solve) and library answers replay exactly.
 
 | Option | Meaning |
 |---|---|
 | `--seed N` | Base seed (default 1). The same seed deals the same hands and draws the same moves. |
 | `--hands N` | Hands per config, overriding the matrix. |
 | `--only TEXT` | Run only the configs whose name contains TEXT. |
+| `--config NAME` | Run only the config of exactly that name (from either profile). |
+| `--hand N[,M...]` | Play only those hand numbers of each config. Each hand deals and draws from its own seed, so a hand replays alone, and the summary prints this command for each hard example. A replay asks every postflop decision again at Fast (and the first two at Accurate). |
 | `--out DIR` | Output directory (default `qa-out/<profile>-<time>`, gitignored). |
 | `--explore X` | Share of your moves picked uniformly among the options instead of from the answer's mix (default 0.12), so off-mix moves get graded too. |
 
@@ -173,8 +181,10 @@ builds it, not only the action taken)
 **Preflop**
 
 - `pf.follow`, graded by the solve: the solve's own most played move, and the chart's most played move, are Best or
-  Correct (hard). The chart's other moves at MIX or more are soft. Graded by the charts: the chart's most played move
-  is Best.
+  Correct (hard). The chart's other moves at MIX or more are soft. Where two or more moves tie for the chart's most
+  played (a 50/50 hand), they are hard only if the solve grades every one of them below Correct, otherwise each one
+  graded down is soft: before 2026-11-18 whichever the chart listed first was hard and the other soft. Graded by the
+  charts: the chart's most played move is Best.
 - `pf.untrained`: a node with a move the solve never learned an EV for (`untrainedMoves`) is never graded by EV.
 
 **Coverage.** What answered each spot type is tallied: library, live, rules, charts, preflop solve, push-fold. Two
@@ -189,17 +199,25 @@ is asked again at Fast, and a smaller subset (2 and 12) at Accurate, on the refe
 graded on both answers, and the summary counts agreement, "Quick condemns, the reference passes" and "Quick passes,
 the reference condemns" (soft `ref.condemns` and `ref.passes`, with both answers' frequency and EV).
 
+Your move is mostly drawn from Quick's own mix, which Quick grades Best or Correct by frequency alone, so the move made
+says little about the grade a player choosing anything else would see. So every action at the node is also graded on
+both answers (`all` in the reference record), and the summary gives those rates where either answer was a live solve:
+a library flop is the same entry at every speed, so a library pair agrees by construction and is left out.
+
 **Opponents.** Every opponent move is flagged for:
 
 - a fold when checking was free (`opp.freeFold`, hard: should be 0);
 - a river fold of the nuts (soft);
+- a flop or turn fold of two pair or better made with its own cards, facing three quarters of the pot or less
+  (`opp.strongFold`, soft);
 - facing a pot-size bet or more with nothing (no pair, no draw, no straight or better), whether it called.
 
 Rates are tallied by opponent kind (`live.sim.test.ts`'s measures, on real answers). An opponent move the table refused
 is a hard `opp.refused`.
 
 **Performance.** Wall time per decision by mode and street (soft `perf.slow` for Quick over 15 s), and each advisor's
-peak RSS per config. A decision's time leaves out the time the slot wrapper held a new process before it could answer
+peak RSS per config. Every record carries the advisor's peak RSS after its request, and the request that takes a
+process past 1 GB (the project's rule for one process) is a soft `perf.rss`. A decision's time leaves out the time the slot wrapper held a new process before it could answer
 (the config's first request, or the first after a restart at the RSS cap). That time is counted in the config's
 "waiting to start" instead.
 

@@ -4,7 +4,7 @@
 import type { Verdict } from "@/grading/grade";
 import type { PracticeHand } from "@/features/practice/practice";
 import type { Sim, Street } from "@/poker/table";
-import type { OppFlags, RefCompare, Violation } from "./checks";
+import type { OppFlags, RefAction, RefCompare, Violation } from "./checks";
 
 /** The table a record was played at. */
 export interface TableTag {
@@ -38,6 +38,9 @@ export interface HeroRecord extends Base {
   /** the wall time of the answer (both of a preflop-solve session's requests), and of the preflop solve's alone */
   secs: number;
   pfSecs?: number;
+  /** the advisor process's peak RSS, MB, after this request (a process's peak only grows, so the first request past a
+   * figure is the one that took it there) */
+  rss?: number;
   /** what answered your spot, and what the decision was graded against (the chart's answer or the preflop solve's) */
   source: string;
   graded: string;
@@ -64,6 +67,7 @@ export interface OppRecord extends Base {
   seat: string;
   line: string;
   secs: number;
+  rss?: number;
   action: string;
   flags?: OppFlags;
 }
@@ -87,9 +91,12 @@ export interface RefRecord extends Base {
   spot: string;
   mode: "fast" | "accurate";
   secs: number;
+  rss?: number;
   source: string;
   quickSource: string;
   cmp: RefCompare | null;
+  /** every action at the node graded on both answers (compareAll) */
+  all?: RefAction[];
 }
 
 export interface ConfigRecord {
@@ -129,6 +136,8 @@ export interface CheckTally {
 }
 
 export interface Summary {
+  /** the run's base seed (--seed) */
+  seed?: number;
   configs: number;
   hands: number;
   heroDecisions: number;
@@ -147,8 +156,25 @@ export interface Summary {
   verdicts: Record<string, Record<string, number>>;
   /** preflop decisions graded by the solve and by the charts */
   preflop: { solve: number; charts: number; other: number; pfWhy: Record<string, number> };
-  quickVsRef: { mode: string; n: number; compared: number; agree: number; condemns: number; passes: number }[];
-  opponents: { opponents: string; moves: number; freeFolds: number; riverNutFolds: number; nothingPotSpots: number; nothingPotCalls: number }[];
+  /** the move you made graded on both (compared, agree, condemns, passes); the same where either answer was a live solve
+   * (a library flop is the same entry at every speed, so library-library pairs always agree); and every action at the node
+   * graded on both, where either was live (`actions`: compared; `okAgree`: both Best/Correct or both not; `actCondemns`:
+   * Quick says Mistake or Blunder, the reference Best or Correct; `actPasses`: the other way) */
+  quickVsRef: {
+    mode: string;
+    n: number;
+    compared: number;
+    agree: number;
+    condemns: number;
+    passes: number;
+    live: { compared: number; agree: number; condemns: number; passes: number };
+    actions: number;
+    actAgree: number;
+    okAgree: number;
+    actCondemns: number;
+    actPasses: number;
+  }[];
+  opponents: { opponents: string; moves: number; freeFolds: number; riverNutFolds: number; strongFolds: number; nothingPotSpots: number; nothingPotCalls: number }[];
   perf: { mode: string; street: string; n: number; mean: number; p50: number; p90: number; max: number; over15: number }[];
   rss: { config: string; peak: number; restarts: number; secs: number; waited: number; hands: number }[];
 }
@@ -167,7 +193,7 @@ const bump = (o: Record<string, number>, k: string, by = 1) => {
 /** pfWhy's reason, its first words, so like reasons count together */
 const gist = (s: string) => s.replace(/\d+(\.\d+)?/g, "#").split(/[:,]/)[0]!.slice(0, 70);
 
-export function summarize(records: readonly QaRecord[], secs = 0): Summary {
+export function summarize(records: readonly QaRecord[], secs = 0, seed?: number): Summary {
   const heroes = records.filter((r): r is HeroRecord => r.t === "hero");
   const opps = records.filter((r): r is OppRecord => r.t === "opp");
   const hands = records.filter((r): r is HandRecord => r.t === "hand");
@@ -227,6 +253,7 @@ export function summarize(records: readonly QaRecord[], secs = 0): Summary {
   const hard = checks.filter((c) => c.severity === "hard").reduce((a, c) => a + c.count, 0);
   const soft = checks.filter((c) => c.severity === "soft").reduce((a, c) => a + c.count, 0);
   return {
+    ...(seed !== undefined ? { seed } : {}),
     configs: configs.filter((c) => !c.config.startsWith("(")).length,
     hands: hands.length,
     heroDecisions: heroes.length,
@@ -252,7 +279,24 @@ export function summarize(records: readonly QaRecord[], secs = 0): Summary {
     quickVsRef: modes.map((mode) => {
       const rs = refs.filter((r) => r.mode === mode);
       const cs = rs.map((r) => r.cmp).filter((c): c is RefCompare => !!c);
-      return { mode, n: rs.length, compared: cs.length, agree: cs.filter((c) => c.agree).length, condemns: cs.filter((c) => c.condemns).length, passes: cs.filter((c) => c.passes).length };
+      const lv = rs.filter((r) => r.cmp && (r.quickSource === "live" || r.source === "live")).map((r) => r.cmp!);
+      const acts = rs.filter((r) => r.quickSource === "live" || r.source === "live").flatMap((r) => (r.all ?? []).filter((a) => a.ref !== null));
+      const ok = (x: Verdict | null) => x === "Best" || x === "Correct";
+      const bad = (x: Verdict | null) => x === "Mistake" || x === "Blunder";
+      return {
+        mode,
+        n: rs.length,
+        compared: cs.length,
+        agree: cs.filter((c) => c.agree).length,
+        condemns: cs.filter((c) => c.condemns).length,
+        passes: cs.filter((c) => c.passes).length,
+        live: { compared: lv.length, agree: lv.filter((c) => c.agree).length, condemns: lv.filter((c) => c.condemns).length, passes: lv.filter((c) => c.passes).length },
+        actions: acts.length,
+        actAgree: acts.filter((a) => a.quick === a.ref).length,
+        okAgree: acts.filter((a) => ok(a.quick) === ok(a.ref)).length,
+        actCondemns: acts.filter((a) => bad(a.quick) && ok(a.ref)).length,
+        actPasses: acts.filter((a) => ok(a.quick) && bad(a.ref)).length,
+      };
     }),
     opponents: oppKinds.map((k) => {
       const rs = opps.filter((r) => r.table.opponents === k);
@@ -262,6 +306,7 @@ export function summarize(records: readonly QaRecord[], secs = 0): Summary {
         moves: rs.length,
         freeFolds: rs.filter((r) => r.flags?.freeFold).length,
         riverNutFolds: rs.filter((r) => r.flags?.riverNutFold).length,
+        strongFolds: rs.filter((r) => r.flags?.strongFold).length,
         nothingPotSpots: np.length,
         nothingPotCalls: np.filter((r) => r.flags!.nothingPot!.called).length,
       };
@@ -295,6 +340,21 @@ export function markdown(s: Summary, title = "Practice QA sweep"): string {
       L.push(`| ${c.check} | ${c.severity} | ${c.count} | ${e ? cell(`${e.config} seed ${e.seed} hand ${e.hand} ${e.street ?? ""} ${e.line ? `[${e.line}]` : ""} ${e.source ? `(${e.source}${e.verdict ? `, ${e.verdict}` : ""})` : ""}: ${e.detail}`) : ""} |`);
     }
     L.push("");
+    // (each hand deals and draws from its own seed, so one replays alone; a Quick or Fast answer stops on a time budget, so
+    // a replay's later streets can part from the run's)
+    const hard = s.checks.filter((c) => c.severity === "hard");
+    if (hard.length) {
+      L.push(`Replay a hard example (base seed ${s.seed ?? 1}; \`--config\` is the exact name):`, "");
+      const seen = new Set<string>();
+      for (const c of hard)
+        for (const e of c.examples) {
+          const cmd = `node scripts/qa/run.mjs --seed ${s.seed ?? 1} --config ${e.config} --hand ${e.hand}`;
+          if (seen.has(cmd)) continue;
+          seen.add(cmd);
+          L.push(`- ${c.check}: \`${cmd}\``);
+        }
+      L.push("");
+    }
   }
   L.push("## Coverage: what answered your decisions", "", "| spot | n | sources |", "|---|---|---|");
   for (const c of s.coverage) L.push(`| ${c.spot} | ${c.n} | ${Object.entries(c.sources).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${pc(n / c.n)}`).join(", ")} |`);
@@ -313,9 +373,15 @@ export function markdown(s: Summary, title = "Practice QA sweep"): string {
   else {
     L.push("| reference | asked | compared | verdicts agree | Quick condemns, reference passes | Quick passes, reference condemns |", "|---|---|---|---|---|---|");
     for (const r of s.quickVsRef) L.push(`| ${r.mode} | ${r.n} | ${r.compared} | ${rate(r.agree, r.compared)} | ${rate(r.condemns, r.compared)} | ${rate(r.passes, r.compared)} |`);
+    L.push("", "Where either answer was a live solve (a library flop is the same entry at every speed):", "");
+    L.push("| reference | the move made: compared | agree | Quick condemns | Quick passes | every action: compared | verdicts agree | Best/Correct or not agree | Quick condemns | Quick passes |", "|---|---|---|---|---|---|---|---|---|---|");
+    for (const r of s.quickVsRef) {
+      const lv = r.live ?? { compared: 0, agree: 0, condemns: 0, passes: 0 };
+      L.push(`| ${r.mode} | ${lv.compared} | ${rate(lv.agree, lv.compared)} | ${rate(lv.condemns, lv.compared)} | ${rate(lv.passes, lv.compared)} | ${r.actions ?? 0} | ${rate(r.actAgree ?? 0, r.actions ?? 0)} | ${rate(r.okAgree ?? 0, r.actions ?? 0)} | ${rate(r.actCondemns ?? 0, r.actions ?? 0)} | ${rate(r.actPasses ?? 0, r.actions ?? 0)} |`);
+    }
   }
-  L.push("", "## Opponents", "", "| opponents | moves | folds where checking was free | river folds of the nuts | calls with nothing facing a pot-size bet or more |", "|---|---|---|---|---|");
-  for (const o of s.opponents) L.push(`| ${o.opponents} | ${o.moves} | ${o.freeFolds} | ${o.riverNutFolds} | ${rate(o.nothingPotCalls, o.nothingPotSpots)} |`);
+  L.push("", "## Opponents", "", "| opponents | moves | folds where checking was free | river folds of the nuts | flop or turn folds of two pair or better to 75% of the pot or less | calls with nothing facing a pot-size bet or more |", "|---|---|---|---|---|---|");
+  for (const o of s.opponents) L.push(`| ${o.opponents} | ${o.moves} | ${o.freeFolds} | ${o.riverNutFolds} | ${o.strongFolds ?? 0} | ${rate(o.nothingPotCalls, o.nothingPotSpots)} |`);
   L.push("", "## Time per decision (s, this Mac, native Python)", "", "| mode | street | n | mean | p50 | p90 | max | Quick over 15 s |", "|---|---|---|---|---|---|---|---|");
   for (const p of s.perf) L.push(`| ${p.mode} | ${p.street} | ${p.n} | ${p.mean} | ${p.p50} | ${p.p90} | ${p.max} | ${p.over15} |`);
   L.push("", "## Configs", "", "| config | hands | wall s | of it waiting to start s | advisor peak RSS MB | restarts |", "|---|---|---|---|---|---|");

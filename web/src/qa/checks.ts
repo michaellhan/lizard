@@ -408,14 +408,21 @@ export function checkPreflop(a: {
     if (!a.ownOptions) {
       const chartActs = (Array.isArray(a.chart.actions) ? a.chart.actions : []).filter((x) => finite(x.freq));
       const c = topFreq(chartActs.map((x) => x.freq!));
+      // (the chart's most played move; where two or more tie for it (a 50/50 chart), whichever the chart lists first was
+      // held hard and the other soft, so the verdict hung on the list's order: a tie is hard only where the solve condemns
+      // every tied move, as it then condemns whatever the chart's main advice is)
+      const tied = c < 0 ? [] : chartActs.map((x, k) => (Math.abs(x.freq! - chartActs[c]!.freq!) <= 0.005 ? k : -1)).filter((k) => k >= 0);
+      const at = chartActs.map((ca) => sameAction(mix, ca.action, ca.amount_bb));
+      const allTiedDown = tied.length > 0 && tied.every((k) => at[k]! < 0 || !gradeOf(at[k]!).ok) && tied.some((k) => at[k]! >= 0);
       chartActs.forEach((ca, k) => {
-        if (k !== c && freq1(ca.freq!) < MIX) return;
-        const at = sameAction(mix, ca.action, ca.amount_bb);
-        if (at < 0) return;
-        const g = gradeOf(at);
+        const top = tied.includes(k);
+        if (!top && freq1(ca.freq!) < MIX) return;
+        if (at[k]! < 0) return;
+        const g = gradeOf(at[k]!);
         if (!g.ok) {
-          const what = `the chart's ${k === c ? "most played" : "mixed"} move, ${ca.action} (${(ca.freq! * 100).toFixed(1)}%), graded ${g.verdict} by the solve (${g.loss.toFixed(2)}bb given up, ${(g.pastPct ?? 0).toFixed(1)}% of the pot past its noise)`;
-          out.push(v("pf.follow", what, k === c ? "hard" : "soft"));
+          const hard = top && allTiedDown;
+          const what = `the chart's ${top ? (tied.length > 1 ? `most played (tied with ${tied.length - 1} other${tied.length > 2 ? "s" : ""})` : "most played") : "mixed"} move, ${ca.action} (${(ca.freq! * 100).toFixed(1)}%), graded ${g.verdict} by the solve (${g.loss.toFixed(2)}bb given up, ${(g.pastPct ?? 0).toFixed(1)}% of the pot past its noise)`;
+          out.push(v("pf.follow", what, hard ? "hard" : "soft"));
         }
       });
     }
@@ -438,11 +445,14 @@ export function isNuts(hole: readonly string[], board: readonly string[]): boole
 }
 
 /** What an opponent's move says to a person watching (live.sim.test.ts's absurdities, on the sweep's real answers): a fold
- * where checking was free; on the river a fold of the nuts; facing a pot-size bet or more with nothing (no pair, no draw,
- * no straight or better), whether it called. */
+ * where checking was free; on the river a fold of the nuts; on the flop or turn a fold of two pair or better made with
+ * its own cards (handTier 3) facing a bet of at most three quarters of the pot; facing a pot-size bet or more with nothing
+ * (no pair, no draw, no straight or better), whether it called. */
 export interface OppFlags {
   freeFold: boolean;
   riverNutFold: boolean;
+  /** a flop or turn fold of two pair or better facing at most 75% of the pot (absent in records made before it) */
+  strongFold?: boolean;
   /** null where it wasn't facing a pot-size bet or more with nothing */
   nothingPot: { called: boolean } | null;
 }
@@ -452,13 +462,14 @@ export function oppFlags(h: PracticeHand, sim: Sim, seat: string, m: Move): OppF
   const toCall = sim.cur ? toCallOf(t, sim, seat) : 0;
   const board = h.board.slice(0, h.shown);
   const hole = h.hands[seat]!;
-  const flags: OppFlags = { freeFold: m.action === "fold" && toCall <= EPS, riverNutFold: false, nothingPot: null };
+  const flags: OppFlags = { freeFold: m.action === "fold" && toCall <= EPS, riverNutFold: false, strongFold: false, nothingPot: null };
   if (board.length >= 3 && toCall > EPS) {
     if (m.action === "fold" && board.length === 5 && isNuts(hole, board)) flags.riverNutFold = true;
     const { tier, draw } = handTier(hole, board);
     const cat = rank7([...hole, ...board])[0]!;
     const rem = behind(t, sim, seat);
     const frac = Math.min(toCall, rem) / Math.max(EPS, sim.pot - toCall);
+    if (m.action === "fold" && board.length < 5 && tier === 3 && frac <= 0.75 + EPS) flags.strongFold = true;
     if (tier === 0 && !draw && cat < 4 && frac >= 1 - EPS) flags.nothingPot = { called: m.action === "call" || (m.action === "all-in" && rem <= toCall + EPS) };
   }
   return flags;
@@ -504,4 +515,35 @@ export function compareRef(action: string, quick: { mix: Decision["mix"]; grade:
     quickEv: q?.ev ?? null,
     refEv: ref.mix[j]!.ev,
   };
+}
+
+/** One action of the node on both answers (compareAll). */
+export interface RefAction {
+  action: string;
+  quick: Verdict;
+  /** null where the reference has no such action */
+  ref: Verdict | null;
+  quickFreq: number;
+  refFreq: number | null;
+  quickEv: number | null;
+  refEv: number | null;
+}
+
+/** Every action at Practice's node graded on both answers, not only the one taken: the move you made is mostly drawn
+ * from Quick's own mix, which Quick grades Best or Correct by its frequency alone, so comparing that move only says
+ * little about the grades a user choosing anything else would see. `grades`: Quick's grade of each action of its mix. */
+export function compareAll(quick: { mix: Decision["mix"]; grades: readonly Grade[] }, ref: { mix: Decision["mix"]; pot: number; basis: AnswerBasis }): RefAction[] {
+  return quick.mix.map((q, i) => {
+    const j = sameAction(ref.mix, q.action, q.amount);
+    const rg = j >= 0 ? gradeMix(ref.mix, ref.pot, j, ref.basis) : null;
+    return {
+      action: q.action,
+      quick: quick.grades[i]!.verdict,
+      ref: rg ? rg.verdict : null,
+      quickFreq: freq1(q.freq),
+      refFreq: j >= 0 ? freq1(ref.mix[j]!.freq) : null,
+      quickEv: q.ev === null ? null : Math.round(q.ev * 1000) / 1000,
+      refEv: j >= 0 && ref.mix[j]!.ev !== null ? Math.round(ref.mix[j]!.ev! * 1000) / 1000 : null,
+    };
+  });
 }

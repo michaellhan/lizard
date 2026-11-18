@@ -17,6 +17,7 @@ import {
   checkPot,
   checkPreflop,
   checkProvenance,
+  compareAll,
   compareRef,
   illegal,
   isNuts,
@@ -316,6 +317,22 @@ describe("preflop", () => {
     expect(checkPreflop({ chart, graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" }, ownOptions: true })).toEqual([]);
   });
 
+  it("holds a tie for the chart's most played move the same whichever the chart lists first", () => {
+    // (a 50/50 chart, the solve folding: the raise is a mixed move whichever way round; hard only where the solve condemns both)
+    const mix = [{ action: "raise 2.5", freq: 0, ev: -0.2, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }];
+    const tie = (first: "raise" | "fold") =>
+      res({ actions: first === "raise" ? [{ action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }, { action: "fold", freq: 0.5 }] : [{ action: "fold", freq: 0.5 }, { action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }] });
+    const a = checkPreflop({ chart: tie("raise"), graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" } });
+    const b = checkPreflop({ chart: tie("fold"), graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" } });
+    expect(checksOf(a)).toEqual(checksOf(b));
+    expect(checksOf(a)).toEqual(["soft pf.follow"]);
+    expect(a[0]!.detail).toMatch(/most played \(tied with 1 other\) move, raise 2.5/);
+    // (both tied moves condemned: hard)
+    const both = [{ action: "raise 2.5", freq: 0, ev: -3, amount: 2.5 }, { action: "fold", freq: 0, ev: -3 }, { action: "call", freq: 1, ev: 0 }];
+    const three = res({ actions: [{ action: "raise 2.5", freq: 0.5, amount_bb: 2.5 }, { action: "fold", freq: 0.5 }, { action: "call", freq: 0 }] });
+    expect(checksOf(checkPreflop({ chart: three, graded: { mix: both, pot: 1.5, basis: solve, source: "preflop-solve" } }))).toEqual(["hard pf.follow", "hard pf.follow"]);
+  });
+
   it("fails a node graded by EV with a move the solve never trained", () => {
     const node = res({ actions: [{ action: "fold", freq: 0.5 }, { action: "call", freq: 0.5 }, { action: "raise 9", freq: 0, amount_bb: 9 }], grid: { actions: ["fold", "call", "raise 9"], cells: { AA: { ev: [0, 3, -2] } } } });
     const mix = [{ action: "fold", freq: 0.5, ev: 0 }, { action: "call", freq: 0.5, ev: 0 }, { action: "raise 9", freq: 0, ev: -2, amount: 9 }];
@@ -354,12 +371,29 @@ describe("opponents", () => {
   it("flags a call with nothing facing a pot-size bet, a river fold of the nuts, and a fold where checking was free", () => {
     const air = limped({ SB: ["7c", "2d"], BB: ["As", "Ks"] }, ["Qh", "Jd", "9c", "4s", "3h"]);
     const sim = simOf(air);
-    expect(oppFlags(air, sim, "SB", M("SB", "call"))).toEqual({ freeFold: false, riverNutFold: false, nothingPot: { called: true } });
+    expect(oppFlags(air, sim, "SB", M("SB", "call"))).toEqual({ freeFold: false, riverNutFold: false, strongFold: false, nothingPot: { called: true } });
     expect(oppFlags(air, sim, "SB", M("SB", "fold")).nothingPot).toEqual({ called: false });
     const nuts = limped({ SB: ["As", "Ks"], BB: ["7c", "2d"] }, ["Qs", "Js", "Ts", "4d", "3h"]);
     expect(oppFlags(nuts, simOf(nuts), "SB", M("SB", "fold"))).toMatchObject({ riverNutFold: true, nothingPot: null });
     const free = { ...air, shown: 3, lines: { ...air.lines, turn: [], river: [], flop: [] } };
     expect(oppFlags(free, simOf(free), "BB", M("BB", "fold")).freeFold).toBe(true);
+  });
+
+  it("flags a flop fold of two pair or better to a bet of three quarters of the pot or less, not to an overbet", () => {
+    // (the BB bets into the SB's flopped two pair on a limped flop: 1.5 into 2, then 4 into 2)
+    const flop = (to: number): PracticeHand => ({
+      ...newHand(2, 100, 0, 3, {}),
+      hero: "BB",
+      hands: { SB: ["Qh", "Jd"], BB: ["As", "Ks"] },
+      board: ["Qc", "Js", "4h", "8d", "2c"],
+      shown: 3,
+      lines: { ...noLines(), preflop: [M("SB", "call"), M("BB", "check")], flop: [M("BB", "bet", to)] },
+    });
+    const small = flop(1.5);
+    expect(oppFlags(small, simOf(small), "SB", M("SB", "fold")).strongFold).toBe(true);
+    expect(oppFlags(small, simOf(small), "SB", M("SB", "call")).strongFold).toBe(false);
+    const big = flop(4);
+    expect(oppFlags(big, simOf(big), "SB", M("SB", "fold")).strongFold).toBe(false);
   });
 });
 
@@ -379,6 +413,19 @@ describe("Quick against a reference", () => {
     const qBet = g(quick, 10, 1, basis);
     expect(compareRef("bet 50%", { mix: quick, grade: qBet }, { mix: ref, pot: 10, basis })).toMatchObject({ quick: "Best", passes: true, condemns: false });
     expect(compareRef("all-in", { mix: quick, grade: qBet }, { mix: ref, pot: 10, basis })).toBeNull();
+  });
+
+  it("grades every action at the node on both, an action the reference lacks as null", async () => {
+    const g = (await vi.importActual<typeof import("@/features/practice/practice")>("@/features/practice/practice")).gradeMix;
+    const three: Decision["mix"] = [...quick, { action: "all-in", freq: 0, ev: -2, amount: 90 }];
+    const grades = three.map((_, i) => g(three, 10, i, basis));
+    const all = compareAll({ mix: three, grades }, { mix: ref, pot: 10, basis });
+    expect(all.map((a) => [a.action, a.quick, a.ref])).toEqual([
+      ["check", grades[0]!.verdict, "Best"],
+      ["bet 50%", "Best", g(ref, 10, 1, basis).verdict],
+      ["all-in", grades[2]!.verdict, null],
+    ]);
+    expect(all[0]).toMatchObject({ quickFreq: 0, refFreq: 1, quickEv: 0.2, refEv: 1 });
   });
 });
 
@@ -424,24 +471,50 @@ describe("the summary", () => {
       { t: "opp", config: "6max-100bb-live-any", seed: 1, hand: 0, violations: [], table: { ...table, opponents: "live" }, street: "river", seat: "BB", line: "", secs: 0.1, action: "call", flags: { freeFold: false, riverNutFold: false, nothingPot: { called: true } } },
       { t: "hand", config: "6max-100bb-gto-srp", seed: 7, hand: 0, violations: [{ check: "drill.spent", severity: "soft", detail: "x" }], table, net: 1, folded: false, shown: 5, decisions: 2, tries: 1 },
       { t: "ref", config: "6max-100bb-gto-srp", seed: 7, hand: 0, violations: [], table, street: "flop", line: "", spot: "flop hu srp", mode: "fast", secs: 3, source: "library", quickSource: "library", cmp: { action: "check", quick: "Best", ref: "Best", agree: true, condemns: false, passes: false, quickFreq: 1, refFreq: 1, quickEv: 1, refEv: 1 } },
+      {
+        t: "ref",
+        config: "6max-100bb-gto-srp",
+        seed: 7,
+        hand: 1,
+        violations: [],
+        table,
+        street: "turn",
+        line: "",
+        spot: "turn hu srp",
+        mode: "fast",
+        secs: 2,
+        source: "live",
+        quickSource: "live",
+        cmp: { action: "bet 75%", quick: "Best", ref: "Correct", agree: false, condemns: false, passes: false, quickFreq: 1, refFreq: 0.4, quickEv: 2, refEv: 2 },
+        all: [
+          { action: "check", quick: "Mistake", ref: "Best", quickFreq: 0, refFreq: 0.6, quickEv: 1, refEv: 2.1 },
+          { action: "bet 75%", quick: "Best", ref: "Correct", quickFreq: 1, refFreq: 0.4, quickEv: 2, refEv: 2 },
+          { action: "all-in", quick: "Blunder", ref: null, quickFreq: 0, refFreq: null, quickEv: -5, refEv: null },
+        ],
+      },
       { t: "config", config: "6max-100bb-gto-srp", hands: 1, heroDecisions: 3, oppMoves: 1, secs: 30, rssPeak: 400, restarts: 0, violations: [] },
       { t: "config", config: "(reference advisor)", hands: 0, heroDecisions: 0, oppMoves: 0, secs: 0, rssPeak: 600, restarts: 0, violations: [] },
     ];
-    const s = summarize(recs, 42);
-    expect(s).toMatchObject({ configs: 1, hands: 1, heroDecisions: 4, graded: 4, oppMoves: 1, refs: 1, secs: 42, hard: 1, soft: 1 });
+    const s = summarize(recs, 42, 3);
+    expect(s).toMatchObject({ seed: 3, configs: 1, hands: 1, heroDecisions: 4, graded: 4, oppMoves: 1, refs: 2, secs: 42, hard: 1, soft: 1 });
     expect(s.checks.map((c) => `${c.severity} ${c.check} ${c.count}`)).toEqual(["hard prov.settled 1", "soft drill.spent 1"]);
     expect(s.checks[0]!.examples[0]).toMatchObject({ config: "6max-100bb-gto-srp", seed: 7, street: "flop", source: "live", verdict: "Mistake" });
     expect(s.coverage.find((c) => c.spot === "flop hu srp")).toEqual({ spot: "flop hu srp", n: 3, sources: { library: 1, live: 2 } });
     expect(s.coverageAlerts[0]).toMatchObject({ n: 2, share: 0.5, ok: true });
     expect(s.coverageAlerts[1]).toMatchObject({ n: 0, share: null, ok: null });
     expect(s.preflop).toEqual({ solve: 1, charts: 0, other: 0, pfWhy: { "the solve's node has # moves": 1 } });
-    expect(s.quickVsRef).toEqual([{ mode: "fast", n: 1, compared: 1, agree: 1, condemns: 0, passes: 0 }]);
-    expect(s.opponents).toEqual([{ opponents: "live", moves: 1, freeFolds: 0, riverNutFolds: 0, nothingPotSpots: 1, nothingPotCalls: 1 }]);
+    // (the library pair agrees by construction and is left out of the live and every-action rates)
+    expect(s.quickVsRef).toEqual([
+      { mode: "fast", n: 2, compared: 2, agree: 1, condemns: 0, passes: 0, live: { compared: 1, agree: 0, condemns: 0, passes: 0 }, actions: 2, actAgree: 0, okAgree: 1, actCondemns: 1, actPasses: 0 },
+    ]);
+    expect(s.opponents).toEqual([{ opponents: "live", moves: 1, freeFolds: 0, riverNutFolds: 0, strongFolds: 0, nothingPotSpots: 1, nothingPotCalls: 1 }]);
     expect(s.perf.find((p) => p.mode === "quick" && p.street === "flop")).toMatchObject({ n: 3, p50: 2, max: 20, over15: 1 });
     const md = markdown(s, "QA test");
     expect(md).toMatch(/^# QA test/);
     expect(md).toContain("**Hard violations: 1.**");
     expect(md).toContain("| prov.settled | hard | 1 |");
-    expect(md).toContain("| fast | 1 | 1 | 1/1 (100.0%) |");
+    expect(md).toContain("| fast | 2 | 2 | 1/2 (50.0%) |");
+    expect(md).toContain("| fast | 1 | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) | 2 | 0/2 (0.0%) | 1/2 (50.0%) | 1/2 (50.0%) | 0/2 (0.0%) |");
+    expect(md).toContain("`node scripts/qa/run.mjs --seed 3 --config 6max-100bb-gto-srp --hand 0`");
   });
 });

@@ -27,6 +27,8 @@ export interface SweepOptions {
   seed: number;
   /** the share of your decisions taken uniformly among the options, not by the answer's mix, so off-mix moves are graded */
   explore: number;
+  /** play only these hand numbers of each config (each hand deals and draws from its own seed, so one hand replays alone) */
+  onlyHands?: number[];
   out: string;
   label: string;
   log: (s: string) => void;
@@ -47,6 +49,21 @@ const clock = (adv: PyAdvisor) => {
   const w = adv.waited;
   return () => r3(Math.max(0, now() - at - (adv.waited - w)));
 };
+
+/** The project's memory rule for any one process (about 1 GB), MB. */
+const RSS_RULE_MB = 1024;
+/** Whether the request just answered took its process's peak RSS past RSS_RULE_MB: a process's peak only grows, so it's the
+ * first request past it since the process started (`mark` follows one advisor; reset it where a fresh process starts). */
+const crossed = (adv: PyAdvisor, mark: { restarts: number; rss: number }) => {
+  if (adv.restarts !== mark.restarts) {
+    mark.restarts = adv.restarts;
+    mark.rss = 0;
+  }
+  const was = mark.rss;
+  mark.rss = adv.last.rss;
+  return adv.last.rss > RSS_RULE_MB && was <= RSS_RULE_MB;
+};
+const rssViolation = (adv: PyAdvisor) => K.violation("perf.rss", `this request took the advisor's peak RSS to ${adv.last.rss} MB, over the ~1 GB a process may use`, "soft");
 
 /** The hand in a line: your seat and cards, the board out, and each street's moves. */
 export function lineOf(h: P.PracticeHand): string {
@@ -97,12 +114,12 @@ export function sessionOf(cfg: QaConfig): { players: number; stack: number; opts
 }
 
 interface RefJob {
-  base: Omit<RefRecord, "t" | "mode" | "secs" | "source" | "cmp" | "violations">;
+  base: Omit<RefRecord, "t" | "mode" | "secs" | "source" | "cmp" | "all" | "violations">;
   mode: "fast" | "accurate";
   state: AdvisorState;
   sim: Sim;
   chose: string;
-  quick: { mix: P.Decision["mix"]; grade: Grade };
+  quick: { mix: P.Decision["mix"]; grade: Grade; grades: Grade[] };
 }
 
 export async function sweep(o: SweepOptions): Promise<Summary> {
@@ -128,11 +145,13 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
   const jobs: RefJob[] = [];
   let fastAsked = 0;
 
+  const refMark = { restarts: -1, rss: 0 };
   const runRef = async (j: RefJob) => {
     const took = clock(refAdv);
     const violations: K.Violation[] = [];
     let source = "error";
     let cmp: RefRecord["cmp"] = null;
+    let all: RefRecord["all"];
     try {
       const r = await refClient.solve({ state: j.state, mode: j.mode });
       if (r.data.error) violations.push(K.violation("ref.error", `the ${j.mode} reference answered with an error: ${r.data.error}`, "soft"));
@@ -140,7 +159,9 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         source = r.provenance.source;
         const mix = P.gradable(P.mixOf(r.data), r.provenance);
         const pot = typeof r.data.pot_bb === "number" ? r.data.pot_bb : j.sim.pot;
-        cmp = K.compareRef(j.chose, j.quick, { mix, pot, basis: P.practiceBasis(r.data, r.provenance, j.sim) });
+        const basis = P.practiceBasis(r.data, r.provenance, j.sim);
+        cmp = K.compareRef(j.chose, j.quick, { mix, pot, basis });
+        all = K.compareAll(j.quick, { mix, pot, basis });
         if (!cmp) violations.push(K.violation("ref.missing", `the ${j.mode} reference has no ${j.chose}`, "soft"));
         else if (cmp.condemns) violations.push(K.violation("ref.condemns", `Quick says ${cmp.quick} for ${cmp.action} (${cmp.quickFreq}, EV ${cmp.quickEv}), ${j.mode} says ${cmp.ref} (${cmp.refFreq}, EV ${cmp.refEv})`, "soft"));
         else if (cmp.passes) violations.push(K.violation("ref.passes", `Quick says ${cmp.quick} for ${cmp.action} (${cmp.quickFreq}, EV ${cmp.quickEv}), ${j.mode} says ${cmp.ref} (${cmp.refFreq}, EV ${cmp.refEv})`, "soft"));
@@ -148,7 +169,8 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     } catch (e) {
       violations.push(K.violation("ref.error", `the ${j.mode} reference failed: ${message(e).slice(0, 300)}`, "soft"));
     }
-    put({ t: "ref", ...j.base, mode: j.mode, secs: took(), source, cmp, violations });
+    if (crossed(refAdv, refMark)) violations.push(rssViolation(refAdv));
+    put({ t: "ref", ...j.base, mode: j.mode, secs: took(), rss: refAdv.last.rss, source, cmp, ...(all ? { all } : {}), violations });
   };
 
   for (const cfg of o.configs) {
@@ -157,13 +179,18 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
     const client = new SolverClient(main, "qa");
     const { players, stack, opts } = sessionOf(cfg);
     const base = fnv(`${o.seed}|${cfg.name}`);
-    const rnd = seeded(base ^ 0x5bd1e995);
     let heroDecisions = 0;
     let oppMoves = 0;
     const cfgViolations: K.Violation[] = [];
+    const mark = { restarts: -1, rss: 0 };
     o.log(`\n[${o.label}] ${cfg.name}: ${players} players, ${stack}bb, ${cfg.hands} hands, ${cfg.mode}${opts.pfSolve ? ", preflop solve" : ""}\n`);
-    for (let n = 0; n < cfg.hands; n++) {
+    const last = o.onlyHands?.length ? Math.max(...o.onlyHands) + 1 : cfg.hands;
+    for (let n = 0; n < last; n++) {
+      if (o.onlyHands?.length && !o.onlyHands.includes(n)) continue;
       const seed = (base + n * 7919) % 2147483647;
+      // (each hand draws your moves and the opponents' from a stream of its own, so `--hand N` replays hand N alone, as the
+      // whole config played it; one stream for the config made hand N depend on every hand before it)
+      const rnd = seeded(fnv(`${o.seed}|${cfg.name}|${n}`) ^ 0x5bd1e995);
       let h = P.newHand(players, stack, n, seed, opts);
       const table: TableTag = { players, stack, opponents: h.opponents ?? "gto", pot: cfg.pot ?? "any", plain: !(cfg.rake || cfg.ante || cfg.straddle) };
       const tag = <X extends { street?: Street; seat?: string }>(x: X) => ({ config: cfg.name, seed: h.seed, hand: n, table, ...x });
@@ -213,11 +240,13 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
             move = P.checkOrCall(h, sim);
             action = `(${move.action}: the answer failed)`;
           }
+          if (crossed(main, mark)) violations.push(rssViolation(main));
           const flags = K.oppFlags(h, sim, seat, move);
           if (flags.freeFold) violations.push(K.violation("opp.freeFold", `${seat} folds where checking is free`));
           if (flags.riverNutFold) violations.push(K.violation("opp.nutFold", `${seat} folds the nuts on the river`, "soft"));
+          if (flags.strongFold) violations.push(K.violation("opp.strongFold", `${seat} folds ${h.hands[seat]!.join("")}, two pair or better with its own cards, to at most 75% of the pot on the ${street}`, "soft"));
           oppMoves += 1;
-          put({ t: "opp", ...tag({ street, seat }), line, secs: took(), action, flags, violations });
+          put({ t: "opp", ...tag({ street, seat }), line, secs: took(), rss: main.last.rss, action, flags, violations });
           h = P.withVillain(h, move, sim);
           continue;
         }
@@ -243,7 +272,8 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
           violations.push(K.violation("answer.error", `your ${street} answer failed: ${message(e).slice(0, 400)}`));
         }
         const secs = took();
-        const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), line, spot: spotOf(h, sim), mode: cfg.mode, secs, ...(pfSecs !== undefined ? { pfSecs } : {}) };
+        if (crossed(main, mark)) violations.push(rssViolation(main));
+        const hero: Omit<HeroRecord, "source" | "graded" | "approximate" | "chose" | "verdict" | "violations"> = { t: "hero", ...tag({ street, seat: h.hero }), line, spot: spotOf(h, sim), mode: cfg.mode, secs, rss: main.last.rss, ...(pfSecs !== undefined ? { pfSecs } : {}) };
         if (held?.data.error) violations.push(K.violation("answer.error", `your ${street} answer is an error: ${String(held.data.error).slice(0, 300)}`));
         const actions = held && !held.data.error ? P.optionsOf(held.data) : [];
         if (held && !held.data.error && !actions.length) violations.push(K.violation("answer.empty", `your ${street} answer has no actions`));
@@ -304,7 +334,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
         });
         // a seeded share of your postflop Quick decisions asked again at Fast (and a few at Accurate) on the reference advisor
         if (street !== "preflop" && cfg.mode === "quick" && g && (left.fast > 0 || left.accurate > 0) && fnv(`${o.seed}|${cfg.name}|${n}|${step}`) / 2 ** 32 < o.refs.share) {
-          const job = { base: { ...tag({ street }), line, spot: spotOf(h, sim), quickSource: on.provenance.source }, state: need.state, sim, chose: d.decision.chose, quick: { mix, grade: g } };
+          const job = { base: { ...tag({ street }), line, spot: spotOf(h, sim), quickSource: on.provenance.source }, state: need.state, sim, chose: d.decision.chose, quick: { mix, grade: g, grades: gr.grades } };
           if (left.fast > 0) {
             left.fast -= 1;
             fastAsked += 1;
@@ -324,9 +354,9 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
       if (!spent) violations.push(...K.checkHand(h));
       put({ t: "hand", ...tag({}), net: h.result ? h.result.net : null, folded: !!h.result?.folded, shown: h.shown, decisions: h.decisions.length, tries, violations });
       const hard = violations.filter((x) => x.severity === "hard").length;
-      o.log(`  hand ${n + 1}/${cfg.hands} (seed ${h.seed}${tries ? `, ${tries} redeals` : ""}): ${h.decisions.length} decisions${h.result ? `, ${h.result.net}bb` : ""}${abandoned ? `, abandoned: ${abandoned}` : ""}${hard ? `, ${hard} hard` : ""} [${Math.round(now() - t0)} s, RSS ${main.peak} MB]\n`);
+      o.log(`  hand ${n + 1}/${last} (seed ${h.seed}${tries ? `, ${tries} redeals` : ""}): ${h.decisions.length} decisions${h.result ? `, ${h.result.net}bb` : ""}${abandoned ? `, abandoned: ${abandoned}` : ""}${hard ? `, ${hard} hard` : ""} [${Math.round(now() - t0)} s, RSS ${main.peak} MB]\n`);
     }
-    put({ t: "config", config: cfg.name, hands: cfg.hands, heroDecisions, oppMoves, secs: r3(now() - ct), rssPeak: main.peak, restarts: main.restarts, waited: r3(main.waited), violations: cfgViolations });
+    put({ t: "config", config: cfg.name, hands: o.onlyHands?.length || cfg.hands, heroDecisions, oppMoves, secs: r3(now() - ct), rssPeak: main.peak, restarts: main.restarts, waited: r3(main.waited), violations: cfgViolations });
   }
   main.close();
   const rt = now();
@@ -338,7 +368,7 @@ export async function sweep(o: SweepOptions): Promise<Summary> {
   }
   put({ t: "config", config: "(reference advisor)", hands: 0, heroDecisions: 0, oppMoves: 0, secs: r3(now() - rt), rssPeak: refAdv.peak, restarts: refAdv.restarts, waited: r3(refAdv.waited), violations: [] });
   refAdv.close();
-  const s = summarize(records, now() - t0);
+  const s = summarize(records, now() - t0, o.seed);
   writeFileSync(resolve(o.out, "summary.json"), JSON.stringify(s, null, 2) + "\n");
   writeFileSync(resolve(o.out, "summary.md"), markdown(s, `Practice QA sweep (${o.label}, seed ${o.seed})`));
   return s;
