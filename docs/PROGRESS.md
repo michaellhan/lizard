@@ -6111,3 +6111,37 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
 - Not covered: what the browser draws, Pyodide's speed and memory, exploit play and node locks, multi-table charts,
   library drills and the run-out after a fold. `docs/FEATURE_MATRIX.md` links `docs/QA.md` from "How this was
   graded"; no grade moved.
+
+## 2026-11-18 — Practice QA sweep: triage of the default matrix
+
+- What changed (QA harness only; no product code):
+  - Every hand replays alone (`--config NAME --hand N`, each hand on its own random stream).
+  - The reference grades every action, not only the move made.
+  - RSS is attributed to the request that raised it.
+  - `pf.follow` knows a chart tie, and the opponents gained a strong-fold flag.
+  - `--pf-agree` grades the chart's most played move by the preflop solve over all 169 classes at nine spots.
+  - The pot check allows an answer's pot without a shove's uncalled excess.
+  - Opponent records say the move made.
+  - `scripts/qa/repro/prov-settled.mjs` reproduces the band defect with no solver.
+- The harness bug that mattered: answers were asked out of the hand's context. A later street's answer stands on what
+  its process solved earlier in the hand (a 3-way turn narrows the flop through the flop's solve, else by the rules).
+  - The Fast reference was asked cold, and so was the main process after a restart at its RSS cap.
+  - Together they made the only serious Quick-against-Fast flips: 6max-100bb-loose-any hand 9, QsQd's 3-way turn. Cold,
+    Fast said call was a Blunder (EV -5.78); in context, Fast says call Best (EV 7.94), as Quick does.
+  - Now the reference is asked the hand's earlier postflop requests at its own speed first (`warmed`), and a restarted
+    main process is asked them again (`kept`).
+- Default matrix, seed 1, re-run on the fixed harness: 1169 s (595 s waiting for slots), 21 configs, 324 hands, 496
+  decisions, 3303 opponent moves, 147 references. 23 hard violations, from the same two open defects (`docs/QA.md`
+  "Measured"):
+  - `prov.settled` ×19: `provenance.ts` keeps the solve's converged band on an answer marked approximate for its
+    ranges.
+  - `pf.follow` ×4: the preflop-solve default grades by the class-level solve while the buttons and opponents follow
+    the charts. `--pf-agree` puts it at 14% of the heads-up 100bb small blind's hands graded Mistake or Blunder.
+- Also measured:
+  - Quick against Fast at live nodes: the move made 99/110 agree, with none condemned or passed. Every action: 88.1%
+    the same verdict, 0.5% each way across a pass and a Mistake or Blunder, all small in big blinds.
+  - One library hole: the heads-up limped pot's 33% flop bet is 0.66bb, lifted to 1bb, off the tree.
+  - Main-process and reference peaks of 1236 and 1126 MB.
+  - No absurd opponent moves, and no Quick decision over 15 s (slowest 1.88 s).
+- Tests: `web/src/qa` vitest 31 passed; `npm run qa:typecheck` clean; eslint on `web/src/qa` clean. The gtosolver
+  builds were left alone; everything ran through `slot.sh`.
