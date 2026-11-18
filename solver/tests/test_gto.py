@@ -1419,7 +1419,9 @@ class TestTableSizes(unittest.TestCase):
         self.assertGreater(ls["bets"], 100)
         self.assertGreater(ls["small"], 0.05)
         self.assertLess(ls["small"], 0.95)
-        self.assertGreater(ls["multi_called"], 0.02)
+        # (Lizard 2026-11-17: 0.023 -> 0.020 once the preflop multiway equity lost its board-sampling error, which
+        # moves the four players' calling ranges; the bar was 0.02)
+        self.assertGreater(ls["multi_called"], 0.01)
         self.assertGreater(ls["raises_over_calls"], 0)
         # from the turn, every river: the same rules on the last street
         r = adv.advise({"players": 6, "hero": "BB", "hole": "Qh9h", "board": "Kc8h4h2s", "preflop": pre,
@@ -2298,7 +2300,9 @@ class TestExploit(unittest.TestCase):
               "flop": [R("HJ", "check"), R("CO", "check"), R("BTN", "check")],
               "turn": [R("HJ", "bet", 31.5), R("CO", "fold"), R("BTN", "call")], "river": [R("HJ", "check")]}
         res = Advisor(time_budget=1, prior_budget=0.5).advise(st)
-        self.assertGreater(res["villain_range_combos"], 2)
+        # (Lizard 2026-11-17: 2.5 -> 1.9 once the preflop multiway equity lost its board-sampling error, which moves
+        # HJ's call of the 3bet with CO in; unfilled it is 0.5. The bar was 2)
+        self.assertGreater(res["villain_range_combos"], 1.5)
         self.assertTrue(any("filled out" in n for n in res["notes"]))
 
     def test_rare_turn_reraise_keeps_solved_range(self):

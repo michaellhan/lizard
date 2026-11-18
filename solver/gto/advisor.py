@@ -1197,6 +1197,7 @@ def _preflop_equity_multi_calc(villains: List[np.ndarray]) -> np.ndarray:
     live = _board_index_all()[3]
     p = live.astype(float)
     bw = live.astype(float)
+    shares, weights = [], []
     for r in villains:
         t = max(float(r.sum()), 1e-12)
         sh, tot = _beat_share_cached(r, live)
@@ -1205,6 +1206,8 @@ def _preflop_equity_multi_calc(villains: List[np.ndarray]) -> np.ndarray:
         # comes less often (high cards, against ranges of broadways), which the uniform boards missed: 76s
         # and 22 read 2-3 points under a dealt-out simulation against five players, Q9o 2 over
         bw = bw * tot / t
+        shares.append(sh)
+        weights.append(live * (tot / t))
     num, den = (p * bw).sum(axis=0), bw.sum(axis=0)
     # Every combo of a hand class is the same hand up to suits, and the (chart) ranges are suit-symmetric,
     # so the class's combos share one estimate: each combo alone saw only its 60-75 boards, and 76s came out at
@@ -1214,7 +1217,48 @@ def _preflop_equity_multi_calc(villains: List[np.ndarray]) -> np.ndarray:
     k = int(CLASS_OF.max()) + 1
     num_c = np.bincount(CLASS_OF, weights=num, minlength=k)
     den_c = np.bincount(CLASS_OF, weights=den, minlength=k)
-    return np.where(den_c[CLASS_OF] > 0, num_c[CLASS_OF] / np.maximum(den_c[CLASS_OF], 1), np.nan)
+    eq_c = np.where(den_c > 0, num_c / np.maximum(den_c, 1), np.nan)
+    eq_c = _multi_control(eq_c, p, bw, shares, weights, villains, den_c)
+    return eq_c[CLASS_OF]
+
+
+def _multi_control(eq_c: np.ndarray, p: np.ndarray, bw: np.ndarray, shares: List[np.ndarray],
+                   weights: List[np.ndarray], villains: List[np.ndarray], den_c: np.ndarray) -> np.ndarray:
+    """Lizard (2026-11-17): the class equities of _preflop_equity_multi_calc with their board-sampling error taken out
+    by control variates. Pooled, a class's estimate still moved 1.1-1.9 points from one 400-board sample to another
+    (sd over 12 samples, the BB over a CO open and a BTN call at 100bb), as much as a calling bar's whole ramp
+    (PRICE_BLEND), so the fixed sample's luck put hands out of order: T8o at 25.7% over T9o at 24.9% (12 samples:
+    24.4% and 26.6%), and the BB called T8o 36% and J9o 87% but T9o 7% and 98o 0%. The same boards' estimate of each
+    villain's heads-up equity has the same luck (a board that hits the hand hits it against both), and that equity
+    is known exactly (pf_classes.equity_vs), so each class's estimate moves by its regression on those errors
+    (per class, over boards: the class's combos summed on each board). The sd falls to 0.3 points (0.4 against
+    three ranges), as 16 times the boards would have it, with no more boards."""
+    from .pf_classes import CLASS_OF, equity_vs
+    n = len(villains)
+    k = len(eq_c)
+    perm = np.argsort(CLASS_OF, kind="stable")
+    starts = np.concatenate([[0], np.nonzero(np.diff(CLASS_OF[perm]))[0] + 1])
+    by_class = lambda a: np.add.reduceat(a[:, perm], starts, axis=1)        # (boards, classes)
+    pool = lambda a: np.bincount(CLASS_OF, weights=a, minlength=k)
+    ones = pool(np.ones(len(CLASS_OF)))
+    y = np.nan_to_num(eq_c)
+    U = by_class(bw * (p - y[CLASS_OF][None, :])) / np.maximum(den_c, 1e-12)
+    V, gap = [], np.zeros((n, k))
+    for i, (sh, w, r) in enumerate(zip(shares, weights, villains)):
+        wd = pool(w.sum(axis=0))
+        x = np.where(wd > 0, pool((sh * w).sum(axis=0)) / np.maximum(wd, 1e-12), np.nan)   # heads-up, these boards
+        exact = pool(np.nan_to_num(equity_vs(r), nan=0.0)) / ones
+        gap[i] = np.nan_to_num(x - exact)
+        V.append(by_class(w * (sh - np.nan_to_num(x)[CLASS_OF][None, :])) / np.maximum(wd, 1e-12))
+    C = np.empty((k, n, n))
+    d = np.empty((k, n))
+    for i in range(n):
+        d[:, i] = (U * V[i]).sum(axis=0)
+        for j in range(i, n):
+            C[:, i, j] = C[:, j, i] = (V[i] * V[j]).sum(axis=0)
+    ridge = 1e-9 * np.maximum(np.trace(C, axis1=1, axis2=2) / n, 1e-12)
+    beta = np.linalg.solve(C + ridge[:, None, None] * np.eye(n)[None], d[:, :, None])[:, :, 0]
+    return np.where(np.isnan(eq_c), np.nan, np.clip(eq_c - (beta * gap.T).sum(axis=1), 0.0, 1.0))
 
 
 def _narrow_street(ranges: Dict[str, np.ndarray], board, st: StreetState, stack, hero=None, hole=(),
@@ -1711,7 +1755,12 @@ def _flat_ev(full: Dict[str, np.ndarray], w: np.ndarray, raiser: np.ndarray, pot
     raiser's range, realized at the rate that makes the chart's weakest flats (CUT_FLOOR of them) break even,
     over the pot after the call, less the call, plus the implied odds small pairs and suited hands have on the
     stack `behind` (IMPLIED, as the priced calls); 0 for hands the chart doesn't continue with. A short-stack
-    rejam competes with this, not just with folding (see push_fold's `alt`)."""
+    rejam competes with this, not just with folding (see push_fold's `alt`).
+    Lizard (2026-11-17): times how often the chart continues with the hand (the EV of its passive mix: what it
+    doesn't flat it folds, for 0). A hand at all in the chart's continuing range took the whole flat's EV, so a
+    sliver of a call kept it from jamming: at 40bb over a UTG open and a HJ call the button's priced calls left
+    A9s and A8s at 0.6% and 1.8% and A7s at 0, and the push/fold equilibrium jammed A7s 87% and folded the other
+    two (their flats worth 1.4bb each), KTs's 1% against K9s's 78% likewise from the small blind over HJ and CO."""
     from .pf_classes import equity_vs
     eq = np.nan_to_num(equity_vs(raiser), nan=0.0)
     cont = full.get("call", 0.0) + full.get("raise", 0.0)
@@ -1724,7 +1773,7 @@ def _flat_ev(full: Dict[str, np.ndarray], w: np.ndarray, raiser: np.ndarray, pot
     price = to_call / max(pot + to_call, 1e-9)
     realize = float(np.clip(price / max(marg, 1e-6), 0.5, 1.2))
     ev = realize * eq * (pot + to_call) - to_call + _IMPLIED_W * max(behind, 0.0)
-    return np.where(cont > 1e-9, np.maximum(ev, 0.0), 0.0)
+    return np.clip(cont, 0.0, 1.0) * np.maximum(ev, 0.0)
 
 
 def _put(st: "StreetState") -> Dict[str, float]:

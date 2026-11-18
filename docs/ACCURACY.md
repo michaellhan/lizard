@@ -2123,3 +2123,42 @@ on the flop and turn to 0.0000% in 257 iterations.
   best response, checkable as above.
 - The equilibrium side is a live solve with the flop library left out, so it can differ a little from a stored flop
   answer shown above it.
+
+## 26. The charts' multiway calls and short-stack jams out of order (2026-11-17)
+
+A report: Study's BB over a CO open and a BTN call called T9o 3% but T8o 55-60% and J9o 45%. Charts source (the
+default), not the preflop solve: every class's combos share one mix there, so it is not an aggregation or index error.
+`scripts/engine/test_pf_mw_equity.py` holds what follows.
+
+**Cause 1: multiway equity from one 400-board sample.** The chart's heads-up calls are re-drawn for the callers
+(`Advisor._priced`) by each class's equity against both ranges, and continue frequency ramps over 2 points of it
+(`PRICE_BLEND`). That equity (`_preflop_equity_multi_calc`) was a Monte Carlo average over the same 400 boards everywhere,
+and a class's estimate moved 1.1-1.9 points from one sample to another (sd over 12 samples), as much as the whole ramp.
+The fixed sample read T9o at 24.9% (12 samples: 26.6%) and T8o at 25.7% (24.4%), so at 100bb without rake the BB called
+T9o 7.4%, T8o 36.3%, J9o 86.6%, 98o 0.4%. The same luck sits in every spot, so T9o fell below T8o in 11 of the 60
+multiway spots swept (BB and SB over every open and call, 100 and 40bb, with and without rake).
+Fix: control variates. The same boards' estimate of each villain's heads-up equity has the same luck and that equity
+has a closed form (`pf_classes.equity_vs`), so each class's estimate moves by its regression on those errors
+(`_multi_control`). Sample-to-sample sd 1.24 → 0.32 points (0.40 against three ranges); error against an independent
+6,400-board reference 1.18 → 0.59 points RMS in four spots (the reference's own noise is 0.31). The BB now calls JTo
+100%, J9o 92%, T9o 33%, T8o 0%, 98o 1%.
+
+**Cause 2: a sliver of a flat weighed as a whole one.** A short-stack raise is a jam from the push/fold equilibrium,
+against the hand's flat as its alternative (`_flat_ev`), and every hand the chart continued with at all took the whole
+flat's EV. At 40bb over a UTG open and a HJ call the button's re-priced calls left A9s 0.6%, A8s 1.8%, A7s 0: A8s and A9s
+were held to 1.4bb flats and folded, A7s jammed 87%. Fix: the flat's EV times how often the chart continues.
+
+**Sweep, true dominance only** (same top card, next kicker; A6/A5 left out for the wheel): continuing 25 points or more
+below the dominated hand, 19 cases before, 14 after, none of them T9o/T8o. (Same kicker over a higher top card, 74s
+over 64s, is not dominance in a multiway pot and wasn't counted.) Of the 14: 7 are one marginal class jamming among
+near-equal ones (A8s over A9s, A3s over A4s and A5s: the equilibrium jams the class whose jam beats its alternative,
+A8s +0.02bb, A9s -0.34bb); 5 are K5s/K4s with the BB over an open and a small-blind call (K4s's equity is 0.6 points
+above K5s's against those ranges in the larger sample; the fixed sample reads 1.2); 2 are the SB at 40bb, where the 40bb
+chart itself 3bets K9s 78% and KTs 1% (the moves data: a pure class-level solve's bluff choice).
+
+**Not established.**
+- The class-vs-class equity table (`solver/gto/pf_equity.py`) is itself 3,000 random boards: against 60,000 boards an
+  entry is off by 0.55 points (sd, up to 2.3) and whole rows by up to 0.5 (T9o -0.48, T8o -0.33, J9o -0.05). The
+  correction above takes it as exact, so its error remains, and it feeds the heads-up re-pricing, push/fold and the
+  class-level preflop solve. An exact table moves the stored preflop solves' model (a new model tag and a rebuild).
+- The format charts' moves (`gto/pf_format_data.py`) carry the class-level solves' pure choices between neighbours.
