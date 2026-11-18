@@ -6313,3 +6313,20 @@ open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The j
 - Left as they were (refuted): `prov.settled` (19, the band is the solve's own, the label says approximate), and Quick
   against Fast (90.7% of moves at live nodes the same verdict, 0.5% each way across a pass and a Mistake or Blunder;
   ACCURACY 30).
+
+## 2026-11-18 — Practice QA sweep merged: a review of its fixes, and the heads-up cap from 25bb
+
+- The sweep's checker: a converged band beside an approximate label that says where the ranges come from is a soft
+  `prov.settled`, hard only with nothing beside it (the triage refuted it as a defect: the band is the solve's own
+  convergence in the game it solved, ACCURACY 21). A sweep with nothing else wrong exits 0.
+- A review of the sweep's fixes found two more, each with a test that fails before and passes after:
+  - Review's retry of a heads-up preflop-solve decision dropped its cap (the retry's answer had no basis, so no table
+    size): the 65o limp Practice graded Inaccuracy was a Mistake on the retry. `retry.ts` returns the answer's basis, and
+    `mistakes.ts` `retried` keeps the first grade's size and depth where an answer comes back without them.
+  - With Practice's own bet sizes 33 and 66 in the heads-up limped pot, a 1bb bet (the tree's 33%, which reads back as
+    50%) was walked down the 1.5bb bet, nearer 66% by share: the answer facing it was call 1.5 and raise to 4.
+    `engine/size_match.py` `_tree_action_name` takes the tree's bet of exactly that amount; declared in UPSTREAM.json.
+- The heads-up cap measured again on the no-rake charts (ACCURACY 18.10): playing them exactly, the solve condemns 0.8%
+  of heads-up 20bb decisions (0.3% raked), 3-max's rate (0.9%, not capped), and 2.4% to 8.6% from 25bb to 100bb. The cap
+  now holds only deeper than 20bb (`grade.ts` `HEADS_UP_PF_DEPTH`, the depth off the answer, `basis.ts` `headsUpDepth`).
+  An answer with no depth (an older kept record, a tournament's) stays capped.
