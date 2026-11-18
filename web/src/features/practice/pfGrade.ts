@@ -5,7 +5,8 @@
 //
 // So whether a decision is graded by EV is settled at the spot, before you choose, and never by what you chose: `pfRead`
 // answers only where the solve's node is this very spot, the same chips in and the same options at the same sizes, with a
-// class of yours still in its range. Anywhere else the decision keeps the chart's frequency grade under the chart's own
+// class of yours still in its range, and every option one the solve learned an EV for (`untrainedMoves`: a move its range
+// never makes there has none, and a spot with one is the chart's whichever you choose). Anywhere else the decision keeps the chart's frequency grade under the chart's own
 // label, and `pfWhy` says why in words. A size is never mapped onto the solve's: an EV of raising to 12bb isn't one of
 // raising to 10bb. docs/ACCURACY.md has how often each happens, by scripts/pf_practice_coverage.py.
 //
@@ -50,6 +51,46 @@ export function plainReason(text: string): string {
 
 type NodeRead = { node: AdvisorResponse; provenance: Provenance; f: number[]; ev: number[] } | { why: string };
 
+/** A move the solve's range all but never makes at a node it plays (under this share of the range)... */
+export const UNTRAINED_SHARE = 0.005;
+/** ...and that even its strongest hand loses by, this many bb or more against folding, has no EV to grade by. */
+export const UNTRAINED_LOSS = 0.5;
+
+/** The moves at a node whose EVs the solve never learned, each with the strongest hand's EV of it. The stored solve keeps
+ * no play after a move its range never makes (pf_study.pack: every hand the player never brings to a node folds there,
+ * and the seats behind it never trained against it), so such a move's EV is of folding to whatever comes next: 3-betting
+ * AA over a 40bb open read as losing the 7.5bb for AA as for 72o. A move a few hands of the range make, as AA trapping,
+ * has the EVs of the hands that make it, and its strongest hand doesn't lose by it: that one stays. Nothing here depends
+ * on the move you choose: if any of the node's moves is one of these, the whole spot is the chart's. */
+export function untrainedMoves(node: AdvisorResponse): { action: string; amount_bb?: number; ev: number; top: string }[] {
+  const names = node.grid?.actions ?? [];
+  const fold = names.indexOf("fold");
+  const rel = (ev: readonly number[], i: number) => ev[i]! - (fold >= 0 ? ev[fold]! : 0);
+  let top: [string, readonly number[]] | null = null;
+  let best = -Infinity;
+  for (const [cls, c] of Object.entries(node.grid?.cells ?? {})) {
+    if (!c.ev || c.ev.length !== names.length || c.ev.some((x) => typeof x !== "number")) continue;
+    const m = Math.max(...c.ev.map((_, i) => rel(c.ev!, i)));
+    if (m > best) [best, top] = [m, [cls, c.ev]];
+  }
+  if (!top) return [];
+  const [cls, ev] = top;
+  return (node.actions ?? []).flatMap((a, i) => {
+    if (a.action === "fold" || names[i] !== a.action || typeof a.freq !== "number" || a.freq >= UNTRAINED_SHARE || rel(ev, i) > -UNTRAINED_LOSS) return [];
+    return [{ action: a.action, ...(typeof a.amount_bb === "number" ? { amount_bb: a.amount_bb } : {}), ev: rel(ev, i), top: cls }];
+  });
+}
+
+/** Why a node with moves the solve never learned is graded by the chart, in words. */
+function untrainedWhy(moves: ReturnType<typeof untrainedMoves>): string {
+  const what = moves.map((m) => sizes([{ action: m.action, to: m.amount_bb }]));
+  const list = what.length > 1 ? `${what.slice(0, -1).join(", ")} or ${what.at(-1)}` : what[0]!;
+  const m = moves[0]!;
+  return moves.length > 1
+    ? `The solve never plays ${list} here, so its EVs for them are untrained: it has even ${m.top} losing ${bb(-m.ev, 1)}bb by ${what[0]}.`
+    : `The solve never plays ${list} here, so its EV for it is untrained: it has even ${m.top} losing ${bb(-m.ev, 1)}bb by it.`;
+}
+
 /** The solve's answer for this class at the node asked, or why there's none to grade by. Nothing here reads the table. */
 function readNode(asked: PfAsked | undefined, seat: string, hole: string): NodeRead {
   if (!asked) return chart("The preflop solve wasn't asked here.");
@@ -63,6 +104,8 @@ function readNode(asked: PfAsked | undefined, seat: string, hole: string): NodeR
   const moved = node.notes?.find((n) => n.includes("played as the solve's size"));
   if (moved) return chart(`The line has left the solve's sizes: ${moved}.`);
   if (node.rough) return chart("This is a line the solve rarely plays, so its EVs here are rough.");
+  const untrained = untrainedMoves(node);
+  if (untrained.length) return chart(untrainedWhy(untrained));
   const cell = node.grid?.cells[classOf(hole)];
   if (!cell) return chart(`The solve has folded ${classOf(hole)} from this seat by here, so it holds no EV for it.`);
   const { f, ev } = cell;
