@@ -50,6 +50,7 @@ import numpy as np
 
 from gto import advisor as A
 from gto import pf_formats as PF
+from gto import pf_norake as NR
 from gto import preflop as P
 from gto.pf_classes import CLASS_OF, N_IN
 from gto.ranges import N_COMBOS
@@ -291,17 +292,39 @@ def push(hero, preflop, positions, stack, st, jam, full, notes, pool=False, lock
     return repair(out, _arriving(hero, preflop, positions, stack))
 
 
+def advice_strategy(p, before, positions, stack):
+    """advisor.preflop_strategy as p's own advice plays it: at a table without rake the chart is moved to no rake first
+    (gto/pf_norake.py), as Advisor._preflop_play moves it, then priced. preflop_strategy moves only an exploit hero's
+    chart (its `pool`), since the ranges entering the flop stay the charts' (the flop library's spots are keyed by them);
+    a jam ends the betting, so a jam's range can be the jams the advice plays without moving any library spot."""
+    pos = P.at_depth(positions, stack)
+
+    def work():
+        full = P.strategy_for(p, before, pos)
+        nr = NR.chart(full, p, before, pos)
+        if nr is full:
+            return None
+        st = A.replay_hand(pos, stack, {"preflop": before}, 1)[0]
+        if "call" in nr and not st.closed and st.to_act == p:
+            return A.Advisor._priced(p, before, pos, stack, st, nr, [], False)
+        return nr
+
+    out = A._pf_cached(A._pf_key("sn", p, before, pos, stack), work)
+    return out if out is not None else A.preflop_strategy(p, before, positions, stack)
+
+
 def jam_range(actions, ji, positions, stack, pool_except=None, locks=None):
     """An open- or 3bet-jam's range: the hands the advice jams there (Advisor._push, repaired), so the later streets
     and the calls of it read the jams the advice plays. Upstream's push/fold equilibrium here differed from the advice's
-    by its flatting alternative (the chart's calls, not the re-priced ones) even unrepaired. Later jams, the player
-    pool's and a lock's are upstream's."""
+    by its flatting alternative (the chart's calls, not the re-priced ones) even unrepaired. Without rake it is the jams
+    of the chart moved to no rake, as the advice plays them (advice_strategy). Later jams, the player pool's and a
+    lock's are upstream's."""
     jammer, before = actions[ji]["pos"], actions[:ji]
     prev = A.replay_hand(positions, stack, {"preflop": before}, 1)[0]
     if pool_except is not None or locks or prev.n_raises > 1:
         return _jam_range(actions, ji, positions, stack, pool_except, locks)
     depth = A._eff_stack(positions, jammer, before, stack)
-    full = A.preflop_strategy(jammer, before, positions, depth)
+    full = advice_strategy(jammer, before, positions, depth)
     jam = A.replay_hand(positions, stack, {"preflop": actions[:ji + 1]}, 1)[0].bets[jammer]
     shove = A.Advisor._push(jammer, before, positions, stack, prev, jam, full, [], False, ()).get("raise")
     arr = A.preflop_ranges(before, positions, stack)

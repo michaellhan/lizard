@@ -1614,7 +1614,11 @@ its push/fold flatting alternative reading the chart's calls rather than the re-
 blind jammed 33 100% over a HJ open and a CO call while the range held none, and at 6-max 40bb the CO's 3-bet jam over
 UTG's open and the HJ's call held A8s 88%, which the advice never jams. Over 6-max 10, 15 and 25bb, 9-max 15bb with an
 ante and heads-up 15bb, the advice's jam frequency and the range now agree to the grid's rounding (`test_pf_charts.py`
-`Jams`). Facing a jam, a call is by equity against that range, so the calls move with it: over the review's 14 games,
+`Jams`). Since the no-rake charts (50264fb, `gto/pf_norake.py`) the advice at a table without rake jams from the chart
+moved to no rake, so the jam range is read from that chart too (`engine/pf_charts.py` `advice_strategy`): read from the
+raked chart it had the HJ's AKo over a 6-max 15bb UTG open in the range 69% while the advice jams it 90%; now all 113
+jam nodes of those games agree, and at 5% rake capped at 4bb (6-max and heads-up 15bb) they agree as before. A jam
+ends the betting, so no flop library spot reads these ranges; the ranges entering a flop stay the charts'. Facing a jam, a call is by equity against that range, so the calls move with it: over the review's 14 games,
 10,230 jam-facing nodes, 1,639 class-nodes call 0.05 or more less often and 1,841 more often (premiums 643 and 523).
 That CO jam is one: the small blind's AKs had 45.3% against the old range and calls 35% of the time, 44.0% against the
 jams the advice makes, and calls 3%, with 45.9% needed.

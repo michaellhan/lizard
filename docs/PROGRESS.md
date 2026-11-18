@@ -6061,3 +6061,74 @@ upstream gtosolver job). Check it with `scripts/library/breadth.sh status` and `
 - Found: the classic library publishes four 3-way spots Lizard lacks (`mw_utg_ip_bb`, `mw_co_sb_bb`, `mw_hj_sb_bb`,
   `mw_utg_sb_bb`); its 3-way tree adds `bucket_power: 1.0`, which the snapshot at 1a14605e doesn't have, so taking
   them needs a newer upstream import.
+
+## 2026-11-18: Why Practice kept getting things wrong, and four audits' fixes
+
+**Why.** The owner kept finding Practice decisions that Lizard misgraded or misplayed. Each earlier fix was a point fix
+tested by an example, and nothing played Practice end to end and checked every decision, so a change in one place
+(b10afc8's multiway calls moved the big blind's range and silently unread every 3-way library spot) or a gap
+between surfaces (Practice, drills, Review and Analyze grading one answer three ways) went unseen until a hand showed
+it. Four audits ran in parallel (grading, the table and opponents, the postflop engine, preflop), each finding,
+verifying adversarially and fixing on its own branch; the branches were merged on `claude/integrate`.
+
+**Grading** (`claude/grading-unify`).
+
+- One rule on every surface (`grade.ts gradeAnswer`, basis from `grading/basis.ts`), with each answer's measured EV
+  noise: the library's own rarely played actions were graded below Correct 30.5% of the time, now 5.5%.
+- A clear blunder (20% of the pot past the noise) is a Blunder whatever answered; a rough move gets its measured
+  error instead of a cap; drills, retries and Analyze's totals agree with Practice.
+
+**Table and opponents** (`claude/table-fixes`).
+
+- The TDA reopen rule: a short all-in no longer lets a seat that has acted re-raise unless the raises since add up to
+  a full raise; heads-up, a big blind all-in for 0.7 asks the small blind for 0.2.
+- Live opponents look at the price: no calling an all-in with nothing; the river's nuts are never folded.
+- Records match the table (a retry's price is capped at your chips, short blinds written as all-in); Practice settings
+  say what's played (antes to the cent, rake as set, preflop grading off stays off).
+- Fuzz, golden and simulation tests: `table.fuzz.test.ts`, `live.sim.test.ts`, `records.sim.test.ts`,
+  `settings.sim.test.ts`.
+
+**Postflop engine** (`claude/postflop-engine`).
+
+- 3-way flops read the precomputed 3-way solves again, labelled approximate and "as built" with how far the big
+  blind's range is from this pot's.
+- CI recomputes every published spot's fingerprint from today's code (`test_published_fps`), so a chart change can't
+  silently unread a spot again.
+- Quick 3-way answers behind a bet narrow through a short solve instead of the betting rules (BTN's K7s on Qs7s6d
+  facing a bet now folds, as Fast does), and a line the library holds only in part is solved from the street's start.
+- `MW_REBUILD=1 scripts/library/mw_every_flop.sh start` rebuilds the 3-way spots on today's charts (about 38 CPU
+  hours; not started).
+
+**Preflop** (`claude/preflop-fixes`).
+
+- Moves the stored solve never trains are graded by the chart, not by their untrained EV.
+- The charts keep hands in order: inversions 6,267 to 108, premium flats 469 to 2; library-feeding nodes are left as
+  they were, so every heads-up fingerprint holds.
+- 13 to 19bb plays the 20bb game's moves; the tournament presets are re-solved on the calibrated flop model.
+- The cash grid is not re-solved: 7,914 EV-backed hands out of order remain (ACCURACY 18.9).
+
+**Integration.** `provenance.ts` labels a spot served as built as that spot, and an answer approximate for its own
+reason caps its grade with that reason. `published_fps.py` and its test install `engine.pf_charts` as the worker
+does, and `solver/UPSTREAM.json` declares the worker's new imports (`engine.pf_charts`, `engine.mw_near`,
+`engine.mw_quick`).
+
+**Checked.** A local mirror of CI's unit, python and build jobs, run one step at a time through `slot.sh`:
+typecheck and lint clean; vitest 3,923 passed (9 skipped); `test:scripts` passed; `scripts/library` 42; all 24
+`scripts/engine` modules (319 tests, each in its own process); `scripts/benchmarks` 31 (8 skipped); the solver's
+`test_bundle` and `test_routes` (12) and its JS route tests (32); `npm run build`. (The build needs the venv's Python on
+`PATH` for `treys`, as CI installs it.)
+
+**Merged with main's no-rake charts (50264fb).** One conflict (FEATURE_MATRIX's Preflop row: both sentences kept), and
+one interaction: without rake the advice jams from the chart moved to no rake, while the jam range the callers and the
+later streets read (`engine/pf_charts.py` `jam_range`) came from the raked chart, so the HJ's AKo over a 6-max 15bb UTG
+open jammed 90% but sat in the range 69% (`test_pf_charts` `Jams` failed). The jam range now reads the advice's chart
+(`advice_strategy`); all 113 jam nodes agree, and a new test holds them at 5% rake too (ACCURACY 18.9).
+
+**Builds left alone.** gtosolver's builds were not touched.
+
+**Next.**
+
+- A committed end-to-end Practice sweep (`scripts/qa/`): it plays seeded hands through the real web code against a
+  worker-configured advisor and checks every decision.
+- Practice re-checks its Quick grades at Fast while idle: Quick agrees with Fast on the grade 88% of the time when
+  settled and 62% otherwise.

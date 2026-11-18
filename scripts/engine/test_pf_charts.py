@@ -374,6 +374,21 @@ class Jams(unittest.TestCase):
             res = advise(6, 15, "BB", pre)
             self.assertGreater(self.gap(res, pre, "BB", table(6, 15), 15)[0], 0.5)     # (33: jammed 100%, in the range 0%)
 
+    def test_with_rake_the_jams_are_the_raked_charts(self):
+        """Without rake the advice plays the chart moved to no rake (gto/pf_norake.py) and the jam range above is its
+        jams; with rake neither moves, and they still agree."""
+        seen = 0
+        for n, d, mi in [(6, 15, 3), (2, 15, 3)]:
+            positions = P.at_depth(P.Table(P.SEATS[n], 0.0, False, (0.05, 4.0), d), d)
+            for pre, hero, res, _ in walk(n, d, mi, {"rake": 0.05, "rake_cap": 4}, max_raises=2):
+                names = res["grid"]["actions"]
+                if raises(pre) > 1 or "all-in" not in names or share(res, ("all-in",)) < 0.005:
+                    continue
+                seen += 1
+                gap = self.gap(res, pre, hero, positions, d)
+                self.assertLess(gap[0], 0.001, (n, d, line(pre), hero, gap[1:]))
+        self.assertGreater(seen, 20)
+
     @staticmethod
     def gap(res, pre, hero, positions, d):
         names = res["grid"]["actions"]
