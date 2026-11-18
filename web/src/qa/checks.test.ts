@@ -20,16 +20,19 @@ import {
   checkProvenance,
   compareAll,
   compareRef,
+  handsOn,
   illegal,
   isNuts,
   ledger,
   markersOf,
   oppFlags,
+  outOfContext,
+  rulesStreets,
   sameAction,
   topFreq,
   type Violation,
 } from "./checks";
-import { markdown, spotOf, summarize, type HeroRecord, type QaRecord } from "./summary";
+import { markdown, spotOf, summarize, type HeroRecord, type QaRecord, type RefRecord } from "./summary";
 
 // the grader checks.ts calls, with a stand-in for a test that needs a broken one
 const stand = vi.hoisted(() => ({ grade: null as null | ((mix: Decision["mix"], pot: number, i: number, basis: AnswerBasis) => Grade) }));
@@ -330,6 +333,17 @@ describe("preflop", () => {
     expect(checkPreflop({ chart, graded: { mix, pot: 1.5, basis: solve, source: "preflop-solve" }, ownOptions: true })).toEqual([]);
   });
 
+  it("holds the chart's most played move graded Inaccuracy soft, Mistake or worse hard", () => {
+    // (pot 1.5: the solve's noise is 0.077bb; past it under 2% of the pot an Inaccuracy, under 8% a Mistake)
+    const at = (ev: number) => checkPreflop({ chart, graded: { mix: [{ action: "raise 2.5", freq: 0, ev, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }], pot: 1.5, basis: solve, source: "preflop-solve" } });
+    const inacc = at(-0.09);
+    expect(checksOf(inacc)).toEqual(["soft pf.follow"]);
+    expect(inacc[0]!.detail).toMatch(/chart's most played move, raise 2.5 \(90.0%\), graded Inaccuracy/);
+    expect(checksOf(at(-0.15))).toEqual(["hard pf.follow"]);
+    expect(at(-0.15)[0]!.detail).toMatch(/graded Mistake/);
+    expect(checksOf(at(-0.05))).toEqual([]);
+  });
+
   it("holds a tie for the chart's most played move the same whichever the chart lists first", () => {
     // (a 50/50 chart, the solve folding: the raise is a mixed move whichever way round; hard only where the solve condemns both)
     const mix = [{ action: "raise 2.5", freq: 0, ev: -0.2, amount: 2.5 }, { action: "fold", freq: 1, ev: 0 }];
@@ -440,6 +454,36 @@ describe("Quick against a reference", () => {
     ]);
     expect(all[0]).toMatchObject({ quickFreq: 0, refFreq: 1, quickEv: 0.2, refEv: 1 });
   });
+
+  it("reads the streets an answer narrowed by the betting rules alone", () => {
+    expect(rulesStreets(res({ notes: ["flop: ranges narrowed by simple betting rules (a quick answer: the street isn't solved)"], off_solution: [{ street: "flop", why: "rules" }] }))).toEqual(["flop"]);
+    expect(rulesStreets(res({ notes: ["turn, flop: multiway, ranges narrowed by simple betting rules rather than a solve"] }))).toEqual(["flop", "turn"]);
+    expect(rulesStreets(res({ off_solution: [{ street: "turn", why: "rules" }, { street: "flop", why: "rare", pos: "BB" }] }))).toEqual(["turn"]);
+    // (a rare line read by the rules is the solve's own call, not the hand's context)
+    expect(rulesStreets(res({ notes: ["flop: the solve rarely has BB bet here (5% of their range), so their range comes from simple betting rules instead"] }))).toEqual([]);
+    expect(rulesStreets(res({}))).toEqual([]);
+  });
+
+  it("puts a reference that stood on less of the hand than Quick out of context", () => {
+    expect(outOfContext(["flop"], ["flop"])).toEqual([]);
+    // (Quick narrowing a street by the rules that the reference solved is the comparison wanted)
+    expect(outOfContext(["flop", "turn"], ["turn"])).toEqual([]);
+    expect(outOfContext([], ["flop"])).toEqual(["flop"]);
+    expect(outOfContext(["flop"], ["flop", "turn"])).toEqual(["turn"]);
+  });
+
+  it("names the hands an eviction took a 3-way solve of", () => {
+    const boards = new Map([
+      ["6max|1", ["Kd9h8s", "Kd9h8sAc", "Kd9h8sAc2d"]],
+      ["6max|2", ["2c3d4h", "2c3d4h5s"]],
+      ["6max|3", ["Kd9h8c"]],
+    ]);
+    expect(handsOn(["Kd9h8s"], boards)).toEqual(["6max|1"]);
+    expect(handsOn(["2c3d4h5s"], boards)).toEqual(["6max|2"]);
+    expect(handsOn(["Kd9h8sAc", "2c3d4h"], boards)).toEqual(["6max|1", "6max|2"]);
+    expect(handsOn([], boards)).toEqual([]);
+    expect(handsOn([""], new Map([["x", [""]]]))).toEqual([]);
+  });
 });
 
 // ---- the summary
@@ -518,7 +562,7 @@ describe("the summary", () => {
     expect(s.preflop).toEqual({ solve: 1, charts: 0, other: 0, pfWhy: { "the solve's node has # moves": 1 } });
     // (the library pair agrees by construction and is left out of the live and every-action rates)
     expect(s.quickVsRef).toEqual([
-      { mode: "fast", n: 2, compared: 2, agree: 1, condemns: 0, passes: 0, live: { compared: 1, agree: 0, condemns: 0, passes: 0 }, actions: 2, actAgree: 0, okAgree: 1, actCondemns: 1, actPasses: 0 },
+      { mode: "fast", n: 2, outside: { cold: 0, evicted: 0, rules: 0 }, compared: 2, agree: 1, condemns: 0, passes: 0, live: { compared: 1, agree: 0, condemns: 0, passes: 0 }, actions: 2, actAgree: 0, okAgree: 1, actCondemns: 1, actPasses: 0 },
     ]);
     expect(s.opponents).toEqual([{ opponents: "live", moves: 1, freeFolds: 0, riverNutFolds: 0, strongFolds: 0, nothingPotSpots: 1, nothingPotCalls: 1 }]);
     expect(s.perf.find((p) => p.mode === "quick" && p.street === "flop")).toMatchObject({ n: 3, p50: 2, max: 20, over15: 1 });
@@ -526,8 +570,18 @@ describe("the summary", () => {
     expect(md).toMatch(/^# QA test/);
     expect(md).toContain("**Hard violations: 1.**");
     expect(md).toContain("| prov.settled | hard | 1 |");
-    expect(md).toContain("| fast | 2 | 2 | 1/2 (50.0%) |");
+    expect(md).toContain("| fast | 2 | 0 (0, 0, 0) | 2 | 1/2 (50.0%) |");
     expect(md).toContain("| fast | 1 | 0/1 (0.0%) | 0/1 (0.0%) | 0/1 (0.0%) | 2 | 0/2 (0.0%) | 1/2 (50.0%) | 1/2 (50.0%) | 0/2 (0.0%) |");
     expect(md).toContain("`node scripts/qa/run.mjs --seed 3 --config 6max-100bb-gto-srp --hand 0`");
+  });
+
+  it("counts a reference out of the hand's context apart, and compares it nowhere", () => {
+    const flip = { action: "call", quick: "Best" as const, ref: "Blunder" as const, agree: false, condemns: false, passes: true, quickFreq: 1, refFreq: 0, quickEv: 7.5, refEv: -5.8 };
+    const ref = (over: Partial<RefRecord>): RefRecord => ({ t: "ref", config: "6max-100bb-loose-any", seed: 7, hand: 9, violations: [], table, street: "turn", line: "", spot: "turn 3way srp", mode: "fast", secs: 2, source: "live", quickSource: "live", cmp: flip, all: [{ action: "call", quick: "Best", ref: "Blunder", quickFreq: 1, refFreq: 0, quickEv: 7.5, refEv: -5.8 }], ...over });
+    const s = summarize([ref({ cold: true }), ref({ evicted: true }), ref({ outOfContext: ["flop"] }), ref({})], 1);
+    expect(s.quickVsRef).toEqual([
+      { mode: "fast", n: 4, outside: { cold: 1, evicted: 1, rules: 1 }, compared: 1, agree: 0, condemns: 0, passes: 1, live: { compared: 1, agree: 0, condemns: 0, passes: 1 }, actions: 1, actAgree: 0, okAgree: 0, actCondemns: 0, actPasses: 1 },
+    ]);
+    expect(markdown(s)).toContain("| fast | 4 | 3 (1, 1, 1) | 1 | 0/1 (0.0%) | 0/1 (0.0%) | 1/1 (100.0%) |");
   });
 });

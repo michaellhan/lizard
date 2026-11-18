@@ -37,6 +37,8 @@ const sum = (xs: Iterable<number>) => {
 };
 export const violation = (check: string, detail: string, severity: Severity = "hard"): Violation => ({ check, severity, detail });
 const v = violation;
+const BAD = (x: Verdict) => x === "Mistake" || x === "Blunder";
+const OK = (x: Verdict) => x === "Best" || x === "Correct";
 
 // ---- the table and the records
 
@@ -269,6 +271,36 @@ export function markersOf(r: AdvisorResponse): Markers {
   };
 }
 
+/** The streets whose ranges an answer narrowed by the betting rules alone, from its notes and off_solution: a heads-up
+ * street a quick answer doesn't solve ("ranges narrowed by simple betting rules"), or a 3-way street no solve of it held
+ * ("multiway, ranges narrowed by simple betting rules"), in street order. */
+export function rulesStreets(r: AdvisorResponse): Street[] {
+  const got = new Set<string>();
+  for (const o of Array.isArray(r.off_solution) ? r.off_solution : []) if (o && typeof o === "object" && o.why === "rules" && typeof o.street === "string") got.add(o.street);
+  for (const n of Array.isArray(r.notes) ? r.notes : []) {
+    if (typeof n !== "string") continue;
+    const m = RULES_NOTE.exec(n) ?? MW_RULES_NOTE.exec(n);
+    if (m) for (const s of m[1]!.split(",")) got.add(s.trim());
+  }
+  return STREETS.filter((s) => got.has(s));
+}
+
+/** The streets a reference narrowed by the rules that Quick's answer of the same state didn't (rulesStreets): where there
+ * are any, the reference stood on less of the hand than Quick did (its process had lost or never had the solve of that
+ * street), so it answers another question and its verdicts aren't compared. Quick narrowing a street by the rules that the
+ * reference solved is the comparison wanted (a quick answer doesn't solve earlier heads-up streets). */
+export function outOfContext(quick: readonly string[], ref: readonly string[]): string[] {
+  return ref.filter((s) => !quick.includes(s));
+}
+
+/** The hands (keys of `boards`, each hand's boards asked) with a board that one of `dropped` (the boards of 3-way solves a
+ * process's cache evicted, advserver.py) begins: their earlier streets are gone from that process. */
+export function handsOn(dropped: readonly string[], boards: ReadonlyMap<string, readonly string[]>): string[] {
+  const out: string[] = [];
+  for (const [k, bs] of boards) if (bs.some((b) => dropped.some((d) => d.length >= 6 && b.startsWith(d)))) out.push(k);
+  return out;
+}
+
 /** Sources whose own label says they're no solve (provenance.ts LABELS): an approximate answer from one needs no more words. */
 const SAYS_ITSELF = new Set(["charts", "push-fold", "rules", "equity"]);
 
@@ -395,11 +427,13 @@ export function sameAction(mix: Decision["mix"], name: string, amount: number | 
   return amount === undefined ? -1 : (kind.find((i) => mix[i]!.amount !== undefined && Math.abs(mix[i]!.amount! - amount) <= 0.051) ?? -1);
 }
 
-/** A preflop decision. Graded by the solve: the move the solve plays most is Best or Correct, so is the chart's most played
- * move (a chart-following decision; any other move the chart plays MIX or more is held to it as a soft check), and no node
- * with a move the solve never learned an EV for (pfGrade.ts untrainedMoves) is graded by EV. Graded by the charts: the
- * chart's most played move is Best. `chart`: the chart's answer; `graded`: what decide graded against; `pf`: the solve's
- * node where it was asked; `ownOptions`: the session's pfOptions (your options are the solve's own, not the chart's). */
+/** A preflop decision. Graded by the solve: the move the solve plays most is Best or Correct, and the chart's most played
+ * move (a chart-following decision) is not condemned, Mistake or Blunder (hard; graded Inaccuracy it is soft: the solve's
+ * model and the charts part by about that much, docs/ACCURACY.md 18.8, and an Inaccuracy is the grade's own word for "a
+ * little worse"); any other move the chart plays MIX or more graded below Correct is soft; and no node with a move the
+ * solve never learned an EV for (pfGrade.ts untrainedMoves) is graded by EV. Graded by the charts: the chart's most played
+ * move is Best. `chart`: the chart's answer; `graded`: what decide graded against; `pf`: the solve's node where it was
+ * asked; `ownOptions`: the session's pfOptions (your options are the solve's own, not the chart's). */
 export function checkPreflop(a: {
   chart: AdvisorResponse;
   graded: { mix: Decision["mix"]; pot: number; basis: AnswerBasis; source: string };
@@ -423,10 +457,12 @@ export function checkPreflop(a: {
       const c = topFreq(chartActs.map((x) => x.freq!));
       // (the chart's most played move; where two or more tie for it (a 50/50 chart), whichever the chart lists first was
       // held hard and the other soft, so the verdict hung on the list's order: a tie is hard only where the solve condemns
-      // every tied move, as it then condemns whatever the chart's main advice is)
+      // every tied move, as it then condemns whatever the chart's main advice is. Condemns: Mistake or Blunder; an
+      // Inaccuracy is soft)
+      const condemned = (k: number) => BAD(gradeOf(k).verdict);
       const tied = c < 0 ? [] : chartActs.map((x, k) => (Math.abs(x.freq! - chartActs[c]!.freq!) <= 0.005 ? k : -1)).filter((k) => k >= 0);
       const at = chartActs.map((ca) => sameAction(mix, ca.action, ca.amount_bb));
-      const allTiedDown = tied.length > 0 && tied.every((k) => at[k]! < 0 || !gradeOf(at[k]!).ok) && tied.some((k) => at[k]! >= 0);
+      const allTiedDown = tied.length > 0 && tied.every((k) => at[k]! < 0 || condemned(at[k]!)) && tied.some((k) => at[k]! >= 0);
       chartActs.forEach((ca, k) => {
         const top = tied.includes(k);
         if (!top && freq1(ca.freq!) < MIX) return;
@@ -506,8 +542,6 @@ export interface RefCompare {
   refEv: number | null;
 }
 
-const BAD = (x: Verdict) => x === "Mistake" || x === "Blunder";
-const OK = (x: Verdict) => x === "Best" || x === "Correct";
 
 /** The same action (sameAction) in the reference's mix, graded there as Practice grades. Null where the reference has no
  * such action. */

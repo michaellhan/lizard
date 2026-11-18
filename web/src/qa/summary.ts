@@ -22,8 +22,12 @@ interface Base {
   /** the hand's seed (newHand's), and its number in the config */
   seed: number;
   hand: number;
-  /** the hand's earlier postflop requests asked again first, because the process restarted mid-hand (sweep.ts keep) */
+  /** the hand's earlier postflop requests asked again first, because the process restarted mid-hand or its solve cache
+   * evicted a 3-way solve of one of the hand's streets (sweep.ts keep, warmUp) */
   kept?: number;
+  /** answered without all of the hand's earlier streets: asking them again didn't hold (twice a restart or an eviction on
+   * the way), so a later street stood on the rules where a solve was (sweep.ts) */
+  evicted?: boolean;
   violations: Violation[];
 }
 
@@ -106,6 +110,9 @@ export interface RefRecord extends Base {
   warmed?: number;
   /** the reference answered in a process that had just restarted, so without the hand's earlier streets */
   cold?: boolean;
+  /** the streets the reference narrowed by the betting rules where Quick's answer had a solve (checks.ts outOfContext):
+   * it stood on less of the hand than Quick did */
+  outOfContext?: string[];
   quickSource: string;
   cmp: RefCompare | null;
   /** every action at the node graded on both answers (compareAll) */
@@ -172,10 +179,13 @@ export interface Summary {
   /** the move you made graded on both (compared, agree, condemns, passes); the same where either answer was a live solve
    * (a library flop is the same entry at every speed, so library-library pairs always agree); and every action at the node
    * graded on both, where either was live (`actions`: compared; `okAgree`: both Best/Correct or both not; `actCondemns`:
-   * Quick says Mistake or Blunder, the reference Best or Correct; `actPasses`: the other way) */
+   * Quick says Mistake or Blunder, the reference Best or Correct; `actPasses`: the other way). A reference out of the
+   * hand's context (`cold`, `evicted`, `outOfContext`) answers another question: counted in `outside`, compared nowhere. */
   quickVsRef: {
     mode: string;
     n: number;
+    /** asked out of the hand's context, not compared: a restart, an eviction, a street narrowed by the rules alone */
+    outside?: { cold: number; evicted: number; rules: number };
     compared: number;
     agree: number;
     condemns: number;
@@ -290,7 +300,9 @@ export function summarize(records: readonly QaRecord[], secs = 0, seed?: number)
       pfWhy,
     },
     quickVsRef: modes.map((mode) => {
-      const rs = refs.filter((r) => r.mode === mode);
+      const asked = refs.filter((r) => r.mode === mode);
+      const out = (r: RefRecord) => !!r.cold || !!r.evicted || !!r.outOfContext?.length;
+      const rs = asked.filter((r) => !out(r));
       const cs = rs.map((r) => r.cmp).filter((c): c is RefCompare => !!c);
       const lv = rs.filter((r) => r.cmp && (r.quickSource === "live" || r.source === "live")).map((r) => r.cmp!);
       const acts = rs.filter((r) => r.quickSource === "live" || r.source === "live").flatMap((r) => (r.all ?? []).filter((a) => a.ref !== null));
@@ -298,7 +310,8 @@ export function summarize(records: readonly QaRecord[], secs = 0, seed?: number)
       const bad = (x: Verdict | null) => x === "Mistake" || x === "Blunder";
       return {
         mode,
-        n: rs.length,
+        n: asked.length,
+        outside: { cold: asked.filter((r) => r.cold).length, evicted: asked.filter((r) => !r.cold && r.evicted).length, rules: asked.filter((r) => !r.cold && !r.evicted && r.outOfContext?.length).length },
         compared: cs.length,
         agree: cs.filter((c) => c.agree).length,
         condemns: cs.filter((c) => c.condemns).length,
@@ -384,8 +397,11 @@ export function markdown(s: Summary, title = "Practice QA sweep"): string {
   L.push("", "## Quick against a reference (the same action graded on both)", "");
   if (!s.quickVsRef.length) L.push("None asked.");
   else {
-    L.push("| reference | asked | compared | verdicts agree | Quick condemns, reference passes | Quick passes, reference condemns |", "|---|---|---|---|---|---|");
-    for (const r of s.quickVsRef) L.push(`| ${r.mode} | ${r.n} | ${r.compared} | ${rate(r.agree, r.compared)} | ${rate(r.condemns, r.compared)} | ${rate(r.passes, r.compared)} |`);
+    L.push("| reference | asked | out of the hand's context (cold, evicted, rules) | compared | verdicts agree | Quick condemns, reference passes | Quick passes, reference condemns |", "|---|---|---|---|---|---|---|");
+    for (const r of s.quickVsRef) {
+      const o = r.outside ?? { cold: 0, evicted: 0, rules: 0 };
+      L.push(`| ${r.mode} | ${r.n} | ${o.cold + o.evicted + o.rules} (${o.cold}, ${o.evicted}, ${o.rules}) | ${r.compared} | ${rate(r.agree, r.compared)} | ${rate(r.condemns, r.compared)} | ${rate(r.passes, r.compared)} |`);
+    }
     L.push("", "Where either answer was a live solve (a library flop is the same entry at every speed):", "");
     L.push("| reference | the move made: compared | agree | Quick condemns | Quick passes | every action: compared | verdicts agree | Best/Correct or not agree | Quick condemns | Quick passes |", "|---|---|---|---|---|---|---|---|---|---|");
     for (const r of s.quickVsRef) {

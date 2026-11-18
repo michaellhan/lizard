@@ -3,7 +3,7 @@
 It mirrors solver/gto/static/worker.js as scripts/pyodide/worker-edits.mjs publishes it:
 - the startup imports in the worker's order: gto.advisor, gto.solver, gto.flop_library first (the worker's "imports"
   stage), then the edited line: engine.pf_stored, engine.pf_icm_study, engine.tree_depth, engine.pf_charts,
-  engine.bunching, engine.mw_near, engine.mw_quick, then `from gto.advisor import Advisor`;
+  engine.bunching, engine.mw_near, engine.mw_quick, engine.size_match, then `from gto.advisor import Advisor`;
 - the two advisors ('fast', 'accurate') with the worker's Config, root sizes, warm_from, spare_prior, hu_settled,
   expl_target, first_look, the multiway street configs, mw_nway_max and the shared solve cache, in the THREADED variant
   (setup.threads >= 4, which a cross-origin isolated desktop browser gets) unless QA_THREADED=0;
@@ -19,9 +19,18 @@ keep this process under ~1 GB; the compiled cores are native (gto/core.py builds
 gitignored) on QA_THREADS threads (default 2) rather than wasm on the browser's helpers; nothing is stopped part way
 (should_stop is never true). Run with -B so no bytecode lands in the repo.
 
+On macOS it runs with MallocLargeCache=0 in its environment (scripts/qa/py.ts sets it; run directly, it starts itself
+again with it set): libmalloc otherwise keeps freed large blocks resident, so a stored preflop solve dropped after a request
+(QA_DROP_PF, about 380 MB of live arrays) stayed in the process's RSS and the next big solve's working set stacked on top
+of it: 1.2 GB peaks that were freed memory, not live data (docs/QA.md, issue C). libmalloc reads the variable when the
+process starts, so it can't be set from here. A browser's wasm heap reuses freed memory and has no such cache.
+
 stdin, one JSON object a line: {"id", "op": "answer", "state", "play"?: {"seat", "hole", "seed"?}}
 stdout, one a line: {"ready": true, ...} once, then {"id", "json": <the answer as the worker posts it, a string>,
-"secs", "rss_mb"} or {"id", "error", "secs", "rss_mb"} (an exception: the worker posts {error} and the page fails the request).
+"secs", "rss_mb", "dropped"?} or {"id", "error", "secs", "rss_mb"} (an exception: the worker posts {error} and the page
+fails the request). "dropped": the boards of the hands' 3-way solves (Advisor._mw_lines, which a later street's ranges are
+narrowed through) the solve cache evicted while the request was answered (Advisor._keep, least recently used past
+QA_CACHE_MB), so the sweep knows a hand's earlier streets are gone without a restart and asks them again.
 """
 import json
 import os
@@ -31,6 +40,10 @@ import subprocess
 import sys
 import time
 import traceback
+
+if __name__ == "__main__" and sys.platform == "darwin" and os.environ.get("MallocLargeCache") != "0":
+    os.environ["MallocLargeCache"] = "0"
+    os.execv(sys.executable, [sys.executable, "-B", os.path.abspath(__file__), *sys.argv[1:]])
 
 for _v in ("VECLIB_MAXIMUM_THREADS", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
@@ -54,11 +67,13 @@ import engine.pf_charts  # noqa: E402,F401
 import engine.bunching  # noqa: E402,F401
 import engine.mw_near  # noqa: E402,F401
 import engine.mw_quick  # noqa: E402,F401
+import engine.size_match  # noqa: E402,F401
 from gto.advisor import Advisor, MW_FAST_STREETS, MW4_FAST_STREETS  # noqa: E402
 from gto.solver import Config, Cancelled  # noqa: E402
 from gto.flop_library import FlopLibrary  # noqa: E402
 from gto.mw_library import MWLibrary  # noqa: E402
 from gto import mwcore as _mwc  # noqa: E402
+from gto.cards import cards_str as _cards_str  # noqa: E402
 
 THREADED = os.environ.get("QA_THREADED", "1") != "0"
 FAST_RIVER = [0.33, 0.75, 1.25] if THREADED else [0.33, 1.25]
@@ -111,6 +126,21 @@ advs['fast'].cache_mb = advs['accurate'].cache_mb = KEEP_MB
 for _a in advs.values():
     _a.should_stop = lambda: False
 
+# the 3-way solves the cache evicts (Advisor._keep), by board, since the last reply
+EVICTED: set = set()
+_keep_own = Advisor._keep
+
+
+def _keep_seen(self, store, key, sol):
+    before = [(a, set(a._mw_lines)) for a in advs.values()]
+    _keep_own(self, store, key, sol)
+    for a, keys in before:
+        for k in keys - set(a._mw_lines):
+            EVICTED.add(_cards_str(list(k[0])))
+
+
+Advisor._keep = _keep_seen
+
 
 def answer(st, pl):
     """The worker's answer() as worker-edits.mjs leaves it."""
@@ -150,8 +180,8 @@ def cur_mb() -> float:
 
 
 # The stored preflop solves read for a request (pf_study, Lizard's pf_solve and pf_icm_study keep each in _HELD, a 6-max
-# one about 580 MB) are dropped after it, so a postflop solve after a preflop-solve read doesn't take the process past
-# ~1 GB. They are read again (0.4 s) at the next preflop-solve request, to the same answer; the browser's worker keeps
+# one about 380 MB of live arrays) are dropped after it, so a postflop solve after a preflop-solve read doesn't take the
+# process past ~1 GB (with MallocLargeCache=0, above, the freed blocks go back to the system). They are read again (0.4 s) at the next preflop-solve request, to the same answer; the browser's worker keeps
 # them. QA_DROP_PF=0 keeps them, as the worker does. A solve run here, not read from the store, is kept either way.
 DROP_PF = os.environ.get("QA_DROP_PF", "1") != "0"
 
@@ -171,31 +201,42 @@ def drop_stored() -> int:
 
 
 CAP = float(os.environ.get("QA_RSS_CAP_MB", "900"))
-out = sys.stdout
-print(json.dumps({"ready": True, "threaded": THREADED, "nolib": NOLIB, "core": not _slow, "cache_mb": KEEP_MB, "drop_pf": DROP_PF,
-                  "secs": round(time.time() - T0, 2), "rss_mb": round(rss_mb())}), file=out, flush=True)
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    req = json.loads(line)
-    t = time.time()
-    try:
-        text = answer(req.get("state") or {}, req.get("play"))
-        msg = {"id": req.get("id"), "json": text}
-    except Exception as e:  # noqa: BLE001  (the worker posts {error} and the page's request fails)
-        msg = {"id": req.get("id"), "error": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()[-2000:]}
-    msg["secs"] = round(time.time() - t, 3)
-    if DROP_PF:
-        drop_stored()
-    msg["rss_mb"] = round(rss_mb())
-    now_mb = cur_mb()
-    msg["cur_mb"] = round(now_mb)
-    # (over the cap, by its RSS now, the reply says so, and the bridge sends what comes next to a fresh process, so no
-    # request is sent to one about to exit)
-    over = now_mb > CAP
-    if over:
-        msg["bye"] = f"rss {now_mb:.0f} MB over the cap {CAP:.0f} (peak {rss_mb():.0f}): exiting"
-    print(json.dumps(msg), file=out, flush=True)
-    if over:
-        sys.exit(3)
+
+
+def main() -> None:
+    out = sys.stdout
+    print(json.dumps({"ready": True, "threaded": THREADED, "nolib": NOLIB, "core": not _slow, "cache_mb": KEEP_MB,
+                      "drop_pf": DROP_PF, "large_cache": os.environ.get("MallocLargeCache", ""),
+                      "secs": round(time.time() - T0, 2), "rss_mb": round(rss_mb())}), file=out, flush=True)
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        req = json.loads(line)
+        t = time.time()
+        EVICTED.clear()
+        try:
+            text = answer(req.get("state") or {}, req.get("play"))
+            msg = {"id": req.get("id"), "json": text}
+        except Exception as e:  # noqa: BLE001  (the worker posts {error} and the page's request fails)
+            msg = {"id": req.get("id"), "error": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()[-2000:]}
+        msg["secs"] = round(time.time() - t, 3)
+        if EVICTED:
+            msg["dropped"] = sorted(EVICTED)
+        if DROP_PF:
+            drop_stored()
+        msg["rss_mb"] = round(rss_mb())
+        now_mb = cur_mb()
+        msg["cur_mb"] = round(now_mb)
+        # (over the cap, by its RSS now, the reply says so, and the bridge sends what comes next to a fresh process, so no
+        # request is sent to one about to exit)
+        over = now_mb > CAP
+        if over:
+            msg["bye"] = f"rss {now_mb:.0f} MB over the cap {CAP:.0f} (peak {rss_mb():.0f}): exiting"
+        print(json.dumps(msg), file=out, flush=True)
+        if over:
+            sys.exit(3)
+
+
+if __name__ == "__main__":
+    main()

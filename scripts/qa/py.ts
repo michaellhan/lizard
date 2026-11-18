@@ -3,6 +3,8 @@
 // asks its worker. One request at a time, as the worker takes them. The Python process runs under the machine's slot
 // wrapper (QA_SLOT), which may hold it until a CPU slot is free (the time is kept in `waited` and logged); it is started
 // again where it exits (over its RSS cap, or a crash) or a request runs past its timeout, and its peak RSS is kept.
+// It starts with MallocLargeCache=0: macOS's allocator otherwise keeps freed large blocks resident, so a dropped stored
+// preflop solve stayed in the RSS and a postflop solve's working set stacked on it (advserver.py's doc).
 import { spawn, type ChildProcess } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,12 +28,16 @@ interface Reply {
   tb?: string;
   secs?: number;
   rss_mb?: number;
+  /** the boards of 3-way solves of earlier streets the solve cache evicted during the request (advserver.py) */
+  dropped?: string[];
 }
 
-/** What one request took: the advisor's own seconds and its RSS after it. */
+/** What one request took: the advisor's own seconds, its RSS after it, and the boards whose 3-way solves of earlier
+ * streets (what a later street of that hand is narrowed through) its solve cache evicted while answering it. */
 export interface Took {
   secs: number;
   rss: number;
+  dropped: string[];
 }
 
 export class PyAdvisor implements SolverTransport {
@@ -42,7 +48,7 @@ export class PyAdvisor implements SolverTransport {
   /** seconds spent waiting for the process to be ready (a CPU slot, the imports, the library's index) */
   waited = 0;
   /** the last request's advisor seconds and RSS */
-  last: Took = { secs: 0, rss: 0 };
+  last: Took = { secs: 0, rss: 0, dropped: [] };
   private p: ChildProcess | null = null;
   /** whether a process is up (false before the first request, and after one said goodbye or was killed: the next starts afresh) */
   get alive(): boolean {
@@ -62,7 +68,7 @@ export class PyAdvisor implements SolverTransport {
 
   private start(): Promise<void> {
     const cmd = [PYTHON, "-B", resolve(HERE, "advserver.py")];
-    const env = { ...process.env, QA_LIBRARY: LIBRARY, ...this.env };
+    const env = { ...process.env, QA_LIBRARY: LIBRARY, MallocLargeCache: "0", ...this.env };
     // (its own process group, so a timeout stops the wrapper and the Python under it together)
     const p = SLOT ? spawn(SLOT, cmd, { cwd: ROOT, env, detached: true }) : spawn(cmd[0]!, cmd.slice(1), { cwd: ROOT, env, detached: true });
     this.p = p;
@@ -163,7 +169,7 @@ export class PyAdvisor implements SolverTransport {
       };
       this.p!.stdin!.write(JSON.stringify({ id, state, ...(opts.play ? { play: opts.play } : {}) }) + "\n");
     });
-    this.last = { secs: reply.secs ?? 0, rss: reply.rss_mb ?? 0 };
+    this.last = { secs: reply.secs ?? 0, rss: reply.rss_mb ?? 0, dropped: reply.dropped ?? [] };
     if (reply.error !== undefined) throw new SolverError("solver-error", reply.error + (reply.tb ? `\n${reply.tb}` : ""));
     // (as the page's: JSON.parse of what the worker posted; a NaN fails here as it would there)
     try {
