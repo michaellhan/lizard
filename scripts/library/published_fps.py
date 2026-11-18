@@ -45,6 +45,9 @@ def main() -> int:
     ap.add_argument("--reason", default="", help="why a spot today's code no longer reproduces is accepted as it is")
     a = ap.parse_args()
     sys.path.insert(0, str(ROOT / "solver"))
+    sys.path.insert(0, str(ROOT))
+    # (the ranges as the browser worker serves them: engine/pf_charts.py's repaired charts, installed at import)
+    import engine.pf_charts  # noqa: F401
     old = {s["id"]: s for s in json.loads(OUT.read_text())["spots"]} if OUT.exists() else {}
     spots = []
     for kind, name in (("hu", "index.json"), ("mw", "mw_index.json")):

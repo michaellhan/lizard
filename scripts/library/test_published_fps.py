@@ -28,6 +28,18 @@ from gto import flop_library as fl  # noqa: E402
 from gto import mw_library as ML  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "published_fps.json"
+
+
+def setUpModule():
+    # the ranges as the browser worker serves them: engine/pf_charts.py's repaired charts (installed at import, after
+    # tree_depth; it leaves every heads-up spot's line as it was and moves the 3-way big blind's range by 1-3 combos)
+    global PF_CHARTS
+    from engine import pf_charts as PF_CHARTS
+    PF_CHARTS.install()
+
+
+def tearDownModule():
+    PF_CHARTS.uninstall()
 SPOTS = json.loads(FIXTURE.read_text())["spots"]
 FIX = ("rebuild the spot with the build that made it (docs/DEPLOYMENT.md section 2; 3-way: MW_REBUILD=1 "
        "scripts/library/mw_every_flop.sh start, \"Rebuilding the 3-way spots after a chart change\") and publish it, "
