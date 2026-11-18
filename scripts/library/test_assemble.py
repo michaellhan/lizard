@@ -568,6 +568,41 @@ class MultiwayTest(unittest.TestCase):
         self.assertNotIn("mw_new_spot", self.mw_index())
         self.assertFalse((self.out / "mw_new_spot").exists())
 
+    def test_a_complete_rebuild_on_new_ranges_replaces_the_spot_whole(self):
+        """The charts moved under a spot (b10afc8): its rebuild on today's ranges replaces it once it holds every flop
+        the published spot does, entries, fingerprints and all; a partial one, or one failing a hash, is left out."""
+        base_bytes = (self.base / "mw_btn_sb_bb" / "Kc7d2h.bin").read_bytes()
+        new_fp = ["x", "y2", "z"]
+        rb = self.tmp / "rebuild"
+        make_mw(rb, {"mw_btn_sb_bb": {"Kc7d2h": mw_entry("Kc7d2h", 0.7)}}, fp=new_fp)   # partial: 4c3c2c to go
+        r = self.stage("--mw", rb)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.mw_index()["mw_btn_sb_bb"]["fp"], ["x", "y", "z"])
+        self.assertIn("1 to go", r.stdout)
+        flops = {"Kc7d2h": mw_entry("Kc7d2h", 0.7), "4c3c2c": mw_entry("4c3c2c", 0.6), "9c8d7h": mw_entry("9c8d7h")}
+        make_mw(rb, {"mw_btn_sb_bb": flops}, fp=new_fp)
+        (rb / "mw_btn_sb_bb" / "9c8d7h.bin").write_bytes(b"tampered")
+        r = self.stage("--mw", rb)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.mw_index()["mw_btn_sb_bb"]["fp"], ["x", "y", "z"])
+        self.assertIn("the published spot kept", r.stdout)
+        (rb / "mw_btn_sb_bb" / "9c8d7h.bin").write_bytes(mw_entry("9c8d7h"))
+        r = self.stage("--mw", rb)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        btn = self.mw_index()["mw_btn_sb_bb"]
+        self.assertEqual(btn["fp"], new_fp)
+        self.assertEqual(btn["flops"], {f: h(b, 10) for f, b in sorted(flops.items())})
+        for f, b in flops.items():
+            self.assertEqual((self.out / "mw_btn_sb_bb" / f"{f}.bin").read_bytes(), b)
+        self.assertEqual(sorted(p.name for p in (self.out / "mw_btn_sb_bb").glob("*.bin")),
+                         sorted(f"{f}.bin" for f in flops))
+        self.assertIn("replaced by the rebuild", r.stdout)
+        # the base's files (hard-linked into the stage) are untouched
+        self.assertEqual((self.base / "mw_btn_sb_bb" / "Kc7d2h.bin").read_bytes(), base_bytes)
+        self.assertEqual(len(self.mw_index()["mw_co_btn_bb"]["flops"]), 1)
+        self.assertFalse(any(p.name.startswith(".") for p in self.out.iterdir() if p.name != ".nojekyll"
+                             and p.name != ".lizard-stage"))
+
     def test_a_spot_never_shrinks_below_the_previous_release(self):
         make_mw(self.mw, {"mw_btn_sb_bb": {"9c8d7h": mw_entry("9c8d7h"), "Qc9d8h": mw_entry("Qc9d8h")}})
         prev = self.tmp / "prev"

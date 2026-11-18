@@ -22,6 +22,13 @@ entry, by rename, so it never lists a file that isn't whole. progress.json holds
 
 --base: the published library whose mw_index.json lists flops not to solve again (default: --solver's
 gto/static/flop_library). Run it through `heavy` (scripts/library/mw_every_flop.sh does, detached).
+
+--rebuild: the charts moved under the published spots (b10afc8, 2026-11-17, changed the big blind's range in all four),
+so this solver's ranges no longer match them and the plain build refuses. With --rebuild it solves each such spot on
+this solver's ranges on every flop, the base's 185 too, into its own --out (MW_REBUILD=1 scripts/library/
+mw_every_flop.sh start writes library-build/sources/mw-rebuild); assemble.py swaps the whole spot in for the published
+one once the rebuild holds every flop it does (replace_mw), and leaves it out until then. Recipe and costs:
+docs/DEPLOYMENT.md, "Rebuilding the 3-way spots after a chart change".
 """
 from __future__ import annotations
 
@@ -107,6 +114,11 @@ def main(argv=None) -> int:
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--limit", type=int, default=0, help="solve at most this many entries this run")
     ap.add_argument("--plan", action="store_true", help="print what is left and exit")
+    ap.add_argument("--rebuild", action="store_true",
+                    help="the spots on this solver's ranges where they differ from the published ones (the charts "
+                         "moved): every flop, the base's too, into --out (mw_every_flop.sh with MW_REBUILD=1: "
+                         "library-build/sources/mw-rebuild), which assemble.py swaps in for the published spot once "
+                         "it holds every flop the published one does")
     a = ap.parse_args(argv)
     solver = a.solver.resolve()
     sys.path.insert(0, str(solver / "scripts"))
@@ -132,9 +144,16 @@ def main(argv=None) -> int:
     for sid, _, line in spots:
         metas[sid] = bml._meta(sid, bml._setup(line))
         bs = next((s for s in bidx["spots"] if s["id"] == sid), None)
-        if bs is not None and (bs["fp"] != metas[sid]["fp"] or abs(bs["pot"] - metas[sid]["pot"]) > 1e-9
-                               or abs(bs["stack"] - metas[sid]["stack"]) > 1e-9):
-            sys.exit(f"{sid}: this solver's ranges, pot or stack differ from the published spot's; not building")
+        moved = bs is not None and (bs["fp"] != metas[sid]["fp"] or abs(bs["pot"] - metas[sid]["pot"]) > 1e-9
+                                    or abs(bs["stack"] - metas[sid]["stack"]) > 1e-9)
+        if a.rebuild:
+            if not moved:
+                sys.exit(f"{sid}: this solver's ranges are the published spot's: nothing to rebuild (drop --rebuild)")
+            print(f"{sid}: rebuilding on {metas[sid]['fp']} (published {bs['fp']})", flush=True)
+            bflops[sid] = set()     # (every flop: the base's entries are on the old ranges)
+        elif moved:
+            sys.exit(f"{sid}: this solver's ranges, pot or stack differ from the published spot's; not building "
+                     f"(--rebuild solves the spot again on them, into its own --out)")
 
     out.mkdir(parents=True, exist_ok=True)
     index = Index(out, ml, spots, metas, tree)
