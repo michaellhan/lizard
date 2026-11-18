@@ -10,9 +10,11 @@ Upstream (solver/gto/advisor.py) at Quick:
   QUICK_CHECKS iterations). Upstream's note on the street says how far the solve was followed (trust_of), and the web's
   MW_PARTIAL_NOTE reads it; where it is followed not at all, the rules narrow as before and say so. The node's own
   solve keeps its whole budget and build time after it (upstream's _mw_narrow_s; the build deadline is moved here).
-  Measured natively (docs/ACCURACY.md section 28): the flop's narrowing ran 69-108 iterations to 0.5-0.8% of the pot
-  in 1.6-2.0 s, followed 92-100%; the turn's 48-50 iterations to 1.3-1.4% in 1.5 s, followed fully; the river's 25 to
-  0.9% in 0.2 s. A Quick decision behind a bet took 1.6-2.1 s longer (the river's 0.1 s).
+  The narrowing's own tables must be built by QUICK_BUILD of its seconds (upstream builds it with no deadline), or it's
+  dropped and the rules narrow (QUICK_SLOW_NOTE). On the four library spots' flops a check-then-bet line is narrowed
+  through the stored solve instead, at no added time; a longer line there (a bet and a call) is solved from the
+  street's start here too (engine/mw_near.py). Measured natively on pots outside the library: docs/ACCURACY.md
+  section 28.
 - The hand's 3-way solves are kept by their place in the hand (Advisor._mw_lines, keyed by gto.advisor._mw_line), which
   says nothing of the mode, and Quick and Fast share the worker's Fast advisor. A Quick answer at a node behind a bet
   stored its solve there, so a Fast request at the same node found it as "this node's own line" and skipped the street's
@@ -24,16 +26,20 @@ Upstream (solver/gto/advisor.py) at Quick:
   turn's tables over every sixth river, one bet size of half the pot). Upstream measured those buckets' values 5.3-10.9%
   of the pot from the 32-bucket game's, against Fast's 12 buckets at 2.2-3.1 (advisor.py, MW_FAST_STREETS). Its
   distance from equilibrium is measured in that small game, so a fully run solve read "converged". Its answer now
-  carries solver.approximate (the web's provenance band "approximate") and QUICK_FLOP_NOTE.
+  carries solver.approximate (the web's provenance band "approximate"), its reason in solver.approximate_reason
+  (upstream's solver.approximate means short of solver.target_pct, which isn't set here), and QUICK_FLOP_NOTE.
 - After a line an earlier heads-up street's solve rarely takes (RARE_LINE), the street is solved again from the node
   (Advisor._rare_resolver, RARE_RESOLVE), except at Quick, where the range after it was the rules'. Here Quick re-solves
   it too, for at most QUICK_RARE seconds; natively it settled (300 iterations) well inside that, and the answer took
   0.06-0.1 s longer, its own solve 15-25% fewer iterations (still 0.5-0.8% of the pot). It reaches what Quick walks
   through a solve: a library flop, or a street already solved in the hand (your advice on it); an earlier street Quick
   doesn't solve is narrowed by the rules, as before, and says so. The answer's off_solution then
-  carries {"why": "rare", "resolved": true}, as Fast's does.
+  carries {"why": "rare", "resolved": true}, as Fast's does. A re-solve short of settled (trust_of under 1: a slow
+  device's 0.5 s) is dropped, so the line stays the rules' and off_solution says so ("resolved" would claim the play
+  after it was solved while the rules gave part of it).
 
-Imported by the worker at start (scripts/pyodide/worker-edits.mjs), after engine.mw_near; solver/ is untouched.
+Imported by the worker at start (scripts/pyodide/worker-edits.mjs), after engine.mw_near, and only the worker: a local
+`python -m gto.server` runs upstream's Advisor without it. solver/ is untouched.
 """
 from __future__ import annotations
 
@@ -41,6 +47,7 @@ import contextvars
 import time
 
 from gto import advisor as A
+from gto import multiway_solver as MW
 
 # seconds: the most the current 3-way street's narrowing solve runs at Quick, behind a bet or raise, by street (0 or
 # none: the rules). It stops sooner once the narrowing would follow it fully (PRIOR_TRUST's lower bound: 0.5% of the
@@ -56,7 +63,13 @@ QUICK_FLOP_NOTE = ("Approximate: a quick answer's 3-way flop is solved in a smal
                    "turn and river, one bet size of half the pot), so its mix and EVs are a rough guide: its distance "
                    "from equilibrium is measured in that game, not the full one (Fast plays 12 buckets and bets of 33 "
                    "and 75% pot)")
+QUICK_FLOP_REASON = QUICK_FLOP_NOTE[len("Approximate: "):]   # (solver.approximate_reason: the band's reason)
 QUICK_NARROW_NOTE = "{street}: a quick answer's narrowing solve of this street ran {secs:.1f} s in {game}"
+# the narrowing solve's tree and tables done by this share of its QUICK_NARROW seconds, or it's dropped (the rules
+# narrow, as before): upstream builds a street's narrowing solve with no deadline, and the iterations alone stop on time
+QUICK_BUILD = A.MW_QUICK_BUILD
+QUICK_SLOW_NOTE = ("{street}: a quick answer's narrowing solve of this street wasn't built in {secs:.1f} s, so the "
+                   "betting rules narrow it")
 
 _QUICK = contextvars.ContextVar("lizard_quick_request", default=False)   # (set for each request: _advise_at)
 
@@ -105,19 +118,50 @@ def _wrap_walk(upstream):
             A.MW_SETTLED = max(A.MW_SETTLED, A.PRIOR_TRUST[st.name][0])    # (read by Advisor._mw_run as it runs)
             A.MW_CHECKS = QUICK_CHECKS
         s0 = self._mw_narrow_s
+        if quick:
+            self._mwq_deadline, self._mwq_slow = time.time() + QUICK_BUILD * secs, False
         try:
             ok = upstream(self, ranges, before, board, st, stk, hero, hole, streets, notes, current)
         finally:
             if saved is not None:
                 self._quick, self.time_budget, self.mw_street_config, A.MW_SETTLED, A.MW_CHECKS = saved
+                self._mwq_deadline = None
             for k, v in hidden.items():
                 self._mw_lines.setdefault(k, v)
         if quick and ok and self._mw_narrow_s > s0:   # (narrowed through it: upstream's note before says how far)
             notes.append(QUICK_NARROW_NOTE.format(street=st.name, secs=self._mw_narrow_s - s0,
                                                   game=QUICK_GAME_WORDS.get(st.name, "the quick game")))
+        elif quick and getattr(self, "_mwq_slow", False):
+            notes.append(QUICK_SLOW_NOTE.format(street=st.name, secs=QUICK_BUILD * secs))
         return ok
     _mw_walk.mw_quick_upstream = upstream
     return _mw_walk
+
+
+def _wrap_street_solve(upstream):
+    """Advisor._mw_street_solve with a build deadline while a quick answer narrows (_mwq_deadline, set by the walk
+    above): its MultiwaySolver gets `deadline` (BuildTooSlow past it, as upstream's Quick node solve), and a build too
+    slow returns None, so the walk narrows by the rules rather than stretching the answer."""
+    def _mw_street_solve(self, board, ranges, st, stk, acts=(), budget=None):
+        dl = getattr(self, "_mwq_deadline", None)
+        if dl is None:
+            return upstream(self, board, ranges, st, stk, acts, budget)
+        real = MW.MultiwaySolver
+
+        def build(*args, **kwargs):
+            MW.MultiwaySolver = real        # (put back at once: only this build takes the deadline)
+            kwargs.setdefault("deadline", dl)
+            return real(*args, **kwargs)
+        MW.MultiwaySolver = build
+        try:
+            return upstream(self, board, ranges, st, stk, acts, budget)
+        except MW.BuildTooSlow:
+            self._mwq_slow = True
+            return None
+        finally:
+            MW.MultiwaySolver = real
+    _mw_street_solve.mw_quick_upstream = upstream
+    return _mw_street_solve
 
 
 def _wrap_multiway_solve(upstream):
@@ -141,7 +185,11 @@ def _wrap_multiway_solve(upstream):
         if isinstance(res, dict) and getattr(self, "_quick", False) and not self._study and cur.name == "flop" \
                 and isinstance(res.get("solver"), dict) and len(remaining) == 3 \
                 and not set(remaining) & set(cur.allin) and A._mw_applies(remaining, cur, stk):
-            res["solver"]["approximate"] = True
+            sv = res["solver"]
+            sv["approximate"] = True
+            # (its own reason: upstream's solver.approximate means short of solver.target_pct, which this doesn't set)
+            sv["approximate_reason"] = f"{sv['approximate_reason']}; {QUICK_FLOP_REASON}" \
+                if sv.get("approximate_reason") else QUICK_FLOP_REASON
             res.setdefault("notes", []).append(QUICK_FLOP_NOTE)
         return res
     _multiway_solve.mw_quick_upstream = upstream
@@ -165,9 +213,12 @@ def _wrap_rare(upstream):
             saved = self.prior_budget
             self.prior_budget = QUICK_RARE
             try:
-                return inner(*args)
+                got = inner(*args)
             finally:
                 self.prior_budget = saved
+            # (a re-solve short of settled would leave the play after the line partly the rules' while off_solution
+            # said "resolved": dropped, so the line stays the rules' and says so, as before)
+            return got if got is not None and got[1] >= 1.0 else None
         return resolve
     _rare_resolver.mw_quick_upstream = upstream
     return _rare_resolver
@@ -181,6 +232,7 @@ def _up(obj, name):
 _mw_line = _wrap_line(_up(A, "_mw_line"))
 _advise_at = _wrap_advise_at(_up(A.Advisor, "_advise_at"))
 _walk = _wrap_walk(_up(A.Advisor, "_mw_walk"))
+_street = _wrap_street_solve(_up(A.Advisor, "_mw_street_solve"))
 _mws = _wrap_multiway_solve(_up(A.Advisor, "_multiway_solve"))
 _rare = _wrap_rare(_up(A.Advisor, "_rare_resolver"))
 
@@ -190,6 +242,7 @@ def install() -> None:
     A._mw_line = _mw_line
     A.Advisor._advise_at = _advise_at
     A.Advisor._mw_walk = _walk
+    A.Advisor._mw_street_solve = _street
     A.Advisor._multiway_solve = _mws
     A.Advisor._rare_resolver = _rare
 

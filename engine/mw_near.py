@@ -26,7 +26,17 @@ weight moved; each built range holds 96.6-98.5% of today's), under NEAR_DIST. Pr
 solver/scripts/bench_mw_formats.py prices a borrowed spot (today's ranges solved on the library's game until settled,
 the stored mixes at the stored decisions priced by that solve's EVs): see docs/ACCURACY.md section 28.
 
-The worker imports this module at start (scripts/pyodide/worker-edits.mjs); solver/ is untouched.
+Two more changes to the walk that narrows a 3-way street through a solve (Advisor._mw_walk, wrapped below):
+
+- The library stores a flop's first decisions only, so a line with a bet and then another action stops at a node it
+  doesn't hold. Upstream then narrows the street by the rules, where with no library it would solve the street from its
+  start (Fast always, Quick through engine/mw_quick.py): the walk is run again with the library hidden.
+- A later street, or a flop decision behind a bet, whose ranges were narrowed through a spot served as built carries
+  `ranges_built`, solver.approximate with solver.approximate_reason, and a note starting "Approximate: " (the walk's
+  own note names the spot as built too). Upstream's note says "followed 100%" there, which the web reads as settled.
+
+The worker imports this module at start (scripts/pyodide/worker-edits.mjs), and only the worker: a local
+`python -m gto.server` runs upstream's Advisor without it. solver/ is untouched.
 """
 from __future__ import annotations
 
@@ -111,8 +121,13 @@ def near_built(lib, ranges, pot: float, stack: float) -> Optional[dict]:
 
 
 def built_text(b: dict) -> str:
-    """How a spot served as built differs from this pot, in words."""
-    seats = b["built"]["seats"]
+    """How a spot served as built differs from this pot, in words. The seats named are the pot's own (`pot_seats`,
+    which _mw_library_solution adds), where they differ from the spot's: HJ opens, CO and BB call reads the spot built
+    on HJ opens, BTN and BB call when today's charts give the two lines the same ranges."""
+    spot = list(b["built"]["seats"])
+    seats = list(b["built"].get("pot_seats") or spot)
+    if len(seats) != len(spot):
+        seats = spot
     moved = [(s, d / 2.0 * 100.0) for s, d in zip(seats, b["dist"]) if d > 1e-9]
     same = [s for s, d in zip(seats, b["dist"]) if d <= 1e-9]
     if not moved:
@@ -121,7 +136,15 @@ def built_text(b: dict) -> str:
         diff = " and ".join(f"{s}'s range differs from this pot's by {m:.1f}% of its weight" for s, m in moved)
         if same:
             diff += f"; {' and '.join(same)}'s {'is' if len(same) == 1 else 'are'} the same"
-    return f"this spot as built on the charts of {b['built']['date']}, which have changed since: {diff}"
+    swapped = [f"{p} sits where the spot's {s} did" for p, s in zip(seats, spot) if p != s]
+    tail = f"; {', '.join(swapped)}" if swapped else ""
+    return f"this spot as built on the charts of {b['built']['date']}, which have changed since: {diff}{tail}"
+
+
+def prior_text(seen: list) -> str:
+    """The ranges of an answer narrowed through spots served as built, in words."""
+    return "; ".join(f"the ranges through the {x['street']} come from the precomputed 3-way solve of {x['text']}"
+                     for x in seen)
 
 
 # ----------------------------------------------------------------------------- the wraps (each reload-safe)
@@ -164,9 +187,15 @@ def _wrap_text(upstream):
 
 
 def _wrap_lib_solution(upstream):
-    """Advisor._mw_library_solution, its answer kept on the advisor (_mw_lib_last) for _mw_walk's note below."""
-    def _mw_library_solution(self, *args, **kwargs):
-        sol = upstream(self, *args, **kwargs)
+    """Advisor._mw_library_solution: hidden while _mw_lib_hide is set (the walk's retry below), a spot served as built
+    told the pot's own seats (built_text), and its answer kept on the advisor (_mw_lib_last) for _mw_walk below."""
+    def _mw_library_solution(self, entering, flop, st, stk):
+        if getattr(self, "_mw_lib_hide", False):
+            return None
+        sol = upstream(self, entering, flop, st, stk)
+        b = getattr(sol, "borrowed", None)
+        if b and b.get("built"):
+            b["built"] = {**b["built"], "pot_seats": [p for p in st.order if p in st.players_start]}
         self._mw_lib_last = sol
         return sol
     _mw_library_solution.mw_near_upstream = upstream
@@ -174,26 +203,136 @@ def _wrap_lib_solution(upstream):
 
 
 LIB_SRC = "through the precomputed 3-way solve ("
+ADVICE_SRCS = ("through the solve your advice came from (", "through the solve Study answered from (")
+
+
+def _heroes(self, st, hero):
+    return [hero] + ([p for p in st.players_start if p != hero] if self._study else [])
+
+
+def _line_hit(self, bk, st, hero, hole, stk, streets):
+    """The hand's solve upstream's walk follows on this street (Advisor._mw_walk: the latest in _mw_lines), or None."""
+    n = len(streets.get(st.name) or [])
+    for k in range(n, -1, -1):
+        for x in _heroes(self, st, hero):
+            h = self._mw_lines.get(A._mw_line(bk, x, hole, stk, streets, st.name, k))
+            if h is not None:
+                return h
+    return None
+
+
+def _library_lines(self, bk, st, hero, hole, stk, streets) -> dict:
+    """The hand's solves of this street in _mw_lines that are the 3-way library's (a flop's first decision answered
+    from it: Advisor._mw_from_library keeps it there for the opponents' moves and later streets)."""
+    n = len(streets.get(st.name) or [])
+    out = {}
+    for k in range(n + 1):
+        for x in _heroes(self, st, hero):
+            key = A._mw_line(bk, x, hole, stk, streets, st.name, k)
+            h = self._mw_lines.get(key)
+            if h is not None and isinstance(h[0], ML.LibraryMWSolution):
+                out[key] = h
+    return out
+
+
+def _built_of(sol) -> Optional[dict]:
+    b = getattr(sol, "borrowed", None) or {}
+    return b if b.get("built") else None
 
 
 def _wrap_walk(upstream):
-    """Advisor._mw_walk: a street narrowed through a spot served as built says so in its note ("...through the
-    precomputed 3-way solve of this spot as built on the charts of <date> (N iterations, ...)"; provenance.ts's
-    MW_PARTIAL_NOTE still reads it)."""
+    """Advisor._mw_walk, two changes.
+
+    A library line it can't follow: the 3-way library stores a flop's first decisions only ([], check, check-check), so
+    a line with a bet followed by another action ([check, bet, call], or a fold) stops at a node it doesn't hold, and
+    upstream then narrows the street by the rules, never solving it from its start as it does with no library (the
+    library is taken as the street's solve before mw_current_solve is considered). Here the walk is run again with the
+    library hidden (its own solve and the hand's answers read from it in _mw_lines), so the street is solved from its
+    start where upstream would solve it (Fast, and Quick through engine/mw_quick.py).
+
+    A street narrowed through a spot served as built says so: its note ("...through the precomputed 3-way solve of this
+    spot as built on the charts of <date> (N iterations, ...)", or "...through the solve your advice came from, the
+    precomputed 3-way solve of this spot as built on ..."; provenance.ts's MW_PARTIAL_NOTE still reads it), and the
+    answer is marked approximate (_mark_answer, through _advise_at below)."""
     def _mw_walk(self, ranges, before, board, st, stk, hero, hole, streets, notes, current=False):
         self._mw_lib_last = None
         n = len(notes)
         ok = upstream(self, ranges, before, board, st, stk, hero, hole, streets, notes, current)
-        sol = getattr(self, "_mw_lib_last", None)
-        b = getattr(sol, "borrowed", None) or {}
-        if ok and b.get("built") and len(notes) > n and LIB_SRC in notes[-1]:
-            notes[-1] = notes[-1].replace(
-                LIB_SRC, f"through the precomputed 3-way solve of this spot as built on the charts of "
-                         f"{b['built']['date']} (", 1)
-        self._mw_lib_last = None
-        return ok
+        lib, self._mw_lib_last = getattr(self, "_mw_lib_last", None), None
+        bk = board[:{"flop": 3, "turn": 4, "river": 5}[st.name]]
+        if ok:
+            if len(notes) > n:
+                _say_built(self, st, notes, lib, lambda: _line_hit(self, bk, st, hero, hole, stk, streets))
+            return ok
+        hidden = _library_lines(self, bk, st, hero, hole, stk, streets)
+        if lib is None and not hidden:
+            return ok
+        for k in hidden:
+            del self._mw_lines[k]
+        self._mw_lib_hide = True
+        try:
+            return upstream(self, ranges, before, board, st, stk, hero, hole, streets, notes, current)
+        finally:
+            self._mw_lib_hide = False
+            for k, v in hidden.items():
+                self._mw_lines.setdefault(k, v)
     _mw_walk.mw_near_upstream = upstream
     return _mw_walk
+
+
+def _say_built(self, st, notes, lib, hit_of):
+    """The walk's note (notes[-1]) on a street narrowed through a spot served as built, rewritten to say so, and the
+    spot kept for the answer (_mw_built_seen)."""
+    b, src = None, None
+    if LIB_SRC in notes[-1]:
+        b, src = _built_of(lib), LIB_SRC
+    else:
+        src = next((s for s in ADVICE_SRCS if s in notes[-1]), None)
+        if src is not None:
+            hit = hit_of()
+            b = _built_of(hit[0]) if hit is not None and isinstance(hit[0], ML.LibraryMWSolution) else None
+    if b is None:
+        return
+    words = f"the precomputed 3-way solve of this spot as built on the charts of {b['built']['date']} ("
+    notes[-1] = notes[-1].replace(src, "through " + words if src == LIB_SRC else src[:-2] + ", " + words, 1)
+    seen = getattr(self, "_mw_built_seen", None)
+    if seen is not None and not any(x["street"] == st.name for x in seen):
+        seen.append({"street": st.name, "spot": b["spot"], "commit": b["built"]["commit"],
+                     "date": b["built"]["date"], "dist": list(b["dist"]), "cover": list(b["cover"]),
+                     "text": built_text(b)})
+
+
+def _mark_answer(res: dict, seen: list) -> None:
+    """An answer whose ranges were narrowed through spots served as built: `ranges_built` (each street's spot, date and
+    distances), solver.approximate with solver.approximate_reason (the web's band "approximate"; the reason in words),
+    and a note that starts "Approximate: ". Not an error or a skip."""
+    if not isinstance(res, dict) or "error" in res or "skipped" in res or res.get("cancelled"):
+        return
+    why = prior_text(seen)
+    res["ranges_built"] = [dict(x) for x in seen]
+    sv = res.get("solver")
+    if isinstance(sv, dict):
+        sv["approximate"] = True
+        sv["approximate_reason"] = f"{sv['approximate_reason']}; {why}" if sv.get("approximate_reason") else why
+    note = f"Approximate: {why}"
+    if isinstance(res.get("notes"), list) and note not in res["notes"]:
+        res["notes"].append(note)
+
+
+def _wrap_advise_at(upstream):
+    """Advisor._advise_at, the answer marked where a street before it was narrowed through a spot served as built."""
+    def _advise_at(self, state, *args, **kwargs):
+        saved = getattr(self, "_mw_built_seen", None)
+        self._mw_built_seen = seen = []
+        try:
+            res = upstream(self, state, *args, **kwargs)
+        finally:
+            self._mw_built_seen = saved
+        if seen:
+            _mark_answer(res, seen)
+        return res
+    _advise_at.mw_near_upstream = upstream
+    return _advise_at
 
 
 _spot_ranges = _wrap_spot_ranges(getattr(ML._spot_ranges, "mw_near_upstream", ML._spot_ranges))
@@ -204,6 +343,7 @@ borrowed_text = _wrap_text(getattr(ML.LibraryMWSolution.borrowed_text, "mw_near_
 _lib_solution = _wrap_lib_solution(getattr(A.Advisor._mw_library_solution, "mw_near_upstream",
                                            A.Advisor._mw_library_solution))
 _walk = _wrap_walk(getattr(A.Advisor._mw_walk, "mw_near_upstream", A.Advisor._mw_walk))
+_advise = _wrap_advise_at(getattr(A.Advisor._advise_at, "mw_near_upstream", A.Advisor._advise_at))
 
 
 def install() -> None:
@@ -214,6 +354,7 @@ def install() -> None:
     ML.LibraryMWSolution.borrowed_text = borrowed_text
     A.Advisor._mw_library_solution = _lib_solution
     A.Advisor._mw_walk = _walk
+    A.Advisor._advise_at = _advise
 
 
 install()

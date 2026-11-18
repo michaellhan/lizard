@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import gto.advisor as A  # noqa: E402
+from gto import multiway_solver as MW  # noqa: E402
 from engine import mw_quick as MQ  # noqa: E402
 from test_mw_narrowing import BOARD, FLOP, PRE, worker_fast  # noqa: E402
 
@@ -126,6 +127,17 @@ class Rare(unittest.TestCase):
         self.assertEqual(seen, [MQ.QUICK_RARE])
         self.assertEqual((a.prior_budget, a._quick), (0.3, True))
 
+    def test_a_re_solve_short_of_settled_is_dropped(self):
+        """A re-solve its 0.5 s left unsettled (trust under 1: the play after the line partly the rules') isn't taken,
+        so off_solution doesn't say "resolved" and the line stays the rules', as before."""
+        a = worker_fast()
+        a._quick, a.prior_budget = True, 0.3
+        a._solve_cached = lambda board, r0, r1, pot, eff, budget, **kw: "solve"
+        a._expl = lambda sol: 3.0     # (the flop's trust_of: 0.44)
+        resolve = a._rare_resolver((1, 2, 3), types.SimpleNamespace(pot_start=5.5, name="flop"), 97.5, None)
+        self.assertIsNone(resolve(None, None, (0.0, 1.81), 1, 0))
+        self.assertEqual(a.prior_budget, 0.3)
+
     def test_off_it_keeps_the_rules(self):
         saved, MQ.QUICK_RARE = MQ.QUICK_RARE, 0.0
         try:
@@ -135,6 +147,54 @@ class Rare(unittest.TestCase):
                                                None))
         finally:
             MQ.QUICK_RARE = saved
+
+
+class BuildDeadline(unittest.TestCase):
+    def test_a_narrowing_too_slow_to_build_leaves_the_rules(self):
+        """The narrowing solve's tables not built by QUICK_BUILD of its seconds: dropped (the rules narrow, as before),
+        a note says so, and gto.multiway_solver is left as it was."""
+        real = MW.MultiwaySolver
+        saved = MQ.QUICK_BUILD
+        MQ.QUICK_BUILD = 1e-9
+        try:
+            a = worker_fast()
+            seen = []
+
+            def node_solve(hero, hole, board, ranges, remaining, cur, stk, t0, notes, line=None, positions=None):
+                seen.extend(notes)
+                raise Stop()
+            a._multiway_solve = node_solve
+            a.advise(dict(QUICK))
+        finally:
+            MQ.QUICK_BUILD = saved
+        self.assertIs(MW.MultiwaySolver, real)
+        self.assertIsNone(a._mwq_deadline)
+        self.assertTrue(any(n.startswith("flop: a quick answer's narrowing solve of this street wasn't built in")
+                            for n in seen), seen)
+        self.assertTrue(any(n.startswith("flop: multiway, ranges narrowed by simple betting rules") for n in seen), seen)
+
+    def test_only_a_quick_narrowing_gets_the_deadline(self):
+        """The street solve's MultiwaySolver gets `deadline` while a quick answer narrows (_mwq_deadline), not
+        otherwise (Fast's narrowing, and upstream's other solves)."""
+        real, got = MW.MultiwaySolver, []
+
+        def record(*args, **kwargs):
+            got.append(kwargs.get("deadline"))
+            raise Stop()
+        st = types.SimpleNamespace(name="flop", order=["BB", "UTG", "BTN"], players_start=["BB", "UTG", "BTN"],
+                                   pot_start=8.0, inv_start={"BB": 2.5, "UTG": 2.5, "BTN": 2.5})
+        stk = {"BB": 100.0, "UTG": 100.0, "BTN": 100.0}
+        a = worker_fast()
+        MW.MultiwaySolver = record
+        try:
+            for dl in (None, 123.0):
+                a._mwq_deadline = dl
+                with self.assertRaises(Stop):
+                    a._mw_street_solve(A.parse_cards(BOARD), {}, st, stk, acts=FLOP, budget=1.0)
+                self.assertIs(MW.MultiwaySolver, record)
+        finally:
+            MW.MultiwaySolver = real
+        self.assertEqual(got, [None, 123.0])
 
 
 class Solved(unittest.TestCase):
@@ -170,6 +230,9 @@ class Solved(unittest.TestCase):
                           prior_budget=0.3, quick=True))
         self.assertTrue(q.get("solved"), q.get("notes"))
         self.assertIs(q["solver"].get("approximate"), True)
+        # (its own reason: no target_pct, so not "short of its target")
+        self.assertEqual(q["solver"].get("approximate_reason"), MQ.QUICK_FLOP_REASON)
+        self.assertNotIn("target_pct", q["solver"])
         self.assertIn(MQ.QUICK_FLOP_NOTE, q["notes"])
 
 
