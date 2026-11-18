@@ -669,9 +669,12 @@ export function SetupForm({
             className="basis-full text-xs text-muted"
           >
             Not a full solve.{" "}
-            {pfSizes
-              ? "Your raise uses its size where it answers; those hands leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."
-              : "Spots it can\u2019t answer (about 30%) keep the chart\u2019s grade. Its sizes cut that to 4% but leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."}
+            {p === 6
+              ? // (6-max grades ask the games stored at the charts' own 3bet and 4bet sizes, so the second box moves no button)
+                "Spots it can\u2019t answer (about 7% of hands at 100bb) keep the chart\u2019s grade. At 6 players its raise sizes are the charts\u2019 own."
+              : pfSizes
+                ? "Your raise uses its size where it answers; those hands leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."
+                : "Spots it can\u2019t answer keep the chart\u2019s grade. Its sizes answer more of them but leave the flop library (a 3-bet of 12bb, not the chart\u2019s 10bb)."}
           </p>
         </>
       )}

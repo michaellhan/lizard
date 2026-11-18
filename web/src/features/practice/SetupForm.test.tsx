@@ -6,8 +6,8 @@ import type { SessionOptions } from "./practice";
 import { SetupForm, TYPED_WAIT } from "./SetupForm";
 
 const OPTS: SessionOptions = { seat: "moves", preflopOnly: false, pot: null, ante: 0, straddle: false, carry: false, sizes: null, rake: 0, rakeCap: 0 };
-const open = (opts: SessionOptions = OPTS, onStart = vi.fn()) => {
-  render(<SetupForm players={6} stack={100} opts={opts} onEdit={() => {}} onStart={onStart} />);
+const open = (opts: SessionOptions = OPTS, onStart = vi.fn(), players = 6) => {
+  render(<SetupForm players={players} stack={100} opts={opts} onEdit={() => {}} onStart={onStart} />);
   return onStart;
 };
 const pick = (name: string, value: string) => fireEvent.change(screen.getByRole("combobox", { name }), { target: { value } });
@@ -240,7 +240,8 @@ describe("grading preflop by the preflop solve", () => {
       expect(start.mock.calls[1]![2]).not.toHaveProperty("pfSizes");
     });
     it("says its cost in plain words before you tick it, and what it is once you have", () => {
-      open();
+      // (at 5 players: the stored game there is the tree's own, whose blind 3bet is 12bb)
+      open(OPTS, vi.fn(), 5);
       const note = document.getElementById("pf-note")!;
       expect(sizes()).toHaveAccessibleDescription(/Not a full solve/);
       expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
@@ -249,6 +250,13 @@ describe("grading preflop by the preflop solve", () => {
       expect(note).toHaveTextContent("Your raise uses its size where it answers");
       expect(note).toHaveTextContent("12bb, not the chart\u2019s 10bb");
       expect(note).toHaveTextContent("leave the flop library");
+    });
+    it("at 6 players, says its sizes are the charts' own and what's left ungraded", () => {
+      open();
+      const note = document.getElementById("pf-note")!;
+      expect(note).toHaveTextContent("about 7% of hands at 100bb");
+      expect(note).toHaveTextContent("At 6 players its raise sizes are the charts\u2019 own.");
+      expect(note).not.toHaveTextContent("12bb");
     });
     it("doesn't go on into a game with no stored solve", () => {
       const start = open();
