@@ -400,7 +400,7 @@ test("11b. A river drill and a turn bet drill: answered by a live solve, or refu
   const decisions = () => panel.getByText("Decisions", { exact: true }).locator("..");
   for (const [view, street, words] of [
     ["oop", "river", /first to act on the river|to act first on the river/],
-    ["checkfaces", "turn", /checks the turn, \w+ bets 75%/],
+    ["checkfaces", "turn", /\w+ checks, \w+ bets 75%/],
   ] as const) {
     await page.goto(`/lizard/practice/?tab=drills&spot=srp_sb_bb_2max&street=${street}&view=${view}`);
     const answers = panel.getByRole("group", { name: "Your options" }).getByRole("button").first();
@@ -457,7 +457,7 @@ test("7b. Push/fold: all-in or fold, graded by frequency, and named a model", as
   expect(names).toMatch(/fold/);
   expect(names).toMatch(/all-in|call/);
   await options(page).first().click();
-  await expect(page.getByText("Decisions graded")).toBeVisible();
+  await expect(page.getByText("Decisions graded", { exact: true })).toBeVisible();
   await expect(page.getByText(/Push\/fold model \(not a solve\)/).first()).toBeVisible();
   await expect(page.getByText(/^Graded by push\/fold frequency/).first()).toBeVisible();
   await clean(page, problems);
@@ -470,7 +470,7 @@ test("7e. A 4-bet pot drill plays from the flop, with the preflop said to come f
   const pot = Number((await page.getByRole("region", { name: /table/i }).first().innerText()).match(/pot\s*([\d.]+)/i)?.[1]);
   expect(pot).toBeGreaterThan(30);
   await options(page).first().click();
-  await expect(page.getByText("Decisions graded")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText("Decisions graded", { exact: true })).toBeVisible({ timeout: 120_000 });
   await clean(page, problems);
 });
 
@@ -716,14 +716,14 @@ test("7c. A tournament session in prize equity says so, with chip EV apart from 
   await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-tournament.png" });
   await options(page).first().click();
-  await expect(page.getByText("Decisions graded")).toBeVisible();
+  await expect(page.getByText("Decisions graded", { exact: true })).toBeVisible();
   await expect(page.getByTitle(/chip chart with a risk premium|prize equity · /).first()).toBeVisible();
   await page.screenshot({ path: "e2e-results/shots/desktop/practice-tournament-graded.png", fullPage: true });
 
   await session(page, "tournament", () => page.getByLabel("Answers in").selectOption("chips"));
   await expect(options(page).first()).toBeVisible({ timeout: 120_000 });
   await options(page).first().click();
-  await expect(page.getByText("Decisions graded")).toBeVisible();
+  await expect(page.getByText("Decisions graded", { exact: true })).toBeVisible();
   await clean(page, problems);
 });
 

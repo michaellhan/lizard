@@ -290,7 +290,7 @@ test("Session stats: a real session's figures in History, each way of grading ap
     await page.getByLabel("Stack in big blinds").fill("40");
   });
   // a chart's frequency before the flop and a live solve's EV after it, in the one session
-  const score = page.getByText(/Decisions graded/).first();
+  const score = page.getByText("Decisions graded", { exact: true }).first();
   const live = page.getByRole("button", { name: /^Live solve/ }).first();
   const charts = page.getByText(/Preflop charts/).first();
   let [sawLive, sawChart] = [false, false];
@@ -553,11 +553,12 @@ test("Leak drills on every street: turn and river decisions dealt from what Quic
   await expect(decision.getByRole("group", { name: "What graded it" })).toContainText("Version:");
   expect(engine, "the engine, loaded for a drill").toEqual([]);
 
-  // a rough solve stops at Inaccuracy, what's kept with no mix or no pot is counted and not dealt
+  // an unmeasured answer stops at Inaccuracy short of a clear blunder (a 1bb loss, 10% of the pot; 20% or more past the
+  // noise would be a Blunder as measured), what's kept with no mix or no pot is counted and not dealt
   const sit = "Test spot";
   const rest = { situation: sit, source: "live", label: "Live solve", action: "check", street: "turn", pos: turn.pos, evLossBb: 0, byEv: true, verdict: "Best" };
   await putStore(page, "decisions", [
-    { ...turn, ...rest, id: `${cash.id}|turn|90`, i: 0, pot: 10, capped: true, mix: [["check", 1, 10], ["bet 5", 0, 0]] },
+    { ...turn, ...rest, id: `${cash.id}|turn|90`, i: 0, pot: 10, capped: true, mix: [["check", 1, 10], ["bet 5", 0, 9]] },
     { ...turn, ...rest, id: `${cash.id}|turn|91`, i: 0, pot: 10, mix: undefined },
     { ...turn, ...rest, id: `${cash.id}|turn|92`, i: 0, pot: 0, mix: [["check", 1, 10], ["bet 5", 0, 0]] },
   ]);
@@ -565,9 +566,9 @@ test("Leak drills on every street: turn and river decisions dealt from what Quic
   await expect(drill).toContainText("2 of this leak's graded decisions aren't dealt here, as there's nothing to grade a pick against: 1 kept no mix with the grade, 1 kept EVs with no pot to measure a pick against.");
   await expect(decision).toContainText("Decision 1 of 1");
   await picks.last().click();
-  await expect(decision.getByText("Inaccuracy").first()).toBeVisible();
-  await expect(decision.getByText("Blunder")).toHaveCount(0);
-  await expect(decision.getByRole("group", { name: "What graded it" })).toContainText("A rough or cut-short solve can't condemn a line, so this grade stops at Inaccuracy.");
+  await expect(decision.getByText("Inaccuracy", { exact: true }).first()).toBeVisible();
+  await expect(decision.getByText("Blunder", { exact: true })).toHaveCount(0);
+  await expect(decision.getByRole("group", { name: "What graded it" })).toContainText(/can't condemn a line: this grade stops at Inaccuracy, short of a clear blunder/);
 
   // a tournament hand's decision, in a spot of its own, is left out of what's dealt
   const tour = hands.find((h) => h.tournament !== undefined)!;
@@ -643,7 +644,8 @@ test("Practice's preflop solve at tablet height, both boxes ticked: the move is 
   await sizes.focus();
   await page.keyboard.press("Space");
   await expect(sizes).toBeChecked();
-  await expect(page.locator("#pf-note")).toContainText("Your raise uses its size where it answers");
+  // (at 6 players the stored games are at the charts' own sizes, so the second box moves no button: SetupForm's note)
+  await expect(page.locator("#pf-note")).toContainText("At 6 players its raise sizes are the charts\u2019 own.");
   await page.screenshot({ path: "e2e-results/shots/tablet/pf-both-boxes-form.png" });
   expect(await overflow(page), "sideways scroll with both boxes, px").toBeLessThanOrEqual(0);
   const start = await page.getByRole("button", { name: "New session" }).boundingBox();

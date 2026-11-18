@@ -25,7 +25,7 @@ test("Phase 5: a drill set up, played, graded with numbers, kept, opened in Stud
   await page.getByRole("button", { name: "New session" }).click();
 
   // the biggest raise every time: a fold-chart hand raised is a real miss
-  const graded = page.getByText("Decisions graded");
+  const graded = page.getByText("Decisions graded", { exact: true });
   const next = page.getByRole("button", { name: "Next hand" });
   const missed = page.getByText(/^(Inaccuracy|Mistake|Blunder)$/).first();
   for (let i = 0; i < 40 && !(await missed.isVisible()); i += 1) {
@@ -135,7 +135,7 @@ test("Practice's rates by seat and pot come back in History", async ({ page, pro
     else await options(page).last().click();
     await page.waitForTimeout(200);
   }
-  await expect(graded.or(page.getByText("Decisions graded")).first()).toBeVisible();
+  await expect(graded.or(page.getByText("Decisions graded", { exact: true })).first()).toBeVisible();
 
   await page.goto("/lizard/history/");
   await openBreakdown(page);

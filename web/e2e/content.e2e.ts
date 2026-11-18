@@ -375,7 +375,7 @@ test("Practice: a decision made and graded", async ({ page, problems }, info) =>
     page.viewportSize()?.height ?? 0,
   );
   await options.first().click();
-  await expect(page.getByText(/Decisions graded/i)).toBeVisible();
+  await expect(page.getByText("Decisions graded", { exact: true })).toBeVisible();
   await done(page, problems, info, "practice-graded");
 });
 
