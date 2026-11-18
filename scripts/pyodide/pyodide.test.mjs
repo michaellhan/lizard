@@ -213,6 +213,8 @@ test("the published worker imports Lizard's engine patches at start, before the 
   assert.ok(at("sys.path.insert(0, '/app');") < at("import engine.pf_stored;"));
   assert.ok(at("import engine.pf_stored;") < at("import engine.pf_icm_study;"));
   assert.ok(at("import engine.pf_icm_study;") < at("import engine.tree_depth;"));
+  assert.ok(at("import engine.tree_depth;") < at("import engine.pf_charts;"));
+  assert.ok(at("import engine.pf_charts;") < at("import engine.bunching;"));
   assert.ok(at("import engine.tree_depth;") < at("import engine.bunching;"));
   assert.ok(at("import engine.bunching;") < at("import engine.mw_near;"));
   assert.ok(at("import engine.mw_near;") < at("import engine.mw_quick;"));

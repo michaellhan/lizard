@@ -39,6 +39,31 @@ from gto.pf_classes import CLASSES, PAIR_COMPAT, equity_matrix
 
 K = len(CLASSES)
 JAM_OPEN = 25.0        # an unopened pot can be jammed beside the open from this effective stack (bb) or less
+# the flop model's tag, hashed into every game's key (pf_icm_study.Spec.key), so no stored file or browser keep mixes two
+# models' solves: "cal1" is engine/pf_model's calibrated model (2026-11-18; the keys before it had none: upstream's
+# pf_study.flop_model) on the equities (gto/pf_equity.py) and calibration (engine/pf_calib.py) whose digest is
+# MODEL_DIGEST, which the stored presets were solved on. Other equities or calibration key as "cal1-<their digest>", so
+# every preset's key moves with them and test_pf_icm_stored fails until the presets are solved again
+# (scripts/pf_icm/build_stored.py all --missing) under the new keys; MODEL_DIGEST stays as it is. A change to pf_model's
+# code bumps "cal1" by hand (and MODEL_DIGEST to the digest then).
+MODEL_DIGEST = "3b4b09a3b06f"
+
+
+def model_digest() -> str:
+    """A short hash of what the flop model is computed from: the class equities and the calibrated corrections."""
+    import hashlib
+    import json
+    from gto.pf_equity import DATA
+    h = hashlib.sha1("".join(DATA).encode())
+    try:
+        from . import pf_calib
+        h.update(json.dumps(pf_calib.PARAMS, sort_keys=True).encode())
+    except ImportError:
+        h.update(b"no calibration")
+    return h.hexdigest()[:12]
+
+
+FLOP_MODEL_TAG = "cal1" if model_digest() == MODEL_DIGEST else f"cal1-{model_digest()}"
 EPS = 1e-9
 
 
@@ -457,9 +482,14 @@ class ICMGame(G.Game):
 
 # ----------------------------------------------------------------------------- a spot
 def flop_model(stack: float) -> G.EQRModel:
-    """The flop valuation the preflop solve uses (pf_study.flop_model), at the effective depth."""
-    from gto import pf_study
-    return pf_study.flop_model(max(10.0, min(250.0, stack)))
+    """The flop valuation the cash grid's solve uses (engine/pf_model.py's calibrated model, engine/pf_calib.py's
+    corrections), at the effective depth. It was upstream's (pf_study.flop_model), whose join at a library range's edge
+    valued a class just outside it above its neighbours inside, so the Early preset's hijack opened QTo and folded QJo
+    (docs/ACCURACY.md section 18.6 has the cash grid's case). The same shares a pot, the same keys (pot type, position,
+    seats) and the same depth factors (pf_study.depth_scale, held to 20-200bb), so it drops in; the corrections were
+    calibrated on chip games (6-max 100bb), which a prize-equity game takes as its flop's chip shares."""
+    from . import pf_model
+    return pf_model.flop_model(max(10.0, min(250.0, stack)))
 
 
 def game(positions: Sequence[str], stacks: Sequence[float], antes: Sequence[float] = (), icm_model=None,

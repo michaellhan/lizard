@@ -107,3 +107,118 @@
 {"name": "Final table, 9 left, 40bb average, equal stacks", "key": "icm9_ea5b050c3174b31c", "nodes": 2542, "iterations": 1500, "seconds": 50.3, "mbb": 0.045, "bytes": 18387}
 {"name": "Final table, 9 left, 40bb average, chip leader on the button", "key": "icm9_a373cb33e9ca3b81", "nodes": 1764, "iterations": 1500, "seconds": 32.9, "mbb": 0.057, "bytes": 12800}
 {"name": "Final table, 9 left, 40bb average, short stack in the big blind", "key": "icm9_50e302994f71d2af", "nodes": 2244, "iterations": 1500, "seconds": 47.1, "mbb": 0.054, "bytes": 17138}
+{"name": "Heads-up", "key": "icm2_4fbe74424c05b3c7", "nodes": 22, "iterations": 1500, "seconds": 0.5, "mbb": 0.01, "bytes": 613}
+{"name": "Three left", "key": "icm3_7f1f4a95c45b0e5a", "nodes": 78, "iterations": 1500, "seconds": 1.5, "mbb": 0.166, "bytes": 1028}
+{"name": "Final table, 3 left, 10bb average, equal stacks", "key": "icm3_32d63554fc52aee2", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.039, "bytes": 1279}
+{"name": "Final table, 3 left, 10bb average, chip leader on the button", "key": "icm3_a8e4ba29f50cafbe", "nodes": 42, "iterations": 1500, "seconds": 0.9, "mbb": 0.317, "bytes": 584}
+{"name": "Final table, 3 left, 10bb average, short stack in the big blind", "key": "icm3_c2e484e532d0d4d6", "nodes": 54, "iterations": 1500, "seconds": 1.2, "mbb": 2.086, "bytes": 1324}
+{"name": "Final table, 3 left, 15bb average, equal stacks", "key": "icm3_25b2b526e616a114", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.136, "bytes": 1187}
+{"name": "Final table, 3 left, 15bb average, chip leader on the button", "key": "icm3_d80a7fb1c420bb5e", "nodes": 42, "iterations": 1500, "seconds": 0.9, "mbb": 0.179, "bytes": 672}
+{"name": "Final table, 3 left, 15bb average, short stack in the big blind", "key": "icm3_f47288e26ee219b7", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.423, "bytes": 1028}
+{"name": "Final table, 3 left, 20bb average, equal stacks", "key": "icm3_c3d1da662937db68", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.193, "bytes": 1077}
+{"name": "Final table, 3 left, 20bb average, chip leader on the button", "key": "icm3_156c08b3f34e394e", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.149, "bytes": 877}
+{"name": "Final table, 3 left, 20bb average, short stack in the big blind", "key": "icm3_beb2dd43d8fccc73", "nodes": 47, "iterations": 1500, "seconds": 1.1, "mbb": 0.47, "bytes": 795}
+{"name": "Final table, 3 left, 30bb average, equal stacks", "key": "icm3_db8df0ea807c9034", "nodes": 47, "iterations": 1500, "seconds": 1.1, "mbb": 0.157, "bytes": 956}
+{"name": "Final table, 3 left, 30bb average, chip leader on the button", "key": "icm3_a6b56663b3c00834", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.196, "bytes": 1068}
+{"name": "Final table, 3 left, 30bb average, short stack in the big blind", "key": "icm3_49f2ed8236169a14", "nodes": 61, "iterations": 1500, "seconds": 1.3, "mbb": 0.182, "bytes": 917}
+{"name": "Final table, 3 left, 40bb average, equal stacks", "key": "icm3_02f94c1f0da33daf", "nodes": 82, "iterations": 1500, "seconds": 1.5, "mbb": 0.179, "bytes": 1298}
+{"name": "Final table, 3 left, 40bb average, chip leader on the button", "key": "icm3_7665779f5e1ef73c", "nodes": 54, "iterations": 1500, "seconds": 1.1, "mbb": 0.348, "bytes": 991}
+{"name": "Final table, 3 left, 40bb average, short stack in the big blind", "key": "icm3_2c9034a42dd64036", "nodes": 78, "iterations": 1500, "seconds": 1.5, "mbb": 0.163, "bytes": 1050}
+{"name": "Sit & go bubble", "key": "icm4_7977fc0c5f2aab6e", "nodes": 202, "iterations": 1500, "seconds": 3.6, "mbb": 1.285, "bytes": 2243}
+{"name": "Final table, 4 left, 10bb average, equal stacks", "key": "icm4_8c8fc668d690d2f8", "nodes": 149, "iterations": 1500, "seconds": 3.2, "mbb": 0.073, "bytes": 1916}
+{"name": "Final table, 4 left, 10bb average, chip leader on the button", "key": "icm4_e82c064522a62f69", "nodes": 137, "iterations": 1500, "seconds": 2.3, "mbb": 0.191, "bytes": 1446}
+{"name": "Final table, 4 left, 10bb average, short stack in the big blind", "key": "icm4_fa655dc178b74a7e", "nodes": 188, "iterations": 1500, "seconds": 3.4, "mbb": 0.45, "bytes": 2879}
+{"name": "Final table, 4 left, 15bb average, equal stacks", "key": "icm4_7ab597d427290cc1", "nodes": 149, "iterations": 1500, "seconds": 2.6, "mbb": 0.241, "bytes": 2659}
+{"name": "Final table, 4 left, 15bb average, chip leader on the button", "key": "icm4_0471012bf7afd5e1", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 0.159, "bytes": 2011}
+{"name": "Final table, 4 left, 15bb average, short stack in the big blind", "key": "icm4_ce9f706cd665a522", "nodes": 188, "iterations": 1500, "seconds": 3.2, "mbb": 0.507, "bytes": 2424}
+{"name": "Final table, 4 left, 20bb average, equal stacks", "key": "icm4_89620a19ac169202", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 0.435, "bytes": 2275}
+{"name": "Final table, 4 left, 20bb average, chip leader on the button", "key": "icm4_5783064c6773a4db", "nodes": 197, "iterations": 1500, "seconds": 3.2, "mbb": 0.254, "bytes": 2304}
+{"name": "Final table, 4 left, 20bb average, short stack in the big blind", "key": "icm4_add777b5fbd6973d", "nodes": 269, "iterations": 1500, "seconds": 5.1, "mbb": 0.65, "bytes": 3035}
+{"name": "Final table, 4 left, 30bb average, equal stacks", "key": "icm4_656948b66dead82b", "nodes": 176, "iterations": 1500, "seconds": 3.8, "mbb": 0.541, "bytes": 1752}
+{"name": "Final table, 4 left, 30bb average, chip leader on the button", "key": "icm4_013578ed96e6c7a8", "nodes": 197, "iterations": 1500, "seconds": 4.0, "mbb": 0.375, "bytes": 2396}
+{"name": "Final table, 4 left, 30bb average, short stack in the big blind", "key": "icm4_2446f868917b72d3", "nodes": 267, "iterations": 1500, "seconds": 5.7, "mbb": 0.433, "bytes": 2357}
+{"name": "Final table, 4 left, 40bb average, equal stacks", "key": "icm4_0e1a8fe617d3cad4", "nodes": 310, "iterations": 1500, "seconds": 5.8, "mbb": 0.594, "bytes": 3325}
+{"name": "Final table, 4 left, 40bb average, chip leader on the button", "key": "icm4_6741d29833266ca9", "nodes": 176, "iterations": 1500, "seconds": 3.4, "mbb": 0.39, "bytes": 1785}
+{"name": "Final table, 4 left, 40bb average, short stack in the big blind", "key": "icm4_035ba1bc7c22754d", "nodes": 401, "iterations": 1500, "seconds": 7.8, "mbb": 0.385, "bytes": 3253}
+{"name": "Final-table bubble", "key": "icm5_2af0c8630a3e0dcb", "nodes": 895, "iterations": 1500, "seconds": 16.8, "mbb": 0.596, "bytes": 7605}
+{"name": "Final table, 5 left, 10bb average, equal stacks", "key": "icm5_fd7ac367b230b00c", "nodes": 390, "iterations": 1500, "seconds": 7.2, "mbb": 0.07, "bytes": 3494}
+{"name": "Final table, 5 left, 10bb average, chip leader on the button", "key": "icm5_1a89eb32957bdf64", "nodes": 378, "iterations": 1500, "seconds": 6.2, "mbb": 0.105, "bytes": 2478}
+{"name": "Final table, 5 left, 10bb average, short stack in the big blind", "key": "icm5_b20cc7c0e5ddc499", "nodes": 528, "iterations": 1500, "seconds": 9.7, "mbb": 0.346, "bytes": 4797}
+{"name": "Final table, 5 left, 15bb average, equal stacks", "key": "icm5_a80530a77ec5d3f1", "nodes": 390, "iterations": 1500, "seconds": 6.7, "mbb": 0.189, "bytes": 4028}
+{"name": "Final table, 5 left, 15bb average, chip leader on the button", "key": "icm5_804776a8136d768c", "nodes": 599, "iterations": 1500, "seconds": 9.4, "mbb": 0.146, "bytes": 3874}
+{"name": "Final table, 5 left, 15bb average, short stack in the big blind", "key": "icm5_3c4af1adf9f559de", "nodes": 528, "iterations": 1500, "seconds": 7.9, "mbb": 0.486, "bytes": 4949}
+{"name": "Final table, 5 left, 20bb average, equal stacks", "key": "icm5_3ff211bf2e6e5ea2", "nodes": 599, "iterations": 1500, "seconds": 9.1, "mbb": 0.387, "bytes": 4480}
+{"name": "Final table, 5 left, 20bb average, chip leader on the button", "key": "icm5_037fe211febc73a5", "nodes": 599, "iterations": 1500, "seconds": 9.1, "mbb": 0.286, "bytes": 4129}
+{"name": "Final table, 5 left, 20bb average, short stack in the big blind", "key": "icm5_de93ac500314c2f1", "nodes": 863, "iterations": 1500, "seconds": 13.1, "mbb": 0.668, "bytes": 7265}
+{"name": "Final table, 5 left, 30bb average, equal stacks", "key": "icm5_fbd11567448f423a", "nodes": 666, "iterations": 1500, "seconds": 8.9, "mbb": 0.628, "bytes": 4408}
+{"name": "Final table, 5 left, 30bb average, chip leader on the button", "key": "icm5_e0b2af2755dc36e8", "nodes": 825, "iterations": 1500, "seconds": 11.8, "mbb": 0.451, "bytes": 5811}
+{"name": "Final table, 5 left, 30bb average, short stack in the big blind", "key": "icm5_53e81af1e4deed1d", "nodes": 1059, "iterations": 1500, "seconds": 16.1, "mbb": 0.64, "bytes": 7403}
+{"name": "Final table, 5 left, 40bb average, equal stacks", "key": "icm5_d84a0dd6e869e9da", "nodes": 963, "iterations": 1500, "seconds": 15.6, "mbb": 0.904, "bytes": 6204}
+{"name": "Final table, 5 left, 40bb average, chip leader on the button", "key": "icm5_d5f6aa0ebaab05f5", "nodes": 779, "iterations": 1500, "seconds": 12.7, "mbb": 0.691, "bytes": 5043}
+{"name": "Final table, 5 left, 40bb average, short stack in the big blind", "key": "icm5_6bed0ec3f3f3107f", "nodes": 1552, "iterations": 1500, "seconds": 28.5, "mbb": 0.531, "bytes": 10431}
+{"name": "Sit & go, 6 players", "key": "icm6_77fc5445965a1fe2", "nodes": 7542, "iterations": 1500, "seconds": 138.4, "mbb": 1.033, "bytes": 46575}
+{"name": "Double or nothing", "key": "icm6_c04bba4775d14baa", "nodes": 4667, "iterations": 1500, "seconds": 93.2, "mbb": 0.538, "bytes": 20087}
+{"name": "Final table, 6 left, 10bb average, equal stacks", "key": "icm6_3de610650f5a4797", "nodes": 924, "iterations": 1500, "seconds": 17.1, "mbb": 0.079, "bytes": 5300}
+{"name": "Final table, 6 left, 10bb average, chip leader on the button", "key": "icm6_96f83144dada84d4", "nodes": 1062, "iterations": 1500, "seconds": 21.2, "mbb": 0.113, "bytes": 5003}
+{"name": "Final table, 6 left, 10bb average, short stack in the big blind", "key": "icm6_567246f425d78b1f", "nodes": 1248, "iterations": 1500, "seconds": 32.1, "mbb": 0.298, "bytes": 8710}
+{"name": "Final table, 6 left, 15bb average, equal stacks", "key": "icm6_9a2381f3ee41a285", "nodes": 924, "iterations": 1500, "seconds": 19.6, "mbb": 0.199, "bytes": 5591}
+{"name": "Final table, 6 left, 15bb average, chip leader on the button", "key": "icm6_451a1ca135ec5b6b", "nodes": 1407, "iterations": 1500, "seconds": 29.7, "mbb": 0.156, "bytes": 6797}
+{"name": "Final table, 6 left, 15bb average, short stack in the big blind", "key": "icm6_5475fa7f5075def3", "nodes": 1248, "iterations": 1500, "seconds": 22.9, "mbb": 0.487, "bytes": 9860}
+{"name": "Final table, 6 left, 20bb average, equal stacks", "key": "icm6_c1cdc491ca9c01bc", "nodes": 1525, "iterations": 1500, "seconds": 26.3, "mbb": 0.464, "bytes": 8429}
+{"name": "Final table, 6 left, 20bb average, chip leader on the button", "key": "icm6_3fb9ba831e3ea6e3", "nodes": 1638, "iterations": 1500, "seconds": 25.6, "mbb": 0.311, "bytes": 7937}
+{"name": "Final table, 6 left, 20bb average, short stack in the big blind", "key": "icm6_125d089fa8db27f2", "nodes": 2155, "iterations": 1500, "seconds": 49.0, "mbb": 0.699, "bytes": 15590}
+{"name": "Final table, 6 left, 30bb average, equal stacks", "key": "icm6_d52b1ed6cd9f8000", "nodes": 2008, "iterations": 1500, "seconds": 43.7, "mbb": 0.774, "bytes": 10305}
+{"name": "Final table, 6 left, 30bb average, chip leader on the button", "key": "icm6_65e70562810b8d52", "nodes": 2434, "iterations": 1500, "seconds": 54.5, "mbb": 0.588, "bytes": 12366}
+{"name": "Final table, 6 left, 30bb average, short stack in the big blind", "key": "icm6_f5d1ba5c47e7e8ef", "nodes": 3338, "iterations": 1500, "seconds": 68.2, "mbb": 0.775, "bytes": 18559}
+{"name": "Final table, 6 left, 40bb average, equal stacks", "key": "icm6_a81bdff8babf867b", "nodes": 2763, "iterations": 1500, "seconds": 71.7, "mbb": 0.954, "bytes": 13113}
+{"name": "Final table, 6 left, 40bb average, chip leader on the button", "key": "icm6_f1141148c1e111ff", "nodes": 3122, "iterations": 1500, "seconds": 57.3, "mbb": 0.742, "bytes": 15387}
+{"name": "Final table, 6 left, 40bb average, short stack in the big blind", "key": "icm6_6200d713bc2a0dcc", "nodes": 5002, "iterations": 1500, "seconds": 105.9, "mbb": 0.712, "bytes": 28055}
+{"name": "Final table, 7 left, 10bb average, equal stacks", "key": "icm7_aaffb597351454ad", "nodes": 632, "iterations": 1500, "seconds": 14.1, "mbb": 0.049, "bytes": 4881}
+{"name": "Final table, 7 left, 10bb average, chip leader on the button", "key": "icm7_5f134c5d785965d4", "nodes": 638, "iterations": 1500, "seconds": 17.9, "mbb": 0.079, "bytes": 4286}
+{"name": "Final table, 7 left, 10bb average, short stack in the big blind", "key": "icm7_cc6421071f04a969", "nodes": 716, "iterations": 1500, "seconds": 14.2, "mbb": 0.126, "bytes": 7464}
+{"name": "Final table, 7 left, 15bb average, equal stacks", "key": "icm7_6708d77960e8f9b1", "nodes": 632, "iterations": 1500, "seconds": 12.2, "mbb": 0.264, "bytes": 6025}
+{"name": "Final table, 7 left, 15bb average, chip leader on the button", "key": "icm7_0cf96b8eb384e0ab", "nodes": 740, "iterations": 1500, "seconds": 17.6, "mbb": 0.047, "bytes": 5268}
+{"name": "Final table, 7 left, 15bb average, short stack in the big blind", "key": "icm7_742a393ef9f93338", "nodes": 716, "iterations": 1500, "seconds": 17.0, "mbb": 0.125, "bytes": 6427}
+{"name": "Final table, 7 left, 20bb average, equal stacks", "key": "icm7_b9d5fbe30735d841", "nodes": 662, "iterations": 1500, "seconds": 17.5, "mbb": 0.05, "bytes": 5696}
+{"name": "Final table, 7 left, 20bb average, chip leader on the button", "key": "icm7_c06556c98f9a1d3c", "nodes": 740, "iterations": 1500, "seconds": 15.3, "mbb": 0.042, "bytes": 5589}
+{"name": "Final table, 7 left, 20bb average, short stack in the big blind", "key": "icm7_9f2fd8a1ae8e2011", "nodes": 746, "iterations": 1500, "seconds": 16.4, "mbb": 0.073, "bytes": 6977}
+{"name": "Final table, 7 left, 30bb average, equal stacks", "key": "icm7_c7fef20e3822c8ad", "nodes": 672, "iterations": 1500, "seconds": 14.7, "mbb": 0.044, "bytes": 5588}
+{"name": "Final table, 7 left, 30bb average, chip leader on the button", "key": "icm7_4150bf1a63220e3f", "nodes": 758, "iterations": 1500, "seconds": 17.8, "mbb": 0.035, "bytes": 5748}
+{"name": "Final table, 7 left, 30bb average, short stack in the big blind", "key": "icm7_dbb328a6777264ad", "nodes": 780, "iterations": 1500, "seconds": 19.9, "mbb": 0.041, "bytes": 6463}
+{"name": "Final table, 7 left, 40bb average, equal stacks", "key": "icm7_aef35f6d0d8bac8f", "nodes": 1102, "iterations": 1500, "seconds": 21.6, "mbb": 0.034, "bytes": 8851}
+{"name": "Final table, 7 left, 40bb average, chip leader on the button", "key": "icm7_829d2e92e11ddb3e", "nodes": 708, "iterations": 1500, "seconds": 14.5, "mbb": 0.03, "bytes": 5567}
+{"name": "Final table, 7 left, 40bb average, short stack in the big blind", "key": "icm7_e6e382456fbcb868", "nodes": 970, "iterations": 1500, "seconds": 20.6, "mbb": 0.026, "bytes": 7455}
+{"name": "Early", "key": "icm8_28d33d6554521604", "nodes": 2148, "iterations": 1500, "seconds": 41.1, "mbb": 0.174, "bytes": 16766}
+{"name": "Bubble", "key": "icm8_e00ec782d7ec1a65", "nodes": 1310, "iterations": 1500, "seconds": 35.5, "mbb": 0.214, "bytes": 8537}
+{"name": "Final table, 8 left, 10bb average, equal stacks", "key": "icm8_4831b5b4c1fd727b", "nodes": 985, "iterations": 1500, "seconds": 31.0, "mbb": 0.061, "bytes": 6810}
+{"name": "Final table, 8 left, 10bb average, chip leader on the button", "key": "icm8_dc94cd6ce8b7bc68", "nodes": 994, "iterations": 1500, "seconds": 29.0, "mbb": 0.092, "bytes": 6447}
+{"name": "Final table, 8 left, 10bb average, short stack in the big blind", "key": "icm8_6ecbd4b7039b69bf", "nodes": 1105, "iterations": 1500, "seconds": 24.3, "mbb": 0.135, "bytes": 9742}
+{"name": "Final table, 8 left, 15bb average, equal stacks", "key": "icm8_c4d957e54fa0dbc1", "nodes": 985, "iterations": 1500, "seconds": 20.6, "mbb": 0.05, "bytes": 6752}
+{"name": "Final table, 8 left, 15bb average, chip leader on the button", "key": "icm8_24adbb6cc90ca759", "nodes": 1160, "iterations": 1500, "seconds": 22.7, "mbb": 0.052, "bytes": 7761}
+{"name": "Final table, 8 left, 15bb average, short stack in the big blind", "key": "icm8_d9b37e9b3920514f", "nodes": 1105, "iterations": 1500, "seconds": 21.5, "mbb": 0.084, "bytes": 8575}
+{"name": "Final table, 8 left, 20bb average, equal stacks", "key": "icm8_2f2160b7545b14fe", "nodes": 1030, "iterations": 1500, "seconds": 22.4, "mbb": 0.069, "bytes": 9622}
+{"name": "Final table, 8 left, 20bb average, chip leader on the button", "key": "icm8_e1683b727242cba8", "nodes": 1160, "iterations": 1500, "seconds": 28.9, "mbb": 0.062, "bytes": 8844}
+{"name": "Final table, 8 left, 20bb average, short stack in the big blind", "key": "icm8_b364db5da334b54f", "nodes": 1150, "iterations": 1500, "seconds": 29.3, "mbb": 0.102, "bytes": 10317}
+{"name": "Final table, 8 left, 30bb average, equal stacks", "key": "icm8_dde3161a711870e0", "nodes": 1108, "iterations": 1500, "seconds": 24.9, "mbb": 0.054, "bytes": 8155}
+{"name": "Final table, 8 left, 30bb average, chip leader on the button", "key": "icm8_874d8e93e65390e4", "nodes": 1105, "iterations": 1500, "seconds": 20.0, "mbb": 0.038, "bytes": 8750}
+{"name": "Final table, 8 left, 30bb average, short stack in the big blind", "key": "icm8_afc6541df00e6635", "nodes": 1255, "iterations": 1500, "seconds": 26.5, "mbb": 0.043, "bytes": 9510}
+{"name": "Final table, 8 left, 40bb average, equal stacks", "key": "icm8_bd9712a2ae731fe4", "nodes": 1720, "iterations": 1500, "seconds": 34.6, "mbb": 0.035, "bytes": 11891}
+{"name": "Final table, 8 left, 40bb average, chip leader on the button", "key": "icm8_ec574975513efac3", "nodes": 1150, "iterations": 1500, "seconds": 25.9, "mbb": 0.044, "bytes": 8744}
+{"name": "Final table, 8 left, 40bb average, short stack in the big blind", "key": "icm8_b8479d593038275b", "nodes": 1540, "iterations": 1500, "seconds": 36.4, "mbb": 0.042, "bytes": 11288}
+{"name": "Final table", "key": "icm9_c261337ded1f6129", "nodes": 2096, "iterations": 1500, "seconds": 46.6, "mbb": 0.158, "bytes": 13004}
+{"name": "Sit & go, 9 players", "key": "icm9_471377294e83be34", "nodes": 3318, "iterations": 1500, "seconds": 69.7, "mbb": 0.063, "bytes": 20573}
+{"name": "Final table, 9 left, 10bb average, equal stacks", "key": "icm9_f6b9341aed80a704", "nodes": 1464, "iterations": 1500, "seconds": 37.6, "mbb": 0.051, "bytes": 8368}
+{"name": "Final table, 9 left, 10bb average, chip leader on the button", "key": "icm9_578284837221ec02", "nodes": 1476, "iterations": 1500, "seconds": 33.8, "mbb": 0.073, "bytes": 8099}
+{"name": "Final table, 9 left, 10bb average, short stack in the big blind", "key": "icm9_83f63a51cc4ebf2c", "nodes": 1626, "iterations": 1500, "seconds": 34.3, "mbb": 0.122, "bytes": 12530}
+{"name": "Final table, 9 left, 15bb average, equal stacks", "key": "icm9_57b4395501d4f0f9", "nodes": 1464, "iterations": 1500, "seconds": 28.9, "mbb": 0.044, "bytes": 9102}
+{"name": "Final table, 9 left, 15bb average, chip leader on the button", "key": "icm9_20ac129e4e6102d2", "nodes": 1722, "iterations": 1500, "seconds": 42.0, "mbb": 0.082, "bytes": 10698}
+{"name": "Final table, 9 left, 15bb average, short stack in the big blind", "key": "icm9_4a248ff6f122bf16", "nodes": 1626, "iterations": 1500, "seconds": 63.0, "mbb": 0.218, "bytes": 11930}
+{"name": "Final table, 9 left, 20bb average, equal stacks", "key": "icm9_3f174f3b1be0b183", "nodes": 1527, "iterations": 1500, "seconds": 43.9, "mbb": 0.054, "bytes": 12801}
+{"name": "Final table, 9 left, 20bb average, chip leader on the button", "key": "icm9_1d5c79a48fb5a765", "nodes": 1722, "iterations": 1500, "seconds": 36.6, "mbb": 0.038, "bytes": 10820}
+{"name": "Final table, 9 left, 20bb average, short stack in the big blind", "key": "icm9_425b4da6a8bf1fe5", "nodes": 1689, "iterations": 1500, "seconds": 39.5, "mbb": 0.063, "bytes": 13025}
+{"name": "Final table, 9 left, 30bb average, equal stacks", "key": "icm9_e0f0b16d71b31311", "nodes": 1716, "iterations": 1500, "seconds": 39.5, "mbb": 0.054, "bytes": 11770}
+{"name": "Final table, 9 left, 30bb average, chip leader on the button", "key": "icm9_24c5c173a5c94a52", "nodes": 1713, "iterations": 1500, "seconds": 41.1, "mbb": 0.045, "bytes": 12036}
+{"name": "Final table, 9 left, 30bb average, short stack in the big blind", "key": "icm9_04f04ac83fb72125", "nodes": 1908, "iterations": 1500, "seconds": 46.5, "mbb": 0.044, "bytes": 12774}
+{"name": "Final table, 9 left, 40bb average, equal stacks", "key": "icm9_130d332fb24a25a4", "nodes": 2542, "iterations": 1500, "seconds": 56.3, "mbb": 0.047, "bytes": 16363}
+{"name": "Final table, 9 left, 40bb average, chip leader on the button", "key": "icm9_f734b8bfb07ce586", "nodes": 1764, "iterations": 1500, "seconds": 42.8, "mbb": 0.042, "bytes": 12252}
+{"name": "Final table, 9 left, 40bb average, short stack in the big blind", "key": "icm9_e6181bd95b26eda1", "nodes": 2244, "iterations": 1500, "seconds": 55.8, "mbb": 0.047, "bytes": 13527}

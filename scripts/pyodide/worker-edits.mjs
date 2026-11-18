@@ -96,6 +96,16 @@ const EDITS = [
     to: "import engine.bunching; import engine.mw_near; import engine.mw_quick; from gto.advisor import Advisor;",
   },
   {
+    // engine/pf_charts.py: the preflop charts as served, repaired. 13 to 19bb play the 20bb game's moves (they played the
+    // 100bb charts), and no hand continues less than one it dominates, nor does a premium flat while the next hand down
+    // raises; the chart nodes that feed a published flop library spot are left as they were. Between tree_depth and
+    // bunching (this edit runs on the bunching edit's output), so its wraps are in place before any request. It wraps
+    // nothing bunching holds, and anchoring in front of bunching leaves "import engine.bunching; from gto.advisor import
+    // Advisor;" whole for an edit that goes after bunching, whichever of the two runs first.
+    from: "import engine.tree_depth; import engine.bunching;",
+    to: "import engine.tree_depth; import engine.pf_charts; import engine.bunching;",
+  },
+  {
     // A request's `cache_mb` (web/src/features/reports/customRun.ts: a custom flop report's solves): the most the solves
     // kept for reuse may hold while it's answered, below the worker's own 700 MB (cache_mb, set at start), which comes back
     // with the next request that doesn't say. A report solves flop after flop and reuses none of them, so without this its
